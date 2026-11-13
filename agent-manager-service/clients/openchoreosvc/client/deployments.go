@@ -2250,17 +2250,15 @@ func findDeployedImageFromComponentRelease(release *gen.ComponentRelease) string
 // deploy: status is populated only once the binding reconciles. Callers must
 // distinguish it from an error and retry rather than publish.
 //
-// Selection: an agent component declares exactly one endpoint (the agent-api
-// ComponentType requires at least one, and buildEndpoints emits exactly one),
-// so the first endpoint carrying a ServiceURL is taken. Scheme is defaulted to
-// http when absent — nothing in this repo reads it today, and the in-cluster
-// hop to an agent's container is plain HTTP.
+// Selection: see bindingServiceURL. The URL becomes an HTTP gateway's upstream,
+// so a binding that serves no HTTP endpoint reads as not ready rather than
+// handing the gateway a URL it rejects.
 func (c *openChoreoClient) GetReleaseBindingServiceURL(ctx context.Context, ouID, componentName, environment string) (string, error) {
 	binding, err := c.findReleaseBindingForEnv(ctx, c.NamespaceFor(ouID), componentName, environment)
 	if err != nil {
 		return "", fmt.Errorf("failed to find release binding for %s: %w", componentName, err)
 	}
-	return bindingServiceURL(binding), nil
+	return bindingServiceURL(binding, componentName), nil
 }
 
 // ErrReleaseBindingNotFound means the component has no release binding in the environment.
@@ -2374,7 +2372,7 @@ func (c *openChoreoClient) GetReleaseBindingRollout(ctx context.Context, ouID, c
 	}
 	status := determineDeploymentStatus(binding, runtimeReplicaState{})
 	rollout := ReleaseBindingRollout{
-		ServiceURL:  bindingServiceURL(binding),
+		ServiceURL:  bindingServiceURL(binding, componentName),
 		ExternalURL: bindingExternalURL(binding),
 		Serving:     status == DeploymentStatusActive,
 		Deployed:    status != DeploymentStatusSuspended,
@@ -2556,21 +2554,54 @@ func bindingExternalURL(binding *gen.ReleaseBinding) string {
 	return ""
 }
 
-// bindingServiceURL is the first endpoint's in-cluster URL, or "" before the binding reconciles.
-func bindingServiceURL(binding *gen.ReleaseBinding) string {
+// agentEndpointName is the name an agent component's own endpoint carries in its workload.
+func agentEndpointName(componentName string) string {
+	return componentName + "-endpoint"
+}
+
+// bindingServiceURL is the in-cluster HTTP URL of the agent's own endpoint, or "" before the
+// binding reconciles one.
+//
+// A workload may publish endpoints beside the agent's own, such as a voice agent's WebSocket,
+// and the binding lists them in no order this repo controls. So the endpoint named after the
+// component is taken when it serves HTTP, and otherwise the first that does. An endpoint whose
+// scheme is not http or https is never taken: the URL is an HTTP upstream, and the gateway
+// refuses to deploy an API whose upstream is ws://. A missing scheme is http, since the
+// in-cluster hop to an agent's container is plain HTTP.
+func bindingServiceURL(binding *gen.ReleaseBinding, componentName string) string {
 	if binding == nil || binding.Status == nil || binding.Status.Endpoints == nil {
 		return ""
 	}
+	own := agentEndpointName(componentName)
+	first := ""
 	for _, ep := range *binding.Status.Endpoints {
-		if ep.ServiceURL == nil || strings.TrimSpace(ep.ServiceURL.Host) == "" {
+		url, ok := httpServiceURL(ep.ServiceURL)
+		if !ok {
 			continue
 		}
-		svc := *ep.ServiceURL
-		if svc.Scheme == nil || strings.TrimSpace(*svc.Scheme) == "" {
-			scheme := "http"
-			svc.Scheme = &scheme
+		if ep.Name == own {
+			return url
 		}
-		return buildEndpointURLString(&svc)
+		if first == "" {
+			first = url
+		}
 	}
-	return ""
+	return first
+}
+
+// httpServiceURL renders an endpoint's in-cluster URL when it has a host and an HTTP scheme.
+func httpServiceURL(serviceURL *gen.EndpointURL) (string, bool) {
+	if serviceURL == nil || strings.TrimSpace(serviceURL.Host) == "" {
+		return "", false
+	}
+	svc := *serviceURL
+	scheme := "http"
+	if svc.Scheme != nil && strings.TrimSpace(*svc.Scheme) != "" {
+		scheme = strings.ToLower(strings.TrimSpace(*svc.Scheme))
+	}
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+	svc.Scheme = &scheme
+	return buildEndpointURLString(&svc), true
 }

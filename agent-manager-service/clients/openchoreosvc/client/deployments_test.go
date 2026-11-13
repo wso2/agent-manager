@@ -629,10 +629,54 @@ func TestGetReleaseBindingServiceURL(t *testing.T) {
 		assert.Equal(t, "https://dev.svc", got)
 	})
 
+	// A voice agent's workload publishes its WebSocket beside the agent's own endpoint, and the
+	// binding may list it first.
+	ws := "ws"
+	wsUpper := "WS"
+	voicePort := int32(8080)
+	agentPort := int32(9090)
+	agentPath := "/chat-agent"
+	voice := gen.EndpointURLStatus{Name: "voice-agent", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &voicePort, Scheme: &ws}}
+	own := gen.EndpointURLStatus{Name: "myagent-endpoint", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &agentPort, Path: &agentPath}}
+
+	picks := map[string]struct {
+		endpoints []gen.EndpointURLStatus
+		want      string
+	}{
+		"skips a WebSocket endpoint listed before the agent's own": {
+			endpoints: []gen.EndpointURLStatus{voice, own},
+			want:      "http://myagent.svc:9090/chat-agent",
+		},
+		"skips a WebSocket endpoint whatever its scheme's case": {
+			endpoints: []gen.EndpointURLStatus{
+				{Name: "voice-agent", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &voicePort, Scheme: &wsUpper}},
+				{Name: "other", ServiceURL: &gen.EndpointURL{Host: "other.svc", Port: &port}},
+			},
+			want: "http://other.svc:8000",
+		},
+		"takes the agent's own endpoint over another HTTP endpoint listed first": {
+			endpoints: []gen.EndpointURLStatus{{Name: "a", ServiceURL: &gen.EndpointURL{Host: "a.svc", Port: &port}}, own},
+			want:      "http://myagent.svc:9090/chat-agent",
+		},
+		"falls back to the first HTTP endpoint when none is named after the agent": {
+			endpoints: []gen.EndpointURLStatus{voice, {Name: "a", ServiceURL: &gen.EndpointURL{Host: "a.svc", Port: &port, Scheme: &https}}},
+			want:      "https://a.svc:8000",
+		},
+	}
+	for name, tc := range picks {
+		t.Run(name, func(t *testing.T) {
+			eps := tc.endpoints
+			got, err := serve(t, http.StatusOK, withEndpoints("dev", &eps)).GetReleaseBindingServiceURL(context.Background(), "acme", "myagent", "dev")
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+
 	notReady := map[string][]gen.ReleaseBinding{
 		"no binding for the environment": {withEndpoints("prod", &[]gen.EndpointURLStatus{{Name: "a", ServiceURL: &gen.EndpointURL{Host: "prod.svc"}}})},
 		"status has no endpoints yet":    {withEndpoints("dev", nil)},
 		"no endpoint carries a host":     {withEndpoints("dev", &[]gen.EndpointURLStatus{{Name: "a"}})},
+		"only a WebSocket endpoint":      {withEndpoints("dev", &[]gen.EndpointURLStatus{voice})},
 	}
 	for name, items := range notReady {
 		t.Run(name+" is not ready, not an error", func(t *testing.T) {
