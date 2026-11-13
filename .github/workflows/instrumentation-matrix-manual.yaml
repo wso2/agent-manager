@@ -250,8 +250,6 @@ jobs:
           # Optional single-cell run for cheap iteration; empty = full subset.
           HEAVY_CELL_ID: ${{ inputs.heavy_cell_id }}
           HEAVY_PROVIDER_VERSION: ${{ matrix.traceloop }}
-          # Build each deployed sample from the ref under test, so a PR can
-          # validate a new/changed sample before it merges to main.
         run: nox -s heavy
       - name: Heavy summary
         if: always()
