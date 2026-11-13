@@ -2,7 +2,7 @@ name: Agent Manager CLI
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "amp-2.x"]
     paths:
       - "cli/**"
       - "scripts/build-amctl.sh"

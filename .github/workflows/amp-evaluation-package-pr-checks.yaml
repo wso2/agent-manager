@@ -2,7 +2,7 @@ name: AMP Evaluation Package
 
 on:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "amp-2.x"]
     paths:
       - "libs/amp-evaluation/**"
       - ".github/workflows/amp-evaluation-package-pr-checks.yaml"
