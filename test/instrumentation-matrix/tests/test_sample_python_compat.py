@@ -45,7 +45,7 @@ def test_resolves_supported_pairs_and_preserves_other_sample_python310(compat, m
         ("example-agent", version) for version in ("3.11", "3.12", "3.13")
     }
     assert len(calls) == 7
-    assert "Skipping samples/test/fixtures/example-agent on Python 3.10" in capsys.readouterr().out
+    assert "Skipping test/fixtures/example-agent on Python 3.10" in capsys.readouterr().out
 
 
 def test_supported_runtime_resolution_failure_is_reported(compat, monkeypatch, capsys):
@@ -57,4 +57,4 @@ def test_supported_runtime_resolution_failure_is_reported(compat, monkeypatch, c
 
     monkeypatch.setattr(compat.subprocess, "run", resolve)
     assert compat.main() == 1
-    assert "samples/customer-support-agent/requirements.txt does not resolve on Python 3.11" in capsys.readouterr().err
+    assert "customer-support-agent/requirements.txt does not resolve on Python 3.11" in capsys.readouterr().err

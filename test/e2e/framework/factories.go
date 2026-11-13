@@ -83,10 +83,10 @@ func NewITHelpdeskAgentRequest(name, description string, envVars map[string]stri
 }
 
 // NewA2AAgentRequest returns a request for creating the internal A2A sample
-// agent (samples/a2a-agent), which serves its card on port 9099.
+// agent (a2a-agent in wso2/agent-manager-samples), which serves its card on port 9099.
 func NewA2AAgentRequest(name, description string, envVars map[string]string) CreateAgentRequest {
 	req := NewITHelpdeskAgentRequest(name, description, envVars)
-	req.Provisioning.Repository.AppPath = "/samples/a2a-agent"
+	req.Provisioning.Repository.AppPath = "/a2a-agent"
 	req.AgentType.SubType = "a2a-agent"
 	req.InputInterface = &InputInterface{Type: "HTTP", Port: 9099}
 	return req
