@@ -70,7 +70,7 @@ func newGatewayInternalServiceWithDeployments(repo *repomocks.DeploymentReposito
 
 // gatewayKinds names artifacts as the registered kinds do; naming needs none of their dependencies.
 func gatewayKinds() *reconcile.Core {
-	return reconcile.NewCore(nil, nil, nil, reconcile.Kinds{NewLLMProviderKind(), &LLMProxyKind{}, &MCPProxyKind{}, &A2AAgentKind{}, &RestAgentKind{}},
+	return reconcile.NewCore(nil, nil, nil, reconcile.Kinds{NewLLMProviderKind(), &LLMProxyKind{}, &MCPProxyKind{}, &A2AAgentKind{}},
 		reconcile.Config{}, discardLogger())
 }
 

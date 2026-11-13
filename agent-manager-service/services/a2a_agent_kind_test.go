@@ -50,7 +50,6 @@ type a2aFixture struct {
 	core      *reconcile.Core
 	worker    *reconcile.Worker
 	publisher *A2APublisher
-	restKind  *RestAgentKind
 	// proxies serves external agents; external is the agent the platform reports, with no subtype (#2184).
 	proxies  A2AProxyService
 	external *models.AgentResponse
@@ -93,8 +92,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	cards := repositories.NewA2AAgentCardRepository(gormDB)
 	gateways := repositories.NewGatewayRepo(gormDB)
 	kind := NewA2AAgentKind(tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, nil, testLogger())
-	f.restKind = NewRestAgentKind(NewPlatformAgentExposures(exposures, gateways, oc), configs, f.sync.repo, apiKeys, f.events, testLogger())
-	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind, f.restKind},
+	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(f.core, slog.New(slog.DiscardHandler))
 	artifacts := repositories.NewArtifactRepo(gormDB)

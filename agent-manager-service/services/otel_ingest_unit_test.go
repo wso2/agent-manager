@@ -60,9 +60,8 @@ func TestOtelIngestKindNeedsAnUpstream(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestOtelIngestKindSharesTheRestAPIGatewayKind(t *testing.T) {
+func TestOtelIngestKindIsARestAPIOnTheGateway(t *testing.T) {
 	core := reconcile.NewCore(nil, nil, nil, reconcile.Kinds{
-		NewRestAgentKind(nil, nil, nil, nil, nil, discardLogger()),
 		NewOtelIngestKind("http://c:4318", "iss"),
 	}, reconcile.Config{}, discardLogger())
 	id := uuid.New()
@@ -70,8 +69,6 @@ func TestOtelIngestKindSharesTheRestAPIGatewayKind(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, models.KindRestAPI, kind)
 	assert.Equal(t, id.String(), artifactID)
-	_, _, ok = core.GatewayArtifact(models.ArtifactRef{ArtifactUUID: id, Kind: models.KindRestAPI})
-	assert.True(t, ok, "REST agents keep their artifact kind")
 }
 
 func TestOtelIngestPublisherDisabledDoesNothing(t *testing.T) {

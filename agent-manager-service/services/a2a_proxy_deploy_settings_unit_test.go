@@ -53,7 +53,7 @@ func deploySettingsService(configs *repomocks.AgentConfigRepositoryMock, publish
 		},
 	}
 	artifacts.WithTxFunc = func(*gorm.DB) repositories.ArtifactRepository { return artifacts }
-	return NewAgentManagerService(nil, oc, nil, configs, nil, artifacts, nil, nil, nil, nil, nil, publisher, nil, nil, nil, publisher.exposure, nil, testLogger()).(*agentManagerService)
+	return NewAgentManagerService(nil, oc, nil, configs, nil, artifacts, nil, nil, nil, nil, nil, publisher, nil, nil, nil, publisher.exposure, testLogger()).(*agentManagerService)
 }
 
 // savedConfigs accepts the upsert inside the save transaction only; a plain Upsert reaches a nil func and panics.

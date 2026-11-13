@@ -9,6 +9,9 @@ package wiring
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
@@ -28,8 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"gorm.io/gorm"
-	"log/slog"
-	"time"
 )
 
 // Injectors from wire.go:
@@ -90,9 +91,8 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
 	a2ACardFetcher := services.NewA2ACardFetcher()
 	a2AAgentKind := services.NewA2AAgentKind(txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, platformRepository, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
-	restAgentKind := services.NewRestAgentKind(platformAgentExposures, agentConfigRepository, deploymentRepository, apiKeyRepository, gatewayEventsService, logger)
 	otelIngestKind := ProvideOtelIngestKind(configConfig)
-	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, restAgentKind, otelIngestKind)
+	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, otelIngestKind)
 	core := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, cfg, logger)
 	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, logger, v, mcpProxyScopeRepository, envThunderResolver, core, mcpProxyKind, platformRepository)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(txRunner, deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService, core, llmProxyKind)
@@ -123,7 +123,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	monitorManagerService := services.NewMonitorManagerService(logger, db, platformRepository, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner, monitorAlertRepository)
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
-	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, identityClient, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
+	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioning, monitorManagerService, identityClient, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, logger)
 	eventRepository := repositories.NewEventRepository(db)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, platformRepository, logger)
 	agentController := controllers.NewAgentController(agentManagerService, eventSubscriptionService)
@@ -308,9 +308,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
 	a2ACardFetcher := services.NewA2ACardFetcher()
 	a2AAgentKind := services.NewA2AAgentKind(txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, platformRepository, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
-	restAgentKind := services.NewRestAgentKind(platformAgentExposures, agentConfigRepository, deploymentRepository, apiKeyRepository, gatewayEventsService, logger)
 	otelIngestKind := ProvideOtelIngestKind(configConfig)
-	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, restAgentKind, otelIngestKind)
+	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, otelIngestKind)
 	core := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, cfg, logger)
 	mcpProxyService := services.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, logger, v, mcpProxyScopeRepository, envThunderResolver, core, mcpProxyKind, platformRepository)
 	llmProxyDeploymentService := services.NewLLMProxyDeploymentService(txRunner, deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService, core, llmProxyKind)
@@ -340,7 +339,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	monitorManagerService := services.NewMonitorManagerService(logger, db, platformRepository, monitorExecutor, evaluatorManagerService, monitorRepository, scoreRepository, llmProxyProvisioner, monitorLLMMappingRepository, publisherCredentialProvisioner, monitorAlertRepository)
 	agentExposurePublisher := services.NewAgentExposurePublisher(txRunner, platformAgentExposureRepository, artifactRepository, deploymentRepository, gatewayRepository, core, logger)
 	a2APublisher := services.NewA2APublisher(txRunner, platformAgentExposureRepository, a2AProxyRepository, a2AAgentCardRepository, artifactRepository, deploymentRepository, logger, agentExposurePublisher, a2AAgentKind)
-	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, identityClient, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, restAgentKind, logger)
+	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, agentThunderProvisioningService, monitorManagerService, identityClient, a2APublisher, a2AAgentCardRepository, deploymentRepository, gatewayEventsService, agentExposurePublisher, logger)
 	eventRepository := repositories.NewEventRepository(db)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, platformRepository, logger)
 	agentController := controllers.NewAgentController(agentManagerService, eventSubscriptionService)
@@ -596,7 +595,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideEnvThunderURLRepository, repositories.NewMCPProxyScopeRepository, repositories.NewEventRepository, repositories.NewMonitorAlertRepository,
 )
 
-var reconcileProviderSet = wire.NewSet(services.NewLLMProviderKind, services.NewLLMProxyKind, services.NewMCPProxyKind, services.NewPlatformAgentExposures, services.NewA2AAgentKind, services.NewRestAgentKind, ProvideOtelIngestKind, services.NewOtelIngestPublisher, ProvideDefaultGatewaySeeder,
+var reconcileProviderSet = wire.NewSet(services.NewLLMProviderKind, services.NewLLMProxyKind, services.NewMCPProxyKind, services.NewPlatformAgentExposures, services.NewA2AAgentKind, ProvideOtelIngestKind, services.NewOtelIngestPublisher, ProvideDefaultGatewaySeeder,
 	ProvideReconcileKinds,
 	ProvideReconcileCore, wire.Bind(new(services.GatewayArtifacts), new(*reconcile.Core)), reconcile.NewWorker,
 )
@@ -687,9 +686,9 @@ func ProvideDeploymentAckHandler(deploymentRepo repositories.DeploymentRepositor
 // ProvideReconcileKinds lists the gateway artifact kinds the reconcile core deploys.
 func ProvideReconcileKinds(
 	llmProvider *services.LLMProviderKind, llmProxy *services.LLMProxyKind, mcp *services.MCPProxyKind,
-	agent *services.A2AAgentKind, restAgent *services.RestAgentKind, otelIngest *services.OtelIngestKind,
+	agent *services.A2AAgentKind, otelIngest *services.OtelIngestKind,
 ) reconcile.Kinds {
-	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, restAgent, otelIngest}
+	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, otelIngest}
 }
 
 // ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and

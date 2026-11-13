@@ -30,28 +30,19 @@ import (
 )
 
 func TestAgentGatewayShapeTable(t *testing.T) {
-	for _, subType := range []utils.AgentSubType{utils.AgentSubTypeChatAPI, utils.AgentSubTypeCustomAPI, utils.AgentSubTypeA2A} {
-		shape, ok := agentGatewayShapeFor(string(subType))
-		require.True(t, ok, "subtype %s has no shape", subType)
-
-		byProtocol, ok := agentGatewayShapeForProtocol(shape.Protocol)
-		require.True(t, ok, "protocol %s has no shape", shape.Protocol)
-		assert.Equal(t, shape, byProtocol)
-		assert.Contains(t, models.AgentArtifactKinds, shape.ArtifactKind)
-	}
-
-	a2a, _ := agentGatewayShapeFor(string(utils.AgentSubTypeA2A))
-	assert.Equal(t, a2aAgentShape, a2a)
-	for _, subType := range []utils.AgentSubType{utils.AgentSubTypeChatAPI, utils.AgentSubTypeCustomAPI} {
-		rest, _ := agentGatewayShapeFor(string(subType))
-		assert.Equal(t, restAgentShape, rest)
-	}
+	shape, ok := agentGatewayShapeFor(string(utils.AgentSubTypeA2A))
+	require.True(t, ok)
+	assert.Equal(t, a2aAgentShape, shape)
+	byProtocol, ok := agentGatewayShapeForProtocol(shape.Protocol)
+	require.True(t, ok)
+	assert.Equal(t, shape, byProtocol)
 	assert.Equal(t, models.KindAgent, a2aAgentShape.ArtifactKind)
-	assert.Equal(t, models.KindRestAPI, restAgentShape.ArtifactKind)
 
-	_, ok := agentGatewayShapeFor("unknown")
-	assert.False(t, ok)
-	_, ok = agentGatewayShapeForProtocol("unknown")
+	for _, subType := range []string{string(utils.AgentSubTypeChatAPI), "unknown"} {
+		_, ok = agentGatewayShapeFor(subType)
+		assert.False(t, ok, "subtype %s has no shape", subType)
+	}
+	_, ok = agentGatewayShapeForProtocol(models.AgentExposureProtocolREST)
 	assert.False(t, ok)
 }
 
@@ -68,13 +59,8 @@ func TestAgentGatewayShapeOf(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, a2aAgentShape, shape)
 	})
-	t.Run("a platform agent follows its subtype", func(t *testing.T) {
-		shape, ok := agentGatewayShapeOf(agentOf(utils.InternalAgent, utils.AgentSubTypeCustomAPI))
-		require.True(t, ok)
-		assert.Equal(t, restAgentShape, shape)
-	})
-	t.Run("a platform agent of an unknown subtype has none", func(t *testing.T) {
-		_, ok := agentGatewayShapeOf(agentOf(utils.InternalAgent, "unknown"))
+	t.Run("a platform agent of a REST subtype has none", func(t *testing.T) {
+		_, ok := agentGatewayShapeOf(agentOf(utils.InternalAgent, utils.AgentSubTypeCustomAPI))
 		assert.False(t, ok)
 	})
 }

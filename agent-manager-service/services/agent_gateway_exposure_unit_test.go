@@ -42,7 +42,6 @@ type gatewayExposureHarness struct {
 	pending   []models.Placement
 	exposure  *AgentExposurePublisher
 	a2a       *A2APublisher
-	restKind  *RestAgentKind
 	txConfigs *repomocks.AgentConfigRepositoryMock
 }
 
@@ -76,8 +75,7 @@ func newGatewayExposureHarness(t *testing.T) *gatewayExposureHarness {
 	m.exposures.GetFunc = exposedAgent
 	exposures := NewPlatformAgentExposures(m.exposures, m.gateways, nil)
 	a2aKind := &A2AAgentKind{exposures: exposures, proxyRepo: m.proxies, cardRepo: m.envCards, deploymentRepo: m.deployments, logger: testLogger()}
-	h.restKind = &RestAgentKind{exposures: exposures, logger: testLogger()}
-	core := reconcile.NewCore(nil, m.deployments, m.hub, reconcile.Kinds{a2aKind, h.restKind}, reconcile.Config{}, testLogger())
+	core := reconcile.NewCore(nil, m.deployments, m.hub, reconcile.Kinds{a2aKind}, reconcile.Config{}, testLogger())
 	h.exposure = NewAgentExposurePublisher(m.tx(), m.exposures, m.artifacts, m.deployments, m.gateways, core, testLogger())
 	h.a2a = NewA2APublisher(m.tx(), m.exposures, m.proxies, m.envCards, m.artifacts, m.deployments, testLogger(), h.exposure, a2aKind)
 	return h
@@ -91,7 +89,6 @@ func (h *gatewayExposureHarness) wire(t *testing.T, s *agentManagerService) {
 	s.deploymentRepo = h.deployments
 	s.a2aPublisher = h.a2a
 	s.exposure = h.exposure
-	s.restAgentKind = h.restKind
 	plain, _ := s.agentConfigRepo.(*repomocks.AgentConfigRepositoryMock)
 	if plain == nil {
 		plain = &repomocks.AgentConfigRepositoryMock{}
@@ -110,14 +107,6 @@ func (h *gatewayExposureHarness) existingArtifact(kind string) *models.Artifact 
 	return artifact
 }
 
-func internalAPIAgent(subType string) *models.AgentResponse {
-	return &models.AgentResponse{
-		UUID: uuid.NewString(), Name: "my-agent", Provisioning: models.Provisioning{Type: string(utils.InternalAgent)},
-		Type:           models.AgentType{Type: string(utils.AgentTypeAPI), SubType: subType},
-		InputInterface: &models.InputInterface{Port: 8000, BasePath: "/"},
-	}
-}
-
 // placedRows makes the artifact's rows the given ones.
 func (h *gatewayExposureHarness) placedRows(rows ...models.DeploymentStatusRecord) {
 	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
@@ -131,11 +120,11 @@ func (h *gatewayExposureHarness) deployedRow() models.DeploymentStatusRecord {
 	}
 }
 
-// defaultEnvPlatform reports an internal REST agent in the org's default environment.
+// defaultEnvPlatform reports an external agent in the org's default environment.
 func defaultEnvPlatform(envUUID uuid.UUID) *repomocks.PlatformRepositoryMock {
 	return &repomocks.PlatformRepositoryMock{
 		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return internalAPIAgent(string(utils.AgentSubTypeChatAPI)), nil
+			return externalAgent(), nil
 		},
 		GetEnvironmentFunc: func(context.Context, string, string) (*models.EnvironmentResponse, error) {
 			return &models.EnvironmentResponse{UUID: envUUID.String(), Name: models.DefaultEnvironmentName}, nil
@@ -148,7 +137,7 @@ func TestDeploymentResponseCarriesStatusReason(t *testing.T) {
 	s := &agentManagerService{platform: defaultEnvPlatform(uuid.New()), logger: testLogger()}
 	h := newGatewayExposureHarness(t)
 	h.wire(t, s)
-	h.existingArtifact(models.KindRestAPI)
+	h.existingArtifact(models.KindAgent)
 	h.placedRows(models.DeploymentStatusRecord{
 		GatewayUUID: h.gateway.UUID, Status: models.DeploymentStatusPending, StatusDesired: models.DeploymentStatusUndeployed,
 		NextAttemptAt: &soon, RenderReason: waitingForEndpoint,
@@ -170,7 +159,7 @@ func TestDeploymentResponseFallsBackWhenGatewayUnreadable(t *testing.T) {
 	s := &agentManagerService{platform: defaultEnvPlatform(uuid.New()), logger: testLogger()}
 	h := newGatewayExposureHarness(t)
 	h.wire(t, s)
-	h.existingArtifact(models.KindRestAPI)
+	h.existingArtifact(models.KindAgent)
 	h.placedRows(h.deployedRow())
 	h.gateways.ListWithFiltersFunc = func(repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
 		return nil, assert.AnError

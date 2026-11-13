@@ -23,7 +23,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -37,37 +36,10 @@ func (f *a2aFixture) storedArtifact(t *testing.T, artifact models.ArtifactRef) *
 	return stored
 }
 
-// legacyRestAgent is a REST agent whose artifact predates RestApi: an Agent row, with one API key.
-func (f *a2aFixture) legacyRestAgent(t *testing.T) (models.ArtifactRef, agentExposureKey) {
-	t.Helper()
-	artifact, key := f.platformAgent(t)
-	f.seedAPIKey(t, artifact, "kept", "active", nil)
-	return artifact, key
-}
-
-func TestEnsureArtifactSwitchesLegacyKind(t *testing.T) {
+func TestEnsureExposedArtifactKeepsAnAgentRow(t *testing.T) {
 	f := newA2AFixture(t)
-	legacy, key := f.legacyRestAgent(t)
 	gdb := db.GetDB()
 	artifacts := repositories.NewArtifactRepo(gdb)
-
-	var switched *models.Artifact
-	require.NoError(t, gdb.Transaction(func(tx *gorm.DB) error {
-		var err error
-		switched, err = ensureExposedAgentEnvAPIArtifact(tx, artifacts, key.OUID, key.ProjectName, key.AgentName,
-			f.env.String(), restAgentShape)
-		return err
-	}))
-
-	assert.Equal(t, legacy.ArtifactUUID, switched.UUID)
-	assert.Equal(t, models.KindRestAPI, switched.Kind)
-	stored := f.storedArtifact(t, legacy)
-	assert.Equal(t, models.KindRestAPI, stored.Kind)
-	assert.Equal(t, legacy.Handle, stored.Handle)
-	keys, err := repositories.NewAPIKeyRepo(gdb).ListPermanentByArtifactKinds(key.OUID, []string{models.KindRestAPI})
-	require.NoError(t, err)
-	require.Len(t, keys, 1)
-	assert.Equal(t, legacy.ArtifactUUID, keys[0].ArtifactUUID)
 
 	t.Run("an A2A agent's Agent row stays", func(t *testing.T) {
 		a2a, a2aKey := f.platformAgent(t)

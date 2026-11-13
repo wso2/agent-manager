@@ -82,7 +82,6 @@ type agentManagerService struct {
 	deploymentRepo            repositories.DeploymentRepository
 	gatewayEventsService      *GatewayEventsService
 	exposure                  *AgentExposurePublisher
-	restAgentKind             *RestAgentKind
 	logger                    *slog.Logger
 }
 
@@ -103,7 +102,6 @@ func NewAgentManagerService(
 	deploymentRepo repositories.DeploymentRepository,
 	gatewayEventsService *GatewayEventsService,
 	exposure *AgentExposurePublisher,
-	restAgentKind *RestAgentKind,
 	logger *slog.Logger,
 ) AgentManagerService {
 	return &agentManagerService{
@@ -120,7 +118,6 @@ func NewAgentManagerService(
 		deploymentRepo:            deploymentRepo,
 		gatewayEventsService:      gatewayEventsService,
 		exposure:                  exposure,
-		restAgentKind:             restAgentKind,
 		artifactRepo:              artifactRepo,
 		aiApplicationService:      aiApplicationService,
 		gatewayRepo:               gatewayRepo,
@@ -1770,11 +1767,8 @@ func parseAgentUUID(raw string) *uuid.UUID {
 	return &id
 }
 
-// gatewayKind is the reconcile kind that renders an artifact of shape.
-func (s *agentManagerService) gatewayKind(shape agentGatewayShape) reconcile.EnvironmentKind {
-	if shape == restAgentShape {
-		return s.restAgentKind
-	}
+// gatewayKind is the reconcile kind that renders an exposed agent.
+func (s *agentManagerService) gatewayKind() reconcile.EnvironmentKind {
 	return s.a2aPublisher.kind
 }
 
@@ -1826,7 +1820,7 @@ func (s *agentManagerService) exposeAgentEnv(
 			}
 		}
 		exposed = agentArtifactRef(a)
-		return s.exposure.Publish(ctx, tx, s.gatewayKind(shape), key, exposed, shape.Protocol)
+		return s.exposure.Publish(ctx, tx, s.gatewayKind(), key, exposed, shape.Protocol)
 	})
 	if err != nil {
 		return models.ArtifactRef{}, err
@@ -1836,18 +1830,13 @@ func (s *agentManagerService) exposeAgentEnv(
 }
 
 // saveDeploySettings saves the environment's config in one transaction with the agent's gateway exposure, so
-// neither lands without the other. A REST agent's re-render from the new settings is queued in that transaction
-// (exposeAgentEnv). An A2A or external agent republishes as SaveAndRepublish describes.
+// neither lands without the other; the agent republishes as SaveAndRepublish describes.
 func (s *agentManagerService) saveDeploySettings(
 	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
 	artifact func(tx *gorm.DB) (*models.Artifact, error), cfg *models.AgentConfig,
 ) error {
 	save := func(tx *gorm.DB) error { return s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg) }
-	if shape, _ := agentGatewayShapeOf(agent); shape != restAgentShape {
-		return s.a2aPublisher.SaveAndRepublish(ctx, agent, key, artifact, save)
-	}
-	_, err := s.exposeAgentEnv(ctx, agent, key, artifact, save)
-	return err
+	return s.a2aPublisher.SaveAndRepublish(ctx, agent, key, artifact, save)
 }
 
 // agentExposureKeyOf names the agent's exposure in the environment.
