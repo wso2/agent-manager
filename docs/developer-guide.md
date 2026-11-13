@@ -20,7 +20,7 @@ The [architecture diagram](amp-lite/architecture.png) shows how the services fit
 
 ## Prerequisites
 
-- Docker with Compose v2. On macOS, `make setup-colima` starts a Colima VM. Docker Desktop also works.
+- Docker with Compose v2. On macOS, `make setup-colima` starts a Colima VM named `amp-lite` with 2 CPUs and 4 GB of memory (set `COLIMA_CPU` and `COLIMA_MEMORY` to change them). Docker Desktop also works.
 - Go 1.26 (see `agent-manager-service/go.mod`).
 - Node.js 22 or later and pnpm 9 for the console.
 - Python 3.11 or later, only to work on the Python libraries or run the samples.

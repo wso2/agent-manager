@@ -50,9 +50,11 @@ fi
 # ============================================================================
 # Configuration (macOS)
 # ============================================================================
-PROFILE="${1:-dev}"
-COLIMA_CPU="${COLIMA_CPU:-8}"
-COLIMA_MEMORY="${COLIMA_MEMORY:-10}"
+# Sized for the Compose stack: a cold `make up` peaks below 3 GB in the VM,
+# and the running stack uses about 1.6 GB.
+PROFILE="${1:-amp-lite}"
+COLIMA_CPU="${COLIMA_CPU:-2}"
+COLIMA_MEMORY="${COLIMA_MEMORY:-4}"
 COLIMA_VM_TYPE="${COLIMA_VM_TYPE:-vz}"
 
 # Check prerequisites
