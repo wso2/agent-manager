@@ -265,21 +265,21 @@ export const generatedRouteMap =  {
               "children": {}
             },
             "mcpProxies": {
-              "path": "/org/:orgId/project/:projectId/mcp-proxies",
-              "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/*",
+              "path": "/organizations/:orgId/projects/:projectId/mcp-proxies",
+              "wildPath": "/organizations/:orgId/projects/:projectId/mcp-proxies/*",
               "children": {
                 "add": {
-                  "path": "/org/:orgId/project/:projectId/mcp-proxies/add",
-                  "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/add/*",
+                  "path": "/organizations/:orgId/projects/:projectId/mcp-proxies/add",
+                  "wildPath": "/organizations/:orgId/projects/:projectId/mcp-proxies/add/*",
                   "children": {}
                 },
                 "view": {
-                  "path": "/org/:orgId/project/:projectId/mcp-proxies/view/:proxyId",
-                  "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/view/:proxyId/*",
+                  "path": "/organizations/:orgId/projects/:projectId/mcp-proxies/view/:proxyId",
+                  "wildPath": "/organizations/:orgId/projects/:projectId/mcp-proxies/view/:proxyId/*",
                   "children": {
                     "edit": {
-                      "path": "/org/:orgId/project/:projectId/mcp-proxies/view/:proxyId/edit",
-                      "wildPath": "/org/:orgId/project/:projectId/mcp-proxies/view/:proxyId/edit/*",
+                      "path": "/organizations/:orgId/projects/:projectId/mcp-proxies/view/:proxyId/edit",
+                      "wildPath": "/organizations/:orgId/projects/:projectId/mcp-proxies/view/:proxyId/edit/*",
                       "children": {}
                     }
                   }
