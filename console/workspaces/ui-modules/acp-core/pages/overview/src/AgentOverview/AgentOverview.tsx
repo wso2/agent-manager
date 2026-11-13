@@ -16,9 +16,10 @@
  * under the License.
  */
 
-import { useGetAgent, useUserDisplayName } from "@agent-management-platform/api-client";
+import { useGetAgent, useGetAgentKind, useUserDisplayName } from "@agent-management-platform/api-client";
+import { InternalAgentOverview } from "./InternalAgentOverview";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { AgentOverviewContent } from "./AgentOverviewContent";
+import { ExternalAgentOverview } from "./ExternalAgentOverview";
 import { Box, Button, Divider, Skeleton, Stack } from "@wso2/oxygen-ui";
 import { Edit, Tag } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -56,6 +57,7 @@ export function AgentOverview() {
         userId: agent?.createdBy?.id ?? "",
     });
     const createdByName = resolvedName ?? agent?.createdBy?.display ?? agent?.createdBy?.id;
+    const { data: kind } = useGetAgentKind({ orgName: orgId ?? "", kindName: agent?.kindName ?? "" });
 
     return (
         <PageLayout
@@ -66,6 +68,8 @@ export function AgentOverview() {
                     <AgentTypeChips
                         provisioning={agent?.provisioning}
                         agentType={agent?.agentType}
+                        kindName={agent?.kindName}
+                        kindDisplayName={kind?.displayName}
                     />
                 </Stack>
             }
@@ -116,7 +120,8 @@ export function AgentOverview() {
                     {agent?.description && (
                         <DescriptionCard content={agent.description} />
                     )}
-                    {agent && <AgentOverviewContent />}
+                    {agent?.provisioning?.type === "internal" && <InternalAgentOverview />}
+                    {agent?.provisioning?.type === "external" && <ExternalAgentOverview />}
                 </Box>
             )}
         </PageLayout>

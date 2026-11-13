@@ -24,7 +24,7 @@ import {
   useFeatureManagement,
   type FeatureManagementProviderProps,
 } from "./FeatureManagementProvider";
-import { useGatewayFeatures } from "./features";
+import { useEnvironmentFeatures, useGatewayFeatures, usePipelineFeatures } from "./features";
 import { useFeatureFlag, useResourceAccess } from "./hooks";
 
 const withProvider = (props: Omit<FeatureManagementProviderProps, "children">) =>
@@ -35,33 +35,47 @@ const withProvider = (props: Omit<FeatureManagementProviderProps, "children">) =
 describe("FeatureManagementProvider", () => {
   it("enables everything without a provider", () => {
     const { result } = renderHook(() => ({
-      gateway: useGatewayFeatures(),
+      env: useEnvironmentFeatures(),
       agent: useResourceAccess("agent"),
       loading: useFeatureManagement().isAccessLoading,
     }));
     expect(result.current).toEqual({
-      gateway: { canView: true, canWrite: true, canManageTokens: true },
+      env: { canView: true, canWrite: true },
       agent: { canRead: true, canWrite: true },
       loading: false,
     });
   });
 
-  it("hides an externally managed feature", () => {
-    const { result } = renderHook(() => useGatewayFeatures(), {
-      wrapper: withProvider({ featureFlags: { externallyManagedGateway: true } }),
-    });
-    expect(result.current).toEqual({
+  it("hides only the externally managed feature", () => {
+    const { result } = renderHook(
+      () => ({
+        env: useEnvironmentFeatures(),
+        gateway: useGatewayFeatures(),
+        pipeline: usePipelineFeatures(),
+      }),
+      { wrapper: withProvider({ featureFlags: { externallyManagedGateway: true } }) },
+    );
+    expect(result.current.gateway).toEqual({
       canView: false,
       canWrite: false,
       canManageTokens: false,
     });
+    expect(result.current.env).toEqual({ canView: true, canWrite: true });
+    expect(result.current.pipeline).toEqual({ canView: true, canWrite: true });
+  });
+
+  it("keeps read and write access separate", () => {
+    const { result } = renderHook(() => useEnvironmentFeatures(), {
+      wrapper: withProvider({ featureAccess: { env_write: false } }),
+    });
+    expect(result.current).toEqual({ canView: true, canWrite: false });
   });
 
   it("denies write on a managed resource the user cannot read", () => {
-    const { result } = renderHook(() => useGatewayFeatures(), {
-      wrapper: withProvider({ featureAccess: { gateway_read: false } }),
+    const { result } = renderHook(() => usePipelineFeatures(), {
+      wrapper: withProvider({ featureAccess: { pipeline_read: false } }),
     });
-    expect(result.current).toEqual({ canView: false, canWrite: false, canManageTokens: false });
+    expect(result.current).toEqual({ canView: false, canWrite: false });
   });
 
   it("reads flags, defaulting to off", () => {
@@ -120,10 +134,10 @@ describe("FeatureManagementProvider", () => {
 
   it("lets a nested provider override only the keys it sets", () => {
     const Outer = withProvider({
-      featureAccess: { gateway_read: false, gateway_write: false },
+      featureAccess: { env_read: false, env_write: false },
       isAccessLoading: true,
     });
-    const Inner = withProvider({ featureAccess: { gateway_read: true } });
+    const Inner = withProvider({ featureAccess: { env_read: true } });
     const { result } = renderHook(() => useFeatureManagement(), {
       wrapper: ({ children }) => (
         <Outer>
@@ -131,8 +145,8 @@ describe("FeatureManagementProvider", () => {
         </Outer>
       ),
     });
-    expect(result.current.hasAccess("gateway_read")).toBe(true);
-    expect(result.current.hasAccess("gateway_write")).toBe(false);
+    expect(result.current.hasAccess("env_read")).toBe(true);
+    expect(result.current.hasAccess("env_write")).toBe(false);
     expect(result.current.isAccessLoading).toBe(true);
   });
 });

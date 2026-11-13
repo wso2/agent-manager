@@ -17,7 +17,7 @@
  */
 
 import React from "react";
-import { Link, Navigate, Route, Routes, generatePath, useParams } from "react-router-dom";
+import { Link, Navigate, Route, Routes, generatePath, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { absoluteRouteMap } from "@agent-management-platform/types";
@@ -26,18 +26,21 @@ import { useResourceAccess } from "@agent-management-platform/feature-management
 import { RolesPage } from "./subComponents/agentIdentity/RolesPage";
 import { RoleCreatePage } from "./subComponents/agentIdentity/RoleCreatePage";
 import { RoleEditPage } from "./subComponents/agentIdentity/RoleEditPage";
+import { AgentIdentityEnvironmentGate } from "./subComponents/agentIdentity/AgentIdentityEnvironmentGate";
+import { withSearchParams } from "./utils/withSearchParams";
 
-const rolesNode = absoluteRouteMap.children.org.children.agentIdentity.children.roles;
+const rolesNode = absoluteRouteMap.children.org.children.thunderInstances.children.roles;
 const TITLE = "Roles";
 
 function RolesListPage() {
   const { orgId } = useParams<{ orgId: string }>();
+  const [searchParams] = useSearchParams();
   const createPath = orgId
-    ? generatePath(rolesNode.children.create.path, { orgId })
+    ? withSearchParams(generatePath(rolesNode.children.create.path, { orgId }), searchParams)
     : "#";
   const { canWrite } = useResourceAccess("agent_identity");
 
-  // One definition, used above the list and as the empty state's CTA.
+  // One definition, used in the tab bar and as the empty state's CTA.
   const createButton = canWrite ? (
     <Button
       variant="contained"
@@ -51,27 +54,44 @@ function RolesListPage() {
   ) : undefined;
 
   return (
-    <PageLayout
-      title={TITLE}
-      description="Roles available to agent identities."
-      disableIcon
-    >
-      <RolesPage createAction={createButton} />
-    </PageLayout>
+    <AgentIdentityEnvironmentGate title={TITLE}>
+      {() => (
+        <PageLayout
+          title={TITLE}
+          description="Roles available in the selected environment's identity provider."
+          disableIcon
+        >
+          <RolesPage createAction={createButton} />
+        </PageLayout>
+      )}
+    </AgentIdentityEnvironmentGate>
   );
 }
 
 function RoleCreateWrapper() {
   const { orgId } = useParams<{ orgId: string }>();
-  const backHref = generatePath(rolesNode.path, { orgId: orgId ?? "" });
+  const [searchParams] = useSearchParams();
+  const backHref = withSearchParams(generatePath(rolesNode.path, { orgId: orgId ?? "" }), searchParams);
   const { canWrite } = useResourceAccess("agent_identity");
   if (!canWrite) {
     return <Navigate to={backHref} replace />;
   }
   return (
-    <PageLayout title="Create Role" backHref={backHref} backLabel="Back to roles" disableIcon>
-      <RoleCreatePage />
-    </PageLayout>
+    <AgentIdentityEnvironmentGate title="Create Role">
+      {() => (
+        <PageLayout title="Create Role" backHref={backHref} backLabel="Back to roles" disableIcon>
+          <RoleCreatePage />
+        </PageLayout>
+      )}
+    </AgentIdentityEnvironmentGate>
+  );
+}
+
+function RoleEditWrapper() {
+  return (
+    <AgentIdentityEnvironmentGate title="Role">
+      {() => <RoleEditPage />}
+    </AgentIdentityEnvironmentGate>
   );
 }
 
@@ -80,7 +100,7 @@ export const RolesOrganization: React.FC = () => {
     <Routes>
       <Route index element={<RolesListPage />} />
       <Route path="create" element={<RoleCreateWrapper />} />
-      <Route path=":roleId" element={<RoleEditPage />} />
+      <Route path=":roleId" element={<RoleEditWrapper />} />
       <Route path="*" element={<Navigate to="." replace />} />
     </Routes>
   );

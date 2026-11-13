@@ -23,7 +23,6 @@ import { CodeBlock, useConfirmationDialog } from "@agent-management-platform/sha
 import { TokenExpirySelector, DEFAULT_TOKEN_EXPIRY } from "@agent-management-platform/views";
 import { useGenerateAgentToken } from "@agent-management-platform/api-client";
 import { useFeatureAccess } from "@agent-management-platform/feature-management";
-import { DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 import { StepNumberBadge } from "./StepNumberBadge";
 
 interface TokenGenerationStepProps {
@@ -31,6 +30,7 @@ interface TokenGenerationStepProps {
   orgName: string;
   projName: string;
   agentName: string;
+  environment?: string;
   onTokenGenerated: (token: string) => void;
   // When true, mint a token once automatically on first open (right after agent creation).
   // Subsequent opens require an explicit Generate click.
@@ -42,6 +42,7 @@ export const TokenGenerationStep = ({
   orgName,
   projName,
   agentName,
+  environment,
   onTokenGenerated,
   autoGenerate = false,
 }: TokenGenerationStepProps) => {
@@ -52,13 +53,13 @@ export const TokenGenerationStep = ({
   const canManageTokens = useFeatureAccess("agent_token_manage");
 
   // Session-scoped guard so a reopen never silently re-mints (#1140). Scoped per
-  // (org, project, agent).
-  const sessionKey = `amp-token-generated:${orgName}:${projName}:${agentName}`;
+  // (org, project, agent, environment).
+  const sessionKey = `amp-token-generated:${orgName}:${projName}:${agentName}:${environment ?? ""}`;
 
   const { data, isFetching, error, refetch } = useGenerateAgentToken(
     { agentName, projName, orgName },
     { expires_in: duration },
-    { environment: DEFAULT_ENVIRONMENT },
+    environment ? { environment } : undefined,
     enabled,
   );
   const token = data?.token ?? null;

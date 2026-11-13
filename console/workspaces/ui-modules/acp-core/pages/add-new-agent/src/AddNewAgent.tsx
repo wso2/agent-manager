@@ -16,19 +16,87 @@
  * under the License.
  */
 
-import React from "react";
-import { Navigate, Route, Routes, generatePath, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useFeatureAccess } from "@agent-management-platform/feature-management";
+import React, { useCallback } from "react";
+import { Navigate, Route, Routes, generatePath, useNavigate, useParams } from "react-router-dom";
+import { absoluteRouteMap, relativeRouteMap } from "@agent-management-platform/types";
+import { NewAgentOptions } from "./components/NewAgentOptions";
+import { NewAgentSourceOptions } from "./components/NewAgentSourceOptions";
+import { InternalAgentFlow } from "./components/InternalAgentFlow";
+import { CatalogAgentFlow } from "./components/CatalogAgentFlow";
+import { CatalogKindSelect } from "./components/CatalogKindSelect";
 import { ExternalAgentFlow } from "./components/ExternalAgentFlow";
+import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
+import { useAgentWizardReturn } from "./utils/useAgentWizardReturn";
 
-/** Create-agent wizard: registers an externally-hosted agent. */
+/**
+ * Create-agent wizard.
+ *
+ * Steps are routes, so each one already produces a page view. What is tracked
+ * here on top of that is the *choice* made at each fork — which the route alone
+ * does not say, since a user can also arrive by deep link.
+ *
+ * Abandonment is deliberately not emitted from here. The wizard has no single
+ * unmount that means "gave up" (each flow navigates away on success), so any
+ * client-side flag would be bookkeeping that drifts. It is instead derived in
+ * Moesif: a wizard-step-viewed with no amp.agent-development.create-agent event
+ * later in the same session is an abandonment, and that join is exactly what
+ * having both streams under one user_id is for.
+ */
 export const AddNewAgent: React.FC = () => {
+  const navigate = useNavigate();
+  const { track } = useTrack();
   const canCreate = useFeatureAccess("agent_create");
+  // Forwarded on each step so the final Cancel still knows where the wizard was opened from.
+  const { wizardState } = useAgentWizardReturn();
   const { orgId, projectId } = useParams<{
     orgId: string;
     projectId?: string;
   }>();
+
+  const NEW_AGENT_ROUTES = absoluteRouteMap.children.org.children.projects.children.newAgent;
+  const CREATE_PATTERN = NEW_AGENT_ROUTES.children.create.path;
+  const CONNECT_PATTERN = NEW_AGENT_ROUTES.children.connect.path;
+
+  const handleSelect = useCallback((option: 'new' | 'existing') => {
+    track(ConsoleAction.WizardStepViewed, {
+      wizard: "create-agent",
+      step: option === 'new' ? "build-new" : "connect-existing",
+      step_index: 1,
+    });
+    const target = option === 'new' ? CREATE_PATTERN : CONNECT_PATTERN;
+    navigate(generatePath(target, {
+      orgId: orgId ?? '',
+      projectId: projectId ?? 'default',
+    }), { state: wizardState });
+  }, [navigate, orgId, projectId, CREATE_PATTERN, CONNECT_PATTERN, track, wizardState]);
+
+  const handleSourceSelect = useCallback((option: 'source' | 'catalog') => {
+    track(ConsoleAction.WizardStepViewed, {
+      wizard: "create-agent",
+      step: option === 'source' ? "from-source" : "from-catalog",
+      step_index: 2,
+    });
+    navigate(generatePath(`${CREATE_PATTERN}/${option}`, {
+      orgId: orgId ?? '',
+      projectId: projectId ?? 'default',
+    }), { state: wizardState });
+  }, [navigate, orgId, projectId, CREATE_PATTERN, track, wizardState]);
+
+  // A sample seeds the Platform-Hosted Agent form directly (no separate
+  // listing screen) — its repo/env fields arrive via the `sample` query param.
+  const handleSampleSelect = useCallback((sampleId: string) => {
+    track(ConsoleAction.WizardStepViewed, {
+      wizard: "create-agent",
+      step: "from-sample",
+      step_index: 1,
+    });
+    const sourcePath = generatePath(`${CREATE_PATTERN}/source`, {
+      orgId: orgId ?? '',
+      projectId: projectId ?? 'default',
+    });
+    navigate(`${sourcePath}?sample=${encodeURIComponent(sampleId)}`, { state: wizardState });
+  }, [navigate, orgId, projectId, CREATE_PATTERN, track, wizardState]);
 
   if (!canCreate) {
     return (
@@ -44,8 +112,43 @@ export const AddNewAgent: React.FC = () => {
 
   return (
     <Routes>
-      <Route index element={<ExternalAgentFlow />} />
-      <Route path="*" element={<Navigate to="." replace />} />
+      <Route
+        index
+        element={
+          <NewAgentOptions onSelect={handleSelect} onSelectSample={handleSampleSelect} />
+        }
+      />
+        <Route
+          path={
+            relativeRouteMap.children.org.children.projects.children.newAgent
+              .children.create.path
+          }
+        >
+          <Route index element={<NewAgentSourceOptions onSelect={handleSourceSelect} />} />
+          <Route
+            path={
+              relativeRouteMap.children.org.children.projects.children.newAgent
+                .children.create.children.catalog.path
+            }
+          >
+            <Route index element={<CatalogKindSelect />} />
+            <Route
+              path={
+                relativeRouteMap.children.org.children.projects.children.newAgent
+                  .children.create.children.catalog.children.withKind.path
+              }
+              element={<CatalogAgentFlow />}
+            />
+          </Route>
+          <Route
+            path={
+              relativeRouteMap.children.org.children.projects.children.newAgent
+                .children.create.children.source.path
+            }
+            element={<InternalAgentFlow />}
+          />
+      </Route>
+      <Route path="connect" element={<ExternalAgentFlow />} />
     </Routes>
   );
 };

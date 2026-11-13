@@ -43,7 +43,7 @@ export interface ResourceCardData {
   description: string;
   actionLabel: string;
   to: string;
-  /** For resources with no single org-wide total. */
+  /** For resources with no single org-wide total (agent identity is per environment). */
   countless?: boolean;
   /** The count is still loading. */
   loading?: boolean;

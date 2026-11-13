@@ -46,6 +46,16 @@ export interface AppConfig {
    */
   ampVersion?: string;
   /**
+   * Legacy installation settings read by the Environments page's generated
+   * data-plane commands (shared-component gatewayScripts). No longer set by the
+   * runtime config template; each falls back to its public default when unset.
+   */
+  scriptBaseUrl?: string;
+  ampRegistry?: string;
+  ampChartRegistry?: string;
+  bundleUrl?: string;
+  chartVersion?: string;
+  /**
    * Base URL the evaluator AI Copilot prompt links the writing guide from.
    * Empty (the default) derives the public raw.githubusercontent.com URL for the
    * release ref. Set it where external AI assistants cannot reach GitHub, to any
@@ -62,6 +72,34 @@ export interface AppConfig {
    * the vhost of the gateway mapped to that environment.
    */
   useConfiguredInstrumentationUrl?: boolean;
+  /**
+   * Base URL the API Platform Gateway uses to reach Agent Manager from inside
+   * the cluster. The add-environment.sh script appends /api/v1 and
+   * /auth/external/jwks.json to this as needed.
+   * Used to render the curl|bash command in the Create Environment drawer.
+   */
+  agentManagerInternalBaseUrl?: string;
+  /**
+   * host:port the API Platform Gateway uses to reach Agent Manager's
+   * internal control-plane channel (port 9243). Used to render the
+   * add-environment.sh command in the Create Environment drawer.
+   */
+  agentManagerInternalCpHost?: string;
+  /**
+   * Base domain env-Thunder instances are hosted under (e.g. amp.localhost,
+   * or a VM/production deployment's own domain). Mirrors the backend's
+   * IDP_HOST_BASE_DOMAIN. Used to render the correct
+   * IDP_HOST_BASE_DOMAIN value in the Create Environment drawer's
+   * generated add-environment.sh command, and to build the handle preview.
+   */
+  idpHostBaseDomain?: string;
+  /**
+   * Whether this deployment serves env-Thunder over TLS. Mirrors the
+   * backend's TLS_ENABLED. Piped into the Create Environment drawer's
+   * generated command so the chained add-environment-thunder.sh script
+   * provisions the matching scheme.
+   */
+  tlsEnabled?: boolean;
   guardrailsCatalogUrl: string;
   guardrailsDefinitionBaseUrl: string;
   /**

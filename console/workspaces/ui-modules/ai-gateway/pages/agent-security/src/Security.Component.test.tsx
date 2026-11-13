@@ -28,11 +28,13 @@ vi.mock("@agent-management-platform/api-client", () => ({
     data: { enableApiKeySecurity: true },
     isLoading: false,
   })),
+  useListAgentDeployments: vi.fn(() => ({ data: undefined, isLoading: false })),
   useListAgentAPIKeys: vi.fn(() => ({ data: [], isLoading: false, isError: false })),
   useRevokeAgentAPIKey: vi.fn(() => ({ mutate: vi.fn(), isPending: false })),
 }));
 vi.mock("@agent-management-platform/shared-component", () => ({
   APIKeysManager: () => <div>api keys manager</div>,
+  EnvironmentSelector: () => null,
 }));
 vi.mock("@agent-management-platform/views", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@agent-management-platform/views")>()),
@@ -43,15 +45,16 @@ import {
   useGetA2AProxy,
   useGetAgent,
   useGetAgentConfigurations,
+  useListAgentDeployments,
   useListAgentAPIKeys,
 } from "@agent-management-platform/api-client";
 import { SecurityComponent } from "./Security.Component";
 
 const renderPage = () =>
   render(
-    <MemoryRouter initialEntries={["/org/o/project/p/agents/a/security"]}>
+    <MemoryRouter initialEntries={["/org/o/project/p/agents/a/environment/dev/security"]}>
       <Routes>
-        <Route path="/org/:orgId/project/:projectId/agents/:agentId/security" element={<SecurityComponent />} />
+        <Route path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/security" element={<SecurityComponent />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -62,7 +65,7 @@ const externalA2A = () =>
     isLoading: false,
   } as unknown as ReturnType<typeof useGetAgent>);
 
-const A2A_SETTINGS_HREF = "/org/o/project/p/agents/a/configure?tab=a2a";
+const A2A_SETTINGS_HREF = "/org/o/project/p/agents/a/configure?tab=a2a&env=dev";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -74,6 +77,9 @@ describe("SecurityComponent", () => {
     } as unknown as ReturnType<typeof useGetA2AProxy>);
     renderPage();
     expect(screen.getByText("api keys manager")).toBeInTheDocument();
+    expect(vi.mocked(useListAgentDeployments)).toHaveBeenCalledWith(
+      expect.objectContaining({ orgName: undefined }),
+    );
   });
 
   it("explains why a direct external A2A agent has no API keys", () => {
@@ -129,7 +135,7 @@ describe("SecurityComponent", () => {
     expect(screen.getByRole("link", { name: "Go to A2A settings" })).toHaveAttribute("href", A2A_SETTINGS_HREF);
   });
 
-  it("explains that a hosted agent has no API keys", () => {
+  it("points a deployed agent with security off to its deployment settings", () => {
     vi.mocked(useGetAgent).mockReturnValue({
       data: { provisioning: { type: "internal" }, agentType: { type: "agent-api", subType: "chat-api" } },
       isLoading: false,
@@ -137,7 +143,12 @@ describe("SecurityComponent", () => {
     vi.mocked(useGetA2AProxy).mockReturnValue({
       data: undefined, isLoading: false, isError: false, error: null,
     } as unknown as ReturnType<typeof useGetA2AProxy>);
+    vi.mocked(useListAgentDeployments).mockReturnValue({
+      data: { dev: { status: "active" } }, isLoading: false,
+    } as unknown as ReturnType<typeof useListAgentDeployments>);
+    securityDisabled();
     renderPage();
-    expect(screen.getByText(/API keys are not available for this agent/i)).toBeInTheDocument();
+    expect(screen.getByText(/deployment settings and redeploy/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Go to Deployment Settings" })).toBeInTheDocument();
   });
 });

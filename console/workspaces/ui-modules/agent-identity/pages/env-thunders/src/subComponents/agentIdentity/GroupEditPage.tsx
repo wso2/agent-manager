@@ -34,7 +34,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { Shield, Trash, Users } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useListAgentIdentityAgents,
   useListAgentIdentityRoles,
@@ -51,7 +51,6 @@ import {
   absoluteRouteMap,
   type AgentIdentityAgentResponse,
   type ThunderRole,
-  DEFAULT_ENVIRONMENT
 } from "@agent-management-platform/types";
 import { EditFormSkeleton, useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { PageLayout } from "@agent-management-platform/views";
@@ -59,6 +58,7 @@ import { useResourceAccess } from "@agent-management-platform/feature-management
 import { AgentNameWithProject } from "./AgentNameWithProject";
 import { useAgentLookup } from "./useAgentLookup";
 import { useAssignmentDelta } from "./useAssignmentDelta";
+import { withSearchParams } from "../../utils/withSearchParams";
 
 type ActiveTab = "agents" | "roles";
 
@@ -77,12 +77,14 @@ export const GroupEditPage: React.FC = () => {
     orgId: string;
     groupId: string;
   }>();
+  const [searchParams] = useSearchParams();
+  const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
   const { canWrite } = useResourceAccess("agent_identity");
 
   const [activeTab, setActiveTab] = useState<ActiveTab>("agents");
 
-  const params = { orgName: orgId, envName: DEFAULT_ENVIRONMENT, groupId: groupId ?? "" };
+  const params = { orgName: orgId, envName, groupId: groupId ?? "" };
 
   const { data: groupData, isLoading: isLoadingGroup } = useGetAgentIdentityGroup(params);
   const { data: membersData, isLoading: isLoadingMembers } = useGetAgentIdentityGroupMembers(
@@ -96,10 +98,10 @@ export const GroupEditPage: React.FC = () => {
   } = useGetAgentIdentityGroupRoles(params);
   const { data: agentsData, isLoading: isLoadingAgents } = useListAgentIdentityAgents({
     orgName: orgId,
-    envName: DEFAULT_ENVIRONMENT,
+    envName,
   });
   const { data: allRolesData, isLoading: isLoadingAllRoles } = useListAgentIdentityRoles(
-    { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
+    { orgName: orgId, envName },
     { offset: 0, limit: ROLES_PAGE_SIZE },
   );
 
@@ -138,9 +140,9 @@ export const GroupEditPage: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const groupsNode =
-    absoluteRouteMap.children.org.children.agentIdentity.children.groups;
+    absoluteRouteMap.children.org.children.thunderInstances.children.groups;
   const groupsPath = orgId
-    ? generatePath(groupsNode.path, { orgId })
+    ? withSearchParams(generatePath(groupsNode.path, { orgId }), searchParams)
     : "#";
 
   const displayedMemberIds = useMemo(
@@ -173,7 +175,7 @@ export const GroupEditPage: React.FC = () => {
   const handleRemoveRole = roleDelta.handleRemove;
 
   const handleSave = async () => {
-    if (!orgId || !groupId) return;
+    if (!orgId || !envName || !groupId) return;
     setSaveError(undefined);
     setSaveSuccess(false);
     setIsSaving(true);
@@ -209,7 +211,7 @@ export const GroupEditPage: React.FC = () => {
         ops.push({ kind: "roleAdd", roleId });
         tasks.push(
           addRoleAssignees({
-            params: { orgName: orgId, envName: DEFAULT_ENVIRONMENT, roleId },
+            params: { orgName: orgId, envName, roleId },
             body: { assignments: [{ id: groupId, type: "group" }] },
           }),
         );
@@ -218,7 +220,7 @@ export const GroupEditPage: React.FC = () => {
         ops.push({ kind: "roleRemove", roleId });
         tasks.push(
           removeRoleAssignees({
-            params: { orgName: orgId, envName: DEFAULT_ENVIRONMENT, roleId },
+            params: { orgName: orgId, envName, roleId },
             body: { assignments: [{ id: groupId, type: "group" }] },
           }),
         );
@@ -421,8 +423,8 @@ export const GroupEditPage: React.FC = () => {
                   </Typography>
                   {(allRolesData?.total ?? 0) > ROLES_PAGE_SIZE && (
                     <Alert severity="warning" sx={{ mt: 1 }}>
-                      Showing the first {ROLES_PAGE_SIZE} of {allRolesData?.total} roles.
-                      The add-role picker below only excludes roles from this page.
+                      Showing the first {ROLES_PAGE_SIZE} of {allRolesData?.total} roles in this
+                      environment. The add-role picker below only excludes roles from this page.
                     </Alert>
                   )}
 

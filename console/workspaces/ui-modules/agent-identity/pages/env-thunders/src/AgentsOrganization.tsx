@@ -21,18 +21,33 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { PageLayout } from "@agent-management-platform/views";
 import { AgentsTab } from "./subComponents/agentIdentity/AgentsTab";
 import { AgentDetailPage } from "./subComponents/agentIdentity/AgentDetailPage";
+import { AgentIdentityEnvironmentSelector } from "./subComponents/agentIdentity/AgentIdentityEnvironmentSelector";
+import { AgentIdentityEnvironmentGate } from "./subComponents/agentIdentity/AgentIdentityEnvironmentGate";
 
 const TITLE = "Agents";
 
 function AgentsListPage() {
   return (
-    <PageLayout
-      title={TITLE}
-      description="Agents provisioned in the agent identity provider."
-      disableIcon
-    >
-      <AgentsTab />
-    </PageLayout>
+    <AgentIdentityEnvironmentGate title={TITLE}>
+      {() => (
+        <PageLayout
+          title={TITLE}
+          description="Agents provisioned in the selected environment's identity provider."
+          disableIcon
+          actions={<AgentIdentityEnvironmentSelector />}
+        >
+          <AgentsTab />
+        </PageLayout>
+      )}
+    </AgentIdentityEnvironmentGate>
+  );
+}
+
+function AgentDetailWrapper() {
+  return (
+    <AgentIdentityEnvironmentGate title={TITLE}>
+      {() => <AgentDetailPage />}
+    </AgentIdentityEnvironmentGate>
   );
 }
 
@@ -40,7 +55,7 @@ export const AgentsOrganization: React.FC = () => {
   return (
     <Routes>
       <Route index element={<AgentsListPage />} />
-      <Route path=":projectName/:agentName" element={<AgentDetailPage />} />
+      <Route path=":projectName/:agentName" element={<AgentDetailWrapper />} />
       <Route path="*" element={<Navigate to="." replace />} />
     </Routes>
   );

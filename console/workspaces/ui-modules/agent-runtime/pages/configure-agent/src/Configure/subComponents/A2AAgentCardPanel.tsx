@@ -28,7 +28,7 @@ import {
 } from "@agent-management-platform/api-client";
 import { CodeBlock, OverviewSectionCard, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { TextInput } from "@agent-management-platform/views";
-import { DEFAULT_ENVIRONMENT, type AgentCardStatus } from "@agent-management-platform/types";
+import type { AgentCardStatus } from "@agent-management-platform/types";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { hasStoredSecret, KEEP_ORIGIN_HINT } from "./a2aProxyDraft";
 import { AgentCardSourceForm } from "./AgentCardSourceForm";
@@ -38,6 +38,7 @@ interface A2AAgentCardPanelProps {
   orgId: string;
   projectId: string;
   agentId: string;
+  envId: string;
   external: boolean;
 }
 
@@ -54,13 +55,11 @@ const asString = (v: unknown): string | undefined => (typeof v === "string" && v
 const objectsIn = (v: unknown): Json[] => (Array.isArray(v) ? v.filter(isObject) : []);
 const stringsIn = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
 
-/** Stored A2A agent card, with its source controls. */
+/** Stored A2A agent card for one environment, with its source controls. */
 export function A2AAgentCardPanel({
-  orgId, projectId, agentId, external,
+  orgId, projectId, agentId, envId, external,
 }: A2AAgentCardPanelProps) {
-  const params = {
-    orgName: orgId, projName: projectId, agentName: agentId, envId: DEFAULT_ENVIRONMENT,
-  };
+  const params = { orgName: orgId, projName: projectId, agentName: agentId, envId };
   const { data: proxyData, isError: proxyIsError } =
     useGetA2AProxy(params, { enabled: !!external });
   const proxyIsDirect = proxyData === null;
@@ -93,7 +92,7 @@ export function A2AAgentCardPanel({
   const confirmRemove = () => addConfirmation({
     analytics: { entity: "agent-card-source", action: "remove" },
     title: "Remove agent card URL",
-    description: "The stored agent card will be removed. You can register a URL again later.",
+    description: "The stored agent card for this environment will be removed. You can register a URL again later.",
     confirmButtonText: "Remove",
     confirmButtonColor: "error",
     confirmButtonIcon: <Trash size={16} />,
@@ -168,8 +167,8 @@ export function A2AAgentCardPanel({
       {noSource && (
         <Typography variant="body2" color="text.secondary">
           {external
-            ? "No agent card URL is registered. Register one to serve this agent over A2A."
-            : "No agent card has been fetched yet."}
+            ? "No agent card URL is registered for this environment. Register one to serve this agent over A2A."
+            : "No agent card has been fetched for this environment yet."}
         </Typography>
       )}
       {isError && !noSource && (

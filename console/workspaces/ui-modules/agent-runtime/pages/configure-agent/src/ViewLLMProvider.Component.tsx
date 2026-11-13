@@ -27,6 +27,7 @@ import {
   CodeBlock,
   PolicyListSection,
   ResilienceTimeoutFields,
+  usePipelineEnvironmentsState,
   useUnsavedChangesGuard,
   type PolicySelection as GuardrailSelection,
 } from "@agent-management-platform/shared-component";
@@ -42,6 +43,8 @@ import {
   IconButton,
   Skeleton,
   Stack,
+  Tab,
+  Tabs,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
@@ -49,11 +52,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, BookOpen, Edit, Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useLocation, useNavigate, useParams } from "react-router-dom";
-import {
-  absoluteRouteMap,
-  DEFAULT_ENVIRONMENT,
-  type CatalogLLMProviderEntry,
-} from "@agent-management-platform/types";
+import { absoluteRouteMap, type CatalogLLMProviderEntry } from "@agent-management-platform/types";
 import {
   useGetAgent,
   useGetAgentModelConfig,
@@ -69,6 +68,10 @@ import { EnvironmentVariablesGuideDrawer } from "./Configure/subComponents/Envir
 import { LLMProxyAPIKeysSection } from "./Configure/subComponents/LLMProxyAPIKeysSection";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
+import {
+  BUILD_IN_PROGRESS_REASON,
+  useHasBuildInProgress,
+} from "./utils/buildInProgress";
 
 const DURATION_PATTERN = /^\d+(ms|s|m|h)$/;
 
@@ -276,6 +279,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
     }
   )?.authInfoByEnv;
 
+  const [selectedEnvIndex, setSelectedEnvIndex] = useState(0);
   const [guardrailsByEnv, setGuardrailsByEnv] = useState<
     Record<string, GuardrailSelection[]>
   >({});
@@ -313,7 +317,13 @@ export const ViewLLMProviderComponent: React.FC = () => {
     configId,
   });
 
-  const isLoading = isLoadingConfig;
+  const {
+    environments,
+    isLoading: isLoadingEnvironments,
+    isError: isEnvironmentsError,
+  } = usePipelineEnvironmentsState(orgId, projectId);
+
+  const isLoading = isLoadingConfig || isLoadingEnvironments;
 
   const { data: agent } = useGetAgent({
     orgName: orgId,
@@ -322,6 +332,10 @@ export const ViewLLMProviderComponent: React.FC = () => {
   });
 
   const isExternal = agent?.provisioning?.type === "external";
+  const hasBuildInProgress = useHasBuildInProgress(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: !!agent && !isExternal && !agent.kindName },
+  );
 
   const { data: catalogData } = useListCatalogLLMProviders(
     { orgName: orgId },
@@ -332,7 +346,10 @@ export const ViewLLMProviderComponent: React.FC = () => {
     orgName: orgId,
   });
 
-  const selectedEnvName = DEFAULT_ENVIRONMENT;
+  const selectedEnvName = useMemo(
+    () => environments[selectedEnvIndex]?.name ?? "",
+    [environments, selectedEnvIndex],
+  );
 
   const envMapping = useMemo(
     () => config?.envMappings?.[selectedEnvName],
@@ -666,10 +683,12 @@ export const ViewLLMProviderComponent: React.FC = () => {
       }
     > = {};
 
-    // Cover the mapping that already exists and one that only gained a provider
-    // in this session. Stale mappings come back keyed by an environment UUID;
-    // sending that back as an environment name makes the update fail.
-    const activeEnvNames = new Set([DEFAULT_ENVIRONMENT]);
+    // Cover active environments that already have a mapping and ones that only
+    // gained a provider in this session (newly selected for an empty env).
+    // Deleted environments are returned by the backend under their UUID as a
+    // fallback key; sending that UUID back as an environment name makes update
+    // fail before reconciliation can remove the stale mapping.
+    const activeEnvNames = new Set(environments.map((env) => env.name));
     const editedEnvNames = new Set([
       ...Object.keys(config.envMappings ?? {}).filter((envName) =>
         activeEnvNames.has(envName),
@@ -783,6 +802,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
     envVarNames,
     pendingProviderByEnv,
     providers,
+    environments,
     updateConfig,
   ]);
 
@@ -799,6 +819,21 @@ export const ViewLLMProviderComponent: React.FC = () => {
           <Skeleton variant="rounded" height={56} />
           <Skeleton variant="rounded" height={120} />
         </Stack>
+      </PageLayout>
+    );
+  }
+
+  if (isEnvironmentsError) {
+    return (
+      <PageLayout
+        title="LLM Configuration"
+        backHref={backHref}
+        disableIcon
+        backLabel="Back to configure"
+      >
+        <Alert severity="error" icon={<AlertTriangle size={18} />}>
+          Failed to load the project&apos;s deployment pipeline environments. Please try again.
+        </Alert>
       </PageLayout>
     );
   }
@@ -1101,10 +1136,13 @@ export const ViewLLMProviderComponent: React.FC = () => {
         onSave={canWrite ? handleSave : undefined}
         isDirty={isDirty}
         isSaving={updateConfig.isPending}
+        saveBlockedReason={
+          hasBuildInProgress ? BUILD_IN_PROGRESS_REASON : undefined
+        }
         hasInvalidNames={hasEmptyEnvVarName}
         error={updateConfig.isError ? updateConfig.error : undefined}
         description={
-          "These variable names are injected into the agent at runtime. Rename them here if your code already uses different names, then save."
+          "These variable names are injected into the agent at runtime with environment-specific values. Rename them here if your code already uses different names, then save."
         }
         rows={envVarReferenceRows}
         onNameChange={canWrite ? (key, value) =>
@@ -1152,6 +1190,30 @@ export const ViewLLMProviderComponent: React.FC = () => {
 
         <Stack spacing={3}>
 
+          {environments.length > 1 && (
+            <>
+              <Typography variant="body2" color="text.secondary">
+                Each environment uses a separate catalog provider. 
+                The same variable names are injected in all environments with 
+                environment-specific values.
+              </Typography>
+              <Tabs
+                value={selectedEnvIndex}
+                onChange={(_, v: number) => setSelectedEnvIndex(v)}
+                sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
+              >
+                {environments.map((enTab, idx) => (
+                  <Tab
+                    key={enTab.name}
+                    label={enTab.displayName ?? enTab.name}
+                    value={idx}
+                  />
+                ))}
+              </Tabs>
+            </>
+          )}
+
+
           {canWrite && (
           <ProviderSelectDrawer
             open={providerDrawerOpen}
@@ -1197,7 +1259,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
               }
               return (
                 <EmptyConfigCard
-                  message="No provider is configured yet."
+                  message="No provider is configured for this environment yet."
                   actionLabel="Select provider"
                   actionIcon={<Plus size={16} />}
                   onAction={() => setProviderDrawerOpen(true)}
@@ -1319,6 +1381,9 @@ export const ViewLLMProviderComponent: React.FC = () => {
           </Stack>
           )}
 
+          {canWrite && isDirty && hasBuildInProgress && (
+            <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
+          )}
           {canWrite && isDirty && (
             <Stack direction="row" spacing={1}>
               <Button
@@ -1337,7 +1402,8 @@ export const ViewLLMProviderComponent: React.FC = () => {
                 onClick={handleSave}
                 disabled={
                   updateConfig.isPending ||
-                  hasEmptyEnvVarName
+                  hasEmptyEnvVarName ||
+                  hasBuildInProgress
                 }
               >
                 {updateConfig.isPending ? "Saving…" : "Save"}
@@ -1353,6 +1419,7 @@ export const ViewLLMProviderComponent: React.FC = () => {
             projName={projectId}
             agentName={agentId}
             configId={configId}
+            envName={selectedEnvName}
           />
         )}
 

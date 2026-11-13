@@ -50,7 +50,7 @@ import type {
   EventSubscriptionResponse,
   EventTargetParams,
 } from "@agent-management-platform/types";
-import { DestinationName, EventTypeChips, Last24hChip, timeAgo } from "./eventsUi";
+import { DestinationName, EventTypeChips, filterLabel, Last24hChip, timeAgo } from "./eventsUi";
 
 /** "by nuwan.p, 3 days ago", with the creator's name resolved from their ID. */
 function CreatedBy({ orgName, userId, at }: { orgName?: string; userId: string; at: string }) {
@@ -149,7 +149,7 @@ export function SubscriptionsTab({
 
   const groupHeader = (label: string, link?: { href: string; text: string }) => (
     <ListingTable.Row>
-      <ListingTable.Cell colSpan={6} sx={{ bgcolor: "action.hover", py: 1 }}>
+      <ListingTable.Cell colSpan={7} sx={{ bgcolor: "action.hover", py: 1 }}>
         <Stack direction="row" spacing={1} alignItems="center">
           <Typography variant="caption" fontWeight={600} color="text.secondary">
             {label}
@@ -197,6 +197,11 @@ export function SubscriptionsTab({
           service={s.destination.service}
           name={s.destination.name}
         />
+      </ListingTable.Cell>
+      <ListingTable.Cell>
+        <Typography variant="body2" color="text.secondary" noWrap>
+          {filterLabel(s.environments)}
+        </Typography>
       </ListingTable.Cell>
       <ListingTable.Cell>
         <Last24hChip counts={s.last24h} />
@@ -325,6 +330,7 @@ export function SubscriptionsTab({
           <ListingTable.Cell>Subscription</ListingTable.Cell>
           <ListingTable.Cell>Events</ListingTable.Cell>
           <ListingTable.Cell>Destination</ListingTable.Cell>
+          <ListingTable.Cell>Filter</ListingTable.Cell>
           <ListingTable.Cell>Last 24h</ListingTable.Cell>
           <ListingTable.Cell>Enabled</ListingTable.Cell>
           <ListingTable.Cell align="right" />

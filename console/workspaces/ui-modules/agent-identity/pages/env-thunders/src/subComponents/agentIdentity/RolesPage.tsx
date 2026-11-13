@@ -19,21 +19,22 @@ import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Avatar,
-  Box,
   IconButton,
   ListingTable,
   TablePagination,
   Tooltip,
 } from "@wso2/oxygen-ui";
 import { Shield, Trash } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useDeleteAgentIdentityRole,
   useListAgentIdentityRoles,
 } from "@agent-management-platform/api-client";
 import { isListEmpty, ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
-import { absoluteRouteMap, type ThunderRole, DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
+import { absoluteRouteMap, type ThunderRole } from "@agent-management-platform/types";
+import { withSearchParams } from "../../utils/withSearchParams";
+import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 
@@ -44,6 +45,8 @@ interface RolesPageProps {
 
 export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
   const { orgId } = useParams<{ orgId: string }>();
+  const [searchParams] = useSearchParams();
+  const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
   const { canWrite } = useResourceAccess("agent_identity");
 
@@ -52,7 +55,7 @@ export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
   const [search, setSearch] = useState("");
 
   const { data, isLoading, error } = useListAgentIdentityRoles(
-    { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
+    { orgName: orgId, envName },
     { offset: page * rowsPerPage, limit: rowsPerPage },
   );
   const { mutateAsync: deleteRole } = useDeleteAgentIdentityRole();
@@ -77,11 +80,14 @@ export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
   }, [roles.length, total, page, rowsPerPage]);
 
   const rolesNode =
-    absoluteRouteMap.children.org.children.agentIdentity.children.roles;
+    absoluteRouteMap.children.org.children.thunderInstances.children.roles;
 
   const editRolePath = (roleId: string) =>
     orgId
-      ? generatePath(rolesNode.children.detail.path, { orgId, roleId })
+      ? withSearchParams(
+          generatePath(rolesNode.children.detail.path, { orgId, roleId }),
+          searchParams,
+        )
       : "#";
 
   const filteredRoles = useMemo(() => {
@@ -103,7 +109,7 @@ export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
       confirmButtonColor: "error",
       confirmButtonIcon: <Trash size={16} />,
       onConfirm: () =>
-        deleteRole({ orgName: orgId, envName: DEFAULT_ENVIRONMENT, roleId: role.id }),
+        deleteRole({ orgName: orgId, envName: envName ?? "", roleId: role.id }),
     });
   };
 
@@ -117,20 +123,7 @@ export const RolesPage: React.FC<RolesPageProps> = ({ createAction }) => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          {!isEmpty && createAction && (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "flex-end",
-                px: 2,
-                py: 1,
-                borderBottom: 1,
-                borderColor: "divider",
-              }}
-            >
-              {createAction}
-            </Box>
-          )}
+          <AgentIdentityEnvironmentTabs action={isEmpty ? undefined : createAction} />
           {!isEmpty && (
             <ListingTable.Toolbar showSearch searchPlaceholder="Search roles" />
           )}

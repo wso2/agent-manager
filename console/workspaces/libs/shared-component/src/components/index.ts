@@ -17,23 +17,38 @@
  */
 
 export * from "./AgentTypeChips";
+export * from "./BuildLogs";
+export * from "./BuildPanel";
+export * from "./BuildSteps";
 export * from "./CodeBlock";
 export * from "./CollapsibleSection";
+export * from "./EnvironmentVariable";
 export * from "./ConfigSection";
+export * from "./HealthCheckFields";
 export * from "./LabelsEditor";
 export * from "./MarkdownEditor";
 export * from "./LabelChips";
+export * from "./FileMountSection";
+export * from "./ResourceMetricChip";
 export * from "./GatewayTypeChip";
 export * from "./GatewayHostingChip";
+export * from "./InfoCard";
+export * from "./EnvironmentCard";
 export * from "./OverviewSectionCard";
+export * from "./IsolationTierIndicator";
 export * from "./InvokeEndpoints";
 export * from "./ConfirmationDialog";
+export * from "./EnvironmentSelector";
 export * from "./ErrorPages";
 export * from "./BackButton";
 export * from "./EntityHeader";
 export * from "./EditFormSkeleton";
 export * from "./ListingSkeletonRows";
 export * from "./ResilienceTimeoutFields";
+export {
+  RestrictedAction,
+  type RestrictedActionProps,
+} from "./RestrictedAction/RestrictedAction";
 export {
   PolicyListSection,
   type PolicyListSectionProps,
@@ -90,11 +105,11 @@ export {
   type PermissionTreeProps,
 } from "./PermissionTree/PermissionTree";
 export {
-  EgressGatewaySelector,
-  EgressGatewaySelectorView,
-  type EgressGatewaySelectorProps,
-  type EgressGatewaySelectorViewProps,
-} from "./EgressGatewaySelector/EgressGatewaySelector";
+  EnvironmentGatewaySelector,
+  EnvironmentGatewaySelectorView,
+  type EnvironmentGatewaySelectorProps,
+  type EnvironmentGatewaySelectorViewProps,
+} from "./EnvironmentGatewaySelector/EnvironmentGatewaySelector";
 // EnvVarReferenceRow is intentionally not re-exported here — it originates in
 // utils/mcpEnvVarSpec, which the package index already re-exports.
 export { EnvironmentVariablesReference } from "./EnvironmentVariablesReference/EnvironmentVariablesReference";

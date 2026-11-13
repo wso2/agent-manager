@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import {
   DrawerContent,
   DrawerHeader,
@@ -32,6 +32,7 @@ import {
   monospaceInputSx,
   resolveAuthenticationType,
   useAgentIdentityCredentials,
+  usePipelineEnvironmentsState,
   useConfirmIfUnsaved,
   useMCPProxyEndpoints,
   useThunderInstanceForEnv,
@@ -49,8 +50,11 @@ import {
   CircularProgress,
   Divider,
   Form,
+  FormControl,
   IconButton,
   ListingTable,
+  MenuItem,
+  Select,
   Skeleton,
   Stack,
   Tooltip,
@@ -67,13 +71,13 @@ import {
 import {
   useGetAgent,
   useGetAgentMCPConfig,
+  useListEnvironments,
   useListMCPProxies,
   useListMCPProxyScopes,
   useUpdateAgentMCPConfig,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
-  DEFAULT_ENVIRONMENT,
   type EnvironmentVariableConfig,
   type EnvProviderConfigMappings,
   type MCPProxyEndpoint,
@@ -89,6 +93,10 @@ import { MCPServerDisplay } from "./Configure/subComponents/MCPServerDisplay";
 import { MCPProxyAPIKeysSection } from "./Configure/subComponents/MCPProxyAPIKeysSection";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CONFIGURE_TAB_PARAM } from "./configureTabs";
+import {
+  BUILD_IN_PROGRESS_REASON,
+  useHasBuildInProgress,
+} from "./utils/buildInProgress";
 
 type AuthInfoEntry = {
   type: string;
@@ -148,12 +156,17 @@ function buildAgentIDPythonSnippet(urlEnvVar: string): string {
 
 type ToolRow = { id: string; blocked: boolean; scopes: string[] };
 
-// The proxy's bound endpoint — shared by the security/API-key lookup and the
-// tools lookup below.
-function findBoundEndpoint(
+// The endpoint bound to a given environment (matched by UUID; at most one per
+// environment) — shared by the security/API-key lookup and the tools lookup
+// below, which otherwise would each re-derive this same lookup.
+function findEndpointForEnvUuid(
   endpoints: MCPProxyEndpoint[] | undefined,
+  envUuid: string | undefined,
 ): MCPProxyEndpoint | undefined {
-  return endpoints?.find((endpoint) => (endpoint.environments ?? []).length > 0);
+  if (!envUuid) return undefined;
+  return endpoints?.find((endpoint) =>
+    endpoint.environments?.some((binding) => binding.environmentUuid === envUuid),
+  );
 }
 
 /**
@@ -188,12 +201,11 @@ const ConnectIdentityCredentials: React.FC<{
   orgId: string;
   projectId: string;
   agentId: string;
-}> = ({ orgId, projectId, agentId }) => {
+  envId: string;
+}> = ({ orgId, projectId, agentId, envId }) => {
   const {
     binding, provisioned, isLoading, isError, error, revealed, isRegenerating, regenerate,
-  } = useAgentIdentityCredentials({
-    orgId, projectId, agentId, envId: DEFAULT_ENVIRONMENT,
-  });
+  } = useAgentIdentityCredentials({ orgId, projectId, agentId, envId });
   // The regenerate route is authorized by amp:agent:update, not an agent-identity scope.
   const { canWrite } = useResourceAccess("agent");
 
@@ -265,13 +277,15 @@ const ConnectIdentityCredentials: React.FC<{
 };
 
 /**
- * Issuer/token/JWKS endpoints for the agent identity provider —
+ * Issuer/token/JWKS endpoints for the environment's identity provider —
  * alongside ConnectIdentityCredentials, this is everything an external agent
  * needs to request and use a token, without visiting a separate page.
  */
-const ConnectIdentityEndpoints: React.FC<{ orgId: string }> = ({ orgId }) => {
+const ConnectIdentityEndpoints: React.FC<{ orgId: string; envId: string }> = ({
+  orgId, envId,
+}) => {
   const { thunderInstance, isLoading, isError, error } = useThunderInstanceForEnv({
-    orgId, envId: DEFAULT_ENVIRONMENT,
+    orgId, envId,
   });
 
   if (isLoading || isError) {
@@ -281,7 +295,7 @@ const ConnectIdentityEndpoints: React.FC<{ orgId: string }> = ({ orgId }) => {
   if (!thunderInstance) {
     return (
       <Typography variant="body2" color="text.secondary">
-        No identity provider found.
+        No identity provider found for this environment.
       </Typography>
     );
   }
@@ -324,6 +338,8 @@ export const ViewMCPServerComponent = () => {
     proxyId: string;
   }>();
   const decodedConfigId = useMemo(() => decodeRouteParam(proxyId), [proxyId]);
+  const environmentSelectId = useId();
+  const environmentSelectLabelId = useId();
   const navigate = useNavigate();
   const { canWrite } = useResourceAccess("agent");
   const location = useLocation();
@@ -341,6 +357,9 @@ export const ViewMCPServerComponent = () => {
         authInfoByEnv,
     ),
   );
+  // Selected environment drives only the external connect / API-key panels; the
+  // deployment-status list itself is not a per-env editor.
+  const [selectedEnvName, setSelectedEnvName] = useState("");
   const [envVarNames, setEnvVarNames] = useState<Record<string, string>>({});
   const [scopesCopied, setScopesCopied] = useState(false);
 
@@ -362,6 +381,20 @@ export const ViewMCPServerComponent = () => {
     agentName: agentId,
   });
   const isExternal = agent?.provisioning?.type === "external";
+  const hasBuildInProgress = useHasBuildInProgress(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: !!agent && !isExternal && !agent.kindName },
+  );
+
+  const { data: environments = [], isError: isEnvironmentsError } = useListEnvironments({
+    orgName: orgId,
+  });
+  const getEnvDisplayName = (name: string) =>
+    environments.find((env) => env.name === name)?.displayName ?? name;
+  const { environments: pipelineEnvs } = usePipelineEnvironmentsState(
+    orgId,
+    projectId,
+  );
   const { data: proxiesData } = useListMCPProxies(
     { orgName: orgId },
     { limit: 50, offset: 0, project: projectId },
@@ -378,7 +411,18 @@ export const ViewMCPServerComponent = () => {
         )}?${CONFIGURE_TAB_PARAM}=tools`
       : "#";
 
-  // The tool config references a single MCP proxy. Derive it from any mapping.
+  // Show every environment the agent deploys to (pipeline order), plus any mapped
+  // envs no longer in the pipeline, so each carries a deployment status.
+  const envNames = useMemo(() => {
+    const configured = Object.keys(config?.envMappings ?? {});
+    const ordered = pipelineEnvs.map((env) => env.name);
+    const extras = configured.filter((name) => !ordered.includes(name));
+    const union = [...ordered, ...extras];
+    return union.length > 0 ? union : configured;
+  }, [config, pipelineEnvs]);
+
+  // The tool config references a single, environment-agnostic MCP proxy. Derive it
+  // from any environment that has a mapping.
   const configProxyName = useMemo(() => {
     for (const mapping of Object.values(config?.envMappings ?? {})) {
       const name = getMCPProxyName(mapping.configuration);
@@ -400,10 +444,19 @@ export const ViewMCPServerComponent = () => {
         )
       : undefined;
 
-  const providerConfig = config?.envMappings?.[DEFAULT_ENVIRONMENT]?.configuration;
+  // Default the selected environment (external connect / API-key panels) to the
+  // first environment once names resolve, and keep it valid.
+  useEffect(() => {
+    if (envNames.length === 0) return;
+    if (!envNames.includes(selectedEnvName)) {
+      setSelectedEnvName(envNames[0]);
+    }
+  }, [envNames, selectedEnvName]);
 
-  // An org proxy's endpoints, or a project proxy's (read from its project route)
-  // in the same shape.
+  const providerConfig = config?.envMappings?.[selectedEnvName]?.configuration;
+
+  // An org proxy's endpoints, or a project proxy's environments (read from its
+  // project route) in the same shape.
   const {
     proxy: sourceProxyDetails,
     isLoading: isLoadingProxyDetails,
@@ -412,7 +465,13 @@ export const ViewMCPServerComponent = () => {
     orgName: orgId,
     proxyId: configProxyName ?? "",
   });
-  const sourceProxyEndpoint = findBoundEndpoint(sourceProxyDetails?.endpoints);
+  const selectedEnvUuid = environments.find(
+    (env) => env.name === selectedEnvName,
+  )?.id;
+  const sourceProxyEndpoint = findEndpointForEnvUuid(
+    sourceProxyDetails?.endpoints,
+    selectedEnvUuid,
+  );
   const apiKeyHeaderName = getMCPAPIKeyHeaderName(sourceProxyEndpoint?.security);
   // Same rule the MCP Servers Security tab renders and the creation flow derives
   // its variables from, so all three surfaces agree on API key vs OAuth vs None.
@@ -428,7 +487,7 @@ export const ViewMCPServerComponent = () => {
   const isMCPSecurityUnresolved = isLoadingProxyDetails || isProxyDetailsError;
 
   // Scopes are a proxy-level catalog (action -> tools it authorizes), not
-  // per-endpoint.
+  // per-endpoint, so this fetch doesn't depend on the selected environment.
   const {
     data: scopesData,
     isLoading: isLoadingScopes,
@@ -441,11 +500,11 @@ export const ViewMCPServerComponent = () => {
   // compute against stale/empty data and the Tools section would flash "No
   // tools available" before the real list shows up.
   const isLoadingTools = isLoadingProxyDetails || isLoadingScopes;
-  // A failure here would otherwise look identical to "genuinely has no tools"
-  // — surfaced separately in the Tools section below.
-  const isToolsError = isProxyDetailsError || isScopesError;
+  // A failure here would otherwise look identical to "this environment
+  // genuinely has no tools" — surfaced separately in the Tools section below.
+  const isToolsError = isEnvironmentsError || isProxyDetailsError || isScopesError;
 
-  // Tools belong to the bound endpoint.
+  // Tools belong to the endpoint bound to the selected environment.
   const toolRows = useMemo<ToolRow[]>(() => {
     const scopesByTool: Record<string, string[]> = {};
     for (const scope of scopesData?.scopes ?? []) {
@@ -671,15 +730,17 @@ export const ViewMCPServerComponent = () => {
               <Form.Section>
                 <Form.Subheader>Client Credentials</Form.Subheader>
                 <ConnectIdentityCredentials
+                  key={selectedEnvName}
                   orgId={orgId ?? ""}
                   projectId={projectId ?? ""}
                   agentId={agentId ?? ""}
+                  envId={selectedEnvName}
                 />
               </Form.Section>
 
               <Form.Section>
                 <Form.Subheader>Identity Provider Endpoints</Form.Subheader>
-                <ConnectIdentityEndpoints orgId={orgId ?? ""} />
+                <ConnectIdentityEndpoints orgId={orgId ?? ""} envId={selectedEnvName} />
               </Form.Section>
 
               {uniqueScopes.length > 0 && (
@@ -716,7 +777,7 @@ export const ViewMCPServerComponent = () => {
             </Stack>
           ) : usesAPIKeySecurity ? (() => {
             const authEntry =
-              authInfoByEnv?.[DEFAULT_ENVIRONMENT] ?? providerConfig.authInfo;
+              authInfoByEnv?.[selectedEnvName] ?? providerConfig.authInfo;
             const headerName = apiKeyHeaderName || authEntry?.name || "api-key";
             const headerValue = authEntry?.value || "<api-key>";
             const curlCode = [
@@ -845,10 +906,13 @@ export const ViewMCPServerComponent = () => {
         onSave={canWrite ? handleSave : undefined}
         isDirty={isDirty}
         isSaving={updateConfig.isPending}
+        saveBlockedReason={
+          hasBuildInProgress ? BUILD_IN_PROGRESS_REASON : undefined
+        }
         hasInvalidNames={hasEmptyEnvVarName || isMCPSecurityUnresolved}
         error={updateConfig.isError ? updateConfig.error : undefined}
         description={
-          "These variable names are injected into the agent at runtime. Rename them here if your code already uses different names, then save."
+          "These variable names are injected into the agent at runtime with environment-specific values. Rename them here if your code already uses different names, then save."
         }
         rows={envVarReferenceRows}
         onNameChange={canWrite ? (key, value) =>
@@ -885,7 +949,7 @@ export const ViewMCPServerComponent = () => {
               <EnvironmentVariablesReference
                 variant="plain"
                 title="AgentID Variables"
-                description="These names are fixed, and they're injected automatically at runtime alongside the URL above."
+                description="These names are fixed, only their values change per environment, and they're injected automatically at runtime alongside the URL above."
                 rows={AGENTID_ENV_VAR_ROWS}
               />
             </Form.Section>
@@ -974,6 +1038,34 @@ export const ViewMCPServerComponent = () => {
           )}
         </Box>
 
+        {envNames.length > 1 && (
+          <Stack direction="row" spacing={2} alignItems="center" justifyContent="flex-end">
+            <Typography
+              id={environmentSelectLabelId}
+              variant="body2"
+              color="text.secondary"
+            >
+              Environment
+            </Typography>
+            <FormControl size="small" sx={{ minWidth: 260 }}>
+              <Select
+                id={environmentSelectId}
+                labelId={environmentSelectLabelId}
+                value={selectedEnvName}
+                onChange={(event) =>
+                  setSelectedEnvName(event.target.value as string)
+                }
+              >
+                {envNames.map((name) => (
+                  <MenuItem key={name} value={name}>
+                    {getEnvDisplayName(name)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+        )}
+
         <Box>
           <Typography variant="subtitle1" sx={{ mb: 1 }}>Tools</Typography>
           {isLoadingTools ? (
@@ -1049,6 +1141,7 @@ export const ViewMCPServerComponent = () => {
             projName={projectId}
             agentName={agentId}
             configId={decodedConfigId}
+            envName={selectedEnvName}
           />
         )}
       </Stack>

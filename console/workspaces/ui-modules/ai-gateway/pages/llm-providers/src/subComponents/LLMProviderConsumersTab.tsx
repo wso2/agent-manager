@@ -57,7 +57,7 @@ function consumerLink(
       },
     );
   }
-  // A monitor consumer doesn't name its agent, so there is no page to link.
+  // Monitors require envId which we don't have
   return undefined;
 }
 

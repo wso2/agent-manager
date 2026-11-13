@@ -50,6 +50,7 @@ vi.mock("@agent-management-platform/api-client", () => {
       error: null,
       refetch: vi.fn(),
     }),
+    useListEnvironments: () => ({ data: [], isLoading: false, error: null }),
     useDeleteGateway: () => ({ mutateAsync: hoisted.deleteManaged }),
     useDeleteSelfHostedGateway: () => ({ mutateAsync: hoisted.deleteSelfHosted }),
     useTrack: () => ({ track: vi.fn() }),
@@ -107,7 +108,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
     featureFlags = { enableSelfHostedGateways: false };
     renderTable();
 
-    expect(screen.queryByText("Add gateway")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add Gateway")).not.toBeInTheDocument();
     expect(screen.getByText("Hosting")).toBeInTheDocument();
     expect(screen.getByText("Self-hosted")).toBeInTheDocument();
     expect(screen.getByText("Managed")).toBeInTheDocument();
@@ -118,7 +119,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
     hoisted.gateways = [gateway("managed-1", "MANAGED"), gateway("managed-2", "MANAGED")];
     renderTable();
 
-    expect(screen.queryByText("Add gateway")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add Gateway")).not.toBeInTheDocument();
     expect(screen.queryByText("Hosting")).not.toBeInTheDocument();
     expect(screen.queryByText("Self-hosted")).not.toBeInTheDocument();
     expect(screen.queryByText("Managed")).not.toBeInTheDocument();
@@ -129,7 +130,7 @@ describe("AIGatewaysTable self-hosted gating", () => {
     hoisted.gateways = [];
     renderTable();
 
-    expect(screen.getByText("Add gateway")).toBeInTheDocument();
+    expect(screen.getByText("Add Gateway")).toBeInTheDocument();
   });
 
   it("shows hosting chips when enabled", () => {

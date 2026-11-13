@@ -38,7 +38,7 @@ import { ChatMessage } from "./subComponents/ChatMessage";
 import { OAuthNotice } from "./subComponents/OAuthNotice";
 import { FadeIn, useSnackBar } from "@agent-management-platform/views";
 import { readSSEStream, parseStreamChunk } from "./utils/sse";
-import { DEFAULT_ENVIRONMENT, INPUT_LIMITS } from "@agent-management-platform/types";
+import { INPUT_LIMITS } from "@agent-management-platform/types";
 
 interface ChatMessage {
   id: string;
@@ -89,7 +89,7 @@ export function AgentChat() {
   const [isStreaming, setIsStreaming] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { agentId, orgId, projectId } = useParams();
+  const { agentId, orgId, projectId, envId } = useParams();
   const { data: endpoints, isLoading: isEndpointsLoading } =
     useGetAgentEndpoints(
       {
@@ -98,9 +98,10 @@ export function AgentChat() {
         agentName: agentId,
       },
       {
-        environment: DEFAULT_ENVIRONMENT,
+        environment: envId ?? "",
       },
     );
+  // GetAgent returns only the lowest environment's config, so read per-env here.
   const { data: envConfig } = useGetAgentConfigurations(
     {
       orgName: orgId,
@@ -108,7 +109,7 @@ export function AgentChat() {
       agentName: agentId,
     },
     {
-      environment: DEFAULT_ENVIRONMENT,
+      environment: envId ?? "",
     },
   );
   const securityEnabled = envConfig?.enableApiKeySecurity ?? true;
@@ -121,7 +122,7 @@ export function AgentChat() {
     error: testKeyError,
     refetch: refetchTestKey,
   } = useTestAgentAPIKey(
-    { orgName: orgId, projName: projectId, agentName: agentId, envId: DEFAULT_ENVIRONMENT },
+    { orgName: orgId, projName: projectId, agentName: agentId, envId },
     { enabled: securityEnabled && !oauthOnly },
   );
   const endpointOptions = useMemo(() => {

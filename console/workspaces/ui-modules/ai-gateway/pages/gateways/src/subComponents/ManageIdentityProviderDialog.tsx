@@ -41,11 +41,13 @@ import {
 import {
   useDeleteIdentityProvider,
   useDiscoverOidc,
+  useListEnvironments,
   useListGateways,
   useUpsertIdentityProvider,
 } from "@agent-management-platform/api-client";
 import {
   isManagedGateway,
+  type GatewayEnvironmentResponse,
   type IdentityProvider,
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
@@ -66,12 +68,17 @@ interface ManageIdentityProviderDialogProps {
   onClose: () => void;
   orgId: string;
   mode: ManageIdentityProviderMode;
-  /** For delete, the provider row to remove (name + gateway prefilled). */
+  /** For delete, the provider row to remove (name + gateway + environment prefilled). */
   provider?: IdentityProvider | null;
-  /** When opened from a specific gateway, the gateway is fixed and its picker hidden. */
+  /**
+   * When opened from a specific gateway, the gateway is fixed: the gateway picker
+   * is hidden and the environment choices are constrained to this gateway's
+   * environments (auto-selected when there is only one).
+   */
   lockedGateway?: {
     uuid: string;
     name: string;
+    environments: GatewayEnvironmentResponse[];
   } | null;
 }
 
@@ -86,6 +93,7 @@ export function ManageIdentityProviderDialog({
   const isDelete = mode === "delete";
   const isGatewayLocked = !!lockedGateway;
 
+  const [envName, setEnvName] = useState("");
   const [gatewayId, setGatewayId] = useState("");
   const [name, setName] = useState("");
   const [issuer, setIssuer] = useState("");
@@ -143,12 +151,25 @@ export function ManageIdentityProviderDialog({
     onClose,
   ]);
 
-  // Managed gateways populate the gateway picker (only used when no gateway is
-  // locked in): a self-hosted gateway has no identity providers here.
-  const { data: gatewaysResp } = useListGateways({ orgName: orgId });
+  const { data: environments } = useListEnvironments({ orgName: orgId });
+  // The selected environment's managed gateways populate the gateway picker (only used
+  // when no gateway is locked in): a self-hosted gateway has no identity providers here.
+  const { data: gatewaysResp } = useListGateways(
+    { orgName: orgId },
+    envName ? { environment: envName } : undefined,
+  );
   const gateways = useMemo(
     () => (gatewaysResp?.gateways ?? []).filter(isManagedGateway),
     [gatewaysResp],
+  );
+
+  // Environment choices: scoped to the locked gateway when present, otherwise
+  // every environment in the org.
+  const envOptions = useMemo<
+    Array<{ name: string; displayName?: string }>
+  >(
+    () => (lockedGateway ? lockedGateway.environments : (environments ?? [])),
+    [lockedGateway, environments],
   );
 
   // Reset form when the dialog opens, seeding from the provider for delete.
@@ -158,12 +179,19 @@ export function ManageIdentityProviderDialog({
     setDiscoveryUrl("");
     setDiscoveryError(null);
     if (isDelete && provider) {
+      setEnvName(provider.environmentName ?? "");
       setGatewayId(provider.gatewayId ?? "");
       setName(provider.name);
       setIssuer(provider.issuer ?? "");
       setJwksUri(provider.jwksUri ?? "");
       setSkipTlsVerify(provider.skipTlsVerify ?? false);
     } else {
+      // Lock the gateway and auto-select its environment when there is only one.
+      setEnvName(
+        lockedGateway && lockedGateway.environments.length === 1
+          ? lockedGateway.environments[0].name
+          : "",
+      );
       setGatewayId(lockedGateway?.uuid ?? "");
       setName("");
       setIssuer("");
@@ -180,7 +208,8 @@ export function ManageIdentityProviderDialog({
       !!issuer.trim() ||
       !!jwksUri.trim() ||
       skipTlsVerify ||
-      !!discoveryUrl.trim());
+      !!discoveryUrl.trim() ||
+      (!isGatewayLocked && !!envName));
   useUnsavedChangesGuard(isDirty);
   const confirmIfUnsaved = useConfirmIfUnsaved();
   // Backdrop and header X discard edits, so confirm first; Cancel and the
@@ -217,8 +246,31 @@ export function ManageIdentityProviderDialog({
     }
   }, [keyManagerConfig]);
 
-  const gatewayField = (
+  const environmentField = (
     <FormControl fullWidth disabled={isDelete}>
+      <FormLabel>Environment</FormLabel>
+      <Select
+        size="small"
+        value={envName}
+        displayEmpty
+        onChange={(e) => setEnvName(e.target.value as string)}
+        renderValue={(v) => {
+          if (!v) return "Select an environment";
+          const env = envOptions.find((en) => en.name === v);
+          return env?.displayName || env?.name || (v as string);
+        }}
+      >
+        {envOptions.map((env) => (
+          <MenuItem key={env.name} value={env.name}>
+            {env.displayName || env.name}
+          </MenuItem>
+        ))}
+      </Select>
+    </FormControl>
+  );
+
+  const gatewayField = (
+    <FormControl fullWidth disabled={isDelete || (!isGatewayLocked && !envName)}>
       <FormLabel>Gateway</FormLabel>
       {isGatewayLocked ? (
         <TextField
@@ -275,7 +327,20 @@ export function ManageIdentityProviderDialog({
           </Typography>
 
           <Stack spacing={2}>
-            {gatewayField}
+            {/* Gateway comes first when it is locked in (added from a gateway);
+                otherwise Environment leads, because the gateway picker is
+                filtered by the selected environment. */}
+            {isGatewayLocked ? (
+              <>
+                {gatewayField}
+                {environmentField}
+              </>
+            ) : (
+              <>
+                {environmentField}
+                {gatewayField}
+              </>
+            )}
 
             <FormControl fullWidth disabled={isDelete}>
               <FormLabel>Name</FormLabel>

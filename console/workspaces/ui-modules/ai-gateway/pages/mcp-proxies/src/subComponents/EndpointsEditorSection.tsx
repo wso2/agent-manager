@@ -18,6 +18,7 @@
 import { useCallback, useMemo } from "react";
 import { Box, Button, Stack, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
+import type { Environment } from "@agent-management-platform/types";
 import { EndpointFormFields, type EndpointDraft } from "./EndpointFormFields";
 import { EndpointRow } from "./EndpointRow";
 
@@ -35,6 +36,7 @@ function createDraftEndpointId(): string {
 
 export interface EndpointsEditorSectionProps {
   orgId: string;
+  environments: Environment[];
   endpoints: EndpointDraft[];
   onEndpointsChange: (endpoints: EndpointDraft[]) => void;
   addOpen: boolean;
@@ -56,6 +58,7 @@ export interface EndpointsEditorSectionProps {
 // page-level actions while a form is open.
 export function EndpointsEditorSection({
   orgId,
+  environments,
   endpoints,
   onEndpointsChange,
   addOpen,
@@ -66,10 +69,35 @@ export function EndpointsEditorSection({
   onEndpointAdded,
   onEndpointFormDirtyChange,
 }: EndpointsEditorSectionProps) {
+  const environmentLabels = useMemo(() => {
+    const labels = new Map<string, string>();
+    environments.forEach((env) => {
+      if (env.id) labels.set(env.id, env.displayName || env.name);
+    });
+    return labels;
+  }, [environments]);
+
+  const usedEnvIds = useMemo(() => {
+    const used = new Set<string>();
+    endpoints.forEach((endpoint) => {
+      endpoint.environments.forEach((envId) => used.add(envId));
+    });
+    return used;
+  }, [endpoints]);
+
   const editingEndpoint = useMemo(
     () => endpoints.find((endpoint) => endpoint.id === editingId),
     [endpoints, editingId],
   );
+
+  // Environments selectable in the endpoint form. When editing, the endpoint's own
+  // environments stay available; only those claimed by other endpoints are excluded.
+  const availableEnvironments = useMemo(() => {
+    const ownEnvIds = new Set(editingEndpoint?.environments ?? []);
+    return environments.filter(
+      (env) => !!env.id && (ownEnvIds.has(env.id) || !usedEnvIds.has(env.id)),
+    );
+  }, [environments, usedEnvIds, editingEndpoint]);
 
   const closeEndpointForm = useCallback(() => {
     onAddOpenChange(false);
@@ -104,8 +132,8 @@ export function EndpointsEditorSection({
     [endpoints, onEndpointsChange],
   );
 
-  // The server places one endpoint per gateway environment, and the org has one.
-  const hasEndpoint = endpoints.length > 0;
+  const noEnvironmentsLeft =
+    environments.length > 0 && availableEnvironments.length === 0;
 
   return (
     <>
@@ -124,6 +152,7 @@ export function EndpointsEditorSection({
               >
                 <EndpointFormFields
                   orgId={orgId}
+                  availableEnvironments={availableEnvironments}
                   initialDraft={editingEndpoint}
                   onAdd={handleSaveEditedEndpoint}
                   onCancel={closeEndpointForm}
@@ -134,6 +163,7 @@ export function EndpointsEditorSection({
               <EndpointRow
                 key={endpoint.id}
                 endpoint={endpoint}
+                environmentLabels={environmentLabels}
                 // Only one endpoint form (add or edit) is open at a time, so
                 // hide every other row's Edit action while one is in progress
                 // rather than letting a second form open on top of it.
@@ -158,6 +188,7 @@ export function EndpointsEditorSection({
             >
               <EndpointFormFields
                 orgId={orgId}
+                availableEnvironments={availableEnvironments}
                 onAdd={handleAddEndpoint}
                 onCancel={closeEndpointForm}
                 onDirtyChange={onEndpointFormDirtyChange}
@@ -186,16 +217,18 @@ export function EndpointsEditorSection({
         <Box>
           <Tooltip
             title={
-              hasEndpoint ? "This MCP server already has an endpoint." : ""
+              noEnvironmentsLeft
+                ? "All environments already have an endpoint."
+                : ""
             }
-            disableHoverListener={!hasEndpoint}
+            disableHoverListener={!noEnvironmentsLeft}
           >
             <span>
               <Button
                 variant="outlined"
                 startIcon={<Plus size={16} />}
                 onClick={() => onAddOpenChange(true)}
-                disabled={hasEndpoint}
+                disabled={noEnvironmentsLeft || environments.length === 0}
               >
                 Add endpoint
               </Button>
@@ -204,6 +237,12 @@ export function EndpointsEditorSection({
         </Box>
       )}
 
+      {environments.length > 1 ? (
+        <Typography variant="caption" color="text.secondary">
+          {usedEnvIds.size} of {environments.length} environments have an
+          endpoint.
+        </Typography>
+      ) : null}
     </>
   );
 }

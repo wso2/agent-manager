@@ -24,8 +24,8 @@ interface UppercaseCaptionLabelProps {
   sx?: SxProps<Theme>;
 }
 
-/** Small bold uppercase caption used to label an overview section. */
-const UppercaseCaptionLabel: React.FC<UppercaseCaptionLabelProps> = ({ children, sx }) => (
+/** Small bold uppercase caption used to label a field/section across the overview cards. */
+export const UppercaseCaptionLabel: React.FC<UppercaseCaptionLabelProps> = ({ children, sx }) => (
   <Typography
     variant="caption"
     color="text.secondary"
@@ -41,7 +41,10 @@ interface SectionHeaderProps {
   title?: string;
   /** Shown as a tooltip on a trailing info icon right after the title. */
   titleInfo?: React.ReactNode;
-  /** Omit when a section has nowhere to link out to; the "View all" button is skipped. */
+  /**
+   * Omit when a section has nowhere to link out to (e.g. no deployment page
+   * for external agents) — the "View all" button is skipped entirely.
+   */
   viewAllHref?: string;
   viewAllLabel?: string;
   mb?: number;
@@ -50,7 +53,8 @@ interface SectionHeaderProps {
 
 /**
  * Uppercase caption + "View all" link, marking the boundary before every
- * overview section that links out to its own full listing page.
+ * EnvironmentCard section (Capabilities, Agent Identity, Agent Performance,
+ * Recent Traces, System Metrics) that links out to its own full listing page.
  */
 export const SectionHeader: React.FC<SectionHeaderProps> = ({
   title, titleInfo, viewAllHref, viewAllLabel = "View all", mb = 0.5, mt = 2,

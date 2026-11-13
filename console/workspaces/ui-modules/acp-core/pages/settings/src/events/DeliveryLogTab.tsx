@@ -49,7 +49,8 @@ const PAGE_SIZE = 25;
 
 function where(d: EventDeliveryResponse): string {
   const parts = [d.projectName, d.agentName].filter(Boolean).join(" / ");
-  return parts || "Organization";
+  const base = parts || "Organization";
+  return d.environment ? `${base} · ${d.environment}` : base;
 }
 
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {

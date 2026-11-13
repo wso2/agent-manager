@@ -17,16 +17,7 @@
  */
 
 import { globalConfig } from "@agent-management-platform/types";
-
-/**
- * The configured Agent Manager release version (e.g. "v0.15.0"). The deployment
- * scripts live in the Agent Manager repo and are tagged with its release, so the
- * script ref is pinned to this version — not the gateway chart version. Empty
- * when not injected (dev), which falls back to `main`.
- */
-export function getAmpVersion(): string {
-  return globalConfig.ampVersion?.trim() || "";
-}
+import { getAmpVersion, getScriptRef } from "./releaseRef";
 
 /**
  * Agent Manager release version without the leading "v", for contexts that need
@@ -37,19 +28,6 @@ export function getAmpVersion(): string {
 export function getAmpVersionHelm(): string {
   const v = getAmpVersion();
   return v.startsWith("v") ? v.slice(1) : v;
-}
-
-/**
- * Git ref used to fetch deployment scripts from raw.githubusercontent.com.
- * Release tags are `amp/vX.Y.Z`, so a versioned build pins to that tag. An unset
- * or dev placeholder version (e.g. `0.0.0-dev`) has no matching tag, so fall back
- * to `main`. The leading "v" is normalized so both "v0.15.0" and "0.15.0" work.
- */
-export function getScriptRef(): string {
-  const version = getAmpVersion();
-  if (!version || version.includes("dev")) return "main";
-  const bare = version.startsWith("v") ? version.slice(1) : version;
-  return `amp/v${bare}`;
 }
 
 /**

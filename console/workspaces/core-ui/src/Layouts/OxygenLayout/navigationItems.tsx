@@ -96,7 +96,7 @@ export function useNavigationItems(): Array<
     envId ?? (environments.length > 0 ? environments[0]?.name : "");
 
   // Access is settled here: FeatureAccessBridge shows a loader until it resolves.
-  if (isLoadingAgent) {
+  if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
   }
 

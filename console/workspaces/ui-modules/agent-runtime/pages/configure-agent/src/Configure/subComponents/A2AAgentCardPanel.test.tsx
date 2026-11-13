@@ -31,7 +31,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useSetAgentCardSource: vi.fn(),
   useDeleteAgentCardSource: vi.fn(),
 }));
-vi.mock("./ProxySecurityDrawer", () => ({
+vi.mock("@agent-management-platform/deploy", () => ({
   ProxySecurityDrawer: ({ open }: { open: boolean }) => (open ? <div>security drawer</div> : null),
 }));
 
@@ -50,7 +50,7 @@ import { A2AAgentCardPanel } from "./A2AAgentCardPanel";
 
 const refresh = vi.fn();
 const setSource = vi.fn();
-const params = { orgName: "org", projName: "proj", agentName: "agent", envId: "default" };
+const params = { orgName: "org", projName: "proj", agentName: "agent", envId: "dev" };
 
 const mockCard = (value: Partial<ReturnType<typeof useGetAgentCard>>) =>
   vi.mocked(useGetAgentCard).mockReturnValue({
@@ -73,7 +73,7 @@ const idleMutation = (hook: unknown) =>
 const renderPanel = (external = false) =>
   render(
     <MemoryRouter>
-      <A2AAgentCardPanel orgId="org" projectId="proj" agentId="agent" external={external} />
+      <A2AAgentCardPanel orgId="org" projectId="proj" agentId="agent" envId="dev" external={external} />
     </MemoryRouter>,
   );
 
@@ -137,7 +137,7 @@ describe("A2AAgentCardPanel", () => {
     mockCard({ data: { source: "platform", status: "fetched", sourceUrl: "", lastError: "" } });
     renderPanel();
     fireEvent.click(screen.getByRole("button", { name: "Refetch" }));
-    expect(refresh).toHaveBeenCalledWith({ orgName: "org", projName: "proj", agentName: "agent", envId: "default" });
+    expect(refresh).toHaveBeenCalledWith({ orgName: "org", projName: "proj", agentName: "agent", envId: "dev" });
   });
 
   it("asks an external agent with no source for a card URL", () => {
@@ -302,7 +302,7 @@ describe("A2AAgentCardPanel", () => {
     expect(screen.queryByText(/register this agent/i)).not.toBeInTheDocument();
     expect(screen.queryByPlaceholderText(/agent-card\.json/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Refetch" }));
-    expect(refresh).toHaveBeenCalledWith({ orgName: "org", projName: "proj", agentName: "agent", envId: "default" });
+    expect(refresh).toHaveBeenCalledWith({ orgName: "org", projName: "proj", agentName: "agent", envId: "dev" });
   });
 
   it("offers no refetch to an external agent with no source", () => {

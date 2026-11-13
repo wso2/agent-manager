@@ -28,10 +28,12 @@ import {
     useTheme,
 } from "@wso2/oxygen-ui";
 import { AreaChart } from "@wso2/oxygen-ui-charts-react";
-import { useTraceList } from "@agent-management-platform/api-client";
+import {
+    useListAgentDeployments,
+    useTraceList,
+} from "@agent-management-platform/api-client";
 import {
     absoluteRouteMap,
-    DEFAULT_ENVIRONMENT,
     TraceListTimeRange,
 } from "@agent-management-platform/types";
 import { format } from "date-fns";
@@ -43,6 +45,8 @@ interface EnvObservabilitySectionProps {
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
+    external?: boolean;
 }
 
 const formatTokens = (n: number): string =>
@@ -132,13 +136,29 @@ const DonutMetricCard: React.FC<DonutMetricCardProps> =
     );
 
 export const EnvObservabilitySection: React.FC<EnvObservabilitySectionProps> = ({
-    orgId, projectId, agentId,
+    orgId, projectId, agentId, envId, external = false,
 }) => {
     const theme = useTheme();
+    const { data: deployments } = useListAgentDeployments(
+        { orgName: orgId, projName: projectId, agentName: agentId },
+        { enabled: !external },
+    );
+    const deploymentStatus = deployments?.[envId]?.status;
+
+    // Observability is only meaningful once a deployment exists in a running,
+    // failed, or suspended state — there are no metrics or traces to show while
+    // an internal agent is not-deployed or still deploying. External agents have
+    // no deployment lifecycle, so they are always observable.
+    const hasObservableDeployment =
+        deploymentStatus === "active" ||
+        deploymentStatus === "error" ||
+        deploymentStatus === "failed" ||
+        deploymentStatus === "suspended";
+    const hideObservability = !external && !hasObservableDeployment;
 
     const { traceList, isLoading: isTracesLoading } = useTraceList(
-        orgId, projectId, agentId, DEFAULT_ENVIRONMENT, TraceListTimeRange.ONE_DAY, 10, "desc",
-        undefined, undefined, { enableAutoRefresh: true },
+        orgId, projectId, agentId, envId, TraceListTimeRange.ONE_DAY, 10, "desc",
+        undefined, undefined, { enableAutoRefresh: true, enabled: !hideObservability },
     );
 
     const traces = useMemo(() => traceList?.traces ?? [], [traceList]);
@@ -196,7 +216,7 @@ export const EnvObservabilitySection: React.FC<EnvObservabilitySectionProps> = (
     const successRateColor: DonutColor = getDonutColorForPercent(successRate);
 
     // The list is capped at 10 (see the useTraceList call below) — once the
-    // agent has more than that in the last 24h, the tooltip should say
+    // environment has more than that in the last 24h, the tooltip should say
     // so instead of implying these stats cover everything in the window.
     const isTraceListTruncated = (traceList?.totalCount ?? 0) > traces.length;
     const tracesInfoTooltip = isTraceListTruncated
@@ -205,9 +225,14 @@ export const EnvObservabilitySection: React.FC<EnvObservabilitySectionProps> = (
 
     const tracesHref = generatePath(
         absoluteRouteMap.children.org.children.projects.children.agents
-            .children.observability.children.traces.path,
-        { orgId, projectId, agentId },
+            .children.environment.children.observability.children.traces.path,
+        { orgId, projectId, agentId, envId },
     );
+
+    // Nothing to surface for a not-deployed / deploying internal environment.
+    if (hideObservability) {
+        return null;
+    }
 
     return (
         <>

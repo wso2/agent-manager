@@ -42,7 +42,7 @@ import {
   DrawerWrapper,
   TextInput,
 } from "@agent-management-platform/views";
-import { absoluteRouteMap, DEFAULT_ENVIRONMENT, INPUT_LIMITS } from "@agent-management-platform/types";
+import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
 import {
   useCreateAgentMCPConfig,
   useGetAgent,
@@ -52,6 +52,7 @@ import {
 import {
   AGENTID_ENV_VAR_ROWS,
   EnvironmentVariablesReference,
+  usePipelineEnvironmentsState,
   useMCPProxySecurity,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -62,6 +63,10 @@ import {
   generateUniqueConfigName,
   type EnvVarKey,
 } from "../../utils/envConfig";
+import {
+  BUILD_IN_PROGRESS_REASON,
+  useHasBuildInProgress,
+} from "../../utils/buildInProgress";
 
 const ENV_VAR_DESCRIPTIONS: Record<EnvVarKey, string> = {
   url: "Base URL of the MCP server endpoint",
@@ -82,6 +87,9 @@ export interface AddMCPToolConfigPanelProps {
  * The "Add Tool Configuration" flow rendered as a single right-side drawer. It is a
  * two-step flow within that one panel: first pick an MCP proxy from the list, then the
  * same drawer shows the selected server plus the configuration name and env var names.
+ * Selection is environment-agnostic — on save every deployment-pipeline environment is
+ * mapped to the one selected proxy; the backend deploys where the proxy is configured
+ * and injects empty env vars everywhere else.
  */
 export function AddMCPToolConfigPanel({
   open,
@@ -98,7 +106,13 @@ export function AddMCPToolConfigPanel({
     agentName: agentId,
   });
   const isExternal = agent?.provisioning?.type === "external";
+  const hasBuildInProgress = useHasBuildInProgress(
+    { orgName: orgId, projName: projectId, agentName: agentId },
+    { enabled: !!agent && !isExternal && !agent.kindName },
+  );
 
+  const { environments, isLoading: isLoadingEnvironments } =
+    usePipelineEnvironmentsState(orgId, projectId);
   const { data: proxiesData, isLoading: isLoadingProxies } = useListMCPProxies(
     { orgName: orgId },
     { limit: 50, offset: 0, project: projectId },
@@ -140,8 +154,9 @@ export function AddMCPToolConfigPanel({
   );
 
   // The list item has no security info, so the hook fetches the full proxy. No
-  // environmentUuid is passed on purpose, so the hook's every-endpoint rule
-  // applies and a mixed-security proxy keeps both fields.
+  // environmentUuid is passed on purpose: this proxy maps to every environment at
+  // once, so the hook's every-endpoint rule applies and a mixed-security proxy
+  // keeps both fields.
   const {
     authenticationType,
     usesIdentitySecurity,
@@ -192,9 +207,14 @@ export function AddMCPToolConfigPanel({
   const handleSave = useCallback(() => {
     if (!orgId || !projectId || !agentId || !selectedProxyId) return;
 
-    const envMappings = {
-      [DEFAULT_ENVIRONMENT]: { proxyId: selectedProxyId, configuration: {} },
-    };
+    // Environment-agnostic: map EVERY pipeline environment to the SAME proxy.
+    const envMappings: Record<
+      string,
+      { proxyId?: string; configuration: Record<string, never> }
+    > = {};
+    for (const env of environments) {
+      envMappings[env.name] = { proxyId: selectedProxyId, configuration: {} };
+    }
 
     const environmentVariables = !isExternal
       ? relevantEnvVarKeys
@@ -261,6 +281,7 @@ export function AddMCPToolConfigPanel({
     projectId,
     agentId,
     selectedProxyId,
+    environments,
     isExternal,
     relevantEnvVarKeys,
     envVarNames,
@@ -274,7 +295,10 @@ export function AddMCPToolConfigPanel({
 
   const canSave =
     Boolean(selectedProxyId) &&
+    !hasBuildInProgress &&
     !createConfig.isPending &&
+    !isLoadingEnvironments &&
+    environments.length > 0 &&
     // Saving before the proxy's security resolves would write whichever env vars
     // the unknown default implies (issue #1597). External agents get no env vars
     // at all, so they are unaffected.
@@ -446,10 +470,10 @@ export function AddMCPToolConfigPanel({
                     sx={{ mb: 2 }}
                   >
                     {authenticationType === "identity"
-                      ? "Your agent still needs this tool's URL, even with OAuth. Edit the name only if your code uses a different one."
+                      ? "Your agent still needs this tool's URL, even with OAuth. Shared across all environments; edit only if your code uses a different name."
                       : authenticationType === ""
-                        ? "This MCP server is unsecured, so your agent needs only its URL. Edit the name only if your code uses a different one."
-                        : "The platform injects the MCP server URL and API key values at runtime. Edit only if your code uses different names."}
+                        ? "This MCP server is unsecured, so your agent needs only its URL. Shared across all environments; edit only if your code uses a different name."
+                        : "These names are shared across all environments. The platform injects the MCP server URL and API key values at runtime per environment (empty in environments the proxy is not configured for). Edit only if your code uses different names."}
                   </Typography>
                   <ListingTable.Container>
                     <ListingTable density="compact">
@@ -515,7 +539,7 @@ export function AddMCPToolConfigPanel({
                   <EnvironmentVariablesReference
                     variant="plain"
                     title="Injected at runtime"
-                    description="These names are fixed, and they're injected automatically at runtime alongside the URL above."
+                    description="These names are fixed, only their values change per environment, and they're injected automatically at runtime alongside the URL above."
                     rows={AGENTID_ENV_VAR_ROWS}
                   />
                 </Form.Section>
@@ -523,6 +547,9 @@ export function AddMCPToolConfigPanel({
             </Stack>
           )}
 
+{hasBuildInProgress && (
+            <Alert severity="warning">{BUILD_IN_PROGRESS_REASON}</Alert>
+          )}
           <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
             <Button variant="outlined" onClick={onClose}>
               Cancel

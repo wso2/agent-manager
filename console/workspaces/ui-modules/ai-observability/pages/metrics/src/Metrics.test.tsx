@@ -50,7 +50,7 @@ import {
 import { MetricsComponent } from "./index";
 
 const route =
-  "/org/org1/project/proj1/agents/agent1/observability/metrics";
+  "/org/org1/project/proj1/agents/agent1/environment/env1/observability/metrics";
 
 function renderWithRouter(initialEntry = route) {
   return render(

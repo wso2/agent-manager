@@ -34,6 +34,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
 vi.mock("@agent-management-platform/shared-component", () => ({
   AGENTID_ENV_VAR_ROWS: [],
   EnvironmentVariablesReference: () => null,
+  usePipelineEnvironmentsState: () => ({ environments: [], isLoading: false }),
   useMCPProxySecurity: () => ({
     authenticationType: "",
     usesIdentitySecurity: false,
@@ -42,6 +43,10 @@ vi.mock("@agent-management-platform/shared-component", () => ({
     isResolved: true,
   }),
   useUnsavedChangesGuard: () => ({ allowNavigation: (fn: () => void) => fn() }),
+}));
+vi.mock("../../utils/buildInProgress", () => ({
+  BUILD_IN_PROGRESS_REASON: "",
+  useHasBuildInProgress: () => false,
 }));
 vi.mock("./MCPServerDisplay", () => ({
   MCPServerDisplay: ({ server }: { server: { name?: string } | null }) => (

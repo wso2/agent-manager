@@ -29,8 +29,10 @@ import {
   resolveAuthenticationType,
 } from "./mcpEndpoints";
 
-// One chip per gateway binding of the selected endpoint, with its deployment status.
-export type MCPProxyDeploymentChip = {
+// One chip per environment the selected endpoint is bound to, with its deployment
+// status — the same shape ViewMCPProxy already derives for the chips shown next to
+// the endpoint selector, reused here instead of re-deriving a separate summary.
+export type MCPProxyEnvironmentChip = {
   id: string;
   label: string;
   status?: "Deployed" | "Undeployed";
@@ -39,14 +41,14 @@ export type MCPProxyDeploymentChip = {
 export type MCPProxyOverviewTabProps = {
   proxy: MCPProxy | null | undefined;
   config: MCPEndpointConfig | undefined;
-  deploymentChips?: MCPProxyDeploymentChip[];
+  envChips?: MCPProxyEnvironmentChip[];
   isLoading?: boolean;
 };
 
 export function MCPProxyOverviewTab({
   proxy,
   config,
-  deploymentChips = [],
+  envChips = [],
   isLoading = false,
 }: MCPProxyOverviewTabProps) {
   const toolCapabilities = config?.capabilities?.tools ?? [];
@@ -170,13 +172,13 @@ export function MCPProxyOverviewTab({
               >
                 Deployment
               </Typography>
-              {deploymentChips.length === 0 ? (
+              {envChips.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">
-                  Not deployed
+                  No environments
                 </Typography>
               ) : (
                 <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {deploymentChips.map((chip) => (
+                  {envChips.map((chip) => (
                     <Chip
                       key={chip.id}
                       label={chip.status ? `${chip.label} · ${chip.status}` : chip.label}

@@ -30,6 +30,7 @@ import {
 } from "@wso2/oxygen-ui";
 import {
   ArrowRight,
+  BookOpenText,
   Brain,
   Code,
   Plus,
@@ -39,6 +40,7 @@ import {
 } from "@wso2/oxygen-ui-icons-react";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
+  useListAgentKinds,
   useListEvaluators,
   useListLLMProviders,
   useListMCPProxies,
@@ -65,15 +67,25 @@ export const OrganizationOverview: React.FC = () => {
   const { canWrite: canWriteMCP } = useResourceAccess("mcp_server");
   const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
 
+  const { data: kinds, isLoading: isLoadingKinds } = useListAgentKinds(params);
   const { data: llmProviders, isLoading: isLoadingLLM } = useListLLMProviders(params);
   const { data: mcpProxies, isLoading: isLoadingMCP } = useListMCPProxies(params);
   const { data: evaluators, isLoading: isLoadingEvaluators } = useListEvaluators(params);
   const { data: projects, isLoading: isLoadingProjects } = useListProjects(params);
 
   const projectList = projects?.projects ?? [];
-  const identityRoutes = orgRoutes.children.agentIdentity.children;
+  const identityRoutes = orgRoutes.children.thunderInstances.children;
 
   const resourceCards: ResourceCardData[] = [
+    {
+      icon: <BookOpenText size={26} />,
+      title: "Agent Catalog",
+      count: kinds?.total,
+      loading: isLoadingKinds,
+      description: "Reusable, versioned agent templates your teams can create agents from.",
+      actionLabel: "Browse the catalog",
+      to: generatePath(orgRoutes.children.catalog.path, { orgId }),
+    },
     {
       icon: <Brain size={26} />,
       title: "LLM Service Providers",
@@ -178,8 +190,8 @@ export const OrganizationOverview: React.FC = () => {
             )}
           </Typography>
           <Typography variant="body1" color="text.secondary">
-            Register your AI agents, connect them to models and tools, then observe them on
-            one platform.
+            Deploy AI agents, connect them to models and tools, then observe them on one
+            platform.
           </Typography>
         </Stack>
 

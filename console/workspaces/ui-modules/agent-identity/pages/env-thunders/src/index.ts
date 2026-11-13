@@ -17,18 +17,18 @@
 
 import { ShieldCheck } from "@wso2/oxygen-ui-icons-react";
 import type { PageMetadata } from "@agent-management-platform/types";
-import { AgentIdentityOrganization } from "./AgentIdentity.Organization";
-import { agentIdentityMetadata } from "./metadata";
+import { ThunderInstancesOrganization } from "./ThunderInstances.Organization";
+import { thunderInstancesMetadata } from "./metadata";
 import { AgentIdComponent } from "./agentId/AgentId.Component";
 
-export const agentIdentityMetaData: PageMetadata = {
-  title: agentIdentityMetadata.title,
-  description: "Agent identities for agent authentication",
-  icon: agentIdentityMetadata.icon,
-  path: "/agent-identity",
-  component: AgentIdentityOrganization,
+export const thunderInstancesMetaData: PageMetadata = {
+  title: thunderInstancesMetadata.title,
+  description: "Environment-scoped agent identities for agent authentication",
+  icon: thunderInstancesMetadata.icon,
+  path: "/thunder-instances",
+  component: ThunderInstancesOrganization,
   levels: {
-    organization: AgentIdentityOrganization,
+    organization: ThunderInstancesOrganization,
   },
 };
 
@@ -40,6 +40,6 @@ export const agentIdMetaData: PageMetadata = {
   component: AgentIdComponent,
 };
 
-export { AgentIdentityOrganization, agentIdentityMetadata, AgentIdComponent };
+export { ThunderInstancesOrganization, thunderInstancesMetadata, AgentIdComponent };
 
-export default AgentIdentityOrganization;
+export default ThunderInstancesOrganization;

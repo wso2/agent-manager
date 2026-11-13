@@ -28,6 +28,8 @@ import {
   Chip,
   FormControlLabel,
   Grid,
+  Radio,
+  RadioGroup,
   Skeleton,
   Stack,
   Switch,
@@ -43,6 +45,7 @@ import {
   useReturnTo,
 } from "@agent-management-platform/views";
 import {
+  usePipelineEnvironments,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import {
@@ -50,6 +53,7 @@ import {
   useCreateEventSubscription,
   useDestinationKinds,
   useEventTypes,
+  useListEnvironments,
   useListEventDestinations,
   useListEventSubscriptions,
   useUpdateEventSubscription,
@@ -139,6 +143,20 @@ export function SubscriptionEditor({
   }, [isOrg, orgDestinations.data, availableDestinations.data]);
   const loadingDestinations = isOrg ? orgDestinations.isLoading : availableDestinations.isLoading;
 
+  const pipelineEnvs = usePipelineEnvironments(
+    isOrg ? undefined : target.orgName,
+    isOrg ? undefined : target.projName,
+  );
+  const { data: orgEnvs } = useListEnvironments({ orgName: isOrg ? target.orgName : undefined });
+  const environments = useMemo(
+    () =>
+      (isOrg ? (orgEnvs ?? []) : pipelineEnvs).map((e) => ({
+        name: e.name,
+        label: e.displayName ?? e.name,
+      })),
+    [isOrg, orgEnvs, pipelineEnvs],
+  );
+
   const { mutate: create, isPending: creating } = useCreateEventSubscription(target);
   const { mutate: update, isPending: updating } = useUpdateEventSubscription(target);
 
@@ -146,6 +164,8 @@ export function SubscriptionEditor({
   const [description, setDescription] = useState("");
   const [eventTypes, setEventTypes] = useState<string[]>([]);
   const [destinationId, setDestinationId] = useState<string | undefined>();
+  const [envMode, setEnvMode] = useState<"all" | "selected">("all");
+  const [envs, setEnvs] = useState<string[]>([]);
   const [enabled, setEnabled] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -162,22 +182,28 @@ export function SubscriptionEditor({
       setDescription(returned.description);
       setEventTypes(returned.eventTypes);
       setDestinationId(returned.destinationId);
+      setEnvMode(returned.envMode);
+      setEnvs(returned.envs);
       setEnabled(returned.enabled);
     } else {
       setName(editing?.name ?? "");
       setDescription(editing?.description ?? "");
       setEventTypes(editing?.eventTypes ?? []);
       setDestinationId(editing?.destination.id);
+      setEnvMode(editing && editing.environments.length > 0 ? "selected" : "all");
+      setEnvs(editing?.environments ?? []);
       setEnabled(editing?.enabled ?? true);
     }
     setSubmitted(false);
   }, [editing, subscriptionId, returned]);
 
+  const effectiveEnvs = envMode === "all" ? [] : envs;
   const isDirty =
     name !== (editing?.name ?? "") ||
     description !== (editing?.description ?? "") ||
     eventTypes.join("\n") !== (editing?.eventTypes ?? []).join("\n") ||
     destinationId !== editing?.destination.id ||
+    effectiveEnvs.join("\n") !== (editing?.environments ?? []).join("\n") ||
     enabled !== (editing?.enabled ?? true);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
   const goBack = () => allowNavigation(() => navigate(returnTo));
@@ -202,6 +228,8 @@ export function SubscriptionEditor({
       description,
       eventTypes,
       destinationId,
+      envMode,
+      envs,
       enabled,
       from: returnTo,
     };
@@ -254,16 +282,21 @@ export function SubscriptionEditor({
   const eventsError =
     submitted && eventTypes.length === 0 ? "Choose at least one event" : undefined;
   const destinationError = submitted && !destinationId ? "Choose where the events go" : undefined;
+  const envError =
+    submitted && envMode === "selected" && envs.length === 0
+      ? "Select at least one environment"
+      : undefined;
 
   const handleSubmit = () => {
     setSubmitted(true);
     if (!name.trim() || eventTypes.length === 0 || !destinationId) return;
+    if (envMode === "selected" && envs.length === 0) return;
     const body = {
       name: name.trim(),
       description: description.trim(),
       destinationId,
       eventTypes,
-      environments: [],
+      environments: effectiveEnvs,
       enabled,
     };
     const done = { onSuccess: goBack };
@@ -305,6 +338,10 @@ export function SubscriptionEditor({
         ? eventTypes[0]
         : `${eventTypes[0]} and ${eventTypes.length - 1} more`;
   const summaryWhere = isOrg ? "anywhere in the organization" : `for ${levelName}`;
+  const summaryEnvs =
+    envMode === "selected" && envs.length > 0
+      ? ` in ${envs.map((e) => environments.find((x) => x.name === e)?.label ?? e).join(", ")}`
+      : "";
   const pagingAll =
     allEvents && !!destination?.service && PAGING_SERVICES.includes(destination.service);
 
@@ -500,6 +537,60 @@ export function SubscriptionEditor({
           </Stack>
 
           <Stack spacing={1.5}>
+            <SectionTitle>Filter</SectionTitle>
+            <RadioGroup
+              row
+              value={envMode}
+              onChange={(e) => setEnvMode(e.target.value as "all" | "selected")}
+            >
+              <FormControlLabel
+                value="all"
+                control={<Radio size="small" />}
+                label="All environments"
+              />
+              <FormControlLabel
+                value="selected"
+                control={<Radio size="small" />}
+                label="Selected environments"
+              />
+            </RadioGroup>
+            {envMode === "selected" && (
+              <Stack direction="row" flexWrap="wrap" gap={1}>
+                {environments.map((env) => {
+                  const on = envs.includes(env.name);
+                  return (
+                    <Chip
+                      key={env.name}
+                      label={env.label}
+                      color={on ? "primary" : "default"}
+                      variant={on ? "filled" : "outlined"}
+                      onClick={() =>
+                        setEnvs((current) =>
+                          on ? current.filter((e) => e !== env.name) : [...current, env.name],
+                        )
+                      }
+                    />
+                  );
+                })}
+                {environments.length === 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    No environments found.
+                  </Typography>
+                )}
+              </Stack>
+            )}
+            {envError && (
+              <Typography variant="caption" color="error">
+                {envError}
+              </Typography>
+            )}
+            <Typography variant="caption" color="text.secondary">
+              Events not tied to an environment, such as builds and project changes, are always
+              sent.
+            </Typography>
+          </Stack>
+
+          <Stack spacing={1.5}>
             <SectionTitle>Status</SectionTitle>
             <FormControlLabel
               control={<Switch checked={enabled} onChange={(_, v) => setEnabled(v)} />}
@@ -509,8 +600,8 @@ export function SubscriptionEditor({
         </Stack>
 
         <Alert severity="info" icon={<Send size={18} />}>
-          Send <strong>{summaryEvents}</strong> {summaryWhere} to{" "}
-          <strong>{destination?.name ?? "the destination you pick"}</strong>
+          Send <strong>{summaryEvents}</strong> {summaryWhere}
+          {summaryEnvs} to <strong>{destination?.name ?? "the destination you pick"}</strong>
           {enabled ? "." : ", once enabled."}
         </Alert>
 

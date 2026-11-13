@@ -17,8 +17,8 @@
  */
 
 import type { ReactNode } from "react";
-import { render, screen } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mutation = { mutate: vi.fn(), isPending: false };
@@ -28,10 +28,19 @@ vi.mock("@agent-management-platform/api-client", () => ({
   ConsoleAction: { TabSwitch: "tab_switch" },
   useTrack: () => ({ track: vi.fn() }),
   useGetAgent: vi.fn(),
+  useGetAllAgentBuilds: () => ({ data: { builds: [] }, isLoading: false }),
+  useGetAgentBuilds: () => ({ data: undefined, isLoading: false }),
   useListAgentModelConfigs: () => emptyList,
   useListAgentMCPConfigs: () => emptyList,
   useDeleteAgentModelConfig: () => mutation,
   useDeleteAgentMCPConfig: () => mutation,
+}));
+vi.mock("@agent-management-platform/shared-component", () => ({
+  usePipelineEnvironmentsState: () => ({
+    environments: [{ name: "dev", displayName: "Development" }, { name: "prod", displayName: "Production" }],
+    isLoading: false,
+    isError: false,
+  }),
 }));
 vi.mock("@agent-management-platform/views", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@agent-management-platform/views")>()),
@@ -44,8 +53,8 @@ vi.mock("./Configure/subComponents/AddMCPToolConfigPanel", () => ({
   AddMCPToolConfigPanel: () => null,
 }));
 vi.mock("./Configure/subComponents/A2AAgentCardPanel", () => ({
-  A2AAgentCardPanel: ({ external }: { external: boolean }) => (
-    <div>{`card panel ${external ? "external" : "platform"}`}</div>
+  A2AAgentCardPanel: ({ envId, external }: { envId: string; external: boolean }) => (
+    <div>{`card panel ${envId} ${external ? "external" : "platform"}`}</div>
   ),
 }));
 
@@ -60,13 +69,17 @@ const mockAgent = (subType: string, provisioning = "internal") =>
     },
   } as unknown as ReturnType<typeof useGetAgent>);
 
+function SearchProbe() {
+  return <div data-testid="search">{useLocation().search}</div>;
+}
+
 const renderPage = (search: string) =>
   render(
     <MemoryRouter initialEntries={[`/org/o/project/p/agents/a/configure${search}`]}>
       <Routes>
         <Route
           path="/org/:orgId/project/:projectId/agents/:agentId/configure"
-          element={<ConfigureComponent />}
+          element={<><ConfigureComponent /><SearchProbe /></>}
         />
       </Routes>
     </MemoryRouter>,
@@ -93,10 +106,20 @@ describe("Configure page A2A tab", () => {
     expect(screen.getByRole("tab", { name: "A2A" })).toHaveAttribute("aria-selected", "true");
   });
 
-  it("renders the card panel for the agent", () => {
+  it("opens on the environment named in the URL", () => {
     mockAgent("a2a-agent", "external");
-    renderPage("?tab=a2a");
+    renderPage("?tab=a2a&env=prod");
     expect(screen.getByRole("tab", { name: "A2A" })).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByText("card panel external")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Production" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("card panel prod external")).toBeInTheDocument();
+  });
+
+  it("defaults to the first environment and records a switch in the URL", () => {
+    mockAgent("a2a-agent");
+    renderPage("?tab=a2a");
+    expect(screen.getByText("card panel dev platform")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Production" }));
+    expect(screen.getByText("card panel prod platform")).toBeInTheDocument();
+    expect(screen.getByTestId("search")).toHaveTextContent("env=prod");
   });
 });

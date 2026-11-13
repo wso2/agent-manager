@@ -50,7 +50,7 @@ import { isObserverConfigured } from "@agent-management-platform/api-client";
 import { LogsComponent } from "./index";
 
 const route =
-  "/org/org1/project/proj1/agents/agent1/observability/logs";
+  "/org/org1/project/proj1/agents/agent1/environment/env1/observability/logs";
 
 function renderWithRouter(initialEntry = route) {
   return render(

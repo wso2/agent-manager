@@ -23,14 +23,15 @@ interface CreateButtonsProps {
     isPending: boolean;
     onCancel: () => void;
     onSubmit: () => void;
+    mode?: 'deploy' | 'connect';
     isNameEmpty?: boolean;
 }
 
 export const CreateButtons = (
-    {
-        lastSubmittedValidationErrors, isPending, onCancel, onSubmit, isNameEmpty = false,
-    }: CreateButtonsProps
+    { lastSubmittedValidationErrors, isPending, onCancel, onSubmit, mode = 'deploy', isNameEmpty = false }: CreateButtonsProps
 ) => {
+    const isConnectMode = mode === 'connect';
+
     const errorsList = Object.values(lastSubmittedValidationErrors);
     const hasErrors = errorsList.length > 0;
 
@@ -54,7 +55,7 @@ export const CreateButtons = (
                     onClick={onSubmit}
                     disabled={isPending || isNameEmpty}
                 >
-                    Create
+                    {isConnectMode ? 'Register' : 'Create'}
                 </Button>
             </Box>
         </Box>

@@ -21,7 +21,6 @@ import {
   useRevokeLLMConfigAPIKey,
   useRotateLLMConfigAPIKey,
 } from "@agent-management-platform/api-client";
-import { DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 import { SingleAPIKeyManager } from "@agent-management-platform/shared-component";
 import { useFeatureAccess } from "@agent-management-platform/feature-management";
 
@@ -31,19 +30,22 @@ export type LLMProxyAPIKeysSectionProps = {
   agentName: string | undefined;
   /** LLM configuration UUID. */
   configId: string | undefined;
+  /** Selected environment name. */
+  envName: string | undefined;
 };
 
 /**
- * Manages the single API key for an external agent's LLM configuration. The
- * key is resolved server-side from the configuration to the backing LLM proxy,
- * so the box never depends on a proxy identifier being present in the config
- * response.
+ * Manages the single API key for an external agent's LLM configuration in the
+ * selected environment. The key is resolved server-side from the configuration +
+ * environment to the backing LLM proxy, so the box never depends on a proxy
+ * identifier being present in the config response.
  */
 export function LLMProxyAPIKeysSection({
   orgName,
   projName,
   agentName,
   configId,
+  envName,
 }: LLMProxyAPIKeysSectionProps) {
   const canManageKeys = useFeatureAccess("agent_api_key_manage");
   const { data, isLoading, isError } = useListLLMConfigAPIKeys({
@@ -51,7 +53,7 @@ export function LLMProxyAPIKeysSection({
     projName,
     agentName,
     configId,
-    envName: DEFAULT_ENVIRONMENT,
+    envName,
   });
 
   const { mutateAsync: createKey, isPending: isCreating } =
@@ -63,15 +65,14 @@ export function LLMProxyAPIKeysSection({
 
   const apiKey = data?.keys?.[0];
 
-  const hasParams = !!(orgName && projName && agentName && configId);
-  const keyParams = { orgName, projName, agentName, configId, envName: DEFAULT_ENVIRONMENT };
+  const hasParams = !!(orgName && projName && agentName && configId && envName);
   const keyName = () =>
     `llm-config-${configId}-${Math.random().toString(36).slice(2, 10)}`;
 
   const handleGenerate = async () => {
     if (!hasParams) return undefined;
     const res = await createKey({
-      params: keyParams,
+      params: { orgName, projName, agentName, configId, envName },
       body: { name: keyName(), displayName: "LLM provider API key" },
     });
     return res.apiKey;
@@ -80,7 +81,7 @@ export function LLMProxyAPIKeysSection({
   const handleRegenerate = async () => {
     if (!hasParams || !apiKey) return undefined;
     const res = await rotateKey({
-      params: { ...keyParams, keyName: apiKey.name },
+      params: { orgName, projName, agentName, configId, envName, keyName: apiKey.name },
       body: {},
     });
     return res.apiKey;
@@ -88,12 +89,12 @@ export function LLMProxyAPIKeysSection({
 
   const handleDelete = () => {
     if (!hasParams || !apiKey) return;
-    revokeKey({ ...keyParams, keyName: apiKey.name });
+    revokeKey({ orgName, projName, agentName, configId, envName, keyName: apiKey.name });
   };
 
   return (
     <SingleAPIKeyManager
-      scopeKey={configId ?? ""}
+      scopeKey={`${configId ?? ""}:${envName ?? ""}`}
       description="Generate an API key to authenticate this agent's requests to the LLM provider through the gateway. Only one key can exist per configuration."
       apiKey={apiKey}
       isLoading={isLoading}

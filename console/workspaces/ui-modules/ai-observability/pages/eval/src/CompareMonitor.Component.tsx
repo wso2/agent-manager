@@ -40,7 +40,6 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
-  DEFAULT_ENVIRONMENT,
   absoluteRouteMap,
   type EvaluationLevel,
   type EvaluatorScoreSummary,
@@ -136,10 +135,11 @@ function MonitorTimeBadge({
 }
 
 export const CompareMonitorComponent: React.FC = () => {
-  const { orgId, projectId, agentId, monitorId } = useParams<{
+  const { orgId, projectId, agentId, envId, monitorId } = useParams<{
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
     monitorId: string;
   }>();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -174,7 +174,7 @@ export const CompareMonitorComponent: React.FC = () => {
   );
   const { data: candidateMonitors } = useListMonitors(
     { orgName: orgId ?? "", projName: projectId ?? "", agentName: agentId ?? "" },
-    { environmentName: DEFAULT_ENVIRONMENT },
+    { environmentName: envId },
   );
   const otherMonitors = useMemo(
     () =>
@@ -210,15 +210,15 @@ export const CompareMonitorComponent: React.FC = () => {
   };
   const handleChangeSource = (nextSourceName: string) => {
     handleCloseSourceMenu();
-    if (!orgId || !projectId || !agentId) {
+    if (!orgId || !projectId || !agentId || !envId) {
       return;
     }
     navigate({
       pathname: generatePath(
         absoluteRouteMap.children.org.children.projects.children.agents
-          .children.evaluation.children.monitor.children
+          .children.environment.children.evaluation.children.monitor.children
           .compare.path,
-        { orgId, projectId, agentId, monitorId: nextSourceName },
+        { orgId, projectId, agentId, envId, monitorId: nextSourceName },
       ),
       search: searchParams.toString(),
     });
@@ -373,15 +373,15 @@ export const CompareMonitorComponent: React.FC = () => {
   );
 
   const backHref = useMemo(() => {
-    if (!orgId || !projectId || !agentId || !monitorId) {
+    if (!orgId || !projectId || !agentId || !envId || !monitorId) {
       return "#";
     }
     return generatePath(
       absoluteRouteMap.children.org.children.projects.children.agents.children
-        .evaluation.children.monitor.children.view.path,
-      { orgId, projectId, agentId, monitorId },
+        .environment.children.evaluation.children.monitor.children.view.path,
+      { orgId, projectId, agentId, envId, monitorId },
     );
-  }, [orgId, projectId, agentId, monitorId]);
+  }, [orgId, projectId, agentId, envId, monitorId]);
 
   if (!targetMonitorId) {
     return (

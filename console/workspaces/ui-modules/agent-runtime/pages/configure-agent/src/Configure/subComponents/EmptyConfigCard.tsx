@@ -19,7 +19,7 @@ import type { ReactNode } from "react";
 import { Button, Card, CardContent, Stack, Typography } from "@wso2/oxygen-ui";
 
 interface EmptyConfigCardProps {
-  /** Explains what is missing. */
+  /** Explains what is missing for the selected environment. */
   message: string;
   actionLabel: string;
   actionIcon?: ReactNode;
@@ -28,9 +28,9 @@ interface EmptyConfigCardProps {
 }
 
 /**
- * A compact "nothing configured yet" card with a single
+ * A compact "nothing configured for this environment yet" card with a single
  * call-to-action button. Shared by the LLM and MCP agent-config view pages so
- * an agent with no provider/server still offers a way to add one.
+ * an environment with no provider/server still offers a way to add one.
  */
 export function EmptyConfigCard({
   message,

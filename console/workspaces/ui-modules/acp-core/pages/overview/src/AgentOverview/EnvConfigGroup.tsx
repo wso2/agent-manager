@@ -27,6 +27,7 @@ export interface ConfigCardProps {
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
     config: AgentModelConfigListItem;
     visible: boolean;
     onResolved: (configId: string, resolution: ConfigResolution) => void;
@@ -36,6 +37,7 @@ interface EnvConfigGroupProps {
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
     configs: AgentModelConfigListItem[];
     /**
      * Whether the config *list* fetch itself failed (distinct from an
@@ -55,25 +57,25 @@ interface EnvConfigGroupProps {
 
 /**
  * One "LLM Providers" / "MCP Proxies" preview group: probes `configs` for
- * applicability via useEnvFilteredConfigs, then renders up to
+ * applicability to `envId` via useEnvFilteredConfigs, then renders up to
  * `previewLimit` of them as cards with a "View all" link.
  *
  * Stays collapsed (zero height) while probing and, once settled, only the
  * resolved-applicable configs stay mounted inside — cards that resolved as
  * inapplicable, or ranked past the preview limit, unmount instead of
  * lingering forever, so their per-config queries stop refetching in the
- * background. A group with nothing applicable simply
+ * background. A group with nothing applicable to this environment simply
  * never expands. A genuine failure (the list itself, or any candidate's own
  * detail fetch) surfaces as an explicit error instead of looking the same as
  * "nothing applies here".
  */
 export const EnvConfigGroup: React.FC<EnvConfigGroupProps> = ({
-    orgId, projectId, agentId, configs, listError,
+    orgId, projectId, agentId, envId, configs, listError,
     title, viewAllHref, addHref, addLabel, previewLimit, CardComponent,
 }) => {
     const {
         visible, reportResolved, isSettled, extraCount, hasError,
-    } = useEnvFilteredConfigs(configs, previewLimit);
+    } = useEnvFilteredConfigs(configs, previewLimit, envId);
     const { canWrite } = useResourceAccess("agent");
 
     if (!listError && configs.length === 0) {
@@ -100,6 +102,7 @@ export const EnvConfigGroup: React.FC<EnvConfigGroupProps> = ({
                                     orgId={orgId}
                                     projectId={projectId}
                                     agentId={agentId}
+                                    envId={envId}
                                     config={config}
                                     visible={visible.some((c) => c.uuid === config.uuid)}
                                     onResolved={reportResolved}

@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EnvironmentSelector } from "@agent-management-platform/shared-component";
 import {
   DrawerContent,
   DrawerHeader,
@@ -28,7 +29,6 @@ import {
 } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
-  DEFAULT_ENVIRONMENT,
   GetTraceListPathParams,
   TraceExportResponse,
   TraceFilters,
@@ -45,6 +45,7 @@ import {
   useExportTraces,
   useGetAgent,
   useGetOrganization,
+  useListEnvironments,
   isObserverConfigured,
   type TraceListWithRange,
   ConsoleAction,
@@ -106,7 +107,7 @@ const exportWarningLines = (
 
 /** Traces page: filter bar, trace list and trace drawer, with state kept in the URL. */
 export const TracesComponent: React.FC = () => {
-  const { agentId, orgId, projectId } = useParams();
+  const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const { track } = useTrack();
   const { mutateAsync: exportTracesAsync, isPending: isExporting } =
@@ -128,12 +129,23 @@ export const TracesComponent: React.FC = () => {
     projName: projectId ?? "",
     agentName: agentId ?? "",
   });
-  const prereqsPending = isOrgPending || isAgentPending;
+  const {
+    data: environmentsData,
+    isPending: isEnvPending,
+    isSuccess: isEnvSuccess,
+  } = useListEnvironments({
+    orgName: orgId ?? "",
+  });
+  const matchedEnvironment = environmentsData?.find((e) => e.name === envId);
+  const environmentName = matchedEnvironment?.name;
+  const prereqsPending = isOrgPending || isAgentPending || isEnvPending;
 
   // Detect resolution mismatches only after queries have settled, so transient
   // "no data yet" states during loading aren't incorrectly shown as errors.
   const orgNotFound = isOrgSuccess && !organization;
   const agentNotFound = isAgentSuccess && !agentData?.uuid;
+  const envNotFound =
+    isEnvSuccess && environmentsData !== undefined && !environmentName;
   const [exportError, setExportError] = useState<string | null>(null);
   const [exportWarning, setExportWarning] = useState<string[] | null>(null);
   const [drawerFullscreen, setDrawerFullscreen] = useState(false);
@@ -188,7 +200,7 @@ export const TracesComponent: React.FC = () => {
     organization,
     projectId,
     agentId,
-    DEFAULT_ENVIRONMENT,
+    environmentName,
     timeRange,
     limit,
     sortOrder,
@@ -277,7 +289,7 @@ export const TracesComponent: React.FC = () => {
   /** Downloads the filtered traces and warns when the file may be partial. */
   const handleExportTraces = useCallback(async () => {
     setExportWarning(null);
-    if (!organization || !projectId || !agentId) {
+    if (!organization || !projectId || !agentId || !environmentName) {
       setExportError("Missing required parameters for export");
       return;
     }
@@ -300,7 +312,7 @@ export const TracesComponent: React.FC = () => {
         organization,
         project: projectId,
         component: agentId,
-        environment: DEFAULT_ENVIRONMENT,
+        environment: environmentName,
         startTime,
         endTime,
         sortOrder,
@@ -338,6 +350,7 @@ export const TracesComponent: React.FC = () => {
     organization,
     projectId,
     agentId,
+    environmentName,
     timeRange,
     sortOrder,
     limit,
@@ -388,7 +401,7 @@ export const TracesComponent: React.FC = () => {
     );
   }
 
-  if (orgNotFound || agentNotFound) {
+  if (orgNotFound || agentNotFound || envNotFound) {
     return (
       <PageLayout title="Traces" disableIcon>
         {orgNotFound && (
@@ -401,6 +414,13 @@ export const TracesComponent: React.FC = () => {
           <Alert severity="error" sx={{ mt: 2 }}>
             <strong>Agent not found.</strong> No agent named{" "}
             <code>{agentId}</code> exists in this project.
+          </Alert>
+        )}
+        {envNotFound && (
+          <Alert severity="error" sx={{ mt: 2 }}>
+            <strong>Environment not found.</strong> <code>{envId}</code> does
+            not match any environment in this organisation. Check the URL or
+            verify the environment name.
           </Alert>
         )}
       </PageLayout>
@@ -419,6 +439,7 @@ export const TracesComponent: React.FC = () => {
             alignItems="center"
             flexWrap="wrap"
           >
+            <EnvironmentSelector />
             <TimeRangeSelector
               preset={timeRange}
               customStart={customStartTime}
@@ -515,13 +536,14 @@ export const TracesComponent: React.FC = () => {
             resolvedTimeRange &&
             organization &&
             projectId &&
-            agentId ? (
+            agentId &&
+            environmentName ? (
               <TraceDetails
                 traceId={selectedTrace}
                 organization={organization}
                 project={projectId}
                 component={agentId}
-                environment={DEFAULT_ENVIRONMENT}
+                environment={environmentName!}
                 startTime={resolvedTimeRange.startTime}
                 endTime={resolvedTimeRange.endTime}
               />

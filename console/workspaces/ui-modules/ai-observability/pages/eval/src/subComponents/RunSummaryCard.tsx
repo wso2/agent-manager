@@ -82,10 +82,11 @@ const getRunScoreDisplay = (scores?: EvaluatorScoreSummary[]) => {
 };
 
 export default function RunSummaryCard() {
-  const { orgId, projectId, agentId, monitorId } = useParams<{
+  const { orgId, projectId, agentId, envId, monitorId } = useParams<{
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
     monitorId: string;
   }>();
   const theme = useTheme();
@@ -132,12 +133,13 @@ export default function RunSummaryCard() {
 
   const runHistoryHref = generatePath(
     absoluteRouteMap.children.org.children.projects.children.agents.children
-      .evaluation.children.monitor.children.view.children
+      .environment.children.evaluation.children.monitor.children.view.children
       .runs.path,
     {
       orgId: orgId ?? "",
       projectId: projectId ?? "",
       agentId: agentId ?? "",
+      envId: envId ?? "",
       monitorId: monitorId ?? "",
     },
   );

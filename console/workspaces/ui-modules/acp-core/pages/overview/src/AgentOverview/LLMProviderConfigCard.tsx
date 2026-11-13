@@ -35,24 +35,26 @@ interface LLMProviderConfigCardProps {
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
     config: AgentModelConfigListItem;
     /** Whether the parent has room to show this config (only true once it's
-     * confirmed applicable and ranks within the preview limit). */
+     * confirmed applicable to envId and ranks within the preview limit). */
     visible: boolean;
-    /** Reports whether this config is actually mapped, once known. */
+    /** Reports whether this config is actually deployed to envId, once known. */
     onResolved: (configId: string, resolution: ConfigResolution) => void;
 }
 
 /**
  * One "LLM Providers" preview row. The list endpoint only returns name/id, so
  * this card does its own per-config fetch for the guardrails selected on this
- * config's mapping (the same list editable on Configure Agent →
+ * config's environment mapping (the same list editable on Configure Agent →
  * LLM Providers → this config → Guardrails), plus the org's policy catalog to
  * resolve display names — mirroring ViewLLMProvider.Component's own lookup.
- * Unmapped configs report themselves as inapplicable and render nothing.
+ * Configs not mapped to `envId` at all report themselves as inapplicable and
+ * render nothing — never falls back to showing another environment's data.
  */
 export const LLMProviderConfigCard: React.FC<LLMProviderConfigCardProps> = ({
-    orgId, projectId, agentId, config, visible, onResolved,
+    orgId, projectId, agentId, envId, config, visible, onResolved,
 }) => {
     const {
         data: fullConfig, isLoading: isLoadingConfig, isError: isConfigError,
@@ -82,7 +84,7 @@ export const LLMProviderConfigCard: React.FC<LLMProviderConfigCardProps> = ({
     }, [catalog]);
 
     const envMapping = useConfigEnvMapping(
-        fullConfig?.envMappings, isLoadingConfig, isConfigError, config.uuid, onResolved,
+        fullConfig?.envMappings, isLoadingConfig, isConfigError, envId, config.uuid, onResolved,
     );
 
     const guardrailNames = useMemo(() => {

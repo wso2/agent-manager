@@ -27,7 +27,8 @@ import type {
   TraceOverview,
 } from "@agent-management-platform/types";
 
-// api-client crashes at import time outside a configured app shell; stub it at the module boundary.
+// api-client crashes at import time outside a configured app shell, and
+// EnvironmentSelector pulls it in; stub both at the module boundary.
 vi.mock("@agent-management-platform/api-client", () => ({
   useTraceList: vi.fn(),
   useExportTraces: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
@@ -37,6 +38,11 @@ vi.mock("@agent-management-platform/api-client", () => ({
     isSuccess: true,
   })),
   useGetAgent: vi.fn(() => ({ data: { uuid: "agent-uuid" }, isPending: false, isSuccess: true })),
+  useListEnvironments: vi.fn(() => ({
+    data: [{ name: "dev" }],
+    isPending: false,
+    isSuccess: true,
+  })),
   isObserverConfigured: vi.fn(() => true),
   useTrack: vi.fn(() => ({ track: vi.fn() })),
   ConsoleAction: { TraceOpened: "trace_opened", DownloadArtifact: "download_artifact" },
@@ -45,6 +51,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useSpanDetail: vi.fn(() => ({ data: undefined, isLoading: false })),
 }));
 vi.mock("@agent-management-platform/shared-component", () => ({
+  EnvironmentSelector: () => null,
   copyToClipboard: vi.fn(() => Promise.resolve(true)),
 }));
 
@@ -178,10 +185,10 @@ const currentParams = () => new URLSearchParams(screen.getByTestId("search").tex
 /** The traces page at the given search string. */
 const pageTree = (search: string) => (
     <ThemeProvider theme={createTheme()}>
-      <MemoryRouter initialEntries={[`/org/o/project/p/agents/a/observability/traces${search}`]}>
+      <MemoryRouter initialEntries={[`/org/o/project/p/agents/a/environment/dev/traces${search}`]}>
         <Routes>
           <Route
-            path="/org/:orgId/project/:projectId/agents/:agentId/observability/traces"
+            path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/traces"
             element={
               <>
                 <TracesComponent />
@@ -631,7 +638,7 @@ describe("TracesComponent tool and MCP server filters", () => {
     renderPage("?timeRange=1h");
 
     expect(mockUseTraceList.mock.lastCall).toEqual([
-      "ns", "p", "a", "default", "1h", 10, "desc", undefined, undefined, { filters: {}, paged: true },
+      "ns", "p", "a", "dev", "1h", 10, "desc", undefined, undefined, { filters: {}, paged: true },
     ]);
     expect(currentParams().toString()).toBe("timeRange=1h");
   });
@@ -831,7 +838,7 @@ describe("TracesComponent trace ID search", () => {
       "ns",
       "p",
       "a",
-      "default",
+      "dev",
       "not-in-the-list",
       "2026-10-01T09:00:00Z",
       "2026-10-01T11:00:00Z",

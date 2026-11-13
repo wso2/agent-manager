@@ -37,8 +37,11 @@ interface InstrumentationDrawerProps {
   orgName: string;
   projName: string;
   agentName: string;
+  environment?: string;
   instrumentationUrl: string;
   apiKey?: string;
+  componentUid?: string;
+  environmentUid?: string;
   // Mint a token automatically on first open (post-creation convenience). Guarded per session.
   autoGenerate?: boolean;
 }
@@ -49,6 +52,7 @@ export const InstrumentationDrawer = ({
   orgName,
   projName,
   agentName,
+  environment,
   instrumentationUrl,
   apiKey,
   autoGenerate = false,
@@ -132,6 +136,7 @@ export const InstrumentationDrawer = ({
                 orgName={orgName}
                 projName={projName}
                 agentName={agentName}
+                environment={environment}
                 onTokenGenerated={setGeneratedApiKey}
                 autoGenerate={autoGenerate}
               />
@@ -182,6 +187,7 @@ tracesProtocol = "http/protobuf"`}
                 orgName={orgName}
                 projName={projName}
                 agentName={agentName}
+                environment={environment}
                 onTokenGenerated={setGeneratedApiKey}
                 autoGenerate={autoGenerate}
               />
@@ -229,6 +235,7 @@ tracingProvider = "amp"`}
                 orgName={orgName}
                 projName={projName}
                 agentName={agentName}
+                environment={environment}
                 onTokenGenerated={setGeneratedApiKey}
                 autoGenerate={autoGenerate}
               />
@@ -249,6 +256,7 @@ export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY="${effectiveApiKey}"`}
                 orgName={orgName}
                 projName={projName}
                 agentName={agentName}
+                environment={environment}
                 onTokenGenerated={setGeneratedApiKey}
                 autoGenerate={autoGenerate}
               />

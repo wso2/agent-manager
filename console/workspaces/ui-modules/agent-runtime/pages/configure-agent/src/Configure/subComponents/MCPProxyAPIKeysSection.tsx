@@ -21,7 +21,6 @@ import {
   useRevokeMCPConfigAPIKey,
   useRotateMCPConfigAPIKey,
 } from "@agent-management-platform/api-client";
-import { DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 import { SingleAPIKeyManager } from "@agent-management-platform/shared-component";
 import { useFeatureAccess } from "@agent-management-platform/feature-management";
 
@@ -31,18 +30,21 @@ export type MCPProxyAPIKeysSectionProps = {
   agentName: string | undefined;
   /** MCP configuration UUID. */
   configId: string | undefined;
+  /** Selected environment name. */
+  envName: string | undefined;
 };
 
 /**
- * Manages the single API key for an external agent's MCP configuration. The
- * key is scoped to the per-config MCP mapping (the credential the agent uses
- * to call its MCP server), not the shared source proxy.
+ * Manages the single API key for an external agent's MCP configuration in the
+ * selected environment. The key is scoped to the per-config MCP mapping (the
+ * credential the agent uses to call its MCP server), not the shared source proxy.
  */
 export function MCPProxyAPIKeysSection({
   orgName,
   projName,
   agentName,
   configId,
+  envName,
 }: MCPProxyAPIKeysSectionProps) {
   const canManageKeys = useFeatureAccess("agent_api_key_manage");
   const { data, isLoading, isError } = useListMCPConfigAPIKeys({
@@ -50,7 +52,7 @@ export function MCPProxyAPIKeysSection({
     projName,
     agentName,
     configId,
-    envName: DEFAULT_ENVIRONMENT,
+    envName,
   });
 
   const { mutateAsync: createKey, isPending: isCreating } =
@@ -62,15 +64,14 @@ export function MCPProxyAPIKeysSection({
 
   const apiKey = data?.keys?.[0];
 
-  const hasParams = !!(orgName && projName && agentName && configId);
-  const keyParams = { orgName, projName, agentName, configId, envName: DEFAULT_ENVIRONMENT };
+  const hasParams = !!(orgName && projName && agentName && configId && envName);
   const keyName = () =>
     `mcp-config-${configId}-${Math.random().toString(36).slice(2, 10)}`;
 
   const handleGenerate = async () => {
     if (!hasParams) return undefined;
     const res = await createKey({
-      params: keyParams,
+      params: { orgName, projName, agentName, configId, envName },
       body: { name: keyName(), displayName: "MCP server API key" },
     });
     return res.apiKey;
@@ -79,7 +80,7 @@ export function MCPProxyAPIKeysSection({
   const handleRegenerate = async () => {
     if (!hasParams || !apiKey) return undefined;
     const res = await rotateKey({
-      params: { ...keyParams, keyName: apiKey.name },
+      params: { orgName, projName, agentName, configId, envName, keyName: apiKey.name },
       body: {},
     });
     return res.apiKey;
@@ -87,12 +88,12 @@ export function MCPProxyAPIKeysSection({
 
   const handleDelete = () => {
     if (!hasParams || !apiKey) return;
-    revokeKey({ ...keyParams, keyName: apiKey.name });
+    revokeKey({ orgName, projName, agentName, configId, envName, keyName: apiKey.name });
   };
 
   return (
     <SingleAPIKeyManager
-      scopeKey={configId ?? ""}
+      scopeKey={`${configId ?? ""}:${envName ?? ""}`}
       description="Generate an API key to authenticate this agent's requests to the MCP server through the gateway. Only one key can exist per configuration."
       apiKey={apiKey}
       isLoading={isLoading}

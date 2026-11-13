@@ -17,12 +17,29 @@
  */
 
 import { generatePath } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  IDENTITY_ENV_PARAM,
+} from "@agent-management-platform/types";
 
-/** Links to the agent-level "Agent ID" page. */
-export function buildAgentIdHref(orgId: string, projectId: string, agentId: string): string {
-  return generatePath(
+/**
+ * Deep-links to the agent-level "Agent ID" page, pre-selected to `envName`,
+ * so clicking through from an EnvironmentCard lands directly on that
+ * environment's credentials instead of the page's default (first
+ * environment).
+ */
+export function buildAgentIdHref(
+  orgId: string,
+  projectId: string,
+  agentId: string,
+  envName: string,
+): string {
+  const path = generatePath(
     absoluteRouteMap.children.org.children.projects.children.agents.children.agentId.path,
     { orgId, projectId, agentId },
   );
+  const query = new URLSearchParams({
+    [IDENTITY_ENV_PARAM]: envName,
+  });
+  return `${path}?${query.toString()}`;
 }

@@ -76,6 +76,10 @@ window.__RUNTIME_CONFIG__ = {
   ampVersion: '$AMP_VERSION',
   promptsBaseUrl: '$PROMPTS_BASE_URL',
   instrumentationUrl: '$INSTRUMENTATION_URL',
+  agentManagerInternalBaseUrl: '$AGENT_MANAGER_INTERNAL_BASE_URL',
+  agentManagerInternalCpHost: '$AGENT_MANAGER_INTERNAL_CP_HOST',
+  idpHostBaseDomain: '$IDP_HOST_BASE_DOMAIN',
+  tlsEnabled: '$TLS_ENABLED' === 'true',
   guardrailsCatalogUrl: '$GUARDRAILS_CATALOG_URL',
   guardrailsDefinitionBaseUrl: '$GUARDRAILS_DEFINITION_BASE_URL',
   guardrailCapabilities: {
@@ -86,13 +90,16 @@ window.__RUNTIME_CONFIG__ = {
     semanticGuardrails: '$GUARDRAIL_CAP_SEMANTIC_GUARDRAILS' === 'true',
   },
   featureFlags: {
+    enablePrivateRepoSupport: '$FEATURE_FLAG_ENABLE_PRIVATE_REPO_SUPPORT' === 'true',
     enableIdentityProviderManagedMode: '$FEATURE_FLAG_ENABLE_IDENTITY_PROVIDER_MANAGED_MODE' === 'true',
     enableProfileManagement: '$FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT' === 'true',
     enableUserManagement: '$FEATURE_FLAG_ENABLE_USER_MANAGEMENT' === 'true',
     enableAgentIdentity: true,
     enableSelfHostedGateways: '$FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS' === 'true',
     // Resources managed outside the console; their pages are hidden.
+    externallyManagedEnv: '$FEATURE_FLAG_EXTERNALLY_MANAGED_ENV' === 'true',
     externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
+    externallyManagedPipeline: '$FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE' === 'true',
   },
   uiModules: {
     // Comma-separated UI modules or pages to turn off: a module id turns off

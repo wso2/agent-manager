@@ -33,7 +33,7 @@ interface AgentCardSourceFormProps {
   inline?: boolean;
   /** Called after a successful save or on cancel. */
   onDone?: () => void;
-  /** Offers gateway routing with the new URL; only once the agent is known to be direct. */
+  /** Offers gateway routing with the new URL; only once the environment is known to be direct. */
   offerRouting?: boolean;
   /** A stored upstream secret pins the card to the origin of currentUrl. */
   keepOrigin?: boolean;
@@ -44,7 +44,7 @@ const INVALID_HINT = "Enter a public http(s) URL";
 // useApiMutation already shows the failure in a snackbar.
 const alreadyReported = () => undefined;
 
-/** Card URL for an external agent. */
+/** Card URL for an external agent in one environment. */
 export function AgentCardSourceForm({
   params, currentUrl, inline, onDone, offerRouting = false, keepOrigin = false,
 }: AgentCardSourceFormProps) {
@@ -69,7 +69,7 @@ export function AgentCardSourceForm({
       .then(() => true, () => false);
     if (!sourceSaved) return;
     onDone?.();
-    // The URL stays saved if routing fails; the agent is then left direct.
+    // The URL stays saved if routing fails; the environment is then left direct.
     if (routes) {
       await saveProxy({ params, body: proxyRequestOf(proxyDraft) }).catch(alreadyReported);
     }

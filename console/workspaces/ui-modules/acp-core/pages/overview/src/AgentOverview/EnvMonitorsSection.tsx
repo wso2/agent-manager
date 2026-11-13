@@ -33,7 +33,6 @@ import {
 } from "@agent-management-platform/api-client";
 import {
     absoluteRouteMap,
-    DEFAULT_ENVIRONMENT,
     TraceListTimeRange,
     type EvaluatorScoreSummary,
     type MonitorResponse,
@@ -47,6 +46,7 @@ interface EnvMonitorsSectionProps {
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
 }
 
 const getMean = (evaluators: EvaluatorScoreSummary[]): number | null => {
@@ -74,9 +74,10 @@ interface MonitorTileProps {
     orgId: string;
     projectId: string;
     agentId: string;
+    envId: string;
 }
 
-const MonitorTile: React.FC<MonitorTileProps> = ({ monitor, orgId, projectId, agentId }) => {
+const MonitorTile: React.FC<MonitorTileProps> = ({ monitor, orgId, projectId, agentId, envId }) => {
     const { data: scoresData, isLoading } = useMonitorScores(
         { orgName: orgId, projName: projectId, agentName: agentId, monitorName: monitor.name },
         { timeRange: TraceListTimeRange.SEVEN_DAYS },
@@ -90,8 +91,8 @@ const MonitorTile: React.FC<MonitorTileProps> = ({ monitor, orgId, projectId, ag
 
     const monitorHref = generatePath(
         absoluteRouteMap.children.org.children.projects.children.agents
-            .children.evaluation.children.monitor.children.view.path,
-        { orgId, projectId, agentId, monitorId: monitor.name },
+            .children.environment.children.evaluation.children.monitor.children.view.path,
+        { orgId, projectId, agentId, envId, monitorId: monitor.name },
     );
 
     const evaluatorNames = monitor.evaluators.map((e) => e.displayName).join(" · ");
@@ -154,11 +155,12 @@ const MonitorTile: React.FC<MonitorTileProps> = ({ monitor, orgId, projectId, ag
 };
 
 /**
- * "Agent Performance" monitors, rendered alongside EnvObservabilitySection.
- * Renders nothing when the agent has no monitors.
+ * Per-environment "Agent Performance" monitors, rendered as a section inside an
+ * EnvironmentCard (alongside EnvObservabilitySection). Lists only the monitors
+ * that belong to this environment. Renders nothing when the env has no monitors.
  */
 export const EnvMonitorsSection: React.FC<EnvMonitorsSectionProps> = ({
-    orgId, projectId, agentId,
+    orgId, projectId, agentId, envId,
 }) => {
     const { data: monitorsList, isLoading } = useListMonitors(
         {
@@ -166,7 +168,7 @@ export const EnvMonitorsSection: React.FC<EnvMonitorsSectionProps> = ({
             projName: projectId,
             agentName: agentId,
         },
-        { environmentName: DEFAULT_ENVIRONMENT },
+        { environmentName: envId },
     );
 
     const monitors = monitorsList?.monitors ?? [];
@@ -177,8 +179,8 @@ export const EnvMonitorsSection: React.FC<EnvMonitorsSectionProps> = ({
 
     const allMonitorsHref = generatePath(
         absoluteRouteMap.children.org.children.projects.children.agents
-            .children.evaluation.children.monitor.path,
-        { orgId, projectId, agentId },
+            .children.environment.children.evaluation.children.monitor.path,
+        { orgId, projectId, agentId, envId },
     );
 
     const gridSx = {
@@ -203,6 +205,7 @@ export const EnvMonitorsSection: React.FC<EnvMonitorsSectionProps> = ({
                             orgId={orgId}
                             projectId={projectId}
                             agentId={agentId}
+                            envId={envId}
                         />
                     ))}
                 </Box>

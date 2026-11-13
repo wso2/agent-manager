@@ -20,13 +20,13 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LogsComponent } from "./index";
 
-const route = "/org/org1/project/proj1/agents/agent1/observability/logs";
+const route = "/org/org1/project/proj1/agents/agent1/environment/env1/observability/logs";
 
 const WithRouter = () => (
   <MemoryRouter initialEntries={[route]} initialIndex={0}>
     <Routes>
       <Route
-        path="/org/:orgId/project/:projectId/agents/:agentId/observability/logs"
+        path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs"
         element={<LogsComponent />}
       />
     </Routes>
@@ -56,7 +56,7 @@ export const WithTimeRangeAndSort: Story = {
     >
       <Routes>
         <Route
-          path="/org/:orgId/project/:projectId/agents/:agentId/observability/logs"
+          path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs"
           element={<LogsComponent />}
         />
       </Routes>

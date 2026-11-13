@@ -17,12 +17,67 @@
  */
 
 import { z } from 'zod';
-import { INPUT_LIMITS } from '@agent-management-platform/types';
+import {
+  type HealthChecks,
+  type InputInterfaceType,
+  INPUT_LIMITS,
+  healthChecksAreValid,
+  formatBytes,
+  getFileMountMaxFileBytes,
+  utf8ByteLength,
+} from '@agent-management-platform/types';
+import type { AuthenticationType } from '@agent-management-platform/shared-component';
 
+// Exported so the sections that name generated env vars cap their inputs at
+// exactly what this schema accepts.
+export const AGENT_ENV_KEY_MAX_LENGTH = 64;
+
+
+export type InterfaceType = InputInterfaceType;
+
+// LLMProviderFormEntry is managed as plain state outside the Zod schema
+// to avoid Zod v4 compiled-parser issues with nested z.record + z.union in optional fields.
+export interface LLMProviderFormEntry {
+  selectedProviderByEnv: Record<string, { uuid: string; handle: string } | null>;
+  urlVarName?: string;
+  apikeyVarName?: string;
+  guardrails: Array<{ name: string; version: string; settings?: Record<string, unknown> }>;
+}
+
+// MCPProxyFormEntry is managed as plain state outside the Zod schema, mirroring
+// LLMProviderFormEntry. The selected MCP proxy is keyed by environment name; only
+// the initial environment's selection is sent on create.
+export interface MCPProxyFormEntry {
+  selectedProxyByEnv: Record<string, { id: string; name: string } | null>;
+  urlVarName?: string;
+  apikeyVarName?: string;
+  /**
+   * How the selected proxy's endpoint for the target environment is secured,
+   * resolved from the proxy once it loads (undefined until then). Only an
+   * "apiKey" endpoint has a user-named API key; for "identity" and "" (none),
+   * submitting one creates an env var the platform injects permanently empty
+   * (issue #1597).
+   */
+  authenticationType?: AuthenticationType;
+}
+
+// Repository-relative paths (Dockerfile, OpenAPI schema, base path) become
+// directory and file arguments inside the build container, so they are held to
+// the same conservative POSIX subset the backend enforces. appPath spells the
+// same rule out field by field below, for per-rule messages.
+const isBuildPath = (value: string): boolean =>
+  /^\/[A-Za-z0-9._\-/]*$/.test(value) &&
+  !value.includes('..') &&
+  (value === '/' || !value.endsWith('/'));
+
+// Only the host and the owner/repo segments; the backend pins the same shape.
+const gitHubRepoUrlRe = /^https:\/\/github\.com\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+(?:\.git)?\/?$/;
+
+// Base fields shared by both flows
 /** The backend's MaxResourceNameLength for agent names. */
 export const AGENT_NAME_MAX_LENGTH = 25;
 
-export const connectAgentSchema = z.object({
+const baseAgentFields = {
   displayName: z
     .string()
     .trim()
@@ -45,6 +100,264 @@ export const connectAgentSchema = z.object({
   // Per-entry validation is enforced inline by LabelsEditor (mirroring the
   // backend rules), so the schema only constrains the overall shape.
   labels: z.record(z.string(), z.string()).optional(),
+};
+
+// Schema for connecting to an existing agent (minimal fields)
+// Note: llmProvider is intentionally excluded from Zod validation — managed as plain state.
+export const connectAgentSchema = z.object({
+  ...baseAgentFields,
+  deploymentType: z.literal('existing').optional(),
 });
 
+// Schema for creating a new agent from source (full validation)
+// Note: llmProvider is intentionally excluded from Zod validation — managed as plain state.
+export const createAgentSchema = z.object({
+  ...baseAgentFields,
+  deploymentType: z.literal('new').optional(),
+  enableAutoInstrumentation: z.boolean().default(true),
+  // instrumentationVersion is a plain string; the dropdown is populated
+  // dynamically from the agent-build-options endpoint and the server is
+  // the authoritative gate. nullable for the case where no AMP-provided
+  // instrumentation is available for the chosen Python version.
+  instrumentationVersion: z.string().trim().nullable().optional(),
+  // The host and the owner/repo character set are pinned because the URL is
+  // handed to git inside the build container; the backend enforces the same rule
+  // (utils.validateRepoDetails), this is only the earlier, friendlier message.
+  repositoryUrl: z
+    .string()
+    .trim()
+    .min(1, 'Repository URL is required')
+    .max(2048, 'Repository URL must be at most 2048 characters')
+    .url('Must be a valid URL')
+    .refine((value) => gitHubRepoUrlRe.test(value), {
+      message: 'Must be a GitHub repository URL, e.g. https://github.com/owner/repo',
+    }),
+  // A branch name is an argument to git, so the allowlist covers the characters
+  // real branch names use and nothing else. The second refine carries the ref
+  // rules the character class cannot express, including the leading dash that
+  // git would read as an option instead of a branch.
+  branch: z
+    .string()
+    .trim()
+    .min(1, 'Branch is required')
+    .max(255, 'Branch must be at most 255 characters')
+    .refine((value) => /^[A-Za-z0-9._@+/-]+$/.test(value), {
+      message: 'Branch can only contain letters, numbers, ., _, @, +, - and /',
+    })
+    .refine(
+      (value) =>
+        !value.startsWith('-') &&
+        !value.startsWith('/') &&
+        !value.endsWith('/') &&
+        !value.includes('//') &&
+        !value.includes('..') &&
+        !value.includes('@{') &&
+        !value.endsWith('.') &&
+        !value.endsWith('.lock'),
+      { message: 'Branch is not a valid git branch name' }
+    ),
+  appPath: z
+    .string()
+    .trim()
+    .min(1, 'App path is required')
+    .refine((value) => value.startsWith('/'), {
+      message: 'App path must start with /',
+    })
+    .refine((value) => !/\.\./.test(value), {
+      message: 'Path traversal is not allowed',
+    })
+    .refine((value) => /^\/[A-Za-z0-9._\-/]*$/.test(value), {
+      message: 'App path can only contain letters, numbers, ., _, -, and /',
+    })
+    .refine(
+      (value) => {
+        if (value === '/') return true;
+        return !value.endsWith('/');
+      },
+      { message: 'App path must be a valid path (use / for root directory)' }
+    ),
+  gitSecretRef: z.string().trim().optional(),
+  githubApp: z.object({
+    installationId: z.number().int().positive(),
+    owner: z.string().trim().min(1),
+    repo: z.string().trim().min(1),
+    branch: z.string().trim().min(1),
+    appPath: z.string().trim().min(1),
+    repositoryUrl: z.string().url(),
+  }).optional(),
+  // runCommand is the container's start command by design -- the buildpack makes
+  // it PID 1 under a shell -- so it is deliberately left unconstrained.
+  runCommand: z.string().trim().optional(),
+  language: z.string().trim().min(1, 'Language is required'),
+  languageVersion: z.string().trim().optional(),
+  dockerfilePath: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || isBuildPath(value), {
+      message: 'Dockerfile path must start with / and contain only letters, numbers, ., _, - and /',
+    })
+    .optional(),
+  interfaceType: z.enum(['DEFAULT', 'CUSTOM', 'A2A']),
+  // Only readiness is set on the create page; the rest use the defaults.
+  healthChecks: z
+    .custom<HealthChecks>(
+      (value) => healthChecksAreValid(value as HealthChecks | undefined),
+      'Fix the highlighted readiness check fields',
+    )
+    .optional(),
+  port: z
+    .union([z.number(), z.string(), z.undefined()])
+    .transform((val) => {
+      if (val === '' || val === null || val === undefined) return undefined;
+      return typeof val === 'string' ? Number(val) : val;
+    })
+    .optional(),
+  basePath: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || isBuildPath(value), {
+      message: 'Base path must start with / and contain only letters, numbers, ., _, - and /',
+    })
+    .optional(),
+  openApiPath: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || isBuildPath(value), {
+      message: 'OpenAPI path must start with / and contain only letters, numbers, ., _, - and /',
+    })
+    .optional(),
+  env: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .trim()
+          .min(1, 'Environment variable key is required')
+          .max(AGENT_ENV_KEY_MAX_LENGTH, `Environment variable key must be at most ${AGENT_ENV_KEY_MAX_LENGTH} characters`)
+          .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, 'Env keys must match /^[A-Za-z_][A-Za-z0-9_]*$/')
+          .optional(),
+        value: z
+          .string()
+          .trim()
+          .max(2048, 'Environment variable value must be at most 2048 characters')
+          .optional(),
+        isSensitive: z.boolean().default(false),
+        // Set only by an Agent Kind's config schema (deriveCatalogEnvSeed) for a
+        // kind-declared secret that has a real default — the default itself is
+        // never sent to the client, so an empty value here means "use the kind's
+        // default", not "left blank by mistake", and must skip the check below.
+        isInherited: z.boolean().optional(),
+      })
+    )
+    .max(50, 'A maximum of 50 environment variables is allowed')
+    // A row with a name but no value would otherwise be silently dropped when
+    // the payload is built, deploying without a variable the user thought
+    // they'd set — surface it instead of dropping it.
+    .refine(
+      (rows) => rows.every((row) => row.isInherited || !row.key?.trim() || !!row.value?.trim()),
+      { message: 'Every environment variable with a name must also have a value' },
+    ),
+  files: z
+    .array(
+      z.object({
+        key: z
+          .string()
+          .trim()
+          .min(1, 'File name is required')
+          .max(INPUT_LIMITS.FILE_NAME, `File name must be at most ${INPUT_LIMITS.FILE_NAME} characters`)
+          .optional(),
+        mountPath: z
+          .string()
+          .trim()
+          .min(1, 'Mount path is required')
+          .refine((p) => !p || p.startsWith('/'), { message: 'Mount path must be an absolute path (start with /)' })
+          .refine((p) => !p || !p.includes('..'), { message: 'Path traversal (..) is not allowed' })
+          .refine((p) => !p || /^\/[A-Za-z0-9._\-/]*$/.test(p), { message: 'Mount path contains invalid characters' })
+          .optional(),
+        value: z
+          .string()
+          .refine((value) => utf8ByteLength(value) <= getFileMountMaxFileBytes(), {
+            message: `File content must be at most ${formatBytes(getFileMountMaxFileBytes())}`,
+          })
+          .optional(),
+        isSensitive: z.boolean().default(false),
+      })
+    )
+    .max(20, 'A maximum of 20 file mounts is allowed'),
+}).refine(
+  (data) => {
+    if ((data.interfaceType === 'CUSTOM' || data.interfaceType === 'A2A') && !data.port) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Port is required for custom and A2A interfaces', path: ['port'] }
+).refine(
+  (data) => {
+    if ((data.interfaceType === 'CUSTOM' || data.interfaceType === 'A2A') && data.port !== undefined) {
+      if (!Number.isInteger(data.port)) return false;
+      if (data.port < 1 || data.port > 65535) return false;
+    }
+    return true;
+  },
+  { message: 'Port must be between 1 and 65535', path: ['port'] }
+).refine(
+  (data) => {
+    if (data.interfaceType === 'CUSTOM' && !data.basePath) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Base path is required when using custom interface', path: ['basePath'] }
+).refine(
+  (data) => {
+    if (data.interfaceType === 'CUSTOM' && !data.openApiPath) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'OpenAPI spec path is required when using custom interface', path: ['openApiPath'] }
+).refine(
+  (data) => {
+    // Validate Python-specific fields: runCommand is required for Python
+    if (data.language === 'python' && !data.runCommand?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Start Command is required for Python agents', path: ['runCommand'] }
+).refine(
+  (data) => {
+    // Validate Python-specific fields: languageVersion is required for Python
+    if (data.language === 'python' && !data.languageVersion?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Python version is required for Python agents', path: ['languageVersion'] }
+).refine(
+  (data) => {
+    // Validate Docker-specific fields: dockerfilePath is required for Docker
+    if (data.language === 'docker' && !data.dockerfilePath?.trim()) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Dockerfile path is required for Docker agents', path: ['dockerfilePath'] }
+).refine(
+  (data) => {
+    // Validate dockerfilePath must start with /
+    if (data.language === 'docker' && data.dockerfilePath?.trim() && !data.dockerfilePath.startsWith('/')) {
+      return false;
+    }
+    return true;
+  },
+  { message: 'Dockerfile path must start with /', path: ['dockerfilePath'] }
+);
+
+// Union type for form values
 export type ConnectAgentFormValues = z.infer<typeof connectAgentSchema>;
+export type CreateAgentFormValues = z.infer<typeof createAgentSchema>;
+export type AddAgentFormValues = ConnectAgentFormValues | CreateAgentFormValues;
+
+

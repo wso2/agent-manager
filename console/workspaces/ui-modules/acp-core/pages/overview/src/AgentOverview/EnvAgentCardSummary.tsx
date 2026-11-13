@@ -23,12 +23,12 @@ import { Link } from "react-router-dom";
 import { useGetAgent, useGetAgentCard } from "@agent-management-platform/api-client";
 import { OverviewSectionCard, validateEndpointUrl } from "@agent-management-platform/shared-component";
 import { buildConfigureTabHref, servesA2A, TextInput } from "@agent-management-platform/views";
-import { DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
 
 interface EnvAgentCardSummaryProps {
   orgId: string;
   projectId: string;
   agentId: string;
+  envId: string;
   external?: boolean;
 }
 
@@ -150,12 +150,12 @@ function useShownBefore(key: string, showingNow: boolean) {
 
 /** Provider, interfaces and skill names from an A2A card; details live on Configure → A2A. */
 export function EnvAgentCardSummary({
-  orgId, projectId, agentId, external,
+  orgId, projectId, agentId, envId, external,
 }: EnvAgentCardSummaryProps) {
   const { data: agent } = useGetAgent({ orgName: orgId, projName: projectId, agentName: agentId });
   const isA2A = servesA2A(agent);
   const { data, isLoading, isError } = useGetAgentCard(
-    { orgName: orgId, projName: projectId, agentName: agentId, envId: DEFAULT_ENVIRONMENT },
+    { orgName: orgId, projName: projectId, agentName: agentId, envId },
     { enabled: isA2A },
   );
 
@@ -163,6 +163,7 @@ export function EnvAgentCardSummary({
   // An external agent may never speak A2A, so the register prompt shows on the first visit only.
   const promptsForCardURL = isA2A && noSource && !!external;
   const promptShownBefore = useShownBefore(
+    // Per agent, not per environment: every environment card shows it on the first visit.
     `amp.console.agent-card-prompt-shown.${orgId}/${projectId}/${agentId}`,
     promptsForCardURL,
   );
@@ -170,7 +171,7 @@ export function EnvAgentCardSummary({
   if (!isA2A || (promptsForCardURL && promptShownBefore)) {
     return null;
   }
-  const configureHref = buildConfigureTabHref(orgId, projectId, agentId, "a2a");
+  const configureHref = buildConfigureTabHref(orgId, projectId, agentId, "a2a", envId);
   const card = isObject(data?.card) ? data.card : undefined;
 
   let body;

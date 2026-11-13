@@ -22,12 +22,15 @@ import { displayAgentSubType, displayProvisionTypes } from "@agent-management-pl
 interface AgentTypeChipsProps {
   provisioning?: Provisioning;
   agentType?: AgentType;
+  kindName?: string;
+  /** Resolved display name for `kindName`; falls back to the raw name when omitted. */
+  kindDisplayName?: string;
 }
 
 const CHIP_SX = { flexShrink: 0, height: 20, fontSize: "0.6875rem" };
 
 export function AgentTypeChips(
-  { provisioning, agentType }: AgentTypeChipsProps,
+  { provisioning, agentType, kindName, kindDisplayName }: AgentTypeChipsProps,
 ) {
   return (
     <>
@@ -47,6 +50,14 @@ export function AgentTypeChips(
             sx={CHIP_SX}
           />
         )
+      )}
+      {kindName && (
+        <Chip
+          label={`Kind: ${kindDisplayName ?? kindName}`}
+          size="small"
+          variant="outlined"
+          sx={CHIP_SX}
+        />
       )}
     </>
   );

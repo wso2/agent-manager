@@ -35,13 +35,13 @@ vi.mock("@agent-management-platform/shared-component", () => ({
   copyToClipboard: (text: string) => copyToClipboard(text),
 }));
 
-vi.mock("./ProxySecurityDrawer", () => ({
+vi.mock("@agent-management-platform/deploy", () => ({
   ProxySecurityDrawer: ({ open }: { open: boolean }) => (open ? <div>security drawer</div> : null),
 }));
 
 import { EnvA2AProxySection } from "./EnvA2AProxySection";
 
-const params = { orgName: "org", projName: "proj", agentName: "agent", envId: "default" };
+const params = { orgName: "org", projName: "proj", agentName: "agent", envId: "dev" };
 const cardUrl = "https://agent.example.com/.well-known/agent-card.json";
 const gatewayUrl = "https://gw.example/org/proj/agent";
 const stored = { status: "DEPLOYED" as const, statusReason: "", gatewayUrl, upstreamAuthHeader: "X-Key" };
@@ -175,10 +175,10 @@ describe("EnvA2AProxySection", () => {
     expect(await screen.findByText("Copied!")).toBeInTheDocument();
   });
 
-  it("says no ingress gateway is available when there is none", () => {
+  it("says no ingress gateway is mapped when the environment has none", () => {
     render(<EnvA2AProxySection params={params} cardUrl={cardUrl}
       proxy={{ ...stored, status: "UNDEPLOYED", statusReason: "no gateway in this environment", gatewayUrl: "" }} />);
-    expect(screen.getByText(/No ingress gateway is available/)).toBeInTheDocument();
+    expect(screen.getByText(/No ingress gateway is mapped/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Copy gateway URL" })).not.toBeInTheDocument();
   });
 

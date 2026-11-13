@@ -53,7 +53,6 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import {
-  DEFAULT_ENVIRONMENT,
   absoluteRouteMap,
   relativeRouteMap,
   type EvaluationLevel,
@@ -84,7 +83,7 @@ import {
 } from "./utils/monitorScoreUtils";
 
 export const ViewMonitorComponent: React.FC = () => {
-  const { orgId, projectId, agentId, monitorId } = useParams();
+  const { orgId, projectId, agentId, envId, monitorId } = useParams();
   const theme = useTheme();
   const palette = theme.vars?.palette;
   const queryClient = useQueryClient();
@@ -97,7 +96,7 @@ export const ViewMonitorComponent: React.FC = () => {
     useState<HTMLElement | null>(null);
   const { data: compareCandidates } = useListMonitors(
     { orgName: orgId ?? "", projName: projectId ?? "", agentName: agentId ?? "" },
-    { environmentName: DEFAULT_ENVIRONMENT },
+    { environmentName: envId },
   );
   const otherMonitors = useMemo(
     () => (compareCandidates?.monitors ?? []).filter((m) => m.name !== monitorId),
@@ -115,20 +114,20 @@ export const ViewMonitorComponent: React.FC = () => {
   const handleCompareWith = useCallback(
     (targetMonitorName: string) => {
       handleCloseCompareMenu();
-      if (!orgId || !projectId || !agentId || !monitorId) {
+      if (!orgId || !projectId || !agentId || !envId || !monitorId) {
         return;
       }
       navigate({
         pathname: generatePath(
           absoluteRouteMap.children.org.children.projects.children.agents
-            .children.evaluation.children.monitor.children
+            .children.environment.children.evaluation.children.monitor.children
             .compare.path,
-          { orgId, projectId, agentId, monitorId },
+          { orgId, projectId, agentId, envId, monitorId },
         ),
         search: `?with=${encodeURIComponent(targetMonitorName)}`,
       });
     },
-    [agentId, handleCloseCompareMenu, monitorId, navigate, orgId, projectId],
+    [agentId, envId, handleCloseCompareMenu, monitorId, navigate, orgId, projectId],
   );
 
   const {
@@ -375,7 +374,7 @@ export const ViewMonitorComponent: React.FC = () => {
       <Route
         path={
           relativeRouteMap.children.org.children.projects.children.agents
-            .children.evaluation.children.monitor.children
+            .children.environment.children.evaluation.children.monitor.children
             .view.children.runs.path
         }
         element={
@@ -385,13 +384,14 @@ export const ViewMonitorComponent: React.FC = () => {
             backLabel={`Back to ${monitorData?.displayName ?? "monitor"}`}
             backHref={generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor
+                .children.environment.children.evaluation.children.monitor
                 .children.view.path,
               {
                 orgId: orgId,
                 projectId: projectId,
                 monitorId: monitorId,
                 agentId: agentId,
+                envId: envId,
               },
             )}
           >
@@ -427,11 +427,12 @@ export const ViewMonitorComponent: React.FC = () => {
             backLabel="Back to monitors"
             backHref={generatePath(
               absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor.path,
+                .children.environment.children.evaluation.children.monitor.path,
               {
                 orgId: orgId,
                 projectId: projectId,
                 agentId: agentId,
+                envId: envId,
               },
             )}
             actions={
@@ -479,7 +480,7 @@ export const ViewMonitorComponent: React.FC = () => {
                 >
                   {otherMonitors.length === 0 ? (
                     <MenuItem disabled>
-                      No other monitors for this agent
+                      No other monitors in this environment
                     </MenuItem>
                   ) : (
                     otherMonitors.map((m) => (
@@ -592,6 +593,7 @@ export const ViewMonitorComponent: React.FC = () => {
                   <PerformanceByEvaluatorCard
                     evaluators={evaluatorInfoList}
                     timeRange={timeRange}
+                    environmentId={monitorData?.environmentName}
                     traceStart={
                       isPastMonitor
                         ? monitorData?.traceStart

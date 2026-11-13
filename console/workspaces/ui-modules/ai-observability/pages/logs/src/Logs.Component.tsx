@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { EnvironmentSelector } from "@agent-management-platform/shared-component";
 import {
   LogsPanel,
   PageLayout,
@@ -26,7 +27,6 @@ import {
 } from "@agent-management-platform/views";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
-  DEFAULT_ENVIRONMENT,
   TraceListTimeRange,
   type LogLevel,
 } from "@agent-management-platform/types";
@@ -60,7 +60,7 @@ const DEBOUNCE_TIME = 2000;
 type SortOrder = "asc" | "desc";
 
 export const LogsComponent: React.FC = () => {
-  const { agentId, orgId, projectId } = useParams();
+  const { agentId, orgId, projectId, envId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const {
@@ -159,7 +159,7 @@ export const LogsComponent: React.FC = () => {
 
   const logFilterRequest = useMemo(
     () => ({
-      environmentName: DEFAULT_ENVIRONMENT,
+      environmentName: envId ?? "",
       timeRange: timeRange,
       startTime: hasCustomRange ? customStartTime : undefined,
       endTime: hasCustomRange ? customEndTime : undefined,
@@ -168,7 +168,7 @@ export const LogsComponent: React.FC = () => {
       logLevels: selectedLogLevels.length > 0 ? selectedLogLevels : undefined,
     }),
     [
-      timeRange, hasCustomRange, customStartTime, customEndTime, sortOrder, searchPhrase,
+      envId, timeRange, hasCustomRange, customStartTime, customEndTime, sortOrder, searchPhrase,
       selectedLogLevels,
     ],
   );
@@ -253,6 +253,7 @@ export const LogsComponent: React.FC = () => {
       disableIcon
       actions={
         <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
+          <EnvironmentSelector />
           {/* Log Level Filter */}
           <Select
             size="small"

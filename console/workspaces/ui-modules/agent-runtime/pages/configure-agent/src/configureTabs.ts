@@ -23,3 +23,5 @@
 export const CONFIGURE_TAB_PARAM = "tab";
 export const CONFIGURE_TAB_KEYS = ["llm", "tools", "a2a"] as const;
 export type ConfigureTabKey = (typeof CONFIGURE_TAB_KEYS)[number];
+// Environment selected on the A2A tab, by name.
+export const CONFIGURE_ENV_PARAM = "env";

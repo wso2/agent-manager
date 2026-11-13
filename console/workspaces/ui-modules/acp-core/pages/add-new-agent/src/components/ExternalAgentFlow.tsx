@@ -37,13 +37,14 @@ export const ExternalAgentFlow: React.FC = () => {
   }>();
 
   const [formData, setFormData] = useState<ConnectAgentFormValues>({
+    deploymentType: "existing" as const,
     name: "",
     displayName: "",
     description: "",
   });
   const isDirty = Boolean(formData.displayName || formData.description);
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
-  const { returnTo } = useAgentWizardReturn();
+  const { returnTo, wizardState } = useAgentWizardReturn();
 
   const { errors, validateForm, setFieldError, validateField } =
     useFormValidation<ConnectAgentFormValues>(connectAgentSchema);
@@ -103,13 +104,22 @@ export const ExternalAgentFlow: React.FC = () => {
   }, [validateForm, formData, onSubmit, errors]);
 
 
+  const backHref = useMemo(() => {
+    return generatePath(
+      absoluteRouteMap.children.org.children.projects.children.newAgent.path,
+      { orgId: orgId ?? "", projectId: projectId ?? "default" },
+    );
+  }, [orgId, projectId]);
+
+
   return (
     <PageLayout
       title="Register an Externally-Hosted Agent"
       description="Provide basic information to register your externally-hosted agent on the platform."
       disableIcon
-      backHref={returnTo}
-      backLabel="Back"
+      backHref={backHref}
+      backState={wizardState}
+      backLabel="Back to add new agent"
     >
       <Form.Stack spacing={3}>
         <ExternalAgentForm
@@ -132,6 +142,7 @@ export const ExternalAgentFlow: React.FC = () => {
           onCancel={handleCancel}
           onSubmit={handleConnect}
           isNameEmpty={!formData.name.trim()}
+          mode="connect"
         />
       </Form.Stack>
     </PageLayout>

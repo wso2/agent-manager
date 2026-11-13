@@ -28,14 +28,15 @@ import {
   TextField,
 } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useCreateAgentIdentityRole,
   useListAgentIdentityScopes,
 } from "@agent-management-platform/api-client";
 import { useFormValidation, useDirtyState, TextInput } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
-import { absoluteRouteMap, INPUT_LIMITS, DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
+import { absoluteRouteMap, INPUT_LIMITS } from "@agent-management-platform/types";
+import { withSearchParams } from "../../utils/withSearchParams";
 import {
   createAgentIdentityRoleSchema,
   type CreateAgentIdentityRoleFormValues,
@@ -45,6 +46,8 @@ import type { ScopeChoice } from "./scopeChoice";
 
 export const RoleCreatePage: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
+  const [searchParams] = useSearchParams();
+  const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState<CreateAgentIdentityRoleFormValues>({
@@ -55,7 +58,7 @@ export const RoleCreatePage: React.FC = () => {
 
   const { data: scopesData } = useListAgentIdentityScopes({
     orgName: orgId,
-    envName: DEFAULT_ENVIRONMENT,
+    envName,
   });
   const scopes = scopesData?.scopes ?? [];
 
@@ -73,10 +76,10 @@ export const RoleCreatePage: React.FC = () => {
   } = useCreateAgentIdentityRole();
 
   const rolesNode =
-    absoluteRouteMap.children.org.children.agentIdentity.children.roles;
+    absoluteRouteMap.children.org.children.thunderInstances.children.roles;
 
   const rolesPath = orgId
-    ? generatePath(rolesNode.path, { orgId })
+    ? withSearchParams(generatePath(rolesNode.path, { orgId }), searchParams)
     : "#";
 
   const handleFieldChange = useCallback(
@@ -98,7 +101,7 @@ export const RoleCreatePage: React.FC = () => {
 
     try {
       const created = await createRole({
-        params: { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
+        params: { orgName: orgId, envName },
         body: {
           name: formData.name.trim(),
           description: formData.description?.trim() || undefined,
@@ -109,7 +112,10 @@ export const RoleCreatePage: React.FC = () => {
       clearErrors();
       allowNavigation(() =>
         navigate(
-          generatePath(rolesNode.children.detail.path, { orgId, roleId: created.id }),
+          withSearchParams(
+            generatePath(rolesNode.children.detail.path, { orgId, roleId: created.id }),
+            searchParams,
+          ),
         ),
       );
     } catch {
@@ -121,12 +127,14 @@ export const RoleCreatePage: React.FC = () => {
     errors,
     createRole,
     orgId,
+    envName,
     selectedScopes,
     resetDirty,
     clearErrors,
     allowNavigation,
     navigate,
     rolesNode,
+    searchParams,
   ]);
 
   const submitErrors = Object.values(lastSubmittedValidationErrors);

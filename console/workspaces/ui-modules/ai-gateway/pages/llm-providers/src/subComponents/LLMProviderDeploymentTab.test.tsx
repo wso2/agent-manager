@@ -16,20 +16,22 @@
  * under the License.
  */
 
-import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@wso2/oxygen-ui";
 import {
+  type Environment,
   type GatewayResponse,
   type LLMDeploymentResponse,
   type LLMProviderResponse,
 } from "@agent-management-platform/types";
 
-// The tab renders the connected EgressGatewaySelector, whose api-client
+// The tab renders the connected EnvironmentGatewaySelector, whose api-client
 // import crashes at import time outside a configured app shell. Stub the
 // module boundary and feed data through the hooks the tab and selector call.
 vi.mock("@agent-management-platform/api-client", () => ({
+  useListEnvironments: vi.fn(),
   useListGateways: vi.fn(),
   useListLLMDeployments: vi.fn(),
   ConsoleAction: {},
@@ -37,6 +39,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
 }));
 
 import {
+  useListEnvironments,
   useListGateways,
   useListLLMDeployments,
 } from "@agent-management-platform/api-client";
@@ -46,10 +49,20 @@ import {
   type LLMProviderDeploymentTabProps,
 } from "./LLMProviderDeploymentTab";
 
+const mockUseListEnvironments = vi.mocked(useListEnvironments);
 const mockUseListGateways = vi.mocked(useListGateways);
 const mockUseListLLMDeployments = vi.mocked(useListLLMDeployments);
 
-const makeGateway = (uuid: string): GatewayResponse => ({
+const makeEnvironment = (id: string, name: string): Environment => ({
+  id,
+  name,
+  displayName: name,
+  dataplaneRef: "dp-1",
+  isProduction: false,
+  createdAt: "2026-01-01T00:00:00Z",
+});
+
+const makeGateway = (uuid: string, envIds: string[]): GatewayResponse => ({
   uuid,
   organizationName: "org",
   name: uuid,
@@ -61,6 +74,17 @@ const makeGateway = (uuid: string): GatewayResponse => ({
   status: "ACTIVE",
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
+  environments: envIds.map((envId) => ({
+    id: envId,
+    organizationName: "org",
+    name: envId,
+    displayName: envId,
+    dataplaneRef: "dp-1",
+    dnsPrefix: envId,
+    isProduction: false,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  })),
 });
 
 const makeProvider = (gateways: string[]): LLMProviderResponse => ({
@@ -76,9 +100,13 @@ const makeProvider = (gateways: string[]): LLMProviderResponse => ({
 });
 
 const seedSelectorData = () => {
+  mockUseListEnvironments.mockReturnValue({
+    data: [makeEnvironment("env-a", "Alpha"), makeEnvironment("env-b", "Beta")],
+    isLoading: false,
+  } as ReturnType<typeof useListEnvironments>);
   mockUseListGateways.mockReturnValue({
     data: {
-      gateways: [makeGateway("gw-a"), makeGateway("gw-b")],
+      gateways: [makeGateway("gw-a", ["env-a"]), makeGateway("gw-b", ["env-b"])],
     },
     isLoading: false,
   } as ReturnType<typeof useListGateways>);
@@ -133,15 +161,8 @@ const renderTab = (props: Partial<LLMProviderDeploymentTabProps> = {}) => {
   };
 };
 
-const getCheckbox = () =>
-  screen.getByRole("checkbox", { name: "Deploy to an egress gateway", hidden: true }) as HTMLInputElement;
-const chooseGateway = (optionName: string) => {
-  fireEvent.mouseDown(screen.getByRole("combobox", { name: "Egress gateway", hidden: true }));
-  const listboxes = screen.getAllByRole("listbox", { hidden: true });
-  fireEvent.click(
-    within(listboxes[listboxes.length - 1]).getByRole("option", { name: optionName, hidden: true }),
-  );
-};
+const getCheckbox = (name: string) =>
+  screen.getByRole("checkbox", { name }) as HTMLInputElement;
 const getSaveButton = () => screen.getByRole("button", { name: /save/i });
 
 describe("LLMProviderDeploymentTab", () => {
@@ -153,57 +174,104 @@ describe("LLMProviderDeploymentTab", () => {
 
   it("seeds from providerData.gateways and keeps Save disabled while clean", () => {
     renderTab({ providerData: makeProvider(["gw-a"]) });
-    expect(getCheckbox()).toBeChecked();
+    expect(getCheckbox("Alpha")).toBeChecked();
+    expect(getCheckbox("Beta")).not.toBeChecked();
     expect(getSaveButton()).toBeDisabled();
   });
 
-  it("saves the chosen gateway as exactly { gateways: [...] }", async () => {
-    const onUpdate = vi.fn().mockResolvedValue(makeProvider(["gw-b"]));
-    renderTab({ providerData: makeProvider([]), onUpdate });
-    expect(getCheckbox()).not.toBeChecked();
-    expect(getSaveButton()).toBeDisabled();
+  it("saves the toggled selection as exactly { gateways: [...] }", async () => {
+    const onUpdate = vi
+      .fn()
+      .mockResolvedValue(makeProvider(["gw-a", "gw-b"]));
+    renderTab({ providerData: makeProvider(["gw-a"]), onUpdate });
 
-    fireEvent.click(getCheckbox());
-    chooseGateway("Gateway gw-b");
+    fireEvent.click(getCheckbox("Beta"));
     expect(getSaveButton()).toBeEnabled();
     fireEvent.click(getSaveButton());
 
     await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
-    expect(onUpdate.mock.calls[0][0]).toEqual({ gateways: ["gw-b"] });
+    expect(onUpdate.mock.calls[0][0]).toEqual({ gateways: ["gw-a", "gw-b"] });
+  });
+
+  it("renders every row undeployed for a gateway-less provider and enables Save once a choice is made", () => {
+    renderTab({ providerData: makeProvider([]) });
+    expect(getCheckbox("Alpha")).not.toBeChecked();
+    expect(getCheckbox("Beta")).not.toBeChecked();
+    expect(getSaveButton()).toBeDisabled();
+
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(getSaveButton()).toBeEnabled();
   });
 
   it("keeps an unsaved selection across a background refetch that leaves the gateway set unchanged", () => {
     const { rerenderTab } = renderTab({ providerData: makeProvider(["gw-a"]) });
-    fireEvent.click(getCheckbox());
+    fireEvent.click(getCheckbox("Beta"));
     expect(getSaveButton()).toBeEnabled();
 
+    // New object identity, same gateway set — e.g. a window-focus refetch
+    // that changed an unrelated provider field.
     rerenderTab({ providerData: makeProvider(["gw-a"]) });
 
-    expect(getCheckbox()).not.toBeChecked();
+    expect(getCheckbox("Beta")).toBeChecked();
     expect(getSaveButton()).toBeEnabled();
   });
 
-  it("keeps a FAILED gateway checked and unlocked", () => {
-    seedDeployments([makeDeployment("gw-a", "FAILED", "E")]);
-    renderTab({ providerData: makeProvider(["gw-a"]) });
+  it("reconciles the selection down to the post-save refetch when a deploy fails", async () => {
+    const onUpdate = vi
+      .fn()
+      .mockResolvedValue(makeProvider(["gw-a", "gw-b"]));
+    const { rerenderTab } = renderTab({
+      providerData: makeProvider(["gw-a"]),
+      onUpdate,
+    });
 
-    expect(getCheckbox()).toBeChecked();
-    expect(getCheckbox()).toBeEnabled();
-    expect(screen.getByText("Failed")).toBeInTheDocument();
-    expect(screen.queryByText("Deployed")).not.toBeInTheDocument();
+    fireEvent.click(getCheckbox("Beta"));
+    fireEvent.click(getSaveButton());
+    await screen.findByText("Deployment updated successfully.");
+    expect(onUpdate.mock.calls[0][0]).toEqual({ gateways: ["gw-a", "gw-b"] });
+
+    // The refetched GET only returns gw-a: the server dropped gw-b.
+    rerenderTab({ providerData: makeProvider(["gw-a"]) });
+
+    expect(getCheckbox("Alpha")).toBeChecked();
+    expect(getCheckbox("Beta")).not.toBeChecked();
+    expect(getSaveButton()).toBeDisabled();
   });
 
-  it("locks a DEPLOYED gateway and asks before undeploying it", async () => {
-    seedDeployments([makeDeployment("gw-a", "DEPLOYED")]);
-    const onUpdate = vi.fn().mockResolvedValue(makeProvider([]));
+  it("keeps a FAILED gateway checked and unlocked, and an unchanged save sends it back", async () => {
+    seedDeployments([makeDeployment("gw-a", "FAILED", "E")]);
+    const onUpdate = vi
+      .fn()
+      .mockResolvedValue(makeProvider(["gw-a", "gw-b"]));
     renderTab({ providerData: makeProvider(["gw-a"]), onUpdate });
 
-    expect(getCheckbox()).toBeChecked();
+    expect(getCheckbox("Alpha")).toBeChecked();
+    expect(getCheckbox("Alpha")).toBeEnabled();
+    expect(screen.getByText("Failed")).toBeInTheDocument();
+    expect(screen.queryByText("Deployed")).not.toBeInTheDocument();
+
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(getCheckbox("Alpha")).not.toBeChecked();
+    fireEvent.click(getCheckbox("Alpha"));
+    expect(getCheckbox("Alpha")).toBeChecked();
+    fireEvent.click(getCheckbox("Beta"));
+    fireEvent.click(getSaveButton());
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalledTimes(1));
+    expect(onUpdate.mock.calls[0][0]).toEqual({ gateways: ["gw-a", "gw-b"] });
+  });
+
+  it("locks only DEPLOYED gateways", () => {
+    // gw-b has no deployment entry yet (just saved), so it counts as DEPLOYING.
+    seedDeployments([makeDeployment("gw-a", "DEPLOYED")]);
+    renderTab({ providerData: makeProvider(["gw-a", "gw-b"]) });
+
+    expect(getCheckbox("Alpha")).toBeChecked();
+    expect(getCheckbox("Alpha")).toBeDisabled();
     expect(screen.getByText("Deployed")).toBeInTheDocument();
 
-    fireEvent.click(getCheckbox());
-    fireEvent.click(getSaveButton());
-    expect(await screen.findByText("Undeploy from all gateways?")).toBeInTheDocument();
-    expect(onUpdate).not.toHaveBeenCalled();
+    expect(getCheckbox("Beta")).toBeChecked();
+    expect(getCheckbox("Beta")).toBeEnabled();
+    expect(screen.getByText("Deploying")).toBeInTheDocument();
   });
 });

@@ -22,6 +22,7 @@ import {
   useListGateways,
 } from "@agent-management-platform/api-client";
 import {
+  type Environment,
   type GatewayResponse,
   type MCPServerInfoFetchResponse,
   INPUT_LIMITS,
@@ -48,7 +49,7 @@ import {
 import { ChevronDown, HelpCircle } from "@wso2/oxygen-ui-icons-react";
 import { TextInput, useSnackBar } from "@agent-management-platform/views";
 import {
-  EgressGatewaySelectorView,
+  EnvironmentGatewaySelectorView,
   getErrorMessage,
   ResilienceTimeoutFields,
   validateEndpointUrl,
@@ -93,6 +94,9 @@ const DURATION_PATTERN = /^\d+(\.\d+)?(ms|s|m|h)$/;
 
 export interface EndpointFormFieldsProps {
   orgId: string;
+  // Environments not yet claimed by another endpoint. One environment can be used once.
+  // In edit mode this must also include the edited endpoint's own environments.
+  availableEnvironments: Environment[];
   onAdd: (endpoint: Omit<EndpointDraft, "id">) => void;
   onCancel: () => void;
   // When provided, the form edits an existing endpoint: fields are pre-filled and
@@ -104,6 +108,7 @@ export interface EndpointFormFieldsProps {
 
 export function EndpointFormFields({
   orgId,
+  availableEnvironments,
   onAdd,
   onCancel,
   initialDraft,
@@ -129,8 +134,8 @@ export function EndpointFormFields({
   // fetch/save without losing the typed key/value.
   const [authEnabled, setAuthEnabled] = useState(true);
   // Gateway UUIDs currently selected — the single source of truth handed to/from
-  // EgressGatewaySelectorView. The environment binding and gateway map sent to the
-  // API (below) are both derived from the gateway's own environment.
+  // EnvironmentGatewaySelectorView. Environment assignment and the per-environment
+  // gateway map (below) are both derived from this.
   const [gatewayIds, setGatewayIds] = useState<string[]>([]);
   // Gateway selection the form started from: empty for a new endpoint, and set
   // once the seed effect below resolves an edited endpoint's gateways.
@@ -291,10 +296,10 @@ export function EndpointFormFields({
     !sameGatewayMap(effectiveGatewayByEnv, normalizedInitialGatewayByEnv) ||
     capabilitiesChanged(fetchedInfo, initialDraft.fetchedInfo);
 
-  // False while the selector is checked without a resolved gateway — reported by
-  // EgressGatewaySelectorView itself.
+  // False while any checked ambiguous environment lacks a resolved gateway —
+  // reported by EnvironmentGatewaySelectorView itself.
   const [isGatewaySelectionValid, setIsGatewaySelectionValid] = useState(true);
-  // True once the selector auto-resolved a single unambiguous gateway —
+  // True once the selector auto-resolved a single unambiguous environment —
   // nothing to configure, so the whole section (including its title) hides.
   const [isSingleGatewayChoice, setIsSingleGatewayChoice] = useState(false);
 
@@ -603,7 +608,8 @@ export function EndpointFormFields({
       />
 
       {isSingleGatewayChoice ? (
-        <EgressGatewaySelectorView
+        <EnvironmentGatewaySelectorView
+          environments={availableEnvironments}
           gateways={gateways}
           value={gatewayIds}
           onChange={setGatewayIds}
@@ -618,17 +624,35 @@ export function EndpointFormFields({
             <Alert severity="error" sx={{ mt: 0.5 }}>
               {getErrorMessage(gatewaysFetchError)}
             </Alert>
+          ) : availableEnvironments.length > 0 ? (
+            <>
+              <Box sx={{ mt: 0.5 }}>
+                <EnvironmentGatewaySelectorView
+                  environments={availableEnvironments}
+                  gateways={gateways}
+                  value={gatewayIds}
+                  onChange={setGatewayIds}
+                  lockedGatewayIds={lockedGatewayIds}
+                  onValidityChange={setIsGatewaySelectionValid}
+                  onSingleChoiceChange={setIsSingleGatewayChoice}
+                />
+              </Box>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ mt: 0.5 }}
+              >
+                An environment can be assigned to only one endpoint.
+              </Typography>
+            </>
           ) : (
-            <Box sx={{ mt: 0.5 }}>
-              <EgressGatewaySelectorView
-                gateways={gateways}
-                value={gatewayIds}
-                onChange={setGatewayIds}
-                lockedGatewayIds={lockedGatewayIds}
-                onValidityChange={setIsGatewaySelectionValid}
-                onSingleChoiceChange={setIsSingleGatewayChoice}
-              />
-            </Box>
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              sx={{ mt: 0.5 }}
+            >
+              All environments are already assigned
+            </Typography>
           )}
         </FormControl>
       )}

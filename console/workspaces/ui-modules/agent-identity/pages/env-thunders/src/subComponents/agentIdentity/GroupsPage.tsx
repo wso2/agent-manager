@@ -19,21 +19,22 @@ import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   Alert,
   Avatar,
-  Box,
   IconButton,
   ListingTable,
   TablePagination,
   Tooltip,
 } from "@wso2/oxygen-ui";
 import { Folder, Trash } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useNavigate, useParams } from "react-router-dom";
+import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   useDeleteAgentIdentityGroup,
   useListAgentIdentityGroups,
 } from "@agent-management-platform/api-client";
 import { isListEmpty, ListingSkeletonRows, useConfirmationDialog } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
-import { absoluteRouteMap, type ThunderGroup, DEFAULT_ENVIRONMENT } from "@agent-management-platform/types";
+import { absoluteRouteMap, type ThunderGroup } from "@agent-management-platform/types";
+import { withSearchParams } from "../../utils/withSearchParams";
+import { AgentIdentityEnvironmentTabs } from "./AgentIdentityEnvironmentTabs";
 
 const AVATAR_SX = { width: 28, height: 28, fontSize: 12 } as const;
 
@@ -44,6 +45,8 @@ interface GroupsPageProps {
 
 export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
   const { orgId } = useParams<{ orgId: string }>();
+  const [searchParams] = useSearchParams();
+  const envName = searchParams.get("envName") ?? "";
   const navigate = useNavigate();
   const { canWrite } = useResourceAccess("agent_identity");
 
@@ -52,7 +55,7 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
   const [search, setSearch] = useState("");
 
   const { data, isLoading, error } = useListAgentIdentityGroups(
-    { orgName: orgId, envName: DEFAULT_ENVIRONMENT },
+    { orgName: orgId, envName },
     { offset: page * rowsPerPage, limit: rowsPerPage },
   );
   const { mutateAsync: deleteGroup } = useDeleteAgentIdentityGroup();
@@ -77,11 +80,14 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
   }, [groups.length, total, page, rowsPerPage]);
 
   const groupsNode =
-    absoluteRouteMap.children.org.children.agentIdentity.children.groups;
+    absoluteRouteMap.children.org.children.thunderInstances.children.groups;
 
   const editGroupPath = (groupId: string) =>
     orgId
-      ? generatePath(groupsNode.children.detail.path, { orgId, groupId })
+      ? withSearchParams(
+          generatePath(groupsNode.children.detail.path, { orgId, groupId }),
+          searchParams,
+        )
       : "#";
 
   const filteredGroups = useMemo(() => {
@@ -103,7 +109,7 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
       confirmButtonColor: "error",
       confirmButtonIcon: <Trash size={16} />,
       onConfirm: () =>
-        deleteGroup({ orgName: orgId, envName: DEFAULT_ENVIRONMENT, groupId: group.id }),
+        deleteGroup({ orgName: orgId, envName: envName ?? "", groupId: group.id }),
     });
   };
 
@@ -117,20 +123,7 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
 
       <ListingTable.Provider searchValue={search} onSearchChange={setSearch}>
         <ListingTable.Container>
-          {!isEmpty && createAction && (
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "flex-end",
-                px: 2,
-                py: 1,
-                borderBottom: 1,
-                borderColor: "divider",
-              }}
-            >
-              {createAction}
-            </Box>
-          )}
+          <AgentIdentityEnvironmentTabs action={isEmpty ? undefined : createAction} />
           {!isEmpty && (
             <ListingTable.Toolbar showSearch searchPlaceholder="Search groups" />
           )}
@@ -145,7 +138,7 @@ export const GroupsPage: React.FC<GroupsPageProps> = ({ createAction }) => {
               <ListingTable.EmptyState
                 illustration={<Folder size={64} />}
                 title="No groups yet"
-                description="Create a group to organize agent identities."
+                description="Create a group to organize agent identities in this environment."
                 action={createAction}
               />
             )
