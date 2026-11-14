@@ -482,8 +482,21 @@ func TestGetReleaseBindingRollout(t *testing.T) {
 		got, err := serve(t, binding("myagent-r2", ready)).GetReleaseBindingRollout(context.Background(), "acme", "myagent", "dev")
 		require.NoError(t, err)
 		assert.Equal(t, ReleaseBindingRollout{
-			ServiceURL: "http://b.svc:8000", ExternalURL: "http://gw.example/a", ReleaseName: "myagent-r2", Serving: true, Deployed: true,
-		}, got, "the external URL is the first endpoint by name, as the card fetch needs")
+			ServiceURL: "http://dev.svc:8000", ExternalURL: "http://gw.example/a", ReleaseName: "myagent-r2", Serving: true, Deployed: true,
+		}, got, "both URLs are the first HTTP endpoint by name")
+	})
+
+	t.Run("both URLs are the agent's own HTTP endpoint when a WebSocket endpoint is listed first", func(t *testing.T) {
+		ws, agentPort, ownPath := "ws", int32(9090), "/own"
+		b := binding("myagent-r2", ready)
+		b.Status.Endpoints = &[]gen.EndpointURLStatus{
+			{Name: "events", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &port, Scheme: &ws}, ExternalURLs: &gen.EndpointGatewayURLs{Http: &gen.EndpointURL{Scheme: &scheme, Host: "gw.example", Path: &aPath}}},
+			{Name: "myagent-endpoint", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &agentPort}, ExternalURLs: &gen.EndpointGatewayURLs{Http: &gen.EndpointURL{Scheme: &scheme, Host: "gw.example", Path: &ownPath}}},
+		}
+		got, err := serve(t, b).GetReleaseBindingRollout(context.Background(), "acme", "myagent", "dev")
+		require.NoError(t, err)
+		assert.Equal(t, "http://myagent.svc:9090", got.ServiceURL)
+		assert.Equal(t, "http://gw.example/own", got.ExternalURL)
 	})
 
 	t.Run("a rollout in progress is not serving its release yet", func(t *testing.T) {
@@ -629,10 +642,80 @@ func TestGetReleaseBindingServiceURL(t *testing.T) {
 		assert.Equal(t, "https://dev.svc", got)
 	})
 
+	// A WebSocket endpoint and the agent's own HTTP endpoint, in either order.
+	ws := "ws"
+	wsUpper := "WS"
+	httpsUpper := "HTTPS"
+	tcp := gen.EndpointURLStatusTypeTCP
+	httpType := gen.EndpointURLStatusTypeHTTP
+	grpc := gen.EndpointURLStatusTypeGRPC
+	wsPort := int32(8080)
+	agentPort := int32(9090)
+	agentPath := "/chat-agent"
+	socket := gen.EndpointURLStatus{Name: "events", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &wsPort, Scheme: &ws}}
+	own := gen.EndpointURLStatus{Name: "myagent-endpoint", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &agentPort, Path: &agentPath}}
+
+	picks := map[string]struct {
+		endpoints []gen.EndpointURLStatus
+		want      string
+	}{
+		"skips a WebSocket endpoint listed before the agent's own": {
+			endpoints: []gen.EndpointURLStatus{socket, own},
+			want:      "http://myagent.svc:9090/chat-agent",
+		},
+		"skips a WebSocket endpoint whatever its scheme's case": {
+			endpoints: []gen.EndpointURLStatus{
+				{Name: "events", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &wsPort, Scheme: &wsUpper}},
+				{Name: "other", ServiceURL: &gen.EndpointURL{Host: "other.svc", Port: &port}},
+			},
+			want: "http://other.svc:8000",
+		},
+		"takes the agent's own endpoint over another HTTP endpoint listed first": {
+			endpoints: []gen.EndpointURLStatus{{Name: "a", ServiceURL: &gen.EndpointURL{Host: "a.svc", Port: &port}}, own},
+			want:      "http://myagent.svc:9090/chat-agent",
+		},
+		"falls back to the first HTTP endpoint when none is named after the agent": {
+			endpoints: []gen.EndpointURLStatus{socket, {Name: "a", ServiceURL: &gen.EndpointURL{Host: "a.svc", Port: &port, Scheme: &https}}},
+			want:      "https://a.svc:8000",
+		},
+		"falls back to the HTTP endpoint whose name sorts first, whatever the list order": {
+			endpoints: []gen.EndpointURLStatus{{Name: "b", ServiceURL: &gen.EndpointURL{Host: "b.svc", Port: &port}}, {Name: "a", ServiceURL: &gen.EndpointURL{Host: "a.svc", Port: &port}}},
+			want:      "http://a.svc:8000",
+		},
+		"skips the agent's own endpoint when it is a WebSocket": {
+			endpoints: []gen.EndpointURLStatus{
+				{Name: "myagent-endpoint", ServiceURL: &gen.EndpointURL{Host: "myagent.svc", Port: &wsPort, Scheme: &ws}},
+				{Name: "other", ServiceURL: &gen.EndpointURL{Host: "other.svc", Port: &port}},
+			},
+			want: "http://other.svc:8000",
+		},
+		"skips an endpoint whose declared type is not HTTP, even without a scheme": {
+			endpoints: []gen.EndpointURLStatus{
+				{Name: "a", Type: &tcp, ServiceURL: &gen.EndpointURL{Host: "tcp.svc", Port: &wsPort}},
+				{Name: "b", Type: &httpType, ServiceURL: &gen.EndpointURL{Host: "b.svc", Port: &port}},
+			},
+			want: "http://b.svc:8000",
+		},
+		"lowercases the scheme": {
+			endpoints: []gen.EndpointURLStatus{{Name: "a", ServiceURL: &gen.EndpointURL{Host: "a.svc", Port: &port, Scheme: &httpsUpper}}},
+			want:      "https://a.svc:8000",
+		},
+	}
+	for name, tc := range picks {
+		t.Run(name, func(t *testing.T) {
+			eps := tc.endpoints
+			got, err := serve(t, http.StatusOK, withEndpoints("dev", &eps)).GetReleaseBindingServiceURL(context.Background(), "acme", "myagent", "dev")
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+
 	notReady := map[string][]gen.ReleaseBinding{
 		"no binding for the environment": {withEndpoints("prod", &[]gen.EndpointURLStatus{{Name: "a", ServiceURL: &gen.EndpointURL{Host: "prod.svc"}}})},
 		"status has no endpoints yet":    {withEndpoints("dev", nil)},
 		"no endpoint carries a host":     {withEndpoints("dev", &[]gen.EndpointURLStatus{{Name: "a"}})},
+		"only a WebSocket endpoint":      {withEndpoints("dev", &[]gen.EndpointURLStatus{socket})},
+		"only a gRPC endpoint":           {withEndpoints("dev", &[]gen.EndpointURLStatus{{Name: "a", Type: &grpc, ServiceURL: &gen.EndpointURL{Host: "grpc.svc"}}})},
 	}
 	for name, items := range notReady {
 		t.Run(name+" is not ready, not an error", func(t *testing.T) {

@@ -621,7 +621,7 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 			return nil, fmt.Errorf("failed to read Chat API schema: %w", err)
 		}
 		endpoints = append(endpoints, map[string]any{
-			"name":          fmt.Sprintf("%s-endpoint", req.Name),
+			"name":          AgentEndpointName(req.Name),
 			"port":          config.GetConfig().DefaultChatAPI.DefaultHTTPPort,
 			"type":          string(utils.InputInterfaceTypeHTTP),
 			"basePath":      req.InputInterface.BasePath,
@@ -633,7 +633,7 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 
 	if req.AgentType.Type == string(utils.AgentTypeAPI) && req.AgentType.SubType == string(utils.AgentSubTypeCustomAPI) && req.InputInterface != nil {
 		endpoints = append(endpoints, map[string]any{
-			"name":           fmt.Sprintf("%s-endpoint", req.Name),
+			"name":           AgentEndpointName(req.Name),
 			"port":           req.InputInterface.Port,
 			"type":           req.InputInterface.Type,
 			"basePath":       req.InputInterface.BasePath,
@@ -654,7 +654,7 @@ func buildEndpoints(req CreateComponentRequest) ([]map[string]any, error) {
 			basePath = "/"
 		}
 		endpoints = append(endpoints, map[string]any{
-			"name":       fmt.Sprintf("%s-endpoint", req.Name),
+			"name":       AgentEndpointName(req.Name),
 			"port":       req.InputInterface.Port,
 			"type":       req.InputInterface.Type,
 			"basePath":   basePath,
