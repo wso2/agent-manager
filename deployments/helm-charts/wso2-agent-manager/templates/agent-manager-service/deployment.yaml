@@ -169,9 +169,12 @@ spec:
                   {{- if .existingSecret }}
                   name: {{ .existingSecret | quote }}
                   key: {{ .existingSecretKey | default "idp-client-secret" | quote }}
-                  {{- else }}
+                  {{- else if .clientSecret }}
                   name: {{ include "agent-management-platform.agentManagerService.fullname" $ }}
                   key: idp-client-secret
+                  {{- else }}
+                  name: amp-platform-oauth
+                  key: AMP_API_CLIENT_SECRET
                   {{- end }}
             {{- end }}
             - name: GITHUB_TOKEN
@@ -258,19 +261,22 @@ spec:
                   name: {{ .Values.agentManagerService.config.events.natsToken.existingSecret }}
                   key: {{ .Values.agentManagerService.config.events.natsToken.existingSecretKey | default "token" }}
             {{- end }}
-            {{- if or .Values.agentManagerService.config.thunder.clientSecret .Values.agentManagerService.config.thunder.existingSecret }}
+            {{- with .Values.agentManagerService.config.thunder }}
+            {{- if or .baseURL .clientSecret .existingSecret }}
             - name: THUNDER_CLIENT_SECRET
-              {{- if .Values.agentManagerService.config.thunder.existingSecret }}
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.agentManagerService.config.thunder.existingSecret }}
-                  key: {{ .Values.agentManagerService.config.thunder.existingSecretKey | default "thunder-client-secret" }}
-              {{- else }}
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "agent-management-platform.agentManagerService.fullname" . }}
+                  {{- if .existingSecret }}
+                  name: {{ .existingSecret | quote }}
+                  key: {{ .existingSecretKey | default "thunder-client-secret" | quote }}
+                  {{- else if .clientSecret }}
+                  name: {{ include "agent-management-platform.agentManagerService.fullname" $ }}
                   key: thunder-client-secret
-              {{- end }}
+                  {{- else }}
+                  name: amp-platform-oauth
+                  key: AMP_SYSTEM_CLIENT_SECRET
+                  {{- end }}
+            {{- end }}
             {{- end }}
             {{- if or .Values.agentManagerService.config.gatewayManifestCache.redis.password .Values.agentManagerService.config.gatewayManifestCache.redis.existingSecret }}
             - name: GATEWAY_MANIFEST_CACHE_REDIS_PASSWORD

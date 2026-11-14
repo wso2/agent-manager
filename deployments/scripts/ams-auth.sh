@@ -24,7 +24,17 @@ get_ams_token() {
 
   local idp_token_url="${IDP_TOKEN_URL:-http://thunder.amp.localhost:8080/oauth2/token}"
   local idp_client_id="${IDP_CLIENT_ID:-amp-api-client}"
-  local idp_client_secret="${IDP_CLIENT_SECRET:-amp-api-client-secret}"
+  local idp_client_secret="${IDP_CLIENT_SECRET:-}"
+  if [ -z "$idp_client_secret" ]; then
+    local encoded
+    encoded="$(kubectl get secret amp-platform-oauth -n "${THUNDER_NS:-amp-thunder}" \
+      -o 'jsonpath={.data.AMP_API_CLIENT_SECRET}')" || return 1
+    idp_client_secret="$(printf '%s' "$encoded" | openssl base64 -d -A)" || return 1
+    if [ -z "$idp_client_secret" ]; then
+      echo "Set IDP_CLIENT_SECRET or AGENT_MANAGER_TOKEN for the platform Thunder client." >&2
+      return 1
+    fi
+  fi
 
   # Explicit scope required: an unscoped client_credentials token gets HTTP 403
   # from AMS's RBAC check on the thunder-system-client route (confirmed live).

@@ -139,7 +139,7 @@ fi
 # Step 6: Purge AMS-written OpenBao secrets
 # ============================================================================
 # AMS writes dynamic secrets under org subtrees (secret/<org>/...). The flat
-# keys at the mount root (secret/amp-system-client-secret, ...) are baseline
+# keys at the mount root (secret/amp-publisher-client-secret, ...) are baseline
 # bootstrap values seeded by the OpenBao pod's postStart hook — those stay,
 # since they only regenerate on pod restart and the base is not restarted here.
 echo ""

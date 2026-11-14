@@ -31,6 +31,7 @@ esac
 source "${SCRIPT_DIR}/../scripts/thunder-naming.sh"
 # shellcheck source=../scripts/ams-auth.sh
 source "${SCRIPT_DIR}/../scripts/ams-auth.sh"
+source "${SCRIPT_DIR}/../scripts/platform-oauth.sh"
 
 echo "=== Installing API Platform Gateway ==="
 
@@ -137,6 +138,7 @@ else
     exit 1
 fi
 
+platform_oauth_for_gateway "${GATEWAY_NAMESPACE}"
 helm "${HELM_ARGS[@]}"
 
 echo "⏳ Waiting for Gateway to be ready..."
