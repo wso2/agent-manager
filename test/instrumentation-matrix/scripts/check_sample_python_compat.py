@@ -7,9 +7,13 @@ version, so a pin that drops an older Python only surfaces as a nightly build
 failure. This
 runs `uv pip compile --python-version <v>` for each (sample, version) pair and
 exits 1 naming every pair that doesn't resolve.
+
+Samples are read from a wso2/agent-manager-samples checkout at SAMPLES_ROOT,
+the same source the heavy tier deploys.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -18,7 +22,7 @@ from pathlib import Path
 import yaml
 
 HERE = Path(__file__).resolve().parent.parent
-ROOT = HERE.parent.parent
+SAMPLES_ROOT = Path(os.environ.get("SAMPLES_ROOT", HERE.parent.parent / ".agent-manager-samples"))
 sys.path.insert(0, str(HERE))
 
 from harness.deployable_samples import DEPLOYABLE_SAMPLES  # noqa: E402
@@ -33,7 +37,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "requirements.lock"
         for sample, config in sorted(samples.items()):
-            reqs = ROOT / sample / "requirements.txt"
+            reqs = SAMPLES_ROOT / sample / "requirements.txt"
             for py in pythons:
                 if not config.supports_python(py):
                     print(f"Skipping {sample} on Python {py}: unsupported sample runtime")

@@ -2,12 +2,18 @@ name: Deployable Sample Python Compatibility
 on:
   pull_request:
     paths:
-      - 'samples/customer-support-agent/**'
       - 'test/instrumentation-matrix/harness/deployable_samples.py'
       - 'test/instrumentation-matrix/matrix.yaml'
       - 'test/instrumentation-matrix/scripts/check_sample_python_compat.py'
       - '.github/workflows/deployable-sample-python-compat.yaml'
+  schedule:
+    - cron: '30 2 * * *'
   workflow_dispatch:
+    inputs:
+      samples_ref:
+        description: 'wso2/agent-manager-samples ref to check (branch, tag or SHA)'
+        required: false
+        default: 'main'
 permissions:
   contents: read
 concurrency:
@@ -21,6 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          repository: wso2/agent-manager-samples
+          ref: ${{ inputs.samples_ref || 'main' }}
+          path: .agent-manager-samples
           persist-credentials: false
       - uses: actions/setup-python@v6
         with:

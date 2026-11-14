@@ -99,3 +99,6 @@ samples/insurance-support-agent/web/dist/
 samples/insurance-support-agent/web/*.tsbuildinfo
 samples/insurance-support-agent/agent/.venv/
 samples/insurance-support-agent/**/__pycache__/
+
+# wso2/agent-manager-samples checkout used by sample checks
+/.agent-manager-samples

@@ -150,8 +150,8 @@ def test_deploy_agent_uses_framework_specific_sample_path(monkeypatch):
     repo = body["provisioning"]["repository"]
     assert repo["appPath"] == "/test/fixtures/example-agent"
     assert body["build"]["buildpack"]["runCommand"] == "python example.py"
-    # Source ref defaults to wso2/agent-manager@main.
-    assert repo["url"] == "https://github.com/wso2/agent-manager"
+    # Source ref defaults to wso2/agent-manager-samples@main.
+    assert repo["url"] == "https://github.com/wso2/agent-manager-samples"
     assert repo["branch"] == "main"
     env = {e["key"]: e for e in body["configurations"]["env"]}
     assert env["EXAMPLE_CACHE_DIR"]["value"] == "/tmp/example"

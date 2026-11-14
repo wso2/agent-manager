@@ -70,12 +70,10 @@ _TOKEN_SCOPES = (
     "amp:observability:trace-read"
 )
 
-# The deployed agent's source is cloned from this repo ref by the in-cluster
-# buildpack. Defaults to wso2/agent-manager@main; overridable (see
-# heavy/driver.py AMP_AGENT_REPO_*) so a PR can validate a new/changed sample
-# on its own branch before it merges to main — the build pulls the agent code
-# from GitHub, not from the working tree the platform is built from.
-_DEFAULT_AGENT_REPO_URL = "https://github.com/wso2/agent-manager"
+# The in-cluster buildpack clones the deployed agent's source from this repo
+# ref. Defaults to wso2/agent-manager-samples@main; set AMP_AGENT_REPO_URL and
+# AMP_AGENT_REPO_BRANCH (see heavy/driver.py) to test a samples fork or branch.
+_DEFAULT_AGENT_REPO_URL = "https://github.com/wso2/agent-manager-samples"
 _DEFAULT_AGENT_REPO_BRANCH = "main"
 
 # AMP caps resource names at 25 chars (utils.MaxResourceNameLength); when a

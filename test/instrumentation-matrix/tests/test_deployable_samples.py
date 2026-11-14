@@ -11,7 +11,7 @@ def test_registry_covers_exactly_langchain():
 def test_langchain_maps_to_customer_support_asserting_llm_only():
     s = DEPLOYABLE_SAMPLES["langchain"]
     assert isinstance(s, DeployableSample)
-    assert s.app_path == "/samples/customer-support-agent"
+    assert s.app_path == "/customer-support-agent"
     assert s.run_command == "python main.py"
     assert s.expected_kinds == ("llm",)
 

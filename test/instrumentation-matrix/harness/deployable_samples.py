@@ -1,4 +1,4 @@
-"""Registry of frameworks that ship a *deployable* agent app under samples/.
+"""Registry of frameworks that ship a *deployable* agent app in wso2/agent-manager-samples.
 
 The heavy tier deploys a real agent per cell. Only frameworks with a buildpack-
 deployable HTTP `/chat` app (an `app.py` + `main.py`, not the emission tier's
@@ -12,7 +12,7 @@ single source of truth for:
 `expected_kinds` lists the span kinds each deployment must emit. The
 LangGraph customer-support-agent used by the langchain cells must emit `llm`.
 
-To make another framework deployable: add a sample under `samples/<name>/`
+To make another framework deployable: add a sample to wso2/agent-manager-samples
 mirroring this contract, then add an entry here.
 """
 from __future__ import annotations
@@ -42,7 +42,7 @@ class DeployableSample:
 
 DEPLOYABLE_SAMPLES: dict[str, DeployableSample] = {
     "langchain": DeployableSample(
-        app_path="/samples/customer-support-agent",
+        app_path="/customer-support-agent",
         run_command="python main.py",
         expected_kinds=("llm",),
     ),
