@@ -309,7 +309,7 @@ class TestJSONLoading:
         assert loaded_task.tags == orig_task.tags
 
     def test_save_and_load_roundtrip_empty_classification_overrides_legacy_metadata(self, tmp_path):
-        """Empty top-level classification fields must not fall back to legacy metadata/custom on reload."""
+        """Empty/None top-level classification fields must not fall back to legacy metadata/custom on reload."""
         original_dataset = Dataset(
             dataset_id="ds_rt_empty",
             name="Empty Classification Roundtrip",
@@ -319,7 +319,7 @@ class TestJSONLoading:
                     task_id="t1",
                     input="Test input",
                     task_type="",
-                    domain="",
+                    domain=None,
                     tags=[],
                     metadata={"task_type": "legacy_type", "domain": "legacy", "tags": ["legacy"]},
                     custom={"task_type": "legacy_custom", "domain": "legacy_custom", "tags": ["legacy_custom"]},
@@ -334,7 +334,7 @@ class TestJSONLoading:
         loaded_task = loaded_dataset.tasks[0]
 
         assert loaded_task.task_type == ""
-        assert loaded_task.domain == ""
+        assert loaded_task.domain is None
         assert loaded_task.tags == []
 
     def test_loads_utf8_json_with_non_ascii_text(self, tmp_path):
