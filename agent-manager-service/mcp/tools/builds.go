@@ -94,6 +94,7 @@ func (t *Toolsets) registerBuildTools(server *gomcp.Server, reg *toolRegistry) {
 			"limit":        intProperty(fmt.Sprintf("Optional. Max builds to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset":       intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, []string{"project_name", "agent_name"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionAgentRead, listBuilds(t.BuildToolset), rbac.AgentRead)
 
 	addTool(reg, server, &gomcp.Tool{
@@ -105,6 +106,7 @@ func (t *Toolsets) registerBuildTools(server *gomcp.Server, reg *toolRegistry) {
 			"agent_name":   stringProperty("Required. Agent name that owns the build."),
 			"build_name":   stringProperty("Required. Build name to fetch details for."),
 		}, []string{"project_name", "agent_name", "build_name"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionAgentRead, getBuildDetails(t.BuildToolset), rbac.AgentRead)
 
 	addTool(reg, server, &gomcp.Tool{
@@ -117,6 +119,7 @@ func (t *Toolsets) registerBuildTools(server *gomcp.Server, reg *toolRegistry) {
 			"agent_name":   stringProperty("Required. Agent name to trigger build for."),
 			"commit_id":    stringProperty("Optional. Commit ID to build. Defaults to latest."),
 		}, []string{"project_name", "agent_name"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: new(true)},
 	}, audit.ActionAgentBuild, buildAgent(t.BuildToolset), rbac.AgentBuild)
 }
 

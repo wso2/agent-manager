@@ -119,6 +119,7 @@ func (t *Toolsets) registerTraceTools(server *gomcp.Server) {
 			"A trace is a single end-to-end execution record for an agent request. " +
 			"Returns lookedBackTo (how far back the search got) and truncated (the search stopped early); pass nextCursor back as cursor for the next page.\n\n" +
 			traceFiltersDescription,
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, withToolLogging("list_traces", listTraces(t.Tracing, authorize)))
 
 	gomcp.AddTool(server, &gomcp.Tool{
@@ -127,17 +128,20 @@ func (t *Toolsets) registerTraceTools(server *gomcp.Server) {
 			"A trace is a single end-to-end execution record for an agent which contains spans that record the internal steps of an execution. " +
 			"Returns lookedBackTo (how far back a filtered search got) and truncated (the search stopped early or a trace's spans were cut).\n\n" +
 			traceFiltersDescription,
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, withToolLogging("get_traces", getTraces(t.Tracing, authorize)))
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name:        "get_trace_details",
 		Description: "Return the metadata plus its span list for one trace",
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, withToolLogging("get_trace_details", getTraceDetails(t.Tracing, authorize)))
 
 	gomcp.AddTool(server, &gomcp.Tool{
 		Name: "get_span_details",
 		Description: "Return the execution details for a single span. " +
 			"A span is a single step within a trace execution, such as an LLM call, tool invocation, or retriever lookup, capturing its timing, inputs, outputs, and attributes",
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, withToolLogging("get_span_details", getSpanDetails(t.Tracing, authorize)))
 }
 
