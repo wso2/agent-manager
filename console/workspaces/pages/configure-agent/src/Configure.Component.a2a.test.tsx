@@ -75,10 +75,10 @@ function SearchProbe() {
 
 const renderPage = (search: string) =>
   render(
-    <MemoryRouter initialEntries={[`/org/o/project/p/agents/a/configure${search}`]}>
+    <MemoryRouter initialEntries={[`/organizations/o/projects/p/agents/a/configure${search}`]}>
       <Routes>
         <Route
-          path="/org/:orgId/project/:projectId/agents/:agentId/configure"
+          path="/organizations/:orgId/projects/:projectId/agents/:agentId/configure"
           element={<><ConfigureComponent /><SearchProbe /></>}
         />
       </Routes>

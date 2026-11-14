@@ -67,7 +67,7 @@ func NewTracesCmd(f *cmdutil.Factory) *cobra.Command {
 			"--start and --end override the URL.\n\n" +
 			"Examples:\n" +
 			"  amctl agent traces my-agent --env dev --min-duration 5s --since 3h --console-url\n" +
-			"  amctl agent traces --from-url 'https://console.example.com/org/acme/project/triage/agents/my-agent/" +
+			"  amctl agent traces --from-url 'https://console.example.com/organizations/acme/projects/triage/agents/my-agent/" +
 			"environment/dev/observability/traces?minDurationMs=5000&timeRange=3h'",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -22,10 +22,11 @@
  * project, agent and environment handles out of an external analytics service.
  *
  * It has already regressed once. The first implementation keyed on `orgs` and
- * `projects` while the app's real routes are `/org/:orgId` and
- * `project/:projectId` — singular — so it matched nothing and forwarded the
- * handles verbatim. These tests exist so that particular mistake, and the
- * class it belongs to, cannot come back silently.
+ * `projects` while the app's real routes were `/org/:orgId` and
+ * `project/:projectId`, so it matched nothing and forwarded the handles
+ * verbatim. (Routes are now `/organizations/:orgId` and `projects/:projectId`.)
+ * These tests exist so that particular mistake, and the class it belongs to,
+ * cannot come back silently.
  */
 
 import { beforeEach, describe, expect, it } from "vitest";
@@ -53,7 +54,7 @@ function leaksAnyName(route: string): boolean {
 describe("sanitizePage", () => {
   it.each([
     ["", ""],
-    ["/org/acme-corp", "/org/acme-corp"],
+    ["/organizations/acme-corp", "/organizations/acme-corp"],
     ["/logs?search=my-secret-query", "/logs"],
     ["/traces#span-42", "/traces"],
     ["/logs?search=x#frag", "/logs"],
@@ -65,15 +66,15 @@ describe("sanitizePage", () => {
 describe("normalizeRoute", () => {
   // The exact shapes the console produces, taken from the real route map.
   it.each([
-    ["/org/acme-corp", "/org/:orgId"],
+    ["/organizations/acme-corp", "/organizations/:orgId"],
     [
-      "/org/acme-corp/project/checkout-service/agents/router-agent",
-      "/org/:orgId/project/:projectId/agents/:agentId",
+      "/organizations/acme-corp/projects/checkout-service/agents/router-agent",
+      "/organizations/:orgId/projects/:projectId/agents/:agentId",
     ],
-    ["/org/acme-corp/llm-providers/view/router-agent", "/org/:orgId/llm-providers/view/:providerId"],
+    ["/organizations/acme-corp/llm-providers/view/router-agent", "/organizations/:orgId/llm-providers/view/:providerId"],
     [
-      "/org/acme-corp/settings/identities/roles/billing-admins",
-      "/org/:orgId/settings/identities/roles/:roleId",
+      "/organizations/acme-corp/settings/identities/roles/billing-admins",
+      "/organizations/:orgId/settings/identities/roles/:roleId",
     ],
   ])("templates %s", (input, expected) => {
     expect(normalizeRoute(input)).toBe(expected);
@@ -83,36 +84,36 @@ describe("normalizeRoute", () => {
   // length put `:roleId` (7 chars) ahead of `create` (6), so the create page
   // was reported as the role-detail page and the two merged into one metric.
   it("prefers a static segment over a parameter at the same depth", () => {
-    expect(normalizeRoute("/org/acme-corp/thunder-instances/roles/create")).toBe(
-      "/org/:orgId/thunder-instances/roles/create",
+    expect(normalizeRoute("/organizations/acme-corp/thunder-instances/roles/create")).toBe(
+      "/organizations/:orgId/thunder-instances/roles/create",
     );
-    expect(normalizeRoute("/org/acme-corp/thunder-instances/roles/billing-admins")).toBe(
-      "/org/:orgId/thunder-instances/roles/:roleId",
+    expect(normalizeRoute("/organizations/acme-corp/thunder-instances/roles/billing-admins")).toBe(
+      "/organizations/:orgId/thunder-instances/roles/:roleId",
     );
   });
 
-  // The regression that shipped: singular `/org/`, not `/orgs/`.
-  it("masks the org handle on the singular /org/ route", () => {
-    const route = normalizeRoute("/org/acme-corp");
+  // The regression that shipped: the route segment didn't match the map.
+  it("masks the org handle on the /organizations/ route", () => {
+    const route = normalizeRoute("/organizations/acme-corp");
     expect(route).not.toContain("acme-corp");
   });
 
   it("masks every customer-chosen segment across a deep route", () => {
     const route = normalizeRoute(
-      "/org/acme-corp/project/checkout-service/agents/router-agent/environment/prod-eu-west",
+      "/organizations/acme-corp/projects/checkout-service/agents/router-agent/environment/prod-eu-west",
     );
     expect(leaksAnyName(route)).toBe(false);
   });
 
   // The whitelist fallback is what makes a route added later safe by default.
   it("masks unknown segments rather than passing them through", () => {
-    const route = normalizeRoute("/org/acme-corp/some-unmapped-page/billing-admins");
+    const route = normalizeRoute("/organizations/acme-corp/some-unmapped-page/billing-admins");
     expect(leaksAnyName(route)).toBe(false);
     expect(route).toContain(":id");
   });
 
   it("strips the query string before templating", () => {
-    const route = normalizeRoute("/org/acme-corp/logs?search=checkout-service");
+    const route = normalizeRoute("/organizations/acme-corp/logs?search=checkout-service");
     expect(leaksAnyName(route)).toBe(false);
   });
 
@@ -131,13 +132,13 @@ describe("session-expiry record", () => {
   });
 
   it("records nothing when no user is known", () => {
-    markSessionExpired("/org/acme-corp/logs");
+    markSessionExpired("/organizations/acme-corp/logs");
     expect(window.localStorage.getItem(KEY)).toBeNull();
   });
 
   it("records the owner and a normalized route", () => {
     setTelemetrySubject("user-a");
-    markSessionExpired("/org/acme-corp/project/checkout-service");
+    markSessionExpired("/organizations/acme-corp/projects/checkout-service");
     const stored = JSON.parse(window.localStorage.getItem(KEY) ?? "{}");
     expect(stored.sub).toBe("user-a");
     expect(leaksAnyName(stored.route)).toBe(false);
@@ -145,8 +146,8 @@ describe("session-expiry record", () => {
 
   it("reports the record to the user who owns it, once", () => {
     setTelemetrySubject("user-a");
-    markSessionExpired("/org/acme-corp");
-    expect(takePendingSessionExpiry("user-a")).toEqual({ route: "/org/:orgId" });
+    markSessionExpired("/organizations/acme-corp");
+    expect(takePendingSessionExpiry("user-a")).toEqual({ route: "/organizations/:orgId" });
     expect(takePendingSessionExpiry("user-a")).toBeUndefined();
   });
 
@@ -155,17 +156,17 @@ describe("session-expiry record", () => {
   // can still report it on their own next sign-in.
   it("does not report another user's expiry, and leaves it for them", () => {
     setTelemetrySubject("user-a");
-    markSessionExpired("/org/acme-corp");
+    markSessionExpired("/organizations/acme-corp");
 
     expect(takePendingSessionExpiry("user-b")).toBeUndefined();
     expect(window.localStorage.getItem(KEY)).not.toBeNull();
-    expect(takePendingSessionExpiry("user-a")).toEqual({ route: "/org/:orgId" });
+    expect(takePendingSessionExpiry("user-a")).toEqual({ route: "/organizations/:orgId" });
   });
 
   it("drops a record older than the reporting window", () => {
     window.localStorage.setItem(
       KEY,
-      JSON.stringify({ route: "/org/:orgId", at: Date.now() - 48 * 3600 * 1000, sub: "user-a" }),
+      JSON.stringify({ route: "/organizations/:orgId", at: Date.now() - 48 * 3600 * 1000, sub: "user-a" }),
     );
     expect(takePendingSessionExpiry("user-a")).toBeUndefined();
     expect(window.localStorage.getItem(KEY)).toBeNull();

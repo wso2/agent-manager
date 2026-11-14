@@ -117,7 +117,7 @@ func consoleTimeRange(since string) string {
 
 // consoleLink is the console path and query for o's scope and params, plus traceID as selectedTrace.
 func consoleLink(o *ListTracesOptions, params []consoleParam, traceID string) string {
-	segments := []string{"", "org", o.Org, "project", o.Proj, "agents", o.AgentName, "environment", o.Env, "observability", "traces"}
+	segments := []string{"", "organizations", o.Org, "projects", o.Proj, "agents", o.AgentName, "environment", o.Env, "observability", "traces"}
 	for i, s := range segments {
 		segments[i] = url.PathEscape(s)
 	}
@@ -171,11 +171,19 @@ type consoleURL struct {
 	query                 url.Values
 }
 
-// consoleRoute is the trace list route after /org/:orgId (generated-route.map.ts).
-var consoleRoute = []string{"project", "", "agents", "", "environment", "", "observability", "traces"}
+// consoleRoute is the trace list route after /organizations/:orgId (generated-route.map.ts).
+var consoleRoute = []string{"projects", "", "agents", "", "environment", "", "observability", "traces"}
+
+// orgSegments are the route segments that start the console route: the current
+// "organizations" and the legacy "org", which the console still redirects.
+var orgSegments = []string{"organizations", "org"}
+
+// legacyRouteSegments maps legacy console route segments to their current names.
+var legacyRouteSegments = map[string]string{"project": "projects"}
 
 // parseConsoleURL reads a full console URL, a path or a "?..." query. The route
-// is found by its /org/ segment, so a host or base path in front is ignored.
+// is found by its /organizations/ (or legacy /org/) segment, so a host or base
+// path in front is ignored.
 func parseConsoleURL(raw string) (*consoleURL, error) {
 	raw = strings.TrimSpace(raw)
 	if i := strings.Index(raw, "#"); i >= 0 {
@@ -188,11 +196,11 @@ func parseConsoleURL(raw string) (*consoleURL, error) {
 	}
 	u := &consoleURL{query: query}
 	segments := strings.Split(path, "/")
-	if !slices.Contains(segments, "org") {
+	if !slices.ContainsFunc(segments, isOrgSegment) {
 		return u, nil
 	}
 	for at, seg := range segments {
-		if seg != "org" {
+		if !isOrgSegment(seg) {
 			continue
 		}
 		if names, ok := matchRoute(segments[at+1:]); ok {
@@ -201,6 +209,11 @@ func parseConsoleURL(raw string) (*consoleURL, error) {
 		}
 	}
 	return nil, notTraceList()
+}
+
+// isOrgSegment reports whether seg starts the console route.
+func isOrgSegment(seg string) bool {
+	return slices.Contains(orgSegments, seg)
 }
 
 // matchRoute returns the org, project, agent and environment when route is the trace list route.
@@ -213,6 +226,9 @@ func matchRoute(route []string) ([]string, bool) {
 		seg, err := url.PathUnescape(route[i])
 		if err != nil {
 			return nil, false
+		}
+		if current, ok := legacyRouteSegments[seg]; ok && want != "" {
+			seg = current
 		}
 		switch {
 		case want == "" && seg == "":

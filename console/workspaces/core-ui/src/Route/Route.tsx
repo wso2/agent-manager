@@ -83,6 +83,7 @@ import {
   relativeRouteMap,
   absoluteRouteMap,
   getBasePath,
+  legacyRoutePath,
 } from "@agent-management-platform/types";
 import {
   useExternalPageModules,
@@ -104,8 +105,21 @@ import {
 } from "@agent-management-platform/api-client";
 import { MountPoints } from "../types";
 
+// Back-compat redirect: routes moved from /org/:orgId/project/:projectId/* to
+// /organizations/:orgId/projects/:projectId/*. Keeps the sub-path, query and
+// hash so existing deep links and bookmarks keep working.
+function LegacyRouteRedirect() {
+  const { pathname, search, hash } = useLocation();
+  const target = legacyRoutePath(pathname);
+  if (!target) {
+    return <ErrorPages.NotFound />;
+  }
+  return <Navigate to={{ pathname: target, search, hash }} replace />;
+}
+
 // Back-compat redirect: the Identities pages (users/roles/groups) moved from
-// /org/:orgId/identities/* to /org/:orgId/settings/identities/*. Preserve any
+// /organizations/:orgId/identities/* to
+// /organizations/:orgId/settings/identities/*. Preserve any
 // trailing sub-path so existing deep links keep working.
 function LegacyIdentitiesRedirect() {
   const { orgId, "*": rest } = useParams<{ orgId: string; "*": string }>();
@@ -270,6 +284,8 @@ export function RootRouter() {
           path={relativeRouteMap.children.login.path}
           element={<Login />}
         />
+        {/* Back-compat: /org/:orgId/* moved to /organizations/:orgId/* */}
+        <Route path="/org/*" element={<LegacyRouteRedirect />} />
         <Route
           path={"/"}
           element={
@@ -337,6 +353,11 @@ export function RootRouter() {
             />
             {/* Back-compat: identities pages moved under Settings → IDP Settings */}
             <Route path="identities/*" element={<LegacyIdentitiesRedirect />} />
+            {/* Back-compat: project/:projectId/* moved to projects/:projectId/* */}
+            <Route
+              path="project/:projectId/*"
+              element={<LegacyRouteRedirect />}
+            />
             {canViewPipelines && (
               <Route
                 path={

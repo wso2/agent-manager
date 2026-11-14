@@ -132,6 +132,14 @@ export interface AppConfig {
    * FILE_MOUNT_MAX_FILE_BYTES. Read it via getFileMountMaxFileBytes().
    */
   fileMountMaxFileBytes?: string | number;
+  /**
+   * Host of an external app that owns project management (e.g.
+   * "https://console.example.com"). When set, projects are managed there: the
+   * console hides project deletion, and "Manage project" sends the user to
+   * `<externalProjectManagementUrl>/projects/<projectHandle>/manage`. Empty
+   * (the default) manages projects in this console.
+   */
+  externalProjectManagementUrl?: string;
   /** URL for the product documentation. Shown as a "Docs" link in the footer. */
   docsUrl?: string;
   /** URLs rendered in the footer. */
@@ -183,7 +191,7 @@ export const getBasePath = (): string => {
 };
 
 /**
- * Prefix a router-relative path ("/org/x") with the base path for use in
+ * Prefix a router-relative path ("/organizations/x") with the base path for use in
  * `window.location.assign`, `window.open`, `href` and anything else that
  * bypasses react-router (which already applies the basename).
  *
@@ -207,6 +215,34 @@ export const stripBasePath = (pathname: string): string => {
   if (pathname === base) return "/";
   return pathname.startsWith(`${base}/`) ? pathname.slice(base.length) : pathname;
 };
+
+/**
+ * The configured external project-management host without a trailing slash, or
+ * undefined when unset or not an absolute http(s) URL (a bare host such as
+ * "console.example.com" would otherwise be followed as a relative path).
+ */
+const getExternalProjectManagementHost = (): string | undefined => {
+  const host = (globalConfig?.externalProjectManagementUrl ?? "")
+    .trim()
+    .replace(/\/+$/, "");
+  return /^https?:\/\/[^/]/i.test(host) ? host : undefined;
+};
+
+/**
+ * Where to manage a project when an external app owns project management, or
+ * undefined when projects are managed in this console.
+ */
+export const getExternalProjectManageUrl = (
+  projectHandle: string,
+): string | undefined => {
+  const host = getExternalProjectManagementHost();
+  if (!host) return undefined;
+  return `${host}/projects/${encodeURIComponent(projectHandle)}/manage`;
+};
+
+/** Whether an external app owns project management (see externalProjectManagementUrl). */
+export const isProjectManagedExternally = (): boolean =>
+  getExternalProjectManagementHost() !== undefined;
 
 const buildRange = (duration: Duration) => {
   const endTime = new Date();

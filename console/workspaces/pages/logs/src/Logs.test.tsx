@@ -21,14 +21,14 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { LogsComponent } from "./index";
 
 const route =
-  "/org/org1/project/proj1/agents/agent1/environment/env1/observability/logs";
+  "/organizations/org1/projects/proj1/agents/agent1/environment/env1/observability/logs";
 
 function renderWithRouter(initialEntry = route) {
   return render(
     <MemoryRouter initialEntries={[initialEntry]} initialIndex={0}>
       <Routes>
         <Route
-          path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/logs"
+          path="/organizations/:orgId/projects/:projectId/agents/:agentId/environment/:envId/observability/logs"
           element={<LogsComponent />}
         />
       </Routes>

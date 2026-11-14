@@ -27,7 +27,7 @@ import {
   Typography,
 } from "@wso2/oxygen-ui";
 import { useCallback, useEffect, useState } from "react";
-import { Clock as AccessTime, GitCommit, Package, Check } from "@wso2/oxygen-ui-icons-react";
+import { Clock as AccessTime, GitCommit, Check, Hammer } from "@wso2/oxygen-ui-icons-react";
 import { DrawerWrapper, DrawerHeader, DrawerContent } from "@agent-management-platform/views";
 import { format, isValid, parseISO } from "date-fns";
 
@@ -79,7 +79,7 @@ export function BuildSelectorDrawer({
   return (
     <DrawerWrapper open={open} onClose={onClose}>
       <DrawerHeader
-        icon={<Package size={24} />}
+        icon={<Hammer size={24} />}
         title="Select Build"
         onClose={onClose}
       />

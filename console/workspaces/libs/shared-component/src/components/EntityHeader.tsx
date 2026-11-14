@@ -44,7 +44,7 @@ export const EntityHeader: React.FC<EntityHeaderProps> = ({
 }) => (
   <Form.Section>
     <Stack direction="row" alignItems="center" spacing={2}>
-      <Avatar sx={AVATAR_SX}>
+      <Avatar variant="light" sx={AVATAR_SX}>
         {name.charAt(0).toUpperCase() || fallback}
       </Avatar>
       <Box sx={BOX_SX}>

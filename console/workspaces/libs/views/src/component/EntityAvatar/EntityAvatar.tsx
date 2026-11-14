@@ -32,7 +32,9 @@ export interface EntityAvatarProps {
   /**
    * Background color: a theme token (`primary.main`) or a CSS color. Defaults to
    * a deterministic color derived from `name`. Use `transparent` for logos that
-   * carry their own background.
+   * carry their own background. A palette `.main` token (`primary.main`,
+   * `success.main`, …) renders as Oxygen's `light` avatar in that color — a
+   * tinted background with the color on the content.
    */
   color?: string;
   /** `rounded` (default) reads as an entity tile; `circular` as a person. */
@@ -45,6 +47,19 @@ export interface EntityAvatarProps {
 
 /** Palette groups that ship a matching `contrastText`. */
 const CONTRAST_GROUPS = ['primary', 'secondary', 'error', 'warning', 'info', 'success'];
+
+type LightAvatarColor = NonNullable<AvatarProps['color']>;
+
+/** Palette groups the Oxygen `light` avatar variant can be tinted with. */
+const LIGHT_VARIANT_COLORS: readonly LightAvatarColor[] = [
+  'primary', 'secondary', 'success', 'error', 'info', 'warning',
+];
+
+/** The `light` variant color for a `<group>.main` token, or undefined. */
+function lightVariantColor(color: string | undefined): LightAvatarColor | undefined {
+  const match = color?.match(/^(\w+)\.main$/);
+  return LIGHT_VARIANT_COLORS.find((c) => c === match?.[1]);
+}
 
 /** Readable foreground for `color`, or undefined to inherit. */
 function contrastFor(color: string): string | ((theme: Theme) => string) | undefined {
@@ -84,11 +99,15 @@ export function resolveEntityAvatarProps({
   sx,
 }: EntityAvatarProps): AvatarProps {
   const bgcolor = color ?? (src ? 'transparent' : getEntityAvatarColor(name));
+  // Theme-colored letter/icon tiles use Oxygen's `light` variant; logos and
+  // name-derived colors stay solid.
+  const light = src ? undefined : lightVariantColor(color);
 
   return {
     src,
     alt: alt ?? name,
-    variant: shape,
+    variant: light ? 'light' : shape,
+    ...(light && { color: light }),
     children: children ?? getAvatarInitials(name, { maxChars: 1, fallback: '?' }),
     sx: {
       // Omitted when `size` is unset so slots that size their own avatar —
@@ -99,8 +118,9 @@ export function resolveEntityAvatarProps({
         fontSize: Math.round(size * 0.42),
       }),
       fontWeight: 600,
-      bgcolor,
-      color: contrastFor(bgcolor),
+      ...(!light && { bgcolor, color: contrastFor(bgcolor) }),
+      // `light` is circular by default; keep the requested shape.
+      ...(light && shape === 'square' && { borderRadius: 0 }),
       ...(shape === 'rounded' && { borderRadius: (size ?? 40) >= 48 ? 2 : 1.5 }),
       // Logos are rarely square — show them whole instead of cropping to fill.
       ...(src && { '& img': { objectFit: 'contain' } }),

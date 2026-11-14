@@ -1988,6 +1988,12 @@
               "title": "bundleUrl",
               "type": "string"
             },
+            "externalProjectManagementUrl": {
+              "default": "",
+              "description": "Host of an external app that owns project management. When set, the console hides project deletion and \"Manage project\" opens <externalProjectManagementUrl>/projects/<projectHandle>/manage. Empty manages projects in the console.",
+              "title": "externalProjectManagementUrl",
+              "type": "string"
+            },
             "scriptBaseUrl": {
               "default": "",
               "description": "Base URL the console's generated commands fetch deployment scripts from, without a trailing slash. Empty derives the public raw.githubusercontent.com URL from ampVersion. Set it where that host is unreachable from the operator's machine, or where this build's scripts are served from somewhere else.",

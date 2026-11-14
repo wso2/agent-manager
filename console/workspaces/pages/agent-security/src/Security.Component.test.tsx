@@ -52,9 +52,9 @@ import { SecurityComponent } from "./Security.Component";
 
 const renderPage = () =>
   render(
-    <MemoryRouter initialEntries={["/org/o/project/p/agents/a/environment/dev/security"]}>
+    <MemoryRouter initialEntries={["/organizations/o/projects/p/agents/a/environment/dev/security"]}>
       <Routes>
-        <Route path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/security" element={<SecurityComponent />} />
+        <Route path="/organizations/:orgId/projects/:projectId/agents/:agentId/environment/:envId/security" element={<SecurityComponent />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -65,7 +65,7 @@ const externalA2A = () =>
     isLoading: false,
   } as unknown as ReturnType<typeof useGetAgent>);
 
-const A2A_SETTINGS_HREF = "/org/o/project/p/agents/a/configure?tab=a2a&env=dev";
+const A2A_SETTINGS_HREF = "/organizations/o/projects/p/agents/a/configure?tab=a2a&env=dev";
 
 beforeEach(() => vi.clearAllMocks());
 

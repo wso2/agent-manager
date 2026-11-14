@@ -35,10 +35,8 @@ import {
   FlaskConical,
   Globe,
   Key,
-  LineChart,
   MoreHorizontal,
   Rocket,
-  ScrollText,
   Workflow,
   PlayCircle,
   PauseCircle,
@@ -47,6 +45,8 @@ import {
   MemoryStick,
   SlidersVertical,
   HeartPulse,
+  Gauge,
+  Logs,
 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, useParams, useSearchParams } from "react-router-dom";
 import {
@@ -922,7 +922,7 @@ export function DeployCard(props: DeployCardProps) {
                     )}
                     onClick={() => setActionsMenuAnchor(null)}
                   >
-                    <ScrollText size={16} style={{ marginRight: 8 }} />
+                    <Logs size={16} style={{ marginRight: 8 }} />
                     View logs
                   </MenuItem>
                   <MenuItem
@@ -934,7 +934,7 @@ export function DeployCard(props: DeployCardProps) {
                     )}
                     onClick={() => setActionsMenuAnchor(null)}
                   >
-                    <LineChart size={16} style={{ marginRight: 8 }} />
+                    <Gauge size={16} style={{ marginRight: 8 }} />
                     View metrics
                   </MenuItem>
                   <MenuItem

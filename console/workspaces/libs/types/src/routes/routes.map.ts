@@ -27,7 +27,7 @@ export const rootRouteMap: AppRoute = {
             children: {},
         },
         org: {
-            path: '/org/:orgId',
+            path: '/organizations/:orgId',
             index: true,
             children: {
                 profile: {
@@ -275,7 +275,7 @@ export const rootRouteMap: AppRoute = {
                     children: {},
                 },
                 projects: {
-                    path: 'project/:projectId',
+                    path: 'projects/:projectId',
                     index: true,
                     children: {
                         events: {
