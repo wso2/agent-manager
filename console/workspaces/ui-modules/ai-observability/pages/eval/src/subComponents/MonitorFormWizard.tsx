@@ -1,0 +1,447 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Box, Button, Stack } from "@wso2/oxygen-ui";
+import { ArrowLeft, ArrowRight } from "@wso2/oxygen-ui-icons-react";
+import { PageLayout } from "@agent-management-platform/views";
+import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
+import {
+  createMonitorSchema,
+  type CreateMonitorFormValues,
+} from "../form/schema";
+import type { EvaluatorResponse } from "@agent-management-platform/types";
+import { CreateMonitorForm, type EnvironmentOption } from "./CreateMonitorForm";
+import { SelectPresetMonitors } from "./SelectPresetMonitors";
+import { slugifyMonitorName } from "../utils/monitorFormUtils";
+import { useValidatedForm } from "../hooks/useValidatedForm";
+import { useEventsEnabled } from "@agent-management-platform/api-client";
+import { MonitorAlertFormSection } from "./MonitorAlertFormSection";
+import {
+  defaultAlertSettings,
+  hasAlertSettingsErrors,
+  toAlertRequest,
+  validateAlertSettings,
+  type AlertSettingsValue,
+} from "./MonitorAlertSettings";
+
+/**
+ * The monitor's shared alert settings as the form saves them: the settings,
+ * or null for none. Undefined leaves them as they are: Events is off, or
+ * they could not be loaded.
+ */
+export type MonitorAlertChoice = AlertSettingsValue | null | undefined;
+
+/** What switching alerting on offers first: alert on failures. */
+const NEW_MONITOR_ALERT = defaultAlertSettings();
+
+interface MonitorFormWizardProps {
+  title: string;
+  description?: string;
+  backHref: string;
+  submitLabel: string;
+  onSubmit: (
+    values: CreateMonitorFormValues,
+    allowNavigation: (action: () => void) => void,
+    alert: MonitorAlertChoice,
+  ) => void;
+  initialValues: CreateMonitorFormValues;
+  isSubmitting: boolean;
+  serverError?: unknown;
+  missingParamsMessage?: string | null;
+  backLabel?: string;
+  isTypeEditable?: boolean;
+  environments?: EnvironmentOption[];
+  /**
+   * The monitor's current shared alert settings, or null when it has none.
+   * A new monitor starts with alerting off; switching it on offers the
+   * default settings. Pass a stable (memoized) value: a new one resets what
+   * the user has entered.
+   */
+  initialAlert?: AlertSettingsValue | null;
+  /**
+   * The monitor's alert settings could not be loaded: the Alerting section
+   * says so, and saving leaves them as they are.
+   */
+  alertUnavailable?: boolean;
+}
+
+export function MonitorFormWizard({
+  title,
+  description,
+  backHref,
+  submitLabel,
+  onSubmit,
+  initialValues,
+  isSubmitting,
+  serverError,
+  missingParamsMessage,
+  backLabel = "Back to monitors",
+  isTypeEditable = true,
+  environments = [],
+  initialAlert = null,
+  alertUnavailable = false,
+}: MonitorFormWizardProps) {
+  const [page, setPage] = useState<1 | 2>(1);
+  const [formData, setFormData] =
+    useState<CreateMonitorFormValues>(initialValues);
+  const [hasLLMJudge, setHasLLMJudge] = useState(false);
+  const [llmProviderError, setLLMProviderError] = useState("");
+  const alertsEnabled = useEventsEnabled();
+  const [enabled, setEnabled] = useState(initialAlert !== null);
+  const [alertSettings, setAlertSettings] = useState<AlertSettingsValue>(
+    initialAlert ?? NEW_MONITOR_ALERT,
+  );
+  const [alertSubmitted, setAlertSubmitted] = useState(false);
+
+  useEffect(() => {
+    setFormData(initialValues);
+    setPage(1);
+  }, [initialValues]);
+
+  // The alert loads on its own; take it once it arrives.
+  useEffect(() => {
+    setEnabled(initialAlert !== null);
+    setAlertSettings(initialAlert ?? NEW_MONITOR_ALERT);
+  }, [initialAlert]);
+
+  const isDirty = useMemo(
+    () => JSON.stringify(formData) !== JSON.stringify(initialValues),
+    [formData, initialValues],
+  );
+  // Alert edits count too. Compared as requests, so row keys don't.
+  const isAlertDirty = useMemo(() => {
+    if (!alertsEnabled || alertUnavailable) return false;
+    const current = enabled ? JSON.stringify(toAlertRequest(alertSettings)) : null;
+    const initial = initialAlert ? JSON.stringify(toAlertRequest(initialAlert)) : null;
+    return current !== initial;
+  }, [alertsEnabled, alertUnavailable, enabled, alertSettings, initialAlert]);
+  const { allowNavigation } = useUnsavedChangesGuard(isDirty || isAlertDirty);
+
+  const {
+    errors,
+    setFieldError,
+    validateField,
+    lastSubmittedValidationErrors,
+    guardSubmit,
+  } = useValidatedForm<CreateMonitorFormValues>(createMonitorSchema);
+
+  const handleFieldChange = useCallback(
+    (field: keyof CreateMonitorFormValues, rawValue: unknown) => {
+      setFormData((prev) => {
+        let value = rawValue;
+        if (
+          (field === "intervalMinutes" || field === "samplingRate") &&
+          typeof rawValue === "string"
+        ) {
+          value = rawValue ? Number(rawValue) : undefined;
+        }
+        const next = { ...prev, [field]: value } as CreateMonitorFormValues;
+
+        // A provider is picked from the environment's own list, so a new environment drops it.
+        if (field === "environmentName" && value !== prev.environmentName) {
+          next.llmProvider = undefined;
+        }
+
+        if (field === "displayName") {
+          const autoGenerated = slugifyMonitorName(String(rawValue ?? ""));
+          const previousAuto = slugifyMonitorName(prev.displayName ?? "");
+          if (!prev.name || prev.name === previousAuto) {
+            next.name = autoGenerated;
+          }
+        }
+
+        const fieldError = validateField(field, next[field], next);
+        setFieldError(field, fieldError);
+
+        if (field === "displayName" || field === "name") {
+          const slugError = validateField("name", next.name, next);
+          setFieldError("name", slugError);
+        }
+
+        return next;
+      });
+    },
+    [setFieldError, validateField],
+  );
+
+  const handleToggleEvaluator = useCallback(
+    (ev: EvaluatorResponse) => {
+      setFormData((prev) => {
+        const exists = prev.evaluators.some(
+          (evaluator) => evaluator.identifier === ev.identifier,
+        );
+        const nextEvaluators = exists
+          ? prev.evaluators.filter(
+            (evaluator) => evaluator.identifier !== ev.identifier,
+          )
+          : [
+            ...prev.evaluators,
+            {
+              identifier: ev.identifier,
+              displayName: ev.displayName,
+            },
+          ];
+
+        const next = {
+          ...prev,
+          evaluators: nextEvaluators,
+        } as CreateMonitorFormValues;
+        const evalError = validateField("evaluators", nextEvaluators, next);
+        setFieldError("evaluators", evalError);
+        return next;
+      });
+    },
+    [setFieldError, validateField],
+  );
+
+  const handleSaveEvaluatorConfig = useCallback(
+    (ev: EvaluatorResponse, config: Record<string, unknown>) => {
+      setFormData((prev) => {
+        const exists = prev.evaluators.some(
+          (evaluator) => evaluator.identifier === ev.identifier,
+        );
+        const nextEvaluators = exists
+          ? prev.evaluators.map((evaluator) =>
+            evaluator.identifier === ev.identifier
+              ? { ...evaluator, config }
+              : evaluator,
+          )
+          : [
+            ...prev.evaluators,
+            {
+              identifier: ev.identifier,
+              displayName: ev.displayName,
+              config,
+            },
+          ];
+        const next = {
+          ...prev,
+          evaluators: nextEvaluators,
+        } as CreateMonitorFormValues;
+        const evalError = validateField("evaluators", nextEvaluators, next);
+        setFieldError("evaluators", evalError);
+        return next;
+      });
+    },
+    [setFieldError, validateField],
+  );
+
+  const handleLLMProviderChange = useCallback(
+    (provider: CreateMonitorFormValues["llmProvider"]) => {
+      setFormData((prev) => ({ ...prev, llmProvider: provider }));
+      if (provider) {
+        setLLMProviderError("");
+      }
+    },
+    [],
+  );
+
+  const handleHasLLMJudgeChange = useCallback((next: boolean) => {
+    setHasLLMJudge(next);
+    if (!next) {
+      setLLMProviderError("");
+    }
+  }, []);
+
+  const handleSubmit = useCallback(() => {
+    if (missingParamsMessage) {
+      setPage(1);
+      return;
+    }
+
+    if (hasLLMJudge && !formData.llmProvider) {
+      setLLMProviderError(
+        "LLM provider is required when using LLM-judge evaluators",
+      );
+      setPage(2);
+      return;
+    }
+
+    if (!guardSubmit(formData)) {
+      setPage(1);
+      return;
+    }
+
+    let alert: MonitorAlertChoice;
+    if (alertsEnabled && !alertUnavailable) {
+      alert = enabled ? alertSettings : null;
+      if (alert && hasAlertSettingsErrors(validateAlertSettings(alert, formData.evaluators))) {
+        setAlertSubmitted(true);
+        setPage(2);
+        return;
+      }
+    }
+
+    onSubmit(formData, allowNavigation, alert);
+  }, [
+    formData,
+    hasLLMJudge,
+    missingParamsMessage,
+    onSubmit,
+    guardSubmit,
+    allowNavigation,
+    alertsEnabled,
+    alertUnavailable,
+    enabled,
+    alertSettings,
+  ]);
+
+  // In edit mode (isTypeEditable=false) traceStart/traceEnd errors don't block
+  // navigation — the user may need to reach page 2 to change evaluators even when
+  // the trace window itself has a validation error. guardSubmit catches them at submit.
+  const page1Fields: (keyof CreateMonitorFormValues)[] = [
+    "displayName",
+    "name",
+    ...(formData.type === "past" && isTypeEditable
+      ? (["traceStart", "traceEnd"] as const)
+      : formData.type === "future"
+        ? (["intervalMinutes"] as const)
+        : []),
+  ];
+  const page1HasErrors = page1Fields.some((f) => Boolean(errors[f]));
+  const canAdvance =
+    formData.displayName.trim().length >= 3 &&
+    formData.name.trim().length >= 3 &&
+    !!formData.environmentName?.trim() &&
+    !page1HasErrors;
+  const scheduleReady =
+    formData.type === "future" ||
+    (!!formData.traceStart && !!formData.traceEnd);
+  const evaluatorsSelected = formData.evaluators.length > 0;
+  const isSubmissionReady =
+    canAdvance && scheduleReady && evaluatorsSelected && !missingParamsMessage;
+
+  const serverErrorMessage = useMemo(() => {
+    if (!serverError) {
+      return null;
+    }
+    if (
+      typeof serverError === "object" &&
+      serverError !== null &&
+      "message" in serverError &&
+      typeof (serverError as { message: unknown }).message === "string"
+    ) {
+      return (serverError as { message: string }).message;
+    }
+    if (serverError instanceof Error) {
+      return serverError.message;
+    }
+    if (typeof serverError === "string") {
+      return serverError;
+    }
+    return "Something went wrong while saving the monitor.";
+  }, [serverError]);
+
+  return (
+    <PageLayout
+      title={title}
+      description={description}
+      disableIcon
+      backLabel={backLabel}
+      backHref={backHref}
+    >
+      <Stack spacing={3}>
+        {missingParamsMessage && (
+          <Alert severity="error">{missingParamsMessage}</Alert>
+        )}
+        {serverErrorMessage && (
+          <Alert severity="error">{serverErrorMessage}</Alert>
+        )}
+        {page === 1 && (
+          <CreateMonitorForm
+            formData={formData}
+            errors={errors}
+            onFieldChange={handleFieldChange}
+            isTypeEditable={isTypeEditable}
+            environments={environments}
+          />
+        )}
+
+        {page === 2 && (
+          <SelectPresetMonitors
+            selectedEvaluators={formData.evaluators}
+            onToggleEvaluator={handleToggleEvaluator}
+            onSaveEvaluatorConfig={handleSaveEvaluatorConfig}
+            llmProvider={formData.llmProvider}
+            onLLMProviderChange={handleLLMProviderChange}
+            onHasLLMJudgeChange={handleHasLLMJudgeChange}
+            error={errors.evaluators}
+            llmProviderError={llmProviderError}
+            environmentName={formData.environmentName}
+          />
+        )}
+        {page === 2 && alertsEnabled && (
+          <MonitorAlertFormSection
+            enabled={enabled}
+            onEnabledChange={setEnabled}
+            settings={alertSettings}
+            onSettingsChange={setAlertSettings}
+            evaluators={formData.evaluators}
+            showErrors={alertSubmitted}
+            unavailable={alertUnavailable}
+          />
+        )}
+        <Stack direction="row" gap={2}>
+          {page === 1 && (
+            <Button
+              variant="contained"
+              color="primary"
+              endIcon={<ArrowRight size={20} />}
+              onClick={() => setPage(2)}
+              disabled={!canAdvance || Boolean(missingParamsMessage)}
+            >
+              Next
+            </Button>
+          )}
+          {page === 2 && (
+            <>
+              <Button
+                variant="outlined"
+                startIcon={<ArrowLeft size={20} />}
+                color="primary"
+                onClick={() => setPage(1)}
+              >
+                Previous
+              </Button>
+              {Object.keys(lastSubmittedValidationErrors).length > 0 && (
+                <Alert severity="error">
+                  {Object.values(lastSubmittedValidationErrors).map(
+                    (error, i) => (
+                      <Box key={i}>{error}</Box>
+                    ),
+                  )}
+                </Alert>
+              )}
+              <Button
+                variant="contained"
+                color="primary"
+                disabled={!isSubmissionReady || isSubmitting}
+                onClick={handleSubmit}
+              >
+                {submitLabel}
+              </Button>
+            </>
+          )}
+        </Stack>
+      </Stack>
+    </PageLayout>
+  );
+}
+
+export default MonitorFormWizard;

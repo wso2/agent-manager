@@ -6,8 +6,8 @@ Console feature flags, and gating by what the user may do.
 
 | Prop | Example | Unset keys |
 | --- | --- | --- |
-| `featureFlags` | `{ externallyManagedGateway: true }` | `false` |
-| `featureAccess` | `{ gateway_read: true, gateway_write: false }` | `true` (allowed) |
+| `featureFlags` | `{ externallyManagedEnv: true }` | `false` |
+| `featureAccess` | `{ env_read: true, env_write: false }` | `true` (allowed) |
 | `isAccessLoading` | `true` while the token decodes | `false` |
 
 Objects are compared by value, so passing them inline is fine. While access is loading,
@@ -25,18 +25,28 @@ All console feature flags live here (`FeatureFlags` in `src/types.ts`); read the
 `featureFlags.<name>`, set from a `FEATURE_FLAG_*` env var (Helm:
 `console.config.featureFlags`).
 
-`externallyManagedGateway` (`FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY`) hides the
-Gateways pages when gateways are managed outside the console. It is off by default.
+Three flags hide a resource that is managed outside the console. They are off by
+default, so the pages show:
+
+| Flag | Env var |
+| --- | --- |
+| `externallyManagedEnv` | `FEATURE_FLAG_EXTERNALLY_MANAGED_ENV` |
+| `externallyManagedGateway` | `FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY` |
+| `externallyManagedPipeline` | `FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE` |
 
 ## Access (`featureAccess`)
 
 Each resource has `<resource>_read` and `<resource>_write` (create, update, delete):
-`project`, `agent`, `agent_kind`, `agent_identity`, `gateway`, `llm_provider`, `llm_provider_template`, `llm_proxy`, `mcp_server`,
+`project`, `agent`, `agent_kind`, `agent_identity`, `env`, `gateway`, `pipeline`,
+`git_secret`, `llm_provider`, `llm_provider_template`, `llm_proxy`, `mcp_server`,
 `evaluator`, `monitor`, `role`, `group`.
 
 Some actions have their own permission and so their own key: `gateway_token_write`
 (self-hosted gateway registration tokens), and `member_read`, `member_invite` and
 `member_remove` (organization users).
+
+Deployments also use `agent_deploy` (non-production environments),
+`agent_deploy_production` (production, on top of `agent_deploy`) and `agent_suspend`.
 
 Read gates nav items; write hides create, edit and delete controls. This is a UX
 hint only — the server still enforces permissions.
@@ -45,15 +55,16 @@ hint only — the server still enforces permissions.
 
 ```tsx
 import {
-  useGatewayFeatures,
+  useEnvironmentFeatures,
   useResourceAccess,
 } from "@agent-management-platform/feature-management";
 
-const { canView, canWrite } = useGatewayFeatures(); // flag + access
+const { canView, canWrite } = useEnvironmentFeatures(); // flag + access
 const { canWrite: canEditAgents } = useResourceAccess("agent");
 ```
 
-`useGatewayFeatures` combines the flag with read/write access; use it for gateways.
+`useEnvironmentFeatures`, `useGatewayFeatures` and `usePipelineFeatures` combine the
+flag with read/write access; use them for those three resources.
 
 ## Where the values come from
 

@@ -19,5 +19,6 @@
 import { rootRouteMap as relativeRouteMap } from './routes.map';
 import { generatedRouteMap as absoluteRouteMap } from './generated-route.map';
 export { type AppRoute, type GeneratedRoute } from './types';
+export { IDENTITY_ENV_PARAM } from './identityParams';
 
 export { relativeRouteMap, absoluteRouteMap };

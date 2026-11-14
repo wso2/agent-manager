@@ -27,4 +27,13 @@ export enum MountPoints {
     BottomLeftPanel = "bottom-left-panel",
     BottomRightPanel = "bottom-right-panel",
     LeftNavItem = "left-nav-item",
+    // A deployment can inject its own environment create/delete drawer components
+    // at these mount points. When nothing is injected, the built-in script-based
+    // drawers are used (the self-hosted default).
+    EnvironmentCreateDrawer = "environment-create-drawer",
+    EnvironmentDeleteDrawer = "environment-delete-drawer",
+    // A deployment can inject its own private-repository source component (repo URL,
+    // branch, app path and credential selection) at this mount point. When nothing is
+    // injected, the built-in PAT git-secret UI is used (the self-hosted default).
+    PrivateRepoSource = "private-repo-source",
 }

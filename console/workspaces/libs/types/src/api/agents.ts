@@ -66,9 +66,22 @@ interface UpdateAgentBasicInfoRequest {
   labels?: Record<string, string>;
 }
 
+interface UpdateAgentBuildParametersRequest {
+  provisioning: Provisioning;
+  agentType?: AgentType;
+  build?: Build;
+  configurations?: Configurations;
+  inputInterface?: InputInterface;
+  /**
+   * Replaces the saved health checks; {} goes back to the defaults. Omit to keep the
+   * saved ones. Applied by the next build.
+   */
+  healthChecks?: HealthChecks;
+}
+
 export type CreateAgentRequest = AgentRequestBase;
 export type UpdateAgentRequest = UpdateAgentBasicInfoRequest;
-export type { UpdateAgentBasicInfoRequest };
+export type { UpdateAgentBasicInfoRequest, UpdateAgentBuildParametersRequest };
 
 export type InputInterfaceType = 'DEFAULT' | 'CUSTOM' | 'A2A';
 
@@ -186,6 +199,7 @@ export type GetAgentPathParams = AgentPathParams;
 export type DeleteAgentPathParams = AgentPathParams;
 export type UpdateAgentPathParams = AgentPathParams;
 export type UpdateAgentBasicInfoPathParams = AgentPathParams;
+export type UpdateAgentBuildParametersPathParams = AgentPathParams;
 /** `label` entries are `key:value` selectors; repeat for AND semantics. */
 export type ListAgentsQuery = ListQuery & { label?: string[] };
 

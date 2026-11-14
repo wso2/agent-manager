@@ -18,9 +18,10 @@
 
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
 import {
   createAgent, deleteAgent, getAgent, listAgents, listOrgAgents, generateAgentToken, updateAgent,
-  getAgentRoles, getAgentGroups, getAgentIdentity,
+  updateAgentBuildParameters, getAgentRoles, getAgentGroups, getAgentIdentity,
   provisionAgentIdentity, regenerateAgentIdentitySecret, retryAgentIdentityProvisioning,
   revokeAgentIdentitySecret,
 } from "../apis";
@@ -39,6 +40,8 @@ import type {
   ListOrgAgentsPathParams,
   UpdateAgentPathParams,
   UpdateAgentRequest,
+  UpdateAgentBuildParametersPathParams,
+  UpdateAgentBuildParametersRequest,
   GenerateAgentTokenPathParams,
   GenerateAgentTokenQuery,
   TokenRequest,
@@ -135,6 +138,17 @@ export function useGetAgent(params: GetAgentPathParams) {
     });
 }
 
+/**
+ * The agent named in the current URL (/org/:orgId/project/:projectId/agents/:agentId).
+ * Shares the query cache with every other useGetAgent call for that agent, so
+ * using it in many places (for example plugin activation hooks) costs one request.
+ * Disabled, with no data, on pages that have no agent in the URL.
+ */
+export function useRouteAgent() {
+  const { orgId, projectId, agentId } = useParams();
+  return useGetAgent({ orgName: orgId, projName: projectId, agentName: agentId });
+}
+
 export function useCreateAgent() {
   const { getToken } = useAuthHooks();
   const queryClient = useQueryClient();
@@ -166,6 +180,23 @@ export function useUpdateAgent() {
       queryClient.invalidateQueries({ queryKey: ['agents'] });
       queryClient.invalidateQueries({ queryKey: ['agent'] });
       queryClient.invalidateQueries({ queryKey: ['org-agents'] });
+    },
+  });
+}
+
+export function useUpdateAgentBuildParameters() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    AgentResponse,
+    unknown,
+    { params: UpdateAgentBuildParametersPathParams; body: UpdateAgentBuildParametersRequest }
+  >({
+    action: { verb: 'update', target: 'agent build parameters' },
+    mutationFn: ({ params, body }) => updateAgentBuildParameters(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      queryClient.invalidateQueries({ queryKey: ['agent'] });
     },
   });
 }

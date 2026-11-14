@@ -16,731 +16,156 @@
  * under the License.
  */
 
+import type { ReactNode } from "react";
 import {
-  ClipboardCheck as EvaluationOutline,
-  Settings,
-  Home,
-  FlaskConical,
-  Workflow,
-  Logs,
-  Code,
-  BrainCircuit,
-  Server,
-  ShieldCheck,
-  Boxes,
-  Bot,
-  Network,
-  GitBranch,
-  Lock,
-  LayoutDashboard,
-  Box,
   Activity,
-  Gauge,
-  MonitorCheck,
-  RadioTower,
+  Boxes,
+  ClipboardCheck as EvaluationOutline,
+  GitBranch,
+  IdCard,
+  Lock,
+  Server,
 } from "@wso2/oxygen-ui-icons-react";
-import {
-  generatePath,
-  matchPath,
-  useLocation,
-  useParams,
-} from "react-router-dom";
-import {
-  absoluteRouteMap,
-} from "@agent-management-platform/types";
-import {
-  useGetAgent,
-  useTokenScopes,
-  useEventsEnabled,
-} from "@agent-management-platform/api-client";
-import {
-  useFeatureFlag,
-  useFeatureManagement,
-  useGatewayFeatures,
-} from "@agent-management-platform/feature-management";
-import { agentIdentityMetadata } from "@agent-management-platform/env-thunders/metadata";
+import { generatePath, matchPath, useLocation, useParams } from "react-router-dom";
+import { useRouteAgent } from "@agent-management-platform/api-client";
+import { usePipelineEnvironmentsState } from "@agent-management-platform/shared-component";
 import { useExternalNavItems } from "@agent-management-platform/views";
+import type { PluginLevel } from "@agent-management-platform/types";
 import type { NavigationItem, NavigationSection } from "./LeftNavigation";
+import {
+  usePluginNavItemsForLevel,
+  type ActivePluginNavItem,
+} from "../../plugins";
 
-// MCP logo inlined here so mcp-proxies package stays in its own async chunk.
-const MCP_LOGO_MASK =
-  "data:image/png;base64,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";
-
-const MCPLogo = ({
-  size = 20,
-  className,
-}: {
-  size?: number | string;
-  className?: string;
-}) => (
-  <span
-    aria-hidden="true"
-    className={className}
-    style={{
-      backgroundColor: "currentColor",
-      color: "inherit",
-      display: "inline-block",
-      height: size,
-      maskImage: `url(${MCP_LOGO_MASK})`,
-      maskPosition: "center",
-      maskRepeat: "no-repeat",
-      maskSize: "contain",
-      WebkitMaskImage: `url(${MCP_LOGO_MASK})`,
-      WebkitMaskPosition: "center",
-      WebkitMaskRepeat: "no-repeat",
-      WebkitMaskSize: "contain",
-      verticalAlign: "middle",
-      width: size,
-    }}
-  />
-);
-
-function credentialsNavItem(
-  pathname: string,
-  params: {
-    orgId: string | undefined;
-    projectId: string | undefined;
-    agentId: string | undefined;
-  },
-) {
-  const security =
-    absoluteRouteMap.children.org.children.projects.children.agents.children
-      .security;
-  return {
-    label: "Credentials",
-    type: "item" as const,
-    icon: <ShieldCheck size={20} />,
-    isActive: !!matchPath(security.wildPath, pathname),
-    href: generatePath(security.path, params),
-  };
+// The left navigation is a fixed layout per level that plugins fill in. The
+// shell decides which slots exist and in what order; each plugin's nav items
+// name a slot (`section`) and an `order`, and their activation hooks decide
+// whether they show. A section with no active items is left out entirely.
+//
+// Flat slots ("main", "footer") render their items directly; the rest render
+// as collapsible sections. Items naming a slot the level does not have are
+// appended at the end, so a third-party plugin cannot get lost.
+interface NavSlot {
+  key: string;
+  title?: string;
+  icon?: ReactNode;
 }
 
-/**
- * TODO: Use nav bar instead of navigate to the items.
- */
+const NAV_LAYOUT: Record<PluginLevel, NavSlot[]> = {
+  org: [
+    { key: "main" },
+    { key: "footer" },
+    { key: "resources", title: "Resources", icon: <Boxes size={20} /> },
+    { key: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
+    { key: "infrastructure", title: "Infrastructure", icon: <Server /> },
+    { key: "agent-identities", title: "Agent identities", icon: <IdCard /> },
+  ],
+  project: [{ key: "main" }, { key: "footer" }],
+  agent: [
+    { key: "main" },
+    { key: "lifecycle", title: "Agent lifecycle", icon: <GitBranch /> },
+    { key: "security", title: "Security", icon: <Lock /> },
+    { key: "observability", title: "Observability", icon: <Activity /> },
+    { key: "evaluation", title: "Evaluation", icon: <EvaluationOutline /> },
+    { key: "footer" },
+  ],
+};
+
+const LEGACY_LEVEL: Record<PluginLevel, string> = {
+  org: "org",
+  project: "project",
+  agent: "component",
+};
 
 export function useNavigationItems(): Array<
   NavigationSection | NavigationItem
 > {
-  const { orgId, projectId, agentId } = useParams();
-  const { data: agent, isLoading: isLoadingAgent } = useGetAgent({
-    agentName: agentId,
-    orgName: orgId,
-    projName: projectId,
-  });
-  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
-  const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
-  const { canView: canViewGateways } = useGatewayFeatures();
-
+  const { orgId, projectId, agentId, envId } = useParams();
+  const { data: agent, isLoading: isLoadingAgent } = useRouteAgent();
+  const { environments, isLoading: isLoadingEnvironments } =
+    usePipelineEnvironmentsState(orgId, projectId);
+  const { pathname } = useLocation();
   const externalNavItems = useExternalNavItems();
-  const { hasAccess } = useFeatureManagement();
-  // Events isn't a feature-management resource; it follows the token's scopes.
-  const { enforced, scopes } = useTokenScopes();
-  // Events needs the service's event bus; /api/v1/config says whether it runs.
-  const eventsEnabled = useEventsEnabled();
-
-  const navVisibility = {
-    resources:
-      hasAccess("llm_provider_read") ||
-      hasAccess("llm_provider_template_read") ||
-      hasAccess("mcp_server_read") ||
-      hasAccess("llm_proxy_read"),
-    evaluation: hasAccess("evaluator_read"),
-    infrastructure: canViewGateways,
-    identityUsers: hasAccess("member_read"),
-    identityRoles: hasAccess("role_read"),
-    identityGroups: hasAccess("group_read"),
-    // Agent Identities lists the roles and groups an agent can hold, not the org's.
-    agentIdentities: hasAccess("agent_identity_read"),
-    // The org Events page needs the events scopes; projects and agents show
-    // theirs to anyone who can see them.
-    events:
-      !enforced || scopes.has("amp:events:read") || scopes.has("amp:events:manage"),
+  const pluginItems: Record<PluginLevel, ActivePluginNavItem[]> = {
+    org: usePluginNavItemsForLevel("org"),
+    project: usePluginNavItemsForLevel("project"),
+    agent: usePluginNavItemsForLevel("agent"),
   };
 
-  const { pathname } = useLocation();
-
-  const llmProvidersOrgRoute = (
-    absoluteRouteMap.children.org.children as unknown as Record<
-      string,
-      { path: string; wildPath: string }
-    >
-  ).llmProviders;
-  const mcpProxiesOrgRoute = (
-    absoluteRouteMap.children.org.children as unknown as Record<
-      string,
-      { path: string; wildPath: string }
-    >
-  ).mcpProxies;
-  const agentsChildren = absoluteRouteMap.children.org.children.projects
-    .children.agents.children as Record<
-    string,
-    { path: string; wildPath: string }
-  >;
-  const gatewaysOrgRoute = (
-    absoluteRouteMap.children.org.children as unknown as Record<
-      string,
-      { path: string; wildPath: string }
-    >
-  ).gateways;
-  const settingsOrgRoute = (
-    absoluteRouteMap.children.org.children as unknown as Record<
-      string,
-      { path: string; wildPath: string }
-    >
-  ).settings;
-  const evaluatorsOrgRoute = absoluteRouteMap.children.org.children.evaluators;
-  const eventsOrgRoute = absoluteRouteMap.children.org.children.events;
-  const eventsProjectRoute = absoluteRouteMap.children.org.children.projects.children.events;
-  const eventsAgentRoute =
-    absoluteRouteMap.children.org.children.projects.children.agents.children.events;
-
-  // Events follows the regular navigation at every level, separated by a divider.
-  const eventsItem = (
-    route: { path: string; wildPath: string },
-    params: Record<string, string | undefined>,
-  ): NavigationItem[] =>
-    eventsEnabled
-      ? [
-          {
-            label: "Events",
-            type: "item",
-            icon: <RadioTower size={20} />,
-            href: generatePath(route.path, params),
-            isActive: !!matchPath(route.wildPath, pathname),
-            dividerBefore: true,
-          },
-        ]
-      : [];
-
-  // Security section shared by the internal-agent menus below: Agent ID, plus
-  // gateway credentials for agent-api agents. Spread as a section only when it
-  // has items, so disabling Agent ID for a non-agent-api agent leaves no empty
-  // section header behind.
-  //
-  // This runs on every page the layout renders, including ones without an
-  // agent in the URL, and generatePath throws on a missing route param — so the
-  // items are built only when the org, project and agent are all present.
-  const hasAgentRoute = !!(orgId && projectId && agentId);
-  const agentSecurityItems: NavigationItem[] = [
-    ...(agentIdEnabled && hasAgentRoute
-      ? [
-          {
-            label: "Agent ID",
-            type: "item" as const,
-            icon: <agentIdentityMetadata.icon size={20} />,
-            isActive: !!matchPath(
-              agentsChildren.agentId?.wildPath ?? "",
-              pathname,
-            ),
-            href: generatePath(agentsChildren.agentId?.path ?? "", {
-              orgId,
-              projectId,
-              agentId,
-            }),
-          },
-        ]
-      : []),
-    ...(hasAgentRoute && agent?.agentType?.type === "agent-api"
-      ? [
-          credentialsNavItem(pathname, { orgId, projectId, agentId }),
-        ]
-      : []),
-  ];
-  const agentSecuritySections: NavigationSection[] = agentSecurityItems.length
-    ? [
-        {
-          title: "Security",
-          type: "section",
-          icon: <Lock />,
-          collapsible: true,
-          items: agentSecurityItems,
-        },
-      ]
-    : [];
+  const defaultEnv =
+    envId ?? (environments.length > 0 ? environments[0]?.name : "");
 
   // Access is settled here: FeatureAccessBridge shows a loader until it resolves.
-  if (isLoadingAgent) {
+  if (isLoadingAgent || (isLoadingEnvironments && agentId)) {
     return [];
   }
 
-  if (
-    agent?.provisioning.type === "external" &&
-    agentId &&
-    projectId &&
-    orgId
-  ) {
-    return [
-      {
-        label: "Overview",
-        type: "item",
-        icon: <LayoutDashboard size={20} />,
-        isActive: !!matchPath(
-          absoluteRouteMap.children.org.children.projects.children.agents.path,
-          pathname,
-        ),
-        href: generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents.path,
-          { orgId, projectId, agentId },
-        ),
-      },
-      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
-      ...externalNavItems
-        .filter((item) => item.level === "component")
-        .map((item) => ({
-          label: item.title,
-          type: "item" as const,
-          icon: item.icon,
-          isActive: !!matchPath(item.route, pathname),
-          href: generatePath(item.route, { orgId, projectId, agentId }),
-        })),
-      {
-        title: "Agent lifecycle",
-        type: "section",
-        icon: <GitBranch />,
-        collapsible: true,
-        items: [
-          {
-            label: "Configure",
-            type: "item",
-            icon: <Settings size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.configure.wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.configure.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-      // External agents' Security section holds Agent ID (when that feature is
-      // enabled) and Credentials for the A2A proxy.
-      {
-        title: "Security",
-        type: "section",
-        icon: <Lock />,
-        collapsible: true,
-        items: [
-          ...(agentIdEnabled
-            ? [
-                {
-                  label: "Agent ID",
-                  type: "item" as const,
-                  icon: <agentIdentityMetadata.icon size={20} />,
-                  isActive: !!matchPath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.agentId.wildPath,
-                    pathname,
-                  ),
-                  href: generatePath(
-                    absoluteRouteMap.children.org.children.projects.children
-                      .agents.children.agentId.path,
-                    { orgId, projectId, agentId },
-                  ),
-                },
-              ]
-            : []),
-          credentialsNavItem(pathname, { orgId, projectId, agentId }),
-        ],
-      },
-      {
-        title: "Observability",
-        type: "section",
-        icon: <Activity />,
-        collapsible: true,
-        items: [
-          {
-            label: "Traces",
-            type: "item",
-            icon: <Workflow size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.traces
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.traces
-                .path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-      {
-        title: "Evaluation",
-        type: "section",
-        icon: <EvaluationOutline />,
-        collapsible: true,
-        items: [
-          {
-            label: "Monitors",
-            type: "item",
-            icon: <MonitorCheck size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-    ];
+  // Which level's menu to show. External agents always get the agent menu;
+  // internal ones need an environment for their links, and fall back to the
+  // project menu until there is one.
+  let level: PluginLevel | null = null;
+  if (orgId && projectId && agentId && (agent?.provisioning.type === "external" || defaultEnv)) {
+    level = "agent";
+  } else if (orgId && projectId) {
+    level = "project";
+  } else if (orgId) {
+    level = "org";
+  }
+  if (!level) {
+    return [];
   }
 
-  if (orgId && projectId && agentId) {
-    return [
-      {
-        label: "Overview",
-        type: "item",
-        icon: <LayoutDashboard size={20} />,
-        isActive: !!matchPath(
-          absoluteRouteMap.children.org.children.projects.children.agents.path,
-          pathname,
-        ),
-        href: generatePath(
-          absoluteRouteMap.children.org.children.projects.children.agents.path,
-          { orgId, projectId, agentId },
-        ),
-      },
-      {
-        title: "Agent lifecycle",
+  // generatePath throws on a missing param, and every param the level needs is
+  // present by the checks above.
+  const params = { orgId, projectId, agentId, envId: defaultEnv };
+  const toNavItem = (item: ActivePluginNavItem): NavigationItem => ({
+    label: item.label,
+    type: "item",
+    icon: <item.icon size={20} />,
+    href: generatePath(item.route.path, params),
+    isActive: [item.route.wildPath, ...(item.activePaths ?? [])].some(
+      (pattern) => !!matchPath(pattern, pathname),
+    ),
+    ...(item.dividerBefore ? { dividerBefore: true } : {}),
+    ...(item.pinBottom ? { pinBottom: true } : {}),
+  });
+
+  const items = pluginItems[level];
+  const layout = NAV_LAYOUT[level];
+  const navigation: Array<NavigationSection | NavigationItem> = [];
+  for (const slot of layout) {
+    const slotItems = items.filter((item) => item.section === slot.key).map(toNavItem);
+    if (!slotItems.length) continue;
+    if (slot.title) {
+      navigation.push({
+        title: slot.title,
         type: "section",
-        icon: <GitBranch />,
+        icon: slot.icon,
         collapsible: true,
-        items: [
-          {
-            label: "Configure",
-            type: "item",
-            icon: <Settings size={20} />,
-            isActive: !!matchPath(
-              agentsChildren.configure?.wildPath ?? "",
-              pathname,
-            ),
-            href: generatePath(agentsChildren.configure?.path ?? "", {
-              orgId,
-              projectId,
-              agentId,
-            }),
-          },
-          {
-            label: "Try it",
-            type: "item",
-            icon: <FlaskConical size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.tryOut.wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.tryOut.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-      ...agentSecuritySections,
-      {
-        title: "Observability",
-        type: "section",
-        icon: <Activity />,
-        collapsible: true,
-        items: [
-          {
-            label: "Traces",
-            type: "item",
-            icon: <Workflow size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.traces
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.traces
-                .path,
-              { orgId, projectId, agentId },
-            ),
-          },
-          {
-            label: "Runtime logs",
-            type: "item",
-            icon: <Logs size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.logs
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.logs.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-          {
-            label: "System metrics",
-            type: "item",
-            icon: <Gauge size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.metrics
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.observability.children.metrics
-                .path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-      {
-        title: "Evaluation",
-        type: "section",
-        icon: <EvaluationOutline />,
-        collapsible: true,
-        items: [
-          {
-            label: "Monitors",
-            type: "item",
-            icon: <MonitorCheck size={20} />,
-            isActive: !!matchPath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor
-                .wildPath,
-              pathname,
-            ),
-            href: generatePath(
-              absoluteRouteMap.children.org.children.projects.children.agents
-                .children.evaluation.children.monitor.path,
-              { orgId, projectId, agentId },
-            ),
-          },
-        ],
-      },
-      ...eventsItem(eventsAgentRoute, { orgId, projectId, agentId }),
-      ...externalNavItems
-        .filter((item) => item.level === "component")
-        .map((item) => ({
-          label: item.title,
-          type: "item" as const,
-          icon: item.icon,
-          isActive: !!matchPath(item.route, pathname),
-          href: generatePath(item.route, { orgId, projectId, agentId }),
-        })),
-    ];
+        items: slotItems,
+      });
+    } else {
+      navigation.push(...slotItems);
+    }
   }
-  if (orgId && projectId) {
-    return [
-      {
-        label: "Overview",
-        type: "item",
-        icon: <Home size={20} />,
-        href: generatePath(
-          absoluteRouteMap.children.org.children.projects.path,
-          { orgId, projectId },
-        ),
-        isActive:
-          !!matchPath(
-            absoluteRouteMap.children.org.children.projects.path,
-            pathname,
-          ) ||
-          !!matchPath(
-            absoluteRouteMap.children.org.children.projects.children.edit.path,
-            pathname,
-          ),
-      },
-      {
-        label: "Agents",
-        type: "item",
-        icon: <Bot size={20} />,
-        href: generatePath(
-          absoluteRouteMap.children.org.children.projects.children
-            .agentListing.path,
-          { orgId, projectId },
-        ),
-        isActive:
-          !!matchPath(
-            absoluteRouteMap.children.org.children.projects.children
-              .agentListing.path,
-            pathname,
-          ) ||
-          !!matchPath(
-            absoluteRouteMap.children.org.children.projects.children.agents
-              .wildPath,
-            pathname,
-          ),
-      },
-      ...eventsItem(eventsProjectRoute, { orgId, projectId }),
-    ];
-  }
-  if (orgId) {
-    return [
-      {
-        label: "Overview",
-        type: "item",
-        icon: <Home size={20} />,
-        href: generatePath(absoluteRouteMap.children.org.path, { orgId }),
-        isActive: !!matchPath(absoluteRouteMap.children.org.path, pathname),
-      },
-      {
-        label: "Projects",
-        type: "item",
-        icon: <Box size={20} />,
-        href: generatePath(
-          absoluteRouteMap.children.org.children.projectListing.path,
-          { orgId },
-        ),
-        isActive: !!matchPath(
-          absoluteRouteMap.children.org.children.projectListing.path,
-          pathname,
-        ),
-      },
-      ...(navVisibility.events ? eventsItem(eventsOrgRoute, { orgId }) : []),
-      // Settings is shown only when profile management is enabled, and then only if RBAC
-      // grants access to at least one of its identity surfaces.
-      ...(profileManagementEnabled &&
-      (navVisibility.identityUsers ||
-        navVisibility.identityRoles ||
-        navVisibility.identityGroups)
-        ? [
-            {
-              label: "Settings",
-              type: "item" as const,
-              icon: <Settings size={20} />,
-              href: generatePath(settingsOrgRoute.path, { orgId }),
-              isActive: !!matchPath(settingsOrgRoute.wildPath, pathname),
-              pinBottom: true,
-            },
-          ]
-        : []),
-      ...(navVisibility.resources
-        ? [
-            {
-              type: "section" as const,
-              title: "Resources",
-              icon: <Boxes size={20} />,
-              collapsible: true,
-              items: [
-                {
-                  label: "LLM service providers",
-                  type: "item" as const,
-                  icon: <BrainCircuit size={20} />,
-                  href: generatePath(llmProvidersOrgRoute.path, { orgId }),
-                  isActive: !!matchPath(
-                    llmProvidersOrgRoute.wildPath,
-                    pathname,
-                  ),
-                },
-                {
-                  label: "MCP servers",
-                  type: "item" as const,
-                  icon: <MCPLogo size={20} />,
-                  href: generatePath(mcpProxiesOrgRoute.path, { orgId }),
-                  isActive: !!matchPath(mcpProxiesOrgRoute.wildPath, pathname),
-                },
-              ],
-            },
-          ]
-        : []),
-      ...(navVisibility.evaluation
-        ? [
-            {
-              title: "Evaluation",
-              type: "section" as const,
-              icon: <EvaluationOutline />,
-              collapsible: true,
-              items: [
-                {
-                  label: "Evaluators",
-                  type: "item" as const,
-                  icon: <Code size={20} />,
-                  isActive: !!matchPath(evaluatorsOrgRoute.wildPath, pathname),
-                  href: generatePath(evaluatorsOrgRoute.path, { orgId }),
-                },
-              ],
-            },
-          ]
-        : []),
-      ...(navVisibility.infrastructure
-        ? [
-            {
-              title: "Infrastructure",
-              type: "section" as const,
-              icon: <Server />,
-              collapsible: true,
-              items: [
-                ...(canViewGateways
-                  ? [
-                      {
-                        label: "Gateways",
-                        type: "item" as const,
-                        icon: <Network size={20} />,
-                        href: generatePath(gatewaysOrgRoute.path, { orgId }),
-                        isActive: !!matchPath(gatewaysOrgRoute.wildPath, pathname),
-                      },
-                    ]
-                  : []),
-              ],
-            },
-          ]
-        : []),
-      ...(agentIdEnabled && navVisibility.agentIdentities
-        ? [
-            {
-              title: "Agent identities",
-              type: "section" as const,
-              icon: <agentIdentityMetadata.icon />,
-              collapsible: true,
-              // Both children read the same agent-identity API, so one scope
-              // governs both and there is nothing left to filter per item.
-              items: (["groups", "roles"] as const).map((key) => {
-                const ChildIcon = agentIdentityMetadata.children[key].icon;
-                const agentIdentityChildRoute =
-                  absoluteRouteMap.children.org.children.agentIdentity
-                    .children[key];
-                return {
-                  label: agentIdentityMetadata.children[key].title,
-                  type: "item" as const,
-                  icon: <ChildIcon size={20} />,
-                  href: generatePath(agentIdentityChildRoute.path, {
-                    orgId,
-                  }),
-                  isActive: !!matchPath(
-                    agentIdentityChildRoute.wildPath,
-                    pathname,
-                  ),
-                };
-              }),
-            },
-          ]
-        : []),
-      ...externalNavItems
-        .filter((item) => item.level === "org")
-        .map((item) => ({
-          label: item.title,
-          type: "item" as const,
-          icon: item.icon,
-          isActive: !!matchPath(item.route, pathname),
-          href: generatePath(item.route, { orgId }),
-        })),
-    ];
-  }
-  return [];
+  const knownSlots = new Set(layout.map((slot) => slot.key));
+  navigation.push(
+    ...items
+      .filter((item) => !item.section || !knownSlots.has(item.section))
+      .map(toNavItem),
+  );
+
+  // Nav items passed to CoreUI the legacy way (externalPageModules).
+  navigation.push(
+    ...externalNavItems
+      .filter((item) => item.level === LEGACY_LEVEL[level])
+      .map((item) => ({
+        label: item.title,
+        type: "item" as const,
+        icon: item.icon,
+        isActive: !!matchPath(item.route, pathname),
+        href: generatePath(item.route, params),
+      })),
+  );
+  return navigation;
 }

@@ -1,0 +1,56 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { LLMProvidersComponent } from './LLMProviders.Component';
+import { LLMProvidersOrganization } from './LLMProviders.Organization';
+import { AddLLMProvidersOrganization } from './AddLLMProviders.Organization';
+import type { PageMetadata } from '@agent-management-platform/types';
+import { BrainCircuit } from '@wso2/oxygen-ui-icons-react';
+
+export const metaData: PageMetadata = {
+  title: 'LLM Service Providers',
+  description: 'A page component for LLM Service Provider management',
+  icon: BrainCircuit,
+  path: '/llm-providers',
+  component: LLMProvidersComponent,
+  levels: {
+    component: LLMProvidersComponent,
+    organization: LLMProvidersOrganization,
+    addLLMProvidersOrganization: AddLLMProvidersOrganization,
+  },
+};
+
+export {
+  LLMProvidersComponent,
+  LLMProvidersOrganization,
+  AddLLMProvidersOrganization,
+};
+
+// The add-provider form lives in shared-component (other modules use it);
+// re-exported here for existing importers.
+export { AddLLMProviderForm } from '@agent-management-platform/shared-component';
+export type {
+  AddLLMProviderFormValues,
+  GuardrailSelection,
+  TemplateCard,
+} from '@agent-management-platform/shared-component';
+export {
+  buildCreateLLMProviderRequest,
+  mapLLMProviderTemplatesToCards,
+  toProviderId,
+} from '@agent-management-platform/shared-component';

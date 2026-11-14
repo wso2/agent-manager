@@ -38,9 +38,15 @@ function useManagedResourceFeatures(
   return { canView, canWrite: canView && canWrite };
 }
 
+export const useEnvironmentFeatures = () =>
+  useManagedResourceFeatures("externallyManagedEnv", "env");
+
 export function useGatewayFeatures(): ManagedResourceFeatures & { canManageTokens: boolean } {
   const features = useManagedResourceFeatures("externallyManagedGateway", "gateway");
   const { hasAccess } = useFeatureManagement();
   // Registration tokens have their own permission, separate from gateway write.
   return { ...features, canManageTokens: features.canView && hasAccess("gateway_token_write") };
 }
+
+export const usePipelineFeatures = () =>
+  useManagedResourceFeatures("externallyManagedPipeline", "pipeline");

@@ -1,0 +1,36 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { globalConfig } from "@agent-management-platform/types";
+
+// Shell-owned routes (not plugins), relative to the org route and absolute.
+
+/**
+ * Whether the AI module manager and module details pages exist. Off unless the
+ * runtime config turns it on (uiModules.marketplace), since install and
+ * uninstall there are a front-end preview for now.
+ */
+export const isMarketplaceEnabled = () => !!globalConfig?.uiModules?.marketplace;
+
+/** Module manager overview. */
+export const MODULE_MANAGER_PATH = "ui-modules";
+export const MODULE_MANAGER_ROUTE = `/org/:orgId/${MODULE_MANAGER_PATH}`;
+
+/** A module's setup page. */
+export const MODULE_SETUP_PATH = `${MODULE_MANAGER_PATH}/:moduleId`;
+export const MODULE_SETUP_ROUTE = `/org/:orgId/${MODULE_SETUP_PATH}`;

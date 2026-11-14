@@ -155,6 +155,52 @@ export async function deleteGateway(
   if (!res.ok) throw await res.json();
 }
 
+export interface AssignGatewayToEnvironmentParams {
+  orgName: string;
+  gatewayId: string;
+  envId: string;
+}
+
+export async function assignGatewayToEnvironment(
+  params: AssignGatewayToEnvironmentParams,
+  getToken?: () => Promise<string>,
+): Promise<GatewayResponse> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const gatewayId = encodeRequired(params.gatewayId, "gatewayId");
+  const envId = encodeRequired(params.envId, "envId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpPOST(
+    `${SERVICE_BASE}/orgs/${org}/gateways/${gatewayId}/environments/${envId}`,
+    {},
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+  return res.json();
+}
+
+export interface RemoveGatewayFromEnvironmentParams {
+  orgName: string;
+  gatewayId: string;
+  envId: string;
+}
+
+export async function removeGatewayFromEnvironment(
+  params: RemoveGatewayFromEnvironmentParams,
+  getToken?: () => Promise<string>,
+): Promise<void> {
+  const org = encodeRequired(params.orgName, "orgName");
+  const gatewayId = encodeRequired(params.gatewayId, "gatewayId");
+  const envId = encodeRequired(params.envId, "envId");
+  const token = getToken ? await getToken() : undefined;
+
+  const res = await httpDELETE(
+    `${SERVICE_BASE}/orgs/${org}/gateways/${gatewayId}/environments/${envId}`,
+    { token },
+  );
+  if (!res.ok) throw await res.json();
+}
+
 export interface ListGatewayTokensParams {
   orgName: string;
   gatewayId: string;

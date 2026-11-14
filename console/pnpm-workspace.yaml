@@ -2,4 +2,5 @@ packages:
   - apps/*
   - workspaces/core-ui
   - workspaces/libs/*
-  - workspaces/pages/*
+  - workspaces/ui-modules/*
+  - workspaces/ui-modules/*/pages/*

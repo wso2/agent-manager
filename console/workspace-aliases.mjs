@@ -31,8 +31,20 @@ const MONOREPO_ROOT = import.meta.dirname
 
 // Mirrors the globs in pnpm-workspace.yaml. core-ui is listed on its own because it
 // is a single package rather than a directory of them.
-const PACKAGE_PARENTS = ['workspaces/libs', 'workspaces/pages']
+const PACKAGE_PARENTS = ['workspaces/libs']
 const STANDALONE_PACKAGES = ['workspaces/core-ui', 'apps/web-ui']
+// UI modules: workspaces/ui-modules/<module> is itself a package (the module
+// manifest), and its page packages live under workspaces/ui-modules/<module>/pages.
+const UI_MODULES_DIR = 'workspaces/ui-modules'
+
+function subdirectories(parent) {
+  const absolute = path.join(MONOREPO_ROOT, parent)
+  if (!fs.existsSync(absolute)) return []
+  return fs
+    .readdirSync(absolute, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(parent, entry.name))
+}
 
 function readPackageName(packageDir) {
   const manifest = path.join(packageDir, 'package.json')
@@ -41,13 +53,12 @@ function readPackageName(packageDir) {
 }
 
 function discoverPackageDirs() {
-  const fromParents = PACKAGE_PARENTS.flatMap((parent) =>
-    fs
-      .readdirSync(path.join(MONOREPO_ROOT, parent), { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => path.join(MONOREPO_ROOT, parent, entry.name))
+  const fromParents = PACKAGE_PARENTS.flatMap(subdirectories)
+  const uiModules = subdirectories(UI_MODULES_DIR)
+  const uiModulePages = uiModules.flatMap((moduleDir) => subdirectories(path.join(moduleDir, 'pages')))
+  return [...fromParents, ...uiModules, ...uiModulePages, ...STANDALONE_PACKAGES].map((p) =>
+    path.join(MONOREPO_ROOT, p)
   )
-  return [...fromParents, ...STANDALONE_PACKAGES.map((p) => path.join(MONOREPO_ROOT, p))]
 }
 
 // A package without a src/ directory has no source to alias to — eslint-config is
