@@ -277,6 +277,10 @@ class TestJSONLoading:
                     success_criteria="Must work",
                     constraints=Constraints(max_latency_ms=2000),
                     expected_trajectory=[TrajectoryStep(tool="test_tool", args={"arg": "value"})],
+                    task_type="rag",
+                    difficulty="hard",
+                    domain="finance",
+                    tags=["retrieval", "multi-step"],
                 )
             ],
         )
@@ -299,6 +303,39 @@ class TestJSONLoading:
         assert loaded_task.constraints.max_latency_ms == orig_task.constraints.max_latency_ms
         assert len(loaded_task.expected_trajectory) == 1
         assert loaded_task.expected_trajectory[0].tool == "test_tool"
+        assert loaded_task.task_type == orig_task.task_type
+        assert loaded_task.difficulty == orig_task.difficulty
+        assert loaded_task.domain == orig_task.domain
+        assert loaded_task.tags == orig_task.tags
+
+    def test_save_and_load_roundtrip_empty_classification_overrides_legacy_metadata(self, tmp_path):
+        """Empty/None top-level classification fields must not fall back to legacy metadata/custom on reload."""
+        original_dataset = Dataset(
+            dataset_id="ds_rt_empty",
+            name="Empty Classification Roundtrip",
+            description="Test empty classification fields override legacy metadata",
+            tasks=[
+                Task(
+                    task_id="t1",
+                    input="Test input",
+                    task_type="",
+                    domain=None,
+                    tags=[],
+                    metadata={"task_type": "legacy_type", "domain": "legacy", "tags": ["legacy"]},
+                    custom={"task_type": "legacy_custom", "domain": "legacy_custom", "tags": ["legacy_custom"]},
+                )
+            ],
+        )
+
+        output_file = tmp_path / "test_empty_classification.json"
+        save_dataset_to_json(original_dataset, str(output_file))
+
+        loaded_dataset = load_dataset_from_json(str(output_file))
+        loaded_task = loaded_dataset.tasks[0]
+
+        assert loaded_task.task_type == ""
+        assert loaded_task.domain is None
+        assert loaded_task.tags == []
 
     def test_loads_utf8_json_with_non_ascii_text(self, tmp_path):
         """Test loading UTF-8 dataset content independently of the platform default encoding."""
