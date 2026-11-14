@@ -1,0 +1,124 @@
+# The stack ships with AUTH_MODE=file, but every other job runs it on idp
+# because they authenticate as machine clients. That leaves the shipped default
+# with no end-to-end cover: its issuer, audience and the two JWKS URLs are
+# wiring that only shows up when a real token crosses a real service boundary,
+# and unit tests cannot see any of it.
+name: File-based sign-in smoke
+
+on:
+  pull_request:
+    paths:
+      - 'agent-manager-service/fileauth/**'
+      - 'agent-manager-service/ampinit/**'
+      - 'agent-manager-service/api/auth_login_routes.go'
+      - 'agent-manager-service/config/**'
+      - 'console/workspaces/libs/auth/**'
+      - 'console/apps/web-ui/public/config.template.js'
+      - 'deployments/standalone/**'
+      - '.github/workflows/file-auth-smoke.yaml'
+      - '.github/actions/amp-dev-stack/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: file-auth-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  file-auth:
+    name: File-based sign-in on the shipped default
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      # The console is built too: its AUTH_MODE has to agree with the API's,
+      # and a mismatch renders a sign-in form that posts to a 404.
+      - uses: ./.github/actions/amp-dev-stack
+        with:
+          auth_mode: file
+          console: "true"
+
+      - name: The API reports file mode
+        run: |
+          set -euo pipefail
+          docker logs amp-lite-amp-api-1 2>&1 \
+            | grep -q '"msg":"file-based authentication enabled"' \
+            || { echo "::error::the API did not start in file mode"; exit 1; }
+
+      - name: amp-init generated the user file
+        run: |
+          set -euo pipefail
+          docker run --rm -v amp-lite_fileauth-config:/v alpine:3 \
+            sh -c 'test -s /v/users.yaml && grep -q "passwordHash: \\\$2" /v/users.yaml' \
+            || { echo "::error::users.yaml is missing or holds no bcrypt hash"; exit 1; }
+
+      # The sign-in itself. A token here proves the issuer and audience the API
+      # stamps are the ones it also accepts — they are separate settings and
+      # nothing else checks that they agree.
+      - name: Sign in and call the API
+        id: signin
+        run: |
+          set -euo pipefail
+          body="$(curl -sf -X POST http://localhost:9000/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"admin","password":"admin"}')"
+          token="$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')"
+          [ -n "$token" ] || { echo "::error::sign-in returned no token"; exit 1; }
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+
+          code="$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer $token" \
+            http://localhost:9000/api/v1/orgs/default/projects)"
+          [ "$code" = "200" ] || { echo "::error::API rejected a file-mode token: $code"; exit 1; }
+
+      # The observer validates the same operator tokens against its own
+      # KEY_MANAGER_JWKS_URL. It pointed at ThunderID once and refused every
+      # file-mode token while the API accepted them.
+      - name: The observer accepts the same token
+        run: |
+          set -euo pipefail
+          code="$(curl -s -o /dev/null -w '%{http_code}' \
+            -H "Authorization: Bearer ${{ steps.signin.outputs.token }}" \
+            'http://localhost:9098/api/v1/traces?limit=1')"
+          case "$code" in
+            401) echo "::error::the observer refused a file-mode token (check OBSERVER_JWKS_URL)"; exit 1 ;;
+            000) echo "::error::the observer did not answer"; exit 1 ;;
+            *)   echo "observer answered $code (not 401: authentication passed)" ;;
+          esac
+
+      - name: Bad credentials are refused
+        run: |
+          set -euo pipefail
+          code="$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:9000/auth/login \
+            -H 'Content-Type: application/json' -d '{"username":"admin","password":"wrong"}')"
+          [ "$code" = "401" ] || { echo "::error::a wrong password returned $code, expected 401"; exit 1; }
+
+      - name: The console agrees with the API
+        run: |
+          set -euo pipefail
+          curl -sf http://localhost:3000/config.js | grep -q "authMode: 'file'" \
+            || { echo "::error::the console is not in file mode; it would post sign-in to a 404"; exit 1; }
+
+      - name: Capture stack logs on failure
+        if: failure()
+        working-directory: deployments/standalone
+        run: |
+          mkdir -p "$RUNNER_TEMP/file-auth-smoke"
+          docker compose ps -a > "$RUNNER_TEMP/file-auth-smoke/services.txt" 2>&1 || true
+          for s in amp-init amp-api amp-observer amp-console; do
+            docker compose logs --no-color --tail 300 "$s" \
+              > "$RUNNER_TEMP/file-auth-smoke/$s.log" 2>&1 || true
+          done
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: file-auth-smoke
+          path: ${{ runner.temp }}/file-auth-smoke/

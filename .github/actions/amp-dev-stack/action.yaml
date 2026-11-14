@@ -14,6 +14,14 @@ inputs:
     description: Also build and start the console (nginx image on :3000).
     required: false
     default: "false"
+  auth_mode:
+    description: >
+      Sign-in mode for the stack: "idp" (ThunderID) or "file". Defaults to idp
+      because the jobs that use this action authenticate as machine clients,
+      with client_credentials against ThunderID. The stack's own default is
+      file; a job that wants to exercise that passes it here.
+    required: false
+    default: "idp"
 runs:
   using: composite
   steps:
@@ -28,22 +36,25 @@ runs:
       shell: bash
       env:
         WITH_CONSOLE: ${{ inputs.console }}
+        AUTH_MODE: ${{ inputs.auth_mode }}
       run: |
         set -euo pipefail
         cd deployments/standalone
         cp .env.example .env
-        # These jobs authenticate as a machine client, with client_credentials
+        # Most jobs authenticate as a machine client, with client_credentials
         # against ThunderID (test/instrumentation-matrix/heavy/amp_client.py),
-        # so the stack runs in identity-provider mode. File mode mints and
-        # validates its own tokens and would refuse ThunderID's.
+        # so they run in identity-provider mode: file mode mints and validates
+        # its own tokens and would refuse ThunderID's.
         #
-        # Switching the mode means all three values: the JWKS defaults follow
-        # AUTH_MODE's default, not AUTH_MODE itself.
-        {
-          echo "AUTH_MODE=idp"
-          echo "KEY_MANAGER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks"
-          echo "OBSERVER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks"
-        } >> .env
+        # Switching the mode takes all three values, because the two JWKS
+        # defaults follow AUTH_MODE's default rather than AUTH_MODE itself.
+        echo "AUTH_MODE=${AUTH_MODE}" >> .env
+        if [ "$AUTH_MODE" = "idp" ]; then
+          {
+            echo "KEY_MANAGER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks"
+            echo "OBSERVER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks"
+          } >> .env
+        fi
         export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
         # OpenSearch refuses to start below this on Linux hosts.
         sudo sysctl -w vm.max_map_count=262144
