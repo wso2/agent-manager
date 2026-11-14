@@ -6,7 +6,7 @@ import { workspaceSourceAliases } from '../../workspace-aliases.mjs'
 
 // Dev-server stand-in for the production image's envsubst step (scripts/40-config-setup.sh):
 // serves config.js from config.template.js, filled from .env.development with the process
-// env on top (e.g. DISABLE_AUTH=true pnpm dev). Unset placeholders become '', as with envsubst.
+// env on top (e.g. AUTH_MODE=thunder pnpm dev). Unset placeholders become '', as with envsubst.
 function runtimeConfig(): Plugin {
   return {
     name: 'runtime-config',

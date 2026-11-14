@@ -41,8 +41,8 @@ runs:
         # AUTH_MODE's default, not AUTH_MODE itself.
         {
           echo "AUTH_MODE=idp"
-          echo "KEY_MANAGER_JWKS_URL=http://thunder:8080/oauth2/jwks"
-          echo "OBSERVER_JWKS_URL=http://thunder:8080/oauth2/jwks"
+          echo "KEY_MANAGER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks"
+          echo "OBSERVER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks"
         } >> .env
         export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
         # OpenSearch refuses to start below this on Linux hosts.
