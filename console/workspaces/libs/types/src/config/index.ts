@@ -237,7 +237,7 @@ export const getExternalProjectManageUrl = (
 ): string | undefined => {
   const host = getExternalProjectManagementHost();
   if (!host) return undefined;
-  return `${host}/projects/${encodeURIComponent(projectHandle)}/manage`;
+  return `${host}/projects/${encodeURIComponent(projectHandle)}/settings`;
 };
 
 /** Whether an external app owns project management (see externalProjectManagementUrl). */
