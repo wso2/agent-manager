@@ -17,9 +17,9 @@
  */
 
 import { useSearchParams } from "react-router-dom";
-import type { Environment } from "@agent-management-platform/types";
+import { OVERVIEW_ENV_PARAM, type Environment } from "@agent-management-platform/types";
 
-export const ENV_SEARCH_PARAM = "env";
+export const ENV_SEARCH_PARAM = OVERVIEW_ENV_PARAM;
 
 /**
  * Tracks the selected environment (by name) in the `env` search param instead

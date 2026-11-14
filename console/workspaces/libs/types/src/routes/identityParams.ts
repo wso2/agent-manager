@@ -23,3 +23,8 @@
 // depend on @agent-management-platform/types for absoluteRouteMap — so a
 // rename can't desync the two sides.
 export const IDENTITY_ENV_PARAM = "identityEnv";
+
+// Query param the agent Overview reads to pick its environment tab, and that
+// the Agent ID page's failed-provisioning link writes so it lands on the same
+// environment's Retry instead of Overview's default tab.
+export const OVERVIEW_ENV_PARAM = "env";
