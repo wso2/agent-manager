@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"math"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -2301,15 +2300,7 @@ func (c *openChoreoClient) GetReleaseBindingEndpointServiceURL(
 		if ep.Name != endpointName {
 			continue
 		}
-		if ep.ServiceURL == nil || strings.TrimSpace(ep.ServiceURL.Host) == "" {
-			return "", nil
-		}
-		svc := *ep.ServiceURL
-		if svc.Scheme == nil || strings.TrimSpace(*svc.Scheme) == "" {
-			scheme := "http"
-			svc.Scheme = &scheme
-		}
-		return buildEndpointURLString(&svc), nil
+		return serviceURLString(ep.ServiceURL), nil
 	}
 	return "", fmt.Errorf("endpoint %q on component %q: %w", endpointName, componentName, ErrEndpointNotFound)
 }
@@ -2352,7 +2343,7 @@ func selectProjectReleaseBinding(items []gen.ReleaseBinding, projectName, compon
 // ReleaseBindingRollout is the release an environment's binding points at, and whether it serves it yet.
 type ReleaseBindingRollout struct {
 	ServiceURL string
-	// ExternalURL is the first endpoint's (by name) gateway URL, or "" before it is routed.
+	// ExternalURL is the gateway URL of the same endpoint as ServiceURL, or "" before it is routed.
 	ExternalURL string
 	ReleaseName string
 	// Serving is false until the release's workload finishes rolling out, so old pods are gone.
@@ -2372,7 +2363,7 @@ func (c *openChoreoClient) GetReleaseBindingRollout(ctx context.Context, ouID, c
 	status := determineDeploymentStatus(binding, runtimeReplicaState{})
 	rollout := ReleaseBindingRollout{
 		ServiceURL:  bindingServiceURL(binding, componentName),
-		ExternalURL: bindingExternalURL(binding),
+		ExternalURL: bindingExternalURL(binding, componentName),
 		Serving:     status == DeploymentStatusActive,
 		Deployed:    status != DeploymentStatusSuspended,
 	}
@@ -2531,73 +2522,94 @@ func releaseAgentAPIKeyTrait(release *gen.ComponentRelease) ReleaseAgentAPIKeyTr
 	return result
 }
 
-// bindingExternalURL picks by endpoint name, matching GetComponentEndpoints' TLS rule.
-func bindingExternalURL(binding *gen.ReleaseBinding) string {
-	if binding.Status == nil || binding.Status.Endpoints == nil {
+// bindingExternalURL is the gateway URL of the agent's HTTP endpoint (see agentHTTPEndpoint), taking
+// the https URL when TLS is enabled, as GetComponentEndpoints does. "" before the endpoint is routed.
+func bindingExternalURL(binding *gen.ReleaseBinding, componentName string) string {
+	ep := agentHTTPEndpoint(binding, componentName)
+	if ep == nil || ep.ExternalURLs == nil {
 		return ""
 	}
-	endpoints := slices.Clone(*binding.Status.Endpoints)
-	slices.SortFunc(endpoints, func(a, b gen.EndpointURLStatus) int { return strings.Compare(a.Name, b.Name) })
-	for _, ep := range endpoints {
-		if ep.ExternalURLs == nil {
-			continue
-		}
-		u := ep.ExternalURLs.Http
-		if config.GetConfig().TLSConfig.EnableTLS {
-			u = ep.ExternalURLs.Https
-		}
-		if u != nil {
-			return buildEndpointURLString(u)
-		}
+	u := ep.ExternalURLs.Http
+	if config.GetConfig().TLSConfig.EnableTLS {
+		u = ep.ExternalURLs.Https
 	}
-	return ""
+	if u == nil {
+		return ""
+	}
+	return buildEndpointURLString(u)
 }
 
-// agentEndpointName is the name an agent component's own endpoint carries in its workload.
-func agentEndpointName(componentName string) string {
+// AgentEndpointName is the name an agent component's own endpoint carries in its workload.
+func AgentEndpointName(componentName string) string {
 	return componentName + "-endpoint"
 }
 
-// bindingServiceURL returns the in-cluster URL of the agent's HTTP endpoint, or "" when the
-// binding has none yet.
-//
-// It returns the endpoint named agentEndpointName(componentName) when that endpoint serves
-// HTTP, and otherwise the first endpoint in the binding's list that does. Endpoints whose scheme
-// is not http or https are skipped. A missing scheme is treated as http.
+// bindingServiceURL is the in-cluster URL of the agent's HTTP endpoint (see agentHTTPEndpoint), or ""
+// when the binding has none yet.
 func bindingServiceURL(binding *gen.ReleaseBinding, componentName string) string {
-	if binding == nil || binding.Status == nil || binding.Status.Endpoints == nil {
+	ep := agentHTTPEndpoint(binding, componentName)
+	if ep == nil {
 		return ""
 	}
-	own := agentEndpointName(componentName)
-	first := ""
-	for _, ep := range *binding.Status.Endpoints {
-		url, ok := httpServiceURL(ep.ServiceURL)
-		if !ok {
+	return serviceURLString(ep.ServiceURL)
+}
+
+// agentHTTPEndpoint is the endpoint the agent serves HTTP on: the one named
+// AgentEndpointName(componentName) when it serves HTTP, otherwise the HTTP endpoint whose name sorts
+// first. The binding lists endpoints in no fixed order, so the fallback goes by name to stay the same
+// across reconciles. nil when no endpoint serves HTTP with an in-cluster address.
+func agentHTTPEndpoint(binding *gen.ReleaseBinding, componentName string) *gen.EndpointURLStatus {
+	if binding == nil || binding.Status == nil || binding.Status.Endpoints == nil {
+		return nil
+	}
+	own := AgentEndpointName(componentName)
+	var picked *gen.EndpointURLStatus
+	for i := range *binding.Status.Endpoints {
+		ep := &(*binding.Status.Endpoints)[i]
+		if !servesHTTP(ep) {
 			continue
 		}
 		if ep.Name == own {
-			return url
+			return ep
 		}
-		if first == "" {
-			first = url
+		if picked == nil || ep.Name < picked.Name {
+			picked = ep
 		}
 	}
-	return first
+	return picked
 }
 
-// httpServiceURL renders an endpoint's in-cluster URL when it has a host and an HTTP scheme.
-func httpServiceURL(serviceURL *gen.EndpointURL) (string, bool) {
+// servesHTTP reports whether an endpoint has an in-cluster address that takes HTTP: its declared type,
+// when the status carries one, is HTTP or GraphQL, and its service URL's scheme is http or https.
+func servesHTTP(ep *gen.EndpointURLStatus) bool {
+	if ep.Type != nil && *ep.Type != "" &&
+		!strings.EqualFold(string(*ep.Type), string(gen.EndpointURLStatusTypeHTTP)) &&
+		!strings.EqualFold(string(*ep.Type), string(gen.EndpointURLStatusTypeGraphQL)) {
+		return false
+	}
+	if serviceURLString(ep.ServiceURL) == "" {
+		return false
+	}
+	scheme := serviceURLScheme(ep.ServiceURL)
+	return scheme == "http" || scheme == "https"
+}
+
+// serviceURLString renders an endpoint's in-cluster URL with its scheme lowercased, taking http when
+// the scheme is absent. "" when there is no host.
+func serviceURLString(serviceURL *gen.EndpointURL) string {
 	if serviceURL == nil || strings.TrimSpace(serviceURL.Host) == "" {
-		return "", false
+		return ""
 	}
 	svc := *serviceURL
-	scheme := "http"
-	if svc.Scheme != nil && strings.TrimSpace(*svc.Scheme) != "" {
-		scheme = strings.ToLower(strings.TrimSpace(*svc.Scheme))
-	}
-	if scheme != "http" && scheme != "https" {
-		return "", false
-	}
+	scheme := serviceURLScheme(serviceURL)
 	svc.Scheme = &scheme
-	return buildEndpointURLString(&svc), true
+	return buildEndpointURLString(&svc)
+}
+
+// serviceURLScheme is the URL's scheme, lowercased, or http when it has none.
+func serviceURLScheme(serviceURL *gen.EndpointURL) string {
+	if serviceURL.Scheme == nil || strings.TrimSpace(*serviceURL.Scheme) == "" {
+		return "http"
+	}
+	return strings.ToLower(strings.TrimSpace(*serviceURL.Scheme))
 }
