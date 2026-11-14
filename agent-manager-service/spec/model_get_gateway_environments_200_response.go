@@ -19,15 +19,25 @@ var _ MappedNullable = &GetGatewayEnvironments200Response{}
 
 // GetGatewayEnvironments200Response struct for GetGatewayEnvironments200Response
 type GetGatewayEnvironments200Response struct {
-	Environments []GatewayEnvironmentResponse `json:"environments,omitempty"`
+	Environments []GatewayEnvironmentResponse `json:"environments"`
+	// Total number of environments mapped to the gateway
+	Total int32 `json:"total"`
+	// Maximum number of environments returned per page
+	Limit int32 `json:"limit"`
+	// Number of environments skipped before this page
+	Offset int32 `json:"offset"`
 }
 
 // NewGetGatewayEnvironments200Response instantiates a new GetGatewayEnvironments200Response object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGetGatewayEnvironments200Response() *GetGatewayEnvironments200Response {
+func NewGetGatewayEnvironments200Response(environments []GatewayEnvironmentResponse, total int32, limit int32, offset int32) *GetGatewayEnvironments200Response {
 	this := GetGatewayEnvironments200Response{}
+	this.Environments = environments
+	this.Total = total
+	this.Limit = limit
+	this.Offset = offset
 	return &this
 }
 
@@ -39,36 +49,100 @@ func NewGetGatewayEnvironments200ResponseWithDefaults() *GetGatewayEnvironments2
 	return &this
 }
 
-// GetEnvironments returns the Environments field value if set, zero value otherwise.
+// GetEnvironments returns the Environments field value
 func (o *GetGatewayEnvironments200Response) GetEnvironments() []GatewayEnvironmentResponse {
-	if o == nil || IsNil(o.Environments) {
+	if o == nil {
 		var ret []GatewayEnvironmentResponse
 		return ret
 	}
+
 	return o.Environments
 }
 
-// GetEnvironmentsOk returns a tuple with the Environments field value if set, nil otherwise
+// GetEnvironmentsOk returns a tuple with the Environments field value
 // and a boolean to check if the value has been set.
 func (o *GetGatewayEnvironments200Response) GetEnvironmentsOk() ([]GatewayEnvironmentResponse, bool) {
-	if o == nil || IsNil(o.Environments) {
+	if o == nil {
 		return nil, false
 	}
 	return o.Environments, true
 }
 
-// HasEnvironments returns a boolean if a field has been set.
-func (o *GetGatewayEnvironments200Response) HasEnvironments() bool {
-	if o != nil && !IsNil(o.Environments) {
-		return true
-	}
-
-	return false
-}
-
-// SetEnvironments gets a reference to the given []GatewayEnvironmentResponse and assigns it to the Environments field.
+// SetEnvironments sets field value
 func (o *GetGatewayEnvironments200Response) SetEnvironments(v []GatewayEnvironmentResponse) {
 	o.Environments = v
+}
+
+// GetTotal returns the Total field value
+func (o *GetGatewayEnvironments200Response) GetTotal() int32 {
+	if o == nil {
+		var ret int32
+		return ret
+	}
+
+	return o.Total
+}
+
+// GetTotalOk returns a tuple with the Total field value
+// and a boolean to check if the value has been set.
+func (o *GetGatewayEnvironments200Response) GetTotalOk() (*int32, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Total, true
+}
+
+// SetTotal sets field value
+func (o *GetGatewayEnvironments200Response) SetTotal(v int32) {
+	o.Total = v
+}
+
+// GetLimit returns the Limit field value
+func (o *GetGatewayEnvironments200Response) GetLimit() int32 {
+	if o == nil {
+		var ret int32
+		return ret
+	}
+
+	return o.Limit
+}
+
+// GetLimitOk returns a tuple with the Limit field value
+// and a boolean to check if the value has been set.
+func (o *GetGatewayEnvironments200Response) GetLimitOk() (*int32, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Limit, true
+}
+
+// SetLimit sets field value
+func (o *GetGatewayEnvironments200Response) SetLimit(v int32) {
+	o.Limit = v
+}
+
+// GetOffset returns the Offset field value
+func (o *GetGatewayEnvironments200Response) GetOffset() int32 {
+	if o == nil {
+		var ret int32
+		return ret
+	}
+
+	return o.Offset
+}
+
+// GetOffsetOk returns a tuple with the Offset field value
+// and a boolean to check if the value has been set.
+func (o *GetGatewayEnvironments200Response) GetOffsetOk() (*int32, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Offset, true
+}
+
+// SetOffset sets field value
+func (o *GetGatewayEnvironments200Response) SetOffset(v int32) {
+	o.Offset = v
 }
 
 func (o GetGatewayEnvironments200Response) MarshalJSON() ([]byte, error) {
@@ -81,9 +155,10 @@ func (o GetGatewayEnvironments200Response) MarshalJSON() ([]byte, error) {
 
 func (o GetGatewayEnvironments200Response) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.Environments) {
-		toSerialize["environments"] = o.Environments
-	}
+	toSerialize["environments"] = o.Environments
+	toSerialize["total"] = o.Total
+	toSerialize["limit"] = o.Limit
+	toSerialize["offset"] = o.Offset
 	return toSerialize, nil
 }
 

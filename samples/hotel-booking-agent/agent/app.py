@@ -46,13 +46,18 @@ class ChatResponse(BaseModel):
 
 app = FastAPI(title="Hotel Booking Agent")
 MAX_VALIDATION_ERRORS = 16
+MAX_VALIDATION_LOCATION_ITEMS = 16
 
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    errors = [
+        {**error, "loc": error["loc"][:MAX_VALIDATION_LOCATION_ITEMS]}
+        for error in exc.errors()[:MAX_VALIDATION_ERRORS]
+    ]
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        content={"detail": jsonable_encoder(exc.errors()[:MAX_VALIDATION_ERRORS])},
+        content={"detail": jsonable_encoder(errors)},
     )
 
 

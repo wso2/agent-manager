@@ -375,7 +375,7 @@ type ClientInterface interface {
 	UpdateGateway(ctx context.Context, orgName string, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetGatewayEnvironments request
-	GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error)
+	GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string, params *GetGatewayEnvironmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// RemoveGatewayFromEnvironment request
 	RemoveGatewayFromEnvironment(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -2396,8 +2396,8 @@ func (c *Client) UpdateGateway(ctx context.Context, orgName string, gatewayID st
 	return c.Client.Do(req)
 }
 
-func (c *Client) GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetGatewayEnvironmentsRequest(c.Server, orgName, gatewayID)
+func (c *Client) GetGatewayEnvironments(ctx context.Context, orgName string, gatewayID string, params *GetGatewayEnvironmentsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetGatewayEnvironmentsRequest(c.Server, orgName, gatewayID, params)
 	if err != nil {
 		return nil, err
 	}
@@ -9828,7 +9828,7 @@ func NewUpdateGatewayRequestWithBody(server string, orgName string, gatewayID st
 }
 
 // NewGetGatewayEnvironmentsRequest generates requests for GetGatewayEnvironments
-func NewGetGatewayEnvironmentsRequest(server string, orgName string, gatewayID string) (*http.Request, error) {
+func NewGetGatewayEnvironmentsRequest(server string, orgName string, gatewayID string, params *GetGatewayEnvironmentsParams) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -9858,6 +9858,28 @@ func NewGetGatewayEnvironmentsRequest(server string, orgName string, gatewayID s
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
 	}
 
 	req, err := http.NewRequest("GET", queryURL.String(), nil)
@@ -22922,7 +22944,7 @@ type ClientWithResponsesInterface interface {
 	UpdateGatewayWithResponse(ctx context.Context, orgName string, gatewayID string, body UpdateGatewayJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateGatewayResp, error)
 
 	// GetGatewayEnvironmentsWithResponse request
-	GetGatewayEnvironmentsWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*GetGatewayEnvironmentsResp, error)
+	GetGatewayEnvironmentsWithResponse(ctx context.Context, orgName string, gatewayID string, params *GetGatewayEnvironmentsParams, reqEditors ...RequestEditorFn) (*GetGatewayEnvironmentsResp, error)
 
 	// RemoveGatewayFromEnvironmentWithResponse request
 	RemoveGatewayFromEnvironmentWithResponse(ctx context.Context, orgName string, gatewayID string, envID string, reqEditors ...RequestEditorFn) (*RemoveGatewayFromEnvironmentResp, error)
@@ -25599,7 +25621,16 @@ type GetGatewayEnvironmentsResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *struct {
-		Environments *[]GatewayEnvironmentResponse `json:"environments,omitempty"`
+		Environments []GatewayEnvironmentResponse `json:"environments"`
+
+		// Limit Maximum number of environments returned per page
+		Limit int `json:"limit"`
+
+		// Offset Number of environments skipped before this page
+		Offset int `json:"offset"`
+
+		// Total Total number of environments mapped to the gateway
+		Total int `json:"total"`
 	}
 	JSON400 *ErrorResponse
 	JSON401 *ErrorResponse
@@ -31802,8 +31833,8 @@ func (c *ClientWithResponses) UpdateGatewayWithResponse(ctx context.Context, org
 }
 
 // GetGatewayEnvironmentsWithResponse request returning *GetGatewayEnvironmentsResp
-func (c *ClientWithResponses) GetGatewayEnvironmentsWithResponse(ctx context.Context, orgName string, gatewayID string, reqEditors ...RequestEditorFn) (*GetGatewayEnvironmentsResp, error) {
-	rsp, err := c.GetGatewayEnvironments(ctx, orgName, gatewayID, reqEditors...)
+func (c *ClientWithResponses) GetGatewayEnvironmentsWithResponse(ctx context.Context, orgName string, gatewayID string, params *GetGatewayEnvironmentsParams, reqEditors ...RequestEditorFn) (*GetGatewayEnvironmentsResp, error) {
+	rsp, err := c.GetGatewayEnvironments(ctx, orgName, gatewayID, params, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
@@ -37544,7 +37575,16 @@ func ParseGetGatewayEnvironmentsResp(rsp *http.Response) (*GetGatewayEnvironment
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest struct {
-			Environments *[]GatewayEnvironmentResponse `json:"environments,omitempty"`
+			Environments []GatewayEnvironmentResponse `json:"environments"`
+
+			// Limit Maximum number of environments returned per page
+			Limit int `json:"limit"`
+
+			// Offset Number of environments skipped before this page
+			Offset int `json:"offset"`
+
+			// Total Total number of environments mapped to the gateway
+			Total int `json:"total"`
 		}
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err

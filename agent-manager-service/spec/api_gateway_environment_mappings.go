@@ -203,6 +203,13 @@ type ApiGetGatewayEnvironmentsRequest struct {
 	ApiService *GatewayEnvironmentMappingsAPIService
 	orgName    string
 	gatewayID  string
+	offset     *int32
+}
+
+// Number of mapped environments to skip
+func (r ApiGetGatewayEnvironmentsRequest) Offset(offset int32) ApiGetGatewayEnvironmentsRequest {
+	r.offset = &offset
+	return r
 }
 
 func (r ApiGetGatewayEnvironmentsRequest) Execute() (*GetGatewayEnvironments200Response, *http.Response, error) {
@@ -212,7 +219,9 @@ func (r ApiGetGatewayEnvironmentsRequest) Execute() (*GetGatewayEnvironments200R
 /*
 GetGatewayEnvironments Get gateway environments
 
-List all environments mapped to a specific gateway.
+List up to 1000 environments mapped to a specific gateway, ordered by
+environment UUID. Increase `offset` by the number of returned entries
+to retrieve additional pages.
 
 This shows which environments can use this gateway for routing traffic.
 
@@ -260,6 +269,9 @@ func (a *GatewayEnvironmentMappingsAPIService) GetGatewayEnvironmentsExecute(r A
 		return localVarReturnValue, nil, reportError("orgName must have less than 64 elements")
 	}
 
+	if r.offset != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "offset", r.offset, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 

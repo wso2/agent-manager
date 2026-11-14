@@ -60,7 +60,7 @@ def search_policies_route(hotel_id: str, q: str, k: int = Query(5, ge=1, le=20))
     else:
         search_filter = lambda doc: doc.metadata.get("hotel_id") == hotel_id
     try:
-        docs = _store.similarity_search(q, k=k, filter=search_filter)
+        docs = _store.similarity_search(q, k=k, filter=search_filter)[:k]
     except Exception:
         logger.error(
             "policy search failed: hotel_id=%r traceback=%a",

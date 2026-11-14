@@ -2714,10 +2714,21 @@ paths:
         - Gateway-Environment Mappings
       summary: Get gateway environments
       description: |
-        List all environments mapped to a specific gateway.
+        List up to 1000 environments mapped to a specific gateway, ordered by
+        environment UUID. Increase `offset` by the number of returned entries
+        to retrieve additional pages.
 
         This shows which environments can use this gateway for routing traffic.
       operationId: getGatewayEnvironments
+      parameters:
+        - name: offset
+          in: query
+          required: false
+          description: Number of mapped environments to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
       responses:
         "200":
           description: Successfully retrieved environment list
@@ -2728,8 +2739,23 @@ paths:
                 properties:
                   environments:
                     type: array
+                    maxItems: 1000
                     items:
                       $ref: "#/components/schemas/GatewayEnvironmentResponse"
+                  total:
+                    type: integer
+                    description: Total number of environments mapped to the gateway
+                  limit:
+                    type: integer
+                    description: Maximum number of environments returned per page
+                  offset:
+                    type: integer
+                    description: Number of environments skipped before this page
+                required:
+                  - environments
+                  - total
+                  - limit
+                  - offset
         "400":
           description: Bad request - invalid parameters
           content:

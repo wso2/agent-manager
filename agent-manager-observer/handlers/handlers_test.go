@@ -777,3 +777,15 @@ func TestParseMissingRepeatedValues(t *testing.T) {
 		t.Error("unknown fields must still be rejected after duplicates")
 	}
 }
+
+func TestParseMissingItemLimit(t *testing.T) {
+	full := strings.Repeat("conversationId,", maxMissingItems-1) + "conversationId"
+	if got, err := parseMissing([]string{full}); err != nil || !got.ConversationID {
+		t.Fatalf("at the limit, got %+v, %v; want conversationId without error", got, err)
+	}
+	for _, raw := range [][]string{{full + ","}, {full, "conversationId"}} {
+		if _, err := parseMissing(raw); err == nil {
+			t.Errorf("parseMissing(%q) accepted more than %d entries", raw, maxMissingItems)
+		}
+	}
+}

@@ -17,12 +17,15 @@
 package controllers
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -45,6 +48,9 @@ const (
 
 	// Default offset for pagination
 	defaultOffset = 0
+
+	// Keep in sync with the gateway environments response schema.
+	maxGatewayEnvironments = 1000
 
 	// mcpBindingReconcileTimeout bounds the post-assignment MCP binding reconcile, which
 	// runs in the background detached from the request context (see
@@ -649,8 +655,24 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
+	var offset int32
+	if rawOffset := r.URL.Query().Get("offset"); rawOffset != "" {
+		parsed, err := strconv.ParseInt(rawOffset, 10, 32)
+		if err != nil || parsed < 0 {
+			utils.WriteErrorResponse(w, http.StatusBadRequest, "offset must be a non-negative integer")
+			return
+		}
+		offset = int32(parsed)
+	}
+
 	// Get environments from DB (via OpenChoreo)
 	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gatewayID)
+	slices.SortFunc(environments, func(a, b models.GatewayEnvironmentResponse) int {
+		return cmp.Compare(a.UUID, b.UUID)
+	})
+	total := len(environments)
+	environments = environments[min(int(offset), total):]
+	environments = environments[:min(maxGatewayEnvironments, len(environments))]
 
 	// Convert to spec responses
 	specEnvs := make([]spec.GatewayEnvironmentResponse, len(environments))
@@ -660,6 +682,9 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 
 	response := spec.GetGatewayEnvironments200Response{
 		Environments: specEnvs,
+		Total:        int32(total),
+		Limit:        maxGatewayEnvironments,
+		Offset:       offset,
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
