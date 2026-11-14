@@ -20,6 +20,17 @@ import type { ThunderIDProviderProps } from "@thunderid/react";
 import type { FeatureFlags } from "@agent-management-platform/feature-management";
 import { TraceListTimeRange } from "../api/traces";
 import { type Duration, sub } from "date-fns";
+/** The sign-in providers the console can select. */
+export type AuthMode = "thunder" | "file" | "none";
+
+/**
+ * What AUTH_MODE may be set to.
+ *
+ * Wider than AuthMode because the same value configures the API, which calls
+ * the identity-provider mode "idp". The console maps that onto "thunder".
+ */
+export type ConfiguredAuthMode = AuthMode | "idp";
+
 export interface AppConfig {
   authConfig: ThunderIDProviderProps;
   /**
@@ -53,6 +64,17 @@ export interface AppConfig {
    */
   promptsBaseUrl?: string;
   disableAuth: boolean;
+  /**
+   * Which authentication provider the console uses.
+   *
+   * "file" (the default) posts credentials to the server's own /auth/login,
+   * for deployments that run without an identity provider.
+   * "thunder" signs in against the identity provider and must be set
+   * explicitly. Either way it must match the server's AUTH_MODE.
+   * "none" is the hardcoded-token development mode, previously selected by
+   * `disableAuth`, which is still honoured when authMode is unset.
+   */
+  authMode?: ConfiguredAuthMode;
   instrumentationUrl: string;
   /**
    * When true, the OTEL endpoint shown in the Setup Agent panel is

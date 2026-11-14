@@ -24,7 +24,9 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/joho/godotenv"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -219,6 +221,76 @@ func loadEnvs() {
 		DefaultExpiryDuration: r.readOptionalString("JWT_SIGNING_DEFAULT_EXPIRY", "2160h"), // 90 days default
 		Issuer:                r.readOptionalString("JWT_SIGNING_ISSUER", "agent-manager-service"),
 		DefaultEnvironment:    r.readOptionalString("JWT_SIGNING_DEFAULT_ENVIRONMENT", "default"),
+	}
+
+	// Authentication mode. "idp" (the default) validates tokens issued by an
+	// external identity provider; "file" authenticates against a YAML user file
+	// and mints tokens locally.
+	//
+	// The default is "idp" so that a process started with no configuration
+	// behaves as it always has. File mode refuses to start without a user
+	// file — correct for a deployment that means to use it, wrong for every
+	// harness and chart that never asked for it. The standalone stack opts in
+	// explicitly (AUTH_MODE: ${AUTH_MODE:-file}), so the shipped product still
+	// defaults to file-based sign-in.
+	config.AuthMode = strings.ToLower(strings.TrimSpace(r.readOptionalString("AUTH_MODE", AuthModeIDP)))
+	switch config.AuthMode {
+	case AuthModeIDP, AuthModeFile:
+	default:
+		r.errors = append(r.errors, fmt.Errorf("AUTH_MODE must be %q or %q, got %q", AuthModeIDP, AuthModeFile, config.AuthMode))
+	}
+	config.FileAuth = FileAuthConfig{
+		UsersPath: r.readOptionalString("FILE_AUTH_USERS_PATH", "/etc/amp/users.yaml"),
+		Issuer:    r.readOptionalString("FILE_AUTH_ISSUER", "amp-file-auth"),
+		Audience:  r.readOptionalString("FILE_AUTH_AUDIENCE", "urn:wso2:amp"),
+		TokenTTL:  8 * time.Hour,
+	}
+	if raw := strings.TrimSpace(r.readOptionalString("FILE_AUTH_TOKEN_TTL", "")); raw != "" {
+		ttl, err := time.ParseDuration(raw)
+		switch {
+		case err != nil:
+			r.errors = append(r.errors, fmt.Errorf("FILE_AUTH_TOKEN_TTL must be a Go duration (e.g. 8h): %w", err))
+		case ttl <= 0:
+			r.errors = append(r.errors, fmt.Errorf("FILE_AUTH_TOKEN_TTL must be positive, got %s", ttl))
+		default:
+			config.FileAuth.TokenTTL = ttl
+		}
+	}
+	if config.AuthMode == AuthModeFile {
+		// Checked here rather than at login time: a deployment that cannot
+		// authenticate anyone should fail to start, not fail every request.
+		if strings.TrimSpace(config.FileAuth.UsersPath) == "" {
+			r.errors = append(r.errors, fmt.Errorf("FILE_AUTH_USERS_PATH is required when AUTH_MODE=%s", AuthModeFile))
+		}
+		// The API gateway binds a key manager to an issuer, so a login token
+		// sharing the agent-token issuer would be accepted as an agent token.
+		// This one is a genuine conflict between two operator choices, so it is
+		// refused rather than resolved.
+		if strings.TrimSpace(config.FileAuth.Issuer) == strings.TrimSpace(config.JWTSigning.Issuer) {
+			r.errors = append(r.errors, fmt.Errorf(
+				"FILE_AUTH_ISSUER (%q) must differ from JWT_SIGNING_ISSUER: login tokens and agent tokens are told apart by issuer",
+				config.FileAuth.Issuer))
+		}
+
+		// The next three are invariants, not choices: in file mode this service
+		// is the issuer, the audience and the key source for its own login
+		// tokens. Making an operator restate that in three more variables only
+		// creates three more ways to get a 401 that names nothing.
+
+		// validateIssuer and validateAudience are allowlists that reject when
+		// empty, so a token whose own issuer is missing from them is refused.
+		if !slices.Contains(config.KeyManagerConfigurations.Issuer, config.FileAuth.Issuer) {
+			config.KeyManagerConfigurations.Issuer = append(config.KeyManagerConfigurations.Issuer, config.FileAuth.Issuer)
+		}
+		if !slices.Contains(config.KeyManagerConfigurations.Audience, config.FileAuth.Audience) {
+			config.KeyManagerConfigurations.Audience = append(config.KeyManagerConfigurations.Audience, config.FileAuth.Audience)
+		}
+		// With no identity provider there is nothing else to validate against,
+		// so default to this service's own JWKS. An explicit KEY_MANAGER_JWKS_URL
+		// still wins, which is what a mixed deployment would set.
+		if strings.TrimSpace(config.KeyManagerConfigurations.JWKSUrl) == "" {
+			config.KeyManagerConfigurations.JWKSUrl = fmt.Sprintf("http://localhost:%d/auth/external/jwks.json", config.ServerPort)
+		}
 	}
 
 	// GitHub configuration for repository API access

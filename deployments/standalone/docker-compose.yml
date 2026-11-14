@@ -27,7 +27,7 @@ services:
     # Writes into fresh named volumes and hands each file to the uid that reads it.
     user: "0:0"
     entrypoint: ["/go/bin/agent-manager-service"]
-    command: ["-init-thunder=/out/thunder", "-init-gateway=/out/gateway"]
+    command: ["-init-thunder=/out/thunder", "-init-gateway=/out/gateway", "-init-fileauth=/out/fileauth"]
     environment:
       THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
       THUNDER_PORT: ${THUNDER_PORT}
@@ -39,6 +39,14 @@ services:
       AMP_PUBLISHER_CLIENT_SECRET: ${AMP_PUBLISHER_CLIENT_SECRET}
       AMP_SYSTEM_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
       AMP_DEFAULT_USERS: ${AMP_DEFAULT_USERS:-}
+      # The admin account. Agent Manager owns it; ThunderID's setup is given
+      # the same value below, so the credentials work whichever AUTH_MODE is in
+      # use and the account outlives ThunderID if the stack ever drops it.
+      AMP_ADMIN_USERNAME: admin
+      AMP_ADMIN_PASSWORD: ${AMP_ADMIN_PASSWORD}
+      # The organization a file-mode token names. Matches amp-api's
+      # PLATFORM_ADMIN_OU_ID so both describe the same organization.
+      PLATFORM_ADMIN_OU_ID: 01900000-0000-7000-8000-000000000001
       GATEWAY_CONTROLPLANE_HOST: amp-api:9243
       DEFAULT_GATEWAY_TOKEN: ${DEFAULT_GATEWAY_TOKEN:-}
       GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
@@ -51,6 +59,7 @@ services:
     volumes:
       - thunder-config:/out/thunder
       - gateway-config:/out/gateway
+      - fileauth-config:/out/fileauth
     networks: [amp]
 
   # --- Identity ---------------------------------------------------------------
@@ -60,7 +69,9 @@ services:
     environment:
       <<: *thunder-env
       ADMIN_USERNAME: admin
-      ADMIN_PASSWORD: ${THUNDER_ADMIN_PASSWORD}
+      # Agent Manager's admin password, not one of ThunderID's own: the same
+      # account signs in whichever mode is configured.
+      ADMIN_PASSWORD: ${AMP_ADMIN_PASSWORD}
     volumes:
       - ./thunder:/amp/thunder:ro
       - thunder-config:/amp/thunder-config:ro
@@ -181,7 +192,26 @@ services:
       IDP_TOKEN_URL: http://thunder:${THUNDER_PORT}/oauth2/token
       IDP_CLIENT_ID: amp-api-client
       IDP_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
-      KEY_MANAGER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
+      # Sign-in mode. "file" authenticates against the user file amp-init
+      # generates from AMP_DEFAULT_USERS and mints its own tokens; "idp" hands
+      # sign-in to ThunderID. ThunderID keeps running either way — agent
+      # identity still uses it.
+      #
+      # Switching to idp means three values: AUTH_MODE=idp, plus
+      # KEY_MANAGER_JWKS_URL here and OBSERVER_JWKS_URL on amp-observer pointed
+      # back at ThunderID (both named inline).
+      #
+      # Known limitation in file mode: OAUTH_AUTHORIZATION_SERVERS above still
+      # advertises ThunderID, so amctl's discovery sends it to ThunderID's
+      # token endpoint and the token it gets back is signed by keys this API
+      # does not hold. Browser sign-in is unaffected. How non-human clients
+      # obtain a file-mode token is still an open question.
+      AUTH_MODE: ${AUTH_MODE:-file}
+      FILE_AUTH_USERS_PATH: /amp/fileauth/users.yaml
+      # In file mode the API validates the tokens it issued itself, so the key
+      # set is its own. Switching AUTH_MODE to idp wants this pointed back at
+      # http://thunder:${THUNDER_PORT}/oauth2/jwks.
+      KEY_MANAGER_JWKS_URL: ${KEY_MANAGER_JWKS_URL:-http://amp-api:8080/auth/external/jwks.json}
       KEY_MANAGER_ISSUER: Agent Management Platform Local,http://${THUNDER_HOST}:${THUNDER_PORT}
       KEY_MANAGER_AUDIENCE: urn:wso2:amp,localhost,amp-publisher-*,amp-api-client,amp-console-client,amctl,am-mcp,http://localhost:${AMP_API_PORT}/mcp
       THUNDER_BASE_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
@@ -207,6 +237,7 @@ services:
       - amp-data:/var/lib/agent-manager
       - amp-keys:/app/keys
       - gateway-config:/amp/gw:ro
+      - fileauth-config:/amp/fileauth:ro
     depends_on:
       thunder:
         condition: service_healthy
@@ -231,8 +262,16 @@ services:
       OPENSEARCH_TLS_INSECURE_SKIP_VERIFY: "true"
       OPENSEARCH_USERNAME: admin
       OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
-      KEY_MANAGER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
-      KEY_MANAGER_ISSUER: http://${THUNDER_HOST}:${THUNDER_PORT}
+      # The observer is a second validator of the same operator tokens, so it
+      # follows amp-api's key set: in file mode the issuer is amp-api, not
+      # ThunderID, and a token minted there would otherwise be rejected here
+      # with nothing naming the reason. Switching AUTH_MODE to idp wants
+      # OBSERVER_JWKS_URL set to http://thunder:${THUNDER_PORT}/oauth2/jwks.
+      KEY_MANAGER_JWKS_URL: ${OBSERVER_JWKS_URL:-http://amp-api:8080/auth/external/jwks.json}
+      # Both issuers are allowed so the observer keeps working across a mode
+      # switch without a second edit; the JWKS above decides which tokens
+      # actually verify.
+      KEY_MANAGER_ISSUER: http://${THUNDER_HOST}:${THUNDER_PORT},amp-file-auth
       KEY_MANAGER_AUDIENCE: urn:wso2:amp,amp-api-client,amp-console-client,am-obs-mcp,http://localhost:${OBSERVER_PORT}/mcp
       SERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
       OAUTH_AUTHORIZATION_SERVERS: http://${THUNDER_HOST}:${THUNDER_PORT}
@@ -261,6 +300,9 @@ services:
       SIGN_OUT_REDIRECT_URL: http://localhost:${CONSOLE_PORT}/login
       API_BASE_URL: http://localhost:${AMP_API_PORT}
       DISABLE_AUTH: "false"
+      # Must match amp-api's AUTH_MODE: the API decides which tokens it accepts,
+      # this decides how the console asks for one.
+      AUTH_MODE: ${AUTH_MODE:-file}
       GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT}
       GATEWAY_VERSION: v2026.09.24
       INSTRUMENTATION_URL: http://${GATEWAY_HOST}:${GATEWAY_PORT}/otel
@@ -336,6 +378,7 @@ volumes:
   amp-keys:
   gateway-config:
   gateway-data:
+  fileauth-config:
 
 networks:
   amp:

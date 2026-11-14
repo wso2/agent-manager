@@ -89,7 +89,12 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"RegisterWebSocketRoutes", "HandleFunc", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is on internalMux and authenticates the gateway with an " +
 		"api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",
-	{"registerHealthCheck", "HandleFunc", "GET /healthz"}:               "unauthenticated liveness probe.",
+	{"registerFileAuthRoutes", "Handle", "POST /auth/login"}: "file-mode sign-in: this is where a caller goes to obtain a token, so it cannot " +
+		"require one. It verifies a bcrypt password against the configured user file and answers 404 when file mode is off; both outcomes are " +
+		"audited as authn:login.",
+	{"registerFileAuthRoutes", "Handle", "OPTIONS /auth/login"}: "the CORS preflight for the sign-in route above. ServeMux matches by method, so " +
+		"without its own pattern the browser's preflight would 405 before reaching the CORS middleware.",
+	{"registerHealthCheck", "HandleFunc", "GET /healthz"}: "unauthenticated liveness probe.",
 	{"registerTelemetryRoutes", "HandleFuncWithValidation", "POST /telemetry/console-actions"}: "lets an authenticated user report their own console UI activity under their own " +
 		"identity; any permission gating it would have to be granted to every role that can open the console, and the payload is " +
 		"validated against a server-side action allowlist rather than by RBAC.",

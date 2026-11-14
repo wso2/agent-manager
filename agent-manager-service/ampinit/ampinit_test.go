@@ -284,3 +284,63 @@ func readFile(t *testing.T, path string) string {
 	}
 	return string(b)
 }
+
+// TestFileAuthUsersIncludeAdminAndExtras pins the thing that would otherwise be
+// found only by failing to sign in: AMP_DEFAULT_USERS names the users *besides*
+// admin, so a stack left on the defaults must still get an admin account.
+func TestFileAuthUsersIncludeAdminAndExtras(t *testing.T) {
+	for k, v := range map[string]string{
+		"AMP_ADMIN_PASSWORD": "secret",
+		"AMP_DEFAULT_USERS":  "dev:pw1, ops:pw2:admin",
+	} {
+		t.Setenv(k, v)
+	}
+
+	cfg, err := LoadFileAuthConfig()
+	if err != nil {
+		t.Fatalf("LoadFileAuthConfig: %v", err)
+	}
+
+	got := map[string]bool{}
+	for _, u := range cfg.Users {
+		got[u.Username] = u.Admin
+	}
+	for name, wantAdmin := range map[string]bool{"admin": true, "dev": false, "ops": true} {
+		admin, present := got[name]
+		if !present {
+			t.Errorf("user %q missing; got %v", name, got)
+			continue
+		}
+		if admin != wantAdmin {
+			t.Errorf("user %q admin = %v, want %v", name, admin, wantAdmin)
+		}
+	}
+}
+
+// TestFileAuthRefusesWithNoAdminPassword keeps the failure at start-up rather
+// than at the login nobody can complete.
+func TestFileAuthRefusesWithNoAdminPassword(t *testing.T) {
+	t.Setenv("AMP_ADMIN_PASSWORD", "")
+	t.Setenv("AMP_DEFAULT_USERS", "")
+	if _, err := LoadFileAuthConfig(); err == nil {
+		t.Fatal("LoadFileAuthConfig succeeded with no admin password, want an error")
+	}
+}
+
+// TestFileAuthExplicitAdminWins lets an operator override the mirrored account
+// through AMP_DEFAULT_USERS instead of it being silently shadowed.
+func TestFileAuthExplicitAdminWins(t *testing.T) {
+	t.Setenv("AMP_ADMIN_PASSWORD", "mirrored")
+	t.Setenv("AMP_DEFAULT_USERS", "admin:chosen")
+
+	cfg, err := LoadFileAuthConfig()
+	if err != nil {
+		t.Fatalf("LoadFileAuthConfig: %v", err)
+	}
+	if n := len(cfg.Users); n != 1 {
+		t.Fatalf("got %d users, want 1 (the explicit admin replaces the mirrored one)", n)
+	}
+	if cfg.Users[0].Password != "chosen" {
+		t.Errorf("admin password = %q, want the explicit one", cfg.Users[0].Password)
+	}
+}

@@ -16,15 +16,67 @@
  * under the License.
  */
 
+import { type AuthMode, globalConfig } from '@agent-management-platform/types';
+
+import { AuthProvider as FileAuthProvider } from './file/FileAuthContext';
+import { useAuthHooks as useFileAuthHooks } from './file/hooks/authHooks';
 import { AuthProvider as NoAuthAuthProvider } from './no-auth/AuthProvider';
 import { useAuthHooks as useNoAuthHooks } from './no-auth/hooks/authHooks';
-
 import { AuthProvider as ThunderIDAuthProvider } from './thunderid/AuthProvider';
 import { useAuthHooks as useThunderIDAuthHooks } from './thunderid/hooks/authHooks';
-import { globalConfig } from '@agent-management-platform/types';
 
-export const AuthProvider = globalConfig.disableAuth ? NoAuthAuthProvider : ThunderIDAuthProvider;
-export const useAuthHooks = globalConfig.disableAuth ? useNoAuthHooks : useThunderIDAuthHooks;
+/**
+ * The provider this console signs in with.
+ *
+ * With nothing configured this falls back to 'thunder', matching the service,
+ * which falls back to 'idp' (config_loader.go). The two have to agree: a
+ * console on 'file' against a service on 'idp' renders a credential form whose
+ * POST answers 404, and nothing in that error names the mismatch.
+ *
+ * 'thunder' is the fallback rather than 'file' because it is the inert choice
+ * — it asks nothing of the host, where file mode refuses to start without a
+ * user file. The shipped stack does not rely on this: compose sets AUTH_MODE
+ * explicitly on both services, so the product still signs in from a file.
+ *
+ * `disableAuth` is still honoured when authMode is unset, so a deployment that
+ * predates the mode setting keeps the behaviour it had. New deployments should
+ * set authMode, which names what it selects rather than what it switches off.
+ */
+export const authMode: AuthMode = (() => {
+  const configured = globalConfig?.authMode;
+  // The compose stack gives both services one AUTH_MODE, and the API spells
+  // the identity-provider mode "idp". Accepting it here keeps that single
+  // value correct for both; without it, AUTH_MODE=idp matched nothing, fell
+  // through to the default, and left the console asking for credentials the
+  // API would not accept.
+  if (configured === 'idp') {
+    return 'thunder';
+  }
+  if (configured === 'file' || configured === 'none' || configured === 'thunder') {
+    return configured;
+  }
+  return globalConfig?.disableAuth ? 'none' : 'thunder';
+})();
+
+/** True when sign-in is a credential form this console renders itself. */
+export const isFileAuthMode = authMode === 'file';
+
+const providers = {
+  file: FileAuthProvider,
+  none: NoAuthAuthProvider,
+  thunder: ThunderIDAuthProvider,
+} as const;
+
+const hooks = {
+  file: useFileAuthHooks,
+  none: useNoAuthHooks,
+  thunder: useThunderIDAuthHooks,
+} as const;
+
+export const AuthProvider = providers[authMode];
+export const useAuthHooks = hooks[authMode];
+
+export { LoginForm } from './file/LoginForm/LoginForm';
 
 export {
   backendEndpoints,

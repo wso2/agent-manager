@@ -238,6 +238,54 @@ func parseUsers(spec string) ([]User, error) {
 	return users, nil
 }
 
+// LoadFileAuthConfig reads the file-based sign-in inputs from the environment.
+//
+// The accounts come from the same AMP_DEFAULT_USERS that seeds ThunderID, so
+// the two modes agree on who can sign in.
+func LoadFileAuthConfig() (*FileAuthConfig, error) {
+	r := &envReader{}
+	cfg := &FileAuthConfig{
+		// The same id the API is given as PLATFORM_ADMIN_OU_ID, so the
+		// organization a file-mode token names is the platform admin one
+		// rather than a second organization beside it.
+		OrgUUID:   r.str("PLATFORM_ADMIN_OU_ID", "01900000-0000-7000-8000-000000000001"),
+		OrgHandle: normaliseHandle(r.str("AMP_DEFAULT_ORG_HANDLE", defaultOrgHandle)),
+	}
+	extra, err := parseUsers(r.str("AMP_DEFAULT_USERS", ""))
+	if err != nil {
+		r.errs = append(r.errs, err)
+	}
+
+	// The admin account ThunderID's setup creates, mirrored here so the same
+	// credentials work in both modes and AMP_DEFAULT_USERS keeps its meaning:
+	// the users *besides* admin. Without this, a stack left on the defaults
+	// (AMP_DEFAULT_USERS is empty) would start with nobody able to sign in.
+	adminName := r.str("AMP_ADMIN_USERNAME", "admin")
+	users := []User{{
+		Username: adminName, Password: r.str("AMP_ADMIN_PASSWORD", ""),
+		Email: adminName + "@example.com", GivenName: adminName, Admin: true,
+	}}
+	// An explicit entry wins, so an operator can give admin a different
+	// password or role through AMP_DEFAULT_USERS without it being shadowed.
+	for _, u := range extra {
+		if u.Username == adminName {
+			users[0] = u
+			continue
+		}
+		users = append(users, u)
+	}
+	// Checked after the override, not before: an explicit admin entry supplies
+	// its own password, and refusing on the mirrored one being empty would
+	// reject a file the operator had configured correctly.
+	if users[0].Password == "" {
+		r.errs = append(r.errs, fmt.Errorf(
+			"no password for %q: set AMP_ADMIN_PASSWORD or give it an AMP_DEFAULT_USERS entry, "+
+				"otherwise file-based sign-in admits nobody", adminName))
+	}
+	cfg.Users = users
+	return cfg, r.err()
+}
+
 // LoadGatewayConfig reads the AI Gateway inputs from the environment.
 func LoadGatewayConfig() (*GatewayConfig, error) {
 	r := &envReader{}
@@ -280,7 +328,7 @@ func SampleThunderConfig() *ThunderConfig {
 
 // Run writes the ThunderID files into thunderDir and the AI Gateway files
 // into gatewayDir, skipping an empty one.
-func Run(thunderDir, gatewayDir string) error {
+func Run(thunderDir, gatewayDir, fileAuthDir string) error {
 	if thunderDir != "" {
 		cfg, err := LoadThunderConfig()
 		if err != nil {
@@ -300,6 +348,17 @@ func Run(thunderDir, gatewayDir string) error {
 			return fmt.Errorf("AI Gateway configuration: %w", err)
 		}
 		slog.Info("Wrote the AI Gateway configuration", "dir", gatewayDir)
+	}
+	if fileAuthDir != "" {
+		cfg, err := LoadFileAuthConfig()
+		if err != nil {
+			return fmt.Errorf("file-based sign-in configuration: %w", err)
+		}
+		if err := WriteFileAuth(cfg, fileAuthDir); err != nil {
+			return fmt.Errorf("file-based sign-in configuration: %w", err)
+		}
+		slog.Info("Wrote the file-based user file",
+			"dir", fileAuthDir, "users", len(cfg.Users), "org", cfg.OrgHandle)
 	}
 	return nil
 }

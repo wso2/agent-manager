@@ -51,7 +51,7 @@ Run AMP Lite from this checkout with Docker:
 make up
 ```
 
-This builds the images and starts the stack; the console is at http://localhost:3000 and the API at http://localhost:9000 (sign in as `admin`, password `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`). For development, `make dev-up` runs the API from source with hot reload and the console with Vite. Run `make help` for the rest.
+This builds the images and starts the stack; the console is at http://localhost:3000 and the API at http://localhost:9000 (sign in as `admin`, password `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`). For development, `make dev-up` runs the API from source with hot reload and the console with Vite. Run `make help` for the rest.
 
 - [User guide](docs/user-guide.md): install a release, register agents and see their traces
 - [Developer guide](docs/developer-guide.md): run from source, change the code and run the tests

@@ -126,14 +126,15 @@ func (k *A2AAgentKind) Render(ctx context.Context, artifact models.ArtifactRef) 
 	return k.renderExternal(ctx, artifact, proxy)
 }
 
+// renderPlatform refuses: a platform-hosted agent needs an agent runtime, which
+// this distribution does not include, so there is no upstream to render. The
+// error comes from serviceURL so the refusal keeps naming the agent, and so
+// this returns to rendering by restoring one call when hosted agents do.
 func (k *A2AAgentKind) renderPlatform(
-	ctx context.Context, artifact models.ArtifactRef, exposure *models.PlatformAgentExposure,
+	ctx context.Context, _ models.ArtifactRef, exposure *models.PlatformAgentExposure,
 ) (reconcile.Rendered, error) {
-	url, err := k.exposures.serviceURL(ctx, exposure)
-	if err != nil {
-		return reconcile.Rendered{}, err
-	}
-	return k.render(ctx, artifact, exposureEnv(exposure), resolvedUpstream{url: url}, false)
+	_, err := k.exposures.serviceURL(ctx, exposure)
+	return reconcile.Rendered{}, err
 }
 
 func (k *A2AAgentKind) renderExternal(ctx context.Context, artifact models.ArtifactRef, proxy *models.A2AProxy) (reconcile.Rendered, error) {

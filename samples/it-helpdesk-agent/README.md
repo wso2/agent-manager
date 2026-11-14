@@ -53,7 +53,7 @@ traces are sent with. Start Agent Manager with `make up` from the repository roo
 (see [`deployments/standalone`](../../deployments/standalone/README.md)), then:
 
 1. Sign in to the console at <http://localhost:3000> as `admin` (the password is
-   `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+   `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
 2. Open the **Default** project, click **Add Agent**, and register an agent named
    `IT Helpdesk Agent`.
 3. In the **Set up agent** panel that opens, choose **Python**, pick a token

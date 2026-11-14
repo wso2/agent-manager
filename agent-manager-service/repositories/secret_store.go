@@ -30,6 +30,7 @@ import (
 // one. An empty value returns nil; the caller deletes current once nothing refers to it.
 func putSecret(tx *gorm.DB, orgID, ownerKind string, ownerID uuid.UUID, current *uuid.UUID, value string) (*uuid.UUID, error) {
 	if value == "" {
+		//nolint:nilnil // no value means no secret: the caller clears its reference
 		return nil, nil
 	}
 	now := dbx.Now()

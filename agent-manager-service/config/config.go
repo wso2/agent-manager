@@ -16,7 +16,10 @@
 
 package config
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // Config holds all configuration for the application
 type Config struct {
@@ -68,6 +71,12 @@ type Config struct {
 	KeyManagerConfigurations KeyManagerConfigurations
 	IsOnPremDeployment       bool
 	ServerPublicURL          string
+
+	// FileAuth configures the file-based login mode used by on-prem
+	// deployments that run without an identity provider. Inert unless
+	// AuthMode is AuthModeFile.
+	AuthMode string
+	FileAuth FileAuthConfig
 
 	// GrowthAnalytics configures feature-usage telemetry export. A no-op
 	// unless GrowthAnalytics.Enabled is true and MoesifCollectorBaseURL is
@@ -333,6 +342,36 @@ type KeyManagerConfigurations struct {
 	Issuer   []string
 	Audience []string
 	JWKSUrl  string
+}
+
+// Authentication modes for AuthMode.
+const (
+	// AuthModeIDP validates tokens issued by an external identity provider
+	// (Thunder). This is the default and the only mode cloud uses.
+	AuthModeIDP = "idp"
+	// AuthModeFile authenticates users against a YAML file of bcrypt hashes
+	// and mints tokens locally. For on-prem deployments with no IdP.
+	AuthModeFile = "file"
+)
+
+// FileAuthConfig configures AuthModeFile.
+//
+// Only settings live here; the user list itself is data and is read from
+// UsersPath, following the same env-var-names-a-YAML-file convention as
+// INSTRUMENTATION_EXTENSION_PATH and the LLM provider templates.
+type FileAuthConfig struct {
+	// UsersPath is the on-disk YAML file holding the organization block and
+	// the users with their bcrypt password hashes.
+	UsersPath string
+	// Issuer is the "iss" claim stamped on login tokens. It MUST differ from
+	// JWTSigning.Issuer: the API gateway binds a key manager to an issuer, so
+	// sharing one would let a login token pass as an agent token.
+	Issuer string
+	// Audience is the "aud" claim stamped on login tokens.
+	Audience string
+	// TokenTTL is how long a login token stays valid. File mode issues no
+	// refresh token, so this is the whole session.
+	TokenTTL time.Duration
 }
 
 type AgentWorkload struct {

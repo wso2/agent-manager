@@ -95,7 +95,7 @@ up: $(STACK_DIR)/.env
 	@echo "🚀 Building images and starting AMP..."
 	@$(COMPOSE) up -d --build --wait
 	@echo "✅ AMP is running"
-	@echo "   Console: http://localhost:3000 (sign in as admin, password THUNDER_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   Console: http://localhost:3000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
 	@echo "   API:     http://localhost:9000"
 
 down:
@@ -142,7 +142,7 @@ dev-up: $(STACK_DIR)/.env
 	@$(DEV_COMPOSE) up -d --build --wait
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
-	@echo "   Console: http://localhost:3000 (sign in as admin, password THUNDER_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   Console: http://localhost:3000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
 	@echo "   API:     http://localhost:9000"
 
 dev-down:

@@ -22,7 +22,7 @@ when the service restarts. The app needs no database.
 
 You run the agent yourself; Agent Manager registers it and issues the token its traces are sent with. Start Agent Manager with `make up` from the repository root (see [`deployments/standalone`](../../deployments/standalone/README.md)), then:
 
-1. Sign in to the console at <http://localhost:3000> as `admin` (the password is `THUNDER_ADMIN_PASSWORD` in `deployments/standalone/.env`).
+1. Sign in to the console at <http://localhost:3000> as `admin` (the password is `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
 2. Open the **Default** project, click **Add Agent**, and register an agent named `Support Agent`.
 3. In the **Set up agent** panel that opens, choose **Python**, pick a token duration and click **Generate**. Copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it shows.
 
