@@ -41,6 +41,19 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build -
 
 Sign in to the console as `admin` with `AMP_ADMIN_PASSWORD` from `.env`.
 
+`AUTH_MODE` decides how sign-in works and ships as `file`: the API checks the
+password against `/etc/amp/users.yaml` and issues its own tokens, with no
+identity provider involved. `amp-init` regenerates that file on every start from
+`AMP_ADMIN_PASSWORD` and `AMP_DEFAULT_USERS`, so edit `.env` and restart rather
+than the file itself. Sessions last `FILE_AUTH_TOKEN_TTL` (8 hours) and are not
+renewed.
+
+File mode suits local and single-operator installs. For anything shared, set
+`AUTH_MODE=idp` to hand sign-in to ThunderID — along with `KEY_MANAGER_JWKS_URL`
+and `OBSERVER_JWKS_URL`, which default to the API's own key set and do not follow
+`AUTH_MODE`. `.env.example` lists all three. ThunderID runs either way, because
+agent identity uses it; `amctl` and the MCP endpoints need `idp`.
+
 ### PostgreSQL
 
 SQLite is the default database. To use PostgreSQL, uncomment `COMPOSE_PROFILES=postgres` and `AMP_DB_DRIVER=postgres` in `.env` (or run `make up DB=postgres`); `amp-api` migrates it on start. Switching does not copy data between the two.

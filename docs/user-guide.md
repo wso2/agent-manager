@@ -73,6 +73,70 @@ Open http://localhost:3000 and sign in as `admin` with the `AMP_ADMIN_PASSWORD` 
 
 A new install has no projects. Create one with **Add project** before you register an agent.
 
+### How sign-in works
+
+`AUTH_MODE` in `.env` decides it, and the stack ships with `file`.
+
+**`file` (the default).** The API checks the password against a user file and
+issues its own tokens, so no identity provider is involved. `amp-init` writes
+that file on every start, from `AMP_ADMIN_PASSWORD` and `AMP_DEFAULT_USERS`, into
+a volume the API reads at `/etc/amp/users.yaml`. It is generated, not edited:
+change the accounts in `.env` and restart, because anything written into the file
+by hand is overwritten. Passwords are stored as bcrypt hashes; the file holds
+every operator's hash, so treat it as a secret.
+
+A session lasts 8 hours (`FILE_AUTH_TOKEN_TTL`). There is no refresh token, so
+the console returns to the sign-in page when it ends rather than renewing.
+
+#### Adding users
+
+`AMP_DEFAULT_USERS` holds the accounts besides `admin`, comma separated, as
+`username:password` or `username:password:admin`. The suffix picks the role:
+
+```
+AMP_DEFAULT_USERS=dev:dev-password, lead:lead-password:admin
+```
+
+| Entry | Role | Scopes |
+| --- | --- | --- |
+| `dev:dev-password` | Developer | 56 |
+| `lead:lead-password:admin` | Agent Manager Admin | 105 |
+
+Developer covers day-to-day work: full control of projects, agents and LLM
+proxies, plus monitors, git secrets and the traces and logs. It can read and
+connect to MCP servers and LLM providers but not create them, and it cannot
+touch organization settings, identity providers, gateways, roles or groups.
+Admin holds everything.
+
+Restart after editing, because the user file is written at start-up:
+
+```
+docker compose up -d --force-recreate amp-init amp-api
+```
+
+Neither username nor password may contain a comma or a colon. The other two
+roles the platform defines, AI Lead and Platform Engineer, aren't reachable from
+`.env`; assign those in the console after the user first signs in.
+
+**`idp`.** Sign-in goes to ThunderID, which is what a shared or production
+deployment should use: accounts, sessions and password policy are then the
+identity provider's rather than a file on the host. File mode is aimed at local
+and single-operator installs.
+
+Switching takes three settings, because the two key-set URLs default to the
+API's own and do not follow `AUTH_MODE`:
+
+```
+AUTH_MODE=idp
+KEY_MANAGER_JWKS_URL=http://thunder:${THUNDER_PORT}/oauth2/jwks
+OBSERVER_JWKS_URL=http://thunder:${THUNDER_PORT}/oauth2/jwks
+```
+
+Set `AUTH_MODE` alone and every token is refused with a bare `401`.
+
+ThunderID runs in both modes: agent identity uses it either way. `amctl` and the
+MCP endpoints also sign in through ThunderID, so they need `AUTH_MODE=idp`.
+
 ## Register an agent and send traces
 
 1. In the console, open a project, click **New agent**, enter a name and click **Register**.
@@ -135,3 +199,4 @@ The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `am
 - Only external agents are supported. Hosted agents (builds and deployments) and evaluations are not available; their API routes answer `501 Not Implemented`.
 - Each organization has one internal environment, which the console doesn't show.
 - It is not production-ready: there is no high availability, and TLS is up to you.
+- Sign-in is file-based by default, which suits local and single-operator installs. Use `AUTH_MODE=idp` for anything shared; see [How sign-in works](#how-sign-in-works).
