@@ -28,11 +28,15 @@ import { useAuthHooks as useThunderIDAuthHooks } from './thunderid/hooks/authHoo
 /**
  * The provider this console signs in with.
  *
- * Defaults to 'file', matching the service's own AUTH_MODE default, so the two
- * halves agree when neither is configured. A deployment that uses an identity
- * provider sets 'thunder' on both — the mismatch it would otherwise hit is a
- * login form posting to an endpoint that answers 404, or a redirect to an IdP
- * whose tokens the service will not accept, neither of which names the cause.
+ * With nothing configured this falls back to 'thunder', matching the service,
+ * which falls back to 'idp' (config_loader.go). The two have to agree: a
+ * console on 'file' against a service on 'idp' renders a credential form whose
+ * POST answers 404, and nothing in that error names the mismatch.
+ *
+ * 'thunder' is the fallback rather than 'file' because it is the inert choice
+ * — it asks nothing of the host, where file mode refuses to start without a
+ * user file. The shipped stack does not rely on this: compose sets AUTH_MODE
+ * explicitly on both services, so the product still signs in from a file.
  *
  * `disableAuth` is still honoured when authMode is unset, so a deployment that
  * predates the mode setting keeps the behaviour it had. New deployments should
@@ -51,7 +55,7 @@ export const authMode: AuthMode = (() => {
   if (configured === 'file' || configured === 'none' || configured === 'thunder') {
     return configured;
   }
-  return globalConfig?.disableAuth ? 'none' : 'file';
+  return globalConfig?.disableAuth ? 'none' : 'thunder';
 })();
 
 /** True when sign-in is a credential form this console renders itself. */

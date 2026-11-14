@@ -47,6 +47,12 @@ type FileAuthContextValue = {
   signOut: () => Promise<void>;
 };
 
+/**
+ * The largest delay setTimeout accepts: it stores the value in a signed 32-bit
+ * integer (about 24.8 days), and anything larger wraps round and fires at once.
+ */
+const MAX_TIMEOUT_MS = 2_147_483_647;
+
 const FileAuthContext = createContext<FileAuthContextValue | null>(null);
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
@@ -69,15 +75,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     if (!session) {
       return undefined;
     }
-    const remaining = session.expiresAt - Date.now();
-    if (remaining <= 0) {
-      setSession(null);
-      return undefined;
-    }
-    const timer = window.setTimeout(() => {
-      clearSession();
-      setSession(null);
-    }, remaining);
+    let timer = 0;
+    const signOutWhenExpired = () => {
+      const remaining = session.expiresAt - Date.now();
+      if (remaining <= 0) {
+        clearSession();
+        setSession(null);
+        return;
+      }
+      // setTimeout holds its delay in a signed 32-bit integer, so anything
+      // past MAX_TIMEOUT_MS wraps and fires immediately: a long
+      // FILE_AUTH_TOKEN_TTL would sign the user out the moment they signed
+      // in. Wait in bounded steps and re-check instead of trusting one long
+      // sleep — which also means a laptop that suspends wakes up to a fresh
+      // comparison against the clock rather than a timer that drifted.
+      timer = window.setTimeout(signOutWhenExpired, Math.min(remaining, MAX_TIMEOUT_MS));
+    };
+    signOutWhenExpired();
     return () => window.clearTimeout(timer);
   }, [session]);
 
