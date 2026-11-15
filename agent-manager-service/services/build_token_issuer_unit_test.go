@@ -127,7 +127,7 @@ func (s *btStore) mock(ref string, err error) *clientmocks.SecretManagementClien
 }
 
 func newTestBuildTokenIssuer(srv *httptest.Server, store *clientmocks.SecretManagementClientMock) *buildTokenIssuer {
-	return newBuildTokenIssuer(srv.URL+"/oauth2/token", btClientID, btClientSecret, srv.Client(), store, discardLogger())
+	return newBuildTokenIssuer(srv.URL+"/oauth2/token", btClientID, btClientSecret, "", srv.Client(), store, discardLogger())
 }
 
 func TestNewBuildTokenIssuer_DisabledIsNil(t *testing.T) {
@@ -138,7 +138,7 @@ func TestNewBuildTokenIssuer_DisabledIsNil(t *testing.T) {
 func TestNewBuildTokenIssuer_EnabledUsesTheServiceClient(t *testing.T) {
 	cfg := config.Config{
 		IDP:         config.IDPConfig{TokenURL: "https://idp.example.com/oauth2/token", ClientID: btClientID, ClientSecret: btClientSecret},
-		BuildClient: config.BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}},
+		BuildClient: config.BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: "urn:wso2:cloud"},
 	}
 	issuer := NewBuildTokenIssuer(cfg, discardLogger(), &clientmocks.SecretManagementClientMock{})
 	require.NotNil(t, issuer)
@@ -147,6 +147,7 @@ func TestNewBuildTokenIssuer_EnabledUsesTheServiceClient(t *testing.T) {
 	assert.Equal(t, "https://idp.example.com/oauth2/token", impl.idpTokenURL)
 	assert.Equal(t, btClientID, impl.clientID)
 	assert.Equal(t, btClientSecret, impl.clientSecret)
+	assert.Equal(t, "urn:wso2:cloud", impl.resource)
 	_, isSetter := issuer.(BuildTokenIssuerBackgroundContextSetter)
 	assert.True(t, isSetter, "app.Run must be able to install the background context")
 }
@@ -188,6 +189,21 @@ func TestBuildTokenIssuer_IssuesAndStoresAnOrganizationToken(t *testing.T) {
 	assert.Equal(t, btOrg, org.OUID)
 	_, hasDeadline := store.ctx.Deadline()
 	assert.True(t, hasDeadline, "the secret store call is bounded")
+}
+
+func TestBuildTokenIssuer_RequestsTheConfiguredResource(t *testing.T) {
+	token := btToken(t, btClaims(btOrg, btClientID, time.Hour))
+	idp := &btIdP{status: http.StatusOK, body: `{"access_token":"` + token + `"}`}
+	srv := idp.server(t)
+	store := &btStore{}
+	issuer := newBuildTokenIssuer(srv.URL+"/oauth2/token", btClientID, btClientSecret, " urn:wso2:cloud ",
+		srv.Client(), store.mock(btSecretRef, nil), discardLogger())
+
+	got, err := issuer.IssueBuildToken(auditableCtx(t), btOrg)
+	require.NoError(t, err)
+	assert.Equal(t, btSecretRef, got.SecretRefName)
+	assert.Equal(t, []string{"urn:wso2:cloud"}, idp.form["resource"], "the scope is requested for the resource server that defines it")
+	assert.Equal(t, []string{btBuildScope}, idp.form["scope"])
 }
 
 func TestBuildTokenIssuer_RefusesTokensThatAreNotThisOrganizationsBuildToken(t *testing.T) {
