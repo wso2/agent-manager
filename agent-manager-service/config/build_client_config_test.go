@@ -102,21 +102,55 @@ func TestValidateBuildClientConfig(t *testing.T) {
 			wantErrors: 0,
 		},
 		{
-			name:       "an absolute resource indicator is accepted",
-			cfg:        Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: "urn:wso2:cloud"}},
+			name:       "an absolute resource indicator the audience admits is accepted",
+			cfg:        withResource(validIDP, "urn:wso2:cloud", "AGENT_MANAGER_CONSOLE", "urn:wso2:cloud"),
 			wantErrors: 0,
 		},
 		{
-			name:        "a relative resource indicator is refused",
-			cfg:         Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: "amp"}},
+			name:       "a resource indicator admitted by a prefix wildcard is accepted",
+			cfg:        withResource(validIDP, "https://api.example.com/amp", "https://api.example.com/*"),
+			wantErrors: 0,
+		},
+		{
+			name:        "a resource indicator the audience does not admit is refused",
+			cfg:         withResource(validIDP, "urn:wso2:cloud", "AGENT_MANAGER_CONSOLE", "urn:wso2:cloud:platform-api"),
 			wantErrors:  1,
-			errContains: "AMP_BUILD_CLIENT_RESOURCE",
+			errContains: "KEY_MANAGER_AUDIENCE",
+		},
+		{
+			name:        "a bare wildcard audience admits no resource indicator",
+			cfg:         withResource(validIDP, "urn:wso2:cloud", "*"),
+			wantErrors:  1,
+			errContains: "KEY_MANAGER_AUDIENCE",
+		},
+		{
+			name:        "a relative resource indicator is refused",
+			cfg:         withResource(validIDP, "amp", "amp"),
+			wantErrors:  1,
+			errContains: "absolute URI",
 		},
 		{
 			name:        "a resource indicator with a fragment is refused",
-			cfg:         Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: "https://api.example.com/amp#x"}},
+			cfg:         withResource(validIDP, "https://api.example.com/amp#x", "https://api.example.com/*"),
 			wantErrors:  1,
-			errContains: "AMP_BUILD_CLIENT_RESOURCE",
+			errContains: "absolute URI",
+		},
+		{
+			name:        "a resource indicator with an empty fragment is refused",
+			cfg:         withResource(validIDP, "urn:wso2:cloud#", "urn:wso2:cloud*"),
+			wantErrors:  1,
+			errContains: "absolute URI",
+		},
+		{
+			name:        "a resource indicator with a space is refused",
+			cfg:         withResource(validIDP, "urn:wso2:cl oud", "urn:wso2:*"),
+			wantErrors:  1,
+			errContains: "absolute URI",
+		},
+		{
+			name:       "a percent-encoded hash is accepted",
+			cfg:        withResource(validIDP, "urn:wso2:cloud%23x", "urn:wso2:*"),
+			wantErrors: 0,
 		},
 		{
 			name:       "disabled does not check the resource indicator",
@@ -143,6 +177,40 @@ func TestValidateBuildClientConfig(t *testing.T) {
 				}
 			}
 			t.Errorf("expected an error containing %q, got %v", tc.errContains, r.errors)
+		})
+	}
+}
+
+// withResource is an enabled build client requesting tokens for resource, with
+// KEY_MANAGER_AUDIENCE set to audience.
+func withResource(idp IDPConfig, resource string, audience ...string) Config {
+	return Config{
+		IDP:                      idp,
+		KeyManagerConfigurations: KeyManagerConfigurations{Audience: audience},
+		BuildClient:              BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: resource},
+	}
+}
+
+func TestAudienceAdmits(t *testing.T) {
+	tests := []struct {
+		name     string
+		allowed  []string
+		aud      string
+		admitted bool
+	}{
+		{name: "exact entry", allowed: []string{"a", "urn:wso2:cloud"}, aud: "urn:wso2:cloud", admitted: true},
+		{name: "exact entry with surrounding whitespace", allowed: []string{" urn:wso2:cloud "}, aud: "urn:wso2:cloud", admitted: true},
+		{name: "prefix wildcard", allowed: []string{"urn:wso2:*"}, aud: "urn:wso2:cloud", admitted: true},
+		{name: "a longer entry is not a match", allowed: []string{"urn:wso2:cloud:platform-api"}, aud: "urn:wso2:cloud", admitted: false},
+		{name: "an exact entry is not a prefix", allowed: []string{"urn:wso2"}, aud: "urn:wso2:cloud", admitted: false},
+		{name: "a bare wildcard admits nothing", allowed: []string{"*"}, aud: "urn:wso2:cloud", admitted: false},
+		{name: "an empty list admits nothing", allowed: nil, aud: "urn:wso2:cloud", admitted: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := audienceAdmits(tc.allowed, tc.aud); got != tc.admitted {
+				t.Errorf("audienceAdmits(%v, %q) = %v, want %v", tc.allowed, tc.aud, got, tc.admitted)
+			}
 		})
 	}
 }

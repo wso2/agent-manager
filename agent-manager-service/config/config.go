@@ -666,8 +666,8 @@ type BuildClientConfig struct {
 	// defines amp:agent:build, for an identity provider whose default resource
 	// server does not (it drops a scope it does not define, so the token would
 	// carry none and every build would fail). It becomes the token's audience, so
-	// KEY_MANAGER_AUDIENCE must admit it. Empty requests none, and the token's
-	// audience is IDP_CLIENT_ID.
+	// KEY_MANAGER_AUDIENCE must admit it, which startup checks. Empty requests none,
+	// and the token's audience is IDP_CLIENT_ID.
 	Resource string
 }
 

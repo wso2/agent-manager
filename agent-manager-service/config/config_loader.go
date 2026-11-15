@@ -659,12 +659,44 @@ func validateBuildClientConfig(cfg *Config, r *configReader) {
 	if store := cfg.BuildClient.SecretStore; store != "" && !secretStoreNamePattern.MatchString(store) {
 		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_SECRET_STORE %q is not a valid ClusterSecretStore name", store))
 	}
-	// RFC 8707: a resource indicator is an absolute URI without a fragment.
+	// RFC 8707: a resource indicator is an absolute URI without a fragment. It
+	// becomes every build token's audience, so KEY_MANAGER_AUDIENCE must admit it,
+	// or every publish would be refused with 401 and nothing would say why until a
+	// build ran.
 	if res := cfg.BuildClient.Resource; res != "" {
-		if parsed, err := url.Parse(res); err != nil || parsed.Scheme == "" || parsed.Fragment != "" {
+		if parsed, err := url.Parse(res); err != nil || parsed.Scheme == "" || !resourceIndicatorPattern.MatchString(res) {
 			r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_RESOURCE %q must be an absolute URI without a fragment", res))
+		} else if !audienceAdmits(cfg.KeyManagerConfigurations.Audience, res) {
+			r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_RESOURCE %q must also be admitted by KEY_MANAGER_AUDIENCE: it is the build tokens' audience", res))
 		}
 	}
+}
+
+// resourceIndicatorPattern is the characters a URI may contain (RFC 3986
+// unreserved, reserved and '%' for percent-encoding) other than '#', which would
+// start a fragment, even an empty one. url.Parse accepts an opaque URI with a
+// space ("urn:a b") or a trailing '#', so it is not enough on its own.
+var resourceIndicatorPattern = regexp.MustCompile(`^[A-Za-z0-9\-._~:/?\[\]@!$&'()*+,;=%]+$`)
+
+// audienceAdmits reports whether an audience list (KEY_MANAGER_AUDIENCE) accepts
+// aud under the rules jwtassertion's validateAudience applies to a token: an
+// exact entry, or an entry ending in '*' that aud starts with. A bare '*' admits
+// nothing (validateAudience refuses it outright). config cannot import
+// jwtassertion, which imports config, so the rules are repeated here.
+func audienceAdmits(allowed []string, aud string) bool {
+	for _, entry := range allowed {
+		a := strings.TrimSpace(entry)
+		if prefix, wildcard := strings.CutSuffix(a, "*"); wildcard {
+			if prefix != "" && strings.HasPrefix(aud, prefix) {
+				return true
+			}
+			continue
+		}
+		if a == aud {
+			return true
+		}
+	}
+	return false
 }
 
 // secretStoreNamePattern is a Kubernetes object name (RFC 1123 subdomain): what a
