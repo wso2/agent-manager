@@ -124,6 +124,12 @@ func TestValidateBuildClientConfig(t *testing.T) {
 			errContains: "KEY_MANAGER_AUDIENCE",
 		},
 		{
+			name:        "an audience list holding a bare wildcard is refused even with a matching entry",
+			cfg:         withResource(validIDP, "urn:wso2:cloud", "urn:wso2:cloud", "*"),
+			wantErrors:  1,
+			errContains: "KEY_MANAGER_AUDIENCE",
+		},
+		{
 			name:        "a relative resource indicator is refused",
 			cfg:         withResource(validIDP, "amp", "amp"),
 			wantErrors:  1,
@@ -204,6 +210,11 @@ func TestAudienceAdmits(t *testing.T) {
 		{name: "a longer entry is not a match", allowed: []string{"urn:wso2:cloud:platform-api"}, aud: "urn:wso2:cloud", admitted: false},
 		{name: "an exact entry is not a prefix", allowed: []string{"urn:wso2"}, aud: "urn:wso2:cloud", admitted: false},
 		{name: "a bare wildcard admits nothing", allowed: []string{"*"}, aud: "urn:wso2:cloud", admitted: false},
+		// validateAudience refuses a whole list that holds a bare '*', so a match
+		// elsewhere in it does not help.
+		{name: "a bare wildcard after a matching entry", allowed: []string{"urn:wso2:cloud", "*"}, aud: "urn:wso2:cloud", admitted: false},
+		{name: "a bare wildcard before a matching entry", allowed: []string{"*", "urn:wso2:cloud"}, aud: "urn:wso2:cloud", admitted: false},
+		{name: "a bare wildcard with whitespace beside a prefix match", allowed: []string{"urn:wso2:*", " * "}, aud: "urn:wso2:cloud", admitted: false},
 		{name: "an empty list admits nothing", allowed: nil, aud: "urn:wso2:cloud", admitted: false},
 	}
 	for _, tc := range tests {

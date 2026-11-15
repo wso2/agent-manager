@@ -680,14 +680,20 @@ var resourceIndicatorPattern = regexp.MustCompile(`^[A-Za-z0-9\-._~:/?\[\]@!$&'(
 
 // audienceAdmits reports whether an audience list (KEY_MANAGER_AUDIENCE) accepts
 // aud under the rules jwtassertion's validateAudience applies to a token: an
-// exact entry, or an entry ending in '*' that aud starts with. A bare '*' admits
-// nothing (validateAudience refuses it outright). config cannot import
-// jwtassertion, which imports config, so the rules are repeated here.
+// exact entry, or an entry ending in '*' that aud starts with. A list holding a
+// bare '*' anywhere admits nothing, as validateAudience refuses the whole list
+// then, whatever else it holds. config cannot import jwtassertion, which imports
+// config, so the rules are repeated here.
 func audienceAdmits(allowed []string, aud string) bool {
+	for _, entry := range allowed {
+		if strings.TrimSpace(entry) == "*" {
+			return false
+		}
+	}
 	for _, entry := range allowed {
 		a := strings.TrimSpace(entry)
 		if prefix, wildcard := strings.CutSuffix(a, "*"); wildcard {
-			if prefix != "" && strings.HasPrefix(aud, prefix) {
+			if strings.HasPrefix(aud, prefix) {
 				return true
 			}
 			continue
