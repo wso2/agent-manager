@@ -99,6 +99,9 @@ type buildTokenIssuer struct {
 	idpTokenURL  string
 	clientID     string
 	clientSecret string
+	// resource is the RFC 8707 resource indicator the token is requested for
+	// (config.BuildClient.Resource); empty requests none.
+	resource     string
 	httpClient   requests.HttpClient
 	secretClient secretmanagersvc.SecretManagementClient
 	logger       *slog.Logger
@@ -122,13 +125,13 @@ func NewBuildTokenIssuer(
 		return nil
 	}
 	logger.Info("Build tokens enabled", "workflows", cfg.BuildClient.Workflows, "clientId", cfg.IDP.ClientID,
-		"scope", jwtassertion.BuildTokenScope())
-	return newBuildTokenIssuer(cfg.IDP.TokenURL, cfg.IDP.ClientID, cfg.IDP.ClientSecret,
+		"scope", jwtassertion.BuildTokenScope(), "resource", cfg.BuildClient.Resource)
+	return newBuildTokenIssuer(cfg.IDP.TokenURL, cfg.IDP.ClientID, cfg.IDP.ClientSecret, cfg.BuildClient.Resource,
 		requests.NewRetryableHTTPClient(&http.Client{}), secretClient, logger)
 }
 
 func newBuildTokenIssuer(
-	idpTokenURL, clientID, clientSecret string,
+	idpTokenURL, clientID, clientSecret, resource string,
 	httpClient requests.HttpClient,
 	secretClient secretmanagersvc.SecretManagementClient,
 	logger *slog.Logger,
@@ -137,6 +140,7 @@ func newBuildTokenIssuer(
 		idpTokenURL:  idpTokenURL,
 		clientID:     strings.TrimSpace(clientID),
 		clientSecret: clientSecret,
+		resource:     strings.TrimSpace(resource),
 		httpClient:   httpClient,
 		secretClient: secretClient,
 		logger:       logger,
@@ -249,19 +253,25 @@ type buildTokenResponse struct {
 
 // requestToken asks the organization token endpoint for a client_credentials
 // token, authenticating with client_secret_basic as this service's other token
-// requests do. It requests the build scope only (jwtassertion.BuildTokenScope)
-// and no resource, so the token's audience is this service's client ID, which is
-// what the build publisher endpoint accepts.
+// requests do. It requests the build scope only (jwtassertion.BuildTokenScope),
+// for the configured resource server when there is one: an identity provider
+// issues a scope only for the resource server that defines it, and drops it
+// otherwise. Without a resource the token's audience is this service's client
+// ID; with one it is the resource, which KEY_MANAGER_AUDIENCE must admit.
 func (i *buildTokenIssuer) requestToken(ctx context.Context, tokenURL string) (string, error) {
 	req := &requests.HttpRequest{
 		Name:   "buildtoken.requestToken",
 		URL:    tokenURL,
 		Method: http.MethodPost,
 	}
-	req.SetFormData(map[string]string{
+	form := map[string]string{
 		"grant_type": "client_credentials",
 		"scope":      jwtassertion.BuildTokenScope(),
-	})
+	}
+	if i.resource != "" {
+		form["resource"] = i.resource
+	}
+	req.SetFormData(form)
 	req.SetHeader("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(i.clientID+":"+i.clientSecret)))
 
 	var resp buildTokenResponse

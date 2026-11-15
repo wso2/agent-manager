@@ -661,6 +661,14 @@ type BuildClientConfig struct {
 	// read; a run then gets the token only if its workflow declares
 	// ampBuild.secretStore.
 	SecretStore string
+	// Resource is the RFC 8707 resource indicator the build token is requested
+	// for (AMP_BUILD_CLIENT_RESOURCE): the identifier of the resource server that
+	// defines amp:agent:build, for an identity provider whose default resource
+	// server does not (it drops a scope it does not define, so the token would
+	// carry none and every build would fail). It becomes the token's audience, so
+	// KEY_MANAGER_AUDIENCE must admit it. Empty requests none, and the token's
+	// audience is IDP_CLIENT_ID.
+	Resource string
 }
 
 // ThunderConfig holds Thunder admin API configuration for provisioning OAuth apps

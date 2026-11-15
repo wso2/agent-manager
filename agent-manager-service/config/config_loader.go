@@ -312,6 +312,7 @@ func loadEnvs() {
 		Workflows: r.readOptionalStringList("AMP_BUILD_CLIENT_WORKFLOWS",
 			"amp-docker,amp-ballerina-buildpack,amp-google-cloud-buildpacks"),
 		SecretStore: strings.TrimSpace(r.readOptionalString("AMP_BUILD_CLIENT_SECRET_STORE", "")),
+		Resource:    strings.TrimSpace(r.readOptionalString("AMP_BUILD_CLIENT_RESOURCE", "")),
 	}
 	validateBuildClientConfig(config, r)
 
@@ -657,6 +658,12 @@ func validateBuildClientConfig(cfg *Config, r *configReader) {
 	}
 	if store := cfg.BuildClient.SecretStore; store != "" && !secretStoreNamePattern.MatchString(store) {
 		r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_SECRET_STORE %q is not a valid ClusterSecretStore name", store))
+	}
+	// RFC 8707: a resource indicator is an absolute URI without a fragment.
+	if res := cfg.BuildClient.Resource; res != "" {
+		if parsed, err := url.Parse(res); err != nil || parsed.Scheme == "" || parsed.Fragment != "" {
+			r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_RESOURCE %q must be an absolute URI without a fragment", res))
+		}
 	}
 }
 

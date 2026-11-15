@@ -101,6 +101,28 @@ func TestValidateBuildClientConfig(t *testing.T) {
 			cfg:        Config{IDP: validIDP, Thunder: ThunderConfig{}, BuildClient: enabled},
 			wantErrors: 0,
 		},
+		{
+			name:       "an absolute resource indicator is accepted",
+			cfg:        Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: "urn:wso2:cloud"}},
+			wantErrors: 0,
+		},
+		{
+			name:        "a relative resource indicator is refused",
+			cfg:         Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: "amp"}},
+			wantErrors:  1,
+			errContains: "AMP_BUILD_CLIENT_RESOURCE",
+		},
+		{
+			name:        "a resource indicator with a fragment is refused",
+			cfg:         Config{IDP: validIDP, BuildClient: BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: "https://api.example.com/amp#x"}},
+			wantErrors:  1,
+			errContains: "AMP_BUILD_CLIENT_RESOURCE",
+		},
+		{
+			name:       "disabled does not check the resource indicator",
+			cfg:        Config{IDP: validIDP, BuildClient: BuildClientConfig{Resource: "amp"}},
+			wantErrors: 0,
+		},
 	}
 
 	for _, tc := range tests {
@@ -206,6 +228,7 @@ func TestLoadEnvs_BuildClientDefaults(t *testing.T) {
 	t.Setenv("AMP_BUILD_CLIENT_ENABLED", "")
 	t.Setenv("AMP_BUILD_CLIENT_WORKFLOWS", "")
 	t.Setenv("AMP_BUILD_CLIENT_SECRET_STORE", "")
+	t.Setenv("AMP_BUILD_CLIENT_RESOURCE", "")
 	loadEnvs()
 
 	if config.BuildClient.Enabled {
@@ -218,6 +241,16 @@ func TestLoadEnvs_BuildClientDefaults(t *testing.T) {
 	if config.BuildClient.SecretStore != "" {
 		t.Errorf("BuildClient.SecretStore = %q, want empty by default", config.BuildClient.SecretStore)
 	}
+	if config.BuildClient.Resource != "" {
+		t.Errorf("BuildClient.Resource = %q, want empty by default", config.BuildClient.Resource)
+	}
+
+	t.Setenv("AMP_BUILD_CLIENT_RESOURCE", " urn:wso2:cloud ")
+	loadEnvs()
+	if config.BuildClient.Resource != "urn:wso2:cloud" {
+		t.Errorf("BuildClient.Resource = %q, want the trimmed AMP_BUILD_CLIENT_RESOURCE", config.BuildClient.Resource)
+	}
+	t.Setenv("AMP_BUILD_CLIENT_RESOURCE", "")
 
 	t.Setenv("AMP_BUILD_CLIENT_SECRET_STORE", "  secretstore-read  ")
 	loadEnvs()
