@@ -39,9 +39,10 @@ type A2AProxy struct {
 	UpstreamAuthHeader string `gorm:"column:upstream_auth_header"`
 	// UpstreamAuthSecretID is the secrets row holding the header value.
 	UpstreamAuthSecretID *uuid.UUID `gorm:"column:upstream_auth_secret_id"`
-	// UpstreamAuthSecret is the header value as base64 AES-256-GCM ciphertext, read from and written to the secrets
-	// row by the repository; it is never returned.
-	UpstreamAuthSecret string    `gorm:"-"`
+	// UpstreamAuthSecret is the header value as the base64 AES-256-GCM secretRef the gateway artifact carries. The
+	// repository reads and writes it through the secret store, which seals it into the secrets row; it is never
+	// returned.
+	UpstreamAuthSecret string    `gorm:"-" json:"-"`
 	CreatedAt          time.Time `gorm:"column:created_at"`
 	UpdatedAt          time.Time `gorm:"column:updated_at"`
 }

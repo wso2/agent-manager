@@ -52,6 +52,8 @@ import (
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 	ProvideEncryptionKey,
+	ProvideSecretVaults,
+	repositories.NewSecretStore,
 )
 
 var clientProviderSet = wire.NewSet(
@@ -203,13 +205,11 @@ func ProvideAuditRecorder(cfg config.Config, logger *slog.Logger) audit.Recorder
 }
 
 // ProvideSecretManagementClient creates the secret management service client.
-// If the provider implements secretmanagersvc.SecretReferenceManager and
-// reports that it manages SecretReferences itself, no SecretReference client is
-// forwarded — preventing the high-level client from making redundant
-// SecretReference CRUD calls.
-func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
+// The database and its secret store are handed to the provider for the
+// in-house store; a provider with its own backend ignores them.
+func ProvideSecretManagementClient(cfg config.Config, db *gorm.DB, secrets *repositories.SecretStore, secretProvider secretmanagersvc.Provider) (secretmanagersvc.SecretManagementClient, error) {
 	return secretmanagersvc.NewSecretManagementClientWithConfig(secretmanagersvc.SecretManagementClientConfig{
-		StoreConfig: &secretmanagersvc.StoreConfig{Provider: cfg.SecretManager.Provider},
+		StoreConfig: &secretmanagersvc.StoreConfig{Provider: cfg.SecretManager.Provider, DB: db, Secrets: secrets},
 		Provider:    secretProvider,
 	})
 }
@@ -440,8 +440,8 @@ func ProvideA2AAgentCardRepository(db *gorm.DB) repositories.A2AAgentCardReposit
 	return repositories.NewA2AAgentCardRepository(db)
 }
 
-func ProvideA2AProxyRepository(db *gorm.DB) repositories.A2AProxyRepository {
-	return repositories.NewA2AProxyRepository(db)
+func ProvideA2AProxyRepository(db *gorm.DB, secrets *repositories.SecretStore) repositories.A2AProxyRepository {
+	return repositories.NewA2AProxyRepository(db, secrets)
 }
 
 // ProvideA2AProxyHooks gives the card service the proxy hooks only, not the whole proxy service.

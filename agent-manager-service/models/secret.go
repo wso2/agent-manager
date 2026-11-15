@@ -22,10 +22,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// SecretProviderLocal secrets hold their value encrypted in the row.
-const SecretProviderLocal = "local"
-
-// Secret is a credential another row refers to by id, so the owning row never holds the value.
+// Secret is a credential another row refers to by id, so the owning row never holds the value. Provider names
+// the vault that protects it: Ciphertext and KeyID are set when that vault encrypts into the row, ExternalRef
+// when it keeps the value elsewhere.
 type Secret struct {
 	ID          uuid.UUID `gorm:"column:id;primaryKey"`
 	OrgID       string    `gorm:"column:org_id"`

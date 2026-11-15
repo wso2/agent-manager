@@ -189,16 +189,18 @@ One row per agent per environment. Replaces `agent_configs`. PK (agent_id, envir
 |---|---|---|---|
 | id | ID | no | PK |
 | org_id | ID | no | FK → organizations, no cascade |
-| owner_kind | short text (32) | no | What uses it (llm_provider, event_destination, a2a_proxy, ...). For cleanup; not an FK. |
+| owner_kind | short text (32) | no | What uses it (llm_provider, event_destination, a2a_proxy, ...). For cleanup; not an FK. `named_secret` rows are addressed by name through the secret management client and are their own owner. |
 | owner_id | ID | no | |
-| provider | short text (16) | no | `db`, or an external vault's name |
-| ciphertext | binary | yes | `db` only. AES-256-GCM, nonce stored with it. |
-| key_id | short text (64) | yes | Master key that encrypted it, for rotation. |
+| provider | short text (16) | no | The vault that protects the value: `local`, or an external vault's name |
+| ciphertext | binary | yes | `local` only. AES-256-GCM, nonce stored with it, bound to (org_id, id) so it does not open in another row. |
+| key_id | short text (64) | yes | Master key that encrypted it, for rotation. NULL on rows written before the vault. |
 | external_ref | short text (512) | yes | Path in the external vault. |
 | version | whole number | no | |
 | created_at, updated_at | time | no | |
 
-Index (org_id, owner_kind, owner_id). Owning tables reference a secret by `secret_id` (FK, no action); the service deletes the secret after the owner. Every value encrypted inline today moves here: LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth, A2A upstream auth, event destination secrets.
+Index (org_id, owner_kind, owner_id). Owning tables reference a secret by `secret_id` (FK, no action); the service deletes the secret after the owner.
+
+Values go through a vault (`agent-manager-service/vault`), selected by `SECRET_VAULT_PROVIDER`. The built-in `local` vault encrypts into the row. An external vault is a Go package that implements `vault.Vault` and registers itself with `vault.Register`; it stores the value itself and returns the `external_ref` to keep. Rows are opened by the vault named in `provider`, so values written by `local` stay readable after a deployment switches. Every value encrypted inline today moves here: LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth, A2A upstream auth, event destination secrets.
 
 ## Gateways, LLM, MCP and A2A
 

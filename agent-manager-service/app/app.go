@@ -195,14 +195,19 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// Deployment-specific AgentID provisioning; nil disables it.
 	var agentThunderProvisioning services.AgentThunderProvisioningService
 	if opts.AgentThunderProvisioning != nil {
-		secretMgmtClientForProvisioning, err := wiring.ProvideSecretManagementClient(*cfg, secretProvider)
-		if err != nil {
-			slog.Error("failed to create secret management client for AgentID provisioning", "error", err)
-			os.Exit(1)
-		}
 		encryptionKey, err := wiring.ProvideEncryptionKey(*cfg)
 		if err != nil {
 			slog.Error("failed to load encryption key for AgentID provisioning", "error", err)
+			os.Exit(1)
+		}
+		secretVaults, err := wiring.ProvideSecretVaults(*cfg, encryptionKey)
+		if err != nil {
+			slog.Error("failed to open the secret vault for AgentID provisioning", "error", err)
+			os.Exit(1)
+		}
+		secretMgmtClientForProvisioning, err := wiring.ProvideSecretManagementClient(*cfg, database, repositories.NewSecretStore(secretVaults), secretProvider)
+		if err != nil {
+			slog.Error("failed to create secret management client for AgentID provisioning", "error", err)
 			os.Exit(1)
 		}
 		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, repositories.NewPlatformRepo(database), encryptionKey)

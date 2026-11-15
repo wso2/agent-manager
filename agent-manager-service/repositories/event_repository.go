@@ -165,12 +165,13 @@ type EventRepository interface {
 }
 
 type eventRepository struct {
-	db *gorm.DB
+	db      *gorm.DB
+	secrets *SecretStore
 }
 
 // NewEventRepository creates an EventRepository.
-func NewEventRepository(db *gorm.DB) EventRepository {
-	return &eventRepository{db: db}
+func NewEventRepository(db *gorm.DB, secrets *SecretStore) EventRepository {
+	return &eventRepository{db: db, secrets: secrets}
 }
 
 // Child rows: a destination's projects, a subscription's event types and environments, a delivery's subscriptions.
@@ -259,7 +260,7 @@ func optionalID(ids map[string]uuid.UUID, name string) *uuid.UUID {
 }
 
 // loadDestinations fills the destinations' projects and secrets.
-func loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
+func (r *eventRepository) loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
 	if len(ds) == 0 {
 		return nil
 	}
@@ -294,12 +295,8 @@ func loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
 			projects = []string{}
 		}
 		ds[i].Projects = projects
-		secret, err := getSecret(db, ds[i].SecretID)
-		if err != nil {
+		if ds[i].Secret, err = r.secrets.get(db, ds[i].SecretID); err != nil {
 			return err
-		}
-		if secret != "" {
-			ds[i].SecretEncrypted = []byte(secret)
 		}
 	}
 	return nil
@@ -333,7 +330,7 @@ func (r *eventRepository) ListDestinations(ctx context.Context, ouID string) ([]
 	if err != nil {
 		return nil, err
 	}
-	return out, loadDestinations(db, out)
+	return out, r.loadDestinations(db, out)
 }
 
 func (r *eventRepository) GetDestination(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error) {
@@ -343,7 +340,7 @@ func (r *eventRepository) GetDestination(ctx context.Context, ouID string, id uu
 		return nil, err
 	}
 	ds := []models.EventDestination{d}
-	if err := loadDestinations(db, ds); err != nil {
+	if err := r.loadDestinations(db, ds); err != nil {
 		return nil, err
 	}
 	return &ds[0], nil
@@ -359,7 +356,7 @@ func (r *eventRepository) DestinationsByID(ctx context.Context, ouID string, ids
 		}
 		out = append(out, part...)
 	}
-	return out, loadDestinations(db, out)
+	return out, r.loadDestinations(db, out)
 }
 
 // nameTaken reports whether another of the org's destinations has name, in any case.
@@ -386,7 +383,7 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 			}
 			return err
 		}
-		secretID, err := putSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, string(d.SecretEncrypted))
+		secretID, err := r.secrets.put(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, d.Secret)
 		if err != nil {
 			return err
 		}
@@ -438,7 +435,7 @@ func (r *eventRepository) UpdateDestination(
 		if !d.UpdatedAt.After(locked.UpdatedAt) {
 			d.UpdatedAt = locked.UpdatedAt.Add(time.Microsecond)
 		}
-		secretID, err := putSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, string(d.SecretEncrypted))
+		secretID, err := r.secrets.put(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, d.Secret)
 		if err != nil {
 			return err
 		}
@@ -449,7 +446,7 @@ func (r *eventRepository) UpdateDestination(
 			return err
 		}
 		if secretID == nil {
-			if err := deleteSecret(tx, locked.SecretID); err != nil {
+			if err := r.secrets.delete(tx, locked.SecretID); err != nil {
 				return err
 			}
 		}
@@ -484,7 +481,7 @@ func (r *eventRepository) DeleteDestination(ctx context.Context, ouID string, id
 			return res.Error
 		}
 		deleted = res.RowsAffected > 0
-		return deleteSecret(tx, destination.SecretID)
+		return r.secrets.delete(tx, destination.SecretID)
 	})
 	if dberr.IsForeignKeyViolation(err) {
 		return false, utils.ErrEventDestinationInUse
@@ -796,7 +793,7 @@ func (r *eventRepository) withDestination(
 			return err
 		}
 		ds := []models.EventDestination{d}
-		if err := loadDestinations(tx, ds); err != nil {
+		if err := r.loadDestinations(tx, ds); err != nil {
 			return err
 		}
 		if check != nil {

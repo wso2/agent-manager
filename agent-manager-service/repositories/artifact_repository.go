@@ -110,7 +110,7 @@ func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
 		if err := tx.Where("id = ?", p.ID).Delete(&models.A2AProxy{}).Error; err != nil {
 			return err
 		}
-		if err := deleteSecret(tx, p.UpstreamAuthSecretID); err != nil {
+		if err := deleteRowSecret(tx, p.UpstreamAuthSecretID); err != nil {
 			return err
 		}
 	}
