@@ -52,11 +52,13 @@ func (f *fakeBuildPublisherService) PublishWorkload(_ context.Context, ouID, bui
 func buildPublishRequest(body string, ouID string) *http.Request {
 	req := httptest.NewRequest(http.MethodPost, "/build-publisher/builds/my-agent-1700/workload", strings.NewReader(body))
 	req.SetPathValue(utils.PathParamBuildName, "my-agent-1700")
-	// A build token: issued to this service's own client, for the organization.
+	// A build token: issued to this service's own client, for the organization,
+	// carrying the build scope alone.
 	clientID := config.GetConfig().IDP.ClientID
 	return req.WithContext(jwtassertion.ContextWithTokenClaims(req.Context(), &jwtassertion.TokenClaims{
 		OuId:             ouID,
 		ClientID:         clientID,
+		Scope:            jwtassertion.BuildTokenScope(),
 		RegisteredClaims: jwt.RegisteredClaims{Audience: jwt.ClaimStrings{clientID}},
 	}))
 }

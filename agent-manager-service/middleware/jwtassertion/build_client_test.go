@@ -30,6 +30,7 @@ import (
 const (
 	buildTestOrg    = "6f1e2c3d-0000-4000-8000-000000000001"
 	buildTestClient = "amp-api-client"
+	buildTestScope  = "amp:agent:build"
 )
 
 // withIssuingClient sets the service's identity provider client (the client build
@@ -42,6 +43,12 @@ func withIssuingClient(t *testing.T, clientID string) {
 	cfg.IDP.ClientID = clientID
 }
 
+func TestBuildTokenScopeIsTheAgentBuildPermission(t *testing.T) {
+	if got := BuildTokenScope(); got != buildTestScope {
+		t.Errorf("BuildTokenScope() = %q, want %q", got, buildTestScope)
+	}
+}
+
 func TestBuildClientOrg(t *testing.T) {
 	withIssuingClient(t, buildTestClient)
 	tests := []struct {
@@ -52,44 +59,64 @@ func TestBuildClientOrg(t *testing.T) {
 		{name: "no claims", claims: nil, want: ""},
 		{
 			name:   "build token for an organization",
-			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient},
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient, Scope: buildTestScope},
 			want:   buildTestOrg,
 		},
 		{
 			name:   "organization and client with surrounding whitespace",
-			claims: &TokenClaims{OuId: " " + buildTestOrg + " ", ClientID: " " + buildTestClient + " "},
+			claims: &TokenClaims{OuId: " " + buildTestOrg + " ", ClientID: " " + buildTestClient + " ", Scope: buildTestScope},
 			want:   buildTestOrg,
 		},
 		{
 			name:   "issuing client without an organization",
-			claims: &TokenClaims{ClientID: buildTestClient},
+			claims: &TokenClaims{ClientID: buildTestClient, Scope: buildTestScope},
+			want:   "",
+		},
+		{
+			name:   "issuing client without the build scope",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient},
+			want:   "",
+		},
+		{
+			name:   "issuing client with the build scope and more",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient, Scope: buildTestScope + " amp:org:view"},
+			want:   "",
+		},
+		{
+			name:   "this service's own token, requested with system",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient, Scope: "system"},
+			want:   "",
+		},
+		{
+			name:   "a scope merely starting with the build scope",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient, Scope: buildTestScope + "-extra"},
 			want:   "",
 		},
 		{
 			name:   "another client of the same organization",
-			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "amp-publisher-" + buildTestOrg},
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "amp-publisher-" + buildTestOrg, Scope: buildTestScope},
 			want:   "",
 		},
 		{
-			name:   "user token of the same organization",
-			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "test-console-client", Sub: "user-1"},
+			name:   "user token of the same organization holding the build permission",
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "test-console-client", Sub: "user-1", Scope: buildTestScope},
 			want:   "",
 		},
 		{
 			name: "audience naming the issuing client is not enough",
-			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "OTHER_APP", RegisteredClaims: jwt.RegisteredClaims{
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "OTHER_APP", Scope: buildTestScope, RegisteredClaims: jwt.RegisteredClaims{
 				Audience: jwt.ClaimStrings{buildTestClient},
 			}},
 			want: "",
 		},
 		{
 			name:   "client ID prefix match is not enough",
-			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient + "_EXTRA"},
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient + "_EXTRA", Scope: buildTestScope},
 			want:   "",
 		},
 		{
 			name:   "no client ID",
-			claims: &TokenClaims{OuId: buildTestOrg},
+			claims: &TokenClaims{OuId: buildTestOrg, Scope: buildTestScope},
 			want:   "",
 		},
 	}
@@ -106,30 +133,51 @@ func TestBuildClientOrg(t *testing.T) {
 	}
 }
 
-func TestBuildClientOrgRefusesThePlatformAdminOrganization(t *testing.T) {
+func TestBuildClientOrgAdmitsThePlatformAdminOrganization(t *testing.T) {
 	const adminOU = "a5000000-0000-0000-0000-adminroot001"
 	withIssuingClient(t, buildTestClient)
 	cfg := config.GetConfig()
 	orig := cfg.PlatformAdminOUID
 	t.Cleanup(func() { cfg.PlatformAdminOUID = orig })
-
 	cfg.PlatformAdminOUID = adminOU
-	for _, ou := range []string{adminOU, "A5000000-0000-0000-0000-ADMINROOT001"} {
-		ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: ou, ClientID: buildTestClient})
+
+	// The admin organization's build token is a build token like any other.
+	ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: adminOU, ClientID: buildTestClient, Scope: buildTestScope})
+	if got := BuildClientOrg(ctx); got != adminOU {
+		t.Errorf("BuildClientOrg(admin build token) = %q, want %q", got, adminOU)
+	}
+
+	// This service's own token carries the same client and the admin
+	// organization, but not the build scope alone, so it is not one.
+	for _, scope := range []string{"", "system", buildTestScope + " amp:org:view amp:agent:create"} {
+		ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: adminOU, ClientID: buildTestClient, Scope: scope})
 		if got := BuildClientOrg(ctx); got != "" {
-			t.Errorf("BuildClientOrg(admin OU %q) = %q, want \"\"", ou, got)
+			t.Errorf("BuildClientOrg(admin token with scope %q) = %q, want \"\"", scope, got)
 		}
 	}
-	ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient})
-	if got := BuildClientOrg(ctx); got != buildTestOrg {
-		t.Errorf("BuildClientOrg(customer org) = %q, want %q", got, buildTestOrg)
-	}
+}
 
-	// Without a configured admin organization, nothing extra is refused.
-	cfg.PlatformAdminOUID = ""
-	ctx = ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: adminOU, ClientID: buildTestClient})
-	if got := BuildClientOrg(ctx); got != adminOU {
-		t.Errorf("BuildClientOrg() without PLATFORM_ADMIN_OU_ID = %q, want %q", got, adminOU)
+func TestHasOnlyScope(t *testing.T) {
+	tests := []struct {
+		name  string
+		claim string
+		scope string
+		want  bool
+	}{
+		{name: "exactly the scope", claim: buildTestScope, scope: buildTestScope, want: true},
+		{name: "the scope with surrounding whitespace", claim: "  " + buildTestScope + " ", scope: buildTestScope, want: true},
+		{name: "the scope repeated", claim: buildTestScope + " " + buildTestScope, scope: buildTestScope, want: true},
+		{name: "no scopes", claim: "", scope: buildTestScope, want: false},
+		{name: "another scope", claim: "amp:org:view", scope: buildTestScope, want: false},
+		{name: "the scope and another", claim: buildTestScope + " amp:org:view", scope: buildTestScope, want: false},
+		{name: "an empty wanted scope never matches", claim: "", scope: "", want: false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := HasOnlyScope(tc.claim, tc.scope); got != tc.want {
+				t.Errorf("HasOnlyScope(%q, %q) = %v, want %v", tc.claim, tc.scope, got, tc.want)
+			}
+		})
 	}
 }
 
@@ -137,7 +185,7 @@ func TestBuildClientOrgWithoutIssuingClient(t *testing.T) {
 	// With no client configured, no token can be a build token, not even one
 	// that carries no client ID either.
 	withIssuingClient(t, "")
-	ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: buildTestOrg})
+	ctx := ContextWithTokenClaims(context.Background(), &TokenClaims{OuId: buildTestOrg, Scope: buildTestScope})
 	if got := BuildClientOrg(ctx); got != "" {
 		t.Errorf("BuildClientOrg() = %q, want \"\"", got)
 	}
@@ -163,14 +211,21 @@ func TestBuildClientAuthMiddleware(t *testing.T) {
 	}
 
 	t.Run("refuses a token issued to another client", func(t *testing.T) {
-		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: "test-console-client"})
+		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: "test-console-client", Scope: buildTestScope})
 		if rec.Code != http.StatusForbidden || reached {
 			t.Fatalf("status = %d, reached = %v; want 403 and not reached", rec.Code, reached)
 		}
 	})
 
 	t.Run("refuses a token of the issuing client that names no organization", func(t *testing.T) {
-		rec := serve(&TokenClaims{ClientID: buildTestClient})
+		rec := serve(&TokenClaims{ClientID: buildTestClient, Scope: buildTestScope})
+		if rec.Code != http.StatusForbidden || reached {
+			t.Fatalf("status = %d, reached = %v; want 403 and not reached", rec.Code, reached)
+		}
+	})
+
+	t.Run("refuses a token of the issuing client without the build scope", func(t *testing.T) {
+		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient})
 		if rec.Code != http.StatusForbidden || reached {
 			t.Fatalf("status = %d, reached = %v; want 403 and not reached", rec.Code, reached)
 		}
@@ -184,7 +239,7 @@ func TestBuildClientAuthMiddleware(t *testing.T) {
 	})
 
 	t.Run("admits a build token", func(t *testing.T) {
-		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient})
+		rec := serve(&TokenClaims{OuId: buildTestOrg, ClientID: buildTestClient, Scope: buildTestScope})
 		if rec.Code != http.StatusOK || !reached {
 			t.Fatalf("status = %d, reached = %v; want 200 and reached", rec.Code, reached)
 		}
