@@ -59,11 +59,15 @@ func btToken(t *testing.T, claims jwt.MapClaims) string {
 	return token
 }
 
+// btBuildScope is the scope every build token is requested with and carries.
+const btBuildScope = "amp:agent:build"
+
 func btClaims(ouID, clientID string, expiresIn time.Duration) jwt.MapClaims {
 	return jwt.MapClaims{
 		"ouId":      ouID,
 		"client_id": clientID,
 		"aud":       clientID,
+		"scope":     btBuildScope,
 		"exp":       time.Now().Add(expiresIn).Unix(),
 	}
 }
@@ -168,7 +172,7 @@ func TestBuildTokenIssuer_IssuesAndStoresAnOrganizationToken(t *testing.T) {
 	assert.Equal(t, "/ou/"+btOrg+"/oauth2/token", idp.path)
 	assert.Equal(t, "client_credentials", idp.grantType)
 	assert.Equal(t, "Basic "+base64.StdEncoding.EncodeToString([]byte(btClientID+":"+btClientSecret)), idp.authz)
-	assert.NotContains(t, idp.form, "scope", "no scope is requested, so the audience is the client ID")
+	assert.Equal(t, []string{btBuildScope}, idp.form["scope"], "only the agent build scope is requested")
 	assert.NotContains(t, idp.form, "resource", "no resource is requested, so the audience is the client ID")
 	assert.NotContains(t, idp.form, "client_secret", "the secret travels only in the Authorization header")
 
@@ -240,6 +244,35 @@ func TestBuildTokenIssuer_RefusesTokensThatAreNotThisOrganizationsBuildToken(t *
 			name:    "opaque token",
 			token:   func(*testing.T) string { return "opaque-access-token" },
 			wantErr: "not a readable JWT",
+		},
+		{
+			// A scope the identity provider does not grant the client is dropped
+			// from the token, not refused.
+			name: "token issued without the build scope",
+			token: func(t *testing.T) string {
+				c := btClaims(btOrg, btClientID, time.Hour)
+				delete(c, "scope")
+				return btToken(t, c)
+			},
+			wantErr: "did not grant scope",
+		},
+		{
+			name: "token carrying the build scope and more",
+			token: func(t *testing.T) string {
+				c := btClaims(btOrg, btClientID, time.Hour)
+				c["scope"] = btBuildScope + " amp:org:view"
+				return btToken(t, c)
+			},
+			wantErr: "not only",
+		},
+		{
+			name: "token carrying another scope",
+			token: func(t *testing.T) string {
+				c := btClaims(btOrg, btClientID, time.Hour)
+				c["scope"] = "system"
+				return btToken(t, c)
+			},
+			wantErr: "not only",
 		},
 	}
 	for _, tc := range tests {
@@ -438,5 +471,22 @@ func TestAgentManagerBuildClientFor(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, btSecretRef, got.SecretRefName)
 		assert.True(t, strings.HasSuffix(idp.path, "/ou/"+btOrg+"/oauth2/token"))
+	})
+
+	t.Run("the platform admin organization gets a build token too", func(t *testing.T) {
+		cfg := config.GetConfig()
+		orig := cfg.PlatformAdminOUID
+		t.Cleanup(func() { cfg.PlatformAdminOUID = orig })
+		cfg.PlatformAdminOUID = btOrg
+		token := btToken(t, btClaims(btOrg, btClientID, time.Hour))
+		idp := &btIdP{status: http.StatusOK, body: `{"access_token":"` + token + `"}`}
+		store := &btStore{}
+		s := &agentManagerService{buildTokens: newTestBuildTokenIssuer(idp.server(t), store.mock(btSecretRef, nil))}
+
+		source := s.buildClientFor(btOrg)
+		require.NotNil(t, source)
+		got, err := source(auditableCtx(t))
+		require.NoError(t, err)
+		assert.Equal(t, btSecretRef, got.SecretRefName)
 	})
 }
