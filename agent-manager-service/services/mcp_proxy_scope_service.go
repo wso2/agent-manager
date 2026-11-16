@@ -148,17 +148,25 @@ func (s *mcpProxyScopeService) resolveProjectProxy(ctx context.Context, ouID, pr
 func proxyToolUnion(proxy *models.MCPProxy) map[string]struct{} {
 	union := map[string]struct{}{}
 	for i := range proxy.Endpoints {
-		caps := proxy.Endpoints[i].Configuration.Capabilities
-		if caps == nil || caps.Tools == nil {
-			continue
-		}
-		for _, tool := range *caps.Tools {
-			if name, ok := tool["name"].(string); ok && name != "" {
-				union[name] = struct{}{}
-			}
+		for name := range endpointToolNames(proxy.Endpoints[i].Configuration.Capabilities) {
+			union[name] = struct{}{}
 		}
 	}
 	return union
+}
+
+// endpointToolNames distinguishes an unknown inventory from a known empty one.
+func endpointToolNames(caps *models.MCPProxyCapabilities) map[string]struct{} {
+	if caps == nil || caps.Tools == nil {
+		return nil
+	}
+	names := make(map[string]struct{}, len(*caps.Tools))
+	for _, tool := range *caps.Tools {
+		if name, ok := tool["name"].(string); ok && name != "" {
+			names[name] = struct{}{}
+		}
+	}
+	return names
 }
 
 // validateScopeTools normalizes a scope's tool list and, when the proxy's
@@ -495,7 +503,9 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 	}
 
 	const pageSize = 100
+	cp, provider := IdentityRolesViaControlPlane()
 	proxyByUUID := map[uuid.UUID]*models.MCPProxy{}
+	toolsByProxy := map[uuid.UUID]map[string]struct{}{}
 	var ordered []uuid.UUID
 	for offset := 0; ; offset += pageSize {
 		// Every proxy of the org, project proxies included: a role grants an agent the scopes of any proxy it may
@@ -521,6 +531,9 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 			}
 			if _, ok := proxyByUUID[proxy.UUID]; !ok {
 				proxyByUUID[proxy.UUID] = proxy
+				if cp {
+					toolsByProxy[proxy.UUID] = endpointToolNames(endpoint.Configuration.Capabilities)
+				}
 				ordered = append(ordered, proxy.UUID)
 			}
 		}
@@ -545,6 +558,15 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 		if !ok {
 			continue
 		}
+		// Unbound scopes are proxy-wide. Keep the catalog for endpoints whose
+		// tool inventory has not been discovered yet.
+		if tools := toolsByProxy[sc.MCPProxyUUID]; tools != nil && len(sc.Tools) > 0 &&
+			!slices.ContainsFunc(sc.Tools, func(tool string) bool {
+				_, found := tools[tool]
+				return found
+			}) {
+			continue
+		}
 		handle := proxyHandleOf(proxy)
 		entries = append(entries, models.EnvironmentScopeEntry{
 			Scope:        sc.ScopeString(handle),
@@ -555,7 +577,7 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 	}
 
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Scope < entries[j].Scope })
-	if cp, provider := IdentityRolesViaControlPlane(); cp {
+	if cp {
 		if reader, ok := provider.(interface {
 			ListAppliedMCPScopes(context.Context, string, string, []string) (map[string]bool, error)
 		}); ok && len(entries) > 0 {

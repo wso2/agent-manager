@@ -149,10 +149,11 @@ func TestProjectScopes_OtherProjectIsNotFound(t *testing.T) {
 // project.
 type appliedScopePickerProvider struct {
 	IdentityRoleProvider
+	applied map[string]bool
 }
 
-func (appliedScopePickerProvider) ListAppliedMCPScopes(_ context.Context, _, _ string, _ []string) (map[string]bool, error) {
-	return map[string]bool{"weather:read": true, "another:read": true}, nil
+func (p appliedScopePickerProvider) ListAppliedMCPScopes(_ context.Context, _, _ string, _ []string) (map[string]bool, error) {
+	return p.applied, nil
 }
 
 func TestListEnvironmentScopes_IncludesProjectProxies(t *testing.T) {
@@ -193,10 +194,74 @@ func TestListEnvironmentScopes_IncludesProjectProxies(t *testing.T) {
 	require.Len(t, entries, 2)
 	assert.Equal(t, "weather:read", entries[0].Scope)
 
-	SetIdentityRoleProvider(thundersvc.IdentityManagementCPManaged, appliedScopePickerProvider{})
+	SetIdentityRoleProvider(thundersvc.IdentityManagementCPManaged, appliedScopePickerProvider{
+		applied: map[string]bool{"weather:read": true, "another:read": true},
+	})
 	t.Cleanup(func() { SetIdentityRoleProvider(thundersvc.IdentityManagementLegacyDirect, nil) })
 	entries, err = svc.ListEnvironmentScopes(context.Background(), "org-uuid", "dev")
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "weather:read", entries[0].Scope)
+}
+
+func TestListEnvironmentScopes_FiltersAppliedScopesByEndpointTools(t *testing.T) {
+	dev, stage, undiscovered := uuid.New(), uuid.New(), uuid.New()
+	on := true
+	endpoint := func(env uuid.UUID, tools *[]map[string]interface{}) models.MCPProxyEndpoint {
+		return models.MCPProxyEndpoint{
+			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: env, ArtifactUUID: uuid.New()}},
+			Configuration: models.MCPEndpointConfig{
+				Security:     &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}},
+				Capabilities: &models.MCPProxyCapabilities{Tools: tools},
+			},
+		}
+	}
+	proxy := &models.MCPProxy{
+		UUID: uuid.New(), Artifact: &models.Artifact{Handle: "weather", Name: "Weather"},
+		Endpoints: []models.MCPProxyEndpoint{
+			endpoint(dev, &[]map[string]interface{}{{"name": "forecast"}}),
+			endpoint(stage, &[]map[string]interface{}{{"name": "alerts"}}),
+			endpoint(undiscovered, nil),
+		},
+	}
+	proxyRepo := &repomocks.MCPProxyRepositoryMock{
+		ListFunc: func(context.Context, string, repositories.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+			return []*models.MCPProxy{proxy}, 1, nil
+		},
+	}
+	scopeRepo := &repomocks.MCPProxyScopeRepositoryMock{
+		ListByProxyUUIDsFunc: func(context.Context, []uuid.UUID) ([]models.MCPProxyScope, error) {
+			return []models.MCPProxyScope{
+				{MCPProxyUUID: proxy.UUID, Action: "forecast", Tools: []string{"forecast"}},
+				{MCPProxyUUID: proxy.UUID, Action: "alerts", Tools: []string{"alerts"}},
+				{MCPProxyUUID: proxy.UUID, Action: "unapplied", Tools: []string{"forecast", "alerts"}},
+				{MCPProxyUUID: proxy.UUID, Action: "unbound"},
+			}, nil
+		},
+	}
+	infra := stubInfraManager{listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
+		return []*models.EnvironmentResponse{
+			{Name: "dev", UUID: dev.String()}, {Name: "stage", UUID: stage.String()}, {Name: "new", UUID: undiscovered.String()},
+		}, nil
+	}}
+	SetIdentityRoleProvider(thundersvc.IdentityManagementCPManaged, appliedScopePickerProvider{
+		applied: map[string]bool{"weather:alerts": true, "weather:forecast": true, "weather:unbound": true},
+	})
+	t.Cleanup(func() { SetIdentityRoleProvider(thundersvc.IdentityManagementLegacyDirect, nil) })
+	svc := NewMCPProxyScopeService(scopeRepo, proxyRepo, infra, nil, nil, slog.Default())
+	for env, want := range map[string][]string{
+		"dev":   {"weather:forecast", "weather:unbound"},
+		"stage": {"weather:alerts", "weather:unbound"},
+		"new":   {"weather:alerts", "weather:forecast", "weather:unbound"},
+	} {
+		t.Run(env, func(t *testing.T) {
+			entries, err := svc.ListEnvironmentScopes(context.Background(), "org-uuid", env)
+			require.NoError(t, err)
+			got := make([]string, 0, len(entries))
+			for _, entry := range entries {
+				got = append(got, entry.Scope)
+			}
+			assert.Equal(t, want, got)
+		})
+	}
 }
