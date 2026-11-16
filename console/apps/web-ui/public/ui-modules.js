@@ -40,7 +40,7 @@ window.__UI_MODULES__ = {
   'ai-gateway/gateways': true,
   'ai-gateway/llm-providers': true,
   'ai-gateway/mcp-proxies': true,
-  'ai-gateway/agent-security': false,
+  'ai-gateway/agent-security': true,
   'ai-gateway/configure-agent': true,
 
   'ai-observability': true,
