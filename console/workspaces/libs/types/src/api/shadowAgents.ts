@@ -32,13 +32,21 @@ export type ShadowProvider =
 
 /**
  * runtime: an AgentCore runtime or a Google Agent Runtime engine;
- * platform_agent: any other agent object.
+ * platform_agent: any other agent object;
+ * code_agent: an agent found in a repository by the source code scan.
  */
-export type ShadowFindingKind = "platform_agent" | "runtime";
+export type ShadowFindingKind = "platform_agent" | "runtime" | "code_agent";
 
 export type ShadowFindingStatus = "new" | "reviewed" | "dismissed";
 
-export type ShadowScanStatus = "queued" | "running" | "succeeded" | "partial" | "failed";
+/** pending: a source code scan waiting for its scan command to publish results. */
+export type ShadowScanStatus =
+  | "pending"
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "partial"
+  | "failed";
 
 export type ShadowCallOutcome =
   | "ok"

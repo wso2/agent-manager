@@ -36,7 +36,7 @@ export const PROVIDER_LABELS: Record<ShadowProvider, string> = {
   azure_devops: "Azure DevOps",
 };
 
-/** Source repository hosts: connection test only until source code analysis is added. */
+/** Source repository hosts: scanned by the scan command on the customer's machine. */
 export const SOURCE_HOSTS: string[] = ["github", "azure_devops"];
 
 /** The platforms whose agent listings a scan reads, in display order. */
@@ -55,6 +55,7 @@ export function providerLabel(p: string): string {
 export const KIND_LABELS: Record<ShadowFindingKind, string> = {
   platform_agent: "Agent",
   runtime: "Agent runtime",
+  code_agent: "Agent in code",
 };
 
 /** What an agent is at its platform, in the platform's own words. */
@@ -87,6 +88,7 @@ export function StatusChip({ status }: { status: ShadowFindingStatus }) {
 }
 
 const SCAN_STATUS_LABELS: Record<ShadowScanStatus, string> = {
+  pending: "Pending",
   queued: "Queued",
   running: "Running",
   succeeded: "Succeeded",
@@ -102,7 +104,9 @@ export function ScanStatusChip({ status }: { status: ShadowScanStatus }) {
         ? "error"
         : status === "partial"
           ? "warning"
-          : "info";
+          : status === "pending"
+            ? "default"
+            : "info";
   return <Chip size="small" color={color} label={SCAN_STATUS_LABELS[status] ?? status} />;
 }
 

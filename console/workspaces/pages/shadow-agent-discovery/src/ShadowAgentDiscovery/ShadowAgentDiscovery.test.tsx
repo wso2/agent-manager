@@ -186,8 +186,8 @@ import { RunScanButton } from "./subComponents/RunScanButton";
 import { ConnectionsTab, ScopedKeysChip } from "./subComponents/ConnectionsTab";
 import { ScansTab } from "./subComponents/ScansTab";
 import { ShadowAgentDiscovery } from "./ShadowAgentDiscovery";
-import { SourceRepoPreview } from "../sourceRepoScan/SourceRepoPreview";
 import { AnalyzeSection } from "./subComponents/AnalyzeSection";
+import { ScanStatusChip } from "./shadowUi";
 
 function ShowLocation() {
   const l = useLocation();
@@ -440,7 +440,7 @@ describe("FindingsTab", () => {
     );
   });
 
-  it("filters by the five agent platforms and by review status", () => {
+  it("filters by the agent platforms, the source hosts and review status", () => {
     hoisted.findings = [finding()];
     router(<FindingsTab orgName="acme" />);
     expect(openSelect("Platform")).toEqual([
@@ -450,6 +450,8 @@ describe("FindingsTab", () => {
       "Amazon Bedrock",
       "Google Agent Platform",
       "Microsoft Foundry",
+      "GitHub",
+      "Azure DevOps",
     ]);
     fireEvent.click(screen.getByRole("option", { name: "Microsoft Foundry" }));
     expect(lastQuery()).toMatchObject({ provider: "foundry", offset: 0 });
@@ -696,17 +698,18 @@ describe("ScansTab", () => {
     opts.onConfirm();
     expect(hoisted.clear).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps a pending scan when clearing", () => {
+    hoisted.scans = [scan({ id: "s2", status: "pending" })];
+    router(<ScansTab orgName="acme" canManage />);
+    expect(screen.getByRole("button", { name: "Clear scans" })).toBeDisabled();
+  });
 });
 
-describe("SourceRepoPreview", () => {
-  it("labels the sample data and lists suspects of the scanned hosts", () => {
-    router(<SourceRepoPreview hosts={[{ connectionName: "gh", provider: "github" }]} />);
-    expect(screen.getByText("Sample data")).toBeInTheDocument();
-    expect(screen.getByText("acme-corp/support-assistant")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: /Show hits for acme-corp\/support-assistant/ }),
-    );
-    expect(screen.getByText(/value not stored/)).toBeInTheDocument();
+describe("ScanStatusChip", () => {
+  it("shows a scan waiting for its scan command as Pending", () => {
+    render(<ScanStatusChip status="pending" />);
+    expect(screen.getByText("Pending")).toBeInTheDocument();
   });
 });
 

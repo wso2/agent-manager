@@ -23,8 +23,7 @@ import { useParams } from "react-router-dom";
 import { PageLayout, StateNotice, useReturnTo } from "@agent-management-platform/views";
 import { useShadowScan } from "@agent-management-platform/api-client";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
-import { SourceRepoPreview } from "../../sourceRepoScan/SourceRepoPreview";
-import { ScanStatusChip, SOURCE_HOSTS } from "../shadowUi";
+import { ScanStatusChip } from "../shadowUi";
 import { FindingsTab } from "./FindingsTab";
 import { ScanDetailsDrawer } from "./ScansTab";
 
@@ -62,9 +61,6 @@ export function ScanFindings({
   }
   const s = scan.data;
   const started = formatRelativeTime(s.startedAt ?? s.createdAt);
-  const sourceHosts = s.results
-    .filter((r) => SOURCE_HOSTS.includes(r.provider))
-    .map((r) => ({ connectionName: r.connectionName || r.connectionId, provider: r.provider }));
 
   return (
     <PageLayout
@@ -99,7 +95,6 @@ export function ScanFindings({
               : undefined
           }
         />
-        <SourceRepoPreview hosts={sourceHosts} />
       </Stack>
       <ScanDetailsDrawer scan={detailsOpen ? s : null} onClose={() => setDetailsOpen(false)} />
     </PageLayout>

@@ -175,7 +175,11 @@ export function ScansTab({
   const [open, setOpen] = useState<ShadowScanResponse | null>(null);
   const scans = data?.scans ?? [];
   const current = open ? (scans.find((s) => s.id === open.id) ?? open) : null;
-  const finished = scans.filter((s) => !isShadowScanActive(s.status)).length;
+  // Clear scans keeps a scan that is queued, running or pending (waiting for
+  // its scan command to publish results).
+  const finished = scans.filter(
+    (s) => !isShadowScanActive(s.status) && s.status !== "pending",
+  ).length;
   const active = scans.length - finished;
 
   const handleClear = () =>
@@ -183,7 +187,7 @@ export function ScansTab({
       title: "Clear all scans?",
       description:
         `Every finished scan is deleted, with its call results and its list of agents.${
-          active > 0 ? " The scan that is queued or running is kept." : ""
+          active > 0 ? " Scans that are queued, running or pending are kept." : ""
         } Unregistered Agents and their evidence are kept, and the next scan updates them as usual. ` +
         "This can't be undone.",
       confirmButtonText: "Clear scans",

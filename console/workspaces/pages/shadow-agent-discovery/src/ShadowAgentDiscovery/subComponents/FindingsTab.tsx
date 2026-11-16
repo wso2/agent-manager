@@ -48,7 +48,7 @@ import {
   type ShadowFindingListQuery,
   type ShadowFindingSummary,
 } from "@agent-management-platform/types";
-import { AGENT_PLATFORMS, kindLabel, providerLabel, StatusChip } from "../shadowUi";
+import { AGENT_PLATFORMS, kindLabel, providerLabel, SOURCE_HOSTS, StatusChip } from "../shadowUi";
 
 const PAGE_SIZE = 50;
 
@@ -194,7 +194,7 @@ export function FindingsTab({
           slotProps={{ select: { displayEmpty: true, inputProps: { "aria-label": "Platform" } } }}
         >
           <MenuItem value="">All platforms</MenuItem>
-          {AGENT_PLATFORMS.map((p) => (
+          {[...AGENT_PLATFORMS, ...SOURCE_HOSTS].map((p) => (
             <MenuItem key={p} value={p}>
               {providerLabel(p)}
             </MenuItem>

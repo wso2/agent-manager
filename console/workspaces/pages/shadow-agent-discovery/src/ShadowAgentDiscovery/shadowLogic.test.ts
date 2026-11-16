@@ -43,7 +43,6 @@ import {
   toSettings,
   validateDraft,
 } from "./subComponents/ConnectionEditor";
-import { getSourceRepoScanData } from "../sourceRepoScan/dummyData";
 
 // The shape of the service's catalog (catalog.go, capabilities.go), cut down.
 const openai: ShadowProviderSpec = {
@@ -232,6 +231,7 @@ describe("labels", () => {
     expect(kindLabel("platform_agent", "google")).toBe("Agent Registry agent");
     expect(kindLabel("platform_agent", "foundry")).toBe("Foundry agent");
     expect(kindLabel("runtime")).toBe("Agent runtime");
+    expect(kindLabel("code_agent", "github")).toBe("Agent in code");
     expect(kindLabel("something")).toBe("something");
   });
 
@@ -414,21 +414,5 @@ describe("platform form", () => {
       { id: " ", key: "x" },
     ];
     expect(toSettings(openai, o).scopedKeys).toEqual({ proj_a: "" });
-  });
-});
-
-describe("source repository preview data", () => {
-  it("is consistent with the design's detector weights and verdict rule", () => {
-    const data = getSourceRepoScanData();
-    const weight = new Map(data.detectors.map((d) => [d.id, d]));
-    for (const s of data.suspects) {
-      const ids = [...new Set(s.hits.map((h) => h.detectorId))];
-      const score = ids.reduce((n, id) => n + (weight.get(id)?.weight ?? 0), 0);
-      expect(s.score).toBe(score);
-      const strong = ids.some((id) => weight.get(id)?.tier === "High" || id === "D7");
-      const verdict =
-        score >= 60 && strong ? "Agent" : score >= 30 && strong ? "Possible agent" : "LLM consumer";
-      expect(s.verdict).toBe(verdict);
-    }
   });
 });
