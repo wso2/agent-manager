@@ -1180,10 +1180,10 @@ type ClientInterface interface {
 	// GetShadowFinding request
 	GetShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// UpdateShadowFindingWithBody request with any body
-	UpdateShadowFindingWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// OnboardShadowFindingWithBody request with any body
+	OnboardShadowFindingWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	UpdateShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	OnboardShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, body OnboardShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListShadowAgentProviders request
 	ListShadowAgentProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -5983,8 +5983,8 @@ func (c *Client) GetShadowFinding(ctx context.Context, orgName string, findingId
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateShadowFindingWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateShadowFindingRequestWithBody(c.Server, orgName, findingId, contentType, body)
+func (c *Client) OnboardShadowFindingWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewOnboardShadowFindingRequestWithBody(c.Server, orgName, findingId, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -5995,8 +5995,8 @@ func (c *Client) UpdateShadowFindingWithBody(ctx context.Context, orgName string
 	return c.Client.Do(req)
 }
 
-func (c *Client) UpdateShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewUpdateShadowFindingRequest(c.Server, orgName, findingId, body)
+func (c *Client) OnboardShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, body OnboardShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewOnboardShadowFindingRequest(c.Server, orgName, findingId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -23125,9 +23125,9 @@ func NewListShadowFindingsRequest(server string, orgName string, params *ListSha
 
 		}
 
-		if params.Status != nil {
+		if params.Onboarded != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "onboarded", *params.Onboarded, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err
@@ -23314,19 +23314,19 @@ func NewGetShadowFindingRequest(server string, orgName string, findingId openapi
 	return req, nil
 }
 
-// NewUpdateShadowFindingRequest calls the generic UpdateShadowFinding builder with application/json body
-func NewUpdateShadowFindingRequest(server string, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody) (*http.Request, error) {
+// NewOnboardShadowFindingRequest calls the generic OnboardShadowFinding builder with application/json body
+func NewOnboardShadowFindingRequest(server string, orgName string, findingId openapi_types.UUID, body OnboardShadowFindingJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
 	buf, err := json.Marshal(body)
 	if err != nil {
 		return nil, err
 	}
 	bodyReader = bytes.NewReader(buf)
-	return NewUpdateShadowFindingRequestWithBody(server, orgName, findingId, "application/json", bodyReader)
+	return NewOnboardShadowFindingRequestWithBody(server, orgName, findingId, "application/json", bodyReader)
 }
 
-// NewUpdateShadowFindingRequestWithBody generates requests for UpdateShadowFinding with any type of body
-func NewUpdateShadowFindingRequestWithBody(server string, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+// NewOnboardShadowFindingRequestWithBody generates requests for OnboardShadowFinding with any type of body
+func NewOnboardShadowFindingRequestWithBody(server string, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	var pathParam0 string
@@ -23348,7 +23348,7 @@ func NewUpdateShadowFindingRequestWithBody(server string, orgName string, findin
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/findings/%s", pathParam0, pathParam1)
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/findings/%s/onboarding", pathParam0, pathParam1)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -23358,7 +23358,7 @@ func NewUpdateShadowFindingRequestWithBody(server string, orgName string, findin
 		return nil, err
 	}
 
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	req, err := http.NewRequest("POST", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -24886,10 +24886,10 @@ type ClientWithResponsesInterface interface {
 	// GetShadowFindingWithResponse request
 	GetShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowFindingResp, error)
 
-	// UpdateShadowFindingWithBodyWithResponse request with any body
-	UpdateShadowFindingWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateShadowFindingResp, error)
+	// OnboardShadowFindingWithBodyWithResponse request with any body
+	OnboardShadowFindingWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*OnboardShadowFindingResp, error)
 
-	UpdateShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateShadowFindingResp, error)
+	OnboardShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body OnboardShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*OnboardShadowFindingResp, error)
 
 	// ListShadowAgentProvidersWithResponse request
 	ListShadowAgentProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListShadowAgentProvidersResp, error)
@@ -32289,17 +32289,18 @@ func (r GetShadowFindingResp) StatusCode() int {
 	return 0
 }
 
-type UpdateShadowFindingResp struct {
+type OnboardShadowFindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ShadowFindingDetail
 	JSON400      *ErrorResponse
 	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
 	JSON500      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r UpdateShadowFindingResp) Status() string {
+func (r OnboardShadowFindingResp) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -32307,7 +32308,7 @@ func (r UpdateShadowFindingResp) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r UpdateShadowFindingResp) StatusCode() int {
+func (r OnboardShadowFindingResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -36003,21 +36004,21 @@ func (c *ClientWithResponses) GetShadowFindingWithResponse(ctx context.Context, 
 	return ParseGetShadowFindingResp(rsp)
 }
 
-// UpdateShadowFindingWithBodyWithResponse request with arbitrary body returning *UpdateShadowFindingResp
-func (c *ClientWithResponses) UpdateShadowFindingWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateShadowFindingResp, error) {
-	rsp, err := c.UpdateShadowFindingWithBody(ctx, orgName, findingId, contentType, body, reqEditors...)
+// OnboardShadowFindingWithBodyWithResponse request with arbitrary body returning *OnboardShadowFindingResp
+func (c *ClientWithResponses) OnboardShadowFindingWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*OnboardShadowFindingResp, error) {
+	rsp, err := c.OnboardShadowFindingWithBody(ctx, orgName, findingId, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateShadowFindingResp(rsp)
+	return ParseOnboardShadowFindingResp(rsp)
 }
 
-func (c *ClientWithResponses) UpdateShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateShadowFindingResp, error) {
-	rsp, err := c.UpdateShadowFinding(ctx, orgName, findingId, body, reqEditors...)
+func (c *ClientWithResponses) OnboardShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body OnboardShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*OnboardShadowFindingResp, error) {
+	rsp, err := c.OnboardShadowFinding(ctx, orgName, findingId, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseUpdateShadowFindingResp(rsp)
+	return ParseOnboardShadowFindingResp(rsp)
 }
 
 // ListShadowAgentProvidersWithResponse request returning *ListShadowAgentProvidersResp
@@ -49677,15 +49678,15 @@ func ParseGetShadowFindingResp(rsp *http.Response) (*GetShadowFindingResp, error
 	return response, nil
 }
 
-// ParseUpdateShadowFindingResp parses an HTTP response from a UpdateShadowFindingWithResponse call
-func ParseUpdateShadowFindingResp(rsp *http.Response) (*UpdateShadowFindingResp, error) {
+// ParseOnboardShadowFindingResp parses an HTTP response from a OnboardShadowFindingWithResponse call
+func ParseOnboardShadowFindingResp(rsp *http.Response) (*OnboardShadowFindingResp, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &UpdateShadowFindingResp{
+	response := &OnboardShadowFindingResp{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -49711,6 +49712,13 @@ func ParseUpdateShadowFindingResp(rsp *http.Response) (*UpdateShadowFindingResp,
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse

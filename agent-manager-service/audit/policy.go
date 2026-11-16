@@ -240,7 +240,7 @@ var actionOverrides = map[string]Action{
 	"POST /orgs/{orgName}/shadow-agents/connections/{connectionId}/test":                                  "shadow-connection:test",
 	"POST /orgs/{orgName}/shadow-agents/scans":                                                            "shadow-scan:create",
 	"DELETE /orgs/{orgName}/shadow-agents/scans":                                                          "shadow-scan:clear",
-	"PATCH /orgs/{orgName}/shadow-agents/findings/{findingId}":                                            "shadow-finding:update",
+	"POST /orgs/{orgName}/shadow-agents/findings/{findingId}/onboarding":                                  "shadow-finding:onboard",
 	"DELETE /orgs/{orgName}/shadow-agents/findings/{findingId}":                                           "shadow-finding:delete",
 	"DELETE /orgs/{orgName}/shadow-agents/findings":                                                       "shadow-finding:clear",
 	"POST /orgs/{orgName}/events/destinations":                                                            "event-destination:create",

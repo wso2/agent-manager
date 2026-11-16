@@ -227,7 +227,13 @@ export const rootRouteMap: AppRoute = {
                         finding: {
                             path: 'agents/:findingId',
                             index: true,
-                            children: {},
+                            children: {
+                                onboard: {
+                                    path: 'onboard',
+                                    index: true,
+                                    children: {},
+                                },
+                            },
                         },
                         scan: {
                             path: 'scans/:scanId',

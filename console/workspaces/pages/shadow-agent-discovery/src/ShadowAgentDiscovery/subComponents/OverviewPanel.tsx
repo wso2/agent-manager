@@ -144,7 +144,8 @@ export function OverviewPanel({
   const connected = (s?.connections ?? 0) > 0;
   const scanned = !!s?.latestScan;
   const total = s?.totalFindings ?? 0;
-  const toReview = s?.byStatus?.new ?? 0;
+  const onboarded = s?.onboarded ?? 0;
+  const unregistered = Math.max(0, total - onboarded);
   const steps: Step[] = [
     {
       title: "Add a platform",
@@ -175,10 +176,10 @@ export function OverviewPanel({
       action: canManage && connected ? <RunScanButton orgName={orgName} /> : undefined,
     },
     {
-      title: "Review the unregistered agents",
+      title: "Onboard the unregistered agents",
       description:
-        "Unregistered Agents lists every agent the platforms list, once, with the evidence. Mark each one reviewed or dismissed.",
-      done: total > 0 && toReview === 0,
+        "Unregistered Agents lists every agent the platforms list, once, with the evidence. Onboard each one as an external agent.",
+      done: total > 0 && unregistered === 0,
       action: scanned ? (
         <Button size="small" variant="outlined" onClick={() => onOpenAgents()}>
           View agents
@@ -232,15 +233,15 @@ export function OverviewPanel({
         <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
           <StatTile
             label="Unregistered agents"
-            value={formatCount(total)}
-            hint="Agents the platforms list, each counted once"
+            value={formatCount(unregistered)}
+            hint="Listed by the platforms and not onboarded yet, each counted once"
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
           <StatTile
-            label="To review"
-            value={formatCount(toReview)}
-            hint="Agents not reviewed yet"
+            label="Onboarded"
+            value={formatCount(onboarded)}
+            hint="Agents onboarded as external agents"
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, lg: 4 }}>

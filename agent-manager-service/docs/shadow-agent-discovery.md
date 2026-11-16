@@ -7,9 +7,9 @@ Shadow Agent Discovery finds the agents your organization runs on AI platforms o
 | What | Read | Change |
 |---|---|---|
 | Platforms catalog, connections, scans, unregistered agents | `amp:shadow-agent:read` | — |
-| Add platforms, test, run and clear scans, review agents | — | `amp:shadow-agent:manage` |
+| Add platforms, test, run and clear scans, onboard and delete agents | — | `amp:shadow-agent:manage` |
 
-Both are granted to the Agent Manager Admin role only: connections hold platform credentials. Every change is in the audit trail (`shadow-connection:*` are credential operations; `shadow-scan:create`, `shadow-scan:clear`, `shadow-finding:update`, `shadow-finding:delete`, `shadow-finding:clear`).
+Both are granted to the Agent Manager Admin role only: connections hold platform credentials. Every change is in the audit trail (`shadow-connection:*` are credential operations; `shadow-scan:create`, `shadow-scan:clear`, `shadow-finding:onboard`, `shadow-finding:delete`, `shadow-finding:clear`).
 
 ## Platforms
 
@@ -53,7 +53,9 @@ Each scan records the agents it found, so **Scans** > **View agents** lists one 
 
 Each agent is keyed by its platform, its kind and the platform's own ID of it (an agent ID, a runtime ARN, an engine resource name). The kinds are **runtime** (an AgentCore runtime or a Google Agent Runtime engine) and **platform agent** (any other agent object a platform lists). Evidence about the same agent from two listings is one agent: an AWS Agent Registry record whose provenance names an AgentCore runtime is merged into the runtime, and a Google Agent Registry entry for an engine is merged into the engine.
 
-**No duplicates.** The **Unregistered Agents** tab (`GET .../findings`) shows each agent once, however many connections found it (two connections to the same OpenAI organization, say): the row is the agent as the connection that saw it last reports it, and **Found by** lists every connection. The review status (new, reviewed, dismissed) is the agent's, so changing it changes it for every connection. The summary counts each agent once too. Filter by platform at the top right, or search by name, platform ID or scope.
+**No duplicates.** The **Unregistered Agents** tab (`GET .../findings`) shows each agent once, however many connections found it (two connections to the same OpenAI organization, say): the row is the agent as the connection that saw it last reports it, and **Source** lists every connection. The summary counts each agent once too. Filter by platform or onboarding at the top right, or search by name, platform ID or scope.
+
+**Onboarding as an external agent.** **Onboard as external agent** on an agent's page shows what onboarding does and the steps that follow, then registers the agent as an externally-hosted agent in a project (the same request as the console's Register an agent page) and links the unregistered agent to it (`POST .../findings/{findingId}/onboarding` with `projectName` and `agentName`; the registered agent must exist). The link is the agent's: it holds for every connection that found it, a connection that finds it later inherits it, and an agent is onboarded once. The **Onboarding** column shows Onboarded or Not onboarded, filter with `onboarded=true|false`, and the agent's page links to the registered agent. The workload keeps running where it is; set it up with `amp-instrument` and route its model calls through an organization LLM provider from the registered agent's pages.
 
 **Deleting agents.** Each row has a delete button (`DELETE .../findings/{findingId}`): it deletes the agent and its evidence for every connection that found it. **Delete all**, at the top right (`DELETE .../findings`), deletes every agent of the organization, whatever the filters show, including the agents their platforms no longer list; it returns how many agents it deleted. Platforms and scan history are kept, and nothing changes on the platforms: a later scan lists an agent again if a platform still has it.
 

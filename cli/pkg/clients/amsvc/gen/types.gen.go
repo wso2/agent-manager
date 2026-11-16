@@ -1597,27 +1597,6 @@ func (e ShadowFindingDetailKind) Valid() bool {
 	}
 }
 
-// Defines values for ShadowFindingDetailStatus.
-const (
-	ShadowFindingDetailStatusDismissed ShadowFindingDetailStatus = "dismissed"
-	ShadowFindingDetailStatusNew       ShadowFindingDetailStatus = "new"
-	ShadowFindingDetailStatusReviewed  ShadowFindingDetailStatus = "reviewed"
-)
-
-// Valid indicates whether the value is a known member of the ShadowFindingDetailStatus enum.
-func (e ShadowFindingDetailStatus) Valid() bool {
-	switch e {
-	case ShadowFindingDetailStatusDismissed:
-		return true
-	case ShadowFindingDetailStatusNew:
-		return true
-	case ShadowFindingDetailStatusReviewed:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ShadowFindingSummaryKind.
 const (
 	ShadowFindingSummaryKindPlatformAgent ShadowFindingSummaryKind = "platform_agent"
@@ -1630,48 +1609,6 @@ func (e ShadowFindingSummaryKind) Valid() bool {
 	case ShadowFindingSummaryKindPlatformAgent:
 		return true
 	case ShadowFindingSummaryKindRuntime:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ShadowFindingSummaryStatus.
-const (
-	ShadowFindingSummaryStatusDismissed ShadowFindingSummaryStatus = "dismissed"
-	ShadowFindingSummaryStatusNew       ShadowFindingSummaryStatus = "new"
-	ShadowFindingSummaryStatusReviewed  ShadowFindingSummaryStatus = "reviewed"
-)
-
-// Valid indicates whether the value is a known member of the ShadowFindingSummaryStatus enum.
-func (e ShadowFindingSummaryStatus) Valid() bool {
-	switch e {
-	case ShadowFindingSummaryStatusDismissed:
-		return true
-	case ShadowFindingSummaryStatusNew:
-		return true
-	case ShadowFindingSummaryStatusReviewed:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ShadowFindingUpdateRequestStatus.
-const (
-	Dismissed ShadowFindingUpdateRequestStatus = "dismissed"
-	New       ShadowFindingUpdateRequestStatus = "new"
-	Reviewed  ShadowFindingUpdateRequestStatus = "reviewed"
-)
-
-// Valid indicates whether the value is a known member of the ShadowFindingUpdateRequestStatus enum.
-func (e ShadowFindingUpdateRequestStatus) Valid() bool {
-	switch e {
-	case Dismissed:
-		return true
-	case New:
-		return true
-	case Reviewed:
 		return true
 	default:
 		return false
@@ -6667,9 +6604,11 @@ type SetAgentCardSourceRequest struct {
 // ShadowAgentSummary defines model for ShadowAgentSummary.
 type ShadowAgentSummary struct {
 	ByProvider  map[string]int      `json:"byProvider"`
-	ByStatus    map[string]int      `json:"byStatus"`
 	Connections int                 `json:"connections"`
 	LatestScan  *ShadowScanResponse `json:"latestScan,omitempty"`
+
+	// Onboarded How many of those agents are onboarded as external agents.
+	Onboarded int `json:"onboarded"`
 
 	// TotalFindings The agents found that their platforms still list, each agent once.
 	TotalFindings int `json:"totalFindings"`
@@ -6829,6 +6768,19 @@ type ShadowFindingDetail struct {
 	Kind       ShadowFindingDetailKind `json:"kind"`
 	LastSeenAt time.Time               `json:"lastSeenAt"`
 
+	// LinkedAgent The name of the external agent it was onboarded as.
+	LinkedAgent *string `json:"linkedAgent,omitempty"`
+
+	// LinkedProject The project of the external agent it was onboarded as.
+	LinkedProject *string `json:"linkedProject,omitempty"`
+
+	// Onboarded Whether the agent is onboarded as an external agent.
+	Onboarded   bool       `json:"onboarded"`
+	OnboardedAt *time.Time `json:"onboardedAt,omitempty"`
+
+	// OnboardedBy Who onboarded the agent.
+	OnboardedBy *string `json:"onboardedBy,omitempty"`
+
 	// OwnerHint Who created the agent, only when its platform's agent listing says so (minimised personal data).
 	OwnerHint ShadowOwnerHint `json:"ownerHint"`
 
@@ -6847,15 +6799,11 @@ type ShadowFindingDetail struct {
 	Signals []ShadowFindingSignal `json:"signals"`
 
 	// State The agent's state as its platform reports it.
-	State  string                    `json:"state"`
-	Status ShadowFindingDetailStatus `json:"status"`
+	State string `json:"state"`
 }
 
 // ShadowFindingDetailKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
 type ShadowFindingDetailKind string
-
-// ShadowFindingDetailStatus defines model for ShadowFindingDetail.Status.
-type ShadowFindingDetailStatus string
 
 // ShadowFindingListResponse defines model for ShadowFindingListResponse.
 type ShadowFindingListResponse struct {
@@ -6910,6 +6858,16 @@ type ShadowFindingSummary struct {
 	Kind       ShadowFindingSummaryKind `json:"kind"`
 	LastSeenAt time.Time                `json:"lastSeenAt"`
 
+	// LinkedAgent The name of the external agent it was onboarded as.
+	LinkedAgent *string `json:"linkedAgent,omitempty"`
+
+	// LinkedProject The project of the external agent it was onboarded as.
+	LinkedProject *string `json:"linkedProject,omitempty"`
+
+	// Onboarded Whether the agent is onboarded as an external agent.
+	Onboarded   bool       `json:"onboarded"`
+	OnboardedAt *time.Time `json:"onboardedAt,omitempty"`
+
 	// OwnerHint Who created the agent, only when its platform's agent listing says so (minimised personal data).
 	OwnerHint ShadowOwnerHint `json:"ownerHint"`
 
@@ -6922,23 +6880,20 @@ type ShadowFindingSummary struct {
 	Scope string `json:"scope"`
 
 	// State The agent's state as its platform reports it.
-	State  string                     `json:"state"`
-	Status ShadowFindingSummaryStatus `json:"status"`
+	State string `json:"state"`
 }
 
 // ShadowFindingSummaryKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
 type ShadowFindingSummaryKind string
 
-// ShadowFindingSummaryStatus defines model for ShadowFindingSummary.Status.
-type ShadowFindingSummaryStatus string
+// ShadowOnboardingRequest defines model for ShadowOnboardingRequest.
+type ShadowOnboardingRequest struct {
+	// AgentName The registered external agent's name.
+	AgentName string `json:"agentName"`
 
-// ShadowFindingUpdateRequest defines model for ShadowFindingUpdateRequest.
-type ShadowFindingUpdateRequest struct {
-	Status ShadowFindingUpdateRequestStatus `json:"status"`
+	// ProjectName The project the external agent is registered in.
+	ProjectName string `json:"projectName"`
 }
-
-// ShadowFindingUpdateRequestStatus defines model for ShadowFindingUpdateRequest.Status.
-type ShadowFindingUpdateRequestStatus string
 
 // ShadowOwnerHint Who created the agent, only when its platform's agent listing says so (minimised personal data).
 type ShadowOwnerHint struct {
@@ -8374,8 +8329,8 @@ type ListShadowFindingsParams struct {
 	// Provider Filter by platform
 	Provider *string `form:"provider,omitempty" json:"provider,omitempty"`
 
-	// Status Filter by review status
-	Status *string `form:"status,omitempty" json:"status,omitempty"`
+	// Onboarded Only the agents onboarded as external agents (true) or only the others (false)
+	Onboarded *bool `form:"onboarded,omitempty" json:"onboarded,omitempty"`
 
 	// ConnectionId Filter by connection
 	ConnectionId *string `form:"connectionId,omitempty" json:"connectionId,omitempty"`
@@ -8703,8 +8658,8 @@ type CreateShadowConnectionJSONRequestBody = ShadowConnectionRequest
 // UpdateShadowConnectionJSONRequestBody defines body for UpdateShadowConnection for application/json ContentType.
 type UpdateShadowConnectionJSONRequestBody = ShadowConnectionRequest
 
-// UpdateShadowFindingJSONRequestBody defines body for UpdateShadowFinding for application/json ContentType.
-type UpdateShadowFindingJSONRequestBody = ShadowFindingUpdateRequest
+// OnboardShadowFindingJSONRequestBody defines body for OnboardShadowFinding for application/json ContentType.
+type OnboardShadowFindingJSONRequestBody = ShadowOnboardingRequest
 
 // CreateShadowScanJSONRequestBody defines body for CreateShadowScan for application/json ContentType.
 type CreateShadowScanJSONRequestBody = ShadowScanRequest

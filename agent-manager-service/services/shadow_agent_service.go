@@ -105,7 +105,9 @@ type ShadowAgentService interface {
 
 	ListFindings(ctx context.Context, ouID string, f repositories.ShadowFindingFilter) ([]repositories.ShadowFindingRow, int, error)
 	GetFinding(ctx context.Context, ouID string, id uuid.UUID) (*ShadowFindingView, error)
-	UpdateFindingStatus(ctx context.Context, ouID string, id uuid.UUID, status string) (*ShadowFindingView, error)
+	// Onboard links the agent to the externally-hosted agent registered for
+	// it (projectName/agentName, which must exist in the org).
+	Onboard(ctx context.Context, ouID string, id uuid.UUID, projectName, agentName string) (*ShadowFindingView, error)
 	// DeleteFinding deletes an agent, on every connection that found it. A
 	// later scan lists it again if a platform still has it.
 	DeleteFinding(ctx context.Context, ouID string, id uuid.UUID) error
@@ -113,9 +115,16 @@ type ShadowAgentService interface {
 	DeleteFindings(ctx context.Context, ouID string) (int, error)
 }
 
+// ShadowAgentLookup finds an agent, so onboarding links only to an agent
+// that exists in the org.
+type ShadowAgentLookup interface {
+	GetAgent(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error)
+}
+
 type shadowAgentService struct {
 	repo          repositories.ShadowAgentRepository
 	connectors    ShadowConnectors
+	agents        ShadowAgentLookup
 	encryptionKey []byte
 	logger        *slog.Logger
 	now           func() time.Time
@@ -123,10 +132,11 @@ type shadowAgentService struct {
 
 // NewShadowAgentService creates a ShadowAgentService.
 func NewShadowAgentService(
-	repo repositories.ShadowAgentRepository, connectors ShadowConnectors, encryptionKey []byte, logger *slog.Logger,
+	repo repositories.ShadowAgentRepository, connectors ShadowConnectors, agents ShadowAgentLookup,
+	encryptionKey []byte, logger *slog.Logger,
 ) ShadowAgentService {
 	return &shadowAgentService{
-		repo: repo, connectors: connectors, encryptionKey: encryptionKey, logger: logger, now: time.Now,
+		repo: repo, connectors: connectors, agents: agents, encryptionKey: encryptionKey, logger: logger, now: time.Now,
 	}
 }
 
@@ -1160,10 +1170,6 @@ func (s *shadowAgentService) Summary(ctx context.Context, ouID string) (reposito
 
 // ---- findings ----
 
-var shadowFindingStatuses = map[string]bool{
-	models.ShadowStatusNew: true, models.ShadowStatusReviewed: true, models.ShadowStatusDismissed: true,
-}
-
 func (s *shadowAgentService) ListFindings(
 	ctx context.Context, ouID string, f repositories.ShadowFindingFilter,
 ) ([]repositories.ShadowFindingRow, int, error) {
@@ -1171,9 +1177,6 @@ func (s *shadowAgentService) ListFindings(
 		if _, ok := sa.Provider(f.Provider); !ok {
 			return nil, 0, fmt.Errorf("%w: unknown platform %q", utils.ErrInvalidInput, f.Provider)
 		}
-	}
-	if f.Status != "" && !shadowFindingStatuses[f.Status] {
-		return nil, 0, fmt.Errorf("%w: unknown status %q", utils.ErrInvalidInput, f.Status)
 	}
 	if f.Limit <= 0 || f.Limit > 200 {
 		f.Limit = 50
@@ -1248,17 +1251,33 @@ func (s *shadowAgentService) DeleteFindings(ctx context.Context, ouID string) (i
 	return int(n), nil
 }
 
-func (s *shadowAgentService) UpdateFindingStatus(ctx context.Context, ouID string, id uuid.UUID, status string) (*ShadowFindingView, error) {
-	switch status {
-	case models.ShadowStatusNew, models.ShadowStatusReviewed, models.ShadowStatusDismissed:
-	default:
-		return nil, fmt.Errorf("%w: status must be new, reviewed or dismissed", utils.ErrInvalidInput)
+// Onboard links the agent, on every connection that found it, to the
+// externally-hosted agent registered for it in the org.
+func (s *shadowAgentService) Onboard(
+	ctx context.Context, ouID string, id uuid.UUID, projectName, agentName string,
+) (*ShadowFindingView, error) {
+	projectName, agentName = strings.TrimSpace(projectName), strings.TrimSpace(agentName)
+	if projectName == "" || agentName == "" {
+		return nil, fmt.Errorf("%w: projectName and agentName are required", utils.ErrInvalidInput)
 	}
-	if err := s.repo.UpdateFindingStatus(ctx, ouID, id, status); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	if _, err := s.GetFinding(ctx, ouID, id); err != nil {
+		return nil, err
+	}
+	// The agent must exist in the caller's org (the org comes from the
+	// token, never from the request).
+	if _, err := s.agents.GetAgent(ctx, ouID, projectName, agentName); err != nil {
+		return nil, err
+	}
+	by := audit.BuildEvent(ctx, audit.ActionShadowFindingOnboard).ActorID
+	if err := s.repo.OnboardFinding(ctx, ouID, id, projectName, agentName, by, s.now().UTC()); err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
 			return nil, utils.ErrShadowFindingNotFound
+		case errors.Is(err, utils.ErrShadowAlreadyOnboarded):
+			return nil, err
+		default:
+			return nil, fmt.Errorf("failed to onboard the agent: %w", err)
 		}
-		return nil, fmt.Errorf("failed to update the agent: %w", err)
 	}
 	return s.GetFinding(ctx, ouID, id)
 }

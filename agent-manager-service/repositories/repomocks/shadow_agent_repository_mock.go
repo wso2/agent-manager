@@ -76,6 +76,9 @@ import (
 //			ListSignalsFunc: func(ctx context.Context, ouID string, findingID uuid.UUID) ([]models.ShadowFindingSignal, error) {
 //				panic("mock out the ListSignals method")
 //			},
+//			OnboardFindingFunc: func(ctx context.Context, ouID string, id uuid.UUID, project string, agent string, by string, at time.Time) error {
+//				panic("mock out the OnboardFinding method")
+//			},
 //			RenewScanLeaseFunc: func(ctx context.Context, id uuid.UUID, until time.Time) error {
 //				panic("mock out the RenewScanLease method")
 //			},
@@ -87,9 +90,6 @@ import (
 //			},
 //			UpdateConnectionFunc: func(ctx context.Context, c *models.ShadowConnection) error {
 //				panic("mock out the UpdateConnection method")
-//			},
-//			UpdateFindingStatusFunc: func(ctx context.Context, ouID string, id uuid.UUID, status string) error {
-//				panic("mock out the UpdateFindingStatus method")
 //			},
 //		}
 //
@@ -155,6 +155,9 @@ type ShadowAgentRepositoryMock struct {
 	// ListSignalsFunc mocks the ListSignals method.
 	ListSignalsFunc func(ctx context.Context, ouID string, findingID uuid.UUID) ([]models.ShadowFindingSignal, error)
 
+	// OnboardFindingFunc mocks the OnboardFinding method.
+	OnboardFindingFunc func(ctx context.Context, ouID string, id uuid.UUID, project string, agent string, by string, at time.Time) error
+
 	// RenewScanLeaseFunc mocks the RenewScanLease method.
 	RenewScanLeaseFunc func(ctx context.Context, id uuid.UUID, until time.Time) error
 
@@ -166,9 +169,6 @@ type ShadowAgentRepositoryMock struct {
 
 	// UpdateConnectionFunc mocks the UpdateConnection method.
 	UpdateConnectionFunc func(ctx context.Context, c *models.ShadowConnection) error
-
-	// UpdateFindingStatusFunc mocks the UpdateFindingStatus method.
-	UpdateFindingStatusFunc func(ctx context.Context, ouID string, id uuid.UUID, status string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -329,6 +329,23 @@ type ShadowAgentRepositoryMock struct {
 			// FindingID is the findingID argument value.
 			FindingID uuid.UUID
 		}
+		// OnboardFinding holds details about calls to the OnboardFinding method.
+		OnboardFinding []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ID is the id argument value.
+			ID uuid.UUID
+			// Project is the project argument value.
+			Project string
+			// Agent is the agent argument value.
+			Agent string
+			// By is the by argument value.
+			By string
+			// At is the at argument value.
+			At time.Time
+		}
 		// RenewScanLease holds details about calls to the RenewScanLease method.
 		RenewScanLease []struct {
 			// Ctx is the ctx argument value.
@@ -365,17 +382,6 @@ type ShadowAgentRepositoryMock struct {
 			// C is the c argument value.
 			C *models.ShadowConnection
 		}
-		// UpdateFindingStatus holds details about calls to the UpdateFindingStatus method.
-		UpdateFindingStatus []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OuID is the ouID argument value.
-			OuID string
-			// ID is the id argument value.
-			ID uuid.UUID
-			// Status is the status argument value.
-			Status string
-		}
 	}
 	lockApplyConnectionResult sync.RWMutex
 	lockApplyCorrelation      sync.RWMutex
@@ -396,11 +402,11 @@ type ShadowAgentRepositoryMock struct {
 	lockListOrgFindings       sync.RWMutex
 	lockListScans             sync.RWMutex
 	lockListSignals           sync.RWMutex
+	lockOnboardFinding        sync.RWMutex
 	lockRenewScanLease        sync.RWMutex
 	lockSaveConnectionTest    sync.RWMutex
 	lockSummary               sync.RWMutex
 	lockUpdateConnection      sync.RWMutex
-	lockUpdateFindingStatus   sync.RWMutex
 }
 
 // ApplyConnectionResult calls ApplyConnectionResultFunc.
@@ -1135,6 +1141,62 @@ func (mock *ShadowAgentRepositoryMock) ListSignalsCalls() []struct {
 	return calls
 }
 
+// OnboardFinding calls OnboardFindingFunc.
+func (mock *ShadowAgentRepositoryMock) OnboardFinding(ctx context.Context, ouID string, id uuid.UUID, project string, agent string, by string, at time.Time) error {
+	if mock.OnboardFindingFunc == nil {
+		panic("ShadowAgentRepositoryMock.OnboardFindingFunc: method is nil but ShadowAgentRepository.OnboardFinding was just called")
+	}
+	callInfo := struct {
+		Ctx     context.Context
+		OuID    string
+		ID      uuid.UUID
+		Project string
+		Agent   string
+		By      string
+		At      time.Time
+	}{
+		Ctx:     ctx,
+		OuID:    ouID,
+		ID:      id,
+		Project: project,
+		Agent:   agent,
+		By:      by,
+		At:      at,
+	}
+	mock.lockOnboardFinding.Lock()
+	mock.calls.OnboardFinding = append(mock.calls.OnboardFinding, callInfo)
+	mock.lockOnboardFinding.Unlock()
+	return mock.OnboardFindingFunc(ctx, ouID, id, project, agent, by, at)
+}
+
+// OnboardFindingCalls gets all the calls that were made to OnboardFinding.
+// Check the length with:
+//
+//	len(mockedShadowAgentRepository.OnboardFindingCalls())
+func (mock *ShadowAgentRepositoryMock) OnboardFindingCalls() []struct {
+	Ctx     context.Context
+	OuID    string
+	ID      uuid.UUID
+	Project string
+	Agent   string
+	By      string
+	At      time.Time
+} {
+	var calls []struct {
+		Ctx     context.Context
+		OuID    string
+		ID      uuid.UUID
+		Project string
+		Agent   string
+		By      string
+		At      time.Time
+	}
+	mock.lockOnboardFinding.RLock()
+	calls = mock.calls.OnboardFinding
+	mock.lockOnboardFinding.RUnlock()
+	return calls
+}
+
 // RenewScanLease calls RenewScanLeaseFunc.
 func (mock *ShadowAgentRepositoryMock) RenewScanLease(ctx context.Context, id uuid.UUID, until time.Time) error {
 	if mock.RenewScanLeaseFunc == nil {
@@ -1292,49 +1354,5 @@ func (mock *ShadowAgentRepositoryMock) UpdateConnectionCalls() []struct {
 	mock.lockUpdateConnection.RLock()
 	calls = mock.calls.UpdateConnection
 	mock.lockUpdateConnection.RUnlock()
-	return calls
-}
-
-// UpdateFindingStatus calls UpdateFindingStatusFunc.
-func (mock *ShadowAgentRepositoryMock) UpdateFindingStatus(ctx context.Context, ouID string, id uuid.UUID, status string) error {
-	if mock.UpdateFindingStatusFunc == nil {
-		panic("ShadowAgentRepositoryMock.UpdateFindingStatusFunc: method is nil but ShadowAgentRepository.UpdateFindingStatus was just called")
-	}
-	callInfo := struct {
-		Ctx    context.Context
-		OuID   string
-		ID     uuid.UUID
-		Status string
-	}{
-		Ctx:    ctx,
-		OuID:   ouID,
-		ID:     id,
-		Status: status,
-	}
-	mock.lockUpdateFindingStatus.Lock()
-	mock.calls.UpdateFindingStatus = append(mock.calls.UpdateFindingStatus, callInfo)
-	mock.lockUpdateFindingStatus.Unlock()
-	return mock.UpdateFindingStatusFunc(ctx, ouID, id, status)
-}
-
-// UpdateFindingStatusCalls gets all the calls that were made to UpdateFindingStatus.
-// Check the length with:
-//
-//	len(mockedShadowAgentRepository.UpdateFindingStatusCalls())
-func (mock *ShadowAgentRepositoryMock) UpdateFindingStatusCalls() []struct {
-	Ctx    context.Context
-	OuID   string
-	ID     uuid.UUID
-	Status string
-} {
-	var calls []struct {
-		Ctx    context.Context
-		OuID   string
-		ID     uuid.UUID
-		Status string
-	}
-	mock.lockUpdateFindingStatus.RLock()
-	calls = mock.calls.UpdateFindingStatus
-	mock.lockUpdateFindingStatus.RUnlock()
 	return calls
 }

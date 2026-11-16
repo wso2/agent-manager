@@ -16,11 +16,12 @@
  * under the License.
  */
 
-import { Chip } from "@wso2/oxygen-ui";
+import { useState } from "react";
+import { Box, Chip, IconButton, Tooltip } from "@wso2/oxygen-ui";
+import { Check, CircleCheck, CircleDashed, Copy } from "@wso2/oxygen-ui-icons-react";
 import type {
   ShadowCallOutcome,
   ShadowFindingKind,
-  ShadowFindingStatus,
   ShadowOwnerHint,
   ShadowProvider,
   ShadowScanStatus,
@@ -75,15 +76,75 @@ export function kindLabel(k: string, provider?: string): string {
   );
 }
 
-export const STATUS_LABELS: Record<ShadowFindingStatus, string> = {
-  new: "New",
-  reviewed: "Reviewed",
-  dismissed: "Dismissed",
-};
+/** Whether an agent is onboarded as an external agent. */
+export function OnboardingChip({ onboarded }: { onboarded: boolean }) {
+  return onboarded ? (
+    <Chip
+      size="small"
+      color="success"
+      variant="outlined"
+      icon={<CircleCheck size={14} />}
+      label="Onboarded"
+    />
+  ) : (
+    <Chip size="small" variant="outlined" icon={<CircleDashed size={14} />} label="Not onboarded" />
+  );
+}
 
-export function StatusChip({ status }: { status: ShadowFindingStatus }) {
-  const color = status === "reviewed" ? "success" : status === "new" ? "info" : "default";
-  return <Chip size="small" color={color} label={STATUS_LABELS[status] ?? status} />;
+/** The agent name rules of the console's Register an agent page. */
+export const AGENT_NAME_PATTERN = /^[a-z][a-z0-9-]*[a-z0-9]$|^[a-z]$/;
+export const AGENT_NAME_MAX_LENGTH = 25;
+
+/** A suggested agent name from a display name: lowercase, digits and "-". */
+export function suggestAgentName(displayName: string): string {
+  let s = displayName
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^[^a-z]+/, "")
+    .replace(/-+/g, "-");
+  s = s.slice(0, AGENT_NAME_MAX_LENGTH).replace(/-+$/, "");
+  return s || "agent";
+}
+
+/** A copyable code block: commands or environment variables. */
+export function CodeHint({ code, label }: { code: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard
+      ?.writeText(code)
+      .then(() => setCopied(true))
+      .catch(() => setCopied(false));
+  };
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        border: 1,
+        borderColor: "divider",
+        borderRadius: 1,
+        bgcolor: "action.hover",
+        my: 1,
+      }}
+    >
+      <Box
+        component="pre"
+        aria-label={label}
+        sx={{ m: 0, p: 1.5, pr: 5, overflowX: "auto", fontSize: 12, fontFamily: "monospace" }}
+      >
+        {code}
+      </Box>
+      <Tooltip title={copied ? "Copied" : "Copy"}>
+        <IconButton
+          size="small"
+          aria-label={`Copy ${label}`}
+          sx={{ position: "absolute", top: 4, right: 4 }}
+          onClick={copy}
+        >
+          {copied ? <Check size={16} /> : <Copy size={16} />}
+        </IconButton>
+      </Tooltip>
+    </Box>
+  );
 }
 
 const SCAN_STATUS_LABELS: Record<ShadowScanStatus, string> = {

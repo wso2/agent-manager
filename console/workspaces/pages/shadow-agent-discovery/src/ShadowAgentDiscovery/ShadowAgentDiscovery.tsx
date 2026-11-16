@@ -34,6 +34,7 @@ import { ConnectionEditor, editConnectionPath } from "./subComponents/Connection
 import { ConnectionsTab } from "./subComponents/ConnectionsTab";
 import { FindingDetail } from "./subComponents/FindingDetail";
 import { FindingsTab } from "./subComponents/FindingsTab";
+import { OnboardFinding } from "./subComponents/OnboardFinding";
 import { OverviewPanel } from "./subComponents/OverviewPanel";
 import { RunScanButton } from "./subComponents/RunScanButton";
 import { ScanFindings } from "./subComponents/ScanFindings";
@@ -175,6 +176,10 @@ export function ShadowAgentDiscovery() {
       />
       {access.canManage && (
         <>
+          <Route
+            path="agents/:findingId/onboard"
+            element={<OnboardFinding orgName={orgId} listPath={listPath} />}
+          />
           <Route
             path="platforms/new"
             element={<ConnectionEditor orgName={orgId} listPath={listPath} />}

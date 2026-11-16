@@ -15074,12 +15074,12 @@ paths:
         description: Filter by platform
         schema:
           type: string
-      - name: status
+      - name: onboarded
         in: query
         required: false
-        description: Filter by review status
+        description: Only the agents onboarded as external agents (true) or only the others (false)
         schema:
-          type: string
+          type: boolean
       - name: connectionId
         in: query
         required: false
@@ -15199,45 +15199,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-    patch:
-      tags:
-        - Shadow Agent Discovery
-      summary: Review an unregistered agent
-      description: |
-        Marks the agent reviewed or dismissed, or reopens it, on every
-        connection that found it.
-      operationId: updateShadowFinding
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/ShadowFindingUpdateRequest"
-      responses:
-        "200":
-          description: Agent updated
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ShadowFindingDetail"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
     delete:
       tags:
         - Shadow Agent Discovery
@@ -15251,6 +15212,68 @@ paths:
           description: Agent deleted
         "404":
           description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/findings/{findingId}/onboarding:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: findingId
+        in: path
+        required: true
+        description: Agent (finding) ID
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Onboard an unregistered agent as an external agent
+      description: |
+        Links the agent, on every connection that found it, to the
+        externally-hosted agent registered for it in a project of the
+        organization. Register the agent first; the agent must exist.
+      operationId: onboardShadowFinding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowOnboardingRequest"
+      responses:
+        "200":
+          description: Agent onboarded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowFindingDetail"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The agent, project or registered agent was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The agent is already onboarded
           content:
             application/json:
               schema:
@@ -24626,7 +24649,7 @@ components:
 
     ShadowAgentSummary:
       type: object
-      required: [totalFindings, byProvider, byStatus, connections]
+      required: [totalFindings, byProvider, onboarded, connections]
       properties:
         totalFindings:
           type: integer
@@ -24635,10 +24658,9 @@ components:
           type: object
           additionalProperties:
             type: integer
-        byStatus:
-          type: object
-          additionalProperties:
-            type: integer
+        onboarded:
+          type: integer
+          description: How many of those agents are onboarded as external agents.
         connections:
           type: integer
         latestScan:
@@ -24882,7 +24904,7 @@ components:
       description: >-
         One agent a platform lists. When several connections found the same agent, this is its finding in the
         connection that saw it last, and foundBy lists every connection.
-      required: [id, connectionId, connectionName, provider, kind, externalId, displayName, scope, state, status, ownerHint, firstSeenAt, lastSeenAt, present, foundBy]
+      required: [id, connectionId, connectionName, provider, kind, externalId, displayName, scope, state, ownerHint, firstSeenAt, lastSeenAt, present, foundBy, onboarded]
       properties:
         id:
           type: string
@@ -24911,9 +24933,6 @@ components:
         state:
           type: string
           description: The agent's state as its platform reports it.
-        status:
-          type: string
-          enum: [new, reviewed, dismissed]
         ownerHint:
           $ref: "#/components/schemas/ShadowOwnerHint"
         providerCreatedAt:
@@ -24933,6 +24952,18 @@ components:
           description: Every connection that found this agent.
           items:
             $ref: "#/components/schemas/ShadowFindingSource"
+        onboarded:
+          type: boolean
+          description: Whether the agent is onboarded as an external agent.
+        linkedProject:
+          type: string
+          description: The project of the external agent it was onboarded as.
+        linkedAgent:
+          type: string
+          description: The name of the external agent it was onboarded as.
+        onboardedAt:
+          type: string
+          format: date-time
 
     ShadowFindingSource:
       type: object
@@ -25019,11 +25050,21 @@ components:
               description: The evidence, one entry per listing that returned the agent.
               items:
                 $ref: "#/components/schemas/ShadowFindingSignal"
+            onboardedBy:
+              type: string
+              description: Who onboarded the agent.
 
-    ShadowFindingUpdateRequest:
+    ShadowOnboardingRequest:
       type: object
-      required: [status]
+      required: [projectName, agentName]
       properties:
-        status:
+        projectName:
           type: string
-          enum: [new, reviewed, dismissed]
+          minLength: 1
+          maxLength: 255
+          description: The project the external agent is registered in.
+        agentName:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: The registered external agent's name.
