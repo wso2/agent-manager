@@ -55,7 +55,7 @@ export const ProjectOverview: React.FC = () => {
     orgName: orgId,
     projName: projectId,
   });
-  // An external app may own project management; send "Manage project" there.
+  // An external app may own project management; send Settings there.
   const externalManageUrl = getExternalProjectManageUrl(projectId);
   const manageProject = () => {
     if (externalManageUrl) {
@@ -93,7 +93,7 @@ export const ProjectOverview: React.FC = () => {
             onClick={manageProject}
             disabled={!project}
           >
-            Manage project
+            Settings
           </Button>
         )
       }
