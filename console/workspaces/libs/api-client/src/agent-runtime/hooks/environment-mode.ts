@@ -16,19 +16,22 @@
  * under the License.
  */
 
-// Single-environment mode. Deployment pipelines belong to the agent-runtime UI
-// module. Without it the console runs on the organization's only environment,
-// "default": pipeline hooks stay idle, pages send SINGLE_ENVIRONMENT_NAME where
-// they would have taken an environment from a pipeline, and environment
-// pickers hide themselves (there is nothing to choose). Environments are still
-// listed, since pages need the environment's UUID.
+// Single-environment mode: whether the console shows deployment pipelines.
+//
+// Pipelines belong to the agent-runtime UI module, so this is a console
+// decision, taken from the module host: without agent-runtime (turned off in
+// ui-modules.js, or not installed) the pipeline hooks stay idle and pages hide
+// pipeline UI. It says nothing about how many environments the service has:
+// environments always come from the environments API, by their real names and
+// UUIDs, and pickers hide themselves only when that API returns exactly one
+// (see onlyEnvironmentName in shared-component). With the service as shipped,
+// every organization has one environment, so the two agree.
 import { useIsUIModuleInstalled } from "@agent-management-platform/views";
 
-export const SINGLE_ENVIRONMENT_NAME = "default";
-
 /**
- * True when the agent-runtime module is absent, so the console runs on the
- * single implicit environment; undefined while that is still being detected.
+ * True when the agent-runtime module is absent, so the console runs without
+ * deployment pipelines; undefined while that is still being detected (treat
+ * that as loading).
  */
 export function useIsSingleEnvironment(): boolean | undefined {
   const runtimeInstalled = useIsUIModuleInstalled("agent-runtime");

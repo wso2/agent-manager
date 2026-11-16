@@ -22,6 +22,7 @@ import { PageLayout, useFormValidation } from "@agent-management-platform/views"
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
+import { useInitialEnvironment } from "../utils/useInitialEnvironment";
 import {
   absoluteRouteMap,
   OrgProjPathParams,
@@ -29,9 +30,6 @@ import {
 import {
   useAgentBuildOptions,
   useCreateAgent,
-  useGetDeploymentPipeline,
-  useIsSingleEnvironment,
-  SINGLE_ENVIRONMENT_NAME,
 } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry, type MCPProxyFormEntry } from "../form/schema";
 import { InternalAgentForm } from "../forms/InternalAgentForm";
@@ -39,8 +37,6 @@ import { CreateButtons } from "./CreateButtons";
 import {
   buildAgentCreationPayload,
   deriveSampleAgentSeed,
-  findLowestEnvironmentName,
-  hasMultipleEnvironments,
 } from "../utils/buildAgentPayload";
 import {
   hasUnresolvedMCPSecurity,
@@ -154,21 +150,11 @@ export const InternalAgentFlow: React.FC = () => {
     }),
     [orgId, projectId]
   );
-  const { data: deploymentPipeline, isLoading: isDeploymentPipelineLoading } =
-    useGetDeploymentPipeline(params);
-  // Without the agent runtime there is no pipeline: the agent's only
-  // environment is the implicit one.
-  const singleEnv = useIsSingleEnvironment();
-  const initialEnvironmentName = useMemo(
-    () => singleEnv
-      ? SINGLE_ENVIRONMENT_NAME
-      : findLowestEnvironmentName(deploymentPipeline?.promotionPaths),
-    [singleEnv, deploymentPipeline?.promotionPaths],
-  );
-  const multipleEnvironments = useMemo(
-    () => hasMultipleEnvironments(deploymentPipeline?.promotionPaths),
-    [deploymentPipeline?.promotionPaths],
-  );
+  const {
+    initialEnvironmentName,
+    multipleEnvironments,
+    isLoading: isInitialEnvironmentLoading,
+  } = useInitialEnvironment(params);
   // When the deployment pipeline spans multiple environments, the create-time
   // config (LLM providers, env vars, file mounts) applies only to the first
   // environment. Pass the name down so each section can show that hint.
@@ -276,7 +262,7 @@ export const InternalAgentFlow: React.FC = () => {
           mcpProxies={mcpProxies}
           setMCPProxies={setMCPProxies}
           initialEnvironmentName={initialEnvironmentName}
-          isInitialEnvironmentLoading={isDeploymentPipelineLoading}
+          isInitialEnvironmentLoading={isInitialEnvironmentLoading}
           firstEnvOnlyNotice={firstEnvOnlyNotice}
         />
 
@@ -290,7 +276,7 @@ export const InternalAgentFlow: React.FC = () => {
           lastSubmittedValidationErrors={lastSubmittedValidationErrors}
           isPending={
             isPending ||
-            ((llmProviders.length > 0 || mcpProxies.length > 0) && isDeploymentPipelineLoading)
+            ((llmProviders.length > 0 || mcpProxies.length > 0) && isInitialEnvironmentLoading)
           }
           onCancel={handleCancel}
           onSubmit={handleDeploy}

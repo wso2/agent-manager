@@ -52,6 +52,7 @@ import {
   INPUT_LIMITS,
 } from "@agent-management-platform/types";
 import {
+  onlyEnvironmentName,
   useConfirmIfUnsaved,
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
@@ -152,17 +153,6 @@ export function ManageIdentityProviderDialog({
   ]);
 
   const { data: environments } = useListEnvironments({ orgName: orgId });
-  // The selected environment's managed gateways populate the gateway picker (only used
-  // when no gateway is locked in): a self-hosted gateway has no identity providers here.
-  const { data: gatewaysResp } = useListGateways(
-    { orgName: orgId },
-    envName ? { environment: envName } : undefined,
-  );
-  const gateways = useMemo(
-    () => (gatewaysResp?.gateways ?? []).filter(isManagedGateway),
-    [gatewaysResp],
-  );
-
   // Environment choices: scoped to the locked gateway when present, otherwise
   // every environment in the org.
   const envOptions = useMemo<
@@ -171,6 +161,24 @@ export function ManageIdentityProviderDialog({
     () => (lockedGateway ? lockedGateway.environments : (environments ?? [])),
     [lockedGateway, environments],
   );
+
+  // With a single environment there is nothing to choose: the field is hidden
+  // and the dialog uses that environment (see onlyEnvironmentName). envName
+  // holds only what the user picked.
+  const onlyEnvironment = onlyEnvironmentName(envOptions);
+  const effectiveEnvName = envName || onlyEnvironment || "";
+
+  // The selected environment's managed gateways populate the gateway picker (only used
+  // when no gateway is locked in): a self-hosted gateway has no identity providers here.
+  const { data: gatewaysResp } = useListGateways(
+    { orgName: orgId },
+    effectiveEnvName ? { environment: effectiveEnvName } : undefined,
+  );
+  const gateways = useMemo(
+    () => (gatewaysResp?.gateways ?? []).filter(isManagedGateway),
+    [gatewaysResp],
+  );
+
 
   // Reset form when the dialog opens, seeding from the provider for delete.
   useEffect(() => {
@@ -200,13 +208,6 @@ export function ManageIdentityProviderDialog({
     }
   }, [open, isDelete, provider, lockedGateway]);
 
-  // With a single environment there is nothing to choose: select it and hide
-  // the field.
-  const onlyEnvironment = envOptions.length === 1 ? envOptions[0].name : undefined;
-  useEffect(() => {
-    if (open && !isDelete && onlyEnvironment && !envName) setEnvName(onlyEnvironment);
-  }, [open, isDelete, onlyEnvironment, envName]);
-
   // Delete mode is read-only; in upsert mode only user-entered values count.
   const isDirty =
     open &&
@@ -216,7 +217,7 @@ export function ManageIdentityProviderDialog({
       !!jwksUri.trim() ||
       skipTlsVerify ||
       !!discoveryUrl.trim() ||
-      (!isGatewayLocked && !!envName && !onlyEnvironment));
+      (!isGatewayLocked && !!envName));
   useUnsavedChangesGuard(isDirty);
   const confirmIfUnsaved = useConfirmIfUnsaved();
   // Backdrop and header X discard edits, so confirm first; Cancel and the
@@ -277,7 +278,7 @@ export function ManageIdentityProviderDialog({
   );
 
   const gatewayField = (
-    <FormControl fullWidth disabled={isDelete || (!isGatewayLocked && !envName)}>
+    <FormControl fullWidth disabled={isDelete || (!isGatewayLocked && !effectiveEnvName)}>
       <FormLabel>Gateway</FormLabel>
       {isGatewayLocked ? (
         <TextField

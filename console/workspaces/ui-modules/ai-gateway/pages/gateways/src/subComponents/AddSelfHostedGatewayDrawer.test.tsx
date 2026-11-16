@@ -36,11 +36,12 @@ vi.mock("@agent-management-platform/api-client", () => ({
 }));
 
 vi.mock("@agent-management-platform/shared-component", async () => {
-  const { deriveResourceName } = await vi.importActual<
+  const { deriveResourceName, onlyEnvironmentName } = await vi.importActual<
     typeof import("@agent-management-platform/shared-component")
   >("@agent-management-platform/shared-component");
   return {
     deriveResourceName,
+    onlyEnvironmentName,
     getErrorMessage: (err: unknown) => (err instanceof Error ? err.message : ""),
   };
 });

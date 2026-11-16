@@ -161,8 +161,12 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
     }
     return grouped;
   }, [environments, filteredGateways]);
-  // A lone group (e.g. the single environment) needs no heading.
-  const showSectionTitles = sections.length > 1;
+  // Environment headings only mean something when the org has more than one
+  // environment; "Unassigned" always needs its heading. This depends on the
+  // org, not on which groups have rows, so headings stay put while searching.
+  const hasMultipleEnvironments = (environments?.length ?? 0) > 1;
+  const showSectionTitle = (section: EnvironmentSection) =>
+    hasMultipleEnvironments || section.key === "__unassigned__";
 
   const loadingRows = (
     <Stack spacing={1} mt={1}>
@@ -363,7 +367,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
         <ListingTable.Body>
           {sections.map((section) => (
             <Fragment key={section.key}>
-              {showSectionTitles && (
+              {showSectionTitle(section) && (
               <ListingTable.Row>
                 {/* "&&" outranks the table's descendant padding rule on
                         .MuiTableCell-root, which beats a plain sx padding. */}
