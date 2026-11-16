@@ -26,7 +26,6 @@ import {
   PLUGIN_API_VERSION,
   type UIModuleManifest,
 } from "@agent-management-platform/types";
-import { configureAgentPlugin } from "@agent-management-platform/configure-agent/plugin";
 import { buildPlugin } from "@agent-management-platform/build/plugin";
 import { deployPlugin } from "@agent-management-platform/deploy/plugin";
 import { testPlugin } from "@agent-management-platform/test/plugin";
@@ -35,7 +34,7 @@ import { deploymentPipelinesPlugin } from "@agent-management-platform/deployment
 export const agentRuntimeModule: UIModuleManifest = {
   id: "agent-runtime",
   name: "Agent Runtime",
-  description: "Configure, build, deploy and try agents; environments and deployment pipelines.",
+  description: "Build, deploy and try agents; environments and deployment pipelines.",
   apiVersion: PLUGIN_API_VERSION,
-  plugins: [configureAgentPlugin, buildPlugin, deployPlugin, testPlugin, deploymentPipelinesPlugin],
+  plugins: [buildPlugin, deployPlugin, testPlugin, deploymentPipelinesPlugin],
 };

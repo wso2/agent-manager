@@ -55,8 +55,7 @@
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/feature-management": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
-    "zod": "4.6.7",
-    "@agent-management-platform/deploy": "workspace:*"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "6.6.3",

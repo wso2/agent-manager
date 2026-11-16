@@ -52,7 +52,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChevronDown, Info } from "@wso2/oxygen-ui-icons-react";
 import { isExternalAgent, servesA2A } from "@agent-management-platform/views";
-import { ConfigSection } from "@agent-management-platform/shared-component";
+import { ConfigSection } from "../ConfigSection";
 import {
   forwardRef,
   useEffect,

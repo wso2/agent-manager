@@ -34,7 +34,7 @@ import {
 } from "./a2aProxyDraft";
 
 const ProxySecurityDrawer = lazy(() =>
-  import("@agent-management-platform/deploy").then((m) => ({ default: m.ProxySecurityDrawer })),
+  import("./ProxySecurityDrawer").then((m) => ({ default: m.ProxySecurityDrawer })),
 );
 
 type ChipColor = "default" | "warning" | "success" | "error";

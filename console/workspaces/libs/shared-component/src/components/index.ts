@@ -24,6 +24,7 @@ export * from "./CodeBlock";
 export * from "./CollapsibleSection";
 export * from "./EnvironmentVariable";
 export * from "./ConfigSection";
+export * from "./SecurityConfigSections";
 export * from "./HealthCheckFields";
 export * from "./LabelsEditor";
 export * from "./MarkdownEditor";

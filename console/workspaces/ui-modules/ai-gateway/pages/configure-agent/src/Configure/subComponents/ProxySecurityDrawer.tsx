@@ -24,7 +24,10 @@ import {
   useGetAgentConfigurations,
   useUpdateAgentDeploySettings,
 } from "@agent-management-platform/api-client";
-import { SecurityConfigSections, type SecurityConfigHandle } from "./SecurityConfigSections";
+import {
+  SecurityConfigSections,
+  type SecurityConfigHandle,
+} from "@agent-management-platform/shared-component";
 
 export interface ProxySecurityDrawerProps {
   open: boolean;

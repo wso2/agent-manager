@@ -115,8 +115,8 @@ The console is split into six **UI modules** under `workspaces/ui-modules/`, eac
 | Module | Pages |
 |---|---|
 | `acp-core` | overview, level-resource-listing, add-new-project, add-new-agent, settings (+ events), identities |
-| `agent-runtime` | configure-agent, build, deploy, test, deployment-pipelines |
-| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials) |
+| `agent-runtime` | build, deploy, test, deployment-pipelines |
+| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too) |
 | `ai-observability` | traces, logs, metrics, eval |
 | `agent-identity` | env-thunders (Agent ID, groups, roles) |
 | `agent-portal` | agent-kind (catalog, publish) |

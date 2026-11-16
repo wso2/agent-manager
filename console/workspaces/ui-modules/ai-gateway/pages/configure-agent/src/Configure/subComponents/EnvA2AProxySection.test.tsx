@@ -35,7 +35,7 @@ vi.mock("@agent-management-platform/shared-component", () => ({
   copyToClipboard: (text: string) => copyToClipboard(text),
 }));
 
-vi.mock("@agent-management-platform/deploy", () => ({
+vi.mock("./ProxySecurityDrawer", () => ({
   ProxySecurityDrawer: ({ open }: { open: boolean }) => (open ? <div>security drawer</div> : null),
 }));
 
