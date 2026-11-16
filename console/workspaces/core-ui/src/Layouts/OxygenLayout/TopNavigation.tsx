@@ -4,8 +4,12 @@ import {
   useListOrganizations,
   useListProjects,
 } from "@agent-management-platform/api-client";
-import { absoluteRouteMap } from "@agent-management-platform/types";
 import {
+  absoluteRouteMap,
+  withBasePath,
+} from "@agent-management-platform/types";
+import {
+  Box,
   Header,
   HeaderBreadcrumbs,
   type HeaderBreadcrumbsItem,
@@ -14,15 +18,11 @@ import {
 import { Bot, Building2, Folder } from "@wso2/oxygen-ui-icons-react";
 import {
   Component,
-  createContext,
   forwardRef,
   useCallback,
-  useContext,
   useMemo,
-  useRef,
   useState,
   type MouseEvent,
-  type MutableRefObject,
   type ReactNode,
 } from "react";
 import {
@@ -64,18 +64,7 @@ class OrganizationSwitcherBoundary extends Component<
   }
 }
 
-/**
- * Where a menu pick should land in place of the picked entry's `href`.
- *
- * Every entry's `href` is that entry's home page, so clicking a name in the trail
- * (or opening an entry in a new tab) goes to that level. Switching from a menu
- * instead keeps the current sub-page, such as an agent's Traces page, so the pick
- * handler stores that path here and RouterLink follows it on a plain click.
- */
-const SwitchTargetContext =
-  createContext<MutableRefObject<string | null> | null>(null);
-
-const isPlainLeftClick = (event: MouseEvent<HTMLAnchorElement>) =>
+const isPlainLeftClick = (event: MouseEvent) =>
   event.button === 0 &&
   !event.metaKey &&
   !event.ctrlKey &&
@@ -83,38 +72,33 @@ const isPlainLeftClick = (event: MouseEvent<HTMLAnchorElement>) =>
   !event.altKey;
 
 /**
- * HeaderBreadcrumbs renders linked names and menu entries with an `href`; this
- * maps it onto a router Link so they navigate client-side and still support
- * middle-click / open-in-new-tab.
+ * HeaderBreadcrumbs renders menu entries and actions with an `href` through this,
+ * so they are real links: middle-click / Cmd-click opens them in a new tab.
+ *
+ * Every entry's `href` is that entry's home page. A plain click on a switch-menu
+ * entry (`menuitemradio`) is left to `onSelect`, which keeps the current sub-page
+ * (see handleSelect); the link then only closes the menu. A new-tab click skips
+ * the breadcrumb's handler so the current tab stays where it is.
  */
 const RouterLink = forwardRef<
   HTMLAnchorElement,
   Omit<LinkProps, "to"> & { href: string }
->(({ href, onClick, ...rest }, ref) => {
-  const switchTarget = useContext(SwitchTargetContext);
-  const navigate = useNavigate();
-  return (
-    <Link
-      ref={ref}
-      to={href}
-      {...rest}
-      onClick={(event) => {
-        // Runs the breadcrumb's own handler first, which may set a switch target.
-        onClick?.(event);
-        const target = switchTarget?.current;
-        if (!switchTarget || !target) {
-          return;
-        }
-        switchTarget.current = null;
-        // A new-tab click opens the entry's home page; a plain click switches.
-        if (!event.defaultPrevented && isPlainLeftClick(event)) {
-          event.preventDefault();
-          navigate(target);
-        }
-      }}
-    />
-  );
-});
+>(({ href, onClick, ...rest }, ref) => (
+  <Link
+    ref={ref}
+    to={href}
+    {...rest}
+    onClick={(event) => {
+      if (!isPlainLeftClick(event)) {
+        return;
+      }
+      onClick?.(event);
+      if (rest.role === "menuitemradio") {
+        event.preventDefault();
+      }
+    }}
+  />
+));
 RouterLink.displayName = "RouterLink";
 
 const ORG_LEVEL = "organization";
@@ -129,6 +113,16 @@ const orgLabel = (
     return org.displayName;
   }
   return fallbackName || org?.name;
+};
+
+/**
+ * Names in the trail render as `<button href=…>` (oxygen-ui 0.25.0 does not apply
+ * `linkComponent` to them), so they are not links. Open them in a new tab on
+ * middle-click and Cmd/Ctrl/Shift-click, as a link would.
+ */
+const trailNameHref = (event: MouseEvent) => {
+  const target = event.target as HTMLElement | null;
+  return target?.closest("button[href]")?.getAttribute("href") ?? null;
 };
 
 export function TopNavigation() {
@@ -181,6 +175,7 @@ export function TopNavigation() {
   const switchingToName = externalSwitcher?.organizations.find(
     (organization) => organization.id === externalSwitcher.switchingId,
   )?.name;
+  const canSwitchOrg = hasOtherOrgs || !!externalSwitcher;
 
   // Get all projects for the organization
   const { data: projects, isLoading: projectsLoading } = useListProjects({
@@ -194,28 +189,47 @@ export function TopNavigation() {
   });
 
   const levels = useMemo<HeaderBreadcrumbsLevel[]>(() => {
-    if (!orgId || !organizations?.organizations || !selectedOrganization) {
+    if (!orgId) {
       return [];
     }
 
     const orgHome = (id: string) =>
       generatePath(absoluteRouteMap.children.org.path, { orgId: id });
+    // The console's own org, even when the org list failed or does not include
+    // it, so the project and agent levels still render.
+    const currentOrgItem: HeaderBreadcrumbsItem = {
+      id: externalSwitcher ? externalSwitcher.currentId : orgId,
+      name:
+        switchingToName ??
+        orgLabel(selectedOrganization, soloOrgFallbackName) ??
+        orgId,
+      href: orgHome(selectedOrganization ? orgRouteId(selectedOrganization) : orgId),
+    };
 
-    const orgItems: HeaderBreadcrumbsItem[] = externalSwitcher
-      ? externalSwitcher.organizations.map((organization) => ({
-          id: organization.id,
-          name: organization.name,
-          disabled: !!externalSwitcher.switchingId,
-        }))
-      : organizations.organizations.map((organization) => ({
-          id: orgRouteId(organization),
-          name:
-            orgLabel(
-              organization,
-              orgRouteId(organization) === orgId ? soloOrgFallbackName : undefined,
-            ) ?? orgRouteId(organization),
-          href: orgHome(orgRouteId(organization)),
-        }));
+    let orgItems: HeaderBreadcrumbsItem[];
+    if (externalSwitcher) {
+      // External entries switch through the injected component, so they carry no
+      // link. The current one does, so its name still goes to the org page.
+      orgItems = externalSwitcher.organizations.map((organization) =>
+        organization.id === externalSwitcher.currentId
+          ? currentOrgItem
+          : {
+              id: organization.id,
+              name: organization.name,
+              disabled: !!externalSwitcher.switchingId,
+            },
+      );
+    } else {
+      orgItems = (organizations?.organizations ?? []).map((organization) =>
+        orgRouteId(organization) === orgId
+          ? currentOrgItem
+          : {
+              id: orgRouteId(organization),
+              name: orgLabel(organization) ?? orgRouteId(organization),
+              href: orgHome(orgRouteId(organization)),
+            },
+      );
+    }
 
     const result: HeaderBreadcrumbsLevel[] = [
       {
@@ -223,43 +237,32 @@ export function TopNavigation() {
         label: "Organization",
         icon: <Building2 size={16} />,
         items: orgItems,
-        selectedId: externalSwitcher ? externalSwitcher.currentId : orgId,
-        // Keeps the trail pointing at the console's own org page, and shows the
-        // target name while an external switch is in progress.
-        selectedItem: {
-          id: externalSwitcher ? externalSwitcher.currentId : orgId,
-          name:
-            switchingToName ??
-            orgLabel(selectedOrganization, soloOrgFallbackName) ??
-            orgId,
-          href: orgHome(orgRouteId(selectedOrganization)),
+        selectedId: currentOrgItem.id,
+        selectedItem: currentOrgItem,
+      },
+      {
+        id: PROJECT_LEVEL,
+        label: "Project",
+        icon: <Folder size={16} />,
+        loading: projectsLoading,
+        items: (projects?.projects ?? []).map((project) => ({
+          id: project.name,
+          name: project.displayName,
+          href: generatePath(
+            absoluteRouteMap.children.org.children.projects.path,
+            { orgId, projectId: project.name },
+          ),
+        })),
+        selectedId: projectId ?? null,
+        createAction: {
+          label: "Create a Project",
+          href: generatePath(
+            absoluteRouteMap.children.org.children.newProject.path,
+            { orgId },
+          ),
         },
       },
     ];
-
-
-    result.push({
-      id: PROJECT_LEVEL,
-      label: "Project",
-      icon: <Folder size={16} />,
-      loading: projectsLoading,
-      items: (projects?.projects ?? []).map((project) => ({
-        id: project.name,
-        name: project.displayName,
-        href: generatePath(
-          absoluteRouteMap.children.org.children.projects.path,
-          { orgId, projectId: project.name },
-        ),
-      })),
-      selectedId: projectId ?? null,
-      createAction: {
-        label: "Create a Project",
-        href: generatePath(
-          absoluteRouteMap.children.org.children.newProject.path,
-          { orgId },
-        ),
-      },
-    });
 
     if (projectId) {
       result.push({
@@ -304,8 +307,9 @@ export function TopNavigation() {
     agentsLoading,
   ]);
 
-  const switchTarget = useRef<string | null>(null);
-
+  // Picking another entry from a level's menu (by click, or Enter in its search
+  // field) keeps the page the user is on within that level, such as switching
+  // agents while on Traces.
   const handleSelect = useCallback(
     (levelId: string, item: HeaderBreadcrumbsItem) => {
       if (levelId === ORG_LEVEL && externalSwitcher) {
@@ -315,31 +319,19 @@ export function TopNavigation() {
       if (!item.href) {
         return;
       }
-      // Switching keeps the page the user is on within the current level.
       const subPage =
         levelId === ORG_LEVEL
           ? commonOrgPages
           : levelId === PROJECT_LEVEL
             ? commonProjectPages
             : commonAgentPages;
-      const target = subPage ? `${item.href}/${subPage}` : item.href;
-      // A click on the entry's link follows this target (see RouterLink). A pick
-      // from the search field with Enter has no link click, so navigate here if
-      // no link has taken it by the next tick.
-      switchTarget.current = target;
-      setTimeout(() => {
-        if (switchTarget.current === target) {
-          switchTarget.current = null;
-          navigate(target);
-        }
-      });
+      navigate(subPage ? `${item.href}/${subPage}` : item.href);
     },
     [externalSwitcher, navigate, commonOrgPages, commonProjectPages, commonAgentPages],
   );
 
   // Clicking a name in the trail goes to that level's home page, such as the
-  // project page from an agent page. HeaderBreadcrumbs renders the name as a
-  // button (its `linkComponent` is not applied there), so navigate here.
+  // project page from an agent page.
   const handleNavigate = useCallback(
     (_levelId: string, item: HeaderBreadcrumbsItem) => {
       if (item.href && item.href !== pathname) {
@@ -348,6 +340,16 @@ export function TopNavigation() {
     },
     [navigate, pathname],
   );
+
+  const openTrailNameInNewTab = (event: MouseEvent) => {
+    const href = trailNameHref(event);
+    if (!href) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    window.open(withBasePath(href), "_blank", "noopener");
+  };
 
   return (
     <>
@@ -360,15 +362,34 @@ export function TopNavigation() {
       )}
       <Header.Switchers showDivider={false}>
         {levels.length > 0 && (
-          <SwitchTargetContext.Provider value={switchTarget}>
+          <Box
+            onClickCapture={(event: MouseEvent) => {
+              if (event.metaKey || event.ctrlKey || event.shiftKey) {
+                openTrailNameInNewTab(event);
+              }
+            }}
+            onAuxClick={(event: MouseEvent) => {
+              if (event.button === 1) {
+                openTrailNameInNewTab(event);
+              }
+            }}
+            sx={{
+              display: "contents",
+              // With one organization there is nothing to switch to.
+              ...(!canSwitchOrg && {
+                '& button[aria-label="Switch organization"]': {
+                  display: "none",
+                },
+              }),
+            }}
+          >
             <HeaderBreadcrumbs
               levels={levels}
               linkComponent={RouterLink}
               onSelect={handleSelect}
               onNavigate={handleNavigate}
-
             />
-          </SwitchTargetContext.Provider>
+          </Box>
         )}
       </Header.Switchers>
     </>
