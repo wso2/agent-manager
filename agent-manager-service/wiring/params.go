@@ -84,6 +84,7 @@ type AppParams struct {
 	AgentThunderReconciler           services.AgentThunderReconcilerService
 	A2ACardReconciler                services.A2ACardReconcilerService
 	DeploymentTimeoutSweeper         services.DeploymentTimeoutSweeper
+	SecretJobWorker                  services.SecretJobWorker
 	ReconcileWorker                  *reconcile.Worker
 	DefaultGatewaySeeder             *services.DefaultGatewaySeeder
 

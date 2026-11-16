@@ -20,11 +20,15 @@ package repositories
 
 import (
 	"context"
+	"errors"
+	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
@@ -118,63 +122,293 @@ func TestSecretStoreReadsRowsWrittenBeforeTheVault(t *testing.T) {
 	assert.Equal(t, "old-value", stored)
 }
 
-// externalVault keeps values outside the database; the row holds a reference.
-type externalVault struct {
-	values map[string][]byte
+// externalFixture is a store that seals new values with an external vault, and the runner that does that vault's
+// work once a write commits.
+type externalFixture struct {
+	store    *SecretStore
+	runner   *SecretJobRunner
+	external *vaulttest.External
+	org      string
+	// offset moves the runner's clock ahead of real time, past retry backoffs.
+	offset time.Duration
 }
 
-func (*externalVault) Provider() string { return "test-external" }
-
-func (e *externalVault) Seal(_ context.Context, ref vault.Ref, plaintext []byte, current *vault.Sealed) (vault.Sealed, error) {
-	path := "amp/" + ref.OrgID + "/" + ref.OwnerKind + "/" + ref.SecretID.String()
-	if current != nil && current.ExternalRef != "" {
-		path = current.ExternalRef
+func newExternalFixture(t *testing.T) *externalFixture {
+	t.Helper()
+	vaults, external := vaulttest.LocalAndExternal(t)
+	f := &externalFixture{
+		store: NewSecretStore(vaults), runner: NewSecretJobRunner(db.GetDB(), vaults, slog.New(slog.DiscardHandler)),
+		external: external, org: newOrg(t),
 	}
-	e.values[path] = plaintext
-	return vault.Sealed{ExternalRef: path}, nil
+	return f
 }
 
-func (e *externalVault) Open(_ context.Context, _ vault.Ref, sealed vault.Sealed) ([]byte, error) {
-	return e.values[sealed.ExternalRef], nil
+// cleanup removes what the test left for id, its jobs included, so no other test's runner picks them up.
+func (f *externalFixture) cleanup(t *testing.T, ids ...uuid.UUID) {
+	t.Cleanup(func() {
+		for _, id := range ids {
+			_ = releaseSecret(db.GetDB(), &id)
+			_ = db.GetDB().Where("secret_id = ?", id).Delete(&models.SecretJob{}).Error
+		}
+	})
 }
 
-func (e *externalVault) Destroy(_ context.Context, _ vault.Ref, sealed vault.Sealed) error {
-	delete(e.values, sealed.ExternalRef)
-	return nil
-}
+func (f *externalFixture) now() time.Time { return time.Now().UTC().Add(f.offset) }
 
-func TestSecretStoreKeepsOnlyAReferenceForAnExternalVault(t *testing.T) {
-	ctx, gdb := context.Background(), db.GetDB()
-	local, err := vault.NewLocal(vaulttest.Key)
+// run runs the jobs due by the fixture's clock and returns how many ran and failed.
+func (f *externalFixture) run(t *testing.T) (int, int) {
+	t.Helper()
+	ran, failed, err := f.runner.RunOnce(context.Background(), f.now())
 	require.NoError(t, err)
-	external := &externalVault{values: map[string][]byte{}}
-	localStore := NewSecretStore(vault.Of(local))
-	store := NewSecretStore(vault.Of(external, local))
-	org, id := newOrg(t), newID()
-	t.Cleanup(func() { _ = store.Delete(ctx, gdb, id) })
+	return ran, failed
+}
 
-	// A value the local vault sealed moves to the external one on its next write.
-	require.NoError(t, localStore.Write(ctx, gdb, org, "test_owner", id, id, []byte("v1")))
-	value, _, err := store.Read(ctx, gdb, id)
+// later moves the fixture's clock past any retry backoff.
+func (f *externalFixture) later() { f.offset += 2 * secretJobMaxBackoff }
+
+func (f *externalFixture) write(t *testing.T, id uuid.UUID, value string) {
+	t.Helper()
+	require.NoError(t, f.store.Write(context.Background(), db.GetDB(), f.org, "test_owner", id, id, []byte(value)))
+}
+
+func (f *externalFixture) read(t *testing.T, id uuid.UUID) string {
+	t.Helper()
+	value, found, err := f.store.Read(context.Background(), db.GetDB(), id)
 	require.NoError(t, err)
-	assert.Equal(t, "v1", string(value), "the previous vault's values stay readable")
+	require.True(t, found)
+	return string(value)
+}
 
-	require.NoError(t, store.Write(ctx, gdb, org, "test_owner", id, id, []byte("v2")))
+func (f *externalFixture) pending(t *testing.T, id uuid.UUID) int64 {
+	t.Helper()
+	n, err := PendingSecretJobs(context.Background(), db.GetDB(), id)
+	require.NoError(t, err)
+	return n
+}
+
+// errRollback aborts a transaction on purpose.
+var errRollback = errors.New("roll back")
+
+func (f *externalFixture) rolledBack(t *testing.T, fn func(tx *gorm.DB) error) {
+	t.Helper()
+	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
+		require.NoError(t, fn(tx))
+		return errRollback
+	})
+	require.ErrorIs(t, err, errRollback)
+}
+
+// promoted writes value and promotes it, returning the reference the row holds.
+func (f *externalFixture) promoted(t *testing.T, id uuid.UUID, value string) string {
+	t.Helper()
+	f.write(t, id, value)
+	f.run(t)
 	row := secretRow(t, id)
-	assert.Equal(t, "test-external", row.Provider)
+	require.Equal(t, vaulttest.ExternalProvider, row.Provider)
+	require.NotNil(t, row.ExternalRef)
+	return *row.ExternalRef
+}
+
+func TestSecretStoreWritesAnExternalVaultOnlyAfterCommit(t *testing.T) {
+	f := newExternalFixture(t)
+	id := newID()
+	f.cleanup(t, id)
+
+	f.write(t, id, "v1")
+	row := secretRow(t, id)
+	assert.Equal(t, vault.ProviderLocal, row.Provider, "a write seals into the row until it has committed")
+	assert.Zero(t, f.external.Len(), "nothing reaches the external vault inside the transaction")
+	assert.Equal(t, "v1", f.read(t, id))
+	assert.EqualValues(t, 1, f.pending(t, id))
+
+	ran, failed := f.run(t)
+	assert.Positive(t, ran)
+	assert.Zero(t, failed)
+	row = secretRow(t, id)
+	assert.Equal(t, vaulttest.ExternalProvider, row.Provider)
 	assert.Empty(t, row.Ciphertext, "nothing of the value stays in the database")
 	assert.Nil(t, row.KeyID)
 	require.NotNil(t, row.ExternalRef)
-	assert.Equal(t, "v2", string(external.values[*row.ExternalRef]))
+	first := *row.ExternalRef
+	assert.Equal(t, "v1", f.external.Value(first))
+	assert.Equal(t, "v1", f.read(t, id))
+	assert.Zero(t, f.pending(t, id))
 
-	require.NoError(t, store.Write(ctx, gdb, org, "test_owner", id, id, []byte("v3")))
-	assert.Equal(t, *row.ExternalRef, *secretRow(t, id).ExternalRef, "a rewrite keeps the same entry")
-	assert.Len(t, external.values, 1)
+	// A rotation stages a new version; the one the row pointed to goes only once the new one is in the row.
+	f.write(t, id, "v2")
+	assert.True(t, f.external.Has(first), "the previous version stays until its replacement is recorded")
+	f.run(t)
+	second := *secretRow(t, id).ExternalRef
+	assert.NotEqual(t, first, second)
+	assert.Equal(t, "v2", f.external.Value(second))
+	assert.Equal(t, "v2", f.read(t, id))
+	f.run(t)
+	assert.False(t, f.external.Has(first), "the replaced version is removed after the commit")
+	assert.Zero(t, f.pending(t, id))
 
-	require.ErrorIs(t, deleteRowSecret(gdb, &id), errSecretHeldExternally,
-		"a delete path without the store must not orphan the external value")
+	require.NoError(t, f.store.Delete(context.Background(), db.GetDB(), id))
+	assert.True(t, f.external.Has(second), "a delete removes the external value only through a job")
+	f.run(t)
+	assert.False(t, f.external.Has(second))
+	assert.Zero(t, f.pending(t, id))
+}
 
-	require.NoError(t, store.Delete(ctx, gdb, id))
-	assert.Empty(t, external.values, "deleting the secret removes it from the vault")
-	require.NoError(t, deleteRowSecret(gdb, &id), "a missing row is a no-op")
+// The defect this guards against: a delete or replacement inside a transaction that later rolls back must leave the
+// value the restored row points to readable.
+func TestSecretStoreRollbackKeepsTheExternalValue(t *testing.T) {
+	f := newExternalFixture(t)
+	id := newID()
+	f.cleanup(t, id)
+	ref := f.promoted(t, id, "v1")
+
+	f.rolledBack(t, func(tx *gorm.DB) error { return f.store.Delete(context.Background(), tx, id) })
+	f.rolledBack(t, func(tx *gorm.DB) error {
+		return f.store.Write(context.Background(), tx, f.org, "test_owner", id, id, []byte("v2"))
+	})
+	f.later()
+	f.run(t)
+
+	assert.True(t, f.external.Has(ref))
+	assert.Equal(t, ref, *secretRow(t, id).ExternalRef)
+	assert.Equal(t, "v1", f.read(t, id))
+	assert.Zero(t, f.pending(t, id), "the rolled-back writes queued nothing")
+	assert.Empty(t, f.external.Destroyed)
+}
+
+func TestSecretJobsRetryAndNeverRemoveAValueInUse(t *testing.T) {
+	f := newExternalFixture(t)
+	id, other := newID(), newID()
+	f.cleanup(t, id, other)
+
+	// A failed promotion leaves the value readable from the row and is retried.
+	f.external.FailSeal = 1
+	f.write(t, id, "v1")
+	_, failed := f.run(t)
+	assert.Equal(t, 1, failed)
+	assert.Equal(t, vault.ProviderLocal, secretRow(t, id).Provider)
+	assert.Equal(t, "v1", f.read(t, id))
+	var job models.SecretJob
+	require.NoError(t, db.GetDB().Where("secret_id = ?", id).Take(&job).Error)
+	assert.Equal(t, 1, job.Attempts)
+	require.NotNil(t, job.LastError)
+	assert.True(t, job.AvailableAt.After(f.now()), "a failed job waits before its next attempt")
+	ran, _ := f.run(t)
+	assert.Zero(t, ran, "a job is not retried before its backoff ends")
+	f.later()
+	f.run(t)
+	ref := *secretRow(t, id).ExternalRef
+
+	// A failed removal is retried until it succeeds.
+	f.external.FailDestroy = 1
+	require.NoError(t, f.store.Delete(context.Background(), db.GetDB(), id))
+	_, failed = f.run(t)
+	assert.Equal(t, 1, failed)
+	assert.True(t, f.external.Has(ref))
+	f.later()
+	f.run(t)
+	assert.False(t, f.external.Has(ref))
+	assert.Zero(t, f.pending(t, id))
+
+	// A removal queued for a value a committed row refers to is dropped, and the value kept.
+	inUse := f.promoted(t, other, "kept")
+	require.NoError(t, queueDestroy(db.GetDB(), f.org, other, "test_owner",
+		externalValue{provider: vaulttest.ExternalProvider, ref: inUse}))
+	require.NoError(t, queueDestroy(db.GetDB(), f.org, other, "test_owner",
+		externalValue{provider: vaulttest.ExternalProvider, ref: inUse}))
+	f.run(t)
+	assert.True(t, f.external.Has(inUse))
+	assert.Equal(t, "kept", f.read(t, other))
+	assert.Zero(t, f.pending(t, other))
+
+	// Removing a value that is already gone succeeds, so a retry after a lost acknowledgement finishes.
+	require.NoError(t, queueDestroy(db.GetDB(), f.org, other, "test_owner",
+		externalValue{provider: vaulttest.ExternalProvider, ref: "amp/gone#1"}))
+	_, failed = f.run(t)
+	assert.Zero(t, failed)
+	assert.Zero(t, f.pending(t, other))
+}
+
+func TestSecretPromotionHandsOverWhatItReplaces(t *testing.T) {
+	f := newExternalFixture(t)
+	id := newID()
+	f.cleanup(t, id)
+	first := f.promoted(t, id, "v1")
+
+	// Two writes before the worker runs: the first's promotion is superseded and the second's replaces first.
+	f.write(t, id, "v2")
+	f.write(t, id, "v3")
+	f.run(t)
+	f.run(t)
+	row := secretRow(t, id)
+	require.NotNil(t, row.ExternalRef)
+	assert.Equal(t, "v3", f.external.Value(*row.ExternalRef))
+	assert.False(t, f.external.Has(first))
+	assert.Equal(t, 1, f.external.Len(), "a superseded promotion writes nothing")
+	assert.Zero(t, f.pending(t, id))
+
+	// A write then a delete before the worker runs removes the promoted value and writes nothing.
+	current := *row.ExternalRef
+	f.write(t, id, "v4")
+	require.NoError(t, f.store.Delete(context.Background(), db.GetDB(), id))
+	f.run(t)
+	f.run(t)
+	assert.False(t, f.external.Has(current))
+	assert.Zero(t, f.external.Len())
+	assert.Zero(t, f.pending(t, id))
+}
+
+// An attempt interrupted after writing to the vault but before recording the value in the row leaves the value in
+// its job; the next attempt reclaims it before writing again.
+func TestSecretPromotionReclaimsAValueAnInterruptedAttemptWrote(t *testing.T) {
+	f := newExternalFixture(t)
+	id := newID()
+	f.cleanup(t, id)
+	f.write(t, id, "v1")
+
+	orphan, err := f.external.Seal(context.Background(), vault.Ref{OrgID: f.org, SecretID: id, OwnerKind: "test_owner"},
+		[]byte("v1"), nil)
+	require.NoError(t, err)
+	require.NoError(t, db.GetDB().Model(&models.SecretJob{}).Where("secret_id = ?", id).Updates(map[string]any{
+		"staged_provider": vaulttest.ExternalProvider, "staged_ref": orphan.ExternalRef,
+	}).Error)
+
+	f.run(t)
+	assert.False(t, f.external.Has(orphan.ExternalRef))
+	row := secretRow(t, id)
+	require.NotNil(t, row.ExternalRef)
+	assert.Equal(t, "v1", f.external.Value(*row.ExternalRef))
+	assert.Equal(t, 1, f.external.Len())
+	assert.Zero(t, f.pending(t, id))
+}
+
+func TestSecretStoreMovesBetweenVaults(t *testing.T) {
+	f := newExternalFixture(t)
+	local, err := vault.NewLocal(vaulttest.Key)
+	require.NoError(t, err)
+	localOnly := NewSecretStore(vault.Of(local, f.external))
+	id := newID()
+	f.cleanup(t, id)
+
+	// A value the local vault sealed stays readable after the move and goes to the external vault on its next write.
+	require.NoError(t, localOnly.Write(context.Background(), db.GetDB(), f.org, "test_owner", id, id, []byte("v1")))
+	assert.Zero(t, f.pending(t, id), "the local vault queues nothing")
+	assert.Equal(t, "v1", f.read(t, id))
+	ref := f.promoted(t, id, "v2")
+
+	// Moving back seals into the row, and the external value goes once that has committed.
+	f.rolledBack(t, func(tx *gorm.DB) error {
+		return localOnly.Write(context.Background(), tx, f.org, "test_owner", id, id, []byte("v3"))
+	})
+	f.run(t)
+	assert.True(t, f.external.Has(ref))
+	require.NoError(t, localOnly.Write(context.Background(), db.GetDB(), f.org, "test_owner", id, id, []byte("v3")))
+	row := secretRow(t, id)
+	assert.Equal(t, vault.ProviderLocal, row.Provider)
+	assert.Nil(t, row.ExternalRef)
+	assert.True(t, f.external.Has(ref), "the external value outlives the write until the job runs")
+	f.run(t)
+	assert.False(t, f.external.Has(ref))
+	value, _, err := localOnly.Read(context.Background(), db.GetDB(), id)
+	require.NoError(t, err)
+	assert.Equal(t, "v3", string(value))
 }

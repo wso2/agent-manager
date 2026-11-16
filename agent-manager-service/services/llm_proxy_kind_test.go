@@ -54,11 +54,11 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 	gormDB := db.GetDB()
 	gateways := repositories.NewGatewayRepo(gormDB)
 	f.kind = NewLLMProxyKind(gateways, f.sync.repo)
-	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(), f.kind},
+	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(f.secrets), f.kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(core, slog.New(slog.DiscardHandler))
 	f.proxies = NewLLMProxyDeploymentService(NewTxRunner(gormDB), f.sync.repo, repositories.NewLLMProxyRepo(gormDB),
-		repositories.NewLLMProviderRepo(gormDB), gateways, nil, core, f.kind)
+		repositories.NewLLMProviderRepo(gormDB, f.secrets), gateways, nil, core, f.kind)
 	created, err := f.providers.Create(context.Background(), f.sync.ouID, "me", f.newProvider(t))
 	require.NoError(t, err)
 	f.provider = created
@@ -274,9 +274,9 @@ func TestAgentConfigProxyUpdateAfterAPublicUndeploySaves(t *testing.T) {
 	svc := &agentConfigurationService{
 		db:                        gormDB,
 		envMappingRepo:            mappings,
-		llmProviderRepo:           repositories.NewLLMProviderRepo(gormDB),
+		llmProviderRepo:           repositories.NewLLMProviderRepo(gormDB, f.secrets),
 		gatewayRepo:               repositories.NewGatewayRepo(gormDB),
-		llmProxyService:           NewLLMProxyService(repositories.NewLLMProxyRepo(gormDB), repositories.NewLLMProviderRepo(gormDB), make([]byte, 32)),
+		llmProxyService:           NewLLMProxyService(repositories.NewLLMProxyRepo(gormDB), repositories.NewLLMProviderRepo(gormDB, f.secrets), make([]byte, 32)),
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}
@@ -363,7 +363,7 @@ func scenarioBRollback(t *testing.T, f *proxyFixture) (
 
 	svc = &agentConfigurationService{
 		db:                        gormDB,
-		llmProxyService:           NewLLMProxyService(proxies, repositories.NewLLMProviderRepo(gormDB), make([]byte, 32)),
+		llmProxyService:           NewLLMProxyService(proxies, repositories.NewLLMProviderRepo(gormDB, f.secrets), make([]byte, 32)),
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}
@@ -438,7 +438,7 @@ func TestScenarioBRollbackOfAnUnchangedDeploymentLeavesItLive(t *testing.T) {
 	require.NoError(t, err)
 	prior.Handle = proxy.Handle
 	svc := &agentConfigurationService{
-		llmProxyService:           NewLLMProxyService(proxies, repositories.NewLLMProviderRepo(db.GetDB()), make([]byte, 32)),
+		llmProxyService:           NewLLMProxyService(proxies, repositories.NewLLMProviderRepo(db.GetDB(), f.secrets), make([]byte, 32)),
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}
@@ -514,9 +514,9 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 	svc := &agentConfigurationService{
 		db:                        gormDB,
 		envMappingRepo:            mappings,
-		llmProviderRepo:           repositories.NewLLMProviderRepo(gormDB),
+		llmProviderRepo:           repositories.NewLLMProviderRepo(gormDB, f.secrets),
 		gatewayRepo:               repositories.NewGatewayRepo(gormDB),
-		llmProxyService:           NewLLMProxyService(repositories.NewLLMProxyRepo(gormDB), repositories.NewLLMProviderRepo(gormDB), make([]byte, 32)),
+		llmProxyService:           NewLLMProxyService(repositories.NewLLMProxyRepo(gormDB), repositories.NewLLMProviderRepo(gormDB, f.secrets), make([]byte, 32)),
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}

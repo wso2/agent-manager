@@ -54,6 +54,7 @@ var configProviderSet = wire.NewSet(
 	ProvideEncryptionKey,
 	ProvideSecretVaults,
 	repositories.NewSecretStore,
+	repositories.NewSecretJobRunner,
 )
 
 var clientProviderSet = wire.NewSet(
@@ -87,6 +88,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewA2ACardFetcher,
 	services.NewA2ACardReconcilerService,
 	services.NewConfiguredDeploymentTimeoutSweeper,
+	services.NewSecretJobWorker,
 	services.NewA2AAgentCardService,
 	ProvideTxRunner,
 	services.NewAgentExposurePublisher,
@@ -420,8 +422,8 @@ func ProvideLLMProviderTemplateRepository(db *gorm.DB) repositories.LLMProviderT
 	return repositories.NewLLMProviderTemplateRepo(db)
 }
 
-func ProvideLLMProviderRepository(db *gorm.DB) repositories.LLMProviderRepository {
-	return repositories.NewLLMProviderRepo(db)
+func ProvideLLMProviderRepository(db *gorm.DB, secrets *repositories.SecretStore) repositories.LLMProviderRepository {
+	return repositories.NewLLMProviderRepo(db, secrets)
 }
 
 func ProvideLLMProxyRepository(db *gorm.DB) repositories.LLMProxyRepository {

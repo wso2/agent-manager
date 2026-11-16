@@ -200,7 +200,28 @@ One row per agent per environment. Replaces `agent_configs`. PK (agent_id, envir
 
 Index (org_id, owner_kind, owner_id). Owning tables reference a secret by `secret_id` (FK, no action); the service deletes the secret after the owner.
 
-Values go through a vault (`agent-manager-service/vault`), selected by `SECRET_VAULT_PROVIDER`. The built-in `local` vault encrypts into the row. An external vault is a Go package that implements `vault.Vault` and registers itself with `vault.Register`; it stores the value itself and returns the `external_ref` to keep. Rows are opened by the vault named in `provider`, so values written by `local` stay readable after a deployment switches. Every value encrypted inline today moves here: LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth, A2A upstream auth, event destination secrets.
+Values go through a vault (`agent-manager-service/vault`), selected by `SECRET_VAULT_PROVIDER`. The built-in `local` vault encrypts into the row. An external vault is a Go package that implements `vault.Vault` and registers itself with `vault.Register`; it stores the value itself and returns the `external_ref` to keep. Rows are opened by the vault named in `provider`, so values written by `local` stay readable after a deployment switches. Every value encrypted inline today moves here: LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth, A2A upstream auth, event destination secrets. Moved so far: A2A upstream auth, event destination secrets, LLM provider main upstream auth and MCP endpoint upstream auth.
+
+An external vault is never written inside a request's transaction. A write seals the value into the row with `local`, so it is readable at once, and queues a `promote` job; a delete, or a write that replaces an external value, queues a `destroy` job for it. Both commit or roll back with the change. After the commit a worker writes the value to the external vault as a new entry or version, points the row at it, and removes the value it replaced. A rolled-back change has therefore written nothing to the external vault, and the value a committed row points to stays readable until a later commit replaces it.
+
+### secret_jobs
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK |
+| org_id, secret_id, owner_kind | ID, ID, short text (32) | no | The secret the job is for, kept so the job outlives it. No foreign keys. |
+| action | short text (16) | no | `promote` or `destroy` |
+| provider, external_ref | short text (16), short text (512) | yes | `destroy`: the value to remove. `promote`: the external value the promoted version replaces, removed once the row points at the new one. Cleared on a promotion a later write or delete took over. |
+| staged_provider, staged_ref | short text (16), short text (512) | yes | `promote`: a value written to the vault and not yet in the row. The next attempt removes it unless a row refers to it. |
+| version | whole number | yes | `promote`: the secrets.version it promotes. NULL once superseded. |
+| attempts, last_error | whole number, long text | no, yes | Failures so far; the job is retried with backoff (15 s doubling to an hour) until it succeeds. |
+| available_at | time | no | Not run before this. |
+| claimed_by, claimed_until | short text (255), time | yes | Claim lease, as on event_outbox. |
+| created_at | time | no | |
+
+Indexes (available_at, id), (secret_id), (provider, external_ref). A `destroy` job removes nothing a committed row, or a pending promotion, still refers to; it is dropped instead. Every step is safe to repeat.
+
+`llm_providers.upstream_secret_id` and `mcp_proxy_endpoints.upstream_secret_id` hold the main upstream credential: the encrypted `secretRef` form the gateway artifact carries (`spec.upstream.auth.secretRef` for a provider, the backend auth header's `secretRef` in an MCP proxy's policy), sealed again by the vault. Rows saved before the move keep that `secretRef` inline in `configuration` and are rendered from it; a row moves the next time it is saved, in the same transaction, and its inline copy goes then. A build from before the move does not read the secrets table, so rolling back to one needs those credentials entered again.
 
 ## Gateways, LLM, MCP and A2A
 

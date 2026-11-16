@@ -68,7 +68,7 @@ func NewLLMProxyRepo(db *gorm.DB) LLMProxyRepository {
 	return &LLMProxyRepo{
 		db:           db,
 		artifactRepo: NewArtifactRepo(db),
-		providerRepo: NewLLMProviderRepo(db),
+		providerRepo: NewLLMProviderRepo(db, nil),
 	}
 }
 

@@ -287,6 +287,13 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		os.Exit(1)
 	}
 
+	// Promotes secret values to an external vault and removes replaced ones, once the change needing it commits.
+	secretJobWorkerCtx, secretJobWorkerCancel := context.WithCancel(backgroundCtx)
+	if err := dependencies.SecretJobWorker.Start(secretJobWorkerCtx); err != nil {
+		slog.Error("failed to start secret vault job worker", "error", err)
+		os.Exit(1)
+	}
+
 	reconcileWorkerCtx, reconcileWorkerCancel := context.WithCancel(backgroundCtx)
 	if err := dependencies.ReconcileWorker.Start(reconcileWorkerCtx); err != nil {
 		slog.Error("failed to start reconcile worker", "error", err)
@@ -368,6 +375,11 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		reconcileWorkerCancel()
 		if err := dependencies.ReconcileWorker.Stop(); err != nil {
 			slog.Error("error stopping reconcile worker", "error", err)
+		}
+
+		secretJobWorkerCancel()
+		if err := dependencies.SecretJobWorker.Stop(); err != nil {
+			slog.Error("error stopping secret vault job worker", "error", err)
 		}
 
 		// Shutdown WebSocket manager in a goroutine since it blocks

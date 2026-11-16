@@ -53,20 +53,101 @@ type LLMProviderRepository interface {
 	// inserts the dependent row (e.g. a proxy), so the check and the insert are
 	// atomic with MarkDeleting's row-locking UPDATE — see LLMProxyRepo.Create.
 	IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, providerUUID uuid.UUID) (bool, error)
+	// ResolveUpstreamAuth puts the stored main upstream credential back into p's configuration as the encrypted
+	// secretRef a gateway artifact carries, reading it through tx (the repository's own connection when nil). A provider saved before credentials moved to the
+	// secrets table already has it inline and is left as it is. Call it only to render an artifact: the credential
+	// must not reach a response.
+	ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) error
 }
 
 // LLMProviderRepo implements LLMProviderRepository using GORM
 type LLMProviderRepo struct {
 	db           *gorm.DB
 	artifactRepo ArtifactRepository
+	secrets      *SecretStore
 }
 
-// NewLLMProviderRepo creates a new LLM provider repository
-func NewLLMProviderRepo(db *gorm.DB) LLMProviderRepository {
+// NewLLMProviderRepo creates a new LLM provider repository. secrets keeps the main upstream credential; a repository
+// built without one can read and delete providers but fails to save or resolve a credential.
+func NewLLMProviderRepo(db *gorm.DB, secrets *SecretStore) LLMProviderRepository {
 	return &LLMProviderRepo{
 		db:           db,
 		artifactRepo: NewArtifactRepo(db),
+		secrets:      secrets,
 	}
+}
+
+// ownerKindLLMProvider is secrets.owner_kind for an LLM provider's upstream credential.
+const ownerKindLLMProvider = "llm_provider"
+
+// errNoSecretStore is a credential to save or resolve through a repository built without a SecretStore.
+var errNoSecretStore = errors.New("repository has no secret store for upstream credentials")
+
+// providerMainAuth is the provider's main upstream auth, nil when it has none.
+func providerMainAuth(p *models.LLMProvider) *models.UpstreamAuth {
+	if p.Configuration.Upstream == nil || p.Configuration.Upstream.Main == nil {
+		return nil
+	}
+	return p.Configuration.Upstream.Main.Auth
+}
+
+// saveUpstreamCredential moves the encrypted credential out of p's configuration into the provider's secret and
+// returns the secret id the row keeps. current is the secret the stored row refers to: it is rewritten with a new
+// credential, and kept when the configuration still has auth but carries no credential, which is how an update that
+// omits the credential reads. The caller releases current when the returned id differs. restore puts the credential
+// back into p once the row is written.
+func (r *LLMProviderRepo) saveUpstreamCredential(
+	tx *gorm.DB, p *models.LLMProvider, ownerID uuid.UUID, orgUUID string, current *uuid.UUID,
+) (id *uuid.UUID, restore func(), err error) {
+	restore = func() {}
+	auth := providerMainAuth(p)
+	if auth == nil {
+		return nil, restore, nil
+	}
+	if auth.SecretRef == nil || *auth.SecretRef == "" {
+		if auth.Value != nil {
+			return nil, restore, nil
+		}
+		return current, restore, nil
+	}
+	if r.secrets == nil {
+		return nil, restore, errNoSecretStore
+	}
+	id, err = r.secrets.put(tx, orgUUID, ownerKindLLMProvider, ownerID, current, *auth.SecretRef)
+	if err != nil {
+		return nil, restore, fmt.Errorf("failed to store upstream credential: %w", err)
+	}
+	ref := auth.SecretRef
+	auth.SecretRef = nil
+	return id, func() { auth.SecretRef = ref }, nil
+}
+
+// ResolveUpstreamAuth implements LLMProviderRepository.
+func (r *LLMProviderRepo) ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) error {
+	if p == nil || p.UpstreamSecretID == nil {
+		return nil
+	}
+	auth := providerMainAuth(p)
+	if auth == nil {
+		return nil
+	}
+	if r.secrets == nil {
+		return errNoSecretStore
+	}
+	if tx == nil {
+		tx = r.db
+	}
+	value, found, err := r.secrets.Read(ctx, tx, *p.UpstreamSecretID)
+	if err != nil {
+		return fmt.Errorf("failed to read upstream credential of provider %s: %w", p.UUID, err)
+	}
+	if !found {
+		return fmt.Errorf("upstream credential of provider %s is missing", p.UUID)
+	}
+	ref := string(value)
+	auth.SecretRef = &ref
+	auth.Value = nil
+	return nil
 }
 
 // Create inserts a new LLM provider
@@ -100,6 +181,13 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 		slog.Error("LLMProviderRepo.Create: failed to create artifact", "handle", handle, "uuid", p.UUID, "error", err)
 		return fmt.Errorf("failed to create artifact: %w", err)
 	}
+
+	secretID, restore, err := r.saveUpstreamCredential(tx, p, p.UUID, orgUUID, nil)
+	if err != nil {
+		return err
+	}
+	defer restore()
+	p.UpstreamSecretID = secretID
 
 	// Insert into llm_providers table
 	slog.Info("LLMProviderRepo.Create: inserting into llm_providers table", "handle", handle, "uuid", p.UUID)
@@ -213,16 +301,30 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 			return fmt.Errorf("error parsing provider id: %s, error: %w", providerID, err)
 		}
 
+		var stored models.LLMProvider
+		if err := tx.Select("id", "upstream_secret_id").Where("id = ?", providerID).Take(&stored).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				slog.Warn("LLMProviderRepo.Update: no rows affected", "handle", providerID)
+			}
+			return err
+		}
+		secretID, restore, err := r.saveUpstreamCredential(tx, p, parsedUUID, orgUUID, stored.UpstreamSecretID)
+		if err != nil {
+			return err
+		}
+		defer restore()
+
 		// Update llm_providers table
 		slog.Info("LLMProviderRepo.Update: updating provider fields", "handle", providerID)
 		result := tx.Model(&models.LLMProvider{}).
 			Where("id = ?", providerID).
 			Updates(map[string]any{
-				"description":     p.Description,
-				"template_handle": p.TemplateHandle,
-				"openapi_spec":    p.OpenAPISpec,
-				"model_list":      p.ModelList,
-				"configuration":   dbx.JSON(p.Configuration),
+				"description":        p.Description,
+				"template_handle":    p.TemplateHandle,
+				"openapi_spec":       p.OpenAPISpec,
+				"model_list":         p.ModelList,
+				"configuration":      dbx.JSON(p.Configuration),
+				"upstream_secret_id": secretID,
 			})
 
 		if result.Error != nil {
@@ -232,6 +334,13 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 		if result.RowsAffected == 0 {
 			slog.Warn("LLMProviderRepo.Update: no rows affected", "handle", providerID)
 			return gorm.ErrRecordNotFound
+		}
+		p.UpstreamSecretID = secretID
+		// A removed credential leaves its secret unreferenced; a replaced one was rewritten in place.
+		if stored.UpstreamSecretID != nil && (secretID == nil || *secretID != *stored.UpstreamSecretID) {
+			if err := releaseSecret(tx, stored.UpstreamSecretID); err != nil {
+				return fmt.Errorf("failed to release upstream credential: %w", err)
+			}
 		}
 
 		// Reads and the uniqueness constraint use the artifact's name and version.
@@ -369,6 +478,12 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 	slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
 
 	slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
+	// Read before the row goes; the secret is released after it, since the row refers to it.
+	var stored models.LLMProvider
+	if err := tx.Select("id", "upstream_secret_id").Where("id = ?", providerUUID).Take(&stored).Error; err != nil &&
+		!errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
 	if err := tx.Where("id = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
 		if dberr.IsForeignKeyViolation(err) {
 			slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "error", err)
@@ -376,6 +491,9 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 		}
 		slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)
 		return err
+	}
+	if err := releaseSecret(tx, stored.UpstreamSecretID); err != nil {
+		return fmt.Errorf("failed to release upstream credential: %w", err)
 	}
 
 	// Delete from artifacts

@@ -32,24 +32,26 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
 
 // providerFixture is an org with one egress gateway and the provider services over the real repositories.
 type providerFixture struct {
 	sync       *syncFixture
 	hub        *recordingEventHub
+	secrets    *repositories.SecretStore
 	providers  *LLMProviderService
 	deployment *LLMProviderDeploymentService
 }
 
 func newProviderFixture(t *testing.T) *providerFixture {
 	t.Helper()
-	f := &providerFixture{sync: newSyncFixture(t), hub: &recordingEventHub{}}
+	f := &providerFixture{sync: newSyncFixture(t), hub: &recordingEventHub{}, secrets: repositories.NewSecretStore(vaulttest.Local(t))}
 	gormDB := db.GetDB()
-	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind()}, reconcile.Config{},
+	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(f.secrets)}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))
 	gateways := repositories.NewGatewayRepo(gormDB)
-	providerRepo := repositories.NewLLMProviderRepo(gormDB)
+	providerRepo := repositories.NewLLMProviderRepo(gormDB, f.secrets)
 	f.deployment = NewLLMProviderDeploymentService(NewTxRunner(gormDB), f.sync.repo, providerRepo, nil, gateways, nil, core)
 	templates := NewLLMTemplateStore()
 	templates.Load([]*models.LLMProviderTemplate{{Handle: "openai"}})

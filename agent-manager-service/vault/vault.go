@@ -65,17 +65,27 @@ type Sealed struct {
 }
 
 // Vault is one secret backend.
+//
+// An external vault is only ever written after the database change that needs
+// the value has committed, by the secret store's job worker. Until a write's
+// row commits, the row keeps pointing at the previous value, so an external
+// vault must keep that value readable: Seal stages a new value and never
+// changes what current refers to.
 type Vault interface {
 	// Provider is the name recorded in secrets.provider for values this vault sealed.
 	Provider() string
-	// Seal protects plaintext for ref. current is what the row holds now, nil
-	// for a new secret, so an external vault can write a new version of the
-	// same entry rather than a new entry.
+	// Seal protects plaintext for ref. current is the value this vault already
+	// keeps for the secret, nil when it keeps none, so an external vault can
+	// write a new version of the same entry rather than a new entry. The
+	// returned ExternalRef must differ from current's and must locate exactly
+	// the value written: a version id, or a path that names the version. What
+	// current refers to must stay readable until Destroy is called for it.
 	Seal(ctx context.Context, ref Ref, plaintext []byte, current *Sealed) (Sealed, error)
 	// Open returns the value Seal protected for the same ref.
 	Open(ctx context.Context, ref Ref, sealed Sealed) ([]byte, error)
-	// Destroy releases anything the vault keeps outside the row. It is called
-	// before the row is deleted and must succeed when there is nothing left.
+	// Destroy releases what sealed refers to outside the row, and nothing else.
+	// It runs after no committed row refers to it any more and is retried on
+	// failure, so it must succeed when the value is already gone.
 	Destroy(ctx context.Context, ref Ref, sealed Sealed) error
 }
 

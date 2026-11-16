@@ -58,16 +58,21 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	envAgentModelMappingRepository := repositories.NewEnvAgentModelMappingRepository(db)
 	envAgentMCPMappingRepository := repositories.NewEnvAgentMCPMappingRepository(db)
 	agentEnvConfigVariableRepository := repositories.NewAgentEnvConfigVariableRepository(db)
-	llmProviderRepository := ProvideLLMProviderRepository(db)
-	mcpProxyRepository := ProvideMCPProxyRepository(db)
-	gatewayRepository := ProvideGatewayRepository(db)
-	llmProxyRepository := ProvideLLMProxyRepository(db)
 	v, err := ProvideEncryptionKey(configConfig)
 	if err != nil {
 		return nil, err
 	}
+	vaults, err := ProvideSecretVaults(configConfig, v)
+	if err != nil {
+		return nil, err
+	}
+	secretStore := repositories.NewSecretStore(vaults)
+	llmProviderRepository := ProvideLLMProviderRepository(db, secretStore)
+	mcpProxyRepository := ProvideMCPProxyRepository(db)
+	gatewayRepository := ProvideGatewayRepository(db)
+	llmProxyRepository := ProvideLLMProxyRepository(db)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository, v)
-	mcpProxyEndpointRepository := repositories.NewMCPProxyEndpointRepository(db)
+	mcpProxyEndpointRepository := repositories.NewMCPProxyEndpointRepository(db, secretStore)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	eventHub, err := ProvideEventHub(db, logger)
 	if err != nil {
@@ -80,17 +85,12 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	readSystemClientFunc := services.NewPlatformThunderSecretReader()
 	readThunderURLFunc := services.NewPlatformThunderURLReader()
 	envThunderResolver := ProvideEnvThunderResolverWithEndpoints(readSystemClientFunc, readThunderURLFunc, endpointResolver)
-	llmProviderKind := services.NewLLMProviderKind()
+	llmProviderKind := services.NewLLMProviderKind(secretStore)
 	llmProxyKind := services.NewLLMProxyKind(gatewayRepository, deploymentRepository)
-	mcpProxyKind := services.NewMCPProxyKind(gatewayRepository, deploymentRepository)
+	mcpProxyKind := services.NewMCPProxyKind(gatewayRepository, deploymentRepository, secretStore)
 	txRunner := ProvideTxRunner(db)
 	platformAgentExposureRepository := ProvidePlatformAgentExposureRepository(db)
 	platformAgentExposures := services.NewPlatformAgentExposures(platformAgentExposureRepository, gatewayRepository, platformRepository)
-	vaults, err := ProvideSecretVaults(configConfig, v)
-	if err != nil {
-		return nil, err
-	}
-	secretStore := repositories.NewSecretStore(vaults)
 	a2AProxyRepository := ProvideA2AProxyRepository(db, secretStore)
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
 	a2ACardFetcher := services.NewA2ACardFetcher()
@@ -194,6 +194,8 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	agentThunderReconcilerService := services.NewAgentThunderReconcilerService(agentThunderProvisioning, agentThunderClientRepository, logger)
 	a2ACardReconcilerService := services.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, platformRepository, logger)
 	deploymentTimeoutSweeper := services.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, cfg)
+	secretJobRunner := repositories.NewSecretJobRunner(db, vaults, logger)
+	secretJobWorker := services.NewSecretJobWorker(secretJobRunner, logger)
 	defaultGatewaySeeder := ProvideDefaultGatewaySeeder(configConfig, platformGatewayService, gatewayRepository, platformRepository, logger)
 	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
 	monitorAlertProcessor := services.NewMonitorAlertProcessor(bus, monitorAlertRepository, logger)
@@ -238,6 +240,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		AgentThunderReconciler:           agentThunderReconcilerService,
 		A2ACardReconciler:                a2ACardReconcilerService,
 		DeploymentTimeoutSweeper:         deploymentTimeoutSweeper,
+		SecretJobWorker:                  secretJobWorker,
 		ReconcileWorker:                  worker,
 		DefaultGatewaySeeder:             defaultGatewaySeeder,
 		LLMTemplateStore:                 llmTemplateStore,
@@ -283,16 +286,21 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	envAgentModelMappingRepository := repositories.NewEnvAgentModelMappingRepository(db)
 	envAgentMCPMappingRepository := repositories.NewEnvAgentMCPMappingRepository(db)
 	agentEnvConfigVariableRepository := repositories.NewAgentEnvConfigVariableRepository(db)
-	llmProviderRepository := ProvideLLMProviderRepository(db)
-	mcpProxyRepository := ProvideMCPProxyRepository(db)
-	gatewayRepository := ProvideGatewayRepository(db)
-	llmProxyRepository := ProvideLLMProxyRepository(db)
 	v, err := ProvideEncryptionKey(configConfig)
 	if err != nil {
 		return nil, err
 	}
+	vaults, err := ProvideSecretVaults(configConfig, v)
+	if err != nil {
+		return nil, err
+	}
+	secretStore := repositories.NewSecretStore(vaults)
+	llmProviderRepository := ProvideLLMProviderRepository(db, secretStore)
+	mcpProxyRepository := ProvideMCPProxyRepository(db)
+	gatewayRepository := ProvideGatewayRepository(db)
+	llmProxyRepository := ProvideLLMProxyRepository(db)
 	llmProxyService := services.NewLLMProxyService(llmProxyRepository, llmProviderRepository, v)
-	mcpProxyEndpointRepository := repositories.NewMCPProxyEndpointRepository(db)
+	mcpProxyEndpointRepository := repositories.NewMCPProxyEndpointRepository(db, secretStore)
 	deploymentRepository := ProvideDeploymentRepository(db)
 	eventHub, err := ProvideEventHub(db, logger)
 	if err != nil {
@@ -305,17 +313,12 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	readSystemClientFunc := services.NewPlatformThunderSecretReader()
 	readThunderURLFunc := services.NewPlatformThunderURLReader()
 	envThunderResolver := ProvideEnvThunderResolver(readSystemClientFunc, readThunderURLFunc)
-	llmProviderKind := services.NewLLMProviderKind()
+	llmProviderKind := services.NewLLMProviderKind(secretStore)
 	llmProxyKind := services.NewLLMProxyKind(gatewayRepository, deploymentRepository)
-	mcpProxyKind := services.NewMCPProxyKind(gatewayRepository, deploymentRepository)
+	mcpProxyKind := services.NewMCPProxyKind(gatewayRepository, deploymentRepository, secretStore)
 	txRunner := ProvideTxRunner(db)
 	platformAgentExposureRepository := ProvidePlatformAgentExposureRepository(db)
 	platformAgentExposures := services.NewPlatformAgentExposures(platformAgentExposureRepository, gatewayRepository, platformRepository)
-	vaults, err := ProvideSecretVaults(configConfig, v)
-	if err != nil {
-		return nil, err
-	}
-	secretStore := repositories.NewSecretStore(vaults)
 	a2AProxyRepository := ProvideA2AProxyRepository(db, secretStore)
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
 	a2ACardFetcher := services.NewA2ACardFetcher()
@@ -417,6 +420,8 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	agentThunderReconcilerService := services.NewAgentThunderReconcilerService(agentThunderProvisioningService, agentThunderClientRepository, logger)
 	a2ACardReconcilerService := services.NewA2ACardReconcilerService(a2AAgentCardRepository, a2AProxyRepository, gatewayRepository, a2ACardFetcher, platformRepository, logger)
 	deploymentTimeoutSweeper := services.NewConfiguredDeploymentTimeoutSweeper(deploymentRepository, logger, cfg)
+	secretJobRunner := repositories.NewSecretJobRunner(db, vaults, logger)
+	secretJobWorker := services.NewSecretJobWorker(secretJobRunner, logger)
 	defaultGatewaySeeder := ProvideDefaultGatewaySeeder(configConfig, platformGatewayService, gatewayRepository, platformRepository, logger)
 	eventDispatcherService := services.NewEventDispatcherService(bus, eventRepository, eventDestinationService, configConfig, logger)
 	monitorAlertProcessor := services.NewMonitorAlertProcessor(bus, monitorAlertRepository, logger)
@@ -461,6 +466,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		AgentThunderReconciler:           agentThunderReconcilerService,
 		A2ACardReconciler:                a2ACardReconcilerService,
 		DeploymentTimeoutSweeper:         deploymentTimeoutSweeper,
+		SecretJobWorker:                  secretJobWorker,
 		ReconcileWorker:                  worker,
 		DefaultGatewaySeeder:             defaultGatewaySeeder,
 		LLMTemplateStore:                 llmTemplateStore,
@@ -492,7 +498,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 	ProvideEncryptionKey,
-	ProvideSecretVaults, repositories.NewSecretStore,
+	ProvideSecretVaults, repositories.NewSecretStore, repositories.NewSecretJobRunner,
 )
 
 var clientProviderSet = wire.NewSet(repositories.NewPlatformRepo, ProvideSecretManagementClient,
@@ -502,7 +508,7 @@ var clientProviderSet = wire.NewSet(repositories.NewPlatformRepo, ProvideSecretM
 	ProvideOUHandleLookup, thundersvc.NewProber, services.NewPlatformThunderSecretReader, services.NewPlatformThunderURLReader, ProvideEnvThunderResolverWithEndpoints,
 )
 
-var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, fileauth.NewService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewAIApplicationService, ProvideEventBus,
+var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, fileauth.NewService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewSecretJobWorker, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewAIApplicationService, ProvideEventBus,
 	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService, services.NewMonitorAlertService, services.NewMonitorAlertProcessor,
 )
 
@@ -735,8 +741,8 @@ func ProvideLLMProviderTemplateRepository(db *gorm.DB) repositories.LLMProviderT
 	return repositories.NewLLMProviderTemplateRepo(db)
 }
 
-func ProvideLLMProviderRepository(db *gorm.DB) repositories.LLMProviderRepository {
-	return repositories.NewLLMProviderRepo(db)
+func ProvideLLMProviderRepository(db *gorm.DB, secrets *repositories.SecretStore) repositories.LLMProviderRepository {
+	return repositories.NewLLMProviderRepo(db, secrets)
 }
 
 func ProvideLLMProxyRepository(db *gorm.DB) repositories.LLMProxyRepository {

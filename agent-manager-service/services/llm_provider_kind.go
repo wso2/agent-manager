@@ -46,10 +46,20 @@ type LLMProviderKind struct {
 	load func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, error)
 }
 
-// NewLLMProviderKind reads providers through the request's transaction when there is one.
-func NewLLMProviderKind() *LLMProviderKind {
+// NewLLMProviderKind reads providers through the request's transaction when there is one, and their upstream
+// credentials through secrets.
+func NewLLMProviderKind(secrets *repositories.SecretStore) *LLMProviderKind {
 	return &LLMProviderKind{load: func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, error) {
-		return repositories.NewLLMProviderRepo(db.DB(ctx)).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
+		tx := db.DB(ctx)
+		repo := repositories.NewLLMProviderRepo(tx, secrets)
+		provider, err := repo.GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
+		if err != nil {
+			return nil, err
+		}
+		if err := repo.ResolveUpstreamAuth(ctx, tx, provider); err != nil {
+			return nil, err
+		}
+		return provider, nil
 	}}
 }
 
