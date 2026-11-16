@@ -59,6 +59,7 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server, reg *toolRegistry)
 			"limit":  intProperty(fmt.Sprintf("Optional. Max projects to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, nil),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionProjectRead, listProjects(t.ProjectToolset), rbac.ProjectRead)
 
 	addTool(reg, server, &gomcp.Tool{
@@ -70,6 +71,7 @@ func (t *Toolsets) registerProjectTools(server *gomcp.Server, reg *toolRegistry)
 			"display_name": stringProperty("Required. Project display name."),
 			"description":  stringProperty("Optional. Project description."),
 		}, []string{"project_name", "display_name"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: false, DestructiveHint: new(false)},
 	}, audit.ActionProjectCreate, createProject(t.ProjectToolset), rbac.ProjectCreate)
 }
 
