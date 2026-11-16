@@ -49,6 +49,7 @@ import type {
   UpdateSelfHostedGatewayPathParams,
 } from "@agent-management-platform/types";
 import {
+  assignGatewayToEnvironment,
   createSelfHostedGateway,
   createSelfHostedGatewayToken,
   deleteSelfHostedGateway,
@@ -63,6 +64,7 @@ import {
   listGatewayTokens,
   listGateways,
   listIdentityProviders,
+  removeGatewayFromEnvironment,
   revokeGatewayToken,
   rotateGatewayToken,
   updateGateway,
@@ -190,6 +192,23 @@ export function useDeleteGateway() {
   });
 }
 
+export function useAssignGatewayToEnvironment() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    GatewayResponse,
+    unknown,
+    import("../apis").AssignGatewayToEnvironmentParams
+  >({
+    action: { verb: 'assign', target: 'gateway to environment' },
+    mutationFn: (params) => assignGatewayToEnvironment(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gateways"] });
+      queryClient.invalidateQueries({ queryKey: ["gateway"] });
+    },
+  });
+}
+
 export function useListGatewayTokens(
   params: import("../apis").ListGatewayTokensParams,
 ) {
@@ -230,6 +249,24 @@ export function useRevokeGatewayToken() {
     },
   });
 }
+
+export function useRemoveGatewayFromEnvironment() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    void,
+    unknown,
+    import("../apis").RemoveGatewayFromEnvironmentParams
+  >({
+    action: { verb: 'remove', target: 'gateway from environment' },
+    mutationFn: (params) => removeGatewayFromEnvironment(params, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gateways"] });
+      queryClient.invalidateQueries({ queryKey: ["gateway"] });
+    },
+  });
+}
+
 
 function invalidateGatewayQueries(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: ["gateways"] });

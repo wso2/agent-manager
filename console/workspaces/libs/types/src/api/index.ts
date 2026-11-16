@@ -18,6 +18,7 @@
 
 export * from './common';
 export * from './config';
+export * from './instrumentation';
 export * from './agent-model-configs';
 export * from './agent-mcp-configs';
 export * from './agent-api-keys';
@@ -34,11 +35,15 @@ export * from './projects';
 export * from './metrics';
 export * from './monitors';
 export * from './logs';
+export * from './repositories';
+export * from './resource-configs';
 export * from './llm-providers';
 export * from './mcp-proxies';
 export * from './agent-mcp-proxies';
 export * from './gateways';
+export * from './git-secrets';
 export * from './identities';
+export * from './agent-kinds';
 export * from './thunder-instances';
 export * from './mcp-proxy-scopes';
 export * from './agent-identity';

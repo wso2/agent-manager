@@ -23,12 +23,16 @@ export interface CreateProjectRequest {
   name: string;
   displayName: string;
   description?: string;
+  /** Omitted when the agent runtime is not installed: such a project deploys nothing. */
+  deploymentPipeline?: string;
 }
 
 export interface UpdateProjectRequest {
   name: string;
   displayName: string;
   description?: string;
+  /** Omitted to leave the project's pipeline unchanged (e.g. no agent runtime). */
+  deploymentPipeline?: string;
 }
 
 // Responses
@@ -37,6 +41,7 @@ export interface ProjectResponse {
   orgName: string;
   displayName: string;
   description: string;
+  deploymentPipeline: string;
   createdAt: string; // ISO date-time
   uuid?: string;
 }
@@ -45,6 +50,7 @@ export interface ProjectListItem {
   name: string;
   orgName: string;
   displayName: string;
+  deploymentPipeline?: string;
   createdAt: string; // ISO date-time
   uuid?: string;
 }

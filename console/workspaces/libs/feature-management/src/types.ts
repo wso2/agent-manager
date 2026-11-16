@@ -23,6 +23,8 @@
 export interface FeatureFlags {
   /** Hides the environment ThunderID console link; other Agent ID features are unchanged. */
   disableThunderConsole: boolean;
+  /** Shows the private Git repository option when building agents from source. */
+  enablePrivateRepoSupport: boolean;
   /** Identity provider management calls the REST API instead of showing the script. */
   enableIdentityProviderManagedMode: boolean;
   /**
@@ -36,8 +38,12 @@ export interface FeatureFlags {
   enableAgentIdentity: boolean;
   /** Offers self-hosted gateways: registering one and issuing its tokens. */
   enableSelfHostedGateways: boolean;
+  /** Environments are managed outside the console; hides the Environments pages. */
+  externallyManagedEnv: boolean;
   /** Gateways are managed outside the console; hides the Gateways pages. */
   externallyManagedGateway: boolean;
+  /** Deployment pipelines are managed outside the console; hides their pages. */
+  externallyManagedPipeline: boolean;
 }
 
 /**
@@ -58,10 +64,16 @@ export interface FeatureAccessConfig {
   agent_kind_write: boolean;
   agent_identity_read: boolean;
   agent_identity_write: boolean;
+  env_read: boolean;
+  env_write: boolean;
   gateway_read: boolean;
   gateway_write: boolean;
   /** Create and revoke self-hosted gateway registration tokens. */
   gateway_token_write: boolean;
+  pipeline_read: boolean;
+  pipeline_write: boolean;
+  git_secret_read: boolean;
+  git_secret_write: boolean;
   llm_provider_read: boolean;
   llm_provider_write: boolean;
   /** Create, rotate and revoke an LLM provider's API keys. */
@@ -87,6 +99,14 @@ export interface FeatureAccessConfig {
   role_write: boolean;
   group_read: boolean;
   group_write: boolean;
+  /** Deploy, promote or change an agent's deployment in non-production environments. */
+  agent_deploy: boolean;
+  /** Also needed, beside `agent_deploy`, to act on production environments. */
+  agent_deploy_production: boolean;
+  /** Suspend or resume an agent's deployment. */
+  agent_suspend: boolean;
+  /** Trigger an agent build. */
+  agent_build: boolean;
   /** Create and revoke agent API keys, including config-scoped keys. */
   agent_api_key_manage: boolean;
   /** Generate agent access tokens. */

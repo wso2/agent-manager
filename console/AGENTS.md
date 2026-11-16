@@ -15,7 +15,8 @@ For the Oxygen UI component library itself (theming, which components exist, imp
 | `workspaces/libs/types/` | `@…/types` | Shared types, `globalConfig`, route maps |
 | `workspaces/libs/views/` | `@…/views` | UI primitives (PageLayout, FormElements, SnackBar) |
 | `workspaces/libs/shared-component/` | `@…/shared-component` | Business components (ConfirmationDialog, PolicyListSection) |
-| `workspaces/pages/<feature>/` | `@…/<feature>` | One package per feature page (configure-agent, gateways, llm-providers, …) |
+| `workspaces/ui-modules/<module>/` | `@…/ui-module-<module>` | A UI module (product area): exports its `UIModuleManifest` listing its page plugins |
+| `workspaces/ui-modules/<module>/pages/<feature>/` | `@…/<feature>` | One package per feature page; exports a `PluginManifest` from `<feature>/plugin` |
 
 `pnpm-workspace.yaml` is the authoritative project list. Vite (dev) resolves each `@agent-management-platform/*` import to the package's **`src/`** for hot reload — no separate TS build step in dev. This holds for core-ui's own build too, so `make dev` needs no prior `make build`. core-ui is Emotion-styled and emits no stylesheet, so nothing consumes a `dist/index.css`.
 
@@ -44,8 +45,8 @@ pnpm run test-watch      # vitest watch
 1. **Add the fetch fn** in `libs/api-client/src/apis/<resource>.ts`.
 2. **Add the hook** in `libs/api-client/src/hooks/<resource>.ts`.
 3. **Export** both from the package's `apis/index.ts` / `hooks/index.ts`.
-4. **Consume the hook** in a page under `workspaces/pages/<feature>/`.
-5. **Register the page** — export `metaData` from the feature package's `index.ts`; wire its route in `core-ui`.
+4. **Consume the hook** in a page under `workspaces/ui-modules/<module>/pages/<feature>/`.
+5. **Register the page** — add a route (and nav item) contribution to the feature package's `src/plugin.ts`. A new package also goes in its module's `src/index.ts` plugin list. See "UI modules and plugins" below.
 
 ### The two-file API pattern (mandatory)
 
@@ -105,7 +106,28 @@ Routes live in `core-ui/src/Route/`. Use the generated maps in `@…/types`, nev
 - `relativeRouteMap.…path` for `<Route path=…>`.
 - `absoluteRouteMap.…path` with `generatePath(path, { orgId, projectId, agentId })` for links/navigation.
 
-Feature pages are discovered by their exported `metaData` (`{ title, icon, path, component, … }`). Guards (`OrgGuard`, `ProjectGuard`, `AgentGuard`) validate the entity exists before rendering the outlet.
+Feature pages are not wired in `Route.tsx`: they come from plugin manifests (below). The shell keeps only login, the guards (`OrgGuard`, `ProjectGuard`, `AgentGuard`, which validate the entity exists before rendering the outlet), back-compat redirects, the Module manager and the 404s.
+
+## UI modules and plugins
+
+The console is split into six **UI modules** under `workspaces/ui-modules/`, each a product area:
+
+| Module | Pages |
+|---|---|
+| `acp-core` | overview, level-resource-listing, add-new-project, add-new-agent, settings (+ events), identities |
+| `agent-runtime` | configure-agent, build, deploy, test, deployment-pipelines |
+| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials) |
+| `ai-observability` | traces, logs, metrics, eval |
+| `agent-identity` | env-thunders (Agent ID, groups, roles) |
+| `agent-portal` | agent-kind (catalog, publish) |
+
+- **Page plugin** (`pages/<feature>/src/plugin.ts`, exported as `<feature>/plugin`): a `PluginManifest` with `route`, `nav-item` and `panel` contributions. It must not import page components; `load` uses `import()` so the page stays in its own chunk. Types are in `@…/types` (`libs/types/src/plugins`).
+- **Activation**: `useActivation` on the plugin or on a contribution is a React hook (route params, `useRouteAgent()`, feature flags, access). Return `undefined` while loading.
+- **Nav slots**: `section` names a slot defined in `core-ui/src/Layouts/OxygenLayout/navigationItems.tsx` (`NAV_LAYOUT`).
+- **Module** (`<module>/src/index.ts`): a `UIModuleManifest` listing its page plugins; `core-ui/src/plugins/builtinModules.ts` registers modules.
+- **Install and setup**: a module may set `core: true` (always installed, cannot be turned off as a whole) and `installation` (Helm `chart`, ordered `steps`, and a `useDetect` hook that reports installed / not-installed, e.g. from `/api/v1/config`). A module's pages only run while it is installed. The AI module manager (user menu → `/org/:orgId/ui-modules`) lists modules as cards with Install / Uninstall; each module has a details page at `/org/:orgId/ui-modules/<id>` (what it adds, backend setup steps, the module's optional `setup` component). Install and uninstall there are a front-end mock for now, so the AI module manager and details pages exist only when runtime config `uiModules.marketplace` is on (env `ENABLE_UI_MARKETPLACE=true`; on in `.env.development`, off by default).
+- **Turning off**: `apps/web-ui/public/ui-modules.js` sets the default modules (`window.__UI_MODULES__`): module id → `true`/`false`, or `"<module>/<page>": false` (`ai-observability/logs`) for one page. It is served as-is (not cached by nginx), so a deployment edits or mounts over it without a rebuild. The AI module manager changes the install state in memory for the current tab, and cannot switch on a module or page this file turns off.
+- **No imports across modules.** A page may import from its own module and from `libs/`. Code two modules need goes to `libs/shared-component` (for example the LLM provider form, the catalog kind listing, MCP ACL helpers), or the owning module adds it as a `panel` at a mount point.
 
 ## Auth (runtime-selected)
 

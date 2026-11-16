@@ -1,0 +1,149 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import React, { useCallback, useMemo, useState } from "react";
+import { PageLayout } from "@agent-management-platform/views";
+import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
+import {
+  getErrorMessage,
+  useUnsavedChangesGuard,
+  AddLLMProviderForm,
+  type AddLLMProviderFormValues,
+  type GuardrailSelection,
+  buildCreateLLMProviderRequest,
+  mapLLMProviderTemplatesToCards,
+} from "@agent-management-platform/shared-component";
+import { absoluteRouteMap } from "@agent-management-platform/types";
+import {
+  useCreateLLMProvider,
+  useListGateways,
+  useListLLMProviderTemplates,
+} from "@agent-management-platform/api-client";
+
+export const AddLLMProvidersOrganization: React.FC = () => {
+  const { orgId } = useParams<{ orgId: string }>();
+  const navigate = useNavigate();
+  const { canWrite } = useResourceAccess("llm_provider");
+  const [isDirty, setIsDirty] = useState(false);
+  const { allowNavigation } = useUnsavedChangesGuard(isDirty);
+
+  const backHref = useMemo(
+    () =>
+      orgId
+        ? generatePath(
+            absoluteRouteMap.children.org.children.llmProviders.path,
+            { orgId },
+          )
+        : "#",
+    [orgId],
+  );
+
+  const {
+    data: templatesData,
+    isLoading: isLoadingTemplates,
+    error: templatesError,
+  } = useListLLMProviderTemplates(
+    { orgName: orgId ?? "" },
+    { limit: 50, offset: 0 },
+  );
+
+  const { error: gatewaysError } = useListGateways({ orgName: orgId ?? "" });
+
+  const {
+    mutate: createLLMProvider,
+    isPending: isCreating,
+  } = useCreateLLMProvider();
+
+  const templates = useMemo(
+    () => mapLLMProviderTemplatesToCards(templatesData?.templates),
+    [templatesData],
+  );
+
+  const missingParamsMessage = useMemo(() => {
+    if (!orgId) {
+      return "Organization is required to add an LLM provider.";
+    }
+    return null;
+  }, [orgId]);
+
+  const combinedErrorMessage = useMemo(() => {
+    if (templatesError) {
+      return getErrorMessage(templatesError);
+    }
+    if (gatewaysError) {
+      return getErrorMessage(gatewaysError);
+    }
+    return null;
+  }, [gatewaysError, templatesError]);
+
+  const handleSubmit = useCallback(
+    (values: AddLLMProviderFormValues, guardrails: GuardrailSelection[]) => {
+      if (!orgId) {
+        return;
+      }
+
+      const payload = buildCreateLLMProviderRequest(values, guardrails, templates);
+
+      createLLMProvider(
+        {
+          params: { orgName: orgId },
+          body: payload,
+        },
+        {
+          onSuccess: (data) => {
+            const viewPath = generatePath(
+              absoluteRouteMap.children.org.children.llmProviders.children.view
+                .path,
+              { orgId, providerId: data.uuid },
+            );
+            allowNavigation(() => navigate(viewPath));
+          },
+        },
+      );
+    },
+    [createLLMProvider, navigate, allowNavigation, orgId, templates],
+  );
+
+  if (!canWrite) {
+    return <Navigate to={backHref} replace />;
+  }
+
+  return (
+    <PageLayout
+      title="Add LLM Service Provider"
+      backHref={backHref}
+      disableIcon
+      backLabel="Back to providers list"
+    >
+      <AddLLMProviderForm
+        orgId={orgId ?? ""}
+        templates={templates}
+        isLoadingTemplates={isLoadingTemplates}
+        missingParamsMessage={missingParamsMessage}
+        errorMessage={combinedErrorMessage}
+        isSubmitting={isCreating}
+        onCancel={() => allowNavigation(() => navigate(backHref))}
+        onDirtyChange={setIsDirty}
+        onSubmit={handleSubmit}
+      />
+    </PageLayout>
+  );
+};
+
+export default AddLLMProvidersOrganization;

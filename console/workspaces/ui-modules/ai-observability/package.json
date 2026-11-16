@@ -1,0 +1,52 @@
+{
+  "name": "@agent-management-platform/ui-module-ai-observability",
+  "version": "1.0.0",
+  "description": "AI Observability UI module: Traces, runtime logs, system metrics and evaluation.",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "/dist"
+  ],
+  "scripts": {
+    "lint": "eslint --config ./eslint.config.js src",
+    "lint:fix": "eslint --config ./eslint.config.js --fix src",
+    "clean": "rm -rf dist",
+    "build": "pnpm run clean && tsc -project tsconfig.json"
+  },
+  "dependencies": {
+    "@agent-management-platform/types": "workspace:*",
+    "@agent-management-platform/traces": "workspace:*",
+    "@agent-management-platform/logs": "workspace:*",
+    "@agent-management-platform/metrics": "workspace:*",
+    "@agent-management-platform/eval": "workspace:*",
+    "@agent-management-platform/api-client": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.6.0",
+    "@types/react": "19.2.14",
+    "@typescript-eslint/eslint-plugin": "8.33.1",
+    "@typescript-eslint/parser": "8.33.1",
+    "eslint": "9.36.0",
+    "eslint-config-prettier": "10.1.5",
+    "eslint-plugin-prettier": "5.4.0",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.0.0",
+    "prettier": "3.5.3",
+    "react": "19.2.3",
+    "typescript": "5.9.3",
+    "eslint-import-resolver-typescript": "4.4.1",
+    "@eslint/js": "9.36.0",
+    "typescript-eslint": "8.45.0",
+    "eslint-plugin-import": "2.31.0",
+    "globals": "16.4.0",
+    "@agent-management-platform/eslint-config": "workspace:*",
+    "@eslint/eslintrc": "3.3.1"
+  },
+  "license": "Apache-2.0"
+}
