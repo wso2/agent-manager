@@ -22,12 +22,14 @@
 import type { ComponentType } from "react";
 import { BookOpenText, Megaphone } from "@wso2/oxygen-ui-icons-react";
 import { useRouteAgent } from "@agent-management-platform/api-client";
+import { useIsUIModuleInstalled } from "@agent-management-platform/views";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
   type PluginActivationState,
   type PluginManifest,
 } from "@agent-management-platform/types";
+import { CatalogIllustration } from "./createAgent/CatalogIllustration";
 
 // Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
@@ -40,11 +42,50 @@ const useSourceBuiltAgent = (): PluginActivationState => {
   return !!agent && agent.provisioning?.type !== "external" && !agent.kindName;
 };
 
+/**
+ * An agent created from a catalog kind is deployed by the agent runtime, so
+ * creating one is offered only while that module is present.
+ */
+const useAgentRuntimePresent = (): PluginActivationState =>
+  useIsUIModuleInstalled("agent-runtime");
+
+const fromCatalog = orgNav.projects.children.newAgent.children.create.children.catalog;
+
 export const agentKindPlugin: PluginManifest = {
   id: "agent-kind",
   name: "Agent catalog and publishing",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      type: "agent-type",
+      id: "from-catalog",
+      // The wizard used to ask "build new" and then "from catalog".
+      wizardSteps: ["build-new", "from-catalog"],
+      order: 30,
+      title: "Agent from the Catalog",
+      description:
+        "Create a platform-hosted agent from an Agent Kind published in the Agent Catalog.",
+      ctaLabel: "Browse catalog",
+      illustration: CatalogIllustration,
+      route: fromCatalog,
+      useActivation: useAgentRuntimePresent,
+    },
+    {
+      type: "route",
+      id: "create-from-catalog-page",
+      level: "project",
+      path: fromCatalog.path,
+      useActivation: useAgentRuntimePresent,
+      load: () => import("./index").then((m) => ({ default: m.CatalogKindSelectPage })),
+    },
+    {
+      type: "route",
+      id: "create-from-kind-page",
+      level: "project",
+      path: fromCatalog.children.withKind.path,
+      useActivation: useAgentRuntimePresent,
+      load: () => import("./index").then((m) => ({ default: m.CatalogAgentPage })),
+    },
     {
       type: "route",
       id: "catalog-page",

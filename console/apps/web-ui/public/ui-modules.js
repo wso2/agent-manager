@@ -31,6 +31,7 @@
 // for a deployment, edit it or mount a replacement over it; no rebuild needed.
 window.__UI_MODULES__ = {
   'agent-runtime': false,
+  'agent-runtime/platform-agent': true,
   'agent-runtime/build': true,
   'agent-runtime/deploy': true,
   'agent-runtime/test': true,
@@ -42,6 +43,7 @@ window.__UI_MODULES__ = {
   'ai-gateway/mcp-proxies': true,
   'ai-gateway/agent-security': true,
   'ai-gateway/configure-agent': true,
+  'ai-gateway/external-agent': true,
 
   'ai-observability': true,
   'ai-observability/traces': true,

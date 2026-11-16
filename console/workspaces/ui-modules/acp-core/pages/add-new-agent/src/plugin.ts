@@ -38,11 +38,22 @@ export const addNewAgentPlugin: PluginManifest = {
       type: "route",
       id: "page",
       level: "project",
-      path: orgNav.projects.children.newAgent.path + "/*",
+      // Only the picker: each agent type's form is a route of the module that
+      // owns the type (an `agent-type` contribution).
+      path: orgNav.projects.children.newAgent.path,
       load: () =>
         import("./index").then((m) => ({
           default: m.metaData.component as ComponentType,
         })),
+    },
+    {
+      // The old source-type step; its links now lead to the agent-type cards.
+      type: "route",
+      id: "legacy-create-redirect",
+      level: "project",
+      path: orgNav.projects.children.newAgent.children.create.path,
+      load: () =>
+        import("./index").then((m) => ({ default: m.LegacyCreateRedirect })),
     },
   ],
 };

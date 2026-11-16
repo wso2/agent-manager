@@ -146,10 +146,50 @@ export interface PluginPanelContribution extends PluginContributionBase {
   load: PluginComponentLoader;
 }
 
+/**
+ * An agent type offered on a project's "Add a New Agent" page (for example
+ * "Externally-Hosted Agent"). The module that can create that kind of agent
+ * contributes it: the shell renders the card from this data, and the card
+ * leads to `route`, the type's create form, which the same plugin contributes
+ * as a project-level `route`. Types sit in `order`, lowest first.
+ *
+ * Everything here is loaded eagerly with the manifest, so `illustration` must
+ * be a light component (an icon or inline SVG), never page code.
+ */
+export interface PluginAgentTypeContribution extends PluginContributionBase {
+  type: "agent-type";
+  title: string;
+  description: string;
+  /** Label of the card's call to action, e.g. "Register an agent". */
+  ctaLabel: string;
+  illustration: ComponentType<{ width?: number; height?: number }>;
+  /** The type's create form (a project-level route, absoluteRouteMap entry). */
+  route: PluginNavRoute;
+  /** Sort key on the page; lower comes first. Defaults to 0. */
+  order?: number;
+  /**
+   * The create wizard's telemetry steps this choice stands for, recorded in
+   * order (step_index 1, 2, ...) when the card is chosen, or when the page is
+   * skipped because this is the only type. Defaults to `[id]`. Keeps funnels
+   * built on the earlier multi-step wizard working.
+   */
+  wizardSteps?: string[];
+}
+
+/**
+ * Mount points a plugin's `panel` can target, besides the shell's own layout
+ * slots. Pages read panels with useExternalComponentModulesByMountPoint.
+ */
+export const PLUGIN_MOUNT_POINTS = {
+  /** Below the agent-type cards on the "Add a New Agent" page (e.g. samples). */
+  addNewAgentOptions: "add-new-agent-options",
+} as const;
+
 export type PluginContribution =
   | PluginRouteContribution
   | PluginNavItemContribution
-  | PluginPanelContribution;
+  | PluginPanelContribution
+  | PluginAgentTypeContribution;
 
 export interface PluginManifest {
   /** Stable id, used in the runtime config to disable the plugin. */
