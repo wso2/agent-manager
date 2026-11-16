@@ -205,23 +205,25 @@ func TestListEnvironmentScopes_IncludesProjectProxies(t *testing.T) {
 }
 
 func TestListEnvironmentScopes_FiltersAppliedScopesByEndpointTools(t *testing.T) {
-	dev, stage, undiscovered := uuid.New(), uuid.New(), uuid.New()
+	dev, stage, undiscovered, empty := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	on := true
-	endpoint := func(env uuid.UUID, tools *[]map[string]interface{}) models.MCPProxyEndpoint {
+	endpoint := func(env uuid.UUID, caps *models.MCPProxyCapabilities, status string) models.MCPProxyEndpoint {
 		return models.MCPProxyEndpoint{
 			Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: env, ArtifactUUID: uuid.New()}},
 			Configuration: models.MCPEndpointConfig{
-				Security:     &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}},
-				Capabilities: &models.MCPProxyCapabilities{Tools: tools},
+				Security:            &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}},
+				Capabilities:        caps,
+				CapabilityDiscovery: &models.MCPCapabilityDiscoveryState{Status: status},
 			},
 		}
 	}
 	proxy := &models.MCPProxy{
 		UUID: uuid.New(), Artifact: &models.Artifact{Handle: "weather", Name: "Weather"},
 		Endpoints: []models.MCPProxyEndpoint{
-			endpoint(dev, &[]map[string]interface{}{{"name": "forecast"}}),
-			endpoint(stage, &[]map[string]interface{}{{"name": "alerts"}}),
-			endpoint(undiscovered, nil),
+			endpoint(dev, bindingTools("forecast"), models.MCPCapabilityDiscoveryDiscovered),
+			endpoint(stage, bindingTools("alerts"), models.MCPCapabilityDiscoveryDiscovered),
+			endpoint(undiscovered, nil, models.MCPCapabilityDiscoveryPending),
+			endpoint(empty, nil, models.MCPCapabilityDiscoveryDiscovered),
 		},
 	}
 	proxyRepo := &repomocks.MCPProxyRepositoryMock{
@@ -241,7 +243,10 @@ func TestListEnvironmentScopes_FiltersAppliedScopesByEndpointTools(t *testing.T)
 	}
 	infra := stubInfraManager{listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
 		return []*models.EnvironmentResponse{
-			{Name: "dev", UUID: dev.String()}, {Name: "stage", UUID: stage.String()}, {Name: "new", UUID: undiscovered.String()},
+			{Name: "dev", UUID: dev.String()},
+			{Name: "stage", UUID: stage.String()},
+			{Name: "new", UUID: undiscovered.String()},
+			{Name: "empty", UUID: empty.String()},
 		}, nil
 	}}
 	SetIdentityRoleProvider(thundersvc.IdentityManagementCPManaged, appliedScopePickerProvider{
@@ -253,6 +258,7 @@ func TestListEnvironmentScopes_FiltersAppliedScopesByEndpointTools(t *testing.T)
 		"dev":   {"weather:forecast", "weather:unbound"},
 		"stage": {"weather:alerts", "weather:unbound"},
 		"new":   {"weather:alerts", "weather:forecast", "weather:unbound"},
+		"empty": {"weather:unbound"},
 	} {
 		t.Run(env, func(t *testing.T) {
 			entries, err := svc.ListEnvironmentScopes(context.Background(), "org-uuid", env)

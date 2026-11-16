@@ -532,7 +532,13 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 			if _, ok := proxyByUUID[proxy.UUID]; !ok {
 				proxyByUUID[proxy.UUID] = proxy
 				if cp {
-					toolsByProxy[proxy.UUID] = endpointToolNames(endpoint.Configuration.Capabilities)
+					tools := endpointToolNames(endpoint.Configuration.Capabilities)
+					discovery := endpoint.Configuration.CapabilityDiscovery
+					if tools == nil && discovery != nil && discovery.Status == models.MCPCapabilityDiscoveryDiscovered {
+						// A completed discovery can omit capabilities when it found no tools.
+						tools = map[string]struct{}{}
+					}
+					toolsByProxy[proxy.UUID] = tools
 				}
 				ordered = append(ordered, proxy.UUID)
 			}
