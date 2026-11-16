@@ -16,7 +16,10 @@
 
 package framework
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // ---------------------------------------------------------------------------
 // Error
@@ -1263,4 +1266,24 @@ type PromoteAgentResponse struct {
 	ProjectName       string `json:"projectName"`
 	SourceEnvironment string `json:"sourceEnvironment"`
 	TargetEnvironment string `json:"targetEnvironment"`
+}
+
+// ---------------------------------------------------------------------------
+// A2A
+// ---------------------------------------------------------------------------
+
+// AgentCardResponse is the stored A2A agent card of an agent in an environment.
+type AgentCardResponse struct {
+	Source    string          `json:"source"`
+	Status    string          `json:"status"` // pending | fetched | failed
+	SourceURL string          `json:"sourceUrl"`
+	LastError string          `json:"lastError"`
+	Card      json.RawMessage `json:"card"`
+	FetchedAt string          `json:"fetchedAt"`
+}
+
+// A2AProxyResponse is the publish state of an agent's A2A gateway proxy.
+type A2AProxyResponse struct {
+	Status    string `json:"status"` // a deployment status: PENDING | DEPLOYING | DEPLOYED | FAILED
+	LastError string `json:"lastError"`
 }

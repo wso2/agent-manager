@@ -85,7 +85,7 @@ func NewTraceCmd(f *cmdutil.Factory) *cobra.Command {
 			"names the URL's agent), and it overrides selectedTrace. --since, --start and --end override the URL's time range.\n\n" +
 			"Examples:\n" +
 			"  amctl agent trace my-agent 4bf92f3577b34da6a3ce929d0e0e4736 --env dev --console-url\n" +
-			"  amctl agent trace --from-url 'https://console.example.com/org/acme/project/triage/agents/my-agent/" +
+			"  amctl agent trace --from-url 'https://console.example.com/organizations/acme/projects/triage/agents/my-agent/" +
 			"environment/dev/observability/traces?timeRange=1d&selectedTrace=4bf92f3577b34da6a3ce929d0e0e4736'",
 		Args: func(cmd *cobra.Command, args []string) error {
 			if fromURL != "" {

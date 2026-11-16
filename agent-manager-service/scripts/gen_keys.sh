@@ -28,7 +28,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-KEYS_DIR="${PROJECT_ROOT}/keys"
+KEYS_DIR="${JWT_SIGNING_KEYS_DIR:-${PROJECT_ROOT}/keys}"
 JSON_CONFIG="${KEYS_DIR}/public-keys-config.json"
 
 # Parse optional key ID parameter

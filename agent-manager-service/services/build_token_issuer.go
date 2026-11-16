@@ -49,8 +49,11 @@ import (
 // client (IDP_CLIENT_ID / IDP_CLIENT_SECRET). It names that organization in its
 // ouId claim and that client in its client_id claim, which is exactly what
 // jwtassertion.BuildClientAuthMiddleware requires of a caller, so a build can only
-// ever publish for the organization its token was issued for. The build is given
-// the token only, through the secret store: never the client secret.
+// ever publish for the organization its token was issued for. It carries the
+// agent build scope (amp:agent:build) and nothing else, which the endpoint also
+// requires, so apart from publishing it can only start that organization's
+// builds. The build is given the token only, through the secret store: never the
+// client secret.
 //
 // Only the build's workload step is given the token.
 type BuildTokenIssuer interface {
@@ -96,6 +99,9 @@ type buildTokenIssuer struct {
 	idpTokenURL  string
 	clientID     string
 	clientSecret string
+	// resource is the RFC 8707 resource indicator the token is requested for
+	// (config.BuildClient.Resource); empty requests none.
+	resource     string
 	httpClient   requests.HttpClient
 	secretClient secretmanagersvc.SecretManagementClient
 	logger       *slog.Logger
@@ -118,13 +124,14 @@ func NewBuildTokenIssuer(
 		logger.Info("Build tokens disabled; builds carry no organization-scoped build token")
 		return nil
 	}
-	logger.Info("Build tokens enabled", "workflows", cfg.BuildClient.Workflows, "clientId", cfg.IDP.ClientID)
-	return newBuildTokenIssuer(cfg.IDP.TokenURL, cfg.IDP.ClientID, cfg.IDP.ClientSecret,
+	logger.Info("Build tokens enabled", "workflows", cfg.BuildClient.Workflows, "clientId", cfg.IDP.ClientID,
+		"scope", jwtassertion.BuildTokenScope(), "resource", cfg.BuildClient.Resource)
+	return newBuildTokenIssuer(cfg.IDP.TokenURL, cfg.IDP.ClientID, cfg.IDP.ClientSecret, cfg.BuildClient.Resource,
 		requests.NewRetryableHTTPClient(&http.Client{}), secretClient, logger)
 }
 
 func newBuildTokenIssuer(
-	idpTokenURL, clientID, clientSecret string,
+	idpTokenURL, clientID, clientSecret, resource string,
 	httpClient requests.HttpClient,
 	secretClient secretmanagersvc.SecretManagementClient,
 	logger *slog.Logger,
@@ -133,6 +140,7 @@ func newBuildTokenIssuer(
 		idpTokenURL:  idpTokenURL,
 		clientID:     strings.TrimSpace(clientID),
 		clientSecret: clientSecret,
+		resource:     strings.TrimSpace(resource),
 		httpClient:   httpClient,
 		secretClient: secretClient,
 		logger:       logger,
@@ -245,15 +253,25 @@ type buildTokenResponse struct {
 
 // requestToken asks the organization token endpoint for a client_credentials
 // token, authenticating with client_secret_basic as this service's other token
-// requests do. No scope or resource is requested: the token's audience is then
-// this service's client ID, which is what the build publisher endpoint accepts.
+// requests do. It requests the build scope only (jwtassertion.BuildTokenScope),
+// for the configured resource server when there is one: an identity provider
+// issues a scope only for the resource server that defines it, and drops it
+// otherwise. Without a resource the token's audience is this service's client
+// ID; with one it is the resource, which KEY_MANAGER_AUDIENCE must admit.
 func (i *buildTokenIssuer) requestToken(ctx context.Context, tokenURL string) (string, error) {
 	req := &requests.HttpRequest{
 		Name:   "buildtoken.requestToken",
 		URL:    tokenURL,
 		Method: http.MethodPost,
 	}
-	req.SetFormData(map[string]string{"grant_type": "client_credentials"})
+	form := map[string]string{
+		"grant_type": "client_credentials",
+		"scope":      jwtassertion.BuildTokenScope(),
+	}
+	if i.resource != "" {
+		form["resource"] = i.resource
+	}
+	req.SetFormData(form)
 	req.SetHeader("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(i.clientID+":"+i.clientSecret)))
 
 	var resp buildTokenResponse
@@ -276,8 +294,9 @@ func (i *buildTokenIssuer) requestToken(ctx context.Context, tokenURL string) (s
 }
 
 // checkToken refuses a token that is not exactly a build token for the
-// organization: issued to this service's client, naming the organization, and
-// valid for at least buildTokenMinValidity. The token comes straight from the
+// organization: issued to this service's client, naming the organization,
+// carrying the build scope and nothing else, and valid for at least
+// buildTokenMinValidity. The token comes straight from the
 // identity provider, so its claims are read without verifying its signature
 // (the build publisher endpoint verifies it when the build presents it); this
 // check only makes sure no other token (one for another organization, or one
@@ -296,6 +315,17 @@ func (i *buildTokenIssuer) checkToken(token, ouID string) error {
 	}
 	if got := claims.ClientID; strings.TrimSpace(got) != i.clientID {
 		return fmt.Errorf("%w: the token was issued to client %q, not %q", errBuildToken, got, i.clientID)
+	}
+	// The build publisher endpoint admits only a token carrying the build scope
+	// alone, so a token the identity provider issued without it (a scope it does
+	// not define or does not grant this client is dropped, not refused), or with
+	// more, could not publish and would be broader than a build needs.
+	if scope := jwtassertion.BuildTokenScope(); !jwtassertion.HasOnlyScope(claims.Scope, scope) {
+		if strings.TrimSpace(claims.Scope) == "" {
+			return fmt.Errorf("%w: the identity provider did not grant scope %q to client %q for organization %q",
+				errBuildToken, scope, i.clientID, ouID)
+		}
+		return fmt.Errorf("%w: the token carries scopes %q, not only %q", errBuildToken, claims.Scope, scope)
 	}
 	expiry := claims.ExpiresAt
 	if expiry == nil {

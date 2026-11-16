@@ -25,7 +25,7 @@ import {
   ChevronRight,
   ExternalLink,
   GitBranch,
-  Package,
+  Hammer,
 } from "@wso2/oxygen-ui-icons-react";
 
 const DOCS_URL =
@@ -51,7 +51,7 @@ const KEYFRAMES = {
 const STAGES = [
   {
     label: "Build",
-    icon: Package,
+    icon: Hammer,
     caption: "Start from a successful agent build.",
   },
   {

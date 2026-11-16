@@ -263,6 +263,16 @@ jobs:
           export HELM_CHART_REGISTRY="${HELM_REGISTRY#oci://}"
           cd deployments/quick-start && bash install.sh
 
+      - name: Enable A2A test upstream
+        # A failure here must not skip the e2e run: the script exports the variable
+        # first, so only the external A2A specs fail.
+        continue-on-error: true
+        env:
+          # Must match the host of the platform agent's external URL
+          # (the environment gateway's vhost, <env>-<org>.gateway.localhost).
+          A2A_PLATFORM_AGENT_HOST: default-default.gateway.localhost
+        run: bash .github/scripts/enable-a2a-test-upstream.sh "${A2A_PLATFORM_AGENT_HOST}"
+
       - name: Run e2e tests
         id: e2e-tests
         timeout-minutes: 120

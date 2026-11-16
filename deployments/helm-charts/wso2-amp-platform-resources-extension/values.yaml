@@ -7,6 +7,7 @@ global:
   # -- OAuth / IDP configuration for workload publishing
   oauth:
     # -- OAuth token endpoint URL
+    # checkov:skip=CKV_SECRET_6:OAuth endpoint URL
     tokenUrl: "http://host.k3d.internal:8080/oauth2/token"
     # -- Host header for OAuth requests
     hostHeader: "thunder.amp.localhost"

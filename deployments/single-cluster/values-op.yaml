@@ -23,6 +23,7 @@ security:
   oidc:
     # Thunder JWKS endpoint for token validation
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
+    # checkov:skip=CKV_SECRET_6:OAuth endpoint URL
     tokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
     authServerBaseUrl: "http://thunder.amp.localhost:8080"
 

@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/openchoreosvc/client"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -51,6 +52,7 @@ type a2aAgentCardService struct {
 	cardRepo   repositories.A2AAgentCardRepository
 	proxyHooks A2AProxyHooks
 	logger     *slog.Logger
+	testHosts  a2aTestUpstreamHosts
 }
 
 // NewA2AAgentCardService creates an A2AAgentCardService.
@@ -60,7 +62,10 @@ func NewA2AAgentCardService(
 	proxyHooks A2AProxyHooks,
 	logger *slog.Logger,
 ) A2AAgentCardService {
-	return &a2aAgentCardService{ocClient: ocClient, cardRepo: cardRepo, proxyHooks: proxyHooks, logger: logger}
+	return &a2aAgentCardService{
+		ocClient: ocClient, cardRepo: cardRepo, proxyHooks: proxyHooks, logger: logger,
+		testHosts: newA2ATestUpstreamHosts(config.GetConfig().A2ACardTestUpstreamHosts),
+	}
 }
 
 func (s *a2aAgentCardService) GetA2AAgentCard(
@@ -126,7 +131,7 @@ func (s *a2aAgentCardService) SetA2ACardSource(
 		return err
 	}
 	sourceURL = strings.TrimSpace(sourceURL)
-	if err := validateCardSourceURL(ctx, sourceURL); err != nil {
+	if err := validateCardSourceURL(ctx, sourceURL, s.testHosts); err != nil {
 		return err
 	}
 	err = s.proxyHooks.StoreCardSource(ctx, agent, ouID, projectName, env, sourceURL)
@@ -265,7 +270,8 @@ func a2aCapable(agent *models.AgentResponse) bool {
 }
 
 // validateCardSourceURL wraps every rejection in utils.ErrInvalidURL.
-func validateCardSourceURL(ctx context.Context, sourceURL string) error {
+// A listed test upstream host is exempt from the public-host check only; scheme, userinfo and port still apply.
+func validateCardSourceURL(ctx context.Context, sourceURL string, testHosts a2aTestUpstreamHosts) error {
 	if sourceURL == "" {
 		return fmt.Errorf("%w: url is required", utils.ErrInvalidURL)
 	}
@@ -273,6 +279,9 @@ func validateCardSourceURL(ctx context.Context, sourceURL string) error {
 		return fmt.Errorf("%w: url must be at most %d characters", utils.ErrInvalidURL, a2aCardSourceURLMaxLen)
 	}
 	if err := ssrf.ValidateURL(ctx, sourceURL); errors.Is(err, ssrf.ErrHostNotPublic) {
+		if testHosts.allows(sourceURL) {
+			return nil
+		}
 		return fmt.Errorf("%w: %s", utils.ErrInvalidURL, a2aCardHostNotPublicMsg)
 	} else if err != nil {
 		return fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)

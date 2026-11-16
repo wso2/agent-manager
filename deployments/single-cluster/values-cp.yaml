@@ -32,4 +32,5 @@ security:
     jwksUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/jwks"
     # Public URLs for browser OAuth flows
     authorizationUrl: "http://thunder.amp.localhost:8080/oauth2/authorize"
+    # checkov:skip=CKV_SECRET_6:OAuth endpoint URL
     tokenUrl: "http://thunder.amp.localhost:8080/oauth2/token"

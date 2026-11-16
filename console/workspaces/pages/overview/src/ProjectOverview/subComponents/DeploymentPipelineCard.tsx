@@ -37,7 +37,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ArrowLeftRight, Edit, Eye, GitBranch } from "@wso2/oxygen-ui-icons-react";
+import { ArrowLeftRight, Edit, Eye, Workflow } from "@wso2/oxygen-ui-icons-react";
 import { useMemo, useState } from "react";
 import { generatePath, Link, useParams } from "react-router-dom";
 import { SelectPipelineDrawer } from "./SelectPipelineDrawer";
@@ -152,7 +152,7 @@ export function DeploymentPipelineCard() {
               <Box display="flex" flexDirection="column" gap={0.5}>
                 <Box display="flex" alignItems="center" justifyContent="space-between" gap={0.75}>
                   <Box display="flex" alignItems="center" gap={0.75}>
-                    <GitBranch size={14} style={{ opacity: 0.6, flexShrink: 0 }} />
+                    <Workflow size={14} style={{ opacity: 0.6, flexShrink: 0 }} />
                     <Typography variant="body2" fontWeight={500}>
                       {pipeline.displayName || pipeline.name}
                     </Typography>

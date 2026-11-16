@@ -7,6 +7,8 @@ PYTHON="${PYTHON:-python3}"
 HOTEL_PORT="${HOTEL_PORT:-9091}"
 AGENT_PORT="${AGENT_PORT:-8000}"
 MODEL_PORT="${MODEL_PORT:-8099}"
+export HOTEL_API_TOKEN
+HOTEL_API_TOKEN="$("$PYTHON" -c 'import secrets; print(secrets.token_urlsafe(32))')"
 WORK="$(mktemp -d)"
 REPORTS="${REPORTS:-$WORK}"
 mkdir -p "$REPORTS"
@@ -49,7 +51,14 @@ env -u OPENAI_API_KEY -u PINECONE_API_KEY \
 PIDS+=($!)
 wait_for http://127.0.0.1:$HOTEL_PORT/health "$WORK/hotel.log"
 
-status=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$HOTEL_PORT/hotels/mock-002-tokyo/policies/search?q=pets")
+booking_url="http://127.0.0.1:$HOTEL_PORT/bookings"
+status=$(curl -s -o /dev/null -w '%{http_code}' "$booking_url")
+[ "$status" = "401" ] || { echo "Expected 401 without a Hotel API token, got $status"; exit 1; }
+status=$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer invalid' "$booking_url")
+[ "$status" = "401" ] || { echo "Expected 401 with an invalid Hotel API token, got $status"; exit 1; }
+
+status=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $HOTEL_API_TOKEN" \
+  "http://127.0.0.1:$HOTEL_PORT/hotels/mock-002-tokyo/policies/search?q=pets")
 [ "$status" = "503" ] || { echo "Expected 503 from unconfigured policy search, got $status"; exit 1; }
 
 echo "==> Installing agent"

@@ -1,4 +1,6 @@
 openapi: 3.0.3
+# checkov:skip=CKV_OPENAPI_4:The sample workload supports direct local calls. Hosted ingress authentication is configured separately.
+# checkov:skip=CKV_OPENAPI_5:POST /chat has no application-level authentication in the sample and GET /health is an anonymous probe.
 info:
   title: Insurance Support Agent
   description: |

@@ -342,6 +342,7 @@ spec:
             name: ${metadata.workflowRunName}-workload-publisher-oauth
             creationPolicy: Owner
           data:
+            # checkov:skip=CKV_SECRET_6:ExternalSecret data key
             - secretKey: workload-publisher-oauth
               remoteRef:
                 key: workflow-plane-oauth-client-secret

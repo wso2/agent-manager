@@ -192,6 +192,51 @@ func TestGetOCClientForOrg_ReadsFromSchedulerCredRepo(t *testing.T) {
 	assert.NotNil(t, ocClient)
 }
 
+type recordedAuthProvider struct {
+	tokenURL, clientID, clientSecret string
+}
+
+func (r *recordedAuthProvider) GetToken(context.Context) (string, error) { return "", nil }
+func (r *recordedAuthProvider) InvalidateToken()                         {}
+
+func TestGetOCClientForOrg_BuildsTokenSourceThroughDeploymentFactory(t *testing.T) {
+	encryptedSecret, err := utils.EncryptBytes([]byte("scheduler-secret-value"), testEncryptionKey)
+	require.NoError(t, err)
+
+	var built *recordedAuthProvider
+	SetOrgClientAuthProviderFactory(func(tokenURL, clientID, clientSecret string) occlient.AuthProvider {
+		built = &recordedAuthProvider{tokenURL: tokenURL, clientID: clientID, clientSecret: clientSecret}
+		return built
+	})
+	t.Cleanup(func() { SetOrgClientAuthProviderFactory(nil) })
+
+	p := &publisherCredentialProvisioner{
+		schedulerCredRepo: &repomocks.OrgSchedulerCredentialRepositoryMock{
+			GetByOrgNameFunc: func(string) (*models.OrgSchedulerCredential, error) {
+				return &models.OrgSchedulerCredential{
+					ClientID:              "amp-scheduler-acme",
+					ClientSecretEncrypted: encryptedSecret,
+				}, nil
+			},
+		},
+		logger:        discardLogger(),
+		encryptionKey: testEncryptionKey,
+		idpTokenURL:   "http://thunder.test/oauth2/token",
+		ocBaseURL:     "http://openchoreo.test",
+		orgOCClients:  make(map[string]occlient.OpenChoreoClient),
+		orgOCGen:      make(map[string]uint64),
+	}
+
+	_, err = p.GetOCClientForOrg(context.Background(), "acme")
+	require.NoError(t, err)
+	require.NotNil(t, built)
+	assert.Equal(t, recordedAuthProvider{
+		tokenURL:     "http://thunder.test/oauth2/token",
+		clientID:     "amp-scheduler-acme",
+		clientSecret: "scheduler-secret-value",
+	}, *built)
+}
+
 // Orgs whose monitors predate the credential split have no scheduler credential yet —
 // GetOCClientForOrg must provision one on demand rather than fail permanently.
 func TestGetOCClientForOrg_ProvisionsOnDemand_WhenSchedulerCredMissing(t *testing.T) {

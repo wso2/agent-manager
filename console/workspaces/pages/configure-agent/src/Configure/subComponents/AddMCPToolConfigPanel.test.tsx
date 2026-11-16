@@ -21,7 +21,7 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@agent-management-platform/api-client", () => ({
-  useListMCPProxies: vi.fn(() => ({
+  useListAllMCPProxies: vi.fn(() => ({
     data: {
       list: [{ id: "proj-proxy", name: "Project Proxy", projectName: "p1" }],
     },
@@ -54,7 +54,7 @@ vi.mock("./MCPServerDisplay", () => ({
   ),
 }));
 
-import { useListMCPProxies } from "@agent-management-platform/api-client";
+import { useListAllMCPProxies } from "@agent-management-platform/api-client";
 import { AddMCPToolConfigPanel } from "./AddMCPToolConfigPanel";
 
 describe("AddMCPToolConfigPanel", () => {
@@ -64,10 +64,34 @@ describe("AddMCPToolConfigPanel", () => {
         <AddMCPToolConfigPanel open orgId="org" projectId="p1" agentId="a1" onClose={vi.fn()} />
       </MemoryRouter>,
     );
-    expect(useListMCPProxies).toHaveBeenCalledWith(
+    expect(useListAllMCPProxies).toHaveBeenCalledWith(
       { orgName: "org" },
       expect.objectContaining({ project: "p1" }),
     );
     expect(screen.getByText("Project Proxy")).toBeTruthy();
+  });
+
+  it("shows a failed list as an error, not as no servers", () => {
+    const listed = vi.mocked(useListAllMCPProxies).getMockImplementation();
+    vi.mocked(useListAllMCPProxies).mockImplementation(
+      () =>
+        ({
+          data: undefined,
+          isLoading: false,
+          isError: true,
+          refetch: vi.fn(),
+        }) as unknown as ReturnType<typeof useListAllMCPProxies>,
+    );
+    try {
+      render(
+        <MemoryRouter>
+          <AddMCPToolConfigPanel open orgId="org" projectId="p1" agentId="a1" onClose={vi.fn()} />
+        </MemoryRouter>,
+      );
+      expect(screen.getByText("Couldn't load the MCP servers.")).toBeTruthy();
+      expect(screen.queryByText("No MCP servers available")).toBeNull();
+    } finally {
+      if (listed) vi.mocked(useListAllMCPProxies).mockImplementation(listed);
+    }
   });
 });

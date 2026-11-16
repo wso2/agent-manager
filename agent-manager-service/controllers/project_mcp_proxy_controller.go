@@ -47,6 +47,10 @@ type ProjectMCPProxyController interface {
 	IssueProjectMCPProxyEnvironmentTestAPIKey(w http.ResponseWriter, r *http.Request)
 	RotateProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
 	RevokeProjectMCPProxyEnvironmentAPIKey(w http.ResponseWriter, r *http.Request)
+	ListProjectMCPProxyScopes(w http.ResponseWriter, r *http.Request)
+	CreateProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
+	UpdateProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
+	DeleteProjectMCPProxyScope(w http.ResponseWriter, r *http.Request)
 }
 
 // pathParamEnvName is the environment segment of the project MCP proxy binding routes.
@@ -54,15 +58,17 @@ const pathParamEnvName = "envName"
 
 type projectMCPProxyController struct {
 	service  *services.ProjectMCPProxyService
+	scopes   services.MCPProxyScopeService
 	ocClient client.OpenChoreoClient
 }
 
 // NewProjectMCPProxyController creates the project MCP proxy controller.
 func NewProjectMCPProxyController(
 	service *services.ProjectMCPProxyService,
+	scopes services.MCPProxyScopeService,
 	ocClient client.OpenChoreoClient,
 ) ProjectMCPProxyController {
-	return &projectMCPProxyController{service: service, ocClient: ocClient}
+	return &projectMCPProxyController{service: service, scopes: scopes, ocClient: ocClient}
 }
 
 // resolveProject maps {projName} to the OpenChoreo project. On failure it has written the
@@ -135,6 +141,9 @@ func (c *projectMCPProxyController) UpsertProjectMCPProxy(w http.ResponseWriter,
 				"MCP proxy already exists", err.Error(), utils.ErrCodeMCPProxyAlreadyExists)
 		case errors.Is(err, utils.ErrMCPProxyCreateNotPermitted):
 			utils.WriteErrorResponse(w, http.StatusForbidden, "Creating MCP proxies is not permitted")
+		case errors.Is(err, utils.ErrMCPProxyBindingsChanged):
+			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+				utils.ErrMCPProxyBindingsChanged.Error(), err.Error(), utils.ErrCodeConflict)
 		case errors.Is(err, utils.ErrMCPProxyHandleInUse):
 			utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 				"MCP proxy id is already in use", err.Error(), utils.ErrCodeHandleInUse)
@@ -388,6 +397,9 @@ func writeProjectMCPBindingError(w http.ResponseWriter, err error) bool {
 	case errors.Is(err, utils.ErrMCPContextInUse):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPContextInUse.Error(), err.Error(), utils.ErrCodeContextInUse)
+	case errors.Is(err, utils.ErrMCPProxyURLChanged):
+		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+			utils.ErrMCPProxyURLChanged.Error(), "", utils.ErrCodeConflict)
 	case errors.Is(err, utils.ErrMCPCapabilitiesGivenByCaller):
 		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
 			utils.ErrMCPCapabilitiesGivenByCaller.Error(), "", utils.ErrCodeCapabilitiesGivenByCaller)

@@ -39,7 +39,8 @@ import {
   Check,
   Circle,
   Search,
-  ShieldAlert,
+  Braces,
+  ShieldCheck,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   DrawerWrapper,
@@ -141,7 +142,7 @@ const PolicyDetailView: React.FC<{
       <Stack spacing={2}>
         <ListingTable.Container>
           <ListingTable.EmptyState
-            illustration={<ShieldAlert size={64} />}
+            illustration={<Braces size={64} />}
             title="No definition available"
             description={`This ${policyNoun} does not have a configuration schema.`}
           />
@@ -356,7 +357,7 @@ export function PolicySelectorDrawer({
       maxWidth={maxWidth}
     >
       <DrawerHeader
-        icon={<ShieldAlert size={24} />}
+        icon={<ShieldCheck size={24} />}
         title={drawerTitle}
         onClose={handleGuardedClose}
       />
@@ -464,7 +465,7 @@ export function PolicySelectorDrawer({
               {filteredPolicies.length === 0 && !searchQuery && (
                 <ListingTable.Container>
                   <ListingTable.EmptyState
-                    illustration={<ShieldAlert size={64} />}
+                    illustration={<ShieldCheck size={64} />}
                     title={emptyCatalogTitle}
                     description={emptyCatalogDescription}
                   />

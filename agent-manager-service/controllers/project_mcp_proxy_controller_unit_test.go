@@ -91,7 +91,7 @@ func TestDeletedProject_ReadAndDeleteRoutesReachStoredProxies(t *testing.T) {
 		Configuration: models.MCPProxyConfig{Name: "Orders"},
 	}
 	var lookups []string
-	ctrl := NewProjectMCPProxyController(storedProxyService(oc, &lookups, orphan), oc)
+	ctrl := NewProjectMCPProxyController(storedProxyService(oc, &lookups, orphan), nil, oc)
 
 	rec := httptest.NewRecorder()
 	ctrl.GetProjectMCPProxy(rec, projectRouteRequest(http.MethodGet, ""))
@@ -142,7 +142,7 @@ func TestUnknownProject_404(t *testing.T) {
 		},
 	}
 	var lookups []string
-	ctrl := NewProjectMCPProxyController(storedProxyService(oc, &lookups), oc)
+	ctrl := NewProjectMCPProxyController(storedProxyService(oc, &lookups), nil, oc)
 
 	cases := map[string]struct {
 		method  string
@@ -211,7 +211,7 @@ func TestProjectLookupFailure_500(t *testing.T) {
 			return nil, errors.New("openchoreo down")
 		},
 	}
-	ctrl := NewProjectMCPProxyController(nil, oc)
+	ctrl := NewProjectMCPProxyController(nil, nil, oc)
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	req.SetPathValue(utils.PathParamProjName, "p")
 	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou", OuHandle: "org"}))

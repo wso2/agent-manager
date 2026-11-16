@@ -167,6 +167,15 @@ type MCPEndpointConfig struct {
 	// CapabilityDiscovery is the binding's capability discovery, while one is queued or once one ran. Project
 	// proxy bindings only.
 	CapabilityDiscovery *MCPCapabilityDiscoveryState `json:"capabilityDiscovery,omitempty"`
+	// IdentityCleanupID marks a project proxy binding that left identity security while its resource server and the
+	// roles' grants of its scopes are not removed yet. Each write that leaves identity sets a new ID, later writes that
+	// stay off identity keep it, and a successful removal clears it only while it is still that removal's ID, so an
+	// older removal finishing late never clears a newer one's. An identical PUT retries the removal while it is set.
+	IdentityCleanupID string `json:"identityCleanupId,omitempty"`
+	// IdentityCleanupIdentifier is the public URL the binding's resource server was registered at when it left
+	// identity, kept with IdentityCleanupID so the removal finds it even after a proxy context change moved the
+	// binding's URL. Empty when not known then; the removal uses the binding's current URL.
+	IdentityCleanupIdentifier string `json:"identityCleanupIdentifier,omitempty"`
 }
 
 // MCP proxy per-environment deployment status values reported on read.

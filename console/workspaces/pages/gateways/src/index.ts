@@ -15,14 +15,14 @@
  * under the License.
  */
 
-import { DoorClosedLocked } from "@wso2/oxygen-ui-icons-react";
+import { Network } from "@wso2/oxygen-ui-icons-react";
 import type { PageMetadata } from "@agent-management-platform/types";
 import { GatewaysOrganization } from "./Gateways.Organization";
 
 export const metaData: PageMetadata = {
   title: "Gateways",
   description: "A page component for Gateway management",
-  icon: DoorClosedLocked,
+  icon: Network,
   path: "/gateways",
   component: GatewaysOrganization,
   levels: {

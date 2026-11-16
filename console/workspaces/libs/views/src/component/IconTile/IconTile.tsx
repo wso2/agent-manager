@@ -19,20 +19,29 @@
 import type { ReactNode } from "react";
 import { alpha, Box } from "@wso2/oxygen-ui";
 
+export type IconTileColor = "primary" | "secondary" | "success" | "warning" | "error" | "info";
+
 export interface IconTileProps {
   /** The icon to show, about 18px. */
   children: ReactNode;
   /** Tints the tile with the primary colour, e.g. when the card it sits in is selected. */
   selected?: boolean;
+  /**
+   * Tints the tile with a palette colour, e.g. a status. Takes precedence over
+   * `selected`; left unset, the tile is neutral (or primary when selected).
+   */
+  color?: IconTileColor;
   /** Tile edge in px; the icon inside is the caller's to size. */
   size?: number;
 }
 
 /**
- * An icon in a small rounded tile: neutral by default, primary-tinted when selected.
+ * An icon in a small rounded tile: neutral by default, primary-tinted when selected,
+ * or tinted with any palette colour via `color`.
  * Leads the selection cards so their icons read as one family.
  */
-export function IconTile({ children, selected = false, size = 32 }: IconTileProps) {
+export function IconTile({ children, selected = false, color, size = 32 }: IconTileProps) {
+  const tint = color ?? (selected ? "primary" : undefined);
   return (
     <Box
       aria-hidden="true"
@@ -44,8 +53,8 @@ export function IconTile({ children, selected = false, size = 32 }: IconTileProp
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        color: selected ? "primary.main" : "text.secondary",
-        bgcolor: selected ? alpha(theme.palette.primary.main, 0.12) : "action.hover",
+        color: tint ? `${tint}.main` : "text.secondary",
+        bgcolor: tint ? alpha(theme.palette[tint].main, 0.12) : "action.hover",
       })}
     >
       {children}

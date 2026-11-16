@@ -58,7 +58,7 @@ import {
 import { useParams, useNavigate, generatePath } from "react-router-dom";
 import {
   useListEnvironments,
-  useListMCPProxies,
+  useListAllMCPProxies,
 } from "@agent-management-platform/api-client";
 import {
   EnvironmentVariablesReference,
@@ -437,10 +437,11 @@ export const MCPProxySection: React.FC<MCPProxySectionProps> = ({
     [environments, initialEnvironmentName],
   );
 
-  // The project's own MCP servers are offered with the org's, as in the agent's Tools picker.
-  const { data: proxyData, isLoading: proxiesLoading } = useListMCPProxies(
+  // The project's own MCP servers are offered with the org's, as in the agent's Tools picker,
+  // every page of them.
+  const { data: proxyData, isLoading: proxiesLoading } = useListAllMCPProxies(
     { orgName: orgId },
-    { limit: 50, project: projectId },
+    { project: projectId },
   );
 
   const proxies = useMemo<ProxyInfo[]>(

@@ -40,11 +40,10 @@ const (
 	// maxLogRangeDays is the maximum startTime..endTime span accepted by
 	// /api/v1/logs, ported from agent-manager-service/utils/constants.go.
 	maxLogRangeDays = 14
-	// maxIncludeItems caps distinct include values at the enum size documented
-	// in docs/openapi.yaml.
-	maxIncludeItems = 3
-	// maxMissingItems matches the missing parameter enum size in docs/openapi.yaml.
-	maxMissingItems = 1
+	// maxIncludeItems matches the include array limit in docs/openapi.yaml.
+	maxIncludeItems = 32
+	// maxMissingItems matches the missing array limit in docs/openapi.yaml.
+	maxMissingItems = 16
 )
 
 // validLogLevels are the log levels accepted (case-insensitively) by the
@@ -607,20 +606,17 @@ func parseSortOrder(s, defaultVal string) (string, error) {
 }
 
 // parseInclude parses the comma-separated include query parameter of
-// GET /api/v1/traces; unknown values are an error. At most maxIncludeItems
-// distinct non-empty items are accepted; repeated values are ignored.
+// GET /api/v1/traces. The limit applies across repeated parameters.
 func parseInclude(raw []string) (controllers.Include, error) {
 	var include controllers.Include
-	seen := make(map[string]struct{}, maxIncludeItems)
+	count := 0
 	for _, list := range raw {
-		for _, item := range strings.Split(list, ",") {
-			v := strings.TrimSpace(item)
-			if v != "" {
-				seen[v] = struct{}{}
-				if len(seen) > maxIncludeItems {
-					return controllers.Include{}, fmt.Errorf("too many include values: at most %d are allowed", maxIncludeItems)
-				}
+		for item := range strings.SplitSeq(list, ",") {
+			count++
+			if count > maxIncludeItems {
+				return controllers.Include{}, fmt.Errorf("too many include values: at most %d are allowed", maxIncludeItems)
 			}
+			v := strings.TrimSpace(item)
 			switch v {
 			case "":
 			case "models":
@@ -683,22 +679,18 @@ func parseTraceFilters(query url.Values) (controllers.TraceFilters, error) {
 	return f, nil
 }
 
-// parseMissing accepts at most maxMissingItems distinct non-empty fields.
-// Repeated values are ignored; unknown values are an error.
+// parseMissing bounds the total number of entries across repeated parameters.
 func parseMissing(raw []string) (controllers.MissingFields, error) {
 	var missing controllers.MissingFields
-	seen := make(map[string]struct{}, maxMissingItems)
+	count := 0
 	for _, list := range raw {
-		for _, item := range strings.Split(list, ",") {
-			item = strings.TrimSpace(item)
+		for item := range strings.SplitSeq(list, ",") {
+			count++
+			if count > maxMissingItems {
+				return controllers.MissingFields{}, fmt.Errorf("too many missing values: at most %d are allowed", maxMissingItems)
+			}
 			if err := controllers.ParseMissingField(&missing, item, "conversationId"); err != nil {
 				return controllers.MissingFields{}, err
-			}
-			if item != "" {
-				seen[item] = struct{}{}
-				if len(seen) > maxMissingItems {
-					return controllers.MissingFields{}, fmt.Errorf("too many missing values: at most %d are allowed", maxMissingItems)
-				}
 			}
 		}
 	}

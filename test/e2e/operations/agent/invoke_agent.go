@@ -45,6 +45,13 @@ func InvokeAgentEndpoint(endpointURL string, body any, apiKey string, requireOK 
 	if len(requireOK) > 0 {
 		required = requireOK[0]
 	}
+	return InvokeEndpointWithHeaders(endpointURL, body, map[string]string{"X-API-Key": apiKey}, required)
+}
+
+// InvokeEndpointWithHeaders is InvokeAgentEndpoint with caller-chosen request
+// headers instead of a fixed X-API-Key. Content-Type is always application/json.
+func InvokeEndpointWithHeaders(endpointURL string, body any, headers map[string]string, requireOK bool) string {
+	required := requireOK
 
 	data, err := json.Marshal(body)
 	Expect(err).NotTo(HaveOccurred(), "marshal agent invocation body")
@@ -56,7 +63,9 @@ func InvokeAgentEndpoint(endpointURL string, body any, apiKey string, requireOK 
 		req, err := http.NewRequest("POST", endpointURL, bytes.NewBuffer(data))
 		g.Expect(err).NotTo(HaveOccurred(), "create agent invocation request")
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-API-Key", apiKey)
+		for name, value := range headers {
+			req.Header.Set(name, value)
+		}
 		resp, err := httpClient.Do(req)
 		g.Expect(err).NotTo(HaveOccurred(), "agent endpoint not reachable")
 		defer resp.Body.Close()

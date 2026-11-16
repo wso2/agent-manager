@@ -180,7 +180,7 @@ export const GroupsPage: React.FC = () => {
                       <ListingTable.Cell>
                         <ListingTable.CellIcon
                           icon={
-                            <Avatar sx={AVATAR_SX}>
+                            <Avatar variant="light" sx={AVATAR_SX}>
                               {group.name.charAt(0).toUpperCase() || "G"}
                             </Avatar>
                           }

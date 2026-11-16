@@ -529,7 +529,7 @@ func buildEndpointsFromInputInterface(componentName string, inputInterface *Inpu
 
 	endpoints := []map[string]any{
 		{
-			"name":       fmt.Sprintf("%s-endpoint", componentName),
+			"name":       AgentEndpointName(componentName),
 			"type":       inputInterface.Type,
 			"port":       port,
 			"basePath":   basePath,

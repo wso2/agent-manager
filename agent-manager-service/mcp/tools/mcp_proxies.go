@@ -75,6 +75,7 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 			"limit":  intProperty(fmt.Sprintf("Optional. Max proxies to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, nil),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionMCPServerRead, listMCPProxies(t.MCPProxyToolset), rbac.MCPServerRead)
 
 	addTool(reg, server, &gomcp.Tool{
@@ -85,6 +86,7 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 		InputSchema: createSchema(map[string]any{
 			"proxy_id": stringProperty("Required. MCP proxy id from list_mcp_proxies."),
 		}, []string{"proxy_id"}),
+		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionMCPServerRead, getMCPProxy(t.MCPProxyToolset, t.EnvironmentToolset), rbac.MCPServerRead)
 }
 

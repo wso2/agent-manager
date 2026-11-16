@@ -46,6 +46,9 @@ import (
 //			DeleteProxyResourceServerActionFunc: func(ctx context.Context, proxyHandle string, action string) (string, error) {
 //				panic("mock out the DeleteProxyResourceServerAction method")
 //			},
+//			DeleteProxyResourceServerByIdentifierFunc: func(ctx context.Context, proxyHandle string, identifier string) error {
+//				panic("mock out the DeleteProxyResourceServerByIdentifier method")
+//			},
 //			DeleteRoleFunc: func(ctx context.Context, roleID string) error {
 //				panic("mock out the DeleteRole method")
 //			},
@@ -133,6 +136,9 @@ import (
 //			RemoveRolePermissionsFunc: func(ctx context.Context, roleID string, req thundersvc.RolePermissionRequest) error {
 //				panic("mock out the RemoveRolePermissions method")
 //			},
+//			RenameProxyResourceServerIdentifierFunc: func(ctx context.Context, proxyHandle string, from string, to string) error {
+//				panic("mock out the RenameProxyResourceServerIdentifier method")
+//			},
 //			UpdateGroupFunc: func(ctx context.Context, groupID string, req thundersvc.UpdateGroupRequest) (*thundersvc.ThunderGroup, error) {
 //				panic("mock out the UpdateGroup method")
 //			},
@@ -181,6 +187,9 @@ type IdentityClientMock struct {
 
 	// DeleteProxyResourceServerActionFunc mocks the DeleteProxyResourceServerAction method.
 	DeleteProxyResourceServerActionFunc func(ctx context.Context, proxyHandle string, action string) (string, error)
+
+	// DeleteProxyResourceServerByIdentifierFunc mocks the DeleteProxyResourceServerByIdentifier method.
+	DeleteProxyResourceServerByIdentifierFunc func(ctx context.Context, proxyHandle string, identifier string) error
 
 	// DeleteRoleFunc mocks the DeleteRole method.
 	DeleteRoleFunc func(ctx context.Context, roleID string) error
@@ -268,6 +277,9 @@ type IdentityClientMock struct {
 
 	// RemoveRolePermissionsFunc mocks the RemoveRolePermissions method.
 	RemoveRolePermissionsFunc func(ctx context.Context, roleID string, req thundersvc.RolePermissionRequest) error
+
+	// RenameProxyResourceServerIdentifierFunc mocks the RenameProxyResourceServerIdentifier method.
+	RenameProxyResourceServerIdentifierFunc func(ctx context.Context, proxyHandle string, from string, to string) error
 
 	// UpdateGroupFunc mocks the UpdateGroup method.
 	UpdateGroupFunc func(ctx context.Context, groupID string, req thundersvc.UpdateGroupRequest) (*thundersvc.ThunderGroup, error)
@@ -362,6 +374,15 @@ type IdentityClientMock struct {
 			ProxyHandle string
 			// Action is the action argument value.
 			Action string
+		}
+		// DeleteProxyResourceServerByIdentifier holds details about calls to the DeleteProxyResourceServerByIdentifier method.
+		DeleteProxyResourceServerByIdentifier []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ProxyHandle is the proxyHandle argument value.
+			ProxyHandle string
+			// Identifier is the identifier argument value.
+			Identifier string
 		}
 		// DeleteRole holds details about calls to the DeleteRole method.
 		DeleteRole []struct {
@@ -612,6 +633,17 @@ type IdentityClientMock struct {
 			// Req is the req argument value.
 			Req thundersvc.RolePermissionRequest
 		}
+		// RenameProxyResourceServerIdentifier holds details about calls to the RenameProxyResourceServerIdentifier method.
+		RenameProxyResourceServerIdentifier []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// ProxyHandle is the proxyHandle argument value.
+			ProxyHandle string
+			// From is the from argument value.
+			From string
+			// To is the to argument value.
+			To string
+		}
 		// UpdateGroup holds details about calls to the UpdateGroup method.
 		UpdateGroup []struct {
 			// Ctx is the ctx argument value.
@@ -649,49 +681,51 @@ type IdentityClientMock struct {
 			Password string
 		}
 	}
-	lockAddGroupMemberEntries           sync.RWMutex
-	lockAddGroupMembers                 sync.RWMutex
-	lockAddRoleAssignees                sync.RWMutex
-	lockAddRolePermissions              sync.RWMutex
-	lockCreateGroup                     sync.RWMutex
-	lockCreateRole                      sync.RWMutex
-	lockCreateUser                      sync.RWMutex
-	lockDeleteGroup                     sync.RWMutex
-	lockDeleteProxyResourceServer       sync.RWMutex
-	lockDeleteProxyResourceServerAction sync.RWMutex
-	lockDeleteRole                      sync.RWMutex
-	lockDeleteUser                      sync.RWMutex
-	lockEnsureProxyResourceServer       sync.RWMutex
-	lockGetAgentGroups                  sync.RWMutex
-	lockGetAgentRoleAssignments         sync.RWMutex
-	lockGetAgentRoles                   sync.RWMutex
-	lockGetGroup                        sync.RWMutex
-	lockGetGroupMembers                 sync.RWMutex
-	lockGetGroupRoles                   sync.RWMutex
-	lockGetOUHandleByID                 sync.RWMutex
-	lockGetOUIDByHandle                 sync.RWMutex
-	lockGetRole                         sync.RWMutex
-	lockGetRoleAssignments              sync.RWMutex
-	lockGetUser                         sync.RWMutex
-	lockGetUserGroups                   sync.RWMutex
-	lockGetUserRoles                    sync.RWMutex
-	lockInviteUser                      sync.RWMutex
-	lockListAMPPermissions              sync.RWMutex
-	lockListChildOUs                    sync.RWMutex
-	lockListGroupMemberEntries          sync.RWMutex
-	lockListGroups                      sync.RWMutex
-	lockListGroupsByOUId                sync.RWMutex
-	lockListRoles                       sync.RWMutex
-	lockListUsers                       sync.RWMutex
-	lockListUsersByOUId                 sync.RWMutex
-	lockRemoveGroupMemberEntries        sync.RWMutex
-	lockRemoveGroupMembers              sync.RWMutex
-	lockRemoveRoleAssignees             sync.RWMutex
-	lockRemoveRolePermissions           sync.RWMutex
-	lockUpdateGroup                     sync.RWMutex
-	lockUpdateRole                      sync.RWMutex
-	lockUpdateUser                      sync.RWMutex
-	lockUpdateUserCredentials           sync.RWMutex
+	lockAddGroupMemberEntries                 sync.RWMutex
+	lockAddGroupMembers                       sync.RWMutex
+	lockAddRoleAssignees                      sync.RWMutex
+	lockAddRolePermissions                    sync.RWMutex
+	lockCreateGroup                           sync.RWMutex
+	lockCreateRole                            sync.RWMutex
+	lockCreateUser                            sync.RWMutex
+	lockDeleteGroup                           sync.RWMutex
+	lockDeleteProxyResourceServer             sync.RWMutex
+	lockDeleteProxyResourceServerAction       sync.RWMutex
+	lockDeleteProxyResourceServerByIdentifier sync.RWMutex
+	lockDeleteRole                            sync.RWMutex
+	lockDeleteUser                            sync.RWMutex
+	lockEnsureProxyResourceServer             sync.RWMutex
+	lockGetAgentGroups                        sync.RWMutex
+	lockGetAgentRoleAssignments               sync.RWMutex
+	lockGetAgentRoles                         sync.RWMutex
+	lockGetGroup                              sync.RWMutex
+	lockGetGroupMembers                       sync.RWMutex
+	lockGetGroupRoles                         sync.RWMutex
+	lockGetOUHandleByID                       sync.RWMutex
+	lockGetOUIDByHandle                       sync.RWMutex
+	lockGetRole                               sync.RWMutex
+	lockGetRoleAssignments                    sync.RWMutex
+	lockGetUser                               sync.RWMutex
+	lockGetUserGroups                         sync.RWMutex
+	lockGetUserRoles                          sync.RWMutex
+	lockInviteUser                            sync.RWMutex
+	lockListAMPPermissions                    sync.RWMutex
+	lockListChildOUs                          sync.RWMutex
+	lockListGroupMemberEntries                sync.RWMutex
+	lockListGroups                            sync.RWMutex
+	lockListGroupsByOUId                      sync.RWMutex
+	lockListRoles                             sync.RWMutex
+	lockListUsers                             sync.RWMutex
+	lockListUsersByOUId                       sync.RWMutex
+	lockRemoveGroupMemberEntries              sync.RWMutex
+	lockRemoveGroupMembers                    sync.RWMutex
+	lockRemoveRoleAssignees                   sync.RWMutex
+	lockRemoveRolePermissions                 sync.RWMutex
+	lockRenameProxyResourceServerIdentifier   sync.RWMutex
+	lockUpdateGroup                           sync.RWMutex
+	lockUpdateRole                            sync.RWMutex
+	lockUpdateUser                            sync.RWMutex
+	lockUpdateUserCredentials                 sync.RWMutex
 }
 
 // AddGroupMemberEntries calls AddGroupMemberEntriesFunc.
@@ -1071,6 +1105,46 @@ func (mock *IdentityClientMock) DeleteProxyResourceServerActionCalls() []struct 
 	mock.lockDeleteProxyResourceServerAction.RLock()
 	calls = mock.calls.DeleteProxyResourceServerAction
 	mock.lockDeleteProxyResourceServerAction.RUnlock()
+	return calls
+}
+
+// DeleteProxyResourceServerByIdentifier calls DeleteProxyResourceServerByIdentifierFunc.
+func (mock *IdentityClientMock) DeleteProxyResourceServerByIdentifier(ctx context.Context, proxyHandle string, identifier string) error {
+	if mock.DeleteProxyResourceServerByIdentifierFunc == nil {
+		panic("IdentityClientMock.DeleteProxyResourceServerByIdentifierFunc: method is nil but IdentityClient.DeleteProxyResourceServerByIdentifier was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		ProxyHandle string
+		Identifier  string
+	}{
+		Ctx:         ctx,
+		ProxyHandle: proxyHandle,
+		Identifier:  identifier,
+	}
+	mock.lockDeleteProxyResourceServerByIdentifier.Lock()
+	mock.calls.DeleteProxyResourceServerByIdentifier = append(mock.calls.DeleteProxyResourceServerByIdentifier, callInfo)
+	mock.lockDeleteProxyResourceServerByIdentifier.Unlock()
+	return mock.DeleteProxyResourceServerByIdentifierFunc(ctx, proxyHandle, identifier)
+}
+
+// DeleteProxyResourceServerByIdentifierCalls gets all the calls that were made to DeleteProxyResourceServerByIdentifier.
+// Check the length with:
+//
+//	len(mockedIdentityClient.DeleteProxyResourceServerByIdentifierCalls())
+func (mock *IdentityClientMock) DeleteProxyResourceServerByIdentifierCalls() []struct {
+	Ctx         context.Context
+	ProxyHandle string
+	Identifier  string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		ProxyHandle string
+		Identifier  string
+	}
+	mock.lockDeleteProxyResourceServerByIdentifier.RLock()
+	calls = mock.calls.DeleteProxyResourceServerByIdentifier
+	mock.lockDeleteProxyResourceServerByIdentifier.RUnlock()
 	return calls
 }
 
@@ -2207,6 +2281,50 @@ func (mock *IdentityClientMock) RemoveRolePermissionsCalls() []struct {
 	mock.lockRemoveRolePermissions.RLock()
 	calls = mock.calls.RemoveRolePermissions
 	mock.lockRemoveRolePermissions.RUnlock()
+	return calls
+}
+
+// RenameProxyResourceServerIdentifier calls RenameProxyResourceServerIdentifierFunc.
+func (mock *IdentityClientMock) RenameProxyResourceServerIdentifier(ctx context.Context, proxyHandle string, from string, to string) error {
+	if mock.RenameProxyResourceServerIdentifierFunc == nil {
+		panic("IdentityClientMock.RenameProxyResourceServerIdentifierFunc: method is nil but IdentityClient.RenameProxyResourceServerIdentifier was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		ProxyHandle string
+		From        string
+		To          string
+	}{
+		Ctx:         ctx,
+		ProxyHandle: proxyHandle,
+		From:        from,
+		To:          to,
+	}
+	mock.lockRenameProxyResourceServerIdentifier.Lock()
+	mock.calls.RenameProxyResourceServerIdentifier = append(mock.calls.RenameProxyResourceServerIdentifier, callInfo)
+	mock.lockRenameProxyResourceServerIdentifier.Unlock()
+	return mock.RenameProxyResourceServerIdentifierFunc(ctx, proxyHandle, from, to)
+}
+
+// RenameProxyResourceServerIdentifierCalls gets all the calls that were made to RenameProxyResourceServerIdentifier.
+// Check the length with:
+//
+//	len(mockedIdentityClient.RenameProxyResourceServerIdentifierCalls())
+func (mock *IdentityClientMock) RenameProxyResourceServerIdentifierCalls() []struct {
+	Ctx         context.Context
+	ProxyHandle string
+	From        string
+	To          string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		ProxyHandle string
+		From        string
+		To          string
+	}
+	mock.lockRenameProxyResourceServerIdentifier.RLock()
+	calls = mock.calls.RenameProxyResourceServerIdentifier
+	mock.lockRenameProxyResourceServerIdentifier.RUnlock()
 	return calls
 }
 

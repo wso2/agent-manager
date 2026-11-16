@@ -60,4 +60,7 @@ ENV GODEBUG=x509negativeserial=1
 # Expose application port
 EXPOSE 8080
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD ["/go/bin/agent-manager-service", "-healthcheck"]
+
 ENTRYPOINT ["/app/entrypoint.sh"]

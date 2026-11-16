@@ -15,45 +15,21 @@
  * under the License.
  */
 
-import { useEffect, useState } from "react";
-import {
-  Alert,
-  Button,
-  Chip,
-  FormControlLabel,
-  ListingTable,
-  MenuItem,
-  Stack,
-  Switch,
-  Tooltip,
-} from "@wso2/oxygen-ui";
+import { Button, Chip, ListingTable, Tooltip } from "@wso2/oxygen-ui";
 import { ShieldOff } from "@wso2/oxygen-ui-icons-react";
 import {
   useCreateProjectMCPProxyAPIKey,
   useListProjectMCPProxyAPIKeys,
   useRevokeProjectMCPProxyAPIKey,
+  useRotateProjectMCPProxyAPIKey,
 } from "@agent-management-platform/api-client";
 import {
   APIKeysManager,
   type CreateAPIKeyInput,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
-import { TextInput } from "@agent-management-platform/views";
-import type {
-  APIKeyLocation,
-  ProjectMCPProxyEnvironment,
-  ProjectMCPProxyEnvironmentRequest,
-} from "@agent-management-platform/types";
-import {
-  bindingRequestFrom,
-  bindingRequiresAPIKey,
-  DEFAULT_API_KEY_HEADER,
-} from "./projectBinding";
-
-/** Saves a whole binding request for the selected environment. */
-export type SaveBinding = (
-  request: ProjectMCPProxyEnvironmentRequest,
-) => Promise<unknown>;
+import type { ProjectMCPProxyEnvironment } from "@agent-management-platform/types";
+import { bindingRequiresAPIKey, bindingUsesIdentity } from "./projectBinding";
 
 const STATUS_COLOR: Record<string, "success" | "warning" | "error"> = {
   Deployed: "success",
@@ -92,110 +68,6 @@ export function BindingStatusChip({
   );
 }
 
-/** Whether callers present an API key to the gateway, and where. */
-export function BindingSecurityTab({
-  env,
-  onSave,
-  isSaving,
-}: {
-  env: ProjectMCPProxyEnvironment;
-  onSave: SaveBinding;
-  isSaving: boolean;
-}) {
-  const { canWrite } = useResourceAccess("mcp_server");
-  const [required, setRequired] = useState(bindingRequiresAPIKey(env.security));
-  const [header, setHeader] = useState(
-    env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER,
-  );
-  const [location, setLocation] = useState<APIKeyLocation>(
-    env.security?.apiKey?.in ?? "header",
-  );
-
-  useEffect(() => {
-    setRequired(bindingRequiresAPIKey(env.security));
-    setHeader(env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER);
-    setLocation(env.security?.apiKey?.in ?? "header");
-  }, [env]);
-
-  const isDirty =
-    required !== bindingRequiresAPIKey(env.security) ||
-    (required &&
-      (header.trim() !==
-        (env.security?.apiKey?.key || DEFAULT_API_KEY_HEADER) ||
-        location !== (env.security?.apiKey?.in ?? "header")));
-
-  const save = () =>
-    onSave({
-      ...bindingRequestFrom(env),
-      security: required
-        ? {
-            enabled: true,
-            apiKey: { enabled: true, key: header.trim(), in: location },
-          }
-        : { enabled: false },
-    });
-
-  return (
-    <Stack spacing={3} maxWidth={560}>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={required}
-            disabled={!canWrite}
-            onChange={(event) => setRequired(event.target.checked)}
-          />
-        }
-        label="Require an API key"
-      />
-      {!required && (
-        <Alert severity="warning">
-          Anyone who can reach the gateway can call this MCP server in this
-          environment.
-        </Alert>
-      )}
-      {required && (
-        <Stack direction="row" spacing={2} alignItems="flex-start">
-          <TextInput
-            label="Key name"
-            placeholder={`e.g. ${DEFAULT_API_KEY_HEADER}`}
-            size="small"
-            value={header}
-            disabled={!canWrite}
-            onChange={(event) => setHeader(event.target.value)}
-            helperText="The header or query parameter callers send the key in."
-            fullWidth
-          />
-          <TextInput
-            select
-            label="Location"
-            size="small"
-            value={location}
-            disabled={!canWrite}
-            onChange={(event) =>
-              setLocation(event.target.value as APIKeyLocation)
-            }
-            sx={{ minWidth: 140 }}
-          >
-            <MenuItem value="header">Header</MenuItem>
-            <MenuItem value="query">Query</MenuItem>
-          </TextInput>
-        </Stack>
-      )}
-      {canWrite && (
-        <Stack direction="row">
-          <Button
-            variant="contained"
-            disabled={!isDirty || isSaving || (required && !header.trim())}
-            onClick={() => void save()}
-          >
-            Save
-          </Button>
-        </Stack>
-      )}
-    </Stack>
-  );
-}
-
 /** The binding's API keys, when it asks callers for one. */
 export function BindingAPIKeysTab({
   env,
@@ -220,14 +92,24 @@ export function BindingAPIKeysTab({
     useCreateProjectMCPProxyAPIKey();
   const { mutate: revokeKey, isPending: isRevoking } =
     useRevokeProjectMCPProxyAPIKey();
+  const { mutateAsync: rotateKey, isPending: isRotating } =
+    useRotateProjectMCPProxyAPIKey();
 
   if (!requiresKey) {
     return (
       <ListingTable.Container>
         <ListingTable.EmptyState
           illustration={<ShieldOff size={48} />}
-          title="API key authentication is disabled"
-          description="Turn on API keys from the Security tab to manage keys for this environment."
+          title={
+            bindingUsesIdentity(env.security)
+              ? "This environment uses OAuth"
+              : "API key authentication is disabled"
+          }
+          description={
+            bindingUsesIdentity(env.security)
+              ? "Callers present OAuth access tokens instead of API keys. Switch to API keys from the Security tab to manage keys for this environment."
+              : "Turn on API keys from the Security tab to manage keys for this environment."
+          }
           action={
             <Button variant="outlined" onClick={onGoToSecurity}>
               Go to Security Tab
@@ -256,6 +138,11 @@ export function BindingAPIKeysTab({
       emptyDescription="Create an API key to call this MCP server in this environment."
       onCreate={handleCreate}
       onRevoke={(keyName) => revokeKey({ ...params, keyName })}
+      // An empty body keeps the key's name and expiry; only its value changes.
+      onRotate={async (keyName) =>
+        (await rotateKey({ params: { ...params, keyName }, body: {} })).apiKey
+      }
+      isRotating={isRotating}
       readOnly={!canWrite}
     />
   );

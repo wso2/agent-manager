@@ -248,6 +248,7 @@ spec:
             name: ${metadata.workflowRunName}-amp-publisher-credentials
             creationPolicy: Owner
           data: |
+            {{- /* checkov:skip=CKV_SECRET_6:ExternalSecret lookup names */}}
             ${externalRefs['publisher-secret-reference'].spec.data.filter(secret, secret.secretKey == "client-secret").map(secret, {
               "secretKey": secret.secretKey,
               "remoteRef": {

@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
@@ -216,7 +217,9 @@ func TestMCPResourceServerProxyDeleteGoesThroughTheProvider(t *testing.T) {
 	envA, envB := uuid.New(), uuid.New()
 	proxy, svc := deployedIdentityProxy(envA, envB)
 
-	svc.cleanupProxyResourceServers(context.Background(), "ou-1", proxy, []models.MCPProxyScope{{Action: "read"}, {Action: "write"}})
+	identifiers := map[uuid.UUID]string{envA: "https://gw.example.com/deepwiki"}
+	svc.cleanupProxyResourceServers(context.Background(), "ou-1", proxy, []models.MCPProxyScope{{Action: "read"}, {Action: "write"}},
+		identifiers)
 
 	require.Len(t, provider.deleted, 2)
 	for i, env := range []string{"dev", "prod"} {
@@ -225,6 +228,9 @@ func TestMCPResourceServerProxyDeleteGoesThroughTheProvider(t *testing.T) {
 		require.Equal(t, "deepwiki", provider.deleted[i].ProxyHandle)
 		require.Equal(t, []string{"read", "write"}, provider.deleted[i].Actions, "the actions the proxy had")
 	}
+	require.Equal(t, "https://gw.example.com/deepwiki", provider.deleted[0].Identifier,
+		"found by the URL it was registered at: one registered by URL is not found by handle")
+	require.Empty(t, provider.deleted[1].Identifier, "no URL known: looked up by handle")
 }
 
 func TestMCPResourceServerRequestsAreCheckedBeforeTheProvider(t *testing.T) {
@@ -272,16 +278,22 @@ func TestLegacyMCPResourceServerProvider(t *testing.T) {
 		require.ErrorContains(t, provider.RemoveMCPResourceServerAction(ctx, request, "read"), "env-Thunder unavailable")
 	})
 
-	t.Run("no roles are swept when the resource server was never there", func(t *testing.T) {
-		// ListRoles is not stubbed: the mock panics if it is called.
+	t.Run("roles are swept even when the resource server is not found by handle", func(t *testing.T) {
+		// One registered with a URL identifier is not found by handle, yet roles may grant its scope.
+		swept := 0
 		provider := &legacyMCPResourceServerProvider{logger: discardLogger(), resolver: &clientmocks.EnvThunderResolverMock{
 			ResolveIdentityFunc: func(context.Context, string, string, string) (thundersvc.EnvIdentityClient, error) {
 				return &clientmocks.EnvIdentityClientMock{
 					DeleteProxyResourceServerActionFunc: func(context.Context, string, string) (string, error) { return "", nil },
+					ListRolesFunc: func(context.Context, string, int, int) ([]thundersvc.ThunderRole, int, error) {
+						swept++
+						return nil, 0, nil
+					},
 				}, nil
 			},
 		}}
 		require.NoError(t, provider.RemoveMCPResourceServerAction(ctx, request, "read"))
+		assert.Equal(t, 1, swept)
 	})
 
 	t.Run("a failed server delete skips the role sweep", func(t *testing.T) {

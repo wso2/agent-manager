@@ -336,6 +336,28 @@ describe("useMCPProxySecurity", () => {
       expect(result.current.isResolved).toBe(true);
     });
 
+    it("reports OAuth for an environment secured with identity", () => {
+      query({ data: projectProxyStub() });
+      projectQuery({
+        data: projectProxy([
+          { uuid: "dev-uuid", security: { enabled: true, identity: { enabled: true } } },
+        ]),
+      });
+
+      const { result } = renderHook(() =>
+        useMCPProxySecurity({
+          orgName: "acme",
+          proxyId: "orders",
+          environmentUuid: "dev-uuid",
+        }),
+      );
+
+      expect(result.current.authenticationType).toBe("identity");
+      expect(result.current.usesIdentitySecurity).toBe(true);
+      expect(result.current.spec.editableKeys).toEqual(["url"]);
+      expect(result.current.isResolved).toBe(true);
+    });
+
     it("scopes the answer to the environment whose uuid matches", () => {
       query({ data: projectProxyStub() });
       projectQuery({

@@ -32,6 +32,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, KeyRound, Plus, Trash } from "@wso2/oxygen-ui-icons-react";
 import { useListIdentityProviders } from "@agent-management-platform/api-client";
+import { identityProviderLabel } from "@agent-management-platform/shared-component";
 import type {
   GatewayEnvironmentResponse,
   IdentityProvider,
@@ -207,17 +208,20 @@ export function GatewayIdentityProvidersCard({
                   <ListingTable.CellIcon
                     icon={
                       <Avatar
+                        variant="light"
                         sx={{
                           width: 28,
                           height: 28,
-                          bgcolor: isSystem ? "action.selected" : "primary.main",
-                          color: isSystem ? "text.secondary" : "primary.contrastText",
+                          ...(isSystem && {
+                            bgcolor: "action.selected",
+                            color: "text.secondary",
+                          }),
                         }}
                       >
                         <KeyRound size={16} />
                       </Avatar>
                     }
-                    primary={provider.name}
+                    primary={identityProviderLabel(provider.name)}
                   />
                 </ListingTable.Cell>
                 <ListingTable.Cell>

@@ -21,7 +21,7 @@ import {
   useGetAgent,
   useListCommits,
 } from "@agent-management-platform/api-client";
-import { Wrench } from "@wso2/oxygen-ui-icons-react";
+import { Hammer } from "@wso2/oxygen-ui-icons-react";
 import {
   Alert,
   Box,
@@ -133,7 +133,7 @@ export function BuildPanel({
   return (
     <Box display="flex" flexDirection="column" height="100%">
       <DrawerHeader
-        icon={<Wrench size={24} />}
+        icon={<Hammer size={24} />}
         title="Trigger Build"
         onClose={onClose}
       />
@@ -233,7 +233,7 @@ export function BuildPanel({
             variant="contained"
             color="primary"
             onClick={handleBuild}
-            startIcon={<Wrench size={16} />}
+            startIcon={<Hammer size={16} />}
             disabled={isPending || isLoadingAgent || !selectedBranch}
           >
             Trigger build

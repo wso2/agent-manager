@@ -73,11 +73,11 @@ const renderGateway = (hosting: "MANAGED" | "SELF_HOSTED") => {
   render(
     <FeatureManagementProvider featureFlags={featureFlags}>
       <MemoryRouter
-        initialEntries={["/org/acme/gateways/gw-1"]}
+        initialEntries={["/organizations/acme/gateways/gw-1"]}
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
         <Routes>
-          <Route path="/org/:orgId/gateways/:gatewayId" element={<ViewGateway />} />
+          <Route path="/organizations/:orgId/gateways/:gatewayId" element={<ViewGateway />} />
         </Routes>
       </MemoryRouter>
     </FeatureManagementProvider>,

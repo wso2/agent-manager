@@ -228,7 +228,10 @@ jobs:
             echo "## Dev build \`${VERSION}\`"
             echo
             echo '```'
+            echo "IMAGE=${IMAGE}"
+            echo 'SOCKET_GID=$(docker run --rm --mount type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock --entrypoint stat "$IMAGE" -c %g /var/run/docker.sock)'
             echo "docker run --rm -it --name amp-quick-start \\"
+            echo "  --group-add \$SOCKET_GID \\"
             echo "  -v /var/run/docker.sock:/var/run/docker.sock \\"
             echo "  --network=host \\"
             echo "  ${IMAGE}"

@@ -40,6 +40,7 @@ import {
   Rocket,
   Circle,
   XCircle,
+  Hammer,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -308,7 +309,7 @@ export function BuildTable() {
           </>
           ) : (
             <ListingTable.EmptyState
-              illustration={<Rocket size={64} />}
+              illustration={<Hammer size={64} />}
               title="No builds yet"
               description="Trigger a build to see it listed here"
             />

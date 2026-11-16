@@ -18,12 +18,12 @@
 
 import { BuildComponent } from './Build.Component';
 import type { PageMetadata } from '@agent-management-platform/types';
-import { Wrench as BuildOutlined } from '@wso2/oxygen-ui-icons-react';
+import { Hammer } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData: PageMetadata = {
   title: 'Build',
   description: 'A page component for Build',
-  icon: BuildOutlined,
+  icon: Hammer,
   path: '/build',
   component: BuildComponent,
   levels: {

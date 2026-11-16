@@ -48,6 +48,7 @@ const TestMCPServerURL = "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-u
 const E2ESharedProjectName = "e2e-test-shared"
 const SharedITHelpdeskAgentName = "e2e-it-helpdesk"
 const E2ESharedProjectWithMultiEnvDepPipeline = "e2e-test-multienv"
+const SharedA2AAgentName = "e2e-a2a-agent"
 const SharedPromotableITHelpdeskAgentName = "e2e-it-helpdesk-multi"
 
 // E2ESharedSecondEnv is the fixed promotion-target environment for the shared promotable IT helpdesk agent. It
@@ -100,6 +101,15 @@ type SharedITHelpdeskAgent struct {
 	EndpointURL string          `json:"endpointURL"`
 	APIKey      string          `json:"apiKey"`
 	InvokeReq   json.RawMessage `json:"invokeReq"`
+}
+
+// SharedA2AAgent holds details of the shared A2A sample agent, provisioned once
+// and reused by the A2A specs.
+type SharedA2AAgent struct {
+	ProjectName string `json:"projectName"`
+	AgentName   string `json:"agentName"`
+	APIKey      string `json:"apiKey"`
+	CardURL     string `json:"cardURL"` // sourceUrl of the fetched platform card
 }
 
 // SharedPromotableITHelpdeskAgent holds details of the shared two-environment IT helpdesk agent

@@ -18,7 +18,7 @@
 
 import { Link as RouterLink, generatePath } from "react-router-dom";
 import { Box, Stack, Typography } from "@wso2/oxygen-ui";
-import { Clock, Package } from "@wso2/oxygen-ui-icons-react";
+import { Clock, Box as ProjectIcon } from "@wso2/oxygen-ui-icons-react";
 import { absoluteRouteMap, type ProjectResponse } from "@agent-management-platform/types";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import { IconTile } from "@agent-management-platform/views";
@@ -42,7 +42,7 @@ export function ProjectRow({ project, orgId }: { project: ProjectResponse; orgId
       }}
     >
       <IconTile selected size={40}>
-        <Package size={20} />
+        <ProjectIcon size={20} />
       </IconTile>
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="subtitle2" noWrap>

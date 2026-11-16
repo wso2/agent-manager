@@ -48,7 +48,7 @@ export function orgRouteId(org: OrgRouteSource | undefined): string | undefined 
 
 /**
  * Where to send a link that names the org the old way — by its name (the
- * namespace, e.g. `/org/wc-01a0c318-7a4ef447/...`) — so it keeps working now
+ * namespace, e.g. `/organizations/wc-01a0c318-7a4ef447/...`) — so it keeps working now
  * that URLs carry the handle. Undefined when the link needs no redirect.
  */
 export function legacyOrgRedirectPath(

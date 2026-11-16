@@ -55,7 +55,12 @@ type Config struct {
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
 	// A2ACardFetchDialAddr, when set, is the host:port every platform card fetch dials instead of its URL host.
+	// It also applies to fetches of the hosts in A2ACardTestUpstreamHosts.
 	A2ACardFetchDialAddr string
+	// A2ACardTestUpstreamHosts is a test-only list of exact hostnames the A2A card paths accept despite resolving
+	// to a private address. Entries are kept as written; the services package matches them case-insensitively,
+	// ignoring a trailing dot. Empty by default.
+	A2ACardTestUpstreamHosts []string
 
 	// JWT Signing configuration for agent API tokens
 	JWTSigning JWTSigningConfig
@@ -656,6 +661,14 @@ type BuildClientConfig struct {
 	// read; a run then gets the token only if its workflow declares
 	// ampBuild.secretStore.
 	SecretStore string
+	// Resource is the RFC 8707 resource indicator the build token is requested
+	// for (AMP_BUILD_CLIENT_RESOURCE): the identifier of the resource server that
+	// defines amp:agent:build, for an identity provider whose default resource
+	// server does not (it drops a scope it does not define, so the token would
+	// carry none and every build would fail). It becomes the token's audience, so
+	// KEY_MANAGER_AUDIENCE must admit it, which startup checks. Empty requests none,
+	// and the token's audience is IDP_CLIENT_ID.
+	Resource string
 }
 
 // ThunderConfig holds Thunder admin API configuration for provisioning OAuth apps

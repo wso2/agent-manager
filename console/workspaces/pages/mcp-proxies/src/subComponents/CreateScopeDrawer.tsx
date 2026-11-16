@@ -99,6 +99,8 @@ interface CreateScopeDrawerProps {
   onClose: () => void;
   orgName: string;
   proxyId: string;
+  /** Set for a project MCP proxy, whose scopes are under its project's routes. */
+  projName?: string;
   /** Environments the current endpoint is deployed to with identity security enabled. */
   environments: Environment[];
   /** Tool identifiers discovered on the current endpoint, offered as scope bindings. */
@@ -117,6 +119,7 @@ export function CreateScopeDrawer({
   onClose,
   orgName,
   proxyId,
+  projName,
   environments,
   tools,
   blockedTools,
@@ -225,7 +228,7 @@ export function CreateScopeDrawer({
       let created: MCPProxyScopeResponse;
       try {
         created = await createScope.mutateAsync({
-          params: { orgName, proxyId },
+          params: { orgName, proxyId, projName },
           body: {
             action: formData.name.trim(),
             description: formData.description?.trim() || undefined,
@@ -285,6 +288,7 @@ export function CreateScopeDrawer({
       createScope,
       orgName,
       proxyId,
+      projName,
       environments,
       selectedRolesByEnv,
       updateRole,

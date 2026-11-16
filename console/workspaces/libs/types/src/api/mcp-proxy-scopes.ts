@@ -48,5 +48,9 @@ export interface MCPProxyScopeListResponse {
 
 // --- Path params ---
 
-export type MCPProxyScopesPathParams = OrgPathParams & { proxyId: string };
+/**
+ * A proxy's scopes. With projName they are a project MCP proxy's, under that project's routes;
+ * without it, an org MCP proxy's.
+ */
+export type MCPProxyScopesPathParams = OrgPathParams & { proxyId: string; projName?: string };
 export type MCPProxyScopePathParams = MCPProxyScopesPathParams & { scopeAction: string };

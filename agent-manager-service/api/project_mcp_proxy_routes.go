@@ -63,4 +63,12 @@ func RegisterProjectMCPProxyRoutes(
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys+"/test", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.IssueProjectMCPProxyEnvironmentTestAPIKey)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RotateProjectMCPProxyEnvironmentAPIKey)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RevokeProjectMCPProxyEnvironmentAPIKey)
+
+	// Scopes: actions on the proxy's resource server, granted to agents through roles and enforced per tool on every
+	// binding secured with identity. Gated on the scope permissions, as on the org route.
+	const scopes = base + "/{proxyId}/scopes"
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+scopes, rbac.ScopeRead, orgOverride, ctrl.ListProjectMCPProxyScopes)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+scopes, rbac.ScopeCreate, orgOverride, ctrl.CreateProjectMCPProxyScope)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+scopes+"/{scopeAction}", rbac.ScopeUpdate, orgOverride, ctrl.UpdateProjectMCPProxyScope)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+scopes+"/{scopeAction}", rbac.ScopeDelete, orgOverride, ctrl.DeleteProjectMCPProxyScope)
 }

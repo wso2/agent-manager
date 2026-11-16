@@ -113,6 +113,11 @@ type Options struct {
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
+	// OrgClientAuthProvider builds the token source of each organization's own
+	// OpenChoreo client (amp-scheduler-<ouId>), which the monitor scheduler uses to
+	// create and track runs and monitor deletion uses to expire them. nil (the
+	// open-source default) runs a plain client_credentials grant.
+	OrgClientAuthProvider services.OrgClientAuthProviderFactory
 	// AgentThunderProvisioning is the deployment-specific AgentID provisioning
 	// implementation. A factory because the open-source impl is DB-backed and the
 	// DB is initialized inside Run. nil disables provisioning (identity endpoints
@@ -206,6 +211,7 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 	services.SetMCPResourceServerProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.MCPResourceServerProvider)
 	services.SetIdentityRoleProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityRoleProvider)
 	services.SetIdentityGroupProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityGroupProvider)
+	services.SetOrgClientAuthProviderFactory(opts.OrgClientAuthProvider)
 
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()

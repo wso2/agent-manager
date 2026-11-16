@@ -21,12 +21,12 @@ import { OrganizationOverview } from './OrganizationOverview/OrganizationOvervie
 import { EditProject } from './EditProject/EditProject';
 import { EditAgent } from './AgentOverview/EditAgent';
 import type { PageMetadata } from '@agent-management-platform/types';
-import { Home } from '@wso2/oxygen-ui-icons-react';
+import { LayoutDashboard } from '@wso2/oxygen-ui-icons-react';
 
 export const metaData: PageMetadata = {
   title: 'Overview',
   description: 'A page component for Overview',
-  icon: Home,
+  icon: LayoutDashboard,
   path: '/overview',
   component: OverviewComponent,
   levels: {

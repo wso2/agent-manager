@@ -26,8 +26,11 @@ import type {
   MCPProxyScopePathParams,
 } from "@agent-management-platform/types";
 
-const scopesBase = (orgName: string, proxyId: string) =>
-  `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/mcp-proxies/${encodeURIComponent(proxyId)}/scopes`;
+// A project MCP proxy's scopes are under its project's routes; the org routes refuse them.
+const scopesBase = (orgName: string, proxyId: string, projName?: string) =>
+  `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}`
+  + (projName ? `/projects/${encodeURIComponent(projName)}` : "")
+  + `/mcp-proxies/${encodeURIComponent(proxyId)}/scopes`;
 
 /**
  * List an MCP proxy's scopes
@@ -36,9 +39,9 @@ export async function listMCPProxyScopes(
   params: MCPProxyScopesPathParams,
   getToken?: () => Promise<string>,
 ): Promise<MCPProxyScopeListResponse> {
-  const { orgName = "default", proxyId } = params;
+  const { orgName = "default", proxyId, projName } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpGET(scopesBase(orgName, proxyId), { token });
+  const res = await httpGET(scopesBase(orgName, proxyId, projName), { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -51,9 +54,9 @@ export async function createMCPProxyScope(
   body: MCPProxyScopeRequest,
   getToken?: () => Promise<string>,
 ): Promise<MCPProxyScopeResponse> {
-  const { orgName = "default", proxyId } = params;
+  const { orgName = "default", proxyId, projName } = params;
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(scopesBase(orgName, proxyId), body, { token });
+  const res = await httpPOST(scopesBase(orgName, proxyId, projName), body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -67,10 +70,10 @@ export async function updateMCPProxyScope(
   body: MCPProxyScopeUpdateRequest,
   getToken?: () => Promise<string>,
 ): Promise<MCPProxyScopeResponse> {
-  const { orgName = "default", proxyId, scopeAction } = params;
+  const { orgName = "default", proxyId, projName, scopeAction } = params;
   const action = encodeRequired(scopeAction, "scopeAction");
   const token = getToken ? await getToken() : undefined;
-  const res = await httpPUT(`${scopesBase(orgName, proxyId)}/${action}`, body, { token });
+  const res = await httpPUT(`${scopesBase(orgName, proxyId, projName)}/${action}`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }
@@ -82,9 +85,9 @@ export async function deleteMCPProxyScope(
   params: MCPProxyScopePathParams,
   getToken?: () => Promise<string>,
 ): Promise<void> {
-  const { orgName = "default", proxyId, scopeAction } = params;
+  const { orgName = "default", proxyId, projName, scopeAction } = params;
   const action = encodeRequired(scopeAction, "scopeAction");
   const token = getToken ? await getToken() : undefined;
-  const res = await httpDELETE(`${scopesBase(orgName, proxyId)}/${action}`, { token });
+  const res = await httpDELETE(`${scopesBase(orgName, proxyId, projName)}/${action}`, { token });
   if (!res.ok && res.status !== 204) throw await res.json();
 }

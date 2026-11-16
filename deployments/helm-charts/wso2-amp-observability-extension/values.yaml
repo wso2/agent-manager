@@ -33,6 +33,7 @@ amObserver:
   # Observer Service connection — the upstream service that provides trace data.
   observer:
     baseUrl: "http://observer.openchoreo-observability-plane.svc.cluster.local:8080"
+    # checkov:skip=CKV_SECRET_6:OAuth endpoint URL
     idpTokenUrl: "http://amp-thunder-extension-service.amp-thunder.svc.cluster.local:8090/oauth2/token"
     # Dedicated outbound identity for calls to the OpenChoreo observer.
     # Seeded by wso2-amp-thunder-extension (amObserverClient); authorized via

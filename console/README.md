@@ -76,6 +76,9 @@ Override any value with an env var, or in a gitignored `.env.development.local`:
 DISABLE_AUTH=true pnpm dev
 ```
 
+Use this mode for console UI development against mock or public endpoints. To call
+protected APIs on the local stack, set `DISABLE_AUTH=false` and sign in through Thunder.
+
 Because the process env wins, a generic variable already exported in your shell
 (`TLS_ENABLED`, `AMP_VERSION`, `API_BASE_URL`, `BASE_PATH`, ...) also changes the dev
 config. If `config.js` shows a value you didn't expect, check `env` first.

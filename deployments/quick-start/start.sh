@@ -109,7 +109,16 @@ if [[ "$REGISTRY_PREFIX" != "ghcr.io/wso2" ]]; then
   fi
 fi
 
+# Read the socket's group from the Docker host, which may be a Linux VM.
+SOCKET_MOUNT="type=bind,source=/var/run/docker.sock,target=/var/run/docker.sock"
+if ! DOCKER_SOCKET_GID=$(docker run --rm --mount "$SOCKET_MOUNT" \
+  --entrypoint stat "${IMAGE}:v${VERSION}" -c '%g' /var/run/docker.sock); then
+  die "Cannot determine the Docker socket group."
+fi
+[[ "$DOCKER_SOCKET_GID" =~ ^[0-9]+$ ]] || die "Invalid Docker socket group."
+
 exec docker run --rm -it --name amp-quick-start \
+  --group-add "$DOCKER_SOCKET_GID" \
   -v /var/run/docker.sock:/var/run/docker.sock \
   --network=host \
   ${DOCKER_ARGS[@]+"${DOCKER_ARGS[@]}"} \

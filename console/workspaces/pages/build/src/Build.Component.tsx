@@ -23,7 +23,7 @@ import {
   PageLayout,
 } from "@agent-management-platform/views";
 import { Button, Box } from "@wso2/oxygen-ui";
-import { Wrench as BuildOutlined, Settings } from "@wso2/oxygen-ui-icons-react";
+import { Settings, Hammer } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { BuildPanel } from "@agent-management-platform/shared-component";
 import { useGetAgent } from "@agent-management-platform/api-client";
@@ -93,7 +93,7 @@ export const BuildComponent: React.FC = () => {
                 onClick={handleBuild}
                 variant="contained"
                 color="primary"
-                startIcon={<BuildOutlined size={16} />}
+                startIcon={<Hammer size={16} />}
               >
                 Trigger a Build
               </Button>

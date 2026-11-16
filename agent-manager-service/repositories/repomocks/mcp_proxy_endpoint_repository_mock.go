@@ -21,6 +21,9 @@ import (
 //			AddEndpointEnvironmentFunc: func(ctx context.Context, tx *gorm.DB, ee *models.MCPProxyEndpointEnvironment) error {
 //				panic("mock out the AddEndpointEnvironment method")
 //			},
+//			ClearIdentityCleanupIDFunc: func(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error {
+//				panic("mock out the ClearIdentityCleanupID method")
+//			},
 //			CreateEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
 //				panic("mock out the CreateEndpoint method")
 //			},
@@ -45,6 +48,9 @@ import (
 //			ListEndpointsByProxyFunc: func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpoint, error) {
 //				panic("mock out the ListEndpointsByProxy method")
 //			},
+//			MarkIdentityCleanupIDFunc: func(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error) {
+//				panic("mock out the MarkIdentityCleanupID method")
+//			},
 //			RemoveEndpointEnvironmentFunc: func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, envUUID uuid.UUID) error {
 //				panic("mock out the RemoveEndpointEnvironment method")
 //			},
@@ -60,6 +66,9 @@ import (
 type MCPProxyEndpointRepositoryMock struct {
 	// AddEndpointEnvironmentFunc mocks the AddEndpointEnvironment method.
 	AddEndpointEnvironmentFunc func(ctx context.Context, tx *gorm.DB, ee *models.MCPProxyEndpointEnvironment) error
+
+	// ClearIdentityCleanupIDFunc mocks the ClearIdentityCleanupID method.
+	ClearIdentityCleanupIDFunc func(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error
 
 	// CreateEndpointFunc mocks the CreateEndpoint method.
 	CreateEndpointFunc func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
@@ -85,6 +94,9 @@ type MCPProxyEndpointRepositoryMock struct {
 	// ListEndpointsByProxyFunc mocks the ListEndpointsByProxy method.
 	ListEndpointsByProxyFunc func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpoint, error)
 
+	// MarkIdentityCleanupIDFunc mocks the MarkIdentityCleanupID method.
+	MarkIdentityCleanupIDFunc func(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error)
+
 	// RemoveEndpointEnvironmentFunc mocks the RemoveEndpointEnvironment method.
 	RemoveEndpointEnvironmentFunc func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, envUUID uuid.UUID) error
 
@@ -101,6 +113,15 @@ type MCPProxyEndpointRepositoryMock struct {
 			Tx *gorm.DB
 			// Ee is the ee argument value.
 			Ee *models.MCPProxyEndpointEnvironment
+		}
+		// ClearIdentityCleanupID holds details about calls to the ClearIdentityCleanupID method.
+		ClearIdentityCleanupID []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// EndpointUUID is the endpointUUID argument value.
+			EndpointUUID uuid.UUID
+			// CleanupID is the cleanupID argument value.
+			CleanupID string
 		}
 		// CreateEndpoint holds details about calls to the CreateEndpoint method.
 		CreateEndpoint []struct {
@@ -164,6 +185,15 @@ type MCPProxyEndpointRepositoryMock struct {
 			// ProxyUUID is the proxyUUID argument value.
 			ProxyUUID uuid.UUID
 		}
+		// MarkIdentityCleanupID holds details about calls to the MarkIdentityCleanupID method.
+		MarkIdentityCleanupID []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// EndpointUUID is the endpointUUID argument value.
+			EndpointUUID uuid.UUID
+			// CleanupID is the cleanupID argument value.
+			CleanupID string
+		}
 		// RemoveEndpointEnvironment holds details about calls to the RemoveEndpointEnvironment method.
 		RemoveEndpointEnvironment []struct {
 			// Ctx is the ctx argument value.
@@ -186,6 +216,7 @@ type MCPProxyEndpointRepositoryMock struct {
 		}
 	}
 	lockAddEndpointEnvironment          sync.RWMutex
+	lockClearIdentityCleanupID          sync.RWMutex
 	lockCreateEndpoint                  sync.RWMutex
 	lockDeleteEndpoint                  sync.RWMutex
 	lockGetEndpoint                     sync.RWMutex
@@ -194,6 +225,7 @@ type MCPProxyEndpointRepositoryMock struct {
 	lockListEndpointEnvironments        sync.RWMutex
 	lockListEndpointEnvironmentsByProxy sync.RWMutex
 	lockListEndpointsByProxy            sync.RWMutex
+	lockMarkIdentityCleanupID           sync.RWMutex
 	lockRemoveEndpointEnvironment       sync.RWMutex
 	lockUpdateEndpoint                  sync.RWMutex
 }
@@ -235,6 +267,46 @@ func (mock *MCPProxyEndpointRepositoryMock) AddEndpointEnvironmentCalls() []stru
 	mock.lockAddEndpointEnvironment.RLock()
 	calls = mock.calls.AddEndpointEnvironment
 	mock.lockAddEndpointEnvironment.RUnlock()
+	return calls
+}
+
+// ClearIdentityCleanupID calls ClearIdentityCleanupIDFunc.
+func (mock *MCPProxyEndpointRepositoryMock) ClearIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) error {
+	if mock.ClearIdentityCleanupIDFunc == nil {
+		panic("MCPProxyEndpointRepositoryMock.ClearIdentityCleanupIDFunc: method is nil but MCPProxyEndpointRepository.ClearIdentityCleanupID was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		EndpointUUID uuid.UUID
+		CleanupID    string
+	}{
+		Ctx:          ctx,
+		EndpointUUID: endpointUUID,
+		CleanupID:    cleanupID,
+	}
+	mock.lockClearIdentityCleanupID.Lock()
+	mock.calls.ClearIdentityCleanupID = append(mock.calls.ClearIdentityCleanupID, callInfo)
+	mock.lockClearIdentityCleanupID.Unlock()
+	return mock.ClearIdentityCleanupIDFunc(ctx, endpointUUID, cleanupID)
+}
+
+// ClearIdentityCleanupIDCalls gets all the calls that were made to ClearIdentityCleanupID.
+// Check the length with:
+//
+//	len(mockedMCPProxyEndpointRepository.ClearIdentityCleanupIDCalls())
+func (mock *MCPProxyEndpointRepositoryMock) ClearIdentityCleanupIDCalls() []struct {
+	Ctx          context.Context
+	EndpointUUID uuid.UUID
+	CleanupID    string
+} {
+	var calls []struct {
+		Ctx          context.Context
+		EndpointUUID uuid.UUID
+		CleanupID    string
+	}
+	mock.lockClearIdentityCleanupID.RLock()
+	calls = mock.calls.ClearIdentityCleanupID
+	mock.lockClearIdentityCleanupID.RUnlock()
 	return calls
 }
 
@@ -535,6 +607,46 @@ func (mock *MCPProxyEndpointRepositoryMock) ListEndpointsByProxyCalls() []struct
 	mock.lockListEndpointsByProxy.RLock()
 	calls = mock.calls.ListEndpointsByProxy
 	mock.lockListEndpointsByProxy.RUnlock()
+	return calls
+}
+
+// MarkIdentityCleanupID calls MarkIdentityCleanupIDFunc.
+func (mock *MCPProxyEndpointRepositoryMock) MarkIdentityCleanupID(ctx context.Context, endpointUUID uuid.UUID, cleanupID string) (bool, error) {
+	if mock.MarkIdentityCleanupIDFunc == nil {
+		panic("MCPProxyEndpointRepositoryMock.MarkIdentityCleanupIDFunc: method is nil but MCPProxyEndpointRepository.MarkIdentityCleanupID was just called")
+	}
+	callInfo := struct {
+		Ctx          context.Context
+		EndpointUUID uuid.UUID
+		CleanupID    string
+	}{
+		Ctx:          ctx,
+		EndpointUUID: endpointUUID,
+		CleanupID:    cleanupID,
+	}
+	mock.lockMarkIdentityCleanupID.Lock()
+	mock.calls.MarkIdentityCleanupID = append(mock.calls.MarkIdentityCleanupID, callInfo)
+	mock.lockMarkIdentityCleanupID.Unlock()
+	return mock.MarkIdentityCleanupIDFunc(ctx, endpointUUID, cleanupID)
+}
+
+// MarkIdentityCleanupIDCalls gets all the calls that were made to MarkIdentityCleanupID.
+// Check the length with:
+//
+//	len(mockedMCPProxyEndpointRepository.MarkIdentityCleanupIDCalls())
+func (mock *MCPProxyEndpointRepositoryMock) MarkIdentityCleanupIDCalls() []struct {
+	Ctx          context.Context
+	EndpointUUID uuid.UUID
+	CleanupID    string
+} {
+	var calls []struct {
+		Ctx          context.Context
+		EndpointUUID uuid.UUID
+		CleanupID    string
+	}
+	mock.lockMarkIdentityCleanupID.RLock()
+	calls = mock.calls.MarkIdentityCleanupID
+	mock.lockMarkIdentityCleanupID.RUnlock()
 	return calls
 }
 

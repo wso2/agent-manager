@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { Server, ServerCrash } from "@wso2/oxygen-ui-icons-react";
+import { Workflow, Layers } from "@wso2/oxygen-ui-icons-react";
 import type { PageMetadata } from "@agent-management-platform/types";
 import { DeploymentPipelinesOrganization } from "./DeploymentPipelines.Organization";
 import { EnvironmentsOrganization } from "./Environments.Organization";
@@ -23,7 +23,7 @@ import { EnvironmentsOrganization } from "./Environments.Organization";
 export const metaData: PageMetadata = {
   title: "Deployment Pipelines",
   description: "A page component for Deployment Pipeline and Environment management",
-  icon: ServerCrash,
+  icon: Workflow,
   path: "/deployment-pipelines",
   component: DeploymentPipelinesOrganization,
   levels: {
@@ -34,7 +34,7 @@ export const metaData: PageMetadata = {
 export const environmentsMetaData: PageMetadata = {
   title: "Environments",
   description: "A page component for Environment management",
-  icon: Server,
+  icon: Layers,
   path: "/environments",
   component: EnvironmentsOrganization,
   levels: {

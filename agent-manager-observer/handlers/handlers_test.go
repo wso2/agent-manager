@@ -411,6 +411,8 @@ func TestGetTraceOverviews_IncludeQueryParam(t *testing.T) {
 		{name: "all three values are accepted", query: "&include=models,tools,mcpServers", wantModels: true, wantStatus: http.StatusOK},
 		{name: "duplicates beyond three items are accepted", query: "&include=models,tools,mcpServers,models", wantModels: true, wantStatus: http.StatusOK},
 		{name: "duplicates across repeated parameters are accepted", query: "&include=models,tools&include=models,tools", wantModels: true, wantStatus: http.StatusOK},
+		{name: "maximum items accepted", query: "&include=" + strings.Repeat("models,", maxIncludeItems-1) + "models", wantModels: true, wantStatus: http.StatusOK},
+		{name: "limit applies across repeated parameters", query: strings.Repeat("&include=models", maxIncludeItems) + "&include=tools", wantStatus: http.StatusBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -773,5 +775,17 @@ func TestParseMissingRepeatedValues(t *testing.T) {
 	}
 	if _, err := parseMissing([]string{"conversationId,conversationId,unknown"}); err == nil {
 		t.Error("unknown fields must still be rejected after duplicates")
+	}
+}
+
+func TestParseMissingItemLimit(t *testing.T) {
+	full := strings.Repeat("conversationId,", maxMissingItems-1) + "conversationId"
+	if got, err := parseMissing([]string{full}); err != nil || !got.ConversationID {
+		t.Fatalf("at the limit, got %+v, %v; want conversationId without error", got, err)
+	}
+	for _, raw := range [][]string{{full + ","}, {full, "conversationId"}} {
+		if _, err := parseMissing(raw); err == nil {
+			t.Errorf("parseMissing(%q) accepted more than %d entries", raw, maxMissingItems)
+		}
 	}
 }

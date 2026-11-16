@@ -20,7 +20,7 @@ import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { PageLayout } from "@agent-management-platform/views";
-import { AddMCPProxyForm } from "./subComponents/AddMCPProxyForm";
+import { AddProjectMCPProxyForm } from "./subComponents/AddProjectMCPProxyForm";
 
 /** Registers a project MCP server by its URL, with the same form as an org server. */
 export function AddMCPProxyProject() {
@@ -47,7 +47,10 @@ export function AddMCPProxyProject() {
       backLabel="Back to MCP server list"
       disableIcon
     >
-      <AddMCPProxyForm projectId={projectId} onCancel={() => navigate(backHref)} />
+      <AddProjectMCPProxyForm
+        projectId={projectId ?? ""}
+        onCancel={() => navigate(backHref)}
+      />
     </PageLayout>
   );
 }

@@ -3,12 +3,13 @@ import hashlib
 from pathlib import Path
 
 import logging
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_core.documents import Document
 from langchain_core.vectorstores import VectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone, ServerlessSpec
+from pypdf import PdfReader
 
 from pydantic import ValidationError
 
@@ -17,6 +18,18 @@ from config import Settings, get_settings
 logger = logging.getLogger(__name__)
 
 DEFAULT_POLICIES_DIR = Path(__file__).resolve().parent / "resources" / "policy_pdfs"
+
+
+def load_pdf(pdf_path: Path) -> list[Document]:
+    """Load a PDF into one Document per page."""
+    reader = PdfReader(str(pdf_path))
+    return [
+        Document(
+            page_content=page.extract_text() or "",
+            metadata={"source": str(pdf_path), "page": index},
+        )
+        for index, page in enumerate(reader.pages)
+    ]
 
 
 def build_embeddings(settings: Settings) -> OpenAIEmbeddings:
@@ -29,7 +42,6 @@ def build_embeddings(settings: Settings) -> OpenAIEmbeddings:
 class PolicyIngestion:
     def __init__(self, vectorstore: VectorStore) -> None:
         self._vectorstore = vectorstore
-        self._pdf_loader_cls = PyPDFLoader
         self._splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,
@@ -49,7 +61,7 @@ class PolicyIngestion:
             logger.warning("Skipping %s: missing files", folder.name)
             return
 
-        docs = self._pdf_loader_cls(str(pdf_path)).load()
+        docs = load_pdf(pdf_path)
         metadata = json.loads(metadata_path.read_text())
         if not metadata.get("hotel_id") or not metadata.get("hotel_name"):
             raise ValueError(

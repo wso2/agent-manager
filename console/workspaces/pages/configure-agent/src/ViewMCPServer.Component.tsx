@@ -70,7 +70,7 @@ import {
   useGetAgent,
   useGetAgentMCPConfig,
   useListEnvironments,
-  useListMCPProxies,
+  useListAllMCPProxies,
   useListMCPProxyScopes,
   useRefreshProjectMCPProxyCapabilities,
   useUpdateAgentMCPConfig,
@@ -398,9 +398,9 @@ export const ViewMCPServerComponent = () => {
     orgId,
     projectId,
   );
-  const { data: proxiesData } = useListMCPProxies(
+  const { data: proxiesData } = useListAllMCPProxies(
     { orgName: orgId },
-    { limit: 50, offset: 0, project: projectId },
+    { project: projectId },
   );
   const servers = useMemo(() => proxiesData?.list ?? [], [proxiesData]);
   const updateConfig = useUpdateAgentMCPConfig();

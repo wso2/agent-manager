@@ -21,13 +21,13 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { MetricsComponent } from "./index";
 
 const route =
-  "/org/org1/project/proj1/agents/agent1/environment/env1/observability/metrics";
+  "/organizations/org1/projects/proj1/agents/agent1/environment/env1/observability/metrics";
 
 const WithRouter = () => (
   <MemoryRouter initialEntries={[route]} initialIndex={0}>
     <Routes>
       <Route
-        path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/metrics"
+        path="/organizations/:orgId/projects/:projectId/agents/:agentId/environment/:envId/observability/metrics"
         element={<MetricsComponent />}
       />
     </Routes>
@@ -57,7 +57,7 @@ export const WithTimeRange: Story = {
     >
       <Routes>
         <Route
-          path="/org/:orgId/project/:projectId/agents/:agentId/environment/:envId/observability/metrics"
+          path="/organizations/:orgId/projects/:projectId/agents/:agentId/environment/:envId/observability/metrics"
           element={<MetricsComponent />}
         />
       </Routes>

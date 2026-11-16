@@ -403,9 +403,10 @@ Synchronous. Each call:
     placed (400 IMMUTABLE_FIELD). No gateway in the environment is not an error: the binding is saved and
     validated by a render, deploymentStatus is absent and deploymentStatusReason is NO_GATEWAY.
     The binding is deployed once a gateway is mapped to the environment.
- 3. Validates security. Phase 1 accepts apiKey (the default when security is omitted) and no
-    security (security.enabled false, or no variant enabled). jwt returns 400 "jwt security is not
-    available yet"; identity returns 400.
+ 3. Validates security: apiKey (the default when security is omitted, or left on with no variant
+    enabled), identity (OAuth tokens from the environment's identity provider; mutually exclusive with
+    apiKey, 400), or no security (security.enabled false only). An apiKey with enabled false while
+    security stays on returns 400. jwt returns 400 "jwt security is not available yet".
  4. Checks the gateway context /<projName><context> against every other artifact on that gateway:
     equal, containing or nested is 409 CONTEXT_IN_USE and nothing is stored. With no gateway yet,
     the check runs at placement and a clash shows as Failed with reason CONTEXT_IN_USE.
@@ -415,6 +416,14 @@ Synchronous. Each call:
 An identical PUT on a Deployed or Deploying binding returns 200 with no new deployment. A PUT
 re-queues a Failed binding even when nothing changed. The request body replaces the binding's
 security, policies and upstream auth; an omitted field resets to its default.
+
+An identity binding is an OAuth resource server in the environment's identity provider, with the
+binding's publicUrl as its identifier. Its gateway policy accepts access tokens issued by that
+provider (ThunderKeyManager) for that resource: request the token with publicUrl as the RFC 8707
+resource. The resource server is registered once the binding has a gateway, by this PUT or a later
+one (a repeated PUT registers it again), and removed when the binding is deleted. The OAuth clients
+that call it, and the roles that let them, are managed in the identity provider. AM agents in the
+project call it with their AgentID.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization handle. The org comes from the token, or from X-Impersonate-Org, in which case this must be that org's handle.

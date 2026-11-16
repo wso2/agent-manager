@@ -201,7 +201,7 @@ export const UsersPage: React.FC = () => {
                         <ListingTable.Cell>
                           <ListingTable.CellIcon
                             icon={
-                              <Avatar sx={AVATAR_SX}>
+                              <Avatar variant="light" sx={AVATAR_SX}>
                                 {username.charAt(0).toUpperCase() || "U"}
                               </Avatar>
                             }

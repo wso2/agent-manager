@@ -7387,7 +7387,7 @@ func inputInterfaceToEndpoints(cfg *client.InputInterfaceConfig, componentName s
 		return nil
 	}
 	ep := client.InputInterfaceEndpoint{
-		Name:       componentName + "-endpoint",
+		Name:       client.AgentEndpointName(componentName),
 		Port:       int(cfg.Port),
 		Type:       cfg.Type,
 		BasePath:   cfg.BasePath,

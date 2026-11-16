@@ -130,13 +130,13 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
     >
       <Box display="flex" gap={2} alignItems="center">
         <Avatar
-          variant="rounded"
+          variant="light"
           sx={{
             width: 48,
             height: 48,
             flexShrink: 0,
-            bgcolor: "primary.main",
-            color: "primary.contrastText",
+            // `light` is circular by default; keep the rounded tile shape.
+            borderRadius: 2,
           }}
         >
           <Fingerprint size={24} />

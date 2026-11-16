@@ -148,11 +148,14 @@ func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 // obtained for one organization from the identity provider's organization token
 // endpoint with its own client (IDP_CLIENT_ID) and handed to that organization's
 // build. The token must have been issued to that client (client_id) and carry the
-// organization it was issued for (ouId); the organization is taken from the
-// token alone, so a build can act only for the organization its token names. A
-// token issued to any other client, without an organization, or naming the
-// platform admin organization (PLATFORM_ADMIN_OU_ID, which this service's own
-// token minted on the plain token endpoint carries) is refused.
+// organization it was issued for (ouId), and carry the build scope
+// (BuildTokenScope) and no other scope; the organization is taken from the token
+// alone, so a build can act only for the organization its token names. A token
+// issued to any other client, without an organization, or with any other scope
+// is refused. This service's own token, which carries the same client, never
+// carries the build scope alone (it is requested with "system" or with many
+// scopes), so it is never taken for a build token, not even for the platform
+// admin organization its client belongs to.
 // Must be applied after JWTAuthMiddleware so that claims are already in context.
 func BuildClientAuthMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
@@ -181,11 +184,35 @@ func BuildClientOrg(ctx context.Context) string {
 	if issuingClient == "" || strings.TrimSpace(claims.ClientID) != issuingClient {
 		return ""
 	}
-	ouID := strings.TrimSpace(claims.OuId)
-	if adminOU := strings.TrimSpace(cfg.PlatformAdminOUID); adminOU != "" && strings.EqualFold(ouID, adminOU) {
+	if !HasOnlyScope(claims.Scope, BuildTokenScope()) {
 		return ""
 	}
-	return ouID
+	return strings.TrimSpace(claims.OuId)
+}
+
+// BuildTokenScope is the one scope a build token is requested with and must
+// carry: the agent build permission (amp:agent:build). Apart from the build
+// publisher endpoint, it opens only the routes that start a build.
+func BuildTokenScope() string {
+	return rbac.AgentBuild.Scope()
+}
+
+// HasOnlyScope reports whether scopeClaim, a space-separated scope claim, holds
+// scope and no other scope (repeating it is allowed). A build token is
+// recognised by this: carrying scope alongside anything else would make it a
+// broader token than a build needs, and one this service never issues as a build
+// token.
+func HasOnlyScope(scopeClaim, scope string) bool {
+	granted := strings.Fields(scopeClaim)
+	if scope == "" || len(granted) == 0 {
+		return false
+	}
+	for _, s := range granted {
+		if s != scope {
+			return false
+		}
+	}
+	return true
 }
 
 func hasValidPublisherAudience(audiences jwt.ClaimStrings) bool {

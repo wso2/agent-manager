@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -15,11 +15,12 @@ class Settings(BaseSettings):
     )
     weather_api_key: str | None = None
     weather_api_base_url: str = "http://api.weatherapi.com/v1"
+    hotel_api_token: SecretStr = Field(min_length=1)
     hotel_api_base_url: str = Field(
         default="http://localhost:9091",
         description="Base URL for the hotel booking API.",
         validation_alias="HOTEL_API_BASE_URL",
     )
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
 
 settings = Settings()

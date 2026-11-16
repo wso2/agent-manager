@@ -43,6 +43,9 @@ type Config struct {
 	ReadinessTimeout          time.Duration
 	TavilyAPIKey              string
 	OpenAIAPIKey              string
+	// A2ACardTestUpstreamHosts are the hosts the platform's A2A card URL guards
+	// let through. Non-empty enables the external A2A specs.
+	A2ACardTestUpstreamHosts []string
 }
 
 // LoadConfig reads configuration from environment variables with sensible defaults
@@ -65,16 +68,17 @@ func LoadConfig() *Config {
 		// Environment Thunder hosts use registered opaque handles, not a derivable
 		// org/environment hostname. The agentid suite discovers the URL through
 		// Agent Manager unless a shared/cloud target supplies an explicit override.
-		AgentIDTokenURL:         envOrDefault("AGENT_IDP_TOKEN_URL", ""),
-		SecurityProbeRepository: envOrDefault("SECURITY_PROBE_REPOSITORY_URL", "https://github.com/wso2/agent-manager"),
-		SecurityProbeBranch:     envOrDefault("SECURITY_PROBE_REPOSITORY_BRANCH", "main"),
-		SecurityProbeAppPath:    envOrDefault("SECURITY_PROBE_APP_PATH", "/test/e2e/fixtures/security-probe-agent"),
-		DefaultOrg:              defaultOrg,
-		DefaultProject:          envOrDefault("DEFAULT_PROJECT", "default"),
-		DefaultEnv:              defaultEnv,
-		ReadinessTimeout:        envDurationOrDefault("READINESS_TIMEOUT", 5*time.Minute),
-		TavilyAPIKey:            envOrDefault("TAVILY_API_KEY", ""),
-		OpenAIAPIKey:            envOrDefault("OPENAI_API_KEY", ""),
+		AgentIDTokenURL:          envOrDefault("AGENT_IDP_TOKEN_URL", ""),
+		SecurityProbeRepository:  envOrDefault("SECURITY_PROBE_REPOSITORY_URL", "https://github.com/wso2/agent-manager"),
+		SecurityProbeBranch:      envOrDefault("SECURITY_PROBE_REPOSITORY_BRANCH", "main"),
+		SecurityProbeAppPath:     envOrDefault("SECURITY_PROBE_APP_PATH", "/test/e2e/fixtures/security-probe-agent"),
+		DefaultOrg:               defaultOrg,
+		DefaultProject:           envOrDefault("DEFAULT_PROJECT", "default"),
+		DefaultEnv:               defaultEnv,
+		ReadinessTimeout:         envDurationOrDefault("READINESS_TIMEOUT", 5*time.Minute),
+		TavilyAPIKey:             envOrDefault("TAVILY_API_KEY", ""),
+		OpenAIAPIKey:             envOrDefault("OPENAI_API_KEY", ""),
+		A2ACardTestUpstreamHosts: splitHostList(os.Getenv("A2A_CARD_TEST_UPSTREAM_HOSTS")),
 	}
 }
 
@@ -93,4 +97,14 @@ func envDurationOrDefault(key string, fallback time.Duration) time.Duration {
 		}
 	}
 	return fallback
+}
+
+func splitHostList(raw string) []string {
+	var hosts []string
+	for _, h := range strings.Split(raw, ",") {
+		if h = strings.ToLower(strings.TrimSpace(h)); h != "" {
+			hosts = append(hosts, h)
+		}
+	}
+	return hosts
 }
