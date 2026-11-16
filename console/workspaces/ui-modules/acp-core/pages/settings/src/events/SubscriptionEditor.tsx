@@ -536,6 +536,9 @@ export function SubscriptionEditor({
             )}
           </Stack>
 
+          {/* With a single environment there is nothing to filter by; an existing
+              "selected" filter stays visible so it can be cleared. */}
+          {(environments.length > 1 || envMode === "selected") && (
           <Stack spacing={1.5}>
             <SectionTitle>Filter</SectionTitle>
             <RadioGroup
@@ -589,6 +592,7 @@ export function SubscriptionEditor({
               sent.
             </Typography>
           </Stack>
+          )}
 
           <Stack spacing={1.5}>
             <SectionTitle>Status</SectionTitle>

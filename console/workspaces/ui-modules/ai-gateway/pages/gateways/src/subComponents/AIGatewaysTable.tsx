@@ -161,6 +161,8 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
     }
     return grouped;
   }, [environments, filteredGateways]);
+  // A lone group (e.g. the single environment) needs no heading.
+  const showSectionTitles = sections.length > 1;
 
   const loadingRows = (
     <Stack spacing={1} mt={1}>
@@ -361,6 +363,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
         <ListingTable.Body>
           {sections.map((section) => (
             <Fragment key={section.key}>
+              {showSectionTitles && (
               <ListingTable.Row>
                 {/* "&&" outranks the table's descendant padding rule on
                         .MuiTableCell-root, which beats a plain sx padding. */}
@@ -373,6 +376,7 @@ export function AIGatewaysTable({ onAddGateway }: AIGatewaysTableProps) {
                   </Typography>
                 </ListingTable.Cell>
               </ListingTable.Row>
+              )}
               {section.gateways.map(renderGatewayRow)}
             </Fragment>
           ))}

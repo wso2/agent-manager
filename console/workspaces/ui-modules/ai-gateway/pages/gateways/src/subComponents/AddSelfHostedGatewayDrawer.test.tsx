@@ -20,13 +20,17 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AddSelfHostedGatewayDrawer } from "./AddSelfHostedGatewayDrawer";
 import { deriveGatewayName } from "../form/schema";
 
+const DEV = { name: "dev", displayName: "Development" };
+const PROD = { name: "prod", displayName: "Production" };
+
 const hoisted = vi.hoisted(() => ({
   createGateway: vi.fn(),
   createToken: vi.fn(),
+  environments: [] as Array<{ name: string; displayName: string }>,
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
-  useListEnvironments: () => ({ data: [{ name: "dev", displayName: "Development" }] }),
+  useListEnvironments: () => ({ data: hoisted.environments }),
   useCreateSelfHostedGateway: () => ({ mutateAsync: hoisted.createGateway, isPending: false }),
   useCreateSelfHostedGatewayToken: () => ({ mutateAsync: hoisted.createToken, isPending: false }),
 }));
@@ -53,6 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   hoisted.createGateway.mockResolvedValue({ uuid: "gw-1", displayName: "Edge One" });
   hoisted.createToken.mockResolvedValue({ token: "t" });
+  hoisted.environments = [DEV];
 });
 
 describe("deriveGatewayName", () => {
@@ -83,8 +88,6 @@ describe("AddSelfHostedGatewayDrawer name", () => {
     render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
 
     type(displayNameField(), "Edge One");
-    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Environment" }));
-    fireEvent.click(screen.getByRole("option", { name: "Development" }));
     type(screen.getByPlaceholderText("https://gateway.example.com"), "https://edge.example.com");
     fireEvent.click(screen.getByRole("button", { name: "Create" }));
 
@@ -107,5 +110,35 @@ describe("AddSelfHostedGatewayDrawer name", () => {
       screen.getByText(/Use lowercase letters, numbers and hyphens/),
     ).toBeInTheDocument();
     expect(hoisted.createGateway).not.toHaveBeenCalled();
+  });
+});
+
+describe("AddSelfHostedGatewayDrawer environment", () => {
+  const submit = (url = "https://edge.example.com") => {
+    type(displayNameField(), "Edge One");
+    type(screen.getByPlaceholderText("https://gateway.example.com"), url);
+    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+  };
+
+  it("hides the field and uses the only environment", async () => {
+    render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
+
+    expect(screen.queryByRole("combobox", { name: "Environment" })).not.toBeInTheDocument();
+    submit();
+
+    await waitFor(() => expect(hoisted.createGateway).toHaveBeenCalledTimes(1));
+    expect(hoisted.createGateway.mock.calls[0][0].body).toMatchObject({ environment: "dev" });
+  });
+
+  it("asks for an environment when there is more than one", async () => {
+    hoisted.environments = [DEV, PROD];
+    render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
+
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Environment" }));
+    fireEvent.click(screen.getByRole("option", { name: "Production" }));
+    submit();
+
+    await waitFor(() => expect(hoisted.createGateway).toHaveBeenCalledTimes(1));
+    expect(hoisted.createGateway.mock.calls[0][0].body).toMatchObject({ environment: "prod" });
   });
 });

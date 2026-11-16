@@ -49,7 +49,7 @@ window.__UI_MODULES__ = {
   'ai-observability/metrics': false,
   'ai-observability/eval': false,
 
-  'agent-identity': false,
+  'agent-identity': true,
   'agent-identity/agent-identity': true,
 
   'agent-portal': false,

@@ -27,6 +27,7 @@ export * from "./apis/git-secrets";
 export * from "./apis/repositories";
 export * from "./apis/resource-configs";
 export * from "./hooks/deployments";
+export * from "./hooks/environment-mode";
 export * from "./hooks/builds";
 export * from "./hooks/agent-build-options";
 export * from "./hooks/agent-card";

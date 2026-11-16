@@ -30,6 +30,8 @@ import {
   useAgentBuildOptions,
   useCreateAgent,
   useGetDeploymentPipeline,
+  useIsSingleEnvironment,
+  SINGLE_ENVIRONMENT_NAME,
 } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry, type MCPProxyFormEntry } from "../form/schema";
 import { InternalAgentForm } from "../forms/InternalAgentForm";
@@ -154,9 +156,14 @@ export const InternalAgentFlow: React.FC = () => {
   );
   const { data: deploymentPipeline, isLoading: isDeploymentPipelineLoading } =
     useGetDeploymentPipeline(params);
+  // Without the agent runtime there is no pipeline: the agent's only
+  // environment is the implicit one.
+  const singleEnv = useIsSingleEnvironment();
   const initialEnvironmentName = useMemo(
-    () => findLowestEnvironmentName(deploymentPipeline?.promotionPaths),
-    [deploymentPipeline?.promotionPaths],
+    () => singleEnv
+      ? SINGLE_ENVIRONMENT_NAME
+      : findLowestEnvironmentName(deploymentPipeline?.promotionPaths),
+    [singleEnv, deploymentPipeline?.promotionPaths],
   );
   const multipleEnvironments = useMemo(
     () => hasMultipleEnvironments(deploymentPipeline?.promotionPaths),

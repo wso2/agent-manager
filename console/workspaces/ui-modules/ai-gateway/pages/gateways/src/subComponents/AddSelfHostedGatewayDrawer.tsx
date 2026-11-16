@@ -103,6 +103,15 @@ export function AddSelfHostedGatewayDrawer({
     setCreated(null);
   }, [open, clearErrors]);
 
+  // With a single environment there is nothing to choose: select it and hide
+  // the field.
+  const onlyEnvironment = environments?.length === 1 ? environments[0].name : undefined;
+  useEffect(() => {
+    if (open && onlyEnvironment) {
+      setValues((prev) => (prev.environment ? prev : { ...prev, environment: onlyEnvironment }));
+    }
+  }, [open, onlyEnvironment, values.environment]);
+
   const update = (next: AddSelfHostedGatewayFormValues) => {
     setValues(next);
     if (submitted) validateForm(next);
@@ -230,6 +239,7 @@ export function AddSelfHostedGatewayDrawer({
                       disabled={isPending}
                     />
                   </FormControl>
+                  {!onlyEnvironment && (
                   <FormControl fullWidth error={Boolean(errors.environment)}>
                     <FormLabel required>Environment</FormLabel>
                     <Select
@@ -252,6 +262,7 @@ export function AddSelfHostedGatewayDrawer({
                       </Typography>
                     )}
                   </FormControl>
+                  )}
                   <FormControl fullWidth error={Boolean(errors.publicUrl)}>
                     <FormLabel required>Public URL</FormLabel>
                     <TextField

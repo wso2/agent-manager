@@ -94,6 +94,7 @@ import type {
 import { POLL_INTERVAL } from '../../shared/utils';
 import { useApiMutation, useApiQuery } from '../../shared/react-query-notifications';
 import { invalidateA2AQueries } from './a2a-query-keys';
+import { useIsSingleEnvironment } from './environment-mode';
 
 export function useDeployAgent() {
   const queryClient = useQueryClient();
@@ -202,6 +203,9 @@ export function useGetAgentConfigurations
   });
 }
 
+// Environments are fetched in every mode: pages need the real environment
+// UUID (MCP proxy bindings, LLM provider filters), and only this API returns
+// it. In single-environment mode the service returns just "default".
 export function useListEnvironments(params: ListEnvironmentsPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<EnvironmentListResponse>({
@@ -220,12 +224,15 @@ export function useGetEnvironment(params: GetEnvironmentPathParams) {
   });
 }
 
+// Deployment pipelines do not exist in single-environment mode: these hooks
+// stay idle and return no data.
 export function useGetDeploymentPipeline(params: GetDeploymentPipelinePathParams) {
   const { getToken } = useAuthHooks();
+  const singleEnv = useIsSingleEnvironment();
   return useApiQuery<DeploymentPipelineResponse>({
     queryKey: ['deployment-pipeline', params],
     queryFn: () => getDeploymentPipeline(params, getToken),
-    enabled: !!params.orgName && !!params.projName,
+    enabled: singleEnv === false && !!params.orgName && !!params.projName,
   });
 }
 
@@ -235,10 +242,11 @@ export function useListDeploymentPipelines(
   options?: { enabled?: boolean },
 ) {
   const { getToken } = useAuthHooks();
+  const singleEnv = useIsSingleEnvironment();
   return useApiQuery<DeploymentPipelineListResponse>({
     queryKey: ['deployment-pipelines', params.orgName, query],
     queryFn: () => listDeploymentPipelines(params, query, getToken),
-    enabled: options?.enabled ?? !!params.orgName,
+    enabled: singleEnv === false && (options?.enabled ?? !!params.orgName),
   });
 }
 

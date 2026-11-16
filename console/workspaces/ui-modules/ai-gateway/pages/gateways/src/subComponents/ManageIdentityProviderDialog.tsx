@@ -200,6 +200,13 @@ export function ManageIdentityProviderDialog({
     }
   }, [open, isDelete, provider, lockedGateway]);
 
+  // With a single environment there is nothing to choose: select it and hide
+  // the field.
+  const onlyEnvironment = envOptions.length === 1 ? envOptions[0].name : undefined;
+  useEffect(() => {
+    if (open && !isDelete && onlyEnvironment && !envName) setEnvName(onlyEnvironment);
+  }, [open, isDelete, onlyEnvironment, envName]);
+
   // Delete mode is read-only; in upsert mode only user-entered values count.
   const isDirty =
     open &&
@@ -209,7 +216,7 @@ export function ManageIdentityProviderDialog({
       !!jwksUri.trim() ||
       skipTlsVerify ||
       !!discoveryUrl.trim() ||
-      (!isGatewayLocked && !!envName));
+      (!isGatewayLocked && !!envName && !onlyEnvironment));
   useUnsavedChangesGuard(isDirty);
   const confirmIfUnsaved = useConfirmIfUnsaved();
   // Backdrop and header X discard edits, so confirm first; Cancel and the
@@ -246,7 +253,7 @@ export function ManageIdentityProviderDialog({
     }
   }, [keyManagerConfig]);
 
-  const environmentField = (
+  const environmentField = onlyEnvironment ? null : (
     <FormControl fullWidth disabled={isDelete}>
       <FormLabel>Environment</FormLabel>
       <Select
