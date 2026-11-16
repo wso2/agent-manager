@@ -48,6 +48,7 @@ import {
   generatePath,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
@@ -82,6 +83,13 @@ import {
   computeLevelSummaries,
   getMean,
 } from "./utils/monitorScoreUtils";
+
+function MonitorScoreTelemetry({ hasBreakdown }: { hasBreakdown: boolean }) {
+  const { pathname } = useLocation();
+  useEvalResultView("scores", pathname);
+  useEvalResultView("breakdown", hasBreakdown ? pathname : undefined);
+  return null;
+}
 
 export const ViewMonitorComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId, monitorId } = useParams();
@@ -212,7 +220,6 @@ export const ViewMonitorComponent: React.FC = () => {
 
   // ── raw evaluator arrays ─────────────────────────────────────────────────
   const evaluators = useMemo(() => scoresMain?.evaluators ?? [], [scoresMain]);
-  useEvalResultView("scores", evaluators.length > 0 ? monitorId : undefined);
 
   // ── Determine which levels are present ────────────────────────────────────
   const levelsPresent = useMemo(() => {
@@ -345,8 +352,6 @@ export const ViewMonitorComponent: React.FC = () => {
     { level: "llm", ...scoreQueryParams },
     { enabled: hasLlmLevel },
   );
-
-  useEvalResultView("breakdown", agentGrouped || llmGrouped ? monitorId : undefined);
 
   const handleRefresh = useCallback(() => {
     void refetchMonitor();
@@ -577,6 +582,14 @@ export const ViewMonitorComponent: React.FC = () => {
                 </Stack>
               ) : (
                 <>
+                  {evaluators.length > 0 && (
+                    <MonitorScoreTelemetry
+                      hasBreakdown={
+                        (hasAgentLevel && (agentGrouped?.groups?.length ?? 0) > 0) ||
+                        (hasLlmLevel && (llmGrouped?.groups?.length ?? 0) > 0)
+                      }
+                    />
+                  )}
                   <Grid container spacing={3} sx={{ alignItems: "stretch" }}>
                     <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex" }}>
                       <AgentPerformanceCard

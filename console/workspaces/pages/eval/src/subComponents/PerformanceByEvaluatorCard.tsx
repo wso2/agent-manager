@@ -31,7 +31,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChartTooltip, LineChart, XAxis } from "@wso2/oxygen-ui-charts-react";
 import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useParams } from "react-router-dom";
+import { generatePath, Link, useLocation, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
   type EvaluationLevel,
@@ -148,7 +148,8 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
       return row;
     });
   }, [timeSeriesByEvaluator, evaluatorNames]);
-  useEvalResultView("timeseries", chartData.length > 0 ? monitorId : undefined);
+  const { pathname } = useLocation();
+  useEvalResultView("timeseries", chartData.length > 0 ? pathname : undefined);
 
   const formatTick = React.useCallback(
     (epoch: number) => format(new Date(epoch), "MM/dd HH:mm"),
