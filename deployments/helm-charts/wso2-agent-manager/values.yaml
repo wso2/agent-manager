@@ -599,7 +599,7 @@ console:
     scriptBaseUrl: ""
     # -- Host of an external app that owns project management. When set, the
     # console hides project deletion and "Manage project" opens
-    # <externalProjectManagementUrl>/projects/<projectHandle>/manage.
+    # <externalProjectManagementUrl>/projects/<projectHandle>/settings.
     # Empty manages projects in the console.
     externalProjectManagementUrl: ""
     # -- Base URL the evaluator AI Copilot prompt links the writing guide from.
