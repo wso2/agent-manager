@@ -31,45 +31,12 @@ import { OxygenLayout } from "../Layouts";
 import { Protected } from "../Providers/Protected";
 import { ErrorPages } from "@agent-management-platform/shared-component";
 import {
+  isMarketplaceEnabled,
   Login,
-  LazyOverviewOrg,
-  LazyProjectListing,
-  LazyAgentListing,
-  LazyOverviewProject,
-  LazyOverviewComponent,
-  LazyConfigureComponent,
-  LazyAgentIdComponent,
-  LazyLLMProvidersOrg,
-  LazyMCPProxiesOrg,
-  LazyAddLLMProvidersComponent,
-  LazyLLMProvidersComponent,
-  LazyViewLLMProviderComponent,
-  LazyAddLLMProvidersOrg,
-  LazyViewMCPServerComponent,
-  LazyGatewaysOrg,
-  LazyAgentIdentityOrg,
-  LazySettingsOrg,
-  LazyOrgEvents,
-  LazyProjectEvents,
-  LazyAgentEvents,
-  LazyAddNewAgent,
-  LazyAddNewProject,
-  LazyEditProject,
-  LazyEditAgent,
-  LazySecurityComponent,
-  LazyTestComponent,
-  LazyTracesComponent,
-  LazyLogsComponent,
-  LazyMetricsComponent,
-  LazyEvalEvaluatorsOrg,
-  LazyCreateEvaluatorOrg,
-  LazyViewEvaluatorOrg,
-  LazyEditEvaluatorOrg,
-  LazyEvalMonitorsComponent,
-  LazyCreateMonitorComponent,
-  LazyViewMonitorComponent,
-  LazyEditMonitorComponent,
-  LazyCompareMonitorComponent,
+  ModuleManager,
+  ModuleSetup,
+  MODULE_MANAGER_PATH,
+  MODULE_SETUP_PATH,
 } from "../pages";
 import { LoadingFallback } from "../components/LoadingFallback";
 import {
@@ -82,10 +49,6 @@ import {
   type ExternalPageModule,
 } from "@agent-management-platform/views";
 import {
-  useFeatureFlag,
-  useGatewayFeatures,
-} from "@agent-management-platform/feature-management";
-import {
   legacyOrgRedirectPath,
   orgRouteId,
   useListOrganizations,
@@ -94,6 +57,11 @@ import {
   usePageViewTracking,
 } from "@agent-management-platform/api-client";
 import { MountPoints } from "../types";
+import {
+  PluginActivators,
+  usePluginRoutes,
+  type ActivePluginRoute,
+} from "../plugins";
 
 // Back-compat redirect: the Identities pages (users/roles/groups) moved from
 // /org/:orgId/identities/* to /org/:orgId/settings/identities/*. Preserve any
@@ -107,13 +75,6 @@ function LegacyIdentitiesRedirect() {
   return <Navigate to={rest ? `${base}/${rest}` : base} replace />;
 }
 
-// Remounts the Security page on agent change so per-agent component state
-// (Create-key dialog open flag, newly-issued-key banner) does not leak
-// between agents when navigating via the sidebar.
-function SecurityRouteElement() {
-  const { agentId } = useParams();
-  return <LazySecurityComponent key={agentId} />;
-}
 // Reports one page view per navigation.
 //
 // Mounted once here, inside BrowserRouter and beside Routes, rather than per
@@ -124,6 +85,31 @@ function PageViewTracker() {
   const { pathname } = useLocation();
   usePageViewTracking(pathname);
   return null;
+}
+
+// Plugin pages are lazy: the chunk is requested only when the route matches
+// and the plugin's activation hooks have said yes. While they are still
+// deciding (state undefined) the page shows a loader instead of a 404, so deep
+// links survive a cold load. Inactive plugins have no route at all.
+//
+// Called as a function, not rendered as a component, because <Routes> only
+// accepts <Route> elements (or fragments of them) as children.
+function renderPluginRoutes(routes: ActivePluginRoute[]) {
+  return routes.map(({ key, path, index, state, Component }) => {
+    const element =
+      state === undefined ? (
+        <LoadingFallback />
+      ) : (
+        <Suspense fallback={<LoadingFallback />}>
+          <Component />
+        </Suspense>
+      );
+    return index ? (
+      <Route key={key} index element={element} />
+    ) : (
+      <Route key={key} path={path} element={element} />
+    );
+  });
 }
 
 function GuardedOutlet({
@@ -217,9 +203,12 @@ function AgentGuard() {
 
 export function RootRouter() {
   const externalOrgPageModules = useExternalPageModules();
-  // Keep the Agent ID pages unreachable by URL too, not just hidden in the nav.
-  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
-  const { canView: canViewGateways } = useGatewayFeatures();
+  // Pages contributed by plugins, already filtered by config and activation.
+  // Every feature page is a plugin; the shell only owns login, the guards,
+  // back-compat redirects and the 404s.
+  const orgPluginRoutes = usePluginRoutes("org");
+  const projectPluginRoutes = usePluginRoutes("project");
+  const agentPluginRoutes = usePluginRoutes("agent");
 
   const { projectPageModules, orgPageModules, componentPageModules } =
     externalOrgPageModules.reduce(
@@ -240,12 +229,18 @@ export function RootRouter() {
       },
     );
 
-  // Build the shared monitor prefix once instead of repeating the deep route
-  // chain per route.
-  const agentRoutes = relativeRouteMap.children.org.children.projects.children
-    .agents.children;
-  const monitorRoutes = agentRoutes.evaluation.children.monitor;
-  const monitorBase = agentRoutes.evaluation.path + "/" + monitorRoutes.path;
+  const renderExternalModules = (modules: ExternalPageModule[]) =>
+    modules.map((module) => (
+      <Route
+        key={module.path}
+        path={module.path + "/*"}
+        element={
+          <Suspense fallback={<LoadingFallback />}>
+            <module.pageComponent />
+          </Suspense>
+        }
+      />
+    ));
 
   return (
     <BrowserRouter basename={getBasePath() || undefined}>
@@ -259,6 +254,10 @@ export function RootRouter() {
           path={"/"}
           element={
             <Protected>
+              {/* Runs plugin activation hooks. It sits here, under the router
+                  and auth, so hooks can read org/project/agent params and call
+                  authenticated APIs. */}
+              <PluginActivators />
               <OxygenLayout />
             </Protected>
           }
@@ -267,185 +266,24 @@ export function RootRouter() {
             path={relativeRouteMap.children.org.path}
             element={<OrgGuard />}
           >
-            <Route index element={<LazyOverviewOrg />} />
-            <Route
-              path={relativeRouteMap.children.org.children.projectListing.path}
-              element={
-                <Suspense fallback={<LoadingFallback />}>
-                  <LazyProjectListing />
-                </Suspense>
-              }
-            />
-            {orgPageModules.map((module) => (
-              <Route
-                key={module.path}
-                path={module.path + "/*"}
-                element={
-                  <Suspense fallback={<LoadingFallback />}>
-                    <module.pageComponent />
-                  </Suspense>
-                }
-              />
-            ))}
-            {agentIdEnabled && (
-              <Route
-                path={
-                  relativeRouteMap.children.org.children.agentIdentity.path +
-                  "/*"
-                }
-                element={
-                  <Suspense fallback={<LoadingFallback />}>
-                    <LazyAgentIdentityOrg />
-                  </Suspense>
-                }
-              />
+            {renderPluginRoutes(orgPluginRoutes)}
+            {renderExternalModules(orgPageModules)}
+            {/* Shell pages: the AI module manager (user menu) and each module's details
+                page, only when the runtime config turns them on. */}
+            {isMarketplaceEnabled() && (
+              <>
+                <Route path={MODULE_MANAGER_PATH} element={<ModuleManager />} />
+                <Route path={MODULE_SETUP_PATH} element={<ModuleSetup />} />
+              </>
             )}
-            {canViewGateways && (
-              <Route
-                path={relativeRouteMap.children.org.children.gateways.path + "/*"}
-                element={<LazyGatewaysOrg />}
-              />
-            )}
-            <Route
-              path={
-                relativeRouteMap.children.org.children.settings.path + "/*"
-              }
-              element={<LazySettingsOrg />}
-            />
-            <Route
-              path={relativeRouteMap.children.org.children.events.path + "/*"}
-              element={
-                <Suspense fallback={<LoadingFallback />}>
-                  <LazyOrgEvents />
-                </Suspense>
-              }
-            />
             {/* Back-compat: identities pages moved under Settings → IDP Settings */}
             <Route path="identities/*" element={<LegacyIdentitiesRedirect />} />
-            <Route
-              path={
-                relativeRouteMap.children.org.children.llmProviders.path + "/*"
-              }
-              element={<LazyLLMProvidersOrg />}
-            />
-            <Route
-              path={
-                relativeRouteMap.children.org.children.mcpProxies.path + "/*"
-              }
-              element={<LazyMCPProxiesOrg />}
-            />
-            <Route
-              path={
-                relativeRouteMap.children.org.children.llmProviders.path +
-                "/" +
-                relativeRouteMap.children.org.children.llmProviders.children.add
-                  .path
-              }
-              element={
-                <Suspense fallback={<LoadingFallback />}>
-                  <LazyAddLLMProvidersOrg />
-                </Suspense>
-              }
-            />
-            <Route
-              path={relativeRouteMap.children.org.children.evaluators.path}
-              element={<LazyEvalEvaluatorsOrg />}
-            />
-            <Route
-              path={
-                relativeRouteMap.children.org.children.evaluators.path +
-                "/" +
-                relativeRouteMap.children.org.children.evaluators.children
-                  .create.path
-              }
-              element={<LazyCreateEvaluatorOrg />}
-            />
-            <Route
-              path={
-                relativeRouteMap.children.org.children.evaluators.path +
-                "/" +
-                relativeRouteMap.children.org.children.evaluators.children.edit
-                  .path
-              }
-              element={<LazyEditEvaluatorOrg />}
-            />
-            <Route
-              path={
-                relativeRouteMap.children.org.children.evaluators.path +
-                "/" +
-                relativeRouteMap.children.org.children.evaluators.children.view
-                  .path
-              }
-              element={<LazyViewEvaluatorOrg />}
-            />
-            <Route
-              path={relativeRouteMap.children.org.children.newProject.path}
-              element={
-                <Suspense fallback={<LoadingFallback />}>
-                  <LazyAddNewProject />
-                </Suspense>
-              }
-            />
             <Route
               path={relativeRouteMap.children.org.children.projects.path}
               element={<ProjectGuard />}
             >
-              <Route index element={<LazyOverviewProject />} />
-              <Route
-                path={
-                  relativeRouteMap.children.org.children.projects.children
-                    .agentListing.path
-                }
-                element={
-                  <Suspense fallback={<LoadingFallback />}>
-                    <LazyAgentListing />
-                  </Suspense>
-                }
-              />
-              <Route
-                path={
-                  relativeRouteMap.children.org.children.projects.children.edit
-                    .path
-                }
-                element={
-                  <Suspense fallback={<LoadingFallback />}>
-                    <LazyEditProject />
-                  </Suspense>
-                }
-              />
-              {projectPageModules.map((module) => (
-                <Route
-                  key={module.path}
-                  path={module.path + "/*"}
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <module.pageComponent />
-                    </Suspense>
-                  }
-                />
-              ))}
-              <Route
-                path={
-                  relativeRouteMap.children.org.children.projects.children
-                    .events.path + "/*"
-                }
-                element={
-                  <Suspense fallback={<LoadingFallback />}>
-                    <LazyProjectEvents />
-                  </Suspense>
-                }
-              />
-              <Route
-                path={
-                  relativeRouteMap.children.org.children.projects.children
-                    .newAgent.path + "/*"
-                }
-                element={
-                  <Suspense fallback={<LoadingFallback />}>
-                    <LazyAddNewAgent />
-                  </Suspense>
-                }
-              />
+              {renderPluginRoutes(projectPluginRoutes)}
+              {renderExternalModules(projectPageModules)}
               <Route
                 path={
                   relativeRouteMap.children.org.children.projects.children
@@ -453,212 +291,10 @@ export function RootRouter() {
                 }
                 element={<AgentGuard />}
               >
-                <Route index element={<LazyOverviewComponent />} />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.edit.path
-                  }
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <LazyEditAgent />
-                    </Suspense>
-                  }
-                />
-                {componentPageModules.map((module) => (
-                  <Route
-                    key={module.path}
-                    path={module.path + "/*"}
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <module.pageComponent />
-                      </Suspense>
-                    }
-                  />
-                ))}
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.path
-                  }
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <LazyConfigureComponent />
-                    </Suspense>
-                  }
-                />
-                {agentIdEnabled && (
-                  <Route
-                    path={
-                      relativeRouteMap.children.org.children.projects.children
-                        .agents.children.agentId.path
-                    }
-                    element={
-                      <Suspense fallback={<LoadingFallback />}>
-                        <LazyAgentIdComponent />
-                      </Suspense>
-                    }
-                  />
-                )}
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.llmProviders.path
-                  }
-                  element={<LazyLLMProvidersComponent />}
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.llmProviders.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.llmProviders.children
-                      .add.path
-                  }
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <LazyAddLLMProvidersComponent />
-                    </Suspense>
-                  }
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.llmProviders.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.llmProviders.children
-                      .edit.path
-                  }
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <LazyAddLLMProvidersComponent />
-                    </Suspense>
-                  }
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.llmProviders.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.llmProviders.children
-                      .view.path
-                  }
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <LazyViewLLMProviderComponent />
-                    </Suspense>
-                  }
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.mcpProxies.path +
-                    "/" +
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.configure.children.mcpProxies.children
-                      .view.path
-                  }
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <LazyViewMCPServerComponent />
-                    </Suspense>
-                  }
-                />
-                <Route
-                  path={agentRoutes.security.path}
-                  element={<SecurityRouteElement />}
-                />
-                <Route
-                  path={
-                    relativeRouteMap.children.org.children.projects.children
-                      .agents.children.events.path + "/*"
-                  }
-                  element={
-                    <Suspense fallback={<LoadingFallback />}>
-                      <LazyAgentEvents />
-                    </Suspense>
-                  }
-                />
-                <Route
-                  path={
-                    agentRoutes.tryOut.path + "/*"
-                  }
-                  element={<LazyTestComponent />}
-                />
-                <Route
-                  path={
-                    agentRoutes.observability.path +
-                    "/" +
-                    agentRoutes.observability.children.traces.path
-                  }
-                  element={<LazyTracesComponent />}
-                />
-                <Route
-                  path={
-                    agentRoutes.observability.path +
-                    "/" +
-                    agentRoutes.observability.children.logs.path
-                  }
-                  element={<LazyLogsComponent />}
-                />
-                <Route
-                  path={
-                    agentRoutes.observability.path +
-                    "/" +
-                    agentRoutes.observability.children.metrics.path
-                  }
-                  element={<LazyMetricsComponent />}
-                />
-                <Route
-                  path={monitorBase}
-                  element={<LazyEvalMonitorsComponent />}
-                />
-                <Route
-                  path={
-                    monitorBase + "/" + monitorRoutes.children.create.path
-                  }
-                  element={<LazyCreateMonitorComponent />}
-                />
-                <Route
-                  path={monitorBase + "/" + monitorRoutes.children.edit.path}
-                  element={<LazyEditMonitorComponent />}
-                />
-                <Route
-                  path={
-                    monitorBase + "/" + monitorRoutes.children.compare.path
-                  }
-                  element={<LazyCompareMonitorComponent />}
-                />
-                <Route
-                  path={
-                    monitorBase +
-                    "/" +
-                    monitorRoutes.children.view.path +
-                    "/*"
-                  }
-                  element={<LazyViewMonitorComponent />}
-                />
+                {renderPluginRoutes(agentPluginRoutes)}
+                {renderExternalModules(componentPageModules)}
                 <Route path="*" element={<ErrorPages.NotFound />} />
               </Route>
-
               <Route path="*" element={<ErrorPages.NotFound />} />
             </Route>
             <Route path="*" element={<ErrorPages.NotFound />} />

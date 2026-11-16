@@ -274,8 +274,8 @@ function segmentsMatchTemplate(path: string[], template: string[]): boolean {
 
 /**
  * Rewrites a concrete console path into its route template, e.g.
- * `/org/acme/project/checkout/agents/router/security` →
- * `/org/:orgId/project/:projectId/agents/:agentId/security`.
+ * `/org/acme/project/checkout/agents/router/deploy` →
+ * `/org/:orgId/project/:projectId/agents/:agentId/deploy`.
  *
  * Two reasons, both load-bearing. Analytics wants the template: a hundred
  * distinct agent URLs are one page, and the raw paths would shard every

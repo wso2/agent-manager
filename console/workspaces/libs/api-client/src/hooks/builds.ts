@@ -17,17 +17,83 @@
  */
 
 import { useQueryClient } from "@tanstack/react-query";
-import { getAgentBuilds, getAllAgentBuilds, getBuild } from "../apis";
+import { buildAgent, getAgentBuilds, getAllAgentBuilds, getBuild, getBuildLogs } from "../apis";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useRef } from "react";
 import type {
+  BuildAgentPathParams,
+  BuildAgentQuery,
+  BuildLogEntry,
+  BuildResponse,
   BuildsListResponse,
   GetAgentBuildsPathParams,
+  GetAgentBuildsQuery,
+  GetBuildLogsPathParams,
   GetBuildPathParams,
   BuildDetailsResponse,
 } from "@agent-management-platform/types";
 import { POLL_INTERVAL } from "../utils";
-import { useApiQuery } from "./react-query-notifications";
+import { useApiMutation, useApiQuery } from "./react-query-notifications";
+
+export function useBuildAgent() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<
+    BuildResponse,
+    unknown,
+    { params: BuildAgentPathParams; query?: BuildAgentQuery }
+  >({
+    action: { verb: 'start', target: 'build' },
+    mutationFn: ({ params, query }) => buildAgent(params, query, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-builds"] });
+      queryClient.invalidateQueries({ queryKey: ["build"] });
+    },
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["agent-builds"] });
+      queryClient.invalidateQueries({ queryKey: ["build"] });
+    },
+  });
+}
+
+export function useGetAgentBuilds(
+  params: GetAgentBuildsPathParams,
+  query?: GetAgentBuildsQuery,
+  options?: { enabled?: boolean }
+) {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  const prevHasInProgressBuildRef = useRef<boolean>(false);
+
+  return useApiQuery<BuildsListResponse>({
+    queryKey: ["agent-builds", params, query],
+    queryFn: () => getAgentBuilds(params, query, getToken),
+    enabled:
+      (options?.enabled ?? true) &&
+      !!params.orgName &&
+      !!params.projName &&
+      !!params.agentName,
+    refetchInterval: (queryState) => {
+      // Check if any build is in progress
+      const hasInProgressBuild =
+        queryState?.state?.data?.builds?.some(
+          (build: BuildDetailsResponse) =>
+            build.status === "Pending" || build.status === "Running"
+        ) ?? false;
+
+      // Only invalidate when transitioning from true to false (build completed)
+      if (prevHasInProgressBuildRef.current && !hasInProgressBuild) {
+        queryClient.invalidateQueries({ queryKey: ["agent-deployments"] });
+        queryClient.invalidateQueries({ queryKey: ["agent-configurations"] });
+      }
+
+      // Update the ref with current value
+      prevHasInProgressBuildRef.current = hasInProgressBuild;
+
+      return hasInProgressBuild ? POLL_INTERVAL : false;
+    },
+  });
+}
 
 // Number of most-recent builds polled to detect status changes. Status only ever
 // changes on recent builds, so this bounded page is enough to know when the full
@@ -122,5 +188,21 @@ export function useGetBuild(params: GetBuildPathParams) {
           queryState.state.data.status === "Running");
       return isBuildRunning ? POLL_INTERVAL : false;
     },
+  });
+}
+
+export function useGetBuildLogs(
+  params: GetBuildLogsPathParams,
+  buildStatus?: string
+) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<BuildLogEntry[]>({
+    queryKey: ["build-logs", params],
+    queryFn: () => getBuildLogs(params, getToken),
+    enabled: !!params.orgName && !!params.projName && !!params.agentName && !!params.buildName,
+    refetchInterval:
+      buildStatus === "Pending" || buildStatus === "Running"
+        ? POLL_INTERVAL
+        : false,
   });
 }

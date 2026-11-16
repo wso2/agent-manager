@@ -22,22 +22,26 @@ import { OxygenUIThemeProvider, ChoreoLabsTheme } from "@wso2/oxygen-ui";
 import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
 import {
   SnackBarProvider,
-  ExternalModuleProvider,
   type ExternalModule,
 } from "@agent-management-platform/views";
 import type { FeatureFlags } from "@agent-management-platform/feature-management";
+import type { UIModuleManifest } from "@agent-management-platform/types";
 import type { UseFeatureAccess } from "../../types/featureAccess";
+import { PluginProvider, builtinModules } from "../../plugins";
 import { RuntimeConfigProvider } from "./RuntimeConfigProvider";
 import { FeatureAccessBridge } from "./FeatureAccessBridge";
 
 export const GlobalProviders = ({
   children,
-  externalPageModules = [],
+  externalPageModules,
+  modules = builtinModules,
   featureFlags,
   useFeatureAccess,
 }: {
   children: React.ReactNode;
   externalPageModules?: ExternalModule[];
+  /** Built-in plus any extra UI modules; must keep the same identity across renders. */
+  modules?: UIModuleManifest[];
   featureFlags?: Partial<FeatureFlags>;
   useFeatureAccess?: UseFeatureAccess;
 }) => {
@@ -49,9 +53,12 @@ export const GlobalProviders = ({
             <RuntimeConfigProvider>
               <FeatureAccessBridge featureFlags={featureFlags} useAccess={useFeatureAccess}>
                 <ConfirmationDialogProvider>
-                  <ExternalModuleProvider externalPageModules={externalPageModules}>
+                  <PluginProvider
+                    modules={modules}
+                    externalModules={externalPageModules}
+                  >
                     {children}
-                  </ExternalModuleProvider>
+                  </PluginProvider>
                 </ConfirmationDialogProvider>
               </FeatureAccessBridge>
             </RuntimeConfigProvider>

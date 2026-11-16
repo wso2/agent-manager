@@ -15,10 +15,13 @@ import { isRequestTooLargeError } from "../utils";
 import { ConsoleAction, markSessionExpired, useTrack } from "./telemetry";
 
 type MutationAction =
+  | "assign"
+  | "build"
   | "create"
   | "delete"
   | "deploy"
   | "generate"
+  | "promote"
   | "publish"
   | "remove"
   | "restore"
@@ -51,10 +54,13 @@ type ApiMutationOptions<TData, TError, TVariables, TContext> =
   };
 
 const SUCCESS_VERB_MAP: Record<MutationAction, string> = {
+  assign: "assigned",
+  build: "built",
   create: "created",
   delete: "deleted",
   deploy: "deployed",
   generate: "generated",
+  promote: "promoted",
   publish: "published",
   remove: "removed",
   restore: "restored",
@@ -285,6 +291,12 @@ export function useApiQuery<
         break;
       case "projects":
         apiCallName = "projects";
+        break;
+      case "environment":
+        apiCallName = "environment";
+        break;
+      case "environments":
+        apiCallName = "environments";
         break;
       // Add more cases as needed for other API entities
       default:

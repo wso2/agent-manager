@@ -25,7 +25,7 @@ import {
   UserMenu,
 } from "@wso2/oxygen-ui";
 import { generatePath, Outlet, useNavigate, useParams } from "react-router-dom";
-import { LogOut, Settings } from "@wso2/oxygen-ui-icons-react";
+import { Boxes, LogOut, Settings } from "@wso2/oxygen-ui-icons-react";
 import { ProfileDrawer } from "./ProfileDrawer";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { Logo, useExternalComponentModules } from "@agent-management-platform/views";
@@ -35,6 +35,7 @@ import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
 import { orgRouteId, useGetUserProfile, useListOrganizations } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
+import { isMarketplaceEnabled, MODULE_MANAGER_ROUTE } from "../../pages/ModuleManager";
 import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 // Oxygen UI's UserMenu treats a non-URL `avatar` string as literal initials
@@ -125,7 +126,7 @@ export function OxygenLayout() {
                     ))}
                   </div>
                 ) : (
-                  <Logo width={192} />
+                  <Logo />
                 )}
               </Header.BrandLogo>
             </Header.Brand>
@@ -162,6 +163,13 @@ export function OxygenLayout() {
                     icon={<Settings />}
                     label="Profile settings"
                     onClick={() => setProfileOpen(true)}
+                  />
+                )}
+                {orgId && isMarketplaceEnabled() && (
+                  <UserMenu.Item
+                    icon={<Boxes />}
+                    label="AI module manager"
+                    onClick={() => navigate(generatePath(MODULE_MANAGER_ROUTE, { orgId }))}
                   />
                 )}
                 <UserMenu.Logout icon={<LogOut />} label="Sign out" onClick={handleLogout} />
