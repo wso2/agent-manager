@@ -10,7 +10,7 @@ For the Oxygen UI component library itself (theming, which components exist, imp
 |---|---|---|
 | `apps/web-ui/` | `web-ui` | App entry, Vite config, runtime `config.js`, router mount |
 | `workspaces/core-ui/` | `@…/am-core-ui` | Provider stack, routing, layout, page registry |
-| `workspaces/libs/api-client/` | `@…/api-client` | **All** API fetch fns + TanStack Query hooks |
+| `workspaces/libs/api-client/` | `@…/api-client` | **All** API fetch fns + TanStack Query hooks, grouped by API topic into `src/<module>/` |
 | `workspaces/libs/auth/` | `@…/auth` | Auth-mode switch (Asgardeo vs no-auth) |
 | `workspaces/libs/types/` | `@…/types` | Shared types, `globalConfig`, route maps |
 | `workspaces/libs/views/` | `@…/views` | UI primitives (PageLayout, FormElements, SnackBar) |
@@ -42,9 +42,9 @@ pnpm run test-watch      # vitest watch
 
 ## Golden path: add an API-backed feature
 
-1. **Add the fetch fn** in `libs/api-client/src/apis/<resource>.ts`.
-2. **Add the hook** in `libs/api-client/src/hooks/<resource>.ts`.
-3. **Export** both from the package's `apis/index.ts` / `hooks/index.ts`.
+1. **Pick the module** by what the API call is about, not by which page calls it: `libs/api-client/src/<module>/`, one of `acp-core` (orgs, projects, agents, identities, events, config), `agent-runtime` (builds, deployments, environments, pipelines, agent configs), `ai-gateway` (gateways, LLM providers, MCP proxies, guardrails, API keys), `ai-observability` (traces, logs, metrics, monitors, evaluators), `agent-identity`, `agent-portal`. Environment calls live in `agent-runtime` even though many pages use them.
+2. **Add the fetch fn** in `libs/api-client/src/<module>/apis/<resource>.ts`.
+3. **Add the hook** in `libs/api-client/src/<module>/hooks/<resource>.ts`, and export both from `<module>/index.ts`. Pages keep importing everything from `@agent-management-platform/api-client`.
 4. **Consume the hook** in a page under `workspaces/ui-modules/<module>/pages/<feature>/`.
 5. **Register the page** — add a route (and nav item) contribution to the feature package's `src/plugin.ts`. A new package also goes in its module's `src/index.ts` plugin list. See "UI modules and plugins" below.
 
@@ -54,7 +54,7 @@ Never call `fetch`/TanStack Query directly from a component. Split into a pure f
 
 **`apis/<resource>.ts`** — pure fetch, takes `params` (path), `query` (search), `getToken`:
 ```ts
-import { httpGET, SERVICE_BASE } from "../utils";
+import { httpGET, SERVICE_BASE } from "../../shared/utils";
 
 export async function listAgents(params, query, getToken) {
   const { orgName = "default", projName = "default" } = params;
@@ -67,13 +67,13 @@ export async function listAgents(params, query, getToken) {
   return res.json();
 }
 ```
-- HTTP helpers are `httpGET/POST/PUT/PATCH/DELETE` from `../utils` — they read `globalConfig.apiBaseUrl` and set the `Authorization: Bearer` header. Do not hand-roll `fetch`.
+- HTTP helpers are `httpGET/POST/PUT/PATCH/DELETE` from `shared/utils` — they read `globalConfig.apiBaseUrl` and set the `Authorization: Bearer` header. Do not hand-roll `fetch`.
 - `SERVICE_BASE = '/api/v1'`; the observability service uses `OBS_SERVICE_BASE = '/api'` (`utils/utils.ts`).
 
 **`hooks/<resource>.ts`** — wrap with `useApiQuery` / `useApiMutation` (not raw `useQuery`/`useMutation`):
 ```ts
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { useApiQuery, useApiMutation } from "./react-query-notifications";
+import { useApiQuery, useApiMutation } from "../../shared/react-query-notifications";
 
 export function useListAgents(params, query) {
   const { getToken } = useAuthHooks();
@@ -96,7 +96,7 @@ export function useCreateAgent() {
 ```
 
 Rules:
-- **`useApiQuery` / `useApiMutation`** (in `hooks/react-query-notifications.ts`) wrap TanStack Query and auto-fire success/error snackbars. `useApiMutation` takes `action: { verb, target }` to render the message.
+- **`useApiQuery` / `useApiMutation`** (in `shared/react-query-notifications.ts`) wrap TanStack Query and auto-fire success/error snackbars. `useApiMutation` takes `action: { verb, target }` to render the message.
 - **`queryKey` is a tuple** — `[domain, params, query]` for detail, `[domain]` for the collection. Invalidation is **prefix-based**: `invalidateQueries({ queryKey: ["agents"] })` clears every `["agents", …]`.
 - **Auth token** always comes from `useAuthHooks().getToken` and is passed into the fetch fn — never read a token another way.
 

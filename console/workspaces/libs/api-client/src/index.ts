@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
  *
  * WSO2 LLC. licenses this file to you under the Apache License,
  * Version 2.0 (the "License"); you may not use this file except
@@ -16,7 +16,15 @@
  * under the License.
  */
 
-export * from './apis';
-export * from './hooks';
-export * from './utils';
-export * from './ClientProvider';
+// API functions and React Query hooks, grouped by the topic of the API
+// call (not by which page uses it). Each <module>/ holds apis/ (fetch
+// functions) and hooks/ (React Query wrappers); shared/ holds the HTTP
+// helpers and the notifying query/mutation wrappers.
+export * from "./acp-core";
+export * from "./agent-runtime";
+export * from "./ai-gateway";
+export * from "./ai-observability";
+export * from "./agent-identity";
+export * from "./agent-portal";
+export * from "./shared";
+export * from "./ClientProvider";

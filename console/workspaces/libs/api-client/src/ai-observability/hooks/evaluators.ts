@@ -1,0 +1,106 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { useQueryClient } from "@tanstack/react-query";
+import { useAuthHooks } from "@agent-management-platform/auth";
+import type {
+  CreateCustomEvaluatorRequest,
+  CustomEvaluatorPathParams,
+  EvaluatorListQuery,
+  EvaluatorListResponse,
+  EvaluatorResponse,
+  GetEvaluatorPathParams,
+  ListEvaluatorsPathParams,
+  UpdateCustomEvaluatorRequest,
+} from "@agent-management-platform/types";
+import {
+  createCustomEvaluator,
+  deleteCustomEvaluator,
+  getCustomEvaluator,
+  getEvaluator,
+  listEvaluators,
+  updateCustomEvaluator,
+} from "../apis/evaluators";
+import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+
+export function useListEvaluators(
+  params: ListEvaluatorsPathParams,
+  query?: EvaluatorListQuery
+) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<EvaluatorListResponse>({
+    queryKey: ["evaluators", params, query],
+    queryFn: () => listEvaluators(params, query, getToken),
+    enabled: !!params.orgName,
+  });
+}
+
+export function useGetEvaluator(params: GetEvaluatorPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<EvaluatorResponse>({
+    queryKey: ["evaluator", params],
+    queryFn: () => getEvaluator(params, getToken),
+    enabled: !!params.orgName && !!params.evaluatorId,
+  });
+}
+
+export function useCreateCustomEvaluator(params: ListEvaluatorsPathParams) {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<EvaluatorResponse, unknown, CreateCustomEvaluatorRequest>({
+    action: { verb: 'create', target: 'custom evaluator' },
+    mutationFn: (body) => createCustomEvaluator(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evaluators"] });
+    },
+  });
+}
+
+export function useGetCustomEvaluator(params: CustomEvaluatorPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<EvaluatorResponse>({
+    queryKey: ["custom-evaluator", params],
+    queryFn: () => getCustomEvaluator(params, getToken),
+    enabled: !!params.orgName && !!params.identifier,
+  });
+}
+
+export function useUpdateCustomEvaluator(params: CustomEvaluatorPathParams) {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<EvaluatorResponse, unknown, UpdateCustomEvaluatorRequest>({
+    action: { verb: 'update', target: 'custom evaluator' },
+    mutationFn: (body) => updateCustomEvaluator(params, body, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evaluators"] });
+      queryClient.invalidateQueries({ queryKey: ["custom-evaluator"] });
+    },
+  });
+}
+
+export function useDeleteCustomEvaluator() {
+  const { getToken } = useAuthHooks();
+  const queryClient = useQueryClient();
+  return useApiMutation<void, unknown, CustomEvaluatorPathParams>({
+    action: { verb: 'delete', target: 'custom evaluator' },
+    mutationFn: (mutationParams) => deleteCustomEvaluator(mutationParams, getToken),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evaluators"] });
+    },
+  });
+}
