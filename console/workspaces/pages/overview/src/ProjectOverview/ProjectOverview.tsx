@@ -16,10 +16,14 @@
  * under the License.
  */
 
-import React, { useEffect } from "react";
+import React, { useEffect, type ComponentType } from "react";
 import { Box, Button, Stack } from "@wso2/oxygen-ui";
 import { Settings, Box as ProjectIcon } from "@wso2/oxygen-ui-icons-react";
-import { PageLayout } from "@agent-management-platform/views";
+import {
+  PageLayout,
+  useExternalComponentModulesByMountPoint,
+  type ProjectSettingsActionProps,
+} from "@agent-management-platform/views";
 import { AgentList } from "@agent-management-platform/level-resource-listing";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
@@ -35,6 +39,10 @@ import { AgentTypeSummary } from "./subComponents/AgentTypeSummary";
 import { DeploymentPipelineCard } from "./subComponents/DeploymentPipelineCard";
 
 const projectRoutes = absoluteRouteMap.children.org.children.projects;
+
+// Where a deployment can inject its own Settings action; matches
+// MountPoints.ProjectSettingsAction (core-ui is not a dependency of this workspace).
+const PROJECT_SETTINGS_ACTION_MOUNT_POINT = "project-settings-action";
 
 // Same box icon as the project rows on the organization overview.
 const PROJECT_AVATAR = { children: <ProjectIcon size={24} /> };
@@ -55,6 +63,9 @@ export const ProjectOverview: React.FC = () => {
     orgName: orgId,
     projName: projectId,
   });
+  const SettingsAction = useExternalComponentModulesByMountPoint(
+    PROJECT_SETTINGS_ACTION_MOUNT_POINT,
+  )[0]?.component as unknown as ComponentType<ProjectSettingsActionProps> | undefined;
   // An external app may own project management; send Settings there.
   const externalManageUrl = getExternalProjectManageUrl(projectId);
   const manageProject = () => {
@@ -85,7 +96,10 @@ export const ProjectOverview: React.FC = () => {
       avatar={PROJECT_AVATAR}
       isLoading={isLoading}
       actions={
-        canWriteProject && (
+        canWriteProject &&
+        (SettingsAction ? (
+          <SettingsAction orgId={orgId} projectId={projectId} disabled={!project} />
+        ) : (
           <Button
             variant="outlined"
             size="small"
@@ -95,7 +109,7 @@ export const ProjectOverview: React.FC = () => {
           >
             Settings
           </Button>
-        )
+        ))
       }
     >
       <Stack direction={{ xs: "column", lg: "row" }} gap={3} alignItems="flex-start">

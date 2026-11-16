@@ -47,4 +47,10 @@ export enum MountPoints {
     // injected, or it reports nothing, the header lists the organizations the API
     // returns (the self-hosted default).
     OrganizationSwitcher = "organization-switcher",
+    // A deployment whose projects are managed in another app can inject the project
+    // overview's Settings action (see ProjectSettingsActionProps), for example a link
+    // that brings the user back to this page. When nothing is injected, the built-in
+    // Settings button opens the project's settings here, or in the app named by
+    // externalProjectManagementUrl (the self-hosted default).
+    ProjectSettingsAction = "project-settings-action",
 }
