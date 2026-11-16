@@ -113,16 +113,26 @@ if $CLUSTER_UP; then
 fi
 
 # ============================================================================
-# Step 5: Delete leftover AMP namespaces
+# Step 5: Clean up platform Thunder hooks and leftover AMP namespaces
 # ============================================================================
 echo ""
-echo "5️⃣  Delete AMP namespaces"
+echo "5️⃣  Clean up platform Thunder and delete leftover AMP namespaces"
 if $CLUSTER_UP; then
     amp_namespaces="$(kubectl get ns -o name 2>/dev/null | sed 's|^namespace/||' \
         | grep -E '^(amp-thunder|dp-)' || true)"
     gateway_namespaces="$(kubectl get ns -l 'amp.wso2.com/api-platform-gateway=true' -o name 2>/dev/null \
         | sed 's|^namespace/||' || true)"
-    all_ns="$(printf '%s\n%s\n' "$amp_namespaces" "$gateway_namespaces" | grep -v '^$' | sort -u)"
+    # Keep amp-platform-oauth in amp-thunder. OpenBao and other consumers in
+    # the retained OpenChoreo base still use copies of those credentials.
+    if printf '%s\n' "$amp_namespaces" | grep -qx amp-thunder; then
+        kubectl delete job,pvc,configmap,serviceaccount -n amp-thunder \
+            -l app.kubernetes.io/instance=amp-thunder-extension --ignore-not-found --wait=true --timeout=180s \
+            || warn "could not clean up platform Thunder setup resources"
+        kubectl delete secret/amp-admin-credentials secret/amp-thunder-extension-db-credentials \
+            configmap/amp-thunder-bootstrap -n amp-thunder --ignore-not-found --wait=true --timeout=180s \
+            || warn "could not clean up platform Thunder bootstrap resources"
+    fi
+    all_ns="$(printf '%s\n%s\n' "$amp_namespaces" "$gateway_namespaces" | grep -vxE 'amp-thunder|^$' | sort -u)"
     if [ -z "$all_ns" ]; then
         echo "⏭️  No AMP namespaces found"
     else
