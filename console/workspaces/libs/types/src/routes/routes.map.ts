@@ -220,6 +220,32 @@ export const rootRouteMap: AppRoute = {
                     index: true,
                     children: {},
                 },
+                shadowAgentDiscovery: {
+                    path: 'shadow-agent-discovery',
+                    index: true,
+                    children: {
+                        finding: {
+                            path: 'agents/:findingId',
+                            index: true,
+                            children: {},
+                        },
+                        scan: {
+                            path: 'scans/:scanId',
+                            index: true,
+                            children: {},
+                        },
+                        newConnection: {
+                            path: 'platforms/new',
+                            index: true,
+                            children: {},
+                        },
+                        editConnection: {
+                            path: 'platforms/:connectionId/edit',
+                            index: true,
+                            children: {},
+                        },
+                    },
+                },
                 deploymentPipelines: {
                     path: 'deployment-pipelines',
                     index: true,

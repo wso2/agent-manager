@@ -1,0 +1,13 @@
+{
+  "agentSummaries": [
+    {
+      "agentId": "AB12CD34EF",
+      "agentName": "billing-helper",
+      "agentStatus": "PREPARED",
+      "latestAgentVersion": "2",
+      "updatedAt": "2026-10-20T12:00:00Z",
+      "description": "SECRET-PROMPT-MARKER"
+    }
+  ],
+  "nextToken": "ag-page-2"
+}

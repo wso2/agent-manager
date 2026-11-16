@@ -364,6 +364,13 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		os.Exit(1)
 	}
 
+	// Started unconditionally: it only runs scans an org admin queued.
+	shadowAgentScannerCtx, shadowAgentScannerCancel := context.WithCancel(backgroundCtx)
+	if err := dependencies.ShadowAgentScanner.Start(shadowAgentScannerCtx); err != nil {
+		slog.Error("failed to start the shadow agent scanner", "error", err)
+		os.Exit(1)
+	}
+
 	deploymentTimeoutSweeperCtx, deploymentTimeoutSweeperCancel := context.WithCancel(backgroundCtx)
 	if err := dependencies.DeploymentTimeoutSweeper.Start(deploymentTimeoutSweeperCtx); err != nil {
 		slog.Error("failed to start deployment timeout sweeper", "error", err)
@@ -458,6 +465,11 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 		mcpCapabilityDiscoveryCancel()
 		if err := dependencies.MCPCapabilityDiscovery.Stop(); err != nil {
 			slog.Error("error stopping MCP capability discovery", "error", err)
+		}
+
+		shadowAgentScannerCancel()
+		if err := dependencies.ShadowAgentScanner.Stop(); err != nil {
+			slog.Error("error stopping the shadow agent scanner", "error", err)
 		}
 
 		deploymentTimeoutSweeperCancel()

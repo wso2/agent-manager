@@ -1,0 +1,31 @@
+{
+  "registryRecords": [
+    {
+      "registryArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012",
+      "recordArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012/record/Rec000000005",
+      "recordId": "Rec000000005",
+      "name": "wiki-mcp",
+      "recordType": "MCP",
+      "recordVersion": "1.0.0",
+      "status": "APPROVED",
+      "createdAt": "2026-09-01T00:00:00Z",
+      "updatedAt": "2026-09-02T00:00:00Z",
+      "createdBy": "123456789012",
+      "description": "SECRET-PROMPT-MARKER",
+      "displayName": "Wiki MCP"
+    },
+    {
+      "registryArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012",
+      "recordArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012/record/Rec000000006",
+      "recordId": "Rec000000006",
+      "name": "pdf-skill",
+      "recordType": "SKILL",
+      "recordVersion": "1.0.0",
+      "status": "APPROVED",
+      "createdAt": "2026-09-01T00:00:00Z",
+      "updatedAt": "2026-09-02T00:00:00Z",
+      "createdBy": "123456789012",
+      "description": "SECRET-PROMPT-MARKER"
+    }
+  ]
+}

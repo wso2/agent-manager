@@ -46,6 +46,14 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
+	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents"
+	shadowanthropic "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/anthropic"
+	shadowazure "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azure"
+	shadowazuredevops "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azuredevops"
+	shadowbedrock "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/bedrock"
+	shadowgithub "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/github"
+	shadowgoogle "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/google"
+	shadowopenai "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/openai"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
@@ -139,6 +147,9 @@ var serviceProviderSet = wire.NewSet(
 	services.NewEventDispatcherService,
 	services.NewMonitorAlertService,
 	services.NewMonitorAlertProcessor,
+	ProvideShadowConnectors,
+	services.NewShadowAgentService,
+	services.NewShadowAgentScanner,
 )
 
 var instrumentationProviderSet = wire.NewSet(
@@ -181,6 +192,7 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewAgentIdentityController,
 	controllers.NewEventsController,
 	controllers.NewMonitorAlertController,
+	controllers.NewShadowAgentController,
 )
 
 var testClientProviderSet = wire.NewSet(
@@ -443,6 +455,7 @@ var repositoryProviderSet = wire.NewSet(
 	repositories.NewMCPProxyScopeRepository,
 	repositories.NewEventRepository,
 	repositories.NewMonitorAlertRepository,
+	repositories.NewShadowAgentRepository,
 )
 
 var reconcileProviderSet = wire.NewSet(
@@ -728,6 +741,28 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 		return thundersvc.ResolveEnvThunderTokenEndpoint(ctx, endpointResolver, readThunderURL, ouID, orgNamespace, envName)
 	}
 	return services.NewAgentIdentityInjectionServiceWithTokenEndpointResolver(repo, agentConfigRepo, mcpProxyScopeRepo, ocClient, cfg.SecretManager.AgentIdentityRefreshInterval, logger, resolveTokenEndpoint, services.WithAgentIdentityForceSyncWait(cfg.SecretManager.AgentIdentityForceSyncWait), services.WithAgentIdentityForceSyncApplyTimeout(cfg.SecretManager.AgentIdentityForceSyncApplyTimeout))
+}
+
+// ProvideShadowConnectors registers the Shadow Agent Discovery connector of
+// each supported platform. They share one HTTP client that follows a
+// redirect only to the same origin, so a stored credential never leaves the
+// endpoint the org configured.
+func ProvideShadowConnectors(logger *slog.Logger) services.ShadowConnectors {
+	httpClient := shadowagents.NewHTTPClient(nil)
+	all := []shadowagents.Connector{
+		shadowopenai.New(httpClient, logger),
+		shadowanthropic.New(httpClient, logger),
+		shadowbedrock.New(httpClient, logger),
+		shadowgoogle.New(httpClient, logger),
+		shadowazure.NewFoundry(httpClient, logger),
+		shadowgithub.New(httpClient, logger),
+		shadowazuredevops.New(httpClient, logger),
+	}
+	out := make(services.ShadowConnectors, len(all))
+	for _, c := range all {
+		out[c.Provider()] = c
+	}
+	return out
 }
 
 // ProvideDestinationDrivers registers the driver of each supported event

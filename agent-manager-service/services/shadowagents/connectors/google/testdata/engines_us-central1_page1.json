@@ -1,0 +1,27 @@
+{
+  "reasoningEngines": [
+    {
+      "name": "projects/123456789012/locations/us-central1/reasoningEngines/1234567890123456789",
+      "displayName": "support-agent",
+      "description": "Handles support tickets. SECRET-PROMPT-MARKER",
+      "createTime": "2026-10-01T10:00:00.123456Z",
+      "updateTime": "2026-10-02T11:00:00.654321Z",
+      "etag": "AMEw9yN-example",
+      "labels": {"team": "cx"},
+      "spec": {
+        "agentFramework": "google-adk",
+        "identityType": "AGENT_IDENTITY",
+        "effectiveIdentity": "agents.global.org-111111111111.system.id.goog/resources/aiplatform/projects/123456789012/locations/us-central1/reasoningEngines/1234567890123456789",
+        "sourceCodeSpec": {
+          "gitSource": {"url": "https://x-access-token:SECRET-PROMPT-MARKER@github.com/example/support-agent.git?token=sk-test-SECRETSECRETSECRET#main", "revision": "main", "dir": "agent"},
+          "pythonSpec": {"version": "3.12", "entrypointModule": "agent", "entrypointObject": "root_agent", "requirementsFile": "requirements.txt"}
+        },
+        "deploymentSpec": {
+          "env": [{"name": "OPENAI_API_KEY", "value": "sk-test-SECRETSECRETSECRET"}, {"name": "SYSTEM_PROMPT", "value": "SECRET-PROMPT-MARKER"}],
+          "secretEnv": [{"name": "API_KEY", "secretRef": {"secret": "SECRET-PROMPT-MARKER-secret", "version": "latest"}}]
+        }
+      }
+    }
+  ],
+  "nextPageToken": "engines-page-2"
+}

@@ -1,0 +1,7 @@
+{
+  "error": {
+    "code": 429,
+    "message": "Quota exceeded for quota metric 'Time series queries' and limit 'Time series queries per minute'.",
+    "status": "RESOURCE_EXHAUSTED"
+  }
+}

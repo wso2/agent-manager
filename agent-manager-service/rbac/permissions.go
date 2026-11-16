@@ -228,6 +228,14 @@ const (
 	EventsManage Permission = "events:manage"
 )
 
+// Shadow Agent Discovery permissions — provider connections (which hold
+// admin credentials), scans, findings and onboarding, granted to Admin only:
+// findings expose the org's provider usage and owner hints.
+const (
+	ShadowAgentRead   Permission = "shadow-agent:read"
+	ShadowAgentManage Permission = "shadow-agent:manage"
+)
+
 // Observability permissions — data-read scopes enforced by agent-manager-observer
 const (
 	ObservabilityTraceRead    Permission = "observability:trace-read"

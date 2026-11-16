@@ -1,0 +1,135 @@
+{
+ "data": [
+  {
+   "id": "agent_011CZkYpogX7uDKUyvBTophP",
+   "archived_at": null,
+   "created_at": "2026-03-15T10:00:00Z",
+   "description": "A general-purpose starter agent.",
+   "execution_identity": {
+    "type": "service_account"
+   },
+   "mcp_servers": [
+    {
+     "name": "example-mcp",
+     "type": "url",
+     "url": "https://example-server.modelcontextprotocol.io/sse?token=sk-test-SECRETSECRETSECRET"
+    }
+   ],
+   "metadata": {
+    "foo": "SECRET-METADATA-MARKER"
+   },
+   "model": {
+    "id": "claude-opus-5-5",
+    "effort": {
+     "type": "low"
+    },
+    "inference_geo": "inference_geo",
+    "speed": "standard"
+   },
+   "multiagent": {
+    "advisor": {
+     "type": "disabled"
+    },
+    "subagents": {
+     "inline_agents": {
+      "type": "enabled"
+     },
+     "predefined_agents": [
+      {
+       "id": "agent_011CZkYqphY8vELVzwCUpqiQ",
+       "type": "agent",
+       "version": 1
+      }
+     ],
+     "type": "enabled"
+    },
+    "type": "multiagent_20261001",
+    "workflows": {
+     "inline_agents": {
+      "type": "enabled"
+     },
+     "predefined_agents": [
+      {
+       "id": "agent_011CZkYqphY8vELVzwCUpqiQ",
+       "type": "agent",
+       "version": 1
+      }
+     ],
+     "type": "enabled"
+    }
+   },
+   "name": "My First Agent",
+   "skills": [
+    {
+     "skill_id": "xlsx",
+     "type": "anthropic",
+     "version": "1"
+    },
+    {
+     "skill_id": "skill_011CZkZFNu9hAbo3jZPRgTmx",
+     "type": "custom",
+     "version": "2"
+    }
+   ],
+   "system": "SECRET-PROMPT-MARKER You are a general-purpose agent that can research, write code, run commands.",
+   "tools": [
+    {
+     "configs": [
+      {
+       "enabled": true,
+       "name": "bash",
+       "permission_policy": {
+        "type": "always_allow"
+       },
+       "type": "bash"
+      },
+      {
+       "enabled": false,
+       "name": "web_fetch",
+       "permission_policy": {
+        "type": "always_ask"
+       },
+       "type": "web_fetch"
+      }
+     ],
+     "default_config": {
+      "enabled": true,
+      "permission_policy": {
+       "type": "always_ask"
+      }
+     },
+     "type": "agent_toolset_20260401"
+    },
+    {
+     "type": "mcp_toolset",
+     "mcp_server_name": "example-mcp",
+     "configs": [],
+     "default_config": {
+      "enabled": true,
+      "permission_policy": {
+       "type": "auto"
+      }
+     }
+    },
+    {
+     "type": "custom",
+     "name": "lookup_order",
+     "description": "SECRET-PROMPT-MARKER tool description",
+     "input_schema": {
+      "type": "object",
+      "properties": {
+       "order_id": {
+        "type": "string",
+        "description": "SECRET-SCHEMA-MARKER"
+       }
+      }
+     }
+    }
+   ],
+   "type": "agent",
+   "updated_at": "2026-03-15T10:00:00Z",
+   "version": 3
+  }
+ ],
+ "next_page": "page_2"
+}

@@ -1292,6 +1292,8 @@
                 "amp:monitor:score-publish",
                 "amp:events:read",
                 "amp:events:manage",
+                "amp:shadow-agent:read",
+                "amp:shadow-agent:manage",
                 "amp:observability:trace-read",
                 "amp:observability:log-read",
                 "amp:observability:build-log-read",

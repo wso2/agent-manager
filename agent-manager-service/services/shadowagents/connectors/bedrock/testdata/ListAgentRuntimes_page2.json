@@ -1,0 +1,22 @@
+{
+  "agentRuntimes": [
+    {
+      "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/orders_mcp-GhIjKl5678",
+      "agentRuntimeId": "orders_mcp-GhIjKl5678",
+      "agentRuntimeName": "orders_mcp",
+      "agentRuntimeVersion": "1",
+      "description": "SECRET-PROMPT-MARKER",
+      "lastUpdatedAt": "2026-10-20T08:00:00Z",
+      "status": "READY"
+    },
+    {
+      "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/broken_agent-ZyXwVu9876",
+      "agentRuntimeId": "broken_agent-ZyXwVu9876",
+      "agentRuntimeName": "broken_agent",
+      "agentRuntimeVersion": "2",
+      "description": "SECRET-PROMPT-MARKER",
+      "lastUpdatedAt": "2026-10-21T08:00:00Z",
+      "status": "CREATE_FAILED"
+    }
+  ]
+}

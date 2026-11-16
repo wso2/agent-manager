@@ -1,0 +1,23 @@
+{
+  "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/broken_agent-ZyXwVu9876",
+  "agentRuntimeName": "broken_agent",
+  "agentRuntimeId": "broken_agent-ZyXwVu9876",
+  "agentRuntimeVersion": "2",
+  "createdAt": "2026-10-21T08:00:00Z",
+  "lastUpdatedAt": "2026-10-21T08:00:00Z",
+  "roleArn": "arn:aws:iam::123456789012:role/SharedRuntimeRole",
+  "status": "CREATE_FAILED",
+  "failureReason": "image pull failed",
+  "lifecycleConfiguration": {
+    "idleRuntimeSessionTimeout": 900,
+    "maxLifetime": 28800
+  },
+  "agentRuntimeArtifact": {
+    "containerConfiguration": {
+      "containerUri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/broken:1"
+    }
+  },
+  "protocolConfiguration": {
+    "serverProtocol": "A2A"
+  }
+}

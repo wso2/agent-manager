@@ -1,0 +1,14 @@
+{
+  "agentRuntimes": [
+    {
+      "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/support_agent-AbCdEf1234",
+      "agentRuntimeId": "support_agent-AbCdEf1234",
+      "agentRuntimeName": "support_agent",
+      "agentRuntimeVersion": "3",
+      "description": "SECRET-PROMPT-MARKER runtime description",
+      "lastUpdatedAt": "2026-11-01T10:15:30Z",
+      "status": "READY"
+    }
+  ],
+  "nextToken": "rt-page-2"
+}

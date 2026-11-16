@@ -48,4 +48,5 @@ export * from './thunder-instances';
 export * from './mcp-proxy-scopes';
 export * from './agent-identity';
 export * from './events';
+export * from './shadowAgents';
 export * from './monitor-alerts';

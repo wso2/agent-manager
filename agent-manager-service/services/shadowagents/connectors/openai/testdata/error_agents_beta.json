@@ -1,0 +1,8 @@
+{
+    "error": {
+        "type": "invalid_request_error",
+        "code": "invalid_beta",
+        "message": "The OpenAI-Beta header value is not supported.",
+        "param": null
+    }
+}

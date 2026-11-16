@@ -1,0 +1,25 @@
+{
+  "agent": {
+    "agentId": "AB12CD34EF",
+    "agentName": "billing-helper",
+    "agentArn": "arn:aws:bedrock:us-east-1:123456789012:agent/AB12CD34EF",
+    "agentVersion": "DRAFT",
+    "agentStatus": "PREPARED",
+    "idleSessionTTLInSeconds": 600,
+    "agentResourceRoleArn": "arn:aws:iam::123456789012:role/service-role/AmazonBedrockExecutionRoleForAgents_billing",
+    "createdAt": "2026-10-01T12:00:00Z",
+    "updatedAt": "2026-10-20T12:00:00Z",
+    "instruction": "SECRET-PROMPT-MARKER You are a billing assistant. Use key sk-test-SECRETSECRETSECRET",
+    "description": "SECRET-PROMPT-MARKER",
+    "foundationModel": "anthropic.claude-3-5-sonnet-20240620-v1:0",
+    "orchestrationType": "DEFAULT",
+    "promptOverrideConfiguration": {
+      "promptConfigurations": [
+        {
+          "promptType": "ORCHESTRATION",
+          "basePromptTemplate": "SECRET-PROMPT-MARKER template"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "registries": [
+    {
+      "name": "tools",
+      "registryId": "GhIjKl789012",
+      "registryArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012",
+      "status": "READY",
+      "createdAt": "2026-08-11T00:00:00Z",
+      "updatedAt": "2026-08-11T00:00:00Z"
+    }
+  ]
+}

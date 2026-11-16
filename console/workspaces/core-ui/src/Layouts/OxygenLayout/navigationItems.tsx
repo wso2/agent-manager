@@ -42,6 +42,7 @@ import {
   Layers,
   MonitorCheck,
   RadioTower,
+  ScanSearch,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -168,6 +169,11 @@ export function useNavigationItems(): Array<
     // theirs to anyone who can see them.
     events:
       !enforced || scopes.has("amp:events:read") || scopes.has("amp:events:manage"),
+    // Shadow Agent Discovery follows the token's scopes (organization admins).
+    shadowAgents:
+      !enforced ||
+      scopes.has("amp:shadow-agent:read") ||
+      scopes.has("amp:shadow-agent:manage"),
   };
 
   const defaultEnv =
@@ -217,6 +223,7 @@ export function useNavigationItems(): Array<
   ).environments;
   const evaluatorsOrgRoute = absoluteRouteMap.children.org.children.evaluators;
   const eventsOrgRoute = absoluteRouteMap.children.org.children.events;
+  const shadowAgentsOrgRoute = absoluteRouteMap.children.org.children.shadowAgentDiscovery;
   const eventsProjectRoute = absoluteRouteMap.children.org.children.projects.children.events;
   const eventsAgentRoute =
     absoluteRouteMap.children.org.children.projects.children.agents.children.events;
@@ -887,6 +894,17 @@ export function useNavigationItems(): Array<
           pathname,
         ),
       },
+      ...(navVisibility.shadowAgents
+        ? [
+            {
+              label: "Shadow Agent Discovery",
+              type: "item" as const,
+              icon: <ScanSearch size={20} />,
+              href: generatePath(shadowAgentsOrgRoute.path, { orgId }),
+              isActive: !!matchPath(shadowAgentsOrgRoute.wildPath, pathname),
+            },
+          ]
+        : []),
       ...(navVisibility.events ? eventsItem(eventsOrgRoute, { orgId }) : []),
       // Settings is shown only when profile management is enabled, and then only if RBAC
       // grants access to at least one of its identity surfaces.

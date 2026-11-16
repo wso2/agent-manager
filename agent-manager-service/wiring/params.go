@@ -84,11 +84,13 @@ type AppParams struct {
 	MCPProxyScopeController          controllers.MCPProxyScopeController
 	AgentIdentityController          controllers.AgentIdentityController
 	EventsController                 controllers.EventsController
+	ShadowAgentController            controllers.ShadowAgentController
 	MonitorAlertController           controllers.MonitorAlertController
 	MonitorScheduler                 services.MonitorSchedulerService
 	AgentThunderReconciler           services.AgentThunderReconcilerService
 	A2ACardReconciler                services.A2ACardReconcilerService
 	MCPCapabilityDiscovery           services.ProjectMCPCapabilityDiscoveryService
+	ShadowAgentScanner               services.ShadowAgentScanner
 	DeploymentTimeoutSweeper         services.DeploymentTimeoutSweeper
 	ReconcileWorker                  *reconcile.Worker
 

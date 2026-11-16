@@ -1,0 +1,14 @@
+{
+  "reasoningEngines": [
+    {
+      "name": "projects/123456789012/locations/us/reasoningEngines/5555555555555555555",
+      "displayName": "batch-reporter",
+      "createTime": "2026-10-20T07:00:00Z",
+      "updateTime": "2026-10-20T07:00:00Z",
+      "spec": {
+        "agentFramework": "custom",
+        "containerSpec": {"imageUri": "us-docker.pkg.dev/my-agents-project/agents/reporter:1"}
+      }
+    }
+  ]
+}

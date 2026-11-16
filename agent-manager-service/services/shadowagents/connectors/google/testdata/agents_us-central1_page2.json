@@ -1,0 +1,33 @@
+{
+  "agents": [
+    {
+      "name": "projects/123456789012/locations/us-central1/agents/agentregistry-4e5f6a7b",
+      "agentId": "urn:agent:projects-123456789012:projects:123456789012:locations:us-central1:aiplatform:reasoningEngines:9876543210987654321",
+      "location": "us-central1",
+      "displayName": "orders-agent",
+      "protocols": [{"type": "CUSTOM"}],
+      "createTime": "2026-09-15T08:30:10Z",
+      "updateTime": "2026-09-15T08:30:10Z",
+      "attributes": {
+        "agentregistry.googleapis.com/system/Framework": {"framework": "langgraph"}
+      }
+    },
+    {
+      "name": "projects/123456789012/locations/us-central1/agents/agentregistry-8c9d0e1f",
+      "agentId": "urn:agent:projects-123456789012:projects:123456789012:locations:us-central1:run:services:helpdesk-bot",
+      "location": "us-central1",
+      "displayName": "helpdesk-bot",
+      "description": "Answers employee questions.",
+      "version": "2.1.0",
+      "protocols": [{"type": "A2A_AGENT", "protocolVersion": "0.3", "interfaces": [{"url": "https://helpdesk-bot-abc123-uc.a.run.app/a2a?api_key=sk-test-SECRETSECRETSECRET", "protocolBinding": "JSONRPC"}]}],
+      "skills": [{"id": "faq", "name": "Answer FAQ", "description": "SECRET-PROMPT-MARKER"}, {"id": "ticket"}],
+      "createTime": "2026-10-05T12:00:00Z",
+      "updateTime": "2026-10-05T12:00:00Z",
+      "attributes": {
+        "agentregistry.googleapis.com/system/Framework": {"framework": "langchain"},
+        "agentregistry.googleapis.com/system/RuntimeIdentity": {"principal": "helpdesk-bot@my-agents-project.iam.gserviceaccount.com"}
+      },
+      "card": {"type": "A2A_AGENT_CARD", "content": {"name": "helpdesk-bot", "systemPrompt": "SECRET-PROMPT-MARKER"}}
+    }
+  ]
+}

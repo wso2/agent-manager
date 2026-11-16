@@ -1,0 +1,29 @@
+{
+ "data": [
+  {
+   "id": "agent_04BatchHelperXXXXXXXXXXX",
+   "archived_at": null,
+   "created_at": "2026-05-01T08:00:00Z",
+   "description": null,
+   "execution_identity": {
+    "type": "service_account"
+   },
+   "mcp_servers": [],
+   "metadata": {
+    "note": "SECRET-METADATA-MARKER"
+   },
+   "model": {
+    "id": "claude-haiku-5-5"
+   },
+   "multiagent": null,
+   "name": "Batch helper",
+   "skills": [],
+   "system": "SECRET-PROMPT-MARKER Summarise the batch.",
+   "tools": [],
+   "type": "agent",
+   "updated_at": "2026-05-01T08:00:00Z",
+   "version": 2
+  }
+ ],
+ "next_page": null
+}

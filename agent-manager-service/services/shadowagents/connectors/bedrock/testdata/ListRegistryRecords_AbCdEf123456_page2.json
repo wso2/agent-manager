@@ -1,0 +1,39 @@
+{
+  "registryRecords": [
+    {
+      "registryArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/AbCdEf123456",
+      "recordArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/AbCdEf123456/record/Rec000000003",
+      "recordId": "Rec000000003",
+      "name": "travel-planner",
+      "recordType": "AGENT",
+      "recordVersion": "1.0.0",
+      "status": "APPROVED",
+      "createdAt": "2026-09-01T00:00:00Z",
+      "updatedAt": "2026-09-02T00:00:00Z",
+      "createdBy": "123456789012",
+      "description": "SECRET-PROMPT-MARKER",
+      "displayName": "Travel planner"
+    },
+    {
+      "registryArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/AbCdEf123456",
+      "recordArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/AbCdEf123456/record/Rec000000004",
+      "recordId": "Rec000000004",
+      "name": "orders-gw",
+      "recordType": "GATEWAY",
+      "recordVersion": "1.0.0",
+      "status": "APPROVED",
+      "createdAt": "2026-09-01T00:00:00Z",
+      "updatedAt": "2026-09-02T00:00:00Z",
+      "createdBy": "123456789012",
+      "description": "SECRET-PROMPT-MARKER",
+      "createdByAutoDetection": true,
+      "provenanceSummaryList": [
+        {
+          "relation": "DETECTED_FROM",
+          "sourceId": "arn:aws:bedrock-agentcore:us-east-1:123456789012:gateway/orders-gw-a1b2c3d4e5",
+          "sourceType": "AWS::BedrockAgentCore::Gateway"
+        }
+      ]
+    }
+  ]
+}

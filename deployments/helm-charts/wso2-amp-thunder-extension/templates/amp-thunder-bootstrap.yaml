@@ -503,6 +503,13 @@ data:
         actions:
           - { name: Read, handle: read, description: "View event destinations, organization subscriptions and the delivery log" }
           - { name: Manage, handle: manage, description: "Add, change, test and delete event destinations and organization subscriptions" }
+      - name: Shadow Agent Discovery
+        handle: shadow-agent
+        parent: amp
+        description: Provider connections, scans and findings of agents that bypass Agent Manager
+        actions:
+          - { name: Read, handle: read, description: "View provider connections (without secrets), scans and shadow agent findings" }
+          - { name: Manage, handle: manage, description: "Connect providers, run scans, review and onboard findings, and confirm credential retirement" }
       - name: Observability
         handle: observability
         parent: amp
@@ -720,6 +727,8 @@ data:
           - "amp:monitor:score-publish"
           - "amp:events:read"
           - "amp:events:manage"
+          - "amp:shadow-agent:read"
+          - "amp:shadow-agent:manage"
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"

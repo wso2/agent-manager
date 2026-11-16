@@ -1,0 +1,34 @@
+{
+  "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/orders_mcp-GhIjKl5678",
+  "agentRuntimeName": "orders_mcp",
+  "agentRuntimeId": "orders_mcp-GhIjKl5678",
+  "agentRuntimeVersion": "1",
+  "createdAt": "2026-09-15T09:00:00Z",
+  "lastUpdatedAt": "2026-10-20T08:00:00Z",
+  "roleArn": "arn:aws:iam::123456789012:role/service-role/SharedRuntimeRole",
+  "status": "READY",
+  "lifecycleConfiguration": {
+    "idleRuntimeSessionTimeout": 900,
+    "maxLifetime": 28800
+  },
+  "agentRuntimeArtifact": {
+    "codeConfiguration": {
+      "code": {
+        "s3": {
+          "bucket": "orders-code",
+          "prefix": "mcp/v1.zip"
+        }
+      },
+      "runtime": "PYTHON_3_12",
+      "entryPoint": [
+        "server.py"
+      ]
+    }
+  },
+  "protocolConfiguration": {
+    "serverProtocol": "MCP"
+  },
+  "environmentVariables": {
+    "DB_PASSWORD": "sk-test-SECRETSECRETSECRET"
+  }
+}

@@ -14628,6 +14628,640 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/shadow-agents/providers:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: List the platforms Shadow Agent Discovery can scan
+      description: |
+        Each platform with its connection form, official endpoints, the least
+        privilege it needs, what its scan lists, and the evidence each agent
+        listing provides.
+      operationId: listShadowAgentProviders
+      responses:
+        "200":
+          description: Platforms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowProviderListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/summary:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: Summarize the unregistered agents found in the organization
+      description: |
+        Counts of the agents found (each agent once, however many connections
+        found it) by platform and review status, and the latest scan.
+      operationId: getShadowAgentSummary
+      responses:
+        "200":
+          description: Summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowAgentSummary"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/connections:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: List platform connections
+      description: |
+        Connections never include their secrets; secretHints says which are stored.
+      operationId: listShadowConnections
+      responses:
+        "200":
+          description: Connections
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowConnectionListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Connect a platform account
+      description: |
+        Stores the credential encrypted. Secrets are write-only.
+      operationId: createShadowConnection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowConnectionRequest"
+      responses:
+        "201":
+          description: Connection added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowConnectionResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The name is taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/connections/{connectionId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: connectionId
+        in: path
+        required: true
+        description: Connection ID
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: Get a platform connection
+      description: |
+        The connection without its secrets.
+      operationId: getShadowConnection
+      responses:
+        "200":
+          description: Connection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowConnectionResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Shadow Agent Discovery
+      summary: Update a platform connection
+      description: |
+        A secret left empty keeps the stored one. The platform cannot change.
+      operationId: updateShadowConnection
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowConnectionRequest"
+      responses:
+        "200":
+          description: Connection updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowConnectionResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: The name is taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Shadow Agent Discovery
+      summary: Delete a platform connection
+      description: |
+        Deletes the connection and everything its scans found.
+      operationId: deleteShadowConnection
+      responses:
+        "204":
+          description: Connection deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/connections/{connectionId}/test:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: connectionId
+        in: path
+        required: true
+        description: Connection ID
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Test a platform connection
+      description: |
+        Makes one read per agent listing and says which evidence each one provides.
+      operationId: testShadowConnection
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowConnectionTest"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/scans:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: List scans
+      description: |
+        The organization's scans, newest first.
+      operationId: listShadowScans
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+      responses:
+        "200":
+          description: Scans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowScanListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Run a scan
+      description: |
+        Queues a scan of the given connections (all of them when empty): each
+        connection's platform agent listings are read. It runs in the
+        background; poll the scan for its status.
+      operationId: createShadowScan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowScanRequest"
+      responses:
+        "202":
+          description: Scan queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowScanResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: A scan is already queued or running
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Shadow Agent Discovery
+      summary: Clear the scans
+      description: |
+        Deletes the organization's finished scans and their per-scan agent
+        lists. A queued or running scan is kept. The agents and their evidence
+        are not changed.
+      operationId: clearShadowScans
+      responses:
+        "200":
+          description: Scans deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowScanClearResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/scans/{scanId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: scanId
+        in: path
+        required: true
+        description: Scan ID
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: Get a scan
+      description: |
+        The scan with the outcome of every platform call.
+      operationId: getShadowScan
+      responses:
+        "200":
+          description: Scan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowScanResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/findings:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: List unregistered agents
+      description: |
+        The agents the platforms list, one row per agent however many
+        connections found it (the same platform, kind and platform ID), by
+        name. Without scanId, only the agents their connection's latest
+        complete listing still returned; with scanId, the agents that scan
+        found.
+      operationId: listShadowFindings
+      parameters:
+      - name: provider
+        in: query
+        required: false
+        description: Filter by platform
+        schema:
+          type: string
+      - name: status
+        in: query
+        required: false
+        description: Filter by review status
+        schema:
+          type: string
+      - name: connectionId
+        in: query
+        required: false
+        description: Filter by connection
+        schema:
+          type: string
+      - name: scanId
+        in: query
+        required: false
+        description: Keep the agents this scan found
+        schema:
+          type: string
+          format: uuid
+      - name: search
+        in: query
+        required: false
+        description: Match the name, platform ID or scope
+        schema:
+          type: string
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 200
+          default: 50
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+      responses:
+        "200":
+          description: Agents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowFindingListResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    delete:
+      tags:
+        - Shadow Agent Discovery
+      summary: Delete every unregistered agent
+      description: |
+        Deletes every agent of the organization, with its evidence, on every
+        connection that found it. Platforms and scans are kept. A later scan
+        lists the agents the platforms still have again.
+      operationId: deleteShadowFindings
+      responses:
+        "200":
+          description: Agents deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowFindingClearResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/shadow-agents/findings/{findingId}:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: findingId
+        in: path
+        required: true
+        description: Finding ID
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags:
+        - Shadow Agent Discovery
+      summary: Get an unregistered agent
+      description: |
+        The agent as its platform lists it, its evidence, every connection that
+        found it, and possible duplicates on other platforms.
+      operationId: getShadowFinding
+      responses:
+        "200":
+          description: Agent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowFindingDetail"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      tags:
+        - Shadow Agent Discovery
+      summary: Review an unregistered agent
+      description: |
+        Marks the agent reviewed or dismissed, or reopens it, on every
+        connection that found it.
+      operationId: updateShadowFinding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowFindingUpdateRequest"
+      responses:
+        "200":
+          description: Agent updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowFindingDetail"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      tags:
+        - Shadow Agent Discovery
+      summary: Delete an unregistered agent
+      description: |
+        Deletes the agent, with its evidence, on every connection that found
+        it. A later scan lists it again if a platform still has it.
+      operationId: deleteShadowFinding
+      responses:
+        "204":
+          description: Agent deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -23787,3 +24421,609 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    # ---- Shadow Agent Discovery (platform agent listings) ----
+
+    ShadowProviderListResponse:
+      type: object
+      required: [providers, signals]
+      properties:
+        providers:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowProviderSpec"
+        signals:
+          type: array
+          description: The evidence definitions, one per agent listing.
+          items:
+            $ref: "#/components/schemas/ShadowSignalDefinition"
+
+    ShadowProviderSpec:
+      type: object
+      required: [provider, displayName, description, endpoints, fields, permissions, docs, capabilities]
+      properties:
+        provider:
+          type: string
+          enum: [openai, anthropic, bedrock, google, foundry, github, azure_devops]
+        displayName:
+          type: string
+        description:
+          type: string
+        endpoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowEndpointSpec"
+        fields:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowFieldSpec"
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowPermissionSpec"
+        docs:
+          type: array
+          items:
+            type: string
+        credentialChoice:
+          $ref: "#/components/schemas/ShadowCredentialChoice"
+        sourceHost:
+          type: boolean
+          description: >-
+            A source repository host (GitHub, Azure DevOps). Its connection test is real; its source code
+            analysis is not available yet, so a scan records it as skipped.
+        capabilities:
+          type: array
+          description: What a scan lists, and the fields or options each capability needs.
+          items:
+            $ref: "#/components/schemas/ShadowCapabilitySpec"
+
+    ShadowCredentialChoice:
+      type: object
+      description: At least one of these fields must hold a credential (a value, or a stored secret).
+      required: [fields, message]
+      properties:
+        fields:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+
+    ShadowCapabilitySpec:
+      type: object
+      required: [key, title, description, signals, needs]
+      properties:
+        key:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        signals:
+          type: array
+          description: Evidence codes this capability can produce.
+          items:
+            type: string
+        needs:
+          type: array
+          description: >-
+            Field or option keys that must all be present (a credential set, a key map with at least one key,
+            or a ticked checkbox) for the scan to list this.
+          items:
+            type: string
+
+    ShadowEndpointSpec:
+      type: object
+      required: [key, label, default, placeholders]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        default:
+          type: string
+          description: The official base URL, or the official pattern with placeholders such as {region}.
+        placeholders:
+          type: array
+          items:
+            type: string
+        option:
+          type: string
+          description: The checkbox that enables this endpoint, if any.
+        fillFrom:
+          type: string
+          description: >-
+            For an endpoint with one placeholder: the list field whose items fill it (e.g. regions). The URL of one
+            value can be replaced; it is stored under the endpoint key "<key>@<value>".
+        fillExclude:
+          type: array
+          items:
+            type: string
+          description: Items of fillFrom the endpoint is not used for.
+        fillValues:
+          type: array
+          items:
+            type: string
+          description: Fixed values that fill the placeholder, instead of fillFrom.
+        advanced:
+          type: boolean
+          description: An endpoint the console keeps behind the "Advanced configuration" button.
+
+    ShadowFieldSpec:
+      type: object
+      required: [key, label, kind, required]
+      properties:
+        key:
+          type: string
+        label:
+          type: string
+        kind:
+          type: string
+          enum: [text, secret, textarea, list, checkbox, key_map]
+        required:
+          type: boolean
+        recommended:
+          type: boolean
+          description: The field is optional but recommended.
+        section:
+          type: string
+          description: A heading the field is shown under, for example "Services to scan".
+        advanced:
+          type: boolean
+          description: An optional setting the console keeps behind an "Advanced configuration" button.
+        placeholder:
+          type: string
+        help:
+          type: string
+        defaultBool:
+          type: boolean
+        option:
+          type: string
+          description: >-
+            The checkbox that shows this field, if any; "!key" shows it while the checkbox is not ticked.
+            A required field is required only while it is shown.
+
+    ShadowPermissionSpec:
+      type: object
+      required: [title, items]
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+          description: In one or two plain sentences, what Agent Manager does with this credential or source.
+        reads:
+          type: array
+          description: What Agent Manager reads with it.
+          items:
+            type: string
+        items:
+          type: array
+          description: How to create it and the permissions it needs.
+          items:
+            type: string
+        policy:
+          type: string
+          description: A ready-to-use role or policy document.
+        note:
+          type: string
+
+    ShadowSignalDefinition:
+      type: object
+      description: One kind of evidence that a platform lists an agent.
+      required: [code, provider, name, condition]
+      properties:
+        code:
+          type: string
+        provider:
+          type: string
+        name:
+          type: string
+        condition:
+          type: string
+          description: The listing call and the exact condition, in the platform's official field names.
+
+    ShadowAgentSummary:
+      type: object
+      required: [totalFindings, byProvider, byStatus, connections]
+      properties:
+        totalFindings:
+          type: integer
+          description: The agents found that their platforms still list, each agent once.
+        byProvider:
+          type: object
+          additionalProperties:
+            type: integer
+        byStatus:
+          type: object
+          additionalProperties:
+            type: integer
+        connections:
+          type: integer
+        latestScan:
+          $ref: "#/components/schemas/ShadowScanResponse"
+
+    ShadowConnectionRequest:
+      type: object
+      required: [name, provider, settings]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        provider:
+          type: string
+          enum: [openai, anthropic, bedrock, google, foundry, github, azure_devops]
+        endpoints:
+          type: object
+          description: Base URL per endpoint key; missing keys use the official default.
+          additionalProperties:
+            type: string
+        settings:
+          type: object
+          description: >-
+            Field values by the platform's field keys (see ShadowFieldSpec). Secret
+            fields are write-only; on update an empty or missing secret keeps the
+            stored one.
+          additionalProperties: true
+        removeSecrets:
+          type: array
+          description: >-
+            On update, optional secret fields whose stored value is removed (for example the AWS session
+            token). Required secrets cannot be removed.
+          items:
+            type: string
+
+    ShadowConnectionResponse:
+      type: object
+      required: [id, name, provider, endpoints, settings, secretHints, endpointWarnings, createdBy, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        provider:
+          type: string
+        endpoints:
+          type: object
+          additionalProperties:
+            type: string
+        settings:
+          type: object
+          description: The non-secret field values.
+          additionalProperties: true
+        secretHints:
+          type: object
+          description: A redacted hint per stored secret field (e.g. "sk-a…wxyz"); values are never returned.
+          additionalProperties:
+            type: string
+        endpointWarnings:
+          type: array
+          description: Endpoints whose host is not an official host of the platform.
+          items:
+            type: string
+        lastTestedAt:
+          type: string
+          format: date-time
+        lastTest:
+          $ref: "#/components/schemas/ShadowConnectionTest"
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ShadowConnectionListResponse:
+      type: object
+      required: [connections]
+      properties:
+        connections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowConnectionResponse"
+
+    ShadowConnectionTest:
+      type: object
+      required: [ok, checks]
+      properties:
+        ok:
+          type: boolean
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowConnectionCheck"
+
+    ShadowConnectionCheck:
+      type: object
+      required: [name, outcome]
+      properties:
+        name:
+          type: string
+        outcome:
+          type: string
+        message:
+          type: string
+        unlocks:
+          type: array
+          description: The evidence this call provides, so a failed check says which agents a scan would miss.
+          items:
+            type: string
+
+    ShadowScanRequest:
+      type: object
+      properties:
+        connectionIds:
+          type: array
+          description: Connections to scan; all of the organization's when empty.
+          items:
+            type: string
+            format: uuid
+
+    ShadowScanResponse:
+      type: object
+      required: [id, status, connectionIds, results, findingsCount, requestedBy, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, running, succeeded, partial, failed]
+        connectionIds:
+          type: array
+          items:
+            type: string
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowScanConnectionResult"
+        findingsCount:
+          type: integer
+          description: Agents found, counted per connection.
+        requestedBy:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    ShadowScanListResponse:
+      type: object
+      required: [scans]
+      properties:
+        scans:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowScanResponse"
+
+    ShadowFindingClearResponse:
+      type: object
+      required: [deleted]
+      properties:
+        deleted:
+          type: integer
+          format: int32
+          description: How many agents were deleted.
+
+    ShadowScanClearResponse:
+      type: object
+      required: [deleted]
+      properties:
+        deleted:
+          type: integer
+          format: int32
+          description: How many scans were deleted.
+
+    ShadowScanConnectionResult:
+      type: object
+      required: [connectionId, connectionName, provider, outcome, findingsCount, calls]
+      properties:
+        connectionId:
+          type: string
+        connectionName:
+          type: string
+        provider:
+          type: string
+        outcome:
+          type: string
+        message:
+          type: string
+        findingsCount:
+          type: integer
+        calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowScanCallResult"
+
+    ShadowScanCallResult:
+      type: object
+      required: [call, outcome, items]
+      properties:
+        call:
+          type: string
+        outcome:
+          type: string
+          enum: [ok, skipped, auth_failed, permission_denied, not_found, rate_limited, unsupported_response, failed]
+        message:
+          type: string
+        items:
+          type: integer
+
+    ShadowOwnerHint:
+      type: object
+      description: Who created the agent, only when its platform's agent listing says so (minimised personal data).
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        username:
+          type: string
+        type:
+          type: string
+        source:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ShadowFindingSummary:
+      type: object
+      description: >-
+        One agent a platform lists. When several connections found the same agent, this is its finding in the
+        connection that saw it last, and foundBy lists every connection.
+      required: [id, connectionId, connectionName, provider, kind, externalId, displayName, scope, state, status, ownerHint, firstSeenAt, lastSeenAt, present, foundBy]
+      properties:
+        id:
+          type: string
+          format: uuid
+        connectionId:
+          type: string
+          format: uuid
+        connectionName:
+          type: string
+        provider:
+          type: string
+        kind:
+          type: string
+          enum: [platform_agent, runtime]
+          description: >-
+            runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent
+            object a platform lists.
+        externalId:
+          type: string
+          description: The platform's own ID of the agent (agent ID, ARN or resource name).
+        displayName:
+          type: string
+        scope:
+          type: string
+          description: Where the agent lives at the platform (project, workspace, region or location).
+        state:
+          type: string
+          description: The agent's state as its platform reports it.
+        status:
+          type: string
+          enum: [new, reviewed, dismissed]
+        ownerHint:
+          $ref: "#/components/schemas/ShadowOwnerHint"
+        providerCreatedAt:
+          type: string
+          format: date-time
+        firstSeenAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        present:
+          type: boolean
+          description: False once a complete listing of its connection no longer returns the agent.
+        foundBy:
+          type: array
+          description: Every connection that found this agent.
+          items:
+            $ref: "#/components/schemas/ShadowFindingSource"
+
+    ShadowFindingSource:
+      type: object
+      required: [findingId, connectionId, connectionName, present]
+      properties:
+        findingId:
+          type: string
+          format: uuid
+        connectionId:
+          type: string
+          format: uuid
+        connectionName:
+          type: string
+        present:
+          type: boolean
+
+    ShadowFindingListResponse:
+      type: object
+      required: [findings, total, limit, offset]
+      properties:
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ShadowFindingSummary"
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    ShadowFindingSignal:
+      type: object
+      description: Evidence that a platform lists the agent.
+      required: [code, name, source, condition, observed, detectedAt]
+      properties:
+        code:
+          type: string
+        name:
+          type: string
+        source:
+          type: string
+        condition:
+          type: string
+        observed:
+          type: object
+          additionalProperties: true
+        detectedAt:
+          type: string
+          format: date-time
+
+    ShadowFindingRelation:
+      type: object
+      required: [findingId, relation]
+      properties:
+        findingId:
+          type: string
+        relation:
+          type: string
+        reason:
+          type: string
+        displayName:
+          type: string
+        provider:
+          type: string
+
+    ShadowFindingDetail:
+      allOf:
+        - $ref: "#/components/schemas/ShadowFindingSummary"
+        - type: object
+          required: [attributes, related, signals]
+          properties:
+            attributes:
+              type: object
+              description: What the platform's agent listing reports about the agent (allow-listed fields only).
+              additionalProperties: true
+            related:
+              type: array
+              description: Agents on other platforms that may be the same agent.
+              items:
+                $ref: "#/components/schemas/ShadowFindingRelation"
+            signals:
+              type: array
+              description: The evidence, one entry per listing that returned the agent.
+              items:
+                $ref: "#/components/schemas/ShadowFindingSignal"
+
+    ShadowFindingUpdateRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [new, reviewed, dismissed]

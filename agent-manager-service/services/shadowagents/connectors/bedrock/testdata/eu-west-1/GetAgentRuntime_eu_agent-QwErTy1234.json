@@ -1,0 +1,13 @@
+{
+  "agentRuntimeArn": "arn:aws:bedrock-agentcore:eu-west-1:123456789012:runtime/eu_agent-QwErTy1234",
+  "agentRuntimeName": "eu_agent",
+  "agentRuntimeId": "eu_agent-QwErTy1234",
+  "agentRuntimeVersion": "1",
+  "createdAt": "2026-11-01T09:00:00Z",
+  "lastUpdatedAt": "2026-11-02T10:00:00Z",
+  "roleArn": "arn:aws:iam::123456789012:role/EuAgentRole",
+  "status": "READY",
+  "environmentVariables": {"OPENAI_API_KEY": "sk-test-SECRETSECRETSECRET"},
+  "agentRuntimeArtifact": {"containerConfiguration": {"containerUri": "123456789012.dkr.ecr.eu-west-1.amazonaws.com/eu-agent:1"}},
+  "protocolConfiguration": {"serverProtocol": "A2A"}
+}

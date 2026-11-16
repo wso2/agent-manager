@@ -201,6 +201,32 @@ export const generatedRouteMap =  {
           "wildPath": "/organizations/:orgId/events/*",
           "children": {}
         },
+        "shadowAgentDiscovery": {
+          "path": "/org/:orgId/shadow-agent-discovery",
+          "wildPath": "/org/:orgId/shadow-agent-discovery/*",
+          "children": {
+            "finding": {
+              "path": "/org/:orgId/shadow-agent-discovery/agents/:findingId",
+              "wildPath": "/org/:orgId/shadow-agent-discovery/agents/:findingId/*",
+              "children": {}
+            },
+            "scan": {
+              "path": "/org/:orgId/shadow-agent-discovery/scans/:scanId",
+              "wildPath": "/org/:orgId/shadow-agent-discovery/scans/:scanId/*",
+              "children": {}
+            },
+            "newConnection": {
+              "path": "/org/:orgId/shadow-agent-discovery/platforms/new",
+              "wildPath": "/org/:orgId/shadow-agent-discovery/platforms/new/*",
+              "children": {}
+            },
+            "editConnection": {
+              "path": "/org/:orgId/shadow-agent-discovery/platforms/:connectionId/edit",
+              "wildPath": "/org/:orgId/shadow-agent-discovery/platforms/:connectionId/edit/*",
+              "children": {}
+            }
+          }
+        },
         "deploymentPipelines": {
           "path": "/organizations/:orgId/deployment-pipelines",
           "wildPath": "/organizations/:orgId/deployment-pipelines/*",

@@ -63,6 +63,20 @@ const (
 	ActionEventDestinationRotateSecret Action = "event-destination:rotate-secret"
 	ActionEventDestinationTest         Action = "event-destination:test"
 
+	// Shadow Agent Discovery. A connection holds a platform credential (an API
+	// key, a client secret, an access key or a service account key), so its
+	// lifecycle is a credential operation. Scans and reviews change no
+	// credential.
+	ActionShadowConnectionCreate Action = "shadow-connection:create"
+	ActionShadowConnectionUpdate Action = "shadow-connection:update"
+	ActionShadowConnectionDelete Action = "shadow-connection:delete"
+	ActionShadowConnectionTest   Action = "shadow-connection:test"
+	ActionShadowScanCreate       Action = "shadow-scan:create"
+	ActionShadowScanClear        Action = "shadow-scan:clear"
+	ActionShadowFindingUpdate    Action = "shadow-finding:update"
+	ActionShadowFindingDelete    Action = "shadow-finding:delete"
+	ActionShadowFindingClear     Action = "shadow-finding:clear"
+
 	// An event subscription decides which events are sent to a destination.
 	ActionEventSubscriptionCreate Action = "event-subscription:create"
 	ActionEventSubscriptionUpdate Action = "event-subscription:update"
@@ -190,6 +204,8 @@ const (
 	ResourceThunderURL        = "thunder-url"
 	ResourceEventDestination  = "event-destination"
 	ResourceEventSubscription = "event-subscription"
+	ResourceShadowConnection  = "shadow-connection"
+	ResourceShadowFinding     = "shadow-finding"
 	ResourceBuildToken        = "build-token"
 )
 
@@ -309,6 +325,30 @@ func init() {
 	// configured destination, so it is recorded above info.
 	Register(ActionEventDestinationTest, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionEventDestinationTest, nil)
+
+	// A connection is recorded by provider and the scheme and host of its
+	// main endpoint; the credential never reaches the record.
+	shadowConnectionFields := map[string]FieldKind{
+		"provider":      KindEnum,
+		"endpoint":      KindURL,
+		"secretChanged": KindFlag,
+	}
+	registerCredential(ActionShadowConnectionCreate, shadowConnectionFields)
+	registerCredential(ActionShadowConnectionUpdate, shadowConnectionFields)
+	registerCredential(ActionShadowConnectionDelete, shadowConnectionFields)
+	// A test reads the provider with the stored credential.
+	Register(ActionShadowConnectionTest, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowConnectionTest, nil)
+	Register(ActionShadowScanCreate, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowScanCreate, nil)
+	Register(ActionShadowScanClear, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowScanClear, nil)
+	Register(ActionShadowFindingUpdate, ClassConfig, SeverityInfo)
+	RegisterDetailSchema(ActionShadowFindingUpdate, nil)
+	Register(ActionShadowFindingDelete, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowFindingDelete, nil)
+	Register(ActionShadowFindingClear, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowFindingClear, nil)
 
 	// A subscription holds no credential, but it decides which event data
 	// reaches a destination outside the platform.

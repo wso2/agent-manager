@@ -1,0 +1,17 @@
+{
+  "registries": [
+    {
+      "name": "corp",
+      "registryId": "AbCdEf123456",
+      "registryArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/AbCdEf123456",
+      "status": "READY",
+      "createdAt": "2026-08-10T00:00:00Z",
+      "updatedAt": "2026-08-10T00:00:00Z",
+      "description": "SECRET-PROMPT-MARKER",
+      "discoveryConfiguration": {
+        "authorizerType": "AWS_IAM"
+      }
+    }
+  ],
+  "nextToken": "reg-page-2"
+}

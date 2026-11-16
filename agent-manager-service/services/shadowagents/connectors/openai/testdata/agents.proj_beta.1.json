@@ -1,0 +1,42 @@
+{
+    "data": [
+        {
+            "id": "agent_b1",
+            "created_at": 1793404800,
+            "instructions": "You are a helper. SECRET-PROMPT-MARKER",
+            "metadata": {
+                "owner_note": "SECRET-PROMPT-MARKER"
+            },
+            "model": "gpt-y",
+            "multi_agent": {
+                "enabled": true,
+                "max_concurrent_subagents": 1
+            },
+            "name": "Beta one",
+            "object": "agent",
+            "reasoning": {
+                "effort": "none",
+                "summary": "concise"
+            },
+            "service_tier": "auto",
+            "text": {
+                "format": {
+                    "type": "text"
+                },
+                "verbosity": "low"
+            },
+            "tools": [],
+            "updated_at": 1793491200,
+            "compaction": {
+                "async": true
+            },
+            "experimental": {
+                "time_awareness": true
+            }
+        }
+    ],
+    "first_id": null,
+    "has_more": true,
+    "last_id": "agent_b1",
+    "object": "list"
+}

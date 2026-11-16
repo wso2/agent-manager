@@ -1,0 +1,24 @@
+{
+  "agents": [
+    {
+      "name": "projects/123456789012/locations/global/agents/agentregistry-builtin01",
+      "agentId": "urn:agent:googleapis.com:projects:123456789012:locations:global:gemini-enterprise-assistant",
+      "location": "global",
+      "displayName": "Gemini Enterprise assistant",
+      "protocols": [{"type": "A2A_AGENT"}],
+      "createTime": "2026-06-18T00:00:00Z"
+    },
+    {
+      "name": "projects/123456789012/locations/us-central1/agents/agentregistry-0a1b2c3d",
+      "agentId": "urn:agent:projects-123456789012:projects:123456789012:locations:us-central1:aiplatform:reasoningEngines:1234567890123456789",
+      "location": "us-central1",
+      "displayName": "my-support-agent",
+      "protocols": [{"type": "A2A_AGENT"}],
+      "createTime": "2026-10-01T10:00:05Z",
+      "attributes": {
+        "agentregistry.googleapis.com/system/RuntimeReference": {"uri": "//aiplatform.googleapis.com/projects/123456789012/locations/us-central1/reasoningEngines/1234567890123456789"}
+      }
+    }
+  ],
+  "nextPageToken": ""
+}

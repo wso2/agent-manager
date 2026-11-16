@@ -1,0 +1,19 @@
+{
+  "reasoningEngines": [
+    {
+      "name": "projects/my-agents-project/locations/us-central1/reasoningEngines/9876543210987654321",
+      "displayName": "orders-agent",
+      "createTime": "2026-09-15T08:30:00Z",
+      "updateTime": "2026-10-20T09:00:00Z",
+      "spec": {
+        "agentFramework": "langgraph",
+        "serviceAccount": "orders-agent@my-agents-project.iam.gserviceaccount.com",
+        "identityType": "SERVICE_ACCOUNT",
+        "effectiveIdentity": "orders-agent@my-agents-project.iam.gserviceaccount.com",
+        "packageSpec": {"pickleObjectGcsUri": "gs://my-bucket/agent.pkl", "requirementsGcsUri": "gs://my-bucket/requirements.txt", "pythonVersion": "3.12"},
+        "deploymentSpec": {"env": [{"name": "INSTRUCTIONS", "value": "SECRET-PROMPT-MARKER"}]}
+      }
+    }
+  ],
+  "nextPageToken": ""
+}

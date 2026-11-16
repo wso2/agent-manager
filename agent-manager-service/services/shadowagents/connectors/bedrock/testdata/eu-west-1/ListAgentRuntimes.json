@@ -1,0 +1,13 @@
+{
+  "agentRuntimes": [
+    {
+      "agentRuntimeArn": "arn:aws:bedrock-agentcore:eu-west-1:123456789012:runtime/eu_agent-QwErTy1234",
+      "agentRuntimeId": "eu_agent-QwErTy1234",
+      "agentRuntimeName": "eu_agent",
+      "agentRuntimeVersion": "1",
+      "description": "SECRET-PROMPT-MARKER",
+      "lastUpdatedAt": "2026-11-02T10:00:00Z",
+      "status": "READY"
+    }
+  ]
+}

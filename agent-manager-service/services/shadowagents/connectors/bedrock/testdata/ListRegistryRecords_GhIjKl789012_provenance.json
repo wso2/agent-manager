@@ -1,0 +1,33 @@
+{
+  "registryRecords": [
+    {
+      "registryArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012",
+      "recordArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012/record/Rec000000007",
+      "recordId": "Rec000000007",
+      "name": "orders-agent-card",
+      "recordType": "AGENT",
+      "recordVersion": "1.0.0",
+      "status": "APPROVED",
+      "createdAt": "2026-09-01T00:00:00Z",
+      "updatedAt": "2026-09-02T00:00:00Z",
+      "description": "SECRET-PROMPT-MARKER",
+      "provenanceSummaryList": [
+        {"relation": "DETECTED_FROM", "sourceId": "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/orders_mcp-GhIjKl5678", "sourceType": "AWS::BedrockAgentCore::Runtime"}
+      ]
+    },
+    {
+      "registryArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012",
+      "recordArn": "arn:aws:agent-registry:us-east-1:123456789012:registry/GhIjKl789012/record/Rec000000008",
+      "recordId": "Rec000000008",
+      "name": "broken-agent",
+      "recordType": "AGENT",
+      "recordVersion": "1.0.0",
+      "status": "APPROVED",
+      "createdAt": "2026-09-01T00:00:00Z",
+      "updatedAt": "2026-09-02T00:00:00Z",
+      "provenanceSummaryList": [
+        {"relation": "DETECTED_FROM", "sourceId": "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/broken_agent-ZyXwVu9876/runtime-endpoint/DEFAULT"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/support_agent-AbCdEf1234",
+  "agentRuntimeName": "support_agent",
+  "agentRuntimeId": "support_agent-AbCdEf1234",
+  "agentRuntimeVersion": "3",
+  "createdAt": "2026-10-01T09:00:00Z",
+  "lastUpdatedAt": "2026-11-01T10:15:30Z",
+  "roleArn": "arn:aws:iam::123456789012:role/AgentCoreRuntimeRole",
+  "status": "READY",
+  "description": "SECRET-PROMPT-MARKER",
+  "lifecycleConfiguration": {
+    "idleRuntimeSessionTimeout": 900,
+    "maxLifetime": 28800
+  },
+  "networkConfiguration": {
+    "networkMode": "PUBLIC"
+  },
+  "agentRuntimeArtifact": {
+    "containerConfiguration": {
+      "containerUri": "123456789012.dkr.ecr.us-east-1.amazonaws.com/support-agent:latest"
+    }
+  },
+  "protocolConfiguration": {
+    "serverProtocol": "HTTP"
+  },
+  "environmentVariables": {
+    "LOG_LEVEL": "info",
+    "OPENAI_API_KEY": "sk-test-SECRETSECRETSECRET",
+    "SYSTEM_PROMPT": "SECRET-PROMPT-MARKER"
+  },
+  "workloadIdentityDetails": {
+    "workloadIdentityArn": "arn:aws:bedrock-agentcore:us-east-1:123456789012:workload-identity-directory/default/workload-identity/support_agent-AbCdEf1234"
+  }
+}

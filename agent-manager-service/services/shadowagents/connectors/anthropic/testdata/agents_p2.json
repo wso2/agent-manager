@@ -1,0 +1,28 @@
+{
+ "data": [
+  {
+   "id": "agent_03ArchivedAgentXXXXXXXXX",
+   "archived_at": "2026-10-01T00:00:00Z",
+   "created_at": "2026-02-01T10:00:00Z",
+   "description": null,
+   "execution_identity": {
+    "type": "aws_role",
+    "role_arn": "arn:aws:iam::123456789012:role/agent-exec"
+   },
+   "mcp_servers": [],
+   "metadata": {},
+   "model": {
+    "id": "claude-sonnet-5"
+   },
+   "multiagent": null,
+   "name": "Old Agent",
+   "skills": [],
+   "system": null,
+   "tools": [],
+   "type": "agent",
+   "updated_at": "2026-10-01T00:00:00Z",
+   "version": 1
+  }
+ ],
+ "next_page": null
+}

@@ -216,6 +216,13 @@ export const LazyGatewaysOrg = lazy(() =>
   }))
 );
 
+// Shadow Agent Discovery
+export const LazyShadowAgentDiscoveryOrg = lazy(() =>
+  import("@agent-management-platform/shadow-agent-discovery").then((m) => ({
+    default: m.metaData.levels!.organization as ComponentType,
+  }))
+);
+
 // Settings
 export const LazySettingsOrg = lazy(() =>
   import("@agent-management-platform/settings").then((m) => ({
