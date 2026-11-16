@@ -52,6 +52,33 @@ export function providerLabel(p: string): string {
   return PROVIDER_LABELS[p as ShadowProvider] ?? p;
 }
 
+function countOf(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/** What a GitHub or Azure DevOps connection scans: "acme · All repositories · Private". */
+export function sourceScopeLabel(
+  provider: string,
+  settings: Record<string, unknown> | undefined,
+): string {
+  const s = settings ?? {};
+  const listed = (v: unknown) => (Array.isArray(v) ? v.length : 0);
+  const parts = [typeof s.organization === "string" ? s.organization : ""];
+  if (provider === "azure_devops") {
+    parts.push(
+      s.allProjects === true ? "All projects" : countOf(listed(s.projects), "project", "projects"),
+    );
+  } else {
+    parts.push(
+      s.allRepositories === true
+        ? "All repositories"
+        : countOf(listed(s.repositories), "repository", "repositories"),
+      s.privateRepositories === true ? "Private" : "Public",
+    );
+  }
+  return parts.filter(Boolean).join(" · ");
+}
+
 export const KIND_LABELS: Record<ShadowFindingKind, string> = {
   platform_agent: "Agent",
   runtime: "Agent runtime",

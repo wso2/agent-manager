@@ -26,7 +26,7 @@ export type ShadowProvider =
   | "bedrock"
   | "google"
   | "foundry"
-  /** Source repository hosts: real connection test, source code analysis not available yet. */
+  /** Source repository hosts: scanned by the scan command on the customer's machine. */
   | "github"
   | "azure_devops";
 
@@ -130,8 +130,8 @@ export interface ShadowProviderSpec {
   docs: string[];
   credentialChoice?: ShadowCredentialChoice;
   /**
-   * A source repository host (GitHub, Azure DevOps); its source code analysis is
-   * not available yet.
+   * A source repository host (GitHub, Azure DevOps): no credential is stored, and
+   * its repositories are scanned by the scan command on the customer's machine.
    */
   sourceHost?: boolean;
   capabilities: ShadowCapabilitySpec[];

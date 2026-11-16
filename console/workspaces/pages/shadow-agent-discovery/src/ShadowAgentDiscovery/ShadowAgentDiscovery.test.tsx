@@ -608,6 +608,11 @@ describe("RunScanButton", () => {
     unmount();
     hoisted.summary = undefined;
     hoisted.connections = [];
+    const { unmount: unmountEmpty } = router(<RunScanButton orgName="acme" />);
+    expect(screen.getByRole("button", { name: "Run scan" })).toBeDisabled();
+    unmountEmpty();
+    // Source code repositories are scanned by the scan command, not by Run scan.
+    hoisted.connections = [connection({ id: "c2", name: "Repos", provider: "github" })];
     router(<RunScanButton orgName="acme" />);
     expect(screen.getByRole("button", { name: "Run scan" })).toBeDisabled();
   });
@@ -617,19 +622,49 @@ describe("ConnectionsTab (Platforms)", () => {
   const renderTab = () =>
     router(<ConnectionsTab orgName="acme" canManage onAdd={vi.fn()} onEdit={vi.fn()} />);
 
-  it("lists platforms with a Scan action for agent platforms only", () => {
+  it("lists AI platforms and source code repositories in their own sections", () => {
     hoisted.connections = [
       connection(),
-      connection({ id: "c2", name: "Repos", provider: "github" }),
+      connection({
+        id: "c2",
+        name: "Repos",
+        provider: "github",
+        settings: { organization: "acme", allRepositories: true, privateRepositories: true },
+      }),
     ];
     renderTab();
     expect(screen.getByRole("button", { name: "Add platform" })).toBeInTheDocument();
-    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers.slice(0, 2)).toEqual(["Name", "Platform"]);
+    expect(screen.getByText("AI platforms")).toBeInTheDocument();
+    expect(screen.getByText("Source code repositories")).toBeInTheDocument();
+    const [ai, source] = screen.getAllByRole("table");
+    expect(within(ai).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Name",
+      "Platform",
+      "Last test",
+      "Created",
+      "",
+    ]);
+    expect(within(source).getAllByRole("columnheader").map((h) => h.textContent)).toEqual([
+      "Name",
+      "Host",
+      "What it scans",
+      "Created",
+      "",
+    ]);
+    expect(within(source).getByText("acme · All repositories · Private")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Scan OpenAI prod" }));
     expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c1"] });
+    // A source host has no credential to test and no cloud scan.
     expect(screen.queryByRole("button", { name: "Scan Repos" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Test Repos" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Test Repos" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Repos" })).toBeInTheDocument();
+  });
+
+  it("shows only the sections that have platforms", () => {
+    hoisted.connections = [connection()];
+    renderTab();
+    expect(screen.getByText("AI platforms")).toBeInTheDocument();
+    expect(screen.queryByText("Source code repositories")).not.toBeInTheDocument();
   });
 
   it("disables Scan while a scan runs", () => {
@@ -646,12 +681,21 @@ describe("ConnectionsTab (Platforms)", () => {
   });
 
   it("deletes a platform after saying what is removed", () => {
-    hoisted.connections = [connection()];
+    hoisted.connections = [
+      connection(),
+      connection({ id: "c2", name: "Repos", provider: "github" }),
+    ];
     renderTab();
     fireEvent.click(screen.getByRole("button", { name: "Delete OpenAI prod" }));
-    expect(hoisted.addConfirmation).toHaveBeenCalledWith(
+    expect(hoisted.addConfirmation).toHaveBeenLastCalledWith(
       expect.objectContaining({
         description: expect.stringContaining("every agent this platform found"),
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete Repos" }));
+    expect(hoisted.addConfirmation).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        description: expect.stringContaining("Every agent found in these repositories"),
       }),
     );
   });
@@ -754,13 +798,12 @@ describe("AnalyzeSection", () => {
     expect(dialog).toHaveTextContent("Needs: Scan the AWS Agent Registry");
   });
 
-  it("keeps the analysis wording for a source repository host", () => {
-    render(<AnalyzeSection providerName="GitHub" statuses={statuses} preview />);
-    expect(screen.getByText("What can Agent Manager analyze?")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "See what it can analyze" }));
-    expect(screen.getByRole("dialog")).toHaveTextContent(
-      "Source code analysis is not available yet",
-    );
+  it("says what the scan looks for in a source repository host", () => {
+    render(<AnalyzeSection providerName="GitHub" statuses={statuses} sourceHost />);
+    expect(screen.getByText("What does the scan look for?")).toBeInTheDocument();
+    expect(screen.getByText("1 of 2 with these options.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "See what it looks for" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("The scan runs on your machine");
   });
 
   it("renders nothing for a platform without capabilities", () => {

@@ -799,7 +799,7 @@ export function ConnectionEditor({
               list: (providers.data?.providers ?? []).filter((p) => !p.sourceHost),
             },
             {
-              title: "Source repositories",
+              title: "Source code repositories",
               list: (providers.data?.providers ?? []).filter((p) => p.sourceHost),
             },
           ]
@@ -819,7 +819,9 @@ export function ConnectionEditor({
                           <CardContent>
                             <Stack direction="row" spacing={1} alignItems="center">
                               <Typography variant="subtitle1">{p.displayName}</Typography>
-                              {p.sourceHost && <Chip size="small" label="Analysis coming soon" />}
+                              {p.sourceHost && (
+                                <Chip size="small" variant="outlined" label="Runs on your machine" />
+                              )}
                             </Stack>
                             <Typography variant="body2" color="text.secondary">
                               {p.description}
@@ -849,18 +851,32 @@ export function ConnectionEditor({
                   </Button>
                 )}
               </Stack>
+              {spec.sourceHost && (
+                <Alert severity="info">
+                  <Typography variant="body2" fontWeight={500}>
+                    How it works
+                  </Typography>
+                  <Box component="ol" sx={{ m: 0, pl: 2.5 }}>
+                    <li>
+                      Save the organization and repositories here. No token is entered or stored.
+                    </li>
+                    <li>
+                      On the Platforms tab, choose Generate command and decide whether to use AI
+                      review.
+                    </li>
+                    <li>
+                      Run the command in a terminal. It asks for a read-only token when the
+                      repositories are private, scans them on your machine and publishes only the
+                      agents it confirms.
+                    </li>
+                  </Box>
+                </Alert>
+              )}
               <AnalyzeSection
                 providerName={spec.displayName}
                 statuses={statuses}
-                preview={!!spec.sourceHost}
+                sourceHost={!!spec.sourceHost}
               />
-              {spec.sourceHost && (
-                <Alert severity="info">
-                  Source code analysis is not available yet. Test connection checks the{" "}
-                  {draft.values.useEntra === true ? "service principal" : "token"} now, with
-                  read-only calls; scans list this platform as skipped until the analysis is added.
-                </Alert>
-              )}
               <TextInput
                 label="Name"
                 placeholder="e.g. OpenAI production"
@@ -982,9 +998,19 @@ export function ConnectionEditor({
                 <Box>
                   <Typography variant="subtitle1">Endpoints</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    The official endpoints are filled in. Change one only to reach the platform
-                    through a host you trust: the credential is sent to it. Placeholders such as{" "}
-                    {"{region}"} are filled in for each region or location you scan.
+                    {spec.sourceHost ? (
+                      <>
+                        The official endpoint is filled in. Change it only for a server you host,
+                        such as GitHub Enterprise Server: the scan command reads the repositories
+                        from it with your token.
+                      </>
+                    ) : (
+                      <>
+                        The official endpoints are filled in. Change one only to reach the platform
+                        through a host you trust: the credential is sent to it. Placeholders such
+                        as {"{region}"} are filled in for each region or location you scan.
+                      </>
+                    )}
                   </Typography>
                   <Stack spacing={2}>
                     {spec.endpoints

@@ -52,7 +52,13 @@ import type {
   ShadowConnectionResponse,
   ShadowConnectionTest,
 } from "@agent-management-platform/types";
-import { OutcomeChip, providerLabel, SOURCE_HOSTS, unlockLabels } from "../shadowUi";
+import {
+  OutcomeChip,
+  providerLabel,
+  SOURCE_HOSTS,
+  sourceScopeLabel,
+  unlockLabels,
+} from "../shadowUi";
 import { scopedKeyCount } from "../capabilities";
 
 /** The number of keys an OpenAI or Anthropic platform lists agents with. */
@@ -73,21 +79,15 @@ export function ScopedKeysChip({
   );
 }
 
-/** GitHub and Azure DevOps: the credential in use, and that the analysis is not available yet. */
-export function SourceHostChips({ connection }: { connection: ShadowConnectionResponse }) {
-  if (connection.provider !== "github" && connection.provider !== "azure_devops") return null;
-  const entra = connection.provider === "azure_devops" && connection.settings?.useEntra === true;
+/** A section of the Platforms tab, with what scans that kind of platform. */
+function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
-    <>
-      <Chip
-        size="small"
-        variant="outlined"
-        label={entra ? "Entra service principal" : "Personal access token"}
-      />
-      <Tooltip title="Test connection checks the credential now. Scans list this connection as skipped until source code analysis is added.">
-        <Chip size="small" variant="outlined" color="info" label="Analysis coming soon" />
-      </Tooltip>
-    </>
+    <Box>
+      <Typography variant="subtitle1">{title}</Typography>
+      <Typography variant="body2" color="text.secondary">
+        {description}
+      </Typography>
+    </Box>
   );
 }
 
@@ -99,8 +99,9 @@ interface ConnectionsTabProps {
 }
 
 /**
- * The platforms: which accounts are scanned, how their last test went, and
- * a Scan action to scan one platform on its own.
+ * The platforms, in two sections: the AI platforms Agent Manager scans (how
+ * their last test went, and a Scan action to scan one on its own), and the
+ * source code repositories a scan command scans on the customer's machine.
  */
 export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: ConnectionsTabProps) {
   const [search, setSearch] = useState("");
@@ -136,11 +137,15 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
     </Button>
   ) : undefined;
 
+  const aiPlatforms = filtered.filter((c) => !SOURCE_HOSTS.includes(c.provider));
+  const sourceHosts = filtered.filter((c) => SOURCE_HOSTS.includes(c.provider));
+
   const handleDelete = (c: ShadowConnectionResponse) =>
     addConfirmation({
       title: `Delete ${c.name}?`,
-      description:
-        "The stored credential and every agent this platform found are deleted from Agent Manager. The platform account is not changed.",
+      description: SOURCE_HOSTS.includes(c.provider)
+        ? "Every agent found in these repositories is deleted from Agent Manager. The repositories are not changed."
+        : "The stored credential and every agent this platform found are deleted from Agent Manager. The platform account is not changed.",
       confirmButtonText: "Delete",
       confirmButtonColor: "error",
       onConfirm: () => remove.mutate(c.id),
@@ -185,7 +190,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           illustration: <PlugZap size={64} />,
           title: "No platforms added",
           description:
-            "Connect OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry, GitHub or Azure DevOps with a read-only credential.",
+            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, or a GitHub or Azure DevOps organization to scan its source code.",
           action: addButton,
         }}
         searchEmptyState={{
@@ -194,117 +199,199 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           description: "Try another name or platform.",
         }}
       >
-        <ListingTable>
-          <ListingTable.Head>
-            <ListingTable.Row>
-              <ListingTable.Cell>Name</ListingTable.Cell>
-              <ListingTable.Cell>Platform</ListingTable.Cell>
-              <ListingTable.Cell>Last test</ListingTable.Cell>
-              <ListingTable.Cell>Created</ListingTable.Cell>
-              <ListingTable.Cell align="right" />
-            </ListingTable.Row>
-          </ListingTable.Head>
-          <ListingTable.Body>
-            {filtered.map((c) => (
-              <ListingTable.Row key={c.id}>
-                <ListingTable.Cell>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="body2" fontWeight={500}>
-                      {c.name}
-                    </Typography>
-                    {c.endpointWarnings.length > 0 && (
-                      <Tooltip title={c.endpointWarnings.join(". ")}>
-                        <Box
-                          component="span"
-                          aria-label="Custom endpoint"
-                          sx={{ display: "inline-flex", color: "warning.main" }}
+        <Stack spacing={4}>
+          {aiPlatforms.length > 0 && (
+            <Stack spacing={1.5}>
+              <SectionHeading
+                title="AI platforms"
+                description="Agent Manager reads their agent listings with a read-only credential when you run a scan."
+              />
+              <ListingTable>
+                <ListingTable.Head>
+                  <ListingTable.Row>
+                    <ListingTable.Cell>Name</ListingTable.Cell>
+                    <ListingTable.Cell>Platform</ListingTable.Cell>
+                    <ListingTable.Cell>Last test</ListingTable.Cell>
+                    <ListingTable.Cell>Created</ListingTable.Cell>
+                    <ListingTable.Cell align="right" />
+                  </ListingTable.Row>
+                </ListingTable.Head>
+                <ListingTable.Body>
+                  {aiPlatforms.map((c) => (
+                    <ListingTable.Row key={c.id}>
+                      <ListingTable.Cell>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Typography variant="body2" fontWeight={500}>
+                            {c.name}
+                          </Typography>
+                          {c.endpointWarnings.length > 0 && (
+                            <Tooltip title={c.endpointWarnings.join(". ")}>
+                              <Box
+                                component="span"
+                                aria-label="Custom endpoint"
+                                sx={{ display: "inline-flex", color: "warning.main" }}
+                              >
+                                <TriangleAlert size={16} />
+                              </Box>
+                            </Tooltip>
+                          )}
+                        </Stack>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          alignItems="center"
+                          flexWrap="wrap"
+                          useFlexGap
                         >
-                          <TriangleAlert size={16} />
-                        </Box>
-                      </Tooltip>
-                    )}
-                  </Stack>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-                    <Typography variant="body2">{providerLabel(c.provider)}</Typography>
-                    <ScopedKeysChip provider={c.provider} secretHints={c.secretHints} />
-                    <SourceHostChips connection={c} />
-                  </Stack>
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  {c.lastTest ? (
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <OutcomeChip outcome={c.lastTest.ok ? "ok" : "failed"} />
-                      <Typography variant="caption" color="text.secondary">
-                        {c.lastTestedAt ? formatRelativeTime(c.lastTestedAt) : ""}
-                      </Typography>
-                    </Stack>
-                  ) : (
-                    <Typography variant="body2" color="text.secondary">
-                      Not tested
-                    </Typography>
-                  )}
-                </ListingTable.Cell>
-                <ListingTable.Cell>
-                  <Typography variant="body2" color="text.secondary">
-                    {formatRelativeTime(c.createdAt)}
-                  </Typography>
-                </ListingTable.Cell>
-                <ListingTable.Cell align="right">
-                  {canManage && (
-                    <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-                      {!SOURCE_HOSTS.includes(c.provider) && (
-                        <Tooltip title={scanActive ? "A scan is running" : "Scan this platform"}>
-                          <span>
-                            <IconButton
-                              size="small"
-                              aria-label={`Scan ${c.name}`}
-                              disabled={scanActive || scan.isPending}
-                              onClick={() => scan.mutate({ connectionIds: [c.id] })}
+                          <Typography variant="body2">{providerLabel(c.provider)}</Typography>
+                          <ScopedKeysChip provider={c.provider} secretHints={c.secretHints} />
+                        </Stack>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        {c.lastTest ? (
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <OutcomeChip outcome={c.lastTest.ok ? "ok" : "failed"} />
+                            <Typography variant="caption" color="text.secondary">
+                              {c.lastTestedAt ? formatRelativeTime(c.lastTestedAt) : ""}
+                            </Typography>
+                          </Stack>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            Not tested
+                          </Typography>
+                        )}
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatRelativeTime(c.createdAt)}
+                        </Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell align="right">
+                        {canManage && (
+                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                            <Tooltip
+                              title={scanActive ? "A scan is running" : "Scan this platform"}
                             >
-                              <Radar size={18} />
-                            </IconButton>
-                          </span>
-                        </Tooltip>
-                      )}
-                      <Tooltip title="Test connection">
-                        <span>
-                          <IconButton
-                            size="small"
-                            aria-label={`Test ${c.name}`}
-                            disabled={test.isPending}
-                            onClick={() => handleTest(c)}
-                          >
-                            <PlugZap size={18} />
-                          </IconButton>
-                        </span>
-                      </Tooltip>
-                      <Tooltip title="Edit">
-                        <IconButton
-                          size="small"
-                          aria-label={`Edit ${c.name}`}
-                          onClick={() => onEdit(c)}
-                        >
-                          <Pencil size={18} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Delete">
-                        <IconButton
-                          size="small"
-                          aria-label={`Delete ${c.name}`}
-                          onClick={() => handleDelete(c)}
-                        >
-                          <Trash2 size={18} />
-                        </IconButton>
-                      </Tooltip>
-                    </Stack>
-                  )}
-                </ListingTable.Cell>
-              </ListingTable.Row>
-            ))}
-          </ListingTable.Body>
-        </ListingTable>
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  aria-label={`Scan ${c.name}`}
+                                  disabled={scanActive || scan.isPending}
+                                  onClick={() => scan.mutate({ connectionIds: [c.id] })}
+                                >
+                                  <Radar size={18} />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            <Tooltip title="Test connection">
+                              <span>
+                                <IconButton
+                                  size="small"
+                                  aria-label={`Test ${c.name}`}
+                                  disabled={test.isPending}
+                                  onClick={() => handleTest(c)}
+                                >
+                                  <PlugZap size={18} />
+                                </IconButton>
+                              </span>
+                            </Tooltip>
+                            <Tooltip title="Edit">
+                              <IconButton
+                                size="small"
+                                aria-label={`Edit ${c.name}`}
+                                onClick={() => onEdit(c)}
+                              >
+                                <Pencil size={18} />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton
+                                size="small"
+                                aria-label={`Delete ${c.name}`}
+                                onClick={() => handleDelete(c)}
+                              >
+                                <Trash2 size={18} />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        )}
+                      </ListingTable.Cell>
+                    </ListingTable.Row>
+                  ))}
+                </ListingTable.Body>
+              </ListingTable>
+            </Stack>
+          )}
+          {sourceHosts.length > 0 && (
+            <Stack spacing={1.5}>
+              <SectionHeading
+                title="Source code repositories"
+                description="Scanned by a command you run on your machine. No token is stored in Agent Manager."
+              />
+              <ListingTable>
+                <ListingTable.Head>
+                  <ListingTable.Row>
+                    <ListingTable.Cell>Name</ListingTable.Cell>
+                    <ListingTable.Cell>Host</ListingTable.Cell>
+                    <ListingTable.Cell>What it scans</ListingTable.Cell>
+                    <ListingTable.Cell>Created</ListingTable.Cell>
+                    <ListingTable.Cell align="right" />
+                  </ListingTable.Row>
+                </ListingTable.Head>
+                <ListingTable.Body>
+                  {sourceHosts.map((c) => (
+                    <ListingTable.Row key={c.id}>
+                      <ListingTable.Cell>
+                        <Typography variant="body2" fontWeight={500}>
+                          {c.name}
+                        </Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography variant="body2">{providerLabel(c.provider)}</Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography variant="body2">
+                          {sourceScopeLabel(c.provider, c.settings)}
+                        </Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell>
+                        <Typography variant="body2" color="text.secondary">
+                          {formatRelativeTime(c.createdAt)}
+                        </Typography>
+                      </ListingTable.Cell>
+                      <ListingTable.Cell align="right">
+                        {canManage && (
+                          <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                            <Tooltip title="Edit">
+                              <IconButton
+                                size="small"
+                                aria-label={`Edit ${c.name}`}
+                                onClick={() => onEdit(c)}
+                              >
+                                <Pencil size={18} />
+                              </IconButton>
+                            </Tooltip>
+                            <Tooltip title="Delete">
+                              <IconButton
+                                size="small"
+                                aria-label={`Delete ${c.name}`}
+                                onClick={() => handleDelete(c)}
+                              >
+                                <Trash2 size={18} />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
+                        )}
+                      </ListingTable.Cell>
+                    </ListingTable.Row>
+                  ))}
+                </ListingTable.Body>
+              </ListingTable>
+            </Stack>
+          )}
+        </Stack>
       </ResourceListShell>
 
       <Dialog open={!!testResult} onClose={() => setTestResult(null)} maxWidth="sm" fullWidth>

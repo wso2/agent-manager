@@ -33,6 +33,7 @@ import {
   ownerLabel,
   PROVIDER_LABELS,
   SOURCE_HOSTS,
+  sourceScopeLabel,
   STATUS_LABELS,
   unlockLabels,
 } from "./shadowUi";
@@ -233,6 +234,25 @@ describe("labels", () => {
     expect(kindLabel("runtime")).toBe("Agent runtime");
     expect(kindLabel("code_agent", "github")).toBe("Agent in code");
     expect(kindLabel("something")).toBe("something");
+  });
+
+  it("says what a source code connection scans", () => {
+    expect(
+      sourceScopeLabel("github", {
+        organization: "acme",
+        allRepositories: true,
+        privateRepositories: true,
+      }),
+    ).toBe("acme · All repositories · Private");
+    expect(
+      sourceScopeLabel("github", { organization: "acme", repositories: ["payments"] }),
+    ).toBe("acme · 1 repository · Public");
+    expect(sourceScopeLabel("azure_devops", { organization: "contoso", allProjects: true })).toBe(
+      "contoso · All projects",
+    );
+    expect(sourceScopeLabel("azure_devops", { organization: "contoso", projects: ["a", "b"] })).toBe(
+      "contoso · 2 projects",
+    );
   });
 
   it("has only the review statuses, and the five agent platforms", () => {

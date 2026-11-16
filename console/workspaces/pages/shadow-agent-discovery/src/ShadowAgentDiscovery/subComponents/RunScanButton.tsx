@@ -53,10 +53,10 @@ export function RunScanButton({ orgName }: { orgName: string | undefined }) {
   const start = useStartShadowScan(orgName);
   const active = isShadowScanActive(summary.data?.latestScan?.status);
   const all = connections.data?.connections ?? [];
-  // Source repository hosts are not listed for choosing: their scan is
-  // skipped until source code analysis is added.
+  // Source repository hosts are not part of a scan: their repositories are
+  // scanned by the scan command on the customer's machine.
   const choosable = all.filter((c) => !SOURCE_HOSTS.includes(c.provider));
-  const none = all.length === 0;
+  const none = choosable.length === 0;
   const canStart = scope === "all" || selected.length > 0;
 
   const toggle = (id: string) =>
