@@ -65,4 +65,8 @@ func RegisterGatewayInternalRoutes(rr *middleware.RouteRegistrar, ctrl controlle
 	// A2A Agent endpoints. The gateway fetches this after an agent.deployed
 	// event and expects a ZIP containing the Agent YAML.
 	rr.HandleFuncWithValidation("GET /agents/{agentId}", ctrl.GetAgent)
+
+	// The gateway's secret sync: what its deployments' {{ secret "handle" }} placeholders name.
+	rr.HandleFuncWithValidation("GET /secrets", ctrl.GetSecrets)
+	rr.HandleFuncWithValidation("GET /secrets/{handle}/value", ctrl.GetSecretValue)
 }

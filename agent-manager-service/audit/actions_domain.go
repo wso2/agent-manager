@@ -35,6 +35,11 @@ const (
 	// what and when it started.
 	ActionAPIKeySync Action = "api-key:sync"
 
+	// ActionSecretSync and ActionSecretReadValue are a data-plane gateway pulling the upstream credentials its
+	// deployments name. Recorded for the same reason as ActionAPIKeySync; the values never reach a record.
+	ActionSecretSync      Action = "secret:sync"
+	ActionSecretReadValue Action = "secret:read-value"
+
 	ActionGitSecretCreate Action = "git-secret:create"
 	ActionGitSecretDelete Action = "git-secret:delete"
 
@@ -236,6 +241,10 @@ func init() {
 	RegisterDetailSchema(ActionAPIKeySync, map[string]FieldKind{
 		"keyCount": KindCount,
 	})
+	Register(ActionSecretSync, ClassRead, SeverityNotice)
+	RegisterDetailSchema(ActionSecretSync, map[string]FieldKind{})
+	Register(ActionSecretReadValue, ClassRead, SeverityNotice)
+	RegisterDetailSchema(ActionSecretReadValue, map[string]FieldKind{})
 
 	registerCredential(ActionGitSecretCreate, map[string]FieldKind{
 		"secretType": KindEnum,

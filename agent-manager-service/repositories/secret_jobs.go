@@ -59,6 +59,11 @@ func NewSecretJobRunner(db *gorm.DB, vaults *vault.Vaults, logger *slog.Logger) 
 	return &SecretJobRunner{db: db, vaults: vaults, logger: logger}
 }
 
+// ReleaseRetiredGatewaySecrets releases the retired gateway secrets no gateway can still be running a deployment of.
+func (r *SecretJobRunner) ReleaseRetiredGatewaySecrets(ctx context.Context) (int, error) {
+	return ReleaseRetiredGatewaySecrets(ctx, r.db)
+}
+
 // RunOnce claims the jobs due at now and runs them, returning how many it ran and how many failed. err is a failure to
 // claim; a failed job is recorded on it and retried later.
 func (r *SecretJobRunner) RunOnce(ctx context.Context, now time.Time) (ran, failed int, err error) {

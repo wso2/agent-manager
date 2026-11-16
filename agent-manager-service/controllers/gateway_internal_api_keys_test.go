@@ -118,7 +118,7 @@ func newPullFixture(t *testing.T) pullFixture {
 		controller: &gatewayInternalController{
 			gatewayService: gatewayService,
 			gatewayInternalService: services.NewGatewayInternalAPIService(
-				nil, nil, deploymentRepo, nil, gatewayRepo, nil, nil, nil,
+				nil, nil, deploymentRepo, nil, gatewayRepo, nil, nil, nil, nil,
 			),
 		},
 		token:    token.Token,

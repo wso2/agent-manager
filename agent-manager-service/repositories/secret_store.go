@@ -232,6 +232,9 @@ func releaseSecret(tx *gorm.DB, id *uuid.UUID) error {
 	if err != nil {
 		return err
 	}
+	if err := tx.Where("secret_id = ?", row.ID).Delete(&models.GatewaySecretHandle{}).Error; err != nil {
+		return fmt.Errorf("failed to drop the handles of secret %s: %w", row.ID, err)
+	}
 	if err := tx.Where("id = ?", row.ID).Delete(&models.Secret{}).Error; err != nil {
 		return err
 	}

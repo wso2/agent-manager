@@ -29,7 +29,8 @@ import (
 const secretJobInterval = 10 * time.Second
 
 // SecretJobWorker runs the external-vault work the secret store queues once the transaction that queued it commits:
-// promoting new values to the external vault and removing the values they replaced. Jobs survive a restart in the
+// promoting new values to the external vault and removing the values they replaced. It also releases retired gateway
+// secrets once no gateway can still be running a deployment that names them. Jobs survive a restart in the
 // database, so the worker picks up whatever an earlier process left.
 type SecretJobWorker interface {
 	Start(ctx context.Context) error
@@ -89,6 +90,13 @@ func (w *secretJobWorker) runLoop(ctx context.Context) {
 }
 
 func (w *secretJobWorker) RunOnce(ctx context.Context) {
+	// First, so the removals the releases queue run in this pass.
+	released, err := w.runner.ReleaseRetiredGatewaySecrets(ctx)
+	if err != nil {
+		w.logger.Error("Failed to release retired gateway secrets", "error", err)
+	} else if released > 0 {
+		w.logger.Info("Released gateway secrets no deployment uses any more", "released", released)
+	}
 	ran, failed, err := w.runner.RunOnce(ctx, time.Now().UTC())
 	if err != nil {
 		w.logger.Error("Failed to claim secret vault jobs", "error", err)

@@ -223,7 +223,24 @@ Created by migration `002_secret_jobs`, not the baseline, so a database the base
 
 Indexes (available_at, id), (secret_id), (provider, external_ref). A `destroy` job removes nothing a committed row, or a pending promotion, still refers to; it is dropped instead. Every step is safe to repeat.
 
-`llm_providers.upstream_secret_id` and `mcp_proxy_endpoints.upstream_secret_id` hold the main upstream credential: the encrypted `secretRef` form the gateway artifact carries (`spec.upstream.auth.secretRef` for a provider, the backend auth header's `secretRef` in an MCP proxy's policy), sealed again by the vault. Rows saved before the move keep that `secretRef` inline in `configuration` and are rendered from it; a row moves the next time it is saved, in the same transaction, and its inline copy goes then. A build from before the move does not read the secrets table, so rolling back to one needs those credentials entered again.
+`llm_providers.upstream_secret_id` and `mcp_proxy_endpoints.upstream_secret_id` hold the main upstream credential, kept in the secret in its encrypted `secretRef` form. Rows saved before the move keep that `secretRef` inline in `configuration` and are rendered from it, as before; a row moves the next time it is saved, in the same transaction, and its inline copy goes then. A build from before the move does not read the secrets table, so rolling back to one needs those credentials entered again.
+
+A moved credential reaches the gateway through its native secret sync. The artifact carries a `{{ secret "handle" }}` placeholder (`spec.upstream.auth.value` for a provider, the backend auth header's `value` in an MCP proxy's set-headers policy), and the gateway fetches the value from `GET /api/internal/v1/secrets` (with `includeValues=true` on startup, metadata only on reconnect) and `GET /api/internal/v1/secrets/{handle}/value` (for a handle it meets in a deploy event). Both answer only for handles that deployments assigned to the calling gateway, in its organization, name. Artifacts rendered before placeholders existed still carry an encrypted `secretRef`, which AMS resolves when the gateway fetches the artifact.
+
+The gateway resolves a placeholder when it renders a deployment and does not render an active deployment again when a value it holds changes; it only fetches a handle it has not seen. So a handle names one value for good. A new credential is a new secret with a new handle, which changes the artifact, so the gateway applies it as a new deployment revision. The previous secret is retired, and stays readable until no gateway can still be running a deployment that names it: no placement's current deployment names it, and no placement that is between deployments or failed has it in its history. The secret job worker then releases it, which removes an external value after commit as any release does.
+
+### gateway_secret_handles
+
+Created by migration `003_gateway_secret_handles`.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| handle | short text (64) | no | PK. `amp-` and 32 random hex digits; carries no database id. |
+| org_id, secret_id | ID | no | (org_id, secret_id) FK → secrets, no cascade. A release drops the handles first. |
+| retired_at | time | yes | Set when the owner stops using the secret. |
+| created_at | time | no | |
+
+Indexes (secret_id), (org_id, retired_at).
 
 ## Gateways, LLM, MCP and A2A
 

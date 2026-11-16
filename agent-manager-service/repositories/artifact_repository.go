@@ -95,11 +95,12 @@ func (r *ArtifactRepo) Delete(tx *gorm.DB, uuid string) error {
 // upstream secret) and an MCP endpoint's environment binding. Their tables already cascade from their parent, and
 // schema rule 7 allows one cascading key per table, so they go here rather than by a second cascade. It also releases
 // the upstream secrets of an LLM provider and of an MCP proxy's endpoints, whose rows cascade from the artifact.
+// They are retired: a gateway may still be running the artifact until its delete reaches it.
 func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
-	if err := releaseUpstreamSecrets(tx, models.LLMProvider{}.TableName(), "id = ?", artifactID); err != nil {
+	if err := retireUpstreamSecrets(tx, models.LLMProvider{}.TableName(), "id = ?", artifactID); err != nil {
 		return err
 	}
-	if err := releaseUpstreamSecrets(tx, models.MCPProxyEndpoint{}.TableName(), "mcp_proxy_id = ?", artifactID); err != nil {
+	if err := retireUpstreamSecrets(tx, models.MCPProxyEndpoint{}.TableName(), "mcp_proxy_id = ?", artifactID); err != nil {
 		return err
 	}
 	if err := tx.Where("artifact_id = ?", artifactID).Delete(&models.MCPProxyEndpointEnvironment{}).Error; err != nil {
@@ -124,9 +125,9 @@ func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
 	return nil
 }
 
-// releaseUpstreamSecrets clears upstream_secret_id on the rows of table matching where and releases the secrets they
+// retireUpstreamSecrets clears upstream_secret_id on the rows of table matching where and retires the secrets they
 // referred to, so the rows can go without leaving a secret behind.
-func releaseUpstreamSecrets(tx *gorm.DB, table, where string, args ...any) error {
+func retireUpstreamSecrets(tx *gorm.DB, table, where string, args ...any) error {
 	var ids []uuid.UUID
 	if err := tx.Table(table).Where(where, args...).Where("upstream_secret_id IS NOT NULL").
 		Pluck("upstream_secret_id", &ids).Error; err != nil {
@@ -139,7 +140,7 @@ func releaseUpstreamSecrets(tx *gorm.DB, table, where string, args ...any) error
 		return fmt.Errorf("failed to detach %s upstream secrets: %w", table, err)
 	}
 	for i := range ids {
-		if err := releaseSecret(tx, &ids[i]); err != nil {
+		if err := retireSecret(tx, &ids[i]); err != nil {
 			return err
 		}
 	}

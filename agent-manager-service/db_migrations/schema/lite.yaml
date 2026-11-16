@@ -9,6 +9,7 @@
 
 migrations:
   - {id: "002", name: secret_jobs}
+  - {id: "003", name: gateway_secret_handles}
 
 tables:
   # --- Orgs, projects, environments ---------------------------------------------------------
@@ -189,6 +190,23 @@ tables:
       - {name: created_at, type: time}
     primary_key: [id]
     indexes: [[available_at, id], [secret_id], [provider, external_ref]]
+
+  # The handles a gateway artifact names a secret by, in its {{ secret "handle" }} placeholders. A handle names one
+  # value: a new credential gets a new secret and handle, so a gateway re-renders the deployment that names it.
+  # retired_at is set when the owner stops using the secret; the secret is released once no gateway can still be
+  # running a deployment that names the handle.
+  - name: gateway_secret_handles
+    migration: "003"
+    columns:
+      - {name: handle, type: text, size: 64}
+      - {name: org_id, type: id}
+      - {name: secret_id, type: id}
+      - {name: retired_at, type: time, nullable: true}
+      - {name: created_at, type: time}
+    primary_key: [handle]
+    foreign_keys:
+      - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
+    indexes: [[secret_id], [org_id, retired_at]]
 
   # --- Gateways -----------------------------------------------------------------------------
 

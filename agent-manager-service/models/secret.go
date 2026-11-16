@@ -74,3 +74,30 @@ type SecretJob struct {
 }
 
 func (SecretJob) TableName() string { return "secret_jobs" }
+
+// GatewaySecretHandle is the handle a gateway artifact names a secret by, in a {{ secret "handle" }} placeholder.
+// RetiredAt is set once the owner stops using the secret; it is released when no gateway can still be running a
+// deployment that names the handle.
+type GatewaySecretHandle struct {
+	Handle    string     `gorm:"column:handle;primaryKey"`
+	OrgID     string     `gorm:"column:org_id"`
+	SecretID  uuid.UUID  `gorm:"column:secret_id"`
+	RetiredAt *time.Time `gorm:"column:retired_at"`
+	CreatedAt time.Time  `gorm:"column:created_at"`
+}
+
+func (GatewaySecretHandle) TableName() string { return "gateway_secret_handles" }
+
+// GatewaySecretRef is a secret a gateway may read: its handle and what the sync protocol reports about it.
+type GatewaySecretRef struct {
+	Handle    string
+	SecretID  uuid.UUID
+	Version   int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// GatewaySecretPlaceholder is the gateway template expression that resolves to the secret handle names.
+func GatewaySecretPlaceholder(handle string) string {
+	return `{{ secret "` + handle + `" }}`
+}

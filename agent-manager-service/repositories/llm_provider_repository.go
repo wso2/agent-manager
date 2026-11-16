@@ -53,10 +53,11 @@ type LLMProviderRepository interface {
 	// inserts the dependent row (e.g. a proxy), so the check and the insert are
 	// atomic with MarkDeleting's row-locking UPDATE — see LLMProxyRepo.Create.
 	IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, providerUUID uuid.UUID) (bool, error)
-	// ResolveUpstreamAuth puts the stored main upstream credential back into p's configuration as the encrypted
-	// secretRef a gateway artifact carries, reading it through tx (the repository's own connection when nil). A provider saved before credentials moved to the
-	// secrets table already has it inline and is left as it is. Call it only to render an artifact: the credential
-	// must not reach a response.
+	// ResolveUpstreamAuth puts the stored main upstream credential into p's configuration as a gateway artifact
+	// carries it, reading through tx (the repository's own connection when nil): a {{ secret "handle" }} placeholder
+	// in auth.value, or the encrypted secretRef for a secret stored before handles. A provider saved before
+	// credentials moved to the secrets table already has its secretRef inline and is left as it is. Call it only to
+	// render an artifact.
 	ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) error
 }
 
@@ -91,11 +92,11 @@ func providerMainAuth(p *models.LLMProvider) *models.UpstreamAuth {
 	return p.Configuration.Upstream.Main.Auth
 }
 
-// saveUpstreamCredential moves the encrypted credential out of p's configuration into the provider's secret and
-// returns the secret id the row keeps. current is the secret the stored row refers to: it is rewritten with a new
-// credential, and kept when the configuration still has auth but carries no credential, which is how an update that
-// omits the credential reads. The caller releases current when the returned id differs. restore puts the credential
-// back into p once the row is written.
+// saveUpstreamCredential moves the encrypted credential out of p's configuration into a secret and returns the secret
+// id the row keeps. A new credential gets a new secret and gateway handle, so the provider's artifact changes and every
+// gateway renders it again. current is the secret the stored row refers to: it is kept when the configuration still
+// has auth but carries no credential, which is how an update that omits the credential reads. The caller retires
+// current when the returned id differs. restore puts the credential back into p once the row is written.
 func (r *LLMProviderRepo) saveUpstreamCredential(
 	tx *gorm.DB, p *models.LLMProvider, ownerID uuid.UUID, orgUUID string, current *uuid.UUID,
 ) (id *uuid.UUID, restore func(), err error) {
@@ -113,7 +114,7 @@ func (r *LLMProviderRepo) saveUpstreamCredential(
 	if r.secrets == nil {
 		return nil, restore, errNoSecretStore
 	}
-	id, err = r.secrets.put(tx, orgUUID, ownerKindLLMProvider, ownerID, current, *auth.SecretRef)
+	id, err = r.secrets.putGatewaySecret(tx, orgUUID, ownerKindLLMProvider, ownerID, *auth.SecretRef)
 	if err != nil {
 		return nil, restore, fmt.Errorf("failed to store upstream credential: %w", err)
 	}
@@ -137,16 +138,9 @@ func (r *LLMProviderRepo) ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, 
 	if tx == nil {
 		tx = r.db
 	}
-	value, found, err := r.secrets.Read(ctx, tx, *p.UpstreamSecretID)
-	if err != nil {
-		return fmt.Errorf("failed to read upstream credential of provider %s: %w", p.UUID, err)
+	if err := r.secrets.resolveGatewayAuth(ctx, tx, *p.UpstreamSecretID, auth); err != nil {
+		return fmt.Errorf("failed to resolve upstream credential of provider %s: %w", p.UUID, err)
 	}
-	if !found {
-		return fmt.Errorf("upstream credential of provider %s is missing", p.UUID)
-	}
-	ref := string(value)
-	auth.SecretRef = &ref
-	auth.Value = nil
 	return nil
 }
 
@@ -336,10 +330,10 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 			return gorm.ErrRecordNotFound
 		}
 		p.UpstreamSecretID = secretID
-		// A removed credential leaves its secret unreferenced; a replaced one was rewritten in place.
+		// A replaced or removed credential stays readable until no gateway can still be running a deployment of it.
 		if stored.UpstreamSecretID != nil && (secretID == nil || *secretID != *stored.UpstreamSecretID) {
-			if err := releaseSecret(tx, stored.UpstreamSecretID); err != nil {
-				return fmt.Errorf("failed to release upstream credential: %w", err)
+			if err := retireSecret(tx, stored.UpstreamSecretID); err != nil {
+				return fmt.Errorf("failed to retire upstream credential: %w", err)
 			}
 		}
 
@@ -492,8 +486,8 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 		slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)
 		return err
 	}
-	if err := releaseSecret(tx, stored.UpstreamSecretID); err != nil {
-		return fmt.Errorf("failed to release upstream credential: %w", err)
+	if err := retireSecret(tx, stored.UpstreamSecretID); err != nil {
+		return fmt.Errorf("failed to retire upstream credential: %w", err)
 	}
 
 	// Delete from artifacts

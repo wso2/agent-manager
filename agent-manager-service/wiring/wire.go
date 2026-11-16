@@ -255,6 +255,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideLLMProxyRepository,
 	ProvideMCPProxyRepository,
 	repositories.NewMCPProxyEndpointRepository,
+	repositories.NewGatewaySecretRepository,
 	ProvideDeploymentRepository,
 	ProvidePlatformAgentExposureRepository,
 	ProvideA2AAgentCardRepository,

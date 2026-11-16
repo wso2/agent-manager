@@ -38,11 +38,12 @@ type MCPProxyEndpointRepository interface {
 	// moves into a new secret; with none, a set UpstreamSecretID takes over that secret, which keeps an omitted
 	// credential across a replacement of the endpoint rows.
 	CreateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
-	// UpdateEndpoint rewrites the endpoint. A new credential rewrites its secret, auth with no credential keeps it, and
-	// no auth releases it.
+	// UpdateEndpoint rewrites the endpoint. Auth with no credential keeps its secret; a new credential, or no auth,
+	// retires it.
 	UpdateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
-	// DeleteEndpoint deletes the endpoint and releases its upstream secret, unless that secret is in keepSecrets: an
-	// endpoint created next in the same transaction takes it over.
+	// DeleteEndpoint deletes the endpoint and retires its upstream secret, unless that secret is in keepSecrets: an
+	// endpoint created next in the same transaction takes it over. A retired secret stays readable until no gateway can
+	// still be running a deployment that names it.
 	DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, keepSecrets ...uuid.UUID) error
 	// ResolveUpstreamAuth puts the stored upstream credential back into the endpoint's configuration as the encrypted
 	// secretRef a gateway artifact carries, reading it through tx (the repository's own connection when nil). An endpoint created before credentials moved to the
@@ -87,8 +88,8 @@ func endpointAuth(endpoint *models.MCPProxyEndpoint) *models.UpstreamAuth {
 }
 
 // saveUpstreamCredential moves the encrypted credential out of the endpoint's configuration into a secret and returns
-// the id the row keeps. current is the secret the row refers to: a new credential rewrites it, auth without a
-// credential keeps it, and no auth drops it (the caller releases it). restore puts the credential back into the
+// the id the row keeps. A new credential gets a new secret and gateway handle. current is the secret the row refers
+// to: auth without a credential keeps it, and a new credential or no auth drops it (the caller retires it). restore puts the credential back into the
 // endpoint once the row is written.
 func (r *mcpProxyEndpointRepository) saveUpstreamCredential(
 	tx *gorm.DB, endpoint *models.MCPProxyEndpoint, orgID string, current *uuid.UUID,
@@ -107,7 +108,7 @@ func (r *mcpProxyEndpointRepository) saveUpstreamCredential(
 	if r.secrets == nil {
 		return nil, restore, errNoSecretStore
 	}
-	id, err = r.secrets.put(tx, orgID, ownerKindMCPEndpoint, endpoint.UUID, current, *auth.SecretRef)
+	id, err = r.secrets.putGatewaySecret(tx, orgID, ownerKindMCPEndpoint, endpoint.UUID, *auth.SecretRef)
 	if err != nil {
 		return nil, restore, fmt.Errorf("failed to store MCP upstream credential: %w", err)
 	}
@@ -152,8 +153,8 @@ func (r *mcpProxyEndpointRepository) CreateEndpoint(ctx context.Context, tx *gor
 		}
 	} else if adopted != nil {
 		// The caller kept the secret for this endpoint, which no longer refers to it.
-		if err := releaseSecret(db, adopted); err != nil {
-			return fmt.Errorf("failed to release MCP upstream credential: %w", err)
+		if err := retireSecret(db, adopted); err != nil {
+			return fmt.Errorf("failed to retire MCP upstream credential: %w", err)
 		}
 	}
 	return nil
@@ -190,8 +191,8 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 	}
 	endpoint.UpstreamSecretID = secretID
 	if stored.UpstreamSecretID != nil && (secretID == nil || *secretID != *stored.UpstreamSecretID) {
-		if err := releaseSecret(db, stored.UpstreamSecretID); err != nil {
-			return fmt.Errorf("failed to release MCP upstream credential: %w", err)
+		if err := retireSecret(db, stored.UpstreamSecretID); err != nil {
+			return fmt.Errorf("failed to retire MCP upstream credential: %w", err)
 		}
 	}
 	return nil
@@ -214,8 +215,8 @@ func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gor
 		return gorm.ErrRecordNotFound
 	}
 	if stored.UpstreamSecretID != nil && !slices.Contains(keepSecrets, *stored.UpstreamSecretID) {
-		if err := releaseSecret(db, stored.UpstreamSecretID); err != nil {
-			return fmt.Errorf("failed to release MCP upstream credential: %w", err)
+		if err := retireSecret(db, stored.UpstreamSecretID); err != nil {
+			return fmt.Errorf("failed to retire MCP upstream credential: %w", err)
 		}
 	}
 	return nil
@@ -235,16 +236,9 @@ func (r *mcpProxyEndpointRepository) ResolveUpstreamAuth(ctx context.Context, tx
 	if tx == nil {
 		tx = r.db
 	}
-	value, found, err := r.secrets.Read(ctx, tx, *endpoint.UpstreamSecretID)
-	if err != nil {
-		return fmt.Errorf("failed to read upstream credential of MCP proxy endpoint %s: %w", endpoint.UUID, err)
+	if err := r.secrets.resolveGatewayAuth(ctx, tx, *endpoint.UpstreamSecretID, auth); err != nil {
+		return fmt.Errorf("failed to resolve upstream credential of MCP proxy endpoint %s: %w", endpoint.UUID, err)
 	}
-	if !found {
-		return fmt.Errorf("upstream credential of MCP proxy endpoint %s is missing", endpoint.UUID)
-	}
-	ref := string(value)
-	auth.SecretRef = &ref
-	auth.Value = nil
 	return nil
 }
 
