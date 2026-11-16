@@ -1146,6 +1146,65 @@ type ClientInterface interface {
 	// RevokeSelfHostedGatewayToken request
 	RevokeSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListShadowConnections request
+	ListShadowConnections(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateShadowConnectionWithBody request with any body
+	CreateShadowConnectionWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateShadowConnection(ctx context.Context, orgName string, body CreateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteShadowConnection request
+	DeleteShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetShadowConnection request
+	GetShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateShadowConnectionWithBody request with any body
+	UpdateShadowConnectionWithBody(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// TestShadowConnection request
+	TestShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteShadowFindings request
+	DeleteShadowFindings(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListShadowFindings request
+	ListShadowFindings(ctx context.Context, orgName string, params *ListShadowFindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteShadowFinding request
+	DeleteShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetShadowFinding request
+	GetShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateShadowFindingWithBody request with any body
+	UpdateShadowFindingWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	UpdateShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListShadowAgentProviders request
+	ListShadowAgentProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ClearShadowScans request
+	ClearShadowScans(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListShadowScans request
+	ListShadowScans(ctx context.Context, orgName string, params *ListShadowScansParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateShadowScanWithBody request with any body
+	CreateShadowScanWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	CreateShadowScan(ctx context.Context, orgName string, body CreateShadowScanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetShadowScan request
+	GetShadowScan(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetShadowAgentSummary request
+	GetShadowAgentSummary(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// CheckThunderUrlAvailability request
 	CheckThunderUrlAvailability(ctx context.Context, orgName string, params *CheckThunderUrlAvailabilityParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -5770,6 +5829,258 @@ func (c *Client) CreateSelfHostedGatewayToken(ctx context.Context, orgName strin
 
 func (c *Client) RevokeSelfHostedGatewayToken(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRevokeSelfHostedGatewayTokenRequest(c.Server, orgName, gatewayID, tokenID)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListShadowConnections(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListShadowConnectionsRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateShadowConnectionWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateShadowConnectionRequestWithBody(c.Server, orgName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateShadowConnection(ctx context.Context, orgName string, body CreateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateShadowConnectionRequest(c.Server, orgName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteShadowConnectionRequest(c.Server, orgName, connectionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetShadowConnectionRequest(c.Server, orgName, connectionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateShadowConnectionWithBody(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateShadowConnectionRequestWithBody(c.Server, orgName, connectionId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateShadowConnectionRequest(c.Server, orgName, connectionId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) TestShadowConnection(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewTestShadowConnectionRequest(c.Server, orgName, connectionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteShadowFindings(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteShadowFindingsRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListShadowFindings(ctx context.Context, orgName string, params *ListShadowFindingsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListShadowFindingsRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) DeleteShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteShadowFindingRequest(c.Server, orgName, findingId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetShadowFindingRequest(c.Server, orgName, findingId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateShadowFindingWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateShadowFindingRequestWithBody(c.Server, orgName, findingId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) UpdateShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateShadowFindingRequest(c.Server, orgName, findingId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListShadowAgentProviders(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListShadowAgentProvidersRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ClearShadowScans(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewClearShadowScansRequest(c.Server, orgName)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) ListShadowScans(ctx context.Context, orgName string, params *ListShadowScansParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListShadowScansRequest(c.Server, orgName, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateShadowScanWithBody(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateShadowScanRequestWithBody(c.Server, orgName, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) CreateShadowScan(ctx context.Context, orgName string, body CreateShadowScanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateShadowScanRequest(c.Server, orgName, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetShadowScan(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetShadowScanRequest(c.Server, orgName, scanId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetShadowAgentSummary(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetShadowAgentSummaryRequest(c.Server, orgName)
 	if err != nil {
 		return nil, err
 	}
@@ -22477,6 +22788,832 @@ func NewRevokeSelfHostedGatewayTokenRequest(server string, orgName string, gatew
 	return req, nil
 }
 
+// NewListShadowConnectionsRequest generates requests for ListShadowConnections
+func NewListShadowConnectionsRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/connections", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateShadowConnectionRequest calls the generic CreateShadowConnection builder with application/json body
+func NewCreateShadowConnectionRequest(server string, orgName string, body CreateShadowConnectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateShadowConnectionRequestWithBody(server, orgName, "application/json", bodyReader)
+}
+
+// NewCreateShadowConnectionRequestWithBody generates requests for CreateShadowConnection with any type of body
+func NewCreateShadowConnectionRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/connections", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewDeleteShadowConnectionRequest generates requests for DeleteShadowConnection
+func NewDeleteShadowConnectionRequest(server string, orgName string, connectionId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/connections/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetShadowConnectionRequest generates requests for GetShadowConnection
+func NewGetShadowConnectionRequest(server string, orgName string, connectionId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/connections/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateShadowConnectionRequest calls the generic UpdateShadowConnection builder with application/json body
+func NewUpdateShadowConnectionRequest(server string, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateShadowConnectionRequestWithBody(server, orgName, connectionId, "application/json", bodyReader)
+}
+
+// NewUpdateShadowConnectionRequestWithBody generates requests for UpdateShadowConnection with any type of body
+func NewUpdateShadowConnectionRequestWithBody(server string, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/connections/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewTestShadowConnectionRequest generates requests for TestShadowConnection
+func NewTestShadowConnectionRequest(server string, orgName string, connectionId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/connections/%s/test", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteShadowFindingsRequest generates requests for DeleteShadowFindings
+func NewDeleteShadowFindingsRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/findings", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListShadowFindingsRequest generates requests for ListShadowFindings
+func NewListShadowFindingsRequest(server string, orgName string, params *ListShadowFindingsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/findings", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Provider != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "provider", *params.Provider, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Status != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "status", *params.Status, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ConnectionId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "connectionId", *params.ConnectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.ScanId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "scanId", *params.ScanId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Search != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "search", *params.Search, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		if params.Offset != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "offset", *params.Offset, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewDeleteShadowFindingRequest generates requests for DeleteShadowFinding
+func NewDeleteShadowFindingRequest(server string, orgName string, findingId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "findingId", findingId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/findings/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetShadowFindingRequest generates requests for GetShadowFinding
+func NewGetShadowFindingRequest(server string, orgName string, findingId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "findingId", findingId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/findings/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUpdateShadowFindingRequest calls the generic UpdateShadowFinding builder with application/json body
+func NewUpdateShadowFindingRequest(server string, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateShadowFindingRequestWithBody(server, orgName, findingId, "application/json", bodyReader)
+}
+
+// NewUpdateShadowFindingRequestWithBody generates requests for UpdateShadowFinding with any type of body
+func NewUpdateShadowFindingRequestWithBody(server string, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "findingId", findingId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/findings/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PATCH", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListShadowAgentProvidersRequest generates requests for ListShadowAgentProviders
+func NewListShadowAgentProvidersRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/providers", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewClearShadowScansRequest generates requests for ClearShadowScans
+func NewClearShadowScansRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/scans", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewListShadowScansRequest generates requests for ListShadowScans
+func NewListShadowScansRequest(server string, orgName string, params *ListShadowScansParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/scans", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewCreateShadowScanRequest calls the generic CreateShadowScan builder with application/json body
+func NewCreateShadowScanRequest(server string, orgName string, body CreateShadowScanJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateShadowScanRequestWithBody(server, orgName, "application/json", bodyReader)
+}
+
+// NewCreateShadowScanRequestWithBody generates requests for CreateShadowScan with any type of body
+func NewCreateShadowScanRequestWithBody(server string, orgName string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/scans", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewGetShadowScanRequest generates requests for GetShadowScan
+func NewGetShadowScanRequest(server string, orgName string, scanId openapi_types.UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "scanId", scanId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/scans/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetShadowAgentSummaryRequest generates requests for GetShadowAgentSummary
+func NewGetShadowAgentSummaryRequest(server string, orgName string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/summary", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewCheckThunderUrlAvailabilityRequest generates requests for CheckThunderUrlAvailability
 func NewCheckThunderUrlAvailabilityRequest(server string, orgName string, params *CheckThunderUrlAvailabilityParams) (*http.Request, error) {
 	var err error
@@ -23714,6 +24851,65 @@ type ClientWithResponsesInterface interface {
 
 	// RevokeSelfHostedGatewayTokenWithResponse request
 	RevokeSelfHostedGatewayTokenWithResponse(ctx context.Context, orgName string, gatewayID openapi_types.UUID, tokenID string, reqEditors ...RequestEditorFn) (*RevokeSelfHostedGatewayTokenResp, error)
+
+	// ListShadowConnectionsWithResponse request
+	ListShadowConnectionsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListShadowConnectionsResp, error)
+
+	// CreateShadowConnectionWithBodyWithResponse request with any body
+	CreateShadowConnectionWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateShadowConnectionResp, error)
+
+	CreateShadowConnectionWithResponse(ctx context.Context, orgName string, body CreateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateShadowConnectionResp, error)
+
+	// DeleteShadowConnectionWithResponse request
+	DeleteShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteShadowConnectionResp, error)
+
+	// GetShadowConnectionWithResponse request
+	GetShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowConnectionResp, error)
+
+	// UpdateShadowConnectionWithBodyWithResponse request with any body
+	UpdateShadowConnectionWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateShadowConnectionResp, error)
+
+	UpdateShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateShadowConnectionResp, error)
+
+	// TestShadowConnectionWithResponse request
+	TestShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*TestShadowConnectionResp, error)
+
+	// DeleteShadowFindingsWithResponse request
+	DeleteShadowFindingsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*DeleteShadowFindingsResp, error)
+
+	// ListShadowFindingsWithResponse request
+	ListShadowFindingsWithResponse(ctx context.Context, orgName string, params *ListShadowFindingsParams, reqEditors ...RequestEditorFn) (*ListShadowFindingsResp, error)
+
+	// DeleteShadowFindingWithResponse request
+	DeleteShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteShadowFindingResp, error)
+
+	// GetShadowFindingWithResponse request
+	GetShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowFindingResp, error)
+
+	// UpdateShadowFindingWithBodyWithResponse request with any body
+	UpdateShadowFindingWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateShadowFindingResp, error)
+
+	UpdateShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateShadowFindingResp, error)
+
+	// ListShadowAgentProvidersWithResponse request
+	ListShadowAgentProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListShadowAgentProvidersResp, error)
+
+	// ClearShadowScansWithResponse request
+	ClearShadowScansWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ClearShadowScansResp, error)
+
+	// ListShadowScansWithResponse request
+	ListShadowScansWithResponse(ctx context.Context, orgName string, params *ListShadowScansParams, reqEditors ...RequestEditorFn) (*ListShadowScansResp, error)
+
+	// CreateShadowScanWithBodyWithResponse request with any body
+	CreateShadowScanWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateShadowScanResp, error)
+
+	CreateShadowScanWithResponse(ctx context.Context, orgName string, body CreateShadowScanJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateShadowScanResp, error)
+
+	// GetShadowScanWithResponse request
+	GetShadowScanWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowScanResp, error)
+
+	// GetShadowAgentSummaryWithResponse request
+	GetShadowAgentSummaryWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*GetShadowAgentSummaryResp, error)
 
 	// CheckThunderUrlAvailabilityWithResponse request
 	CheckThunderUrlAvailabilityWithResponse(ctx context.Context, orgName string, params *CheckThunderUrlAvailabilityParams, reqEditors ...RequestEditorFn) (*CheckThunderUrlAvailabilityResp, error)
@@ -30854,6 +32050,411 @@ func (r RevokeSelfHostedGatewayTokenResp) StatusCode() int {
 	return 0
 }
 
+type ListShadowConnectionsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowConnectionListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListShadowConnectionsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListShadowConnectionsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateShadowConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON201      *ShadowConnectionResponse
+	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateShadowConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateShadowConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteShadowConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteShadowConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteShadowConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetShadowConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowConnectionResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetShadowConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetShadowConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateShadowConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowConnectionResponse
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateShadowConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateShadowConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type TestShadowConnectionResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowConnectionTest
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r TestShadowConnectionResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r TestShadowConnectionResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteShadowFindingsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowFindingClearResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteShadowFindingsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteShadowFindingsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListShadowFindingsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowFindingListResponse
+	JSON400      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListShadowFindingsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListShadowFindingsResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type DeleteShadowFindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteShadowFindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteShadowFindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetShadowFindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowFindingDetail
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetShadowFindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetShadowFindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type UpdateShadowFindingResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowFindingDetail
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateShadowFindingResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateShadowFindingResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListShadowAgentProvidersResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowProviderListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListShadowAgentProvidersResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListShadowAgentProvidersResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ClearShadowScansResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowScanClearResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ClearShadowScansResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ClearShadowScansResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type ListShadowScansResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowScanListResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r ListShadowScansResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListShadowScansResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type CreateShadowScanResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON202      *ShadowScanResponse
+	JSON400      *ErrorResponse
+	JSON409      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateShadowScanResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateShadowScanResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetShadowScanResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowScanResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetShadowScanResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetShadowScanResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetShadowAgentSummaryResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowAgentSummary
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetShadowAgentSummaryResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetShadowAgentSummaryResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type CheckThunderUrlAvailabilityResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -34294,6 +35895,191 @@ func (c *ClientWithResponses) RevokeSelfHostedGatewayTokenWithResponse(ctx conte
 		return nil, err
 	}
 	return ParseRevokeSelfHostedGatewayTokenResp(rsp)
+}
+
+// ListShadowConnectionsWithResponse request returning *ListShadowConnectionsResp
+func (c *ClientWithResponses) ListShadowConnectionsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListShadowConnectionsResp, error) {
+	rsp, err := c.ListShadowConnections(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListShadowConnectionsResp(rsp)
+}
+
+// CreateShadowConnectionWithBodyWithResponse request with arbitrary body returning *CreateShadowConnectionResp
+func (c *ClientWithResponses) CreateShadowConnectionWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateShadowConnectionResp, error) {
+	rsp, err := c.CreateShadowConnectionWithBody(ctx, orgName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateShadowConnectionResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateShadowConnectionWithResponse(ctx context.Context, orgName string, body CreateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateShadowConnectionResp, error) {
+	rsp, err := c.CreateShadowConnection(ctx, orgName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateShadowConnectionResp(rsp)
+}
+
+// DeleteShadowConnectionWithResponse request returning *DeleteShadowConnectionResp
+func (c *ClientWithResponses) DeleteShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteShadowConnectionResp, error) {
+	rsp, err := c.DeleteShadowConnection(ctx, orgName, connectionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteShadowConnectionResp(rsp)
+}
+
+// GetShadowConnectionWithResponse request returning *GetShadowConnectionResp
+func (c *ClientWithResponses) GetShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowConnectionResp, error) {
+	rsp, err := c.GetShadowConnection(ctx, orgName, connectionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetShadowConnectionResp(rsp)
+}
+
+// UpdateShadowConnectionWithBodyWithResponse request with arbitrary body returning *UpdateShadowConnectionResp
+func (c *ClientWithResponses) UpdateShadowConnectionWithBodyWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateShadowConnectionResp, error) {
+	rsp, err := c.UpdateShadowConnectionWithBody(ctx, orgName, connectionId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateShadowConnectionResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, body UpdateShadowConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateShadowConnectionResp, error) {
+	rsp, err := c.UpdateShadowConnection(ctx, orgName, connectionId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateShadowConnectionResp(rsp)
+}
+
+// TestShadowConnectionWithResponse request returning *TestShadowConnectionResp
+func (c *ClientWithResponses) TestShadowConnectionWithResponse(ctx context.Context, orgName string, connectionId openapi_types.UUID, reqEditors ...RequestEditorFn) (*TestShadowConnectionResp, error) {
+	rsp, err := c.TestShadowConnection(ctx, orgName, connectionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseTestShadowConnectionResp(rsp)
+}
+
+// DeleteShadowFindingsWithResponse request returning *DeleteShadowFindingsResp
+func (c *ClientWithResponses) DeleteShadowFindingsWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*DeleteShadowFindingsResp, error) {
+	rsp, err := c.DeleteShadowFindings(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteShadowFindingsResp(rsp)
+}
+
+// ListShadowFindingsWithResponse request returning *ListShadowFindingsResp
+func (c *ClientWithResponses) ListShadowFindingsWithResponse(ctx context.Context, orgName string, params *ListShadowFindingsParams, reqEditors ...RequestEditorFn) (*ListShadowFindingsResp, error) {
+	rsp, err := c.ListShadowFindings(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListShadowFindingsResp(rsp)
+}
+
+// DeleteShadowFindingWithResponse request returning *DeleteShadowFindingResp
+func (c *ClientWithResponses) DeleteShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*DeleteShadowFindingResp, error) {
+	rsp, err := c.DeleteShadowFinding(ctx, orgName, findingId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseDeleteShadowFindingResp(rsp)
+}
+
+// GetShadowFindingWithResponse request returning *GetShadowFindingResp
+func (c *ClientWithResponses) GetShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowFindingResp, error) {
+	rsp, err := c.GetShadowFinding(ctx, orgName, findingId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetShadowFindingResp(rsp)
+}
+
+// UpdateShadowFindingWithBodyWithResponse request with arbitrary body returning *UpdateShadowFindingResp
+func (c *ClientWithResponses) UpdateShadowFindingWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateShadowFindingResp, error) {
+	rsp, err := c.UpdateShadowFindingWithBody(ctx, orgName, findingId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateShadowFindingResp(rsp)
+}
+
+func (c *ClientWithResponses) UpdateShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body UpdateShadowFindingJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateShadowFindingResp, error) {
+	rsp, err := c.UpdateShadowFinding(ctx, orgName, findingId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateShadowFindingResp(rsp)
+}
+
+// ListShadowAgentProvidersWithResponse request returning *ListShadowAgentProvidersResp
+func (c *ClientWithResponses) ListShadowAgentProvidersWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ListShadowAgentProvidersResp, error) {
+	rsp, err := c.ListShadowAgentProviders(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListShadowAgentProvidersResp(rsp)
+}
+
+// ClearShadowScansWithResponse request returning *ClearShadowScansResp
+func (c *ClientWithResponses) ClearShadowScansWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*ClearShadowScansResp, error) {
+	rsp, err := c.ClearShadowScans(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseClearShadowScansResp(rsp)
+}
+
+// ListShadowScansWithResponse request returning *ListShadowScansResp
+func (c *ClientWithResponses) ListShadowScansWithResponse(ctx context.Context, orgName string, params *ListShadowScansParams, reqEditors ...RequestEditorFn) (*ListShadowScansResp, error) {
+	rsp, err := c.ListShadowScans(ctx, orgName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListShadowScansResp(rsp)
+}
+
+// CreateShadowScanWithBodyWithResponse request with arbitrary body returning *CreateShadowScanResp
+func (c *ClientWithResponses) CreateShadowScanWithBodyWithResponse(ctx context.Context, orgName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateShadowScanResp, error) {
+	rsp, err := c.CreateShadowScanWithBody(ctx, orgName, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateShadowScanResp(rsp)
+}
+
+func (c *ClientWithResponses) CreateShadowScanWithResponse(ctx context.Context, orgName string, body CreateShadowScanJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateShadowScanResp, error) {
+	rsp, err := c.CreateShadowScan(ctx, orgName, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCreateShadowScanResp(rsp)
+}
+
+// GetShadowScanWithResponse request returning *GetShadowScanResp
+func (c *ClientWithResponses) GetShadowScanWithResponse(ctx context.Context, orgName string, scanId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowScanResp, error) {
+	rsp, err := c.GetShadowScan(ctx, orgName, scanId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetShadowScanResp(rsp)
+}
+
+// GetShadowAgentSummaryWithResponse request returning *GetShadowAgentSummaryResp
+func (c *ClientWithResponses) GetShadowAgentSummaryWithResponse(ctx context.Context, orgName string, reqEditors ...RequestEditorFn) (*GetShadowAgentSummaryResp, error) {
+	rsp, err := c.GetShadowAgentSummary(ctx, orgName, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetShadowAgentSummaryResp(rsp)
 }
 
 // CheckThunderUrlAvailabilityWithResponse request returning *CheckThunderUrlAvailabilityResp
@@ -47485,6 +49271,665 @@ func ParseRevokeSelfHostedGatewayTokenResp(rsp *http.Response) (*RevokeSelfHoste
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListShadowConnectionsResp parses an HTTP response from a ListShadowConnectionsWithResponse call
+func ParseListShadowConnectionsResp(rsp *http.Response) (*ListShadowConnectionsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListShadowConnectionsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowConnectionListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateShadowConnectionResp parses an HTTP response from a CreateShadowConnectionWithResponse call
+func ParseCreateShadowConnectionResp(rsp *http.Response) (*CreateShadowConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateShadowConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ShadowConnectionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteShadowConnectionResp parses an HTTP response from a DeleteShadowConnectionWithResponse call
+func ParseDeleteShadowConnectionResp(rsp *http.Response) (*DeleteShadowConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteShadowConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetShadowConnectionResp parses an HTTP response from a GetShadowConnectionWithResponse call
+func ParseGetShadowConnectionResp(rsp *http.Response) (*GetShadowConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetShadowConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowConnectionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateShadowConnectionResp parses an HTTP response from a UpdateShadowConnectionWithResponse call
+func ParseUpdateShadowConnectionResp(rsp *http.Response) (*UpdateShadowConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateShadowConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowConnectionResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseTestShadowConnectionResp parses an HTTP response from a TestShadowConnectionWithResponse call
+func ParseTestShadowConnectionResp(rsp *http.Response) (*TestShadowConnectionResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &TestShadowConnectionResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowConnectionTest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteShadowFindingsResp parses an HTTP response from a DeleteShadowFindingsWithResponse call
+func ParseDeleteShadowFindingsResp(rsp *http.Response) (*DeleteShadowFindingsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteShadowFindingsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowFindingClearResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListShadowFindingsResp parses an HTTP response from a ListShadowFindingsWithResponse call
+func ParseListShadowFindingsResp(rsp *http.Response) (*ListShadowFindingsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListShadowFindingsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowFindingListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseDeleteShadowFindingResp parses an HTTP response from a DeleteShadowFindingWithResponse call
+func ParseDeleteShadowFindingResp(rsp *http.Response) (*DeleteShadowFindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &DeleteShadowFindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetShadowFindingResp parses an HTTP response from a GetShadowFindingWithResponse call
+func ParseGetShadowFindingResp(rsp *http.Response) (*GetShadowFindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetShadowFindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowFindingDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateShadowFindingResp parses an HTTP response from a UpdateShadowFindingWithResponse call
+func ParseUpdateShadowFindingResp(rsp *http.Response) (*UpdateShadowFindingResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateShadowFindingResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowFindingDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListShadowAgentProvidersResp parses an HTTP response from a ListShadowAgentProvidersWithResponse call
+func ParseListShadowAgentProvidersResp(rsp *http.Response) (*ListShadowAgentProvidersResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListShadowAgentProvidersResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowProviderListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseClearShadowScansResp parses an HTTP response from a ClearShadowScansWithResponse call
+func ParseClearShadowScansResp(rsp *http.Response) (*ClearShadowScansResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ClearShadowScansResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowScanClearResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListShadowScansResp parses an HTTP response from a ListShadowScansWithResponse call
+func ParseListShadowScansResp(rsp *http.Response) (*ListShadowScansResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListShadowScansResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowScanListResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCreateShadowScanResp parses an HTTP response from a CreateShadowScanWithResponse call
+func ParseCreateShadowScanResp(rsp *http.Response) (*CreateShadowScanResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CreateShadowScanResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest ShadowScanResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetShadowScanResp parses an HTTP response from a GetShadowScanWithResponse call
+func ParseGetShadowScanResp(rsp *http.Response) (*GetShadowScanResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetShadowScanResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowScanResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetShadowAgentSummaryResp parses an HTTP response from a GetShadowAgentSummaryWithResponse call
+func ParseGetShadowAgentSummaryResp(rsp *http.Response) (*GetShadowAgentSummaryResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetShadowAgentSummaryResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowAgentSummary
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest ErrorResponse

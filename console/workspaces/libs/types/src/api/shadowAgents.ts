@@ -30,7 +30,10 @@ export type ShadowProvider =
   | "github"
   | "azure_devops";
 
-/** runtime: an AgentCore runtime or a Google Agent Runtime engine; platform_agent: any other agent object. */
+/**
+ * runtime: an AgentCore runtime or a Google Agent Runtime engine;
+ * platform_agent: any other agent object.
+ */
 export type ShadowFindingKind = "platform_agent" | "runtime";
 
 export type ShadowFindingStatus = "new" | "reviewed" | "dismissed";
@@ -118,7 +121,10 @@ export interface ShadowProviderSpec {
   permissions: ShadowPermissionSpec[];
   docs: string[];
   credentialChoice?: ShadowCredentialChoice;
-  /** A source repository host (GitHub, Azure DevOps); its source code analysis is not available yet. */
+  /**
+   * A source repository host (GitHub, Azure DevOps); its source code analysis is
+   * not available yet.
+   */
   sourceHost?: boolean;
   capabilities: ShadowCapabilitySpec[];
 }

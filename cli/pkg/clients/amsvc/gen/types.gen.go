@@ -1516,6 +1516,264 @@ func (e SelfHostedGatewayRequestFunctionalityType) Valid() bool {
 	}
 }
 
+// Defines values for ShadowConnectionRequestProvider.
+const (
+	ShadowConnectionRequestProviderAnthropic   ShadowConnectionRequestProvider = "anthropic"
+	ShadowConnectionRequestProviderAzureDevops ShadowConnectionRequestProvider = "azure_devops"
+	ShadowConnectionRequestProviderBedrock     ShadowConnectionRequestProvider = "bedrock"
+	ShadowConnectionRequestProviderFoundry     ShadowConnectionRequestProvider = "foundry"
+	ShadowConnectionRequestProviderGithub      ShadowConnectionRequestProvider = "github"
+	ShadowConnectionRequestProviderGoogle      ShadowConnectionRequestProvider = "google"
+	ShadowConnectionRequestProviderOpenai      ShadowConnectionRequestProvider = "openai"
+)
+
+// Valid indicates whether the value is a known member of the ShadowConnectionRequestProvider enum.
+func (e ShadowConnectionRequestProvider) Valid() bool {
+	switch e {
+	case ShadowConnectionRequestProviderAnthropic:
+		return true
+	case ShadowConnectionRequestProviderAzureDevops:
+		return true
+	case ShadowConnectionRequestProviderBedrock:
+		return true
+	case ShadowConnectionRequestProviderFoundry:
+		return true
+	case ShadowConnectionRequestProviderGithub:
+		return true
+	case ShadowConnectionRequestProviderGoogle:
+		return true
+	case ShadowConnectionRequestProviderOpenai:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowFieldSpecKind.
+const (
+	Checkbox ShadowFieldSpecKind = "checkbox"
+	KeyMap   ShadowFieldSpecKind = "key_map"
+	List     ShadowFieldSpecKind = "list"
+	Secret   ShadowFieldSpecKind = "secret"
+	Text     ShadowFieldSpecKind = "text"
+	Textarea ShadowFieldSpecKind = "textarea"
+)
+
+// Valid indicates whether the value is a known member of the ShadowFieldSpecKind enum.
+func (e ShadowFieldSpecKind) Valid() bool {
+	switch e {
+	case Checkbox:
+		return true
+	case KeyMap:
+		return true
+	case List:
+		return true
+	case Secret:
+		return true
+	case Text:
+		return true
+	case Textarea:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowFindingDetailKind.
+const (
+	ShadowFindingDetailKindPlatformAgent ShadowFindingDetailKind = "platform_agent"
+	ShadowFindingDetailKindRuntime       ShadowFindingDetailKind = "runtime"
+)
+
+// Valid indicates whether the value is a known member of the ShadowFindingDetailKind enum.
+func (e ShadowFindingDetailKind) Valid() bool {
+	switch e {
+	case ShadowFindingDetailKindPlatformAgent:
+		return true
+	case ShadowFindingDetailKindRuntime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowFindingDetailStatus.
+const (
+	ShadowFindingDetailStatusDismissed ShadowFindingDetailStatus = "dismissed"
+	ShadowFindingDetailStatusNew       ShadowFindingDetailStatus = "new"
+	ShadowFindingDetailStatusReviewed  ShadowFindingDetailStatus = "reviewed"
+)
+
+// Valid indicates whether the value is a known member of the ShadowFindingDetailStatus enum.
+func (e ShadowFindingDetailStatus) Valid() bool {
+	switch e {
+	case ShadowFindingDetailStatusDismissed:
+		return true
+	case ShadowFindingDetailStatusNew:
+		return true
+	case ShadowFindingDetailStatusReviewed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowFindingSummaryKind.
+const (
+	ShadowFindingSummaryKindPlatformAgent ShadowFindingSummaryKind = "platform_agent"
+	ShadowFindingSummaryKindRuntime       ShadowFindingSummaryKind = "runtime"
+)
+
+// Valid indicates whether the value is a known member of the ShadowFindingSummaryKind enum.
+func (e ShadowFindingSummaryKind) Valid() bool {
+	switch e {
+	case ShadowFindingSummaryKindPlatformAgent:
+		return true
+	case ShadowFindingSummaryKindRuntime:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowFindingSummaryStatus.
+const (
+	ShadowFindingSummaryStatusDismissed ShadowFindingSummaryStatus = "dismissed"
+	ShadowFindingSummaryStatusNew       ShadowFindingSummaryStatus = "new"
+	ShadowFindingSummaryStatusReviewed  ShadowFindingSummaryStatus = "reviewed"
+)
+
+// Valid indicates whether the value is a known member of the ShadowFindingSummaryStatus enum.
+func (e ShadowFindingSummaryStatus) Valid() bool {
+	switch e {
+	case ShadowFindingSummaryStatusDismissed:
+		return true
+	case ShadowFindingSummaryStatusNew:
+		return true
+	case ShadowFindingSummaryStatusReviewed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowFindingUpdateRequestStatus.
+const (
+	Dismissed ShadowFindingUpdateRequestStatus = "dismissed"
+	New       ShadowFindingUpdateRequestStatus = "new"
+	Reviewed  ShadowFindingUpdateRequestStatus = "reviewed"
+)
+
+// Valid indicates whether the value is a known member of the ShadowFindingUpdateRequestStatus enum.
+func (e ShadowFindingUpdateRequestStatus) Valid() bool {
+	switch e {
+	case Dismissed:
+		return true
+	case New:
+		return true
+	case Reviewed:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowProviderSpecProvider.
+const (
+	ShadowProviderSpecProviderAnthropic   ShadowProviderSpecProvider = "anthropic"
+	ShadowProviderSpecProviderAzureDevops ShadowProviderSpecProvider = "azure_devops"
+	ShadowProviderSpecProviderBedrock     ShadowProviderSpecProvider = "bedrock"
+	ShadowProviderSpecProviderFoundry     ShadowProviderSpecProvider = "foundry"
+	ShadowProviderSpecProviderGithub      ShadowProviderSpecProvider = "github"
+	ShadowProviderSpecProviderGoogle      ShadowProviderSpecProvider = "google"
+	ShadowProviderSpecProviderOpenai      ShadowProviderSpecProvider = "openai"
+)
+
+// Valid indicates whether the value is a known member of the ShadowProviderSpecProvider enum.
+func (e ShadowProviderSpecProvider) Valid() bool {
+	switch e {
+	case ShadowProviderSpecProviderAnthropic:
+		return true
+	case ShadowProviderSpecProviderAzureDevops:
+		return true
+	case ShadowProviderSpecProviderBedrock:
+		return true
+	case ShadowProviderSpecProviderFoundry:
+		return true
+	case ShadowProviderSpecProviderGithub:
+		return true
+	case ShadowProviderSpecProviderGoogle:
+		return true
+	case ShadowProviderSpecProviderOpenai:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowScanCallResultOutcome.
+const (
+	ShadowScanCallResultOutcomeAuthFailed          ShadowScanCallResultOutcome = "auth_failed"
+	ShadowScanCallResultOutcomeFailed              ShadowScanCallResultOutcome = "failed"
+	ShadowScanCallResultOutcomeNotFound            ShadowScanCallResultOutcome = "not_found"
+	ShadowScanCallResultOutcomeOk                  ShadowScanCallResultOutcome = "ok"
+	ShadowScanCallResultOutcomePermissionDenied    ShadowScanCallResultOutcome = "permission_denied"
+	ShadowScanCallResultOutcomeRateLimited         ShadowScanCallResultOutcome = "rate_limited"
+	ShadowScanCallResultOutcomeSkipped             ShadowScanCallResultOutcome = "skipped"
+	ShadowScanCallResultOutcomeUnsupportedResponse ShadowScanCallResultOutcome = "unsupported_response"
+)
+
+// Valid indicates whether the value is a known member of the ShadowScanCallResultOutcome enum.
+func (e ShadowScanCallResultOutcome) Valid() bool {
+	switch e {
+	case ShadowScanCallResultOutcomeAuthFailed:
+		return true
+	case ShadowScanCallResultOutcomeFailed:
+		return true
+	case ShadowScanCallResultOutcomeNotFound:
+		return true
+	case ShadowScanCallResultOutcomeOk:
+		return true
+	case ShadowScanCallResultOutcomePermissionDenied:
+		return true
+	case ShadowScanCallResultOutcomeRateLimited:
+		return true
+	case ShadowScanCallResultOutcomeSkipped:
+		return true
+	case ShadowScanCallResultOutcomeUnsupportedResponse:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ShadowScanResponseStatus.
+const (
+	ShadowScanResponseStatusFailed    ShadowScanResponseStatus = "failed"
+	ShadowScanResponseStatusPartial   ShadowScanResponseStatus = "partial"
+	ShadowScanResponseStatusQueued    ShadowScanResponseStatus = "queued"
+	ShadowScanResponseStatusRunning   ShadowScanResponseStatus = "running"
+	ShadowScanResponseStatusSucceeded ShadowScanResponseStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the ShadowScanResponseStatus enum.
+func (e ShadowScanResponseStatus) Valid() bool {
+	switch e {
+	case ShadowScanResponseStatusFailed:
+		return true
+	case ShadowScanResponseStatusPartial:
+		return true
+	case ShadowScanResponseStatusQueued:
+		return true
+	case ShadowScanResponseStatusRunning:
+		return true
+	case ShadowScanResponseStatusSucceeded:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateDeploymentStateRequestState.
 const (
 	UpdateDeploymentStateRequestStateActive   UpdateDeploymentStateRequestState = "Active"
@@ -6406,6 +6664,406 @@ type SetAgentCardSourceRequest struct {
 	Url string `json:"url"`
 }
 
+// ShadowAgentSummary defines model for ShadowAgentSummary.
+type ShadowAgentSummary struct {
+	ByProvider  map[string]int      `json:"byProvider"`
+	ByStatus    map[string]int      `json:"byStatus"`
+	Connections int                 `json:"connections"`
+	LatestScan  *ShadowScanResponse `json:"latestScan,omitempty"`
+
+	// TotalFindings The agents found that their platforms still list, each agent once.
+	TotalFindings int `json:"totalFindings"`
+}
+
+// ShadowCapabilitySpec defines model for ShadowCapabilitySpec.
+type ShadowCapabilitySpec struct {
+	Description string `json:"description"`
+	Key         string `json:"key"`
+
+	// Needs Field or option keys that must all be present (a credential set, a key map with at least one key, or a ticked checkbox) for the scan to list this.
+	Needs []string `json:"needs"`
+
+	// Signals Evidence codes this capability can produce.
+	Signals []string `json:"signals"`
+	Title   string   `json:"title"`
+}
+
+// ShadowConnectionCheck defines model for ShadowConnectionCheck.
+type ShadowConnectionCheck struct {
+	Message *string `json:"message,omitempty"`
+	Name    string  `json:"name"`
+	Outcome string  `json:"outcome"`
+
+	// Unlocks The evidence this call provides, so a failed check says which agents a scan would miss.
+	Unlocks *[]string `json:"unlocks,omitempty"`
+}
+
+// ShadowConnectionListResponse defines model for ShadowConnectionListResponse.
+type ShadowConnectionListResponse struct {
+	Connections []ShadowConnectionResponse `json:"connections"`
+}
+
+// ShadowConnectionRequest defines model for ShadowConnectionRequest.
+type ShadowConnectionRequest struct {
+	// Endpoints Base URL per endpoint key; missing keys use the official default.
+	Endpoints *map[string]string              `json:"endpoints,omitempty"`
+	Name      string                          `json:"name"`
+	Provider  ShadowConnectionRequestProvider `json:"provider"`
+
+	// RemoveSecrets On update, optional secret fields whose stored value is removed (for example the AWS session token). Required secrets cannot be removed.
+	RemoveSecrets *[]string `json:"removeSecrets,omitempty"`
+
+	// Settings Field values by the platform's field keys (see ShadowFieldSpec). Secret fields are write-only; on update an empty or missing secret keeps the stored one.
+	Settings map[string]interface{} `json:"settings"`
+}
+
+// ShadowConnectionRequestProvider defines model for ShadowConnectionRequest.Provider.
+type ShadowConnectionRequestProvider string
+
+// ShadowConnectionResponse defines model for ShadowConnectionResponse.
+type ShadowConnectionResponse struct {
+	CreatedAt time.Time `json:"createdAt"`
+	CreatedBy string    `json:"createdBy"`
+
+	// EndpointWarnings Endpoints whose host is not an official host of the platform.
+	EndpointWarnings []string              `json:"endpointWarnings"`
+	Endpoints        map[string]string     `json:"endpoints"`
+	Id               openapi_types.UUID    `json:"id"`
+	LastTest         *ShadowConnectionTest `json:"lastTest,omitempty"`
+	LastTestedAt     *time.Time            `json:"lastTestedAt,omitempty"`
+	Name             string                `json:"name"`
+	Provider         string                `json:"provider"`
+
+	// SecretHints A redacted hint per stored secret field (e.g. "sk-a…wxyz"); values are never returned.
+	SecretHints map[string]string `json:"secretHints"`
+
+	// Settings The non-secret field values.
+	Settings  map[string]interface{} `json:"settings"`
+	UpdatedAt time.Time              `json:"updatedAt"`
+}
+
+// ShadowConnectionTest defines model for ShadowConnectionTest.
+type ShadowConnectionTest struct {
+	Checks []ShadowConnectionCheck `json:"checks"`
+	Ok     bool                    `json:"ok"`
+}
+
+// ShadowCredentialChoice At least one of these fields must hold a credential (a value, or a stored secret).
+type ShadowCredentialChoice struct {
+	Fields  []string `json:"fields"`
+	Message string   `json:"message"`
+}
+
+// ShadowEndpointSpec defines model for ShadowEndpointSpec.
+type ShadowEndpointSpec struct {
+	// Advanced An endpoint the console keeps behind the "Advanced configuration" button.
+	Advanced *bool `json:"advanced,omitempty"`
+
+	// Default The official base URL, or the official pattern with placeholders such as {region}.
+	Default string `json:"default"`
+
+	// FillExclude Items of fillFrom the endpoint is not used for.
+	FillExclude *[]string `json:"fillExclude,omitempty"`
+
+	// FillFrom For an endpoint with one placeholder: the list field whose items fill it (e.g. regions). The URL of one value can be replaced; it is stored under the endpoint key "<key>@<value>".
+	FillFrom *string `json:"fillFrom,omitempty"`
+
+	// FillValues Fixed values that fill the placeholder, instead of fillFrom.
+	FillValues *[]string `json:"fillValues,omitempty"`
+	Key        string    `json:"key"`
+	Label      string    `json:"label"`
+
+	// Option The checkbox that enables this endpoint, if any.
+	Option       *string  `json:"option,omitempty"`
+	Placeholders []string `json:"placeholders"`
+}
+
+// ShadowFieldSpec defines model for ShadowFieldSpec.
+type ShadowFieldSpec struct {
+	// Advanced An optional setting the console keeps behind an "Advanced configuration" button.
+	Advanced    *bool               `json:"advanced,omitempty"`
+	DefaultBool *bool               `json:"defaultBool,omitempty"`
+	Help        *string             `json:"help,omitempty"`
+	Key         string              `json:"key"`
+	Kind        ShadowFieldSpecKind `json:"kind"`
+	Label       string              `json:"label"`
+
+	// Option The checkbox that shows this field, if any; "!key" shows it while the checkbox is not ticked. A required field is required only while it is shown.
+	Option      *string `json:"option,omitempty"`
+	Placeholder *string `json:"placeholder,omitempty"`
+
+	// Recommended The field is optional but recommended.
+	Recommended *bool `json:"recommended,omitempty"`
+	Required    bool  `json:"required"`
+
+	// Section A heading the field is shown under, for example "Services to scan".
+	Section *string `json:"section,omitempty"`
+}
+
+// ShadowFieldSpecKind defines model for ShadowFieldSpec.Kind.
+type ShadowFieldSpecKind string
+
+// ShadowFindingClearResponse defines model for ShadowFindingClearResponse.
+type ShadowFindingClearResponse struct {
+	// Deleted How many agents were deleted.
+	Deleted int32 `json:"deleted"`
+}
+
+// ShadowFindingDetail defines model for ShadowFindingDetail.
+type ShadowFindingDetail struct {
+	// Attributes What the platform's agent listing reports about the agent (allow-listed fields only).
+	Attributes     map[string]interface{} `json:"attributes"`
+	ConnectionId   openapi_types.UUID     `json:"connectionId"`
+	ConnectionName string                 `json:"connectionName"`
+	DisplayName    string                 `json:"displayName"`
+
+	// ExternalId The platform's own ID of the agent (agent ID, ARN or resource name).
+	ExternalId  string    `json:"externalId"`
+	FirstSeenAt time.Time `json:"firstSeenAt"`
+
+	// FoundBy Every connection that found this agent.
+	FoundBy []ShadowFindingSource `json:"foundBy"`
+	Id      openapi_types.UUID    `json:"id"`
+
+	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+	Kind       ShadowFindingDetailKind `json:"kind"`
+	LastSeenAt time.Time               `json:"lastSeenAt"`
+
+	// OwnerHint Who created the agent, only when its platform's agent listing says so (minimised personal data).
+	OwnerHint ShadowOwnerHint `json:"ownerHint"`
+
+	// Present False once a complete listing of its connection no longer returns the agent.
+	Present           bool       `json:"present"`
+	Provider          string     `json:"provider"`
+	ProviderCreatedAt *time.Time `json:"providerCreatedAt,omitempty"`
+
+	// Related Agents on other platforms that may be the same agent.
+	Related []ShadowFindingRelation `json:"related"`
+
+	// Scope Where the agent lives at the platform (project, workspace, region or location).
+	Scope string `json:"scope"`
+
+	// Signals The evidence, one entry per listing that returned the agent.
+	Signals []ShadowFindingSignal `json:"signals"`
+
+	// State The agent's state as its platform reports it.
+	State  string                    `json:"state"`
+	Status ShadowFindingDetailStatus `json:"status"`
+}
+
+// ShadowFindingDetailKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+type ShadowFindingDetailKind string
+
+// ShadowFindingDetailStatus defines model for ShadowFindingDetail.Status.
+type ShadowFindingDetailStatus string
+
+// ShadowFindingListResponse defines model for ShadowFindingListResponse.
+type ShadowFindingListResponse struct {
+	Findings []ShadowFindingSummary `json:"findings"`
+	Limit    int                    `json:"limit"`
+	Offset   int                    `json:"offset"`
+	Total    int                    `json:"total"`
+}
+
+// ShadowFindingRelation defines model for ShadowFindingRelation.
+type ShadowFindingRelation struct {
+	DisplayName *string `json:"displayName,omitempty"`
+	FindingId   string  `json:"findingId"`
+	Provider    *string `json:"provider,omitempty"`
+	Reason      *string `json:"reason,omitempty"`
+	Relation    string  `json:"relation"`
+}
+
+// ShadowFindingSignal Evidence that a platform lists the agent.
+type ShadowFindingSignal struct {
+	Code       string                 `json:"code"`
+	Condition  string                 `json:"condition"`
+	DetectedAt time.Time              `json:"detectedAt"`
+	Name       string                 `json:"name"`
+	Observed   map[string]interface{} `json:"observed"`
+	Source     string                 `json:"source"`
+}
+
+// ShadowFindingSource defines model for ShadowFindingSource.
+type ShadowFindingSource struct {
+	ConnectionId   openapi_types.UUID `json:"connectionId"`
+	ConnectionName string             `json:"connectionName"`
+	FindingId      openapi_types.UUID `json:"findingId"`
+	Present        bool               `json:"present"`
+}
+
+// ShadowFindingSummary One agent a platform lists. When several connections found the same agent, this is its finding in the connection that saw it last, and foundBy lists every connection.
+type ShadowFindingSummary struct {
+	ConnectionId   openapi_types.UUID `json:"connectionId"`
+	ConnectionName string             `json:"connectionName"`
+	DisplayName    string             `json:"displayName"`
+
+	// ExternalId The platform's own ID of the agent (agent ID, ARN or resource name).
+	ExternalId  string    `json:"externalId"`
+	FirstSeenAt time.Time `json:"firstSeenAt"`
+
+	// FoundBy Every connection that found this agent.
+	FoundBy []ShadowFindingSource `json:"foundBy"`
+	Id      openapi_types.UUID    `json:"id"`
+
+	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+	Kind       ShadowFindingSummaryKind `json:"kind"`
+	LastSeenAt time.Time                `json:"lastSeenAt"`
+
+	// OwnerHint Who created the agent, only when its platform's agent listing says so (minimised personal data).
+	OwnerHint ShadowOwnerHint `json:"ownerHint"`
+
+	// Present False once a complete listing of its connection no longer returns the agent.
+	Present           bool       `json:"present"`
+	Provider          string     `json:"provider"`
+	ProviderCreatedAt *time.Time `json:"providerCreatedAt,omitempty"`
+
+	// Scope Where the agent lives at the platform (project, workspace, region or location).
+	Scope string `json:"scope"`
+
+	// State The agent's state as its platform reports it.
+	State  string                     `json:"state"`
+	Status ShadowFindingSummaryStatus `json:"status"`
+}
+
+// ShadowFindingSummaryKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+type ShadowFindingSummaryKind string
+
+// ShadowFindingSummaryStatus defines model for ShadowFindingSummary.Status.
+type ShadowFindingSummaryStatus string
+
+// ShadowFindingUpdateRequest defines model for ShadowFindingUpdateRequest.
+type ShadowFindingUpdateRequest struct {
+	Status ShadowFindingUpdateRequestStatus `json:"status"`
+}
+
+// ShadowFindingUpdateRequestStatus defines model for ShadowFindingUpdateRequest.Status.
+type ShadowFindingUpdateRequestStatus string
+
+// ShadowOwnerHint Who created the agent, only when its platform's agent listing says so (minimised personal data).
+type ShadowOwnerHint struct {
+	CreatedAt *time.Time `json:"createdAt,omitempty"`
+	Email     *string    `json:"email,omitempty"`
+	Name      *string    `json:"name,omitempty"`
+	Source    *string    `json:"source,omitempty"`
+	Type      *string    `json:"type,omitempty"`
+	Username  *string    `json:"username,omitempty"`
+}
+
+// ShadowPermissionSpec defines model for ShadowPermissionSpec.
+type ShadowPermissionSpec struct {
+	// Items How to create it and the permissions it needs.
+	Items []string `json:"items"`
+	Note  *string  `json:"note,omitempty"`
+
+	// Policy A ready-to-use role or policy document.
+	Policy *string `json:"policy,omitempty"`
+
+	// Reads What Agent Manager reads with it.
+	Reads *[]string `json:"reads,omitempty"`
+
+	// Summary In one or two plain sentences, what Agent Manager does with this credential or source.
+	Summary *string `json:"summary,omitempty"`
+	Title   string  `json:"title"`
+}
+
+// ShadowProviderListResponse defines model for ShadowProviderListResponse.
+type ShadowProviderListResponse struct {
+	Providers []ShadowProviderSpec `json:"providers"`
+
+	// Signals The evidence definitions, one per agent listing.
+	Signals []ShadowSignalDefinition `json:"signals"`
+}
+
+// ShadowProviderSpec defines model for ShadowProviderSpec.
+type ShadowProviderSpec struct {
+	// Capabilities What a scan lists, and the fields or options each capability needs.
+	Capabilities []ShadowCapabilitySpec `json:"capabilities"`
+
+	// CredentialChoice At least one of these fields must hold a credential (a value, or a stored secret).
+	CredentialChoice *ShadowCredentialChoice    `json:"credentialChoice,omitempty"`
+	Description      string                     `json:"description"`
+	DisplayName      string                     `json:"displayName"`
+	Docs             []string                   `json:"docs"`
+	Endpoints        []ShadowEndpointSpec       `json:"endpoints"`
+	Fields           []ShadowFieldSpec          `json:"fields"`
+	Permissions      []ShadowPermissionSpec     `json:"permissions"`
+	Provider         ShadowProviderSpecProvider `json:"provider"`
+
+	// SourceHost A source repository host (GitHub, Azure DevOps). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
+	SourceHost *bool `json:"sourceHost,omitempty"`
+}
+
+// ShadowProviderSpecProvider defines model for ShadowProviderSpec.Provider.
+type ShadowProviderSpecProvider string
+
+// ShadowScanCallResult defines model for ShadowScanCallResult.
+type ShadowScanCallResult struct {
+	Call    string                      `json:"call"`
+	Items   int                         `json:"items"`
+	Message *string                     `json:"message,omitempty"`
+	Outcome ShadowScanCallResultOutcome `json:"outcome"`
+}
+
+// ShadowScanCallResultOutcome defines model for ShadowScanCallResult.Outcome.
+type ShadowScanCallResultOutcome string
+
+// ShadowScanClearResponse defines model for ShadowScanClearResponse.
+type ShadowScanClearResponse struct {
+	// Deleted How many scans were deleted.
+	Deleted int32 `json:"deleted"`
+}
+
+// ShadowScanConnectionResult defines model for ShadowScanConnectionResult.
+type ShadowScanConnectionResult struct {
+	Calls          []ShadowScanCallResult `json:"calls"`
+	ConnectionId   string                 `json:"connectionId"`
+	ConnectionName string                 `json:"connectionName"`
+	FindingsCount  int                    `json:"findingsCount"`
+	Message        *string                `json:"message,omitempty"`
+	Outcome        string                 `json:"outcome"`
+	Provider       string                 `json:"provider"`
+}
+
+// ShadowScanListResponse defines model for ShadowScanListResponse.
+type ShadowScanListResponse struct {
+	Scans []ShadowScanResponse `json:"scans"`
+}
+
+// ShadowScanRequest defines model for ShadowScanRequest.
+type ShadowScanRequest struct {
+	// ConnectionIds Connections to scan; all of the organization's when empty.
+	ConnectionIds *[]openapi_types.UUID `json:"connectionIds,omitempty"`
+}
+
+// ShadowScanResponse defines model for ShadowScanResponse.
+type ShadowScanResponse struct {
+	ConnectionIds []string  `json:"connectionIds"`
+	CreatedAt     time.Time `json:"createdAt"`
+
+	// FindingsCount Agents found, counted per connection.
+	FindingsCount int                          `json:"findingsCount"`
+	FinishedAt    *time.Time                   `json:"finishedAt,omitempty"`
+	Id            openapi_types.UUID           `json:"id"`
+	RequestedBy   string                       `json:"requestedBy"`
+	Results       []ShadowScanConnectionResult `json:"results"`
+	StartedAt     *time.Time                   `json:"startedAt,omitempty"`
+	Status        ShadowScanResponseStatus     `json:"status"`
+}
+
+// ShadowScanResponseStatus defines model for ShadowScanResponse.Status.
+type ShadowScanResponseStatus string
+
+// ShadowSignalDefinition One kind of evidence that a platform lists an agent.
+type ShadowSignalDefinition struct {
+	Code string `json:"code"`
+
+	// Condition The listing call and the exact condition, in the platform's official field names.
+	Condition string `json:"condition"`
+	Name      string `json:"name"`
+	Provider  string `json:"provider"`
+}
+
 // StoredAPIKey defines model for StoredAPIKey.
 type StoredAPIKey struct {
 	// ArtifactUuid UUID of the artifact this key is bound to.
@@ -7711,6 +8369,31 @@ type ListSelfHostedGatewaysParams struct {
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
+// ListShadowFindingsParams defines parameters for ListShadowFindings.
+type ListShadowFindingsParams struct {
+	// Provider Filter by platform
+	Provider *string `form:"provider,omitempty" json:"provider,omitempty"`
+
+	// Status Filter by review status
+	Status *string `form:"status,omitempty" json:"status,omitempty"`
+
+	// ConnectionId Filter by connection
+	ConnectionId *string `form:"connectionId,omitempty" json:"connectionId,omitempty"`
+
+	// ScanId Keep the agents this scan found
+	ScanId *openapi_types.UUID `form:"scanId,omitempty" json:"scanId,omitempty"`
+
+	// Search Match the name, platform ID or scope
+	Search *string `form:"search,omitempty" json:"search,omitempty"`
+	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
+	Offset *int    `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// ListShadowScansParams defines parameters for ListShadowScans.
+type ListShadowScansParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
 // CheckThunderUrlAvailabilityParams defines parameters for CheckThunderUrlAvailability.
 type CheckThunderUrlAvailabilityParams struct {
 	// Handle The candidate env-Thunder URL handle to check.
@@ -8013,6 +8696,18 @@ type RegisterSelfHostedGatewayJSONRequestBody = SelfHostedGatewayRequest
 
 // UpdateSelfHostedGatewayJSONRequestBody defines body for UpdateSelfHostedGateway for application/json ContentType.
 type UpdateSelfHostedGatewayJSONRequestBody = SelfHostedGatewayUpdateRequest
+
+// CreateShadowConnectionJSONRequestBody defines body for CreateShadowConnection for application/json ContentType.
+type CreateShadowConnectionJSONRequestBody = ShadowConnectionRequest
+
+// UpdateShadowConnectionJSONRequestBody defines body for UpdateShadowConnection for application/json ContentType.
+type UpdateShadowConnectionJSONRequestBody = ShadowConnectionRequest
+
+// UpdateShadowFindingJSONRequestBody defines body for UpdateShadowFinding for application/json ContentType.
+type UpdateShadowFindingJSONRequestBody = ShadowFindingUpdateRequest
+
+// CreateShadowScanJSONRequestBody defines body for CreateShadowScan for application/json ContentType.
+type CreateShadowScanJSONRequestBody = ShadowScanRequest
 
 // GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
 type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
