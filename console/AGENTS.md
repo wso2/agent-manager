@@ -10,7 +10,7 @@ For the Oxygen UI component library itself (theming, which components exist, imp
 |---|---|---|
 | `apps/web-ui/` | `web-ui` | App entry, Vite config, runtime `config.js`, router mount |
 | `workspaces/core-ui/` | `@…/am-core-ui` | Provider stack, routing, layout, page registry |
-| `workspaces/libs/api-client/` | `@…/api-client` | **All** API fetch fns + TanStack Query hooks |
+| `workspaces/libs/api-client/` | `@…/api-client` | **All** API fetch fns + TanStack Query hooks, grouped by API topic into `src/<module>/` |
 | `workspaces/libs/auth/` | `@…/auth` | Auth-mode switch (Asgardeo vs no-auth) |
 | `workspaces/libs/types/` | `@…/types` | Shared types, `globalConfig`, route maps |
 | `workspaces/libs/views/` | `@…/views` | UI primitives (PageLayout, FormElements, SnackBar) |
@@ -42,9 +42,9 @@ pnpm run test-watch      # vitest watch
 
 ## Golden path: add an API-backed feature
 
-1. **Add the fetch fn** in `libs/api-client/src/apis/<resource>.ts`.
-2. **Add the hook** in `libs/api-client/src/hooks/<resource>.ts`.
-3. **Export** both from the package's `apis/index.ts` / `hooks/index.ts`.
+1. **Pick the module** by what the API call is about, not by which page calls it: `libs/api-client/src/<module>/`, one of `acp-core` (orgs, projects, agents, identities, events, config), `agent-runtime` (builds, deployments, environments, pipelines, agent configs), `ai-gateway` (gateways, LLM providers, MCP proxies, guardrails, API keys), `ai-observability` (traces, logs, metrics, monitors, evaluators), `agent-identity`, `agent-portal`. Environment calls live in `agent-runtime` even though many pages use them.
+2. **Add the fetch fn** in `libs/api-client/src/<module>/apis/<resource>.ts`.
+3. **Add the hook** in `libs/api-client/src/<module>/hooks/<resource>.ts`, and export both from `<module>/index.ts`. Pages keep importing everything from `@agent-management-platform/api-client`.
 4. **Consume the hook** in a page under `workspaces/ui-modules/<module>/pages/<feature>/`.
 5. **Register the page** — add a route (and nav item) contribution to the feature package's `src/plugin.ts`. A new package also goes in its module's `src/index.ts` plugin list. See "UI modules and plugins" below.
 
@@ -54,7 +54,7 @@ Never call `fetch`/TanStack Query directly from a component. Split into a pure f
 
 **`apis/<resource>.ts`** — pure fetch, takes `params` (path), `query` (search), `getToken`:
 ```ts
-import { httpGET, SERVICE_BASE } from "../utils";
+import { httpGET, SERVICE_BASE } from "../../shared/utils";
 
 export async function listAgents(params, query, getToken) {
   const { orgName = "default", projName = "default" } = params;
@@ -67,13 +67,13 @@ export async function listAgents(params, query, getToken) {
   return res.json();
 }
 ```
-- HTTP helpers are `httpGET/POST/PUT/PATCH/DELETE` from `../utils` — they read `globalConfig.apiBaseUrl` and set the `Authorization: Bearer` header. Do not hand-roll `fetch`.
+- HTTP helpers are `httpGET/POST/PUT/PATCH/DELETE` from `shared/utils` — they read `globalConfig.apiBaseUrl` and set the `Authorization: Bearer` header. Do not hand-roll `fetch`.
 - `SERVICE_BASE = '/api/v1'`; the observability service uses `OBS_SERVICE_BASE = '/api'` (`utils/utils.ts`).
 
 **`hooks/<resource>.ts`** — wrap with `useApiQuery` / `useApiMutation` (not raw `useQuery`/`useMutation`):
 ```ts
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { useApiQuery, useApiMutation } from "./react-query-notifications";
+import { useApiQuery, useApiMutation } from "../../shared/react-query-notifications";
 
 export function useListAgents(params, query) {
   const { getToken } = useAuthHooks();
@@ -96,7 +96,7 @@ export function useCreateAgent() {
 ```
 
 Rules:
-- **`useApiQuery` / `useApiMutation`** (in `hooks/react-query-notifications.ts`) wrap TanStack Query and auto-fire success/error snackbars. `useApiMutation` takes `action: { verb, target }` to render the message.
+- **`useApiQuery` / `useApiMutation`** (in `shared/react-query-notifications.ts`) wrap TanStack Query and auto-fire success/error snackbars. `useApiMutation` takes `action: { verb, target }` to render the message.
 - **`queryKey` is a tuple** — `[domain, params, query]` for detail, `[domain]` for the collection. Invalidation is **prefix-based**: `invalidateQueries({ queryKey: ["agents"] })` clears every `["agents", …]`.
 - **Auth token** always comes from `useAuthHooks().getToken` and is passed into the fetch fn — never read a token another way.
 
@@ -115,8 +115,8 @@ The console is split into six **UI modules** under `workspaces/ui-modules/`, eac
 | Module | Pages |
 |---|---|
 | `acp-core` | overview, level-resource-listing, add-new-project, add-new-agent, settings (+ events), identities |
-| `agent-runtime` | configure-agent, build, deploy, test, deployment-pipelines |
-| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials) |
+| `agent-runtime` | build, deploy, test, deployment-pipelines |
+| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too) |
 | `ai-observability` | traces, logs, metrics, eval |
 | `agent-identity` | env-thunders (Agent ID, groups, roles) |
 | `agent-portal` | agent-kind (catalog, publish) |
@@ -126,7 +126,8 @@ The console is split into six **UI modules** under `workspaces/ui-modules/`, eac
 - **Nav slots**: `section` names a slot defined in `core-ui/src/Layouts/OxygenLayout/navigationItems.tsx` (`NAV_LAYOUT`).
 - **Module** (`<module>/src/index.ts`): a `UIModuleManifest` listing its page plugins; `core-ui/src/plugins/builtinModules.ts` registers modules.
 - **Install and setup**: a module may set `core: true` (always installed, cannot be turned off as a whole) and `installation` (Helm `chart`, ordered `steps`, and a `useDetect` hook that reports installed / not-installed, e.g. from `/api/v1/config`). A module's pages only run while it is installed. The AI module manager (user menu → `/org/:orgId/ui-modules`) lists modules as cards with Install / Uninstall; each module has a details page at `/org/:orgId/ui-modules/<id>` (what it adds, backend setup steps, the module's optional `setup` component). Install and uninstall there are a front-end mock for now, so the AI module manager and details pages exist only when runtime config `uiModules.marketplace` is on (env `ENABLE_UI_MARKETPLACE=true`; on in `.env.development`, off by default).
-- **Turning off**: `apps/web-ui/public/ui-modules.js` sets the default modules (`window.__UI_MODULES__`): module id → `true`/`false`, or `"<module>/<page>": false` (`ai-observability/logs`) for one page. It is served as-is (not cached by nginx), so a deployment edits or mounts over it without a rebuild. The AI module manager changes the install state in memory for the current tab, and cannot switch on a module or page this file turns off.
+- **Turning off**: `apps/web-ui/public/ui-modules.js` sets the default modules (`window.__UI_MODULES__`): module id → `true`/`false`, and each page as `"<module>/<page>"` (`ai-observability/logs`) → `true`/`false`. A page runs only when it and its module are both on. When you add a page plugin to a non-core module, add its `"<module>/<page>": true` line under the module there. It is served as-is (not cached by nginx), so a deployment edits or mounts over it without a rebuild. The AI module manager changes the install state in memory for the current tab, and cannot switch on a module or page this file turns off.
+- **Single-environment mode**: deployment pipelines belong to `agent-runtime`. `useIsSingleEnvironment()` (api-client) is true when that module is absent and undefined while it is detected (treat that as loading); it is the only place that checks for the runtime. The pipeline hooks stay idle then; pages leave `deploymentPipeline` out of requests and hide pipeline UI. Environments always come from the environments API, by real name and UUID: never hard-code `default`. An environment picker hides itself when `onlyEnvironmentName(environments)` (shared-component) returns a name, and the form derives its value as `chosen || onlyEnvironmentName(environments)` instead of copying it into state.
 - **No imports across modules.** A page may import from its own module and from `libs/`. Code two modules need goes to `libs/shared-component` (for example the LLM provider form, the catalog kind listing, MCP ACL helpers), or the owning module adds it as a `panel` at a mount point.
 
 ## Auth (runtime-selected)

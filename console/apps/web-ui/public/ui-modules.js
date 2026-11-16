@@ -16,12 +16,14 @@
  * under the License.
  */
 
-// Default console UI modules: true turns a module on, false turns it off.
-// A turned-off module's routes, menu items and panels are not registered, and
-// its page code is never loaded. The AI module manager cannot switch it back on.
+// Default console UI modules and their pages: true turns one on, false turns
+// it off. A turned-off module or page has its routes, menu items and panels
+// left unregistered, its activation hooks never run, and its page code is never
+// loaded. The AI module manager cannot switch it back on.
 //
-// To turn off a single page, add "<module>/<page>": false
-// (e.g. "ai-observability/logs": false).
+// Each module is followed by its pages, keyed "<module>/<page>". A page runs
+// only when both it and its module are on: turning a module off turns off all
+// of its pages, whatever their own setting. An unlisted module or page is on.
 //
 // acp-core is built in and always on, so it is not listed.
 //
@@ -29,8 +31,27 @@
 // for a deployment, edit it or mount a replacement over it; no rebuild needed.
 window.__UI_MODULES__ = {
   'agent-runtime': false,
+  'agent-runtime/build': true,
+  'agent-runtime/deploy': true,
+  'agent-runtime/test': true,
+  'agent-runtime/deployment-pipelines': true,
+
   'ai-gateway': true,
+  'ai-gateway/gateways': true,
+  'ai-gateway/llm-providers': true,
+  'ai-gateway/mcp-proxies': true,
+  'ai-gateway/agent-security': false,
+  'ai-gateway/configure-agent': true,
+
   'ai-observability': true,
+  'ai-observability/traces': true,
+  'ai-observability/logs': false,
+  'ai-observability/metrics': false,
+  'ai-observability/eval': false,
+
   'agent-identity': true,
-  'agent-portal': true,
+  'agent-identity/agent-identity': true,
+
+  'agent-portal': false,
+  'agent-portal/agent-kind': true,
 };

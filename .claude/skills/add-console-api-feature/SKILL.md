@@ -9,9 +9,10 @@ description: Add an API-backed feature to the console (React/TypeScript web UI).
 
 ## Steps
 
-1. **Fetch fn** — `workspaces/libs/api-client/src/apis/<resource>.ts`. Pure function taking `params` (path), `query` (search), `getToken`. Use the `httpGET/POST/PUT/PATCH/DELETE` helpers from `../utils` (they read `globalConfig.apiBaseUrl` and set the Bearer header) — never hand-roll `fetch`. Prefix API paths with `SERVICE_BASE` (`/api/v1`), or `OBS_SERVICE_BASE` for the observability service.
-2. **Hook** — `workspaces/libs/api-client/src/hooks/<resource>.ts`. Wrap with `useApiQuery` / `useApiMutation` (from `./react-query-notifications`), **not** raw `useQuery`/`useMutation` — the wrappers auto-fire snackbars. Get the token from `useAuthHooks().getToken` and pass it into the fetch fn.
-3. **Export** both from the package barrels (`apis/index.ts`, `hooks/index.ts`).
+0. **Module** — pick `workspaces/libs/api-client/src/<module>/` by the topic of the API call (not by which page uses it); see the list in `console/AGENTS.md` → "Golden path". Environment and pipeline calls are `agent-runtime`.
+1. **Fetch fn** — `workspaces/libs/api-client/src/<module>/apis/<resource>.ts`. Pure function taking `params` (path), `query` (search), `getToken`. Use the `httpGET/POST/PUT/PATCH/DELETE` helpers from `../../shared/utils` (they read `globalConfig.apiBaseUrl` and set the Bearer header) — never hand-roll `fetch`. Prefix API paths with `SERVICE_BASE` (`/api/v1`), or `OBS_SERVICE_BASE` for the observability service.
+2. **Hook** — `workspaces/libs/api-client/src/<module>/hooks/<resource>.ts`. Wrap with `useApiQuery` / `useApiMutation` (from `../../shared/react-query-notifications`), **not** raw `useQuery`/`useMutation` — the wrappers auto-fire snackbars. Get the token from `useAuthHooks().getToken` and pass it into the fetch fn.
+3. **Export** both from the module barrel (`<module>/index.ts`); the package root re-exports every module, so pages import from `@agent-management-platform/api-client` as before.
 4. **Consume** the hook in a page under `workspaces/pages/<feature>/`.
 5. **Register the page** — export `metaData` (`{ title, icon, path, component }`) from the feature package's `index.ts`; wire the route in `core-ui` using the generated route maps.
 
@@ -36,7 +37,7 @@ make dev              # dev server → http://localhost:3000
 
 ## Done checklist
 
-- [ ] Fetch fn + hook follow the two-file pattern and are exported from the barrels.
+- [ ] Fetch fn + hook follow the two-file pattern and are exported from `<module>/index.ts`.
 - [ ] Mutation invalidates the right prefix `queryKey` in `onSuccess`.
 - [ ] Token comes from `useAuthHooks().getToken`.
 - [ ] Page exports `metaData` and is routed via the generated route maps.

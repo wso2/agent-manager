@@ -35,6 +35,5 @@ export {
   DeployComponent,
 };
 
-export { ProxySecurityDrawer, type ProxySecurityDrawerProps } from './subComponent/ProxySecurityDrawer';
 
 export default DeployComponent;

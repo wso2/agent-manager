@@ -22,7 +22,6 @@ import {
   PageLayout,
   useFormValidation,
   useDirtyState,
-  useIsUIModuleInstalled,
   useReturnTo,
 } from '@agent-management-platform/views';
 import { useUnsavedChangesGuard } from '@agent-management-platform/shared-component';
@@ -30,7 +29,11 @@ import { generatePath, Navigate, useNavigate, useParams } from 'react-router-dom
 import { useResourceAccess } from '@agent-management-platform/feature-management';
 import { absoluteRouteMap } from '@agent-management-platform/types';
 import { addProjectSchema, type AddProjectFormValues } from './form/schema';
-import { useCreateProject, useListDeploymentPipelines } from '@agent-management-platform/api-client';
+import {
+  useCreateProject,
+  useIsSingleEnvironment,
+  useListDeploymentPipelines,
+} from '@agent-management-platform/api-client';
 import { CreateButtons } from './components/CreateButtons';
 import { ProjectForm } from './components/ProjectForm';
 
@@ -62,13 +65,12 @@ export const AddNewProject: React.FC = () => {
 
   const { mutate: createProject, isPending, error } = useCreateProject(params);
   // Deployment pipelines belong to the agent runtime. Without it a project has
-  // nothing to deploy, so it is created without one; undefined while the
-  // runtime's install state is still being detected.
-  const runtimeInstalled = useIsUIModuleInstalled('agent-runtime');
+  // nothing to deploy, so it is created without one (the pipeline hook stays
+  // idle then); undefined while the runtime's install state is being detected.
+  const singleEnv = useIsSingleEnvironment();
+  const runtimeInstalled = singleEnv === undefined ? undefined : !singleEnv;
   const { data: pipelinesData, isLoading: isPipelinesLoading, error: pipelinesError } =
-    useListDeploymentPipelines({ orgName: orgId }, undefined, {
-      enabled: !!orgId && runtimeInstalled === true,
-    });
+    useListDeploymentPipelines({ orgName: orgId });
 
   // Projects start on the "default" pipeline (else the first one); it can be changed later.
   const defaultPipeline = useMemo(() => {

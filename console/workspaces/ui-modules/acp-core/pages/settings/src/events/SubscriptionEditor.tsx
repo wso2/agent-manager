@@ -536,6 +536,10 @@ export function SubscriptionEditor({
             )}
           </Stack>
 
+          {/* With a single environment there is nothing to filter by. A filter
+              that names environments stays visible, even after switching to
+              "All environments", so the switch can be undone. */}
+          {(environments.length > 1 || envs.length > 0) && (
           <Stack spacing={1.5}>
             <SectionTitle>Filter</SectionTitle>
             <RadioGroup
@@ -589,6 +593,7 @@ export function SubscriptionEditor({
               sent.
             </Typography>
           </Stack>
+          )}
 
           <Stack spacing={1.5}>
             <SectionTitle>Status</SectionTitle>

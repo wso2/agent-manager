@@ -24,12 +24,17 @@ import {
   useFormValidation,
   FormGridSpacer,
   LoadErrorNotice,
-  useIsUIModuleInstalled,
 } from "@agent-management-platform/views";
 import { z } from "zod";
 import { generatePath, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
-import { useGetProject, useListDeploymentPipelines, useListEnvironments, useUpdateProject } from "@agent-management-platform/api-client";
+import {
+  useGetProject,
+  useIsSingleEnvironment,
+  useListDeploymentPipelines,
+  useListEnvironments,
+  useUpdateProject,
+} from "@agent-management-platform/api-client";
 import { absoluteRouteMap, type DeploymentPipelineResponse, ProjectResponse, UpdateProjectRequest, INPUT_LIMITS } from "@agent-management-platform/types";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { useEffect, useState, useCallback, useMemo } from "react";
@@ -119,7 +124,8 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
   const navigate = useNavigate();
   // Deployment pipelines belong to the agent runtime; without it there is no
   // pipeline to pick. Undefined while its install state is being detected.
-  const runtimeInstalled = useIsUIModuleInstalled('agent-runtime');
+  const singleEnv = useIsSingleEnvironment();
+  const runtimeInstalled = singleEnv === undefined ? undefined : !singleEnv;
   const showPipeline = runtimeInstalled === true;
   const [formData, setFormData] = useState<EditProjectFormValues>({
     name: project.name,
@@ -153,11 +159,10 @@ function EditProjectForm({ project, orgId, projectHref }: EditProjectFormProps) 
     projName: project.name,
   });
 
-  const { data: pipelinesData, isLoading: isPipelinesLoading } = useListDeploymentPipelines(
-    { orgName: orgId },
-    undefined,
-    { enabled: !!orgId && showPipeline },
-  );
+  // Idle without the agent runtime (see useIsSingleEnvironment).
+  const { data: pipelinesData, isLoading: isPipelinesLoading } = useListDeploymentPipelines({
+    orgName: orgId,
+  });
   const pipelines = useMemo(
     () => pipelinesData?.deploymentPipelines ?? [],
     [pipelinesData?.deploymentPipelines],
