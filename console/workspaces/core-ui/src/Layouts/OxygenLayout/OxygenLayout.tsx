@@ -21,6 +21,7 @@ import {
   AppShell,
   Header,
   Footer,
+  PageContent,
   ColorSchemeToggle,
   UserMenu,
 } from "@wso2/oxygen-ui";
@@ -181,53 +182,59 @@ export function OxygenLayout() {
         </AppShell.Sidebar>
 
         <AppShell.Main>
-          <Outlet />
+          {/* The footer follows the page: at the bottom of a short page, after a long one.
+              No padding here: each page lays out its own PageContent. */}
+          <PageContent
+            fullWidth
+            noPadding
+            footer={
+              <Footer variant="plain">
+                <Footer.Copyright>
+                  © {new Date().getFullYear()} WSO2 LLC.
+                </Footer.Copyright>
+                {
+                  // Plain array, not a Fragment: Footer's React.Children.toArray()
+                  // wouldn't unwrap it.
+                  globalConfig.ampVersion && [
+                    <Footer.Divider key="footer-divider" />,
+                    <Footer.Version key="footer-version">
+                      {`${globalConfig.ampVersion}`}
+                    </Footer.Version>,
+                  ]
+                }
+                {
+                  externalBottomLeftComponentModules?.map((module) => (
+                    <div key={module.moduleName}>
+                      <module.component />
+                    </div>
+                  ))
+                }
+                {
+                  externalBottomRightComponentModules?.map((module) => (
+                    <div key={module.moduleName}>
+                      <module.component />
+                    </div>
+                  ))
+                }
+
+                {globalConfig.docsUrl && (
+                  <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
+                )}
+                {globalConfig.footerLinks?.supportUrl && (
+                  <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
+                )}
+                {globalConfig.footerLinks?.termsOfUseUrl && (
+                  <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>
+                )}
+                {globalConfig.footerLinks?.privacyPolicyUrl && (
+                  <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
+                )}
+              </Footer>
+            }
+          >
+            <Outlet />
+          </PageContent>
         </AppShell.Main>
-
-        <AppShell.Footer>
-          <Footer>
-
-            <Footer.Copyright>
-              © {new Date().getFullYear()} WSO2 LLC.
-            </Footer.Copyright>
-            {
-              // Plain array, not a Fragment: Footer's React.Children.toArray() wouldn't unwrap it.
-              globalConfig.ampVersion && [
-                <Footer.Divider key="footer-divider" />,
-                <Footer.Version key="footer-version">
-                  {`${globalConfig.ampVersion}`}
-                </Footer.Version>,
-              ]
-            }
-            {
-              externalBottomLeftComponentModules?.map((module) => (
-                <div key={module.moduleName}>
-                  <module.component />
-                </div>
-              ))
-            }
-            {
-              externalBottomRightComponentModules?.map((module) => (
-                <div key={module.moduleName}>
-                  <module.component />
-                </div>
-              ))
-            }
-
-            {globalConfig.docsUrl && (
-              <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
-            )}
-            {globalConfig.footerLinks?.supportUrl && (
-              <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
-            )}
-            {globalConfig.footerLinks?.termsOfUseUrl && (
-              <Footer.Link href={globalConfig.footerLinks.termsOfUseUrl} target="_blank" rel="noopener noreferrer">Terms of Use</Footer.Link>
-            )}
-            {globalConfig.footerLinks?.privacyPolicyUrl && (
-              <Footer.Link href={globalConfig.footerLinks.privacyPolicyUrl} target="_blank" rel="noopener noreferrer">Privacy Policy</Footer.Link>
-            )}
-          </Footer>
-        </AppShell.Footer>
       </AppShell>
 
       <ProfileDrawer open={profileOpen} onClose={() => setProfileOpen(false)} />
