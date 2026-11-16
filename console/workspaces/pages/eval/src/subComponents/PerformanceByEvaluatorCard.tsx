@@ -148,8 +148,6 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
       return row;
     });
   }, [timeSeriesByEvaluator, evaluatorNames]);
-  const { pathname } = useLocation();
-  useEvalResultView("timeseries", chartData.length > 0 ? pathname : undefined);
 
   const formatTick = React.useCallback(
     (epoch: number) => format(new Date(epoch), "MM/dd HH:mm"),
@@ -196,6 +194,15 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
     () => allLines.filter((l) => !hiddenSeries.has(l.dataKey)),
     [allLines, hiddenSeries],
   );
+
+  const { pathname } = useLocation();
+  const hasVisibleScore = !isFetching && timeSeriesByEvaluator?.evaluators.some(
+    ({ evaluatorName, points }) =>
+      evaluatorNames.includes(evaluatorName) &&
+      !hiddenSeries.has(evaluatorName) &&
+      points.some(({ aggregations }) => typeof aggregations?.["mean"] === "number"),
+  );
+  useEvalResultView("timeseries", hasVisibleScore ? pathname : undefined);
 
   const hasData = chartData.length > 0;
 
