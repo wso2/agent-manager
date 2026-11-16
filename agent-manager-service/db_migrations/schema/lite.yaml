@@ -3,6 +3,12 @@
 #
 # Types: id (UUID v7 from the app), text (needs size), longtext, json, bool, int, bigint, time (UTC), binary.
 # Every column is NOT NULL unless `nullable: true`. on_delete is `cascade` or omitted (no action).
+#
+# Tables go into the baseline (001) unless they name a later migration, which creates them on a database the baseline
+# already ran on. Once a migration has shipped, add new tables in a new one rather than editing it.
+
+migrations:
+  - {id: "002", name: secret_jobs}
 
 tables:
   # --- Orgs, projects, environments ---------------------------------------------------------
@@ -163,6 +169,7 @@ tables:
   # sealed into the row to the configured external vault, destroy removes a value no row refers to any more.
   # No foreign keys: a job outlives the secret and the organization it cleans up after.
   - name: secret_jobs
+    migration: "002"
     columns:
       - {name: id, type: id}
       - {name: org_id, type: id}

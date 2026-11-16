@@ -206,6 +206,8 @@ An external vault is never written inside a request's transaction. A write seals
 
 ### secret_jobs
 
+Created by migration `002_secret_jobs`, not the baseline, so a database the baseline already ran on gets it too.
+
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | ID | no | PK |
