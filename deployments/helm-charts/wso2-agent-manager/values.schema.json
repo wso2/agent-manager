@@ -1990,7 +1990,7 @@
             },
             "externalProjectManagementUrl": {
               "default": "",
-              "description": "Host of an external app that owns project management. When set, the console hides project deletion and \"Manage project\" opens <externalProjectManagementUrl>/projects/<projectHandle>/manage. Empty manages projects in the console.",
+              "description": "Host of an external app that owns project management. When set, the console hides project deletion and \"Manage project\" opens <externalProjectManagementUrl>/projects/<projectHandle>/settings. Empty manages projects in the console.",
               "title": "externalProjectManagementUrl",
               "type": "string"
             },
