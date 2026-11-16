@@ -34,9 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/anthropic"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azure"
-	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/azuredevops"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/bedrock"
-	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/github"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/google"
 	"github.com/wso2/agent-manager/agent-manager-service/services/shadowagents/connectors/openai"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -1125,12 +1123,13 @@ func ProvideAgentIdentityInjectionServiceWithEndpointResolver(
 }
 
 // ProvideShadowConnectors registers the Shadow Agent Discovery connector of
-// each supported platform. They share one HTTP client that follows a
+// each supported cloud platform (source hosts have none: they are scanned by
+// the scan command on the customer's machine). They share one HTTP client that follows a
 // redirect only to the same origin, so a stored credential never leaves the
 // endpoint the org configured.
 func ProvideShadowConnectors(logger *slog.Logger) services.ShadowConnectors {
 	httpClient := shadowagents.NewHTTPClient(nil)
-	all := []shadowagents.Connector{openai.New(httpClient, logger), anthropic.New(httpClient, logger), bedrock.New(httpClient, logger), google.New(httpClient, logger), azure.NewFoundry(httpClient, logger), github.New(httpClient, logger), azuredevops.New(httpClient, logger)}
+	all := []shadowagents.Connector{openai.New(httpClient, logger), anthropic.New(httpClient, logger), bedrock.New(httpClient, logger), google.New(httpClient, logger), azure.NewFoundry(httpClient, logger)}
 	out := make(services.ShadowConnectors, len(all))
 	for _, c := range all {
 		out[c.Provider()] = c

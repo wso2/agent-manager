@@ -520,6 +520,128 @@ func TestShadowCreateScan(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrShadowNoConnections)
 }
 
+// TestShadowCreateScan_SkipsSourceHosts: a cloud scan never includes a
+// GitHub or Azure DevOps connection; their scan command runs on the
+// customer's machine.
+func TestShadowCreateScan_SkipsSourceHosts(t *testing.T) {
+	cloud := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderFoundry}
+	gh := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
+	ado := models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderAzureDevOps}
+	var created *models.ShadowScan
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{gh, cloud, ado}, nil
+		},
+		CreateScanFunc: func(_ context.Context, s *models.ShadowScan) error {
+			created = s
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	_, err := svc.CreateScan(auditableCtx(t), shadowTestOU, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{cloud.ID.String()}, created.ConnectionIDs)
+
+	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, []uuid.UUID{gh.ID})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+
+	repo.ListConnectionsFunc = func(context.Context, string) ([]models.ShadowConnection, error) {
+		return []models.ShadowConnection{gh, ado}, nil
+	}
+	_, err = svc.CreateScan(auditableCtx(t), shadowTestOU, nil)
+	assert.ErrorIs(t, err, utils.ErrShadowNoConnections)
+}
+
+// ---- source hosts (GitHub, Azure DevOps) ----
+
+func TestShadowSourceHostConnection_StoresNoSecret(t *testing.T) {
+	var stored *models.ShadowConnection
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
+		},
+		CreateConnectionFunc: func(_ context.Context, c *models.ShadowConnection) error {
+			stored = c
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+
+	v, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "GitHub", Provider: models.ShadowProviderGitHub,
+		Settings: map[string]any{"organization": "acme"},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, stored.SecretEncrypted)
+	assert.Empty(t, stored.SecretHints)
+	assert.True(t, stored.Config.AllRepositories, "ticked by default")
+	assert.True(t, stored.Config.PrivateRepositories, "ticked by default")
+	assert.Equal(t, true, v.Settings[sa.OptPrivateRepos])
+
+	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "Public", Provider: models.ShadowProviderGitHub,
+		Settings: map[string]any{"organization": "acme", sa.OptPrivateRepos: false},
+	})
+	require.NoError(t, err)
+	assert.False(t, stored.Config.PrivateRepositories)
+
+	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
+		Settings: map[string]any{"organization": "contoso"},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, stored.SecretEncrypted)
+
+	for _, key := range []string{"personalAccessToken", "useEntra", "clientSecret"} {
+		_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+			Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
+			Settings: map[string]any{"organization": "contoso", key: "x"},
+		})
+		assert.ErrorIs(t, err, utils.ErrInvalidInput, "%s is not a setting any more", key)
+	}
+}
+
+func TestShadowSourceHostConnection_UpdateWithoutStoredSecret(t *testing.T) {
+	id := uuid.New()
+	existing := &models.ShadowConnection{
+		ID: id, OUID: shadowTestOU, Name: "GitHub", Provider: models.ShadowProviderGitHub,
+		Config: models.ShadowConnectionConfig{
+			Endpoints: sa.DefaultEndpoints(models.ShadowProviderGitHub), Organization: "acme", AllRepositories: true,
+		},
+		// SecretEncrypted nil: a source host stores no secret.
+	}
+	var updated *models.ShadowConnection
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		GetConnectionFunc: func(context.Context, string, uuid.UUID) (*models.ShadowConnection, error) {
+			c := *existing
+			return &c, nil
+		},
+		UpdateConnectionFunc: func(_ context.Context, c *models.ShadowConnection) error {
+			updated = c
+			return nil
+		},
+	}
+	_, err := newShadowSvc(repo).UpdateConnection(auditableCtx(t), shadowTestOU, id, ShadowConnectionInput{
+		Name: "GitHub renamed", Provider: models.ShadowProviderGitHub,
+		Settings: map[string]any{"organization": "acme", sa.OptAllRepositories: false, "repositories": []any{"payments"}},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, updated.SecretEncrypted)
+	assert.Equal(t, []string{"payments"}, updated.Config.Repositories)
+}
+
+func TestShadowTestConnection_SourceHostIsRefused(t *testing.T) {
+	gh := &models.ShadowConnection{ID: uuid.New(), OUID: shadowTestOU, Name: "GitHub", Provider: models.ShadowProviderGitHub}
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		GetConnectionFunc: func(context.Context, string, uuid.UUID) (*models.ShadowConnection, error) {
+			return gh, nil
+		},
+		// SaveConnectionTestFunc nil: must not be reached.
+	}
+	_, err := newShadowSvc(repo).TestConnection(context.Background(), shadowTestOU, gh.ID)
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+}
+
 func TestShadowClearScans(t *testing.T) {
 	repo := &repomocks.ShadowAgentRepositoryMock{
 		DeleteFinishedScansFunc: func(context.Context, string) (int64, error) { return 3, nil },

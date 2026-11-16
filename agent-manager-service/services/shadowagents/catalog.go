@@ -106,8 +106,9 @@ type ProviderSpec struct {
 	Fields      []FieldSpec
 	Permissions []PermissionSpec
 	Docs        []string
-	// SourceHost marks a source repository host (GitHub, Azure DevOps): its
-	// source code analysis is added separately.
+	// SourceHost marks a source repository host (GitHub, Azure DevOps). Its
+	// connection holds no credential and no cloud scan reads it: the source
+	// code scan runs on the customer's machine.
 	SourceHost bool
 }
 
@@ -137,12 +138,9 @@ const (
 	OptGlobalMulti      = "includeGlobalAndMultiRegion"
 	OptAllRepositories  = "allRepositories"
 	OptAllProjects      = "allProjects"
-	OptUseEntra         = "useEntra"
+	OptPrivateRepos     = "privateRepositories"
 	OptReadCIAndEnv     = "readCiAndEnvFiles"
 )
-
-// FieldPersonalAccessToken is the GitHub and Azure DevOps token field.
-const FieldPersonalAccessToken = "personalAccessToken"
 
 // OptionActive reports whether a field or endpoint with this Option applies,
 // given the checkbox values: "" always, "key" when ticked, "!key" when not.
@@ -423,13 +421,6 @@ func readCIAndEnvField(help string) FieldSpec {
 	return FieldSpec{Key: OptReadCIAndEnv, Label: "Also read CI pipeline definitions and .env example files", Kind: FieldCheckbox, DefaultBool: true, Help: help}
 }
 
-// CallSourceAnalysis is the call a source host's scan records as skipped
-// until the source code analysis exists, with ReasonAnalysisUnavailable.
-const (
-	CallSourceAnalysis        = "Source code analysis"
-	ReasonAnalysisUnavailable = "not available yet: the repositories are analysed once source code analysis is added"
-)
-
 // Plural is "1 repository" or "3 repositories": n with the singular or
 // plural noun.
 func Plural(n int, one, many string) string {
@@ -440,8 +431,8 @@ func Plural(n int, one, many string) string {
 }
 
 // sourceHostSpecs are the source repository hosts (Method 2). Their
-// connections are stored now; the source code analysis that scans them is
-// added separately, so they have no connector yet.
+// connections hold no credential: the source code scan runs on the
+// customer's machine and asks for the Git token there.
 var sourceHostSpecs = []ProviderSpec{
 	{
 		Provider:    models.ShadowProviderGitHub,
@@ -455,23 +446,22 @@ var sourceHostSpecs = []ProviderSpec{
 		Fields: []FieldSpec{
 			{
 				Key: "organization", Label: "Organization or user account", Kind: FieldText, Required: true, Placeholder: "e.g. my-org",
-				Help: "The resource owner of the token. A fine-grained token reaches the repositories of one owner only.",
 			},
-			{Key: FieldPersonalAccessToken, Label: "Fine-grained personal access token", Kind: FieldSecret, Required: true, Placeholder: "github_pat_..."},
-			{Key: OptAllRepositories, Label: "Scan every repository the token can read", Kind: FieldCheckbox, DefaultBool: true},
+			{Key: OptAllRepositories, Label: "Scan every repository", Kind: FieldCheckbox, DefaultBool: true},
 			{
 				Key: "repositories", Label: "Repositories", Kind: FieldList, Required: true, Option: "!" + OptAllRepositories,
 				Placeholder: "e.g. payments-service", Help: "Repository names in the organization, one per line.",
+			},
+			{
+				Key: OptPrivateRepos, Label: "Private repositories", Kind: FieldCheckbox, DefaultBool: true,
+				Help: "The scan command asks for a read-only token when it runs. Agent Manager never receives it.",
 			},
 			readCIAndEnvField("GitHub Actions workflows (.github/workflows) and files such as .env.example."),
 		},
 		Permissions: []PermissionSpec{
 			{
-				Title:   "Fine-grained personal access token (read-only)",
-				Summary: "Read-only access to the repositories of one organization or user account. Today the connection test uses it; source code analysis is not available yet.",
-				Reads: []string{
-					"During the connection test: the owner, the repository list (name, private, fork, archived, size) and the top-level file list of one repository.",
-				},
+				Title:   "Fine-grained personal access token (read-only), for private repositories",
+				Summary: "The scan command asks for it in your terminal when it runs. It is not entered here and Agent Manager never receives it.",
 				Items: []string{
 					"In GitHub, open Settings > Developer settings > Personal access tokens > Fine-grained tokens and generate a new token.",
 					"Resource owner: the organization or user account to scan.",
@@ -499,22 +489,13 @@ var sourceHostSpecs = []ProviderSpec{
 				Key: EPAzureDevOps, Label: "Azure DevOps", Default: "https://dev.azure.com",
 				OfficialHostSuffixes: []string{"dev.azure.com"},
 			},
-			{
-				Key: EPAzureLogin, Label: "Microsoft Entra login", Default: "https://login.microsoftonline.com",
-				OfficialHostSuffixes: []string{"login.microsoftonline.com"}, Option: OptUseEntra,
-			},
 		},
 		Fields: []FieldSpec{
 			{
 				Key: "organization", Label: "Organization", Kind: FieldText, Required: true, Placeholder: "e.g. contoso",
 				Help: "The organization name in https://dev.azure.com/{organization}.",
 			},
-			{Key: OptUseEntra, Label: "Sign in with a Microsoft Entra service principal instead of a personal access token", Kind: FieldCheckbox, DefaultBool: false},
-			{Key: FieldPersonalAccessToken, Label: "Personal access token", Kind: FieldSecret, Required: true, Option: "!" + OptUseEntra},
-			{Key: "tenantId", Label: "Directory (tenant) ID", Kind: FieldText, Required: true, Option: OptUseEntra, Placeholder: "e.g. 72f988bf-86f1-41af-91ab-2d7cd011db47"},
-			{Key: "clientId", Label: "Application (client) ID", Kind: FieldText, Required: true, Option: OptUseEntra, Placeholder: "e.g. 0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5b"},
-			{Key: "clientSecret", Label: "Client secret", Kind: FieldSecret, Required: true, Option: OptUseEntra, Placeholder: "Client secret value"},
-			{Key: OptAllProjects, Label: "Scan every project the credential can read", Kind: FieldCheckbox, DefaultBool: true},
+			{Key: OptAllProjects, Label: "Scan every project", Kind: FieldCheckbox, DefaultBool: true},
 			{
 				Key: "projects", Label: "Projects", Kind: FieldList, Required: true, Option: "!" + OptAllProjects,
 				Placeholder: "e.g. Payments", Help: "Project names in the organization, one per line.",
@@ -524,30 +505,16 @@ var sourceHostSpecs = []ProviderSpec{
 		Permissions: []PermissionSpec{
 			{
 				Title:   "Personal access token (read-only)",
-				Summary: "Read-only access to one organization's projects and Azure Repos. Today the connection test uses it; source code analysis is not available yet.",
-				Reads: []string{
-					"During the connection test: the projects, their repositories and the top-level items of one repository.",
-				},
+				Summary: "The scan command asks for it in your terminal when it runs. It is not entered here and Agent Manager never receives it.",
 				Items: []string{
 					"In Azure DevOps, open User settings > Personal access tokens and create a token for this organization only. Global tokens (all accessible organizations) are being retired.",
 					"Scopes: Code (read) and Project and team (read).",
 					"Organization policies can restrict creating tokens and limit their lifetime.",
 				},
 			},
-			{
-				Title:   "Or a Microsoft Entra service principal",
-				Summary: "Sign in as an app instead of a person, for organizations connected to Microsoft Entra ID.",
-				Items: []string{
-					"Register an app in Microsoft Entra ID and create a client secret.",
-					"Add the service principal to the organization (Organization settings > Users > Add users), using the Object ID shown under Enterprise applications, not App registrations.",
-					"Give it the Basic access level: Stakeholder does not include Azure Repos.",
-					"Add it to the Readers group of each project to scan.",
-				},
-			},
 		},
 		Docs: []string{
 			"https://learn.microsoft.com/en-us/azure/devops/organizations/accounts/use-personal-access-tokens-to-authenticate",
-			"https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/service-principal-managed-identity",
 		},
 	},
 }

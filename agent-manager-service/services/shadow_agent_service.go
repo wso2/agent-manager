@@ -195,7 +195,7 @@ func (s *shadowAgentService) CreateConnection(ctx context.Context, ouID string, 
 	if len(existing) >= maxShadowConnectionsPerOrg {
 		return nil, fmt.Errorf("%w: an organization can have at most %d connections", utils.ErrInvalidInput, maxShadowConnectionsPerOrg)
 	}
-	encrypted, err := s.encryptSecret(secret)
+	encrypted, err := s.sealSecret(spec, secret)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func (s *shadowAgentService) UpdateConnection(
 	if err != nil {
 		return nil, fmt.Errorf("encoding the secret: %w", err)
 	}
-	encrypted, err := s.encryptSecret(secret)
+	encrypted, err := s.sealSecret(spec, secret)
 	if err != nil {
 		return nil, err
 	}
@@ -327,6 +327,10 @@ func (s *shadowAgentService) TestConnection(ctx context.Context, ouID string, id
 	if err != nil {
 		return nil, err
 	}
+	if spec, ok := sa.Provider(c.Provider); ok && spec.SourceHost {
+		return nil, fmt.Errorf("%w: %s connections have no credential to test; the scan command checks the token when it runs",
+			utils.ErrInvalidInput, spec.DisplayName)
+	}
 	conn, err := s.runtimeConnection(c)
 	if err != nil {
 		return nil, err
@@ -373,12 +377,26 @@ func (s *shadowAgentService) encryptSecret(secret models.ShadowConnectionSecret)
 	return out, nil
 }
 
+// sealSecret encrypts a connection's secret for storage. A source host
+// (GitHub, Azure DevOps) stores none: its form has no secret field, and the
+// source code scan asks for the Git token on the customer's machine.
+func (s *shadowAgentService) sealSecret(spec sa.ProviderSpec, secret models.ShadowConnectionSecret) ([]byte, error) {
+	if spec.SourceHost {
+		return nil, nil
+	}
+	return s.encryptSecret(secret)
+}
+
 func (s *shadowAgentService) decryptSecret(encrypted []byte) (models.ShadowConnectionSecret, error) {
 	return decryptShadowSecret(encrypted, s.encryptionKey)
 }
 
 func decryptShadowSecret(encrypted, key []byte) (models.ShadowConnectionSecret, error) {
 	var secret models.ShadowConnectionSecret
+	if len(encrypted) == 0 {
+		// A source host stores no secret.
+		return secret, nil
+	}
 	plain, err := utils.DecryptBytes(encrypted, key)
 	if err != nil {
 		return secret, fmt.Errorf("decrypting the stored credential: %w", err)
@@ -579,7 +597,6 @@ func secretHints(secret models.ShadowConnectionSecret) map[string]string {
 	add("clientSecret", secret.ClientSecret)
 	add("secretAccessKey", secret.SecretAccessKey)
 	add("sessionToken", secret.SessionToken)
-	add(sa.FieldPersonalAccessToken, secret.PersonalAccessToken)
 	if strings.TrimSpace(secret.ServiceAccountJSON) != "" {
 		out["serviceAccountJson"] = serviceAccountHint(secret.ServiceAccountJSON)
 	}
@@ -654,7 +671,6 @@ func checkCredentialChoice(spec sa.ProviderSpec, secret models.ShadowConnectionS
 // shadowSecretFields are the secret's members, by form field key.
 var shadowSecretFields = []string{
 	sa.FieldScopedKeys, "clientSecret", "secretAccessKey", "sessionToken", "serviceAccountJson",
-	sa.FieldPersonalAccessToken,
 }
 
 // pruneShadowSecret clears every secret member the provider's form has no
@@ -692,8 +708,6 @@ func shadowSecretHas(secret models.ShadowConnectionSecret, key string) bool {
 		return strings.TrimSpace(secret.SessionToken) != ""
 	case "serviceAccountJson":
 		return strings.TrimSpace(secret.ServiceAccountJSON) != ""
-	case sa.FieldPersonalAccessToken:
-		return strings.TrimSpace(secret.PersonalAccessToken) != ""
 	}
 	return false
 }
@@ -776,9 +790,8 @@ func applyShadowSettings(
 			}
 			switch {
 			case unused:
-				// The other side of an either/or credential (Azure DevOps:
-				// PAT or Entra): the connection no longer uses this secret,
-				// so it is not kept.
+				// The other side of an either/or credential: the connection
+				// no longer uses this secret, so it is not kept.
 				setShadowSecret(secret, f.Key, "")
 			case v != "":
 				if f.Key == "serviceAccountJson" && !json.Valid([]byte(v)) {
@@ -787,7 +800,7 @@ func applyShadowSettings(
 				setShadowSecret(secret, f.Key, v)
 			case active && f.Required && (create || !shadowSecretHas(*secret, f.Key)):
 				// On update an empty value keeps the stored secret, unless
-				// none is stored (e.g. Azure DevOps switching to a PAT).
+				// none is stored.
 				return fmt.Errorf("%w: %s is required", utils.ErrInvalidInput, f.Label)
 			}
 		case sa.FieldKeyMap:
@@ -934,8 +947,8 @@ func setShadowBool(cfg *models.ShadowConnectionConfig, key string, v bool) {
 		cfg.AllRepositories = v
 	case sa.OptAllProjects:
 		cfg.AllProjects = v
-	case sa.OptUseEntra:
-		cfg.UseEntra = v
+	case sa.OptPrivateRepos:
+		cfg.PrivateRepositories = v
 	case sa.OptReadCIAndEnv:
 		cfg.ReadCIAndEnvFiles = v
 	default:
@@ -999,8 +1012,6 @@ func setShadowSecret(secret *models.ShadowConnectionSecret, key, v string) {
 		secret.SessionToken = v
 	case "serviceAccountJson":
 		secret.ServiceAccountJSON = v
-	case sa.FieldPersonalAccessToken:
-		secret.PersonalAccessToken = v
 	}
 }
 
@@ -1024,8 +1035,8 @@ func shadowSettingsOf(provider string, cfg models.ShadowConnectionConfig) map[st
 	bools := map[string]bool{
 		sa.OptAllSubscriptions: cfg.AllSubscriptions,
 		sa.OptClassicAgents:    cfg.IncludeClassicAgents, sa.OptGlobalMulti: cfg.IncludeGlobalAndMultiRegion,
-		sa.OptAllRepositories: cfg.AllRepositories,
-		sa.OptAllProjects:     cfg.AllProjects, sa.OptUseEntra: cfg.UseEntra, sa.OptReadCIAndEnv: cfg.ReadCIAndEnvFiles,
+		sa.OptAllRepositories: cfg.AllRepositories, sa.OptPrivateRepos: cfg.PrivateRepositories,
+		sa.OptAllProjects: cfg.AllProjects, sa.OptReadCIAndEnv: cfg.ReadCIAndEnvFiles,
 	}
 	for _, f := range spec.Fields {
 		switch f.Kind {
@@ -1072,20 +1083,30 @@ func (s *shadowAgentService) CreateScan(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list connections: %w", err)
 	}
-	byID := map[uuid.UUID]bool{}
+	// A source host (GitHub, Azure DevOps) is never part of a cloud scan:
+	// its repositories are scanned by the scan command on the customer's
+	// machine.
+	scannable := map[uuid.UUID]bool{}
 	for i := range all {
-		byID[all[i].ID] = true
+		spec, ok := sa.Provider(all[i].Provider)
+		scannable[all[i].ID] = !ok || !spec.SourceHost
 	}
 	ids := []string{}
 	if len(connectionIDs) == 0 {
 		for i := range all {
-			ids = append(ids, all[i].ID.String())
+			if scannable[all[i].ID] {
+				ids = append(ids, all[i].ID.String())
+			}
 		}
 	} else {
 		seen := map[uuid.UUID]bool{}
 		for _, id := range connectionIDs {
-			if !byID[id] {
+			ok, found := scannable[id]
+			if !found {
 				return nil, fmt.Errorf("%w: connection %s not found", utils.ErrInvalidInput, id)
+			}
+			if !ok {
+				return nil, fmt.Errorf("%w: connection %s is a source repository host; run its scan command instead", utils.ErrInvalidInput, id)
 			}
 			if !seen[id] {
 				seen[id] = true

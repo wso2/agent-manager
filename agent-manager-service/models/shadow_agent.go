@@ -30,8 +30,9 @@ const (
 	ShadowProviderBedrock   = "bedrock"
 	ShadowProviderGoogle    = "google"
 	ShadowProviderFoundry   = "foundry"
-	// Source repository hosts (Method 2). Connections are stored now; the
-	// source code analysis that scans them is added separately.
+	// Source repository hosts (Method 2). Their connections hold no
+	// credential: the source code scan runs on the customer's machine and asks
+	// for the Git token there.
 	ShadowProviderGitHub      = "github"
 	ShadowProviderAzureDevOps = "azure_devops"
 )
@@ -92,7 +93,9 @@ type ShadowConnection struct {
 	Provider string                 `gorm:"column:provider;not null"`
 	Config   ShadowConnectionConfig `gorm:"column:config;type:jsonb;serializer:json;not null"`
 	// SecretEncrypted is the AES-GCM encrypted JSON of ShadowConnectionSecret.
-	SecretEncrypted []byte `gorm:"column:secret_encrypted;not null"`
+	// It is NULL for a source host (GitHub, Azure DevOps), which stores no
+	// secret.
+	SecretEncrypted []byte `gorm:"column:secret_encrypted"`
 	// SecretHints are redacted hints of the stored secrets ("sk-a...wxyz"),
 	// so the UI can say which credential is stored without revealing it.
 	SecretHints    map[string]string         `gorm:"column:secret_hints;type:jsonb;serializer:json;not null"`
@@ -114,8 +117,7 @@ type ShadowConnectionConfig struct {
 	// prefilled and may change them.
 	Endpoints map[string]string `json:"endpoints"`
 
-	// Foundry and Azure DevOps (with UseEntra): the Entra app. Foundry: the
-	// subscriptions to scan.
+	// Foundry: the Entra app and the subscriptions to scan.
 	TenantID         string   `json:"tenantId,omitempty"`
 	ClientID         string   `json:"clientId,omitempty"`
 	AllSubscriptions bool     `json:"allSubscriptions,omitempty"`
@@ -143,15 +145,15 @@ type ShadowConnectionConfig struct {
 	// GitHub, Azure DevOps: the organization (or GitHub user account) whose
 	// repositories are scanned.
 	Organization string `json:"organization,omitempty"`
-	// GitHub: every repository the token can read, or only Repositories.
+	// GitHub: every repository of the organization, or only Repositories.
 	AllRepositories bool     `json:"allRepositories,omitempty"`
 	Repositories    []string `json:"repositories,omitempty"`
-	// Azure DevOps: every project the credential can read, or only Projects.
+	// GitHub: the repositories are private, so the scan command asks for a
+	// token when it runs.
+	PrivateRepositories bool `json:"privateRepositories,omitempty"`
+	// Azure DevOps: every project of the organization, or only Projects.
 	AllProjects bool     `json:"allProjects,omitempty"`
 	Projects    []string `json:"projects,omitempty"`
-	// Azure DevOps: sign in with a Microsoft Entra service principal
-	// (TenantID, ClientID and the client secret) instead of a PAT.
-	UseEntra bool `json:"useEntra,omitempty"`
 	// GitHub, Azure DevOps: also read CI pipeline definitions and .env
 	// example files.
 	ReadCIAndEnvFiles bool `json:"readCiAndEnvFiles,omitempty"`
@@ -171,16 +173,13 @@ type ShadowConnectionSecret struct {
 	// (An Admin API key stored by an earlier version is not decoded, so it is
 	// dropped when the platform is next saved.)
 	ScopedKeys map[string]string `json:"scopedKeys,omitempty"`
-	// ClientSecret is the Entra app's client secret (Foundry, Azure DevOps).
+	// ClientSecret is the Entra app's client secret (Foundry).
 	ClientSecret string `json:"clientSecret,omitempty"`
 	// SecretAccessKey and SessionToken complete the AWS access key.
 	SecretAccessKey string `json:"secretAccessKey,omitempty"`
 	SessionToken    string `json:"sessionToken,omitempty"`
 	// ServiceAccountJSON is a Google service account key file.
 	ServiceAccountJSON string `json:"serviceAccountJson,omitempty"`
-	// PersonalAccessToken is a GitHub fine-grained or Azure DevOps personal
-	// access token.
-	PersonalAccessToken string `json:"personalAccessToken,omitempty"`
 }
 
 // ShadowConnectionTestInfo is the outcome of a connection test: one entry
