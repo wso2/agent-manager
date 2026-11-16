@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -146,6 +147,14 @@ func TestProjectScopes_OtherProjectIsNotFound(t *testing.T) {
 
 // The scopes a role can grant include project proxies', so an agent can be given access to a tool of a proxy in its
 // project.
+type appliedScopePickerProvider struct {
+	IdentityRoleProvider
+}
+
+func (appliedScopePickerProvider) ListAppliedMCPScopes(_ context.Context, _, _ string, _ []string) (map[string]bool, error) {
+	return map[string]bool{"weather:read": true, "another:read": true}, nil
+}
+
 func TestListEnvironmentScopes_IncludesProjectProxies(t *testing.T) {
 	envUUID := uuid.New()
 	on := true
@@ -169,7 +178,10 @@ func TestListEnvironmentScopes_IncludesProjectProxies(t *testing.T) {
 	}
 	scopeRepo := &repomocks.MCPProxyScopeRepositoryMock{
 		ListByProxyUUIDsFunc: func(context.Context, []uuid.UUID) ([]models.MCPProxyScope, error) {
-			return []models.MCPProxyScope{{MCPProxyUUID: projectProxy.UUID, Action: "read"}}, nil
+			return []models.MCPProxyScope{
+				{MCPProxyUUID: projectProxy.UUID, Action: "read"},
+				{MCPProxyUUID: projectProxy.UUID, Action: "write"},
+			}, nil
 		},
 	}
 	infra := stubInfraManager{listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
@@ -177,6 +189,13 @@ func TestListEnvironmentScopes_IncludesProjectProxies(t *testing.T) {
 	}}
 	svc := NewMCPProxyScopeService(scopeRepo, proxyRepo, infra, nil, nil, slog.Default())
 	entries, err := svc.ListEnvironmentScopes(context.Background(), "org-uuid", "dev")
+	require.NoError(t, err)
+	require.Len(t, entries, 2)
+	assert.Equal(t, "weather:read", entries[0].Scope)
+
+	SetIdentityRoleProvider(thundersvc.IdentityManagementCPManaged, appliedScopePickerProvider{})
+	t.Cleanup(func() { SetIdentityRoleProvider(thundersvc.IdentityManagementLegacyDirect, nil) })
+	entries, err = svc.ListEnvironmentScopes(context.Background(), "org-uuid", "dev")
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 	assert.Equal(t, "weather:read", entries[0].Scope)

@@ -555,5 +555,26 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 	}
 
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Scope < entries[j].Scope })
+	if cp, provider := IdentityRolesViaControlPlane(); cp {
+		if reader, ok := provider.(interface {
+			ListAppliedMCPScopes(context.Context, string, string, []string) (map[string]bool, error)
+		}); ok && len(entries) > 0 {
+			requested := make([]string, 0, len(entries))
+			for _, entry := range entries {
+				requested = append(requested, entry.Scope)
+			}
+			applied, err := reader.ListAppliedMCPScopes(ctx, ouID, envName, requested)
+			if err != nil {
+				return nil, fmt.Errorf("list applied MCP scopes: %w", err)
+			}
+			filtered := entries[:0]
+			for _, entry := range entries {
+				if applied[entry.Scope] {
+					filtered = append(filtered, entry)
+				}
+			}
+			return filtered, nil
+		}
+	}
 	return entries, nil
 }
