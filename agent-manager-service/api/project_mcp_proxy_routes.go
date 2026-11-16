@@ -21,6 +21,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -40,35 +41,46 @@ func RegisterProjectMCPProxyRoutes(
 
 	// PUT is gated on update; the controller additionally requires MCPServerCreate when the
 	// upsert would insert.
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+base+"/{proxyId}", rbac.MCPServerUpdate, orgOverride, ctrl.UpsertProjectMCPProxy)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+base+"/{proxyId}", rbac.MCPServerUpdate, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("upserted-project-mcp-proxy"), ctrl.UpsertProjectMCPProxy))
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+base, rbac.MCPServerRead, orgOverride, ctrl.ListProjectMCPProxies)
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+base+"/{proxyId}", rbac.MCPServerRead, orgOverride, ctrl.GetProjectMCPProxy)
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+base+"/{proxyId}", rbac.MCPServerDelete, orgOverride, ctrl.DeleteProjectMCPProxy)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+base+"/{proxyId}", rbac.MCPServerDelete, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("deleted-project-mcp-proxy"), ctrl.DeleteProjectMCPProxy))
 
 	// Environment bindings: binding and unbinding change the proxy, so both are gated on update.
 	const binding = base + "/{proxyId}/environments/{envName}"
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.PutProjectMCPProxyEnvironment)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+binding, rbac.MCPServerUpdate, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("bound-project-mcp-proxy-environment"), ctrl.PutProjectMCPProxyEnvironment))
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+binding, rbac.MCPServerRead, orgOverride, ctrl.GetProjectMCPProxyEnvironment)
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+binding, rbac.MCPServerUpdate, orgOverride, ctrl.DeleteProjectMCPProxyEnvironment)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+binding, rbac.MCPServerUpdate, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("unbound-project-mcp-proxy-environment"), ctrl.DeleteProjectMCPProxyEnvironment))
 	// Queues AMS's discovery of the binding's capabilities from the MCP server, through its gateway.
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+binding+"/capabilities/refresh", rbac.MCPServerUpdate, orgOverride,
-		ctrl.RefreshProjectMCPProxyEnvironmentCapabilities)
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("refreshed-project-mcp-proxy-capabilities"), ctrl.RefreshProjectMCPProxyEnvironmentCapabilities))
 
 	// A binding's API keys: the keys its callers present to the gateway in that environment. Reading the masked
 	// list needs read; issuing, rotating and revoking a key need the API key permission.
 	const keys = binding + "/api-keys"
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+keys, rbac.MCPServerRead, orgOverride, ctrl.ListProjectMCPProxyEnvironmentAPIKeys)
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys, rbac.MCPServerAPIKeyManage, orgOverride, ctrl.CreateProjectMCPProxyEnvironmentAPIKey)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys, rbac.MCPServerAPIKeyManage, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("issued-project-mcp-proxy-api-key"), ctrl.CreateProjectMCPProxyEnvironmentAPIKey))
 	// A short-lived test key issued for one of the caller's users; see IssueEnvironmentTestAPIKey.
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys+"/test", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.IssueProjectMCPProxyEnvironmentTestAPIKey)
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RotateProjectMCPProxyEnvironmentAPIKey)
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride, ctrl.RevokeProjectMCPProxyEnvironmentAPIKey)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+keys+"/test", rbac.MCPServerAPIKeyManage, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("issued-project-mcp-proxy-test-api-key"), ctrl.IssueProjectMCPProxyEnvironmentTestAPIKey))
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("rotated-project-mcp-proxy-api-key"), ctrl.RotateProjectMCPProxyEnvironmentAPIKey))
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+keys+"/{keyName}", rbac.MCPServerAPIKeyManage, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("revoked-project-mcp-proxy-api-key"), ctrl.RevokeProjectMCPProxyEnvironmentAPIKey))
 
 	// Scopes: actions on the proxy's resource server, granted to agents through roles and enforced per tool on every
 	// binding secured with identity. Gated on the scope permissions, as on the org route.
 	const scopes = base + "/{proxyId}/scopes"
 	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+scopes, rbac.ScopeRead, orgOverride, ctrl.ListProjectMCPProxyScopes)
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+scopes, rbac.ScopeCreate, orgOverride, ctrl.CreateProjectMCPProxyScope)
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+scopes+"/{scopeAction}", rbac.ScopeUpdate, orgOverride, ctrl.UpdateProjectMCPProxyScope)
-	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+scopes+"/{scopeAction}", rbac.ScopeDelete, orgOverride, ctrl.DeleteProjectMCPProxyScope)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("POST "+scopes, rbac.ScopeCreate, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("created-project-mcp-proxy-scope"), ctrl.CreateProjectMCPProxyScope))
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+scopes+"/{scopeAction}", rbac.ScopeUpdate, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("updated-project-mcp-proxy-scope"), ctrl.UpdateProjectMCPProxyScope))
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+scopes+"/{scopeAction}", rbac.ScopeDelete, orgOverride,
+		growthanalytics.Track("amp.connections.project-mcp-proxy", actionDims("deleted-project-mcp-proxy-scope"), ctrl.DeleteProjectMCPProxyScope))
 }

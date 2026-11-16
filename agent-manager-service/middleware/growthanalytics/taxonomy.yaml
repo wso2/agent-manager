@@ -19,6 +19,7 @@
 # which is not repeated per feature:
 #   platform          string  always "Agent Manager"
 #   source            enum    "api" | "console"
+#   channel           enum    "mcp" for MCP tool events, omitted otherwise
 #   growth_action     string  the feature code
 #   product_version   string
 #   deployment_model  string
@@ -219,7 +220,7 @@ features:
           type: "enum"
           values: ["success", "failure"]
           required: true
-          description: "Derived from the HTTP status of the build request, not the build result."
+          description: "Derived from the REST request or MCP tool result, not the eventual build result."
       aggregations:
         - type: "count"
           label: "Agent Builds Triggered"
@@ -317,21 +318,20 @@ features:
               label: "Agent Promotions"
       - code: "amp.deployment-ops.deploy-agent.suspend"
         name: "Agent Deployment Suspend/Resume"
-        description: "Change a deployment's running state (suspend or resume) without redeploying."
+        description: "Request a deployment state change. Invalid requests that lack a usable action are reported as invalid-deployment-state."
         category: "deployment-ops"
         tier: "core"
         status: "stable"
         availability:
           introduced_in: "1.0.0"
         tracking:
-          # Not emitted yet (no Track call); the dimensions below are planned.
           event_name: "amp.deployment-ops.deploy-agent.suspend"
           event_category: "engagement"
           platforms: ["web", "api"]
           dimensions:
             - name: "action"
               type: "enum"
-              values: ["suspended-agent-deployment", "resumed-agent-deployment"]
+              values: ["suspended-agent-deployment", "resumed-agent-deployment", "invalid-deployment-state"]
               required: true
           aggregations:
             - type: "count"
@@ -388,7 +388,6 @@ features:
         availability:
           introduced_in: "1.0.0"
         tracking:
-          # Not emitted yet (no Track call); the dimensions below are planned.
           event_name: "amp.deployment-ops.create-environment.thunder-system-client"
           event_category: "engagement"
           platforms: ["web", "api"]
@@ -513,7 +512,6 @@ features:
     availability:
       introduced_in: "2026.12.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.deployment-ops.a2a-proxy"
       event_category: "adoption"
       platforms: ["web", "api"]
@@ -535,7 +533,6 @@ features:
     availability:
       introduced_in: "2026.12.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.deployment-ops.agent-card"
       event_category: "engagement"
       platforms: ["web", "api"]
@@ -653,7 +650,6 @@ features:
     availability:
       introduced_in: "1.0.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.connections.create-llm-proxy"
       event_category: "adoption"
       platforms: ["web", "api"]
@@ -668,14 +664,13 @@ features:
 
   - code: "amp.connections.deploy-llm-proxy"
     name: "LLM Proxy Deployment"
-    description: "Deploy, undeploy, restore, or delete an LLM proxy's gateway-facing deployment."
+    description: "Deploy, undeploy, restore, or delete an LLM proxy's gateway-facing deployment. Deleting a deployment is reported as an undeploy."
     category: "connections"
     tier: "core"
     status: "stable"
     availability:
       introduced_in: "1.0.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.connections.deploy-llm-proxy"
       event_category: "adoption"
       platforms: ["web", "api"]
@@ -697,7 +692,6 @@ features:
     availability:
       introduced_in: "1.0.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.connections.llm-proxy-api-key"
       event_category: "adoption"
       platforms: ["web", "api"]
@@ -758,21 +752,20 @@ features:
 
   - code: "amp.connections.project-mcp-proxy"
     name: "Project MCP Proxy"
-    description: "Create, update, or delete a project-scoped MCP proxy and its per-environment bindings."
+    description: "Manage a project-scoped MCP proxy, its environment bindings, capabilities, API keys, and scopes."
     category: "connections"
     tier: "core"
     status: "beta"
     availability:
       introduced_in: "2026.12.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.connections.project-mcp-proxy"
       event_category: "adoption"
       platforms: ["web", "api"]
       dimensions:
         - name: "action"
           type: "enum"
-          values: ["upserted-project-mcp-proxy", "deleted-project-mcp-proxy", "bound-project-mcp-proxy-environment", "unbound-project-mcp-proxy-environment"]
+          values: ["upserted-project-mcp-proxy", "deleted-project-mcp-proxy", "bound-project-mcp-proxy-environment", "unbound-project-mcp-proxy-environment", "refreshed-project-mcp-proxy-capabilities", "issued-project-mcp-proxy-api-key", "issued-project-mcp-proxy-test-api-key", "rotated-project-mcp-proxy-api-key", "revoked-project-mcp-proxy-api-key", "created-project-mcp-proxy-scope", "updated-project-mcp-proxy-scope", "deleted-project-mcp-proxy-scope"]
           required: true
       aggregations:
         - type: "count"
@@ -886,7 +879,7 @@ features:
 
   - code: "amp.security-access.agent-identity"
     name: "Agent Workload Identity Provisioning"
-    description: "Provision a deployed agent's workload identity (agent-to-agent auth), or regenerate or revoke its secret. Retrying a failed provisioning is not tracked."
+    description: "Provision a deployed agent's workload identity (agent-to-agent auth), retry failed provisioning, or regenerate or revoke its secret."
     category: "security-access"
     tier: "core"
     status: "stable"
@@ -899,7 +892,7 @@ features:
       dimensions:
         - name: "action"
           type: "enum"
-          values: ["provisioned-agent-identity", "regenerated-agent-identity-secret", "revoked-agent-identity-secret"]
+          values: ["provisioned-agent-identity", "regenerated-agent-identity-secret", "revoked-agent-identity-secret", "retried-agent-identity-provisioning"]
           required: true
       aggregations:
         - type: "count"
@@ -1074,7 +1067,6 @@ features:
     availability:
       introduced_in: "1.0.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.source-control.browse-repository"
       event_category: "engagement"
       platforms: ["web", "api"]
@@ -1132,42 +1124,6 @@ features:
           aggregations:
             - type: "count"
               label: "Agent Kind Version Changes"
-
-  - code: "amp.discovery.view-catalog"
-    name: "Catalog Browsing"
-    description: "Browse the org-wide catalog of discoverable resources (agent kinds, providers, proxies)."
-    category: "discovery"
-    tier: "core"
-    status: "stable"
-    availability:
-      introduced_in: "1.0.0"
-    tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
-      event_name: "amp.discovery.view-catalog"
-      event_category: "discovery"
-      platforms: ["web"]
-      dimensions: []
-      aggregations:
-        - type: "count"
-          label: "Catalog Views"
-
-  - code: "amp.discovery.view-build-options"
-    name: "Agent Build Options Discovery"
-    description: "View the available base images/runtimes an agent can be built with."
-    category: "discovery"
-    tier: "core"
-    status: "stable"
-    availability:
-      introduced_in: "1.0.0"
-    tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
-      event_name: "amp.discovery.view-build-options"
-      event_category: "discovery"
-      platforms: ["web"]
-      dimensions: []
-      aggregations:
-        - type: "count"
-          label: "Build Options Views"
 
   # ============================================================
   # OBSERVABILITY
@@ -1243,7 +1199,6 @@ features:
         availability:
           introduced_in: "2026.12.0"
         tracking:
-          # Not emitted yet (no Track call); the dimensions below are planned.
           event_name: "amp.observability.create-monitor.alerting"
           event_category: "adoption"
           platforms: ["web", "api"]
@@ -1277,31 +1232,6 @@ features:
         - type: "count"
           label: "Custom Evaluator Changes"
 
-  - code: "amp.observability.view-scores"
-    name: "Monitor & Trace Score Viewing"
-    description: "View aggregated monitor scores, score breakdowns/timeseries, or per-trace scores for an agent. Partly covered in the console by amp.console.observability.eval-result-viewed."
-    category: "observability"
-    tier: "core"
-    status: "stable"
-    availability:
-      introduced_in: "1.0.0"
-    tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
-      event_name: "amp.observability.view-scores"
-      event_category: "engagement"
-      platforms: ["web"]
-      dimensions:
-        - name: "view_type"
-          type: "enum"
-          values: ["scores", "breakdown", "timeseries", "trace-scores", "run-scores"]
-          required: true
-      aggregations:
-        - type: "count"
-          label: "Score Views"
-        - type: "count_distinct"
-          dimension: "view_type"
-          label: "Distinct Score View Types Used"
-
   # ============================================================
   # EVENTS & WEBHOOKS
   # ============================================================
@@ -1315,7 +1245,6 @@ features:
     availability:
       introduced_in: "2026.12.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.events.manage-destination"
       event_category: "adoption"
       platforms: ["web", "api"]
@@ -1337,7 +1266,6 @@ features:
     availability:
       introduced_in: "2026.12.0"
     tracking:
-      # Not emitted yet (no Track call); the dimensions below are planned.
       event_name: "amp.events.manage-subscription"
       event_category: "adoption"
       platforms: ["web", "api"]
@@ -1368,7 +1296,7 @@ features:
 
   - code: "amp.console.navigation.page-view"
     name: "Page View"
-    description: "A console page was viewed."
+    description: "A console page was viewed, including catalog browsing via the normalized route."
     category: "console"
     tier: "core"
     status: "stable"
@@ -1465,6 +1393,23 @@ features:
       aggregations:
         - type: "count"
           label: "Context Switches"
+
+  - code: "amp.console.navigation.build-options-viewed"
+    name: "Agent Build Options Viewed"
+    description: "The console displayed Python runtime options in the platform-hosted agent form."
+    category: "console"
+    tier: "core"
+    status: "stable"
+    availability:
+      introduced_in: "2026.12.0"
+    tracking:
+      event_name: "amp.console.navigation.build-options-viewed"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions: []
+      aggregations:
+        - type: "count"
+          label: "Build Options Views"
 
   - code: "amp.console.navigation.docs-link-click"
     name: "Docs Link Click"
@@ -1606,7 +1551,7 @@ features:
 
   - code: "amp.console.onboarding.wizard-abandoned"
     name: "Wizard Abandoned"
-    description: "The user quit a wizard before finishing it."
+    description: "The user explicitly cancelled a wizard form before finishing it."
     category: "console"
     tier: "core"
     status: "stable"
@@ -1703,7 +1648,7 @@ features:
 
   - code: "amp.console.observability.eval-result-viewed"
     name: "Evaluation Result Viewed"
-    description: "The user viewed an evaluation result."
+    description: "The console displayed monitor scores, a breakdown, a timeseries, or trace scores."
     category: "console"
     tier: "core"
     status: "stable"
@@ -1715,6 +1660,7 @@ features:
       platforms: ["web"]
       dimensions:
         - { name: "evaluator_type", type: "string", required: false }
+        - { name: "view_type", type: "enum", values: ["scores", "breakdown", "timeseries", "trace-scores"], required: false }
       aggregations:
         - type: "count"
           label: "Evaluation Results Viewed"
@@ -1780,6 +1726,7 @@ features:
   - code: "amp.console.utility.cli-connect-viewed"
     name: "CLI Connect Viewed"
     description: "The user viewed the CLI connect instructions."
+    # Reserved until the console adds a CLI connect surface.
     category: "console"
     tier: "core"
     status: "stable"

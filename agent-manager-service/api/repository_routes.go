@@ -19,10 +19,13 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 func registerRepositoryRoutes(rr *middleware.RouteRegistrar, ctrl controllers.RepositoryController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/repositories/branches", rbac.RepositoryRead, ctrl.ListBranches)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/repositories/commits", rbac.RepositoryRead, ctrl.ListCommits)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/repositories/branches", rbac.RepositoryRead,
+		growthanalytics.Track("amp.source-control.browse-repository", map[string]interface{}{"browse_target": "branches"}, ctrl.ListBranches))
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/repositories/commits", rbac.RepositoryRead,
+		growthanalytics.Track("amp.source-control.browse-repository", map[string]interface{}{"browse_target": "commits"}, ctrl.ListCommits))
 }

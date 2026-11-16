@@ -23,6 +23,7 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -52,19 +53,7 @@ func TestToolRegistration(t *testing.T) {
 // registration matches the specs exactly — a tool added without declaring its
 // permission fails here (and addTool panics before this test even runs).
 func TestToolPermissionsMatchSpecs(t *testing.T) {
-	mock := NewMockToolsetHandler()
-	toolsets := &Toolsets{
-		ProjectToolset:     mock,
-		AgentToolset:       mock,
-		BuildToolset:       mock,
-		DeploymentToolset:  mock,
-		EnvironmentToolset: mock,
-		LLMProviderToolset: mock,
-		MCPProxyToolset:    mock,
-		AgentConfigToolset: mock,
-	}
-	server := gomcp.NewServer(&gomcp.Implementation{Name: "t", Version: "0"}, nil)
-	reg := toolsets.register(server)
+	reg := registerMockToolsets()
 
 	for _, spec := range allToolSpecs {
 		if len(spec.permissions) == 0 {
@@ -79,6 +68,37 @@ func TestToolPermissionsMatchSpecs(t *testing.T) {
 	if len(reg.permissions) != len(allToolSpecs) {
 		t.Errorf("registry has %d tools, specs describe %d", len(reg.permissions), len(allToolSpecs))
 	}
+}
+
+func TestMutatingToolsHaveGrowthAnalytics(t *testing.T) {
+	reg := registerMockToolsets()
+	for name, action := range reg.actions {
+		_, tracked := trackedTools[name]
+		if tracked != (action.Class() != audit.ClassRead) {
+			t.Errorf("tool %q with audit class %s has unexpected analytics tracking: %t", name, action.Class(), tracked)
+		}
+	}
+	for name := range trackedTools {
+		if _, registered := reg.actions[name]; !registered {
+			t.Errorf("analytics mapping for unregistered tool %q", name)
+		}
+	}
+}
+
+func registerMockToolsets() *toolRegistry {
+	mock := NewMockToolsetHandler()
+	toolsets := &Toolsets{
+		ProjectToolset:     mock,
+		AgentToolset:       mock,
+		BuildToolset:       mock,
+		DeploymentToolset:  mock,
+		EnvironmentToolset: mock,
+		LLMProviderToolset: mock,
+		MCPProxyToolset:    mock,
+		AgentConfigToolset: mock,
+	}
+	server := gomcp.NewServer(&gomcp.Implementation{Name: "t", Version: "0"}, nil)
+	return toolsets.register(server)
 }
 
 // Verifies every permission a tool declares is advertised in the MCP

@@ -115,12 +115,13 @@ var consoleActions = map[string]map[string]bool{
 	// Navigation and discovery. None of this reaches the API today: the
 	// console reads through cached queries, so which pages a user actually
 	// works in is invisible server-side.
-	"amp.console.navigation.page-view":       dims("route", "entity_scope", "referrer_route"),
-	"amp.console.navigation.tab-switch":      dims("page", "tab"),
-	"amp.console.navigation.search":          dims("scope", "result_count", "query_length", "zero_results"),
-	"amp.console.navigation.filter-applied":  dims("page", "filter"),
-	"amp.console.navigation.context-switch":  dims("switch_type"),
-	"amp.console.navigation.docs-link-click": dims("doc_target", "from_page"),
+	"amp.console.navigation.page-view":            dims("route", "entity_scope", "referrer_route"),
+	"amp.console.navigation.tab-switch":           dims("page", "tab"),
+	"amp.console.navigation.search":               dims("scope", "result_count", "query_length", "zero_results"),
+	"amp.console.navigation.filter-applied":       dims("page", "filter"),
+	"amp.console.navigation.context-switch":       dims("switch_type"),
+	"amp.console.navigation.build-options-viewed": dims(),
+	"amp.console.navigation.docs-link-click":      dims("doc_target", "from_page"),
 
 	// Intent. These are the counterpart to the successful mutations track.go
 	// reports: opening a create dialog, giving up on the form, cancelling a
@@ -137,14 +138,12 @@ var consoleActions = map[string]map[string]bool{
 	"amp.console.onboarding.wizard-step-viewed": dims("wizard", "step", "step_index"),
 	"amp.console.onboarding.wizard-abandoned":   dims("wizard", "last_step"),
 
-	// Interactive surfaces. Mostly read paths, which track.go deliberately
-	// does not instrument, so usage of the observability and test tooling is
-	// currently unmeasurable.
+	// Interactive surfaces and views outside the REST mutation stream.
 	"amp.console.playground.test-invoke":              dims("invoke_mode"),
 	"amp.console.observability.trace-opened":          dims("source_page", "has_error"),
 	"amp.console.observability.log-query":             dims("time_range", "filter_count"),
 	"amp.console.observability.metrics-range-changed": dims("time_range"),
-	"amp.console.observability.eval-result-viewed":    dims("evaluator_type"),
+	"amp.console.observability.eval-result-viewed":    dims("evaluator_type", "view_type"),
 
 	// Self-serve utility: strong activation signals that leave no server-side
 	// trace. snippet_type names *which* snippet was copied — never its value;

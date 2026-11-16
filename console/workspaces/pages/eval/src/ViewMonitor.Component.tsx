@@ -68,6 +68,7 @@ import RunSummaryCard from "./subComponents/RunSummaryCard";
 import PerformanceByEvaluatorCard from "./subComponents/PerformanceByEvaluatorCard";
 import ScoreBreakdownCard from "./subComponents/ScoreBreakdownCard";
 import {
+  useEvalResultView,
   useGetMonitor,
   useGroupedScores,
   useListMonitors,
@@ -211,6 +212,7 @@ export const ViewMonitorComponent: React.FC = () => {
 
   // ── raw evaluator arrays ─────────────────────────────────────────────────
   const evaluators = useMemo(() => scoresMain?.evaluators ?? [], [scoresMain]);
+  useEvalResultView("scores", evaluators.length > 0 ? monitorId : undefined);
 
   // ── Determine which levels are present ────────────────────────────────────
   const levelsPresent = useMemo(() => {
@@ -343,6 +345,8 @@ export const ViewMonitorComponent: React.FC = () => {
     { level: "llm", ...scoreQueryParams },
     { enabled: hasLlmLevel },
   );
+
+  useEvalResultView("breakdown", agentGrouped || llmGrouped ? monitorId : undefined);
 
   const handleRefresh = useCallback(() => {
     void refetchMonitor();

@@ -19,12 +19,15 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 func registerMonitorAlertRoutes(rr *middleware.RouteRegistrar, controller controllers.MonitorAlertController) {
 	alerting := "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/alerting"
 	rr.HandleFuncWithValidationAndAuthz(route("GET", alerting), rbac.MonitorRead, controller.GetMonitorAlert)
-	rr.HandleFuncWithValidationAndAuthz(route("PUT", alerting), rbac.MonitorUpdate, controller.PutMonitorAlert)
-	rr.HandleFuncWithValidationAndAuthz(route("DELETE", alerting), rbac.MonitorUpdate, controller.DeleteMonitorAlert)
+	rr.HandleFuncWithValidationAndAuthz(route("PUT", alerting), rbac.MonitorUpdate,
+		growthanalytics.Track("amp.observability.create-monitor.alerting", actionDims("configured-monitor-alert"), controller.PutMonitorAlert))
+	rr.HandleFuncWithValidationAndAuthz(route("DELETE", alerting), rbac.MonitorUpdate,
+		growthanalytics.Track("amp.observability.create-monitor.alerting", actionDims("removed-monitor-alert"), controller.DeleteMonitorAlert))
 }

@@ -221,6 +221,7 @@ func withToolAudit[T any](
 				audit.Result(err),
 			)
 		}
+		reportToolUsage(ctx, req, toolName, input, err == nil && (result == nil || !result.IsError))
 		return result, meta, err
 	}
 }

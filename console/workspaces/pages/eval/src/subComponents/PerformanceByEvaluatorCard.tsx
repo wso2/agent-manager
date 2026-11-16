@@ -37,7 +37,7 @@ import {
   type EvaluationLevel,
   TraceListTimeRange,
 } from "@agent-management-platform/types";
-import { useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
+import { useEvalResultView, useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
 import MetricsTooltip from "./MetricsTooltip";
 import { LEVEL_CONFIG, levelChipSx } from "./levelConfig";
 
@@ -148,6 +148,7 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
       return row;
     });
   }, [timeSeriesByEvaluator, evaluatorNames]);
+  useEvalResultView("timeseries", chartData.length > 0 ? monitorId : undefined);
 
   const formatTick = React.useCallback(
     (epoch: number) => format(new Date(epoch), "MM/dd HH:mm"),

@@ -967,6 +967,12 @@ func (c *agentController) UpdateDeploymentState(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	if payload.State == utils.DeploymentStateActive {
+		growthanalytics.SetDimension(ctx, "action", "resumed-agent-deployment")
+	} else {
+		growthanalytics.SetDimension(ctx, "action", "suspended-agent-deployment")
+	}
+
 	// The gating permission is agent:suspend, but this route also resumes and
 	// undeploys, so the record names the state actually requested.
 	stateAttempt, ok := beginAuditOrFail(

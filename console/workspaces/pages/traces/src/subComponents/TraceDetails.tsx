@@ -20,6 +20,7 @@ import { Box, Divider, Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
 import {
   useTrace,
   useTraceScores,
+  useEvalResultView,
   useSpanDetail,
 } from "@agent-management-platform/api-client";
 import {
@@ -215,6 +216,10 @@ export function TraceDetails({
     }
     return { traceEvalScores: traceEvals, spanScoresMap: spanMap };
   }, [traceScoresData]);
+  const panelHasScores = !!panelSpan && !showSpanDetailSkeleton && !isSpanDetailError &&
+    ((!panelSpan.parentSpanId && traceEvalScores.length > 0) ||
+      (spanScoresMap.get(panelSpan.spanId)?.length ?? 0) > 0);
+  useEvalResultView("trace-scores", panelHasScores ? traceId : undefined);
 
   if (isTracePending) {
     return <TraceDetailsSkeleton />;

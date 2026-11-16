@@ -1,8 +1,10 @@
 import {
+  ConsoleAction,
   orgRouteId,
   useListAgents,
   useListOrganizations,
   useListProjects,
+  useTrack,
 } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
@@ -127,6 +129,7 @@ const trailNameHref = (event: MouseEvent) => {
 
 export function TopNavigation() {
   const navigate = useNavigate();
+  const { track } = useTrack();
   const { pathname } = useLocation();
   const { userInfo } = useAuthHooks();
   const { orgId, projectId, agentId } = useParams<{
@@ -313,11 +316,19 @@ export function TopNavigation() {
   const handleSelect = useCallback(
     (levelId: string, item: HeaderBreadcrumbsItem) => {
       if (levelId === ORG_LEVEL && externalSwitcher) {
+        if (item.id !== externalSwitcher.currentId) {
+          track(ConsoleAction.ContextSwitch, { switch_type: "organization" });
+        }
         externalSwitcher.onSwitch(item.id);
         return;
       }
       if (!item.href) {
         return;
+      }
+      if (levelId === ORG_LEVEL && item.id !== orgId) {
+        track(ConsoleAction.ContextSwitch, { switch_type: "organization" });
+      } else if (levelId === PROJECT_LEVEL && item.id !== projectId) {
+        track(ConsoleAction.ContextSwitch, { switch_type: "project" });
       }
       const subPage =
         levelId === ORG_LEVEL
@@ -327,7 +338,10 @@ export function TopNavigation() {
             : commonAgentPages;
       navigate(subPage ? `${item.href}/${subPage}` : item.href);
     },
-    [externalSwitcher, navigate, commonOrgPages, commonProjectPages, commonAgentPages],
+    [
+      externalSwitcher, navigate, commonOrgPages, commonProjectPages, commonAgentPages,
+      orgId, projectId, track,
+    ],
   );
 
   // Clicking a name in the trail goes to that level's home page, such as the

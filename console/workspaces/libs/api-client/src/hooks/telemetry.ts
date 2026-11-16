@@ -59,6 +59,7 @@ export const ConsoleAction = {
   FilterApplied: "amp.console.navigation.filter-applied",
   ContextSwitch: "amp.console.navigation.context-switch",
   DocsLinkClick: "amp.console.navigation.docs-link-click",
+  BuildOptionsViewed: "amp.console.navigation.build-options-viewed",
 
   // Intent — the counterpart to the backend's successful mutations
   DialogOpened: "amp.console.intent.dialog-opened",
@@ -441,6 +442,20 @@ export function useTrack() {
     () => ({ track, flush, flushOnUnload: flushOnUnloadNow }),
     [track, flush],
   );
+}
+
+/** Reports the first rendered result for each view and resource. */
+export function useEvalResultView(
+  viewType: "scores" | "breakdown" | "timeseries" | "trace-scores",
+  visibleResource: string | undefined,
+) {
+  const { track } = useTrack();
+  const previous = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (visibleResource === undefined || previous.current === visibleResource) return;
+    previous.current = visibleResource;
+    track(ConsoleAction.EvalResultViewed, { view_type: viewType });
+  }, [track, viewType, visibleResource]);
 }
 
 /**

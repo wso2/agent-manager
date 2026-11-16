@@ -16,8 +16,9 @@
  * under the License.
  */
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { generatePath, useParams } from "react-router-dom";
+import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useReturnTo, type ReturnToState } from "@agent-management-platform/views";
 
@@ -38,4 +39,16 @@ export const useAgentWizardReturn = () => {
   );
   const wizardState = useMemo<ReturnToState>(() => ({ from: returnTo }), [returnTo]);
   return { returnTo, wizardState };
+};
+
+export const useTrackAgentWizardExit = (
+  lastStep: "connect-existing" | "from-source" | "from-catalog",
+) => {
+  const { track } = useTrack();
+  return useCallback(() => {
+    track(ConsoleAction.WizardAbandoned, {
+      wizard: "create-agent",
+      last_step: lastStep,
+    });
+  }, [lastStep, track]);
 };

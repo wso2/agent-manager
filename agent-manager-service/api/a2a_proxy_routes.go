@@ -19,6 +19,7 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -27,10 +28,13 @@ const a2aProxyBase = "/orgs/{orgName}/projects/{projName}/agents/{agentName}/env
 // registerA2AProxyRoutes gates writes like the deploy-settings save and the card-source routes.
 func registerA2AProxyRoutes(rr *middleware.RouteRegistrar, ctrl controllers.A2AProxyController) {
 	rr.HandleFuncWithValidationAndAuthz("GET "+a2aProxyBase, rbac.AgentRead, ctrl.GetA2AProxy)
-	rr.HandleFuncWithValidationAndAllAuthz("PUT "+a2aProxyBase, ctrl.SetA2AProxy,
+	rr.HandleFuncWithValidationAndAllAuthz("PUT "+a2aProxyBase,
+		growthanalytics.Track("amp.deployment-ops.a2a-proxy", actionDims("configured-a2a-proxy"), ctrl.SetA2AProxy),
 		rbac.AgentUpdate, rbac.AgentEnvNonProduction)
-	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+a2aProxyBase, ctrl.DeleteA2AProxy,
+	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+a2aProxyBase,
+		growthanalytics.Track("amp.deployment-ops.a2a-proxy", actionDims("removed-a2a-proxy"), ctrl.DeleteA2AProxy),
 		rbac.AgentUpdate, rbac.AgentEnvNonProduction)
-	rr.HandleFuncWithValidationAndAllAuthz("POST "+a2aProxyBase+"/refresh", ctrl.RefreshA2AProxy,
+	rr.HandleFuncWithValidationAndAllAuthz("POST "+a2aProxyBase+"/refresh",
+		growthanalytics.Track("amp.deployment-ops.a2a-proxy", actionDims("refreshed-a2a-proxy"), ctrl.RefreshA2AProxy),
 		rbac.AgentUpdate, rbac.AgentEnvNonProduction)
 }

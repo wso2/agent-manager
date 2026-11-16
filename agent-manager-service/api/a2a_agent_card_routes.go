@@ -19,6 +19,7 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -27,10 +28,13 @@ const agentCardBase = "/orgs/{orgName}/projects/{projName}/agents/{agentName}/en
 // registerA2AAgentCardRoutes gates writes like the deploy-settings save.
 func registerA2AAgentCardRoutes(rr *middleware.RouteRegistrar, ctrl controllers.A2AAgentCardController) {
 	rr.HandleFuncWithValidationAndAuthz("GET "+agentCardBase, rbac.AgentRead, ctrl.GetAgentCard)
-	rr.HandleFuncWithValidationAndAllAuthz("POST "+agentCardBase+"/refresh", ctrl.RefreshAgentCard,
+	rr.HandleFuncWithValidationAndAllAuthz("POST "+agentCardBase+"/refresh",
+		growthanalytics.Track("amp.deployment-ops.agent-card", actionDims("refreshed-agent-card"), ctrl.RefreshAgentCard),
 		rbac.AgentUpdate, rbac.AgentEnvNonProduction)
-	rr.HandleFuncWithValidationAndAllAuthz("PUT "+agentCardBase+"/source", ctrl.SetAgentCardSource,
+	rr.HandleFuncWithValidationAndAllAuthz("PUT "+agentCardBase+"/source",
+		growthanalytics.Track("amp.deployment-ops.agent-card", actionDims("set-agent-card-source"), ctrl.SetAgentCardSource),
 		rbac.AgentUpdate, rbac.AgentEnvNonProduction)
-	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+agentCardBase+"/source", ctrl.DeleteAgentCardSource,
+	rr.HandleFuncWithValidationAndAllAuthz("DELETE "+agentCardBase+"/source",
+		growthanalytics.Track("amp.deployment-ops.agent-card", actionDims("removed-agent-card-source"), ctrl.DeleteAgentCardSource),
 		rbac.AgentUpdate, rbac.AgentEnvNonProduction)
 }

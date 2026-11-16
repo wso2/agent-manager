@@ -18,11 +18,13 @@
 
 import { Alert, Box, Collapse, Form, FormControl, FormControlLabel, FormHelperText, Grid, IconButton, MenuItem, Select, Stack, Switch, Tooltip, Typography, CircularProgress } from "@wso2/oxygen-ui";
 import { Copy as ContentCopy } from "@wso2/oxygen-ui-icons-react";
-import { useEffect, useMemo, useCallback, useState, type ComponentType } from "react";
+import { useEffect, useMemo, useCallback, useRef, useState, type ComponentType } from "react";
 import { useParams } from "react-router-dom";
 import { debounce } from "lodash";
 import {
+  ConsoleAction,
   useAgentBuildOptions,
+  useTrack,
   useGenerateResourceName,
 } from "@agent-management-platform/api-client";
 import { globalConfig, INPUT_LIMITS } from "@agent-management-platform/types";
@@ -136,6 +138,15 @@ export const InternalAgentForm = ({
   // catalog. Until this resolves, the dropdowns render empty.
   const buildOptionsQuery = useAgentBuildOptions({ orgName: orgId ?? "" });
   const buildOptions = buildOptionsQuery.data;
+  const { track } = useTrack();
+  const recordedBuildOptionsView = useRef(false);
+  const buildOptionsVisible = !!buildOptions && formData.language === "python";
+  useEffect(() => {
+    if (buildOptionsVisible && !recordedBuildOptionsView.current) {
+      recordedBuildOptionsView.current = true;
+      track(ConsoleAction.BuildOptionsViewed);
+    }
+  }, [buildOptionsVisible, track]);
 
   // Instrumentation entries compatible with the currently-selected Python.
   // Empty list when no AMP-provided instrumentation covers that Python —

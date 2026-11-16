@@ -51,9 +51,12 @@ func RegisterLLMRoutes(rr *middleware.RouteRegistrar, ctrl controllers.LLMContro
 		growthanalytics.Track("amp.connections.create-llm-provider", actionDims("deleted-llm-provider"), ctrl.DeleteLLMProvider))
 
 	// LLM Proxies
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies", rbac.LLMProxyCreate, ctrl.CreateLLMProxy)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies", rbac.LLMProxyCreate,
+		growthanalytics.Track("amp.connections.create-llm-proxy", actionDims("created-llm-proxy"), ctrl.CreateLLMProxy))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/llm-proxies", rbac.LLMProxyRead, ctrl.ListLLMProxies)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}", rbac.LLMProxyRead, ctrl.GetLLMProxy)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}", rbac.LLMProxyUpdate, ctrl.UpdateLLMProxy)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}", rbac.LLMProxyDelete, ctrl.DeleteLLMProxy)
+	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}", rbac.LLMProxyUpdate,
+		growthanalytics.Track("amp.connections.create-llm-proxy", actionDims("updated-llm-proxy"), ctrl.UpdateLLMProxy))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{proxyId}", rbac.LLMProxyDelete,
+		growthanalytics.Track("amp.connections.create-llm-proxy", actionDims("deleted-llm-proxy"), ctrl.DeleteLLMProxy))
 }

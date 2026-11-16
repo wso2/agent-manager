@@ -40,19 +40,19 @@ func registerEnvironmentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.E
 	// Bootstrap-only: add/remove-environment-thunder.sh use these to store/remove
 	// the env-Thunder system-client credential AMS uses to reach that Thunder.
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/environments/{envID}/thunder-system-client",
-		rbac.OrgManageServiceAccount, ctrl.SetThunderSystemClient)
+		rbac.OrgManageServiceAccount, growthanalytics.Track("amp.deployment-ops.create-environment.thunder-system-client", actionDims("configured-thunder-system-client"), ctrl.SetThunderSystemClient))
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/environments/{envID}/thunder-system-client",
-		rbac.OrgManageServiceAccount, ctrl.DeleteThunderSystemClient)
+		rbac.OrgManageServiceAccount, growthanalytics.Track("amp.deployment-ops.create-environment.thunder-system-client", actionDims("removed-thunder-system-client"), ctrl.DeleteThunderSystemClient))
 	// Bootstrap-only: add/remove-environment-thunder.sh use these to register/free
 	// the unguessable URL handle that replaces the predictable <org>-<env> pattern.
 	// GET is used by add-environment.sh to learn the actual (possibly
 	// server-generated) handle for wiring the gateway's ThunderKeyManager.
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/environments/{envID}/thunder-url",
-		rbac.OrgManageServiceAccount, ctrl.SetThunderURL)
+		rbac.OrgManageServiceAccount, growthanalytics.Track("amp.deployment-ops.create-environment.thunder-system-client", actionDims("configured-thunder-url"), ctrl.SetThunderURL))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments/{envID}/thunder-url",
 		rbac.OrgManageServiceAccount, ctrl.GetThunderURL)
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/environments/{envID}/thunder-url",
-		rbac.OrgManageServiceAccount, ctrl.DeleteThunderURL)
+		rbac.OrgManageServiceAccount, growthanalytics.Track("amp.deployment-ops.create-environment.thunder-system-client", actionDims("removed-thunder-url"), ctrl.DeleteThunderURL))
 	// Advisory pre-flight check for the console's Create Environment drawer —
 	// same permission as actually creating an environment, since it's the
 	// browser (not a bootstrap script) calling this one. The handle is
