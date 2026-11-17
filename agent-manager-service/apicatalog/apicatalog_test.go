@@ -135,7 +135,7 @@ func components(t *testing.T, s *Spec, kind string) []string {
 }
 
 func TestCoreOnlyDropsModuleOperationsAndTheirComponents(t *testing.T) {
-	s, err := New([]byte(sample)).For(nil)
+	s, err := New([]byte(sample)).For(nil, nil)
 	require.NoError(t, err)
 
 	p := paths(t, s)
@@ -154,7 +154,7 @@ func TestCoreOnlyDropsModuleOperationsAndTheirComponents(t *testing.T) {
 }
 
 func TestActiveModuleKeepsItsOperations(t *testing.T) {
-	s, err := New([]byte(sample)).For([]string{"gateway", "core", "gateway"})
+	s, err := New([]byte(sample)).For([]string{"gateway", "core", "gateway"}, nil)
 	require.NoError(t, err)
 
 	p := paths(t, s)
@@ -171,7 +171,7 @@ func TestActiveModuleKeepsItsOperations(t *testing.T) {
 }
 
 func TestJSONKeepsTypesAndOrder(t *testing.T) {
-	s, err := New([]byte(sample)).For(nil)
+	s, err := New([]byte(sample)).For(nil, nil)
 	require.NoError(t, err)
 	js := string(s.JSON)
 	assert.Contains(t, js, `"example":3`, "integers stay numbers")
@@ -181,9 +181,9 @@ func TestJSONKeepsTypesAndOrder(t *testing.T) {
 
 func TestForCachesPerModuleSet(t *testing.T) {
 	c := New([]byte(sample))
-	a, err := c.For([]string{"gateway"})
+	a, err := c.For([]string{"gateway"}, nil)
 	require.NoError(t, err)
-	b, err := c.For([]string{"core", "gateway"})
+	b, err := c.For([]string{"core", "gateway"}, nil)
 	require.NoError(t, err)
 	assert.Same(t, a, b)
 }
@@ -193,7 +193,7 @@ func TestForCachesPerModuleSet(t *testing.T) {
 func TestRealSpec(t *testing.T) {
 	c := New(docs.OpenAPI)
 	for _, mods := range [][]string{nil, {"gateway", "legacy"}} {
-		s, err := c.For(mods)
+		s, err := c.For(mods, nil)
 		require.NoError(t, err)
 
 		var doc yaml.Node
@@ -235,5 +235,60 @@ func TestRealSpec(t *testing.T) {
 		}
 		var v any
 		require.NoError(t, json.Unmarshal(s.JSON, &v), "the JSON form is valid JSON")
+	}
+}
+
+const widgetsFragment = `paths:
+  /tags:
+    get:
+      summary: List tags
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WidgetsTags"
+components:
+  schemas:
+    WidgetsTags:
+      type: array
+      items:
+        $ref: "#/components/schemas/Shared"
+`
+
+func TestModuleFragmentIsMergedUnderItsPrefix(t *testing.T) {
+	frags := map[string][]byte{"widgets": []byte(widgetsFragment)}
+	s, err := New([]byte(sample)).For([]string{"widgets"}, frags)
+	require.NoError(t, err)
+	require.Empty(t, s.Skipped)
+
+	p := paths(t, s)
+	require.Contains(t, p, "/m/widgets/tags")
+	get, ok := p["/m/widgets/tags"]["get"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "widgets", get[ModuleKey], "the operation is labelled with its module")
+	assert.Contains(t, components(t, s, "schemas"), "WidgetsTags")
+
+	inactive, err := New([]byte(sample)).For(nil, frags)
+	require.NoError(t, err)
+	assert.NotContains(t, paths(t, inactive), "/m/widgets/tags", "an inactive module's fragment is not merged")
+	assert.NotContains(t, components(t, inactive, "schemas"), "WidgetsTags")
+}
+
+func TestBadModuleFragmentIsLeftOutWhole(t *testing.T) {
+	for name, frag := range map[string]string{
+		"component collision": "paths:\n  /x:\n    get:\n      responses: {}\ncomponents:\n  schemas:\n    Thing:\n      type: string\n",
+		"other module":        "paths:\n  /x:\n    get:\n      x-amp-module: gateway\n      responses: {}\n",
+		"relative path":       "paths:\n  x:\n    get:\n      responses: {}\n",
+		"not yaml":            "paths: [",
+	} {
+		t.Run(name, func(t *testing.T) {
+			s, err := New([]byte(sample)).For([]string{"widgets"}, map[string][]byte{"widgets": []byte(frag)})
+			require.NoError(t, err, "a bad fragment does not take the spec down")
+			require.Len(t, s.Skipped, 1)
+			assert.NotContains(t, paths(t, s), "/m/widgets/x")
+			assert.Contains(t, paths(t, s), "/things")
+		})
 	}
 }

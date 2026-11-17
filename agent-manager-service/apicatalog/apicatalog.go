@@ -56,11 +56,17 @@ var httpMethods = map[string]bool{
 type Spec struct {
 	YAML []byte
 	JSON []byte
+	// Skipped says why a module's fragment was left out (see Filter).
+	Skipped []error
 }
 
 // Catalog serves the spec filtered to a set of active modules, rendering each
 // set once.
 type Catalog struct {
+	// OnSkip, if set, is told once per rendered module set about each
+	// module fragment left out.
+	OnSkip func(error)
+
 	raw   []byte
 	mu    sync.Mutex
 	cache map[string]*Spec
@@ -71,8 +77,11 @@ func New(raw []byte) *Catalog {
 	return &Catalog{raw: raw, cache: map[string]*Spec{}}
 }
 
-// For returns the spec of the core and the active modules.
-func (c *Catalog) For(active []string) (*Spec, error) {
+// For returns the spec of the core and the active modules, with the OpenAPI
+// fragments those modules describe their own routes in (by module name; see
+// Filter). A module's fragment is fixed for the life of the binary, so the
+// set of modules is the cache key.
+func (c *Catalog) For(active []string, fragments map[string][]byte) (*Spec, error) {
 	mods := Modules(active)
 	key := strings.Join(mods, ",")
 	c.mu.Lock()
@@ -80,7 +89,7 @@ func (c *Catalog) For(active []string) (*Spec, error) {
 	if s, ok := c.cache[key]; ok {
 		return s, nil
 	}
-	doc, err := Filter(c.raw, mods)
+	doc, skipped, err := Filter(c.raw, mods, fragments)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +106,12 @@ func (c *Catalog) For(active []string) (*Spec, error) {
 	if err := writeJSON(&j, doc); err != nil {
 		return nil, fmt.Errorf("encode spec as JSON: %w", err)
 	}
-	s := &Spec{YAML: y.Bytes(), JSON: j.Bytes()}
+	s := &Spec{YAML: y.Bytes(), JSON: j.Bytes(), Skipped: skipped}
+	if c.OnSkip != nil {
+		for _, e := range skipped {
+			c.OnSkip(e)
+		}
+	}
 	c.cache[key] = s
 	return s, nil
 }
@@ -113,18 +127,33 @@ func Modules(active []string) []string {
 // that are served. Components that only the removed operations referenced
 // are removed with them; components the whole spec never referenced are left
 // alone.
-func Filter(raw []byte, modules []string) (*yaml.Node, error) {
-	var doc yaml.Node
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return nil, fmt.Errorf("parse spec: %w", err)
+//
+// fragments are the OpenAPI documents modules describe the routes they mount
+// with Runtime.Handle in, by module name. A fragment's paths are relative to
+// the module (/tags), and are merged as /m/<module>/tags with x-amp-module set
+// to the module; its components are merged as they are. Only the fragments
+// of the given modules are merged. A fragment that does not parse, or whose
+// paths or components collide with what is already there, is left out whole
+// and reported in skipped.
+func Filter(raw []byte, modules []string, fragments map[string][]byte) (doc *yaml.Node, skipped []error, err error) {
+	doc = &yaml.Node{}
+	if err := yaml.Unmarshal(raw, doc); err != nil {
+		return nil, nil, fmt.Errorf("parse spec: %w", err)
 	}
 	if doc.Kind != yaml.DocumentNode || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
-		return nil, errors.New("spec is not a YAML mapping")
+		return nil, nil, errors.New("spec is not a YAML mapping")
 	}
 	root := doc.Content[0]
 	keep := map[string]bool{}
 	for _, m := range modules {
 		keep[m] = true
+	}
+	for _, m := range modules {
+		if frag, ok := fragments[m]; ok && m != CoreModule {
+			if err := mergeFragment(root, m, frag); err != nil {
+				skipped = append(skipped, fmt.Errorf("module %s: OpenAPI fragment left out: %w", m, err))
+			}
+		}
 	}
 
 	before := reachable(root, nil)
@@ -143,7 +172,7 @@ func Filter(raw []byte, modules []string) (*yaml.Node, error) {
 		}
 		setMappingValue(info, ModulesKey, list)
 	}
-	return &doc, nil
+	return doc, skipped, nil
 }
 
 // filterPaths drops the operations not kept, and path items left with none.

@@ -252,6 +252,11 @@ func TestSpecDescribesEveryRoute(t *testing.T) {
 			"to unspecifiedRoutes with the reason.", r.module, r.pattern, specFile, r.module)
 	}
 	for key, op := range ops {
+		if mod, ok := runtimeModuleOf(op.path); ok {
+			t.Errorf("spec operation %s %s is a route of module %s mounted with Runtime.Handle. Describe it in "+
+				"the module's OpenAPI() fragment (modkit.APIDescriber) instead.", strings.ToUpper(op.method), op.path, mod)
+			continue
+		}
 		if _, ok := routes[key]; !ok {
 			t.Errorf("spec operation %s %s has no registered route. Register it or remove it from the spec.",
 				strings.ToUpper(op.method), op.path)
@@ -265,6 +270,19 @@ func TestSpecDescribesEveryRoute(t *testing.T) {
 	}
 }
 
+// runtimeModuleOf returns the module of a path under /m/<module>/, where the
+// module host mounts the routes a module registers with Runtime.Handle.
+// Those routes are described by the module itself (modkit.APIDescriber) and
+// merged into the served spec while it is active, never in this file.
+func runtimeModuleOf(path string) (string, bool) {
+	rest, ok := strings.CutPrefix(path, "/m/")
+	if !ok {
+		return "", false
+	}
+	mod, _, ok := strings.Cut(rest, "/")
+	return mod, ok && mod != ""
+}
+
 // TestSpecOperationsNameTheirModule fails when an operation's x-amp-module is
 // missing or names a module other than the one that registers its route.
 func TestSpecOperationsNameTheirModule(t *testing.T) {
@@ -276,6 +294,9 @@ func TestSpecOperationsNameTheirModule(t *testing.T) {
 		if op.module == "" {
 			t.Errorf("spec operation %s has no x-amp-module", where)
 			continue
+		}
+		if _, ok := runtimeModuleOf(op.path); ok {
+			continue // reported by TestSpecDescribesEveryRoute
 		}
 		r, ok := routes[key]
 		if !ok {

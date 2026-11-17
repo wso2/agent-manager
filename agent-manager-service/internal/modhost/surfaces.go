@@ -356,6 +356,20 @@ type UIEntry struct {
 
 // UI lists the console UI of the active modules, in activation order. An
 // entry naming a permission the module cannot use is left out and logged.
+// APIFragments returns the OpenAPI fragments of the active modules that
+// describe their routes (modkit.APIDescriber), by module name.
+func (h *Host) APIFragments() map[string][]byte {
+	out := map[string][]byte{}
+	for _, name := range h.current().active {
+		if d, ok := h.mods[name].(modkit.APIDescriber); ok {
+			if frag := d.OpenAPI(); len(frag) > 0 {
+				out[name] = frag
+			}
+		}
+	}
+	return out
+}
+
 func (h *Host) UI() []ModuleUI {
 	v := h.current()
 	out := make([]ModuleUI, 0, len(v.active))

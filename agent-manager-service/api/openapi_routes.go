@@ -17,6 +17,7 @@
 package api
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/apicatalog"
@@ -32,6 +33,19 @@ type ActiveModules interface {
 	Active() []string
 }
 
+// ModuleAPIFragments returns the OpenAPI fragments of the active modules that
+// describe their own routes (modkit.APIDescriber), by module name.
+type ModuleAPIFragments interface {
+	APIFragments() map[string][]byte
+}
+
+func fragments(modules ActiveModules) map[string][]byte {
+	if f, ok := modules.(ModuleAPIFragments); ok {
+		return f.APIFragments()
+	}
+	return nil
+}
+
 // registerAPICatalogRoutes serves the REST API's description: the OpenAPI
 // spec of the core and the active modules, as YAML and JSON, and the
 // reference page that renders it.
@@ -42,6 +56,7 @@ type ActiveModules interface {
 // CORS preflight reaches the CORS middleware (see registerConfigRoutes).
 func registerAPICatalogRoutes(mux *http.ServeMux, modules ActiveModules) {
 	catalog := apicatalog.New(docs.OpenAPI)
+	catalog.OnSkip = func(err error) { slog.Warn("API spec: a module's OpenAPI fragment was left out", "error", err) }
 	corsWrap := middleware.CORS(config.GetConfig().CORSAllowedOrigin)
 	spec := func(contentType string, body func(*apicatalog.Spec) []byte) http.Handler {
 		return corsWrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +68,7 @@ func registerAPICatalogRoutes(mux *http.ServeMux, modules ActiveModules) {
 			if modules != nil {
 				active = modules.Active()
 			}
-			s, err := catalog.For(active)
+			s, err := catalog.For(active, fragments(modules))
 			if err != nil {
 				logger.GetLogger(r.Context()).Error("failed to render the API spec", "error", err)
 				http.Error(w, "failed to render the API spec", http.StatusInternalServerError)

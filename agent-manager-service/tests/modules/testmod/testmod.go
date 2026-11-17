@@ -53,6 +53,9 @@ const (
 //go:embed migrations
 var migrations embed.FS
 
+//go:embed openapi.yaml
+var openAPI []byte
+
 // Echoer is the contract of the Echo capability.
 type Echoer interface {
 	Echo(s string) string
@@ -94,6 +97,9 @@ func (module) Migrations() fs.FS {
 }
 
 func (module) UI() fs.FS { return nil }
+
+// OpenAPI describes some of the routes the module mounts (modkit.APIDescriber).
+func (module) OpenAPI() []byte { return openAPI }
 
 // extension is the agent extension block Name accepts.
 type extension struct {

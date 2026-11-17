@@ -189,6 +189,9 @@ func TestModuleContract(t *testing.T) {
 	t.Run("routes of an uninstalled module are not found", func(t *testing.T) {
 		code, _ := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
+		code, body := w.call(t, w.full, http.MethodGet, "/api/v1/openapi.json", nil)
+		require.Equal(t, http.StatusOK, code)
+		assert.NotContains(t, string(body), "/m/testmod/", "nor in the API spec")
 	})
 
 	t.Run("an extension block for an inactive module is rejected", func(t *testing.T) {
@@ -206,6 +209,20 @@ func TestModuleContract(t *testing.T) {
 	require.NoError(t, err)
 	_, err = w.host.Install(ctx, testmod.ConsumerName, false)
 	require.NoError(t, err)
+
+	t.Run("the API spec lists an active module's described routes", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodGet, "/api/v1/openapi.json", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var spec struct {
+			Paths map[string]map[string]any `json:"paths"`
+		}
+		require.NoError(t, json.Unmarshal(body, &spec))
+		require.Contains(t, spec.Paths, "/m/testmod/whoami")
+		get, ok := spec.Paths["/m/testmod/whoami"]["get"].(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, testmod.Name, get["x-amp-module"])
+		assert.Contains(t, spec.Paths, "/m/testmod/tags")
+	})
 
 	t.Run("routes need sign-in and the module's permission", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
@@ -456,6 +473,9 @@ func TestModuleContract(t *testing.T) {
 		require.NoError(t, w.host.Disable(ctx, testmod.Name))
 		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/openapi.json", nil)
+		require.Equal(t, http.StatusOK, code)
+		assert.NotContains(t, string(body), "/m/testmod/", "a disabled module's routes leave the API spec")
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("late", map[string]any{"testmod": map[string]any{"tag": "x"}}))
 		assert.Equal(t, http.StatusBadRequest, code, string(body))
 

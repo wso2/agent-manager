@@ -150,14 +150,12 @@ rt.Handle(http.MethodGet, "/tags", "widget-read", func(w http.ResponseWriter, r 
 
 ### Describing your API
 
-The REST API is described by one OpenAPI document, `agent-manager-service/docs/api_v1_openapi.yaml`. A running server serves it at `/api/v1/openapi.yaml` and `/api/v1/openapi.json`, cut down to the core and the modules active at that moment, and renders it at `/api/docs`. So that your routes appear there exactly while your module is active:
+A running server serves its REST API description at `/api/v1/openapi.yaml` and `/api/v1/openapi.json`, cut down to the core and the modules active at that moment, and renders it at `/api/docs`. Describe your routes so they appear there exactly while your module is active:
 
-1. Add an operation for every public route you register, and give it `x-amp-module: <name>`. Routes from `rt.Handle` go under `/m/<name>/...` (the spec's server URL is `/api/v1`). Keep the existing `tags` for grouping; the extension is what the server filters on.
-2. If a route answers 501 because this version doesn't serve it, add `x-amp-not-served: true`; such operations are never served.
-3. Run `make spec` and commit what it regenerates. The extensions don't change generated code.
-4. Run `make test-unit`. `api/openapi_catalog_invariant_test.go` fails when a route has no operation, an operation has no route, `x-amp-module` names a module other than the one whose package registers the route, or `x-amp-not-served` doesn't match a 501 handler. It walks the core's routes and the built-in modules' route packages (`routePackages`); for paths under `/m/<name>/` it checks only that `x-amp-module` is `<name>`, so cover those routes in your module's integration tests. Routes on the internal server (`HandleInternal`) are not part of the public spec.
+1. Routes you mount with `rt.Handle`: implement the optional `modkit.APIDescriber`. `OpenAPI()` returns an OpenAPI 3.0 fragment in YAML with `paths` relative to the module (`/tags` for `/api/v1/m/<name>/tags`) and the `components` they reference; embed it from a file next to your module, as `tests/modules/testmod/openapi.yaml` does. The server merges it under `/m/<name>` and sets `x-amp-module: <name>` on each operation. Prefix your component names with the module's name: a fragment whose paths or components clash with what is already there is left out whole, with a warning in the log. Don't put these routes in the core spec; `api/openapi_catalog_invariant_test.go` rejects paths under `/m/` there. Check the fragment in your module's integration test, the way `TestModuleContract` checks testmod's.
+2. Routes of a built-in module registered through `builtin.Parts` (the gateway's and legacy's): add an operation to `agent-manager-service/docs/api_v1_openapi.yaml` with `x-amp-module: <name>`, and `x-amp-not-served: true` if it answers 501. Keep the existing `tags` for grouping; the extension is what the server filters on. Run `make spec` and commit what it regenerates; the extensions don't change generated code. `api/openapi_catalog_invariant_test.go`, run by `make test-unit`, fails when a route has no operation, an operation has no route, `x-amp-module` names a module other than the one whose package registers the route, or `x-amp-not-served` doesn't match a 501 handler. A new built-in route package goes in its `routePackages` and `routeModuleOfPackage`.
 
-Splitting the document into one file per module is not done yet; because every operation already names its module, it can be done later by moving operations without changing what the server serves.
+Routes on the internal server (`HandleInternal`) are not part of the public spec. Splitting the core spec into one file per module is not done yet; because every operation already names its module, and modules can already bring their own fragment, the built-in modules' operations can later move into fragments of their own without changing what the server serves.
 
 ### Hooks
 
@@ -219,6 +217,7 @@ type Proxy interface {
 ### Optional interfaces
 
 - `modkit.Installer`: `OnInstall(ctx, rt)` runs once when the module is installed, to catch up with core state that existed before it (agents created earlier, for example). If it fails, the module stays installed and the error is reported.
+- `modkit.APIDescriber`: `OpenAPI() []byte` returns the OpenAPI fragment describing the module's `rt.Handle` routes (see [Describing your API](#describing-your-api)).
 - `modkit.HealthReporter`: `Health(ctx, rt) map[string]any` is part of the contract, but nothing calls it yet.
 
 ## Connecting to the core
