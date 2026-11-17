@@ -909,3 +909,21 @@ tables:
       - {name: checksum, type: text, size: 64}
       - {name: applied_at, type: time}
     primary_key: [module, version]
+
+  # Credentials a module's workloads exchange for short-lived workload tokens.
+  # Only a hash of the secret is kept.
+  - name: workload_credentials
+    columns:
+      - {name: id, type: id}
+      - {name: module, type: text, size: 63}
+      - {name: org_id, type: id, nullable: true}
+      - {name: subject, type: text, size: 255}
+      - {name: scopes, type: text, size: 1024}
+      - {name: token_ttl_seconds, type: int}
+      - {name: secret_hash, type: text, size: 64}
+      - {name: created_at, type: time}
+      - {name: revoked_at, type: time, nullable: true}
+    primary_key: [id]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id], on_delete: cascade}
+    indexes: [[module]]

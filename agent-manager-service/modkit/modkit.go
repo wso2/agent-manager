@@ -72,10 +72,12 @@ type Manifest struct {
 	Optional []string `json:"optional,omitempty"`
 	Provides []string `json:"provides,omitempty"`
 
-	// Permissions are namespaced by the core as "<module>:<name>".
+	// Permissions are namespaced by the core as "<module>:<name>" and carried
+	// in tokens as the scope "amp:<module>:<name>". Built-in modules declare
+	// permissions that predate modules, so their names are used as written.
 	Permissions []Permission `json:"permissions,omitempty"`
-	// RoleGrants gives the module's permissions to core roles when the
-	// module is active.
+	// RoleGrants gives the module's permissions (by the names in Permissions)
+	// to the predefined roles while the module is active.
 	RoleGrants map[string][]string `json:"roleGrants,omitempty"`
 
 	// Events lists the event types this module publishes.
@@ -143,58 +145,162 @@ type HealthReporter interface {
 // Phase of a synchronous resource hook.
 type Phase string
 
+// Every phase runs inside the core transaction that writes the resource, with
+// a deadline of HookTimeout. An error from any phase rolls the change back and
+// fails the request: a modkit.Error carries its status and message to the
+// caller, any other error is reported as a 500.
 const (
-	// Validate runs before a resource is created or updated. An error rejects the request.
+	// Validate runs before a resource is created or updated, in activation order.
 	Validate Phase = "validate"
-	// Apply runs inside the core transaction that writes the resource.
+	// Apply runs after the core has written a created or updated resource,
+	// in activation order.
 	Apply Phase = "apply"
-	// Finalize runs before a resource is deleted. An error blocks the delete.
+	// Finalize runs before a resource is deleted, in reverse activation order.
 	Finalize Phase = "finalize"
 )
 
+// Resources that take hooks, and the actions they report.
+const (
+	ResourceAgent       = "agent"
+	ResourceEnvironment = "environment"
+
+	ActionCreate = "create"
+	ActionUpdate = "update"
+	ActionDelete = "delete"
+)
+
+// HookTimeout bounds every hook call.
+const HookTimeout = 5 * time.Second
+
 // HookRequest is passed to a hook.
 type HookRequest struct {
-	Resource string `json:"resource"` // e.g. "agent"
-	Action   string `json:"action"`   // create, update, delete
+	Resource string `json:"resource"` // ResourceAgent or ResourceEnvironment
+	Action   string `json:"action"`   // ActionCreate, ActionUpdate or ActionDelete
 	OrgID    string `json:"orgId,omitempty"`
-	ID       string `json:"id,omitempty"`
-	// Object is the resource as submitted or stored.
+	// ID is the resource id. It is empty in the validate phase of a create.
+	ID string `json:"id,omitempty"`
+	// Object is the resource as submitted (validate) or stored (apply, finalize).
 	Object map[string]any `json:"object,omitempty"`
 	// Extension is the part of the request body addressed to this module
 	// (body.extensions["<module>"]), or nil.
 	Extension json.RawMessage `json:"extension,omitempty"`
-	// Tx is the core transaction, set for the apply phase.
+	// Tx is the core transaction. A hook writes its own tables through it,
+	// so its rows commit or roll back with the resource.
 	Tx *gorm.DB `json:"-"`
+}
+
+// Error is an error a hook or handler returns to reject a request with a
+// status and a message the caller may see.
+type Error struct {
+	Status  int
+	Message string
+}
+
+func (e *Error) Error() string { return e.Message }
+
+// Reject returns an Error with status 400.
+func Reject(format string, args ...any) error {
+	return &Error{Status: http.StatusBadRequest, Message: fmt.Sprintf(format, args...)}
 }
 
 // HookFunc handles a resource hook.
 type HookFunc func(ctx context.Context, req HookRequest) error
 
+// Core event types. A module subscribes to them by these names; the events a
+// module publishes are named "<module>.<event>".
+const (
+	EventAgentCreated       = "agent.created"
+	EventAgentDeleted       = "agent.deleted"
+	EventEnvironmentCreated = "environment.created"
+	EventEnvironmentDeleted = "environment.deleted"
+)
+
 // Event is an asynchronous notification.
 type Event struct {
-	Type   string          `json:"type"`
-	Source string          `json:"source"`
-	Time   time.Time       `json:"time"`
-	Data   json.RawMessage `json:"data"`
+	ID      string          `json:"id"`
+	Type    string          `json:"type"`
+	Source  string          `json:"source"`
+	OrgID   string          `json:"orgId"`
+	Subject string          `json:"subject,omitempty"`
+	Time    time.Time       `json:"time"`
+	Data    json.RawMessage `json:"data"`
 }
 
-// EventHandler handles an event. Handlers run asynchronously.
+// EventHandler handles an event. Handlers run in the background, after the
+// change that raised the event has committed, on one replica. An event is
+// delivered at least once, so handlers must be idempotent.
 type EventHandler func(ctx context.Context, e Event) error
 
-// Agent is the core resource modules most often attach data to.
-type Agent struct {
+// ErrNotFound is returned by the read API for a resource that does not exist
+// in the organization.
+var ErrNotFound = errors.New("modkit: not found")
+
+// Org is an organization.
+type Org struct {
+	ID          string    `json:"id"`
+	Handle      string    `json:"handle"`
+	DisplayName string    `json:"displayName"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
+// Project is a project in an organization.
+type Project struct {
 	ID          string    `json:"id"`
 	OrgID       string    `json:"orgId"`
-	ProjectID   string    `json:"projectId"`
 	Name        string    `json:"name"`
 	DisplayName string    `json:"displayName"`
 	CreatedAt   time.Time `json:"createdAt"`
 }
 
-// CoreAPI is the read API the core offers to modules.
+// Agent is the core resource modules most often attach data to.
+type Agent struct {
+	ID          string `json:"id"`
+	OrgID       string `json:"orgId"`
+	ProjectID   string `json:"projectId"`
+	ProjectName string `json:"projectName"`
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	// Provisioning is "external" or "internal".
+	Provisioning string    `json:"provisioning"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// Environment is an environment of an organization.
+type Environment struct {
+	ID           string    `json:"id"`
+	OrgID        string    `json:"orgId"`
+	Name         string    `json:"name"`
+	DisplayName  string    `json:"displayName"`
+	IsProduction bool      `json:"isProduction"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// CoreAPI is the read API the core offers to modules. Every call is scoped to
+// one organization, by its id; a resource of another organization is
+// reported as ErrNotFound.
 type CoreAPI interface {
-	ListAgents(ctx context.Context, orgID string) ([]Agent, error)
+	GetOrg(ctx context.Context, orgID string) (Org, error)
+	ListProjects(ctx context.Context, orgID string) ([]Project, error)
+	GetProject(ctx context.Context, orgID, projectID string) (Project, error)
+	// ListAgents lists the agents of an organization; projectID, when not
+	// empty, narrows it to one project.
+	ListAgents(ctx context.Context, orgID, projectID string) ([]Agent, error)
 	GetAgent(ctx context.Context, orgID, agentID string) (Agent, error)
+	ListEnvironments(ctx context.Context, orgID string) ([]Environment, error)
+}
+
+// OrgID is the organization of the request ctx belongs to, set on every module
+// route; empty outside a request.
+func OrgID(ctx context.Context) string {
+	s, _ := ctx.Value(orgKey{}).(string)
+	return s
+}
+
+type orgKey struct{}
+
+// WithOrgID returns ctx carrying orgID, for the core to set on module requests.
+func WithOrgID(ctx context.Context, orgID string) context.Context {
+	return context.WithValue(ctx, orgKey{}, orgID)
 }
 
 // Runtime is what the core gives a module when it activates it.
@@ -206,25 +312,40 @@ type Runtime interface {
 	Core() CoreAPI
 	Logger() *slog.Logger
 
-	// Handle mounts an API route under /m/<module>. perm is a module
-	// permission name (without the module prefix) or a core permission;
-	// "" means any signed-in user.
+	// Handle mounts an API route at /api/v1/m/<module><path>, behind the same
+	// sign-in, permission check and audit trail as the core's routes. path is
+	// a net/http pattern path ("/widgets/{id}"). perm is one of the module's
+	// permissions (as named in its manifest) or a core permission; "" means
+	// any signed-in user of the organization, which only reads may use.
 	Handle(method, path, perm string, h http.HandlerFunc)
-	// HandleInternal mounts a route for the module's workloads, which present
-	// a core-issued token carrying scope.
+	// HandleInternal mounts a route for the module's workloads at
+	// /api/internal/v1/m/<module><path> on the internal server. Callers
+	// present a token from IssueToken (or exchanged for a workload
+	// credential) that carries scope.
 	HandleInternal(method, path, scope string, h http.HandlerFunc)
-	// Hook registers a synchronous hook on a core resource.
+	// Hook registers a synchronous hook on a core resource (ResourceAgent or
+	// ResourceEnvironment).
 	Hook(resource string, phase Phase, h HookFunc)
-	// Subscribe registers an asynchronous event handler.
+	// Subscribe registers an asynchronous event handler for an event type:
+	// a core event, or one a module declares in its manifest.
 	Subscribe(eventType string, h EventHandler)
+	// Publish records an event declared in the manifest for the organization
+	// of ctx, or of data's "orgId" when ctx has none.
+	Publish(ctx context.Context, eventType string, data any) error
 	// PublishTx records an event declared in the manifest inside tx, so it
 	// is delivered only if tx commits.
 	PublishTx(ctx context.Context, tx *gorm.DB, eventType string, data any) error
 
 	// Can reports whether the caller of the current request holds perm.
 	Can(ctx context.Context, perm string) bool
-	// IssueToken mints a short-lived token for one of the module's workloads.
+	// IssueToken mints a short-lived token for one of the module's workloads,
+	// signed with the core's key and verifiable with its JWKS.
 	IssueToken(ctx context.Context, req TokenRequest) (string, error)
+	// IssueCredential creates a credential a workload exchanges for a token at
+	// POST /api/internal/v1/workload-tokens. The secret is returned only here.
+	IssueCredential(ctx context.Context, req CredentialRequest) (Credential, error)
+	// RevokeCredential revokes one of the module's credentials.
+	RevokeCredential(ctx context.Context, id string) error
 
 	// Provide registers the implementation of a capability listed in Provides.
 	Provide(capability string, impl any)
@@ -236,9 +357,48 @@ type Runtime interface {
 // TokenRequest describes a workload token to mint.
 type TokenRequest struct {
 	Subject string            // e.g. "run:<id>"
+	OrgID   string            // the organization the workload acts for; defaults to the request's
 	Scopes  []string          // module-local scope names
-	TTL     time.Duration     // capped by the core
+	TTL     time.Duration     // capped by the core; zero means the default
 	Claims  map[string]string // extra string claims
+}
+
+// CredentialRequest describes a workload credential. Tokens exchanged for it
+// carry its subject, organization and scopes.
+type CredentialRequest struct {
+	Subject string
+	OrgID   string
+	Scopes  []string
+	// TTL of each exchanged token; zero means the default.
+	TokenTTL time.Duration
+}
+
+// Credential is a workload credential: the id and secret a workload presents.
+type Credential struct {
+	ID     string `json:"id"`
+	Secret string `json:"secret"`
+}
+
+// Workload is the caller of an internal route, from its verified token.
+type Workload struct {
+	Module  string
+	Subject string
+	OrgID   string
+	Scopes  []string
+	Claims  map[string]string
+}
+
+type workloadKey struct{}
+
+// WithWorkload returns ctx carrying w, for the core to set on internal requests.
+func WithWorkload(ctx context.Context, w Workload) context.Context {
+	return context.WithValue(ctx, workloadKey{}, w)
+}
+
+// WorkloadFrom returns the workload calling an internal route.
+func WorkloadFrom(ctx context.Context) (Workload, bool) {
+	w, ok := ctx.Value(workloadKey{}).(Workload)
+	return w, ok
 }
 
 // Lookup resolves a capability and asserts its contract type.

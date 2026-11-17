@@ -24,8 +24,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -67,11 +69,26 @@ func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organizat
 		ID: newID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
 		CreatedAt: now, UpdatedAt: now,
 	}
+	// The default environment is the only one an organization gets, so its
+	// creation is where environment hooks and events fire.
+	envReq := modkit.HookRequest{Resource: modkit.ResourceEnvironment, Action: modkit.ActionCreate, OrgID: org.ID.String()}
 	txErr := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&org).Error; err != nil {
 			return err
 		}
-		return tx.Create(&env).Error
+		object := environmentObject(&env)
+		delete(object, "id")
+		if err := coreext.Get().Run(ctx, tx, modkit.Validate, withObject(envReq, "", object), nil); err != nil {
+			return err
+		}
+		if err := tx.Create(&env).Error; err != nil {
+			return err
+		}
+		object = environmentObject(&env)
+		if err := coreext.Get().Run(ctx, tx, modkit.Apply, withObject(envReq, env.ID.String(), object), nil); err != nil {
+			return err
+		}
+		return emit(ctx, tx, modkit.EventEnvironmentCreated, org.ID.String(), env.Name, object)
 	})
 	if txErr != nil {
 		// A concurrent request may have created it first.
@@ -82,6 +99,14 @@ func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organizat
 		return nil, fmt.Errorf("failed to create organization for OU %q: %w", ouID, txErr)
 	}
 	return &org, nil
+}
+
+// environmentObject is an environment as module hooks and events see it.
+func environmentObject(e *models.Environment) map[string]any {
+	return map[string]any{
+		"id": e.ID.String(), "orgId": e.OrgID.String(), "name": e.Name,
+		"displayName": e.DisplayName, "isProduction": e.IsProduction,
+	}
 }
 
 // orgIDFor is the id of the caller's organization.

@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -271,7 +272,7 @@ func TestUpdateAgentBasicInfo_PassesLabelsThroughToClient(t *testing.T) {
 				GetAgentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
 					return &models.AgentResponse{Name: "agent-1"}, nil
 				},
-				UpdateAgentBasicInfoFunc: func(_ context.Context, _, _, _, _, _ string, labels *map[string]string) error {
+				UpdateAgentBasicInfoFunc: func(_ context.Context, _, _, _, _, _ string, labels *map[string]string, _ map[string]json.RawMessage) error {
 					captured = labels
 					return nil
 				},

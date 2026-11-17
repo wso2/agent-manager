@@ -102,12 +102,18 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"unauthenticated so clients can discover how to authenticate.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +
 		"so MCP clients can discover how to authenticate.",
-	{"registerConfigRoutes", "Handle", "/api/v1/config"}:       "public console/CLI discovery endpoint; exposes only the observer public URL.",
-	{"MakeHTTPHandlerWithMiddleware", "Handle", "/api/v1/"}:    "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
-	{"MakeInternalHTTPHandler", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
-	{"MakeInternalHTTPHandler", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",
-	{"RegisterRoute", "Handle", "/mcp"}:                        "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
-	{"RegisterRoute", "Handle", "/mcp/"}:                       "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
+	{"registerConfigRoutes", "Handle", "/api/v1/config"}:                  "public console/CLI discovery endpoint; exposes only the observer public URL.",
+	{"MakeHTTPHandlerWithModules", "Handle", "/api/v1/"}:                  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
+	{"MakeInternalHTTPHandlerWithModules", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",
+	{"MakeHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module routes; the module host registers each one through " +
+		"RouteRegistrar.HandleModuleRoute, which applies the permission check.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module workload routes; the module host requires a " +
+		"workload token issued for that module and carrying the route's scope.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "POST /workload-tokens"}: "workload credential exchange: the caller " +
+		"authenticates with the credential's secret in the body; the exchange is audited fail-closed.",
+	{"RegisterRoute", "Handle", "/mcp"}:  "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
+	{"RegisterRoute", "Handle", "/mcp/"}: "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
 }
 
 var gatewayInternalRoutes = []string{

@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
@@ -190,14 +191,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		return
 	}
 
-	// Load the active modules and follow lifecycle changes made elsewhere.
-	// TODO: reconcile the declarative modules list from the config file at boot.
-	modulesCtx, modulesCancel := context.WithCancel(context.Background())
-	defer modulesCancel()
-	if err := moduleHost().Boot(modulesCtx); err != nil {
-		slog.Error("failed to start the module host", "error", err)
-		os.Exit(1)
-	}
 	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
 		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
 		os.Exit(1)
@@ -253,6 +246,18 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	dependencies, err := wiring.InitializeAppParamsWithEnvThunderEndpoints(cfg, database, secretProvider, opts.GatewayConfigApplier, agentThunderProvisioning, opts.EnvThunderEndpointResolver)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
+		os.Exit(1)
+	}
+
+	// Load the active modules and follow lifecycle changes made elsewhere. The
+	// host gets the core services modules use first, so the snapshot it
+	// builds carries their routes.
+	// TODO: reconcile the declarative modules list from the config file at boot.
+	modulesCtx, modulesCancel := context.WithCancel(context.Background())
+	defer modulesCancel()
+	stopModuleEvents, err := StartModules(modulesCtx, moduleHost(), database, dependencies)
+	if err != nil {
+		slog.Error("failed to start the module host", "error", err)
 		os.Exit(1)
 	}
 
@@ -330,7 +335,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	recordStartupPosture(dependencies.AuditRecorder)
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandlerWithMiddleware(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware)
+	handler := api.MakeHTTPHandlerWithModules(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, moduleHost())
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,
@@ -341,7 +346,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	}
 
 	// Create internal HTTPS server for WebSocket and gateway internal APIs
-	internalHandler := api.MakeInternalHTTPHandler(dependencies)
+	internalHandler := api.MakeInternalHTTPHandlerWithModules(dependencies, moduleHost())
 	internalServer := server.NewInternalServer(&cfg.InternalServer, internalHandler)
 
 	stopCh := signals.SetupSignalHandler()
@@ -427,6 +432,8 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		eventsCancel()
 		<-eventsStarted
 		stopEvents(dependencies)
+		stopModuleEvents()
+		coreext.Set(nil)
 
 		// Flush the audit buffer last. The servers have drained and the
 		// background workers have stopped, so no further events can be
@@ -468,6 +475,37 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// Wait for graceful shutdown to complete
 	wg.Wait()
 	slog.Info("All servers shut down successfully")
+}
+
+// StartModules attaches the core services to the module host, boots it, and
+// makes the core's resource code run module hooks. Module events go through
+// the event outbox: with events on, the event publisher drains them; with
+// events off, a publisher with no bus is started to drain only them. The
+// returned function stops that drainer.
+func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, deps *wiring.AppParams) (func(), error) {
+	attach := modhost.Deps{
+		Mount:  api.ModuleMounter(deps),
+		Core:   repositories.NewCoreReadAPI(database),
+		Events: repositories.NewModuleEventSink(database),
+	}
+	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
+		attach.Tokens = signer
+	}
+	host.Attach(attach)
+	if err := host.Boot(ctx); err != nil {
+		return func() {}, err
+	}
+	coreext.Set(host)
+
+	deliver := func(ctx context.Context, e events.Event) { host.Deliver(ctx, repositories.ModuleEvent(e)) }
+	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
+		publisher.SetLocalDelivery(deliver)
+		return func() {}, nil
+	}
+	local := events.NewAsyncPublisher(nil, repositories.NewEventOutboxRepository(database), slog.Default())
+	local.SetLocalDelivery(deliver)
+	local.Start()
+	return local.Stop, nil
 }
 
 // waitForModuleSchema waits until another process has applied the migrations

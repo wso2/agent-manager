@@ -47,7 +47,13 @@ const (
 	// from failure into two actions makes that query a union of two.
 	ActionAuthLogin Action = "authn:login"
 
-	ActionAgentTokenMint              Action = "agent-token:mint"
+	ActionAgentTokenMint Action = "agent-token:mint"
+
+	// A module's workload credentials, and the tokens its workloads exchange
+	// them for.
+	ActionWorkloadCredentialIssue     Action = "workload-credential:issue"
+	ActionWorkloadCredentialRevoke    Action = "workload-credential:revoke"
+	ActionWorkloadTokenExchange       Action = "workload-token:exchange"
 	ActionAgentTokenRegenerateTracing Action = "agent-token:regenerate-tracing"
 
 	ActionAgentIdentityProvision         Action = "agent-identity:provision"
@@ -271,6 +277,19 @@ func init() {
 	registerCredential(ActionAgentTokenMint, map[string]FieldKind{
 		"agentName": KindName,
 		"expiresIn": KindCount,
+	})
+	registerCredential(ActionWorkloadCredentialIssue, map[string]FieldKind{
+		"module":  KindName,
+		"subject": KindIdentifier,
+		"scopes":  KindNameList,
+	})
+	registerCredential(ActionWorkloadCredentialRevoke, map[string]FieldKind{
+		"module": KindName,
+	})
+	registerCredential(ActionWorkloadTokenExchange, map[string]FieldKind{
+		"module":       KindName,
+		"credentialId": KindIdentifier,
+		"expiresIn":    KindCount,
 	})
 	registerCredential(ActionAgentTokenRegenerateTracing, map[string]FieldKind{
 		"agentName": KindName,

@@ -23,12 +23,15 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // runtime is the modkit.Runtime a module gets for one activation.
@@ -47,6 +50,11 @@ type runtime struct {
 
 	mu   sync.Mutex
 	errs []error
+	// What Activate registered, added to the snapshot only if it succeeds.
+	routes   []Route
+	internal []Route
+	hooks    []hookEntry
+	subs     []subEntry
 }
 
 var _ modkit.Runtime = (*runtime)(nil)
@@ -67,45 +75,153 @@ func (r *runtime) err() error {
 	return errors.Join(r.errs...)
 }
 
-// unsupported records the use of a Runtime feature this core does not
-// implement yet. A module that uses one fails to activate rather than run
-// with part of its registrations silently missing.
-func (r *runtime) unsupported(feature string) {
-	r.fail(fmt.Errorf("uses Runtime.%s, which this core does not implement yet", feature))
+// registering reports whether registrations are allowed now, and records an
+// error when they are not: a module registers only from Activate.
+func (r *runtime) registering(what string) bool {
+	if !r.building.Load() {
+		r.fail(fmt.Errorf("%s outside Activate", what))
+		return false
+	}
+	return true
 }
 
 func (r *runtime) Name() string         { return r.name }
 func (r *runtime) DB() *gorm.DB         { return r.h.db }
 func (r *runtime) Logger() *slog.Logger { return r.log }
 
-// TODO: the core read API for modules (agents, projects, environments).
-func (r *runtime) Core() modkit.CoreAPI { return unimplementedCore{} }
-
-// TODO: mount module routes under the API router with the authz middleware.
-func (r *runtime) Handle(string, string, string, http.HandlerFunc) { r.unsupported("Handle") }
-
-// TODO: mount workload routes that verify core-issued workload tokens.
-func (r *runtime) HandleInternal(string, string, string, http.HandlerFunc) {
-	r.unsupported("HandleInternal")
+func (r *runtime) Core() modkit.CoreAPI {
+	if d := r.h.deps(); d.Core != nil {
+		return d.Core
+	}
+	return unimplementedCore{}
 }
 
-// TODO: run agent and environment hooks inside the core transaction.
-func (r *runtime) Hook(string, modkit.Phase, modkit.HookFunc) { r.unsupported("Hook") }
+var routeMethods = []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete}
 
-// TODO: deliver events from the event outbox.
-func (r *runtime) Subscribe(string, modkit.EventHandler) { r.unsupported("Subscribe") }
-
-// TODO: write events to the event outbox inside tx.
-func (r *runtime) PublishTx(context.Context, *gorm.DB, string, any) error {
-	return modkit.ErrNotImplemented
+func (r *runtime) checkRoute(kind, method, path string, h http.HandlerFunc) error {
+	if !slices.Contains(routeMethods, method) {
+		return fmt.Errorf("%s %s %s: method must be one of %v", kind, method, path, routeMethods)
+	}
+	if !strings.HasPrefix(path, "/") || strings.ContainsAny(path, " \t") {
+		return fmt.Errorf("%s %s %q: path must start with / and hold no spaces", kind, method, path)
+	}
+	if h == nil {
+		return fmt.Errorf("%s %s %s: nil handler", kind, method, path)
+	}
+	return nil
 }
 
-// TODO: check the caller's permissions against the permission registry.
-func (r *runtime) Can(context.Context, string) bool { return false }
+func (r *runtime) Handle(method, path, perm string, h http.HandlerFunc) {
+	if !r.registering("Handle") {
+		return
+	}
+	if err := r.checkRoute("Handle", method, path, h); err != nil {
+		r.fail(err)
+		return
+	}
+	full := rbac.Permission("")
+	if perm != "" {
+		var err error
+		if full, err = r.h.permission(r.name, perm); err != nil {
+			r.fail(fmt.Errorf("Handle %s %s: %w", method, path, err))
+			return
+		}
+	} else if method != http.MethodGet {
+		// Every state-changing route names a permission, as in the core: it
+		// is what the route's audit action is named after.
+		r.fail(fmt.Errorf("Handle %s %s: a %s route needs a permission", method, path, method))
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.routes = append(r.routes, Route{Module: r.name, Method: method, Path: path, Permission: full, Handler: h})
+}
 
-// TODO: sign workload tokens with the core's JWT keys.
-func (r *runtime) IssueToken(context.Context, modkit.TokenRequest) (string, error) {
-	return "", modkit.ErrNotImplemented
+func (r *runtime) HandleInternal(method, path, scope string, h http.HandlerFunc) {
+	if !r.registering("HandleInternal") {
+		return
+	}
+	if err := r.checkRoute("HandleInternal", method, path, h); err != nil {
+		r.fail(err)
+		return
+	}
+	if scope == "" {
+		r.fail(fmt.Errorf("HandleInternal %s %s: a workload route needs a scope", method, path))
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.internal = append(r.internal, Route{Module: r.name, Method: method, Path: path, Scope: scope, Handler: h})
+}
+
+func (r *runtime) Hook(resource string, phase modkit.Phase, h modkit.HookFunc) {
+	if !r.registering("Hook") {
+		return
+	}
+	if resource != modkit.ResourceAgent && resource != modkit.ResourceEnvironment {
+		r.fail(fmt.Errorf("Hook: resource %q takes no hooks (want %s or %s)", resource, modkit.ResourceAgent, modkit.ResourceEnvironment))
+		return
+	}
+	if phase != modkit.Validate && phase != modkit.Apply && phase != modkit.Finalize {
+		r.fail(fmt.Errorf("Hook: unknown phase %q", phase))
+		return
+	}
+	if h == nil {
+		r.fail(fmt.Errorf("Hook %s/%s: nil hook", resource, phase))
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.hooks = append(r.hooks, hookEntry{module: r.name, resource: resource, phase: phase, fn: h})
+}
+
+func (r *runtime) Subscribe(eventType string, h modkit.EventHandler) {
+	if !r.registering("Subscribe") {
+		return
+	}
+	if !r.h.knownEvent(eventType) {
+		r.fail(fmt.Errorf("Subscribe: no core event or module manifest declares %q", eventType))
+		return
+	}
+	if h == nil {
+		r.fail(fmt.Errorf("Subscribe %s: nil handler", eventType))
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.subs = append(r.subs, subEntry{module: r.name, event: eventType, fn: h})
+}
+
+func (r *runtime) Publish(ctx context.Context, eventType string, data any) error {
+	return r.PublishTx(ctx, nil, eventType, data)
+}
+
+func (r *runtime) PublishTx(ctx context.Context, tx *gorm.DB, eventType string, data any) error {
+	if !slices.Contains(r.mf.Events, eventType) {
+		return fmt.Errorf("modkit: %s publishes %s, which its manifest does not list", r.name, eventType)
+	}
+	return r.h.publish(ctx, tx, r.name, eventType, data)
+}
+
+func (r *runtime) Can(ctx context.Context, perm string) bool {
+	full, err := r.h.permission(r.name, perm)
+	if err != nil {
+		r.log.Warn("modhost:Can asked about an unknown permission", "permission", perm)
+		return false
+	}
+	return jwtassertion.HoldsAnyScope(ctx, full)
+}
+
+func (r *runtime) IssueToken(ctx context.Context, req modkit.TokenRequest) (string, error) {
+	return r.h.issueToken(ctx, r.name, req)
+}
+
+func (r *runtime) IssueCredential(ctx context.Context, req modkit.CredentialRequest) (modkit.Credential, error) {
+	return r.h.issueCredential(ctx, r.name, req)
+}
+
+func (r *runtime) RevokeCredential(ctx context.Context, id string) error {
+	return r.h.revokeCredential(ctx, r.name, id)
 }
 
 func (r *runtime) Provide(capability string, impl any) {
@@ -113,8 +229,7 @@ func (r *runtime) Provide(capability string, impl any) {
 		r.fail(fmt.Errorf("provides %s, which its manifest does not list", capability))
 		return
 	}
-	if !r.building.Load() {
-		r.fail(fmt.Errorf("provides %s outside Activate", capability))
+	if !r.registering("Provide " + capability) {
 		return
 	}
 	if by, ok := r.v.capBy[capability]; ok && by != r.name {
@@ -125,6 +240,8 @@ func (r *runtime) Provide(capability string, impl any) {
 	r.v.capBy[capability] = r.name
 }
 
+// Capability resolves against the snapshot current at the time of the call,
+// so a provider disabled since the caller activated is no longer returned.
 func (r *runtime) Capability(name string) (any, bool) {
 	if !slices.Contains(r.mf.Requires, name) && !slices.Contains(r.mf.Optional, name) {
 		r.log.Warn("modhost:capability is not listed in Requires or Optional", "capability", name)
@@ -140,10 +257,26 @@ func (r *runtime) Capability(name string) (any, bool) {
 
 type unimplementedCore struct{}
 
-func (unimplementedCore) ListAgents(context.Context, string) ([]modkit.Agent, error) {
+func (unimplementedCore) GetOrg(context.Context, string) (modkit.Org, error) {
+	return modkit.Org{}, modkit.ErrNotImplemented
+}
+
+func (unimplementedCore) ListProjects(context.Context, string) ([]modkit.Project, error) {
+	return nil, modkit.ErrNotImplemented
+}
+
+func (unimplementedCore) GetProject(context.Context, string, string) (modkit.Project, error) {
+	return modkit.Project{}, modkit.ErrNotImplemented
+}
+
+func (unimplementedCore) ListAgents(context.Context, string, string) ([]modkit.Agent, error) {
 	return nil, modkit.ErrNotImplemented
 }
 
 func (unimplementedCore) GetAgent(context.Context, string, string) (modkit.Agent, error) {
 	return modkit.Agent{}, modkit.ErrNotImplemented
+}
+
+func (unimplementedCore) ListEnvironments(context.Context, string) ([]modkit.Environment, error) {
+	return nil, modkit.ErrNotImplemented
 }

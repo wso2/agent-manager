@@ -23,6 +23,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	"net/http"
 	"path/filepath"
 	"sync/atomic"
 	"testing"
@@ -439,7 +440,8 @@ func TestInstallRefusesAModuleThatCannotActivate(t *testing.T) {
 		manifest: manifest("t-early", nil, []string{"x/v1"}),
 		activate: func(rt modkit.Runtime) error {
 			rt.Provide("x/v1", struct{}{})
-			rt.Handle("GET", "/things", "", nil)
+			// A state-changing route must name a permission.
+			rt.Handle("POST", "/things", "", func(http.ResponseWriter, *http.Request) {})
 			return nil
 		},
 	}
@@ -447,7 +449,7 @@ func TestInstallRefusesAModuleThatCannotActivate(t *testing.T) {
 	_, err := h.Install(ctx, "t-early", false)
 	require.Error(t, err)
 	assert.True(t, modhost.IsResolveError(err))
-	assert.Contains(t, err.Error(), "Runtime.Handle")
+	assert.Contains(t, err.Error(), "needs a permission")
 	assert.Empty(t, h.Active())
 	assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-early'`), "a refused install commits nothing")
 }

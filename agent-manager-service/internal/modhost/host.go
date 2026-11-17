@@ -27,6 +27,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sort"
 	"strings"
 	"sync"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // DefaultPollInterval is how often a replica checks the module generation for
@@ -77,6 +79,8 @@ type Host struct {
 	// failed holds the active modules that did not activate in the current
 	// snapshot, with the reason.
 	failed map[string]error
+	// d holds the core services the server attached.
+	d Deps
 }
 
 // view is an immutable snapshot of what the active modules registered.
@@ -85,10 +89,27 @@ type view struct {
 	active []string
 	caps   map[string]any
 	capBy  map[string]string
+
+	perms *rbac.Registry
+	// public and internal hold each active module's routes.
+	public   map[string]*http.ServeMux
+	internal map[string]*http.ServeMux
+	// hooks are by resource and phase, in activation order.
+	hooks map[string]map[modkit.Phase][]hookEntry
+	subs  map[string][]subEntry
 }
 
 func newView() *view {
-	return &view{caps: map[string]any{}, capBy: map[string]string{}}
+	return &view{
+		caps: map[string]any{}, capBy: map[string]string{}, perms: rbac.NewRegistry(),
+		public: map[string]*http.ServeMux{}, internal: map[string]*http.ServeMux{},
+		hooks: map[string]map[modkit.Phase][]hookEntry{}, subs: map[string][]subEntry{},
+	}
+}
+
+// Permissions is the permission registry of the current module set.
+func (h *Host) Permissions() *rbac.Registry {
+	return h.current().perms
 }
 
 // New creates the host for the modules compiled into this binary. driver is
@@ -294,6 +315,9 @@ func (h *Host) Reload(ctx context.Context) error {
 	}
 	h.mu.Lock()
 	h.v, h.gen, h.states, h.failed = v, gen, states, failed
+	if !h.Passive {
+		rbac.SetCurrent(v.perms)
+	}
 	h.dbVer = make(map[string]string, len(rows))
 	for n, r := range rows {
 		h.dbVer[n] = r.Version
@@ -358,6 +382,9 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 	if err == nil {
 		err = rt.err()
 	}
+	if err == nil {
+		err = h.commit(rt, v)
+	}
 	if err != nil {
 		// Drop what the module registered before it failed, so no consumer
 		// activates against it.
@@ -368,6 +395,49 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 			}
 		}
 		return err
+	}
+	return nil
+}
+
+// commit adds what a module registered during a successful Activate to the
+// snapshot: its permissions, routes, hooks and subscriptions. Nothing is
+// added unless all of it is accepted.
+func (h *Host) commit(rt *runtime, v *view) error {
+	name := rt.name
+	if err := declare(v.perms.Clone(), rt.mf); err != nil {
+		return err
+	}
+	d := h.deps()
+	var pub, internal *http.ServeMux
+	if d.Mount != nil && len(rt.routes) > 0 {
+		var err error
+		if pub, err = mountPublic(d.Mount, rt.routes); err != nil {
+			return err
+		}
+	}
+	if len(rt.internal) > 0 {
+		var err error
+		if internal, err = h.mountInternal(name, rt.internal); err != nil {
+			return err
+		}
+	}
+	if err := declare(v.perms, rt.mf); err != nil {
+		return err
+	}
+	if pub != nil {
+		v.public[name] = pub
+	}
+	if internal != nil {
+		v.internal[name] = internal
+	}
+	for _, e := range rt.hooks {
+		if v.hooks[e.resource] == nil {
+			v.hooks[e.resource] = map[modkit.Phase][]hookEntry{}
+		}
+		v.hooks[e.resource][e.phase] = append(v.hooks[e.resource][e.phase], e)
+	}
+	for _, s := range rt.subs {
+		v.subs[s.event] = append(v.subs[s.event], s)
 	}
 	return nil
 }

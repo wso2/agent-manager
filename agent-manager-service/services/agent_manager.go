@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/constants"
+	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -428,6 +429,11 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 	if req.Labels != nil {
 		in.Labels = *req.Labels
 	}
+	ext, err := coreext.Blocks(req.Extensions)
+	if err != nil {
+		return err
+	}
+	in.Extensions = ext
 	if callerClaims := jwtassertion.GetTokenClaims(ctx); callerClaims != nil {
 		in.CreatedBy = callerClaims.Sub
 	}
@@ -623,7 +629,11 @@ func convertEnvVars(specVars []spec.EnvironmentVariableConfig) []models.Environm
 }
 
 func (s *agentManagerService) UpdateAgentBasicInfo(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error) {
-	if err := s.platform.UpdateAgentBasicInfo(ctx, ouID, projectName, agentName, req.DisplayName, req.Description, req.Labels); err != nil {
+	ext, err := coreext.Blocks(req.Extensions)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.platform.UpdateAgentBasicInfo(ctx, ouID, projectName, agentName, req.DisplayName, req.Description, req.Labels, ext); err != nil {
 		return nil, err
 	}
 	return s.platform.GetAgent(ctx, ouID, projectName, agentName)

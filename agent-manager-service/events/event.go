@@ -86,6 +86,11 @@ type Event struct {
 	Environment string `json:"environment,omitempty"`
 	ActorType   string `json:"actortype,omitempty"`
 	ActorID     string `json:"actorid,omitempty"`
+
+	// Local events are for the modules running in this deployment. They share
+	// the outbox with every other event but are handed to the in-process
+	// subscribers instead of the bus, so they never reach a destination.
+	Local bool `json:"local,omitempty"`
 }
 
 // New returns an event of the catalog type name (e.g. "agent.deployed") with

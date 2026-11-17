@@ -49,11 +49,21 @@ type AsyncPublisher struct {
 	mu      sync.Mutex
 	started bool
 	stopped bool
+	// local receives local events; set before Start.
+	local func(context.Context, Event)
 }
 
 func NewAsyncPublisher(bus Bus, outbox Outbox, logger *slog.Logger) *AsyncPublisher {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &AsyncPublisher{bus: bus, outbox: outbox, logger: logger, ctx: ctx, cancel: cancel}
+}
+
+// SetLocalDelivery sets the receiver of local events, which the drainer hands
+// over instead of publishing them. Call it before Start.
+func (p *AsyncPublisher) SetLocalDelivery(fn func(context.Context, Event)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.local = fn
 }
 
 func (p *AsyncPublisher) Start() {
@@ -125,6 +135,20 @@ func (p *AsyncPublisher) drain(ctx context.Context) bool {
 			more = false
 			continue
 		}
+		if e.Local {
+			p.deliverLocal(ctx, e)
+			if err := p.outbox.Complete(ctx, item); err != nil {
+				p.logger.Error("Failed to complete local event delivery; will retry", "eventId", item.ID, "error", err)
+				more = false
+			}
+			continue
+		}
+		if p.bus == nil {
+			// Left for a publisher with a bus: events can be turned on later.
+			_ = p.outbox.Retry(ctx, item)
+			more = false
+			continue
+		}
 		publishCtx, cancel := context.WithTimeout(ctx, publishTimeout)
 		err := p.bus.PublishEvent(publishCtx, e, item.Body)
 		cancel()
@@ -142,4 +166,13 @@ func (p *AsyncPublisher) drain(ctx context.Context) bool {
 		}
 	}
 	return more
+}
+
+func (p *AsyncPublisher) deliverLocal(ctx context.Context, e Event) {
+	p.mu.Lock()
+	local := p.local
+	p.mu.Unlock()
+	if local != nil {
+		local(ctx, e)
+	}
 }

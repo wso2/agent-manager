@@ -841,3 +841,18 @@ CREATE TABLE module_migrations (
     applied_at TIMESTAMPTZ NOT NULL,
     CONSTRAINT pk_module_migrations PRIMARY KEY (module, version)
 );
+
+CREATE TABLE workload_credentials (
+    id UUID NOT NULL,
+    module VARCHAR(63) NOT NULL,
+    org_id UUID,
+    subject VARCHAR(255) NOT NULL,
+    scopes VARCHAR(1024) NOT NULL,
+    token_ttl_seconds INTEGER NOT NULL,
+    secret_hash VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ,
+    CONSTRAINT pk_workload_credentials PRIMARY KEY (id),
+    CONSTRAINT fk_workload_credentials_org_id FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE
+);
+CREATE INDEX idx_workload_credentials_module ON workload_credentials (module);

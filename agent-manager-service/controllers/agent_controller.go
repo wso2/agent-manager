@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -78,6 +79,12 @@ func NewAgentController(
 // return, and a 500 with fallbackMsg for anything else.
 func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	if writeIfNotImplemented(w, err) {
+		return
+	}
+	// A module hook rejected the change, with a status and message for the caller.
+	var rejected *modkit.Error
+	if errors.As(err, &rejected) {
+		utils.WriteErrorResponse(w, rejected.Status, rejected.Message)
 		return
 	}
 	switch {

@@ -21,6 +21,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -79,6 +80,32 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 // MakeHTTPHandlerWithMiddleware is MakeHTTPHandler with apiMiddleware, if non-nil,
 // wrapping the authenticated API mux before dispatch.
 func MakeHTTPHandlerWithMiddleware(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler) http.Handler {
+	return MakeHTTPHandlerWithModules(params, extraAPIRoutes, apiMiddleware, nil)
+}
+
+// Modules serves the routes of the active modules.
+type Modules interface {
+	// ServeAPI serves /api/v1/m/<module>/..., behind sign-in.
+	ServeAPI() http.Handler
+	// ServeInternal serves /api/internal/v1/m/<module>/... for module workloads.
+	ServeInternal() http.Handler
+	// ServeTokenExchange serves POST /api/internal/v1/workload-tokens.
+	ServeTokenExchange() http.Handler
+}
+
+// ModuleMounter registers a module's public route behind the same middleware
+// as the core's routes: org resolution, permission check, audit and events.
+func ModuleMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route) {
+	return func(mux *http.ServeMux, r modhost.Route) {
+		rr := middleware.NewRouteRegistrar(mux, params.OrgResolver, params.AuditRecorder)
+		rr.SetEventPublisher(params.EventPublisher)
+		rr.HandleModuleRoute(r.Pattern(), r.Permission, r.Handler)
+	}
+}
+
+// MakeHTTPHandlerWithModules is MakeHTTPHandlerWithMiddleware that also serves
+// the active modules' routes; modules may be nil.
+func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler, modules Modules) http.Handler {
 	mux := http.NewServeMux()
 
 	// Register health check
@@ -131,6 +158,11 @@ func MakeHTTPHandlerWithMiddleware(params *wiring.AppParams, extraAPIRoutes func
 	rr := middleware.NewRouteRegistrar(apiMux, params.OrgResolver, params.AuditRecorder)
 	rr.SetEventPublisher(params.EventPublisher)
 	registerAPIRoutes(rr, params)
+	if modules != nil {
+		// The module is looked up on every request, so enabling or disabling
+		// one changes these routes without a restart.
+		apiMux.Handle("/m/", modules.ServeAPI())
+	}
 	if extraAPIRoutes != nil {
 		extraAPIRoutes(apiMux, params)
 	}
@@ -154,6 +186,12 @@ func MakeHTTPHandlerWithMiddleware(params *wiring.AppParams, extraAPIRoutes func
 // MakeInternalHTTPHandler creates the internal HTTPS server handler
 // This server hosts WebSocket connections and gateway internal APIs without JWT middleware
 func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
+	return MakeInternalHTTPHandlerWithModules(params, nil)
+}
+
+// MakeInternalHTTPHandlerWithModules is MakeInternalHTTPHandler that also serves
+// module workload routes and the workload token exchange; modules may be nil.
+func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Modules) http.Handler {
 	mux := http.NewServeMux()
 
 	// Health check endpoint
@@ -170,6 +208,10 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 	internalRR := middleware.NewInternalRouteRegistrar(internalMux, params.AuditRecorder)
 	RegisterGatewayInternalRoutes(internalRR, params.GatewayInternalController)
 	RegisterWebSocketRoutes(internalMux, params.WebSocketController)
+	if modules != nil {
+		internalMux.Handle("/m/", modules.ServeInternal())
+		internalMux.Handle("POST /workload-tokens", modules.ServeTokenExchange())
+	}
 
 	// Apply basic middleware (no JWT auth)
 	internalHandler := http.Handler(internalMux)
