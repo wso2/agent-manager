@@ -118,3 +118,21 @@ func TestJSEscape(t *testing.T) {
 		t.Fatalf("got %s", got)
 	}
 }
+
+func TestOriginFollowsForwardedHeaders(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/config.js", nil)
+	req.Host = "amp-api:8080"
+	if got := requestOrigin(req); got != "http://amp-api:8080" {
+		t.Fatalf("plain: %s", got)
+	}
+	req.Header.Set("X-Forwarded-Proto", "https, http")
+	req.Header.Set("X-Forwarded-Host", "amp.example.com")
+	if got := requestOrigin(req); got != "https://amp.example.com" {
+		t.Fatalf("forwarded: %s", got)
+	}
+	req.Header.Set("X-Forwarded-Proto", "javascript")
+	req.Header.Set("X-Forwarded-Host", "evil.example/'x")
+	if got := requestOrigin(req); got != "http://amp-api:8080" {
+		t.Fatalf("bad forwarded values must be ignored: %s", got)
+	}
+}
