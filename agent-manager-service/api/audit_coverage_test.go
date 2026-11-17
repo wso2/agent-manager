@@ -91,11 +91,18 @@ func stubAppParams(t *testing.T) *wiring.AppParams {
 // controllers that are never called.
 func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
 	t.Helper()
+	parts := stubModuleParts(t, params)
+	return builtin.Built{parts[gateway.Name], parts[legacy.Name]}
+}
+
+// stubModuleParts is stubBundles keyed by module name.
+func stubModuleParts(t *testing.T, params *wiring.AppParams) map[string]*builtin.Parts {
+	t.Helper()
 	gw := &gwwire.Gateway{}
 	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
-	return builtin.Built{
-		gateway.Parts(gw, params),
-		legacy.Parts(evaluators.NewEvaluatorController(nil)),
+	return map[string]*builtin.Parts{
+		gateway.Name: gateway.Parts(gw, params),
+		legacy.Name:  legacy.Parts(evaluators.NewEvaluatorController(nil)),
 	}
 }
 

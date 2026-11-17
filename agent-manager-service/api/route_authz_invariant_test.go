@@ -62,6 +62,8 @@ var authzBearingRegistrars = map[string]bool{
 }
 
 type routeRegistration struct {
+	// module owns the package the route is registered in.
+	module      string
 	function    string
 	registrar   string
 	pattern     string
@@ -493,6 +495,7 @@ func forEachRouteRegistration(t *testing.T, fn func(routeRegistration)) {
 					}
 
 					route := routeRegistration{
+						module:    routeModuleOfPackage[dir],
 						function:  funcDecl.Name.Name,
 						registrar: sel.Sel.Name,
 					}
