@@ -1,6 +1,6 @@
 # agent-manager — agent guide
 
-WSO2 Agent Manager: an enterprise control plane to deploy, manage, govern, and observe AI agents at scale. Built on [OpenChoreo](https://github.com/openchoreo/openchoreo) for internal deployments and OpenTelemetry for observability.
+WSO2 Agent Manager: an enterprise control plane to register, govern and observe AI agents. This branch is AMP Lite: no OpenChoreo, external agents only, run with Docker Compose. The API is one binary with a module host, built as `amp` (core and modules, including the AI Gateway) or `amp-core` (core only).
 
 This repo is a **multi-aspect monorepo**. Each aspect has its own `AGENTS.md` with the concrete patterns, commands, and gotchas for that stack — **read the aspect guide before working in it**. This root guide is the map and the cross-cutting rules.
 
@@ -8,7 +8,7 @@ This repo is a **multi-aspect monorepo**. Each aspect has its own `AGENTS.md` wi
 
 | Aspect | Dir | Stack | Guide |
 |---|---|---|---|
-| **Control-plane API** | `agent-manager-service/` | Go 1.25, net/http (stdlib), GORM/pgx, gRPC, wire, sqlc, oapi-codegen | [`agent-manager-service/AGENTS.md`](agent-manager-service/AGENTS.md) |
+| **Control-plane API** | `agent-manager-service/` | Go 1.26, net/http (stdlib), GORM (SQLite or PostgreSQL), wire, oapi-codegen; modules on `modkit` | [`agent-manager-service/AGENTS.md`](agent-manager-service/AGENTS.md) |
 | **Web console** | `console/` | React 19, TS, Vite, pnpm workspaces, Oxygen UI (MUI 7), TanStack Query | [`console/AGENTS.md`](console/AGENTS.md) |
 | **Oxygen UI library** | `console/.ai/oxygen-ui/` | WSO2 React component lib | [`console/.ai/oxygen-ui/AGENTS.md`](console/.ai/oxygen-ui/AGENTS.md) |
 | **CLI (`amctl`)** | `cli/` | Go, cobra-style, factory-injected deps | [`cli/AGENTS.md`](cli/AGENTS.md) |
@@ -35,7 +35,7 @@ Repeatable, error-prone procedures are captured as Claude Code skills in `.claud
 ## How the aspects fit together
 
 ```text
-console ──HTTP──▶ agent-manager-service ──▶ OpenChoreo / Postgres / Vault / NATS
+console ──HTTP──▶ agent-manager-service ──▶ SQLite or PostgreSQL / ThunderID / AI Gateway
    │                       │
    │                       └─ registers external agents; they run under amp-instrument
    │                          (libs/amp-instrumentation) and send traces via the AI Gateway
@@ -46,17 +46,19 @@ console ──HTTP──▶ agent-manager-service ──▶ OpenChoreo / Postgre
 cli (amctl) ──HTTP──▶ agent-manager-service   (same API as the console)
 ```
 
-- **`agent-manager-service`** is the hub — the REST/gRPC/WS API the console and CLI both call.
+- **`agent-manager-service`** is the hub — the REST and MCP API the console and CLI both call. It also serves the built console on its own port. Its core imports no module; the AI Gateway is the built-in `gateway` module (see [its guide](agent-manager-service/AGENTS.md#add-a-module)).
 - **Instrumented agents** emit OTel traces (via `amp-instrumentation`, run with `amp-instrument`); `agent-manager-observer` serves them to the console; `evaluation-job` scores them via `amp-evaluation`.
 
 ## Local dev environment (from repo root)
 
 ```bash
 make tools        # pinned Go dev tools (codegen, linters, ginkgo) into .tools/bin; versions in tools.mk
-make setup        # first-time: tools + Colima + k3d + OpenChoreo + platform + console
-make dev-up       # start service + db (compose) and the console (native, background, :3000)
+make setup        # first-time: tools, then dev-up
+make dev-up       # start the Compose stack with the API under air, and the console (Vite, background, :3000)
 make dev-down     # stop them
-make dev-logs     # tail compose logs (service, db)
+make dev-logs     # tail the stack's logs
+make up           # the stack as a release runs it; console on the API port :9000
+make up-core      # the same with amp-core (no modules, no AI Gateway)
 make dev-rebuild  # full image rebuild
 make console      # (re)start the console dev server; BACKGROUND=true to detach
 make stop-console # stop the console dev server
@@ -65,7 +67,7 @@ make dev-migrate  # run DB migrations
 make e2e-test     # run the e2e suite against the local stack
 ```
 
-Run `make help` at the root for the full target list (gateway setup, port-forwarding, DB access, codegen helpers, etc.).
+Run `make help` at the root for the full target list (DB access, smoke tests, codegen helpers, etc.).
 
 ## Cross-cutting engineering rules
 

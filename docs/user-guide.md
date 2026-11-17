@@ -22,7 +22,7 @@ Your agents run wherever you host them. You register them in AMP, which gives ea
 
 - Docker with Compose v2: Docker Desktop, Colima or Docker Engine on Linux.
 - About 2 GB of free memory for the stack. OpenSearch uses most of it.
-- Free host ports: 3000, 8080, 9000, 9098, 9243 and 19080. Change them in `.env` if any are taken.
+- Free host ports: 8080, 9000, 9098, 9243 and 19080. Change them in `.env` if any are taken.
 - On Linux hosts, OpenSearch needs `sudo sysctl -w vm.max_map_count=262144`. Docker Desktop and Colima already set it.
 
 ## Install

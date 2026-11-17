@@ -16,7 +16,7 @@ Startup, in order:
 
 1. `amp-init` (the `amp-api` image, `amp init thunder … gateway … fileauth …`) writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from the settings in `docker-compose.yml` and `.env`: public URLs, ports, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token (unless `DEFAULT_GATEWAY_TOKEN` is set), and keeps them afterwards.
 2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to `AMP_ADMIN_PASSWORD` again.
-3. `amp-api` migrates its database, then registers the default gateway (`DEFAULT_GATEWAY_*`) with the token from step 1, creating the `default` organization and environment if needed.
+3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and creates the `default` organization and environment if needed (`DEFAULT_ORG_*`). The built-in gateway module then registers the default gateway (`DEFAULT_GATEWAY_*`) with the token from step 1.
 4. `gateway-controller` connects to `amp-api` with that token. On every gateway connection, `amp-api` deploys the built-in trace-ingest API (`/otel`, `OTEL_INGEST_UPSTREAM_URL`) on the gateway if it does not serve the current version. It is a control-plane deployment, so a gateway restart or resync keeps it.
 5. `amp-observer` applies the `otel-traces-*` index template (span IDs and attributes as keywords) to OpenSearch before it reports healthy; `otel-collector` waits for that.
 
@@ -39,6 +39,8 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build -
 `docker-compose.build.yml` builds the Agent Manager images from the checkout; release bundles leave it out.
 
 Sign in to the console (http://localhost:9000, served by `amp-api`) as `admin` with `AMP_ADMIN_PASSWORD` from `.env`. The console's settings are `CONSOLE_*` variables on `amp-api` (each fills the `$NAME` of the same name in the console's `config.js`); which of its pages show comes from the modules the API runs (`GET /api/v1/ui-manifest`), plus any listed in `CONSOLE_UI_MODULES_ENABLE`. Behind a reverse proxy, set `SERVER_PUBLIC_URL` on amp-api to the public origin.
+
+`amp-api` takes its settings from the environment Compose passes it. Anything else can go in an `amp.yaml` the container reads (`--config` or `AMP_CONFIG`), including the `modules:` list it reconciles at boot; environment variables win over the file. See [`amp.example.yaml`](../../agent-manager-service/amp.example.yaml).
 
 `AUTH_MODE` decides how sign-in works and ships as `file`: the API checks the
 password against `/etc/amp/users.yaml` and issues its own tokens, with no
