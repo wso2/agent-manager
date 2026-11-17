@@ -40,7 +40,7 @@ func (c *configReader) logAndExitIfErrorsFound() {
 }
 
 func (c *configReader) readRequiredString(envVarName string) string {
-	v := os.Getenv(envVarName)
+	v := Value(envVarName)
 	if v == "" {
 		c.errors = append(c.errors, fmt.Errorf("required environment variable %s not found", envVarName))
 	}
@@ -48,7 +48,7 @@ func (c *configReader) readRequiredString(envVarName string) string {
 }
 
 func (c *configReader) readOptionalString(envVarName string, defaultValue string) string {
-	v := os.Getenv(envVarName)
+	v := Value(envVarName)
 	if v == "" {
 		return defaultValue
 	}
@@ -57,7 +57,7 @@ func (c *configReader) readOptionalString(envVarName string, defaultValue string
 
 // readOptionalStringList reads a comma-separated string from environment and returns a slice
 func (c *configReader) readOptionalStringList(key string, defaultValue string) []string {
-	value := os.Getenv(key)
+	value := Value(key)
 	if value == "" {
 		value = defaultValue
 	}
@@ -79,7 +79,7 @@ func (c *configReader) readOptionalStringList(key string, defaultValue string) [
 }
 
 func (c *configReader) readOptionalInt64(envVarName string, defaultValue int64) int64 {
-	v := os.Getenv(envVarName)
+	v := Value(envVarName)
 	if v == "" {
 		return defaultValue
 	}
@@ -92,7 +92,7 @@ func (c *configReader) readOptionalInt64(envVarName string, defaultValue int64) 
 }
 
 func (c *configReader) readOptionalFloat64(envVarName string, defaultValue float64) float64 {
-	v := os.Getenv(envVarName)
+	v := Value(envVarName)
 	if v == "" {
 		return defaultValue
 	}
@@ -105,7 +105,7 @@ func (c *configReader) readOptionalFloat64(envVarName string, defaultValue float
 }
 
 func (c *configReader) readNullableInt64(envVarName string) *int64 {
-	v := os.Getenv(envVarName)
+	v := Value(envVarName)
 	if v == "" {
 		return nil
 	}
@@ -118,7 +118,7 @@ func (c *configReader) readNullableInt64(envVarName string) *int64 {
 }
 
 func (c *configReader) readOptionalBool(envVarName string, defaultValue bool) bool {
-	raw := os.Getenv(envVarName)
+	raw := Value(envVarName)
 	v := strings.TrimSpace(raw)
 	if v == "" {
 		return defaultValue

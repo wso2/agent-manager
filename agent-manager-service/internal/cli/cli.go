@@ -82,11 +82,9 @@ func run(distribution string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if path != "" {
-		if err := os.Setenv(config.FileEnv, path); err != nil {
-			return err
-		}
-		config.Reload()
+	// Settings: the environment, then the configuration file, then defaults.
+	if err := config.Load(path); err != nil {
+		return err
 	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 		return legacy(args)

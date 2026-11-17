@@ -30,7 +30,6 @@ import (
 	"bytes"
 	"io/fs"
 	"net/http"
-	"os"
 	"path"
 	"regexp"
 	"strings"
@@ -148,9 +147,7 @@ func Value(name string, defaults map[string]string) string {
 
 // configValue reads a setting; amp.yaml has already been folded into the
 // environment by package config.
-var configValue = osGetenv
-
-var osGetenv = os.Getenv
+var configValue = config.Value
 
 // defaultValues are the console settings the server can work out itself.
 func defaultValues(r *http.Request) map[string]string {

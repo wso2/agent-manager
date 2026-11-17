@@ -26,10 +26,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
@@ -83,10 +83,23 @@ type ThunderConfig struct {
 	Modules []modkit.Manifest
 }
 
+// Settings `amp init` reads, which the configuration file may set too.
+func init() {
+	config.RegisterKeys(
+		"AMCTL_CLIENT_ID", "AMCTL_REDIRECT_URIS", "AMP_ADMIN_PASSWORD", "AMP_ADMIN_USERNAME",
+		"AMP_API_CLIENT_ID", "AMP_API_CLIENT_SECRET", "AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
+		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER", "AMP_PUBLIC_URL",
+		"AMP_PUBLISHER_CLIENT_ID", "AMP_PUBLISHER_CLIENT_SECRET", "AMP_SYSTEM_CLIENT_ID", "AMP_SYSTEM_CLIENT_SECRET",
+		"CONSOLE_URL", "OBSERVER_PUBLIC_URL", "PLATFORM_ADMIN_OU_ID",
+		"THUNDER_ADMIN_EMAIL", "THUNDER_ADMIN_FAMILY_NAME", "THUNDER_ADMIN_GIVEN_NAME", "THUNDER_ADMIN_USERNAME",
+		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT", "THUNDER_PUBLIC_URL",
+	)
+}
+
 type envReader struct{ errs []error }
 
 func (r *envReader) str(key, def string) string {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+	if v := strings.TrimSpace(config.Value(key)); v != "" {
 		return v
 	}
 	return def

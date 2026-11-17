@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -92,7 +91,7 @@ func (r *runtime) DB() *gorm.DB         { return r.h.db }
 func (r *runtime) Logger() *slog.Logger { return r.log }
 
 func (r *runtime) Config(key string) string {
-	return os.Getenv(config.ModuleConfigEnv(r.name, key))
+	return config.Value(config.ModuleConfigKey(r.name, key))
 }
 
 func (r *runtime) Core() modkit.CoreAPI {

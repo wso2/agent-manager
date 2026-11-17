@@ -37,7 +37,16 @@ var (
 	agentWorkloadConfig *AgentWorkload
 )
 
+// pendingErrors are the errors of the settings loaded at package init, from
+// the environment alone. The command line loads the configuration file
+// (Load) before anything reads the settings, which replaces them; a process
+// that reads the settings without loading (a test binary) fails on them then.
+var pendingErrors []error
+
 func GetConfig() *Config {
+	if pendingErrors != nil {
+		(&configReader{errors: pendingErrors}).logAndExitIfErrorsFound()
+	}
 	return config
 }
 
@@ -46,10 +55,15 @@ func GetAgentWorkloadConfig() *AgentWorkload {
 }
 
 func init() {
-	loadEnvs()
+	// The configuration file is not known yet (--config is parsed later), so
+	// errors here wait for the first reader; see pendingErrors.
+	loadSettings(false)
 }
 
-func loadEnvs() {
+// loadEnvs reads every setting and exits on an invalid one.
+func loadEnvs() { loadSettings(true) }
+
+func loadSettings(strict bool) {
 	config = &Config{}
 	agentWorkloadConfig = &AgentWorkload{}
 
@@ -60,12 +74,6 @@ func loadEnvs() {
 			panic(err)
 		}
 	}
-	// The configuration file fills in what the environment leaves unset.
-	if err := applyConfigFile(); err != nil {
-		slog.Error("configReader: invalid configuration file", "error", err)
-		os.Exit(1)
-	}
-
 	r := &configReader{}
 	config.ServerHost = r.readOptionalString("SERVER_HOST", "")
 	config.ServerPort = int(r.readOptionalInt64("SERVER_PORT", 8080))
@@ -88,7 +96,7 @@ func loadEnvs() {
 	// SQLite is the shipped database; a configured DB_HOST without DB_DRIVER still means PostgreSQL, so an install
 	// that names its server is never silently moved to a new empty file.
 	defaultDriver := DBDriverSQLite
-	if strings.TrimSpace(os.Getenv("DB_HOST")) != "" {
+	if strings.TrimSpace(Value("DB_HOST")) != "" {
 		defaultDriver = DBDriverPostgres
 	}
 	config.Database = DatabaseConfig{
@@ -503,6 +511,13 @@ func loadEnvs() {
 	validateAgentWorkloadCORSConfig(agentWorkloadConfig, r)
 	validateGatewayManifestCacheConfig(config, r)
 
+	pendingErrors = nil
+	if !strict {
+		if len(r.errors) > 0 {
+			pendingErrors = r.errors
+		}
+		return
+	}
 	r.logAndExitIfErrorsFound()
 
 	slog.Info("configReader: configs loaded")

@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
 )
 
@@ -42,6 +43,9 @@ var configTemplate string
 
 // Register adds the "gateway" component to "amp init".
 func Register() {
+	config.RegisterKeys("DEFAULT_GATEWAY_TOKEN", "GATEWAY_ADMIN_PASSWORD", "GATEWAY_AMP_JWKS_URL",
+		"GATEWAY_CONTROLPLANE_HOST", "GATEWAY_FILE_OWNER", "GATEWAY_HOST", "GATEWAY_LISTENER_PORT",
+		"GATEWAY_THUNDER_JWKS_URL")
 	ampinit.RegisterComponent(ampinit.Component{
 		Name:  "gateway",
 		Title: "AI Gateway",

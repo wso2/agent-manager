@@ -22,6 +22,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
 func files() fstest.MapFS {
@@ -78,7 +80,7 @@ func TestHandlerServesFilesAndFallsBackToIndex(t *testing.T) {
 func TestConfigJSRendersSettings(t *testing.T) {
 	env := map[string]string{"CONSOLE_AUTH_CLIENT_ID": "my-client", "CONSOLE_DOCS_URL": "it's"}
 	configValue = func(k string) string { return env[k] }
-	defer func() { configValue = osGetenv }()
+	defer func() { configValue = config.Value }()
 
 	rec := get(t, handler(files()), "/config.js")
 	if rec.Code != 200 {

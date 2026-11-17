@@ -21,6 +21,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const sample = `
@@ -69,7 +72,7 @@ func TestParseConfigFile(t *testing.T) {
 	if !reflect.DeepEqual(mods, wantMods) {
 		t.Fatalf("modules: got %+v", mods)
 	}
-	if got := ModuleConfigEnv("widgets", "limits.max"); got != "MODULE_WIDGETS_LIMITS_MAX" {
+	if got := ModuleConfigKey("widgets", "limits.max"); got != "MODULE_WIDGETS_LIMITS_MAX" {
 		t.Fatalf("ModuleConfigEnv: %s", got)
 	}
 }
@@ -92,48 +95,96 @@ func TestParseConfigFileRejects(t *testing.T) {
 	}
 }
 
-func TestConfigFileFillsOnlyUnsetVariables(t *testing.T) {
+func TestLoadPrecedence(t *testing.T) {
 	// Registered first so it runs last, once the variables below are restored.
-	t.Cleanup(loadEnvs)
-	path := filepath.Join(t.TempDir(), "amp.yaml")
-	if err := os.WriteFile(path, []byte("log_level: DEBUG\nserver: {port: 9191}\nmodules: [gateway]\n"), 0o600); err != nil {
-		t.Fatal(err)
+	t.Cleanup(func() {
+		fileVars, fileModules = nil, Modules{}
+		loadEnvs()
+	})
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(p, []byte(body), 0o600))
+		return p
 	}
-	t.Setenv(FileEnv, path)
+	t.Chdir(dir)
+	write("amp.yaml", "log_level: WARN\nserver: {port: 9393}\nmodules: [legacy]\n")
+	named := write("named.yaml", "log_level: DEBUG\nserver: {port: 9191}\nhttp_read_timeout_seconds: 33\nmodules: [gateway]\n")
+	other := write("other.yaml", "log_level: ERROR\n")
+	t.Setenv(FileEnv, "")
+	t.Setenv(ModulesEnv, "")
 	t.Setenv("SERVER_PORT", "7070")
 	t.Setenv("LOG_LEVEL", "")
-	t.Setenv(ModulesEnv, "")
-	loadEnvs()
-	if got := GetConfig().ServerPort; got != 7070 {
-		t.Errorf("SERVER_PORT from the environment should win, got %d", got)
-	}
-	if got := GetConfig().LogLevel; got != "DEBUG" {
-		t.Errorf("LOG_LEVEL from the file, got %q", got)
-	}
+	os.Unsetenv("LOG_LEVEL")
+	t.Setenv("HTTP_READ_TIMEOUT_SECONDS", "")
+
+	// ./amp.yaml when nothing names a file.
+	require.NoError(t, Load(""))
+	assert.Equal(t, "WARN", GetConfig().LogLevel)
+	assert.Equal(t, 7070, GetConfig().ServerPort, "the environment wins over the file")
+	_, inEnv := os.LookupEnv("LOG_LEVEL")
+	assert.False(t, inEnv, "file values stay out of the process environment")
+
+	// $AMP_CONFIG over ./amp.yaml, --config over both; only one file is read.
+	t.Setenv(FileEnv, other)
+	require.NoError(t, Load(""))
+	assert.Equal(t, "ERROR", GetConfig().LogLevel)
+	require.NoError(t, Load(named))
+	assert.Equal(t, "DEBUG", GetConfig().LogLevel)
+	// An empty variable is still set: the file cannot fill it, the default applies.
+	assert.Equal(t, 10, GetConfig().ReadTimeoutSeconds)
 	mods, err := GetModules()
-	if err != nil || !mods.Declared || len(mods.List) != 1 || mods.List[0].Name != "gateway" {
-		t.Errorf("modules from the file: %+v %v", mods, err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, Modules{Declared: true, List: []ModuleSpec{{Name: "gateway", Enabled: true}}}, mods)
+
 	t.Setenv(ModulesEnv, "gateway=off, widgets")
 	mods, err = GetModules()
-	want := Modules{Declared: true, List: []ModuleSpec{{Name: "gateway"}, {Name: "widgets", Enabled: true}}}
-	if err != nil || !reflect.DeepEqual(mods, want) {
-		t.Errorf("modules from %s: %+v %v", ModulesEnv, mods, err)
-	}
+	require.NoError(t, err)
+	assert.Equal(t, Modules{Declared: true, List: []ModuleSpec{{Name: "gateway"}, {Name: "widgets", Enabled: true}}}, mods)
 	t.Setenv(ModulesEnv, "gateway=maybe")
-	if _, err := GetModules(); err == nil {
-		t.Error("bad state accepted")
-	}
-}
+	_, err = GetModules()
+	assert.Error(t, err)
 
-func TestMissingDefaultFileIsFine(t *testing.T) {
+	// A missing named file is an error; a missing default is not.
+	assert.Error(t, Load(filepath.Join(dir, "missing.yaml")))
 	t.Setenv(FileEnv, "")
 	t.Chdir(t.TempDir())
-	if err := applyConfigFile(); err != nil {
-		t.Fatal(err)
+	assert.NoError(t, Load(""))
+}
+
+func TestUnknownFileKeys(t *testing.T) {
+	RegisterKeys("SOME_INIT_KEY")
+	fileMu.Lock()
+	defer fileMu.Unlock()
+	readKeys = map[string]bool{"LOG_LEVEL": true}
+	got := unknownKeys(map[string]string{
+		"LOG_LEVEL": "x", "LOG_LEVLE": "x", "SOME_INIT_KEY": "x",
+		"CONSOLE_DOCS_URL": "x", "MODULE_WIDGETS_COLOR": "x",
+	})
+	assert.Equal(t, []string{"LOG_LEVLE"}, got)
+}
+
+func TestModulesListDeclaration(t *testing.T) {
+	for doc, want := range map[string]Modules{
+		"modules:\n":                {},
+		"modules:\n  # - gateway\n": {},
+		"modules: [\"\"]":           {},
+		"modules: []":               {Declared: true},
+		"modules: [gateway]":        {Declared: true, List: []ModuleSpec{{Name: "gateway", Enabled: true}}},
+		"other: 1":                  {},
+	} {
+		_, got, err := parseConfigFile([]byte(doc))
+		require.NoError(t, err, doc)
+		assert.Equal(t, want, got, doc)
 	}
-	t.Setenv(FileEnv, filepath.Join(t.TempDir(), "missing.yaml"))
-	if err := applyConfigFile(); err == nil {
-		t.Fatal("a named file that is missing must be an error")
+	for v, want := range map[string]Modules{
+		",":    {},
+		" , ":  {},
+		"none": {Declared: true},
+		"NONE": {Declared: true},
+	} {
+		got, err := parseModulesEnv(v)
+		require.NoError(t, err, v)
+		assert.Equal(t, want, got, v)
 	}
 }
