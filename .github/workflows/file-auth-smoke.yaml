@@ -48,8 +48,11 @@ jobs:
       - name: The API reports file mode
         run: |
           set -euo pipefail
-          docker logs amp-lite-amp-api-1 2>&1 \
-            | grep -q '"msg":"file-based authentication enabled"' \
+          # Read the whole log first: grep -q stops reading at the first
+          # match, and under pipefail the SIGPIPE that leaves docker logs
+          # with fails the step.
+          logs="$(docker logs amp-lite-amp-api-1 2>&1)"
+          grep -q '"msg":"file-based authentication enabled"' <<<"$logs" \
             || { echo "::error::the API did not start in file mode"; exit 1; }
 
       - name: amp-init generated the user file
