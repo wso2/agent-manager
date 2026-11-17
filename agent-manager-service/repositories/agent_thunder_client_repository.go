@@ -212,6 +212,40 @@ func NewAgentThunderClientRepo(db *gorm.DB) AgentThunderClientRepository {
 	return &AgentThunderClientRepo{db: db}
 }
 
+// AgentThunderBindingLocker serializes work on one AgentID binding across every
+// replica of the service. AgentThunderClientRepo implements it; the service
+// discovers it by type assertion so the generated repository mock need not.
+type AgentThunderBindingLocker interface {
+	// LockBinding blocks until the binding's lock is free or ctx is done. On
+	// success the caller holds the lock until it calls release, exactly once.
+	LockBinding(ctx context.Context, key string) (release func(), err error)
+}
+
+var _ AgentThunderBindingLocker = (*AgentThunderClientRepo)(nil)
+
+// LockBinding takes a transaction-scoped advisory lock on key and holds the
+// transaction open until release, which rolls it back. Postgres drops the lock
+// if the connection dies, so a crashed holder never strands it.
+//
+// ctx bounds only the wait. The transaction runs on a context that ignores
+// ctx's cancellation, because database/sql rolls a transaction back as soon as
+// its context ends: tying it to ctx would drop the lock while the caller is
+// still inside its critical section, for example after the HTTP request that
+// started a rotation gives up.
+func (r *AgentThunderClientRepo) LockBinding(ctx context.Context, key string) (func(), error) {
+	tx := r.db.WithContext(context.WithoutCancel(ctx)).Begin()
+	if tx.Error != nil {
+		return nil, fmt.Errorf("begin agent thunder binding lock transaction: %w", tx.Error)
+	}
+	if err := advisoryXactLock(tx.WithContext(ctx), agentThunderBindingLockNamespace, key); err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("lock agent thunder binding: %w", err)
+	}
+	// A failed rollback means the connection is broken; database/sql then
+	// discards it, and Postgres releases the lock when the session ends.
+	return func() { tx.Rollback() }, nil
+}
+
 func (r *AgentThunderClientRepo) Upsert(ctx context.Context, c *models.AgentThunderClient) error {
 	// DoNothing (not DoUpdates): Upsert is only ever used to write-ahead a brand
 	// new binding. If a concurrent caller already wrote one for this
