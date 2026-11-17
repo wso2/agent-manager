@@ -50,11 +50,25 @@ const (
 const maxNameLength = 63
 
 type Schema struct {
-	Tables []Table `yaml:"tables"`
+	// Migrations lists the migrations after the baseline, in order. A table that names one is created by it rather
+	// than by the baseline, so a database the baseline already ran on still gets it.
+	Migrations []Migration `yaml:"migrations"`
+	Tables     []Table     `yaml:"tables"`
 }
 
+// Migration is one numbered migration after the baseline, rendered to <ID>_<Name>.sql.
+type Migration struct {
+	ID   string `yaml:"id"`
+	Name string `yaml:"name"`
+}
+
+// BaselineID is the migration every table belongs to unless it names a later one.
+const BaselineID = "001"
+
 type Table struct {
-	Name        string       `yaml:"name"`
+	Name string `yaml:"name"`
+	// Migration is the id of the migration that creates the table; empty is the baseline.
+	Migration   string       `yaml:"migration"`
 	Columns     []Column     `yaml:"columns"`
 	PrimaryKey  []string     `yaml:"primary_key"`
 	Unique      [][]string   `yaml:"unique"`
@@ -161,7 +175,7 @@ func (t *Table) keyed(cols []string) bool {
 }
 
 func (s *Schema) validate() error {
-	var errs []string
+	errs := s.validateMigrations()
 	fail := func(format string, a ...any) { errs = append(errs, fmt.Sprintf(format, a...)) }
 	seen := map[string]bool{}
 	for ti := range s.Tables {
@@ -171,6 +185,9 @@ func (s *Schema) validate() error {
 		}
 		if seen[t.Name] {
 			fail("table %q: defined twice", t.Name)
+		}
+		if t.Migration != "" && s.migrationIndex(t.Migration) < 0 {
+			fail("table %q: migration %q is not declared under migrations", t.Name, t.Migration)
 		}
 		seen[t.Name] = true
 		cols := map[string]bool{}
@@ -249,6 +266,9 @@ func (s *Schema) validate() error {
 				fail("%s: foreign key to %s has %d columns but %d referenced", t.Name, fk.References, len(fk.Columns), len(fk.RefColumns))
 				continue
 			}
+			if s.migrationIndex(ref.Migration) > s.migrationIndex(t.Migration) {
+				fail("%s: foreign key to %s, which a later migration creates", t.Name, fk.References)
+			}
 			if !ref.keyed(fk.RefColumns) {
 				fail("%s: foreign key to %s(%s) needs a primary or unique key there", t.Name, fk.References, strings.Join(fk.RefColumns, ", "))
 			}
@@ -280,6 +300,36 @@ func (s *Schema) validate() error {
 }
 
 // ordered returns the tables with every table after the tables it references, keeping file order otherwise.
+// migrationIndex is where migration id comes in order: 0 for the baseline, -1 when it is not declared.
+func (s *Schema) migrationIndex(id string) int {
+	if id == "" || id == BaselineID {
+		return 0
+	}
+	for i, m := range s.Migrations {
+		if m.ID == id {
+			return i + 1
+		}
+	}
+	return -1
+}
+
+func (s *Schema) validateMigrations() []string {
+	var errs []string
+	previous := BaselineID
+	for _, m := range s.Migrations {
+		if !migrationIDPattern.MatchString(m.ID) || m.ID <= previous {
+			errs = append(errs, fmt.Sprintf("migration %q: ids are three digits, increasing from %s", m.ID, BaselineID))
+		}
+		if !namePattern.MatchString(m.Name) {
+			errs = append(errs, fmt.Sprintf("migration %q: invalid name %q", m.ID, m.Name))
+		}
+		previous = m.ID
+	}
+	return errs
+}
+
+var migrationIDPattern = regexp.MustCompile(`^[0-9]{3}$`)
+
 func (s *Schema) ordered() ([]*Table, error) {
 	done := map[string]bool{}
 	var out []*Table

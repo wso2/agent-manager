@@ -31,7 +31,14 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
+
+// testSecrets is a secret store over the test vault.
+func testSecrets(t *testing.T) *SecretStore {
+	t.Helper()
+	return NewSecretStore(vaulttest.Local(t))
+}
 
 // Rows hang off an organization, project, agent and environment, which the tables reference by id. These helpers
 // create them on demand: each top-level test gets its own organization, so tests stay apart, and every helper call in

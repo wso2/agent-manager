@@ -129,8 +129,12 @@ type MCPProxyEndpoint struct {
 	Name          string            `gorm:"column:name" json:"name,omitempty"`
 	Status        string            `gorm:"column:status" json:"status"`
 	Configuration MCPEndpointConfig `gorm:"column:configuration;serializer:json" json:"configuration"`
-	CreatedAt     time.Time         `gorm:"column:created_at" json:"createdAt,omitempty"`
-	UpdatedAt     time.Time         `gorm:"column:updated_at" json:"updatedAt,omitempty"`
+	// UpstreamSecretID is the secret holding the upstream credential. The repository moves a
+	// Configuration.Upstream.Auth.SecretRef into it on create; rows created before that still
+	// hold the credential inline in Configuration and have no secret.
+	UpstreamSecretID *uuid.UUID `gorm:"column:upstream_secret_id" json:"-"`
+	CreatedAt        time.Time  `gorm:"column:created_at" json:"createdAt,omitempty"`
+	UpdatedAt        time.Time  `gorm:"column:updated_at" json:"updatedAt,omitempty"`
 
 	Environments []MCPProxyEndpointEnvironment `gorm:"foreignKey:EndpointUUID;references:UUID" json:"environments,omitempty"`
 }

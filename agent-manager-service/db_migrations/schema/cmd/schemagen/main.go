@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Command schemagen renders db_migrations/schema/lite.yaml into the per-database baseline migrations. Run it from the
+// Command schemagen renders db_migrations/schema/lite.yaml into the per-database migrations: the baseline and each
+// numbered migration after it. Run it from the
 // module root (`make schema`).
 package main
 
@@ -39,18 +40,20 @@ func run() error {
 		return err
 	}
 	for _, dialect := range schema.Dialects {
-		ddl, err := s.Render(dialect)
-		if err != nil {
-			return err
+		for _, m := range s.Files() {
+			ddl, err := s.RenderMigration(dialect, m.ID)
+			if err != nil {
+				return err
+			}
+			path := schema.MigrationPath(dialect, m)
+			if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+				return err
+			}
+			if err := os.WriteFile(path, []byte(ddl), 0o600); err != nil {
+				return err
+			}
+			fmt.Println("wrote", path)
 		}
-		path := schema.BaselinePath(dialect)
-		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-			return err
-		}
-		if err := os.WriteFile(path, []byte(ddl), 0o600); err != nil {
-			return err
-		}
-		fmt.Println("wrote", path)
 	}
 	return nil
 }

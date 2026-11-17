@@ -34,6 +34,10 @@ type LLMProvider struct {
 	ModelList      string            `gorm:"column:model_list" json:"-"` // TEXT field stores model list
 	Status         string            `gorm:"column:status" json:"status"`
 	Configuration  LLMProviderConfig `gorm:"column:configuration;serializer:json" json:"configuration"`
+	// UpstreamSecretID is the secret holding the main upstream credential. The repository moves a
+	// Configuration.Upstream.Main.Auth.SecretRef into it on save; rows saved before that still hold
+	// the credential inline in Configuration and have no secret.
+	UpstreamSecretID *uuid.UUID `gorm:"column:upstream_secret_id" json:"-"`
 
 	// Relations - populated via joins
 	Artifact       *Artifact          `gorm:"foreignKey:UUID;references:UUID" json:"artifact,omitempty"`

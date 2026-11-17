@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
 
 // a2aFixture is an org with an ingress gateway mapped to env, and the A2A kind over the real repositories with a
@@ -88,7 +89,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	apiKeys := repositories.NewAPIKeyRepo(gormDB)
 	tx := NewTxRunner(gormDB)
 	exposures := repositories.NewPlatformAgentExposureRepository(gormDB)
-	proxies := repositories.NewA2AProxyRepository(gormDB)
+	proxies := repositories.NewA2AProxyRepository(gormDB, repositories.NewSecretStore(vaulttest.Local(t)))
 	cards := repositories.NewA2AAgentCardRepository(gormDB)
 	gateways := repositories.NewGatewayRepo(gormDB)
 	kind := NewA2AAgentKind(tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, nil, testLogger())
@@ -254,7 +255,7 @@ func TestRemovingAProxiedEnvironmentsCardURLUndeploysAndDeletesTheProxyTogether(
 	f.registerCard(t)
 	artifact := f.proxy(t)
 	f.render(t, artifact)
-	proxies := repositories.NewA2AProxyRepository(db.GetDB())
+	proxies := repositories.NewA2AProxyRepository(db.GetDB(), repositories.NewSecretStore(vaulttest.Local(t)))
 	cards := repositories.NewA2AAgentCardRepository(db.GetDB())
 	f.hub.fail = func(evt eventhub.Event) error {
 		if evt.EventType == "agent.undeployed" {
@@ -290,7 +291,7 @@ func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 	created, err := ensureAgentEnvAPIArtifact(db.GetDB(), repositories.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
 		f.external.Name, f.env.String(), models.KindAgent)
 	require.NoError(t, err)
-	require.NoError(t, repositories.NewA2AProxyRepository(db.GetDB()).Upsert(context.Background(), &models.A2AProxy{
+	require.NoError(t, repositories.NewA2AProxyRepository(db.GetDB(), repositories.NewSecretStore(vaulttest.Local(t))).Upsert(context.Background(), &models.A2AProxy{
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: f.external.Name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 		ArtifactUUID: created.UUID,
 	}))

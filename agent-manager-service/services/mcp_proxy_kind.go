@@ -67,13 +67,18 @@ type MCPProxyKind struct {
 	load           func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error)
 }
 
-// NewMCPProxyKind reads MCP proxies through the request's transaction when there is one.
-func NewMCPProxyKind(gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository) *MCPProxyKind {
-	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, load: loadMCPArtifact}
+// NewMCPProxyKind reads MCP proxies through the request's transaction when there is one, and their endpoints'
+// upstream credentials through secrets.
+func NewMCPProxyKind(
+	gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, secrets *repositories.SecretStore,
+) *MCPProxyKind {
+	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, load: func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error) {
+		return loadMCPArtifact(ctx, secrets, artifact)
+	}}
 }
 
 // loadMCPArtifact finds the artifact's (endpoint, environment) binding; gorm.ErrRecordNotFound when it is gone.
-func loadMCPArtifact(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error) {
+func loadMCPArtifact(ctx context.Context, secrets *repositories.SecretStore, artifact models.ArtifactRef) (*mcpArtifact, error) {
 	tx := db.DB(ctx)
 	var binding models.MCPProxyEndpointEnvironment
 	if err := tx.Where("artifact_id = ?", artifact.ArtifactUUID).Take(&binding).Error; err != nil {
@@ -91,6 +96,9 @@ func loadMCPArtifact(ctx context.Context, artifact models.ArtifactRef) (*mcpArti
 		scopes, err := repositories.NewMCPProxyScopeRepository(tx).ListByProxy(ctx, proxy.UUID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load proxy scopes: %w", err)
+		}
+		if err := repositories.NewMCPProxyEndpointRepository(tx, secrets).ResolveUpstreamAuth(ctx, tx, endpoint); err != nil {
+			return nil, err
 		}
 		return newMCPArtifact(proxy, endpoint, &binding, scopes), nil
 	}

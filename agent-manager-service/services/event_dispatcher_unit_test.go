@@ -43,7 +43,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // queueBus is a Bus with no transport behind it, to drive the dispatcher's
@@ -192,7 +191,7 @@ func newDispatcherFixture(t *testing.T) *dispatcherFixture {
 			return 0, nil
 		},
 	}
-	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(f.driver), testEventKey, discardSlog())
+	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(f.driver), discardSlog())
 	f.dispatcher = NewEventDispatcherService(f.bus, f.repo, resolver,
 		config.Config{Events: config.EventsConfig{DeliveryMaxAttempts: 3}}, discardSlog()).(*eventDispatcher)
 	return f
@@ -573,15 +572,13 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 	defer receiver.Close()
 
 	secret := webhook.SecretPrefix + base64.StdEncoding.EncodeToString([]byte("test-signing-key-for-unit-tests!"))
-	encrypted, err := utils.EncryptBytes([]byte(secret), testEventKey)
-	require.NoError(t, err)
 	ou := "ou-" + uuid.NewString()[:8]
 	cfgJSON, _ := json.Marshal(webhook.Config{URL: receiver.URL})
 
 	f := newDispatcherFixture(t)
 	dest := models.EventDestination{
 		ID: uuid.New(), OUID: ou, Name: "CI", Kind: models.DestinationKindWebhook, Config: cfgJSON,
-		SecretEncrypted: encrypted, Availability: models.DestinationAvailableAll,
+		Secret: secret, Availability: models.DestinationAvailableAll,
 	}
 	f.destinations[dest.ID] = dest
 	match := matcherSubscription("agent", "p1", "a1", []string{"agent.deployed"}, "dev")
@@ -594,7 +591,10 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 		f.subscriptions[s.ID] = s
 	}
 
-	var bus *events.NATSBus
+	var (
+		bus *events.NATSBus
+		err error
+	)
 	if natsURL := os.Getenv("NATS_TEST_URL"); natsURL != "" {
 		bus, err = events.Connect(natsURL, "", "dispatcher-test", discardSlog())
 	} else {
@@ -607,7 +607,7 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 	require.NoError(t, bus.Setup(ctx))
 
 	cfg := config.Config{Events: config.EventsConfig{DeliveryMaxAttempts: 3, AllowPrivateDestinations: true}}
-	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(webhook.New(true)), testEventKey, discardSlog())
+	resolver := NewEventDestinationService(f.repo, eventdestinations.NewRegistry(webhook.New(true)), discardSlog())
 	d := NewEventDispatcherService(bus, f.repo, resolver, cfg, discardSlog())
 	require.NoError(t, d.Start(ctx))
 	defer func() { _ = d.Stop() }()

@@ -39,7 +39,7 @@ import (
 
 // providerCore reconciles LLM providers against repo and hub.
 func providerCore(repo repositories.DeploymentRepository, hub eventhub.EventHub) *reconcile.Core {
-	return reconcile.NewCore(nil, repo, hub, reconcile.Kinds{NewLLMProviderKind()}, reconcile.Config{},
+	return reconcile.NewCore(nil, repo, hub, reconcile.Kinds{NewLLMProviderKind(nil)}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))
 }
 

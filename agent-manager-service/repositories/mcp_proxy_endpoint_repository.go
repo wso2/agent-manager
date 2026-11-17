@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -33,9 +34,20 @@ import (
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/mcp_proxy_endpoint_repository_mock.go . MCPProxyEndpointRepository:MCPProxyEndpointRepositoryMock
 type MCPProxyEndpointRepository interface {
+	// CreateEndpoint inserts the endpoint. An encrypted upstream credential in its configuration (Upstream.Auth.SecretRef)
+	// moves into a new secret; with none, a set UpstreamSecretID takes over that secret, which keeps an omitted
+	// credential across a replacement of the endpoint rows.
 	CreateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
+	// UpdateEndpoint rewrites the endpoint. A new credential rewrites its secret, auth with no credential keeps it, and
+	// no auth releases it.
 	UpdateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
-	DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error
+	// DeleteEndpoint deletes the endpoint and releases its upstream secret, unless that secret is in keepSecrets: an
+	// endpoint created next in the same transaction takes it over.
+	DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, keepSecrets ...uuid.UUID) error
+	// ResolveUpstreamAuth puts the stored upstream credential back into the endpoint's configuration as the encrypted
+	// secretRef a gateway artifact carries, reading it through tx (the repository's own connection when nil). An endpoint created before credentials moved to the
+	// secrets table already has it inline and is left as it is. Call it only to render an artifact.
+	ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
 	GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
 	// ListEndpointsByProxy returns every endpoint of the proxy with its
 	// environment bindings preloaded.
@@ -54,12 +66,54 @@ type MCPProxyEndpointRepository interface {
 }
 
 type mcpProxyEndpointRepository struct {
-	db *gorm.DB
+	db      *gorm.DB
+	secrets *SecretStore
 }
 
-// NewMCPProxyEndpointRepository creates a new MCP proxy endpoint repository.
-func NewMCPProxyEndpointRepository(db *gorm.DB) MCPProxyEndpointRepository {
-	return &mcpProxyEndpointRepository{db: db}
+// NewMCPProxyEndpointRepository creates a new MCP proxy endpoint repository. secrets keeps the upstream credentials;
+// a repository built without one fails to save or resolve a credential.
+func NewMCPProxyEndpointRepository(db *gorm.DB, secrets *SecretStore) MCPProxyEndpointRepository {
+	return &mcpProxyEndpointRepository{db: db, secrets: secrets}
+}
+
+// ownerKindMCPEndpoint is secrets.owner_kind for an MCP proxy endpoint's upstream credential.
+const ownerKindMCPEndpoint = "mcp_proxy_endpoint"
+
+func endpointAuth(endpoint *models.MCPProxyEndpoint) *models.UpstreamAuth {
+	if endpoint.Configuration.Upstream == nil {
+		return nil
+	}
+	return endpoint.Configuration.Upstream.Auth
+}
+
+// saveUpstreamCredential moves the encrypted credential out of the endpoint's configuration into a secret and returns
+// the id the row keeps. current is the secret the row refers to: a new credential rewrites it, auth without a
+// credential keeps it, and no auth drops it (the caller releases it). restore puts the credential back into the
+// endpoint once the row is written.
+func (r *mcpProxyEndpointRepository) saveUpstreamCredential(
+	tx *gorm.DB, endpoint *models.MCPProxyEndpoint, orgID string, current *uuid.UUID,
+) (id *uuid.UUID, restore func(), err error) {
+	restore = func() {}
+	auth := endpointAuth(endpoint)
+	if auth == nil {
+		return nil, restore, nil
+	}
+	if auth.SecretRef == nil || *auth.SecretRef == "" {
+		if auth.Value != nil {
+			return nil, restore, nil
+		}
+		return current, restore, nil
+	}
+	if r.secrets == nil {
+		return nil, restore, errNoSecretStore
+	}
+	id, err = r.secrets.put(tx, orgID, ownerKindMCPEndpoint, endpoint.UUID, current, *auth.SecretRef)
+	if err != nil {
+		return nil, restore, fmt.Errorf("failed to store MCP upstream credential: %w", err)
+	}
+	ref := auth.SecretRef
+	auth.SecretRef = nil
+	return id, func() { auth.SecretRef = ref }, nil
 }
 
 func (r *mcpProxyEndpointRepository) CreateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
@@ -69,8 +123,38 @@ func (r *mcpProxyEndpointRepository) CreateEndpoint(ctx context.Context, tx *gor
 	if endpoint.UUID == uuid.Nil {
 		endpoint.UUID = uuid.New()
 	}
-	if err := tx.WithContext(ctx).Create(endpoint).Error; err != nil {
+	db := tx.WithContext(ctx)
+	if endpoint.OrgID == "" {
+		var proxy struct{ OrgID string }
+		if err := db.Session(&gorm.Session{NewDB: true}).Table(models.MCPProxy{}.TableName()).Select("org_id").
+			Where("id = ?", endpoint.MCPProxyUUID).Take(&proxy).Error; err != nil {
+			return fmt.Errorf("failed to resolve MCP proxy endpoint organization: %w", err)
+		}
+		endpoint.OrgID = proxy.OrgID
+	}
+	// A set UpstreamSecretID is one the caller hands over from an endpoint this one replaces.
+	adopted := endpoint.UpstreamSecretID
+	secretID, restore, err := r.saveUpstreamCredential(db, endpoint, endpoint.OrgID, nil)
+	if err != nil {
+		return err
+	}
+	defer restore()
+	if secretID == nil && endpointAuth(endpoint) != nil {
+		secretID = adopted
+	}
+	endpoint.UpstreamSecretID = secretID
+	if err := db.Create(endpoint).Error; err != nil {
 		return fmt.Errorf("failed to create MCP proxy endpoint: %w", err)
+	}
+	if secretID != nil && adopted != nil && *secretID == *adopted {
+		if err := adoptSecret(db, *secretID, endpoint.UUID); err != nil {
+			return err
+		}
+	} else if adopted != nil {
+		// The caller kept the secret for this endpoint, which no longer refers to it.
+		if err := releaseSecret(db, adopted); err != nil {
+			return fmt.Errorf("failed to release MCP upstream credential: %w", err)
+		}
 	}
 	return nil
 }
@@ -79,13 +163,24 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 	if endpoint == nil || endpoint.UUID == uuid.Nil {
 		return gorm.ErrRecordNotFound
 	}
-	result := tx.WithContext(ctx).Model(&models.MCPProxyEndpoint{}).
+	db := tx.WithContext(ctx)
+	var stored models.MCPProxyEndpoint
+	if err := db.Select("id", "org_id", "upstream_secret_id").Where("id = ?", endpoint.UUID).Take(&stored).Error; err != nil {
+		return err
+	}
+	secretID, restore, err := r.saveUpstreamCredential(db, endpoint, stored.OrgID, stored.UpstreamSecretID)
+	if err != nil {
+		return err
+	}
+	defer restore()
+	result := db.Model(&models.MCPProxyEndpoint{}).
 		Where("id = ?", endpoint.UUID).
 		Updates(map[string]interface{}{
-			"handle":        endpoint.Handle,
-			"name":          endpoint.Name,
-			"status":        endpoint.Status,
-			"configuration": dbx.JSON(endpoint.Configuration),
+			"handle":             endpoint.Handle,
+			"name":               endpoint.Name,
+			"status":             endpoint.Status,
+			"configuration":      dbx.JSON(endpoint.Configuration),
+			"upstream_secret_id": secretID,
 		})
 	if result.Error != nil {
 		return fmt.Errorf("failed to update MCP proxy endpoint: %w", result.Error)
@@ -93,17 +188,63 @@ func (r *mcpProxyEndpointRepository) UpdateEndpoint(ctx context.Context, tx *gor
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
+	endpoint.UpstreamSecretID = secretID
+	if stored.UpstreamSecretID != nil && (secretID == nil || *secretID != *stored.UpstreamSecretID) {
+		if err := releaseSecret(db, stored.UpstreamSecretID); err != nil {
+			return fmt.Errorf("failed to release MCP upstream credential: %w", err)
+		}
+	}
 	return nil
 }
 
-func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error {
-	result := tx.WithContext(ctx).Where("id = ?", endpointUUID).Delete(&models.MCPProxyEndpoint{})
+func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, keepSecrets ...uuid.UUID) error {
+	db := tx.WithContext(ctx)
+	var stored models.MCPProxyEndpoint
+	if err := db.Select("id", "upstream_secret_id").Where("id = ?", endpointUUID).Take(&stored).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		return fmt.Errorf("failed to read MCP proxy endpoint: %w", err)
+	}
+	result := db.Where("id = ?", endpointUUID).Delete(&models.MCPProxyEndpoint{})
 	if result.Error != nil {
 		return fmt.Errorf("failed to delete MCP proxy endpoint: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
+	if stored.UpstreamSecretID != nil && !slices.Contains(keepSecrets, *stored.UpstreamSecretID) {
+		if err := releaseSecret(db, stored.UpstreamSecretID); err != nil {
+			return fmt.Errorf("failed to release MCP upstream credential: %w", err)
+		}
+	}
+	return nil
+}
+
+func (r *mcpProxyEndpointRepository) ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
+	if endpoint == nil || endpoint.UpstreamSecretID == nil {
+		return nil
+	}
+	auth := endpointAuth(endpoint)
+	if auth == nil {
+		return nil
+	}
+	if r.secrets == nil {
+		return errNoSecretStore
+	}
+	if tx == nil {
+		tx = r.db
+	}
+	value, found, err := r.secrets.Read(ctx, tx, *endpoint.UpstreamSecretID)
+	if err != nil {
+		return fmt.Errorf("failed to read upstream credential of MCP proxy endpoint %s: %w", endpoint.UUID, err)
+	}
+	if !found {
+		return fmt.Errorf("upstream credential of MCP proxy endpoint %s is missing", endpoint.UUID)
+	}
+	ref := string(value)
+	auth.SecretRef = &ref
+	auth.Value = nil
 	return nil
 }
 

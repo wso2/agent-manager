@@ -42,7 +42,7 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			gdb := db.GetDB()
-			repo := NewLLMProviderRepo(gdb)
+			repo := NewLLMProviderRepo(gdb, testSecrets(t))
 			orgUUID := newOrg(t)
 			create := func(handle, name, version string) *models.LLMProvider {
 				provider := &models.LLMProvider{
@@ -103,7 +103,7 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 // so without this sync a rename silently never shows up anywhere in the API.
 func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	gdb := db.GetDB()
-	repo := NewLLMProviderRepo(gdb)
+	repo := NewLLMProviderRepo(gdb, testSecrets(t))
 	orgUUID := newOrg(t)
 
 	provider := &models.LLMProvider{
@@ -142,7 +142,7 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 // literal empty-string overwrite.
 func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.T) {
 	gdb := db.GetDB()
-	repo := NewLLMProviderRepo(gdb)
+	repo := NewLLMProviderRepo(gdb, testSecrets(t))
 	orgUUID := newOrg(t)
 
 	provider := &models.LLMProvider{

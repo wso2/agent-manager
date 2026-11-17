@@ -57,6 +57,9 @@ import (
 //			MarkDeletingFunc: func(providerUUID uuid.UUID) (bool, error) {
 //				panic("mock out the MarkDeleting method")
 //			},
+//			ResolveUpstreamAuthFunc: func(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) error {
+//				panic("mock out the ResolveUpstreamAuth method")
+//			},
 //			UpdateFunc: func(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error {
 //				panic("mock out the Update method")
 //			},
@@ -105,6 +108,9 @@ type LLMProviderRepositoryMock struct {
 
 	// MarkDeletingFunc mocks the MarkDeleting method.
 	MarkDeletingFunc func(providerUUID uuid.UUID) (bool, error)
+
+	// ResolveUpstreamAuthFunc mocks the ResolveUpstreamAuth method.
+	ResolveUpstreamAuthFunc func(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) error
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error
@@ -214,6 +220,15 @@ type LLMProviderRepositoryMock struct {
 			// ProviderUUID is the providerUUID argument value.
 			ProviderUUID uuid.UUID
 		}
+		// ResolveUpstreamAuth holds details about calls to the ResolveUpstreamAuth method.
+		ResolveUpstreamAuth []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// P is the p argument value.
+			P *models.LLMProvider
+		}
 		// Update holds details about calls to the Update method.
 		Update []struct {
 			// Ctx is the ctx argument value.
@@ -239,6 +254,7 @@ type LLMProviderRepositoryMock struct {
 	lockIsDeletingForUpdate  sync.RWMutex
 	lockList                 sync.RWMutex
 	lockMarkDeleting         sync.RWMutex
+	lockResolveUpstreamAuth  sync.RWMutex
 	lockUpdate               sync.RWMutex
 }
 
@@ -731,6 +747,46 @@ func (mock *LLMProviderRepositoryMock) MarkDeletingCalls() []struct {
 	mock.lockMarkDeleting.RLock()
 	calls = mock.calls.MarkDeleting
 	mock.lockMarkDeleting.RUnlock()
+	return calls
+}
+
+// ResolveUpstreamAuth calls ResolveUpstreamAuthFunc.
+func (mock *LLMProviderRepositoryMock) ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) error {
+	if mock.ResolveUpstreamAuthFunc == nil {
+		panic("LLMProviderRepositoryMock.ResolveUpstreamAuthFunc: method is nil but LLMProviderRepository.ResolveUpstreamAuth was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Tx  *gorm.DB
+		P   *models.LLMProvider
+	}{
+		Ctx: ctx,
+		Tx:  tx,
+		P:   p,
+	}
+	mock.lockResolveUpstreamAuth.Lock()
+	mock.calls.ResolveUpstreamAuth = append(mock.calls.ResolveUpstreamAuth, callInfo)
+	mock.lockResolveUpstreamAuth.Unlock()
+	return mock.ResolveUpstreamAuthFunc(ctx, tx, p)
+}
+
+// ResolveUpstreamAuthCalls gets all the calls that were made to ResolveUpstreamAuth.
+// Check the length with:
+//
+//	len(mockedLLMProviderRepository.ResolveUpstreamAuthCalls())
+func (mock *LLMProviderRepositoryMock) ResolveUpstreamAuthCalls() []struct {
+	Ctx context.Context
+	Tx  *gorm.DB
+	P   *models.LLMProvider
+} {
+	var calls []struct {
+		Ctx context.Context
+		Tx  *gorm.DB
+		P   *models.LLMProvider
+	}
+	mock.lockResolveUpstreamAuth.RLock()
+	calls = mock.calls.ResolveUpstreamAuth
+	mock.lockResolveUpstreamAuth.RUnlock()
 	return calls
 }
 

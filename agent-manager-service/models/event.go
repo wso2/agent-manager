@@ -69,12 +69,14 @@ type EventDestination struct {
 	Kind        string    `gorm:"column:kind" json:"kind"`
 	// Config holds the kind's non-secret settings, e.g. {"url": "..."}.
 	Config json.RawMessage `gorm:"column:config" json:"config"`
-	// SecretID is the secrets row holding SecretEncrypted.
+	// SecretID is the secrets row holding Secret.
 	SecretID *uuid.UUID `gorm:"column:secret_id" json:"-"`
-	// SecretEncrypted holds the kind's secret, if it has one: a webhook's
-	// signing secret or a notification service URL. Never returned by the
-	// API, except a generated secret right after it is generated.
-	SecretEncrypted []byte `gorm:"-" json:"-"`
+	// Secret holds the kind's secret, if it has one: a webhook's signing
+	// secret or a notification service URL. The repository reads and writes
+	// it through the secret store, so it is plaintext here and never stored
+	// on this row. Never returned by the API, except a generated secret
+	// right after it is generated.
+	Secret string `gorm:"-" json:"-"`
 	// Availability says which subscriptions below the org may use the
 	// destination: those of every project, none, or those of Projects.
 	Availability string    `gorm:"column:availability" json:"availability"`
