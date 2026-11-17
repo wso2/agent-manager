@@ -247,6 +247,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		slog.Error("failed to start the module host", "error", err)
 		os.Exit(1)
 	}
+	warnGatewayStateWithoutProvider(modulesCtx, database, slog.Default())
 
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one
