@@ -26,6 +26,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -223,27 +224,15 @@ type AgentThunderBindingLocker interface {
 
 var _ AgentThunderBindingLocker = (*AgentThunderClientRepo)(nil)
 
-// LockBinding takes a transaction-scoped advisory lock on key and holds the
-// transaction open until release, which rolls it back. Postgres drops the lock
-// if the connection dies, so a crashed holder never strands it.
-//
-// ctx bounds only the wait. The transaction runs on a context that ignores
-// ctx's cancellation, because database/sql rolls a transaction back as soon as
-// its context ends: tying it to ctx would drop the lock while the caller is
-// still inside its critical section, for example after the HTTP request that
-// started a rotation gives up.
+// LockBinding holds an advisory lock on key until release, on a connection
+// from the dedicated lock pool (db.GetLockDB), so a held lock never takes a
+// connection the binding's own repository calls need. See holdAdvisoryLock.
 func (r *AgentThunderClientRepo) LockBinding(ctx context.Context, key string) (func(), error) {
-	tx := r.db.WithContext(context.WithoutCancel(ctx)).Begin()
-	if tx.Error != nil {
-		return nil, fmt.Errorf("begin agent thunder binding lock transaction: %w", tx.Error)
-	}
-	if err := advisoryXactLock(tx.WithContext(ctx), agentThunderBindingLockNamespace, key); err != nil {
-		tx.Rollback()
+	release, err := holdAdvisoryLock(ctx, db.GetLockDB(), agentThunderBindingLockNamespace, key)
+	if err != nil {
 		return nil, fmt.Errorf("lock agent thunder binding: %w", err)
 	}
-	// A failed rollback means the connection is broken; database/sql then
-	// discards it, and Postgres releases the lock when the session ends.
-	return func() { tx.Rollback() }, nil
+	return release, nil
 }
 
 func (r *AgentThunderClientRepo) Upsert(ctx context.Context, c *models.AgentThunderClient) error {

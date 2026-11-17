@@ -539,3 +539,22 @@ func TestAgentThunderClientRepo_LockBinding_HeldPastHolderCtxCancel(t *testing.T
 	release()
 	awaitAcquired(t, waiter, "the waiter must get the lock once the holder releases")()
 }
+
+// TestAgentThunderClientRepo_LockBinding_HolderCanUseCappedPool is the review
+// scenario: with DB_MAX_OPEN_COUNT=1, a held binding lock must not take the
+// connection the holder needs for its own reads and writes of that binding.
+func TestAgentThunderClientRepo_LockBinding_HolderCanUseCappedPool(t *testing.T) {
+	repo := NewAgentThunderClientRepo(cappedPool(t, 1))
+	org, project, agent := "org-"+uuid.NewString(), "proj", "agent"
+	require.NoError(t, repo.Upsert(context.Background(), newTestAgentThunderClient(org, project, agent, "dev")))
+	cleanupAgentThunderClients(t, NewAgentThunderClientRepo(db.GetDB()), org, project, agent)
+
+	release, err := repo.(AgentThunderBindingLocker).LockBinding(context.Background(), "lock-test|"+uuid.NewString())
+	require.NoError(t, err)
+	defer release()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = repo.Get(ctx, org, project, agent, "dev")
+	require.NoError(t, err, "the holder must still reach the database through a capped pool")
+}
