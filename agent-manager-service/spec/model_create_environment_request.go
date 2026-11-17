@@ -34,8 +34,6 @@ type CreateEnvironmentRequest struct {
 	// Whether this is a production environment
 	IsProduction *bool        `json:"isProduction,omitempty"`
 	Gateway      *GatewaySpec `json:"gateway,omitempty"`
-	// Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
-	Extensions *map[string]map[string]interface{} `json:"extensions,omitempty"`
 }
 
 // NewCreateEnvironmentRequest instantiates a new CreateEnvironmentRequest object
@@ -290,38 +288,6 @@ func (o *CreateEnvironmentRequest) SetGateway(v GatewaySpec) {
 	o.Gateway = &v
 }
 
-// GetExtensions returns the Extensions field value if set, zero value otherwise.
-func (o *CreateEnvironmentRequest) GetExtensions() map[string]map[string]interface{} {
-	if o == nil || IsNil(o.Extensions) {
-		var ret map[string]map[string]interface{}
-		return ret
-	}
-	return *o.Extensions
-}
-
-// GetExtensionsOk returns a tuple with the Extensions field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *CreateEnvironmentRequest) GetExtensionsOk() (*map[string]map[string]interface{}, bool) {
-	if o == nil || IsNil(o.Extensions) {
-		return nil, false
-	}
-	return o.Extensions, true
-}
-
-// HasExtensions returns a boolean if a field has been set.
-func (o *CreateEnvironmentRequest) HasExtensions() bool {
-	if o != nil && !IsNil(o.Extensions) {
-		return true
-	}
-
-	return false
-}
-
-// SetExtensions gets a reference to the given map[string]map[string]interface{} and assigns it to the Extensions field.
-func (o *CreateEnvironmentRequest) SetExtensions(v map[string]map[string]interface{}) {
-	o.Extensions = &v
-}
-
 func (o CreateEnvironmentRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -349,9 +315,6 @@ func (o CreateEnvironmentRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Gateway) {
 		toSerialize["gateway"] = o.Gateway
-	}
-	if !IsNil(o.Extensions) {
-		toSerialize["extensions"] = o.Extensions
 	}
 	return toSerialize, nil
 }
