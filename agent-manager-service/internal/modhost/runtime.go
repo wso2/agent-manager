@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -29,6 +30,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -88,6 +90,10 @@ func (r *runtime) registering(what string) bool {
 func (r *runtime) Name() string         { return r.name }
 func (r *runtime) DB() *gorm.DB         { return r.h.db }
 func (r *runtime) Logger() *slog.Logger { return r.log }
+
+func (r *runtime) Config(key string) string {
+	return os.Getenv(config.ModuleConfigEnv(r.name, key))
+}
 
 func (r *runtime) Core() modkit.CoreAPI {
 	if d := r.h.deps(); d.Core != nil {

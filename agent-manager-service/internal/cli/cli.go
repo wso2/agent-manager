@@ -42,7 +42,8 @@ import (
 // errUsage asks for the usage text and exit code 2.
 var errUsage = errors.New("usage")
 
-const usage = `Usage:
+const usage = `Usage: %[1]s [--config amp.yaml] <command>
+
   %[1]s serve [--migrate] [--wait-for-migrations]   run the API server
   %[1]s migrate                                      apply the core's and every compiled-in module's migrations
   %[1]s init <component> <dir> [<component> <dir>...]
@@ -57,6 +58,9 @@ const usage = `Usage:
   %[1]s version
 
 Module changes take effect on running servers within seconds, without a restart.
+Settings come from the environment and, for anything it leaves unset, from the
+configuration file: --config, else $AMP_CONFIG, else ./amp.yaml if present.
+A modules: list there (or $AMP_MODULES) is applied by the server at boot.
 The flags of earlier releases (-migrate, -server=false, -init-thunder=DIR, ...) still work.
 `
 
@@ -74,6 +78,16 @@ func Main(distribution string) {
 }
 
 func run(distribution string, args []string) error {
+	args, path, err := configFlag(args)
+	if err != nil {
+		return err
+	}
+	if path != "" {
+		if err := os.Setenv(config.FileEnv, path); err != nil {
+			return err
+		}
+		config.Reload()
+	}
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
 		return legacy(args)
 	}
@@ -102,6 +116,25 @@ func run(distribution string, args []string) error {
 	default:
 		return errUsage
 	}
+}
+
+// configFlag takes a leading --config PATH (or --config=PATH) off args.
+func configFlag(args []string) ([]string, string, error) {
+	if len(args) == 0 {
+		return args, "", nil
+	}
+	for _, f := range []string{"--config", "-config"} {
+		if v, ok := strings.CutPrefix(args[0], f+"="); ok {
+			return args[1:], v, nil
+		}
+		if args[0] == f {
+			if len(args) < 2 {
+				return nil, "", errUsage
+			}
+			return args[2:], args[1], nil
+		}
+	}
+	return args, "", nil
 }
 
 // legacy keeps the flags of earlier releases working: no subcommand serves.

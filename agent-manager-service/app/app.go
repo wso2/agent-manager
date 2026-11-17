@@ -239,12 +239,15 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// Load the active modules and follow lifecycle changes made elsewhere. The
 	// host gets the core services modules use first, so the snapshot it
 	// builds carries their routes.
-	// TODO: reconcile the declarative modules list from the config file at boot.
 	modulesCtx, modulesCancel := context.WithCancel(context.Background())
 	defer modulesCancel()
 	stopModules, err := StartModules(modulesCtx, moduleHost(), database, dependencies)
 	if err != nil {
 		slog.Error("failed to start the module host", "error", err)
+		os.Exit(1)
+	}
+	if err := ReconcileModules(modulesCtx, moduleHost()); err != nil {
+		slog.Error("failed to apply the configured modules list", "error", err)
 		os.Exit(1)
 	}
 	warnGatewayStateWithoutProvider(modulesCtx, database, slog.Default())
@@ -419,6 +422,26 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 	}
 	coreext.Set(host)
 	return func() { coreext.Set(nil) }, nil
+}
+
+// ReconcileModules applies the declarative modules list (amp.yaml `modules:`
+// or AMP_MODULES), if one is configured: listed modules are installed and
+// enabled or disabled as listed; others are disabled. Every replica runs it at
+// boot; it changes nothing once the database matches.
+func ReconcileModules(ctx context.Context, host *modhost.Host) error {
+	mods, err := config.GetModules()
+	if err != nil || !mods.Declared {
+		return err
+	}
+	want := make([]modhost.Desired, 0, len(mods.List))
+	for _, m := range mods.List {
+		want = append(want, modhost.Desired{Name: m.Name, Enabled: m.Enabled})
+	}
+	steps, err := host.Reconcile(ctx, want)
+	for _, s := range steps {
+		slog.Info("modules list applied", "module", s.Module, "action", s.Action)
+	}
+	return err
 }
 
 // waitForModuleSchema waits until another process has applied the migrations

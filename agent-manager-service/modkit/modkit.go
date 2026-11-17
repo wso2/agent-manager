@@ -345,6 +345,11 @@ type Runtime interface {
 	DB() *gorm.DB
 	Core() CoreAPI
 	Logger() *slog.Logger
+	// Config returns key of the module's own configuration: the module's
+	// config block in amp.yaml (modules: [{name, config: {...}}]), or the
+	// environment variable MODULE_<NAME>_<KEY>, which wins. Nested keys are
+	// joined with "." ("limits.max"); "" when unset.
+	Config(key string) string
 
 	// Handle mounts an API route at /api/v1/m/<module><path>, behind the same
 	// sign-in, permission check and audit trail as the core's routes. path is

@@ -62,3 +62,23 @@ func TestList(t *testing.T) {
 		"legacy      1.0.0    active     yes      -             -\n"+
 		"ai-gateway  1.2.0    available           llm.proxy/v1  -\n", b.String())
 }
+
+func TestConfigFlag(t *testing.T) {
+	for _, c := range []struct {
+		in, rest []string
+		path     string
+	}{
+		{[]string{"--config", "a.yaml", "serve"}, []string{"serve"}, "a.yaml"},
+		{[]string{"--config=b.yaml", "migrate"}, []string{"migrate"}, "b.yaml"},
+		{[]string{"-config", "c.yaml"}, []string{}, "c.yaml"},
+		{[]string{"-migrate"}, []string{"-migrate"}, ""},
+		{nil, nil, ""},
+	} {
+		rest, path, err := configFlag(c.in)
+		assert.NoError(t, err)
+		assert.Equal(t, c.rest, rest)
+		assert.Equal(t, c.path, path)
+	}
+	_, _, err := configFlag([]string{"--config"})
+	assert.ErrorIs(t, err, errUsage)
+}

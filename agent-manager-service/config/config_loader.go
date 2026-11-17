@@ -60,6 +60,11 @@ func loadEnvs() {
 			panic(err)
 		}
 	}
+	// The configuration file fills in what the environment leaves unset.
+	if err := applyConfigFile(); err != nil {
+		slog.Error("configReader: invalid configuration file", "error", err)
+		os.Exit(1)
+	}
 
 	r := &configReader{}
 	config.ServerHost = r.readOptionalString("SERVER_HOST", "")
