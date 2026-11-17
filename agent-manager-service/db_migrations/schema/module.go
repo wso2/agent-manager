@@ -37,6 +37,10 @@ import (
 // ModulesDir is the directory holding the modules, relative to the service's module root.
 const ModulesDir = "modules"
 
+// TestModulesDir holds modules that only tests link. Their schemas are
+// rendered the same way, so the tests run real module migrations.
+const TestModulesDir = "tests/modules"
+
 // modulePrefix starts every module table name. Core tables may not use it.
 const modulePrefix = "mod_"
 
@@ -103,9 +107,22 @@ type ModuleSchema struct {
 	Files []ModuleFile
 }
 
-// ModuleSchemas finds every module directory under root/modules that has a schema directory.
+// ModuleSchemas finds every module directory under root/modules and
+// root/tests/modules that has a schema directory.
 func ModuleSchemas(root string) ([]ModuleSchema, error) {
-	entries, err := os.ReadDir(filepath.Join(root, ModulesDir))
+	var out []ModuleSchema
+	for _, parent := range []string{ModulesDir, TestModulesDir} {
+		found, err := moduleSchemasIn(root, parent)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, found...)
+	}
+	return out, nil
+}
+
+func moduleSchemasIn(root, parent string) ([]ModuleSchema, error) {
+	entries, err := os.ReadDir(filepath.Join(root, parent))
 	if os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -117,7 +134,7 @@ func ModuleSchemas(root string) ([]ModuleSchema, error) {
 		if !e.IsDir() {
 			continue
 		}
-		dir := path.Join(ModulesDir, e.Name())
+		dir := path.Join(parent, e.Name())
 		files, err := filepath.Glob(filepath.Join(root, dir, "schema", "*.yaml"))
 		if err != nil {
 			return nil, err
