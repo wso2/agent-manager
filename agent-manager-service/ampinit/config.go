@@ -31,6 +31,7 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
 // Client is an OAuth client Thunder registers for Agent Manager.
@@ -77,6 +78,10 @@ type ThunderConfig struct {
 	// Admin is Thunder's built-in admin account; its password is set by Thunder's setup.
 	Admin User
 	Users []User
+
+	// Modules are the manifests of the modules compiled into this binary,
+	// whose permissions and role grants go into the resource server and roles.
+	Modules []modkit.Manifest
 }
 
 // GatewayConfig is everything the AI Gateway files depend on.
@@ -168,6 +173,7 @@ func defaultPort(u *url.URL) int {
 func LoadThunderConfig() (*ThunderConfig, error) {
 	r := &envReader{}
 	cfg := &ThunderConfig{
+		Modules:           compiledModules(),
 		AMPPublicURL:      strings.TrimRight(r.required("AMP_PUBLIC_URL"), "/"),
 		ObserverPublicURL: strings.TrimRight(r.required("OBSERVER_PUBLIC_URL"), "/"),
 		ConsoleURL:        strings.TrimRight(r.required("CONSOLE_URL"), "/"),
@@ -361,4 +367,13 @@ func Run(thunderDir, gatewayDir, fileAuthDir string) error {
 			"dir", fileAuthDir, "users", len(cfg.Users), "org", cfg.OrgHandle)
 	}
 	return nil
+}
+
+// compiledModules returns the manifests of the modules this binary links.
+func compiledModules() []modkit.Manifest {
+	var out []modkit.Manifest
+	for _, m := range modkit.Registered() {
+		out = append(out, m.Manifest())
+	}
+	return out
 }

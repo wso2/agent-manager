@@ -117,6 +117,11 @@ func RenderThunder(cfg *ThunderConfig) (map[string][]byte, error) {
 		if err != nil {
 			return nil, err
 		}
+		if name == ampResourceServerFile {
+			if content, err = r.appendModuleResources(content); err != nil {
+				return nil, err
+			}
+		}
 		if err := r.addTrees(content); err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
@@ -274,12 +279,93 @@ func (r *thunderRenderer) rolePermissions(role string, resourceServer ...string)
 		}
 	}
 	out := make([]string, 0, len(perms))
-	for _, p := range perms {
+	for _, p := range slices.Concat(perms, r.moduleGrants(role)) {
 		if within == nil || slices.Contains(within, p.Scope()) {
 			out = append(out, p.Scope())
 		}
 	}
 	return out, nil
+}
+
+// moduleResource is a module's entry in the amp resource server: one resource
+// named after the module, with an action per permission, so ThunderID
+// computes the same "amp:<module>:<permission>" scopes the core checks.
+type moduleResource struct {
+	Name        string         `yaml:"name"`
+	Handle      string         `yaml:"handle"`
+	Parent      string         `yaml:"parent"`
+	Description string         `yaml:"description"`
+	Actions     []moduleAction `yaml:"actions"`
+}
+
+type moduleAction struct {
+	Name        string `yaml:"name"`
+	Handle      string `yaml:"handle"`
+	Description string `yaml:"description"`
+}
+
+// ampResourceServerFile is the bootstrap file of the amp resource server, whose
+// resources list is the file's last key, so module resources can follow it.
+const ampResourceServerFile = "60-amp-resource-server.yaml"
+
+// appendModuleResources adds the compiled-in modules' resources to the amp
+// resource server document.
+func (r *thunderRenderer) appendModuleResources(content []byte) ([]byte, error) {
+	mods := r.moduleResources()
+	if len(mods) == 0 {
+		return content, nil
+	}
+	var b bytes.Buffer
+	b.Write(bytes.TrimRight(content, "\n"))
+	b.WriteString("\n")
+	for _, m := range mods {
+		item, err := yaml.Marshal([]moduleResource{m})
+		if err != nil {
+			return nil, err
+		}
+		for _, line := range strings.Split(strings.TrimRight(string(item), "\n"), "\n") {
+			b.WriteString("  " + line + "\n")
+		}
+	}
+	return b.Bytes(), nil
+}
+
+// moduleResources lists the resources of the modules compiled into this
+// binary. Built-in modules declare permissions that predate modules and are
+// already in the resource server.
+func (r *thunderRenderer) moduleResources() []moduleResource {
+	var out []moduleResource
+	for _, mf := range r.cfg.Modules {
+		if mf.Builtin || len(mf.Permissions) == 0 {
+			continue
+		}
+		res := moduleResource{Name: mf.Name, Handle: mf.Name, Parent: rbac.ResourceServer, Description: "Permissions of the " + mf.Name + " module"}
+		for _, p := range mf.Permissions {
+			desc := p.Description
+			if desc == "" {
+				desc = p.Name
+			}
+			res.Actions = append(res.Actions, moduleAction{Name: p.Name, Handle: p.Name, Description: desc})
+		}
+		out = append(out, res)
+	}
+	return out
+}
+
+// moduleGrants is what the compiled-in modules grant a predefined role. They
+// are granted whether or not a module is installed: an inactive module's
+// routes are not served, so the grant opens nothing until it is.
+func (r *thunderRenderer) moduleGrants(role string) []rbac.Permission {
+	var out []rbac.Permission
+	for _, mf := range r.cfg.Modules {
+		if mf.Builtin {
+			continue
+		}
+		for _, name := range mf.RoleGrants[role] {
+			out = append(out, rbac.Permission(mf.Name+":"+name))
+		}
+	}
+	return out
 }
 
 // quote is a string as a double-quoted literal, valid in YAML, JavaScript and TOML.

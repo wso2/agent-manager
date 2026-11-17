@@ -26,6 +26,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -342,5 +343,57 @@ func TestFileAuthExplicitAdminWins(t *testing.T) {
 	}
 	if cfg.Users[0].Password != "chosen" {
 		t.Errorf("admin password = %q, want the explicit one", cfg.Users[0].Password)
+	}
+}
+
+// In ThunderID mode the roles come from these files, so a module's
+// permissions must reach the resource server, the API client and the roles
+// its manifest grants them to, or its routes would refuse everyone.
+func TestRenderThunderGrantsModulePermissions(t *testing.T) {
+	setThunderEnv(t)
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Modules = append(cfg.Modules, modkit.Manifest{
+		Name:        "widgets",
+		Permissions: []modkit.Permission{{Name: "widget-read", Description: "Read widgets"}, {Name: "widget-write"}},
+		RoleGrants:  map[string][]string{rbac.RoleDeveloper: {"widget-read"}},
+	})
+	files, err := RenderThunder(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(files["bootstrap/60-amp-resource-server.yaml"]), "handle: widgets") {
+		t.Error("the resource server has no resource for the module")
+	}
+	var app struct {
+		InboundAuthConfig []struct {
+			Config struct {
+				Scopes []string `yaml:"scopes"`
+			} `yaml:"config"`
+		} `yaml:"inboundAuthConfig"`
+	}
+	mustYAML(t, files["bootstrap/50-amp-api-client.yaml"], &app)
+	for _, scope := range []string{"amp:widgets:widget-read", "amp:widgets:widget-write"} {
+		if !slices.Contains(app.InboundAuthConfig[0].Config.Scopes, scope) {
+			t.Errorf("the API client cannot request %s", scope)
+		}
+	}
+	grants := func(file string) []string {
+		var role struct {
+			Permissions []struct {
+				ResourceServerID string   `yaml:"resourceServerId"`
+				Permissions      []string `yaml:"permissions"`
+			} `yaml:"permissions"`
+		}
+		mustYAML(t, files[file], &role)
+		return role.Permissions[0].Permissions
+	}
+	if !slices.Contains(grants("bootstrap/62-amp-role-developer.yaml"), "amp:widgets:widget-read") {
+		t.Error("the Developer role does not hold the permission the module grants it")
+	}
+	if slices.Contains(grants("bootstrap/63-amp-role-ai-lead.yaml"), "amp:widgets:widget-read") {
+		t.Error("the AI Lead role holds a permission the module does not grant it")
 	}
 }
