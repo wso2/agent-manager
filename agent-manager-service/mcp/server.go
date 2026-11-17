@@ -35,7 +35,23 @@ func NewHTTPServer(toolsets *tools.Toolsets) http.Handler {
 	// unconditionally.
 	toolsets.Register(server)
 
-	return gomcp.NewStreamableHTTPHandler(func(r *http.Request) *gomcp.Server {
+	return newStreamableHandler(server)
+}
+
+// newStreamableHandler serves server over streamable HTTP in stateless mode.
+//
+// The service runs as several replicas behind a plain load balancer. A stateful
+// handler keeps each Mcp-Session-Id in this process's memory, so a client that
+// initialized on one replica gets 404 "session not found" once a later request
+// lands on another. In stateless mode every request gets a short-lived session
+// built from that request's own context, so any replica can serve it.
+//
+// Stateless mode gives up the GET SSE stream (now 405) and server-to-client
+// requests such as sampling and elicitation; no tool here uses either. The
+// org-consistency guard in tools/authz.go still holds: the org a tool acts on
+// and the scopes that authorize it now both come from the same request token.
+func newStreamableHandler(server *gomcp.Server) http.Handler {
+	return gomcp.NewStreamableHTTPHandler(func(*http.Request) *gomcp.Server {
 		return server
-	}, nil)
+	}, &gomcp.StreamableHTTPOptions{Stateless: true})
 }
