@@ -91,9 +91,7 @@ Settings come from the environment, with an optional `amp.yaml` for the rest; [`
 
 ### Modules
 
-The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) imports no module. Everything else is a module under `agent-manager-service/modules/`, compiled into `amp` and installed, enabled or disabled at runtime (`amp module …`, or the `modules:` list in `amp.yaml`). The AI Gateway is the built-in `gateway` module, and the core reaches it only through the `llm.proxy/v1`, `mcp.proxy/v1` and `agent.gateway/v1` capabilities, so `amp-core` runs without it. The `legacy` module answers `501` for routes Lite does not serve yet.
-
-A new module brings a manifest (permissions, role grants, capabilities, events, console pages), its own migrations with tables named `mod_<module>_<table>`, and an `Activate` function that registers its routes, hooks on agent and environment changes, event handlers and capabilities. [agent-manager-service/AGENTS.md](../agent-manager-service/AGENTS.md#add-a-module) has the steps, and `tests/modules/testmod` is a working example. Run `make up-core` and `make smoke-core` as well as `make up` when a change touches the boundary between the core and a module.
+The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) imports no module; everything else, including the AI Gateway, is a module under `agent-manager-service/modules/`. [Writing a module](amp-lite/modules.md) covers the split, the contract, testing and operation. Run `make up-core` and `make smoke-core` as well as `make up` when a change touches the line between the core and a module.
 
 ### Console
 

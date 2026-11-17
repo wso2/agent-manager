@@ -7,6 +7,7 @@ It ships as one image with two distributions: `amp` (the core plus the built-in 
 | File | What it is |
 |---|---|
 | [database-schema.md](database-schema.md) | Target database schema, rules and decisions |
+| [modules.md](modules.md) | Core and modules: what goes where, writing a module, operating modules |
 | [architecture.png](architecture.png) | Architecture diagram |
 | [architecture.drawio](architecture.drawio) | Same diagram, editable in draw.io / diagrams.net |
 | [architecture.html](architecture.html) | HTML render of the architecture diagram |

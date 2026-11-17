@@ -34,20 +34,7 @@ The core (orgs, projects, environments, agents, identity, tokens, events) lives 
 
 ## Add a module
 
-A module is a package under `modules/<name>/` that implements `modkit.Module` and calls `modkit.Register(module{})` in `init()`. `tests/modules/testmod` is a small complete example (routes, hooks, events, a capability, a workload credential); `tests/module_contract_test.go` exercises it.
-
-1. **Manifest** (`Manifest()`): `Name` (`^[a-z][a-z0-9-]*$`, at most 24 characters, not a core resource name), `Version`, `CoreAPI: modkit.CoreAPIVersion`. List what it depends on (`Requires`, `Optional`), the capabilities it implements (`Provides`, versioned ids such as `llm.proxy/v1`), its `Permissions` (one-segment names such as `widget-read`, which become `<module>:widget-read` and scope `amp:<module>:widget-read`), `RoleGrants` (role name → permission names), the `Events` it publishes (`<module>.<event>`) and its console pages (`UI.Pages`). Leave `Builtin` false: only modules that must always run (gateway, legacy) set it.
-2. **Migrations**: tables go in `modules/<name>/schema/NNN_description.yaml` (`module: <name>` at the top, same format as `lite.yaml`), each named `mod_<name>_<table>`. `make schema` renders `migrations/<database>/NNN_description.sql`; embed that folder and return it from `Migrations()`. Applied migrations are checksummed: add a new file, never edit one. `amp migrate` (or `serve --migrate`) applies them after the core's.
-3. **Activate** (`Activate(ctx, rt)`) registers everything else on the `modkit.Runtime`. An error leaves the module inactive.
-   - **Routes**: `rt.Handle(method, path, perm, h)` mounts `/api/v1/m/<name><path>` with the core's sign-in, permission check and audit. A state-changing route must name a permission. `rt.HandleInternal` mounts workload routes on the internal server; workloads get tokens from `rt.IssueToken` or `rt.IssueCredential`.
-   - **Hooks**: `rt.Hook(modkit.ResourceAgent|ResourceEnvironment, modkit.Validate|Apply|Finalize, fn)` runs inside the core's create, update or delete. A request addresses a module through `extensions.<name>` in the body (`req.Extension`). Write through `req.Tx`, never `rt.DB()`; return `modkit.Reject(...)` to refuse with a 400. Each hook gets 5 s.
-   - **Events**: `rt.Subscribe("agent.created", fn)` for core events; `rt.Publish`/`rt.PublishTx` for the module's own. Delivery is at least once, retried with backoff, so handlers must be idempotent.
-   - **Capabilities**: `rt.Provide(id, impl)` for each id in `Provides`. A consumer resolves one at call time with `modkit.Lookup[T](rt, id)`; the core does the same with `coreext.Lookup[T](id)`. Put the contract a capability implements in `modkit/contracts/<name>v<N>/`.
-   - **Data**: `rt.DB()` for the module's own tables, `rt.Core()` to read orgs, projects, agents and environments, `rt.Config(key)` for its settings (`MODULE_<NAME>_<KEY>` or `config:` under its `modules:` entry).
-4. **Console**: add the page plugin to a console UI module (`console/AGENTS.md`), then list `{ID: "<console module>/<page>", Permission: ...}` in `UI.Pages`. `GET /api/v1/ui-manifest` shows it only while the module is active and the caller holds the permission.
-5. **Ship it**: add a blank import to `modules/all` (linked by `cmd/amp`). Operators turn it on with `amp module install <name>` or a `modules:` entry in `amp.yaml`; enable and disable take effect on running servers without a restart.
-
-The AI Gateway predates this contract and plugs in through `builtin.Bundle` (absolute routes, its own wire injector) instead of `rt.Handle`; don't copy that for a new module.
+Follow [docs/amp-lite/modules.md](../docs/amp-lite/modules.md): what belongs in the core, the manifest, migrations, the `Runtime` surfaces (routes, hooks, events, capabilities), console pages, tests and operation. `tests/modules/testmod` is a small complete example. A new module never imports core packages or touches core tables, and does not copy the gateway's `builtin.Bundle` route.
 
 ## Golden path: add or change an API resource
 

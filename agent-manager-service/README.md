@@ -210,7 +210,7 @@ Without `make console-embed` the binaries serve a placeholder page instead of th
 
 ### Modules
 
-A module is a Go package under `modules/<name>` that implements `modkit.Module` (manifest, migrations, activation) and registers itself in `init()`. A distribution links it with a blank import: `modules/all` lists the modules `cmd/amp` ships, and `cmd/amp-core` imports none. [AGENTS.md](AGENTS.md#add-a-module) walks through adding one; `tests/modules/testmod` is a small working example.
+A module is a Go package under `modules/<name>` that implements `modkit.Module` (manifest, migrations, activation) and registers itself in `init()`. A distribution links it with a blank import: `modules/all` lists the modules `cmd/amp` ships, and `cmd/amp-core` imports none. [Writing a module](../docs/amp-lite/modules.md) walks through adding one and running it.
 
 ### OpenAPI Specification
 

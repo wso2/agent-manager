@@ -46,7 +46,7 @@ console ──HTTP──▶ agent-manager-service ──▶ SQLite or PostgreSQL
 cli (amctl) ──HTTP──▶ agent-manager-service   (same API as the console)
 ```
 
-- **`agent-manager-service`** is the hub — the REST and MCP API the console and CLI both call. It also serves the built console on its own port. Its core imports no module; the AI Gateway is the built-in `gateway` module (see [its guide](agent-manager-service/AGENTS.md#add-a-module)).
+- **`agent-manager-service`** is the hub — the REST and MCP API the console and CLI both call. It also serves the built console on its own port. Its core imports no module; the AI Gateway is the built-in `gateway` module (see [Writing a module](docs/amp-lite/modules.md)).
 - **Instrumented agents** emit OTel traces (via `amp-instrumentation`, run with `amp-instrument`); `agent-manager-observer` serves them to the console; `evaluation-job` scores them via `amp-evaluation`.
 
 ## Local dev environment (from repo root)
