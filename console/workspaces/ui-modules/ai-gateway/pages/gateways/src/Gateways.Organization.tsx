@@ -15,8 +15,8 @@
  * under the License.
  */
 
-import React, { useState } from "react";
-import { PageLayout } from "@agent-management-platform/views";
+import React from "react";
+import { PageLayout, returnToState } from "@agent-management-platform/views";
 import { Button } from "@wso2/oxygen-ui";
 import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { useListGateways } from "@agent-management-platform/api-client";
@@ -26,68 +26,64 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
+  useNavigate,
   useParams,
 } from "react-router-dom";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { AIGatewaysTable } from "./subComponents/AIGatewaysTable";
 import { ViewGateway } from "./subComponents/ViewGateway";
 import { EditGateway } from "./subComponents/EditGateway";
-import { AddSelfHostedGatewayDrawer } from "./subComponents/AddSelfHostedGatewayDrawer";
+import { AddGateway } from "./subComponents/AddGateway";
 
 export const GatewaysOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
-  const [addDrawerOpen, setAddDrawerOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
   const { canWrite } = useGatewayFeatures();
   const selfHostedEnabled = useFeatureFlag("enableSelfHostedGateways");
+  const canAdd = selfHostedEnabled && canWrite;
+  const openAddGateway = () =>
+    navigate(
+      generatePath(absoluteRouteMap.children.org.children.gateways.children.add.path, {
+        orgId,
+      }),
+      { state: returnToState(location) },
+    );
   // Shares the table's query; an empty list offers Add Gateway in its empty state instead.
   const { data: gatewaysData } = useListGateways({ orgName: orgId });
   const hasGateways = (gatewaysData?.gateways?.length ?? 0) > 0;
-  const addGatewayButton = selfHostedEnabled && hasGateways && canWrite ? (
-    <Button
-      variant="contained"
-      startIcon={<Plus size={16} />}
-      onClick={() => setAddDrawerOpen(true)}
-    >
+  const addGatewayButton = canAdd && hasGateways ? (
+    <Button variant="contained" startIcon={<Plus size={16} />} onClick={openAddGateway}>
       Add gateway
     </Button>
   ) : undefined;
 
   return (
-    <>
-      <Routes>
-        <Route
-          index
-          element={
-            <PageLayout title="Gateways" disableIcon actions={addGatewayButton}>
-              <AIGatewaysTable
-                onAddGateway={canWrite ? () => setAddDrawerOpen(true) : undefined}
-              />
-            </PageLayout>
-          }
-        />
-        <Route path="view/:gatewayId" element={<ViewGateway />} />
-        {canWrite && <Route path="edit/:gatewayId" element={<EditGateway />} />}
-        <Route
-          path="*"
-          element={
-            <Navigate
-              to={generatePath(
-                absoluteRouteMap.children.org.children.gateways.path,
-                { orgId },
-              )}
-            />
-          }
-        />
-      </Routes>
-
-      {canWrite && (
-        <AddSelfHostedGatewayDrawer
-          open={addDrawerOpen}
-          onClose={() => setAddDrawerOpen(false)}
-          orgId={orgId ?? ""}
-        />
-      )}
-    </>
+    <Routes>
+      <Route
+        index
+        element={
+          <PageLayout title="Gateways" disableIcon actions={addGatewayButton}>
+            <AIGatewaysTable onAddGateway={canAdd ? openAddGateway : undefined} />
+          </PageLayout>
+        }
+      />
+      {canAdd && <Route path="add" element={<AddGateway />} />}
+      <Route path="view/:gatewayId" element={<ViewGateway />} />
+      {canWrite && <Route path="edit/:gatewayId" element={<EditGateway />} />}
+      <Route
+        path="*"
+        element={
+          <Navigate
+            to={generatePath(
+              absoluteRouteMap.children.org.children.gateways.path,
+              { orgId },
+            )}
+          />
+        }
+      />
+    </Routes>
   );
 };
 
