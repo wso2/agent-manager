@@ -59,7 +59,7 @@ const isInstalled = (module: UIModuleStatus) => {
   return state === "installed" || state === "built-in";
 };
 
-/** Can be installed: not installed, and not turned off in ui-modules.js. */
+/** Can be installed: not installed, and not left out by the server UI manifest. */
 const isAvailable = (module: UIModuleStatus) =>
   !isInstalled(module) && marketplaceState(module) !== "turned-off";
 

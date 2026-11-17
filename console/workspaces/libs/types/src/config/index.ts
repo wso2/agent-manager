@@ -183,30 +183,14 @@ export type GuardrailCapabilities = {
   semanticGuardrails?: boolean;
 };
 
-/**
- * Default UI modules, from public/ui-modules.js: module id → on/off. A key may
- * also be "<module>/<plugin>" ("ai-observability/logs") or a bare plugin id
- * ("logs") to turn off one page plugin. A turned-off plugin's routes, nav
- * items and panels are not registered, its activation hooks never run, and its
- * page chunks are never loaded. Unlisted modules are on.
- */
-export type UIModuleDefaults = Record<string, boolean>;
-
 // Extend the Window interface to include our config
 declare global {
   interface Window {
     __RUNTIME_CONFIG__: AppConfig;
-    __UI_MODULES__?: UIModuleDefaults;
   }
 }
 
 export const globalConfig: AppConfig = window.__RUNTIME_CONFIG__;
-
-/** Module ids and plugin keys public/ui-modules.js turns off. */
-export const getDisabledUIModules = (): string[] =>
-  Object.entries(window.__UI_MODULES__ ?? {})
-    .filter(([, on]) => on === false)
-    .map(([id]) => id);
 
 /**
  * Normalised base path: no trailing slash, leading slash when non-empty.

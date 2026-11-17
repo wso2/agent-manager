@@ -19,8 +19,8 @@
 // Single-environment mode: whether the console shows deployment pipelines.
 //
 // Pipelines belong to the agent-runtime UI module, so this is a console
-// decision, taken from the module host: without agent-runtime (turned off in
-// ui-modules.js, or not installed) the pipeline hooks stay idle and pages hide
+// decision, taken from the module host: without agent-runtime (left out by the
+// server UI manifest, or not installed) the pipeline hooks stay idle and pages hide
 // pipeline UI. It says nothing about how many environments the service has:
 // environments always come from the environments API, by their real names and
 // UUIDs, and pickers hide themselves only when that API returns exactly one

@@ -19,8 +19,8 @@
 import { useIsUIModuleInstalled } from "@agent-management-platform/views";
 
 /**
- * Whether a UI module is present (installed and not turned off in
- * ui-modules.js). A module's query hooks AND their `enabled` with this, so no
+ * Whether a UI module is present (installed and not left out by the
+ * server UI manifest). A module's query hooks AND their `enabled` with this, so no
  * page, in that module or another, can make the module's calls without it.
  * Still detecting counts as absent: the queries start once it is known.
  */

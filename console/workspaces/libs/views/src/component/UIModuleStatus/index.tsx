@@ -21,7 +21,7 @@ import type { UIModuleInstallPhase } from "@agent-management-platform/types";
 
 /**
  * Install phase of each UI module, by module id, as the shell's module host sees
- * it. A module turned off by the deployment (public/ui-modules.js) reports
+ * it. A module turned off by the deployment (the server UI manifest leaves it out) reports
  * "not-installed". Lets a page in one module adapt to whether another is
  * present without importing the shell.
  */

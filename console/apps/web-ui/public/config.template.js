@@ -106,7 +106,7 @@ window.__RUNTIME_CONFIG__ = {
     externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
     externallyManagedPipeline: '$FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE' === 'true',
   },
-  // Which UI modules are on comes from ui-modules.js, next to this file.
+  // Which UI modules are on comes from the server (GET /api/v1/ui-manifest).
   uiModules: {
     // Shows the AI module manager page (a front-end preview for now). Off by default.
     marketplace: '$ENABLE_UI_MARKETPLACE' === 'true',
