@@ -70,6 +70,41 @@ func NewLLMProviderRepo(db *gorm.DB) LLMProviderRepository {
 	}
 }
 
+// LLMProviderSyncLocker serializes dependent-proxy auth syncs for one provider
+// across every replica of the service. LLMProviderRepo implements it; the
+// service discovers it by type assertion so the generated repository mock need
+// not.
+type LLMProviderSyncLocker interface {
+	// LockProviderSync blocks until the provider's sync lock is free or ctx is
+	// done. On success the caller holds the lock until it calls release,
+	// exactly once.
+	LockProviderSync(ctx context.Context, providerUUID string) (release func(), err error)
+}
+
+var _ LLMProviderSyncLocker = (*LLMProviderRepo)(nil)
+
+// LockProviderSync takes a transaction-scoped advisory lock on providerUUID and
+// holds the transaction open until release, which rolls it back. Postgres drops
+// the lock if the connection dies, so a crashed holder never strands it.
+//
+// ctx bounds only the wait. The transaction runs on a context that ignores
+// ctx's cancellation, because database/sql rolls a transaction back as soon as
+// its context ends, which would drop the lock while the caller is still
+// walking the provider's proxies.
+func (r *LLMProviderRepo) LockProviderSync(ctx context.Context, providerUUID string) (func(), error) {
+	tx := r.db.WithContext(context.WithoutCancel(ctx)).Begin()
+	if tx.Error != nil {
+		return nil, fmt.Errorf("begin LLM provider sync lock transaction: %w", tx.Error)
+	}
+	if err := advisoryXactLock(tx.WithContext(ctx), llmProviderSyncLockNamespace, providerUUID); err != nil {
+		tx.Rollback()
+		return nil, fmt.Errorf("lock LLM provider sync: %w", err)
+	}
+	// A failed rollback means the connection is broken; database/sql then
+	// discards it, and Postgres releases the lock when the session ends.
+	return func() { tx.Rollback() }, nil
+}
+
 // Create inserts a new LLM provider
 func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, name, version string, orgUUID string) error {
 	slog.Info("LLMProviderRepo.Create: starting", "handle", handle, "name", name, "version", version, "orgUUID", orgUUID)
