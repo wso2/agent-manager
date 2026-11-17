@@ -19,6 +19,8 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -559,13 +561,28 @@ func (p *publisherCredentialProvisioner) GetOCClientForOrg(ctx context.Context, 
 		}
 	}
 
-	result, err, _ := p.sfg.Do("ocClient:"+ouID, func() (any, error) {
+	result, err, _ := p.sfg.Do(orgOCBuildKey(ouID, cred), func() (any, error) {
 		return p.buildOrgOCClient(ctx, ouID, cred, gen)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return result.(client.OpenChoreoClient), nil
+}
+
+// orgOCBuildKey keys an in-flight client build by the org and the stored credential it
+// builds from, so a caller that read a newer credential never joins a build from an older
+// one. Builds that must first repair a missing or secretless credential share one key per
+// org. The credential is digested so the key never carries the encrypted secret.
+func orgOCBuildKey(ouID string, cred *models.OrgSchedulerCredential) string {
+	if cred == nil || len(cred.ClientSecretEncrypted) == 0 {
+		return "ocClient:" + ouID + ":repair"
+	}
+	digest := sha256.New()
+	digest.Write([]byte(cred.ClientID))
+	digest.Write([]byte{0})
+	digest.Write(cred.ClientSecretEncrypted)
+	return "ocClient:" + ouID + ":" + hex.EncodeToString(digest.Sum(nil))
 }
 
 // buildOrgOCClient builds and caches the org's client from cred, the stored scheduler

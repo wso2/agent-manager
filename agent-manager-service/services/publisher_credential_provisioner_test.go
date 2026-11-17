@@ -19,7 +19,9 @@ package services
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -303,9 +305,10 @@ func TestGetOCClientForOrg_RealDBErrorOnRecheck_NotMisreportedAsNotFound(t *test
 	schedulerCredRepo := &repomocks.OrgSchedulerCredentialRepositoryMock{
 		GetByOrgNameFunc: func(_ string) (*models.OrgSchedulerCredential, error) {
 			calls++
-			// Not found on the first read and on the re-read under the org lock, so the
-			// credential is provisioned; the read after provisioning then fails for real.
-			if calls <= 2 {
+			// Not found on the first read, on the re-read under the org lock, and on
+			// provisionSchedulerCredentials' own lookup, so the credential is provisioned;
+			// the read after provisioning then fails for real.
+			if calls <= 3 {
 				return nil, gorm.ErrRecordNotFound
 			}
 			return nil, dbTimeout
@@ -343,6 +346,10 @@ func TestGetOCClientForOrg_RealDBErrorOnRecheck_NotMisreportedAsNotFound(t *test
 	assert.False(t, errors.Is(err, ErrSchedulerCredentialNotFound),
 		"a real DB error must not be reported as the not-found sentinel")
 	assert.ErrorIs(t, err, dbTimeout)
+	assert.ErrorContains(t, err, "after provisioning", "the failing read must be the recheck after provisioning")
+	assert.Len(t, thunderMock.EnsureAppCalls(), 1, "the credential must have been provisioned before the recheck")
+	assert.Len(t, schedulerCredRepo.UpsertCalls(), 1, "the credential must have been stored before the recheck")
+	assert.Equal(t, 4, calls)
 }
 
 // Re-provisioning must drop the cached per-org OpenChoreo client. The cached client wraps
@@ -716,4 +723,89 @@ func TestGetOCClientForOrg_DBErrorServesCachedClient(t *testing.T) {
 
 	_, err = p.GetOCClientForOrg(context.Background(), "other-org")
 	require.ErrorIs(t, err, dbErr, "with nothing cached, the read error must surface")
+}
+
+// A caller that read a newer credential must not join a build from an older one,
+// so the build key follows the stored credential, without carrying its secret.
+func TestOrgOCBuildKey_FollowsStoredCredential(t *testing.T) {
+	cred := &models.OrgSchedulerCredential{ClientID: "amp-scheduler-acme", ClientSecretEncrypted: []byte("encrypted-v1")}
+	same := &models.OrgSchedulerCredential{ClientID: "amp-scheduler-acme", ClientSecretEncrypted: []byte("encrypted-v1")}
+	rotated := &models.OrgSchedulerCredential{ClientID: "amp-scheduler-acme", ClientSecretEncrypted: []byte("encrypted-v2")}
+	otherClient := &models.OrgSchedulerCredential{ClientID: "amp-scheduler-other", ClientSecretEncrypted: []byte("encrypted-v1")}
+
+	assert.Equal(t, orgOCBuildKey("acme", cred), orgOCBuildKey("acme", same), "callers that read the same credential share a build")
+	assert.NotEqual(t, orgOCBuildKey("acme", cred), orgOCBuildKey("acme", rotated), "a rotated secret needs its own build")
+	assert.NotEqual(t, orgOCBuildKey("acme", cred), orgOCBuildKey("acme", otherClient))
+	assert.NotEqual(t, orgOCBuildKey("acme", cred), orgOCBuildKey("globex", cred), "orgs never share a build")
+	assert.NotContains(t, orgOCBuildKey("acme", cred), "encrypted-v1", "the key must not carry the encrypted secret")
+
+	repair := orgOCBuildKey("acme", nil)
+	assert.Equal(t, repair, orgOCBuildKey("acme", &models.OrgSchedulerCredential{ClientID: "amp-scheduler-acme"}),
+		"every build that must repair the credential shares one key per org")
+	assert.NotEqual(t, repair, orgOCBuildKey("acme", cred))
+}
+
+// A build from the old credential can still be in flight when another replica
+// rotates the secret. A caller that read the rotated credential must build its
+// own client instead of joining, and waiting for, the stale build.
+func TestGetOCClientForOrg_DoesNotJoinABuildFromAnOlderCredential(t *testing.T) {
+	oldSecret, err := utils.EncryptBytes([]byte("old-secret"), testEncryptionKey)
+	require.NoError(t, err)
+	newSecret, err := utils.EncryptBytes([]byte("new-secret"), testEncryptionKey)
+	require.NoError(t, err)
+
+	var mu sync.Mutex
+	stored := &models.OrgSchedulerCredential{ClientID: "amp-scheduler-acme", ClientSecretEncrypted: oldSecret}
+	oldBuildStarted := make(chan struct{})
+	releaseOldBuild := make(chan struct{})
+	SetOrgClientAuthProviderFactory(func(_, _, clientSecret string) occlient.AuthProvider {
+		if clientSecret == "old-secret" {
+			close(oldBuildStarted)
+			<-releaseOldBuild
+		}
+		return &recordedAuthProvider{clientSecret: clientSecret}
+	})
+	t.Cleanup(func() { SetOrgClientAuthProviderFactory(nil) })
+
+	p := &publisherCredentialProvisioner{
+		schedulerCredRepo: &repomocks.OrgSchedulerCredentialRepositoryMock{
+			GetByOrgNameFunc: func(string) (*models.OrgSchedulerCredential, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				copied := *stored
+				return &copied, nil
+			},
+		},
+		logger:        discardLogger(),
+		encryptionKey: testEncryptionKey,
+		idpTokenURL:   "http://thunder.test/oauth2/token",
+		ocBaseURL:     "http://openchoreo.test",
+	}
+
+	oldDone := make(chan struct{})
+	go func() {
+		defer close(oldDone)
+		_, _ = p.GetOCClientForOrg(context.Background(), "acme")
+	}()
+	<-oldBuildStarted
+
+	mu.Lock()
+	stored = &models.OrgSchedulerCredential{ClientID: "amp-scheduler-acme", ClientSecretEncrypted: newSecret}
+	mu.Unlock()
+
+	newDone := make(chan error, 1)
+	go func() {
+		_, err := p.GetOCClientForOrg(context.Background(), "acme")
+		newDone <- err
+	}()
+	select {
+	case err := <-newDone:
+		require.NoError(t, err)
+	case <-time.After(2 * time.Second):
+		close(releaseOldBuild)
+		<-oldDone
+		t.Fatal("a caller that read the rotated credential joined the build from the old one")
+	}
+	close(releaseOldBuild)
+	<-oldDone
 }
