@@ -174,7 +174,7 @@ jobs:
           bash .github/scripts/pin-standalone-images.sh "${VERSION}" "${REGISTRY}/${REGISTRY_ORG}"
           cd deployments/standalone
           cp .env.example .env
-          docker compose up -d --wait --wait-timeout 600 --scale amp-console=0
+          docker compose up -d --wait --wait-timeout 600
 
       - name: Run e2e tests
         id: e2e-tests

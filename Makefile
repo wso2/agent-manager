@@ -13,7 +13,7 @@ help:
 	@echo "  make setup-console-local     - Install console deps (only if changed)"
 	@echo "  make setup-console-local-force - Force reinstall console deps"
 	@echo ""
-	@echo "📦 Full stack from images (console in nginx on :3000):"
+	@echo "📦 Full stack from images (console served by the API on :9000):"
 	@echo "  make up                      - Build images and start the whole stack"
 	@echo "  make down                    - Stop the stack (data kept)"
 	@echo "  make logs                    - Tail all stack logs"
@@ -77,8 +77,8 @@ endif
 COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
 DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
 # The stop targets name every profile, so they also stop PostgreSQL from a
-# DB=postgres run and the nginx console from `make up`.
-ALL_PROFILES := --profile console-image --profile postgres
+# DB=postgres run.
+ALL_PROFILES := --profile postgres
 
 $(STACK_DIR)/.env:
 	@cp $(STACK_DIR)/.env.example $@
@@ -93,10 +93,10 @@ setup: tools
 # Full stack from images
 up: $(STACK_DIR)/.env
 	@echo "🚀 Building images and starting AMP..."
-	@$(COMPOSE) up -d --build --wait
+	@$(COMPOSE) up -d --build --wait --remove-orphans
 	@echo "✅ AMP is running"
-	@echo "   Console: http://localhost:3000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
-	@echo "   API:     http://localhost:9000"
+	@echo "   Console: http://localhost:9000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   API:     http://localhost:9000/api/v1"
 
 down:
 	@$(COMPOSE) $(ALL_PROFILES) down
@@ -138,8 +138,7 @@ setup-console-local-force:
 # running a stale toolchain. Cached layers keep the no-change case near-free.
 dev-up: $(STACK_DIR)/.env
 	@echo "🚀 Starting Agent Manager (dev)..."
-	@$(DEV_COMPOSE) --profile console-image rm -sf amp-console
-	@$(DEV_COMPOSE) up -d --build --wait
+	@$(DEV_COMPOSE) up -d --build --wait --remove-orphans
 	@$(MAKE) console BACKGROUND=true
 	@echo "✅ Platform is running!"
 	@echo "   Console: http://localhost:3000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"

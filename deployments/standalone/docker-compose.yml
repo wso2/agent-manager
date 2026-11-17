@@ -22,18 +22,23 @@ services:
   # Gateway's config.toml, keys and registration token, from the settings
   # below. Reruns regenerate the configuration and keep generated keys and
   # tokens.
+  # The same image and binary as amp-api, run as `amp init`.
   amp-init:
     image: ${AMP_API_IMAGE:?copy .env.example to .env first}
     # Writes into fresh named volumes and hands each file to the uid that reads it.
     user: "0:0"
-    entrypoint: ["/go/bin/agent-manager-service"]
-    command: ["-init-thunder=/out/thunder", "-init-gateway=/out/gateway", "-init-fileauth=/out/fileauth"]
+    entrypoint: ["/go/bin/amp"]
+    command: ["init", "thunder", "/out/thunder", "gateway", "/out/gateway", "fileauth", "/out/fileauth"]
     environment:
       THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
       THUNDER_PORT: ${THUNDER_PORT}
       AMP_PUBLIC_URL: http://localhost:${AMP_API_PORT}
       OBSERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
-      CONSOLE_URL: http://localhost:${CONSOLE_PORT}
+      # The console is served by amp-api. The dev console (`make console`,
+      # Vite on CONSOLE_PORT) may sign in too.
+      CONSOLE_URL: http://localhost:${AMP_API_PORT}
+      CONSOLE_REDIRECT_URIS: http://localhost:${AMP_API_PORT}/login,http://localhost:${CONSOLE_PORT}/login
+      THUNDER_CORS_ORIGINS: http://localhost:${AMP_API_PORT},http://localhost:${CONSOLE_PORT}
       AMP_API_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
       AMP_CONSOLE_CLIENT_SECRET: ${AMP_CONSOLE_CLIENT_SECRET}
       AMP_PUBLISHER_CLIENT_SECRET: ${AMP_PUBLISHER_CLIENT_SECRET}
@@ -159,9 +164,10 @@ services:
     restart: unless-stopped
 
   # --- Agent Manager ------------------------------------------------------------
+  # The API, and the console on the same port.
   amp-api:
     image: ${AMP_API_IMAGE:?copy .env.example to .env first}
-    command: ["-migrate"]
+    command: ["serve", "--migrate"]
     ports:
       - "${AMP_API_PORT}:8080"
       - "${AMP_INTERNAL_PORT}:9243"
@@ -176,6 +182,7 @@ services:
       DB_SSL_MODE: disable
       SERVER_PORT: "8080"
       SERVER_PUBLIC_URL: http://localhost:${AMP_API_PORT}
+      # The console is same-origin; this lets the dev console (Vite) call in.
       CORS_ALLOWED_ORIGIN: http://localhost:${CONSOLE_PORT}
       OAUTH_AUTHORIZATION_SERVERS: http://${THUNDER_HOST}:${THUNDER_PORT}
       OAUTH_SCOPES_SUPPORTED: "amp:llm-proxy:deploy,amp:mcp-server:create,amp:org:invite-member,amp:role:delete,amp:monitor:read,amp:agent:env-production,amp:git-secret:delete,amp:llm-provider:delete,amp:mcp-server:configure-guardrail,amp:deployment-pipeline:create,amp:deployment-pipeline:read,amp:deployment-pipeline:update,amp:deployment-pipeline:delete,amp:gateway:delete,amp:group:delete,amp:llm-proxy:update,amp:monitor:score-read,amp:llm-provider-template:update,amp:agent:build,amp:agent:rollback,amp:agent:token-manage,amp:evaluator:read,amp:llm-provider-template:read,amp:monitor:create,amp:agent:suspend,amp:gateway:token-manage,amp:git-secret:read,amp:mcp-server:connect,amp:mcp-server:api-key-manage,amp:mcp-server:read,amp:observability:log-read,amp:group:create,amp:observability:trace-read,amp:org:remove-member,amp:agent:env-non-production,amp:group:read,amp:llm-provider-template:create,amp:project:delete,amp:agent:create,amp:evaluator:create,amp:llm-provider:read,amp:org:modify-settings,amp:catalog:read,amp:environment:update,amp:group:update,amp:llm-proxy:delete,amp:project:read,amp:data-plane:read,amp:agent:read,amp:environment:read,amp:llm-provider:configure-guardrail,amp:observability:build-log-read,amp:org:assign-role,amp:project:update,amp:mcp-server:delete,amp:environment:delete,amp:evaluator:update,amp:git-secret:create,amp:monitor:execute,amp:llm-provider:api-key-manage,amp:gateway:read,amp:agent:update,amp:llm-provider-template:delete,amp:monitor:delete,amp:org:view,amp:llm-provider:create,amp:mcp-server:update,amp:org:manage-idp,amp:role:read,amp:role:update,amp:agent:delete,amp:gateway:create,amp:llm-provider:deploy,amp:llm-proxy:api-key-manage,amp:monitor:update,amp:org:manage-service-account,amp:role:create,amp:evaluator:delete,amp:llm-provider:connect,amp:llm-provider:update,amp:llm-proxy:read,amp:monitor:score-publish,amp:observability:metric-read,amp:project:create,amp:repository:read,amp:gateway:update,amp:environment:create,amp:llm-proxy:create,amp:agent:api-key-manage,amp:agent-kind:read,amp:agent-kind:create,amp:agent-kind:update,amp:agent-kind:delete,amp:profile:read,amp:profile:update-attributes,amp:scope:create,amp:scope:read,amp:scope:update,amp:scope:delete,amp:agent-identity:read,amp:agent-identity:create,amp:agent-identity:update,amp:agent-identity:delete,amp:events:read,amp:events:manage"
@@ -233,6 +240,17 @@ services:
       DEFAULT_GATEWAY_TOKEN_FILE: /amp/gw/registration-token
       # Every gateway gets the trace-ingest API (/otel), forwarding to the collector.
       OTEL_INGEST_UPSTREAM_URL: http://otel-collector:4318
+      # The console's settings (CONSOLE_<NAME> fills $NAME in its config.js).
+      # The API base URL, ThunderID URL, sign-in redirects, AUTH_MODE, the
+      # instrumentation URL and the sign-in scopes default from the settings
+      # above.
+      CONSOLE_GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT}
+      CONSOLE_GATEWAY_VERSION: v2026.09.24
+      CONSOLE_DOCS_URL: https://wso2.com/agent-platform/docs/${DOCS_VERSION:-next}
+      CONSOLE_FILE_MOUNT_MAX_FILE_BYTES: "1000000"
+      CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
+      CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
+      CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
     volumes:
       - amp-data:/var/lib/agent-manager
       - amp-keys:/app/keys
@@ -285,36 +303,6 @@ services:
       test: ["CMD-SHELL", "wget -q -T 4 -O /dev/null http://127.0.0.1:9098/health"]
       interval: 3s
       retries: 60
-    networks: [amp]
-    restart: unless-stopped
-
-  amp-console:
-    image: ${AMP_CONSOLE_IMAGE:?copy .env.example to .env first}
-    ports:
-      - "${CONSOLE_PORT}:3000"
-    environment:
-      AUTH_CLIENT_ID: amp-console-client
-      AUTH_BASE_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
-      AUTH_SCOPES: "openid profile email amp:org:view amp:org:modify-settings amp:org:invite-member amp:org:remove-member amp:org:assign-role amp:org:manage-idp amp:org:manage-service-account amp:project:create amp:project:read amp:project:update amp:project:delete amp:environment:create amp:environment:read amp:environment:update amp:environment:delete amp:gateway:create amp:gateway:read amp:gateway:update amp:gateway:delete amp:gateway:token-manage amp:data-plane:read amp:deployment-pipeline:create amp:deployment-pipeline:read amp:deployment-pipeline:update amp:deployment-pipeline:delete amp:git-secret:create amp:git-secret:read amp:git-secret:delete amp:llm-provider-template:create amp:llm-provider-template:read amp:llm-provider-template:update amp:llm-provider-template:delete amp:llm-provider:create amp:llm-provider:read amp:llm-provider:update amp:llm-provider:delete amp:llm-provider:configure-guardrail amp:llm-provider:connect amp:llm-provider:deploy amp:llm-provider:api-key-manage amp:mcp-server:create amp:mcp-server:read amp:mcp-server:update amp:mcp-server:delete amp:mcp-server:configure-guardrail amp:mcp-server:connect amp:mcp-server:api-key-manage amp:llm-proxy:create amp:llm-proxy:read amp:llm-proxy:update amp:llm-proxy:delete amp:llm-proxy:deploy amp:llm-proxy:api-key-manage amp:evaluator:create amp:evaluator:read amp:evaluator:update amp:evaluator:delete amp:agent:create amp:agent:read amp:agent:update amp:agent:delete amp:agent:build amp:agent:env-non-production amp:agent:env-production amp:agent:rollback amp:agent:suspend amp:agent:token-manage amp:agent:api-key-manage amp:monitor:create amp:monitor:read amp:monitor:update amp:monitor:delete amp:monitor:execute amp:monitor:score-read amp:monitor:score-publish amp:events:read amp:events:manage amp:observability:trace-read amp:observability:log-read amp:observability:build-log-read amp:observability:metric-read amp:role:create amp:role:read amp:role:update amp:role:delete amp:group:create amp:group:read amp:group:update amp:group:delete amp:catalog:read amp:repository:read amp:agent-kind:read amp:agent-kind:create amp:agent-kind:update amp:agent-kind:delete amp:profile:read amp:profile:update-attributes amp:scope:create amp:scope:read amp:scope:update amp:scope:delete amp:agent-identity:read amp:agent-identity:create amp:agent-identity:update amp:agent-identity:delete"
-      SIGN_IN_REDIRECT_URL: http://localhost:${CONSOLE_PORT}/login
-      SIGN_OUT_REDIRECT_URL: http://localhost:${CONSOLE_PORT}/login
-      API_BASE_URL: http://localhost:${AMP_API_PORT}
-      DISABLE_AUTH: "false"
-      # Must match amp-api's AUTH_MODE: the API decides which tokens it accepts,
-      # this decides how the console asks for one.
-      AUTH_MODE: ${AUTH_MODE:-file}
-      GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT}
-      GATEWAY_VERSION: v2026.09.24
-      INSTRUMENTATION_URL: http://${GATEWAY_HOST}:${GATEWAY_PORT}/otel
-      DOCS_URL: https://wso2.com/agent-platform/docs/${DOCS_VERSION:-next}
-      FILE_MOUNT_MAX_FILE_BYTES: "1000000"
-      FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
-      FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
-      FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
-      FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY: "false"
-    depends_on:
-      amp-api:
-        condition: service_healthy
     networks: [amp]
     restart: unless-stopped
 

@@ -8,10 +8,10 @@ description: >
   thunder.amp.localhost:8080 and the AI Gateway on :19080
   (default-default.gateway.localhost).
 
-  The console image is skipped unless `console` is true.
+  amp-api is built without the embedded console unless `console` is true.
 inputs:
   console:
-    description: Also build and start the console (nginx image on :3000).
+    description: Build the console into amp-api (served on :9000).
     required: false
     default: "false"
   auth_mode:
@@ -56,16 +56,15 @@ runs:
           } >> .env
         fi
         export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
+        if [ "$WITH_CONSOLE" != "true" ]; then
+          # Skip the console build: amp-api then serves a placeholder page.
+          printf 'services:\n  amp-api:\n    build:\n      additional_contexts: !reset {}\n' > ci-no-console.yml
+          COMPOSE_FILE="$COMPOSE_FILE:ci-no-console.yml"
+        fi
         # OpenSearch refuses to start below this on Linux hosts.
         sudo sysctl -w vm.max_map_count=262144
-        services=(amp-api amp-observer)
-        scale=(--scale amp-console=0)
-        if [ "$WITH_CONSOLE" = "true" ]; then
-          services+=(amp-console)
-          scale=()
-        fi
-        docker compose build "${services[@]}"
-        if ! docker compose up -d --wait --wait-timeout 600 "${scale[@]}"; then
+        docker compose build amp-api amp-observer
+        if ! docker compose up -d --wait --wait-timeout 600; then
           docker compose ps -a
           docker compose logs --tail 200
           exit 1

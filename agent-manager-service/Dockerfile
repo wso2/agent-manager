@@ -1,3 +1,24 @@
+# The console's source: the repository's console/ directory, passed as a named
+# build context (`--build-context console-src=../console`, or Compose's
+# additional_contexts). Without it this stage is empty and the binary is built
+# without the console; it then serves a page saying so.
+FROM scratch AS console-src
+
+# Builds the console that the binary embeds. Runs natively on the build
+# platform: the output is plain static files.
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:26.12.1-slim AS console
+# Node 25+ no longer bundles corepack; it activates the pnpm version pinned in
+# package.json's packageManager field.
+RUN npm install -g corepack@0.36.0 && corepack enable
+WORKDIR /console
+COPY --from=console-src / ./
+# The console build peaks above Node's default heap on large chunks but must
+# stay well inside small Docker VMs (8 GiB, shared with the Go build).
+ENV NODE_OPTIONS=--max-old-space-size=3072
+RUN mkdir -p /out && if [ -f package.json ]; then \
+      pnpm install --frozen-lockfile && pnpm build && cp -r apps/web-ui/dist/. /out/ ; \
+    else echo "no console source: building the binary without the console"; fi
+
 FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.26.10-alpine AS builder
 
 # Add build args for cross-platform support
@@ -16,10 +37,13 @@ RUN go mod download
 
 # Copy the source code as the last step
 COPY . .
+COPY --from=console /out/ ./webconsole/dist/
 
 # Build the binary with optimizations using Go's native cross-compilation
 # This runs natively on the build platform (amd64) and cross-compiles for target platform
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+RUN if [ -f webconsole/dist/index.html ]; then tags=console; else tags=; fi; \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -tags "${tags}" \
     -a \
     -installsuffix cgo \
     -ldflags="-w -s -X github.com/wso2/agent-manager/agent-manager-service/config.Version=${VERSION}" \
@@ -40,6 +64,8 @@ RUN mkdir -p /app/keys /app/data/certs /var/lib/agent-manager && chown -R 1000:1
 
 # Copy binary with ownership set
 COPY --from=builder --chown=1000:1000 /go/bin/agent-manager-service /go/bin/agent-manager-service
+# The same binary under its command name: `amp serve | migrate | init | module`.
+RUN ln -s /go/bin/agent-manager-service /go/bin/amp
 
 # Copy scripts for runtime key generation
 COPY --from=builder --chown=1000:1000 /app/scripts/gen_keys.sh /app/scripts/gen_keys.sh

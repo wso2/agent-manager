@@ -104,7 +104,7 @@ jobs:
       - name: The console agrees with the API
         run: |
           set -euo pipefail
-          curl -sf http://localhost:3000/config.js | grep -q "authMode: 'file'" \
+          curl -sf http://localhost:9000/config.js | grep -q "authMode: 'file'" \
             || { echo "::error::the console is not in file mode; it would post sign-in to a 404"; exit 1; }
 
       - name: Capture stack logs on failure
@@ -113,7 +113,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/file-auth-smoke"
           docker compose ps -a > "$RUNNER_TEMP/file-auth-smoke/services.txt" 2>&1 || true
-          for s in amp-init amp-api amp-observer amp-console; do
+          for s in amp-init amp-api amp-observer; do
             docker compose logs --no-color --tail 300 "$s" \
               > "$RUNNER_TEMP/file-auth-smoke/$s.log" 2>&1 || true
           done
