@@ -315,6 +315,12 @@ func (r *thunderRenderer) appendModuleResources(content []byte) ([]byte, error) 
 	if len(mods) == 0 {
 		return content, nil
 	}
+	for _, m := range mods {
+		if slices.Contains(rbac.ReservedResources(), m.Handle) {
+			return nil, fmt.Errorf("module %q is named after a core permission resource; its permissions would clash with %s:*",
+				m.Handle, m.Handle)
+		}
+	}
 	var b bytes.Buffer
 	b.Write(bytes.TrimRight(content, "\n"))
 	b.WriteString("\n")

@@ -19,6 +19,7 @@ package rbac
 import (
 	"fmt"
 	"slices"
+	"strings"
 	"sync/atomic"
 )
 
@@ -153,6 +154,34 @@ func RoleGrants(role string) []Permission {
 	out := make([]Permission, 0, len(set))
 	for p := range set {
 		out = append(out, p)
+	}
+	slices.Sort(out)
+	return out
+}
+
+// moduleOwnedResources are permission resources that a module, not the core,
+// is meant to own. A module may take one of these as its name. Empty for now:
+// when the gateway's gateway:* permissions move into the gateway module, add
+// "gateway" here.
+var moduleOwnedResources = []string{}
+
+// ReservedResources are the names a module cannot take: the resource part of
+// every permission the core and the built-in legacy module declare (org,
+// agent, gateway, ...), and the resource server's own handle. A module named
+// after one would add a second resource of that name to the identity
+// provider's resource server and share its permission namespace.
+func ReservedResources() []string {
+	set := map[string]struct{}{ResourceServer: {}}
+	for _, p := range PredefinedRolePermissions[RoleAdmin] {
+		resource, _, _ := strings.Cut(string(p), ":")
+		set[resource] = struct{}{}
+	}
+	for _, r := range moduleOwnedResources {
+		delete(set, r)
+	}
+	out := make([]string, 0, len(set))
+	for r := range set {
+		out = append(out, r)
 	}
 	slices.Sort(out)
 	return out

@@ -397,3 +397,17 @@ func TestRenderThunderGrantsModulePermissions(t *testing.T) {
 		t.Error("the AI Lead role holds a permission the module does not grant it")
 	}
 }
+
+// A module named after a core resource would add a second "gateway" (or
+// "agent", ...) resource to the resource server; rendering refuses it.
+func TestRenderThunderRefusesAModuleNamedAfterACoreResource(t *testing.T) {
+	setThunderEnv(t)
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Modules = append(cfg.Modules, modkit.Manifest{Name: "gateway", Permissions: []modkit.Permission{{Name: "manage"}}})
+	if _, err := RenderThunder(cfg); err == nil || !strings.Contains(err.Error(), "gateway") {
+		t.Fatalf("RenderThunder = %v, want a refusal naming the module", err)
+	}
+}
