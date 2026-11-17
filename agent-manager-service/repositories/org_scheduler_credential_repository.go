@@ -17,11 +17,14 @@
 package repositories
 
 import (
+	"context"
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -40,6 +43,31 @@ type orgSchedulerCredentialRepo struct {
 // NewOrgSchedulerCredentialRepo creates a new OrgSchedulerCredentialRepository
 func NewOrgSchedulerCredentialRepo(db *gorm.DB) OrgSchedulerCredentialRepository {
 	return &orgSchedulerCredentialRepo{db: db}
+}
+
+// OrgCredentialLocker serializes creating and regenerating one org's publisher
+// and scheduler credentials across every replica of the service. The scheduler
+// credential repository implements it; the provisioner discovers it by type
+// assertion so the generated repository mock need not.
+type OrgCredentialLocker interface {
+	// LockOrgCredentials blocks until the org's credential lock is free or ctx
+	// is done. On success the caller holds the lock until it calls release,
+	// exactly once.
+	LockOrgCredentials(ctx context.Context, ouID string) (release func(), err error)
+}
+
+var _ OrgCredentialLocker = (*orgSchedulerCredentialRepo)(nil)
+
+// LockOrgCredentials holds an advisory lock on ouID until release, on a
+// connection from the dedicated lock pool (db.GetLockDB), so a held lock never
+// takes a connection the provisioning's own repository calls need. See
+// holdAdvisoryLock.
+func (r *orgSchedulerCredentialRepo) LockOrgCredentials(ctx context.Context, ouID string) (func(), error) {
+	release, err := holdAdvisoryLock(ctx, db.GetLockDB(), orgCredentialLockNamespace, ouID)
+	if err != nil {
+		return nil, fmt.Errorf("lock org credentials: %w", err)
+	}
+	return release, nil
 }
 
 // GetByOrgName returns the scheduler credentials for the given org.
