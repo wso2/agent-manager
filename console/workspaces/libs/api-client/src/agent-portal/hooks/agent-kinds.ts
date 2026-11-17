@@ -19,6 +19,7 @@
 import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
 import {
   listAgentKinds,
@@ -67,6 +68,16 @@ export const agentKindKeys = {
 };
 
 /**
+ * Agent kinds belong to the agent-portal module. Without it (turned off in
+ * ui-modules.js, or not installed) every query below stays idle, wherever it
+ * is called from: pages outside the module (an agent's overview or build card
+ * showing its kind) then make no agent-kind calls and get no data.
+ */
+function useAgentPortalPresent(): boolean {
+  return useUIModulePresent("agent-portal");
+}
+
+/**
  * Hook to list all Agent Kinds for an organization
  */
 export function useListAgentKinds(
@@ -74,10 +85,11 @@ export function useListAgentKinds(
   query?: ListAgentKindsQuery,
 ) {
   const { getToken } = useAuthHooks();
+  const portalPresent = useAgentPortalPresent();
   return useApiQuery<AgentKindListResponse>({
     queryKey: agentKindKeys.list(params, query),
     queryFn: () => listAgentKinds(params, query, getToken),
-    enabled: !!params.orgName,
+    enabled: portalPresent && !!params.orgName,
   });
 }
 
@@ -86,10 +98,11 @@ export function useListAgentKinds(
  */
 export function useGetAgentKind(params: GetAgentKindPathParams, options?: { enabled?: boolean }) {
   const { getToken } = useAuthHooks();
+  const portalPresent = useAgentPortalPresent();
   return useApiQuery<AgentKindResponse | null>({
     queryKey: agentKindKeys.detail(params),
     queryFn: () => getAgentKind(params, getToken),
-    enabled: options?.enabled ?? (!!params.orgName && !!params.kindName),
+    enabled: portalPresent && (options?.enabled ?? (!!params.orgName && !!params.kindName)),
   });
 }
 
@@ -142,10 +155,11 @@ export function useListAgentKindVersions(
   options?: { enabled?: boolean },
 ) {
   const { getToken } = useAuthHooks();
+  const portalPresent = useAgentPortalPresent();
   return useApiQuery<AgentKindVersionResponse[]>({
     queryKey: agentKindKeys.versionList(params),
     queryFn: () => listAgentKindVersions(params, getToken),
-    enabled: options?.enabled ?? (!!params.orgName && !!params.kindName),
+    enabled: portalPresent && (options?.enabled ?? (!!params.orgName && !!params.kindName)),
   });
 }
 
@@ -207,10 +221,11 @@ export function useAddAgentKindVersion() {
  */
 export function useGetAgentKindVersion(params: GetAgentKindVersionPathParams) {
   const { getToken } = useAuthHooks();
+  const portalPresent = useAgentPortalPresent();
   return useApiQuery<AgentKindVersionResponse>({
     queryKey: agentKindKeys.versionDetail(params),
     queryFn: () => getAgentKindVersion(params, getToken),
-    enabled: !!params.orgName && !!params.kindName && !!params.versionTag,
+    enabled: portalPresent && !!params.orgName && !!params.kindName && !!params.versionTag,
   });
 }
 
@@ -267,9 +282,10 @@ export function usePublishAgentKind() {
  */
 export function useListKindAgents(params: ListKindAgentsPathParams) {
   const { getToken } = useAuthHooks();
+  const portalPresent = useAgentPortalPresent();
   return useApiQuery<AgentResponse[]>({
     queryKey: agentKindKeys.kindAgentList(params),
     queryFn: () => listKindAgents(params, getToken),
-    enabled: !!params.orgName && !!params.kindName,
+    enabled: portalPresent && !!params.orgName && !!params.kindName,
   });
 }

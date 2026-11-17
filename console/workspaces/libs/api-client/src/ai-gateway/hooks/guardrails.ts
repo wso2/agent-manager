@@ -23,6 +23,7 @@ import {
 } from "@agent-management-platform/types";
 import { listAvailableLLMPolicies } from "../apis/llm-providers";
 import { useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 
 export interface GuardrailDefinition {
   name: string;
@@ -133,12 +134,13 @@ export interface GuardrailsCatalogResponse {
 }
 
 export function useGuardrailsCatalog(enabled = true) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const url = globalConfig.guardrailsCatalogUrl;
   const { getToken } = useAuthHooks();
 
   return useApiQuery<GuardrailsCatalogResponse>({
     queryKey: ["Guardrails catalog", url],
-    enabled: enabled && Boolean(url),
+    enabled: gatewayPresent && enabled && Boolean(url),
     queryFn: async () => {
       if (!url) {
         throw new Error("Guardrails catalog URL is not configured.");
@@ -172,13 +174,14 @@ export function useGuardrailPolicyDefinition(
   name: string | undefined,
   version: string | undefined,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const baseUrl = globalConfig.guardrailsDefinitionBaseUrl;
   const { getToken } = useAuthHooks();
   const enabled = Boolean(baseUrl && name && version);
 
   return useApiQuery<string>({
     queryKey: ["Guardrail policy definition", baseUrl, name, version],
-    enabled,
+    enabled: gatewayPresent && enabled,
     queryFn: async () => {
       if (!baseUrl || !name || !version) {
         throw new Error(
@@ -272,6 +275,7 @@ export function useLLMPoliciesCatalog(
   enabled = true,
   providerId?: string,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
 
   return useApiQuery<GuardrailsCatalogResponse>({
@@ -281,7 +285,7 @@ export function useLLMPoliciesCatalog(
       providerId,
       globalConfig.guardrailsCatalogUrl,
     ],
-    enabled: enabled && Boolean(orgName),
+    enabled: gatewayPresent && enabled && Boolean(orgName),
     queryFn: async () => {
       if (!orgName) {
         throw new Error("Organization name is required to list LLM policies.");

@@ -16,27 +16,24 @@
  * under the License.
  */
 
-import {
-    useGetAgent,
-    useGetAgentBuilds,
-    useListAgentDeployments,
-} from "@agent-management-platform/api-client";
+import { useListAgentDeployments } from "@agent-management-platform/api-client";
 import {
     Box,
 } from "@wso2/oxygen-ui";
 import { useParams } from "react-router-dom";
 
 import {
-    DeploymentStatus,
-    EnvironmentCard,
-    usePipelineEnvironments,
+  DeploymentStatus,
+  EnvironmentCard,
+  OverviewPanels,
+  usePipelineEnvironments,
+  UppercaseCaptionLabel,
+  type AgentOverviewPanelProps,
 } from "@agent-management-platform/shared-component";
-import { KindInfoCard } from "./KindInfoCard";
-import { AgentInfoCard } from "./AgentInfoCard";
+import { PLUGIN_MOUNT_POINTS } from "@agent-management-platform/types";
 import { EnvironmentSectionsContent } from "./EnvironmentSectionsContent";
 import { EnvironmentSingleHeader } from "./EnvironmentSingleHeader";
 import { EnvironmentTabsBar } from "./EnvironmentTabsBar";
-import { UppercaseCaptionLabel } from "./SectionHeader";
 import { useSelectedEnvironmentParam } from "./useSelectedEnvironmentParam";
 
 const DOT_COLOR_BY_STATUS: Record<DeploymentStatus, string> = {
@@ -61,16 +58,6 @@ function statusOf(deployments: DeploymentMap | undefined, envName: string): Depl
 
 export const InternalAgentOverview = () => {
     const { orgId, agentId, projectId } = useParams();
-    const { data: agent } = useGetAgent({
-        orgName: orgId,
-        projName: projectId,
-        agentName: agentId,
-    });
-    const { data: buildList, isLoading: isBuildsLoading } = useGetAgentBuilds({
-        orgName: orgId,
-        projName: projectId,
-        agentName: agentId,
-    });
     // Show only the environments in the current project's deployment pipeline,
     // ordered by the promotion chain.
     const sortedEnvironmentList = usePipelineEnvironments(orgId, projectId);
@@ -84,33 +71,24 @@ export const InternalAgentOverview = () => {
             (env) => statusOf(deployments, env.name) !== DeploymentStatus.INACTIVE,
         );
 
-    const isKindAgent = !!agent?.kindName;
     const hasMultipleEnvironments = sortedEnvironmentList.length > 1;
     const selectedEnvironmentStatus = statusOf(deployments, selectedEnvironment?.name ?? "");
-    // The kind version running in the selected environment, not the one the agent
-    // was created from — a redeploy moves the former and leaves the latter behind.
-    const deployedKindVersion = deployments?.[selectedEnvironment?.name ?? ""]?.kindVersion;
 
     return (
         <Box display="flex" flexDirection="column" gap={2}>
-            {isKindAgent ? (
-                <KindInfoCard
-                    orgId={orgId ?? ""}
-                    kindName={agent!.kindName!}
-                    kindVersion={deployedKindVersion}
+            {/* What the agent is built from: its source (agent-runtime) or its
+                catalog kind (agent-portal), each contributed by its module. */}
+            {orgId && projectId && agentId && (
+                <OverviewPanels<AgentOverviewPanelProps>
+                    mountPoint={PLUGIN_MOUNT_POINTS.agentOverviewInfo}
+                    props={{
+                        orgId,
+                        projectId,
+                        agentId,
+                        envId: selectedEnvironment?.name ?? "",
+                        deploymentStatus: selectedEnvironmentStatus,
+                    }}
                 />
-            ) : (
-                orgId && projectId && agentId && (
-                    <AgentInfoCard
-                        orgId={orgId}
-                        projectId={projectId}
-                        agentId={agentId}
-                        repository={agent?.provisioning?.repository}
-                        latestBuild={buildList?.builds[0]}
-                        isBuildsLoading={isBuildsLoading}
-                        build={agent?.build}
-                    />
-                )
             )}
 
             {selectedEnvironment && orgId && projectId && agentId && (

@@ -46,6 +46,7 @@ import {
   absoluteRouteMap,
   getDisabledUIModules,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginActivationHook,
   type PluginActivationState,
   type PluginComponentLoader,
@@ -57,8 +58,12 @@ import {
   type UIModuleManifest,
 } from "@agent-management-platform/types";
 import {
+  AgentTypesProvider,
   ExternalModuleProvider,
+  ResourceSummariesProvider,
+  type ResourceSummaryOption,
   UIModuleStatusProvider,
+  type AgentTypeOption,
   type ExternalComponentModule,
   type ExternalModule,
   type UIModuleStatusMap,
@@ -429,7 +434,9 @@ export function PluginProvider({
   return (
     <PluginHostContext.Provider value={value}>
       <UIModuleStatusProvider value={moduleStatus}>
-        <PanelModules externalModules={externalModules}>{children}</PanelModules>
+        <PanelModules externalModules={externalModules}>
+          <PageContributions>{children}</PageContributions>
+        </PanelModules>
       </UIModuleStatusProvider>
     </PluginHostContext.Provider>
   );
@@ -453,15 +460,78 @@ function PanelModules({
           mountPoint: contribution.mountPoint,
           moduleName: key,
           component: panelComponentFor(contribution),
+          order: contribution.order,
+          width: contribution.width,
         });
       }
     }
+    // Stable sort: equal orders keep module registration order.
+    panels.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     return panels.length ? [...externalModules, ...panels] : externalModules;
   }, [contributions, externalModules]);
   return (
     <ExternalModuleProvider externalPageModules={modules}>
       {children}
     </ExternalModuleProvider>
+  );
+}
+
+/**
+ * Feeds page-level contributions to the pages that list them: agent types to
+ * the "Add a New Agent" page (useAgentTypes), resource summaries to the
+ * organization overview (useResourceSummaries).
+ *
+ * Agent types: one is listed once it is settled: its activation has
+ * answered and its module's install detection is done. `isPending` says the
+ * page's content may still change: a type or a panel at the page's mount point
+ * is unsettled, so the page must not act on what it has yet (e.g. redirect).
+ */
+function PageContributions({ children }: { children: ReactNode }) {
+  const contributions = useContributions();
+  const { catalog, phases } = useContext(PluginHostContext);
+  // Plugins of modules whose install detection is still running: they run
+  // meanwhile (no flicker), but may turn out not installed.
+  const checkingPlugins = useMemo(() => {
+    const ids = new Set<string>();
+    for (const { module, plugins } of catalog) {
+      if (phases[module.id] !== "checking") continue;
+      for (const plugin of plugins) ids.add(plugin.id);
+    }
+    return ids;
+  }, [catalog, phases]);
+  const value = useMemo(() => {
+    const agentTypes: AgentTypeOption[] = [];
+    let isPending = false;
+    for (const { plugin, contribution, key, state } of contributions) {
+      const isAgentType = contribution.type === "agent-type";
+      const isPickerPanel =
+        contribution.type === "panel" &&
+        contribution.mountPoint === PLUGIN_MOUNT_POINTS.addNewAgentOptions;
+      if (!isAgentType && !isPickerPanel) continue;
+      if (state === undefined || checkingPlugins.has(plugin.id)) {
+        isPending = true;
+      } else if (isAgentType && state === true) {
+        agentTypes.push({ ...contribution, key, pluginId: plugin.id });
+      }
+    }
+    agentTypes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return { agentTypes, isPending };
+  }, [contributions, checkingPlugins]);
+  // Resource cards on the organization overview: active ones only. A pending
+  // card joins once settled; the overview reflows, so nothing waits for it.
+  const resourceSummaries = useMemo(() => {
+    const list: ResourceSummaryOption[] = [];
+    for (const { plugin, contribution, key, state } of contributions) {
+      if (contribution.type === "resource-summary" && state === true) {
+        list.push({ ...contribution, key, pluginId: plugin.id });
+      }
+    }
+    return list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [contributions]);
+  return (
+    <AgentTypesProvider value={value}>
+      <ResourceSummariesProvider value={resourceSummaries}>{children}</ResourceSummariesProvider>
+    </AgentTypesProvider>
   );
 }
 

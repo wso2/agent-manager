@@ -27,12 +27,12 @@ import {
   Tooltip,
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, CheckCircle, ExternalLink } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, useParams } from "react-router-dom";
+import { generatePath, Navigate, useParams } from "react-router-dom";
 import { useListThunderInstances } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useFeatureFlag } from "@agent-management-platform/feature-management";
 import { copyToClipboard } from "@agent-management-platform/shared-component";
-import { PageLayout, useSnackBar } from "@agent-management-platform/views";
+import { PageLayout, useIsUIModuleInstalled, useSnackBar } from "@agent-management-platform/views";
 import { ThunderInstanceOverviewTab } from "./ThunderInstanceOverviewTab";
 
 export const ViewThunderInstance: React.FC = () => {
@@ -40,7 +40,12 @@ export const ViewThunderInstance: React.FC = () => {
   const { pushSnackBar } = useSnackBar();
   const thunderConsoleDisabled = useFeatureFlag("disableThunderConsole");
 
-  const { data, isLoading, error } = useListThunderInstances({ orgName: orgId });
+  // The identity provider belongs to Agent Identity: without that module there
+  // is nothing to fetch, and this page sends you back to the environment.
+  const identityInstalled = useIsUIModuleInstalled("agent-identity");
+  const { data, isLoading, error } = useListThunderInstances({
+    orgName: identityInstalled ? orgId : undefined,
+  });
   const instance = data?.thunderInstances.find((i) => i.envName === envName);
 
   const handleCopy = useCallback(
@@ -62,6 +67,10 @@ export const ViewThunderInstance: React.FC = () => {
   );
 
   const consoleUrl = instance ? `${instance.issuerUrl.replace(/\/$/, "")}/console` : undefined;
+
+  if (identityInstalled === false) {
+    return <Navigate to={backHref} replace />;
+  }
 
   return (
       <PageLayout

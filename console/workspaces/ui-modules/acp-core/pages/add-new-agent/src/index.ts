@@ -29,4 +29,5 @@ export const metaData: PageMetadata = {
 };
 
 export { AddNewAgent };
+export { LegacyCreateRedirect } from './LegacyCreateRedirect';
 export default AddNewAgent;

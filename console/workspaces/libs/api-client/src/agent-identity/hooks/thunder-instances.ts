@@ -23,12 +23,14 @@ import type {
   ThunderInstanceListResponse,
 } from "@agent-management-platform/types";
 import { listThunderInstances } from "../apis/thunder-instances";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 
 export function useListThunderInstances(params: ListThunderInstancesPathParams) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<ThunderInstanceListResponse>({
     queryKey: ["thunder-instances", params],
     queryFn: () => listThunderInstances(params, getToken),
-    enabled: !!params.orgName,
+    enabled: identityPresent && !!params.orgName,
   });
 }

@@ -21,7 +21,10 @@ import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
-vi.mock("@agent-management-platform/views", () => ({ useSnackBar: () => ({ pushSnackBar: vi.fn() }) }));
+vi.mock("@agent-management-platform/views", () => ({
+  useSnackBar: () => ({ pushSnackBar: vi.fn() }),
+  useIsUIModuleInstalled: () => true,
+}));
 vi.mock("@agent-management-platform/auth", () => ({
   useAuthHooks: () => ({ getToken: async () => "t", isAuthenticated: true, logout: vi.fn() }),
 }));

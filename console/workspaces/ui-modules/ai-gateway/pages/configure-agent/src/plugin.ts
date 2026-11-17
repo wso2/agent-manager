@@ -24,6 +24,7 @@ import { Settings } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
@@ -39,6 +40,22 @@ export const configureAgentPlugin: PluginManifest = {
   name: "Configure agent",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      // Agent overview, per environment: the A2A agent card.
+      type: "panel",
+      id: "overview-agent-card",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewEnvironment,
+      order: 20,
+      load: () => import("./index").then((m) => ({ default: m.EnvAgentCardSummary as ComponentType })),
+    },
+    {
+      // Agent overview, per environment: LLM provider and MCP server configs.
+      type: "panel",
+      id: "overview-configs",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewEnvironment,
+      order: 50,
+      load: () => import("./index").then((m) => ({ default: m.EnvConfigsSection as ComponentType })),
+    },
     {
       type: "route",
       id: "page",

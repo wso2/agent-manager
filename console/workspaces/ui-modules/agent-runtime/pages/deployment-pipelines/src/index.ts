@@ -43,3 +43,4 @@ export const environmentsMetaData: PageMetadata = {
 };
 
 export { DeploymentPipelinesOrganization, EnvironmentsOrganization };
+export { DeploymentPipelineCard } from './overview/DeploymentPipelineCard';

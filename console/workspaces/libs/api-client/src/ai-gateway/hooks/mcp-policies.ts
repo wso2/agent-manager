@@ -19,6 +19,7 @@ import { useAuthHooks } from "@agent-management-platform/auth";
 import { globalConfig } from "@agent-management-platform/types";
 import { listAvailableMCPPolicies } from "../apis/mcp-proxies";
 import { useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 
 export interface MCPPolicyDefinition {
   name: string;
@@ -54,12 +55,13 @@ function getMCPPoliciesCatalogUrl(): string {
 }
 
 export function useMCPPoliciesCatalog(orgName?: string) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const url = getMCPPoliciesCatalogUrl();
   const { getToken } = useAuthHooks();
 
   return useApiQuery<MCPPoliciesCatalogResponse>({
     queryKey: ["MCP policies catalog", url, orgName],
-    enabled: Boolean(url && orgName),
+    enabled: gatewayPresent && Boolean(url && orgName),
     queryFn: async () => {
       if (!url) {
         throw new Error("MCP policies catalog URL is not configured.");
@@ -132,13 +134,14 @@ export function useMCPPolicyDefinition(
   name: string | undefined,
   version: string | undefined,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const baseUrl = globalConfig.guardrailsDefinitionBaseUrl;
   const { getToken } = useAuthHooks();
   const enabled = Boolean(baseUrl && name && version);
 
   return useApiQuery<string>({
     queryKey: ["MCP policy definition", baseUrl, name, version],
-    enabled,
+    enabled: gatewayPresent && enabled,
     queryFn: async () => {
       if (!baseUrl || !name || !version) {
         throw new Error(

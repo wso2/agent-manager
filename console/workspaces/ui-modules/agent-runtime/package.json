@@ -1,7 +1,7 @@
 {
   "name": "@agent-management-platform/ui-module-agent-runtime",
   "version": "1.0.0",
-  "description": "Agent Runtime UI module: Configure, build, deploy and try agents; environments and deployment pipelines.",
+  "description": "Agent Runtime UI module: Platform-hosted agents: create, build, deploy and try them; environments and deployment pipelines.",
   "type": "module",
   "types": "dist/index.d.ts",
   "exports": {
@@ -24,7 +24,8 @@
     "@agent-management-platform/build": "workspace:*",
     "@agent-management-platform/deploy": "workspace:*",
     "@agent-management-platform/test": "workspace:*",
-    "@agent-management-platform/deployment-pipelines": "workspace:*"
+    "@agent-management-platform/deployment-pipelines": "workspace:*",
+    "@agent-management-platform/platform-agent": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.6.0",

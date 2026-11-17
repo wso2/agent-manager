@@ -78,6 +78,7 @@ import type {
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 
 export function useListAgents(
   params: ListAgentsPathParams,
@@ -289,10 +290,12 @@ export function useGetAgentIdentity(
   query?: GetAgentIdentityQuery,
 ) {
   const { getToken } = useAuthHooks();
+  // An agent's identity comes from Agent Identity; idle without that module.
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<AgentIdentityEnvironmentView[]>({
     queryKey: ['agent-identity', params, query],
     queryFn: () => getAgentIdentity(params, query, getToken),
-    enabled: !!params.orgName && !!params.projName && !!params.agentName,
+    enabled: identityPresent && !!params.orgName && !!params.projName && !!params.agentName,
     // Provisioning happens in the background (write-ahead PENDING, then a
     // best-effort attempt) — poll while any binding is still settling, and
     // stop automatically once every binding has completed or failed.

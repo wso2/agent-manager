@@ -31,3 +31,5 @@ export { ConfigureComponent } from './Configure.Component';
 export { AddLLMProviderComponent, ProviderDisplay } from './AddLLMProvider.Component';
 export { ViewLLMProviderComponent } from './ViewLLMProvider.Component';
 export { ViewMCPServerComponent } from './ViewMCPServer.Component';
+export { EnvAgentCardSummary } from './overview/EnvAgentCardSummary';
+export { EnvConfigsSection } from './overview/EnvConfigsSection';

@@ -42,16 +42,18 @@ import {
   updateMCPProxy,
 } from "../apis/mcp-proxies";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 
 export function useListMCPProxies(
   params: ListMCPProxiesPathParams,
   query?: ListMCPProxiesQuery,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<MCPProxyListResponse>({
     queryKey: ["mcp-proxies", params, query],
     queryFn: () => listMCPProxies(params, query, getToken),
-    enabled: !!params.orgName,
+    enabled: gatewayPresent && !!params.orgName,
   });
 }
 
@@ -72,21 +74,23 @@ export function useCreateMCPProxy() {
 }
 
 export function useGetMCPProxy(params: GetMCPProxyPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<MCPProxy>({
     queryKey: ["mcp-proxy", params],
     queryFn: () => getMCPProxy(params, getToken),
-    enabled: !!params.orgName && !!params.proxyId,
+    enabled: gatewayPresent && !!params.orgName && !!params.proxyId,
   });
 }
 
 /** A project-owned proxy from its project route; off until org, project and proxy are known. */
 export function useGetProjectMCPProxy(params: GetProjectMCPProxyPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<ProjectMCPProxy>({
     queryKey: ["project-mcp-proxy", params],
     queryFn: () => getProjectMCPProxy(params, getToken),
-    enabled: !!params.orgName && !!params.projName && !!params.proxyId,
+    enabled: gatewayPresent && !!params.orgName && !!params.projName && !!params.proxyId,
   });
 }
 

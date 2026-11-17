@@ -17,6 +17,8 @@
  */
 
 export * from './components';
+export * from './agentCreation';
+export * from './overview';
 export * from './utils/errorHelpers';
 export * from './utils/usePipelineEnvironments';
 export * from './utils/environmentTierAccess';

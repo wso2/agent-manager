@@ -59,6 +59,7 @@ import type {
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 
 // --- Groups ---
 
@@ -67,10 +68,11 @@ export function useListAgentIdentityGroups(
   query?: AgentIdentityListQuery,
 ) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<AgentIdentityGroupListResponse>({
     queryKey: ['agent-identity-groups', params, query],
     queryFn: () => listAgentIdentityGroups(params, query, getToken),
-    enabled: !!params.orgName && !!params.envName,
+    enabled: identityPresent && (!!params.orgName && !!params.envName),
   });
 }
 
@@ -90,10 +92,11 @@ export function useCreateAgentIdentityGroup() {
 
 export function useGetAgentIdentityGroup(params: AgentIdentityGroupPathParams) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<ThunderGroup>({
     queryKey: ['agent-identity-group', params],
     queryFn: () => getAgentIdentityGroup(params, getToken),
-    enabled: !!params.orgName && !!params.envName && !!params.groupId,
+    enabled: identityPresent && (!!params.orgName && !!params.envName && !!params.groupId),
   });
 }
 
@@ -130,10 +133,11 @@ export function useGetAgentIdentityGroupMembers(
   query?: AgentIdentityListQuery,
 ) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<AgentIdentityGroupMembersResponse>({
     queryKey: ['agent-identity-group-members', params, query],
     queryFn: () => getAgentIdentityGroupMembers(params, query, getToken),
-    enabled: !!params.orgName && !!params.envName && !!params.groupId,
+    enabled: identityPresent && (!!params.orgName && !!params.envName && !!params.groupId),
     refetchOnMount: 'always',
   });
 }
@@ -170,10 +174,11 @@ export function useRemoveAgentIdentityGroupMembers() {
 
 export function useGetAgentIdentityGroupRoles(params: AgentIdentityGroupPathParams) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<AgentIdentityGroupRolesResponse>({
     queryKey: ['agent-identity-group-roles', params],
     queryFn: () => getAgentIdentityGroupRoles(params, getToken),
-    enabled: !!params.orgName && !!params.envName && !!params.groupId,
+    enabled: identityPresent && (!!params.orgName && !!params.envName && !!params.groupId),
   });
 }
 
@@ -184,10 +189,11 @@ export function useListAgentIdentityRoles(
   query?: AgentIdentityListQuery,
 ) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<AgentIdentityRoleListResponse>({
     queryKey: ['agent-identity-roles', params, query],
     queryFn: () => listAgentIdentityRoles(params, query, getToken),
-    enabled: !!params.orgName && !!params.envName,
+    enabled: identityPresent && (!!params.orgName && !!params.envName),
   });
 }
 
@@ -207,10 +213,11 @@ export function useCreateAgentIdentityRole() {
 
 export function useGetAgentIdentityRole(params: AgentIdentityRolePathParams) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<ThunderRole>({
     queryKey: ['agent-identity-role', params],
     queryFn: () => getAgentIdentityRole(params, getToken),
-    enabled: !!params.orgName && !!params.envName && !!params.roleId,
+    enabled: identityPresent && (!!params.orgName && !!params.envName && !!params.roleId),
   });
 }
 
@@ -244,10 +251,11 @@ export function useDeleteAgentIdentityRole() {
 
 export function useGetAgentIdentityRoleAssignments(params: AgentIdentityRolePathParams) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<AgentIdentityRoleAssignmentsResponse>({
     queryKey: ['agent-identity-role-assignments', params],
     queryFn: () => getAgentIdentityRoleAssignments(params, getToken),
-    enabled: !!params.orgName && !!params.envName && !!params.roleId,
+    enabled: identityPresent && (!!params.orgName && !!params.envName && !!params.roleId),
     refetchOnMount: 'always',
   });
 }
@@ -307,10 +315,11 @@ function invalidateAssignedGroupRoles(
 
 export function useListAgentIdentityAgents(params: AgentIdentityEnvPathParams) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<AgentIdentityAgentListResponse>({
     queryKey: ['agent-identity-agents', params],
     queryFn: () => listAgentIdentityAgents(params, getToken),
-    enabled: !!params.orgName && !!params.envName,
+    enabled: identityPresent && (!!params.orgName && !!params.envName),
   });
 }
 
@@ -318,9 +327,10 @@ export function useListAgentIdentityAgents(params: AgentIdentityEnvPathParams) {
 
 export function useListAgentIdentityScopes(params: AgentIdentityEnvPathParams) {
   const { getToken } = useAuthHooks();
+  const identityPresent = useUIModulePresent("agent-identity");
   return useApiQuery<AgentIdentityScopeListResponse>({
     queryKey: ['agent-identity-scopes', params],
     queryFn: () => listAgentIdentityScopes(params, getToken),
-    enabled: !!params.orgName && !!params.envName,
+    enabled: identityPresent && (!!params.orgName && !!params.envName),
   });
 }

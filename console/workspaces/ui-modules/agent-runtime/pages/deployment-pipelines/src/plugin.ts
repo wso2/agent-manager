@@ -22,10 +22,12 @@
 //
 // One plugin, two features: Environments and Deployment pipelines are gated
 // separately, so each contribution carries its own activation hook.
+import type { ComponentType } from "react";
 import { Layers, Workflow } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginManifest,
 } from "@agent-management-platform/types";
 import {
@@ -43,6 +45,16 @@ export const deploymentPipelinesPlugin: PluginManifest = {
   name: "Environments and deployment pipelines",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      // Project overview: the project's deployment pipeline. Shown to everyone,
+      // as before; the card itself hides its link to the pipelines page
+      // without pipeline access.
+      type: "panel",
+      id: "overview-pipeline",
+      mountPoint: PLUGIN_MOUNT_POINTS.projectOverviewSide,
+      order: 10,
+      load: () => import("./index").then((m) => ({ default: m.DeploymentPipelineCard as ComponentType })),
+    },
     {
       type: "route",
       id: "environments-page",
