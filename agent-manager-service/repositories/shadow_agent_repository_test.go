@@ -698,3 +698,230 @@ func TestShadowDeleteAgents(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, total, "the other org's agent is still kept")
 }
+
+// newSourceConnection records a GitHub connection, which stores no secret.
+func newSourceConnection(t *testing.T, repo ShadowAgentRepository, ouID, name string) *models.ShadowConnection {
+	t.Helper()
+	c := &models.ShadowConnection{
+		ID: uuid.New(), OUID: ouID, Name: name, Provider: models.ShadowProviderGitHub,
+		Config:      models.ShadowConnectionConfig{Endpoints: map[string]string{"api": "https://api.github.com"}},
+		SecretHints: map[string]string{},
+	}
+	require.NoError(t, repo.CreateConnection(context.Background(), c))
+	t.Cleanup(func() { _, _ = repo.DeleteConnection(context.Background(), ouID, c.ID) })
+	return c
+}
+
+// newPendingScan records a pending source code scan of one connection.
+func newPendingScan(t *testing.T, repo ShadowAgentRepository, ouID string, connID uuid.UUID) *models.ShadowScan {
+	t.Helper()
+	s := &models.ShadowScan{
+		ID: uuid.New(), OUID: ouID, Status: models.ShadowScanPending, ConnectionIDs: []string{connID.String()},
+	}
+	require.NoError(t, repo.CreateScan(context.Background(), s))
+	t.Cleanup(func() { db.GetDB().Exec("DELETE FROM shadow_scans WHERE id = ?", s.ID) })
+	return s
+}
+
+// scanPublish is what a scan command publishes for a pending scan: findings,
+// the repositories it scanned and those it failed on.
+func scanPublish(s *models.ShadowScan, c *models.ShadowConnection, findings []ShadowFindingInput,
+	scanned []string, failed []string,
+) ShadowScanPublish {
+	result := models.ShadowScanConnectionResult{
+		ConnectionID: c.ID.String(), ConnectionName: c.Name, Provider: c.Provider, Outcome: "ok",
+		Calls: []models.ShadowScanCallResult{}, ScannedRepositories: scanned,
+	}
+	status := models.ShadowScanSucceeded
+	for _, f := range failed {
+		result.FailedRepositories = append(result.FailedRepositories, models.ShadowScanFailedRepository{Name: f, Message: "clone failed"})
+		result.Outcome, status = "partial", models.ShadowScanPartial
+	}
+	return ShadowScanPublish{
+		Apply: ShadowConnectionApply{
+			OUID: s.OUID, ConnectionID: c.ID, ScanID: s.ID, ScanStartedAt: s.CreatedAt, Complete: true,
+			Findings: findings, UnfinishedScopes: failed,
+		},
+		Status: status, Result: result, FinishedAt: time.Now().UTC().Truncate(time.Microsecond),
+	}
+}
+
+// A publish finishes its pending scan with the results and saves the agents
+// in one transaction, marking gone only agents of repositories it finished;
+// the scan then takes no second publish.
+func TestShadowPublishScanResultsFinishesThePendingScan(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	c := newSourceConnection(t, repo, ou, "repos")
+	t0 := time.Now().UTC().Add(-time.Hour).Truncate(time.Microsecond)
+	_, err := repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
+		OUID: ou, ConnectionID: c.ID, ScanID: newShadowScan(t, repo, ou), ScanStartedAt: t0, Complete: true,
+		Findings: []ShadowFindingInput{
+			codeAgentInput("a:kept", "a", t0), codeAgentInput("a:gone", "a", t0), codeAgentInput("b:agent", "b", t0),
+		},
+	})
+	require.NoError(t, err)
+
+	pending := newPendingScan(t, repo, ou, c.ID)
+	now := time.Now().UTC()
+	in := scanPublish(pending, c, []ShadowFindingInput{codeAgentInput("a:kept", "a", now)}, []string{"a"}, []string{"b"})
+	n, err := repo.PublishScanResults(ctx, in)
+	require.NoError(t, err)
+	assert.Equal(t, 1, n)
+
+	got, err := repo.GetScan(ctx, ou, pending.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanPartial, got.Status)
+	assert.Equal(t, 1, got.FindingsCount)
+	require.NotNil(t, got.StartedAt)
+	assert.True(t, got.StartedAt.Equal(got.CreatedAt), "a pending scan started when it was created")
+	require.NotNil(t, got.FinishedAt)
+	require.Len(t, got.Results, 1)
+	assert.Equal(t, 1, got.Results[0].FindingsCount)
+	assert.Equal(t, []string{"a"}, got.Results[0].ScannedRepositories)
+	assert.Equal(t, []models.ShadowScanFailedRepository{{Name: "b", Message: "clone failed"}}, got.Results[0].FailedRepositories)
+
+	rows, _, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{Limit: 10})
+	require.NoError(t, err)
+	present := map[string]bool{}
+	for _, r := range rows {
+		present[r.ExternalID] = true
+	}
+	assert.Equal(t, map[string]bool{"a:kept": true, "b:agent": true}, present,
+		"the scanned repository's missing agent is gone, the failed repository's agent stays")
+	rows, _, err = repo.ListFindings(ctx, ou, ShadowFindingFilter{ScanID: &pending.ID, Limit: 10})
+	require.NoError(t, err)
+	assert.Len(t, rows, 1, "the scan lists the agent it published")
+
+	_, err = repo.PublishScanResults(ctx, in)
+	require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
+	assert.Contains(t, err.Error(), "already published")
+
+	missing := in
+	missing.Apply.ScanID = uuid.New()
+	_, err = repo.PublishScanResults(ctx, missing)
+	assert.True(t, IsShadowNotFound(err), "an unknown scan")
+	otherOrg := in
+	otherOrg.Apply.OUID = "ou-" + uuid.NewString()
+	_, err = repo.PublishScanResults(ctx, otherOrg)
+	assert.True(t, IsShadowNotFound(err), "another org's scan")
+}
+
+// An expired scan takes no publish, and does not stop an older pending scan
+// of the same connection from publishing.
+func TestShadowPublishScanResultsRefusesAnExpiredScan(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	c := newSourceConnection(t, repo, ou, "repos")
+	expired := newPendingScan(t, repo, ou, c.ID)
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	_, err := repo.ExpirePendingScans(ctx, now.Add(time.Minute), now)
+	require.NoError(t, err)
+
+	_, err = repo.PublishScanResults(ctx, scanPublish(expired, c, nil, []string{"a"}, nil))
+	require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
+	assert.Contains(t, err.Error(), models.ShadowScanExpiredMessage)
+	got, err := repo.GetScan(ctx, ou, expired.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanFailed, got.Status, "the expired result is kept")
+
+	older := newPendingScan(t, repo, ou, c.ID)
+	require.NoError(t, db.GetDB().Exec("UPDATE shadow_scans SET created_at = ? WHERE id = ?",
+		got.CreatedAt.Add(-time.Minute), older.ID).Error)
+	older.CreatedAt = got.CreatedAt.Add(-time.Minute)
+	n, err := repo.PublishScanResults(ctx, scanPublish(older, c, []ShadowFindingInput{codeAgentInput("a:1", "a", now)},
+		[]string{"a"}, nil))
+	require.NoError(t, err, "an expired newer scan published nothing")
+	assert.Equal(t, 1, n)
+}
+
+// An older scan cannot publish after a newer scan of the same connection
+// did; it writes nothing and stays pending.
+func TestShadowPublishScanResultsRefusesAfterANewerScan(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	c := newSourceConnection(t, repo, ou, "repos")
+	other := newSourceConnection(t, repo, ou, "other repos")
+	older := newPendingScan(t, repo, ou, c.ID)
+	otherScan := newPendingScan(t, repo, ou, other.ID)
+	newer := newPendingScan(t, repo, ou, c.ID)
+	now := time.Now().UTC()
+
+	_, err := repo.PublishScanResults(ctx, scanPublish(newer, c, []ShadowFindingInput{codeAgentInput("a:new", "a", now)},
+		[]string{"a"}, nil))
+	require.NoError(t, err)
+
+	_, err = repo.PublishScanResults(ctx, scanPublish(older, c, []ShadowFindingInput{codeAgentInput("a:old", "a", now)},
+		[]string{"a"}, nil))
+	require.ErrorIs(t, err, utils.ErrShadowScanSuperseded)
+	got, err := repo.GetScan(ctx, ou, older.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanPending, got.Status)
+	rows, _, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "a:new", rows[0].ExternalID, "the refused publish wrote nothing")
+
+	_, err = repo.PublishScanResults(ctx, scanPublish(otherScan, other, nil, []string{"x"}, nil))
+	require.NoError(t, err, "a newer scan of another connection does not count")
+}
+
+// A pending scan older than the life of its token takes no publish, even
+// before the worker marks it expired.
+func TestShadowPublishScanResultsRefusesAScanPastItsLife(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	c := newSourceConnection(t, repo, ou, "repos")
+	pending := newPendingScan(t, repo, ou, c.ID)
+	got, err := repo.GetScan(ctx, ou, pending.ID)
+	require.NoError(t, err)
+
+	in := scanPublish(got, c, nil, []string{"a"}, nil)
+	in.ExpireCreatedBy = got.CreatedAt
+	_, err = repo.PublishScanResults(ctx, in)
+	require.ErrorIs(t, err, utils.ErrShadowScanNotPending)
+	assert.Contains(t, err.Error(), models.ShadowScanExpiredMessage)
+	got, err = repo.GetScan(ctx, ou, pending.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanPending, got.Status, "the worker marks it; the publish only refuses")
+
+	in.ExpireCreatedBy = got.CreatedAt.Add(-time.Microsecond)
+	_, err = repo.PublishScanResults(ctx, in)
+	require.NoError(t, err, "a scan created after the cut-off is still waiting")
+}
+
+// Evidence a publish saves is dated when its scan was created, so a newer
+// scan of the connection removes what it no longer sees even when the older
+// scan published last before it.
+func TestShadowPublishedEvidenceIsDatedByItsScan(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	c := newSourceConnection(t, repo, ou, "repos")
+	older := newPendingScan(t, repo, ou, c.ID)
+	newer := newPendingScan(t, repo, ou, c.ID)
+
+	agent := codeAgentInput("a:agent", "a", older.CreatedAt)
+	agent.Signals = []models.ShadowFindingSignal{
+		{Code: "github.d1_agent_dependency", Source: "requirements.txt", DetectedAt: older.CreatedAt},
+		{Code: "github.d2_agent_import", Source: "agent.py", DetectedAt: older.CreatedAt},
+	}
+	_, err := repo.PublishScanResults(ctx, scanPublish(older, c, []ShadowFindingInput{agent}, []string{"a"}, nil))
+	require.NoError(t, err, "the older scan publishes first")
+
+	again := codeAgentInput("a:agent", "a", newer.CreatedAt)
+	_, err = repo.PublishScanResults(ctx, scanPublish(newer, c, []ShadowFindingInput{again}, []string{"a"}, nil))
+	require.NoError(t, err)
+
+	rows, _, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	signals, err := repo.ListSignals(ctx, ou, rows[0].ID)
+	require.NoError(t, err)
+	require.Len(t, signals, 1, "evidence the newer scan did not see again is removed")
+	assert.Equal(t, "github.d2_agent_import", signals[0].Code)
+}

@@ -33,6 +33,7 @@ const (
 	maxAttrListLen  = 50
 	maxMessageChars = 300
 	maxNameChars    = 200
+	maxScopeChars   = 256
 )
 
 // Attribute keys a finding may store. Anything else a connector sets is
@@ -204,6 +205,23 @@ func Truncate(s string, n int) string {
 	}
 	r := []rune(s)
 	return string(r[:n])
+}
+
+// NormaliseScope is a finding's scope as it is stored and compared: trimmed
+// and cut to 256 characters. For GitHub, whose repository names are not case
+// sensitive, it is the repository name within org, lower-cased: "org/repo"
+// and "repo" are both "repo". A source code scan's scanned, failed and
+// configured repositories are normalised the same way, so they match stored
+// scopes.
+func NormaliseScope(provider, org, s string) string {
+	s = strings.TrimSpace(s)
+	if provider == models.ShadowProviderGitHub {
+		if owner, name, ok := strings.Cut(s, "/"); ok && org != "" && strings.EqualFold(owner, strings.TrimSpace(org)) {
+			s = name
+		}
+		s = strings.ToLower(s)
+	}
+	return Truncate(s, maxScopeChars)
 }
 
 // SanitizeName trims a display name to a safe length.

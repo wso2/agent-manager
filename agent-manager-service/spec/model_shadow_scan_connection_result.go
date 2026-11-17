@@ -26,6 +26,10 @@ type ShadowScanConnectionResult struct {
 	Message        *string                `json:"message,omitempty"`
 	FindingsCount  int32                  `json:"findingsCount"`
 	Calls          []ShadowScanCallResult `json:"calls"`
+	// The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	ScannedRepositories []string `json:"scannedRepositories,omitempty"`
+	// The repositories a source code scan command could not scan. Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	FailedRepositories []ShadowScanFailedRepository `json:"failedRepositories,omitempty"`
 }
 
 // NewShadowScanConnectionResult instantiates a new ShadowScanConnectionResult object
@@ -227,6 +231,70 @@ func (o *ShadowScanConnectionResult) SetCalls(v []ShadowScanCallResult) {
 	o.Calls = v
 }
 
+// GetScannedRepositories returns the ScannedRepositories field value if set, zero value otherwise.
+func (o *ShadowScanConnectionResult) GetScannedRepositories() []string {
+	if o == nil || IsNil(o.ScannedRepositories) {
+		var ret []string
+		return ret
+	}
+	return o.ScannedRepositories
+}
+
+// GetScannedRepositoriesOk returns a tuple with the ScannedRepositories field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowScanConnectionResult) GetScannedRepositoriesOk() ([]string, bool) {
+	if o == nil || IsNil(o.ScannedRepositories) {
+		return nil, false
+	}
+	return o.ScannedRepositories, true
+}
+
+// HasScannedRepositories returns a boolean if a field has been set.
+func (o *ShadowScanConnectionResult) HasScannedRepositories() bool {
+	if o != nil && !IsNil(o.ScannedRepositories) {
+		return true
+	}
+
+	return false
+}
+
+// SetScannedRepositories gets a reference to the given []string and assigns it to the ScannedRepositories field.
+func (o *ShadowScanConnectionResult) SetScannedRepositories(v []string) {
+	o.ScannedRepositories = v
+}
+
+// GetFailedRepositories returns the FailedRepositories field value if set, zero value otherwise.
+func (o *ShadowScanConnectionResult) GetFailedRepositories() []ShadowScanFailedRepository {
+	if o == nil || IsNil(o.FailedRepositories) {
+		var ret []ShadowScanFailedRepository
+		return ret
+	}
+	return o.FailedRepositories
+}
+
+// GetFailedRepositoriesOk returns a tuple with the FailedRepositories field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowScanConnectionResult) GetFailedRepositoriesOk() ([]ShadowScanFailedRepository, bool) {
+	if o == nil || IsNil(o.FailedRepositories) {
+		return nil, false
+	}
+	return o.FailedRepositories, true
+}
+
+// HasFailedRepositories returns a boolean if a field has been set.
+func (o *ShadowScanConnectionResult) HasFailedRepositories() bool {
+	if o != nil && !IsNil(o.FailedRepositories) {
+		return true
+	}
+
+	return false
+}
+
+// SetFailedRepositories gets a reference to the given []ShadowScanFailedRepository and assigns it to the FailedRepositories field.
+func (o *ShadowScanConnectionResult) SetFailedRepositories(v []ShadowScanFailedRepository) {
+	o.FailedRepositories = v
+}
+
 func (o ShadowScanConnectionResult) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -246,6 +314,12 @@ func (o ShadowScanConnectionResult) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["findingsCount"] = o.FindingsCount
 	toSerialize["calls"] = o.Calls
+	if !IsNil(o.ScannedRepositories) {
+		toSerialize["scannedRepositories"] = o.ScannedRepositories
+	}
+	if !IsNil(o.FailedRepositories) {
+		toSerialize["failedRepositories"] = o.FailedRepositories
+	}
 	return toSerialize, nil
 }
 

@@ -24969,6 +24969,26 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ShadowScanCallResult"
+        scannedRepositories:
+          type: array
+          description: The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+          items:
+            type: string
+        failedRepositories:
+          type: array
+          description: The repositories a source code scan command could not scan. Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+          items:
+            $ref: "#/components/schemas/ShadowScanFailedRepository"
+
+    ShadowScanFailedRepository:
+      type: object
+      required: [name, message]
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+          description: Why the repository could not be scanned, scrubbed of anything credential-like.
 
     ShadowScanCallResult:
       type: object

@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -54,6 +55,9 @@ type ShadowAgentController interface {
 	DeleteConnection(w http.ResponseWriter, r *http.Request)
 	TestConnection(w http.ResponseWriter, r *http.Request)
 	CreateRunnerScan(w http.ResponseWriter, r *http.Request)
+	// PublishScanResults is the scan publisher endpoint a source code scan
+	// command calls with its scan token.
+	PublishScanResults(w http.ResponseWriter, r *http.Request)
 	ListScans(w http.ResponseWriter, r *http.Request)
 	CreateScan(w http.ResponseWriter, r *http.Request)
 	GetScan(w http.ResponseWriter, r *http.Request)
@@ -172,7 +176,7 @@ func (c *shadowAgentController) GetSummary(w http.ResponseWriter, r *http.Reques
 		Connections:   int32(sum.Connections), //nolint:gosec // bounded by the per-org limit
 	}
 	if latest != nil {
-		s := toShadowScanResponse(latest)
+		s := toShadowScanResponse(latest, false)
 		resp.LatestScan = &s
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
@@ -317,6 +321,46 @@ func (c *shadowAgentController) CreateRunnerScan(w http.ResponseWriter, r *http.
 	})
 }
 
+// maxShadowPublishBodyBytes bounds a source code scan publish: up to 1000
+// agents with their evidence and two lists of up to 5000 repositories.
+const maxShadowPublishBodyBytes = 8 << 20
+
+// PublishScanResults handles POST /shadow-agent-publisher/scans/{scanId}/results.
+func (c *shadowAgentController) PublishScanResults(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(r.PathValue(PathParamShadowScanID))
+	if err != nil {
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Scan not found")
+		return
+	}
+	// Unknown fields are ignored, so a newer scan command that sends one more
+	// field does not lose a long scan.
+	var req models.PublishShadowScanRequest
+	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxShadowPublishBodyBytes))
+	err = dec.Decode(&req)
+	if err == nil && dec.More() {
+		err = errors.New("unexpected data after the request body")
+	}
+	if err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			utils.WriteErrorResponse(w, http.StatusRequestEntityTooLarge, "Request body is too large")
+			return
+		}
+		logger.GetLogger(r.Context()).Warn("Failed to parse scan results", "scanId", id, "error", err)
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	// The organization comes only from the scan token, never from the
+	// request: jwtassertion.ShadowPublisherAuthMiddleware admitted the caller
+	// because its token is a scan token, issued for that organization.
+	res, err := c.svc.PublishRunnerScan(r.Context(), jwtassertion.ShadowPublisherOrg(r.Context()), id, &req)
+	if err != nil {
+		writeShadowError(w, r, err, "Failed to save the scan results")
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, res)
+}
+
 // ---- scans ----
 
 func (c *shadowAgentController) ListScans(w http.ResponseWriter, r *http.Request) {
@@ -336,7 +380,7 @@ func (c *shadowAgentController) ListScans(w http.ResponseWriter, r *http.Request
 	}
 	resp := spec.ShadowScanListResponse{Scans: make([]spec.ShadowScanResponse, 0, len(list))}
 	for i := range list {
-		resp.Scans = append(resp.Scans, toShadowScanResponse(&list[i]))
+		resp.Scans = append(resp.Scans, toShadowScanResponse(&list[i], false))
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }
@@ -363,7 +407,7 @@ func (c *shadowAgentController) CreateScan(w http.ResponseWriter, r *http.Reques
 		writeShadowError(w, r, err, "Failed to start the scan")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusAccepted, toShadowScanResponse(scan))
+	utils.WriteSuccessResponse(w, http.StatusAccepted, toShadowScanResponse(scan, false))
 }
 
 func (c *shadowAgentController) GetScan(w http.ResponseWriter, r *http.Request) {
@@ -377,7 +421,7 @@ func (c *shadowAgentController) GetScan(w http.ResponseWriter, r *http.Request) 
 		writeShadowError(w, r, err, "Failed to get the scan")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, toShadowScanResponse(scan))
+	utils.WriteSuccessResponse(w, http.StatusOK, toShadowScanResponse(scan, true))
 }
 
 // ClearScans deletes the org's finished scans. A queued or running scan is
@@ -518,6 +562,8 @@ func writeShadowError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		utils.WriteErrorResponse(w, http.StatusConflict, "A connection with this name already exists")
 	case errors.Is(err, utils.ErrShadowScanInProgress):
 		utils.WriteErrorResponse(w, http.StatusConflict, "A scan is already queued or running")
+	case errors.Is(err, utils.ErrShadowScanNotPending), errors.Is(err, utils.ErrShadowScanSuperseded):
+		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrShadowNoConnections):
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Add a platform before running a scan")
 	case errors.Is(err, utils.ErrInvalidInput):
@@ -577,7 +623,10 @@ func toShadowConnectionTest(t models.ShadowConnectionTestInfo) spec.ShadowConnec
 	return out
 }
 
-func toShadowScanResponse(s *models.ShadowScan) spec.ShadowScanResponse {
+// toShadowScanResponse maps a scan. withRepositories adds the repositories a
+// source code scan scanned and could not scan, which can run to thousands of
+// names: only the scan detail includes them, never a list.
+func toShadowScanResponse(s *models.ShadowScan, withRepositories bool) spec.ShadowScanResponse {
 	resp := spec.ShadowScanResponse{
 		Id: s.ID.String(), Status: s.Status,
 		ConnectionIds: s.ConnectionIDs, Results: make([]spec.ShadowScanConnectionResult, 0, len(s.Results)),
@@ -594,6 +643,14 @@ func toShadowScanResponse(s *models.ShadowScan) spec.ShadowScanResponse {
 			Outcome: r.Outcome, Message: optionalString(r.Message),
 			FindingsCount: int32(r.FindingsCount), //nolint:gosec // bounded by row counts
 			Calls:         make([]spec.ShadowScanCallResult, 0, len(r.Calls)),
+		}
+		if withRepositories {
+			if len(r.ScannedRepositories) > 0 {
+				cr.ScannedRepositories = append([]string{}, r.ScannedRepositories...)
+			}
+			for _, f := range r.FailedRepositories {
+				cr.FailedRepositories = append(cr.FailedRepositories, spec.ShadowScanFailedRepository{Name: f.Name, Message: f.Message})
+			}
 		}
 		for _, call := range r.Calls {
 			cr.Calls = append(cr.Calls, spec.ShadowScanCallResult{

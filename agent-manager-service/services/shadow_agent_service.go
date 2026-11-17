@@ -95,6 +95,11 @@ type ShadowAgentService interface {
 	// CreateRunnerScan creates a pending scan of a GitHub or Azure DevOps
 	// connection and the scan token its scan command publishes with.
 	CreateRunnerScan(ctx context.Context, ouID string, id uuid.UUID, opts models.ShadowScanOptions) (*ShadowRunnerScan, error)
+	// PublishRunnerScan saves the code agents a source code scan command
+	// confirmed, and the repositories it scanned and could not scan, and
+	// finishes its pending scan.
+	PublishRunnerScan(ctx context.Context, ouID string, scanID uuid.UUID,
+		req *models.PublishShadowScanRequest) (*models.PublishShadowScanResponse, error)
 
 	// CreateScan queues a scan of the given connections, or of every
 	// connection when none is given.

@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -108,4 +109,165 @@ func TestShadowCreateRunnerScan_MalformedBody(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.False(t, svc.called, "a malformed body never reaches the service")
 	assert.Equal(t, "no-store", w.Header().Get("Cache-Control"))
+}
+
+// publishScanService answers PublishRunnerScan only.
+type publishScanService struct {
+	services.ShadowAgentService
+	err    error
+	ouID   string
+	req    *models.PublishShadowScanRequest
+	called bool
+}
+
+func (s *publishScanService) PublishRunnerScan(
+	_ context.Context, ouID string, scanID uuid.UUID, req *models.PublishShadowScanRequest,
+) (*models.PublishShadowScanResponse, error) {
+	s.ouID, s.req, s.called = ouID, req, true
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &models.PublishShadowScanResponse{ScanID: scanID.String(), Status: models.ShadowScanSucceeded, FindingsCount: 1}, nil
+}
+
+func postScanResults(svc services.ShadowAgentService, scanID, body string) *httptest.ResponseRecorder {
+	r := httptest.NewRequest(http.MethodPost, "/shadow-agent-publisher/scans/"+scanID+"/results", strings.NewReader(body))
+	r.SetPathValue(PathParamShadowScanID, scanID)
+	w := httptest.NewRecorder()
+	NewShadowAgentController(svc).PublishScanResults(w, r)
+	return w
+}
+
+func TestShadowPublishScanResults_DecodesTheBody(t *testing.T) {
+	svc := &publishScanService{}
+	body := `{"complete":true,"scannedRepositories":["a"],"failedRepositories":[{"name":"b","reason":"x"}],
+		"agents":[{"externalId":"e","name":"n","repository":"a","attributes":{"reviewedBy":"rules"},
+		"evidence":[{"code":"github.d1_agent_dependency","source":"requirements.txt","observed":{"n":1}}]}]}`
+	w := postScanResults(svc, uuid.NewString(), body)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.True(t, svc.called)
+	assert.Empty(t, svc.ouID, "the org comes only from the scan token")
+	assert.True(t, svc.req.Complete)
+	require.Len(t, svc.req.Agents, 1)
+	assert.Equal(t, "github.d1_agent_dependency", svc.req.Agents[0].Evidence[0].Code)
+	var resp models.PublishShadowScanResponse
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, 1, resp.FindingsCount)
+}
+
+func TestShadowPublishScanResults_RejectsBadBodies(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"malformed", `{"complete":`, http.StatusBadRequest},
+		{"trailing data", `{"complete":true} {"complete":false}`, http.StatusBadRequest},
+		{
+			"too large", `{"scannedRepositories":["` + strings.Repeat("a", maxShadowPublishBodyBytes) + `"]}`,
+			http.StatusRequestEntityTooLarge,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc := &publishScanService{}
+			w := postScanResults(svc, uuid.NewString(), tc.body)
+			assert.Equal(t, tc.want, w.Code)
+			assert.False(t, svc.called, "a bad body never reaches the service")
+		})
+	}
+
+	svc := &publishScanService{}
+	w := postScanResults(svc, "not-a-uuid", `{}`)
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.False(t, svc.called)
+}
+
+// A newer scan command may send fields this server does not know; they are
+// ignored rather than failing a long scan.
+func TestShadowPublishScanResults_IgnoresUnknownFields(t *testing.T) {
+	svc := &publishScanService{}
+	w := postScanResults(svc, uuid.NewString(),
+		`{"complete":true,"runnerVersion":"2","agents":[{"externalId":"e","score":0.9,"repository":"a"}]}`)
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.True(t, svc.called)
+	require.Len(t, svc.req.Agents, 1)
+	assert.Equal(t, "e", svc.req.Agents[0].ExternalID)
+}
+
+func TestShadowPublishScanResults_ErrorStatuses(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"invalid agent", fmt.Errorf("%w: agent 0 has no evidence", utils.ErrInvalidInput), http.StatusBadRequest},
+		{"scan not found", utils.ErrShadowScanNotFound, http.StatusNotFound},
+		{"connection deleted", utils.ErrShadowConnectionNotFound, http.StatusNotFound},
+		{"already published", fmt.Errorf("%w: already published", utils.ErrShadowScanNotPending), http.StatusConflict},
+		{"newer scan published", utils.ErrShadowScanSuperseded, http.StatusConflict},
+		{"audit trail down", audit.ErrRecorderUnavailable, http.StatusServiceUnavailable},
+		{"other", fmt.Errorf("db down"), http.StatusInternalServerError},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			w := postScanResults(&publishScanService{err: tc.err}, uuid.NewString(), `{"complete":true}`)
+			assert.Equal(t, tc.want, w.Code)
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.NotEmpty(t, body["message"])
+		})
+	}
+}
+
+// scanReadService answers GetScan and ListScans with one source code scan.
+type scanReadService struct {
+	services.ShadowAgentService
+	scan models.ShadowScan
+}
+
+func (s *scanReadService) GetScan(context.Context, string, uuid.UUID) (*models.ShadowScan, error) {
+	sc := s.scan
+	return &sc, nil
+}
+
+func (s *scanReadService) ListScans(context.Context, string, int) ([]models.ShadowScan, error) {
+	return []models.ShadowScan{s.scan}, nil
+}
+
+// Only the scan detail carries the repository lists, which can run to
+// thousands of names.
+func TestShadowScanRepositoriesOnlyInTheDetail(t *testing.T) {
+	svc := &scanReadService{scan: models.ShadowScan{
+		ID: uuid.New(), Status: models.ShadowScanPartial, ConnectionIDs: []string{"c"},
+		Results: []models.ShadowScanConnectionResult{{
+			ConnectionID: "c", Outcome: "partial", Calls: []models.ShadowScanCallResult{},
+			ScannedRepositories: []string{"a"},
+			FailedRepositories:  []models.ShadowScanFailedRepository{{Name: "b", Message: "clone failed"}},
+		}},
+	}}
+	ctrl := NewShadowAgentController(svc)
+
+	r := httptest.NewRequest(http.MethodGet, "/orgs/acme/shadow-agents/scans/"+svc.scan.ID.String(), nil)
+	r.SetPathValue(PathParamShadowScanID, svc.scan.ID.String())
+	w := httptest.NewRecorder()
+	ctrl.GetScan(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	detail := decodeJSON[spec.ShadowScanResponse](t, w.Body.Bytes())
+	require.Len(t, detail.Results, 1)
+	assert.Equal(t, []string{"a"}, detail.Results[0].ScannedRepositories)
+	assert.Equal(t, []spec.ShadowScanFailedRepository{{Name: "b", Message: "clone failed"}}, detail.Results[0].FailedRepositories)
+
+	w = httptest.NewRecorder()
+	ctrl.ListScans(w, httptest.NewRequest(http.MethodGet, "/orgs/acme/shadow-agents/scans", nil))
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.NotContains(t, w.Body.String(), "scannedRepositories")
+	assert.NotContains(t, w.Body.String(), "failedRepositories")
+}
+
+func decodeJSON[T any](t *testing.T, b []byte) T {
+	t.Helper()
+	var v T
+	require.NoError(t, json.Unmarshal(b, &v), string(b))
+	return v
 }

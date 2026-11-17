@@ -17,8 +17,11 @@
 package api
 
 import (
+	"net/http"
+
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -48,4 +51,16 @@ func registerShadowAgentRoutes(rr *middleware.RouteRegistrar, controller control
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/findings/{findingId}"), rbac.ShadowAgentRead, controller.GetFinding)
 	rr.HandleFuncWithValidationAndAuthz(route("PATCH", base+"/findings/{findingId}"), rbac.ShadowAgentManage, controller.UpdateFinding)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/findings/{findingId}"), rbac.ShadowAgentManage, controller.DeleteFinding)
+
+	// POST /shadow-agent-publisher/scans/{scanId}/results - a source code scan
+	// command publishes what it found, with its scan token. The token names
+	// its organization (ouId) but no handle, so the route is not org-scoped
+	// and the org comes from the token. The permission check admits any
+	// token holding the publish scope; ShadowPublisherAuthMiddleware then
+	// admits only a scan token (this service's client, that scope alone), so
+	// an Admin's user token is refused although its role holds the
+	// permission.
+	publish := jwtassertion.ShadowPublisherAuthMiddleware()(http.HandlerFunc(controller.PublishScanResults))
+	rr.HandleFuncWithValidationAndAuthz(route("POST", "/shadow-agent-publisher/scans/{scanId}/results"),
+		rbac.ShadowAgentPublish, publish.ServeHTTP)
 }

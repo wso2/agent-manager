@@ -386,7 +386,7 @@ func toShadowApply(
 				Kind:              f.Kind,
 				ExternalID:        sa.Truncate(f.ExternalID, 1024),
 				DisplayName:       sa.SanitizeName(firstNonEmpty(f.DisplayName, f.ExternalID)),
-				Scope:             sa.Truncate(f.Scope, 256),
+				Scope:             sa.NormaliseScope(c.Provider, c.Config.Organization, f.Scope),
 				State:             sa.Truncate(f.State, 64),
 				OwnerHint:         sa.MinimiseOwnerHint(f.OwnerHint),
 				Attributes:        sa.SanitizeAttributes(f.Attributes),
@@ -469,12 +469,18 @@ func finiteOrNil(f *float64) *float64 {
 // (Foundry stores no endpoint for external agents, so a name match is only a
 // "possible duplicate", never merged).
 func (s *shadowAgentScanner) correlate(ctx context.Context, ouID string) error {
-	findings, err := s.repo.ListOrgFindings(ctx, ouID)
+	return correlateShadowOrg(ctx, s.repo, ouID, s.now().UTC())
+}
+
+// correlateShadowOrg recomputes the org's cross-connection relations, after a
+// scan or a source code scan publish.
+func correlateShadowOrg(ctx context.Context, repo repositories.ShadowAgentRepository, ouID string, now time.Time) error {
+	findings, err := repo.ListOrgFindings(ctx, ouID)
 	if err != nil {
 		return fmt.Errorf("listing findings: %w", err)
 	}
-	relations, signals := CorrelateShadowFindings(findings, s.now().UTC())
-	return s.repo.ApplyCorrelation(ctx, ouID, relations, signals)
+	relations, signals := CorrelateShadowFindings(findings, now)
+	return repo.ApplyCorrelation(ctx, ouID, relations, signals)
 }
 
 // CorrelateShadowFindings computes cross-connection relations and the

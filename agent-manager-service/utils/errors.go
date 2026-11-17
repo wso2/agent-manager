@@ -178,6 +178,12 @@ var (
 	ErrInvalidInput                   = errors.New("invalid input")
 	ErrImmutableFieldChange           = errors.New("cannot change immutable field")
 	ErrScopeNotFound                  = errors.New("scope not found")
+	// ErrShadowScanNotPending is a publish to a source code scan that is no
+	// longer waiting for results: it was published already, or it expired.
+	ErrShadowScanNotPending = errors.New("the scan is not waiting for results")
+	// ErrShadowScanSuperseded is a publish to a source code scan after a
+	// newer scan of the same connection published its results.
+	ErrShadowScanSuperseded = errors.New("a newer scan of this platform has already published results")
 	// ErrA2AProxyOriginChangeNeedsAuthReset keeps a stored upstream secret from following the card URL to another origin. Maps to 409.
 	ErrA2AProxyOriginChangeNeedsAuthReset = errors.New(
 		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again",

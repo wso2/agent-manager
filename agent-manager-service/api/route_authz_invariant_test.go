@@ -196,8 +196,6 @@ var declaredButUnenforcedPermissions = map[string]string{
 	"LLMProviderConnect":            "NOT ENFORCED: no route consults it",
 	"MCPServerConfigureGuardrail":   "NOT ENFORCED: no route consults it",
 	"MCPServerAPIKeyManage":         "NOT ENFORCED: no route consults it",
-	"ShadowAgentPublish": "NOT ENFORCED yet: the source code scan results publish route does not " +
-		"exist yet; it will require this permission and this entry is removed then",
 }
 
 // TestSecurityInvariantEveryPermissionIsEnforced fails when a declared

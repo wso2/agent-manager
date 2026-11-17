@@ -7057,10 +7057,23 @@ type ShadowScanConnectionResult struct {
 	Calls          []ShadowScanCallResult `json:"calls"`
 	ConnectionId   string                 `json:"connectionId"`
 	ConnectionName string                 `json:"connectionName"`
-	FindingsCount  int                    `json:"findingsCount"`
-	Message        *string                `json:"message,omitempty"`
-	Outcome        string                 `json:"outcome"`
-	Provider       string                 `json:"provider"`
+
+	// FailedRepositories The repositories a source code scan command could not scan. Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	FailedRepositories *[]ShadowScanFailedRepository `json:"failedRepositories,omitempty"`
+	FindingsCount      int                           `json:"findingsCount"`
+	Message            *string                       `json:"message,omitempty"`
+	Outcome            string                        `json:"outcome"`
+	Provider           string                        `json:"provider"`
+
+	// ScannedRepositories The repositories a source code scan command scanned (a GitHub repository name, or an Azure DevOps project/repository). Only the scan detail (GET a scan) includes them, never a list of scans. Cloud scans have none.
+	ScannedRepositories *[]string `json:"scannedRepositories,omitempty"`
+}
+
+// ShadowScanFailedRepository defines model for ShadowScanFailedRepository.
+type ShadowScanFailedRepository struct {
+	// Message Why the repository could not be scanned, scrubbed of anything credential-like.
+	Message string `json:"message"`
+	Name    string `json:"name"`
 }
 
 // ShadowScanListResponse defines model for ShadowScanListResponse.

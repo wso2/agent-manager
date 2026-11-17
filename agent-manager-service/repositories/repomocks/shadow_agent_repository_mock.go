@@ -79,6 +79,9 @@ import (
 //			ListSignalsFunc: func(ctx context.Context, ouID string, findingID uuid.UUID) ([]models.ShadowFindingSignal, error) {
 //				panic("mock out the ListSignals method")
 //			},
+//			PublishScanResultsFunc: func(ctx context.Context, in repositories.ShadowScanPublish) (int, error) {
+//				panic("mock out the PublishScanResults method")
+//			},
 //			RenewScanLeaseFunc: func(ctx context.Context, id uuid.UUID, until time.Time) error {
 //				panic("mock out the RenewScanLease method")
 //			},
@@ -160,6 +163,9 @@ type ShadowAgentRepositoryMock struct {
 
 	// ListSignalsFunc mocks the ListSignals method.
 	ListSignalsFunc func(ctx context.Context, ouID string, findingID uuid.UUID) ([]models.ShadowFindingSignal, error)
+
+	// PublishScanResultsFunc mocks the PublishScanResults method.
+	PublishScanResultsFunc func(ctx context.Context, in repositories.ShadowScanPublish) (int, error)
 
 	// RenewScanLeaseFunc mocks the RenewScanLease method.
 	RenewScanLeaseFunc func(ctx context.Context, id uuid.UUID, until time.Time) error
@@ -344,6 +350,13 @@ type ShadowAgentRepositoryMock struct {
 			// FindingID is the findingID argument value.
 			FindingID uuid.UUID
 		}
+		// PublishScanResults holds details about calls to the PublishScanResults method.
+		PublishScanResults []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// In is the in argument value.
+			In repositories.ShadowScanPublish
+		}
 		// RenewScanLease holds details about calls to the RenewScanLease method.
 		RenewScanLease []struct {
 			// Ctx is the ctx argument value.
@@ -412,6 +425,7 @@ type ShadowAgentRepositoryMock struct {
 	lockListOrgFindings       sync.RWMutex
 	lockListScans             sync.RWMutex
 	lockListSignals           sync.RWMutex
+	lockPublishScanResults    sync.RWMutex
 	lockRenewScanLease        sync.RWMutex
 	lockSaveConnectionTest    sync.RWMutex
 	lockSummary               sync.RWMutex
@@ -1188,6 +1202,42 @@ func (mock *ShadowAgentRepositoryMock) ListSignalsCalls() []struct {
 	mock.lockListSignals.RLock()
 	calls = mock.calls.ListSignals
 	mock.lockListSignals.RUnlock()
+	return calls
+}
+
+// PublishScanResults calls PublishScanResultsFunc.
+func (mock *ShadowAgentRepositoryMock) PublishScanResults(ctx context.Context, in repositories.ShadowScanPublish) (int, error) {
+	if mock.PublishScanResultsFunc == nil {
+		panic("ShadowAgentRepositoryMock.PublishScanResultsFunc: method is nil but ShadowAgentRepository.PublishScanResults was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		In  repositories.ShadowScanPublish
+	}{
+		Ctx: ctx,
+		In:  in,
+	}
+	mock.lockPublishScanResults.Lock()
+	mock.calls.PublishScanResults = append(mock.calls.PublishScanResults, callInfo)
+	mock.lockPublishScanResults.Unlock()
+	return mock.PublishScanResultsFunc(ctx, in)
+}
+
+// PublishScanResultsCalls gets all the calls that were made to PublishScanResults.
+// Check the length with:
+//
+//	len(mockedShadowAgentRepository.PublishScanResultsCalls())
+func (mock *ShadowAgentRepositoryMock) PublishScanResultsCalls() []struct {
+	Ctx context.Context
+	In  repositories.ShadowScanPublish
+} {
+	var calls []struct {
+		Ctx context.Context
+		In  repositories.ShadowScanPublish
+	}
+	mock.lockPublishScanResults.RLock()
+	calls = mock.calls.PublishScanResults
+	mock.lockPublishScanResults.RUnlock()
 	return calls
 }
 

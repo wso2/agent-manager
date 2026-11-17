@@ -246,6 +246,18 @@ type ShadowScanConnectionResult struct {
 	Message        string                 `json:"message,omitempty"`
 	FindingsCount  int                    `json:"findingsCount"`
 	Calls          []ShadowScanCallResult `json:"calls"`
+	// ScannedRepositories and FailedRepositories are the repositories a
+	// source code scan command scanned and could not scan. Cloud scans have
+	// none.
+	ScannedRepositories []string                     `json:"scannedRepositories,omitempty"`
+	FailedRepositories  []ShadowScanFailedRepository `json:"failedRepositories,omitempty"`
+}
+
+// ShadowScanFailedRepository is a repository a source code scan command
+// could not scan, with its scrubbed reason.
+type ShadowScanFailedRepository struct {
+	Name    string `json:"name"`
+	Message string `json:"message"`
 }
 
 // ShadowScanCallResult is the outcome of one provider call (all its pages

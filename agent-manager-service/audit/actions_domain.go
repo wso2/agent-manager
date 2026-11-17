@@ -79,6 +79,9 @@ const (
 	// A source code scan command: a pending scan and the organization-scoped
 	// scan token (amp:shadow-agent:publish) the command publishes with.
 	ActionShadowScanTokenIssue Action = "shadow-scan-token:issue"
+	// ActionShadowScanPublish is a source code scan command publishing the
+	// code agents it found, with its scan token.
+	ActionShadowScanPublish Action = "shadow-scan:publish"
 
 	// An event subscription decides which events are sent to a destination.
 	ActionEventSubscriptionCreate Action = "event-subscription:create"
@@ -361,6 +364,19 @@ func init() {
 		"clientId": KindIdentifier,
 		"aiReview": KindFlag,
 		"llmJudge": KindFlag,
+	})
+	// A scan command publishing with its scan token: no RBAC user is behind
+	// it, so this record is the only account of which scan changed the
+	// organization's agents. Agents and repositories are counted, never
+	// named.
+	Register(ActionShadowScanPublish, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowScanPublish, map[string]FieldKind{
+		"provider":            KindEnum,
+		"scanId":              KindIdentifier,
+		"agents":              KindCount,
+		"scannedRepositories": KindCount,
+		"failedRepositories":  KindCount,
+		"complete":            KindFlag,
 	})
 
 	// A subscription holds no credential, but it decides which event data

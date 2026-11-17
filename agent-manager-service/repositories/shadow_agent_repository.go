@@ -59,6 +59,23 @@ type ShadowConnectionApply struct {
 	UnfinishedScopes []string
 }
 
+// ShadowScanPublish is what a source code scan command published for its
+// pending scan of one connection.
+type ShadowScanPublish struct {
+	// Apply is the connection's result; Apply.ScanID is the scan.
+	Apply ShadowConnectionApply
+	// Status is the scan's final status.
+	Status string
+	// Result is the connection's result in the scan. Its FindingsCount is set
+	// to the number of agents written.
+	Result     models.ShadowScanConnectionResult
+	FinishedAt time.Time
+	// ExpireCreatedBy is when a pending scan created at or before it has
+	// expired (the life of its scan token), whether or not the scan worker
+	// has marked it yet. The zero time expires none.
+	ExpireCreatedBy time.Time
+}
+
 // ShadowFindingFilter selects agents.
 type ShadowFindingFilter struct {
 	Provider     string
@@ -141,6 +158,16 @@ type ShadowAgentRepository interface {
 	// ApplyConnectionResult writes one connection's scan in one transaction
 	// and returns how many agents it wrote.
 	ApplyConnectionResult(ctx context.Context, in ShadowConnectionApply) (int, error)
+	// PublishScanResults finishes a pending source code scan with what its
+	// scan command found, in one transaction, and returns how many agents it
+	// wrote. It locks the connection and the scan, so publishes of one
+	// connection run one at a time. It fails with gorm.ErrRecordNotFound when
+	// the org has no such scan or connection, utils.ErrShadowScanNotPending
+	// when the scan was published already or expired (including one created
+	// at or before in.ExpireCreatedBy that the worker has not marked yet), and
+	// utils.ErrShadowScanSuperseded when a newer scan of the connection has
+	// published its results.
+	PublishScanResults(ctx context.Context, in ShadowScanPublish) (int, error)
 	// ListOrgFindings returns the org's present agents (for correlation).
 	ListOrgFindings(ctx context.Context, ouID string) ([]models.ShadowFinding, error)
 	// ApplyCorrelation replaces the org's cross-connection relations and
@@ -379,49 +406,140 @@ func (r *shadowAgentRepository) FinishScan(ctx context.Context, s *models.Shadow
 func (r *shadowAgentRepository) ApplyConnectionResult(ctx context.Context, in ShadowConnectionApply) (int, error) {
 	written := 0
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		for i := range in.Findings {
-			fi := &in.Findings[i]
-			id, err := upsertShadowFinding(tx, in, &fi.Finding)
-			if err != nil {
-				return err
-			}
-			if err := tx.Exec(`INSERT INTO shadow_scan_findings (ou_id, scan_id, finding_id) VALUES (?, ?, ?)
-				ON CONFLICT DO NOTHING`, in.OUID, in.ScanID, id).Error; err != nil {
-				return fmt.Errorf("recording the scan's finding: %w", err)
-			}
-			for j := range fi.Signals {
-				if err := upsertShadowSignal(tx, in.OUID, id, in.ScanID, &fi.Signals[j]); err != nil {
-					return err
-				}
-			}
-			written++
-		}
-		if !in.Complete {
-			return nil
-		}
-		// Every listing succeeded: an agent this scan did not return is no
-		// longer listed by the platform (or no longer in the connection's
-		// scope), and evidence this scan did not see again is gone. Agents
-		// of a scope the scan could not finish (a repository a source code
-		// scan failed on) keep their presence and evidence.
-		skipScopes, skipArgs := "", []any{}
-		if len(in.UnfinishedScopes) > 0 {
-			skipScopes, skipArgs = " AND f.scope NOT IN ?", []any{in.UnfinishedScopes}
-		}
-		if err := tx.Exec(`UPDATE shadow_findings f SET present = FALSE, updated_at = NOW()
-			WHERE f.ou_id = ? AND f.connection_id = ? AND f.present AND f.last_seen_at < ?`+skipScopes,
-			append([]any{in.OUID, in.ConnectionID, in.ScanStartedAt}, skipArgs...)...).Error; err != nil {
-			return fmt.Errorf("marking agents no longer listed: %w", err)
-		}
-		if err := tx.Exec(`DELETE FROM shadow_finding_signals s USING shadow_findings f
-			WHERE s.finding_id = f.id AND f.ou_id = ? AND f.connection_id = ? AND f.present
-				AND s.source <> ? AND s.detected_at < ?`+skipScopes,
-			append([]any{in.OUID, in.ConnectionID, ShadowCorrelationSource, in.ScanStartedAt}, skipArgs...)...).Error; err != nil {
-			return fmt.Errorf("removing evidence no longer seen: %w", err)
-		}
-		return nil
+		n, err := applyConnectionResult(tx, in)
+		written = n
+		return err
 	})
 	return written, err
+}
+
+// applyConnectionResult writes one connection's scan in tx and returns how
+// many agents it wrote.
+func applyConnectionResult(tx *gorm.DB, in ShadowConnectionApply) (int, error) {
+	written := 0
+	for i := range in.Findings {
+		fi := &in.Findings[i]
+		id, err := upsertShadowFinding(tx, in, &fi.Finding)
+		if err != nil {
+			return written, err
+		}
+		if err := tx.Exec(`INSERT INTO shadow_scan_findings (ou_id, scan_id, finding_id) VALUES (?, ?, ?)
+			ON CONFLICT DO NOTHING`, in.OUID, in.ScanID, id).Error; err != nil {
+			return written, fmt.Errorf("recording the scan's finding: %w", err)
+		}
+		for j := range fi.Signals {
+			if err := upsertShadowSignal(tx, in.OUID, id, in.ScanID, &fi.Signals[j]); err != nil {
+				return written, err
+			}
+		}
+		written++
+	}
+	if !in.Complete {
+		return written, nil
+	}
+	// Every listing succeeded: an agent this scan did not return is no
+	// longer listed by the platform (or no longer in the connection's
+	// scope), and evidence this scan did not see again is gone. Agents
+	// of a scope the scan could not finish (a repository a source code
+	// scan failed on) keep their presence and evidence.
+	skipScopes, skipArgs := "", []any{}
+	if len(in.UnfinishedScopes) > 0 {
+		skipScopes, skipArgs = " AND f.scope NOT IN ?", []any{in.UnfinishedScopes}
+	}
+	if err := tx.Exec(`UPDATE shadow_findings f SET present = FALSE, updated_at = NOW()
+		WHERE f.ou_id = ? AND f.connection_id = ? AND f.present AND f.last_seen_at < ?`+skipScopes,
+		append([]any{in.OUID, in.ConnectionID, in.ScanStartedAt}, skipArgs...)...).Error; err != nil {
+		return written, fmt.Errorf("marking agents no longer listed: %w", err)
+	}
+	if err := tx.Exec(`DELETE FROM shadow_finding_signals s USING shadow_findings f
+		WHERE s.finding_id = f.id AND f.ou_id = ? AND f.connection_id = ? AND f.present
+			AND s.source <> ? AND s.detected_at < ?`+skipScopes,
+		append([]any{in.OUID, in.ConnectionID, ShadowCorrelationSource, in.ScanStartedAt}, skipArgs...)...).Error; err != nil {
+		return written, fmt.Errorf("removing evidence no longer seen: %w", err)
+	}
+	return written, nil
+}
+
+func (r *shadowAgentRepository) PublishScanResults(ctx context.Context, in ShadowScanPublish) (int, error) {
+	written := 0
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		ap := in.Apply
+		// The connection first: publishes of one connection queue here, so
+		// the newer-scan check below sees every publish committed before.
+		var conn models.ShadowConnection
+		if err := tx.Raw(`SELECT * FROM shadow_connections WHERE ou_id = ? AND id = ? FOR UPDATE`,
+			ap.OUID, ap.ConnectionID).Scan(&conn).Error; err != nil {
+			return fmt.Errorf("locking the connection: %w", err)
+		}
+		if conn.ID == uuid.Nil {
+			return gorm.ErrRecordNotFound
+		}
+		var scan models.ShadowScan
+		if err := tx.Raw(`SELECT * FROM shadow_scans WHERE ou_id = ? AND id = ? FOR UPDATE`,
+			ap.OUID, ap.ScanID).Scan(&scan).Error; err != nil {
+			return fmt.Errorf("locking the scan: %w", err)
+		}
+		if scan.ID == uuid.Nil {
+			return gorm.ErrRecordNotFound
+		}
+		if err := ShadowScanNotPendingError(&scan); err != nil {
+			return err
+		}
+		if !in.ExpireCreatedBy.IsZero() && !scan.CreatedAt.After(in.ExpireCreatedBy) {
+			return fmt.Errorf("%w: %s", utils.ErrShadowScanNotPending, models.ShadowScanExpiredMessage)
+		}
+		connIDs, err := toJSON([]string{ap.ConnectionID.String()})
+		if err != nil {
+			return err
+		}
+		expired, err := toJSON([]map[string]string{{"message": models.ShadowScanExpiredMessage}})
+		if err != nil {
+			return err
+		}
+		var newer bool
+		if err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM shadow_scans
+			WHERE ou_id = ? AND id <> ? AND connection_ids @> ?::jsonb AND created_at > ?
+				AND status IN (?, ?, ?) AND finished_at IS NOT NULL AND NOT (results @> ?::jsonb))`,
+			ap.OUID, ap.ScanID, connIDs, scan.CreatedAt,
+			models.ShadowScanSucceeded, models.ShadowScanPartial, models.ShadowScanFailed, expired,
+		).Scan(&newer).Error; err != nil {
+			return fmt.Errorf("checking for a newer scan: %w", err)
+		}
+		if newer {
+			return utils.ErrShadowScanSuperseded
+		}
+		n, err := applyConnectionResult(tx, ap)
+		if err != nil {
+			return err
+		}
+		written = n
+		result := in.Result
+		result.FindingsCount = n
+		results, err := toJSON([]models.ShadowScanConnectionResult{result})
+		if err != nil {
+			return err
+		}
+		return tx.Exec(`UPDATE shadow_scans SET status = ?, results = ?::jsonb, findings_count = ?,
+				started_at = COALESCE(started_at, created_at), finished_at = ?, claimed_until = NULL, updated_at = NOW()
+			WHERE ou_id = ? AND id = ?`,
+			in.Status, results, n, in.FinishedAt, ap.OUID, ap.ScanID).Error
+	})
+	return written, err
+}
+
+// ShadowScanNotPendingError returns nil for a pending scan, and otherwise
+// utils.ErrShadowScanNotPending saying whether the scan was published already
+// or expired waiting for its results.
+func ShadowScanNotPendingError(s *models.ShadowScan) error {
+	if s.Status == models.ShadowScanPending {
+		return nil
+	}
+	for _, r := range s.Results {
+		if r.Message == models.ShadowScanExpiredMessage {
+			return fmt.Errorf("%w: %s", utils.ErrShadowScanNotPending, models.ShadowScanExpiredMessage)
+		}
+	}
+	return fmt.Errorf("%w: already published", utils.ErrShadowScanNotPending)
 }
 
 func upsertShadowFinding(tx *gorm.DB, in ShadowConnectionApply, f *models.ShadowFinding) (uuid.UUID, error) {
