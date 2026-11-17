@@ -43,6 +43,9 @@ type Config struct {
 	// CORSAllowedOrigin is the single allowed origin for CORS; use "*" to allow all
 	CORSAllowedOrigin string
 
+	// ConsoleEnabled serves the embedded console from the API port (CONSOLE_ENABLED).
+	ConsoleEnabled bool
+
 	// OpenTelemetry configuration
 	OTEL OTELConfig
 

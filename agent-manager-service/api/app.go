@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/webconsole"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -156,6 +157,12 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	apiHandler = middleware.RecovererOnPanic()(apiHandler)
 
 	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
+
+	// The console, at the root: its files, its runtime config and, for any
+	// other path, its index page. Every API path above is more specific.
+	if config.GetConfig().ConsoleEnabled {
+		mux.Handle("/", middleware.RecovererOnPanic()(webconsole.Handler()))
+	}
 
 	return mux
 }

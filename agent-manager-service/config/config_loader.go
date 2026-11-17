@@ -72,6 +72,7 @@ func loadEnvs() {
 	config.AuthHeader = r.readOptionalString("AUTH_HEADER", "Authorization")
 	config.AutoMaxProcsEnabled = r.readOptionalBool("AUTO_MAX_PROCS_ENABLED", true)
 	config.CORSAllowedOrigin = r.readOptionalString("CORS_ALLOWED_ORIGIN", "http://localhost:3000")
+	config.ConsoleEnabled = r.readOptionalBool("CONSOLE_ENABLED", true)
 
 	agentWorkloadConfig.CORS = CORSConfig{
 		AllowOrigin:      r.readOptionalString("AGENT_WORKLOAD_CORS_ALLOWED_ORIGIN", "*"),
