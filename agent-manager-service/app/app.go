@@ -215,6 +215,9 @@ func Run(authProvider occlient.AuthProvider, secretProvider secretmanagersvc.Pro
 
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
+	// Open the advisory lock pool now, so an unreachable database fails startup
+	// rather than the first lock (see db.GetLockDB).
+	db.GetLockDB()
 
 	// Select the gateway-manifest cache backend before anything reads or writes it —
 	// see services.SetGatewayManifestCacheBackend's doc comment for why this is a

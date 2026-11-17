@@ -21,6 +21,7 @@ package repositories
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -189,4 +190,136 @@ func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.
 	var artifact models.Artifact
 	require.NoError(t, gdb.First(&artifact, "uuid = ?", provider.UUID).Error)
 	require.Equal(t, "Keep This Name", artifact.Name)
+}
+
+func newProviderSyncLocker(t *testing.T) LLMProviderSyncLocker {
+	t.Helper()
+	locker, ok := NewLLMProviderRepo(db.GetDB()).(LLMProviderSyncLocker)
+	require.True(t, ok, "LLMProviderRepo must implement LLMProviderSyncLocker")
+	return locker
+}
+
+// lockProviderSyncAsync calls LockProviderSync on its own goroutine and
+// delivers the release func, or closes the channel on error.
+func lockProviderSyncAsync(ctx context.Context, locker LLMProviderSyncLocker, providerUUID string) <-chan func() {
+	acquired := make(chan func(), 1)
+	go func() {
+		release, err := locker.LockProviderSync(ctx, providerUUID)
+		if err != nil {
+			close(acquired)
+			return
+		}
+		acquired <- release
+	}()
+	return acquired
+}
+
+func requireProviderSyncStillWaiting(t *testing.T, acquired <-chan func(), msg string) {
+	t.Helper()
+	select {
+	case release, ok := <-acquired:
+		if ok {
+			release()
+		}
+		t.Fatal(msg)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+func requireProviderSyncAcquired(t *testing.T, acquired <-chan func(), msg string) func() {
+	t.Helper()
+	select {
+	case release, ok := <-acquired:
+		require.True(t, ok, msg)
+		return release
+	case <-time.After(5 * time.Second):
+		t.Fatal(msg)
+		return nil
+	}
+}
+
+// TestLLMProviderRepo_LockProviderSync_SerializesSameProvider stands in for two
+// replicas: each call runs on its own pooled connection, so only the database
+// can make the second wait.
+func TestLLMProviderRepo_LockProviderSync_SerializesSameProvider(t *testing.T) {
+	locker := newProviderSyncLocker(t)
+	providerUUID := uuid.NewString()
+
+	release, err := locker.LockProviderSync(context.Background(), providerUUID)
+	require.NoError(t, err)
+
+	waiter := lockProviderSyncAsync(context.Background(), locker, providerUUID)
+	requireProviderSyncStillWaiting(t, waiter, "a second sync of the same provider must wait for the first")
+
+	release()
+	requireProviderSyncAcquired(t, waiter, "the waiter must get the lock once the holder releases")()
+}
+
+func TestLLMProviderRepo_LockProviderSync_DifferentProvidersDoNotBlock(t *testing.T) {
+	locker := newProviderSyncLocker(t)
+	release, err := locker.LockProviderSync(context.Background(), uuid.NewString())
+	require.NoError(t, err)
+	defer release()
+
+	other := lockProviderSyncAsync(context.Background(), locker, uuid.NewString())
+	requireProviderSyncAcquired(t, other, "another provider's sync must not wait behind an unrelated one")()
+}
+
+func TestLLMProviderRepo_LockProviderSync_WaiterReturnsWhenCtxDone(t *testing.T) {
+	locker := newProviderSyncLocker(t)
+	providerUUID := uuid.NewString()
+	release, err := locker.LockProviderSync(context.Background(), providerUUID)
+	require.NoError(t, err)
+	defer release()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	waiterRelease, err := locker.LockProviderSync(ctx, providerUUID)
+	require.Error(t, err, "a waiter whose context ends must give up instead of acquiring")
+	require.Nil(t, waiterRelease)
+	require.Less(t, time.Since(start), 5*time.Second, "the waiter must return promptly once its context ends")
+}
+
+// TestLLMProviderRepo_LockProviderSync_HeldPastHolderCtxCancel guards that the
+// lock lives until release, not until the caller's context ends.
+func TestLLMProviderRepo_LockProviderSync_HeldPastHolderCtxCancel(t *testing.T) {
+	locker := newProviderSyncLocker(t)
+	providerUUID := uuid.NewString()
+	holderCtx, cancelHolder := context.WithCancel(context.Background())
+	release, err := locker.LockProviderSync(holderCtx, providerUUID)
+	require.NoError(t, err)
+	cancelHolder()
+
+	waiter := lockProviderSyncAsync(context.Background(), locker, providerUUID)
+	requireProviderSyncStillWaiting(t, waiter, "the lock must stay held after the holder's context is cancelled")
+
+	release()
+	requireProviderSyncAcquired(t, waiter, "the waiter must get the lock once the holder releases")()
+}
+
+// TestLLMProviderRepo_LockProviderSync_HolderCanUseCappedPool is the review
+// scenario from #2482 applied here: with DB_MAX_OPEN_COUNT=1, a held sync lock
+// must not take the connection the sync needs to read its provider.
+func TestLLMProviderRepo_LockProviderSync_HolderCanUseCappedPool(t *testing.T) {
+	repo := NewLLMProviderRepo(cappedPool(t, 1))
+	providerUUID := uuid.NewString()
+
+	release, err := repo.(LLMProviderSyncLocker).LockProviderSync(context.Background(), providerUUID)
+	require.NoError(t, err)
+	defer release()
+
+	// GetByUUID takes no context, so bound it from outside. A missing provider
+	// is fine: the point is that the query reaches the database at all.
+	done := make(chan struct{})
+	go func() {
+		_, _ = repo.GetByUUID(providerUUID, "org-"+uuid.NewString())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		release() // frees the capped pool's only connection so the goroutine can finish
+		t.Fatal("the holder must still reach the database through a capped pool")
+	}
 }

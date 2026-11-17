@@ -28,6 +28,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -68,6 +69,31 @@ func NewLLMProviderRepo(db *gorm.DB) LLMProviderRepository {
 		db:           db,
 		artifactRepo: NewArtifactRepo(db),
 	}
+}
+
+// LLMProviderSyncLocker serializes dependent-proxy auth syncs for one provider
+// across every replica of the service. LLMProviderRepo implements it; the
+// service discovers it by type assertion so the generated repository mock need
+// not.
+type LLMProviderSyncLocker interface {
+	// LockProviderSync blocks until the provider's sync lock is free or ctx is
+	// done. On success the caller holds the lock until it calls release,
+	// exactly once.
+	LockProviderSync(ctx context.Context, providerUUID string) (release func(), err error)
+}
+
+var _ LLMProviderSyncLocker = (*LLMProviderRepo)(nil)
+
+// LockProviderSync holds an advisory lock on providerUUID until release, on a
+// connection from the dedicated lock pool (db.GetLockDB), so a held lock never
+// takes a connection the sync's own repository calls need. See
+// holdAdvisoryLock.
+func (r *LLMProviderRepo) LockProviderSync(ctx context.Context, providerUUID string) (func(), error) {
+	release, err := holdAdvisoryLock(ctx, db.GetLockDB(), llmProviderSyncLockNamespace, providerUUID)
+	if err != nil {
+		return nil, fmt.Errorf("lock LLM provider sync: %w", err)
+	}
+	return release, nil
 }
 
 // Create inserts a new LLM provider
