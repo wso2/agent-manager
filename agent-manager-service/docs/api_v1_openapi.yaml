@@ -88,34 +88,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-    post:
-      summary: Create a new organization
-      operationId: createOrganization
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateOrganizationRequest"
-      responses:
-        "202":
-          description: Organization creation initiated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrganizationResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}:
     get:
@@ -14598,15 +14570,6 @@ components:
             control plane when the key was rotated. When false, the new key has
             been stored but will only become usable once the gateway
             reconnects and syncs.
-
-    CreateOrganizationRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          description: Name of the organization
 
     CreateProjectRequest:
       type: object
