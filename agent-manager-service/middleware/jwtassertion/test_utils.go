@@ -25,6 +25,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -35,14 +36,28 @@ import (
 const MockOUID = "01900000-0000-7000-8000-00000000a0c4"
 
 // mockScopes is the scope set every mocked token carries: the whole permission
-// catalog, since the Admin role is pinned to hold all of it. Handler tests are
-// about the handler, not the gate — a token short of a scope would turn every
-// one of them into a 403. Scope checks are exercised in middleware's own tests.
+// catalog, since the Admin role is pinned to hold all of it, plus every
+// permission of the modules linked into the test binary (the gateway module's
+// gateway:*). Handler tests are about the handler, not the gate — a token
+// short of a scope would turn every one of them into a 403. Scope checks are
+// exercised in middleware's own tests.
 func mockScopes() string {
-	perms := rbac.PredefinedRolePermissions[rbac.RoleAdmin]
-	scopes := make([]string, 0, len(perms))
-	for _, perm := range perms {
-		scopes = append(scopes, perm.Scope())
+	seen := map[string]bool{}
+	var scopes []string
+	add := func(p rbac.Permission) {
+		if s := p.Scope(); !seen[s] {
+			seen[s] = true
+			scopes = append(scopes, s)
+		}
+	}
+	for _, perm := range rbac.PredefinedRolePermissions[rbac.RoleAdmin] {
+		add(perm)
+	}
+	for _, m := range modkit.Registered() {
+		mf := m.Manifest()
+		for _, p := range mf.Permissions {
+			add(rbac.Permission(mf.PermissionName(p.Name)))
+		}
 	}
 	return strings.Join(scopes, " ")
 }
