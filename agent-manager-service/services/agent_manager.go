@@ -447,8 +447,10 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 // missingCapability refuses a request field that needs a capability no active
 // module provides.
 func missingCapability(field, capability string) error {
-	return fmt.Errorf("%w: %s needs the %s capability, which no active module provides",
-		utils.ErrInvalidInput, field, capability)
+	return utils.NewInvalidInputError(
+		fmt.Sprintf("%s is not supported: no active module provides %s", field, capability),
+		fmt.Sprintf("%s needs the %s capability", field, capability),
+	)
 }
 
 // provisionAgentIdentities starts AgentID provisioning for the agent: one Thunder
