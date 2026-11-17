@@ -297,3 +297,29 @@ func TestLLMProviderRepo_LockProviderSync_HeldPastHolderCtxCancel(t *testing.T) 
 	release()
 	requireProviderSyncAcquired(t, waiter, "the waiter must get the lock once the holder releases")()
 }
+
+// TestLLMProviderRepo_LockProviderSync_HolderCanUseCappedPool is the review
+// scenario from #2482 applied here: with DB_MAX_OPEN_COUNT=1, a held sync lock
+// must not take the connection the sync needs to read its provider.
+func TestLLMProviderRepo_LockProviderSync_HolderCanUseCappedPool(t *testing.T) {
+	repo := NewLLMProviderRepo(cappedPool(t, 1))
+	providerUUID := uuid.NewString()
+
+	release, err := repo.(LLMProviderSyncLocker).LockProviderSync(context.Background(), providerUUID)
+	require.NoError(t, err)
+	defer release()
+
+	// GetByUUID takes no context, so bound it from outside. A missing provider
+	// is fine: the point is that the query reaches the database at all.
+	done := make(chan struct{})
+	go func() {
+		_, _ = repo.GetByUUID(providerUUID, "org-"+uuid.NewString())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		release() // frees the capped pool's only connection so the goroutine can finish
+		t.Fatal("the holder must still reach the database through a capped pool")
+	}
+}
