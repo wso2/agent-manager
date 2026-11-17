@@ -2,6 +2,8 @@
 
 AMP Lite is WSO2 Agent Manager without OpenChoreo: external agents only, one hidden `default` environment per organization, and one database as the source of truth. It is a development preview and not production-ready.
 
+It ships as one image with two distributions: `amp` (the core plus the built-in modules, including the AI Gateway) and `amp-core` (the core alone). The console is embedded in the binary and served from the API port.
+
 | File | What it is |
 |---|---|
 | [database-schema.md](database-schema.md) | Target database schema, rules and decisions |
@@ -22,6 +24,7 @@ The diagrams are generated, so edit the generators and re-render:
 
 - `src/architecture_gen.py` writes `architecture.drawio` and `architecture.html` from one layout; logos come from `src/logos.json`.
 - `src/data_model_gen.py` writes `data-model.html`.
+- `src/er_gen.py` renders the core tables of `agent-manager-service/db_migrations/schema/lite.yaml` into the Mermaid diagram in [`agent-manager-service/docs/database-er.md`](../../agent-manager-service/docs/database-er.md).
 - `src/render.sh` runs both and takes the PNGs with headless Chrome (set `CHROME` if it is not at the macOS default path).
 
 ```bash

@@ -12,11 +12,12 @@ W, H = 2880, 1720
 AREAS = {
     "tenancy": dict(name="Tenancy", color="#2563eb", fill="#eff6ff"),
     "agents": dict(name="Agents and identity", color="#059669", fill="#ecfdf5"),
-    "gateway": dict(name="AI gateway: gateways, artifacts, LLM and MCP", color="#7c3aed", fill="#f5f3ff"),
+    "gateway": dict(name="Gateway module: gateways, artifacts, LLM and MCP", color="#7c3aed", fill="#f5f3ff"),
     "secrets": dict(name="Secrets", color="#dc2626", fill="#fef2f2"),
     "events": dict(name="Events and webhooks", color="#0891b2", fill="#ecfeff"),
     "audit": dict(name="Audit log and console usage", color="#b45309", fill="#fffbeb"),
     "internal": dict(name="Internals (workers)", color="#475569", fill="#f8fafc"),
+    "modules": dict(name="Module host", color="#0f766e", fill="#f0fdfa"),
     "deferred": dict(name="Not in AMP Lite yet, or kept outside this database", color="#64748b", fill="#ffffff"),
 }
 
@@ -25,6 +26,7 @@ CHIPS = {
     "secret": ("uses a secret", "#fee2e2", "#991b1b"),
     "queue": ("worker queue", "#e0e7ff", "#3730a3"),
     "artifact": ("gateway artifact", "#ede9fe", "#5b21b6"),
+    "gwmod": ("gateway module", "#f5f3ff", "#6d28d9"),
 }
 
 PURPOSE_CW = 6.25
@@ -221,24 +223,24 @@ card("gwset", "agents", 360, 0, 240, "Agent gateway settings", "agent_gateway_se
       ("timeout_seconds", "")], chips=["env"])
 card("aiapp", "agents", 640, AY, 250, "AI application", "ai_applications",
      "The agent's application record on the gateway.",
-     [("handle", ""), ("name", "")], chips=["env"])
+     [("handle", ""), ("name", "")], chips=["env", "gwmod"])
 card("exposure", "agents", 640, 0, 250, "Agent exposure", "agent_exposures",
      "Publishes the agent through the gateway.",
-     [("protocol", "a2a | rest"), ("artifact_id", "its gateway artifact")], chips=["env", "artifact"])
+     [("protocol", "a2a | rest"), ("artifact_id", "its gateway artifact")], chips=["env", "artifact", "gwmod"])
 card("acard", "agents", 640, 0, 250, "Agent card", "agent_cards",
      "Cached A2A agent card, fetched and refreshed by a worker.",
-     [("source_url", ""), ("card", "JSON"), ("card_hash", ""), ("status", "")], chips=["env", "queue"])
+     [("source_url", ""), ("card", "JSON"), ("card_hash", ""), ("status", "")], chips=["env", "queue", "gwmod"])
 card("a2a", "agents", 640, 0, 250, "A2A proxy", "a2a_proxies",
      "Gateway route to an A2A agent's upstream.",
-     [("upstream_auth_header", ""), ("upstream_auth_secret_id", "")], chips=["env", "secret"])
+     [("upstream_auth_header", ""), ("upstream_auth_secret_id", "")], chips=["env", "secret", "gwmod"])
 card("mconf", "agents", 60, 0, 250, "Agent model config", "agent_model_configs",
      "A named LLM or MCP connection the agent uses.",
-     [("name", "unique per agent"), ("type", "llm | mcp")])
+     [("name", "unique per agent"), ("type", "llm | mcp")], chips=["gwmod"])
 card("mlinks", "agents", 60, 0, 250, "Config bindings",
      "agent_model_config_llm, _mcp, _mcp_envs, _vars",
      "Which proxy each config points at, and the env-var names given to the agent.",
      [("llm_proxy_id", "+ policy settings"), ("mcp_proxy_id", "+ excluded / mapping"),
-      ("variable_key", "-> variable_name")], chips=["env"])
+      ("variable_key", "-> variable_name")], chips=["env", "gwmod"])
 
 
 def stack(keys, y0, gap=24):
@@ -359,8 +361,21 @@ card("locks", "internal", RX, 0, 360, "Lock", "locks",
      "A lease that lets only one instance run a singleton worker.",
      [("name", "e.g. gateway.drift_scan"), ("owner", "empty = free"), ("expires_at", "")])
 card("queues", "internal", RX + 390, 0, 380, "Queue columns", "claimed_by, claimed_until",
-     "Rows a worker claims carry a lease instead of a lock: agent identities, agent cards, deployment status, event outbox, event deliveries.",
+     "Rows a worker claims carry a lease instead of a lock: agent identities, agent cards, deployment status, event outbox, event deliveries, module event deliveries.",
      [], chips=["queue"])
+
+card("modules", "modules", RX, 0, 240, "Module", "modules, module_generation",
+     "Install and enable state of each compiled-in module. Every change bumps the generation; replicas poll it.",
+     [("name", ""), ("version", ""), ("state", "active | disabled | uninstalled")])
+card("modmig", "modules", RX + 265, 0, 240, "Module migration", "module_migrations",
+     "Each module's applied migrations. Module tables are named mod_<module>_<table>.",
+     [("module, version", ""), ("checksum", "sha256")])
+card("modev", "modules", RX + 530, 0, 240, "Module event", "module_events, module_event_deliveries",
+     "Events for modules, one delivery per subscribing module, retried with backoff.",
+     [("type", "e.g. agent.created"), ("source", "core or a module"), ("attempts", "")], chips=["queue"])
+card("wlcred", "modules", RX, 0, 240, "Workload credential", "workload_credentials",
+     "A module workload's credential, exchanged for short-lived tokens. Only a hash is kept.",
+     [("module", ""), ("subject", ""), ("scopes", ""), ("revoked_at", "")])
 
 # ---------------------------------------------------------------- Deferred strip
 DW = 360
@@ -425,8 +440,13 @@ area_boxes["audit"] = [R_X0, a_b[1], R_X1, a_b[3]]
 for k in ("locks", "queues"):
     cards[k].y = area_boxes["audit"][3] + 22 + 58
 i_b = bbox(["locks", "queues"])
-bottom = max(i_b[3], MID_BOTTOM)
-area_boxes["internal"] = [R_X0, i_b[1], R_X1, bottom]
+area_boxes["internal"] = [R_X0, i_b[1], R_X1, i_b[3]]
+for k in ("modules", "modmig", "modev"):
+    cards[k].y = area_boxes["internal"][3] + 22 + 58
+cards["wlcred"].y = max(cards[k].y + cards[k].h for k in ("modules", "modmig", "modev")) + 24
+m_b = bbox(["modules", "modmig", "modev", "wlcred"])
+bottom = max(m_b[3], MID_BOTTOM)
+area_boxes["modules"] = [R_X0, m_b[1], R_X1, bottom]
 area_boxes["agents"][3] = area_boxes["gateway"][3] = bottom
 MID_BOTTOM = bottom
 DY = bottom + 22 + 58
@@ -595,7 +615,7 @@ def render_svg(viewbox=None, width=None):
                'everything the control plane manages; environments exist but stay hidden.</text>')
     # legend
     lx, ly0 = 1560, 14
-    out.append(f'<rect x="{lx}" y="{ly0}" width="1290" height="104" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>')
+    out.append(f'<rect x="{lx}" y="{ly0}" width="1290" height="112" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>')
     out.append(f'<text x="{lx + 14}" y="{ly0 + 22}" class="legtitle">Legend</text>')
     items = [
         ("own", "owns: child is deleted with its parent (cascade)"),
@@ -614,16 +634,17 @@ def render_svg(viewbox=None, width=None):
     chip_x = lx + 830
     for i, (key, desc) in enumerate([("env", "one row per environment; in Lite always the hidden default"),
                                      ("secret", "credential lives in Secrets, not in this row"),
-                                     ("queue", "workers claim rows with a lease")]):
+                                     ("queue", "workers claim rows with a lease"),
+                                     ("gwmod", "used only by the gateway module; keeps its name for now")]):
         label, bg, fg = CHIPS[key]
         yy = ly0 + 10 + i * 22
         cw = len(label) * 6.1 + 16
         out.append(f'<rect x="{chip_x}" y="{yy}" width="{cw:.0f}" height="18" rx="9" fill="{bg}"/>')
         out.append(f'<text x="{chip_x + cw / 2:.0f}" y="{yy + 13}" class="chip" fill="{fg}" text-anchor="middle">{esc(label)}</text>')
         out.append(f'<text x="{chip_x + 118}" y="{yy + 13}" class="legtext">{esc(desc)}</text>')
-    yy = ly0 + 10 + 3 * 22 + 1
-    out.append(f'<rect x="{chip_x}" y="{yy}" width="100" height="16" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="5 4"/>')
-    out.append(f'<text x="{chip_x + 118}" y="{yy + 12}" class="legtext">dashed card: hidden, deferred, or outside this database</text>')
+    yy = ly0 + 50 + 2 * 28 - 12
+    out.append(f'<rect x="{lx + 14}" y="{yy}" width="44" height="16" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="5 4"/>')
+    out.append(f'<text x="{lx + 68}" y="{yy + 12}" class="legtext">dashed card: hidden, deferred, or outside this database</text>')
     # areas
     for key, box in area_boxes.items():
         a = AREAS[key]
@@ -635,10 +656,16 @@ def render_svg(viewbox=None, width=None):
     tb = area_boxes["tenancy"]
     tnotes = ["Every table carries org_id, and children point at parents through (org_id, parent id),",
               "so no row can reach another org's data.",
-              "First start seeds the default org, its default environment, a default project, and the",
-              "bundled gateway with its token."]
+              "Core creates the default org and its default environment at startup; the gateway",
+              "module seeds the bundled gateway and its token."]
     for i, ln in enumerate(tnotes):
         out.append(f'<text x="{tb[0] + 290}" y="{tb[3] - 84 + i * 18 + (8 if i >= 2 else 0)}" class="anote">{esc(ln)}</text>')
+    gb = area_boxes["gateway"]
+    for i, ln in enumerate(["The gateway module is built in to amp and absent from amp-core.",
+                            "Its tables keep their names for now (no mod_gateway_ prefix)."]):
+        out.append(f'<text x="{gb[0] + 30}" y="{cards["apikeys"].y - 110 + i * 18}" class="anote">{esc(ln)}</text>')
+    mb = area_boxes["modules"]
+    out.append(f'<text x="{mb[0] + 180}" y="{mb[1] + 30}" class="anote">Core tables; module-owned tables are mod_&lt;module&gt;_&lt;table&gt;.</text>')
     ab = area_boxes["audit"]
     out.append(f'<text x="{ab[0] + 380}" y="{ab[1] + 30}" class="anote">No foreign keys: rows outlive what they describe.</text>')
     sc = cards["secret"]
