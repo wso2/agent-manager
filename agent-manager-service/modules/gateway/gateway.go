@@ -133,10 +133,39 @@ func Wire(core *wiring.AppParams) (*gwwire.Gateway, error) {
 		return nil, fmt.Errorf("gateway manifest cache backend: %w", err)
 	}
 	gwsvc.SetGatewayManifestCacheBackend(backend)
-	// No identity control plane registers MCP resource servers in this
-	// distribution; in CP_MANAGED mode they report unavailable.
-	gwsvc.SetMCPResourceServerProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), nil)
-	return gwwire.Initialize(core, nil)
+	opts := currentOptions()
+	gwsvc.SetMCPResourceServerProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.MCPResourceServerProvider)
+	return gwwire.Initialize(core, opts.GatewayConfigApplier)
+}
+
+// Options are what a distribution injects into the gateway. The zero value
+// is the open-source behaviour, which cmd/amp uses.
+type Options struct {
+	// GatewayConfigApplier patches the gateway runtime config when an
+	// identity provider changes, keeping the gateway and the AMS mirror in
+	// sync. nil preserves the script-driven behaviour; cloud deployments
+	// inject an implementation. See gwsvc.GatewayConfigApplier.
+	GatewayConfigApplier gwsvc.GatewayConfigApplier
+	// MCPResourceServerProvider registers MCP resource servers through an
+	// identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE
+	// is CP_MANAGED; in LEGACY_DIRECT mode (the default) MCP resource servers
+	// are registered in each environment's own Thunder and this is ignored.
+	// CP_MANAGED without it reports MCP resource servers as unavailable and
+	// never uses the per-environment Thunder.
+	MCPResourceServerProvider gwsvc.MCPResourceServerProvider
+}
+
+var options atomic.Pointer[Options]
+
+// Configure sets the gateway's options. A distribution's main calls it
+// before the server starts; the gateway reads them when it is built.
+func Configure(o Options) { options.Store(&o) }
+
+func currentOptions() Options {
+	if o := options.Load(); o != nil {
+		return *o
+	}
+	return Options{}
 }
 
 // Parts is what the built gateway adds to the server.
