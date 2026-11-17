@@ -116,11 +116,17 @@ type ShadowAgentRepository interface {
 	CreateScan(ctx context.Context, s *models.ShadowScan) error
 	ListScans(ctx context.Context, ouID string, limit int) ([]models.ShadowScan, error)
 	GetScan(ctx context.Context, ouID string, id uuid.UUID) (*models.ShadowScan, error)
-	// DeleteFinishedScans deletes the org's scans that are not queued or
-	// running, and returns how many it deleted. Agents and their evidence are
-	// kept; only the scan records and their per-scan lists go.
+	// DeleteFinishedScans deletes the org's scans that are not pending, queued
+	// or running, and returns how many it deleted. Agents and their evidence
+	// are kept; only the scan records and their per-scan lists go.
 	DeleteFinishedScans(ctx context.Context, ouID string) (int64, error)
-	// LatestScan returns gorm.ErrRecordNotFound when the org has none.
+	// ExpirePendingScans fails, across orgs, the pending scans created before
+	// olderThan: their scan command never published results. Each connection
+	// of such a scan gets a failed result saying so.
+	ExpirePendingScans(ctx context.Context, olderThan, now time.Time) (int64, error)
+	// LatestScan returns the org's newest scan that is not pending (a pending
+	// source code scan must not hide a cloud scan that is running), or
+	// gorm.ErrRecordNotFound when it has none.
 	LatestScan(ctx context.Context, ouID string) (*models.ShadowScan, error)
 	// ClaimDueScans leases queued scans, and running scans whose lease ran
 	// out (their worker died), across orgs.
@@ -271,8 +277,8 @@ func (r *shadowAgentRepository) GetScan(ctx context.Context, ouID string, id uui
 func (r *shadowAgentRepository) DeleteFinishedScans(ctx context.Context, ouID string) (int64, error) {
 	var deleted int64
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		finished := `SELECT id FROM shadow_scans WHERE ou_id = ? AND status NOT IN (?, ?)`
-		active := []any{ouID, models.ShadowScanQueued, models.ShadowScanRunning}
+		finished := `SELECT id FROM shadow_scans WHERE ou_id = ? AND status NOT IN (?, ?, ?)`
+		active := []any{ouID, models.ShadowScanPending, models.ShadowScanQueued, models.ShadowScanRunning}
 		// last_scan_id and a signal's scan_id have no foreign key: clear them
 		// so nothing points at a deleted scan.
 		if err := tx.Exec(`UPDATE shadow_findings SET last_scan_id = NULL
@@ -284,7 +290,7 @@ func (r *shadowAgentRepository) DeleteFinishedScans(ctx context.Context, ouID st
 			return fmt.Errorf("clearing scan of signals: %w", err)
 		}
 		// shadow_scan_findings rows go with their scan (ON DELETE CASCADE).
-		res := tx.Exec(`DELETE FROM shadow_scans WHERE ou_id = ? AND status NOT IN (?, ?)`, active...)
+		res := tx.Exec(`DELETE FROM shadow_scans WHERE ou_id = ? AND status NOT IN (?, ?, ?)`, active...)
 		if res.Error != nil {
 			return fmt.Errorf("deleting scans: %w", res.Error)
 		}
@@ -296,7 +302,8 @@ func (r *shadowAgentRepository) DeleteFinishedScans(ctx context.Context, ouID st
 
 func (r *shadowAgentRepository) LatestScan(ctx context.Context, ouID string) (*models.ShadowScan, error) {
 	var s models.ShadowScan
-	if err := r.db.WithContext(ctx).Where("ou_id = ?", ouID).Order("created_at DESC").First(&s).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where("ou_id = ? AND status <> ?", ouID, models.ShadowScanPending).
+		Order("created_at DESC").First(&s).Error; err != nil {
 		return nil, err
 	}
 	return &s, nil
@@ -321,6 +328,23 @@ func (r *shadowAgentRepository) ClaimDueScans(
 		now.Add(lease), now, now, now, limit,
 	).Scan(&out).Error
 	return out, err
+}
+
+func (r *shadowAgentRepository) ExpirePendingScans(ctx context.Context, olderThan, now time.Time) (int64, error) {
+	res := r.db.WithContext(ctx).Exec(`UPDATE shadow_scans s
+		SET status = ?, finished_at = ?, updated_at = ?,
+			results = (
+				SELECT COALESCE(jsonb_agg(jsonb_build_object(
+					'connectionId', c.id, 'connectionName', COALESCE(sc.name, ''),
+					'provider', COALESCE(sc.provider, ''), 'outcome', ?::text, 'message', ?::text,
+					'findingsCount', 0, 'calls', '[]'::jsonb)), '[]'::jsonb)
+				FROM jsonb_array_elements_text(s.connection_ids) AS c(id)
+				LEFT JOIN shadow_connections sc ON sc.ou_id = s.ou_id AND sc.id::text = c.id
+			)
+		WHERE s.status = ? AND s.created_at < ?`,
+		models.ShadowScanFailed, now, now, models.ShadowScanFailed, models.ShadowScanExpiredMessage,
+		models.ShadowScanPending, olderThan)
+	return res.RowsAffected, res.Error
 }
 
 func (r *shadowAgentRepository) RenewScanLease(ctx context.Context, id uuid.UUID, until time.Time) error {

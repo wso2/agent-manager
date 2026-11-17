@@ -382,6 +382,66 @@ func TestShadowScansOneActivePerOrgAndLeases(t *testing.T) {
 	assert.Equal(t, s2.ID, latest.ID)
 }
 
+// A pending scan waits for its scan command: the worker never claims it, it
+// does not block a cloud scan, Clear scans keeps it, and after an hour it
+// fails with a result per connection.
+func TestShadowPendingScans(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	c := newShadowConnection(t, repo, ou, "GitHub repos")
+	t.Cleanup(func() { db.GetDB().Exec("DELETE FROM shadow_scans WHERE ou_id = ?", ou) })
+	pending := &models.ShadowScan{
+		ID: uuid.New(), OUID: ou, Status: models.ShadowScanPending, ConnectionIDs: []string{c.ID.String()},
+		Options: models.ShadowScanOptions{AIReview: true},
+	}
+	require.NoError(t, repo.CreateScan(ctx, pending))
+	got, err := repo.GetScan(ctx, ou, pending.ID)
+	require.NoError(t, err)
+	assert.True(t, got.Options.AIReview, "the options are stored")
+
+	queued := &models.ShadowScan{ID: uuid.New(), OUID: ou, Status: models.ShadowScanQueued, ConnectionIDs: []string{}}
+	require.NoError(t, repo.CreateScan(ctx, queued), "a pending scan does not block a cloud scan")
+	later := &models.ShadowScan{ID: uuid.New(), OUID: ou, Status: models.ShadowScanPending, ConnectionIDs: []string{}}
+	require.NoError(t, repo.CreateScan(ctx, later))
+	latest, err := repo.LatestScan(ctx, ou)
+	require.NoError(t, err)
+	assert.Equal(t, queued.ID, latest.ID, "a newer pending scan does not hide the cloud scan in progress")
+	claimed, err := repo.ClaimDueScans(ctx, time.Now().UTC(), time.Minute, 100)
+	require.NoError(t, err)
+	for _, s := range claimed {
+		assert.NotEqual(t, pending.ID, s.ID, "the worker never claims a pending scan")
+	}
+	db.GetDB().Exec("UPDATE shadow_scans SET status = 'succeeded' WHERE id = ?", queued.ID)
+
+	n, err := repo.DeleteFinishedScans(ctx, ou)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, n, "only the finished scan is cleared")
+	_, err = repo.GetScan(ctx, ou, pending.ID)
+	require.NoError(t, err, "Clear scans keeps a pending scan")
+
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	_, err = repo.ExpirePendingScans(ctx, got.CreatedAt.Add(-time.Minute), now)
+	require.NoError(t, err)
+	got, err = repo.GetScan(ctx, ou, pending.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanPending, got.Status, "a scan younger than the cut-off waits")
+
+	n, err = repo.ExpirePendingScans(ctx, now.Add(time.Minute), now)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, n, int64(1))
+	got, err = repo.GetScan(ctx, ou, pending.ID)
+	require.NoError(t, err)
+	assert.Equal(t, models.ShadowScanFailed, got.Status)
+	require.NotNil(t, got.FinishedAt)
+	require.Len(t, got.Results, 1)
+	assert.Equal(t, c.ID.String(), got.Results[0].ConnectionID)
+	assert.Equal(t, "GitHub repos", got.Results[0].ConnectionName)
+	assert.Equal(t, models.ShadowScanFailed, got.Results[0].Outcome)
+	assert.Equal(t, models.ShadowScanExpiredMessage, got.Results[0].Message)
+	assert.Empty(t, got.Results[0].Calls)
+}
+
 // Clearing deletes only finished scans with their per-scan agent lists;
 // the agents and their evidence stay, and nothing points at a deleted scan.
 func TestShadowDeleteFinishedScans(t *testing.T) {

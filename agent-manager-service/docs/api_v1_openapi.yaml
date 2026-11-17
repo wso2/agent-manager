@@ -24773,11 +24773,16 @@ components:
           format: uuid
         status:
           type: string
-          enum: [queued, running, succeeded, partial, failed]
+          description: >-
+            pending: a source code scan waiting for its scan command to publish results (it
+            fails after 1 hour without them); queued and running: a cloud scan in progress.
+          enum: [pending, queued, running, succeeded, partial, failed]
         connectionIds:
           type: array
           items:
             type: string
+        options:
+          $ref: "#/components/schemas/ShadowScanOptions"
         results:
           type: array
           items:
@@ -24796,6 +24801,17 @@ components:
         createdAt:
           type: string
           format: date-time
+
+    ShadowScanOptions:
+      type: object
+      description: The choices made in Generate command for a source code scan. Cloud scans have none.
+      properties:
+        aiReview:
+          type: boolean
+          description: Matches the rules cannot prove go to the customer's LLM for review.
+        llmJudge:
+          type: boolean
+          description: A second model must confirm the reviewer. Only with aiReview.
 
     ShadowScanListResponse:
       type: object

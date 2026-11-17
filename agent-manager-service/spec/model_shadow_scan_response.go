@@ -20,9 +20,11 @@ var _ MappedNullable = &ShadowScanResponse{}
 
 // ShadowScanResponse struct for ShadowScanResponse
 type ShadowScanResponse struct {
-	Id            string                       `json:"id"`
+	Id string `json:"id"`
+	// pending: a source code scan waiting for its scan command to publish results (it fails after 1 hour without them); queued and running: a cloud scan in progress.
 	Status        string                       `json:"status"`
 	ConnectionIds []string                     `json:"connectionIds"`
+	Options       *ShadowScanOptions           `json:"options,omitempty"`
 	Results       []ShadowScanConnectionResult `json:"results"`
 	// Agents found, counted per connection.
 	FindingsCount int32      `json:"findingsCount"`
@@ -126,6 +128,38 @@ func (o *ShadowScanResponse) GetConnectionIdsOk() ([]string, bool) {
 // SetConnectionIds sets field value
 func (o *ShadowScanResponse) SetConnectionIds(v []string) {
 	o.ConnectionIds = v
+}
+
+// GetOptions returns the Options field value if set, zero value otherwise.
+func (o *ShadowScanResponse) GetOptions() ShadowScanOptions {
+	if o == nil || IsNil(o.Options) {
+		var ret ShadowScanOptions
+		return ret
+	}
+	return *o.Options
+}
+
+// GetOptionsOk returns a tuple with the Options field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowScanResponse) GetOptionsOk() (*ShadowScanOptions, bool) {
+	if o == nil || IsNil(o.Options) {
+		return nil, false
+	}
+	return o.Options, true
+}
+
+// HasOptions returns a boolean if a field has been set.
+func (o *ShadowScanResponse) HasOptions() bool {
+	if o != nil && !IsNil(o.Options) {
+		return true
+	}
+
+	return false
+}
+
+// SetOptions gets a reference to the given ShadowScanOptions and assigns it to the Options field.
+func (o *ShadowScanResponse) SetOptions(v ShadowScanOptions) {
+	o.Options = &v
 }
 
 // GetResults returns the Results field value
@@ -301,6 +335,9 @@ func (o ShadowScanResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["id"] = o.Id
 	toSerialize["status"] = o.Status
 	toSerialize["connectionIds"] = o.ConnectionIds
+	if !IsNil(o.Options) {
+		toSerialize["options"] = o.Options
+	}
 	toSerialize["results"] = o.Results
 	toSerialize["findingsCount"] = o.FindingsCount
 	toSerialize["requestedBy"] = o.RequestedBy

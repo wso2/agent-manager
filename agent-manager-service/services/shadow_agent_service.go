@@ -1123,6 +1123,7 @@ func (s *shadowAgentService) CreateScan(
 		OUID:          ouID,
 		Status:        models.ShadowScanQueued,
 		ConnectionIDs: ids,
+		Options:       models.ShadowScanOptions{},
 		Results:       []models.ShadowScanConnectionResult{},
 		RequestedBy:   audit.BuildEvent(ctx, audit.ActionShadowScanCreate).ActorID,
 	}

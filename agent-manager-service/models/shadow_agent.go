@@ -62,14 +62,21 @@ const (
 	ShadowStatusDismissed = "dismissed"
 )
 
-// Scan statuses.
+// Scan statuses. A pending scan is a source code scan waiting for its scan
+// command to publish results: the worker never claims it, and it does not
+// count as the org's active scan.
 const (
+	ShadowScanPending   = "pending"
 	ShadowScanQueued    = "queued"
 	ShadowScanRunning   = "running"
 	ShadowScanSucceeded = "succeeded"
 	ShadowScanPartial   = "partial"
 	ShadowScanFailed    = "failed"
 )
+
+// ShadowScanExpiredMessage is the result of a pending scan whose scan command
+// did not publish results within an hour (the life of its scan token).
+const ShadowScanExpiredMessage = "expired: no results within 1 hour"
 
 // Outcomes of one provider call (or one connection) within a scan.
 const (
@@ -205,6 +212,7 @@ type ShadowScan struct {
 	OUID          string                       `gorm:"column:ou_id;not null"`
 	Status        string                       `gorm:"column:status;not null"`
 	ConnectionIDs []string                     `gorm:"column:connection_ids;type:jsonb;serializer:json;not null"`
+	Options       ShadowScanOptions            `gorm:"column:options;type:jsonb;serializer:json;not null"`
 	Results       []ShadowScanConnectionResult `gorm:"column:results;type:jsonb;serializer:json;not null"`
 	FindingsCount int                          `gorm:"column:findings_count;not null"`
 	RequestedBy   string                       `gorm:"column:requested_by;not null"`
@@ -217,6 +225,15 @@ type ShadowScan struct {
 }
 
 func (ShadowScan) TableName() string { return "shadow_scans" }
+
+// ShadowScanOptions are the choices made in Generate command for a source
+// code scan. Cloud scans have none.
+type ShadowScanOptions struct {
+	// AIReview sends the matches the rules cannot prove to the customer's LLM.
+	AIReview bool `json:"aiReview,omitempty"`
+	// LLMJudge makes a second model confirm the reviewer; needs AIReview.
+	LLMJudge bool `json:"llmJudge,omitempty"`
+}
 
 // ShadowScanConnectionResult is how one connection fared in a scan.
 type ShadowScanConnectionResult struct {

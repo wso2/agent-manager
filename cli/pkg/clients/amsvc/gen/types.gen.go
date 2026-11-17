@@ -1751,6 +1751,7 @@ func (e ShadowScanCallResultOutcome) Valid() bool {
 const (
 	ShadowScanResponseStatusFailed    ShadowScanResponseStatus = "failed"
 	ShadowScanResponseStatusPartial   ShadowScanResponseStatus = "partial"
+	ShadowScanResponseStatusPending   ShadowScanResponseStatus = "pending"
 	ShadowScanResponseStatusQueued    ShadowScanResponseStatus = "queued"
 	ShadowScanResponseStatusRunning   ShadowScanResponseStatus = "running"
 	ShadowScanResponseStatusSucceeded ShadowScanResponseStatus = "succeeded"
@@ -1762,6 +1763,8 @@ func (e ShadowScanResponseStatus) Valid() bool {
 	case ShadowScanResponseStatusFailed:
 		return true
 	case ShadowScanResponseStatusPartial:
+		return true
+	case ShadowScanResponseStatusPending:
 		return true
 	case ShadowScanResponseStatusQueued:
 		return true
@@ -7030,6 +7033,15 @@ type ShadowScanListResponse struct {
 	Scans []ShadowScanResponse `json:"scans"`
 }
 
+// ShadowScanOptions The choices made in Generate command for a source code scan. Cloud scans have none.
+type ShadowScanOptions struct {
+	// AiReview Matches the rules cannot prove go to the customer's LLM for review.
+	AiReview *bool `json:"aiReview,omitempty"`
+
+	// LlmJudge A second model must confirm the reviewer. Only with aiReview.
+	LlmJudge *bool `json:"llmJudge,omitempty"`
+}
+
 // ShadowScanRequest defines model for ShadowScanRequest.
 type ShadowScanRequest struct {
 	// ConnectionIds Connections to scan; all of the organization's when empty.
@@ -7042,16 +7054,21 @@ type ShadowScanResponse struct {
 	CreatedAt     time.Time `json:"createdAt"`
 
 	// FindingsCount Agents found, counted per connection.
-	FindingsCount int                          `json:"findingsCount"`
-	FinishedAt    *time.Time                   `json:"finishedAt,omitempty"`
-	Id            openapi_types.UUID           `json:"id"`
-	RequestedBy   string                       `json:"requestedBy"`
-	Results       []ShadowScanConnectionResult `json:"results"`
-	StartedAt     *time.Time                   `json:"startedAt,omitempty"`
-	Status        ShadowScanResponseStatus     `json:"status"`
+	FindingsCount int                `json:"findingsCount"`
+	FinishedAt    *time.Time         `json:"finishedAt,omitempty"`
+	Id            openapi_types.UUID `json:"id"`
+
+	// Options The choices made in Generate command for a source code scan. Cloud scans have none.
+	Options     *ShadowScanOptions           `json:"options,omitempty"`
+	RequestedBy string                       `json:"requestedBy"`
+	Results     []ShadowScanConnectionResult `json:"results"`
+	StartedAt   *time.Time                   `json:"startedAt,omitempty"`
+
+	// Status pending: a source code scan waiting for its scan command to publish results (it fails after 1 hour without them); queued and running: a cloud scan in progress.
+	Status ShadowScanResponseStatus `json:"status"`
 }
 
-// ShadowScanResponseStatus defines model for ShadowScanResponse.Status.
+// ShadowScanResponseStatus pending: a source code scan waiting for its scan command to publish results (it fails after 1 hour without them); queued and running: a cloud scan in progress.
 type ShadowScanResponseStatus string
 
 // ShadowSignalDefinition One kind of evidence that a platform lists an agent.

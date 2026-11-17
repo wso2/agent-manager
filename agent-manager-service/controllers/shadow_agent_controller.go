@@ -549,6 +549,7 @@ func toShadowScanResponse(s *models.ShadowScan) spec.ShadowScanResponse {
 		ConnectionIds: s.ConnectionIDs, Results: make([]spec.ShadowScanConnectionResult, 0, len(s.Results)),
 		FindingsCount: int32(s.FindingsCount), //nolint:gosec // bounded by row counts
 		RequestedBy:   s.RequestedBy, StartedAt: s.StartedAt, FinishedAt: s.FinishedAt, CreatedAt: s.CreatedAt,
+		Options: &spec.ShadowScanOptions{AiReview: &s.Options.AIReview, LlmJudge: &s.Options.LLMJudge},
 	}
 	if resp.ConnectionIds == nil {
 		resp.ConnectionIds = []string{}
