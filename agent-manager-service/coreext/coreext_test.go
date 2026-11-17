@@ -30,6 +30,8 @@ type countingHost struct{ begun int }
 
 type op struct{ id int }
 
+func (h *countingHost) Capability(string) (any, bool) { return nil, false }
+
 func (h *countingHost) Begin(context.Context, string) Operation {
 	h.begun++
 	return &op{id: h.begun}

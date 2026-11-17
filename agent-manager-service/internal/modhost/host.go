@@ -115,6 +115,13 @@ func newView() *view {
 	}
 }
 
+// Capability returns what an active module provides under a capability id.
+// The core resolves capabilities through it (see coreext.Lookup).
+func (h *Host) Capability(name string) (any, bool) {
+	impl, ok := h.current().caps[name]
+	return impl, ok
+}
+
 // Permissions is the permission registry of the current module set.
 func (h *Host) Permissions() *rbac.Registry {
 	return h.current().perms

@@ -37,6 +37,9 @@ type Extensions interface {
 	// hook and event of the operation sees the same set of active modules,
 	// and its hooks share one deadline.
 	Begin(ctx context.Context, resource string) Operation
+	// Capability returns what an active module provides under a capability
+	// id, such as "llm.proxy/v1".
+	Capability(name string) (any, bool)
 }
 
 // Operation is one change to a core resource.
@@ -63,6 +66,40 @@ func Set(x Extensions) {
 		return
 	}
 	current.Store(&holder{x})
+}
+
+// Capability returns what an active module provides under the id, or false
+// when no active module provides it (or no host is installed).
+func Capability(name string) (any, bool) {
+	if h := current.Load(); h != nil {
+		return h.Capability(name)
+	}
+	return nil, false
+}
+
+// Lookup is Capability with the interface the caller expects; it is false
+// when the provided value does not implement T.
+func Lookup[T any](name string) (T, bool) {
+	var zero T
+	impl, ok := Capability(name)
+	if !ok {
+		return zero, false
+	}
+	t, ok := impl.(T)
+	return t, ok
+}
+
+// Static is an Extensions with no hooks that provides the given capabilities,
+// for processes that build the features themselves (tests).
+func Static(caps map[string]any) Extensions { return static(caps) }
+
+type static map[string]any
+
+func (static) Begin(context.Context, string) Operation { return none{} }
+
+func (s static) Capability(name string) (any, bool) {
+	impl, ok := s[name]
+	return impl, ok
 }
 
 // Begin starts an operation on the installed implementation, or a no-op one.
