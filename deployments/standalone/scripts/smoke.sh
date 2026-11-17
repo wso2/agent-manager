@@ -124,14 +124,23 @@ SPAN=$(jq -nc --arg t "$TRACE_ID" --arg s "$(hex 8)" --arg n "$NOW_NS" '{resourc
   resource: {attributes: [{key: "service.name", value: {stringValue: "smoke"}}]},
   scopeSpans: [{scope: {name: "smoke"}, spans: [{traceId: $t, spanId: $s, name: "smoke",
     kind: 1, startTimeUnixNano: $n, endTimeUnixNano: $n}]}]}]}')
-if [ "$DIST" = amp ]; then
-  sent=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GW/otel/v1/traces" -H "Host: $GW_HOST" \
-    -H "x-amp-api-key: $AGENT_TOKEN" -H 'Content-Type: application/json' -d "$SPAN")
-else
-  sent=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OTLP/v1/traces" \
-    -H "x-user-organization-name: $ORG" -H "x-user-project-name: $P" -H "x-user-agent-name: $AG" \
-    -H 'Content-Type: application/json' -d "$SPAN")
-fi
+send_span() {
+  if [ "$DIST" = amp ]; then
+    curl -s -o /dev/null -w '%{http_code}' -X POST "$GW/otel/v1/traces" -H "Host: $GW_HOST" \
+      -H "x-amp-api-key: $AGENT_TOKEN" -H 'Content-Type: application/json' -d "$SPAN"
+  else
+    curl -s -o /dev/null -w '%{http_code}' -X POST "$OTLP/v1/traces" \
+      -H "x-user-organization-name: $ORG" -H "x-user-project-name: $P" -H "x-user-agent-name: $AG" \
+      -H 'Content-Type: application/json' -d "$SPAN"
+  fi
+}
+# amp-core's collector has no healthcheck (nothing waits for it the way the
+# gateway does in amp), so it may still be starting right after `up --wait`.
+for _ in $(seq 1 15); do
+  sent=$(send_span)
+  [ "$sent" = 000 ] || break
+  sleep 2
+done
 check trace-ingest 200 "$sent"
 found=no
 for _ in $(seq 1 30); do
