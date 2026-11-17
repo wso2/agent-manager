@@ -8,8 +8,7 @@ AMP Lite runs as one Docker Compose stack. There is no Kubernetes or Helm.
 
 | Service | What it does | Default address |
 |---|---|---|
-| Console | Web UI | http://localhost:3000 |
-| Agent Manager API | REST API and MCP server | http://localhost:9000 |
+| Agent Manager | Console, REST API and MCP server | http://localhost:9000 |
 | ThunderID | Sign-in and agent identities | http://thunder.amp.localhost:8080 |
 | AI Gateway | Agent traffic, LLM and MCP calls, trace ingest | http://default-default.gateway.localhost:19080 |
 | Observer | Trace queries | http://localhost:9098 |
@@ -69,7 +68,7 @@ The API creates and migrates its tables on every start. Switching databases late
 
 ## Sign in
 
-Open http://localhost:3000 and sign in as `admin` with the `AMP_ADMIN_PASSWORD` from `.env`.
+Open http://localhost:9000 and sign in as `admin` with the `AMP_ADMIN_PASSWORD` from `.env`.
 
 A new install has no projects. Create one with **Add project** before you register an agent.
 

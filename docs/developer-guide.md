@@ -45,7 +45,9 @@ Other ways to run it:
 
 | Command | What it does |
 |---|---|
-| `make up` | Builds every image from this checkout and runs the stack as a release would, with the console served by nginx |
+| `make up` | Builds every image from this checkout and runs the stack as a release would, with the console served by the API on :9000 |
+| `make up-core` | The same with the `amp-core` binary: no modules, no AI Gateway (`down-core`, `reset-core` to stop it) |
+| `make smoke` / `make smoke-core` | Smoke-tests the running stack (`deployments/standalone/scripts/smoke.sh`) |
 | `make up DB=postgres` (also `dev-up`, `reset`) | Uses PostgreSQL instead of SQLite |
 | `make dev-down` / `make down` | Stops the stack and keeps its data |
 | `make reset` / `make teardown` | Stops the stack and deletes all its data |
