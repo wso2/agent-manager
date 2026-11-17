@@ -510,6 +510,7 @@ data:
         actions:
           - { name: Read, handle: read, description: "View provider connections (without secrets), scans and shadow agent findings" }
           - { name: Manage, handle: manage, description: "Connect providers, run scans, review and onboard findings, and confirm credential retirement" }
+          - { name: Publish, handle: publish, description: "Publish source code scan results (carried by the scan command's short-lived token)" }
       - name: Observability
         handle: observability
         parent: amp
@@ -729,6 +730,7 @@ data:
           - "amp:events:manage"
           - "amp:shadow-agent:read"
           - "amp:shadow-agent:manage"
+          - "amp:shadow-agent:publish"
           - "amp:observability:trace-read"
           - "amp:observability:log-read"
           - "amp:observability:build-log-read"

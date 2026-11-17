@@ -230,10 +230,13 @@ const (
 
 // Shadow Agent Discovery permissions — provider connections (which hold
 // admin credentials), scans, findings and onboarding, granted to Admin only:
-// findings expose the org's provider usage and owner hints.
+// findings expose the org's provider usage and owner hints. Publish is carried
+// by the scan command's short-lived token (minted from amp-api-client) to
+// publish source code scan results.
 const (
-	ShadowAgentRead   Permission = "shadow-agent:read"
-	ShadowAgentManage Permission = "shadow-agent:manage"
+	ShadowAgentRead    Permission = "shadow-agent:read"
+	ShadowAgentManage  Permission = "shadow-agent:manage"
+	ShadowAgentPublish Permission = "shadow-agent:publish"
 )
 
 // Observability permissions — data-read scopes enforced by agent-manager-observer
