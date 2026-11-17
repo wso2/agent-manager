@@ -136,6 +136,11 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	rr := middleware.NewRouteRegistrar(apiMux, params.OrgResolver, params.AuditRecorder)
 	rr.SetEventPublisher(params.EventPublisher)
 	registerAPIRoutes(rr, params, bundles)
+	var ui UISource
+	if src, ok := modules.(UISource); ok {
+		ui = src
+	}
+	registerUIManifestRoute(rr, ui)
 	if modules != nil {
 		// The module is looked up on every request, so enabling or disabling
 		// one changes these routes without a restart.

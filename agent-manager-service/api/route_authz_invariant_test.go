@@ -101,11 +101,15 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"registerTelemetryRoutes", "HandleFuncWithValidation", "POST /telemetry/console-actions"}: "lets an authenticated user report their own console UI activity under their own " +
 		"identity; any permission gating it would have to be granted to every role that can open the console, and the payload is " +
 		"validated against a server-side action allowlist rather than by RBAC.",
+	{"registerUIManifestRoute", "HandleFuncWithValidation", "GET /ui-manifest"}: "read-only: lists the console UI every signed-in user " +
+		"may use, and filters each entry by the permission it names.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource"}: "GET /.well-known/oauth-protected-resource is RFC 9728 resource metadata and must be " +
 		"unauthenticated so clients can discover how to authenticate.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +
 		"so MCP clients can discover how to authenticate.",
-	{"registerConfigRoutes", "Handle", "/api/v1/config"}:                  "public console/CLI discovery endpoint; exposes only the observer public URL.",
+	{"registerConfigRoutes", "Handle", "/api/v1/config"}: "public console/CLI discovery endpoint; exposes only the observer public URL.",
+	{"MakeHTTPHandlerWithModules", "Handle", "/"}: "the console's static files and config.js (public settings only); paths under " +
+		"/api/, /auth/ and /mcp are refused there, so it never answers for an API route.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/api/v1/"}:                  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
 	{"MakeInternalHTTPHandlerWithModules", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",

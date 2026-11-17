@@ -22,6 +22,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ConfigResponse"
+  /ui-manifest:
+    get:
+      summary: Get the console UI manifest
+      description: |
+        Lists the console UI of the core and of every active module: the pages
+        of the console's built-in UI modules to turn on, and the nav items and
+        slot contributions of module bundles. Entries that need a permission
+        the caller does not hold are left out. The console shows a built-in UI
+        module only when this lists one of its pages.
+      operationId: getUIManifest
+      tags:
+        - Config
+      responses:
+        "200":
+          description: The console UI the caller may use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UIManifestResponse"
+        "401":
+          description: Unauthorized - invalid or missing authentication
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /orgs:
     get:
       summary: List all organizations
@@ -14294,6 +14319,67 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgentIdentityScopeEntry"
+    UIManifestResponse:
+      type: object
+      required:
+        - modules
+        - pages
+      properties:
+        modules:
+          type: array
+          description: The core (name "core") and each active module with console UI, in activation order.
+          items:
+            $ref: "#/components/schemas/UIManifestModule"
+        pages:
+          type: array
+          description: Every page of the console's built-in UI modules the caller may open, as "<console module>/<page>".
+          items:
+            type: string
+    UIManifestModule:
+      type: object
+      required:
+        - name
+        - pages
+        - nav
+        - slots
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        pages:
+          type: array
+          description: Pages of the console's built-in UI modules, as "<console module>/<page>".
+          items:
+            type: string
+        nav:
+          type: array
+          items:
+            $ref: "#/components/schemas/UIManifestNavItem"
+        slots:
+          type: array
+          items:
+            $ref: "#/components/schemas/UIManifestSlot"
+    UIManifestNavItem:
+      type: object
+      required:
+        - label
+        - page
+      properties:
+        label:
+          type: string
+        page:
+          type: string
+    UIManifestSlot:
+      type: object
+      required:
+        - slot
+        - component
+      properties:
+        slot:
+          type: string
+        component:
+          type: string
     ConfigResponse:
       type: object
       required:

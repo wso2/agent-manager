@@ -103,13 +103,30 @@ type Permission struct {
 	Description string `json:"description"`
 }
 
-// UI lists what the module adds to the console. Components are named exports
-// of the module's bundle: pages under Nav, slot components under Slots.
+// UI lists what the module adds to the console. GET /api/v1/ui-manifest
+// lists the UI of the core and of every active module, filtered by the
+// caller's permissions, and the console turns on only what it lists.
 type UI struct {
+	// Pages turns on pages of the UI modules built into the console, by
+	// "<console module>/<page>" ("ai-gateway/gateways"). A console module
+	// with no page listed by the core or an active module is hidden.
+	Pages []Page `json:"pages,omitempty"`
+	// Nav and Slots name components of the module's own bundle (UI()):
+	// pages under Nav, slot components under Slots.
 	Nav   []NavItem          `json:"nav,omitempty"`
 	Slots []SlotContribution `json:"slots,omitempty"`
 	// OwnSlots lists extension points this module renders and others may fill.
 	OwnSlots []string `json:"ownSlots,omitempty"`
+}
+
+// Page is a page of a UI module built into the console.
+type Page struct {
+	// ID is "<console module>/<page>": the console module's id and the
+	// page plugin's id.
+	ID string `json:"id"`
+	// Permission, if set, is one the caller must hold to see the page: one
+	// of the module's own (as named in Permissions) or a core permission.
+	Permission string `json:"permission,omitempty"`
 }
 
 // NavItem adds a console navigation entry that opens one of the module's pages.

@@ -75,8 +75,19 @@ func (module) Manifest() modkit.Manifest {
 		Provides:    []string{llmv1.ID, mcpv1.ID, agentgwv1.ID},
 		Permissions: perms,
 		RoleGrants:  gwperm.RoleGrants,
+		UI:          &ui,
 	}
 }
+
+// ui turns on the console's AI Gateway pages and its agent identity page.
+var ui = modkit.UI{Pages: []modkit.Page{
+	{ID: "ai-gateway/gateways", Permission: "read"},
+	{ID: "ai-gateway/llm-providers", Permission: string(rbac.LLMProviderRead)},
+	{ID: "ai-gateway/mcp-proxies", Permission: string(rbac.MCPServerRead)},
+	{ID: "ai-gateway/agent-security", Permission: string(rbac.AgentRead)},
+	{ID: "ai-gateway/configure-agent", Permission: string(rbac.AgentRead)},
+	{ID: "agent-identity/agent-identity", Permission: string(rbac.AgentIdentityRead)},
+}}
 
 func (module) Migrations() fs.FS { return nil }
 func (module) UI() fs.FS         { return nil }

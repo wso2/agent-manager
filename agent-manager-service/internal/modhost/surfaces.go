@@ -330,3 +330,62 @@ func (h *Host) issueToken(ctx context.Context, module string, req modkit.TokenRe
 	}, tokenTTL(req.TTL))
 	return tok, err
 }
+
+// ---- console UI ----
+
+// ModuleUI is an active module's console UI, with the permissions it names
+// resolved to full names.
+type ModuleUI struct {
+	Name    string
+	Version string
+	Builtin bool
+	Pages   []UIEntry
+	Nav     []UIEntry
+	Slots   []UIEntry
+}
+
+// UIEntry is one page, nav item or slot contribution. Permission is empty when
+// any signed-in user may see it.
+type UIEntry struct {
+	// ID is the page id, the nav item's page, or the slot.
+	ID         string
+	Label      string
+	Component  string
+	Permission rbac.Permission
+}
+
+// UI lists the console UI of the active modules, in activation order. An
+// entry naming a permission the module cannot use is left out and logged.
+func (h *Host) UI() []ModuleUI {
+	v := h.current()
+	out := make([]ModuleUI, 0, len(v.active))
+	for _, name := range v.active {
+		mf := h.manifests[name]
+		if mf.UI == nil {
+			continue
+		}
+		m := ModuleUI{Name: name, Version: mf.Version, Builtin: mf.Builtin}
+		add := func(list *[]UIEntry, e UIEntry, perm string) {
+			if perm != "" {
+				p, err := h.permission(name, perm)
+				if err != nil {
+					h.log.Warn("module UI entry left out", "module", name, "entry", e.ID, "error", err)
+					return
+				}
+				e.Permission = p
+			}
+			*list = append(*list, e)
+		}
+		for _, p := range mf.UI.Pages {
+			add(&m.Pages, UIEntry{ID: p.ID}, p.Permission)
+		}
+		for _, n := range mf.UI.Nav {
+			add(&m.Nav, UIEntry{ID: n.Page, Label: n.Label}, n.Permission)
+		}
+		for _, s := range mf.UI.Slots {
+			add(&m.Slots, UIEntry{ID: s.Slot, Component: s.Component}, s.Permission)
+		}
+		out = append(out, m)
+	}
+	return out
+}
