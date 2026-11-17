@@ -99,6 +99,11 @@ func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
 	if err := releaseUpstreamSecrets(tx, models.LLMProvider{}.TableName(), "id = ?", artifactID); err != nil {
 		return err
 	}
+	// MCP endpoints reference mcp_proxies, not artifacts. CreateEndpoint takes
+	// the same parent lock before it can add an endpoint and a new secret.
+	if _, err := dbx.LockRows(tx, models.MCPProxy{}.TableName(), "status", "id = ?", artifactID); err != nil {
+		return fmt.Errorf("failed to lock MCP proxy %s for deletion: %w", artifactID, err)
+	}
 	if err := releaseUpstreamSecrets(tx, models.MCPProxyEndpoint{}.TableName(), "mcp_proxy_id = ?", artifactID); err != nil {
 		return err
 	}

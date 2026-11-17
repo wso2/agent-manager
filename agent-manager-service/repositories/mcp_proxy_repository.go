@@ -347,13 +347,13 @@ func (r *MCPProxyRepo) Delete(ctx context.Context, handle, orgUUID string) error
 			Delete(&models.Deployment{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("id = ?", proxy.UUID).Delete(&models.MCPProxy{}).Error; err != nil {
-			if dberr.IsForeignKeyViolation(err) {
-				return utils.ErrMCPProxyHasMappings
-			}
-			return err
+		// Delete through the artifact so queued secret cleanup precedes the
+		// cascading deletion of the proxy and its endpoints.
+		err = r.artifactRepo.Delete(tx, proxy.UUID.String())
+		if dberr.IsForeignKeyViolation(err) {
+			return utils.ErrMCPProxyHasMappings
 		}
-		return r.artifactRepo.Delete(tx, proxy.UUID.String())
+		return err
 	})
 }
 

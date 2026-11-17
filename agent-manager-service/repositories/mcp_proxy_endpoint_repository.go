@@ -124,6 +124,9 @@ func (r *mcpProxyEndpointRepository) CreateEndpoint(ctx context.Context, tx *gor
 		endpoint.UUID = uuid.New()
 	}
 	db := tx.WithContext(ctx)
+	if err := dbx.LockRow(db, models.MCPProxy{}.TableName(), "status", "id = ?", endpoint.MCPProxyUUID); err != nil {
+		return fmt.Errorf("failed to lock the parent MCP proxy: %w", err)
+	}
 	if endpoint.OrgID == "" {
 		var proxy struct{ OrgID string }
 		if err := db.Session(&gorm.Session{NewDB: true}).Table(models.MCPProxy{}.TableName()).Select("org_id").

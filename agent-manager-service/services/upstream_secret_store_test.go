@@ -431,6 +431,20 @@ func TestMCPEndpointDeletionReleasesItsCredential(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestMCPRepositoryDeleteReleasesEndpointCredential(t *testing.T) {
+	f, _ := newMCPSecretFixture(t, vaulttest.Local(t))
+	ctx := context.Background()
+	handle := mcpSourceHandle(f.proxy)
+	_, err := f.svc.Update(ctx, f.sync.ouID, handle, f.updateRequest(mcpAuth(strValue("mcp-owned"))))
+	require.NoError(t, err)
+	endpoint, _ := f.endpointRow(t)
+	require.NotNil(t, endpoint.UpstreamSecretID)
+
+	require.NoError(t, repositories.NewMCPProxyRepo(db.GetDB()).Delete(ctx, handle, f.sync.ouID))
+	_, ok := storedSecret(t, *endpoint.UpstreamSecretID)
+	assert.False(t, ok)
+}
+
 // errInjected fails a render on purpose.
 var errInjected = reconcile.Permanent(fmt.Errorf("%w: injected render failure", utils.ErrInvalidInput))
 
