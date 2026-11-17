@@ -903,15 +903,6 @@ export function ConnectionEditor({
             <Stack spacing={2.5}>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Typography variant="subtitle1">{spec.displayName}</Typography>
-                {!isEdit && !locked && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={() => setDraft({ ...draft, provider: "" })}
-                  >
-                    Change platform
-                  </Button>
-                )}
                 {spec.sourceHost && <SourceScanGuide spec={spec} />}
               </Stack>
               <AnalyzeSection
