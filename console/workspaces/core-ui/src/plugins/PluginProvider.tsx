@@ -44,6 +44,7 @@ import {
 } from "react";
 import {
   absoluteRouteMap,
+  globalConfig,
   PLUGIN_API_VERSION,
   PLUGIN_MOUNT_POINTS,
   type PluginActivationHook,
@@ -118,10 +119,10 @@ interface PluginHostValue {
 }
 
 /**
- * The pages the server's UI manifest lists: undefined while it loads, null
- * when it could not be read (every page is then shown).
+ * The pages the server's UI manifest lists: undefined while it loads. When
+ * it cannot be read the set is empty, so only core modules show.
  */
-type ServerPages = Set<string> | null | undefined;
+type ServerPages = Set<string> | undefined;
 
 const PluginHostContext = createContext<PluginHostValue>({
   catalog: [],
@@ -223,14 +224,22 @@ export const pluginKey = (moduleId: string, pluginId: string) => `${moduleId}/${
  * What the server's UI manifest leaves out: a non-core module none of whose
  * pages it lists, and each page it does not list. Core modules are always on.
  */
-function manifestDisabled(catalog: CatalogEntry[], pages: ServerPages): Set<string> {
+function manifestDisabled(
+  catalog: CatalogEntry[],
+  pages: ServerPages,
+  operatorOn: string[],
+): Set<string> {
   const disabled = new Set<string>();
   if (!pages) return disabled;
+  // The deployment's own additions (uiModules.enable in config.js, from
+  // CONSOLE_UI_MODULES_ENABLE): a module id turns on all its pages.
+  const on = new Set(operatorOn);
   for (const { module, plugins } of catalog) {
     if (module.core) continue;
     let any = false;
     for (const plugin of plugins) {
-      if (pages.has(pluginKey(module.id, plugin.id))) any = true;
+      const key = pluginKey(module.id, plugin.id);
+      if (pages.has(key) || on.has(key) || on.has(module.id)) any = true;
       else disabled.add(pluginKey(module.id, plugin.id));
     }
     if (!any) disabled.add(module.id);
@@ -341,7 +350,10 @@ export function PluginProvider({
 
   const [serverPages, setServerPages] = useState<ServerPages>(undefined);
   const manifestPending = serverPages === undefined;
-  const disabled = useMemo(() => manifestDisabled(catalog, serverPages), [catalog, serverPages]);
+  const disabled = useMemo(
+    () => manifestDisabled(catalog, serverPages, globalConfig?.uiModules?.enable ?? []),
+    [catalog, serverPages],
+  );
   const gatedPlugins = useMemo(() => {
     const ids = new Set<string>();
     for (const { module, plugins } of catalog) {
@@ -659,10 +671,14 @@ export function PluginActivators() {
     if (manifest.data) {
       setServerPages(new Set(manifest.data.pages));
     } else if (manifest.isError) {
-      warn("Could not read the UI manifest (/api/v1/ui-manifest); showing every page.");
-      setServerPages(null);
+      // The query reports the error to the user; show the core pages only.
+      warn("Could not read the UI manifest (/api/v1/ui-manifest); showing the core pages only.");
+      setServerPages(new Set());
+    } else if (manifest.isPending) {
+      // A new sign-in: wait for this user's manifest.
+      setServerPages(undefined);
     }
-  }, [manifest.data, manifest.isError, setServerPages]);
+  }, [manifest.data, manifest.isError, manifest.isPending, setServerPages]);
   return (
     <>
       {probes.map(({ key, useActivation }) => (

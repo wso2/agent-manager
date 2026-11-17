@@ -110,6 +110,9 @@ window.__RUNTIME_CONFIG__ = {
   uiModules: {
     // Shows the AI module manager page (a front-end preview for now). Off by default.
     marketplace: '$ENABLE_UI_MARKETPLACE' === 'true',
+    // UI modules or "<module>/<page>" to turn on besides what the server's
+    // UI manifest lists (e.g. "agent-runtime agent-portal").
+    enable: '$UI_MODULES_ENABLE'.split(/[\s,]+/).filter(Boolean),
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',

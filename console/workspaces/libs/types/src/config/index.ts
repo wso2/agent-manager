@@ -167,6 +167,12 @@ export interface AppConfig {
      * preview that deploys nothing.
      */
     marketplace?: boolean;
+    /**
+     * UI modules ("agent-runtime") or pages ("agent-portal/agent-kind") the
+     * deployment turns on besides what the server's UI manifest lists, from
+     * CONSOLE_UI_MODULES_ENABLE (comma- or space-separated).
+     */
+    enable?: string[];
   };
 }
 

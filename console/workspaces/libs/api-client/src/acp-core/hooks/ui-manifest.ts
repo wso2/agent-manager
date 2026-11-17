@@ -23,17 +23,17 @@ import { getUIManifest } from "../apis/ui-manifest";
 
 /**
  * The console UI the backend offers the signed-in user: which pages of the
- * built-in UI modules to turn on. Read once per session; a module enabled or
- * disabled on the server shows on the next page load.
+ * built-in UI modules to turn on. Read once per user and session (the key
+ * carries both, so the next sign-in never sees the last one's pages); a
+ * module enabled or disabled on the server shows on the next page load.
  */
 export function useUIManifest() {
-  const { getToken } = useAuthHooks();
+  const { getToken, userInfo } = useAuthHooks();
+  const who = userInfo?.sub ?? userInfo?.username ?? "";
   return useApiQuery<UIManifestResponse>({
-    queryKey: ["ui-manifest"],
+    queryKey: ["ui-manifest", who, userInfo?.sessionState ?? ""],
     queryFn: () => getUIManifest(getToken),
     staleTime: Infinity,
     retry: 1,
-    // A failure is handled by the caller (the console shows every page).
-    silent: true,
   });
 }
