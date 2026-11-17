@@ -451,7 +451,16 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
   ) : undefined;
 
   let body: React.ReactNode;
-  if (revealed || binding.clientId) {
+  if (binding.status === "pending" || binding.status === "in_progress") {
+    body = (
+      <Box role="status" display="flex" alignItems="center" gap={1}>
+        <CircularProgress size={16} aria-hidden="true" />
+        <Typography variant="body2" color="text.secondary">
+          Provisioning Agent ID…
+        </Typography>
+      </Box>
+    );
+  } else if (revealed || binding.clientId) {
     // The client ID itself isn't sensitive, unlike the secret, so it's always
     // safe to show. Outside of `revealed` (only populated once, right after
     // regenerating — the backend never stores the secret) the secret field is
@@ -495,7 +504,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
   } else {
     body = (
       <Typography variant="body2" color="text.secondary">
-        Provisioning in progress…
+        Client credentials are unavailable.
       </Typography>
     );
   }
@@ -548,13 +557,13 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
 
             {body}
 
-            {thunderAgentId && (
+            {provisioned && binding.agentId && (
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                   <TextInput
                     slotProps={{ input: { readOnly: true } }}
                     label="Agent ID"
-                    value={thunderAgentId}
+                    value={binding.agentId}
                     copyable
                     fullWidth
                     size="small"
