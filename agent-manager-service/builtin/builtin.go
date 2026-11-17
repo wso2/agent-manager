@@ -30,6 +30,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
@@ -55,6 +56,8 @@ type Parts struct {
 	// RootRoutes registers routes at the server root, outside /api/v1; they
 	// authenticate themselves.
 	RootRoutes func(mux *http.ServeMux, core *wiring.AppParams)
+	// MCPTools adds the bundle's toolsets to the core's MCP server at /mcp.
+	MCPTools func(ts *tools.Toolsets)
 	// EnvironmentReaders are permissions that also let a caller read the
 	// organization's environments, because the bundle's pages list them.
 	EnvironmentReaders []rbac.Permission
@@ -144,6 +147,17 @@ func (b Built) RootRoutes(mux *http.ServeMux, core *wiring.AppParams) {
 			p.RootRoutes(mux, core)
 		}
 	}
+}
+
+// MCPTools is every bundle's MCP toolsets, to pass to mcp.RegisterRoute.
+func (b Built) MCPTools() []func(*tools.Toolsets) {
+	var out []func(*tools.Toolsets)
+	for _, p := range b {
+		if p.MCPTools != nil {
+			out = append(out, p.MCPTools)
+		}
+	}
+	return out
 }
 
 // EnvironmentReaders is every bundle's environment readers.

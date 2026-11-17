@@ -147,7 +147,7 @@ func Parts(gw *gwwire.Gateway, core *wiring.AppParams) *builtin.Parts {
 		InternalRoutes: func(rr *middleware.RouteRegistrar, mux *http.ServeMux) {
 			gwapi.RegisterInternalRoutes(rr, mux, gw)
 		},
-		RootRoutes: func(mux *http.ServeMux, core *wiring.AppParams) { gwapi.RegisterMCP(mux, gw, core) },
+		MCPTools: gwapi.MCPTools(gw),
 		// The gateway's pages list environments for callers who hold only
 		// gateway, LLM provider or LLM proxy access.
 		EnvironmentReaders: []rbac.Permission{rbac.LLMProviderRead, rbac.LLMProxyRead, gwperm.Read},

@@ -13,28 +13,27 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-
-package handlers
+package gwmcp
 
 import (
 	"context"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 )
 
-// AgentDeployments reports where an agent is served.
-type AgentDeployments interface {
-	GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
+type MCPProxyHandler struct {
+	proxySvc *gwsvc.MCPProxyService
 }
 
-type DeploymentHandler struct {
-	agentSvc AgentDeployments
+func NewMCPProxyHandler(proxySvc *gwsvc.MCPProxyService) *MCPProxyHandler {
+	return &MCPProxyHandler{proxySvc: proxySvc}
 }
 
-func NewDeploymentHandler(agentSvc AgentDeployments) *DeploymentHandler {
-	return &DeploymentHandler{agentSvc: agentSvc}
+func (h *MCPProxyHandler) ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*models.MCPProxyListResponse, error) {
+	return h.proxySvc.List(ctx, ouID, nil, limit, offset)
 }
 
-func (h *DeploymentHandler) GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error) {
-	return h.agentSvc.GetAgentDeployments(ctx, ouID, projectName, agentName)
+func (h *MCPProxyHandler) GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error) {
+	return h.proxySvc.Get(ctx, ouID, proxyID)
 }

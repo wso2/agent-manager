@@ -177,3 +177,10 @@ type APIGatewayWithDetails struct {
 	DeploymentID *string    `json:"deploymentId,omitempty" db:"deployment_id"`
 	DeployedAt   *time.Time `json:"deployedAt,omitempty" db:"deployed_at"`
 }
+
+// GatewayDeploymentResult captures the outcome of deploying to a single gateway.
+type GatewayDeploymentResult struct {
+	GatewayID string `json:"gateway_id"`
+	Success   bool   `json:"success"`
+	Error     string `json:"error,omitempty"`
+}

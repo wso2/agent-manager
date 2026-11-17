@@ -23,38 +23,32 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/handlers"
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
-// Dependencies holds the services needed by MCP toolsets.
-// Fields are added as toolsets are introduced in later.
+// Dependencies holds the core services the MCP toolsets use.
 type Dependencies struct {
 	InfraResourceManager     services.InfraResourceManager
 	AgentManagerService      services.AgentManagerService
-	AgentDeployments         handlers.AgentDeployments
 	AgentTokenManagerService services.AgentTokenManagerService
 	EnvironmentService       services.EnvironmentService
-
-	LLMProviderService           *gwsvc.LLMProviderService
-	LLMProviderDeploymentService *gwsvc.LLMProviderDeploymentService
-	PlatformGatewayService       *gwsvc.PlatformGatewayService
-	MCPProxyService              *gwsvc.MCPProxyService
-	AgentConfigurationService    gwsvc.AgentConfigurationService
 }
 
 // RegisterRoute builds the MCP HTTP handler, wraps it with the standard middleware chain,
-// and registers it on the given mux at /mcp.
+// and registers it on the given mux at /mcp. The core's toolsets (projects, agents,
+// environments) are always registered; each extend adds the toolsets of a built-in
+// feature, such as the AI Gateway's LLM provider, MCP proxy, agent configuration and
+// deployment tools.
 func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(http.Handler) http.Handler,
+	extend ...func(*tools.Toolsets),
 ) {
 	toolsets := &tools.Toolsets{
 		ProjectToolset:     handlers.NewProjectHandler(deps.InfraResourceManager),
 		AgentToolset:       handlers.NewAgentHandler(deps.AgentManagerService, deps.AgentTokenManagerService),
-		DeploymentToolset:  handlers.NewDeploymentHandler(deps.AgentDeployments),
 		EnvironmentToolset: handlers.NewEnvironmentHandler(deps.EnvironmentService),
-		LLMProviderToolset: handlers.NewLLMProviderHandler(deps.LLMProviderService, deps.LLMProviderDeploymentService, deps.PlatformGatewayService),
-		MCPProxyToolset:    handlers.NewMCPProxyHandler(deps.MCPProxyService),
-		AgentConfigToolset: handlers.NewAgentConfigHandler(deps.AgentConfigurationService),
+	}
+	for _, e := range extend {
+		e(toolsets)
 	}
 
 	handler := NewHTTPServer(toolsets)

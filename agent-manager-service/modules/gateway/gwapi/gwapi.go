@@ -20,9 +20,9 @@ package gwapi
 import (
 	"net/http"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/mcp"
+	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwmcp"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
@@ -57,31 +57,15 @@ func RegisterInternalRoutes(rr *middleware.RouteRegistrar, mux *http.ServeMux, g
 	RegisterWebSocketRoutes(mux, gw.WebSocketController)
 }
 
-// RegisterMCP registers the MCP server at /mcp.
-//
-// MCP does not go through the route registrar, so the recorder is installed
-// by composing it into the middleware MCP is given. Without it, services
-// that refuse to act when they cannot be audited would fail every MCP call
-// that reaches them. Auth stays outermost so claims are present by the time
-// a handler emits.
-func RegisterMCP(mux *http.ServeMux, gw *gwwire.Gateway, core *wiring.AppParams) {
-	mcpMiddleware := func(next http.Handler) http.Handler {
-		return core.AuthMiddleware(
-			middleware.WithAuditRecorder(core.AuditRecorder, audit.SurfaceMCP)(next),
-		)
+// MCPTools adds the gateway's toolsets to the core's MCP server: LLM
+// providers, MCP proxies, agent configurations and agent deployments.
+func MCPTools(gw *gwwire.Gateway) func(*tools.Toolsets) {
+	return func(ts *tools.Toolsets) {
+		ts.DeploymentToolset = gwmcp.NewDeploymentHandler(gw.AgentGateway)
+		ts.LLMProviderToolset = gwmcp.NewLLMProviderHandler(gw.LLMProviderService, gw.LLMProviderDeploymentService, gw.PlatformGatewayService)
+		ts.MCPProxyToolset = gwmcp.NewMCPProxyHandler(gw.MCPProxyService)
+		ts.AgentConfigToolset = gwmcp.NewAgentConfigHandler(gw.AgentConfigurationService)
 	}
-	mcp.RegisterRoute(mux, mcp.Dependencies{
-		InfraResourceManager:         core.InfraResourceManager,
-		AgentManagerService:          core.AgentManagerService,
-		AgentDeployments:             gw.AgentGateway,
-		AgentTokenManagerService:     core.AgentTokenManagerService,
-		EnvironmentService:           core.EnvironmentService,
-		LLMProviderService:           gw.LLMProviderService,
-		LLMProviderDeploymentService: gw.LLMProviderDeploymentService,
-		PlatformGatewayService:       gw.PlatformGatewayService,
-		MCPProxyService:              gw.MCPProxyService,
-		AgentConfigurationService:    gw.AgentConfigurationService,
-	}, mcpMiddleware)
 }
 
 // notImplemented answers 501 for a route this version does not serve.

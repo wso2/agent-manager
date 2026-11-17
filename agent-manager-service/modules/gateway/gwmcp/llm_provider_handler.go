@@ -13,7 +13,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-package handlers
+package gwmcp
 
 import (
 	"context"
@@ -103,7 +103,7 @@ func (h *LLMProviderHandler) GetLLMProvider(_ context.Context, ouID string, prov
 func (h *LLMProviderHandler) UpdateLLMProviderGuardrails(
 	ctx context.Context, ouID string, providerID string,
 	change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []gwsvc.DeploymentResult, error) {
+) (*models.LLMProvider, []models.GatewayDeploymentResult, error) {
 	provider, err := h.providerSvc.Get(providerID, ouID)
 	if err != nil {
 		return nil, nil, err

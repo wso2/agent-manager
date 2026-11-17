@@ -23,6 +23,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
+	"github.com/wso2/agent-manager/agent-manager-service/mcp"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -100,8 +101,28 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	// Register service-configuration discovery endpoint at root level (no authentication required)
 	registerConfigRoutes(mux)
 
-	// Routes of built-in bundles that live at the root, such as the AI
-	// Gateway's MCP server, authenticate themselves.
+	// Register MCP at root level, with the core's tools and those the
+	// built-in features add.
+	//
+	// MCP does not go through the route registrar, so the recorder is installed
+	// by composing it into the middleware MCP is given. Without it, services
+	// that refuse to act when they cannot be audited would fail every MCP call
+	// that reaches them. Auth stays outermost so claims are present by the time
+	// a handler emits.
+	mcpMiddleware := func(next http.Handler) http.Handler {
+		return params.AuthMiddleware(
+			middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceMCP)(next),
+		)
+	}
+	mcp.RegisterRoute(mux, mcp.Dependencies{
+		InfraResourceManager:     params.InfraResourceManager,
+		AgentManagerService:      params.AgentManagerService,
+		AgentTokenManagerService: params.AgentTokenManagerService,
+		EnvironmentService:       params.EnvironmentService,
+	}, mcpMiddleware, bundles.MCPTools()...)
+
+	// Other routes of built-in bundles that live at the root authenticate
+	// themselves.
 	bundles.RootRoutes(mux, params)
 
 	// Authentication is rejected before route matching, so the audit middleware

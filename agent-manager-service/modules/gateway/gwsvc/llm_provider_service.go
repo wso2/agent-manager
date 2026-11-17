@@ -37,12 +37,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// DeploymentResult captures the outcome of deploying to a single gateway
-type DeploymentResult struct {
-	GatewayID string `json:"gateway_id"`
-	Success   bool   `json:"success"`
-	Error     string `json:"error,omitempty"`
-}
+// DeploymentResult captures the outcome of deploying to a single gateway.
+type DeploymentResult = models.GatewayDeploymentResult
 
 // CreateAndDeployResponse contains the created provider and deployment results
 type CreateAndDeployResponse struct {
