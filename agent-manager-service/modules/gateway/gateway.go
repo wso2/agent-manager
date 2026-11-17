@@ -180,6 +180,7 @@ func Parts(gw *gwwire.Gateway, core *wiring.AppParams) *builtin.Parts {
 		// The gateway's pages list environments for callers who hold only
 		// gateway, LLM provider or LLM proxy access.
 		EnvironmentReaders: []rbac.Permission{rbac.LLMProviderRead, rbac.LLMProxyRead, gwperm.Read},
+		Init:               w.seed,
 		Start:              w.start,
 		Stop:               w.stop,
 	}
@@ -190,15 +191,18 @@ type workers struct {
 	cancel []context.CancelFunc
 }
 
-func (w *workers) start(ctx context.Context) error {
-	// Registers the gateway named in configuration before any gateway can connect.
+// seed registers the gateway named in configuration before any gateway can
+// connect.
+func (w *workers) seed(ctx context.Context) error {
 	seedCtx, seedCancel := context.WithTimeout(ctx, time.Minute)
-	err := w.gw.DefaultGatewaySeeder.Seed(seedCtx)
-	seedCancel()
-	if err != nil {
+	defer seedCancel()
+	if err := w.gw.DefaultGatewaySeeder.Seed(seedCtx); err != nil {
 		return fmt.Errorf("failed to register the default gateway: %w", err)
 	}
+	return nil
+}
 
+func (w *workers) start(ctx context.Context) error {
 	// Started unconditionally: it is a no-op for an org with no A2A agents.
 	for _, s := range []struct {
 		name  string

@@ -249,6 +249,13 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	}
 	warnGatewayStateWithoutProvider(modulesCtx, database, slog.Default())
 
+	// For the AI Gateway, registers the gateway named in configuration before
+	// any gateway can connect.
+	if err := bundles.Init(context.Background()); err != nil {
+		slog.Error("failed to initialize the built-in features", "error", err)
+		os.Exit(1)
+	}
+
 	// Background workers have no request behind them, so nothing installs a
 	// recorder on their contexts the way the HTTP middleware does. Install one
 	// here, or their audit emits would reach the "not installed" fallback and
@@ -281,9 +288,9 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
-	// The built-in features' workers: for the AI Gateway, registering the
-	// default gateway, the A2A card reconciler, the deployment timeout sweeper,
-	// the reconcile worker and the built-in LLM provider templates.
+	// The built-in features' workers: for the AI Gateway, the A2A card
+	// reconciler, the deployment timeout sweeper, the reconcile worker and the
+	// built-in LLM provider templates.
 	if err := bundles.Start(backgroundCtx); err != nil {
 		slog.Error("failed to start the built-in features", "error", err)
 		os.Exit(1)

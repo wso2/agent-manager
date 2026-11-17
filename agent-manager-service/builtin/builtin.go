@@ -61,6 +61,10 @@ type Parts struct {
 	// EnvironmentReaders are permissions that also let a caller read the
 	// organization's environments, because the bundle's pages list them.
 	EnvironmentReaders []rbac.Permission
+	// Init runs once right after the module host boots, before the
+	// deployment's background workers and the bundle's own workers start;
+	// an error stops the server. ctx carries no audit recorder.
+	Init func(ctx context.Context) error
 	// Start starts the bundle's workers, after the module host and before
 	// the servers. ctx is a background context with the audit recorder.
 	Start func(ctx context.Context) error
@@ -167,6 +171,19 @@ func (b Built) EnvironmentReaders() []rbac.Permission {
 		out = append(out, p.EnvironmentReaders...)
 	}
 	return out
+}
+
+// Init runs every bundle's Init, stopping at the first error.
+func (b Built) Init(ctx context.Context) error {
+	for _, p := range b {
+		if p.Init == nil {
+			continue
+		}
+		if err := p.Init(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Start starts every bundle's workers; on an error, the ones already started
