@@ -24,9 +24,11 @@ package modhost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -39,6 +41,10 @@ import (
 // DefaultPollInterval is how often a replica checks the module generation for
 // lifecycle changes made elsewhere.
 const DefaultPollInterval = 2 * time.Second
+
+// maxRetryInterval caps the backoff between attempts to activate a module
+// that failed to activate.
+const maxRetryInterval = time.Minute
 
 // Host is the module host. One per process.
 type Host struct {
@@ -53,6 +59,14 @@ type Host struct {
 	// elsewhere. Set it before Boot; zero means DefaultPollInterval.
 	PollInterval time.Duration
 
+	// Passive hosts track module state without activating anything, for
+	// commands that change module state on behalf of running servers.
+	// Install and Enable still trial-activate the module set they produce.
+	Passive bool
+
+	// warned holds modules already reported as active but not compiled in.
+	warned sync.Map
+
 	reloadMu sync.Mutex // one Reload at a time (poller and local changes)
 
 	mu     sync.RWMutex
@@ -60,6 +74,9 @@ type Host struct {
 	states map[string]string
 	dbVer  map[string]string
 	v      *view
+	// failed holds the active modules that did not activate in the current
+	// snapshot, with the reason.
+	failed map[string]error
 }
 
 // view is an immutable snapshot of what the active modules registered.
@@ -187,7 +204,10 @@ func bump(tx *gorm.DB) error {
 
 // follow polls the generation and reloads when another process has changed
 // the module set. A single-row read per interval works on every database,
-// and a replica that missed changes catches up on its next tick.
+// and a replica that missed changes catches up on its next tick. Any change
+// reloads, not only an increase, so a restored or recreated database is
+// picked up too. While an active module has failed to activate, follow also
+// retries it with backoff.
 func (h *Host) follow(ctx context.Context) {
 	every := h.PollInterval
 	if every <= 0 {
@@ -196,6 +216,8 @@ func (h *Host) follow(ctx context.Context) {
 	t := time.NewTicker(every)
 	defer t.Stop()
 	failing := false
+	backoff := every
+	var retryAt time.Time
 	for {
 		select {
 		case <-ctx.Done():
@@ -217,17 +239,35 @@ func (h *Host) follow(ctx context.Context) {
 			h.log.Info("modhost:module generation readable again")
 			failing = false
 		}
-		if g <= h.Generation() {
+		switch {
+		case g != h.Generation():
+			h.log.Info("modhost:module set changed elsewhere", "generation", g)
+		case h.unloaded() && !time.Now().Before(retryAt):
+			h.log.Info("modhost:retrying modules that failed to activate")
+		default:
 			continue
 		}
-		h.log.Info("modhost:module set changed elsewhere", "generation", g)
 		if err := h.Reload(ctx); err != nil {
 			h.log.Error("modhost:reload failed", "error", err)
+		}
+		if h.unloaded() {
+			retryAt = time.Now().Add(backoff)
+			backoff = min(2*backoff, maxRetryInterval)
+		} else {
+			backoff = every
 		}
 	}
 }
 
-// Reload activates the active modules into a new snapshot and swaps it in.
+// unloaded reports whether an active module failed to activate.
+func (h *Host) unloaded() bool {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return len(h.failed) > 0
+}
+
+// Reload activates the active modules into a new snapshot and swaps it in. A
+// passive host only reloads the recorded states.
 func (h *Host) Reload(ctx context.Context) error {
 	h.reloadMu.Lock()
 	defer h.reloadMu.Unlock()
@@ -241,34 +281,57 @@ func (h *Host) Reload(ctx context.Context) error {
 		return err
 	}
 	states := h.effectiveStates(rows)
+	v, failed := newView(), map[string]error{}
+	if !h.Passive {
+		v, failed = h.buildView(ctx, states)
+		for name, err := range failed {
+			h.log.Error("modhost:module failed to activate", "module", name, "error", err)
+		}
+	}
+	h.mu.Lock()
+	h.v, h.gen, h.states, h.failed = v, gen, states, failed
+	h.dbVer = make(map[string]string, len(rows))
+	for n, r := range rows {
+		h.dbVer[n] = r.Version
+	}
+	h.mu.Unlock()
+	if !h.Passive {
+		h.log.Info("modhost:modules loaded", "generation", gen, "active", v.active)
+	}
+	return nil
+}
+
+// buildView activates the modules active in states into a new snapshot, and
+// returns the active modules that did not activate, with the reason.
+func (h *Host) buildView(ctx context.Context, states map[string]string) (*view, map[string]error) {
 	var active []string
 	for name, s := range states {
 		if s != StateActive {
 			continue
 		}
 		if _, ok := h.mods[name]; !ok {
-			h.log.Warn("modhost:module is active in the database but not compiled into this binary; skipping", "module", name)
+			if _, seen := h.warned.LoadOrStore(name, true); !seen {
+				h.log.Warn("modhost:module is active in the database but not compiled into this binary; skipping", "module", name)
+			}
 			continue
 		}
 		active = append(active, name)
 	}
-	v := newView()
-	for _, name := range ActivationOrder(active, h.manifests) {
+	v, failed := newView(), map[string]error{}
+	order, cycles := ActivationOrder(active, h.manifests)
+	for _, c := range cycles {
+		for _, name := range c[:len(c)-1] {
+			failed[name] = fmt.Errorf("dependency cycle: %s", strings.Join(c, " -> "))
+		}
+	}
+	for _, name := range order {
 		if err := h.activate(ctx, name, v); err != nil {
-			h.log.Error("modhost:module failed to activate", "module", name, "error", err)
+			failed[name] = err
 			continue
 		}
 		v.active = append(v.active, name)
 	}
-	h.mu.Lock()
-	h.v, h.gen, h.states = v, gen, states
-	h.dbVer = make(map[string]string, len(rows))
-	for n, r := range rows {
-		h.dbVer[n] = r.Version
-	}
-	h.mu.Unlock()
-	h.log.Info("modhost:modules loaded", "generation", gen, "active", v.active)
-	return nil
+	return v, failed
 }
 
 // activate runs one module's Activate against the snapshot being built. A
@@ -288,11 +351,12 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 	rt.building.Store(true)
 	err := h.mods[name].Activate(ctx, rt)
 	rt.building.Store(false)
-	if err != nil {
-		return err
+	if err == nil {
+		err = rt.err()
 	}
-	if err := rt.err(); err != nil {
-		// Drop what the module registered before it failed.
+	if err != nil {
+		// Drop what the module registered before it failed, so no consumer
+		// activates against it.
 		for c, by := range v.capBy {
 			if by == name {
 				delete(v.caps, c)
@@ -302,6 +366,30 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 		return err
 	}
 	return nil
+}
+
+// trial activates the module set next would produce and reports the first
+// of targets that would not activate, so a lifecycle change that leaves a
+// module recorded active but not running is refused instead of committed.
+func (h *Host) trial(ctx context.Context, next map[string]string, targets []string) (*view, error) {
+	v, failed := h.buildView(ctx, next)
+	for _, name := range targets {
+		if err := failed[name]; err != nil {
+			return nil, &ResolveError{Msg: fmt.Sprintf("%s failed to activate: %v", name, err)}
+		}
+	}
+	return v, nil
+}
+
+func withActive(states map[string]string, names ...string) map[string]string {
+	out := make(map[string]string, len(states)+len(names))
+	for n, s := range states {
+		out[n] = s
+	}
+	for _, n := range names {
+		out[n] = StateActive
+	}
+	return out
 }
 
 // ---- lifecycle ----
@@ -353,9 +441,12 @@ func setState(tx *gorm.DB, name, version, state string) (bool, error) {
 }
 
 // Install installs a module (and, with withDeps, the providers of its missing
-// required capabilities). It returns the steps it carried out.
+// required capabilities). It returns the steps it carried out. Nothing is
+// committed unless every installed module activates. A failed catch-up
+// (OnInstall) is returned with the steps: the modules stay installed.
 func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step, error) {
 	var steps []Step
+	var trial *view
 	err := h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
 		if err := h.refuseBuiltin(name); err != nil {
 			return err
@@ -375,22 +466,30 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 				return err
 			}
 		}
-		return nil
+		targets := make([]string, 0, len(steps))
+		for _, s := range steps {
+			targets = append(targets, s.Module)
+		}
+		trial, err = h.trial(ctx, withActive(states, targets...), targets)
+		return err
 	})
 	if err != nil {
 		return nil, err
 	}
 	// Catch-up: a module installed late rebuilds its view of existing core state.
+	var errs []error
 	for _, s := range steps {
 		inst, ok := h.mods[s.Module].(modkit.Installer)
 		if !ok || s.Action != "install" {
 			continue
 		}
-		if err := inst.OnInstall(ctx, h.runtime(s.Module, h.current())); err != nil {
-			h.log.Error("modhost:module catch-up failed", "module", s.Module, "error", err)
+		rt := h.runtime(s.Module, trial)
+		rt.pinned = true
+		if err := inst.OnInstall(ctx, rt); err != nil {
+			errs = append(errs, fmt.Errorf("%s is installed, but its catch-up failed: %w", s.Module, err))
 		}
 	}
-	return steps, nil
+	return steps, errors.Join(errs...)
 }
 
 // Enable re-activates a disabled module.
@@ -408,7 +507,10 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 		if err := h.schemaReady(tx, name); err != nil {
 			return err
 		}
-		_, err := setState(tx, name, h.manifests[name].Version, StateActive)
+		if _, err := setState(tx, name, h.manifests[name].Version, StateActive); err != nil {
+			return err
+		}
+		_, err := h.trial(ctx, withActive(states, name), []string{name})
 		return err
 	})
 }

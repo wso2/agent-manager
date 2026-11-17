@@ -41,6 +41,9 @@ type runtime struct {
 
 	// building is true while Activate runs, when v is not yet the current snapshot.
 	building atomic.Bool
+	// pinned runtimes resolve capabilities from v, the snapshot they were
+	// made for, rather than the current one.
+	pinned bool
 
 	mu   sync.Mutex
 	errs []error
@@ -128,7 +131,7 @@ func (r *runtime) Capability(name string) (any, bool) {
 		return nil, false
 	}
 	v := r.h.current()
-	if r.building.Load() {
+	if r.pinned || r.building.Load() {
 		v = r.v
 	}
 	impl, ok := v.caps[name]

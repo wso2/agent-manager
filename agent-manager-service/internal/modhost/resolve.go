@@ -187,33 +187,62 @@ func Dependents(target string, mods map[string]modkit.Manifest, states map[strin
 	return out
 }
 
-// ActivationOrder sorts active modules so providers activate before consumers.
-func ActivationOrder(active []string, mods map[string]modkit.Manifest) []string {
+// ActivationOrder sorts active modules so the providers of the capabilities a
+// module requires or optionally uses activate before it. Modules on a
+// dependency cycle cannot be ordered: they are left out of the order and each
+// cycle is returned as a path that ends where it starts.
+func ActivationOrder(active []string, mods map[string]modkit.Manifest) ([]string, [][]string) {
 	set := map[string]bool{}
 	for _, a := range active {
 		set[a] = true
 	}
-	var out []string
-	seen := map[string]bool{}
+	const (
+		visiting = 1
+		done     = 2
+	)
+	color := map[string]int{}
+	cyclic := map[string]bool{}
+	var order []string
+	var cycles [][]string
+	var stack []string
 	var visit func(string)
 	visit = func(n string) {
-		if seen[n] {
+		switch color[n] {
+		case done:
+			return
+		case visiting:
+			i := slices.Index(stack, n)
+			cycle := append(append([]string(nil), stack[i:]...), n)
+			for _, m := range cycle {
+				cyclic[m] = true
+			}
+			cycles = append(cycles, cycle)
 			return
 		}
-		seen[n] = true
-		for _, c := range mods[n].Requires {
+		color[n] = visiting
+		stack = append(stack, n)
+		deps := append(append([]string(nil), mods[n].Requires...), mods[n].Optional...)
+		for _, c := range deps {
 			for _, p := range providersOf(c, mods) {
-				if set[p] {
+				if set[p] && p != n {
 					visit(p)
 				}
 			}
 		}
-		out = append(out, n)
+		stack = stack[:len(stack)-1]
+		color[n] = done
+		order = append(order, n)
 	}
 	sorted := append([]string(nil), active...)
 	sort.Strings(sorted)
 	for _, n := range sorted {
 		visit(n)
 	}
-	return out
+	out := make([]string, 0, len(order))
+	for _, n := range order {
+		if !cyclic[n] {
+			out = append(out, n)
+		}
+	}
+	return out, cycles
 }

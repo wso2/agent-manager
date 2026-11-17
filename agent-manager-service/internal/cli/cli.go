@@ -196,6 +196,8 @@ func moduleCmd(args []string) error {
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})))
 	ctx := context.Background()
 	h := modhost.New(db.GetDB(), config.GetConfig().Database.Driver, slog.Default())
+	// The servers run the modules; this process only changes their state.
+	h.Passive = true
 	if err := h.CheckSchema(ctx); err != nil {
 		return err
 	}
@@ -207,13 +209,11 @@ func moduleCmd(args []string) error {
 		return list(os.Stdout, h.List())
 	case "install":
 		steps, err := h.Install(ctx, pos[0], withDeps)
-		if err != nil {
-			return err
-		}
+		// A failed catch-up still installs: report the steps, then the error.
 		for _, s := range steps {
 			fmt.Printf("%sed %s\n", strings.TrimSuffix(s.Action, "e"), s.Module)
 		}
-		return nil
+		return err
 	case "enable":
 		return report(h.Enable(ctx, pos[0]), "enabled", pos[0])
 	case "disable":

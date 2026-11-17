@@ -18,11 +18,13 @@ package modhost_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -430,7 +432,7 @@ func TestMigrationsStayInsideTheModulePrefix(t *testing.T) {
 	}
 }
 
-func TestModuleUsingUnimplementedRuntimeStaysInactive(t *testing.T) {
+func TestInstallRefusesAModuleThatCannotActivate(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	early := &testModule{
@@ -441,12 +443,107 @@ func TestModuleUsingUnimplementedRuntimeStaysInactive(t *testing.T) {
 			return nil
 		},
 	}
-	h, _ := replica(t, ctx, databases(t)[0], []modkit.Module{early})
+	h, g := replica(t, ctx, databases(t)[0], []modkit.Module{early})
 	_, err := h.Install(ctx, "t-early", false)
-	require.NoError(t, err)
+	require.Error(t, err)
+	assert.True(t, modhost.IsResolveError(err))
+	assert.Contains(t, err.Error(), "Runtime.Handle")
 	assert.Empty(t, h.Active())
-	for _, m := range h.List() {
-		assert.Equal(t, modhost.StateActive, m.State)
-		assert.False(t, m.Loaded)
+	assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-early'`), "a refused install commits nothing")
+}
+
+func TestFailedActivationDropsWhatItProvided(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	provider := &testModule{
+		manifest: manifest("t-provider", nil, []string{"x/v1"}),
+		activate: func(rt modkit.Runtime) error {
+			rt.Provide("x/v1", struct{}{})
+			return errors.New("provider broke after providing")
+		},
 	}
+	consumer := &testModule{manifest: manifest("t-needs-x", []string{"x/v1"}, nil)}
+	h, g := replica(t, ctx, databases(t)[0], []modkit.Module{provider, consumer})
+	// Mark both active behind the host's back, as a restore would.
+	for _, n := range []string{"t-provider", "t-needs-x"} {
+		require.NoError(t, g.Exec(`INSERT INTO modules (name, version, state, created_at, updated_at) VALUES (?, '1.0.0', 'active', ?, ?)`,
+			n, time.Now().UTC(), time.Now().UTC()).Error)
+	}
+	require.NoError(t, h.Reload(ctx))
+	assert.Empty(t, h.Active(), "a consumer must not activate against a capability its failed provider registered")
+}
+
+type catchUp struct {
+	testModule
+	err error
+}
+
+func (c *catchUp) OnInstall(context.Context, modkit.Runtime) error { return c.err }
+
+func TestInstallReportsAFailedCatchUp(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m := &catchUp{testModule: testModule{manifest: manifest("t-catchup", nil, nil)}, err: errors.New("backfill failed")}
+	h, _ := replica(t, ctx, databases(t)[0], []modkit.Module{m})
+	steps, err := h.Install(ctx, "t-catchup", false)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "backfill failed")
+	assert.Equal(t, []modhost.Step{{Module: "t-catchup", Action: "install"}}, steps, "the module stays installed")
+	assert.Equal(t, []string{"t-catchup"}, h.Active())
+}
+
+func TestFailedActivationIsRetried(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var calls atomic.Int32
+	flaky := &testModule{
+		manifest: manifest("t-flaky", nil, nil),
+		activate: func(modkit.Runtime) error {
+			if calls.Add(1) < 3 {
+				return errors.New("dependency not ready yet")
+			}
+			return nil
+		},
+	}
+	h, g := replica(t, ctx, databases(t)[0], []modkit.Module{flaky})
+	require.NoError(t, g.Exec(`INSERT INTO modules (name, version, state, created_at, updated_at) VALUES ('t-flaky', '1.0.0', 'active', ?, ?)`,
+		time.Now().UTC(), time.Now().UTC()).Error)
+	require.NoError(t, g.Exec(`UPDATE module_generation SET value = value + 1 WHERE id = 1`).Error)
+	// No further generation change: the poller retries on its own.
+	waitFor(t, "the flaky module to activate", func() bool { return len(h.Active()) == 1 })
+}
+
+func TestGenerationGoingBackwardsReloads(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m := &testModule{manifest: manifest("t-plain", nil, nil)}
+	h, g := replica(t, ctx, databases(t)[0], []modkit.Module{m})
+	_, err := h.Install(ctx, "t-plain", false)
+	require.NoError(t, err)
+	// A restored database: the module row is gone and the counter is lower.
+	require.NoError(t, g.Exec(`DELETE FROM modules WHERE name = 't-plain'`).Error)
+	require.NoError(t, g.Exec(`UPDATE module_generation SET value = 0 WHERE id = 1`).Error)
+	waitFor(t, "the replica to follow the restored database", func() bool { return len(h.Active()) == 0 })
+	assert.EqualValues(t, 0, h.Generation())
+}
+
+func TestPassiveHostActivatesNothingToList(t *testing.T) {
+	ctx := context.Background()
+	var calls atomic.Int32
+	m := &testModule{
+		manifest: modkit.Manifest{Name: "t-counted", Version: "1.0.0", CoreAPI: modkit.CoreAPIVersion, Builtin: true},
+		activate: func(modkit.Runtime) error { calls.Add(1); return nil },
+	}
+	d := databases(t)[0]
+	g := d.open(t)
+	require.NoError(t, dbmigrations.MigrateBaseline(g, d.driver))
+	h := modhost.NewWith(g, d.driver, quiet, []modkit.Module{m})
+	h.Passive = true
+	_, err := h.Migrate(ctx)
+	require.NoError(t, err)
+	require.NoError(t, h.Reload(ctx))
+	list := h.List()
+	require.Len(t, list, 1)
+	assert.Equal(t, modhost.StateActive, list[0].State)
+	assert.EqualValues(t, 0, calls.Load())
 }

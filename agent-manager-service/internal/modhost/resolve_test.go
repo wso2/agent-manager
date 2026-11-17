@@ -118,8 +118,34 @@ func TestDependents(t *testing.T) {
 }
 
 func TestActivationOrder(t *testing.T) {
-	got := ActivationOrder([]string{"reports", "evaluation", "observability"}, catalog)
-	if strings.Join(got, ",") != "observability,evaluation,reports" {
-		t.Fatalf("got %v", got)
+	got, cycles := ActivationOrder([]string{"reports", "evaluation", "observability"}, catalog)
+	if strings.Join(got, ",") != "observability,evaluation,reports" || cycles != nil {
+		t.Fatalf("got %v, cycles %v", got, cycles)
+	}
+}
+
+func TestActivationOrderHonoursOptional(t *testing.T) {
+	c := map[string]modkit.Manifest{
+		"a-dashboard": {Name: "a-dashboard", CoreAPI: modkit.CoreAPIVersion, Optional: []string{"traces/v1"}},
+		"z-traces":    mf("z-traces", nil, []string{"traces/v1"}),
+	}
+	got, _ := ActivationOrder([]string{"a-dashboard", "z-traces"}, c)
+	if strings.Join(got, ",") != "z-traces,a-dashboard" {
+		t.Fatalf("an optional provider must activate first, got %v", got)
+	}
+}
+
+func TestActivationOrderReportsCycles(t *testing.T) {
+	c := map[string]modkit.Manifest{
+		"a":     mf("a", []string{"b/v1"}, []string{"a/v1"}),
+		"b":     {Name: "b", CoreAPI: modkit.CoreAPIVersion, Optional: []string{"a/v1"}, Provides: []string{"b/v1"}},
+		"plain": mf("plain", nil, nil),
+	}
+	got, cycles := ActivationOrder([]string{"a", "b", "plain"}, c)
+	if strings.Join(got, ",") != "plain" {
+		t.Fatalf("modules on a cycle must not be ordered, got %v", got)
+	}
+	if len(cycles) != 1 || strings.Join(cycles[0], " -> ") != "a -> b -> a" {
+		t.Fatalf("got cycles %v", cycles)
 	}
 }
