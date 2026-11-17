@@ -17,7 +17,8 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { AddSelfHostedGatewayDrawer } from "./AddSelfHostedGatewayDrawer";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { AddGateway } from "./AddGateway";
 import { deriveGatewayName } from "../form/schema";
 
 const DEV = { name: "dev", displayName: "Development" };
@@ -43,10 +44,36 @@ vi.mock("@agent-management-platform/shared-component", async () => {
     deriveResourceName,
     onlyEnvironmentName,
     getErrorMessage: (err: unknown) => (err instanceof Error ? err.message : ""),
+    useUnsavedChangesGuard: () => ({ allowNavigation: (go: () => void) => go() }),
+  };
+});
+
+vi.mock("@agent-management-platform/views", async () => {
+  const actual = await vi.importActual<typeof import("@agent-management-platform/views")>(
+    "@agent-management-platform/views",
+  );
+  const React = await import("react");
+  return {
+    ...actual,
+    PageLayout: ({ title, children }: { title: string; children: React.ReactNode }) =>
+      React.createElement("div", null, React.createElement("h1", null, title), children),
   };
 });
 
 vi.mock("./SelfHostedSetupSteps", () => ({ SelfHostedSetupSteps: () => null }));
+
+/** The add page, with stand-ins for where it can lead. */
+const renderPage = (from?: string) =>
+  render(
+    <MemoryRouter initialEntries={[{ pathname: "/org/acme/gateways/add", state: from ? { from } : null }]}>
+      <Routes>
+        <Route path="/org/:orgId/gateways/add" element={<AddGateway />} />
+        <Route path="/org/:orgId/gateways" element={<div>gateway list</div>} />
+        <Route path="/org/:orgId/gateways/view/:gatewayId" element={<div>gateway view</div>} />
+        <Route path="/somewhere" element={<div>opener</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
 
 const displayNameField = () => screen.getByPlaceholderText("e.g., Production Gateway");
 const nameField = () => screen.getByPlaceholderText("e.g., production-gateway");
@@ -73,9 +100,9 @@ describe("deriveGatewayName", () => {
   });
 });
 
-describe("AddSelfHostedGatewayDrawer name", () => {
+describe("AddGateway name", () => {
   it("follows the display name until the user edits it", () => {
-    render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
+    renderPage();
 
     type(displayNameField(), "Edge One");
     expect(nameField()).toHaveValue("edge-one");
@@ -86,11 +113,11 @@ describe("AddSelfHostedGatewayDrawer name", () => {
   });
 
   it("is sent as the handle", async () => {
-    render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
+    renderPage();
 
     type(displayNameField(), "Edge One");
     type(screen.getByPlaceholderText("https://gateway.example.com"), "https://edge.example.com");
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create gateway" }));
 
     await waitFor(() => expect(hoisted.createGateway).toHaveBeenCalledTimes(1));
     expect(hoisted.createGateway.mock.calls[0][0].body).toMatchObject({
@@ -101,11 +128,11 @@ describe("AddSelfHostedGatewayDrawer name", () => {
   });
 
   it("blocks a name the API would refuse", () => {
-    render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
+    renderPage();
 
     type(displayNameField(), "Edge One");
     type(nameField(), "Edge_One");
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create gateway" }));
 
     expect(
       screen.getByText(/Use lowercase letters, numbers and hyphens/),
@@ -114,15 +141,15 @@ describe("AddSelfHostedGatewayDrawer name", () => {
   });
 });
 
-describe("AddSelfHostedGatewayDrawer environment", () => {
+describe("AddGateway environment", () => {
   const submit = (url = "https://edge.example.com") => {
     type(displayNameField(), "Edge One");
     type(screen.getByPlaceholderText("https://gateway.example.com"), url);
-    fireEvent.click(screen.getByRole("button", { name: "Create" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create gateway" }));
   };
 
   it("hides the field and uses the only environment", async () => {
-    render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
+    renderPage();
 
     expect(screen.queryByRole("combobox", { name: "Environment" })).not.toBeInTheDocument();
     submit();
@@ -133,7 +160,7 @@ describe("AddSelfHostedGatewayDrawer environment", () => {
 
   it("asks for an environment when there is more than one", async () => {
     hoisted.environments = [DEV, PROD];
-    render(<AddSelfHostedGatewayDrawer open onClose={vi.fn()} orgId="acme" />);
+    renderPage();
 
     fireEvent.mouseDown(screen.getByRole("combobox", { name: "Environment" }));
     fireEvent.click(screen.getByRole("option", { name: "Production" }));
@@ -141,5 +168,36 @@ describe("AddSelfHostedGatewayDrawer environment", () => {
 
     await waitFor(() => expect(hoisted.createGateway).toHaveBeenCalledTimes(1));
     expect(hoisted.createGateway.mock.calls[0][0].body).toMatchObject({ environment: "prod" });
+  });
+});
+
+describe("AddGateway navigation", () => {
+  const create = async () => {
+    type(displayNameField(), "Edge One");
+    type(screen.getByPlaceholderText("https://gateway.example.com"), "https://edge.example.com");
+    fireEvent.click(screen.getByRole("button", { name: "Create gateway" }));
+    await screen.findByRole("heading", { name: "Set up Edge One" });
+  };
+
+  it("shows the setup steps on the same page, and Done opens the gateway", async () => {
+    renderPage();
+    await create();
+
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByText("gateway view")).toBeInTheDocument();
+  });
+
+  it("returns to the page that opened it on Cancel", () => {
+    renderPage("/somewhere");
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("opener")).toBeInTheDocument();
+  });
+
+  it("returns to the gateway list on Cancel after a direct visit", () => {
+    renderPage();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("gateway list")).toBeInTheDocument();
   });
 });
