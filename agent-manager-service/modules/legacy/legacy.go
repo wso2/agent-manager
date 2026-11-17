@@ -24,8 +24,10 @@ package legacy
 import (
 	"context"
 	"io/fs"
+	"slices"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // Name is the module's name.
@@ -42,8 +44,42 @@ func (module) Manifest() modkit.Manifest {
 		Description: "Features not yet split into modules: AI Gateway, LLM and MCP proxies, A2A and agent identity",
 		CoreAPI:     modkit.CoreAPIVersion,
 		Builtin:     true,
+		Permissions: permissions,
+		RoleGrants:  roleGrants,
 	}
 }
+
+// The legacy module declares every permission of rbac that is not the core's,
+// under the names it had before modules, and grants them as
+// rbac.PredefinedRolePermissions always has. The Admin role holds the whole
+// catalog, so it is the list to draw from.
+var (
+	legacyPerms = func() []rbac.Permission {
+		var out []rbac.Permission
+		for _, p := range rbac.PredefinedRolePermissions[rbac.RoleAdmin] {
+			if !slices.Contains(rbac.CorePermissions, p) {
+				out = append(out, p)
+			}
+		}
+		return out
+	}()
+	permissions = func() []modkit.Permission {
+		out := make([]modkit.Permission, 0, len(legacyPerms))
+		for _, p := range legacyPerms {
+			out = append(out, modkit.Permission{Name: string(p)})
+		}
+		return out
+	}()
+	roleGrants = func() map[string][]string {
+		out := map[string][]string{}
+		for role, ps := range rbac.GrantsOf(legacyPerms) {
+			for _, p := range ps {
+				out[role] = append(out[role], string(p))
+			}
+		}
+		return out
+	}()
+)
 
 func (module) Migrations() fs.FS { return nil }
 func (module) UI() fs.FS         { return nil }
