@@ -92,6 +92,9 @@ type ShadowAgentService interface {
 	UpdateConnection(ctx context.Context, ouID string, id uuid.UUID, in ShadowConnectionInput) (*ShadowConnectionView, error)
 	DeleteConnection(ctx context.Context, ouID string, id uuid.UUID) error
 	TestConnection(ctx context.Context, ouID string, id uuid.UUID) (*models.ShadowConnectionTestInfo, error)
+	// CreateRunnerScan creates a pending scan of a GitHub or Azure DevOps
+	// connection and the scan token its scan command publishes with.
+	CreateRunnerScan(ctx context.Context, ouID string, id uuid.UUID, opts models.ShadowScanOptions) (*ShadowRunnerScan, error)
 
 	// CreateScan queues a scan of the given connections, or of every
 	// connection when none is given.
@@ -119,15 +122,16 @@ type shadowAgentService struct {
 	encryptionKey []byte
 	logger        *slog.Logger
 	now           func() time.Time
+	runner        ShadowScanRunner
 }
 
-// NewShadowAgentService creates a ShadowAgentService.
+// NewShadowAgentService creates a ShadowAgentService. It refuses source code
+// scan commands as not set up; NewShadowAgentServiceWithScanRunner creates one
+// that can create them.
 func NewShadowAgentService(
 	repo repositories.ShadowAgentRepository, connectors ShadowConnectors, encryptionKey []byte, logger *slog.Logger,
 ) ShadowAgentService {
-	return &shadowAgentService{
-		repo: repo, connectors: connectors, encryptionKey: encryptionKey, logger: logger, now: time.Now,
-	}
+	return NewShadowAgentServiceWithScanRunner(repo, connectors, encryptionKey, logger, ShadowScanRunner{})
 }
 
 // ---- connections ----

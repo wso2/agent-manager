@@ -316,6 +316,12 @@ func loadEnvs() {
 	}
 	validateBuildClientConfig(config, r)
 
+	config.ShadowRunner = ShadowRunnerConfig{
+		Image:    shadowRunnerImage(r.readOptionalString("AMP_SHADOW_RUNNER_IMAGE", "")),
+		Resource: strings.TrimSpace(r.readOptionalString("AMP_SHADOW_RUNNER_RESOURCE", "")),
+	}
+	validateShadowRunnerConfig(config, r)
+
 	config.TLSConfig = TLSConfig{
 		EnableTLS: r.readOptionalBool("TLS_ENABLED", false),
 	}
@@ -668,6 +674,33 @@ func validateBuildClientConfig(cfg *Config, r *configReader) {
 			r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_RESOURCE %q must be an absolute URI without a fragment", res))
 		} else if !audienceAdmits(cfg.KeyManagerConfigurations.Audience, res) {
 			r.errors = append(r.errors, fmt.Errorf("AMP_BUILD_CLIENT_RESOURCE %q must also be admitted by KEY_MANAGER_AUDIENCE: it is the build tokens' audience", res))
+		}
+	}
+}
+
+// defaultShadowRunnerImage is the scan command's image when
+// AMP_SHADOW_RUNNER_IMAGE is unset or blank.
+const defaultShadowRunnerImage = "ghcr.io/wso2/amp-shadow-runner:latest"
+
+// shadowRunnerImage trims AMP_SHADOW_RUNNER_IMAGE and falls back to the
+// default image when nothing is left.
+func shadowRunnerImage(v string) string {
+	if v = strings.TrimSpace(v); v != "" {
+		return v
+	}
+	return defaultShadowRunnerImage
+}
+
+// validateShadowRunnerConfig checks the scan token's resource indicator the
+// way validateBuildClientConfig checks the build token's: it becomes every scan
+// token's audience, so a value KEY_MANAGER_AUDIENCE does not admit would make
+// every publish of a scan command fail with 401.
+func validateShadowRunnerConfig(cfg *Config, r *configReader) {
+	if res := cfg.ShadowRunner.Resource; res != "" {
+		if parsed, err := url.Parse(res); err != nil || parsed.Scheme == "" || !resourceIndicatorPattern.MatchString(res) {
+			r.errors = append(r.errors, fmt.Errorf("AMP_SHADOW_RUNNER_RESOURCE %q must be an absolute URI without a fragment", res))
+		} else if !audienceAdmits(cfg.KeyManagerConfigurations.Audience, res) {
+			r.errors = append(r.errors, fmt.Errorf("AMP_SHADOW_RUNNER_RESOURCE %q must also be admitted by KEY_MANAGER_AUDIENCE: it is the scan tokens' audience", res))
 		}
 	}
 }

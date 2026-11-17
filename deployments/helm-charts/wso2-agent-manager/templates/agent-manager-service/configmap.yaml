@@ -34,6 +34,10 @@ data:
   KEY_MANAGER_JWKS_URL: {{ .Values.agentManagerService.config.keyManager.jwksUrl | quote }}                                         
   SERVER_PUBLIC_URL: {{ .Values.agentManagerService.config.serverPublicURL | default "" | quote }}
   OAUTH_AUTHORIZATION_SERVERS: {{ .Values.agentManagerService.config.oauthAuthorizationServers | default .Values.agentManagerService.config.keyManager.issuer | quote }}
+  # Shadow Agent Discovery source code scan command. Empty uses the service's
+  # default image and requests the scan token for no resource.
+  AMP_SHADOW_RUNNER_IMAGE: {{ dig "shadowRunner" "image" "" .Values.agentManagerService.config | quote }}
+  AMP_SHADOW_RUNNER_RESOURCE: {{ dig "shadowRunner" "resource" "" .Values.agentManagerService.config | quote }}
   # Domain suffix env-Thunder's developer-facing hostnames are built from:
   # "<handle>.<IDP_HOST_BASE_DOMAIN>". Must match the value the
   # deployment-wide provisioning uses, or the identity-provider endpoints the API

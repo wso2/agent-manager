@@ -285,6 +285,173 @@ func (a *ShadowAgentDiscoveryAPIService) CreateShadowConnectionExecute(r ApiCrea
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
+type ApiCreateShadowRunnerScanRequest struct {
+	ctx                     context.Context
+	ApiService              *ShadowAgentDiscoveryAPIService
+	orgName                 string
+	connectionId            string
+	shadowRunnerScanRequest *ShadowRunnerScanRequest
+}
+
+func (r ApiCreateShadowRunnerScanRequest) ShadowRunnerScanRequest(shadowRunnerScanRequest ShadowRunnerScanRequest) ApiCreateShadowRunnerScanRequest {
+	r.shadowRunnerScanRequest = &shadowRunnerScanRequest
+	return r
+}
+
+func (r ApiCreateShadowRunnerScanRequest) Execute() (*ShadowRunnerScanResponse, *http.Response, error) {
+	return r.ApiService.CreateShadowRunnerScanExecute(r)
+}
+
+/*
+CreateShadowRunnerScan Create a source code scan command
+
+Creates a pending scan of a GitHub or Azure DevOps connection and a
+scan token, valid for about one hour, that lets the scan command
+publish its results for this organization only. Returns the parts the
+console composes the scan command from. The token is returned once and
+is not stored; the response is not cached. A pending scan with no
+results within one hour fails as expired.
+
+	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
+	@param orgName Organization name
+	@param connectionId Connection ID
+	@return ApiCreateShadowRunnerScanRequest
+*/
+func (a *ShadowAgentDiscoveryAPIService) CreateShadowRunnerScan(ctx context.Context, orgName string, connectionId string) ApiCreateShadowRunnerScanRequest {
+	return ApiCreateShadowRunnerScanRequest{
+		ApiService:   a,
+		ctx:          ctx,
+		orgName:      orgName,
+		connectionId: connectionId,
+	}
+}
+
+// Execute executes the request
+//
+//	@return ShadowRunnerScanResponse
+func (a *ShadowAgentDiscoveryAPIService) CreateShadowRunnerScanExecute(r ApiCreateShadowRunnerScanRequest) (*ShadowRunnerScanResponse, *http.Response, error) {
+	var (
+		localVarHTTPMethod  = http.MethodPost
+		localVarPostBody    interface{}
+		formFiles           []formFile
+		localVarReturnValue *ShadowRunnerScanResponse
+	)
+
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "ShadowAgentDiscoveryAPIService.CreateShadowRunnerScan")
+	if err != nil {
+		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
+	}
+
+	localVarPath := localBasePath + "/orgs/{orgName}/shadow-agents/connections/{connectionId}/runner-scans"
+	localVarPath = strings.Replace(localVarPath, "{"+"orgName"+"}", url.PathEscape(parameterValueToString(r.orgName, "orgName")), -1)
+	localVarPath = strings.Replace(localVarPath, "{"+"connectionId"+"}", url.PathEscape(parameterValueToString(r.connectionId, "connectionId")), -1)
+
+	localVarHeaderParams := make(map[string]string)
+	localVarQueryParams := url.Values{}
+	localVarFormParams := url.Values{}
+	if r.shadowRunnerScanRequest == nil {
+		return localVarReturnValue, nil, reportError("shadowRunnerScanRequest is required and must be specified")
+	}
+
+	// to determine the Content-Type header
+	localVarHTTPContentTypes := []string{"application/json"}
+
+	// set Content-Type header
+	localVarHTTPContentType := selectHeaderContentType(localVarHTTPContentTypes)
+	if localVarHTTPContentType != "" {
+		localVarHeaderParams["Content-Type"] = localVarHTTPContentType
+	}
+
+	// to determine the Accept header
+	localVarHTTPHeaderAccepts := []string{"application/json"}
+
+	// set Accept header
+	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
+	if localVarHTTPHeaderAccept != "" {
+		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	// body params
+	localVarPostBody = r.shadowRunnerScanRequest
+	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
+	if err != nil {
+		return localVarReturnValue, nil, err
+	}
+
+	localVarHTTPResponse, err := a.client.callAPI(req)
+	if err != nil || localVarHTTPResponse == nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	localVarBody, err := io.ReadAll(localVarHTTPResponse.Body)
+	localVarHTTPResponse.Body.Close()
+	localVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))
+	if err != nil {
+		return localVarReturnValue, localVarHTTPResponse, err
+	}
+
+	if localVarHTTPResponse.StatusCode >= 300 {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: localVarHTTPResponse.Status,
+		}
+		if localVarHTTPResponse.StatusCode == 400 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 404 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 500 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+			return localVarReturnValue, localVarHTTPResponse, newErr
+		}
+		if localVarHTTPResponse.StatusCode == 503 {
+			var v ErrorResponse
+			err = a.client.decode(&v, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+			if err != nil {
+				newErr.error = err.Error()
+				return localVarReturnValue, localVarHTTPResponse, newErr
+			}
+			newErr.error = formatErrorMessage(localVarHTTPResponse.Status, &v)
+			newErr.model = v
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	err = a.client.decode(&localVarReturnValue, localVarBody, localVarHTTPResponse.Header.Get("Content-Type"))
+	if err != nil {
+		newErr := &GenericOpenAPIError{
+			body:  localVarBody,
+			error: err.Error(),
+		}
+		return localVarReturnValue, localVarHTTPResponse, newErr
+	}
+
+	return localVarReturnValue, localVarHTTPResponse, nil
+}
+
 type ApiCreateShadowScanRequest struct {
 	ctx               context.Context
 	ApiService        *ShadowAgentDiscoveryAPIService

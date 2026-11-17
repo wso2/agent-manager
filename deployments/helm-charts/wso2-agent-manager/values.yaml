@@ -284,6 +284,19 @@ agentManagerService:
     # here silently advertises the wrong issuer. Set only if it must differ.
     oauthAuthorizationServers: ""
 
+    # Shadow Agent Discovery source code scans: the scan command a customer
+    # runs for a GitHub or Azure DevOps platform publishes its results to
+    # serverPublicURL with an organization-scoped token obtained with
+    # oidc.clientId.
+    shadowRunner:
+      # The scan command's container image (AMP_SHADOW_RUNNER_IMAGE).
+      # Empty: ghcr.io/wso2/amp-shadow-runner:latest.
+      image: ""
+      # RFC 8707 resource indicator the scan token is requested for
+      # (AMP_SHADOW_RUNNER_RESOURCE). Empty requests none. When set,
+      # keyManager.audience must admit it.
+      resource: ""
+
     # Domain suffix env-Thunder developer-facing hostnames are built from:
     # "<handle>.<idpHostBaseDomain>". Override on custom-domain /
     # sslip.io installs so the reported identity-provider endpoints match the

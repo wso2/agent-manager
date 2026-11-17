@@ -14906,6 +14906,76 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/shadow-agents/connections/{connectionId}/runner-scans:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: connectionId
+        in: path
+        required: true
+        description: Connection ID
+        schema:
+          type: string
+          format: uuid
+    post:
+      tags:
+        - Shadow Agent Discovery
+      summary: Create a source code scan command
+      description: |
+        Creates a pending scan of a GitHub or Azure DevOps connection and a
+        scan token, valid for about one hour, that lets the scan command
+        publish its results for this organization only. Returns the parts the
+        console composes the scan command from. The token is returned once and
+        is not stored; the response is not cached. A pending scan with no
+        results within one hour fails as expired.
+      operationId: createShadowRunnerScan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowRunnerScanRequest"
+      responses:
+        "201":
+          description: Pending scan created
+          headers:
+            Cache-Control:
+              description: Always no-store
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowRunnerScanResponse"
+        "400":
+          description: Invalid request, or the connection is not a source code repository host
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Source code scans are not set up on this server, or the identity provider or audit trail is unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/shadow-agents/scans:
     parameters:
       - name: orgName
@@ -24815,6 +24885,42 @@ components:
         llmJudge:
           type: boolean
           description: A second model must confirm the reviewer. Only with aiReview.
+
+    ShadowRunnerScanRequest:
+      type: object
+      description: The choices made in Generate command for a source code scan.
+      required: [aiReview, llmJudge]
+      properties:
+        aiReview:
+          type: boolean
+          description: Matches the rules cannot prove go to the customer's LLM for review.
+        llmJudge:
+          type: boolean
+          description: A second model must confirm the reviewer. Only with aiReview.
+
+    ShadowRunnerScanResponse:
+      type: object
+      description: |
+        The pending scan and the parts of the scan command that runs it. The
+        token is shown once.
+      required: [scanId, token, expiresAt, ampUrl, image]
+      properties:
+        scanId:
+          type: string
+          format: uuid
+        token:
+          type: string
+          description: The scan token the command publishes its results with.
+        expiresAt:
+          type: string
+          format: date-time
+          description: When the scan token expires.
+        ampUrl:
+          type: string
+          description: The Agent Manager address the scan command publishes to.
+        image:
+          type: string
+          description: The scan command's container image.
 
     ShadowScanListResponse:
       type: object

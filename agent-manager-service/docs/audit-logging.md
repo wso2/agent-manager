@@ -322,6 +322,7 @@ The operations below emit a record describing what actually changed, not just th
 | Agent lifecycle | `agent:build` | Fail-open |
 | Builds | `build-workload:publish` (a build's workload step, through the build publisher endpoint; service actor: the client its build token was issued to, `IDP_CLIENT_ID`) | Fail-closed |
 | Build token | `build-token:issue` (organization-scoped access token a build uses to call the build publisher endpoint, obtained with `IDP_CLIENT_ID` and stored in the secret store) | Fail-closed |
+| Shadow Agent Discovery | `shadow-scan-token:issue` (a pending source code scan and the organization-scoped scan token its scan command publishes with, obtained with `IDP_CLIENT_ID`; the token is returned once and never recorded) | Fail-closed |
 | Gateways | `gateway:delete`, `gateway:set-identity-provider`, `gateway:remove-identity-provider` | Fail-closed |
 | Gateways | `gateway:create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
 | Internal | `gateway:push-manifest`, `api-key:sync` (bulk sync, coalesced per gateway) | Fail-open |
@@ -415,6 +416,7 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `role:unassign` | identity | 4 critical | `assigneeCount`, `assigneeTypes`, `assignees`, `roleName` |
 | `service-account:configure` | credential | 4 critical | `clientId`, `environment` |
 | `service-account:remove` | credential | 4 critical | `environment` |
+| `shadow-scan-token:issue` | credential | 4 critical | `aiReview`, `clientId`, `llmJudge`, `provider`, `scanId` |
 | `system:agent-identity-exhausted` | credential | 3 warning | `agentName`, `environment`, `reason` |
 | `system:agent-identity-provisioned` | credential | 2 notice | `agentName`, `clientId`, `environment` |
 | `system:audit-dropped` | system | 4 critical | `droppedTotal`, `sink` |

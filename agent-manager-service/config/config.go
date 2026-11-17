@@ -136,6 +136,9 @@ type Config struct {
 	// workload step uses to call this service's build publisher endpoint instead
 	// of the OpenChoreo API. See BuildClientConfig.
 	BuildClient BuildClientConfig
+	// ShadowRunner configures the source code scan command of Shadow Agent
+	// Discovery. See ShadowRunnerConfig.
+	ShadowRunner ShadowRunnerConfig
 	// IdentityManagementMode controls project AgentID creation. Existing
 	// installations remain on direct environment-Thunder management.
 	IdentityManagementMode string
@@ -668,6 +671,27 @@ type BuildClientConfig struct {
 	// carry none and every build would fail). It becomes the token's audience, so
 	// KEY_MANAGER_AUDIENCE must admit it, which startup checks. Empty requests none,
 	// and the token's audience is IDP_CLIENT_ID.
+	Resource string
+}
+
+// ShadowRunnerConfig controls the source code scan command of Shadow Agent
+// Discovery, which a customer runs on their own machine for a GitHub or Azure
+// DevOps connection. The command publishes its results to SERVER_PUBLIC_URL with
+// an organization-scoped scan token this service obtains, like the build token,
+// from the identity provider's organization token endpoint with IDP_CLIENT_ID
+// and IDP_CLIENT_SECRET. Without SERVER_PUBLIC_URL or that client, creating a
+// scan command is refused (503); the rest of the service is unaffected.
+type ShadowRunnerConfig struct {
+	// Image is the scan command's container image (AMP_SHADOW_RUNNER_IMAGE).
+	Image string
+	// Resource is the RFC 8707 resource indicator the scan token is requested
+	// for (AMP_SHADOW_RUNNER_RESOURCE): the identifier of the resource server
+	// that defines amp:shadow-agent:publish, for an identity provider whose
+	// default resource server does not (it drops a scope it does not define, so
+	// the token would carry none and no scan command could be created). It
+	// becomes the token's audience, so KEY_MANAGER_AUDIENCE must admit it, which
+	// startup checks. Empty requests none, and the token's audience is
+	// IDP_CLIENT_ID.
 	Resource string
 }
 

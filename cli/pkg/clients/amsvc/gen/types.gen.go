@@ -7009,6 +7009,32 @@ type ShadowProviderSpec struct {
 // ShadowProviderSpecProvider defines model for ShadowProviderSpec.Provider.
 type ShadowProviderSpecProvider string
 
+// ShadowRunnerScanRequest The choices made in Generate command for a source code scan.
+type ShadowRunnerScanRequest struct {
+	// AiReview Matches the rules cannot prove go to the customer's LLM for review.
+	AiReview bool `json:"aiReview"`
+
+	// LlmJudge A second model must confirm the reviewer. Only with aiReview.
+	LlmJudge bool `json:"llmJudge"`
+}
+
+// ShadowRunnerScanResponse The pending scan and the parts of the scan command that runs it. The
+// token is shown once.
+type ShadowRunnerScanResponse struct {
+	// AmpUrl The Agent Manager address the scan command publishes to.
+	AmpUrl string `json:"ampUrl"`
+
+	// ExpiresAt When the scan token expires.
+	ExpiresAt time.Time `json:"expiresAt"`
+
+	// Image The scan command's container image.
+	Image  string             `json:"image"`
+	ScanId openapi_types.UUID `json:"scanId"`
+
+	// Token The scan token the command publishes its results with.
+	Token string `json:"token"`
+}
+
 // ShadowScanCallResult defines model for ShadowScanCallResult.
 type ShadowScanCallResult struct {
 	Call    string                      `json:"call"`
@@ -8728,6 +8754,9 @@ type CreateShadowConnectionJSONRequestBody = ShadowConnectionRequest
 
 // UpdateShadowConnectionJSONRequestBody defines body for UpdateShadowConnection for application/json ContentType.
 type UpdateShadowConnectionJSONRequestBody = ShadowConnectionRequest
+
+// CreateShadowRunnerScanJSONRequestBody defines body for CreateShadowRunnerScan for application/json ContentType.
+type CreateShadowRunnerScanJSONRequestBody = ShadowRunnerScanRequest
 
 // UpdateShadowFindingJSONRequestBody defines body for UpdateShadowFinding for application/json ContentType.
 type UpdateShadowFindingJSONRequestBody = ShadowFindingUpdateRequest

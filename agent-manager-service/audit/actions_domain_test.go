@@ -89,6 +89,11 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 			nil, ActionAgentIdentityRetryProvisioning,
 		},
 		{"PUT /orgs/{orgName}/environments/{envID}/thunder-system-client", nil, ActionServiceAccountConfigure},
+		{
+			"POST /orgs/{orgName}/shadow-agents/connections/{connectionId}/runner-scans",
+			[]rbac.Permission{rbac.ShadowAgentManage},
+			ActionShadowScanTokenIssue,
+		},
 		{"POST /orgs/{orgName}/events/destinations", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationCreate},
 		{"PUT /orgs/{orgName}/events/destinations/{destinationId}", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationUpdate},
 		{"DELETE /orgs/{orgName}/events/destinations/{destinationId}", []rbac.Permission{rbac.EventsManage}, ActionEventDestinationDelete},

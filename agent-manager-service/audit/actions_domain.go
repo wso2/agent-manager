@@ -76,6 +76,9 @@ const (
 	ActionShadowFindingUpdate    Action = "shadow-finding:update"
 	ActionShadowFindingDelete    Action = "shadow-finding:delete"
 	ActionShadowFindingClear     Action = "shadow-finding:clear"
+	// A source code scan command: a pending scan and the organization-scoped
+	// scan token (amp:shadow-agent:publish) the command publishes with.
+	ActionShadowScanTokenIssue Action = "shadow-scan-token:issue"
 
 	// An event subscription decides which events are sent to a destination.
 	ActionEventSubscriptionCreate Action = "event-subscription:create"
@@ -349,6 +352,16 @@ func init() {
 	RegisterDetailSchema(ActionShadowFindingDelete, nil)
 	Register(ActionShadowFindingClear, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionShadowFindingClear, nil)
+	// A scan token is recorded by the connection it scans, the scan it
+	// publishes to and the client it was issued to; the token never reaches
+	// the record.
+	registerCredential(ActionShadowScanTokenIssue, map[string]FieldKind{
+		"provider": KindEnum,
+		"scanId":   KindIdentifier,
+		"clientId": KindIdentifier,
+		"aiReview": KindFlag,
+		"llmJudge": KindFlag,
+	})
 
 	// A subscription holds no credential, but it decides which event data
 	// reaches a destination outside the platform.

@@ -53,6 +53,7 @@ type ShadowAgentController interface {
 	UpdateConnection(w http.ResponseWriter, r *http.Request)
 	DeleteConnection(w http.ResponseWriter, r *http.Request)
 	TestConnection(w http.ResponseWriter, r *http.Request)
+	CreateRunnerScan(w http.ResponseWriter, r *http.Request)
 	ListScans(w http.ResponseWriter, r *http.Request)
 	CreateScan(w http.ResponseWriter, r *http.Request)
 	GetScan(w http.ResponseWriter, r *http.Request)
@@ -288,6 +289,34 @@ func (c *shadowAgentController) TestConnection(w http.ResponseWriter, r *http.Re
 	utils.WriteSuccessResponse(w, http.StatusOK, toShadowConnectionTest(*res))
 }
 
+// CreateRunnerScan creates a pending source code scan and its scan token. The
+// response carries the token, so it must never be cached.
+func (c *shadowAgentController) CreateRunnerScan(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	id, ok := shadowConnectionID(w, r)
+	if !ok {
+		return
+	}
+	var req spec.ShadowRunnerScanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	opts := models.ShadowScanOptions{AIReview: req.AiReview, LLMJudge: req.LlmJudge}
+	res, err := c.svc.CreateRunnerScan(r.Context(), middleware.OUIDFromRequest(r), id, opts)
+	if err != nil {
+		writeShadowError(w, r, err, "Failed to create the scan command")
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusCreated, spec.ShadowRunnerScanResponse{
+		ScanId:    res.ScanID.String(),
+		Token:     res.Token,
+		ExpiresAt: res.ExpiresAt,
+		AmpUrl:    res.AMPURL,
+		Image:     res.Image,
+	})
+}
+
 // ---- scans ----
 
 func (c *shadowAgentController) ListScans(w http.ResponseWriter, r *http.Request) {
@@ -496,6 +525,11 @@ func writeShadowError(w http.ResponseWriter, r *http.Request, err error, fallbac
 	case errors.Is(err, audit.ErrRecorderUnavailable):
 		logger.GetLogger(r.Context()).Error(fallback, "error", err)
 		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Audit trail unavailable; the change was not applied")
+	case errors.Is(err, utils.ErrShadowScanCommandUnavailable):
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, err.Error())
+	case errors.Is(err, utils.ErrServiceUnavailable):
+		logger.GetLogger(r.Context()).Error(fallback, "error", err)
+		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "The identity provider is unavailable; try again later")
 	default:
 		logger.GetLogger(r.Context()).Error(fallback, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallback)

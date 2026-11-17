@@ -36,6 +36,7 @@ func registerShadowAgentRoutes(rr *middleware.RouteRegistrar, controller control
 	rr.HandleFuncWithValidationAndAuthz(route("PUT", base+"/connections/{connectionId}"), rbac.ShadowAgentManage, controller.UpdateConnection)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/connections/{connectionId}"), rbac.ShadowAgentManage, controller.DeleteConnection)
 	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/connections/{connectionId}/test"), rbac.ShadowAgentManage, controller.TestConnection)
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/connections/{connectionId}/runner-scans"), rbac.ShadowAgentManage, controller.CreateRunnerScan)
 
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/scans"), rbac.ShadowAgentRead, controller.ListScans)
 	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/scans"), rbac.ShadowAgentManage, controller.CreateScan)
