@@ -74,6 +74,8 @@ export interface ShadowEndpointSpec {
   fillValues?: string[];
   /** Kept behind the "Advanced configuration" button. */
   advanced?: boolean;
+  /** When to change the endpoint; shown under the input. */
+  help?: string;
 }
 
 export interface ShadowFieldSpec {
@@ -219,14 +221,19 @@ export interface ShadowRunnerScanRequest {
 }
 
 /**
- * The pending scan and the command that runs it. The command holds a scan
- * token, so it is shown once and never cached.
+ * The pending scan and the parts of the command that runs it; the console
+ * composes the command. The token is shown once and never cached.
  */
 export interface ShadowRunnerScanResponse {
   scanId: string;
-  command: string;
-  /** When the scan token in the command expires (1 hour). */
+  /** The scan token the command publishes results with. */
+  token: string;
+  /** When the scan token expires (1 hour). */
   expiresAt: string;
+  /** The Agent Manager address the scanner publishes to. */
+  ampUrl: string;
+  /** The scanner container image. */
+  image: string;
 }
 
 export interface ShadowScanRequest {

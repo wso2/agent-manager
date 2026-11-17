@@ -164,9 +164,8 @@ type ShadowConnectionConfig struct {
 	// Azure DevOps: every project of the organization, or only Projects.
 	AllProjects bool     `json:"allProjects,omitempty"`
 	Projects    []string `json:"projects,omitempty"`
-	// GitHub, Azure DevOps: also read CI pipeline definitions and .env
-	// example files.
-	ReadCIAndEnvFiles bool `json:"readCiAndEnvFiles,omitempty"`
+	// GitHub, Azure DevOps: also read CI pipeline definitions.
+	ReadCIFiles bool `json:"readCiFiles,omitempty"`
 
 	// DisabledServices are the optional services (Bedrock, Google) the user
 	// unticked: the scan does not call them. Listing the disabled ones keeps

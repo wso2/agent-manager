@@ -221,8 +221,8 @@ export function useStartShadowScan(orgName: string | undefined) {
 
 /**
  * Generate command: creates a pending source code scan for a GitHub or Azure
- * DevOps connection. The returned command holds a scan token, so callers keep
- * it in component state only (it is never put in the query cache).
+ * DevOps connection. The response holds a scan token, so callers keep it in
+ * component state only (it is never put in the query cache).
  */
 export function useCreateShadowRunnerScan(orgName: string | undefined) {
   const { getToken } = useAuthHooks();
@@ -232,9 +232,11 @@ export function useCreateShadowRunnerScan(orgName: string | undefined) {
     unknown,
     { connectionId: string } & ShadowRunnerScanRequest
   >({
-    action: { verb: "generate", target: "scan command" },
-    // The dialog shows the error itself.
+    // The panel or dialog shows the command and the error itself.
+    showSuccess: false,
     showError: false,
+    // The response holds a scan token: drop it from the mutation cache at once.
+    gcTime: 0,
     mutationFn: ({ connectionId, ...body }) =>
       createShadowRunnerScan(orgName, connectionId, body, getToken),
     // The new pending scan shows in Scans.

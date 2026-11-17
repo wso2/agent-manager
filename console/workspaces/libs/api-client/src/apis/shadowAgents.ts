@@ -167,7 +167,7 @@ export async function createShadowScan(
   return res.json();
 }
 
-/** Creates a pending source code scan and returns the command that runs it. */
+/** Creates a pending source code scan and returns the parts of the command that runs it. */
 export async function createShadowRunnerScan(
   orgName: string | undefined,
   connectionId: string,

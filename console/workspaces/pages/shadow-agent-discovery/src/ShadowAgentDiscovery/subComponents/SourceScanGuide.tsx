@@ -62,7 +62,8 @@ export function SourceScanGuide({ spec }: { spec: ShadowProviderSpec }) {
                   Save the organization and {repos} here. No token is entered or stored.
                 </Typography>
                 <Typography component="li" variant="body2" color="text.secondary">
-                  On the Platforms tab, choose Generate command and turn AI review on or off.
+                  Turn AI review on or off next to the form and save: the command is shown
+                  there. Later, get a new one from Generate command on the Platforms tab.
                 </Typography>
                 <Typography component="li" variant="body2" color="text.secondary">
                   Run the command in a terminal. It asks for a read-only token

@@ -24549,6 +24549,9 @@ components:
         advanced:
           type: boolean
           description: An endpoint the console keeps behind the "Advanced configuration" button.
+        help:
+          type: string
+          description: When to change the endpoint; the console shows it under the input.
 
     ShadowFieldSpec:
       type: object

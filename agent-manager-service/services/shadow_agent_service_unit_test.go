@@ -567,27 +567,35 @@ func TestShadowSourceHostConnection_StoresNoSecret(t *testing.T) {
 	}
 	svc := newShadowSvc(repo)
 
-	v, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+	// Every repository is not ticked by default, so repositories are required.
+	_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 		Name: "GitHub", Provider: models.ShadowProviderGitHub,
 		Settings: map[string]any{"organization": "acme"},
+	})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+
+	v, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+		Name: "GitHub", Provider: models.ShadowProviderGitHub,
+		Settings: map[string]any{"organization": "acme", "repositories": []any{"payments"}},
 	})
 	require.NoError(t, err)
 	assert.Nil(t, stored.SecretEncrypted)
 	assert.Empty(t, stored.SecretHints)
-	assert.True(t, stored.Config.AllRepositories, "ticked by default")
+	assert.False(t, stored.Config.AllRepositories, "not ticked by default")
 	assert.True(t, stored.Config.PrivateRepositories, "ticked by default")
+	assert.True(t, stored.Config.ReadCIFiles, "ticked by default")
 	assert.Equal(t, true, v.Settings[sa.OptPrivateRepos])
 
 	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 		Name: "Public", Provider: models.ShadowProviderGitHub,
-		Settings: map[string]any{"organization": "acme", sa.OptPrivateRepos: false},
+		Settings: map[string]any{"organization": "acme", sa.OptAllRepositories: true, sa.OptPrivateRepos: false},
 	})
 	require.NoError(t, err)
 	assert.False(t, stored.Config.PrivateRepositories)
 
 	_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 		Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
-		Settings: map[string]any{"organization": "contoso"},
+		Settings: map[string]any{"organization": "contoso", sa.OptAllProjects: true},
 	})
 	require.NoError(t, err)
 	assert.Nil(t, stored.SecretEncrypted)
@@ -595,7 +603,7 @@ func TestShadowSourceHostConnection_StoresNoSecret(t *testing.T) {
 	for _, key := range []string{"personalAccessToken", "useEntra", "clientSecret"} {
 		_, err = svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
 			Name: "Azure DevOps", Provider: models.ShadowProviderAzureDevOps,
-			Settings: map[string]any{"organization": "contoso", key: "x"},
+			Settings: map[string]any{"organization": "contoso", sa.OptAllProjects: true, key: "x"},
 		})
 		assert.ErrorIs(t, err, utils.ErrInvalidInput, "%s is not a setting any more", key)
 	}

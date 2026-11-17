@@ -103,7 +103,7 @@ func (c *shadowAgentController) ListProviders(w http.ResponseWriter, _ *http.Req
 			es := spec.ShadowEndpointSpec{
 				Key: e.Key, Label: e.Label, Default: e.Default,
 				Placeholders: append([]string{}, e.Placeholders...), Option: optionalString(e.Option),
-				FillFrom: optionalString(e.FillFrom),
+				FillFrom: optionalString(e.FillFrom), Help: optionalString(e.Help),
 			}
 			if len(e.FillExclude) > 0 {
 				es.FillExclude = append([]string{}, e.FillExclude...)

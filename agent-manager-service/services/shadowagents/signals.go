@@ -116,7 +116,7 @@ var sourceEvidence = []struct{ slug, name, condition string }{
 	{"d10_model_sdk", "Model SDK only", "A manifest or lockfile declares a model SDK and no agent framework"},
 	{
 		"d11_llm_env_var", "LLM environment variable name",
-		"A model provider variable name (never its value) in a CI pipeline definition, a Helm or Kubernetes file, or .env.example",
+		"A model provider variable name (never its value) in a CI pipeline definition",
 	},
 	{
 		"d12_developer_tooling", "Developer AI tooling",

@@ -24,35 +24,37 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  FormControlLabel,
   Stack,
-  Switch,
   Typography,
 } from "@wso2/oxygen-ui";
 import { useCreateShadowRunnerScan } from "@agent-management-platform/api-client";
 import { CodeBlock } from "@agent-management-platform/shared-component";
-import type { ShadowRunnerScanResponse } from "@agent-management-platform/types";
-
-/** The GitHub or Azure DevOps connection a command is generated for. */
-export interface CommandTarget {
-  id: string;
-  name: string;
-}
+import type {
+  ShadowConnectionResponse,
+  ShadowProviderSpec,
+  ShadowRunnerScanResponse,
+} from "@agent-management-platform/types";
+import { buildScanCommand } from "../scanCommand";
+import { expiryTime, ScanOptions } from "./ScanCommandPanel";
 
 /**
  * Generate command for a source code repository connection: choose AI review
  * (and the LLM judge), then copy the docker command that scans the
- * repositories on the customer's machine. The command holds a scan token, so
+ * repositories on the customer's machine. The command is composed from the
+ * connection's saved settings and the issued scan; it holds a scan token, so
  * it lives only in this dialog's state and is shown once.
  */
 export function GenerateCommandDialog({
   orgName,
   target,
+  spec,
   onClose,
 }: {
   orgName: string | undefined;
   /** The connection to generate for; the dialog is open while it is set. */
-  target: CommandTarget | null;
+  target: ShadowConnectionResponse | null;
+  /** The connection's provider spec (its endpoint defaults). */
+  spec: ShadowProviderSpec | undefined;
   onClose: () => void;
 }) {
   const { mutate, reset, isPending } = useCreateShadowRunnerScan(orgName);
@@ -93,9 +95,7 @@ export function GenerateCommandDialog({
     );
   };
 
-  const expiresAt = result ? new Date(result.expiresAt) : null;
-  const expires =
-    expiresAt && !Number.isNaN(expiresAt.getTime()) ? expiresAt.toLocaleTimeString() : "";
+  const expires = expiryTime(result?.expiresAt);
 
   return (
     <Dialog
@@ -110,14 +110,19 @@ export function GenerateCommandDialog({
     >
       <DialogTitle>Generate scan command{target ? `: ${target.name}` : ""}</DialogTitle>
       <DialogContent>
-        {result ? (
+        {result && target ? (
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
               Run this in a terminal. It asks for the tokens it needs, scans on your machine and
               publishes only the agents it confirms. The scan shows as Pending until then.
             </Typography>
             <CodeBlock
-              code={result.command}
+              code={buildScanCommand(
+                spec ?? { provider: target.provider, endpoints: [] },
+                target,
+                { aiReview, llmJudge: aiReview && llmJudge },
+                result,
+              )}
               language="bash"
               fieldId="shadow-scan-command"
               analyticsId="shadow-scan-command"
@@ -133,55 +138,27 @@ export function GenerateCommandDialog({
               The rules publish an agent only when they prove it. Choose what happens to the
               matches they cannot prove.
             </Typography>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={aiReview}
-                  onChange={(e) => {
-                    setAiReview(e.target.checked);
-                    if (!e.target.checked) setLlmJudge(false);
-                  }}
-                />
-              }
-              label={
-                <Stack>
-                  <Typography variant="body2">AI review</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    Your LLM checks the matches the rules cannot prove. The command asks for your
-                    LLM API key.
-                  </Typography>
-                </Stack>
-              }
+            <ScanOptions
+              aiReview={aiReview}
+              llmJudge={llmJudge}
+              onChange={(next) => {
+                setAiReview(next.aiReview);
+                setLlmJudge(next.llmJudge);
+              }}
             />
-            <FormControlLabel
-              sx={{ pl: 4 }}
-              disabled={!aiReview}
-              control={
-                <Switch checked={llmJudge} onChange={(e) => setLlmJudge(e.target.checked)} />
-              }
-              label={
-                <Stack>
-                  <Typography variant="body2">LLM judge</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    A second, smaller model must agree before an agent is published. Needs AI
-                    review.
-                  </Typography>
-                </Stack>
-              }
-            />
-            {aiReview && <Alert severity="warning">AI review can make mistakes.</Alert>}
             {error && <Alert severity="error">{error}</Alert>}
           </Stack>
         )}
       </DialogContent>
       <DialogActions sx={{ justifyContent: "flex-start", px: 3, pb: 2 }}>
-        {result ? (
+        {result && target ? (
           <Button variant="outlined" onClick={onClose}>
             Close
           </Button>
         ) : (
           <>
-            <Button variant="contained" onClick={submit} disabled={isPending}>
+            {/* The command needs the platform's spec (its default server address). */}
+            <Button variant="contained" onClick={submit} disabled={isPending || !spec}>
               Generate
             </Button>
             <Button variant="outlined" onClick={onClose} disabled={isPending}>

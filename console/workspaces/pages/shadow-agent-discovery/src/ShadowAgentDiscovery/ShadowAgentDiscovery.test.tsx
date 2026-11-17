@@ -26,6 +26,7 @@ import type {
   ShadowFindingListQuery,
   ShadowFindingSummary,
   ShadowProviderSpec,
+  ShadowRunnerScanResponse,
   ShadowScanResponse,
 } from "@agent-management-platform/types";
 
@@ -118,6 +119,9 @@ const hoisted = vi.hoisted(() => ({
   generate: vi.fn(),
   resetGenerate: vi.fn(),
   addConfirmation: vi.fn(),
+  providers: [] as ShadowProviderSpec[],
+  createConnection: vi.fn(),
+  updateConnection: vi.fn(),
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
@@ -135,7 +139,13 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useDeleteShadowFindings: () => ({ mutate: hoisted.deleteAll, isPending: false }),
   useTokenScopes: () => ({ enforced: hoisted.enforced, resolved: true, scopes: hoisted.scopes }),
   useShadowSummary: () => ({ data: hoisted.summary, isLoading: false, error: null }),
-  useShadowProviders: () => ({ data: undefined }),
+  useShadowProviders: () => ({
+    data: hoisted.providers.length > 0 ? { providers: hoisted.providers, signals: [] } : undefined,
+    isLoading: false,
+  }),
+  useShadowConnection: () => ({ data: undefined, isLoading: false }),
+  useCreateShadowConnection: () => ({ mutate: hoisted.createConnection, isPending: false }),
+  useUpdateShadowConnection: () => ({ mutate: hoisted.updateConnection, isPending: false }),
   useShadowConnections: () => ({
     data: { connections: hoisted.connections },
     isLoading: false,
@@ -200,6 +210,7 @@ import { ScanStatusChip } from "./shadowUi";
 import { SourceScanGuide } from "./subComponents/SourceScanGuide";
 import { DocLinks } from "./subComponents/PermissionsPanel";
 import { GenerateCommandDialog } from "./subComponents/GenerateCommandDialog";
+import { ConnectionEditor } from "./subComponents/ConnectionEditor";
 
 function ShowLocation() {
   const l = useLocation();
@@ -246,6 +257,7 @@ beforeEach(() => {
   hoisted.summary = undefined;
   hoisted.connections = [];
   hoisted.scans = [];
+  hoisted.providers = [];
 });
 
 describe("ShadowAgentDiscovery page", () => {
@@ -900,15 +912,33 @@ describe("DocLinks", () => {
   });
 });
 
+type RunnerMutateOptions = {
+  onSuccess: (r: ShadowRunnerScanResponse) => void;
+  onError: (e: unknown) => void;
+};
+const issuedScan = (over: Partial<ShadowRunnerScanResponse> = {}): ShadowRunnerScanResponse => ({
+  scanId: "s9",
+  token: "tok-1",
+  expiresAt: "2026-11-17T10:00:00Z",
+  ampUrl: "https://amp.example.com",
+  image: "ghcr.io/wso2/scanner:1.0",
+  ...over,
+});
+
 describe("GenerateCommandDialog", () => {
-  type MutateOptions = {
-    onSuccess: (r: { scanId: string; command: string; expiresAt: string }) => void;
-    onError: (e: unknown) => void;
-  };
-  const target = { id: "c2", name: "WSO2 GitHub" };
+  type MutateOptions = RunnerMutateOptions;
+  const target = connection({
+    id: "c2",
+    name: "WSO2 GitHub",
+    provider: "github",
+    settings: { organization: "wso2", allRepositories: true },
+  });
+  const spec = sourceHostSpec();
 
   it("offers the LLM judge only with AI review, and warns about AI mistakes", () => {
-    render(<GenerateCommandDialog orgName="acme" target={target} onClose={vi.fn()} />);
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
     const ai = screen.getByRole("switch", { name: /^AI review/ });
     const judge = screen.getByRole("switch", { name: /^LLM judge/ });
     expect(judge).toBeDisabled();
@@ -924,22 +954,22 @@ describe("GenerateCommandDialog", () => {
     );
   });
 
-  it("shows the command once it is generated", () => {
-    render(<GenerateCommandDialog orgName="acme" target={target} onClose={vi.fn()} />);
+  it("shows the command, composed from the saved settings and the issued scan", () => {
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
       { connectionId: "c2", aiReview: false, llmJudge: false },
       expect.anything(),
     );
     const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
-    act(() =>
-      opts.onSuccess({
-        scanId: "s9",
-        command: "docker run --rm -it scan --scan-id s9",
-        expiresAt: "2026-11-17T10:00:00Z",
-      }),
-    );
-    expect(screen.getByText("docker run --rm -it scan --scan-id s9")).toBeInTheDocument();
+    act(() => opts.onSuccess(issuedScan()));
+    // The command as one line: its " \\" line continuations joined.
+    const code = (screen.getByText(/AMP_SCAN_TOKEN=tok-1/).textContent ?? "").replace(/ \\\n\s*/g, " ");
+    expect(code).toContain("-e AMP_URL=https://amp.example.com");
+    expect(code).toContain("ghcr.io/wso2/scanner:1.0 scan --scan-id s9");
+    expect(code).toContain("--github-org wso2 --all-repos");
     expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
   });
@@ -947,13 +977,11 @@ describe("GenerateCommandDialog", () => {
   it("never shows a command again after closing, and closes only with Close", () => {
     const onClose = vi.fn();
     const { rerender } = render(
-      <GenerateCommandDialog orgName="acme" target={target} onClose={onClose} />,
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={onClose} />,
     );
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
-    act(() =>
-      opts.onSuccess({ scanId: "s9", command: "docker run secret", expiresAt: "bad date" }),
-    );
+    act(() => opts.onSuccess(issuedScan({ token: "secret", expiresAt: "bad date" })));
     // The command is kept only in the dialog, not in the mutation cache.
     expect(hoisted.resetGenerate).toHaveBeenCalled();
     expect(screen.getByText(/valid for 1 hour;/)).toBeInTheDocument();
@@ -962,17 +990,179 @@ describe("GenerateCommandDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     expect(onClose).toHaveBeenCalledTimes(1);
 
-    rerender(<GenerateCommandDialog orgName="acme" target={null} onClose={onClose} />);
-    rerender(<GenerateCommandDialog orgName="acme" target={target} onClose={onClose} />);
-    expect(screen.queryByText("docker run secret")).not.toBeInTheDocument();
+    rerender(
+      <GenerateCommandDialog orgName="acme" target={null} spec={spec} onClose={onClose} />,
+    );
+    rerender(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={onClose} />,
+    );
+    expect(screen.queryByText(/AMP_SCAN_TOKEN=secret/)).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Generate" })).toBeInTheDocument();
   });
 
   it("says why the command could not be generated", () => {
-    render(<GenerateCommandDialog orgName="acme" target={target} onClose={vi.fn()} />);
+    render(
+      <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
     act(() => opts.onError({ message: "Not found" }));
     expect(screen.getByText("Not found")).toBeInTheDocument();
+  });
+});
+
+describe("ConnectionEditor (source code repositories)", () => {
+  const githubSpec = (): ShadowProviderSpec =>
+    sourceHostSpec({
+      endpoints: [
+        {
+          key: "api",
+          label: "GitHub API URL",
+          default: "https://api.github.com",
+          placeholders: [],
+          advanced: true,
+          help: "Change only for GitHub Enterprise Server.",
+        },
+      ],
+      fields: [
+        { key: "organization", label: "Organization or user account", kind: "text", required: true },
+        { key: "allRepositories", label: "Scan every repository", kind: "checkbox", required: false },
+        {
+          key: "repositories",
+          label: "Repositories",
+          kind: "list",
+          required: true,
+          option: "!allRepositories",
+        },
+        {
+          key: "privateRepositories",
+          label: "Include private repositories",
+          kind: "checkbox",
+          required: false,
+          defaultBool: true,
+        },
+        {
+          key: "readCiFiles",
+          label: "Also read CI pipeline definitions",
+          kind: "checkbox",
+          required: false,
+          defaultBool: true,
+        },
+      ],
+    });
+  const openNew = () => {
+    hoisted.providers = [githubSpec()];
+    router(
+      <Routes>
+        <Route path="/new" element={<ConnectionEditor orgName="acme" listPath="/list" />} />
+        <Route path="/list" element={<div>Platforms list</div>} />
+      </Routes>,
+      "/new",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Connect GitHub" }));
+  };
+  // The command as one line: its " \\" line continuations joined.
+  const commandText = () =>
+    (screen.getByText(/--scan-id/).textContent ?? "").replace(/ \\\n\s*/g, " ");
+
+  it("shows the scan command next to the form, following the organization field", () => {
+    openNew();
+    expect(screen.getByText("Scan command")).toBeInTheDocument();
+    expect(commandText()).toContain("--github-org <organization> --repos <repositories>");
+    expect(commandText()).toContain("-e AMP_SCAN_TOKEN=<scan-token>");
+    fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
+      target: { value: "acme" },
+    });
+    expect(commandText()).toContain("--github-org acme --repos <repositories>");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
+    expect(commandText()).toContain("--github-org acme --all-repos --include-private --read-ci");
+    expect(screen.getByText(/filled in when you save/)).toBeInTheDocument();
+    // The command comes with saving: there is no separate Generate command here.
+    expect(screen.queryByRole("button", { name: "Generate command" })).not.toBeInTheDocument();
+  });
+
+  it("adds the platform, then issues the command and shows it filled in", () => {
+    openNew();
+    fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
+      target: { value: "acme" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
+    fireEvent.click(screen.getByRole("switch", { name: /^AI review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
+    expect(hoisted.createConnection.mock.lastCall?.[0]).toMatchObject({
+      provider: "github",
+      settings: { organization: "acme", allRepositories: true },
+    });
+    expect(hoisted.generate).not.toHaveBeenCalled();
+    const created = hoisted.createConnection.mock.lastCall?.[1] as {
+      onSuccess: (c: { id: string; name: string }) => void;
+    };
+    act(() => created.onSuccess({ id: "c9", name: "GitHub connection" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c9", aiReview: true, llmJudge: false },
+      expect.anything(),
+    );
+    const opts = hoisted.generate.mock.lastCall?.[1] as RunnerMutateOptions;
+    act(() => opts.onSuccess(issuedScan()));
+    // Kept only in the page's state, not in the mutation cache.
+    expect(hoisted.resetGenerate).toHaveBeenCalled();
+    expect(commandText()).toContain("-e AMP_SCAN_TOKEN=tok-1");
+    expect(commandText()).toContain("ghcr.io/wso2/scanner:1.0 scan --scan-id s9");
+    expect(commandText()).toContain("--ai-review");
+    expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /Organization or user account/ })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Add platform and get command" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/list?tab=platforms");
+  });
+
+  it("retries only the scan command when it fails after the platform is saved", () => {
+    openNew();
+    fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
+      target: { value: "acme" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    const created = hoisted.createConnection.mock.lastCall?.[1] as {
+      onSuccess: (c: { id: string; name: string }) => void;
+    };
+    act(() => created.onSuccess({ id: "c9", name: "GitHub connection" }));
+    const opts = hoisted.generate.mock.lastCall?.[1] as RunnerMutateOptions;
+    act(() => opts.onError({ message: "Scanner unavailable" }));
+    expect(screen.getByText("Scanner unavailable")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(hoisted.createConnection).toHaveBeenCalledTimes(1);
+    expect(hoisted.generate).toHaveBeenCalledTimes(2);
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c9", aiReview: false, llmJudge: false },
+      expect.anything(),
+    );
+  });
+
+  it("keeps the issued command on what was saved: locked chips cannot be removed", () => {
+    openNew();
+    fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
+      target: { value: "acme" },
+    });
+    const repos = screen.getByRole("textbox", { name: /^Repositories/ });
+    fireEvent.change(repos, { target: { value: "payments" } });
+    fireEvent.keyDown(repos, { key: "Enter" });
+    // Removable while the form is open.
+    expect(screen.getByRole("button", { name: "payments" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add platform and get command" }));
+    const created = hoisted.createConnection.mock.lastCall?.[1] as {
+      onSuccess: (c: { id: string; name: string }) => void;
+    };
+    act(() => created.onSuccess({ id: "c9", name: "GitHub connection" }));
+    const opts = hoisted.generate.mock.lastCall?.[1] as RunnerMutateOptions;
+    act(() => opts.onSuccess(issuedScan()));
+    // Locked: the chip is plain text, not a removable button, so no key removes it.
+    expect(screen.queryByRole("button", { name: "payments" })).not.toBeInTheDocument();
+    fireEvent.keyUp(screen.getByText("payments"), { key: "Delete" });
+    expect(screen.getByText("payments")).toBeInTheDocument();
+    expect(commandText()).toContain("--repos payments");
   });
 });

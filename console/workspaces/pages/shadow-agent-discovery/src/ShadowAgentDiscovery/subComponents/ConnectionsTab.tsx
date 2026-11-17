@@ -68,7 +68,7 @@ import {
   unlockLabels,
 } from "../shadowUi";
 import { scopedKeyCount } from "../capabilities";
-import { type CommandTarget, GenerateCommandDialog } from "./GenerateCommandDialog";
+import { GenerateCommandDialog } from "./GenerateCommandDialog";
 
 /** The number of keys an OpenAI or Anthropic platform lists agents with. */
 export function ScopedKeysChip({
@@ -114,7 +114,7 @@ interface ConnectionsTabProps {
  */
 export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: ConnectionsTabProps) {
   const [search, setSearch] = useState("");
-  const [commandFor, setCommandFor] = useState<CommandTarget | null>(null);
+  const [commandFor, setCommandFor] = useState<ShadowConnectionResponse | null>(null);
   const [testResult, setTestResult] = useState<{
     name: string;
     result: ShadowConnectionTest;
@@ -378,7 +378,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                               <IconButton
                                 size="small"
                                 aria-label={`Generate command for ${c.name}`}
-                                onClick={() => setCommandFor({ id: c.id, name: c.name })}
+                                onClick={() => setCommandFor(c)}
                               >
                                 <SquareTerminal size={18} />
                               </IconButton>
@@ -416,6 +416,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
       <GenerateCommandDialog
         orgName={orgName}
         target={commandFor}
+        spec={providers.data?.providers.find((p) => p.provider === commandFor?.provider)}
         onClose={() => setCommandFor(null)}
       />
 

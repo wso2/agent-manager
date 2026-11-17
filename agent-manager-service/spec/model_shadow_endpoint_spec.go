@@ -34,6 +34,8 @@ type ShadowEndpointSpec struct {
 	FillValues []string `json:"fillValues,omitempty"`
 	// An endpoint the console keeps behind the \"Advanced configuration\" button.
 	Advanced *bool `json:"advanced,omitempty"`
+	// When to change the endpoint; the console shows it under the input.
+	Help *string `json:"help,omitempty"`
 }
 
 // NewShadowEndpointSpec instantiates a new ShadowEndpointSpec object
@@ -313,6 +315,38 @@ func (o *ShadowEndpointSpec) SetAdvanced(v bool) {
 	o.Advanced = &v
 }
 
+// GetHelp returns the Help field value if set, zero value otherwise.
+func (o *ShadowEndpointSpec) GetHelp() string {
+	if o == nil || IsNil(o.Help) {
+		var ret string
+		return ret
+	}
+	return *o.Help
+}
+
+// GetHelpOk returns a tuple with the Help field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowEndpointSpec) GetHelpOk() (*string, bool) {
+	if o == nil || IsNil(o.Help) {
+		return nil, false
+	}
+	return o.Help, true
+}
+
+// HasHelp returns a boolean if a field has been set.
+func (o *ShadowEndpointSpec) HasHelp() bool {
+	if o != nil && !IsNil(o.Help) {
+		return true
+	}
+
+	return false
+}
+
+// SetHelp gets a reference to the given string and assigns it to the Help field.
+func (o *ShadowEndpointSpec) SetHelp(v string) {
+	o.Help = &v
+}
+
 func (o ShadowEndpointSpec) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -341,6 +375,9 @@ func (o ShadowEndpointSpec) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Advanced) {
 		toSerialize["advanced"] = o.Advanced
+	}
+	if !IsNil(o.Help) {
+		toSerialize["help"] = o.Help
 	}
 	return toSerialize, nil
 }

@@ -950,8 +950,8 @@ func setShadowBool(cfg *models.ShadowConnectionConfig, key string, v bool) {
 		cfg.AllProjects = v
 	case sa.OptPrivateRepos:
 		cfg.PrivateRepositories = v
-	case sa.OptReadCIAndEnv:
-		cfg.ReadCIAndEnvFiles = v
+	case sa.OptReadCI:
+		cfg.ReadCIFiles = v
 	default:
 		if !sa.IsServiceOption(key) {
 			return
@@ -1037,7 +1037,7 @@ func shadowSettingsOf(provider string, cfg models.ShadowConnectionConfig) map[st
 		sa.OptAllSubscriptions: cfg.AllSubscriptions,
 		sa.OptClassicAgents:    cfg.IncludeClassicAgents, sa.OptGlobalMulti: cfg.IncludeGlobalAndMultiRegion,
 		sa.OptAllRepositories: cfg.AllRepositories, sa.OptPrivateRepos: cfg.PrivateRepositories,
-		sa.OptAllProjects: cfg.AllProjects, sa.OptReadCIAndEnv: cfg.ReadCIAndEnvFiles,
+		sa.OptAllProjects: cfg.AllProjects, sa.OptReadCI: cfg.ReadCIFiles,
 	}
 	for _, f := range spec.Fields {
 		switch f.Kind {

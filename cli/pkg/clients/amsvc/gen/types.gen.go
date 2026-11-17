@@ -6779,8 +6779,11 @@ type ShadowEndpointSpec struct {
 
 	// FillValues Fixed values that fill the placeholder, instead of fillFrom.
 	FillValues *[]string `json:"fillValues,omitempty"`
-	Key        string    `json:"key"`
-	Label      string    `json:"label"`
+
+	// Help When to change the endpoint; the console shows it under the input.
+	Help  *string `json:"help,omitempty"`
+	Key   string  `json:"key"`
+	Label string  `json:"label"`
 
 	// Option The checkbox that enables this endpoint, if any.
 	Option       *string  `json:"option,omitempty"`

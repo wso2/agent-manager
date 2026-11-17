@@ -47,7 +47,7 @@ Each scan records the agents it found, so **Scans** > **View agents** lists one 
 
 **Scans** > **Clear scans** (`DELETE .../scans`) deletes the finished scans and their per-scan agent lists. A queued or running scan is kept, and the agents and their evidence are not changed.
 
-**Source repository hosts (GitHub, Azure DevOps).** The connection form takes the organization (or GitHub user account), every repository/project the credential reads or a list of them, and whether CI pipeline definitions and `.env` example files will be read. Azure DevOps signs in with a personal access token or, when **Sign in with a Microsoft Entra service principal** is ticked, with a tenant ID, client ID and client secret; the credential of the other method is not kept. **Test connection** is real and read-only (GitHub REST API 2022-11-28; Azure DevOps REST 7.1, with `X-TFS-FedAuthRedirect: Suppress` so a refused credential is a 401 rather than the sign-in page).
+**Source repository hosts (GitHub, Azure DevOps).** The connection form takes the organization (or GitHub user account), every repository/project the credential reads or a list of them, and whether CI pipeline definitions will be read. Azure DevOps signs in with a personal access token or, when **Sign in with a Microsoft Entra service principal** is ticked, with a tenant ID, client ID and client secret; the credential of the other method is not kept. **Test connection** is real and read-only (GitHub REST API 2022-11-28; Azure DevOps REST 7.1, with `X-TFS-FedAuthRedirect: Suppress` so a refused credential is a 401 rather than the sign-in page).
 
 ## Unregistered agents
 

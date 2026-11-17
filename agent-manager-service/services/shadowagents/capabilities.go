@@ -180,11 +180,10 @@ func sourceCapabilities(provider, prefix string) []CapabilitySpec {
 			Signals:     codes("d9_agent_definition"),
 		},
 		{
-			Key: prefix + ".ciEnv", Title: "LLM environment variable names in CI and .env examples",
-			Description: "Model provider variable names (never values) in pipeline definitions, Helm and Kubernetes files and " +
-				".env.example (detector D11).",
-			Signals: codes("d11_llm_env_var"),
-			Needs:   []string{OptReadCIAndEnv},
+			Key: prefix + ".ci", Title: "LLM environment variable names in CI pipelines",
+			Description: "Model provider variable names (never values) in CI pipeline definitions (detector D11).",
+			Signals:     codes("d11_llm_env_var"),
+			Needs:       []string{OptReadCI},
 		},
 		{
 			Key: prefix + ".developerTooling", Title: "Developer AI tooling",
