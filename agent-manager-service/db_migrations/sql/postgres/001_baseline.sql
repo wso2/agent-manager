@@ -815,3 +815,29 @@ CREATE TABLE locks (
 );
 INSERT INTO locks (name) VALUES ('agent_identity.reconciler');
 INSERT INTO locks (name) VALUES ('gateway.drift_scan');
+
+CREATE TABLE modules (
+    name VARCHAR(63) NOT NULL,
+    version VARCHAR(64) NOT NULL,
+    state VARCHAR(16) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT pk_modules PRIMARY KEY (name),
+    CONSTRAINT ck_modules_1 CHECK (state IN ('active', 'disabled', 'uninstalled'))
+);
+
+CREATE TABLE module_generation (
+    id INTEGER NOT NULL,
+    value BIGINT NOT NULL,
+    CONSTRAINT pk_module_generation PRIMARY KEY (id),
+    CONSTRAINT ck_module_generation_1 CHECK (id = 1)
+);
+INSERT INTO module_generation (id, value) VALUES (1, 0);
+
+CREATE TABLE module_migrations (
+    module VARCHAR(63) NOT NULL,
+    version VARCHAR(255) NOT NULL,
+    checksum VARCHAR(64) NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT pk_module_migrations PRIMARY KEY (module, version)
+);

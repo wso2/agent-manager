@@ -875,3 +875,37 @@ tables:
     seed:
       - {name: agent_identity.reconciler}
       - {name: gateway.drift_scan}
+
+  # --- Modules ------------------------------------------------------------------------------
+  # Lifecycle state of compiled-in modules, and the migrations each module has applied. Module
+  # tables themselves are named mod_<module>_<table> and come from each module's own schema.
+
+  - name: modules
+    columns:
+      - {name: name, type: text, size: 63}
+      - {name: version, type: text, size: 64}
+      - {name: state, type: text, size: 16}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [name]
+    checks:
+      - "state IN ('active', 'disabled', 'uninstalled')"
+
+  # One row. Every lifecycle change bumps value; replicas poll it and reload their module set.
+  - name: module_generation
+    columns:
+      - {name: id, type: int}
+      - {name: value, type: bigint}
+    primary_key: [id]
+    checks:
+      - "id = 1"
+    seed:
+      - {id: "1", value: "0"}
+
+  - name: module_migrations
+    columns:
+      - {name: module, type: text, size: 63}
+      - {name: version, type: text, size: 255}
+      - {name: checksum, type: text, size: 64}
+      - {name: applied_at, type: time}
+    primary_key: [module, version]

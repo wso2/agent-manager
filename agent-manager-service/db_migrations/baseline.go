@@ -81,19 +81,7 @@ func sqlMigrationsFor(driver string) ([]*gormigrate.Migration, error) {
 // splitStatements splits a migration file on the statement separator the generator writes, dropping comment-only
 // chunks. Hand-written migrations follow the same layout: each statement ends with ";" at the end of a line.
 func splitStatements(body string) []string {
-	var out []string
-	for _, chunk := range strings.Split(body, schema.StatementSeparator) {
-		var lines []string
-		for _, line := range strings.Split(chunk, "\n") {
-			if t := strings.TrimSpace(line); t != "" && !strings.HasPrefix(t, "--") {
-				lines = append(lines, line)
-			}
-		}
-		if len(lines) > 0 {
-			out = append(out, strings.Join(lines, "\n"))
-		}
-	}
-	return out
+	return schema.Statements(body)
 }
 
 // MigrateBaseline applies a database's SQL migrations, starting from the baseline.

@@ -50,7 +50,15 @@ const (
 const maxNameLength = 63
 
 type Schema struct {
+	// Module names the module a schema file belongs to; empty for the core schema.
+	Module string  `yaml:"module"`
 	Tables []Table `yaml:"tables"`
+
+	// source is the file the schema was read from, named in the rendered header.
+	source string
+	// prior are tables created by earlier migrations of the same module. Foreign keys may reference them; they
+	// are not rendered again.
+	prior []Table
 }
 
 type Table struct {
@@ -84,11 +92,27 @@ type Row map[string]string
 
 // Lite loads the AMP Lite schema.
 func Lite() (*Schema, error) {
-	return Parse(liteYAML)
+	s, err := Parse(liteYAML)
+	if err != nil {
+		return nil, err
+	}
+	s.source = "db_migrations/schema/lite.yaml"
+	return s, nil
 }
 
 // Parse reads and validates a schema.
 func Parse(data []byte) (*Schema, error) {
+	s, err := decode(data)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.validate(); err != nil {
+		return nil, err
+	}
+	return s, nil
+}
+
+func decode(data []byte) (*Schema, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(data, &root); err != nil {
 		return nil, fmt.Errorf("parsing schema: %w", err)
@@ -101,9 +125,6 @@ func Parse(data []byte) (*Schema, error) {
 	dec.KnownFields(true)
 	if err := dec.Decode(&s); err != nil {
 		return nil, fmt.Errorf("parsing schema: %w", err)
-	}
-	if err := s.validate(); err != nil {
-		return nil, err
 	}
 	return &s, nil
 }
@@ -126,12 +147,20 @@ func rejectNullKeys(n *yaml.Node) error {
 	return nil
 }
 
-var namePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+var (
+	namePattern    = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+	integerPattern = regexp.MustCompile(`^-?[0-9]+$`)
+)
 
 func (s *Schema) table(name string) *Table {
 	for i := range s.Tables {
 		if s.Tables[i].Name == name {
 			return &s.Tables[i]
+		}
+	}
+	for i := range s.prior {
+		if s.prior[i].Name == name {
+			return &s.prior[i]
 		}
 	}
 	return nil
@@ -164,6 +193,9 @@ func (s *Schema) validate() error {
 	var errs []string
 	fail := func(format string, a ...any) { errs = append(errs, fmt.Sprintf(format, a...)) }
 	seen := map[string]bool{}
+	for _, t := range s.prior {
+		seen[t.Name] = true
+	}
 	for ti := range s.Tables {
 		t := &s.Tables[ti]
 		if !namePattern.MatchString(t.Name) || len(t.Name) > maxNameLength {
@@ -171,6 +203,12 @@ func (s *Schema) validate() error {
 		}
 		if seen[t.Name] {
 			fail("table %q: defined twice", t.Name)
+		}
+		if s.Module == "" && strings.HasPrefix(t.Name, modulePrefix) {
+			fail("table %q: the %s prefix is reserved for module tables", t.Name, modulePrefix)
+		}
+		if s.Module != "" && !strings.HasPrefix(t.Name, ModuleTablePrefix(s.Module)) {
+			fail("table %q: module %s tables must be named %s<table>", t.Name, s.Module, ModuleTablePrefix(s.Module))
 		}
 		seen[t.Name] = true
 		cols := map[string]bool{}
@@ -263,9 +301,12 @@ func (s *Schema) validate() error {
 			fail("%s: %d cascading foreign keys (rule 7 allows one)", t.Name, cascades)
 		}
 		for _, row := range t.Seed {
-			for c := range row {
-				if t.column(c) == nil {
+			for c, v := range row {
+				col := t.column(c)
+				if col == nil {
 					fail("%s: seed names unknown column %q", t.Name, c)
+				} else if (col.Type == TypeInt || col.Type == TypeBigInt) && !integerPattern.MatchString(v) {
+					fail("%s: seed value %q for %s is not an integer", t.Name, v, c)
 				}
 			}
 		}
@@ -282,6 +323,9 @@ func (s *Schema) validate() error {
 // ordered returns the tables with every table after the tables it references, keeping file order otherwise.
 func (s *Schema) ordered() ([]*Table, error) {
 	done := map[string]bool{}
+	for _, t := range s.prior {
+		done[t.Name] = true
+	}
 	var out []*Table
 	for len(out) < len(s.Tables) {
 		progressed := false
