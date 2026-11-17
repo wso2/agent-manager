@@ -2889,6 +2889,9 @@ type CreateAgentRequest struct {
 	// DisplayName Display name of the agent
 	DisplayName string `json:"displayName"`
 
+	// Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
+	Extensions *Extensions `json:"extensions,omitempty"`
+
 	// GithubApp Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it. When omitted, public-repository and PAT-backed behavior is unchanged.
 	GithubApp *GitHubAppSource `json:"githubApp,omitempty"`
 
@@ -3917,6 +3920,9 @@ type EventTypeScope string
 type EventTypeListResponse struct {
 	EventTypes []EventType `json:"eventTypes"`
 }
+
+// Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
+type Extensions map[string]map[string]interface{}
 
 // ExtractionIdentifier defines model for ExtractionIdentifier.
 type ExtractionIdentifier struct {
@@ -6463,6 +6469,38 @@ type TracingTokenRegenerateResponse struct {
 	RotatedAt int64 `json:"rotatedAt"`
 }
 
+// UIManifestModule defines model for UIManifestModule.
+type UIManifestModule struct {
+	Name string              `json:"name"`
+	Nav  []UIManifestNavItem `json:"nav"`
+
+	// Pages Pages of the console's built-in UI modules, as "<console module>/<page>".
+	Pages   []string         `json:"pages"`
+	Slots   []UIManifestSlot `json:"slots"`
+	Version *string          `json:"version,omitempty"`
+}
+
+// UIManifestNavItem defines model for UIManifestNavItem.
+type UIManifestNavItem struct {
+	Label string `json:"label"`
+	Page  string `json:"page"`
+}
+
+// UIManifestResponse defines model for UIManifestResponse.
+type UIManifestResponse struct {
+	// Modules The core (name "core") and each active module with console UI, in activation order.
+	Modules []UIManifestModule `json:"modules"`
+
+	// Pages Every page of the console's built-in UI modules the caller may open, as "<console module>/<page>".
+	Pages []string `json:"pages"`
+}
+
+// UIManifestSlot defines model for UIManifestSlot.
+type UIManifestSlot struct {
+	Component string `json:"component"`
+	Slot      string `json:"slot"`
+}
+
 // UpdateAgentBasicInfoRequest defines model for UpdateAgentBasicInfoRequest.
 type UpdateAgentBasicInfoRequest struct {
 	// Description Description of the agent
@@ -6470,6 +6508,9 @@ type UpdateAgentBasicInfoRequest struct {
 
 	// DisplayName Display name of the agent
 	DisplayName string `json:"displayName"`
+
+	// Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
+	Extensions *Extensions `json:"extensions,omitempty"`
 
 	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 	Labels *Labels `json:"labels,omitempty"`
