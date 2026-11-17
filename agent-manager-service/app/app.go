@@ -255,7 +255,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// TODO: reconcile the declarative modules list from the config file at boot.
 	modulesCtx, modulesCancel := context.WithCancel(context.Background())
 	defer modulesCancel()
-	stopModuleEvents, err := StartModules(modulesCtx, moduleHost(), database, dependencies)
+	stopModules, err := StartModules(modulesCtx, moduleHost(), database, dependencies)
 	if err != nil {
 		slog.Error("failed to start the module host", "error", err)
 		os.Exit(1)
@@ -432,8 +432,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		eventsCancel()
 		<-eventsStarted
 		stopEvents(dependencies)
-		stopModuleEvents()
-		coreext.Set(nil)
+		stopModules()
 
 		// Flush the audit buffer last. The servers have drained and the
 		// background workers have stopped, so no further events can be
@@ -478,15 +477,12 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 }
 
 // StartModules attaches the core services to the module host, boots it, and
-// makes the core's resource code run module hooks. Module events go through
-// the event outbox: with events on, the event publisher drains them; with
-// events off, a publisher with no bus is started to drain only them. The
-// returned function stops that drainer.
+// makes the core's resource code run module hooks. The host drains module
+// events itself. The returned function detaches the host from the core.
 func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, deps *wiring.AppParams) (func(), error) {
 	attach := modhost.Deps{
-		Mount:  api.ModuleMounter(deps),
-		Core:   repositories.NewCoreReadAPI(database),
-		Events: repositories.NewModuleEventSink(database),
+		Mount: api.ModuleMounter(deps),
+		Core:  repositories.NewCoreReadAPI(database),
 	}
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
 		attach.Tokens = signer
@@ -496,16 +492,7 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		return func() {}, err
 	}
 	coreext.Set(host)
-
-	deliver := func(ctx context.Context, e events.Event) { host.Deliver(ctx, repositories.ModuleEvent(e)) }
-	if publisher, ok := deps.EventPublisher.(*events.AsyncPublisher); ok {
-		publisher.SetLocalDelivery(deliver)
-		return func() {}, nil
-	}
-	local := events.NewAsyncPublisher(nil, repositories.NewEventOutboxRepository(database), slog.Default())
-	local.SetLocalDelivery(deliver)
-	local.Start()
-	return local.Stop, nil
+	return func() { coreext.Set(nil) }, nil
 }
 
 // waitForModuleSchema waits until another process has applied the migrations

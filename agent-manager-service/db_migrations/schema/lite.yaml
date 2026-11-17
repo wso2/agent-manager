@@ -910,6 +910,39 @@ tables:
       - {name: applied_at, type: time}
     primary_key: [module, version]
 
+  # Events for modules: core events modules subscribe to, and the events
+  # modules publish. Kept apart from event_outbox, which feeds external
+  # destinations, so neither drainer can ever take the other's rows.
+  - name: module_events
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: type, type: text, size: 128}
+      - {name: source, type: text, size: 63}
+      - {name: subject, type: text, size: 255, nullable: true}
+      - {name: data, type: json}
+      - {name: created_at, type: time}
+    primary_key: [id]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id], on_delete: cascade}
+
+  # One row per event and subscribing module, until that module has handled
+  # it. A failed delivery is retried with backoff; after the last attempt
+  # failed_at is set and the row is kept for inspection.
+  - name: module_event_deliveries
+    columns:
+      - {name: event_id, type: id}
+      - {name: module, type: text, size: 63}
+      - {name: attempts, type: int}
+      - {name: available_at, type: time}
+      - {name: claimed_by, type: text, size: 64, nullable: true}
+      - {name: last_error, type: text, size: 1024, nullable: true}
+      - {name: failed_at, type: time, nullable: true}
+    primary_key: [event_id, module]
+    foreign_keys:
+      - {columns: [event_id], references: module_events, ref_columns: [id], on_delete: cascade}
+    indexes: [[available_at]]
+
   # Credentials a module's workloads exchange for short-lived workload tokens.
   # Only a hash of the secret is kept.
   - name: workload_credentials

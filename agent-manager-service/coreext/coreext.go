@@ -33,13 +33,22 @@ import (
 
 // Extensions is implemented by the module host.
 type Extensions interface {
+	// Begin starts one create, update or delete of a resource. Every check,
+	// hook and event of the operation sees the same set of active modules,
+	// and its hooks share one deadline.
+	Begin(ctx context.Context, resource string) Operation
+}
+
+// Operation is one change to a core resource.
+type Operation interface {
 	// Check rejects extension blocks addressed to a module that is not
-	// active or takes no hooks on resource.
-	Check(resource string, ext map[string]json.RawMessage) error
-	// Run runs the hooks of one phase inside tx. It returns the first
-	// hook's error.
+	// active or takes no hooks on the resource.
+	Check(ext map[string]json.RawMessage) error
+	// Run runs the hooks of one phase, inside tx when tx is not nil. It
+	// returns the first validate or apply error; finalize errors are only
+	// logged.
 	Run(ctx context.Context, tx *gorm.DB, phase modkit.Phase, req modkit.HookRequest, ext map[string]json.RawMessage) error
-	// Emit records a core event for module subscribers inside tx.
+	// Emit records a core event for the modules subscribed to it, inside tx.
 	Emit(ctx context.Context, tx *gorm.DB, e modkit.Event) error
 }
 
@@ -56,17 +65,17 @@ func Set(x Extensions) {
 	current.Store(&holder{x})
 }
 
-// Get returns the installed implementation, or a no-op.
-func Get() Extensions {
+// Begin starts an operation on the installed implementation, or a no-op one.
+func Begin(ctx context.Context, resource string) Operation {
 	if h := current.Load(); h != nil {
-		return h.Extensions
+		return h.Begin(ctx, resource)
 	}
 	return none{}
 }
 
 type none struct{}
 
-func (none) Check(_ string, ext map[string]json.RawMessage) error {
+func (none) Check(ext map[string]json.RawMessage) error {
 	for name := range ext {
 		return modkit.Reject("extensions.%s: no module named %q is active", name, name)
 	}

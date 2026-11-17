@@ -28,6 +28,9 @@ import (
 	"errors"
 	"io/fs"
 	"net/http"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -74,10 +77,10 @@ func (module) Manifest() modkit.Manifest {
 		CoreAPI:  modkit.CoreAPIVersion,
 		Provides: []string{Echo},
 		Permissions: []modkit.Permission{
-			{Name: "widget:read", Description: "Read widgets"},
-			{Name: "widget:write", Description: "Write widgets"},
+			{Name: "widget-read", Description: "Read widgets"},
+			{Name: "widget-write", Description: "Write widgets"},
 		},
-		RoleGrants: map[string][]string{"Agent Manager Admin": {"widget:read", "widget:write"}},
+		RoleGrants: map[string][]string{"Agent Manager Admin": {"widget-read", "widget-write"}},
 		Events:     []string{WidgetCreated},
 	}
 }
@@ -96,7 +99,29 @@ func (module) UI() fs.FS { return nil }
 type extension struct {
 	Tag    string `json:"tag"`
 	Reject bool   `json:"reject"`
+	// Stall writes a row through the transaction, then outlives every
+	// deadline and tries to write again.
+	Stall bool `json:"stall"`
+	// Announce publishes WidgetCreated from inside the apply hook.
+	Announce bool `json:"announce"`
 }
+
+// StalledTag is the tag a stalling hook writes before it runs out of time.
+const StalledTag = "stalled"
+
+// AfterTimeout reports whether a stalling hook managed to write after its
+// deadline; it must never.
+var AfterTimeout atomic.Bool
+
+// FailEnvironment makes the environment apply hook fail after writing a row
+// tagged EnvironmentTag.
+var FailEnvironment atomic.Bool
+
+// EnvironmentTag marks the row a failing environment hook writes.
+const EnvironmentTag = "env-hook"
+
+// flaky counts deliveries of "flaky" widget events, which fail the first time.
+var flaky sync.Map
 
 func parse(raw json.RawMessage) (extension, error) {
 	var ext extension
@@ -118,10 +143,35 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Provide(Echo, echoer{})
 
-	rt.Hook(modkit.ResourceAgent, modkit.Validate, func(_ context.Context, req modkit.HookRequest) error {
+	rt.Hook(modkit.ResourceAgent, modkit.Validate, func(ctx context.Context, req modkit.HookRequest) error {
+		if req.Action == modkit.ActionDelete {
+			// Outside the transaction: read only.
+			var tags []string
+			if err := rt.DB().WithContext(ctx).Raw(`SELECT tag FROM mod_testmod_agent_tags WHERE agent_id = ?`, req.ID).
+				Scan(&tags).Error; err != nil {
+				return err
+			}
+			if len(tags) == 1 && tags[0] == "undeletable" {
+				return &modkit.Error{Status: http.StatusConflict, Message: "the agent is tagged undeletable"}
+			}
+			return nil
+		}
 		ext, err := parse(req.Extension)
 		if err != nil {
 			return err
+		}
+		if ext.Stall {
+			if err := req.Tx.Exec(`INSERT INTO mod_testmod_agent_tags (agent_id, org_id, tag) VALUES (?, ?, ?)`,
+				"01900000-0000-7000-8000-0000000000aa", req.OrgID, StalledTag).Error; err != nil {
+				return err
+			}
+			<-ctx.Done()
+			time.Sleep(200 * time.Millisecond)
+			if req.Tx.WithContext(context.Background()).Exec(`UPDATE mod_testmod_agent_tags SET tag = ? WHERE tag = ?`,
+				"late", StalledTag).Error == nil {
+				AfterTimeout.Store(true)
+			}
+			return ctx.Err()
 		}
 		if ext.Reject {
 			return modkit.Reject("extensions.%s: rejected on request", Name)
@@ -131,11 +181,22 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		}
 		return nil
 	})
-	rt.Hook(modkit.ResourceAgent, modkit.Apply, func(_ context.Context, req modkit.HookRequest) error {
+	rt.Hook(modkit.ResourceAgent, modkit.Apply, func(ctx context.Context, req modkit.HookRequest) error {
 		ext, err := parse(req.Extension)
-		if err != nil || ext.Tag == "" {
+		if err != nil {
 			return err
 		}
+		if ext.Announce {
+			// Publishing with the hook's ctx goes through the core transaction.
+			if err := rt.Publish(ctx, WidgetCreated, map[string]string{"name": "from-hook"}); err != nil {
+				return err
+			}
+		}
+		if ext.Tag == "" {
+			return nil
+		}
+		// Hooks get copies: this change is seen by nobody else.
+		req.Object["name"] = "changed-by-testmod"
 		if err := req.Tx.Exec(`DELETE FROM mod_testmod_agent_tags WHERE agent_id = ?`, req.ID).Error; err != nil {
 			return err
 		}
@@ -147,14 +208,51 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		if err := req.Tx.Raw(`SELECT tag FROM mod_testmod_agent_tags WHERE agent_id = ?`, req.ID).Scan(&tags).Error; err != nil {
 			return err
 		}
-		if len(tags) == 1 && tags[0] == "undeletable" {
-			return &modkit.Error{Status: http.StatusConflict, Message: "the agent is tagged undeletable"}
+		if err := req.Tx.Exec(`DELETE FROM mod_testmod_agent_tags WHERE agent_id = ?`, req.ID).Error; err != nil {
+			return err
 		}
-		return req.Tx.Exec(`DELETE FROM mod_testmod_agent_tags WHERE agent_id = ?`, req.ID).Error
+		if len(tags) == 1 && tags[0] == "finalize-fails" {
+			// Finalize cannot refuse: the delete goes ahead.
+			return errors.New("finalize failed on request")
+		}
+		return nil
 	})
-	rt.Hook(modkit.ResourceEnvironment, modkit.Apply, func(context.Context, modkit.HookRequest) error { return nil })
+	rt.Hook(modkit.ResourceEnvironment, modkit.Apply, func(_ context.Context, req modkit.HookRequest) error {
+		if !FailEnvironment.Load() {
+			return nil
+		}
+		// Written, then undone with the savepoint when the hook fails.
+		if err := req.Tx.Exec(`INSERT INTO mod_testmod_agent_tags (agent_id, org_id, tag) VALUES (?, ?, ?)`,
+			req.ID, req.OrgID, EnvironmentTag).Error; err != nil {
+			return err
+		}
+		return errors.New("environment hook failed on request")
+	})
 
 	record := func(ctx context.Context, e modkit.Event) error {
+		subject := e.Subject
+		if e.Type == modkit.EventAgentCreated {
+			// The name from the event data: a hook that changed its copy
+			// of the object must not have changed this.
+			var a struct {
+				Name string `json:"name"`
+			}
+			_ = json.Unmarshal(e.Data, &a)
+			subject = a.Name
+		}
+		if e.Type == WidgetCreated {
+			var w struct {
+				Name string `json:"name"`
+			}
+			_ = json.Unmarshal(e.Data, &w)
+			subject = w.Name
+			if w.Name == "flaky" {
+				n, _ := flaky.LoadOrStore(e.ID, new(atomic.Int32))
+				if n.(*atomic.Int32).Add(1) == 1 {
+					return errors.New("flaky handler fails its first delivery")
+				}
+			}
+		}
 		var n int64
 		db := rt.DB().WithContext(ctx)
 		if err := db.Raw(`SELECT count(*) FROM mod_testmod_received WHERE event_id = ? AND event_type = ?`, e.ID, e.Type).
@@ -162,13 +260,13 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 			return err
 		}
 		return db.Exec(`INSERT INTO mod_testmod_received (event_id, event_type, org_id, subject) VALUES (?, ?, ?, ?)`,
-			e.ID, e.Type, e.OrgID, e.Subject).Error
+			e.ID, e.Type, e.OrgID, subject).Error
 	}
 	for _, t := range []string{modkit.EventAgentCreated, modkit.EventAgentDeleted, modkit.EventEnvironmentCreated, WidgetCreated} {
 		rt.Subscribe(t, record)
 	}
 
-	rt.Handle(http.MethodGet, "/tags", "widget:read", func(w http.ResponseWriter, r *http.Request) {
+	rt.Handle(http.MethodGet, "/tags", "widget-read", func(w http.ResponseWriter, r *http.Request) {
 		org := modkit.OrgID(r.Context())
 		agents, err := rt.Core().ListAgents(r.Context(), org, "")
 		if err != nil {
@@ -217,10 +315,10 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"orgId": modkit.OrgID(r.Context()), "orgHandle": org.Handle, "environments": len(envs),
 			"projects": names, "foreignNotFound": errors.Is(foreign, modkit.ErrNotFound),
-			"canWrite": rt.Can(r.Context(), "widget:write"), "canReadAgents": rt.Can(r.Context(), "agent:read"),
+			"canWrite": rt.Can(r.Context(), "widget-write"), "canReadAgents": rt.Can(r.Context(), "agent:read"),
 		})
 	})
-	rt.Handle(http.MethodPost, "/widgets", "widget:write", func(w http.ResponseWriter, r *http.Request) {
+	rt.Handle(http.MethodPost, "/widgets", "widget-write", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
 			Name string `json:"name"`
 		}
@@ -234,7 +332,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		}
 		writeJSON(w, http.StatusCreated, map[string]string{"name": body.Name})
 	})
-	rt.Handle(http.MethodGet, "/received", "widget:read", func(w http.ResponseWriter, r *http.Request) {
+	rt.Handle(http.MethodGet, "/received", "widget-read", func(w http.ResponseWriter, r *http.Request) {
 		type received struct {
 			EventType string  `json:"eventType"`
 			Subject   *string `json:"subject"`
@@ -247,7 +345,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		}
 		writeJSON(w, http.StatusOK, out)
 	})
-	rt.Handle(http.MethodPost, "/workloads", "widget:write", func(w http.ResponseWriter, r *http.Request) {
+	rt.Handle(http.MethodPost, "/workloads", "widget-write", func(w http.ResponseWriter, r *http.Request) {
 		tok, err := rt.IssueToken(r.Context(), modkit.TokenRequest{Subject: "run:direct", Scopes: []string{PingScope}})
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"message": err.Error()})
@@ -259,6 +357,18 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 			return
 		}
 		writeJSON(w, http.StatusCreated, map[string]string{"token": tok, "credentialId": cred.ID, "secret": cred.Secret})
+	})
+
+	rt.Handle(http.MethodPost, "/workloads/revoke", "widget-write", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			CredentialID string `json:"credentialId"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		if err := rt.RevokeCredential(r.Context(), body.CredentialID); err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"message": err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 
 	rt.HandleInternal(http.MethodGet, "/ping", PingScope, func(w http.ResponseWriter, r *http.Request) {

@@ -61,6 +61,10 @@ type Host struct {
 	// elsewhere. Set it before Boot; zero means DefaultPollInterval.
 	PollInterval time.Duration
 
+	// EventRetryBase is the first retry delay of a failed module event
+	// delivery; zero means DefaultEventRetryBase. Set it before Boot.
+	EventRetryBase time.Duration
+
 	// Passive hosts track module state without activating anything, for
 	// commands that change module state on behalf of running servers.
 	// Install and Enable still trial-activate the module set they produce.
@@ -176,6 +180,9 @@ func (h *Host) Boot(ctx context.Context) error {
 		return err
 	}
 	go h.follow(ctx)
+	if !h.Passive {
+		go h.drain(ctx)
+	}
 	return nil
 }
 

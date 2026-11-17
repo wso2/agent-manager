@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -46,6 +47,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/modules/testmod"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -75,8 +77,12 @@ type moduleWorld struct {
 	full     http.Handler // signed in with the module's permissions
 	limited  http.Handler // signed in without them
 	internal http.Handler
-	org      string
-	handle   string
+	signer   services.WorkloadTokenSigner
+	// fresh is signed in to an organization nobody has used yet.
+	fresh       http.Handler
+	freshHandle string
+	org         string
+	handle      string
 }
 
 func (w moduleWorld) call(t *testing.T, h http.Handler, method, path string, body any, header ...string) (int, []byte) {
@@ -107,6 +113,7 @@ func newModuleWorld(t *testing.T) moduleWorld {
 	host := modhost.NewWith(database, config.GetConfig().Database.Driver, log,
 		[]modkit.Module{testmod.Module(), testmod.Consumer()})
 	host.PollInterval = 50 * time.Millisecond
+	host.EventRetryBase = 200 * time.Millisecond
 	_, err := host.Migrate(ctx)
 	require.NoError(t, err)
 
@@ -119,8 +126,11 @@ func newModuleWorld(t *testing.T) moduleWorld {
 		require.NoError(t, err)
 		return p
 	}
-	full := params(moduleAuth(org, handle, "amp:testmod:widget:read", "amp:testmod:widget:write"))
+	full := params(moduleAuth(org, handle, "amp:testmod:widget-read", "amp:testmod:widget-write"))
 	limited := params(moduleAuth(org, handle))
+	freshOrg := uuid.Must(uuid.NewV7()).String()
+	freshHandle := "mod-" + freshOrg[len(freshOrg)-8:]
+	fresh := params(moduleAuth(freshOrg, freshHandle))
 
 	stop, err := app.StartModules(ctx, host, database, full)
 	require.NoError(t, err)
@@ -135,12 +145,15 @@ func newModuleWorld(t *testing.T) moduleWorld {
 		}
 	})
 	return moduleWorld{
-		host:     host,
-		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host),
-		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host),
-		internal: api.MakeInternalHTTPHandlerWithModules(full, host),
-		org:      org,
-		handle:   handle,
+		host:        host,
+		full:        api.MakeHTTPHandlerWithModules(full, nil, nil, host),
+		limited:     api.MakeHTTPHandlerWithModules(limited, nil, nil, host),
+		internal:    api.MakeInternalHTTPHandlerWithModules(full, host),
+		signer:      full.AgentTokenManagerService.(services.WorkloadTokenSigner),
+		fresh:       api.MakeHTTPHandlerWithModules(fresh, nil, nil, host),
+		freshHandle: freshHandle,
+		org:         org,
+		handle:      handle,
 	}
 }
 
@@ -227,36 +240,67 @@ func TestModuleContract(t *testing.T) {
 		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/bad", nil)
 		assert.Equal(t, http.StatusNotFound, code, "a rejected create leaves no agent")
 
-		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("tagged", map[string]any{"testmod": map[string]any{"tag": "blue"}}))
+		// The apply hook also publishes from inside the transaction and
+		// changes its own copy of the object.
+		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("tagged",
+			map[string]any{"testmod": map[string]any{"tag": "blue", "announce": true}}))
 		require.Equal(t, http.StatusAccepted, code, string(body))
 		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/tags", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.JSONEq(t, `[{"agent":"tagged","tag":"blue"}]`, string(body))
+	})
 
-		code, body = w.call(t, w.full, http.MethodPut, agentsPath+"/tagged",
+	t.Run("a module refuses a delete before anything is torn down", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPut, agentsPath+"/tagged",
 			map[string]any{"displayName": "Tagged", "description": "", "extensions": map[string]any{"testmod": map[string]any{"tag": "undeletable"}}})
 		require.Equal(t, http.StatusOK, code, string(body))
 		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/tagged", nil)
 		assert.Equal(t, http.StatusConflict, code, string(body))
 		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/tagged", nil)
-		assert.Equal(t, http.StatusOK, code, "a refused finalize keeps the agent")
+		assert.Equal(t, http.StatusOK, code, "a refused delete keeps the agent")
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/tags", nil)
+		require.Equal(t, http.StatusOK, code)
+		assert.JSONEq(t, `[{"agent":"tagged","tag":"undeletable"}]`, string(body), "and everything it owns")
+	})
 
-		code, body = w.call(t, w.full, http.MethodPut, agentsPath+"/tagged",
-			map[string]any{"displayName": "Tagged", "description": "", "extensions": map[string]any{"testmod": map[string]any{"tag": "green"}}})
+	t.Run("a failing finalize hook cannot block a delete", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPut, agentsPath+"/tagged",
+			map[string]any{"displayName": "Tagged", "description": "", "extensions": map[string]any{"testmod": map[string]any{"tag": "finalize-fails"}}})
 		require.Equal(t, http.StatusOK, code, string(body))
 		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/tagged", nil)
 		require.Equal(t, http.StatusNoContent, code, string(body))
+		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/tagged", nil)
+		assert.Equal(t, http.StatusNotFound, code)
 		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/tags", nil)
 		require.Equal(t, http.StatusOK, code)
 		assert.JSONEq(t, `[]`, string(body))
 	})
 
-	t.Run("events reach subscribers after commit", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/widgets", map[string]any{"name": "w1"})
-		require.Equal(t, http.StatusCreated, code, string(body))
+	t.Run("a hook that runs out of time leaves nothing behind", func(t *testing.T) {
+		start := time.Now()
+		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("stalled", map[string]any{"testmod": map[string]any{"stall": true}}))
+		assert.Equal(t, http.StatusInternalServerError, code, string(body))
+		assert.Less(t, time.Since(start), modkit.OperationTimeout+2*time.Second)
+		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/stalled", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+		time.Sleep(500 * time.Millisecond) // let the stalled hook try its late write
+		var n int64
+		require.NoError(t, db.DB(ctx).Raw(`SELECT count(*) FROM mod_testmod_agent_tags WHERE tag IN (?, ?)`,
+			testmod.StalledTag, "late").Scan(&n).Error)
+		assert.Zero(t, n, "the hook's write rolled back with the transaction")
+		assert.False(t, testmod.AfterTimeout.Load(), "the hook could not write after its deadline")
+	})
+
+	t.Run("events reach every subscriber after commit, with retries", func(t *testing.T) {
+		for _, name := range []string{"w1", "flaky"} {
+			code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/widgets", map[string]any{"name": name})
+			require.Equal(t, http.StatusCreated, code, string(body))
+		}
 		want := map[string]bool{
 			modkit.EventAgentCreated + "/tagged": false, modkit.EventAgentDeleted + "/tagged": false,
-			testmod.WidgetCreated: false,
+			testmod.WidgetCreated + "/w1": false, testmod.WidgetCreated + "/from-hook": false,
+			// fails its first delivery, so arrives only by retry
+			testmod.WidgetCreated + "/flaky": false,
 		}
 		eventually(t, "module events", func() bool {
 			code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/received", nil)
@@ -269,12 +313,11 @@ func TestModuleContract(t *testing.T) {
 			}
 			_ = json.Unmarshal(body, &got)
 			for _, e := range got {
-				key := e.EventType
-				if e.Subject != nil && e.EventType != testmod.WidgetCreated {
-					key += "/" + *e.Subject
+				if e.Subject == nil {
+					continue
 				}
-				if _, ok := want[key]; ok {
-					want[key] = true
+				if _, ok := want[e.EventType+"/"+*e.Subject]; ok {
+					want[e.EventType+"/"+*e.Subject] = true
 				}
 			}
 			for _, seen := range want {
@@ -284,6 +327,19 @@ func TestModuleContract(t *testing.T) {
 			}
 			return true
 		})
+		var failed int64
+		require.NoError(t, db.DB(ctx).Raw(`SELECT count(*) FROM module_event_deliveries WHERE failed_at IS NOT NULL`).Scan(&failed).Error)
+		assert.Zero(t, failed)
+	})
+
+	t.Run("a failing environment hook cannot block a new organization", func(t *testing.T) {
+		testmod.FailEnvironment.Store(true)
+		defer testmod.FailEnvironment.Store(false)
+		code, body := w.call(t, w.fresh, http.MethodGet, "/api/v1/orgs/"+w.freshHandle+"/projects", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var n int64
+		require.NoError(t, db.DB(ctx).Raw(`SELECT count(*) FROM mod_testmod_agent_tags WHERE tag = ?`, testmod.EnvironmentTag).Scan(&n).Error)
+		assert.Zero(t, n, "the failed hook's write is undone")
 	})
 
 	t.Run("a capability resolves through the provider", func(t *testing.T) {
@@ -297,44 +353,147 @@ func TestModuleContract(t *testing.T) {
 		require.Equal(t, http.StatusCreated, code, string(body))
 		var issued struct{ Token, CredentialID, Secret string }
 		require.NoError(t, json.Unmarshal(body, &issued))
+		ping := func(token string) (int, []byte) {
+			if token == "" {
+				return w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil)
+			}
+			return w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer "+token)
+		}
+		exchange := func(id, secret string) (int, []byte) {
+			return w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
+				map[string]string{"credentialId": id, "secret": secret})
+		}
 
-		code, body = w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer "+issued.Token)
+		code, body = ping(issued.Token)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.JSONEq(t, fmt.Sprintf(`{"subject":"run:direct","orgId":%q}`, w.org), string(body))
 
-		code, _ = w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil)
+		code, _ = ping("")
 		assert.Equal(t, http.StatusUnauthorized, code)
-		code, _ = w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer not-a-token")
+		code, _ = ping("not-a-token")
 		assert.Equal(t, http.StatusUnauthorized, code)
 
-		code, _ = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
-			map[string]string{"credentialId": issued.CredentialID, "secret": "wrong"})
+		// Valid workload tokens that do not grant this route.
+		other, _, err := w.signer.IssueWorkload(modkit.Workload{Module: testmod.ConsumerName, Subject: "run:other", Scopes: []string{testmod.PingScope}}, time.Minute)
+		require.NoError(t, err)
+		code, _ = ping(other)
+		assert.Equal(t, http.StatusForbidden, code, "a token for another module")
+		wrong, _, err := w.signer.IssueWorkload(modkit.Workload{Module: testmod.Name, Subject: "run:wrong", Scopes: []string{"not-ping"}}, time.Minute)
+		require.NoError(t, err)
+		code, _ = ping(wrong)
+		assert.Equal(t, http.StatusForbidden, code, "a token without the route's scope")
+
+		// An agent token is signed with the same key, but is no workload token.
+		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("tokened", nil))
+		require.Equal(t, http.StatusAccepted, code, string(body))
+		code, body = w.call(t, w.full, http.MethodPost, agentsPath+"/tokened/token", map[string]any{})
+		require.Equal(t, http.StatusOK, code, string(body))
+		var agentToken struct {
+			Token string `json:"token"`
+		}
+		require.NoError(t, json.Unmarshal(body, &agentToken))
+		code, _ = ping(agentToken.Token)
+		assert.Equal(t, http.StatusUnauthorized, code, "an agent token")
+
+		code, _ = exchange(issued.CredentialID, "wrong")
 		assert.Equal(t, http.StatusUnauthorized, code)
-		code, body = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
-			map[string]string{"credentialId": issued.CredentialID, "secret": issued.Secret})
+		code, body = exchange(issued.CredentialID, issued.Secret)
 		require.Equal(t, http.StatusOK, code, string(body))
 		var exchanged modhost.TokenExchangeResponse
 		require.NoError(t, json.Unmarshal(body, &exchanged))
-		code, body = w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer "+exchanged.Token)
+		code, body = ping(exchanged.Token)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.Contains(t, string(body), "run:exchanged")
 
-		// A workload token is not a sign-in: the public API refuses it.
-		real := api.MakeHTTPHandler(mustRealAuthParams(t), nil)
-		code, _ = w.call(t, real, http.MethodGet, "/api/v1/orgs/"+w.handle+"/projects", nil, "Authorization", "Bearer "+exchanged.Token)
-		assert.Equal(t, http.StatusUnauthorized, code)
+		code, body = w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/workloads/revoke", map[string]string{"credentialId": issued.CredentialID})
+		require.Equal(t, http.StatusNoContent, code, string(body))
+		code, _ = exchange(issued.CredentialID, issued.Secret)
+		assert.Equal(t, http.StatusUnauthorized, code, "a revoked credential")
+
+		assertIssuerSeparation(t, w, exchanged.Token)
 	})
 
 	t.Run("disabling a module removes its routes at once", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/workloads", nil)
+		require.Equal(t, http.StatusCreated, code, string(body))
+		var issued struct{ Token, CredentialID, Secret string }
+		require.NoError(t, json.Unmarshal(body, &issued))
+
 		require.NoError(t, w.host.Disable(ctx, testmod.ConsumerName))
-		code, _ := w.call(t, w.full, http.MethodGet, "/api/v1/m/testcap/echo?s=hi", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testcap/echo?s=hi", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		require.NoError(t, w.host.Disable(ctx, testmod.Name))
 		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
-		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("late", map[string]any{"testmod": map[string]any{"tag": "x"}}))
+		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("late", map[string]any{"testmod": map[string]any{"tag": "x"}}))
 		assert.Equal(t, http.StatusBadRequest, code, string(body))
+
+		code, _ = w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer "+issued.Token)
+		assert.Equal(t, http.StatusNotFound, code)
+		code, _ = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
+			map[string]string{"credentialId": issued.CredentialID, "secret": issued.Secret})
+		assert.Equal(t, http.StatusUnauthorized, code, "a credential of an inactive module")
 	})
+}
+
+// assertIssuerSeparation points the production sign-in middleware at the
+// core's own JWKS, as Compose does, and checks that a workload token is
+// refused for its issuer, while a token signed the same way with an accepted
+// issuer gets through: the signature alone does not decide.
+func assertIssuerSeparation(t *testing.T, w moduleWorld, workloadToken string) {
+	t.Helper()
+	cfg := config.GetConfig()
+	keys, err := w.signerJWKS()
+	require.NoError(t, err)
+	jwks := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, _ *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(rw).Encode(keys)
+	}))
+	defer jwks.Close()
+	saved := cfg.KeyManagerConfigurations
+	defer func() { cfg.KeyManagerConfigurations = saved }()
+	cfg.KeyManagerConfigurations.JWKSUrl = jwks.URL
+	cfg.KeyManagerConfigurations.Issuer = []string{"amp-test-login"}
+	cfg.KeyManagerConfigurations.Audience = []string{"amp-test-audience"}
+
+	real := api.MakeHTTPHandler(mustRealAuthParams(t), nil)
+	projects := "/api/v1/orgs/" + w.handle + "/projects"
+	code, _ := w.call(t, real, http.MethodGet, projects, nil, "Authorization", "Bearer "+workloadToken)
+	assert.Equal(t, http.StatusUnauthorized, code, "a workload token is not a sign-in")
+
+	control := signLikeTheCore(t, jwt.MapClaims{
+		"iss": "amp-test-login", "aud": "amp-test-audience", "sub": "tester", "ouId": w.org, "ouHandle": w.handle,
+		"scope": rbac.ProjectRead.Scope(), "exp": time.Now().Add(time.Minute).Unix(),
+	})
+	code, body := w.call(t, real, http.MethodGet, projects, nil, "Authorization", "Bearer "+control)
+	assert.Equal(t, http.StatusOK, code, "the same key with an accepted issuer is accepted: %s", body)
+}
+
+func (w moduleWorld) signerJWKS() (any, error) {
+	return mustAgentTokens().GetJWKS(context.Background())
+}
+
+func mustAgentTokens() services.AgentTokenManagerService {
+	s, err := services.NewAgentTokenManagerService(nil, config.GetConfig().JWTSigning, slog.New(slog.DiscardHandler))
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
+// signLikeTheCore signs claims with the core's active signing key.
+func signLikeTheCore(t *testing.T, claims jwt.MapClaims) string {
+	t.Helper()
+	cfg := config.GetConfig().JWTSigning
+	raw, err := os.ReadFile(cfg.PrivateKeyPath)
+	require.NoError(t, err)
+	key, err := jwt.ParseRSAPrivateKeyFromPEM(raw)
+	require.NoError(t, err)
+	tok := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
+	tok.Header["kid"] = cfg.ActiveKeyID
+	signed, err := tok.SignedString(key)
+	require.NoError(t, err)
+	return signed
 }
 
 // mustRealAuthParams builds the app with the production JWT middleware.

@@ -879,6 +879,32 @@ CREATE TABLE module_migrations (
     CONSTRAINT pk_module_migrations PRIMARY KEY (module, version)
 );
 
+CREATE TABLE module_events (
+    id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    source TEXT NOT NULL,
+    subject TEXT,
+    data TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT pk_module_events PRIMARY KEY (id),
+    CONSTRAINT fk_module_events_org_id FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE,
+    CONSTRAINT ck_module_events_1 CHECK (json_valid(data))
+);
+
+CREATE TABLE module_event_deliveries (
+    event_id TEXT NOT NULL,
+    module TEXT NOT NULL,
+    attempts INTEGER NOT NULL,
+    available_at TIMESTAMP NOT NULL,
+    claimed_by TEXT,
+    last_error TEXT,
+    failed_at TIMESTAMP,
+    CONSTRAINT pk_module_event_deliveries PRIMARY KEY (event_id, module),
+    CONSTRAINT fk_module_event_deliveries_event_id FOREIGN KEY (event_id) REFERENCES module_events (id) ON DELETE CASCADE
+);
+CREATE INDEX idx_module_event_deliveries_available_at ON module_event_deliveries (available_at);
+
 CREATE TABLE workload_credentials (
     id TEXT NOT NULL,
     module TEXT NOT NULL,

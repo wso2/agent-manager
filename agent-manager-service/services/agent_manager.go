@@ -774,6 +774,12 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		isA2AAgent = a2aCapable(agent)
 	}
 
+	// Modules may refuse the delete; ask before anything is torn down, so a
+	// refusal leaves the agent and everything it owns in place.
+	if err := s.platform.CheckDeleteAgent(ctx, ouID, projectName, agentName); err != nil && !errors.Is(err, utils.ErrAgentNotFound) {
+		return err
+	}
+
 	// Deletion is irreversible and cascades into configs, identities and
 	// monitors, so it is refused when it cannot be recorded.
 	deleteAttempt, auditErr := audit.Begin(

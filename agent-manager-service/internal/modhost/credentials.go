@@ -86,7 +86,11 @@ func (h *Host) issueCredential(ctx context.Context, module string, req modkit.Cr
 	if err != nil {
 		return modkit.Credential{}, err
 	}
-	err = h.db.WithContext(ctx).Exec(`INSERT INTO workload_credentials
+	db := hookTx(ctx)
+	if db == nil {
+		db = h.db
+	}
+	err = db.WithContext(ctx).Exec(`INSERT INTO workload_credentials
 		(id, module, org_id, subject, scopes, token_ttl_seconds, secret_hash, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
 		cred.ID, module, orgID, req.Subject, strings.Join(req.Scopes, " "),

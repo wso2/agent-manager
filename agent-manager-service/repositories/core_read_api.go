@@ -28,7 +28,8 @@ import (
 )
 
 // coreReadAPI is the read API modules get through Runtime.Core. Every query is
-// scoped to the organization the caller names; it never creates one.
+// scoped to the organization the caller names, which must be the one of the
+// request, hook or event the call is made for; it never creates one.
 type coreReadAPI struct{ db *gorm.DB }
 
 // NewCoreReadAPI returns the core read API for modules.
@@ -53,6 +54,12 @@ func orgRows(orgID string) (uuid.UUID, bool) {
 	return id, err == nil
 }
 
+// foreign reports whether ctx belongs to another organization than orgID.
+func foreign(ctx context.Context, orgID string) bool {
+	own := modkit.OrgID(ctx)
+	return own != "" && own != orgID
+}
+
 func notFound(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return modkit.ErrNotFound
@@ -61,6 +68,10 @@ func notFound(err error) error {
 }
 
 func (c *coreReadAPI) GetOrg(ctx context.Context, orgID string) (modkit.Org, error) {
+	if foreign(ctx, orgID) {
+		return modkit.Org{}, modkit.ErrNotFound
+	}
+
 	ids, err := parseIDs(orgID)
 	if err != nil {
 		return modkit.Org{}, err
@@ -77,6 +88,10 @@ func toProject(p *models.Project) modkit.Project {
 }
 
 func (c *coreReadAPI) ListProjects(ctx context.Context, orgID string) ([]modkit.Project, error) {
+	if foreign(ctx, orgID) {
+		return []modkit.Project{}, nil
+	}
+
 	org, ok := orgRows(orgID)
 	if !ok {
 		return []modkit.Project{}, nil
@@ -93,6 +108,10 @@ func (c *coreReadAPI) ListProjects(ctx context.Context, orgID string) ([]modkit.
 }
 
 func (c *coreReadAPI) GetProject(ctx context.Context, orgID, projectID string) (modkit.Project, error) {
+	if foreign(ctx, orgID) {
+		return modkit.Project{}, modkit.ErrNotFound
+	}
+
 	ids, err := parseIDs(orgID, projectID)
 	if err != nil {
 		return modkit.Project{}, err
@@ -123,6 +142,10 @@ func toAgent(a *agentWithProject) modkit.Agent {
 }
 
 func (c *coreReadAPI) ListAgents(ctx context.Context, orgID, projectID string) ([]modkit.Agent, error) {
+	if foreign(ctx, orgID) {
+		return []modkit.Agent{}, nil
+	}
+
 	org, ok := orgRows(orgID)
 	if !ok {
 		return []modkit.Agent{}, nil
@@ -147,6 +170,10 @@ func (c *coreReadAPI) ListAgents(ctx context.Context, orgID, projectID string) (
 }
 
 func (c *coreReadAPI) GetAgent(ctx context.Context, orgID, agentID string) (modkit.Agent, error) {
+	if foreign(ctx, orgID) {
+		return modkit.Agent{}, modkit.ErrNotFound
+	}
+
 	ids, err := parseIDs(orgID, agentID)
 	if err != nil {
 		return modkit.Agent{}, err
@@ -162,6 +189,10 @@ func (c *coreReadAPI) GetAgent(ctx context.Context, orgID, agentID string) (modk
 }
 
 func (c *coreReadAPI) ListEnvironments(ctx context.Context, orgID string) ([]modkit.Environment, error) {
+	if foreign(ctx, orgID) {
+		return []modkit.Environment{}, nil
+	}
+
 	org, ok := orgRows(orgID)
 	if !ok {
 		return []modkit.Environment{}, nil

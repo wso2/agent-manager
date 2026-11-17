@@ -73,8 +73,10 @@ type Manifest struct {
 	Provides []string `json:"provides,omitempty"`
 
 	// Permissions are namespaced by the core as "<module>:<name>" and carried
-	// in tokens as the scope "amp:<module>:<name>". Built-in modules declare
-	// permissions that predate modules, so their names are used as written.
+	// in tokens as the scope "amp:<module>:<name>". A name is one segment of
+	// lowercase letters, digits and dashes ("widget-read"). Built-in modules
+	// declare permissions that predate modules, so their names are used as
+	// written.
 	Permissions []Permission `json:"permissions,omitempty"`
 	// RoleGrants gives the module's permissions (by the names in Permissions)
 	// to the predefined roles while the module is active.
@@ -145,17 +147,24 @@ type HealthReporter interface {
 // Phase of a synchronous resource hook.
 type Phase string
 
-// Every phase runs inside the core transaction that writes the resource, with
-// a deadline of HookTimeout. An error from any phase rolls the change back and
-// fails the request: a modkit.Error carries its status and message to the
-// caller, any other error is reported as a 500.
+// The hooks of one create, update or delete see the same set of active
+// modules and share one deadline, OperationTimeout; each hook also has at most
+// HookTimeout. A hook that runs out of time fails the operation, and the
+// transaction handle it was given stops working.
 const (
-	// Validate runs before a resource is created or updated, in activation order.
+	// Validate runs in activation order and may refuse the change: an error
+	// rolls it back and fails the request (a modkit.Error carries its status
+	// and message to the caller; any other error is a 500). On create and
+	// update it runs inside the core transaction, before the write. On
+	// delete it runs before the core tears anything down, outside any
+	// transaction (Tx is nil), so it must only read.
 	Validate Phase = "validate"
-	// Apply runs after the core has written a created or updated resource,
-	// in activation order.
+	// Apply runs inside the core transaction after a create or update is
+	// written, in activation order. An error rolls the change back.
 	Apply Phase = "apply"
-	// Finalize runs before a resource is deleted, in reverse activation order.
+	// Finalize runs inside the core transaction that deletes a resource, in
+	// reverse activation order, to clean up the module's own rows. It cannot
+	// refuse the delete: an error is logged. Refuse a delete in Validate.
 	Finalize Phase = "finalize"
 )
 
@@ -172,6 +181,9 @@ const (
 // HookTimeout bounds every hook call.
 const HookTimeout = 5 * time.Second
 
+// OperationTimeout bounds all the hooks of one operation together.
+const OperationTimeout = 10 * time.Second
+
 // HookRequest is passed to a hook.
 type HookRequest struct {
 	Resource string `json:"resource"` // ResourceAgent or ResourceEnvironment
@@ -184,8 +196,12 @@ type HookRequest struct {
 	// Extension is the part of the request body addressed to this module
 	// (body.extensions["<module>"]), or nil.
 	Extension json.RawMessage `json:"extension,omitempty"`
-	// Tx is the core transaction. A hook writes its own tables through it,
-	// so its rows commit or roll back with the resource.
+	// Tx is the core transaction (nil in the validate phase of a delete). A
+	// hook writes its own tables through it, so its rows commit or roll back
+	// with the resource; Publish and IssueCredential called with the hook's
+	// ctx write through it too. Never use DB() inside a hook: on SQLite it
+	// waits for the core's transaction, and on PostgreSQL its writes escape
+	// a rollback. Tx stops working when the hook returns.
 	Tx *gorm.DB `json:"-"`
 }
 
@@ -212,7 +228,6 @@ const (
 	EventAgentCreated       = "agent.created"
 	EventAgentDeleted       = "agent.deleted"
 	EventEnvironmentCreated = "environment.created"
-	EventEnvironmentDeleted = "environment.deleted"
 )
 
 // Event is an asynchronous notification.
@@ -227,8 +242,9 @@ type Event struct {
 }
 
 // EventHandler handles an event. Handlers run in the background, after the
-// change that raised the event has committed, on one replica. An event is
-// delivered at least once, so handlers must be idempotent.
+// change that raised the event has committed, on one replica, with a deadline.
+// Each subscribing module gets the event at least once: a handler that fails
+// is retried with backoff, so handlers must be idempotent.
 type EventHandler func(ctx context.Context, e Event) error
 
 // ErrNotFound is returned by the read API for a resource that does not exist
@@ -277,7 +293,8 @@ type Environment struct {
 
 // CoreAPI is the read API the core offers to modules. Every call is scoped to
 // one organization, by its id; a resource of another organization is
-// reported as ErrNotFound.
+// reported as ErrNotFound. Called with the ctx of a request, hook or event,
+// it answers only for that ctx's organization (OrgID).
 type CoreAPI interface {
 	GetOrg(ctx context.Context, orgID string) (Org, error)
 	ListProjects(ctx context.Context, orgID string) ([]Project, error)

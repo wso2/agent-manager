@@ -21,6 +21,9 @@ import (
 //			AgentExistsFunc: func(ctx context.Context, ouID string, projectName string, agentName string) (bool, error) {
 //				panic("mock out the AgentExists method")
 //			},
+//			CheckDeleteAgentFunc: func(ctx context.Context, ouID string, projectName string, agentName string) error {
+//				panic("mock out the CheckDeleteAgent method")
+//			},
 //			CountProjectAgentsFunc: func(ctx context.Context, ouID string, projectName string) (int, error) {
 //				panic("mock out the CountProjectAgents method")
 //			},
@@ -76,6 +79,9 @@ type PlatformRepositoryMock struct {
 	// AgentExistsFunc mocks the AgentExists method.
 	AgentExistsFunc func(ctx context.Context, ouID string, projectName string, agentName string) (bool, error)
 
+	// CheckDeleteAgentFunc mocks the CheckDeleteAgent method.
+	CheckDeleteAgentFunc func(ctx context.Context, ouID string, projectName string, agentName string) error
+
 	// CountProjectAgentsFunc mocks the CountProjectAgents method.
 	CountProjectAgentsFunc func(ctx context.Context, ouID string, projectName string) (int, error)
 
@@ -125,6 +131,17 @@ type PlatformRepositoryMock struct {
 	calls struct {
 		// AgentExists holds details about calls to the AgentExists method.
 		AgentExists []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ProjectName is the projectName argument value.
+			ProjectName string
+			// AgentName is the agentName argument value.
+			AgentName string
+		}
+		// CheckDeleteAgent holds details about calls to the CheckDeleteAgent method.
+		CheckDeleteAgent []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// OuID is the ouID argument value.
@@ -281,6 +298,7 @@ type PlatformRepositoryMock struct {
 		}
 	}
 	lockAgentExists          sync.RWMutex
+	lockCheckDeleteAgent     sync.RWMutex
 	lockCountProjectAgents   sync.RWMutex
 	lockCreateAgent          sync.RWMutex
 	lockCreateProject        sync.RWMutex
@@ -339,6 +357,50 @@ func (mock *PlatformRepositoryMock) AgentExistsCalls() []struct {
 	mock.lockAgentExists.RLock()
 	calls = mock.calls.AgentExists
 	mock.lockAgentExists.RUnlock()
+	return calls
+}
+
+// CheckDeleteAgent calls CheckDeleteAgentFunc.
+func (mock *PlatformRepositoryMock) CheckDeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) error {
+	if mock.CheckDeleteAgentFunc == nil {
+		panic("PlatformRepositoryMock.CheckDeleteAgentFunc: method is nil but PlatformRepository.CheckDeleteAgent was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		OuID        string
+		ProjectName string
+		AgentName   string
+	}{
+		Ctx:         ctx,
+		OuID:        ouID,
+		ProjectName: projectName,
+		AgentName:   agentName,
+	}
+	mock.lockCheckDeleteAgent.Lock()
+	mock.calls.CheckDeleteAgent = append(mock.calls.CheckDeleteAgent, callInfo)
+	mock.lockCheckDeleteAgent.Unlock()
+	return mock.CheckDeleteAgentFunc(ctx, ouID, projectName, agentName)
+}
+
+// CheckDeleteAgentCalls gets all the calls that were made to CheckDeleteAgent.
+// Check the length with:
+//
+//	len(mockedPlatformRepository.CheckDeleteAgentCalls())
+func (mock *PlatformRepositoryMock) CheckDeleteAgentCalls() []struct {
+	Ctx         context.Context
+	OuID        string
+	ProjectName string
+	AgentName   string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		OuID        string
+		ProjectName string
+		AgentName   string
+	}
+	mock.lockCheckDeleteAgent.RLock()
+	calls = mock.calls.CheckDeleteAgent
+	mock.lockCheckDeleteAgent.RUnlock()
 	return calls
 }
 

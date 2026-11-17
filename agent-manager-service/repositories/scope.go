@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
@@ -69,26 +70,32 @@ func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organizat
 		ID: newID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
 		CreatedAt: now, UpdatedAt: now,
 	}
-	// The default environment is the only one an organization gets, so its
-	// creation is where environment hooks and events fire.
-	envReq := modkit.HookRequest{Resource: modkit.ResourceEnvironment, Action: modkit.ActionCreate, OrgID: org.ID.String()}
+	// The default environment is the only one an organization gets, and it
+	// comes with the organization, possibly on a read: it cannot be refused,
+	// so environment hooks get only the apply phase, in a savepoint. A module
+	// that fails there is logged and its writes undone; the organization is
+	// created all the same.
+	op := coreext.Begin(ctx, modkit.ResourceEnvironment)
+	envReq := modkit.HookRequest{Action: modkit.ActionCreate, OrgID: org.ID.String()}
 	txErr := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&org).Error; err != nil {
-			return err
-		}
-		object := environmentObject(&env)
-		delete(object, "id")
-		if err := coreext.Get().Run(ctx, tx, modkit.Validate, withObject(envReq, "", object), nil); err != nil {
 			return err
 		}
 		if err := tx.Create(&env).Error; err != nil {
 			return err
 		}
-		object = environmentObject(&env)
-		if err := coreext.Get().Run(ctx, tx, modkit.Apply, withObject(envReq, env.ID.String(), object), nil); err != nil {
-			return err
+		object := environmentObject(&env)
+		hookErr := tx.Transaction(func(sp *gorm.DB) error {
+			if err := op.Run(ctx, sp, modkit.Apply, withObject(envReq, env.ID.String(), object), nil); err != nil {
+				return err
+			}
+			return emit(ctx, op, sp, modkit.EventEnvironmentCreated, org.ID.String(), env.Name, object)
+		})
+		if hookErr != nil {
+			slog.ErrorContext(ctx, "module hooks failed on a new organization's default environment; created without them",
+				"orgId", org.ID.String(), "error", hookErr)
 		}
-		return emit(ctx, tx, modkit.EventEnvironmentCreated, org.ID.String(), env.Name, object)
+		return nil
 	})
 	if txErr != nil {
 		// A concurrent request may have created it first.

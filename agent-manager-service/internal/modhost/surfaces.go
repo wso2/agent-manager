@@ -22,12 +22,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
@@ -66,12 +64,6 @@ type subEntry struct {
 	fn     modkit.EventHandler
 }
 
-// EventSink records events in the core's event outbox.
-type EventSink interface {
-	// Put records e for module subscribers, inside tx when tx is not nil.
-	Put(ctx context.Context, tx *gorm.DB, e modkit.Event) error
-}
-
 // Tokens signs and verifies workload tokens with the core's signing keys.
 type Tokens interface {
 	IssueWorkload(w modkit.Workload, ttl time.Duration) (token string, expiresAt time.Time, err error)
@@ -87,7 +79,6 @@ type Deps struct {
 	// panic on a route the middleware refuses.
 	Mount  func(mux *http.ServeMux, r Route)
 	Core   modkit.CoreAPI
-	Events EventSink
 	Tokens Tokens
 }
 
@@ -143,13 +134,21 @@ func permissionName(mf modkit.Manifest, name string) rbac.Permission {
 	return rbac.Permission(mf.Name + ":" + name)
 }
 
+var permissionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
 // declare adds a module's permissions and role grants to the registry being
 // built for a snapshot.
 func declare(reg *rbac.Registry, mf modkit.Manifest) error {
 	perms := make([]rbac.Permission, 0, len(mf.Permissions))
 	for _, p := range mf.Permissions {
-		if p.Name == "" || strings.ContainsAny(p.Name, " \t") || (!mf.Builtin && strings.HasPrefix(p.Name, ":")) {
+		if mf.Builtin && (p.Name == "" || strings.ContainsAny(p.Name, " \t")) {
 			return fmt.Errorf("permission name %q is not valid", p.Name)
+		}
+		// One segment, so an identity provider that builds scopes as
+		// <resource>:<action> gives "<module>:<name>" with the module as the
+		// resource.
+		if !mf.Builtin && !permissionNamePattern.MatchString(p.Name) {
+			return fmt.Errorf("permission name %q must be lowercase letters, digits and dashes, starting with a letter", p.Name)
 		}
 		perms = append(perms, permissionName(mf, p.Name))
 	}
@@ -281,195 +280,6 @@ func (h *Host) requireWorkload(module, scope string, next http.HandlerFunc) http
 			ctx = modkit.WithOrgID(ctx, wl.OrgID)
 		}
 		next(w, r.WithContext(ctx))
-	}
-}
-
-// ---- hooks ----
-
-// Check rejects extension blocks addressed to a module that is not active or
-// registered no hook on resource.
-func (h *Host) Check(resource string, ext map[string]json.RawMessage) error {
-	if len(ext) == 0 {
-		return nil
-	}
-	v := h.current()
-	names := make([]string, 0, len(ext))
-	for name := range ext {
-		names = append(names, name)
-	}
-	slices.Sort(names)
-	for _, name := range names {
-		if !slices.Contains(v.active, name) {
-			return modkit.Reject("extensions.%s: no module named %q is active", name, name)
-		}
-		takes := false
-		for _, phases := range v.hooks[resource] {
-			for _, e := range phases {
-				takes = takes || e.module == name
-			}
-		}
-		if !takes {
-			return modkit.Reject("extensions.%s: module %s takes no %s extensions", name, name, resource)
-		}
-	}
-	return nil
-}
-
-// Run runs the hooks of one phase on a resource inside tx: validate and apply
-// in activation order, finalize in reverse. Each hook sees only the extension
-// block addressed to its module, and has modkit.HookTimeout to finish.
-func (h *Host) Run(ctx context.Context, tx *gorm.DB, phase modkit.Phase, req modkit.HookRequest, ext map[string]json.RawMessage) error {
-	entries := h.current().hooks[req.Resource][phase]
-	if phase == modkit.Finalize {
-		entries = slices.Clone(entries)
-		slices.Reverse(entries)
-	}
-	for _, e := range entries {
-		r := req
-		r.Extension = ext[e.module]
-		if err := h.callHook(ctx, tx, e, r); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// HookError is a hook's failure that is not a modkit.Error.
-type HookError struct {
-	Module, Resource string
-	Phase            modkit.Phase
-	Err              error
-}
-
-func (e *HookError) Error() string {
-	return fmt.Sprintf("module %s: %s hook on %s: %v", e.Module, e.Phase, e.Resource, e.Err)
-}
-
-func (e *HookError) Unwrap() error { return e.Err }
-
-func (h *Host) callHook(ctx context.Context, tx *gorm.DB, e hookEntry, req modkit.HookRequest) error {
-	hctx, cancel := context.WithTimeout(ctx, modkit.HookTimeout)
-	defer cancel()
-	if tx != nil {
-		req.Tx = tx.WithContext(hctx)
-	}
-	done := make(chan error, 1)
-	go func() {
-		defer func() {
-			if p := recover(); p != nil {
-				done <- fmt.Errorf("panic: %v", p)
-			}
-		}()
-		done <- e.fn(hctx, req)
-	}()
-	var err error
-	select {
-	case err = <-done:
-	case <-hctx.Done():
-		err = fmt.Errorf("did not finish within %s", modkit.HookTimeout)
-	}
-	if err == nil {
-		return nil
-	}
-	var me *modkit.Error
-	if errors.As(err, &me) {
-		return &modkit.Error{Status: me.Status, Message: e.module + ": " + me.Message}
-	}
-	h.log.Error("modhost:hook failed", "module", e.module, "resource", req.Resource, "phase", e.phase, "error", err)
-	return &HookError{Module: e.module, Resource: req.Resource, Phase: e.phase, Err: err}
-}
-
-// ---- events ----
-
-var coreEvents = []string{
-	modkit.EventAgentCreated, modkit.EventAgentDeleted,
-	modkit.EventEnvironmentCreated, modkit.EventEnvironmentDeleted,
-}
-
-// knownEvent reports whether the core or a compiled-in module's manifest
-// declares an event type.
-func (h *Host) knownEvent(t string) bool {
-	if slices.Contains(coreEvents, t) {
-		return true
-	}
-	for _, mf := range h.manifests {
-		if slices.Contains(mf.Events, t) {
-			return true
-		}
-	}
-	return false
-}
-
-// Emit records a core event for module subscribers inside tx.
-func (h *Host) Emit(ctx context.Context, tx *gorm.DB, e modkit.Event) error {
-	if e.ID == "" {
-		e.ID = "evt_" + uuid.NewString()
-	}
-	if e.Source == "" {
-		e.Source = "core"
-	}
-	if e.Time.IsZero() {
-		e.Time = time.Now().UTC()
-	}
-	sink := h.deps().Events
-	if sink == nil || !h.Subscribed(e.Type) {
-		return nil
-	}
-	return sink.Put(ctx, tx, e)
-}
-
-func (h *Host) publish(ctx context.Context, tx *gorm.DB, module, eventType string, data any) error {
-	raw, err := json.Marshal(data)
-	if err != nil {
-		return fmt.Errorf("modkit: event %s: %w", eventType, err)
-	}
-	org := modkit.OrgID(ctx)
-	if org == "" {
-		var probe struct {
-			OrgID string `json:"orgId"`
-		}
-		_ = json.Unmarshal(raw, &probe)
-		org = probe.OrgID
-	}
-	if org == "" {
-		return fmt.Errorf("modkit: event %s names no organization", eventType)
-	}
-	sink := h.deps().Events
-	if sink == nil {
-		return modkit.ErrNotImplemented
-	}
-	return sink.Put(ctx, tx, modkit.Event{
-		ID: "evt_" + uuid.NewString(), Type: eventType, Source: module, OrgID: org,
-		Time: time.Now().UTC(), Data: raw,
-	})
-}
-
-// Subscribed reports whether an active module handles an event type.
-func (h *Host) Subscribed(eventType string) bool {
-	return len(h.current().subs[eventType]) > 0
-}
-
-// eventHandlerTimeout bounds one event handler call.
-const eventHandlerTimeout = 30 * time.Second
-
-// Deliver hands an event to the active modules subscribed to it, in
-// activation order. It runs on the outbox drainer, never on a request.
-func (h *Host) Deliver(ctx context.Context, e modkit.Event) {
-	for _, s := range h.current().subs[e.Type] {
-		h.deliverOne(ctx, s, e)
-	}
-}
-
-func (h *Host) deliverOne(ctx context.Context, s subEntry, e modkit.Event) {
-	ctx, cancel := context.WithTimeout(ctx, eventHandlerTimeout)
-	defer cancel()
-	defer func() {
-		if p := recover(); p != nil {
-			h.log.Error("modhost:event handler panicked", "module", s.module, "event", e.Type, "eventId", e.ID, "panic", p)
-		}
-	}()
-	if err := s.fn(ctx, e); err != nil {
-		h.log.Error("modhost:event handler failed", "module", s.module, "event", e.Type, "eventId", e.ID, "error", err)
 	}
 }
 
