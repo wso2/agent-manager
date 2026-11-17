@@ -225,6 +225,7 @@ export function OxygenLayout() {
             {globalConfig.docsUrl && (
               <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
             )}
+            <Footer.Link href={`${globalConfig.apiBaseUrl ?? ""}/api/docs`} target="_blank" rel="noopener noreferrer">API Reference</Footer.Link>
             {globalConfig.footerLinks?.supportUrl && (
               <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>
             )}
