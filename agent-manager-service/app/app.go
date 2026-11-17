@@ -437,9 +437,13 @@ func ReconcileModules(ctx context.Context, host *modhost.Host) error {
 	for _, m := range mods.List {
 		want = append(want, modhost.Desired{Name: m.Name, Enabled: m.Enabled})
 	}
+	slog.Info("applying the configured modules list", "modules", want)
 	steps, err := host.Reconcile(ctx, want)
 	for _, s := range steps {
 		slog.Info("modules list applied", "module", s.Module, "action", s.Action)
+	}
+	if err == nil && len(steps) == 0 {
+		slog.Info("modules already match the configured list")
 	}
 	return err
 }

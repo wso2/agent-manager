@@ -18,12 +18,15 @@ package modhost_test
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
 func TestReconcileMatchesTheDeclaredList(t *testing.T) {
@@ -75,6 +78,75 @@ func TestReconcileMatchesTheDeclaredList(t *testing.T) {
 				_, err := h.Reconcile(ctx, bad)
 				assert.True(t, modhost.IsResolveError(err), "%v: got %v", bad, err)
 			}
+		})
+	}
+}
+
+func TestReconcileLeavesAListedDisabledModuleAlone(t *testing.T) {
+	for _, d := range databases(t) {
+		t.Run(d.driver, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			w := newWorld(t)
+			var activations atomic.Int32
+			provide := w.store.activate
+			w.store.activate = func(rt modkit.Runtime) error {
+				activations.Add(1)
+				return provide(rt)
+			}
+			h, g := replica(t, ctx, d, w.modules())
+			list := []modhost.Desired{{Name: "t-store", Enabled: false}}
+
+			// First boot: never installed, so installed once and then disabled.
+			steps, err := h.Reconcile(ctx, list)
+			require.NoError(t, err)
+			assert.Equal(t, []modhost.Step{{Module: "t-store", Action: "install"}, {Module: "t-store", Action: "disable"}}, steps)
+			assert.NotContains(t, h.Active(), "t-store")
+
+			// Every later boot changes nothing: no install, no activation, no
+			// new generation for the other replicas to follow.
+			before := activations.Load()
+			gen := count(t, g, `SELECT value FROM module_generation WHERE id = 1`)
+			for range 2 {
+				steps, err = h.Reconcile(ctx, list)
+				require.NoError(t, err)
+				assert.Empty(t, steps)
+			}
+			assert.Equal(t, before, activations.Load())
+			assert.Equal(t, gen, count(t, g, `SELECT value FROM module_generation WHERE id = 1`))
+			assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-store' AND state = 'disabled'`))
+		})
+	}
+}
+
+func TestReplicasReconcileTogether(t *testing.T) {
+	for _, d := range databases(t) {
+		t.Run(d.driver, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			w := newWorld(t)
+			h1, g := replica(t, ctx, d, w.modules())
+			h2, _ := replica(t, ctx, d, w.modules())
+
+			for _, list := range [][]modhost.Desired{
+				{{Name: "t-consumer", Enabled: true}},
+				{{Name: "t-store", Enabled: true}},
+				nil,
+			} {
+				var wg sync.WaitGroup
+				errs := make([]error, 2)
+				for i, h := range []*modhost.Host{h1, h2} {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						_, errs[i] = h.Reconcile(ctx, list)
+					}()
+				}
+				wg.Wait()
+				require.NoError(t, errs[0], "%v", list)
+				require.NoError(t, errs[1], "%v", list)
+			}
+			assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM modules WHERE state = 'active' AND name <> 't-builtin'`))
 		})
 	}
 }

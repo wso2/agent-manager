@@ -33,8 +33,11 @@ type Desired struct {
 // does at boot: every listed module is installed (with the providers it
 // needs) and enabled or disabled as listed, and every other installed module
 // is disabled unless a module that stays active requires it. Built-in modules
-// are always active; listing one disabled is an error. It returns the steps it
-// took, disables as Action "disable".
+// are always active; listing one disabled is an error. A module listed
+// disabled that is already installed is left alone; one that is not installed
+// yet is installed and then disabled. Replicas booting together may run it at
+// once: a change another replica already made counts as done. It returns the
+// steps it took, disables as Action "disable".
 func (h *Host) Reconcile(ctx context.Context, want []Desired) ([]Step, error) {
 	listed := map[string]bool{}
 	for _, d := range want {
@@ -50,14 +53,21 @@ func (h *Host) Reconcile(ctx context.Context, want []Desired) ([]Step, error) {
 
 	var steps []Step
 	for _, d := range want {
-		if h.manifests[d.Name].Builtin || h.stateNow(d.Name) == StateActive {
+		if h.manifests[d.Name].Builtin {
+			continue
+		}
+		st := h.stateNow(d.Name)
+		// Enabled: anything but active needs an install (which re-enables a
+		// disabled module). Disabled: only a module never installed does.
+		needed := (d.Enabled && st != StateActive) || (!d.Enabled && (st == StateAvailable || st == StateUninstalled))
+		if !needed {
 			continue
 		}
 		s, err := h.Install(ctx, d.Name, true)
-		steps = append(steps, s...)
-		if err != nil {
+		if err != nil && !h.settled(ctx, d.Name, func(st string) bool { return st == StateActive || (st == StateDisabled && !d.Enabled) }) {
 			return steps, fmt.Errorf("installing %s: %w", d.Name, err)
 		}
+		steps = append(steps, s...)
 	}
 
 	// Disable what must not run: listed disabled, or not listed at all.
@@ -74,30 +84,45 @@ func (h *Host) Reconcile(ctx context.Context, want []Desired) ([]Step, error) {
 	for progress := true; progress && len(off) > 0; {
 		progress = false
 		for _, name := range slices.Clone(off) {
-			h.mu.RLock()
-			deps := Dependents(name, h.manifests, h.states, false)
-			h.mu.RUnlock()
-			if len(deps) > 0 {
+			if len(h.dependents(name)) > 0 {
 				continue
 			}
-			if err := h.Disable(ctx, name); err != nil {
+			if err := h.Disable(ctx, name); err != nil && !h.settled(ctx, name, func(st string) bool { return st != StateActive }) {
 				return steps, fmt.Errorf("disabling %s: %w", name, err)
+			} else if err == nil {
+				steps = append(steps, Step{Module: name, Action: "disable"})
 			}
-			steps = append(steps, Step{Module: name, Action: "disable"})
 			off = slices.DeleteFunc(off, func(n string) bool { return n == name })
 			progress = true
 		}
 	}
 	for _, name := range off {
-		h.mu.RLock()
-		deps := Dependents(name, h.manifests, h.states, false)
-		h.mu.RUnlock()
+		deps := h.dependents(name)
 		if _, isListed := listed[name]; isListed {
 			return steps, &ResolveError{Msg: fmt.Sprintf("%s is listed disabled, but %v require it", name, deps)}
 		}
 		h.log.Info("module not listed but kept active: listed modules require it", "module", name, "requiredBy", deps)
 	}
 	return steps, nil
+}
+
+// settled reports, after a lifecycle change failed, whether the module has
+// reached the wanted state anyway (another replica made the same change).
+func (h *Host) settled(ctx context.Context, name string, ok func(state string) bool) bool {
+	if err := h.Reload(ctx); err != nil {
+		return false
+	}
+	if ok(h.stateNow(name)) {
+		h.log.Info("module already in the listed state", "module", name, "state", h.stateNow(name))
+		return true
+	}
+	return false
+}
+
+func (h *Host) dependents(name string) []string {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return Dependents(name, h.manifests, h.states, false)
 }
 
 func (h *Host) stateNow(name string) string {
