@@ -6,7 +6,7 @@ How to run AMP Lite from source, change it and test it. To install and use a rel
 
 | Folder | What it holds |
 |---|---|
-| [agent-manager-service](../agent-manager-service) | Agent Manager API and MCP server (Go). Also `amp-init`, which generates the ThunderID and gateway configuration |
+| [agent-manager-service](../agent-manager-service) | Agent Manager API, MCP server, module host and embedded console (Go). Builds `amp` (core and modules) and `amp-core` (core only); `amp init` generates the ThunderID and gateway configuration |
 | [agent-manager-observer](../agent-manager-observer) | Trace query API over OpenSearch (Go) |
 | [console](../console) | Web console (React, TypeScript, pnpm workspace) |
 | [cli](../cli) | `amctl`, the command-line client (Go) |
@@ -78,13 +78,22 @@ Run these in `agent-manager-service`:
 |---|---|
 | Any Go code | `make fmt` (gofumpt; CI rejects unformatted code) and `make lint` |
 | The OpenAPI spec | `make spec` |
-| Wiring in `wiring/wire.go` | `make wire` |
+| Wiring in `wiring/wire.go` or `modules/gateway/gwwire/wire.go` | `make wire` (regenerates both) |
 | A repository or client interface | `make mocks` (needs moq v0.5.3 from `make tools`) |
-| The database schema in `db_migrations/schema/lite.yaml` | `make schema`, which regenerates the SQLite and PostgreSQL baselines |
+| The database schema in `db_migrations/schema/lite.yaml`, or a module's in `modules/<name>/schema/` | `make schema`, which regenerates the SQLite and PostgreSQL migrations |
+| Anything you want to run outside Compose | `make build` (`bin/amp`, `bin/amp-core`; run `make console-embed` first to include the console) |
 
 CI fails if generated code is out of date (`make codegenfmt-check`). Commit the generated files with your change.
 
 Every route needs an RBAC permission, and operations on credentials, permissions or deletions need an audit event. The [database schema](amp-lite/database-schema.md) explains the tables and the rules they follow.
+
+Settings come from the environment, with an optional `amp.yaml` for the rest; [`amp.example.yaml`](../agent-manager-service/amp.example.yaml) lists the common ones.
+
+### Modules
+
+The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) imports no module. Everything else is a module under `agent-manager-service/modules/`, compiled into `amp` and installed, enabled or disabled at runtime (`amp module …`, or the `modules:` list in `amp.yaml`). The AI Gateway is the built-in `gateway` module, and the core reaches it only through the `llm.proxy/v1`, `mcp.proxy/v1` and `agent.gateway/v1` capabilities, so `amp-core` runs without it. The `legacy` module answers `501` for routes Lite does not serve yet.
+
+A new module brings a manifest (permissions, role grants, capabilities, events, console pages), its own migrations with tables named `mod_<module>_<table>`, and an `Activate` function that registers its routes, hooks on agent and environment changes, event handlers and capabilities. [agent-manager-service/AGENTS.md](../agent-manager-service/AGENTS.md#add-a-module) has the steps, and `tests/modules/testmod` is a working example. Run `make up-core` and `make smoke-core` as well as `make up` when a change touches the boundary between the core and a module.
 
 ### Console
 
@@ -96,7 +105,7 @@ pnpm lint
 pnpm build
 ```
 
-[console/UX_GUIDELINES.md](../console/UX_GUIDELINES.md) covers page layout and wording. Components come from Oxygen UI.
+[console/UX_GUIDELINES.md](../console/UX_GUIDELINES.md) covers page layout and wording. Components come from Oxygen UI. Pages belong to UI modules; which ones show is decided by the API (`GET /api/v1/ui-manifest`), so a new page is also listed in its backend module's manifest ([console/AGENTS.md](../console/AGENTS.md)).
 
 ### Observer and CLI
 
@@ -104,7 +113,7 @@ Both are plain Go modules. Run `go build ./... && go test ./...` in `agent-manag
 
 ### Diagrams
 
-The architecture and data-model diagrams are generated. Edit the generators in [docs/amp-lite/src](amp-lite/src) and run `docs/amp-lite/src/render.sh` (it needs Python 3 and Google Chrome).
+The architecture and data-model diagrams are generated. Edit the generators in [docs/amp-lite/src](amp-lite/src) and run `docs/amp-lite/src/render.sh` (it needs Python 3 and Google Chrome). It also regenerates the ER diagram in `agent-manager-service/docs/database-er.md` from `lite.yaml`, so run it after a schema change.
 
 ## Tests
 
