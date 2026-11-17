@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -208,13 +208,13 @@ func testLLMProvider(providerID string) *models.LLMProvider {
 // guardrails as args[2], so "not called" means nothing was saved.
 func (m *MockToolsetHandler) UpdateLLMProviderGuardrails(
 	ctx context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []services.DeploymentResult, error) {
+) (*models.LLMProvider, []gwsvc.DeploymentResult, error) {
 	return m.saveGuardrails(ouID, providerID, testLLMProvider(providerID).Configuration.Policies, change)
 }
 
 func (m *MockToolsetHandler) saveGuardrails(
 	ouID, providerID string, current []models.LLMPolicy, change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []services.DeploymentResult, error) {
+) (*models.LLMProvider, []gwsvc.DeploymentResult, error) {
 	guardrails, err := change(current)
 	if err != nil {
 		return nil, nil, err
@@ -222,7 +222,7 @@ func (m *MockToolsetHandler) saveGuardrails(
 	m.recordCall("UpdateLLMProviderGuardrails", ouID, providerID, guardrails)
 	p := &models.LLMProvider{Artifact: &models.Artifact{Handle: providerID}}
 	p.Configuration.Policies = guardrails
-	return p, []services.DeploymentResult{{GatewayID: testGatewayID, Success: true}}, nil
+	return p, []gwsvc.DeploymentResult{{GatewayID: testGatewayID, Success: true}}, nil
 }
 
 // MCP Proxy Toolset Handler

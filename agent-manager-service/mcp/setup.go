@@ -23,6 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/handlers"
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
@@ -31,14 +32,15 @@ import (
 type Dependencies struct {
 	InfraResourceManager     services.InfraResourceManager
 	AgentManagerService      services.AgentManagerService
+	AgentDeployments         handlers.AgentDeployments
 	AgentTokenManagerService services.AgentTokenManagerService
 	EnvironmentService       services.EnvironmentService
 
-	LLMProviderService           *services.LLMProviderService
-	LLMProviderDeploymentService *services.LLMProviderDeploymentService
-	PlatformGatewayService       *services.PlatformGatewayService
-	MCPProxyService              *services.MCPProxyService
-	AgentConfigurationService    services.AgentConfigurationService
+	LLMProviderService           *gwsvc.LLMProviderService
+	LLMProviderDeploymentService *gwsvc.LLMProviderDeploymentService
+	PlatformGatewayService       *gwsvc.PlatformGatewayService
+	MCPProxyService              *gwsvc.MCPProxyService
+	AgentConfigurationService    gwsvc.AgentConfigurationService
 }
 
 // RegisterRoute builds the MCP HTTP handler, wraps it with the standard middleware chain,
@@ -48,7 +50,7 @@ func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(ht
 	toolsets := &tools.Toolsets{
 		ProjectToolset:     handlers.NewProjectHandler(deps.InfraResourceManager),
 		AgentToolset:       handlers.NewAgentHandler(deps.AgentManagerService, deps.AgentTokenManagerService),
-		DeploymentToolset:  handlers.NewDeploymentHandler(deps.AgentManagerService),
+		DeploymentToolset:  handlers.NewDeploymentHandler(deps.AgentDeployments),
 		EnvironmentToolset: handlers.NewEnvironmentHandler(deps.EnvironmentService),
 		LLMProviderToolset: handlers.NewLLMProviderHandler(deps.LLMProviderService, deps.LLMProviderDeploymentService, deps.PlatformGatewayService),
 		MCPProxyToolset:    handlers.NewMCPProxyHandler(deps.MCPProxyService),

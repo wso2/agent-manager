@@ -75,8 +75,8 @@ type Manifest struct {
 	// Permissions are namespaced by the core as "<module>:<name>" and carried
 	// in tokens as the scope "amp:<module>:<name>". A name is one segment of
 	// lowercase letters, digits and dashes ("widget-read"). Built-in modules
-	// declare permissions that predate modules, so their names are used as
-	// written.
+	// may also declare permissions that predate modules by their full names
+	// ("llm-provider:read"), which are used as written.
 	Permissions []Permission `json:"permissions,omitempty"`
 	// RoleGrants gives the module's permissions (by the names in Permissions)
 	// to the predefined roles while the module is active.
@@ -86,6 +86,15 @@ type Manifest struct {
 	Events []string `json:"events,omitempty"`
 
 	UI *UI `json:"ui,omitempty"`
+}
+
+// PermissionName is the full name of one of the module's permissions:
+// "<module>:<name>", or a built-in module's full name as written.
+func (m Manifest) PermissionName(name string) string {
+	if m.Builtin && strings.Contains(name, ":") {
+		return name
+	}
+	return m.Name + ":" + name
 }
 
 // Permission is a module-defined permission.

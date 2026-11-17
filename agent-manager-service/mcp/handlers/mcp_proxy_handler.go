@@ -19,14 +19,14 @@ import (
 	"context"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 )
 
 type MCPProxyHandler struct {
-	proxySvc *services.MCPProxyService
+	proxySvc *gwsvc.MCPProxyService
 }
 
-func NewMCPProxyHandler(proxySvc *services.MCPProxyService) *MCPProxyHandler {
+func NewMCPProxyHandler(proxySvc *gwsvc.MCPProxyService) *MCPProxyHandler {
 	return &MCPProxyHandler{proxySvc: proxySvc}
 }
 

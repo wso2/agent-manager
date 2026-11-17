@@ -22,38 +22,44 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/gateway" // declares gateway:*
 	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // manifestRegistry is the permission registry of the core plus the built-in
-// legacy module, which together declare every permission that predates modules.
+// modules (legacy, gateway), which together declare every permission of the
+// full distribution. It also returns the legacy module's manifest.
 func manifestRegistry(t *testing.T) (*rbac.Registry, modkit.Manifest) {
 	t.Helper()
-	var mf modkit.Manifest
+	var legacyMF modkit.Manifest
+	reg := rbac.NewRegistry()
 	for _, m := range modkit.Registered() {
-		if m.Manifest().Name == legacy.Name {
-			mf = m.Manifest()
+		mf := m.Manifest()
+		if !mf.Builtin {
+			continue
+		}
+		if mf.Name == legacy.Name {
+			legacyMF = mf
+		}
+		perms := make([]rbac.Permission, 0, len(mf.Permissions))
+		for _, p := range mf.Permissions {
+			perms = append(perms, rbac.Permission(mf.PermissionName(p.Name)))
+		}
+		grants := map[string][]rbac.Permission{}
+		for role, names := range mf.RoleGrants {
+			for _, n := range names {
+				grants[role] = append(grants[role], rbac.Permission(mf.PermissionName(n)))
+			}
+		}
+		if err := reg.Add(mf.Name, perms, grants); err != nil {
+			t.Fatalf("the core and the built-in modules declare overlapping permissions: %v", err)
 		}
 	}
-	if mf.Name == "" {
+	if legacyMF.Name == "" {
 		t.Fatal("the legacy module is not registered")
 	}
-	perms := make([]rbac.Permission, 0, len(mf.Permissions))
-	for _, p := range mf.Permissions {
-		perms = append(perms, rbac.Permission(p.Name))
-	}
-	grants := map[string][]rbac.Permission{}
-	for role, names := range mf.RoleGrants {
-		for _, n := range names {
-			grants[role] = append(grants[role], rbac.Permission(n))
-		}
-	}
-	reg := rbac.NewRegistry()
-	if err := reg.Add(mf.Name, perms, grants); err != nil {
-		t.Fatalf("the core and the legacy module declare overlapping permissions: %v", err)
-	}
-	return reg, mf
+	return reg, legacyMF
 }
 
 // Every permission in rbac is declared by exactly one manifest, the core's or
@@ -65,7 +71,7 @@ func TestSecurityInvariantEveryPermissionHasAnOwner(t *testing.T) {
 	for ident, scope := range scopes {
 		value := strings.TrimPrefix(scope, rbac.ResourceServer+":")
 		if _, ok := reg.Owner(rbac.Permission(value)); !ok {
-			t.Errorf("rbac.%s (%q) is declared by neither rbac.CorePermissions nor the legacy module", ident, value)
+			t.Errorf("rbac.%s (%q) is declared by neither rbac.CorePermissions nor a built-in module", ident, value)
 		}
 	}
 	if got := len(reg.Permissions()); got != len(scopes) {

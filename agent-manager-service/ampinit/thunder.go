@@ -315,8 +315,15 @@ func (r *thunderRenderer) appendModuleResources(content []byte) ([]byte, error) 
 	if len(mods) == 0 {
 		return content, nil
 	}
+	declared := &thunderRenderer{trees: map[string][]string{}}
+	if err := declared.addTrees(content); err != nil {
+		return nil, err
+	}
 	for _, m := range mods {
-		if slices.Contains(rbac.ReservedResources(), m.Handle) {
+		// The template already declares the core's resources and those of the
+		// built-in modules (gateway); a second resource of the same handle
+		// would clash with it.
+		if slices.Contains(rbac.ReservedResources(), m.Handle) || declared.declaresResource(m.Handle) {
 			return nil, fmt.Errorf("module %q is named after a core permission resource; its permissions would clash with %s:*",
 				m.Handle, m.Handle)
 		}
@@ -336,9 +343,16 @@ func (r *thunderRenderer) appendModuleResources(content []byte) ([]byte, error) 
 	return b.Bytes(), nil
 }
 
+// declaresResource is true when the amp resource server already has a
+// resource with the handle.
+func (r *thunderRenderer) declaresResource(handle string) bool {
+	return slices.ContainsFunc(r.trees[ampResourceServerID], func(s string) bool { return isResourceScope(s, handle) })
+}
+
 // moduleResources lists the resources of the modules compiled into this
-// binary. Built-in modules declare permissions that predate modules and are
-// already in the resource server.
+// binary. Built-in modules declare permissions that predate modules, whose
+// resources are already in the resource server template; that includes the
+// gateway module's gateway resource, which keeps its display names there.
 func (r *thunderRenderer) moduleResources() []moduleResource {
 	var out []moduleResource
 	for _, mf := range r.cfg.Modules {
@@ -360,15 +374,19 @@ func (r *thunderRenderer) moduleResources() []moduleResource {
 
 // moduleGrants is what the compiled-in modules grant a predefined role. They
 // are granted whether or not a module is installed: an inactive module's
-// routes are not served, so the grant opens nothing until it is.
+// routes are not served, so the grant opens nothing until it is. A built-in
+// module's own permissions are granted the same way; their resource is in the
+// bootstrap template (see moduleResources).
 func (r *thunderRenderer) moduleGrants(role string) []rbac.Permission {
 	var out []rbac.Permission
 	for _, mf := range r.cfg.Modules {
-		if mf.Builtin {
-			continue
-		}
 		for _, name := range mf.RoleGrants[role] {
-			out = append(out, rbac.Permission(mf.Name+":"+name))
+			// A built-in module's grants of permissions that predate modules
+			// are in PredefinedRolePermissions already.
+			if mf.Builtin && strings.Contains(name, ":") {
+				continue
+			}
+			out = append(out, rbac.Permission(mf.PermissionName(name)))
 		}
 	}
 	return out

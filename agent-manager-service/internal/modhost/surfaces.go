@@ -117,7 +117,7 @@ func (h *Host) permission(module, name string) (rbac.Permission, error) {
 			continue
 		}
 		for _, q := range other.Permissions {
-			if q.Name == name {
+			if other.PermissionName(q.Name) == name {
 				return p, nil
 			}
 		}
@@ -125,13 +125,10 @@ func (h *Host) permission(module, name string) (rbac.Permission, error) {
 	return "", fmt.Errorf("permission %q is neither declared in the manifest nor a core permission", name)
 }
 
-// permissionName is the full name of a module permission: "<module>:<name>",
-// or the name as written for a built-in module.
+// permissionName is the full name of a module permission (see
+// modkit.Manifest.PermissionName).
 func permissionName(mf modkit.Manifest, name string) rbac.Permission {
-	if mf.Builtin {
-		return rbac.Permission(name)
-	}
-	return rbac.Permission(mf.Name + ":" + name)
+	return rbac.Permission(mf.PermissionName(name))
 }
 
 var permissionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
@@ -141,13 +138,14 @@ var permissionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 func declare(reg *rbac.Registry, mf modkit.Manifest) error {
 	perms := make([]rbac.Permission, 0, len(mf.Permissions))
 	for _, p := range mf.Permissions {
-		if mf.Builtin && (p.Name == "" || strings.ContainsAny(p.Name, " \t")) {
+		written := mf.Builtin && strings.Contains(p.Name, ":")
+		if written && strings.ContainsAny(p.Name, " \t") {
 			return fmt.Errorf("permission name %q is not valid", p.Name)
 		}
 		// One segment, so an identity provider that builds scopes as
 		// <resource>:<action> gives "<module>:<name>" with the module as the
 		// resource.
-		if !mf.Builtin && !permissionNamePattern.MatchString(p.Name) {
+		if !written && !permissionNamePattern.MatchString(p.Name) {
 			return fmt.Errorf("permission name %q must be lowercase letters, digits and dashes, starting with a letter", p.Name)
 		}
 		perms = append(perms, permissionName(mf, p.Name))

@@ -544,7 +544,7 @@ func (s *eventSubscriptionService) checkTarget(ctx context.Context, t repositori
 			return err
 		}
 	case models.EventScopeAgent:
-		if _, err := getAgent(ctx, s.oc, t.OUID, t.ProjectName, t.AgentName); err != nil {
+		if _, err := GetProjectAgent(ctx, s.oc, t.OUID, t.ProjectName, t.AgentName); err != nil {
 			return err
 		}
 	}

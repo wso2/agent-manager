@@ -90,15 +90,6 @@ const (
 	EnvironmentDelete Permission = "environment:delete"
 )
 
-// Gateway permissions
-const (
-	GatewayCreate      Permission = "gateway:create"
-	GatewayRead        Permission = "gateway:read"
-	GatewayUpdate      Permission = "gateway:update"
-	GatewayDelete      Permission = "gateway:delete"
-	GatewayTokenManage Permission = "gateway:token-manage"
-)
-
 // Infrastructure permissions
 const (
 	DataPlaneRead            Permission = "data-plane:read"

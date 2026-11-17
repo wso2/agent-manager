@@ -25,7 +25,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
@@ -203,70 +202,6 @@ func TestWriteThunderStampFollowsBootstrap(t *testing.T) {
 	}
 	if info, _ := os.Stat(filepath.Join(dir, "bootstrap", "50-amp-api-client.yaml")); info.Mode().Perm() != 0o600 {
 		t.Errorf("bootstrap file mode = %v, want 0600", info.Mode().Perm())
-	}
-}
-
-func gatewayConfig() *GatewayConfig {
-	return &GatewayConfig{
-		ControlPlaneHost: "amp-api:9243", AdminPassword: "pw", AMPJWKSURL: "http://amp-api:8080/jwks",
-		ThunderIssuer: "http://thunder.amp.localhost:8080", ThunderJWKSURL: "http://thunder:8080/oauth2/jwks",
-		Host: "default-default.gateway.localhost", ListenerPort: 19080,
-	}
-}
-
-func TestWriteGatewayKeepsGeneratedMaterial(t *testing.T) {
-	dir := t.TempDir()
-	if err := WriteGateway(gatewayConfig(), dir); err != nil {
-		t.Fatal(err)
-	}
-	token := readFile(t, filepath.Join(dir, RegistrationTokenFile))
-	if _, err := gatewaytoken.Prefix(token); err != nil {
-		t.Fatalf("generated token %q: %v", token, err)
-	}
-	key := readFile(t, filepath.Join(dir, gatewayAESKeyFile))
-	cert := readFile(t, filepath.Join(dir, gatewayCertFile))
-	if len(key) != 32 || !strings.Contains(cert, "BEGIN CERTIFICATE") {
-		t.Fatalf("key length %d, cert %q", len(key), cert)
-	}
-	conf := readFile(t, filepath.Join(dir, GatewayConfigFile))
-	for _, want := range []string{`token = "` + token + `"`, `host = "amp-api:9243"`, "listener_port = 19080", `gatewayhost = "default-default.gateway.localhost"`} {
-		if !strings.Contains(conf, want) {
-			t.Errorf("config.toml lacks %q", want)
-		}
-	}
-
-	if err := WriteGateway(gatewayConfig(), dir); err != nil {
-		t.Fatal(err)
-	}
-	if readFile(t, filepath.Join(dir, RegistrationTokenFile)) != token ||
-		readFile(t, filepath.Join(dir, gatewayAESKeyFile)) != key ||
-		readFile(t, filepath.Join(dir, gatewayCertFile)) != cert {
-		t.Error("a rerun replaced generated material")
-	}
-
-	configured, _ := gatewaytoken.New()
-	cfg := gatewayConfig()
-	cfg.RegistrationToken = configured
-	if err := WriteGateway(cfg, dir); err != nil {
-		t.Fatal(err)
-	}
-	if readFile(t, filepath.Join(dir, RegistrationTokenFile)) != configured ||
-		!strings.Contains(readFile(t, filepath.Join(dir, GatewayConfigFile)), configured) {
-		t.Error("a configured token did not replace the kept one")
-	}
-}
-
-func TestLoadGatewayConfigRejectsMalformedToken(t *testing.T) {
-	for k, v := range map[string]string{
-		"GATEWAY_CONTROLPLANE_HOST": "amp-api:9243", "GATEWAY_ADMIN_PASSWORD": "pw",
-		"GATEWAY_AMP_JWKS_URL": "http://a/jwks", "THUNDER_PUBLIC_URL": "http://t:8080",
-		"GATEWAY_THUNDER_JWKS_URL": "http://t/jwks", "GATEWAY_HOST": "gw.localhost",
-		"DEFAULT_GATEWAY_TOKEN": "too-short",
-	} {
-		t.Setenv(k, v)
-	}
-	if _, err := LoadGatewayConfig(); err == nil || !strings.Contains(err.Error(), "DEFAULT_GATEWAY_TOKEN") {
-		t.Fatalf("err = %v", err)
 	}
 }
 

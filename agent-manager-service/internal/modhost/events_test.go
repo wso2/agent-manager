@@ -155,11 +155,15 @@ func eventRetentionAndUninstallPurge(t *testing.T, d database) {
 }
 
 func TestModulesCannotTakeCoreResourceNames(t *testing.T) {
-	for _, name := range []string{"gateway", "agent", "org", "amp"} {
+	for _, name := range []string{"agent", "org", "amp", "llm-provider"} {
 		assert.Panics(t, func() {
 			modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest(name, nil, nil)}})
 		}, name)
 	}
+	// gateway:* belongs to the gateway module, so a module may take its name.
+	assert.NotPanics(t, func() {
+		modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest("gateway", nil, nil)}})
+	})
 	builtin := manifest("agent", nil, nil)
 	builtin.Builtin = true
 	assert.NotPanics(t, func() {

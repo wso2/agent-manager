@@ -21,19 +21,19 @@ import (
 	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 )
 
 type LLMProviderHandler struct {
-	providerSvc   *services.LLMProviderService
-	deploymentSvc *services.LLMProviderDeploymentService
-	gatewaySvc    *services.PlatformGatewayService
+	providerSvc   *gwsvc.LLMProviderService
+	deploymentSvc *gwsvc.LLMProviderDeploymentService
+	gatewaySvc    *gwsvc.PlatformGatewayService
 }
 
 func NewLLMProviderHandler(
-	providerSvc *services.LLMProviderService,
-	deploymentSvc *services.LLMProviderDeploymentService,
-	gatewaySvc *services.PlatformGatewayService,
+	providerSvc *gwsvc.LLMProviderService,
+	deploymentSvc *gwsvc.LLMProviderDeploymentService,
+	gatewaySvc *gwsvc.PlatformGatewayService,
 ) *LLMProviderHandler {
 	return &LLMProviderHandler{providerSvc: providerSvc, deploymentSvc: deploymentSvc, gatewaySvc: gatewaySvc}
 }
@@ -103,7 +103,7 @@ func (h *LLMProviderHandler) GetLLMProvider(_ context.Context, ouID string, prov
 func (h *LLMProviderHandler) UpdateLLMProviderGuardrails(
 	ctx context.Context, ouID string, providerID string,
 	change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []services.DeploymentResult, error) {
+) (*models.LLMProvider, []gwsvc.DeploymentResult, error) {
 	provider, err := h.providerSvc.Get(providerID, ouID)
 	if err != nil {
 		return nil, nil, err
@@ -129,7 +129,7 @@ func (h *LLMProviderHandler) UpdateLLMProviderGuardrails(
 		return nil, nil, err
 	}
 	resp, err := h.providerSvc.UpdateAndSync(ctx, providerID, ouID, provider, gateways, h.deploymentSvc)
-	if errors.Is(err, services.ErrAllGatewayDeploymentsFailed) {
+	if errors.Is(err, gwsvc.ErrAllGatewayDeploymentsFailed) {
 		// The guardrails were saved before the redeploys failed: say so, rather than read as a save that failed.
 		return nil, nil, fmt.Errorf("guardrails saved, but redeploying to every gateway failed, so the gateways "+
 			"the provider is deployed to still enforce the previous guardrails: %w", err)

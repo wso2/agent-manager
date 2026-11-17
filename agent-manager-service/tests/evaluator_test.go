@@ -32,10 +32,9 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy/evaluators"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -49,7 +48,7 @@ type MockEvaluatorService struct {
 	mock.Mock
 }
 
-func (m *MockEvaluatorService) ListEvaluators(ctx context.Context, orgName string, filters services.EvaluatorFilters) ([]*models.EvaluatorResponse, int32, error) {
+func (m *MockEvaluatorService) ListEvaluators(ctx context.Context, orgName string, filters evaluators.EvaluatorFilters) ([]*models.EvaluatorResponse, int32, error) {
 	args := m.Called(ctx, orgName, filters)
 	if args.Get(0) == nil {
 		return nil, args.Get(1).(int32), args.Error(2)
@@ -181,11 +180,11 @@ func floatPtr(f float64) *float64 {
 
 func TestListEvaluators_Success(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	mockEvaluators := createMockEvaluators()
 
-	mockService.On("ListEvaluators", mock.Anything, "test-org-id", services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org-id", evaluators.EvaluatorFilters{
 		Limit:    20,
 		Offset:   0,
 		Tags:     nil,
@@ -216,14 +215,14 @@ func TestListEvaluators_Success(t *testing.T) {
 
 func TestListEvaluators_WithProviderFilter(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	deepevalEvaluators := []*models.EvaluatorResponse{
 		createMockEvaluators()[1], // deepeval/tool-correctness
 		createMockEvaluators()[2], // deepeval/argument-correctness
 	}
 
-	mockService.On("ListEvaluators", mock.Anything, "test-org-id", services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org-id", evaluators.EvaluatorFilters{
 		Limit:    20,
 		Offset:   0,
 		Tags:     nil,
@@ -255,13 +254,13 @@ func TestListEvaluators_WithProviderFilter(t *testing.T) {
 
 func TestListEvaluators_WithTagsFilter(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	taggedEvaluators := []*models.EvaluatorResponse{
 		createMockEvaluators()[1], // has deepeval and action tags
 	}
 
-	mockService.On("ListEvaluators", mock.Anything, "test-org-id", services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org-id", evaluators.EvaluatorFilters{
 		Limit:    20,
 		Offset:   0,
 		Tags:     []string{"deepeval", "action"},
@@ -288,14 +287,14 @@ func TestListEvaluators_WithTagsFilter(t *testing.T) {
 
 func TestListEvaluators_WithSearchFilter(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	searchResults := []*models.EvaluatorResponse{
 		createMockEvaluators()[1], // tool-correctness
 		createMockEvaluators()[2], // argument-correctness
 	}
 
-	mockService.On("ListEvaluators", mock.Anything, "test-org-id", services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org-id", evaluators.EvaluatorFilters{
 		Limit:    20,
 		Offset:   0,
 		Tags:     nil,
@@ -322,11 +321,11 @@ func TestListEvaluators_WithSearchFilter(t *testing.T) {
 
 func TestListEvaluators_WithPagination(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	mockEvaluators := createMockEvaluators()[:2]
 
-	mockService.On("ListEvaluators", mock.Anything, "test-org-id", services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org-id", evaluators.EvaluatorFilters{
 		Limit:    5,
 		Offset:   10,
 		Tags:     nil,
@@ -357,12 +356,12 @@ func TestListEvaluators_WithPagination(t *testing.T) {
 
 func TestListEvaluators_LimitCappedAt100(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	mockEvaluators := createMockEvaluators()
 
 	// Expect limit to be capped at 100
-	mockService.On("ListEvaluators", mock.Anything, "test-org-id", services.EvaluatorFilters{
+	mockService.On("ListEvaluators", mock.Anything, "test-org-id", evaluators.EvaluatorFilters{
 		Limit:    100,
 		Offset:   0,
 		Tags:     nil,
@@ -390,7 +389,7 @@ func TestListEvaluators_LimitCappedAt100(t *testing.T) {
 
 func TestListEvaluators_ServiceError(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	mockService.On("ListEvaluators", mock.Anything, "test-org-id", mock.Anything).
 		Return(nil, int32(0), assert.AnError)
@@ -409,7 +408,7 @@ func TestListEvaluators_ServiceError(t *testing.T) {
 
 func TestGetEvaluator_Success(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	mockEvaluator := createMockEvaluators()[0]
 
@@ -440,7 +439,7 @@ func TestGetEvaluator_Success(t *testing.T) {
 
 func TestGetEvaluator_URLEncodedIdentifier(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	mockEvaluator := createMockEvaluators()[1] // deepeval/tool-correctness
 
@@ -470,7 +469,7 @@ func TestGetEvaluator_URLEncodedIdentifier(t *testing.T) {
 
 func TestGetEvaluator_NotFound(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	mockService.On("GetEvaluator", mock.Anything, "test-org-id", "nonexistent").
 		Return(nil, utils.ErrEvaluatorNotFound)
@@ -490,7 +489,7 @@ func TestGetEvaluator_NotFound(t *testing.T) {
 
 func TestGetEvaluator_MissingEvaluatorId(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/orgs/test-org/evaluators/", nil)
 	req.SetPathValue("orgName", "test-org")
@@ -506,7 +505,7 @@ func TestGetEvaluator_MissingEvaluatorId(t *testing.T) {
 
 func TestGetEvaluator_ServiceError(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	mockService.On("GetEvaluator", mock.Anything, "test-org-id", "answer_relevancy").
 		Return(nil, assert.AnError)
@@ -526,7 +525,7 @@ func TestGetEvaluator_ServiceError(t *testing.T) {
 
 func TestGetEvaluator_ConfigSchemaConversion(t *testing.T) {
 	mockService := new(MockEvaluatorService)
-	controller := controllers.NewEvaluatorController(mockService)
+	controller := evaluators.NewEvaluatorController(mockService)
 
 	// Create evaluator with complex config schema
 	mockEvaluator := &models.EvaluatorResponse{

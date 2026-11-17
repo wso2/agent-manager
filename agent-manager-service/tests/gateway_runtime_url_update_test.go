@@ -23,8 +23,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -38,7 +38,7 @@ func TestUpdateGatewayPersistsRuntimeURLColumn(t *testing.T) {
 	id := seedRuntimeURLGateway(t, tx, "api-platform-acme-dev")
 	require.False(t, runtimeURLOf(t, tx, id).Valid, "fixture must start from the NULL state")
 
-	svc := services.NewPlatformGatewayService(repositories.NewGatewayRepo(tx), nil)
+	svc := gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx), nil)
 	want := "http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893"
 
 	resp, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &want)
@@ -55,7 +55,7 @@ func TestUpdateGatewayRejectsInvalidRuntimeURL(t *testing.T) {
 	tx := runtimeURLTestTx(t)
 	id := seedRuntimeURLGateway(t, tx, "api-platform-acme-dev")
 
-	svc := services.NewPlatformGatewayService(repositories.NewGatewayRepo(tx), nil)
+	svc := gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx), nil)
 	bad := "http://exfil.dev:53"
 
 	_, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &bad)

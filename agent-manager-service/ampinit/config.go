@@ -30,7 +30,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
@@ -82,21 +81,6 @@ type ThunderConfig struct {
 	// Modules are the manifests of the modules compiled into this binary,
 	// whose permissions and role grants go into the resource server and roles.
 	Modules []modkit.Manifest
-}
-
-// GatewayConfig is everything the AI Gateway files depend on.
-type GatewayConfig struct {
-	// ControlPlaneHost is host:port of Agent Manager's gateway WebSocket listener.
-	ControlPlaneHost string
-	// RegistrationToken is the gateway's control-plane token; generated and kept when empty.
-	RegistrationToken string
-	AdminPassword     string
-	AMPJWKSURL        string
-	ThunderIssuer     string
-	ThunderJWKSURL    string
-	// Host is the gateway's public host name (MCP auth metadata, listener certificate).
-	Host         string
-	ListenerPort int
 }
 
 type envReader struct{ errs []error }
@@ -286,30 +270,10 @@ func LoadFileAuthConfig() (*FileAuthConfig, error) {
 	if users[0].Password == "" {
 		r.errs = append(r.errs, fmt.Errorf(
 			"no password for %q: set AMP_ADMIN_PASSWORD or give it an AMP_DEFAULT_USERS entry, "+
-				"otherwise file-based sign-in admits nobody", adminName))
+				"otherwise file-based sign-in admits nobody", adminName,
+		))
 	}
 	cfg.Users = users
-	return cfg, r.err()
-}
-
-// LoadGatewayConfig reads the AI Gateway inputs from the environment.
-func LoadGatewayConfig() (*GatewayConfig, error) {
-	r := &envReader{}
-	cfg := &GatewayConfig{
-		ControlPlaneHost:  r.required("GATEWAY_CONTROLPLANE_HOST"),
-		RegistrationToken: r.str("DEFAULT_GATEWAY_TOKEN", ""),
-		AdminPassword:     r.required("GATEWAY_ADMIN_PASSWORD"),
-		AMPJWKSURL:        r.required("GATEWAY_AMP_JWKS_URL"),
-		ThunderIssuer:     strings.TrimRight(r.required("THUNDER_PUBLIC_URL"), "/"),
-		ThunderJWKSURL:    r.required("GATEWAY_THUNDER_JWKS_URL"),
-		Host:              r.required("GATEWAY_HOST"),
-		ListenerPort:      r.port("GATEWAY_LISTENER_PORT", 19080),
-	}
-	if cfg.RegistrationToken != "" {
-		if _, err := gatewaytoken.Prefix(cfg.RegistrationToken); err != nil {
-			r.errs = append(r.errs, fmt.Errorf("DEFAULT_GATEWAY_TOKEN: %w", err))
-		}
-	}
 	return cfg, r.err()
 }
 
@@ -332,9 +296,15 @@ func SampleThunderConfig() *ThunderConfig {
 	}
 }
 
-// Run writes the ThunderID files into thunderDir and the AI Gateway files
-// into gatewayDir, skipping an empty one.
-func Run(thunderDir, gatewayDir, fileAuthDir string) error {
+// Run writes the ThunderID files into thunderDir, the file-based sign-in user
+// file into fileAuthDir, and each registered component's files into the
+// directory others names for it, skipping an empty directory.
+func Run(thunderDir, fileAuthDir string, others map[string]string) error {
+	for name := range others {
+		if _, ok := component(name); !ok {
+			return fmt.Errorf("unknown component %q", name)
+		}
+	}
 	if thunderDir != "" {
 		cfg, err := LoadThunderConfig()
 		if err != nil {
@@ -345,15 +315,16 @@ func Run(thunderDir, gatewayDir, fileAuthDir string) error {
 		}
 		slog.Info("Wrote the ThunderID configuration", "dir", thunderDir)
 	}
-	if gatewayDir != "" {
-		cfg, err := LoadGatewayConfig()
-		if err != nil {
-			return fmt.Errorf("AI Gateway configuration: %w", err)
+	for _, name := range Components() {
+		dir := others[name]
+		c, ok := component(name)
+		if !ok || dir == "" {
+			continue
 		}
-		if err := WriteGateway(cfg, gatewayDir); err != nil {
-			return fmt.Errorf("AI Gateway configuration: %w", err)
+		if err := c.Write(dir); err != nil {
+			return fmt.Errorf("%s configuration: %w", c.Title, err)
 		}
-		slog.Info("Wrote the AI Gateway configuration", "dir", gatewayDir)
+		slog.Info("Wrote the "+c.Title+" configuration", "dir", dir)
 	}
 	if fileAuthDir != "" {
 		cfg, err := LoadFileAuthConfig()

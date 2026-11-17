@@ -25,6 +25,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"slices"
 	"strings"
 	"text/tabwriter"
 
@@ -46,7 +47,8 @@ const usage = `Usage:
   %[1]s migrate                                      apply the core's and every compiled-in module's migrations
   %[1]s init <component> <dir> [<component> <dir>...]
                                                      write a component's configuration into dir and exit;
-                                                     components: thunder, gateway, fileauth
+                                                     components: thunder, fileauth, and those of the
+                                                     compiled-in modules (gateway)
   %[1]s module list                                  list the modules compiled into this binary
   %[1]s module install <name> [--with-deps]          install a module (and the providers it needs)
   %[1]s module enable <name>
@@ -115,7 +117,11 @@ func legacy(args []string) error {
 		return errUsage
 	}
 	if *initThunderDir != "" || *initGatewayDir != "" || *initFileAuthDir != "" {
-		return writeConfig(*initThunderDir, *initGatewayDir, *initFileAuthDir)
+		others := map[string]string{}
+		if *initGatewayDir != "" {
+			others["gateway"] = *initGatewayDir
+		}
+		return writeConfig(*initThunderDir, *initFileAuthDir, others)
 	}
 	runApp(app.Options{Server: *serverFlag, Migrate: *migrateFlag, WaitForMigrations: *waitFlag})
 	return nil
@@ -145,20 +151,22 @@ func initCmd(args []string) error {
 	if len(args) == 0 || len(args)%2 != 0 {
 		return errUsage
 	}
+	known := ampinit.Components()
 	dirs := map[string]string{}
 	for i := 0; i < len(args); i += 2 {
-		switch args[i] {
-		case "thunder", "gateway", "fileauth":
-			dirs[args[i]] = args[i+1]
-		default:
-			return fmt.Errorf("unknown component %q (want thunder, gateway or fileauth)", args[i])
+		if !slices.Contains(known, args[i]) {
+			return fmt.Errorf("unknown component %q (want %s)", args[i], strings.Join(known, ", "))
 		}
+		dirs[args[i]] = args[i+1]
 	}
-	return writeConfig(dirs["thunder"], dirs["gateway"], dirs["fileauth"])
+	thunder, fileAuth := dirs["thunder"], dirs["fileauth"]
+	delete(dirs, "thunder")
+	delete(dirs, "fileauth")
+	return writeConfig(thunder, fileAuth, dirs)
 }
 
-func writeConfig(thunderDir, gatewayDir, fileAuthDir string) error {
-	if err := ampinit.Run(thunderDir, gatewayDir, fileAuthDir); err != nil {
+func writeConfig(thunderDir, fileAuthDir string, others map[string]string) error {
+	if err := ampinit.Run(thunderDir, fileAuthDir, others); err != nil {
 		return fmt.Errorf("writing component configuration failed: %w", err)
 	}
 	return nil

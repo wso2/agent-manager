@@ -29,7 +29,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -350,37 +349,6 @@ func TestListAgents_LabelsPassThroughUnmodified(t *testing.T) {
 
 func int32Ptr(v int32) *int32 {
 	return &v
-}
-
-func TestResolveResilienceTimeoutSeconds(t *testing.T) {
-	tests := []struct {
-		name      string
-		existing  *models.AgentConfig
-		requested *int32
-		withDef   bool
-		want      int32
-		wantErr   bool
-	}{
-		{"nothing set, withDefaults=true falls back to default", nil, nil, true, constants.DefaultResilienceTimeoutSeconds, false},
-		{"nothing set, withDefaults=false yields zero (no override)", nil, nil, false, 0, false},
-		{"existing DB value is used", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, nil, false, 60, false},
-		{"request overrides existing DB value", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(90), false, 90, false},
-		{"out-of-bounds request is rejected", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(10000), false, 0, true},
-		{"minimum bound is accepted", nil, int32Ptr(constants.MinResilienceTimeoutSeconds), false, constants.MinResilienceTimeoutSeconds, false},
-		{"maximum bound is accepted", nil, int32Ptr(constants.MaxResilienceTimeoutSeconds), false, constants.MaxResilienceTimeoutSeconds, false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveResilienceTimeoutSeconds(tc.existing, tc.requested, tc.withDef)
-			if tc.wantErr {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, utils.ErrInvalidInput)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
 }
 
 func TestPopulateCreatedBy_NoProvisioning_LeavesUnset(t *testing.T) {

@@ -51,6 +51,15 @@ const (
 	controllersDir = "../../controllers"
 )
 
+// routeDirs pairs each package of routes with the package of the controllers
+// they call: the core's, and those of the built-in modules the full
+// distribution links.
+var routeDirs = [][2]string{
+	{apiRoutesDir, controllersDir},
+	{"../../modules/gateway/gwapi", "../../modules/gateway/gwctl"},
+	{"../../modules/legacy/legacyapi", "../../modules/legacy/evaluators"},
+}
+
 // The structs mirror the skeleton field for field. Decoding with KnownFields
 // rejects any key the skeleton does not define.
 type taxonomyFile struct {
@@ -492,7 +501,11 @@ func TestTaxonomyFeaturesHaveEmitters(t *testing.T) {
 // their string-literal arguments for the parameters they use.
 func findTrackCalls(t *testing.T) []emittedEvent {
 	t.Helper()
-	return findTrackCallsIn(t, apiRoutesDir, controllersDir)
+	var events []emittedEvent
+	for _, d := range routeDirs {
+		events = append(events, findTrackCallsIn(t, d[0], d[1])...)
+	}
+	return events
 }
 
 // TestFindTrackCallsRetainsAllValues covers repeated assignments, conditional

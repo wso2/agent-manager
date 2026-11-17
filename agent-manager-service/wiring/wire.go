@@ -1,5 +1,4 @@
 //go:build wireinject
-// +build wireinject
 
 // Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
@@ -33,19 +32,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
-	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/fileauth"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/notify"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
-	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
 // Provider sets
@@ -57,12 +52,11 @@ var configProviderSet = wire.NewSet(
 var clientProviderSet = wire.NewSet(
 	repositories.NewPlatformRepo,
 	ProvideSecretManagementClient,
-	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideOUHandleLookup,
 	thundersvc.NewProber,
-	// EnvThunderResolver is wired for AgentIdentityController's passthrough
+	// EnvThunderResolver is wired for the agent-identity passthrough
 	// endpoints. AgentID provisioning itself is injected via
 	// app.Options.AgentThunderProvisioning, built with its own reader — see app.Run.
 	services.NewPlatformThunderSecretReader,
@@ -75,59 +69,20 @@ var serviceProviderSet = wire.NewSet(
 	services.NewInfraResourceManager,
 	services.NewAgentTokenManagerService,
 	fileauth.NewService,
-	services.NewMonitorExecutor,
-	services.NewMonitorManagerService,
 	ProvideThunderConfig,
-	services.NewMonitorSchedulerService,
 	// Provisioning service is injected (see InitializeAppParams); only the
 	// reconciler that consumes it is wired here.
 	services.NewAgentThunderReconcilerService,
-	services.NewA2ACardFetcher,
-	services.NewA2ACardReconcilerService,
-	services.NewConfiguredDeploymentTimeoutSweeper,
-	services.NewA2AAgentCardService,
-	ProvideTxRunner,
-	services.NewAgentExposurePublisher,
-	services.NewA2APublisher,
-	services.NewA2AProxyService,
-	ProvideA2AProxyHooks,
-	services.NewEvaluatorManagerService,
 	services.NewEnvironmentService,
-	ProvidePlatformGatewayService,
-	services.NewLLMProviderTemplateService,
-	services.NewLLMProviderService,
-	services.NewLLMProxyService,
-	services.NewLLMProviderDeploymentService,
-	services.NewLLMProviderAPIKeyService,
-	services.NewLLMProxyAPIKeyService,
-	services.NewAgentAPIKeyService,
-	services.NewLLMProxyDeploymentService,
-	services.NewMCPProxyService,
-	services.NewMCPProxyScopeService,
-	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to
-	// the concrete service so scope mutations can re-emit gateway policies.
-	wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)),
-	// The agent-identity controller needs only the identifier-derivation surface.
-	wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)),
-	services.NewGatewayInternalAPIService,
-	services.NewMonitorScoresService,
-	services.NewCatalogService,
-	services.NewLLMProxyProvisioner,
-	services.NewAgentConfigurationService,
-	services.NewLLMTemplateStore,
-	services.NewAIApplicationService,
 	ProvideEventBus,
 	ProvideEventPublisher,
 	repositories.NewEventOutboxRepository,
-	services.NewMonitorRunEvents,
 	ProvideDestinationDrivers,
 	services.NewEventDestinationService,
 	services.NewEventSubscriptionService,
 	wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)),
 	wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)),
 	services.NewEventDispatcherService,
-	services.NewMonitorAlertService,
-	services.NewMonitorAlertProcessor,
 )
 
 var controllerProviderSet = wire.NewSet(
@@ -135,35 +90,13 @@ var controllerProviderSet = wire.NewSet(
 	controllers.NewInfraResourceController,
 	controllers.NewAgentTokenController,
 	controllers.NewEnvironmentController,
-	controllers.NewGatewayController,
-	controllers.NewLLMController,
-	controllers.NewLLMDeploymentController,
-	controllers.NewLLMProviderAPIKeyController,
-	controllers.NewLLMProxyAPIKeyController,
-	controllers.NewAgentAPIKeyController,
-	controllers.NewA2AAgentCardController,
-	controllers.NewA2AProxyController,
-	controllers.NewLLMProxyDeploymentController,
-	controllers.NewMCPProxyController,
-	ProvideWebSocketController,
-	controllers.NewGatewayInternalController,
-	controllers.NewMonitorController,
-	controllers.NewMonitorScoresController,
-	controllers.NewMonitorScoresPublisherController,
-	controllers.NewEvaluatorController,
-	controllers.NewCatalogController,
-	controllers.NewAgentConfigurationController,
 	controllers.NewIdentityController,
-	controllers.NewMCPProxyScopeController,
-	controllers.NewAgentIdentityController,
 	controllers.NewEventsController,
-	controllers.NewMonitorAlertController,
 )
 
 var testClientProviderSet = wire.NewSet(
 	ProvideTestPlatformRepository,
 	ProvideTestSecretManagementClient,
-	ProvidePublisherProvisioner,
 	ProvideIdentityClient,
 	ProvideOrgResolver,
 	ProvideTestOUHandleLookup,
@@ -214,98 +147,16 @@ func ProvideSecretManagementClient(cfg config.Config, secretProvider secretmanag
 	})
 }
 
-// ProvideGatewayManifestCacheBackend builds the gateway-manifest cache backend
-// selected by config.GatewayManifestCache.Backend. Not part of the wire provider
-// sets: nothing constructs a dependency on it (the cache is a services-package-level
-// var, not a constructor param — see services.SetGatewayManifestCacheBackend's doc
-// comment for why). Called directly from app.Run at startup, before the rest of the
-// dependency graph is built, so every reader/writer in the services package picks up
-// the configured backend from their first call.
-func ProvideGatewayManifestCacheBackend(cfg config.Config) (services.GatewayManifestCacheBackend, error) {
-	switch cfg.GatewayManifestCache.Backend {
-	case "redis":
-		return services.NewRedisGatewayManifestCache(cfg.GatewayManifestCache.Redis), nil
-	case "memory", "":
-		return services.NewInMemoryGatewayManifestCache(), nil
-	default:
-		// Config validation (validateGatewayManifestCacheConfig) already rejects an
-		// unrecognized backend at load time; this is an extra guard against a Config
-		// built directly (e.g. in tests) bypassing that validation.
-		return nil, fmt.Errorf("unknown gateway manifest cache backend %q", cfg.GatewayManifestCache.Backend)
-	}
-}
-
-// ProvidePublisherProvisioner creates the publisher credential provisioner
-// for per-org Thunder OAuth app creation and secret storage via SecretManagementClient
-func ProvidePublisherProvisioner(cfg config.Config, encryptionKey []byte, logger *slog.Logger, secretClient secretmanagersvc.SecretManagementClient, credRepo repositories.OrgPublisherCredentialRepository, schedulerCredRepo repositories.OrgSchedulerCredentialRepository) (services.PublisherCredentialProvisioner, error) {
-	return services.NewPublisherCredentialProvisioner(cfg, encryptionKey, logger, secretClient, credRepo, schedulerCredRepo)
-}
-
 var loggerProviderSet = wire.NewSet(
 	ProvideLogger,
 	ProvideAuditRecorder,
 )
 
 var repositoryProviderSet = wire.NewSet(
-	ProvideGatewayRepository,
-	ProvideLLMProviderTemplateRepository,
-	ProvideLLMProviderRepository,
-	ProvideLLMProxyRepository,
-	ProvideMCPProxyRepository,
-	repositories.NewMCPProxyEndpointRepository,
-	ProvideDeploymentRepository,
-	ProvidePlatformAgentExposureRepository,
-	ProvideA2AAgentCardRepository,
-	ProvideA2AProxyRepository,
-	ProvideArtifactRepository,
-	ProvideScoreRepository,
-	ProvideCatalogRepository,
-	ProvideMonitorRepository,
 	ProvideAgentConfigRepository,
-	ProvideCustomEvaluatorRepository,
-	ProvideAPIKeyRepository,
-	repositories.NewAgentConfigurationRepository,
-	repositories.NewEnvAgentModelMappingRepository,
-	repositories.NewEnvAgentMCPMappingRepository,
-	repositories.NewAgentEnvConfigVariableRepository,
-	repositories.NewMonitorLLMMappingRepository,
-	ProvideOrgPublisherCredentialRepository,
-	ProvideOrgSchedulerCredentialRepository,
-	ProvideAIApplicationRepository,
 	ProvideAgentThunderClientRepository,
-	repositories.NewMCPProxyScopeRepository,
 	repositories.NewEventRepository,
-	repositories.NewMonitorAlertRepository,
 )
-
-var reconcileProviderSet = wire.NewSet(
-	services.NewLLMProviderKind,
-	services.NewLLMProxyKind,
-	services.NewMCPProxyKind,
-	services.NewPlatformAgentExposures,
-	services.NewA2AAgentKind,
-	ProvideOtelIngestKind,
-	services.NewOtelIngestPublisher,
-	ProvideDefaultGatewaySeeder,
-	ProvideReconcileKinds,
-	ProvideReconcileCore,
-	wire.Bind(new(services.GatewayArtifacts), new(*reconcile.Core)),
-	reconcile.NewWorker,
-)
-
-var websocketProviderSet = wire.NewSet(
-	ProvideEventHub,
-	ProvideWebSocketManager,
-	ProvideGatewayConnectionChecker,
-	services.NewGatewayEventsService,
-	ProvideDeploymentAckHandler,
-)
-
-// ProvideGatewayConnectionChecker exposes the websocket manager through the
-// narrow connectivity interface consumed by services.
-func ProvideGatewayConnectionChecker(m *websocket.Manager) services.GatewayConnectionChecker {
-	return m
-}
 
 // Test client providers
 func ProvideTestPlatformRepository(testClients TestClients) repositories.PlatformRepository {
@@ -316,186 +167,8 @@ func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc
 	return testClients.SecretMgmtClient
 }
 
-// ProvideEventHub creates and initializes the EventHub backed by PostgreSQL.
-func ProvideEventHub(db *gorm.DB, logger *slog.Logger) (eventhub.EventHub, error) {
-	hub, err := eventhub.NewSQLBackend(db, logger, eventhub.DefaultSQLBackendConfig())
-	if err != nil {
-		return nil, err
-	}
-	if err := hub.Initialize(); err != nil {
-		return nil, err
-	}
-	return hub, nil
-}
-
-// ProvideWebSocketManager creates a new WebSocket manager with config
-func ProvideWebSocketManager(cfg config.Config, hub eventhub.EventHub) *websocket.Manager {
-	wsConfig := websocket.ManagerConfig{
-		MaxConnections:    cfg.WebSocket.MaxConnections,
-		HeartbeatInterval: 20 * time.Second,
-		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
-	}
-	return websocket.NewManager(wsConfig, hub)
-}
-
-// ProvideWebSocketController creates a new WebSocket controller with rate limiting
-func ProvideWebSocketController(
-	manager *websocket.Manager,
-	hub eventhub.EventHub,
-	gatewayService *services.PlatformGatewayService,
-	ackHandler *services.DeploymentAckHandler,
-	otelIngest *services.OtelIngestPublisher,
-	cfg config.Config,
-	logger *slog.Logger,
-) controllers.WebSocketController {
-	rateLimitCount := cfg.WebSocket.RateLimitPerMin
-	// A connecting gateway gets the trace-ingest API if it does not serve the current one yet.
-	onConnect := func(ctx context.Context, gateway *models.Gateway) {
-		ctx, cancel := context.WithTimeout(ctx, time.Minute)
-		defer cancel()
-		if err := otelIngest.EnsureOnGateway(ctx, gateway.OUID, gateway.UUID); err != nil {
-			logger.Error("Failed to deploy the trace-ingest API", "gatewayID", gateway.UUID, "error", err)
-		}
-	}
-	return controllers.NewWebSocketController(manager, hub, gatewayService, ackHandler, rateLimitCount, onConnect)
-}
-
-// ProvideOtelIngestKind is the built-in trace-ingest API, accepting tokens Agent Manager signs.
-func ProvideOtelIngestKind(cfg config.Config) *services.OtelIngestKind {
-	return services.NewOtelIngestKind(cfg.OtelIngest.UpstreamURL, cfg.JWTSigning.Issuer)
-}
-
-// ProvideDefaultGatewaySeeder registers the gateway named in configuration.
-func ProvideDefaultGatewaySeeder(
-	cfg config.Config, gateways *services.PlatformGatewayService, repo repositories.GatewayRepository,
-	platform repositories.PlatformRepository, logger *slog.Logger,
-) *services.DefaultGatewaySeeder {
-	return services.NewDefaultGatewaySeeder(cfg.DefaultGateway, gateways, repo, platform, logger)
-}
-
-// ProvideDeploymentAckHandler creates a new deployment ack handler that runs the reconcile kinds' after-live hooks.
-func ProvideDeploymentAckHandler(deploymentRepo repositories.DeploymentRepository, core *reconcile.Core) *services.DeploymentAckHandler {
-	return services.NewDeploymentAckHandler(deploymentRepo, core.AfterLive())
-}
-
-// ProvideReconcileKinds lists the gateway artifact kinds the reconcile core deploys.
-func ProvideReconcileKinds(
-	llmProvider *services.LLMProviderKind, llmProxy *services.LLMProxyKind, mcp *services.MCPProxyKind,
-	agent *services.A2AAgentKind, otelIngest *services.OtelIngestKind,
-) reconcile.Kinds {
-	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, otelIngest}
-}
-
-// ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and
-// the gateways it locks and checks contexts on.
-func ProvideReconcileCore(
-	db *gorm.DB, deploymentRepo repositories.DeploymentRepository, gatewayRepo repositories.GatewayRepository,
-	hub eventhub.EventHub, kinds reconcile.Kinds, cfg *config.Config, logger *slog.Logger,
-) *reconcile.Core {
-	seconds := func(n int) time.Duration { return time.Duration(n) * time.Second }
-	return reconcile.NewCore(db, deploymentRepo, hub, kinds, reconcile.Config{
-		RenderInterval: seconds(cfg.Reconcile.RenderIntervalSeconds),
-		PlaceInterval:  seconds(cfg.Reconcile.PlaceIntervalSeconds),
-		DriftInterval:  seconds(cfg.Reconcile.DriftIntervalSeconds),
-		Lease:          seconds(cfg.Reconcile.RenderLeaseSeconds),
-		AttemptBudget:  cfg.Reconcile.RenderAttemptBudget,
-	}, logger).WithGateways(gatewayRepo)
-}
-
-// ProvidePlatformGatewayService makes each new gateway-environment mapping place the environment's artifacts, and
-// refuses to remove a mapping while the gateway serves the environment's artifacts.
-func ProvidePlatformGatewayService(
-	gatewayRepo repositories.GatewayRepository, gatewayApplier services.GatewayConfigApplier, worker *reconcile.Worker,
-	core *reconcile.Core,
-) *services.PlatformGatewayService {
-	return services.NewPlatformGatewayService(gatewayRepo, gatewayApplier).WithEnvironmentPlacer(worker).
-		WithEnvironmentGuard(core)
-}
-
-func ProvideGatewayRepository(db *gorm.DB) repositories.GatewayRepository {
-	return repositories.NewGatewayRepo(db)
-}
-
-func ProvideLLMProviderTemplateRepository(db *gorm.DB) repositories.LLMProviderTemplateRepository {
-	return repositories.NewLLMProviderTemplateRepo(db)
-}
-
-func ProvideLLMProviderRepository(db *gorm.DB) repositories.LLMProviderRepository {
-	return repositories.NewLLMProviderRepo(db)
-}
-
-func ProvideLLMProxyRepository(db *gorm.DB) repositories.LLMProxyRepository {
-	return repositories.NewLLMProxyRepo(db)
-}
-
-func ProvideMCPProxyRepository(db *gorm.DB) repositories.MCPProxyRepository {
-	return repositories.NewMCPProxyRepo(db)
-}
-
-func ProvideDeploymentRepository(db *gorm.DB) repositories.DeploymentRepository {
-	return repositories.NewDeploymentRepo(db)
-}
-
-func ProvideA2AAgentCardRepository(db *gorm.DB) repositories.A2AAgentCardRepository {
-	return repositories.NewA2AAgentCardRepository(db)
-}
-
-func ProvideA2AProxyRepository(db *gorm.DB) repositories.A2AProxyRepository {
-	return repositories.NewA2AProxyRepository(db)
-}
-
-// ProvideA2AProxyHooks gives the card service the proxy hooks only, not the whole proxy service.
-func ProvideA2AProxyHooks(svc services.A2AProxyService) services.A2AProxyHooks {
-	return svc
-}
-
-// ProvideTxRunner opens database transactions for the services that hold no *gorm.DB.
-func ProvideTxRunner(db *gorm.DB) services.TxRunner {
-	return services.NewTxRunner(db)
-}
-
-func ProvidePlatformAgentExposureRepository(db *gorm.DB) repositories.PlatformAgentExposureRepository {
-	return repositories.NewPlatformAgentExposureRepository(db)
-}
-
-func ProvideArtifactRepository(db *gorm.DB) repositories.ArtifactRepository {
-	return repositories.NewArtifactRepo(db)
-}
-
-func ProvideAPIKeyRepository(db *gorm.DB) repositories.APIKeyRepository {
-	return repositories.NewAPIKeyRepo(db)
-}
-
-func ProvideScoreRepository(db *gorm.DB) repositories.ScoreRepository {
-	return repositories.NewScoreRepo(db)
-}
-
-func ProvideCatalogRepository(db *gorm.DB) repositories.CatalogRepository {
-	return repositories.NewCatalogRepo(db)
-}
-
-func ProvideMonitorRepository(db *gorm.DB) repositories.MonitorRepository {
-	return repositories.NewMonitorRepo(db)
-}
-
 func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {
 	return repositories.NewAgentConfigRepo(db)
-}
-
-func ProvideCustomEvaluatorRepository(db *gorm.DB) repositories.CustomEvaluatorRepository {
-	return repositories.NewCustomEvaluatorRepo(db)
-}
-
-func ProvideOrgPublisherCredentialRepository(db *gorm.DB) repositories.OrgPublisherCredentialRepository {
-	return repositories.NewOrgPublisherCredentialRepo(db)
-}
-
-func ProvideOrgSchedulerCredentialRepository(db *gorm.DB) repositories.OrgSchedulerCredentialRepository {
-	return repositories.NewOrgSchedulerCredentialRepo(db)
-}
-
-func ProvideAIApplicationRepository(db *gorm.DB) repositories.AIApplicationRepository {
-	return repositories.NewAIApplicationRepository(db)
 }
 
 func ProvideAgentThunderClientRepository(db *gorm.DB) repositories.AgentThunderClientRepository {
@@ -596,21 +269,19 @@ func ProvideOrgResolver(client thundersvc.IdentityClient) middleware.OrgResolver
 	return middleware.NewOrgResolver(client)
 }
 
-// InitializeAppParams preserves the standard on-premises dependency graph.
-func InitializeAppParams(cfg *config.Config, db *gorm.DB, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService) (*AppParams, error) {
-	return InitializeAppParamsWithEnvThunderEndpoints(cfg, db, secretProvider, gatewayApplier, agentThunderProvisioning, nil)
+// InitializeAppParams builds the core's services.
+func InitializeAppParams(cfg *config.Config, db *gorm.DB, secretProvider secretmanagersvc.Provider, agentThunderProvisioning services.AgentThunderProvisioningService) (*AppParams, error) {
+	return InitializeAppParamsWithEnvThunderEndpoints(cfg, db, secretProvider, agentThunderProvisioning, nil)
 }
 
-// InitializeAppParamsWithEnvThunderEndpoints wires dependencies with an
-// optional deployment-specific environment-Thunder endpoint resolver.
-func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB, secretProvider secretmanagersvc.Provider, gatewayApplier services.GatewayConfigApplier, agentThunderProvisioning services.AgentThunderProvisioningService, endpointResolver thundersvc.EnvThunderEndpointResolver) (*AppParams, error) {
+// InitializeAppParamsWithEnvThunderEndpoints is InitializeAppParams with an
+// optional separation of environment-Thunder management and OAuth endpoints.
+func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB, secretProvider secretmanagersvc.Provider, agentThunderProvisioning services.AgentThunderProvisioningService, endpointResolver thundersvc.EnvThunderEndpointResolver) (*AppParams, error) {
 	wire.Build(
 		configProviderSet,
 		clientProviderSet,
 		loggerProviderSet,
 		repositoryProviderSet,
-		websocketProviderSet,
-		reconcileProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
 		ProvideAuthMiddleware,
@@ -620,21 +291,19 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	return &AppParams{}, nil
 }
 
-// InitializeTestAppParamsWithClientMocks wires up application dependencies with test mocks
+// InitializeTestAppParamsWithClientMocks builds the core's services with
+// mocked clients.
 func InitializeTestAppParamsWithClientMocks(
 	cfg *config.Config,
 	db *gorm.DB,
 	authMiddleware jwtassertion.Middleware,
 	testClients TestClients,
-	gatewayApplier services.GatewayConfigApplier,
 ) (*AppParams, error) {
 	wire.Build(
 		testClientProviderSet,
 		thunderProvisioningTestSet,
 		loggerProviderSet,
 		repositoryProviderSet,
-		websocketProviderSet,
-		reconcileProviderSet,
 		serviceProviderSet,
 		controllerProviderSet,
 		configProviderSet,

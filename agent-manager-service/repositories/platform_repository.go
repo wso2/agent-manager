@@ -98,7 +98,7 @@ func NewPlatformRepo(db *gorm.DB) PlatformRepository {
 	return &platformRepo{db: db}
 }
 
-func newID() uuid.UUID { return uuid.Must(uuid.NewV7()) }
+func NewID() uuid.UUID { return uuid.Must(uuid.NewV7()) }
 
 func optional(s string) *string {
 	if s == "" {
@@ -116,7 +116,7 @@ func deref(s *string) string {
 
 // orgByOUID returns the organization for an OU, creating it and its default environment on first use.
 func (r *platformRepo) orgByOUID(ctx context.Context, ouID string) (*models.Organization, error) {
-	return ensureOrg(ctx, r.db, ouID)
+	return EnsureOrg(ctx, r.db, ouID)
 }
 
 func orgResponse(o *models.Organization) *models.OrganizationResponse {
@@ -183,7 +183,7 @@ func (r *platformRepo) CreateProject(ctx context.Context, ouID string, in Create
 	}
 	now := dbx.Now()
 	p := models.Project{
-		ID: newID(), OrgID: org.ID, Name: in.Name, DisplayName: displayName,
+		ID: NewID(), OrgID: org.ID, Name: in.Name, DisplayName: displayName,
 		Description: optional(in.Description), CreatedBy: optional(in.CreatedBy),
 		CreatedAt: now, UpdatedAt: now,
 	}
@@ -338,7 +338,7 @@ func (r *platformRepo) CreateAgent(ctx context.Context, ouID, projectName string
 	}
 	now := dbx.Now()
 	a := models.Agent{
-		ID: newID(), OrgID: org.ID, ProjectID: p.ID, Name: in.Name, DisplayName: displayName,
+		ID: NewID(), OrgID: org.ID, ProjectID: p.ID, Name: in.Name, DisplayName: displayName,
 		Description: optional(in.Description), ProvisioningType: in.ProvisioningType,
 		CreatedBy: optional(in.CreatedBy),
 		CreatedAt: now, UpdatedAt: now,

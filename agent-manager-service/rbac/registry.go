@@ -34,7 +34,6 @@ var CorePermissions = []Permission{
 	OrgAssignRole, OrgManageIDP, OrgManageServiceAccount,
 	ProjectCreate, ProjectRead, ProjectUpdate, ProjectDelete,
 	EnvironmentCreate, EnvironmentRead, EnvironmentUpdate, EnvironmentDelete,
-	GitSecretCreate, GitSecretRead, GitSecretDelete,
 	AgentCreate, AgentRead, AgentUpdate, AgentDelete, AgentBuild,
 	AgentEnvNonProduction, AgentEnvProduction, AgentRollback, AgentSuspend,
 	AgentTokenManage, AgentAPIKeyManage,
@@ -160,10 +159,12 @@ func RoleGrants(role string) []Permission {
 }
 
 // moduleOwnedResources are permission resources that a module, not the core,
-// is meant to own. A module may take one of these as its name. Empty for now:
-// when the gateway's gateway:* permissions move into the gateway module, add
-// "gateway" here.
-var moduleOwnedResources = []string{}
+// owns. A module may take one of these as its name: the gateway module
+// declares gateway:* in its manifest, under the scope names they always had.
+var moduleOwnedResources = []string{"gateway"}
+
+// ModuleOwnedResources returns the permission resources modules own.
+func ModuleOwnedResources() []string { return slices.Clone(moduleOwnedResources) }
 
 // ReservedResources are the names a module cannot take: the resource part of
 // every permission the core and the built-in legacy module declare (org,

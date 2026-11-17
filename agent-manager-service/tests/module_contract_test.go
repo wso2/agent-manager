@@ -121,7 +121,7 @@ func newModuleWorld(t *testing.T) moduleWorld {
 	handle := "mod-" + org[len(org)-8:]
 	params := func(auth jwtassertion.Middleware) *wiring.AppParams {
 		p, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), database, auth,
-			wiring.TestClients{PlatformRepository: repositories.NewPlatformRepo(database)}, nil)
+			wiring.TestClients{PlatformRepository: repositories.NewPlatformRepo(database)})
 		require.NoError(t, err)
 		return p
 	}
@@ -142,14 +142,14 @@ func newModuleWorld(t *testing.T) moduleWorld {
 	})
 	return moduleWorld{
 		host:     host,
-		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host),
-		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host),
-		internal: api.MakeInternalHTTPHandlerWithModules(full, host),
+		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host, nil),
+		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host, nil),
+		internal: api.MakeInternalHTTPHandlerWithModules(full, host, nil),
 		signer:   full.AgentTokenManagerService.(services.WorkloadTokenSigner),
 		freshOrg: func() (http.Handler, string) {
 			id := uuid.Must(uuid.NewV7()).String()
 			h := "mod-" + id[len(id)-8:]
-			return api.MakeHTTPHandlerWithModules(params(moduleAuth(id, h)), nil, nil, host), h
+			return api.MakeHTTPHandlerWithModules(params(moduleAuth(id, h)), nil, nil, host, nil), h
 		},
 		org:    org,
 		handle: handle,
@@ -532,7 +532,7 @@ func mustRealAuthParams(t *testing.T) *wiring.AppParams {
 	t.Helper()
 	database := db.DB(context.Background())
 	p, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), database, wiring.ProvideAuthMiddleware(*config.GetConfig()),
-		wiring.TestClients{PlatformRepository: repositories.NewPlatformRepo(database)}, nil)
+		wiring.TestClients{PlatformRepository: repositories.NewPlatformRepo(database)})
 	require.NoError(t, err)
 	return p
 }

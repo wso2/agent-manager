@@ -71,7 +71,6 @@ func TestEventsStartupCancellationStopsRetry(t *testing.T) {
 	deps := &wiring.AppParams{
 		EventBus:        startupBus{setup: func(context.Context) error { close(entered); return errors.New("unavailable") }},
 		EventDispatcher: startupComponent{start: func(context.Context) error { t.Error("started after cancellation"); return nil }},
-		MonitorAlerts:   startupComponent{start: func(context.Context) error { t.Error("started after cancellation"); return nil }},
 	}
 	done := startEvents(ctx, deps)
 	<-entered

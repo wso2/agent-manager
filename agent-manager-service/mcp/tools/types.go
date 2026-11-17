@@ -21,7 +21,7 @@ import (
 	// "time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
@@ -66,7 +66,7 @@ type LLMProviderToolsetHandler interface {
 	GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error)
 	// UpdateLLMProviderGuardrails reads the provider once, saves change(its guardrails) and redeploys it. An
 	// error from change is returned as is, and nothing is saved.
-	UpdateLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error)) (*models.LLMProvider, []services.DeploymentResult, error)
+	UpdateLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error)) (*models.LLMProvider, []gwsvc.DeploymentResult, error)
 }
 
 type MCPProxyToolsetHandler interface {

@@ -20,14 +20,18 @@ import (
 	"context"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
-type DeploymentHandler struct {
-	agentSvc services.AgentManagerService
+// AgentDeployments reports where an agent is served.
+type AgentDeployments interface {
+	GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
 }
 
-func NewDeploymentHandler(agentSvc services.AgentManagerService) *DeploymentHandler {
+type DeploymentHandler struct {
+	agentSvc AgentDeployments
+}
+
+func NewDeploymentHandler(agentSvc AgentDeployments) *DeploymentHandler {
 	return &DeploymentHandler{agentSvc: agentSvc}
 }
 

@@ -23,14 +23,14 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 )
 
 type AgentConfigHandler struct {
-	configSvc services.AgentConfigurationService
+	configSvc gwsvc.AgentConfigurationService
 }
 
-func NewAgentConfigHandler(configSvc services.AgentConfigurationService) *AgentConfigHandler {
+func NewAgentConfigHandler(configSvc gwsvc.AgentConfigurationService) *AgentConfigHandler {
 	return &AgentConfigHandler{configSvc: configSvc}
 }
 

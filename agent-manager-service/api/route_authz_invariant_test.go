@@ -31,6 +31,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/gateway" // the full distribution's routes
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // Static authorization invariants over the route table.
@@ -371,7 +374,11 @@ func TestSecurityInvariantNamingConventionHolds(t *testing.T) {
 
 // orgScopedPackages are the packages whose handlers must never take the org
 // from the URL. Relative to this package's directory.
-var orgScopedPackages = []string{".", filepath.Join("..", "controllers")}
+var orgScopedPackages = []string{
+	".", filepath.Join("..", "controllers"),
+	filepath.Join("..", "modules", "gateway", "gwapi"), filepath.Join("..", "modules", "gateway", "gwctl"),
+	filepath.Join("..", "modules", "legacy", "legacyapi"), filepath.Join("..", "modules", "legacy", "evaluators"),
+}
 
 // TestSecurityInvariantHandlersNeverReadOrgFromPath enforces the token-trust model: the org a
 // request operates on comes from the token's ouId/ouHandle claims, never from
@@ -443,7 +450,17 @@ func TestSecurityInvariantHandlersNeverReadOrgFromPath(t *testing.T) {
 // routePackages is the reviewed list of packages that register public or
 // internal HTTP endpoints. Add any new routing package here as part of its
 // security-policy review.
-var routePackages = []string{".", filepath.Join("..", "mcp")}
+// routePackages are the core's routes and those of the built-in modules the
+// full distribution links.
+var routePackages = []string{
+	".", filepath.Join("..", "mcp"),
+	filepath.Join("..", "modules", "gateway", "gwapi"),
+	filepath.Join("..", "modules", "legacy", "legacyapi"),
+}
+
+// modulePermissionPackages declare permissions of built-in modules, as
+// <package>.<Name> constants of type rbac.Permission.
+var modulePermissionPackages = []string{filepath.Join("..", "modules", "gateway", "gwperm")}
 
 // forEachRouteRegistration walks every production Go file in routePackages and
 // invokes fn for every net/http or RouteRegistrar registration call. Permission
@@ -525,8 +542,11 @@ func registrarPermissions(call *ast.CallExpr) []string {
 			continue
 		}
 		pkg, ok := sel.X.(*ast.Ident)
-		if ok && pkg.Name == "rbac" {
+		switch {
+		case ok && pkg.Name == "rbac":
 			permissions = append(permissions, sel.Sel.Name)
+		case ok:
+			permissions = append(permissions, pkg.Name+"."+sel.Sel.Name)
 		}
 	}
 	return permissions
@@ -549,7 +569,18 @@ func declaredPermissionScopes(t *testing.T) map[string]string {
 	t.Helper()
 
 	scopes := map[string]string{}
-	forEachFile(t, filepath.Join("..", "rbac"), func(_ *token.FileSet, file *ast.File) {
+	collectPermissionConsts(t, filepath.Join("..", "rbac"), "", scopes)
+	for _, dir := range modulePermissionPackages {
+		collectPermissionConsts(t, dir, filepath.Base(dir)+".", scopes)
+	}
+	return scopes
+}
+
+// collectPermissionConsts adds the Permission constants declared in dir to
+// scopes, keyed by prefix and name.
+func collectPermissionConsts(t *testing.T, dir, prefix string, scopes map[string]string) {
+	t.Helper()
+	forEachFile(t, dir, func(_ *token.FileSet, file *ast.File) {
 		for _, decl := range file.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok || genDecl.Tok != token.CONST {
@@ -560,8 +591,7 @@ func declaredPermissionScopes(t *testing.T) map[string]string {
 				if !ok {
 					continue
 				}
-				typeIdent, ok := valueSpec.Type.(*ast.Ident)
-				if !ok || typeIdent.Name != "Permission" {
+				if !isPermissionType(valueSpec.Type) {
 					continue
 				}
 				for i, name := range valueSpec.Names {
@@ -576,13 +606,39 @@ func declaredPermissionScopes(t *testing.T) map[string]string {
 					if err != nil {
 						t.Fatalf("decode rbac permission %s: %v", name.Name, err)
 					}
-					scopes[name.Name] = "amp:" + value
+					scopes[prefix+name.Name] = "amp:" + value
 				}
 			}
 		}
 	})
+}
 
-	return scopes
+// isPermissionType is true for Permission and rbac.Permission.
+func isPermissionType(e ast.Expr) bool {
+	switch e := e.(type) {
+	case *ast.Ident:
+		return e.Name == "Permission"
+	case *ast.SelectorExpr:
+		pkg, ok := e.X.(*ast.Ident)
+		return ok && pkg.Name == "rbac" && e.Sel.Name == "Permission"
+	}
+	return false
+}
+
+// moduleGrants is true when a compiled-in module grants the scope to a
+// predefined role.
+func moduleGrants(scope string) bool {
+	for _, m := range modkit.Registered() {
+		mf := m.Manifest()
+		for _, names := range mf.RoleGrants {
+			for _, n := range names {
+				if rbac.Permission(mf.PermissionName(n)).Scope() == scope {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func predefinedRolePermissions(t *testing.T) map[string]bool {
@@ -615,6 +671,12 @@ func predefinedRolePermissions(t *testing.T) map[string]bool {
 			}
 		}
 	})
+	// A built-in module's own permissions are granted by its manifest.
+	for ident, scope := range declared {
+		if strings.Contains(ident, ".") && moduleGrants(scope) {
+			granted[ident] = true
+		}
+	}
 	return granted
 }
 

@@ -28,8 +28,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -132,11 +132,11 @@ func TestClash(t *testing.T) {
 }
 
 // clashRepo is a gateway holding one other artifact at otherContext, deployed.
-func clashRepo(otherContext string) (*repomocks.DeploymentRepositoryMock, *int) {
+func clashRepo(otherContext string) (*gwrepomocks.DeploymentRepositoryMock, *int) {
 	other := uuid.New()
 	deployID := uuid.New()
 	starts := 0
-	repo := &repomocks.DeploymentRepositoryMock{
+	repo := &gwrepomocks.DeploymentRepositoryMock{
 		ListForGatewaySyncFunc: func(context.Context, string, string) ([]models.GatewaySyncRow, error) {
 			return []models.GatewaySyncRow{{
 				ArtifactRef: models.ArtifactRef{ArtifactUUID: other}, DeploymentID: deployID.String(),
@@ -158,7 +158,7 @@ func clashRepo(otherContext string) (*repomocks.DeploymentRepositoryMock, *int) 
 			return nil
 		},
 	}
-	repo.WithTxFunc = func(*gorm.DB) repositories.DeploymentRepository { return repo }
+	repo.WithTxFunc = func(*gorm.DB) gwrepo.DeploymentRepository { return repo }
 	return repo, &starts
 }
 

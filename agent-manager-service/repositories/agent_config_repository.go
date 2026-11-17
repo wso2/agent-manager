@@ -122,7 +122,7 @@ func (r *AgentConfigRepo) WithTx(tx *gorm.DB) AgentConfigRepository {
 // Get retrieves agent config for a specific agent and environment
 func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.AgentConfig, error) {
 	var config models.AgentConfig
-	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	err := r.db.WithContext(ctx).Where(cond, args...).Take(&config).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -135,7 +135,7 @@ func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName,
 
 // DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 func (r *AgentConfigRepo) DeleteAllByAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	cond, args := AgentCond(r.db, ouID, projectName, agentName)
 	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.AgentConfig{}).Error
 }
 

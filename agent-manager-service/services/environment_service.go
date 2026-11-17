@@ -23,7 +23,6 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -34,22 +33,19 @@ import (
 type EnvironmentService interface {
 	GetEnvironment(ctx context.Context, ouID string, envID string) (*models.GatewayEnvironmentResponse, error)
 	ListEnvironments(ctx context.Context, ouID string, limit, offset int32) (*models.EnvironmentListResponse, error)
-	GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]models.GatewayResponse, error)
 	ListThunderInstances(ctx context.Context, ouID string) (*models.ThunderInstanceListResponse, error)
 }
 
 type environmentService struct {
 	logger        *slog.Logger
 	ocClient      repositories.PlatformRepository
-	gatewayRepo   repositories.GatewayRepository
 	thunderProber thundersvc.Prober
 }
 
 // NewEnvironmentService creates a new environment service
-func NewEnvironmentService(logger *slog.Logger, gatewayRepo repositories.GatewayRepository, ocClient repositories.PlatformRepository, thunderProber thundersvc.Prober) EnvironmentService {
+func NewEnvironmentService(logger *slog.Logger, ocClient repositories.PlatformRepository, thunderProber thundersvc.Prober) EnvironmentService {
 	return &environmentService{
 		logger:        logger,
-		gatewayRepo:   gatewayRepo,
 		ocClient:      ocClient,
 		thunderProber: thunderProber,
 	}
@@ -140,71 +136,6 @@ func (s *environmentService) ListEnvironments(ctx context.Context, ouID string, 
 		Limit:        limit,
 		Offset:       offset,
 	}, nil
-}
-
-func (s *environmentService) GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]models.GatewayResponse, error) {
-	s.logger.Info("Getting environment gateways", "envID", envID, "ouID", ouID)
-
-	// Verify environment exists (envID is environment name)
-	env, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
-	if err != nil {
-		s.logger.Error("Failed to get environment", "ouID", ouID, "envID", envID, "error", err)
-		if errors.Is(err, utils.ErrEnvironmentNotFound) {
-			return nil, utils.ErrEnvironmentNotFound
-		}
-		return nil, fmt.Errorf("failed to verify environment: %w", err)
-	}
-
-	// Parse environment UUID
-	envUUID, err := uuid.Parse(env.UUID)
-	if err != nil {
-		s.logger.Error("Failed to parse environment UUID", "uuid", env.UUID, "error", err)
-		return nil, fmt.Errorf("invalid environment UUID: %w", err)
-	}
-
-	// Get gateway-environment mappings from repository
-	mappings, err := s.gatewayRepo.GetEnvironmentMappingsByEnvironmentID(envUUID.String())
-	if err != nil {
-		s.logger.Error("Failed to get gateway mappings from repository", "environmentID", envUUID.String(), "error", err)
-		return nil, fmt.Errorf("failed to get gateway mappings: %w", err)
-	}
-
-	// Fetch each gateway from the gateway repository
-	responses := make([]models.GatewayResponse, 0, len(mappings))
-	for _, mapping := range mappings {
-		gatewayID := mapping.GatewayUUID.String()
-
-		// Get gateway details from repository
-		gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
-		if err != nil {
-			s.logger.Warn("Failed to get gateway from repository", "gatewayID", gatewayID, "error", err)
-			continue
-		}
-		if gateway == nil {
-			s.logger.Warn("Gateway not found", "gatewayID", gatewayID)
-			continue
-		}
-
-		// Convert gateway model to response
-		status := string(models.GatewayStatusInactive)
-		if gateway.IsActive {
-			status = string(models.GatewayStatusActive)
-		}
-
-		responses = append(responses, models.GatewayResponse{
-			UUID:             gateway.UUID.String(),
-			OrganizationName: ouID,
-			Name:             gateway.Name,
-			DisplayName:      gateway.DisplayName,
-			GatewayType:      gateway.GatewayFunctionalityType,
-			Hosting:          gatewayHostingWire(gateway),
-			VHost:            gateway.Vhost,
-			IsCritical:       gateway.IsCritical,
-			Status:           status,
-		})
-	}
-
-	return responses, nil
 }
 
 // ListThunderInstances returns the Thunder OAuth2 identity provider info for every

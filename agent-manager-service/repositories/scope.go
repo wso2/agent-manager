@@ -38,8 +38,8 @@ import (
 // lookups below translate project, agent and environment names, so repositories keep the interfaces the services
 // call while storing only ids.
 
-// ensureOrg returns the organization for an OU, creating it and its default environment on first use.
-func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organization, error) {
+// EnsureOrg returns the organization for an OU, creating it and its default environment on first use.
+func EnsureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organization, error) {
 	if ouID == "" {
 		return nil, utils.ErrOrganizationNotFound
 	}
@@ -67,7 +67,7 @@ func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organizat
 		CreatedAt: now, UpdatedAt: now,
 	}
 	env := models.Environment{
-		ID: newID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
+		ID: NewID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
 		CreatedAt: now, UpdatedAt: now,
 	}
 	// The default environment is the only one an organization gets, and it
@@ -118,7 +118,7 @@ func environmentObject(e *models.Environment) map[string]any {
 
 // orgIDFor is the id of the caller's organization.
 func orgIDFor(ctx context.Context, db *gorm.DB, ouID string) (uuid.UUID, error) {
-	org, err := ensureOrg(ctx, db, ouID)
+	org, err := EnsureOrg(ctx, db, ouID)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -221,11 +221,22 @@ func ouIDByOrgID(ctx context.Context, db *gorm.DB, orgID uuid.UUID) (string, err
 	return deref(org.ThunderOUID), nil
 }
 
-// lockAgent locks an agent's row for the rest of tx, serialising work on that agent (schema rule 10).
-func lockAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentName string) (agentScope, error) {
+// LockAgent locks an agent's row for the rest of tx, serialising work on that agent (schema rule 10).
+func LockAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentName string) (agentScope, error) {
 	scope, err := agentScopeFor(ctx, tx, ouID, projectName, agentName)
 	if err != nil {
 		return agentScope{}, err
 	}
 	return scope, dbx.LockRow(tx.WithContext(ctx), "agents", "id", "id = ?", scope.AgentID)
+}
+
+// AgentCond matches the rows of the named agent.
+func AgentCond(db *gorm.DB, ouID, projectName, agentName string) (string, []any) {
+	return "org_id = ? AND agent_id IN (?)", []any{ouID, models.AgentIDQuery(db, ouID, projectName, agentName)}
+}
+
+// AgentEnvCond matches the named agent's rows in the named environment.
+func AgentEnvCond(db *gorm.DB, ouID, projectName, agentName, environmentName string) (string, []any) {
+	cond, args := AgentCond(db, ouID, projectName, agentName)
+	return cond + " AND environment_id IN (?)", append(args, models.EnvironmentIDQuery(db, ouID, environmentName))
 }

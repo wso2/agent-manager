@@ -26,7 +26,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -45,7 +45,7 @@ func (m policiesMock) GetLLMProvider(ctx context.Context, ouID string, providerI
 
 func (m policiesMock) UpdateLLMProviderGuardrails(
 	_ context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []services.DeploymentResult, error) {
+) (*models.LLMProvider, []gwsvc.DeploymentResult, error) {
 	return m.saveGuardrails(ouID, providerID, m.policies, change)
 }
 
@@ -223,7 +223,7 @@ type failingUpdateMock struct{ *MockToolsetHandler }
 
 func (failingUpdateMock) UpdateLLMProviderGuardrails(
 	context.Context, string, string, func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []services.DeploymentResult, error) {
+) (*models.LLMProvider, []gwsvc.DeploymentResult, error) {
 	return nil, nil, utils.ErrLLMProviderNotFound
 }
 
