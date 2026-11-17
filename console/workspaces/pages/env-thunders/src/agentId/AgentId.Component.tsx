@@ -51,7 +51,12 @@ import {
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { IDENTITY_ENV_PARAM, type ThunderGroup, type ThunderRole } from "@agent-management-platform/types";
+import {
+  globalConfig,
+  IDENTITY_ENV_PARAM,
+  type ThunderGroup,
+  type ThunderRole,
+} from "@agent-management-platform/types";
 import { PageLayout, TextInput } from "@agent-management-platform/views";
 import {
   useAddAgentIdentityGroupMembers,
@@ -59,6 +64,7 @@ import {
   useListAgentIdentityAgents,
   useListAgentIdentityGroups,
   useListAgentIdentityRoles,
+  useRuntimeConfig,
   useListEnvironments,
   useRemoveAgentIdentityGroupMembers,
   useRemoveAgentIdentityRoleAssignees,
@@ -73,6 +79,7 @@ import {
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import { useAssignmentDelta } from "../subComponents/agentIdentity/useAssignmentDelta";
+import { DelegatedAccessSection } from "./DelegatedAccessSection";
 
 type IdentityItem = {
   id: string;
@@ -262,6 +269,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
 
   const { data: identityAgentsData, isLoading: isLoadingIdentityAgents } =
     useListAgentIdentityAgents({ orgName: orgId, envName: envId });
+  const { data: runtimeConfig } = useRuntimeConfig();
   const { data: allRolesData, isLoading: isLoadingAllRoles } = useListAgentIdentityRoles(
     { orgName: orgId, envName: envId },
     { offset: 0, limit: CATALOG_PAGE_SIZE },
@@ -443,7 +451,16 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
   ) : undefined;
 
   let body: React.ReactNode;
-  if (revealed || binding.clientId) {
+  if (binding.status === "pending" || binding.status === "in_progress") {
+    body = (
+      <Box role="status" display="flex" alignItems="center" gap={1}>
+        <CircularProgress size={16} aria-hidden="true" />
+        <Typography variant="body2" color="text.secondary">
+          Provisioning Agent ID…
+        </Typography>
+      </Box>
+    );
+  } else if (revealed || binding.clientId) {
     // The client ID itself isn't sensitive, unlike the secret, so it's always
     // safe to show. Outside of `revealed` (only populated once, right after
     // regenerating — the backend never stores the secret) the secret field is
@@ -487,7 +504,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
   } else {
     body = (
       <Typography variant="body2" color="text.secondary">
-        Provisioning in progress…
+        Client credentials are unavailable.
       </Typography>
     );
   }
@@ -540,13 +557,13 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
 
             {body}
 
-            {thunderAgentId && (
+            {provisioned && binding.agentId && (
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, md: 12, xl: 8 }}>
                   <TextInput
                     slotProps={{ input: { readOnly: true } }}
                     label="Agent ID"
-                    value={thunderAgentId}
+                    value={binding.agentId}
                     copyable
                     fullWidth
                     size="small"
@@ -617,6 +634,14 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
               </Typography>
             </Alert>
           )}
+          <DelegatedAccessSection
+            enabled={runtimeConfig?.identityControlPlaneEnabled === true}
+            consoleUrl={globalConfig.identityPlatformConsoleUrl}
+            orgName={orgId}
+            projectName={projectId}
+            identityId={provisioned ? binding.agentId : undefined}
+            isExternal={isExternal}
+          />
         </Stack>
       </TabPanel>
 

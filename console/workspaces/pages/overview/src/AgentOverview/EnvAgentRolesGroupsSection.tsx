@@ -15,12 +15,11 @@
  * under the License.
  */
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Alert, Avatar, Box, Button, CircularProgress, IconButton, Skeleton, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { AlertTriangle, Copy, Fingerprint, Info, RefreshCw } from "@wso2/oxygen-ui-icons-react";
 import {
   useAgentIdentityBinding,
-  useListAgentIdentityAgents,
   useProvisionAgentIdentity,
   useRetryAgentIdentityProvisioning,
 } from "@agent-management-platform/api-client";
@@ -44,9 +43,7 @@ interface EnvAgentRolesGroupsSectionProps {
  * identity's roles/groups as `Role:`/`Group:` tags on one line. Rendered
  * inside an EnvironmentCard for both internal and external agents — the client
  * ID/secret/regenerate flow lives on the agent-level "Agent ID" page instead,
- * linked to via the "View all" button. The Thunder Agent ID mirrors the one
- * shown on that page, resolved from the same useListAgentIdentityAgents
- * response.
+ * linked to via the "View all" button.
  */
 export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProps> = ({
   orgId, projectId, agentId, envId,
@@ -98,17 +95,10 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
     orgId, projectId, agentId, envId, enabled: provisioned,
   });
 
-  // Same lookup the agent-id page uses: the Thunder Agent ID is a field on the
-  // per-env identity-agents list, matched by agent + project name.
-  const { data: identityAgentsData, isError: isAgentsError } = useListAgentIdentityAgents(
-    agentIdEnabled ? { orgName: orgId, envName: envId } : { orgName: "", envName: "" },
-  );
-  const thunderAgentId = useMemo(
-    () => identityAgentsData?.agents.find(
-      (item) => item.agentName === agentId && item.projectName === projectId,
-    )?.thunderAgentId,
-    [identityAgentsData, agentId, projectId],
-  );
+  const thunderAgentId = provisioned ? binding?.agentId : undefined;
+  const isProvisioningIdentity =
+    isProvisioning || isRetrying ||
+    binding?.status === "pending" || binding?.status === "in_progress";
 
   const [copied, setCopied] = useState(false);
   const handleCopy = () => {
@@ -147,6 +137,13 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
           <Typography variant="body2" color="error">
             Unable to load Agent ID
           </Typography>
+        ) : isProvisioningIdentity ? (
+          <Box role="status" display="flex" alignItems="center" gap={1}>
+            <CircularProgress size={16} aria-hidden="true" />
+            <Typography variant="body2" color="text.secondary">
+              Provisioning Agent ID…
+            </Typography>
+          </Box>
         ) : isFailed ? (
           <Typography variant="body2" color="error" fontWeight={600}>
             Provisioning Status : Failed
@@ -161,8 +158,7 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
               <Typography
                 variant="body2"
                 color="text.secondary"
-                noWrap
-                sx={{ fontFamily: "monospace" }}
+                sx={{ fontFamily: "monospace", overflowWrap: "anywhere" }}
               >
                 {thunderAgentId}
               </Typography>
@@ -172,28 +168,16 @@ export const EnvAgentRolesGroupsSection: React.FC<EnvAgentRolesGroupsSectionProp
                 </IconButton>
               </Tooltip>
             </Box>
-          ) : isAgentsError ? (
-            <Typography variant="body2" color="error">
-              Unable to load Agent ID. Try again later.
-            </Typography>
           ) : canSelfProvision ? (
             <Typography variant="body2" color="text.disabled">
               Not created for this environment yet
-            </Typography>
-          ) : provisioned ? (
-            <Typography variant="body2" color="text.disabled">
-              Provisioning identity…
             </Typography>
           ) : (
             <Typography variant="body2" color="text.disabled">
               Agent ID not available
             </Typography>
           )}
-          {/* Roles/groups are meaningless before any identity exists, and
-              "No roles or groups assigned" reads as though one does — skip
-              this sub-row entirely for canSelfProvision; the Alert below
-              already carries the explanation and the action for that case. */}
-          {!canSelfProvision && (
+          {provisioned && (
             <Box mt={0.5}>
               {isLoading ? (
                 <Skeleton variant="text" width={180} height={16} />

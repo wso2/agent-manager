@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
@@ -49,11 +50,13 @@ func registerConfigRoutes(mux *http.ServeMux) {
 		// Events and monitor alerts need the event bus; the console hides
 		// them otherwise.
 		eventsOn := cfg.Events.Mode != config.EventsModeOff
+		identityControlPlaneEnabled := cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged)
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(spec.ConfigResponse{
-			ObserverBaseUrl:         cfg.Observer.PublicURL,
-			ConsoleAnalyticsEnabled: &consoleAnalytics,
-			EventsEnabled:           &eventsOn,
+			ObserverBaseUrl:             cfg.Observer.PublicURL,
+			ConsoleAnalyticsEnabled:     &consoleAnalytics,
+			EventsEnabled:               &eventsOn,
+			IdentityControlPlaneEnabled: &identityControlPlaneEnabled,
 		}); err != nil {
 			logger.GetLogger(r.Context()).Error("failed to encode config response", "error", err)
 		}
