@@ -40,7 +40,7 @@ type GatewayInternalAPIService struct {
 	artifactRepo     repositories.ArtifactRepository
 	gatewayRepo      repositories.GatewayRepository
 	infraResourceMgr InfraResourceManager
-	encryptionKey    []byte
+	secretRefKeys    utils.SecretRefKeys
 	artifacts        GatewayArtifacts
 }
 
@@ -71,7 +71,7 @@ func NewGatewayInternalAPIService(
 	artifactRepo repositories.ArtifactRepository,
 	gatewayRepo repositories.GatewayRepository,
 	infraResourceMgr InfraResourceManager,
-	encryptionKey []byte,
+	secretRefKeys utils.SecretRefKeys,
 	artifacts GatewayArtifacts,
 ) *GatewayInternalAPIService {
 	return &GatewayInternalAPIService{
@@ -82,7 +82,7 @@ func NewGatewayInternalAPIService(
 		artifactRepo:     artifactRepo,
 		gatewayRepo:      gatewayRepo,
 		infraResourceMgr: infraResourceMgr,
-		encryptionKey:    encryptionKey,
+		secretRefKeys:    secretRefKeys,
 	}
 }
 
@@ -339,7 +339,7 @@ func (s *GatewayInternalAPIService) decryptSecretRefsIn(v interface{}) (bool, er
 }
 
 func (s *GatewayInternalAPIService) decryptSecretRef(secretRef string) (string, error) {
-	plaintext, err := utils.DecryptSecretRef(secretRef, s.encryptionKey)
+	plaintext, err := s.secretRefKeys.Decrypt(secretRef)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt secretRef: %w", err)
 	}

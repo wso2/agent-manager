@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // testdata/golden/a2a_agent_*.yaml were first produced by the a20829291 writer from this fixture (main's
@@ -109,7 +110,7 @@ func goldenA2AKind(t *testing.T, proxy *models.A2AProxy, fetcher A2ACardFetcher)
 	}
 	oc := &repomocks.PlatformRepositoryMock{}
 	return NewA2AAgentKind(sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
-		bytes.Repeat([]byte{7}, 32), testLogger())
+		utils.SecretRefKeys{bytes.Repeat([]byte{7}, 32)}, testLogger())
 }
 
 func goldenA2AArtifact() models.ArtifactRef {

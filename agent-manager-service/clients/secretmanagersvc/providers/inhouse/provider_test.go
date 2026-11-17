@@ -20,6 +20,7 @@ package inhouse_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -100,6 +101,37 @@ func TestSecretLifecycle(t *testing.T) {
 	_, err = client.GetSecret(ctx, path)
 	require.ErrorIs(t, err, secretmanagersvc.ErrSecretNotFound)
 	require.NoError(t, client.DeleteSecret(ctx, loc, name), "deleting a missing secret is a no-op")
+}
+
+func TestConcurrentPatchesKeepEveryKey(t *testing.T) {
+	ctx, client := context.Background(), newClient(t)
+	org := dbtest.Org(t, db.GetDB())
+	loc := secretmanagersvc.SecretLocation{
+		OrgName: org, ProjectName: "checkout", EnvironmentName: "default", AgentName: "cart", EntityName: "cart-llm",
+	}
+	path, err := loc.KVPath()
+	require.NoError(t, err)
+	_, err = client.CreateSecret(ctx, loc, map[string]string{"initial": "value"})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.DeleteSecret(ctx, loc, "") })
+
+	const patchCount = 8
+	start := make(chan struct{})
+	results := make(chan error, patchCount)
+	for i := range patchCount {
+		go func() {
+			<-start
+			_, err := client.PatchSecret(ctx, loc, map[string]string{fmt.Sprintf("key-%d", i): "value"}, nil)
+			results <- err
+		}()
+	}
+	close(start)
+	for range patchCount {
+		require.NoError(t, <-results)
+	}
+	info, err := client.GetSecret(ctx, path)
+	require.NoError(t, err)
+	assert.Len(t, info.Keys, patchCount+1)
 }
 
 func TestSecretsAreScopedToTheirOrganization(t *testing.T) {

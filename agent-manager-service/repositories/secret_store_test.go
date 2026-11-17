@@ -357,27 +357,69 @@ func TestSecretPromotionHandsOverWhatItReplaces(t *testing.T) {
 	assert.Zero(t, f.pending(t, id))
 }
 
-// An attempt interrupted after writing to the vault but before recording the value in the row leaves the value in
-// its job; the next attempt reclaims it before writing again.
-func TestSecretPromotionReclaimsAValueAnInterruptedAttemptWrote(t *testing.T) {
+func TestSecretPromotionRecoversAnInterruptedExternalWrite(t *testing.T) {
 	f := newExternalFixture(t)
 	id := newID()
 	f.cleanup(t, id)
 	f.write(t, id, "v1")
 
-	orphan, err := f.external.Seal(context.Background(), vault.Ref{OrgID: f.org, SecretID: id, OwnerKind: "test_owner"},
-		[]byte("v1"), nil)
+	// Simulate losing the worker after the external write, before publication.
+	var job models.SecretJob
+	require.NoError(t, db.GetDB().Where("secret_id = ?", id).Take(&job).Error)
+	ref := jobRef(&job)
+	ref.OperationID = job.ID
+	path, err := f.external.PromotionReference(ref)
 	require.NoError(t, err)
-	require.NoError(t, db.GetDB().Model(&models.SecretJob{}).Where("secret_id = ?", id).Updates(map[string]any{
-		"staged_provider": vaulttest.ExternalProvider, "staged_ref": orphan.ExternalRef,
+	require.NoError(t, db.GetDB().Model(&job).Updates(map[string]any{
+		"staged_provider": vaulttest.ExternalProvider, "staged_ref": path,
 	}).Error)
+	_, err = f.external.Seal(context.Background(), ref, []byte("v1"), nil)
+	require.NoError(t, err)
 
 	f.run(t)
-	assert.False(t, f.external.Has(orphan.ExternalRef))
 	row := secretRow(t, id)
 	require.NotNil(t, row.ExternalRef)
-	assert.Equal(t, "v1", f.external.Value(*row.ExternalRef))
+	assert.Equal(t, path, *row.ExternalRef, "the retry reuses the original operation")
+	assert.Equal(t, "v1", f.external.Value(path))
 	assert.Equal(t, 1, f.external.Len())
+	assert.Zero(t, f.pending(t, id))
+}
+
+func TestSecretPromotionCannotPublishOrQueueCleanupAfterClaimExpires(t *testing.T) {
+	f := newExternalFixture(t)
+	id := newID()
+	f.cleanup(t, id)
+	f.write(t, id, "v1")
+
+	var job models.SecretJob
+	require.NoError(t, db.GetDB().Where("secret_id = ?", id).Take(&job).Error)
+	token := "expired-claim"
+	now := f.now()
+	require.NoError(t, db.GetDB().Model(&job).Updates(map[string]any{
+		"claimed_by": token, "claimed_until": now.Add(-time.Second),
+	}).Error)
+	job.ClaimedBy = &token
+	attempt := &secretJobAttempt{SecretJob: &job, now: func() time.Time { return now }}
+	ref := jobRef(&job)
+	ref.OperationID = job.ID
+	sealed, err := f.external.Seal(context.Background(), ref, []byte("v1"), nil)
+	require.NoError(t, err)
+	require.NoError(t, db.GetDB().Model(&job).Updates(map[string]any{
+		"staged_provider": vaulttest.ExternalProvider, "staged_ref": sealed.ExternalRef,
+	}).Error)
+
+	row := secretRow(t, id)
+	require.ErrorIs(t, f.runner.publish(context.Background(), attempt, &row, sealed, vaulttest.ExternalProvider, nil), errSecretJobClaimLost)
+	require.ErrorIs(t, f.runner.finishQueueing(context.Background(), attempt, &externalValue{
+		provider: vaulttest.ExternalProvider, ref: sealed.ExternalRef,
+	}), errSecretJobClaimLost)
+	assert.Equal(t, int64(1), f.pending(t, id))
+	assert.True(t, f.external.Has(sealed.ExternalRef))
+
+	f.run(t)
+	row = secretRow(t, id)
+	require.NotNil(t, row.ExternalRef)
+	assert.Equal(t, sealed.ExternalRef, *row.ExternalRef)
 	assert.Zero(t, f.pending(t, id))
 }
 

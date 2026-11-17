@@ -332,6 +332,8 @@ type SecretManagerConfig struct {
 	// table: "local" encrypts them into the database; a deployment that
 	// registers an external vault names it here.
 	VaultProvider string
+	// VaultReaders lists external backends retained for reads and cleanup.
+	VaultReaders string
 }
 
 // GitHubConfig holds GitHub API configuration

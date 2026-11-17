@@ -17,6 +17,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -151,7 +152,7 @@ func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
 			return &models.Deployment{Content: []byte(stored)}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, utils.SecretRefKeys{bytes.Repeat([]byte{1}, 32), key}, gatewayKinds())
 
 	got, err := svc.GetActiveAgentDeploymentByGateway(context.Background(), testArtifactID, "ou-1", "gw-1")
 	require.NoError(t, err)

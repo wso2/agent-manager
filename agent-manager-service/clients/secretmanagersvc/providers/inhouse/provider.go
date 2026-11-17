@@ -33,6 +33,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -157,6 +159,12 @@ func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 		return "", err
 	}
 	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := dbx.LockRow(tx, models.Secret{}.TableName(), "version", "id = ?", id); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return secretmanagersvc.ErrSecretNotFound
+			}
+			return err
+		}
 		merged, err := c.load(ctx, tx, id)
 		if err != nil {
 			return err

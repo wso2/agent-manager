@@ -17,12 +17,16 @@
 package vaulttest
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
+
+	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
@@ -40,7 +44,7 @@ var ErrInjected = errors.New("injected vault failure")
 type External struct {
 	mu       sync.Mutex
 	versions map[string][]byte
-	next     map[string]int
+	retired  map[string]struct{}
 
 	// FailSeal and FailDestroy make that many following calls fail.
 	FailSeal    int
@@ -49,25 +53,42 @@ type External struct {
 	Destroyed []string
 }
 
-var _ vault.Vault = (*External)(nil)
+var _ vault.ExternalVault = (*External)(nil)
 
 // NewExternal returns an empty External.
 func NewExternal() *External {
-	return &External{versions: map[string][]byte{}, next: map[string]int{}}
+	return &External{versions: map[string][]byte{}, retired: map[string]struct{}{}}
 }
 
 func (e *External) Provider() string { return ExternalProvider }
 
-func (e *External) Seal(_ context.Context, ref vault.Ref, plaintext []byte, _ *vault.Sealed) (vault.Sealed, error) {
+func (e *External) PromotionReference(ref vault.Ref) (string, error) {
+	if ref.OperationID == uuid.Nil {
+		return "", errors.New("promotion operation ID is required")
+	}
+	return "amp/" + ref.OrgID + "/" + ref.OwnerKind + "/" + ref.SecretID.String() + "#" + ref.OperationID.String(), nil
+}
+
+func (e *External) Seal(ctx context.Context, ref vault.Ref, plaintext []byte, _ *vault.Sealed) (vault.Sealed, error) {
+	path, err := e.PromotionReference(ref)
+	if err != nil {
+		return vault.Sealed{}, err
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return vault.Sealed{}, err
+	}
 	if e.FailSeal > 0 {
 		e.FailSeal--
 		return vault.Sealed{}, ErrInjected
 	}
-	entry := "amp/" + ref.OrgID + "/" + ref.OwnerKind + "/" + ref.SecretID.String()
-	e.next[entry]++
-	path := fmt.Sprintf("%s#%d", entry, e.next[entry])
+	if _, removed := e.retired[path]; removed {
+		return vault.Sealed{}, errors.New("promotion was canceled")
+	}
+	if value, exists := e.versions[path]; exists && !bytes.Equal(value, plaintext) {
+		return vault.Sealed{}, errors.New("promotion already stored a different value")
+	}
 	e.versions[path] = slices.Clone(plaintext)
 	return vault.Sealed{ExternalRef: path}, nil
 }
@@ -90,6 +111,9 @@ func (e *External) Destroy(_ context.Context, _ vault.Ref, sealed vault.Sealed) 
 		return ErrInjected
 	}
 	delete(e.versions, sealed.ExternalRef)
+	if strings.HasPrefix(sealed.ExternalRef, "amp/") {
+		e.retired[sealed.ExternalRef] = struct{}{}
+	}
 	e.Destroyed = append(e.Destroyed, sealed.ExternalRef)
 	return nil
 }

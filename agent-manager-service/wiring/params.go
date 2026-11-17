@@ -38,6 +38,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/vault"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
@@ -171,11 +172,9 @@ func decodeEncryptionKey(name, value string) ([]byte, error) {
 	return key, nil
 }
 
-// ProvideSecretVaults builds the vault that protects values in the secrets
-// table. SECRET_VAULT_PROVIDER selects it; ENCRYPTION_KEY_PREVIOUS lists keys
-// that were rotated out but still open what they sealed.
-func ProvideSecretVaults(cfg config.Config, encryptionKey []byte) (*vault.Vaults, error) {
-	vaultCfg := vault.Config{EncryptionKey: encryptionKey}
+// ProvideSecretRefKeys decodes the key ring used for legacy secret references and the local vault.
+func ProvideSecretRefKeys(cfg config.Config, encryptionKey []byte) (utils.SecretRefKeys, error) {
+	keys := utils.SecretRefKeys{encryptionKey}
 	for _, value := range strings.Split(cfg.PreviousEncryptionKeys, ",") {
 		if strings.TrimSpace(value) == "" {
 			continue
@@ -184,7 +183,13 @@ func ProvideSecretVaults(cfg config.Config, encryptionKey []byte) (*vault.Vaults
 		if err != nil {
 			return nil, err
 		}
-		vaultCfg.PreviousKeys = append(vaultCfg.PreviousKeys, key)
+		keys = append(keys, key)
 	}
-	return vault.Open(cfg.SecretManager.VaultProvider, vaultCfg)
+	return keys, nil
+}
+
+// ProvideSecretVaults builds the active writer and keeps configured readers available for stored values and jobs.
+func ProvideSecretVaults(cfg config.Config, keys utils.SecretRefKeys) (*vault.Vaults, error) {
+	vaultCfg := vault.Config{EncryptionKey: keys[0], PreviousKeys: keys[1:]}
+	return vault.Open(cfg.SecretManager.VaultProvider, vaultCfg, strings.Split(cfg.SecretManager.VaultReaders, ",")...)
 }

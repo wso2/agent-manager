@@ -24,6 +24,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -31,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 // a2aAgentEnv is the agent and environment a per-environment Agent artifact exposes.
@@ -54,7 +55,7 @@ type A2AAgentKind struct {
 	fetcher         A2ACardFetcher
 	apiKeyRepo      repositories.APIKeyRepository
 	events          *GatewayEventsService
-	encryptionKey   []byte
+	secretRefKeys   utils.SecretRefKeys
 	logger          *slog.Logger
 }
 
@@ -70,13 +71,13 @@ func NewA2AAgentKind(
 	fetcher A2ACardFetcher,
 	apiKeyRepo repositories.APIKeyRepository,
 	events *GatewayEventsService,
-	encryptionKey []byte,
+	secretRefKeys utils.SecretRefKeys,
 	logger *slog.Logger,
 ) *A2AAgentKind {
 	return &A2AAgentKind{
 		tx: tx, exposures: exposures, proxyRepo: proxyRepo, cardRepo: cardRepo,
 		deploymentRepo: deploymentRepo, agentConfigRepo: agentConfigRepo, ocClient: ocClient, fetcher: fetcher,
-		apiKeyRepo: apiKeyRepo, events: events, encryptionKey: encryptionKey, logger: logger,
+		apiKeyRepo: apiKeyRepo, events: events, secretRefKeys: secretRefKeys, logger: logger,
 	}
 }
 
@@ -234,7 +235,7 @@ func (k *A2AAgentKind) originCardHeader(proxy *models.A2AProxy) (*A2ACardFetchHe
 	if proxy.UpstreamAuthHeader == "" || proxy.UpstreamAuthSecret == "" {
 		return nil, nil //nolint:nilnil // A proxy without a stored credential fetches the card unauthenticated.
 	}
-	value, err := utils.DecryptSecretRef(proxy.UpstreamAuthSecret, k.encryptionKey)
+	value, err := k.secretRefKeys.Decrypt(proxy.UpstreamAuthSecret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt the upstream secret: %w", err)
 	}

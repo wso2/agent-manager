@@ -52,6 +52,7 @@ import (
 var configProviderSet = wire.NewSet(
 	ProvideConfigFromPtr,
 	ProvideEncryptionKey,
+	ProvideSecretRefKeys,
 	ProvideSecretVaults,
 	repositories.NewSecretStore,
 	repositories.NewSecretJobRunner,

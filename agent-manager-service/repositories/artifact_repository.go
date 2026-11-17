@@ -127,6 +127,9 @@ func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
 // releaseUpstreamSecrets clears upstream_secret_id on the rows of table matching where and releases the secrets they
 // referred to, so the rows can go without leaving a secret behind.
 func releaseUpstreamSecrets(tx *gorm.DB, table, where string, args ...any) error {
+	if _, err := dbx.LockRows(tx, table, "id", where, args...); err != nil {
+		return fmt.Errorf("failed to lock %s upstream credential owners: %w", table, err)
+	}
 	var ids []uuid.UUID
 	if err := tx.Table(table).Where(where, args...).Where("upstream_secret_id IS NOT NULL").
 		Pluck("upstream_secret_id", &ids).Error; err != nil {

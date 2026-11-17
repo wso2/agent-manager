@@ -45,6 +45,27 @@ const (
 // errPromotionSuperseded is a promotion whose secret was rewritten or deleted while its value was being written.
 var errPromotionSuperseded = errors.New("secret changed while being promoted")
 
+var errSecretJobClaimLost = errors.New("secret job claim expired or was taken over")
+
+type secretJobAttempt struct {
+	*models.SecretJob
+	now func() time.Time
+}
+
+func (a *secretJobAttempt) claimed(db *gorm.DB) *gorm.DB {
+	return db.Where("id = ? AND claimed_by = ? AND claimed_until >= ?", a.ID, a.ClaimedBy, a.now())
+}
+
+func requireSecretJobChange(res *gorm.DB) error {
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return errSecretJobClaimLost
+	}
+	return nil
+}
+
 // SecretJobRunner does the external-vault work SecretStore queues in secret_jobs once the transaction that queued it
 // has committed. Jobs are claimed with a lease, so any number of replicas can run passes, and a failed job is retried
 // with backoff until it succeeds. Every step is safe to repeat.
@@ -62,6 +83,8 @@ func NewSecretJobRunner(db *gorm.DB, vaults *vault.Vaults, logger *slog.Logger) 
 // RunOnce claims the jobs due at now and runs them, returning how many it ran and how many failed. err is a failure to
 // claim; a failed job is recorded on it and retried later.
 func (r *SecretJobRunner) RunOnce(ctx context.Context, now time.Time) (ran, failed int, err error) {
+	started := time.Now()
+	clock := func() time.Time { return now.Add(time.Since(started)).UTC() }
 	claimed, err := dbx.ClaimRows(ctx, r.db, dbx.Claim{
 		Table: models.SecretJob{}.TableName(),
 		Key:   []string{"id"},
@@ -83,16 +106,57 @@ func (r *SecretJobRunner) RunOnce(ctx context.Context, now time.Time) (ran, fail
 			}
 			return ran, failed, fmt.Errorf("failed to read claimed secret job: %w", err)
 		}
+		attempt := &secretJobAttempt{SecretJob: &job, now: clock}
+		if err := r.renew(ctx, attempt); err != nil {
+			if errors.Is(err, errSecretJobClaimLost) {
+				continue
+			}
+			return ran, failed, err
+		}
 		ran++
-		if err := r.run(ctx, &job); err != nil {
+		if err := r.runWithLease(ctx, attempt); err != nil && !errors.Is(err, errSecretJobClaimLost) {
 			failed++
-			r.retryLater(ctx, &job, now, err)
+			r.retryLater(ctx, attempt, err)
 		}
 	}
 	return ran, failed, nil
 }
 
-func (r *SecretJobRunner) run(ctx context.Context, job *models.SecretJob) error {
+func (r *SecretJobRunner) renew(ctx context.Context, job *secretJobAttempt) error {
+	return requireSecretJobChange(job.claimed(r.db.WithContext(ctx).Model(&models.SecretJob{})).
+		Update("claimed_until", job.now().Add(secretJobLease)))
+}
+
+func (r *SecretJobRunner) runWithLease(ctx context.Context, job *secretJobAttempt) error {
+	workCtx, cancel := context.WithCancelCause(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(secretJobLease / 3)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-workCtx.Done():
+				return
+			case <-ticker.C:
+				if err := r.renew(workCtx, job); err != nil {
+					cancel(err)
+					return
+				}
+			}
+		}
+	}()
+	err := r.run(workCtx, job)
+	cause := context.Cause(workCtx)
+	cancel(nil)
+	<-done
+	if err != nil && cause != nil {
+		return cause
+	}
+	return err
+}
+
+func (r *SecretJobRunner) run(ctx context.Context, job *secretJobAttempt) error {
 	switch job.Action {
 	case models.SecretJobDestroy:
 		return r.destroy(ctx, job)
@@ -105,9 +169,9 @@ func (r *SecretJobRunner) run(ctx context.Context, job *models.SecretJob) error 
 
 // destroy removes the job's external value unless a committed row, or a promotion still pending, refers to it: then
 // that row owns it and the job is dropped.
-func (r *SecretJobRunner) destroy(ctx context.Context, job *models.SecretJob) error {
+func (r *SecretJobRunner) destroy(ctx context.Context, job *secretJobAttempt) error {
 	if job.Provider == nil || job.ExternalRef == nil {
-		return r.finish(ctx, job)
+		return r.finishQueueing(ctx, job)
 	}
 	value := externalValue{provider: *job.Provider, ref: *job.ExternalRef}
 	inUse, err := r.inUse(ctx, value)
@@ -115,11 +179,14 @@ func (r *SecretJobRunner) destroy(ctx context.Context, job *models.SecretJob) er
 		return err
 	}
 	if !inUse {
-		if err := r.destroyValue(ctx, jobRef(job), value); err != nil {
+		if err := r.renew(ctx, job); err != nil {
+			return err
+		}
+		if err := r.destroyValue(ctx, jobRef(job.SecretJob), value); err != nil {
 			return err
 		}
 	}
-	return r.finish(ctx, job)
+	return r.finishQueueing(ctx, job)
 }
 
 // inUse reports whether a committed row, or a promotion still pending, refers to value.
@@ -153,47 +220,37 @@ func (r *SecretJobRunner) destroyValue(ctx context.Context, ref vault.Ref, value
 	return nil
 }
 
-// promote copies the version the job names from the row to the vault that seals new values, then points the row at
-// it and queues the removal of the external value it replaces. A version the row no longer holds is not promoted.
-func (r *SecretJobRunner) promote(ctx context.Context, job *models.SecretJob) error {
-	// A value an earlier attempt wrote but did not record is first reclaimed, or found recorded.
-	if job.StagedRef != nil && job.StagedProvider != nil {
-		staged := externalValue{provider: *job.StagedProvider, ref: *job.StagedRef}
-		inUse, err := r.inUse(ctx, staged)
+// promote copies the named version to a recoverable destination and publishes it
+// only while this attempt still owns the job.
+func (r *SecretJobRunner) promote(ctx context.Context, job *secretJobAttempt) error {
+	staged := jobStagedValue(job.SecretJob)
+	if job.Version == nil {
+		// The superseding transaction took over the previous external value.
+		return r.finishQueueing(ctx, job, staged)
+	}
+
+	var row models.Secret
+	err := r.db.WithContext(ctx).Where("id = ?", job.SecretID).Take(&row).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	replaced := jobExternalValue(job.SecretJob)
+	if err != nil || row.Version != *job.Version || row.Provider != vault.ProviderLocal {
+		return r.finishQueueing(ctx, job, staged, replaced)
+	}
+
+	writer := r.vaults.Writer()
+	if staged != nil {
+		writer, err = r.vaults.For(staged.provider)
 		if err != nil {
 			return err
 		}
-		if inUse {
-			return r.finish(ctx, job)
-		}
-		if err := r.destroyValue(ctx, jobRef(job), staged); err != nil {
-			return err
-		}
-		if err := r.db.WithContext(ctx).Model(&models.SecretJob{}).Where("id = ?", job.ID).
-			Updates(map[string]any{"staged_provider": nil, "staged_ref": nil}).Error; err != nil {
-			return fmt.Errorf("failed to clear a reclaimed value from secret job %s: %w", job.ID, err)
-		}
-		job.StagedProvider, job.StagedRef = nil, nil
-	}
-	// Superseded: a later write or delete took over what it replaces and queued its own work.
-	if job.Version == nil {
-		return r.finish(ctx, job)
-	}
-
-	var rows []models.Secret
-	if err := r.db.WithContext(ctx).Where("id = ?", job.SecretID).Find(&rows).Error; err != nil {
-		return err
-	}
-	replaced := jobExternalValue(job)
-	if len(rows) == 0 || rows[0].Version != *job.Version || rows[0].Provider != vault.ProviderLocal {
-		// Not superseded, yet its version is gone. Hand what it replaces to a destroy job, which keeps a value in use.
+	} else if writer.Provider() == vault.ProviderLocal {
 		return r.finishQueueing(ctx, job, replaced)
 	}
-	row := rows[0]
-	writer := r.vaults.Writer()
-	if writer.Provider() == vault.ProviderLocal {
-		// The deployment moved back to the local vault: the row already has the value.
-		return r.finishQueueing(ctx, job, replaced)
+	external, ok := writer.(vault.ExternalVault)
+	if !ok {
+		return fmt.Errorf("secret vault %q does not support recoverable writes", writer.Provider())
 	}
 
 	local, err := r.vaults.For(vault.ProviderLocal)
@@ -204,116 +261,109 @@ func (r *SecretJobRunner) promote(ctx context.Context, job *models.SecretJob) er
 	if err != nil {
 		return fmt.Errorf("failed to open secret %s for promotion: %w", row.ID, err)
 	}
+	ref := jobRef(job.SecretJob)
+	ref.OperationID = job.ID
+	if staged == nil {
+		path, err := external.PromotionReference(ref)
+		if err != nil {
+			return fmt.Errorf("failed to reserve a reference in vault %s: %w", writer.Provider(), err)
+		}
+		destination := externalValue{provider: writer.Provider(), ref: path}
+		if path == "" || (replaced != nil && destination == *replaced) {
+			return fmt.Errorf("vault %s returned an invalid promotion reference", writer.Provider())
+		}
+		// Persist the destination before making an external call. A retry can
+		// use the same operation or clean it up even if Seal never returned.
+		res := job.claimed(r.db.WithContext(ctx).Model(&models.SecretJob{})).
+			Where("version = ?", row.Version).
+			Updates(map[string]any{"staged_provider": destination.provider, "staged_ref": destination.ref})
+		if err := requireSecretJobChange(res); err != nil {
+			return err
+		}
+		staged = &destination
+	}
 	var current *vault.Sealed
 	if replaced != nil && replaced.provider == writer.Provider() {
 		current = &vault.Sealed{ExternalRef: replaced.ref}
 	}
-	sealed, err := writer.Seal(ctx, secretRef(&row), plaintext, current)
+	if err := r.renew(ctx, job); err != nil {
+		return err
+	}
+	sealed, err := external.Seal(ctx, ref, plaintext, current)
 	if err != nil {
 		return fmt.Errorf("failed to write secret %s to vault %s: %w", row.ID, writer.Provider(), err)
 	}
-	var staged *externalValue
-	if sealed.ExternalRef != "" {
-		staged = &externalValue{provider: writer.Provider(), ref: sealed.ExternalRef}
-		// Recorded before the row, so a failed or interrupted attempt is reclaimed by the next.
-		if err := r.db.WithContext(ctx).Model(&models.SecretJob{}).Where("id = ?", job.ID).
-			Updates(map[string]any{"staged_provider": staged.provider, "staged_ref": staged.ref}).Error; err != nil {
-			r.reclaim(ctx, job, *staged)
-			return fmt.Errorf("failed to record a value written for secret %s: %w", row.ID, err)
-		}
+	if sealed.ExternalRef != staged.ref {
+		return fmt.Errorf("vault %s wrote to a different reference than it reserved", writer.Provider())
 	}
-
-	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		res := tx.Model(&models.Secret{}).
-			Where("id = ? AND version = ? AND provider = ?", row.ID, row.Version, vault.ProviderLocal).
-			Updates(map[string]any{
-				"provider": writer.Provider(), "ciphertext": sealed.Ciphertext, "key_id": nilIfEmpty(sealed.KeyID),
-				"external_ref": nilIfEmpty(sealed.ExternalRef), "updated_at": dbx.Now(),
-			})
-		if res.Error != nil {
-			return res.Error
+	if err := r.publish(ctx, job, &row, sealed, staged.provider, replaced); err != nil {
+		if errors.Is(err, errPromotionSuperseded) {
+			return r.finishQueueing(ctx, job, staged, replaced)
 		}
-		if res.RowsAffected == 0 {
-			return errPromotionSuperseded
-		}
-		// A vault that wrote over the replaced value in place leaves nothing else to remove.
-		if replaced != nil && (staged == nil || *replaced != *staged) {
-			if err := queueDestroy(tx, job.OrgID, job.SecretID, job.OwnerKind, *replaced); err != nil {
-				return err
-			}
-		}
-		return tx.Where("id = ?", job.ID).Delete(&models.SecretJob{}).Error
-	})
-	if errors.Is(err, errPromotionSuperseded) {
-		if staged != nil {
-			r.reclaim(ctx, job, *staged)
-		}
-		return r.finish(ctx, job)
-	}
-	if err != nil {
 		return fmt.Errorf("failed to record secret %s in vault %s: %w", row.ID, writer.Provider(), err)
 	}
 	return nil
 }
 
-// reclaim removes a value the job wrote that no row will refer to. When the vault refuses, a destroy job takes it
-// over, so it is retried like any other.
-func (r *SecretJobRunner) reclaim(ctx context.Context, job *models.SecretJob, staged externalValue) {
-	err := r.destroyValue(ctx, jobRef(job), staged)
-	if err == nil {
-		if clearErr := r.db.WithContext(ctx).Model(&models.SecretJob{}).Where("id = ?", job.ID).
-			Updates(map[string]any{"staged_provider": nil, "staged_ref": nil}).Error; clearErr != nil {
-			r.logger.Warn("Failed to clear a reclaimed secret value from its job; the next attempt finds it gone",
-				"jobID", job.ID, "secretID", job.SecretID, "error", clearErr)
-		}
-		job.StagedProvider, job.StagedRef = nil, nil
-		return
-	}
-	r.logger.Warn("Failed to reclaim a secret value no row refers to; queued its removal",
-		"jobID", job.ID, "secretID", job.SecretID, "provider", staged.provider, "error", err)
-	if queueErr := queueDestroy(r.db.WithContext(ctx), job.OrgID, job.SecretID, job.OwnerKind, staged); queueErr != nil {
-		r.logger.Error("Failed to queue removal of a secret value no row refers to; the promotion job keeps it",
-			"jobID", job.ID, "secretID", job.SecretID, "provider", staged.provider, "error", queueErr)
-		return
-	}
-	if clearErr := r.db.WithContext(ctx).Model(&models.SecretJob{}).Where("id = ?", job.ID).
-		Updates(map[string]any{"staged_provider": nil, "staged_ref": nil}).Error; clearErr == nil {
-		job.StagedProvider, job.StagedRef = nil, nil
-	}
-}
-
-// finish deletes a job that is done. A value it still records as staged is left to the next attempt.
-func (r *SecretJobRunner) finish(ctx context.Context, job *models.SecretJob) error {
-	if job.StagedRef != nil {
-		return fmt.Errorf("secret job %s still holds a value it wrote to vault %s", job.ID, deref(job.StagedProvider))
-	}
-	if err := r.db.WithContext(ctx).Where("id = ?", job.ID).Delete(&models.SecretJob{}).Error; err != nil {
-		return fmt.Errorf("failed to delete finished secret job %s: %w", job.ID, err)
-	}
-	return nil
-}
-
-// finishQueueing deletes the job and queues the removal of value in the same transaction.
-func (r *SecretJobRunner) finishQueueing(ctx context.Context, job *models.SecretJob, value *externalValue) error {
-	if value == nil {
-		return r.finish(ctx, job)
-	}
-	if job.StagedRef != nil {
-		return fmt.Errorf("secret job %s still holds a value it wrote to vault %s", job.ID, deref(job.StagedProvider))
-	}
+// publish locks the secret first, matching writes and deletes, then consumes the
+// still-valid claim in the same transaction that publishes the external reference.
+func (r *SecretJobRunner) publish(ctx context.Context, job *secretJobAttempt, row *models.Secret, sealed vault.Sealed, provider string, replaced *externalValue) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id = ?", job.ID).Delete(&models.SecretJob{}).Error; err != nil {
+		if err := dbx.LockRow(tx, models.Secret{}.TableName(), "version", "id = ? AND version = ? AND provider = ?", row.ID, row.Version, vault.ProviderLocal); err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errPromotionSuperseded
+			}
 			return err
 		}
-		return queueDestroy(tx, job.OrgID, job.SecretID, job.OwnerKind, *value)
+		if err := requireSecretJobChange(job.claimed(tx).Where("version = ?", row.Version).Delete(&models.SecretJob{})); err != nil {
+			return err
+		}
+		if err := tx.Model(&models.Secret{}).Where("id = ?", row.ID).Updates(map[string]any{
+			"provider": provider, "ciphertext": sealed.Ciphertext, "key_id": nilIfEmpty(sealed.KeyID),
+			"external_ref": sealed.ExternalRef, "updated_at": dbx.Now(),
+		}).Error; err != nil {
+			return err
+		}
+		if replaced != nil {
+			return queueDestroy(tx, job.OrgID, job.SecretID, job.OwnerKind, *replaced)
+		}
+		return nil
 	})
 }
 
-// retryLater releases the job's claim and makes it due again after a backoff that grows with its attempts.
-func (r *SecretJobRunner) retryLater(ctx context.Context, job *models.SecretJob, now time.Time, cause error) {
+// finishQueueing consumes the current claim and hands cleanup to durable jobs
+// together. A worker that lost its claim cannot destroy any staged value.
+func (r *SecretJobRunner) finishQueueing(ctx context.Context, job *secretJobAttempt, values ...*externalValue) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := requireSecretJobChange(job.claimed(tx).Delete(&models.SecretJob{})); err != nil {
+			return err
+		}
+		for _, value := range values {
+			if value != nil {
+				if err := queueDestroy(tx, job.OrgID, job.SecretID, job.OwnerKind, *value); err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	})
+}
+
+// retryLater releases the job's claim and makes it due again after a growing backoff.
+func (r *SecretJobRunner) retryLater(ctx context.Context, job *secretJobAttempt, cause error) {
 	attempts := job.Attempts + 1
 	backoff := secretJobBackoff(attempts)
-	message := cause.Error()
+	err := requireSecretJobChange(job.claimed(r.db.WithContext(ctx).Model(&models.SecretJob{})).Updates(map[string]any{
+		"attempts": attempts, "last_error": cause.Error(), "available_at": job.now().Add(backoff),
+		"claimed_by": nil, "claimed_until": nil,
+	}))
+	if errors.Is(err, errSecretJobClaimLost) {
+		return
+	}
+	if err != nil {
+		r.logger.Error("Failed to schedule a secret vault job's retry; its claim expires instead", "jobID", job.ID, "error", err)
+		return
+	}
 	level := slog.LevelWarn
 	if attempts >= secretJobAlarmAttempts {
 		level = slog.LevelError
@@ -321,13 +371,6 @@ func (r *SecretJobRunner) retryLater(ctx context.Context, job *models.SecretJob,
 	r.logger.Log(ctx, level, "Secret vault job failed; it will be retried",
 		"jobID", job.ID, "action", job.Action, "secretID", job.SecretID, "orgID", job.OrgID,
 		"attempts", attempts, "retryIn", backoff, "error", cause)
-	if err := r.db.WithContext(ctx).Model(&models.SecretJob{}).Where("id = ?", job.ID).Updates(map[string]any{
-		"attempts": attempts, "last_error": message, "available_at": now.Add(backoff),
-		"claimed_by": nil, "claimed_until": nil,
-	}).Error; err != nil {
-		r.logger.Error("Failed to schedule a secret vault job's retry; its claim expires instead",
-			"jobID", job.ID, "error", err)
-	}
 }
 
 func secretJobBackoff(attempts int) time.Duration {
@@ -347,6 +390,13 @@ func jobExternalValue(job *models.SecretJob) *externalValue {
 		return nil
 	}
 	return &externalValue{provider: *job.Provider, ref: *job.ExternalRef}
+}
+
+func jobStagedValue(job *models.SecretJob) *externalValue {
+	if job.StagedProvider == nil || job.StagedRef == nil {
+		return nil
+	}
+	return &externalValue{provider: *job.StagedProvider, ref: *job.StagedRef}
 }
 
 // PendingSecretJobs counts the secret jobs not yet done, for tests and diagnostics.

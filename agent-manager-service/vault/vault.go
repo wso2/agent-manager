@@ -26,6 +26,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/google/uuid"
@@ -46,8 +47,10 @@ var (
 // Ref names the secrets row a value belongs to. A vault binds the value to it,
 // so a sealed value copied into another row does not open there.
 type Ref struct {
-	OrgID    string
-	SecretID uuid.UUID
+	// OperationID identifies an external promotion across retries. Row binding ignores it.
+	OperationID uuid.UUID
+	OrgID       string
+	SecretID    uuid.UUID
 	// OwnerKind is what uses the secret (a2a_proxy, event_destination, ...).
 	// External vaults use it to name and tag what they store.
 	OwnerKind string
@@ -87,6 +90,16 @@ type Vault interface {
 	// It runs after no committed row refers to it any more and is retried on
 	// failure, so it must succeed when the value is already gone.
 	Destroy(ctx context.Context, ref Ref, sealed Sealed) error
+}
+
+// ExternalVault supports recoverable writes. PromotionReference is pure and
+// returns the immutable reference for ref.OperationID before Seal makes any
+// external change. Seal must return that reference and be idempotent for the
+// operation. Destroy must prevent retries of a canceled operation from
+// recreating the released value.
+type ExternalVault interface {
+	Vault
+	PromotionReference(ref Ref) (string, error)
 }
 
 // Config is what a provider is built from. A provider reads any settings of its
@@ -161,19 +174,26 @@ type Vaults struct {
 
 // Open builds the vault named provider for new values. The local vault is
 // always loaded as well, so values it sealed stay readable after a deployment
-// moves to another provider.
-func Open(provider string, cfg Config) (*Vaults, error) {
+// moves to another provider. Explicit readers keep retired external providers available.
+func Open(provider string, cfg Config, readers ...string) (*Vaults, error) {
+	provider = strings.TrimSpace(provider)
 	if provider == "" {
 		provider = ProviderLocal
 	}
 	set := &Vaults{byName: map[string]Vault{}}
-	for _, name := range []string{ProviderLocal, provider} {
-		if _, loaded := set.byName[name]; loaded {
+	for _, name := range append([]string{ProviderLocal, provider}, readers...) {
+		name = strings.TrimSpace(name)
+		if _, loaded := set.byName[name]; loaded || name == "" {
 			continue
 		}
 		v, err := build(name, cfg)
 		if err != nil {
 			return nil, err
+		}
+		if name != ProviderLocal && name == provider {
+			if _, ok := v.(ExternalVault); !ok {
+				return nil, fmt.Errorf("secret vault writer %q does not support recoverable writes", name)
+			}
 		}
 		set.byName[name] = v
 	}

@@ -200,7 +200,12 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 			slog.Error("failed to load encryption key for AgentID provisioning", "error", err)
 			os.Exit(1)
 		}
-		secretVaults, err := wiring.ProvideSecretVaults(*cfg, encryptionKey)
+		secretRefKeys, err := wiring.ProvideSecretRefKeys(*cfg, encryptionKey)
+		if err != nil {
+			slog.Error("failed to load retained encryption keys for AgentID provisioning", "error", err)
+			os.Exit(1)
+		}
+		secretVaults, err := wiring.ProvideSecretVaults(*cfg, secretRefKeys)
 		if err != nil {
 			slog.Error("failed to open the secret vault for AgentID provisioning", "error", err)
 			os.Exit(1)

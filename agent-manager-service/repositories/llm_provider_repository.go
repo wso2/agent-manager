@@ -301,6 +301,9 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 			return fmt.Errorf("error parsing provider id: %s, error: %w", providerID, err)
 		}
 
+		if err := dbx.LockRow(tx, "llm_providers", "id", "id = ?", parsedUUID); err != nil {
+			return err
+		}
 		var stored models.LLMProvider
 		if err := tx.Select("id", "upstream_secret_id").Where("id = ?", providerID).Take(&stored).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -478,6 +481,10 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 	slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
 
 	slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
+	// Lock before reading the credential reference, as Update does.
+	if _, err := dbx.LockRows(tx, "llm_providers", "id", "id = ?", providerUUID); err != nil {
+		return err
+	}
 	// Read before the row goes; the secret is released after it, since the row refers to it.
 	var stored models.LLMProvider
 	if err := tx.Select("id", "upstream_secret_id").Where("id = ?", providerUUID).Take(&stored).Error; err != nil &&

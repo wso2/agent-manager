@@ -134,11 +134,12 @@ type memoryVault struct {
 
 func (m *memoryVault) Provider() string { return m.name }
 
-func (m *memoryVault) Seal(_ context.Context, ref Ref, plaintext []byte, current *Sealed) (Sealed, error) {
-	path := "amp/" + ref.OrgID + "/" + ref.SecretID.String()
-	if current != nil && current.ExternalRef != "" {
-		path = current.ExternalRef
-	}
+func (m *memoryVault) PromotionReference(ref Ref) (string, error) {
+	return "amp/" + ref.OrgID + "/" + ref.SecretID.String() + "/" + ref.OperationID.String(), nil
+}
+
+func (m *memoryVault) Seal(_ context.Context, ref Ref, plaintext []byte, _ *Sealed) (Sealed, error) {
+	path, _ := m.PromotionReference(ref)
 	m.values[path] = plaintext
 	return Sealed{ExternalRef: path}, nil
 }
@@ -152,10 +153,16 @@ func (m *memoryVault) Destroy(_ context.Context, _ Ref, sealed Sealed) error {
 	return nil
 }
 
-func TestOpenLoadsTheWriterAndKeepsLocalReadable(t *testing.T) {
-	external := &memoryVault{name: "test-external", values: map[string][]byte{}}
-	Register(external.name, func(Config) (Vault, error) { return external, nil })
-	require.Contains(t, Providers(), external.name)
+const memoryProvider = "test-external"
+
+func init() {
+	Register(memoryProvider, func(Config) (Vault, error) {
+		return &memoryVault{name: memoryProvider, values: map[string][]byte{}}, nil
+	})
+}
+
+func TestOpenLoadsWriterAndRetainedReaders(t *testing.T) {
+	require.Contains(t, Providers(), memoryProvider)
 	require.Contains(t, Providers(), ProviderLocal)
 
 	cfg := Config{EncryptionKey: testKey(1)}
@@ -164,12 +171,19 @@ func TestOpenLoadsTheWriterAndKeepsLocalReadable(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ProviderLocal, def.Writer().Provider())
 
-	set, err := Open(external.name, cfg)
+	set, err := Open(memoryProvider, cfg)
 	require.NoError(t, err)
-	require.Equal(t, external.name, set.Writer().Provider())
+	require.Equal(t, memoryProvider, set.Writer().Provider())
 	local, err := set.For(ProviderLocal)
 	require.NoError(t, err)
 	require.Equal(t, ProviderLocal, local.Provider())
+
+	retained, err := Open(ProviderLocal, cfg, memoryProvider)
+	require.NoError(t, err)
+	require.Equal(t, ProviderLocal, retained.Writer().Provider())
+	reader, err := retained.For(memoryProvider)
+	require.NoError(t, err)
+	require.Equal(t, memoryProvider, reader.Provider())
 
 	_, err = set.For("nope")
 	require.ErrorIs(t, err, ErrUnknownProvider)

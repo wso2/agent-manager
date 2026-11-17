@@ -337,6 +337,7 @@ func loadEnvs() {
 	config.SecretManager = SecretManagerConfig{
 		Provider:      r.readOptionalString("SECRET_MANAGER_PROVIDER", "inhouse"),
 		VaultProvider: r.readOptionalString("SECRET_VAULT_PROVIDER", "local"),
+		VaultReaders:  r.readOptionalString("SECRET_VAULT_READERS", ""),
 	}
 
 	// Thunder admin API configuration for provisioning per-org OAuth apps

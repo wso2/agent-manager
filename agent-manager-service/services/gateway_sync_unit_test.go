@@ -159,7 +159,7 @@ func TestFetchDeploymentBatch(t *testing.T) {
 			return []models.GatewayDeploymentContent{provider, proxy, mcp, restAPI}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, utils.SecretRefKeys{key}, gatewayKinds())
 
 	got, err := svc.FetchDeploymentBatch(context.Background(), "ou-1", "gw-1", []string{
 		strings.ToUpper(provider.DeploymentID.String()), "", proxy.DeploymentID.String(), "not-a-uuid",

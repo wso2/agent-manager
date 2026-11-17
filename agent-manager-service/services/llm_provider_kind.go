@@ -27,6 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -50,16 +51,25 @@ type LLMProviderKind struct {
 // credentials through secrets.
 func NewLLMProviderKind(secrets *repositories.SecretStore) *LLMProviderKind {
 	return &LLMProviderKind{load: func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, error) {
-		tx := db.DB(ctx)
-		repo := repositories.NewLLMProviderRepo(tx, secrets)
-		provider, err := repo.GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
-		if err != nil {
-			return nil, err
+		var provider *models.LLMProvider
+		load := func(tx *gorm.DB) error {
+			if err := dbx.LockRow(tx, "llm_providers", "id", "id = ?", artifact.ArtifactUUID); err != nil {
+				return err
+			}
+			repo := repositories.NewLLMProviderRepo(tx, secrets)
+			var err error
+			provider, err = repo.GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
+			if err != nil {
+				return err
+			}
+			return repo.ResolveUpstreamAuth(ctx, tx, provider)
 		}
-		if err := repo.ResolveUpstreamAuth(ctx, tx, provider); err != nil {
-			return nil, err
+		if tx := db.TxFrom(ctx); tx != nil {
+			err := load(tx)
+			return provider, err
 		}
-		return provider, nil
+		err := db.DB(ctx).Transaction(load)
+		return provider, err
 	}}
 }
 

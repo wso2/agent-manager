@@ -54,6 +54,12 @@ type externalValue struct {
 // Write stores value as the secret id, creating the row when absent. An existing row keeps its organization and
 // owner. The value is readable in tx at once; a promotion to an external vault follows the commit.
 func (s *SecretStore) Write(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) error {
+	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return s.write(ctx, tx, orgID, ownerKind, ownerID, id, value)
+	})
+}
+
+func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) error {
 	local, err := s.vaults.For(vault.ProviderLocal)
 	if err != nil {
 		return err
@@ -161,7 +167,9 @@ func (s *SecretStore) read(ctx context.Context, tx *gorm.DB, id uuid.UUID, asSto
 
 // Delete removes the secret. An external value it had is destroyed after tx commits. A missing row is a no-op.
 func (s *SecretStore) Delete(ctx context.Context, tx *gorm.DB, id uuid.UUID) error {
-	return releaseSecret(tx.WithContext(ctx), &id)
+	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		return releaseSecret(tx, &id)
+	})
 }
 
 // put stores value for the owner and returns the secret's id: it rewrites the secret current names, or creates one.
@@ -219,6 +227,9 @@ func adoptSecret(tx *gorm.DB, id, ownerID uuid.UUID) error {
 func releaseSecret(tx *gorm.DB, id *uuid.UUID) error {
 	if id == nil {
 		return nil
+	}
+	if _, err := dbx.LockRows(tx, models.Secret{}.TableName(), "version", "id = ?", *id); err != nil {
+		return fmt.Errorf("failed to lock secret %s for release: %w", *id, err)
 	}
 	var rows []models.Secret
 	if err := tx.Where("id = ?", *id).Find(&rows).Error; err != nil {

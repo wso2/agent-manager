@@ -215,6 +215,22 @@ func DecryptSecretRef(ref string, key []byte) (string, error) {
 	return string(plaintext), nil
 }
 
+// SecretRefKeys opens legacy, unbound secret references with the current key or a retained key.
+type SecretRefKeys [][]byte
+
+func (keys SecretRefKeys) Decrypt(ref string) (string, error) {
+	ciphertext, err := base64.StdEncoding.DecodeString(ref)
+	if err != nil {
+		return "", fmt.Errorf("failed to base64-decode: %w", err)
+	}
+	for _, key := range keys {
+		if plaintext, err := DecryptBytes(ciphertext, key); err == nil {
+			return string(plaintext), nil
+		}
+	}
+	return "", ErrInvalidCiphertext
+}
+
 // GenerateEncryptionKey generates a cryptographically secure random key for AES-256-GCM.
 // This function should be used to generate a new encryption key during initial setup.
 // The generated key should be stored securely (e.g., in a key management service).
