@@ -176,13 +176,17 @@ func loadSettings(strict bool) {
 
 	config.InstrumentationURL = r.readOptionalString("INSTRUMENTATION_URL", "http://default-default.gateway.localhost:19080/otel")
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
+	config.DefaultOrg = DefaultOrgConfig{
+		OUID:   strings.TrimSpace(r.readOptionalString("DEFAULT_ORG_OU_ID", "01900000-0000-7000-8000-000000000001")),
+		Handle: r.readOptionalString("DEFAULT_ORG_HANDLE", "default"),
+	}
 	config.DefaultGateway = DefaultGatewayConfig{
 		Name:              strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_NAME", "")),
 		DisplayName:       r.readOptionalString("DEFAULT_GATEWAY_DISPLAY_NAME", "Default AI Gateway"),
 		Vhost:             r.readOptionalString("DEFAULT_GATEWAY_VHOST", ""),
 		FunctionalityType: r.readOptionalString("DEFAULT_GATEWAY_TYPE", "BOTH"),
-		OrgOUID:           r.readOptionalString("DEFAULT_GATEWAY_ORG_OU_ID", "01900000-0000-7000-8000-000000000001"),
-		OrgHandle:         r.readOptionalString("DEFAULT_GATEWAY_ORG_HANDLE", "default"),
+		OrgOUID:           r.readOptionalString("DEFAULT_GATEWAY_ORG_OU_ID", config.DefaultOrg.OUID),
+		OrgHandle:         r.readOptionalString("DEFAULT_GATEWAY_ORG_HANDLE", config.DefaultOrg.Handle),
 		Token:             strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_TOKEN", "")),
 		TokenFile:         r.readOptionalString("DEFAULT_GATEWAY_TOKEN_FILE", ""),
 	}

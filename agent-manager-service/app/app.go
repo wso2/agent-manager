@@ -251,6 +251,10 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		os.Exit(1)
 	}
 	warnGatewayStateWithoutProvider(modulesCtx, database, slog.Default())
+	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
+		slog.Error("failed to create the default organization", "error", err)
+		os.Exit(1)
+	}
 
 	// For the AI Gateway, registers the gateway named in configuration before
 	// any gateway can connect.
