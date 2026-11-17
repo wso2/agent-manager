@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -63,4 +64,17 @@ func TestUIManifestWithoutModules(t *testing.T) {
 	got := uiManifest(req, nil)
 	assert.Equal(t, []string{}, got.Pages)
 	assert.Len(t, got.Modules, 1)
+}
+
+func TestUIManifestRootOUSeesEverything(t *testing.T) {
+	src := fakeUI{{Name: "gateway", Pages: []modhost.UIEntry{{ID: "ai-gateway/gateways", Permission: "gateway:read"}}}}
+	req := httptest.NewRequest("GET", "/ui-manifest", nil)
+	ctx := jwtassertion.ContextWithScopeList(req.Context(), nil)
+	ctx = jwtassertion.ContextWithTokenClaims(ctx, &jwtassertion.TokenClaims{OuHandle: config.GetConfig().RootOUHandle})
+	got := uiManifest(req.WithContext(ctx), src)
+	assert.Equal(t, []string{"ai-gateway/external-agent", "ai-observability/traces", "ai-gateway/gateways"}, got.Pages)
+
+	ctx = jwtassertion.ContextWithTokenClaims(req.Context(), &jwtassertion.TokenClaims{OuHandle: "default"})
+	ctx = jwtassertion.ContextWithScopeList(ctx, nil)
+	assert.Empty(t, uiManifest(req.WithContext(ctx), src).Pages)
 }
