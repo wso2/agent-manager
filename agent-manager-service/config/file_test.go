@@ -115,7 +115,7 @@ func TestLoadPrecedence(t *testing.T) {
 	t.Setenv(ModulesEnv, "")
 	t.Setenv("SERVER_PORT", "7070")
 	t.Setenv("LOG_LEVEL", "")
-	os.Unsetenv("LOG_LEVEL")
+	require.NoError(t, os.Unsetenv("LOG_LEVEL"))
 	t.Setenv("HTTP_READ_TIMEOUT_SECONDS", "")
 
 	// ./amp.yaml when nothing names a file.
