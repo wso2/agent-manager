@@ -34,28 +34,40 @@ import (
 // work needs; see GetLockDB. Postgres releases the lock if that connection's
 // session ends, so a crashed holder never strands it.
 //
-// ctx bounds only the wait. The transaction runs on a context that ignores
-// ctx's cancellation, because database/sql rolls a transaction back as soon as
-// its context ends, which would drop the lock while the caller is still inside
-// its critical section, for example after the HTTP request that started it
-// gives up.
+// ctx bounds getting the connection and waiting for the lock, so a caller that
+// gives up is never held by a slow or unreachable database. The transaction
+// itself runs on a context that ignores ctx's cancellation, because
+// database/sql rolls a transaction back as soon as its context ends, which
+// would drop the lock while the caller is still inside its critical section,
+// for example after the HTTP request that started it gives up.
 func holdAdvisoryLock(ctx context.Context, pool *gorm.DB, namespace int, key string) (func(), error) {
-	tx := pool.WithContext(context.WithoutCancel(ctx)).Begin()
-	if tx.Error != nil {
-		return nil, fmt.Errorf("begin advisory lock transaction: %w", tx.Error)
+	sqlDB, err := pool.DB()
+	if err != nil {
+		return nil, fmt.Errorf("advisory lock pool: %w", err)
 	}
-	if err := advisoryXactLock(tx.WithContext(ctx), namespace, key); err != nil {
-		tx.Rollback()
-		return nil, err
+	conn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get advisory lock connection: %w", err)
+	}
+	tx, err := conn.BeginTx(context.WithoutCancel(ctx), nil)
+	if err != nil {
+		_ = conn.Close()
+		return nil, fmt.Errorf("begin advisory lock transaction: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock($1, hashtext($2))", namespace, key); err != nil {
+		_ = tx.Rollback()
+		_ = conn.Close()
+		return nil, fmt.Errorf("take advisory lock: %w", err)
 	}
 	return func() {
 		// Rolling back an open transaction fails only when its session is
 		// already gone, for example ended by idle_in_transaction_session_timeout,
 		// a failover, or a dropped connection. Postgres released the lock at that
 		// point, so the work it guarded may have overlapped with another holder.
-		if err := tx.Rollback().Error; err != nil {
+		if err := tx.Rollback(); err != nil {
 			slog.Error("Advisory lock was lost before release; the work it guarded may not have been serialized",
 				"lockNamespace", namespace, "lockKey", key, "error", err)
 		}
+		_ = conn.Close()
 	}, nil
 }

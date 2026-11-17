@@ -186,3 +186,32 @@ func TestHoldAdvisoryLock_HolderKeepsUsingCappedPool(t *testing.T) {
 	defer release()
 	require.NoError(t, queryWithin(5*time.Second), "a lock held on the lock pool must leave the capped pool free")
 }
+
+// TestHoldAdvisoryLock_GivesUpWaitingForConnectionWhenCtxDone guards that ctx
+// also bounds getting a connection, not only waiting for the lock: a caller
+// that gives up must not stay blocked on a pool with no free connection.
+func TestHoldAdvisoryLock_GivesUpWaitingForConnectionWhenCtxDone(t *testing.T) {
+	pool := cappedPool(t, 1)
+	holder, err := holdAdvisoryLock(context.Background(), pool, testAdvisoryLockNamespace, uuid.NewString())
+	require.NoError(t, err)
+	defer holder()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	result := make(chan error, 1)
+	go func() {
+		release, err := holdAdvisoryLock(ctx, pool, testAdvisoryLockNamespace, uuid.NewString())
+		if err == nil {
+			release()
+		}
+		result <- err
+	}()
+
+	select {
+	case err := <-result:
+		require.ErrorIs(t, err, context.DeadlineExceeded, "the caller must give up once its context ends")
+	case <-time.After(5 * time.Second):
+		holder() // frees the pool's only connection so the goroutine can finish
+		t.Fatal("waiting for a connection must end when the caller's context does")
+	}
+}
