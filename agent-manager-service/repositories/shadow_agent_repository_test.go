@@ -237,6 +237,65 @@ func TestShadowStaleEvidenceRemovedOnCompleteListing(t *testing.T) {
 	assert.ElementsMatch(t, []string{"openai.agent_object", "foundry.external_possible_duplicate"}, codes)
 }
 
+// codeAgentInput is a code agent a source code scan found in a repository,
+// with its evidence.
+func codeAgentInput(externalID, repo string, at time.Time) ShadowFindingInput {
+	return ShadowFindingInput{
+		Finding: models.ShadowFinding{
+			Provider: models.ShadowProviderGitHub, Kind: models.ShadowKindCodeAgent, ExternalID: externalID,
+			DisplayName: externalID, Scope: repo, Attributes: map[string]any{},
+		},
+		Signals: []models.ShadowFindingSignal{{Code: "github.d2_agent_import", Source: "agent.py", DetectedAt: at}},
+	}
+}
+
+// A complete source code scan that could not finish a repository leaves that
+// repository's agents present and keeps their evidence; agents of the
+// repositories it finished follow the listing as before.
+func TestShadowUnfinishedScopesKeepTheirAgents(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	c := &models.ShadowConnection{
+		ID: uuid.New(), OUID: ou, Name: "repos", Provider: models.ShadowProviderGitHub,
+		Config:          models.ShadowConnectionConfig{Endpoints: map[string]string{"api": "https://api.github.com"}},
+		SecretEncrypted: []byte("ciphertext"), SecretHints: map[string]string{},
+	}
+	require.NoError(t, repo.CreateConnection(ctx, c))
+	t.Cleanup(func() { _, _ = repo.DeleteConnection(context.Background(), ou, c.ID) })
+	t0 := time.Now().UTC().Truncate(time.Microsecond)
+	_, err := repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
+		OUID: ou, ConnectionID: c.ID, ScanID: newShadowScan(t, repo, ou), ScanStartedAt: t0, Complete: true,
+		Findings: []ShadowFindingInput{
+			codeAgentInput("acme/a:kept", "acme/a", t0), codeAgentInput("acme/a:gone", "acme/a", t0),
+			codeAgentInput("acme/b:agent", "acme/b", t0),
+		},
+	})
+	require.NoError(t, err)
+
+	t1 := t0.Add(time.Hour)
+	_, err = repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
+		OUID: ou, ConnectionID: c.ID, ScanID: newShadowScan(t, repo, ou), ScanStartedAt: t1, Complete: true,
+		Findings:         []ShadowFindingInput{codeAgentInput("acme/a:kept", "acme/a", t1)},
+		UnfinishedScopes: []string{"acme/b"},
+	})
+	require.NoError(t, err)
+
+	rows, _, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{Limit: 10})
+	require.NoError(t, err)
+	present := map[string]ShadowFindingRow{}
+	for _, r := range rows {
+		present[r.ExternalID] = r
+	}
+	assert.Len(t, present, 2)
+	assert.Contains(t, present, "acme/a:kept", "returned again")
+	assert.NotContains(t, present, "acme/a:gone", "a finished repository no longer has it")
+	require.Contains(t, present, "acme/b:agent", "its repository was not finished")
+	signals, err := repo.ListSignals(ctx, ou, present["acme/b:agent"].ID)
+	require.NoError(t, err)
+	assert.Len(t, signals, 1, "the unfinished repository's evidence is kept")
+}
+
 // The same agent (provider, kind, external ID) found through two connections
 // is one agent: listed once with both connections, counted once, one status.
 func TestShadowAgentsAreDeduplicatedAcrossConnections(t *testing.T) {

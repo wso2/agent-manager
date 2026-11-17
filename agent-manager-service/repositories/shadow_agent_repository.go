@@ -53,6 +53,10 @@ type ShadowConnectionApply struct {
 	// scan did not return marked as no longer present, and its stale
 	// evidence removed.
 	Complete bool
+	// UnfinishedScopes are the scopes (for a source code scan, the
+	// repositories) the scan could not finish; when Complete, their agents
+	// and evidence are left as they are. Empty for cloud scans.
+	UnfinishedScopes []string
 }
 
 // ShadowFindingFilter selects agents.
@@ -397,16 +401,22 @@ func (r *shadowAgentRepository) ApplyConnectionResult(ctx context.Context, in Sh
 		}
 		// Every listing succeeded: an agent this scan did not return is no
 		// longer listed by the platform (or no longer in the connection's
-		// scope), and evidence this scan did not see again is gone.
-		if err := tx.Exec(`UPDATE shadow_findings SET present = FALSE, updated_at = NOW()
-			WHERE ou_id = ? AND connection_id = ? AND present AND last_seen_at < ?`,
-			in.OUID, in.ConnectionID, in.ScanStartedAt).Error; err != nil {
+		// scope), and evidence this scan did not see again is gone. Agents
+		// of a scope the scan could not finish (a repository a source code
+		// scan failed on) keep their presence and evidence.
+		skipScopes, skipArgs := "", []any{}
+		if len(in.UnfinishedScopes) > 0 {
+			skipScopes, skipArgs = " AND f.scope NOT IN ?", []any{in.UnfinishedScopes}
+		}
+		if err := tx.Exec(`UPDATE shadow_findings f SET present = FALSE, updated_at = NOW()
+			WHERE f.ou_id = ? AND f.connection_id = ? AND f.present AND f.last_seen_at < ?`+skipScopes,
+			append([]any{in.OUID, in.ConnectionID, in.ScanStartedAt}, skipArgs...)...).Error; err != nil {
 			return fmt.Errorf("marking agents no longer listed: %w", err)
 		}
 		if err := tx.Exec(`DELETE FROM shadow_finding_signals s USING shadow_findings f
 			WHERE s.finding_id = f.id AND f.ou_id = ? AND f.connection_id = ? AND f.present
-				AND s.source <> ? AND s.detected_at < ?`,
-			in.OUID, in.ConnectionID, ShadowCorrelationSource, in.ScanStartedAt).Error; err != nil {
+				AND s.source <> ? AND s.detected_at < ?`+skipScopes,
+			append([]any{in.OUID, in.ConnectionID, ShadowCorrelationSource, in.ScanStartedAt}, skipArgs...)...).Error; err != nil {
 			return fmt.Errorf("removing evidence no longer seen: %w", err)
 		}
 		return nil
