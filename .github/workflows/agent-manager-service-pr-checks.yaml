@@ -74,9 +74,17 @@ jobs:
           retention-days: 7
 
   integration:
-    name: Integration Tests
+    name: Integration Tests (${{ matrix.name }})
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: SQLite
+            db: sqlite
+          - name: PostgreSQL 18
+            db: postgres
 
     steps:
       - name: Checkout code
@@ -88,15 +96,17 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Start PostgreSQL
+        if: matrix.db == 'postgres'
         run: |
           docker run -d --name postgres \
             -e POSTGRES_USER=agentmanager \
             -e POSTGRES_PASSWORD=agentmanager \
             -e POSTGRES_DB=agentmanager \
             -p 5432:5432 \
-            public.ecr.aws/docker/library/postgres:15-alpine
+            public.ecr.aws/docker/library/postgres:18-alpine
 
       - name: Wait for PostgreSQL
+        if: matrix.db == 'postgres'
         run: |
           until docker exec postgres pg_isready -U agentmanager; do
             echo "Waiting for postgres..."
@@ -105,6 +115,7 @@ jobs:
         timeout-minutes: 2
 
       - name: Get PostgreSQL host
+        if: matrix.db == 'postgres'
         id: postgres
         run: |
           POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
@@ -112,6 +123,7 @@ jobs:
           echo "PostgreSQL IP: ${POSTGRES_IP}"
 
       - name: Create test .env file
+        if: matrix.db == 'postgres'
         working-directory: ./agent-manager-service
         run: |
           cat > .env << EOF
@@ -133,13 +145,15 @@ jobs:
 
       - name: Run integration tests
         working-directory: ./agent-manager-service
+        env:
+          DB_DRIVER: ${{ matrix.db }}
         run: make test-integration
 
       - name: Upload integration coverage
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: coverage-integration
+          name: coverage-integration-${{ matrix.db }}
           path: agent-manager-service/localdata/coverage-integration.out
           retention-days: 7
 
@@ -147,7 +161,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: integration-test-logs
+          name: integration-test-logs-${{ matrix.db }}
           path: agent-manager-service/localdata/test_output_isolated.log
           retention-days: 7
 
