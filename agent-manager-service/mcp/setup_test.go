@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -83,7 +84,7 @@ func TestFullHTTPChainDeliversPerRequestTokenInfo(t *testing.T) {
 		return &gomcp.CallToolResult{}, nil, nil
 	})
 
-	streamableHandler := gomcp.NewStreamableHTTPHandler(func(*http.Request) *gomcp.Server { return server }, nil)
+	streamableHandler := newStreamableHandler(server)
 
 	// Mirrors mcp/setup.go RegisterRoute: the SDK's bearer-token middleware
 	// runs INSIDE our auth middleware.
@@ -122,5 +123,41 @@ func TestFullHTTPChainDeliversPerRequestTokenInfo(t *testing.T) {
 	}
 	if gotTokenInfo.Expiration.IsZero() {
 		t.Error("TokenInfo.Expiration is zero, want the mock middleware's future expiry")
+	}
+}
+
+// TestSessionSurvivesRequestsLandingOnDifferentReplicas stands two independent
+// handlers up as two replicas and alternates requests between them, the way a
+// plain load balancer does. A client must be able to initialize on one and
+// keep working on the other; with a stateful handler the second request would
+// get 404 "session not found".
+func TestSessionSurvivesRequestsLandingOnDifferentReplicas(t *testing.T) {
+	replicas := []http.Handler{
+		testAuthMiddleware(auth.RequireBearerToken(claimsTokenVerifier, nil)(NewHTTPServer(nil))),
+		testAuthMiddleware(auth.RequireBearerToken(claimsTokenVerifier, nil)(NewHTTPServer(nil))),
+	}
+	var next atomic.Uint32
+	loadBalancer := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		replicas[next.Add(1)%uint32(len(replicas))].ServeHTTP(w, r)
+	})
+
+	httpServer := httptest.NewServer(loadBalancer)
+	t.Cleanup(httpServer.Close)
+
+	client := gomcp.NewClient(&gomcp.Implementation{Name: "test-client", Version: "0.0.1"}, nil)
+	transport := &gomcp.StreamableClientTransport{
+		Endpoint:   httpServer.URL,
+		HTTPClient: &http.Client{Transport: bearerInjectingTransport{}},
+	}
+	session, err := client.Connect(context.Background(), transport, nil)
+	if err != nil {
+		t.Fatalf("client.Connect failed: %v", err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	for i := range 4 {
+		if _, err := session.ListTools(context.Background(), nil); err != nil {
+			t.Fatalf("ListTools #%d failed: %v", i+1, err)
+		}
 	}
 }
