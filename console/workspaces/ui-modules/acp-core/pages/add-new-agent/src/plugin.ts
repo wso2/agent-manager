@@ -47,11 +47,15 @@ export const addNewAgentPlugin: PluginManifest = {
         })),
     },
     {
-      // The old source-type step; its links now lead to the agent-type cards.
+      // Any create URL no active route claims: the old source-type step
+      // (/newAgent/create) and deep links to a type whose module is off
+      // (e.g. create/source?sample=… or create/catalog/:kindId). They lead to
+      // the agent-type cards instead of Not Found. Active types' routes are
+      // more specific, so the router still prefers them.
       type: "route",
       id: "legacy-create-redirect",
       level: "project",
-      path: orgNav.projects.children.newAgent.children.create.path,
+      path: orgNav.projects.children.newAgent.wildPath,
       load: () =>
         import("./index").then((m) => ({ default: m.LegacyCreateRedirect })),
     },

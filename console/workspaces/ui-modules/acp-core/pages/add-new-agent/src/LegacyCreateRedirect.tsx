@@ -20,9 +20,10 @@ import { generatePath, Navigate, useLocation, useParams } from "react-router-dom
 import { absoluteRouteMap } from "@agent-management-platform/types";
 
 /**
- * /newAgent/create was the "Source Code / Agent Catalog" step, now replaced by
- * agent-type cards on the Add a New Agent page. Old links and history entries
- * land here; send them to that page, keeping the wizard's return state.
+ * Catches /newAgent/* URLs no active route claims: /newAgent/create, once the
+ * "Source Code / Agent Catalog" step and now replaced by agent-type cards, and
+ * deep links to an agent type whose module is off. Sends them to the Add a New
+ * Agent page, keeping the wizard's return state.
  */
 export function LegacyCreateRedirect() {
   const { orgId, projectId } = useParams<{ orgId: string; projectId?: string }>();
