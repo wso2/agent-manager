@@ -547,3 +547,16 @@ func TestPassiveHostActivatesNothingToList(t *testing.T) {
 	assert.Equal(t, modhost.StateActive, list[0].State)
 	assert.EqualValues(t, 0, calls.Load())
 }
+
+func TestMigrationNamesCarryAVersion(t *testing.T) {
+	d := databases(t)[0]
+	g := d.open(t)
+	require.NoError(t, dbmigrations.MigrateBaseline(g, d.driver))
+	for _, name := range []string{"1_x.sql", "x.sql", "0010_x.sql", "001-x.sql", "001_X.sql"} {
+		t.Run(name, func(t *testing.T) {
+			m := &testModule{manifest: manifest("t-named", nil, nil), migrations: rawSQL(map[string]string{name: "CREATE TABLE mod_t_named_x (id INTEGER);\n"})}
+			_, err := modhost.NewWith(g, d.driver, quiet, []modkit.Module{m}).Migrate(context.Background())
+			assert.ErrorContains(t, err, "NNN_description.sql")
+		})
+	}
+}

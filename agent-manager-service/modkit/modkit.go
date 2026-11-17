@@ -32,10 +32,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -254,14 +257,48 @@ var (
 	registry = map[string]Module{}
 )
 
+// maxNameLength keeps a module's table prefix short enough to leave room for
+// table names within the 63-character limit every database shares.
+const maxNameLength = 24
+
+var namePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+
+// tablePrefix is the prefix of a module's tables: mod_<name>_, with "-" written as "_".
+func tablePrefix(name string) string {
+	return "mod_" + strings.ReplaceAll(name, "-", "_") + "_"
+}
+
+// CheckName reports whether name is a valid module name next to the modules
+// already named in others. Names are lowercase letters, digits and dashes.
+// No two modules may share a table prefix (a-b and a_b would), and no prefix
+// may start another (t and t-x would: mod_t_ starts mod_t_x_), so a module's
+// tables can never be mistaken for another's.
+func CheckName(name string, others []string) error {
+	if !namePattern.MatchString(name) || len(name) > maxNameLength {
+		return fmt.Errorf("modkit: module name %q must be lowercase letters, digits and dashes, starting with a letter, at most %d characters", name, maxNameLength)
+	}
+	p := tablePrefix(name)
+	for _, o := range others {
+		q := tablePrefix(o)
+		if strings.HasPrefix(p, q) || strings.HasPrefix(q, p) {
+			return fmt.Errorf("modkit: module names %q and %q give overlapping table prefixes %s and %s", name, o, p, q)
+		}
+	}
+	return nil
+}
+
 // Register makes a module available in this binary. Call it from init().
 // Being registered does not install the module.
 func Register(m Module) {
 	regMu.Lock()
 	defer regMu.Unlock()
 	name := m.Manifest().Name
-	if _, dup := registry[name]; dup {
-		panic("modkit: module registered twice: " + name)
+	others := make([]string, 0, len(registry))
+	for n := range registry {
+		others = append(others, n)
+	}
+	if err := CheckName(name, others); err != nil {
+		panic(err.Error())
 	}
 	registry[name] = m
 }

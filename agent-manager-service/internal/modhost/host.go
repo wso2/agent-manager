@@ -98,7 +98,8 @@ func New(db *gorm.DB, driver string, log *slog.Logger) *Host {
 }
 
 // NewWith creates a host for an explicit set of modules; tests use it to stand
-// in for a different binary.
+// in for a different binary. Like modkit.Register, it panics on module names
+// that are invalid or would share tables.
 func NewWith(db *gorm.DB, driver string, log *slog.Logger, mods []modkit.Module) *Host {
 	h := &Host{
 		db: db, driver: driver, log: log,
@@ -107,6 +108,9 @@ func NewWith(db *gorm.DB, driver string, log *slog.Logger, mods []modkit.Module)
 	}
 	for _, m := range mods {
 		mf := m.Manifest()
+		if err := modkit.CheckName(mf.Name, h.names()); err != nil {
+			panic(err.Error())
+		}
 		h.mods[mf.Name] = m
 		h.manifests[mf.Name] = mf
 	}

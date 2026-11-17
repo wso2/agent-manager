@@ -43,7 +43,16 @@ type migration struct {
 	Checksum   string
 }
 
+// migrationFile is the name every module migration has: a three-digit version,
+// so versions sort and compare as strings, and a description.
+var migrationFile = regexp.MustCompile(`^[0-9]{3}_[a-z0-9_]+\.sql$`)
+
 // tableRefs find the tables a statement creates, changes, writes to or references.
+//
+// TODO: this is a guard rail for first-party modules, not a boundary: CREATE
+// TRIGGER or VIEW over core tables, aliased UPDATEs, REPLACE INTO, multi-table
+// DROP and keywords inside string literals slip past it. Replace it with a
+// whitelist of statement kinds before modules come from anywhere else.
 var tableRefs = func() []*regexp.Regexp {
 	const ifExists = `(?:IF\s+(?:NOT\s+)?EXISTS\s+)?`
 	const name = `"?([A-Za-z_][A-Za-z0-9_]*)`
@@ -80,6 +89,9 @@ func loadMigrations(module, driver string, fsys fs.FS) ([]migration, error) {
 	for _, e := range entries {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".sql") {
 			continue
+		}
+		if !migrationFile.MatchString(e.Name()) {
+			return nil, fmt.Errorf("module %s migration %s: migrations are named NNN_description.sql", module, e.Name())
 		}
 		body, err := fs.ReadFile(fsys, path.Join(driver, e.Name()))
 		if err != nil {
