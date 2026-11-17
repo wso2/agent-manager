@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/vault"
 	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
 
@@ -46,7 +47,12 @@ type providerFixture struct {
 
 func newProviderFixture(t *testing.T) *providerFixture {
 	t.Helper()
-	f := &providerFixture{sync: newSyncFixture(t), hub: &recordingEventHub{}, secrets: repositories.NewSecretStore(vaulttest.Local(t))}
+	return newProviderFixtureWithVault(t, vaulttest.Local(t))
+}
+
+func newProviderFixtureWithVault(t *testing.T, vaults *vault.Vaults) *providerFixture {
+	t.Helper()
+	f := &providerFixture{sync: newSyncFixture(t), hub: &recordingEventHub{}, secrets: repositories.NewSecretStore(vaults)}
 	gormDB := db.GetDB()
 	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(f.secrets)}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))

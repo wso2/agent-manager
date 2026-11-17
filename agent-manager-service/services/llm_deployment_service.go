@@ -169,11 +169,14 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	}
 
-	var applied *reconcile.Applied
-	err = s.tx(ctx, func(tx *gorm.DB) error {
-		applied, err = s.core.Deploy(ctx, tx, providerPlacement(provider, ouID, gatewayUUID))
-		return err
-	})
+	// Re-read once if an edit replaces the credential while the vault is being read.
+	applied, err := s.deployProvider(ctx, provider, ouID, gatewayUUID)
+	if errors.Is(err, errProviderCredentialChanged) {
+		provider, err = s.resolveProvider(provider.UUID.String(), ouID)
+		if err == nil {
+			applied, err = s.deployProvider(ctx, provider, ouID, gatewayUUID)
+		}
+	}
 	if err != nil {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to deploy", "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
@@ -181,6 +184,39 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 
 	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: deployment started", "providerID", providerID, "deploymentID", applied.DeploymentID)
 	return applied.Deployment, nil
+}
+
+func (s *LLMProviderDeploymentService) deployProvider(ctx context.Context, provider *models.LLMProvider,
+	ouID string, gatewayUUID uuid.UUID,
+) (*reconcile.Applied, error) {
+	if provider == nil {
+		return nil, utils.ErrLLMProviderNotFound
+	}
+	var prepared preparedProviderCredential
+	if provider.UpstreamSecretID != nil {
+		snapshot, err := s.providerRepo.SnapshotUpstreamCredential(ctx, nil, provider)
+		if err != nil {
+			return nil, err
+		}
+		if snapshot.External() {
+			// Bound this read even for the deployment callers that use a background context.
+			readCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			value, err := snapshot.Open(readCtx)
+			cancel()
+			if err != nil {
+				return nil, err
+			}
+			prepared = preparedProviderCredential{snapshot: snapshot, value: value}
+		}
+	}
+	deployCtx := context.WithValue(ctx, preparedProviderCredentialKey{}, prepared)
+	var applied *reconcile.Applied
+	err := s.tx(ctx, func(tx *gorm.DB) error {
+		var err error
+		applied, err = s.core.Deploy(deployCtx, tx, providerPlacement(provider, ouID, gatewayUUID))
+		return err
+	})
+	return applied, err
 }
 
 // validateDeployBase accepts only a deploy of the current configuration. Redeploying an earlier deployment is a

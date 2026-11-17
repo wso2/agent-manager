@@ -88,6 +88,8 @@ type EventRepository interface {
 	// GetDestination returns the org's destination with id, or
 	// gorm.ErrRecordNotFound.
 	GetDestination(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error)
+	// LoadDestinationSecret opens the credential only when preparing delivery.
+	LoadDestinationSecret(ctx context.Context, d *models.EventDestination) error
 	// DestinationsByID returns those of ids that are the org's destinations.
 	DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error)
 	// CreateDestination saves a new destination. A name the org already uses,
@@ -259,7 +261,7 @@ func optionalID(ids map[string]uuid.UUID, name string) *uuid.UUID {
 	return nil
 }
 
-// loadDestinations fills the destinations' projects and secrets.
+// loadDestinations fills the destinations' projects without opening credentials.
 func (r *eventRepository) loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
 	if len(ds) == 0 {
 		return nil
@@ -295,9 +297,6 @@ func (r *eventRepository) loadDestinations(db *gorm.DB, ds []models.EventDestina
 			projects = []string{}
 		}
 		ds[i].Projects = projects
-		if ds[i].Secret, err = r.secrets.get(db, ds[i].SecretID); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -344,6 +343,15 @@ func (r *eventRepository) GetDestination(ctx context.Context, ouID string, id uu
 		return nil, err
 	}
 	return &ds[0], nil
+}
+
+func (r *eventRepository) LoadDestinationSecret(ctx context.Context, d *models.EventDestination) error {
+	value, err := r.secrets.get(r.db.WithContext(ctx), d.SecretID)
+	if err != nil {
+		return err
+	}
+	d.Secret = value
+	return nil
 }
 
 func (r *eventRepository) DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error) {
@@ -435,20 +443,18 @@ func (r *eventRepository) UpdateDestination(
 		if !d.UpdatedAt.After(locked.UpdatedAt) {
 			d.UpdatedAt = locked.UpdatedAt.Add(time.Microsecond)
 		}
-		secretID, err := r.secrets.put(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, d.Secret)
-		if err != nil {
-			return err
+		d.SecretID = locked.SecretID
+		if d.Secret != "" {
+			secretID, err := r.secrets.put(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, d.Secret)
+			if err != nil {
+				return err
+			}
+			d.SecretID = secretID
 		}
-		d.SecretID = secretID
 		if err := tx.Model(&models.EventDestination{}).Where("id = ?", d.ID).
 			Select("name", "description", "config", "secret_id", "availability", "updated_at").
 			UpdateColumns(d).Error; err != nil {
 			return err
-		}
-		if secretID == nil {
-			if err := r.secrets.delete(tx, locked.SecretID); err != nil {
-				return err
-			}
 		}
 		return saveDestinationProjects(tx, d)
 	})

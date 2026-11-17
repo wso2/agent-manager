@@ -53,6 +53,8 @@ type LLMProviderRepository interface {
 	// inserts the dependent row (e.g. a proxy), so the check and the insert are
 	// atomic with MarkDeleting's row-locking UPDATE — see LLMProxyRepo.Create.
 	IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, providerUUID uuid.UUID) (bool, error)
+	// SnapshotUpstreamCredential reads the row without calling the vault.
+	SnapshotUpstreamCredential(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) (*UpstreamCredential, error)
 	// ResolveUpstreamAuth puts the stored main upstream credential back into p's configuration as the encrypted
 	// secretRef a gateway artifact carries, reading it through tx (the repository's own connection when nil). A provider saved before credentials moved to the
 	// secrets table already has it inline and is left as it is. Call it only to render an artifact: the credential
@@ -120,6 +122,16 @@ func (r *LLMProviderRepo) saveUpstreamCredential(
 	ref := auth.SecretRef
 	auth.SecretRef = nil
 	return id, func() { auth.SecretRef = ref }, nil
+}
+
+func (r *LLMProviderRepo) SnapshotUpstreamCredential(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) (*UpstreamCredential, error) {
+	if providerMainAuth(p) == nil || p.UpstreamSecretID == nil {
+		return nil, nil //nolint:nilnil // no referenced credential
+	}
+	if tx == nil {
+		tx = r.db
+	}
+	return r.secrets.SnapshotUpstreamCredential(ctx, tx, p.UpstreamSecretID)
 }
 
 // ResolveUpstreamAuth implements LLMProviderRepository.

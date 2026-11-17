@@ -124,8 +124,8 @@ func (f *statusPathFixture) core(kinds ...reconcile.Kind) *reconcile.Core {
 
 // providerKindOf renders provider whatever artifact it is asked for.
 func providerKindOf(provider *models.LLMProvider) *LLMProviderKind {
-	return &LLMProviderKind{load: func(context.Context, models.ArtifactRef) (*models.LLMProvider, error) {
-		return provider, nil
+	return &LLMProviderKind{load: func(context.Context, models.ArtifactRef) (*models.LLMProvider, *repositories.UpstreamCredential, error) {
+		return provider, nil, nil
 	}}
 }
 

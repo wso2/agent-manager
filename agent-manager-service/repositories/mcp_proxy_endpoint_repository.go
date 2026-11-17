@@ -44,10 +44,6 @@ type MCPProxyEndpointRepository interface {
 	// DeleteEndpoint deletes the endpoint and releases its upstream secret, unless that secret is in keepSecrets: an
 	// endpoint created next in the same transaction takes it over.
 	DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, keepSecrets ...uuid.UUID) error
-	// ResolveUpstreamAuth puts the stored upstream credential back into the endpoint's configuration as the encrypted
-	// secretRef a gateway artifact carries, reading it through tx (the repository's own connection when nil). An endpoint created before credentials moved to the
-	// secrets table already has it inline and is left as it is. Call it only to render an artifact.
-	ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
 	GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
 	// ListEndpointsByProxy returns every endpoint of the proxy with its
 	// environment bindings preloaded.
@@ -221,33 +217,6 @@ func (r *mcpProxyEndpointRepository) DeleteEndpoint(ctx context.Context, tx *gor
 			return fmt.Errorf("failed to release MCP upstream credential: %w", err)
 		}
 	}
-	return nil
-}
-
-func (r *mcpProxyEndpointRepository) ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
-	if endpoint == nil || endpoint.UpstreamSecretID == nil {
-		return nil
-	}
-	auth := endpointAuth(endpoint)
-	if auth == nil {
-		return nil
-	}
-	if r.secrets == nil {
-		return errNoSecretStore
-	}
-	if tx == nil {
-		tx = r.db
-	}
-	value, found, err := r.secrets.Read(ctx, tx, *endpoint.UpstreamSecretID)
-	if err != nil {
-		return fmt.Errorf("failed to read upstream credential of MCP proxy endpoint %s: %w", endpoint.UUID, err)
-	}
-	if !found {
-		return fmt.Errorf("upstream credential of MCP proxy endpoint %s is missing", endpoint.UUID)
-	}
-	ref := string(value)
-	auth.SecretRef = &ref
-	auth.Value = nil
 	return nil
 }
 

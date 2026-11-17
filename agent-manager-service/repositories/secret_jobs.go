@@ -33,7 +33,8 @@ import (
 
 const (
 	// secretJobLease is how long a claimed job is held; one attempt is a vault call and two short transactions.
-	secretJobLease = 2 * time.Minute
+	secretJobLease          = 2 * time.Minute
+	secretJobAttemptTimeout = time.Minute
 	// secretJobBatch is how many jobs one pass claims.
 	secretJobBatch = 50
 	// secretJobMaxBackoff caps the wait between attempts of a failing job.
@@ -70,14 +71,15 @@ func requireSecretJobChange(res *gorm.DB) error {
 // has committed. Jobs are claimed with a lease, so any number of replicas can run passes, and a failed job is retried
 // with backoff until it succeeds. Every step is safe to repeat.
 type SecretJobRunner struct {
-	db     *gorm.DB
-	vaults *vault.Vaults
-	logger *slog.Logger
+	db             *gorm.DB
+	vaults         *vault.Vaults
+	logger         *slog.Logger
+	attemptTimeout time.Duration
 }
 
 // NewSecretJobRunner runs secret jobs against db with the deployment's vaults.
 func NewSecretJobRunner(db *gorm.DB, vaults *vault.Vaults, logger *slog.Logger) *SecretJobRunner {
-	return &SecretJobRunner{db: db, vaults: vaults, logger: logger}
+	return &SecretJobRunner{db: db, vaults: vaults, logger: logger, attemptTimeout: secretJobAttemptTimeout}
 }
 
 // RunOnce claims the jobs due at now and runs them, returning how many it ran and how many failed. err is a failure to
@@ -128,7 +130,9 @@ func (r *SecretJobRunner) renew(ctx context.Context, job *secretJobAttempt) erro
 }
 
 func (r *SecretJobRunner) runWithLease(ctx context.Context, job *secretJobAttempt) error {
-	workCtx, cancel := context.WithCancelCause(ctx)
+	deadlineCtx, stopDeadline := context.WithTimeout(ctx, r.attemptTimeout)
+	defer stopDeadline()
+	workCtx, cancel := context.WithCancelCause(deadlineCtx)
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
@@ -239,14 +243,12 @@ func (r *SecretJobRunner) promote(ctx context.Context, job *secretJobAttempt) er
 		return r.finishQueueing(ctx, job, staged, replaced)
 	}
 
-	writer := r.vaults.Writer()
-	if staged != nil {
-		writer, err = r.vaults.For(staged.provider)
-		if err != nil {
-			return err
-		}
-	} else if writer.Provider() == vault.ProviderLocal {
-		return r.finishQueueing(ctx, job, replaced)
+	if staged == nil {
+		return fmt.Errorf("secret promotion %s has no recorded vault target; save the credential again to queue a new promotion", job.ID)
+	}
+	writer, err := r.vaults.For(staged.provider)
+	if err != nil {
+		return err
 	}
 	external, ok := writer.(vault.ExternalVault)
 	if !ok {
@@ -263,25 +265,7 @@ func (r *SecretJobRunner) promote(ctx context.Context, job *secretJobAttempt) er
 	}
 	ref := jobRef(job.SecretJob)
 	ref.OperationID = job.ID
-	if staged == nil {
-		path, err := external.PromotionReference(ref)
-		if err != nil {
-			return fmt.Errorf("failed to reserve a reference in vault %s: %w", writer.Provider(), err)
-		}
-		destination := externalValue{provider: writer.Provider(), ref: path}
-		if path == "" || (replaced != nil && destination == *replaced) {
-			return fmt.Errorf("vault %s returned an invalid promotion reference", writer.Provider())
-		}
-		// Persist the destination before making an external call. A retry can
-		// use the same operation or clean it up even if Seal never returned.
-		res := job.claimed(r.db.WithContext(ctx).Model(&models.SecretJob{})).
-			Where("version = ?", row.Version).
-			Updates(map[string]any{"staged_provider": destination.provider, "staged_ref": destination.ref})
-		if err := requireSecretJobChange(res); err != nil {
-			return err
-		}
-		staged = &destination
-	}
+
 	var current *vault.Sealed
 	if replaced != nil && replaced.provider == writer.Provider() {
 		current = &vault.Sealed{ExternalRef: replaced.ref}

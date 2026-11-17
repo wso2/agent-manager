@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"gorm.io/gorm"
 )
 
@@ -59,6 +60,9 @@ import (
 //			},
 //			ResolveUpstreamAuthFunc: func(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) error {
 //				panic("mock out the ResolveUpstreamAuth method")
+//			},
+//			SnapshotUpstreamCredentialFunc: func(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) (*repositories.UpstreamCredential, error) {
+//				panic("mock out the SnapshotUpstreamCredential method")
 //			},
 //			UpdateFunc: func(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error {
 //				panic("mock out the Update method")
@@ -111,6 +115,9 @@ type LLMProviderRepositoryMock struct {
 
 	// ResolveUpstreamAuthFunc mocks the ResolveUpstreamAuth method.
 	ResolveUpstreamAuthFunc func(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) error
+
+	// SnapshotUpstreamCredentialFunc mocks the SnapshotUpstreamCredential method.
+	SnapshotUpstreamCredentialFunc func(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) (*repositories.UpstreamCredential, error)
 
 	// UpdateFunc mocks the Update method.
 	UpdateFunc func(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error
@@ -229,6 +236,15 @@ type LLMProviderRepositoryMock struct {
 			// P is the p argument value.
 			P *models.LLMProvider
 		}
+		// SnapshotUpstreamCredential holds details about calls to the SnapshotUpstreamCredential method.
+		SnapshotUpstreamCredential []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// P is the p argument value.
+			P *models.LLMProvider
+		}
 		// Update holds details about calls to the Update method.
 		Update []struct {
 			// Ctx is the ctx argument value.
@@ -241,21 +257,22 @@ type LLMProviderRepositoryMock struct {
 			OrgUUID string
 		}
 	}
-	lockClearDeleting        sync.RWMutex
-	lockCount                sync.RWMutex
-	lockCreate               sync.RWMutex
-	lockDelete               sync.RWMutex
-	lockDeleteCtx            sync.RWMutex
-	lockDeleteTx             sync.RWMutex
-	lockExists               sync.RWMutex
-	lockGetByHandle          sync.RWMutex
-	lockGetByUUID            sync.RWMutex
-	lockHasAssociatedProxies sync.RWMutex
-	lockIsDeletingForUpdate  sync.RWMutex
-	lockList                 sync.RWMutex
-	lockMarkDeleting         sync.RWMutex
-	lockResolveUpstreamAuth  sync.RWMutex
-	lockUpdate               sync.RWMutex
+	lockClearDeleting              sync.RWMutex
+	lockCount                      sync.RWMutex
+	lockCreate                     sync.RWMutex
+	lockDelete                     sync.RWMutex
+	lockDeleteCtx                  sync.RWMutex
+	lockDeleteTx                   sync.RWMutex
+	lockExists                     sync.RWMutex
+	lockGetByHandle                sync.RWMutex
+	lockGetByUUID                  sync.RWMutex
+	lockHasAssociatedProxies       sync.RWMutex
+	lockIsDeletingForUpdate        sync.RWMutex
+	lockList                       sync.RWMutex
+	lockMarkDeleting               sync.RWMutex
+	lockResolveUpstreamAuth        sync.RWMutex
+	lockSnapshotUpstreamCredential sync.RWMutex
+	lockUpdate                     sync.RWMutex
 }
 
 // ClearDeleting calls ClearDeletingFunc.
@@ -787,6 +804,46 @@ func (mock *LLMProviderRepositoryMock) ResolveUpstreamAuthCalls() []struct {
 	mock.lockResolveUpstreamAuth.RLock()
 	calls = mock.calls.ResolveUpstreamAuth
 	mock.lockResolveUpstreamAuth.RUnlock()
+	return calls
+}
+
+// SnapshotUpstreamCredential calls SnapshotUpstreamCredentialFunc.
+func (mock *LLMProviderRepositoryMock) SnapshotUpstreamCredential(ctx context.Context, tx *gorm.DB, p *models.LLMProvider) (*repositories.UpstreamCredential, error) {
+	if mock.SnapshotUpstreamCredentialFunc == nil {
+		panic("LLMProviderRepositoryMock.SnapshotUpstreamCredentialFunc: method is nil but LLMProviderRepository.SnapshotUpstreamCredential was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+		Tx  *gorm.DB
+		P   *models.LLMProvider
+	}{
+		Ctx: ctx,
+		Tx:  tx,
+		P:   p,
+	}
+	mock.lockSnapshotUpstreamCredential.Lock()
+	mock.calls.SnapshotUpstreamCredential = append(mock.calls.SnapshotUpstreamCredential, callInfo)
+	mock.lockSnapshotUpstreamCredential.Unlock()
+	return mock.SnapshotUpstreamCredentialFunc(ctx, tx, p)
+}
+
+// SnapshotUpstreamCredentialCalls gets all the calls that were made to SnapshotUpstreamCredential.
+// Check the length with:
+//
+//	len(mockedLLMProviderRepository.SnapshotUpstreamCredentialCalls())
+func (mock *LLMProviderRepositoryMock) SnapshotUpstreamCredentialCalls() []struct {
+	Ctx context.Context
+	Tx  *gorm.DB
+	P   *models.LLMProvider
+} {
+	var calls []struct {
+		Ctx context.Context
+		Tx  *gorm.DB
+		P   *models.LLMProvider
+	}
+	mock.lockSnapshotUpstreamCredential.RLock()
+	calls = mock.calls.SnapshotUpstreamCredential
+	mock.lockSnapshotUpstreamCredential.RUnlock()
 	return calls
 }
 

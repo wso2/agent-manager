@@ -127,6 +127,71 @@ func assertNoCredentialIn(t *testing.T, response any, secrets ...string) {
 	}
 }
 
+type inspectingCredentialVault struct {
+	*vaulttest.External
+	afterOpen func(context.Context, vault.Ref) error
+}
+
+func (v *inspectingCredentialVault) Open(ctx context.Context, ref vault.Ref, sealed vault.Sealed) ([]byte, error) {
+	value, err := v.External.Open(ctx, ref, sealed)
+	if err == nil && v.afterOpen != nil {
+		err = v.afterOpen(ctx, ref)
+	}
+	return value, err
+}
+
+func deploymentTestVault(t *testing.T) (*vault.Vaults, *inspectingCredentialVault) {
+	t.Helper()
+	local, err := vault.NewLocal(vaulttest.Key)
+	require.NoError(t, err)
+	external := &inspectingCredentialVault{External: vaulttest.NewExternal()}
+	return vault.Of(external, local), external
+}
+
+func promoteDeploymentCredentials(t *testing.T, vaults *vault.Vaults) {
+	t.Helper()
+	runner := repositories.NewSecretJobRunner(db.GetDB(), vaults, slog.New(slog.DiscardHandler))
+	_, failed, err := runner.RunOnce(context.Background(), dbx.Now())
+	require.NoError(t, err)
+	require.Zero(t, failed)
+}
+
+func TestLLMProviderDeploymentRetriesCredentialChangedDuringExternalRead(t *testing.T) {
+	ctx := context.Background()
+	vaults, external := deploymentTestVault(t)
+	f := newProviderFixtureWithVault(t, vaults)
+	provider := f.newProvider(t)
+	withAuth(provider, strValue("original"))
+	created, err := f.providers.Create(ctx, f.sync.ouID, "me", provider)
+	require.NoError(t, err)
+	row, _ := storedProvider(t, created.UUID)
+	require.NotNil(t, row.UpstreamSecretID)
+	id := *row.UpstreamSecretID
+	promoteDeploymentCredentials(t, vaults)
+	t.Cleanup(func() {
+		_ = db.GetDB().Where("secret_id = ?", id).Delete(&models.SecretJob{}).Error
+	})
+
+	opens := 0
+	external.afterOpen = func(readCtx context.Context, ref vault.Ref) error {
+		assert.Nil(t, db.TxFrom(readCtx))
+		assert.Equal(t, id, ref.SecretID)
+		opens++
+		replacement, err := utils.EncryptSecretRef("replacement", fixtureKey)
+		if err != nil {
+			return err
+		}
+		// A second write succeeds even on SQLite while the credential read is in flight.
+		return f.secrets.Write(readCtx, db.GetDB(), f.sync.ouID, "llm_provider", created.UUID, id, []byte(replacement))
+	}
+	deployed, err := f.deployment.DeployLLMProvider(created.UUID.String(),
+		&models.DeployAPIRequest{GatewayID: f.sync.gateway.String()}, f.sync.ouID)
+	require.NoError(t, err)
+	require.NotNil(t, deployed)
+	assert.Equal(t, 1, opens)
+	assert.Equal(t, "replacement", renderedCredential(t, deployed.Content))
+}
+
 func TestLLMProviderUpstreamCredentialLivesInTheSecretStore(t *testing.T) {
 	f := newProviderFixture(t)
 	ctx := context.Background()
@@ -335,12 +400,49 @@ func newMCPSecretFixture(t *testing.T, vaults *vault.Vaults) (*mcpFixture, uuid.
 	store := repositories.NewSecretStore(vaults)
 	f.secrets = store
 	f.svc.endpointRepo = repositories.NewMCPProxyEndpointRepository(db.GetDB(), store)
-	f.svc.kind.load = func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error) {
-		return loadMCPArtifact(ctx, store, artifact)
-	}
+	f.svc.kind.secrets = store
 	gateway := f.mapGateway(t, f.env)
 	require.NoError(t, f.deploy(t))
 	return f, gateway
+}
+
+func TestMCPExternalCredentialRenderRunsAfterTheSaveCommits(t *testing.T) {
+	ctx := context.Background()
+	vaults, external := deploymentTestVault(t)
+	f, gateway := newMCPSecretFixture(t, vaults)
+	_, err := f.svc.Update(ctx, f.sync.ouID, mcpSourceHandle(f.proxy), f.updateRequest(mcpAuth(strValue("original"))))
+	require.NoError(t, err)
+	endpoint, _ := f.endpointRow(t)
+	require.NotNil(t, endpoint.UpstreamSecretID)
+	id := *endpoint.UpstreamSecretID
+	promoteDeploymentCredentials(t, vaults)
+	t.Cleanup(func() {
+		_ = db.GetDB().Where("secret_id = ?", id).Delete(&models.SecretJob{}).Error
+	})
+
+	opens := 0
+	external.afterOpen = func(readCtx context.Context, ref vault.Ref) error {
+		assert.Nil(t, db.TxFrom(readCtx))
+		opens++
+		// Use a separate DB connection to prove no write lock survives into the vault call.
+		return db.GetDB().WithContext(readCtx).Model(&models.Secret{}).Where("id = ?", ref.SecretID).
+			Update("updated_at", dbx.Now()).Error
+	}
+	_, err = f.svc.Update(ctx, f.sync.ouID, mcpSourceHandle(f.proxy), f.updateRequest(mcpAuth(nil)))
+	require.NoError(t, err)
+	assert.Zero(t, opens, "the save owes a render without contacting the vault")
+	require.NoError(t, f.worker.RunOnceFor(ctx, f.sync.ouID, f.artifact))
+	assert.Equal(t, 1, opens)
+	assert.Equal(t, "original", renderedCredential(t, f.pulled(t, gateway)))
+
+	ref := models.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: f.artifact}
+	rendered, err := f.svc.kind.Render(ctx, ref)
+	require.NoError(t, err)
+	require.NotNil(t, rendered.Validate)
+	require.NoError(t, db.GetDB().Model(&models.Secret{}).Where("id = ?", id).
+		Update("version", gorm.Expr("version + 1")).Error)
+	err = db.GetDB().Transaction(func(tx *gorm.DB) error { return rendered.Validate(ctx, tx) })
+	require.ErrorIs(t, err, reconcile.ErrInputNotReady)
 }
 
 func TestMCPEndpointUpstreamCredentialLivesInTheSecretStore(t *testing.T) {

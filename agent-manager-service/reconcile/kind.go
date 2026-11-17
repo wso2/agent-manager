@@ -30,10 +30,13 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
-// Rendered is one artifact's content as a deployment stores it.
+// Rendered is one artifact's content as a deployment stores it. When Render returns ErrInputNotReady,
+// optional content is used only to check the route before queuing the deployment.
 type Rendered struct {
 	Name    string
 	Content []byte
+	// Validate checks inputs fetched outside the transaction before sending a claimed render.
+	Validate func(context.Context, *gorm.DB) error
 }
 
 // EventRef is what an artifact's deploy or undeploy event is built from. An undeploy carries no deployment: its

@@ -217,6 +217,11 @@ func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p models.Pl
 	}
 	rendered, err := kind.Render(db.CtxWithTx(ctx, tx), p.ArtifactRef)
 	if errors.Is(err, ErrInputNotReady) {
+		if len(rendered.Content) > 0 {
+			if clash := c.checkContext(ctx, tx, p, rendered.Content); clash != nil {
+				return nil, clash
+			}
+		}
 		return c.owe(ctx, tx, p, renderReason(kind, err))
 	}
 	if err != nil {
@@ -442,7 +447,7 @@ func (c *Core) renderClaim(ctx context.Context, claim models.ClaimedRender) erro
 	cancel()
 	if err == nil {
 		err = c.writeBack(ctx, kind, claim, rendered)
-		if !errors.Is(err, utils.ErrContextInUse) {
+		if !errors.Is(err, utils.ErrContextInUse) && !errors.Is(err, ErrInputNotReady) {
 			return c.superseded(log, err)
 		}
 	}
@@ -472,6 +477,11 @@ func (c *Core) superseded(log *slog.Logger, err error) error {
 // written, for renderClaim to record as a given-up render.
 func (c *Core) writeBack(ctx context.Context, kind Kind, claim models.ClaimedRender, rendered Rendered) error {
 	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if rendered.Validate != nil {
+			if err := rendered.Validate(ctx, tx); err != nil {
+				return err
+			}
+		}
 		if err := c.lockGateway(tx, claim.GatewayUUID); err != nil {
 			return err
 		}

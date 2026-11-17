@@ -92,7 +92,8 @@ type Vault interface {
 	Destroy(ctx context.Context, ref Ref, sealed Sealed) error
 }
 
-// ExternalVault supports recoverable writes. PromotionReference is pure and
+// ExternalVault supports recoverable writes. Vault operations must honor context
+// deadlines and cancellation. PromotionReference is pure and
 // returns the immutable reference for ref.OperationID before Seal makes any
 // external change. Seal must return that reference and be idempotent for the
 // operation. Destroy must prevent retries of a canceled operation from

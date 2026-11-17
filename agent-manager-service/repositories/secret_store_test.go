@@ -357,6 +357,68 @@ func TestSecretPromotionHandsOverWhatItReplaces(t *testing.T) {
 	assert.Zero(t, f.pending(t, id))
 }
 
+func TestSecretPromotionUsesTheQueuedVaultDuringRollout(t *testing.T) {
+	f := newExternalFixture(t)
+	id := newID()
+	f.cleanup(t, id)
+	f.write(t, id, "v1")
+
+	ctx := context.Background()
+	oldWorker := NewSecretJobRunner(db.GetDB(), vaulttest.Local(t), slog.New(slog.DiscardHandler))
+	ran, failed, err := oldWorker.RunOnce(ctx, f.now())
+	require.NoError(t, err)
+	require.Equal(t, 1, ran)
+	require.Equal(t, 1, failed)
+	assert.Equal(t, int64(1), f.pending(t, id))
+	assert.Equal(t, vault.ProviderLocal, secretRow(t, id).Provider)
+
+	f.later()
+	f.run(t)
+	assert.Zero(t, f.pending(t, id))
+	assert.Equal(t, vaulttest.ExternalProvider, secretRow(t, id).Provider)
+	assert.Equal(t, "v1", f.read(t, id))
+}
+
+type stalledSecretVault struct {
+	*vaulttest.External
+	stalled uuid.UUID
+}
+
+func (v *stalledSecretVault) Seal(ctx context.Context, ref vault.Ref, value []byte, current *vault.Sealed) (vault.Sealed, error) {
+	if ref.SecretID == v.stalled {
+		<-ctx.Done()
+		return vault.Sealed{}, ctx.Err()
+	}
+	return v.External.Seal(ctx, ref, value, current)
+}
+
+func TestSecretJobsRetryTimedOutAttemptsAndContinue(t *testing.T) {
+	f := newExternalFixture(t)
+	stalled, healthy := newID(), newID()
+	f.cleanup(t, stalled, healthy)
+	local, err := vault.NewLocal(vaulttest.Key)
+	require.NoError(t, err)
+	adapter := &stalledSecretVault{External: f.external, stalled: stalled}
+	f.runner.vaults = vault.Of(adapter, local)
+	f.runner.attemptTimeout = 250 * time.Millisecond
+	f.write(t, stalled, "v1")
+	f.write(t, healthy, "v2")
+	require.NoError(t, db.GetDB().Model(&models.SecretJob{}).Where("secret_id = ?", stalled).
+		Update("available_at", f.now().Add(-time.Minute)).Error)
+
+	ran, failed := f.run(t)
+	require.Equal(t, 2, ran)
+	require.Equal(t, 1, failed)
+	var retry models.SecretJob
+	require.NoError(t, db.GetDB().Where("secret_id = ?", stalled).Take(&retry).Error)
+	require.NotNil(t, retry.LastError)
+	assert.Equal(t, context.DeadlineExceeded.Error(), *retry.LastError)
+	assert.Nil(t, retry.ClaimedBy)
+	assert.Equal(t, 1, retry.Attempts)
+	assert.Zero(t, f.pending(t, healthy))
+	assert.Equal(t, vaulttest.ExternalProvider, secretRow(t, healthy).Provider)
+}
+
 func TestSecretPromotionRecoversAnInterruptedExternalWrite(t *testing.T) {
 	f := newExternalFixture(t)
 	id := newID()
@@ -368,12 +430,9 @@ func TestSecretPromotionRecoversAnInterruptedExternalWrite(t *testing.T) {
 	require.NoError(t, db.GetDB().Where("secret_id = ?", id).Take(&job).Error)
 	ref := jobRef(&job)
 	ref.OperationID = job.ID
-	path, err := f.external.PromotionReference(ref)
-	require.NoError(t, err)
-	require.NoError(t, db.GetDB().Model(&job).Updates(map[string]any{
-		"staged_provider": vaulttest.ExternalProvider, "staged_ref": path,
-	}).Error)
-	_, err = f.external.Seal(context.Background(), ref, []byte("v1"), nil)
+	require.NotNil(t, job.StagedRef, "the reference is reserved when the job is queued")
+	path := *job.StagedRef
+	_, err := f.external.Seal(context.Background(), ref, []byte("v1"), nil)
 	require.NoError(t, err)
 
 	f.run(t)

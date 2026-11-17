@@ -44,14 +44,14 @@ func renderedDeployment(handle string, content []byte) reconcile.Rendered {
 
 // LLMProviderKind deploys LLM providers. Gateways store a provider under its UUID.
 type LLMProviderKind struct {
-	load func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, error)
+	load func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, *repositories.UpstreamCredential, error)
 }
 
-// NewLLMProviderKind reads providers through the request's transaction when there is one, and their upstream
-// credentials through secrets.
+// NewLLMProviderKind reads provider configuration and its credential version in the same transaction.
 func NewLLMProviderKind(secrets *repositories.SecretStore) *LLMProviderKind {
-	return &LLMProviderKind{load: func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, error) {
+	return &LLMProviderKind{load: func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, *repositories.UpstreamCredential, error) {
 		var provider *models.LLMProvider
+		var credential *repositories.UpstreamCredential
 		load := func(tx *gorm.DB) error {
 			if err := dbx.LockRow(tx, "llm_providers", "id", "id = ?", artifact.ArtifactUUID); err != nil {
 				return err
@@ -62,15 +62,65 @@ func NewLLMProviderKind(secrets *repositories.SecretStore) *LLMProviderKind {
 			if err != nil {
 				return err
 			}
-			return repo.ResolveUpstreamAuth(ctx, tx, provider)
+			credential, err = repo.SnapshotUpstreamCredential(ctx, tx, provider)
+			return err
 		}
 		if tx := db.TxFrom(ctx); tx != nil {
 			err := load(tx)
-			return provider, err
+			return provider, credential, err
 		}
 		err := db.DB(ctx).Transaction(load)
-		return provider, err
+		return provider, credential, err
 	}}
+}
+
+// preparedProviderCredential carries the result of a synchronous deploy's external read into its transaction.
+// Render verifies it against the current credential under the provider row lock.
+type preparedProviderCredentialKey struct{}
+
+type preparedProviderCredential struct {
+	snapshot *repositories.UpstreamCredential
+	value    string
+}
+
+var errProviderCredentialChanged = errors.New("provider upstream credential changed during deployment")
+
+func resolveDeploymentCredential(ctx context.Context, credential *repositories.UpstreamCredential, auth *models.UpstreamAuth) error {
+	if credential == nil {
+		return nil
+	}
+	var value string
+	if credential.External() && db.TxFrom(ctx) != nil {
+		prepared, ok := ctx.Value(preparedProviderCredentialKey{}).(preparedProviderCredential)
+		if !ok {
+			return reconcile.InputNotReady("upstream credential requires an external vault read")
+		}
+		if !credential.SameVersion(prepared.snapshot) {
+			return errProviderCredentialChanged
+		}
+		value = prepared.value
+	} else {
+		var err error
+		value, err = credential.Open(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	auth.SecretRef = &value
+	auth.Value = nil
+	return nil
+}
+
+func validateDeploymentCredential(ctx context.Context, rendered *reconcile.Rendered, credential *repositories.UpstreamCredential) {
+	if credential != nil && db.TxFrom(ctx) == nil {
+		rendered.Validate = func(ctx context.Context, tx *gorm.DB) error {
+			err := credential.LockVersion(ctx, tx)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return reconcile.InputNotReady("upstream credential changed during rendering")
+			}
+			return err
+		}
+	}
 }
 
 func (k *LLMProviderKind) Name() string        { return models.KindLLMProvider }
@@ -81,7 +131,7 @@ func (k *LLMProviderKind) GatewayArtifactID(artifact models.ArtifactRef) string 
 }
 
 func (k *LLMProviderKind) Render(ctx context.Context, artifact models.ArtifactRef) (reconcile.Rendered, error) {
-	provider, err := k.load(ctx, artifact)
+	provider, credential, err := k.load(ctx, artifact)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("LLM provider %s not found", artifact.ArtifactUUID))
 	}
@@ -93,11 +143,18 @@ func (k *LLMProviderKind) Render(ctx context.Context, artifact models.ArtifactRe
 			return reconcile.Rendered{}, fmt.Errorf("failed to parse model providers: %w", err)
 		}
 	}
+	if credential != nil {
+		if err := resolveDeploymentCredential(ctx, credential, provider.Configuration.Upstream.Main.Auth); err != nil {
+			return reconcile.Rendered{}, err
+		}
+	}
 	content, err := renderLLMProvider(provider)
 	if err != nil {
 		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid LLM provider configuration: %w", utils.ErrInvalidInput, err))
 	}
-	return renderedDeployment(provider.Configuration.Handle, []byte(content)), nil
+	rendered := renderedDeployment(provider.Configuration.Handle, []byte(content))
+	validateDeploymentCredential(ctx, &rendered, credential)
+	return rendered, nil
 }
 
 func (k *LLMProviderKind) DeployEvent(ref reconcile.EventRef) eventhub.Event {

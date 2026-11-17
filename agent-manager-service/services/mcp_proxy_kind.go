@@ -43,6 +43,7 @@ type mcpArtifact struct {
 	scopes      []models.MCPProxyScope
 	// projectScoped: a project proxy's binding, whose upstream AMS resolved itself.
 	projectScoped bool
+	credentialID  *uuid.UUID
 }
 
 // newMCPArtifact is what the binding ee of endpoint renders from.
@@ -55,6 +56,7 @@ func newMCPArtifact(
 		proxyHandle:   mcpSourceHandle(proxy),
 		scopes:        scopes,
 		projectScoped: proxy.ProjectUUID != nil,
+		credentialID:  endpoint.UpstreamSecretID,
 	}
 }
 
@@ -64,6 +66,7 @@ func newMCPArtifact(
 type MCPProxyKind struct {
 	gatewayRepo    repositories.GatewayRepository
 	deploymentRepo repositories.DeploymentRepository
+	secrets        *repositories.SecretStore
 	load           func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error)
 }
 
@@ -72,13 +75,11 @@ type MCPProxyKind struct {
 func NewMCPProxyKind(
 	gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, secrets *repositories.SecretStore,
 ) *MCPProxyKind {
-	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, load: func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error) {
-		return loadMCPArtifact(ctx, secrets, artifact)
-	}}
+	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, secrets: secrets, load: loadMCPArtifact}
 }
 
 // loadMCPArtifact finds the artifact's (endpoint, environment) binding; gorm.ErrRecordNotFound when it is gone.
-func loadMCPArtifact(ctx context.Context, secrets *repositories.SecretStore, artifact models.ArtifactRef) (*mcpArtifact, error) {
+func loadMCPArtifact(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error) {
 	tx := db.DB(ctx)
 	var binding models.MCPProxyEndpointEnvironment
 	if err := tx.Where("artifact_id = ?", artifact.ArtifactUUID).Take(&binding).Error; err != nil {
@@ -96,9 +97,6 @@ func loadMCPArtifact(ctx context.Context, secrets *repositories.SecretStore, art
 		scopes, err := repositories.NewMCPProxyScopeRepository(tx).ListByProxy(ctx, proxy.UUID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load proxy scopes: %w", err)
-		}
-		if err := repositories.NewMCPProxyEndpointRepository(tx, secrets).ResolveUpstreamAuth(ctx, tx, endpoint); err != nil {
-			return nil, err
 		}
 		return newMCPArtifact(proxy, endpoint, &binding, scopes), nil
 	}
@@ -126,18 +124,62 @@ func (k *MCPProxyKind) GatewayArtifactID(artifact models.ArtifactRef) string {
 }
 
 func (k *MCPProxyKind) Render(ctx context.Context, artifact models.ArtifactRef) (reconcile.Rendered, error) {
-	a, err := k.load(ctx, artifact)
+	a, credential, err := k.loadRenderInputs(ctx, artifact)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return reconcile.Rendered{}, reconcile.ErrRecordGone
 	}
 	if err != nil {
 		return reconcile.Rendered{}, err
 	}
+	var credentialErr error
+	if credential != nil {
+		credentialErr = resolveDeploymentCredential(ctx, credential, a.deployable.Configuration.Upstream.Main.Auth)
+		if credentialErr != nil && !errors.Is(credentialErr, reconcile.ErrInputNotReady) {
+			return reconcile.Rendered{}, credentialErr
+		}
+	}
 	content, err := renderMCPProxy(a.deployable, a.proxyHandle, a.scopes)
 	if err != nil {
 		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid MCP proxy configuration: %w", utils.ErrInvalidInput, err))
 	}
-	return renderedDeployment(a.deployable.Handle, []byte(content)), nil
+	rendered := renderedDeployment(a.deployable.Handle, []byte(content))
+	if credentialErr != nil {
+		return rendered, credentialErr
+	}
+	validateDeploymentCredential(ctx, &rendered, credential)
+	return rendered, nil
+}
+
+// loadRenderInputs reads the binding and credential version together, without opening the credential.
+func (k *MCPProxyKind) loadRenderInputs(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, *repositories.UpstreamCredential, error) {
+	var a *mcpArtifact
+	var credential *repositories.UpstreamCredential
+	load := func(tx *gorm.DB) error {
+		var err error
+		txCtx := db.CtxWithTx(ctx, tx)
+		a, err = k.load(txCtx, artifact)
+		if err != nil {
+			return err
+		}
+		upstream := a.deployable.Configuration.Upstream.Main
+		if a.credentialID != nil && upstream != nil && upstream.Auth != nil {
+			credential, err = k.secrets.SnapshotUpstreamCredential(ctx, tx, a.credentialID)
+		}
+		return err
+	}
+	if tx := db.TxFrom(ctx); tx != nil {
+		err := load(tx)
+		return a, credential, err
+	}
+	if k.secrets == nil {
+		a, err := k.load(ctx, artifact)
+		if err == nil && a.credentialID != nil {
+			err = errors.New("MCP render requires a secret store for upstream credentials")
+		}
+		return a, nil, err
+	}
+	err := db.DB(ctx).Transaction(load)
+	return a, credential, err
 }
 
 // DescribeRenderError is the reason a binding shows for a failed render: CONTEXT_IN_USE for a context clash, the

@@ -18,6 +18,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -120,10 +121,27 @@ func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind s
 // afterLocalWrite queues what the external vault does once the write commits: promote the new version when an
 // external vault seals new values, otherwise destroy the external value it replaced.
 func (s *SecretStore) afterLocalWrite(db *gorm.DB, row *models.Secret, replaced *externalValue) error {
-	if s.vaults.Writer().Provider() != vault.ProviderLocal {
+	writer := s.vaults.Writer()
+	if writer.Provider() != vault.ProviderLocal {
+		external, ok := writer.(vault.ExternalVault)
+		if !ok {
+			return fmt.Errorf("vault %q does not support promotion", writer.Provider())
+		}
 		version := row.Version
 		job := newSecretJob(row.OrgID, row.ID, row.OwnerKind, models.SecretJobPromote, replaced)
 		job.Version = &version
+		ref := secretRef(row)
+		ref.OperationID = job.ID
+		target, err := external.PromotionReference(ref)
+		if err != nil {
+			return fmt.Errorf("failed to reserve promotion reference for secret %s: %w", row.ID, err)
+		}
+		provider := writer.Provider()
+		if target == "" || (replaced != nil && replaced.provider == provider && replaced.ref == target) {
+			return fmt.Errorf("vault %q must reserve a new promotion reference", provider)
+		}
+		job.StagedProvider = &provider
+		job.StagedRef = &target
 		if err := db.Create(&job).Error; err != nil {
 			return fmt.Errorf("failed to queue promotion of secret %s: %w", row.ID, err)
 		}
@@ -150,19 +168,66 @@ func (s *SecretStore) read(ctx context.Context, tx *gorm.DB, id uuid.UUID, asSto
 	if len(rows) == 0 {
 		return nil, false, nil
 	}
-	row := rows[0]
+	row := &rows[0]
 	if asStored && row.KeyID == nil && row.ExternalRef == nil {
 		return row.Ciphertext, true, nil
 	}
+	value, err := s.open(ctx, row)
+	return value, err == nil, err
+}
+
+func (s *SecretStore) open(ctx context.Context, row *models.Secret) ([]byte, error) {
 	v, err := s.vaults.For(row.Provider)
 	if err != nil {
-		return nil, false, fmt.Errorf("secret %s: %w", id, err)
+		return nil, fmt.Errorf("secret %s: %w", row.ID, err)
 	}
-	value, err := v.Open(ctx, secretRef(&row), sealedOf(&row))
+	value, err := v.Open(ctx, secretRef(row), sealedOf(row))
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to open secret %s: %w", id, err)
+		return nil, fmt.Errorf("failed to open secret %s: %w", row.ID, err)
 	}
-	return value, true, nil
+	return value, nil
+}
+
+// UpstreamCredential snapshots a deployment credential without accessing its vault.
+type UpstreamCredential struct {
+	store *SecretStore
+	row   models.Secret
+}
+
+func (s *SecretStore) SnapshotUpstreamCredential(ctx context.Context, tx *gorm.DB, id *uuid.UUID) (*UpstreamCredential, error) {
+	if id == nil {
+		return nil, nil //nolint:nilnil // no referenced credential
+	}
+	if s == nil {
+		return nil, errNoSecretStore
+	}
+	snapshot := &UpstreamCredential{store: s}
+	err := tx.WithContext(ctx).Where("id = ?", *id).Take(&snapshot.row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("upstream credential %s is missing", *id)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return snapshot, nil
+}
+
+func (c *UpstreamCredential) External() bool {
+	return c != nil && c.row.Provider != vault.ProviderLocal
+}
+
+func (c *UpstreamCredential) SameVersion(other *UpstreamCredential) bool {
+	return c != nil && other != nil && c.row.ID == other.row.ID && c.row.Version == other.row.Version
+}
+
+func (c *UpstreamCredential) Open(ctx context.Context) (string, error) {
+	value, err := c.store.open(ctx, &c.row)
+	return string(value), err
+}
+
+// LockVersion keeps the rendered credential current until the deployment commits.
+func (c *UpstreamCredential) LockVersion(ctx context.Context, tx *gorm.DB) error {
+	return dbx.LockRow(tx.WithContext(ctx), models.Secret{}.TableName(), "version", "id = ? AND version = ?", c.row.ID, c.row.Version)
 }
 
 // Delete removes the secret. An external value it had is destroyed after tx commits. A missing row is a no-op.

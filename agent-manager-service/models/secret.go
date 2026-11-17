@@ -51,8 +51,8 @@ const (
 
 // SecretJob is external-vault work that runs only after the transaction that queued it commits. A promote job
 // names the secret's Version it promotes, and in Provider and ExternalRef the external value that version replaces,
-// which is destroyed once the promoted value is in the row. StagedProvider and StagedRef record a value the job wrote
-// to a vault before recording it in the row, so a retry can reclaim it. A destroy job names the value in Provider and
+// which is destroyed once the promoted value is in the row. StagedProvider and StagedRef reserve the target when queued,
+// so any worker can resume the same promotion or clean up an interrupted write. A destroy job names the value in Provider and
 // ExternalRef.
 type SecretJob struct {
 	ID             uuid.UUID  `gorm:"column:id;primaryKey"`

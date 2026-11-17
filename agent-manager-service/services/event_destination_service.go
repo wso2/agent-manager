@@ -414,6 +414,11 @@ func (s *eventDestinationService) Test(ctx context.Context, ouID string, id uuid
 	if err != nil {
 		return nil, err
 	}
+	if d.SecretID != nil {
+		if err := s.repo.LoadDestinationSecret(ctx, d); err != nil {
+			return nil, fmt.Errorf("failed to load event destination credential: %w", err)
+		}
+	}
 	driver, dest, err := s.Resolve(d)
 	if err != nil {
 		return nil, err
