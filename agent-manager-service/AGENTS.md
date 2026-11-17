@@ -20,6 +20,17 @@ The core (orgs, projects, environments, agents, identity, tokens, events) lives 
 | Sentinel errors | `utils/errors.go` |
 | Generated mocks | `repositories/repomocks/`, `clients/clientmocks/`, `modules/gateway/gwrepo/gwrepomocks/` |
 | DI wiring | `wiring/wire.go` (core), `modules/gateway/gwwire/wire.go` (gateway) |
+| Configuration (env + `amp.yaml`) | `config/config_loader.go`, `config/file.go`, example `amp.example.yaml` |
+| Embedded console (`-tags console`) | `webconsole/` (`make console-embed` fills `webconsole/dist/`) |
+| Console UI of the core / modules | `api.CoreUI` in `api/ui_manifest_routes.go`, `modkit.UI.Pages` in a module's manifest |
+
+## Configuration, the console and the modules list
+
+- **One binary, one image.** `amp serve [--migrate]`, `amp migrate`, `amp init thunder DIR gateway DIR fileauth DIR`, `amp module …`; the old flags (`-migrate`, `-init-thunder=…`) still work. The image carries it as `/go/bin/amp` (and `/go/bin/agent-manager-service`). Compose's `amp-init` runs `amp init` from the `amp-api` image.
+- **Settings** are environment variables, and an optional `amp.yaml` (`--config`, `$AMP_CONFIG`, else `./amp.yaml`) fills in what the environment leaves unset. YAML keys are the variable names nested by `_` (`db: {driver: postgres}` is `DB_DRIVER`); the environment always wins. See `amp.example.yaml`.
+- **Modules list.** `modules:` in `amp.yaml` (or `AMP_MODULES=gateway,widgets=off`) is reconciled at boot: listed modules are installed with their providers and enabled or disabled as listed; other installed modules are disabled unless a listed one requires them. No list, no reconcile. A module's `config:` block reaches it via `Runtime.Config("key")` (env `MODULE_<NAME>_<KEY>`).
+- **Console.** The built console is embedded with `-tags console` and served at `/` on the API port (SPA fallback to `index.html`; hashed `assets/` cached a year; `index.html`, `config.js` not cached). Without the tag a placeholder page is served — no Node needed for backend work. `config.js` fills each `$NAME` of the console's `config.template.js` from `CONSOLE_<NAME>`, else a default the service derives (public URL, ThunderID, `AUTH_MODE`, instrumentation URL, sign-in scopes = every active permission). `CONSOLE_ENABLED=false` turns it off. `make dev-up` still runs Vite on :3000 against the API.
+- **Which console pages show** comes from `GET /api/v1/ui-manifest` (signed-in, filtered by the caller's permissions): the core's `api.CoreUI` plus every active module's `Manifest().UI.Pages` (`"<console module>/<page>"`). A console UI module with no listed page is hidden. A module adding console pages lists them there.
 
 ## Golden path: add or change an API resource
 
