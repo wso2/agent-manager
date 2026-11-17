@@ -27,7 +27,7 @@ services:
     # Writes into fresh named volumes and hands each file to the uid that reads it.
     user: "0:0"
     entrypoint: ["/go/bin/agent-manager-service"]
-    command: ["-init-thunder=/out/thunder", "-init-gateway=/out/gateway", "-init-fileauth=/out/fileauth"]
+    command: ["init", "thunder", "/out/thunder", "gateway", "/out/gateway", "fileauth", "/out/fileauth"]
     environment:
       THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
       THUNDER_PORT: ${THUNDER_PORT}
@@ -161,7 +161,7 @@ services:
   # --- Agent Manager ------------------------------------------------------------
   amp-api:
     image: ${AMP_API_IMAGE:?copy .env.example to .env first}
-    command: ["-migrate"]
+    command: ["serve", "--migrate"]
     ports:
       - "${AMP_API_PORT}:8080"
       - "${AMP_INTERNAL_PORT}:9243"

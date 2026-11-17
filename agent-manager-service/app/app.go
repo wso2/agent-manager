@@ -38,6 +38,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/resources"
@@ -149,9 +150,24 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
+	// The modules compiled into this binary. Their tables are migrated with the
+	// core's, whether or not they are installed. Built on first use, so a run
+	// that does nothing never opens the database.
+	var modules *modhost.Host
+	moduleHost := func() *modhost.Host {
+		if modules == nil {
+			modules = modhost.New(db.GetDB(), cfg.Database.Driver, slog.Default())
+		}
+		return modules
+	}
+
 	if opts.Migrate {
 		if err := dbmigrations.Migrate(); err != nil {
 			slog.Error("error occurred while migrating", "error", err)
+			os.Exit(1)
+		}
+		if _, err := moduleHost().Migrate(context.Background()); err != nil {
+			slog.Error("error occurred while migrating modules", "error", err)
 			os.Exit(1)
 		}
 	}
@@ -159,6 +175,9 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	if opts.WaitForMigrations {
 		ctx, cancel := context.WithTimeout(context.Background(), migrationWaitTimeout)
 		err := dbmigrations.WaitForLatest(ctx, migrationWaitInterval)
+		if err == nil {
+			err = waitForModuleSchema(ctx, moduleHost())
+		}
 		cancel()
 		if err != nil {
 			slog.Error("database migrations did not complete; check that the migration job runs the same image version as this server",
@@ -169,6 +188,15 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 
 	if !opts.Server {
 		return
+	}
+
+	// Load the active modules and follow lifecycle changes made elsewhere.
+	// TODO: reconcile the declarative modules list from the config file at boot.
+	modulesCtx, modulesCancel := context.WithCancel(context.Background())
+	defer modulesCancel()
+	if err := moduleHost().Boot(modulesCtx); err != nil {
+		slog.Error("failed to start the module host", "error", err)
+		os.Exit(1)
 	}
 	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
 		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
@@ -343,6 +371,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 
 		stopBackground()
+		modulesCancel()
 		agentThunderReconcilerCancel()
 		if agentThunderProvisioning != nil {
 			if err := dependencies.AgentThunderReconciler.Stop(); err != nil {
@@ -439,6 +468,23 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// Wait for graceful shutdown to complete
 	wg.Wait()
 	slog.Info("All servers shut down successfully")
+}
+
+// waitForModuleSchema waits until another process has applied the migrations
+// of every module compiled into this binary.
+func waitForModuleSchema(ctx context.Context, modules *modhost.Host) error {
+	for {
+		err := modules.CheckSchema(ctx)
+		if err == nil {
+			return nil
+		}
+		slog.Info("waiting for module migrations", "reason", err.Error())
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for module migrations: %w (last: %w)", ctx.Err(), err)
+		case <-time.After(migrationWaitInterval):
+		}
+	}
 }
 
 // recordStartupPosture writes the audit trail's own opening bookend. The record

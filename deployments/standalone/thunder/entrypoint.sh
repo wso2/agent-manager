@@ -1,6 +1,6 @@
 #!/bin/sh
 # Installs the ThunderID configuration that amp-init generated
-# (agent-manager-service -init-thunder) into the image, then either runs
+# (`amp init thunder`) into the image, then either runs
 # ThunderID's setup (--setup) or starts the server.
 #
 # Setup runs whenever the generated bootstrap resources differ from the ones

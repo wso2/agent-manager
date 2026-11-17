@@ -1,5 +1,5 @@
 # AI Gateway configuration, shared by gateway-controller and gateway-runtime.
-# Written by `agent-manager-service -init-gateway` from its environment.
+# Written by `amp init gateway` from its environment.
 [controller.server]
 api_port = 9090
 xds_port = 18000

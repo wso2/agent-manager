@@ -22,7 +22,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -installsuffix cgo \
     -ldflags="-w -s -X github.com/wso2/agent-manager/agent-manager-service/config.Version=${VERSION}" \
     -o /go/bin/agent-manager-service \
-    -buildvcs=false
+    -buildvcs=false \
+    ./cmd/amp
 
 FROM public.ecr.aws/docker/library/alpine:3.24
 

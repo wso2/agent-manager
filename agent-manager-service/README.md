@@ -10,14 +10,18 @@ The Agent Manager Service is a core component of the Agent Management Platform t
 agent-manager-service/
 ├── api/                        # HTTP API layer with HTTP handlers and routing
 ├── clients/                   # External service clients
+├── cmd/                       # Binaries: amp (core and every module) and amp-core (core only)
 ├── config/                    # Configuration management
 ├── controllers/               # HTTP request controllers
 ├── db/                       # Database connection and utilities
 ├── db_migrations/            # Database schema migration files
 ├── db_types/                 # Custom database types
 ├── docs/                     # OpenAPI documentation
+├── internal/                 # Command line (cli) and module host (modhost)
 ├── middleware/               # HTTP middleware (auth, logging, recovery)
+├── modkit/                   # Contract between the core and a module
 ├── models/                   #  Data models and entities
+├── modules/                  # Modules linked into the amp binary
 ├── repositories/             # Data access layer
 ├── scripts/                  # Development and Build scripts
 │   ├── fmt.sh               # Code formatting
@@ -36,7 +40,6 @@ agent-manager-service/
 ├── Dockerfile.dev            # Development container with hot-reload
 ├── go.mod                    # Go module definition
 ├── go.sum                    # Go module checksums
-├── main.go                   # Application entry point
 └── Makefile                  # Build automation
 ```
 
@@ -137,8 +140,22 @@ JWT_SIGNING_PUBLIC_KEYS_CONFIG=./keys/public-keys-config.json
 
 ```bash
 cd agent-management-platform/agent-manager-service
-ENV_FILE_PATH=.env go run . -migrate
+ENV_FILE_PATH=.env go run ./cmd/amp migrate
 ```
+
+The `amp` binary's subcommands:
+
+| Command | What it does |
+|---|---|
+| `amp serve [--migrate] [--wait-for-migrations]` | Run the API server |
+| `amp migrate` | Apply the core's migrations, then every compiled-in module's |
+| `amp init thunder <dir> [gateway <dir>] [fileauth <dir>]` | Write component configuration and exit |
+| `amp module list` | List compiled-in modules and their state |
+| `amp module install <name> [--with-deps]`, `enable`, `disable`, `uninstall` | Change a module's state; running servers pick it up without a restart |
+
+The flags of earlier releases (`-migrate`, `-server=false`, `-init-thunder=<dir>`, ...) still work.
+
+Each module keeps its tables in `modules/<dir>/schema/NNN_description.yaml`, in the same format as `db_migrations/schema/lite.yaml`, with tables named `mod_<module>_<table>`. `make schema` renders them into `modules/<dir>/migrations/<database>/`, which the module embeds and returns from `Migrations()`.
 
 ### 7. Start Development Server
 
