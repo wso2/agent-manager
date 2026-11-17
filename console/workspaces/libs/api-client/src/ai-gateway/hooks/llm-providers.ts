@@ -19,6 +19,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 import { POLL_INTERVAL, transitionRefetchInterval } from "../../shared/utils";
 import type {
   CreateLLMAPIKeyRequest,
@@ -124,20 +125,22 @@ export function useListLLMProviderTemplates(
   params: ListLLMProviderTemplatesPathParams,
   query?: PaginationQuery,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderTemplateListResponse>({
     queryKey: ["llm-provider-templates", params, query],
     queryFn: () => listLLMProviderTemplates(params, query, getToken),
-    enabled: !!params.orgName,
+    enabled: gatewayPresent && !!params.orgName,
   });
 }
 
 export function useGetLLMProviderTemplate(params: GetLLMProviderTemplatePathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderTemplateResponse>({
     queryKey: ["llm-provider-template", params],
     queryFn: () => getLLMProviderTemplate(params, getToken),
-    enabled: !!params.orgName && !!params.templateId,
+    enabled: gatewayPresent && !!params.orgName && !!params.templateId,
   });
 }
 
@@ -194,20 +197,22 @@ export function useListLLMProviders(
   params: ListLLMProvidersPathParams,
   query?: PaginationQuery,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderListResponse>({
     queryKey: ["llm-providers", params, query],
     queryFn: () => listLLMProviders(params, query, getToken),
-    enabled: !!params.orgName,
+    enabled: gatewayPresent && !!params.orgName,
   });
 }
 
 export function useGetLLMProvider(params: GetLLMProviderPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderResponse>({
     queryKey: ["llm-provider", params],
     queryFn: () => getLLMProvider(params, getToken),
-    enabled: !!params.orgName && !!params.providerId,
+    enabled: gatewayPresent && !!params.orgName && !!params.providerId,
   });
 }
 
@@ -284,11 +289,12 @@ export function useListLLMProviderProxies(
   params: ListLLMProviderProxiesPathParams,
   query?: PaginationQuery,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProxyListResponse>({
     queryKey: ["llm-provider-proxies", params, query],
     queryFn: () => listLLMProviderProxies(params, query, getToken),
-    enabled: !!params.orgName && !!params.providerId,
+    enabled: gatewayPresent && !!params.orgName && !!params.providerId,
   });
 }
 
@@ -296,20 +302,22 @@ export function useListLLMProxies(
   params: ListLLMProxiesPathParams,
   query?: PaginationQuery,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProxyListResponse>({
     queryKey: ["llm-proxies", params, query],
     queryFn: () => listLLMProxies(params, query, getToken),
-    enabled: !!params.orgName && !!params.projName,
+    enabled: gatewayPresent && !!params.orgName && !!params.projName,
   });
 }
 
 export function useGetLLMProxy(params: GetLLMProxyPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProxyResponse>({
     queryKey: ["llm-proxy", params],
     queryFn: () => getLLMProxy(params, getToken),
-    enabled: !!params.orgName && !!params.projName && !!params.proxyId,
+    enabled: gatewayPresent && !!params.orgName && !!params.projName && !!params.proxyId,
   });
 }
 
@@ -367,11 +375,12 @@ export function useListLLMDeployments(
   params: ListLLMDeploymentsPathParams,
   query?: { gatewayId?: string; status?: string },
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMDeploymentListResponse>({
     queryKey: ["llm-deployments", params, query],
     queryFn: () => listLLMDeployments(params, query, getToken),
-    enabled: !!params.orgName && !!params.providerId,
+    enabled: gatewayPresent && !!params.orgName && !!params.providerId,
     refetchInterval: (q) =>
       q.state.data?.some((d) => transitionRefetchInterval(d) !== false)
         ? POLL_INTERVAL
@@ -380,11 +389,12 @@ export function useListLLMDeployments(
 }
 
 export function useGetLLMDeployment(params: GetLLMDeploymentPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMDeploymentResponse>({
     queryKey: ["llm-deployment", params],
     queryFn: () => getLLMDeployment(params, getToken),
-    enabled: !!params.orgName && !!params.providerId && !!params.deploymentId,
+    enabled: gatewayPresent && !!params.orgName && !!params.providerId && !!params.deploymentId,
   });
 }
 
@@ -454,22 +464,24 @@ export function useDeleteLLMDeployment() {
 // Consumers
 
 export function useListLLMProviderConsumers(params: ListLLMProviderConsumersPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<LLMProviderConsumerListResponse>({
     queryKey: ["llm-provider-consumers", params],
     queryFn: () => listLLMProviderConsumers(params, getToken),
-    enabled: !!params.orgName && !!params.providerId,
+    enabled: gatewayPresent && !!params.orgName && !!params.providerId,
   });
 }
 
 // LLM API Keys — provider
 
 export function useListLLMProviderAPIKeys(params: ListLLMProviderAPIKeysPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<ListAPIKeysResponse>({
     queryKey: ["llm-provider-api-keys", params.orgName, params.providerId],
     queryFn: () => listLLMProviderAPIKeys(params, getToken),
-    enabled: !!(params.orgName && params.providerId),
+    enabled: gatewayPresent && !!(params.orgName && params.providerId),
   });
 }
 
@@ -522,11 +534,12 @@ export function useRevokeLLMProviderAPIKey() {
 // LLM API Keys — proxy
 
 export function useListLLMProxyAPIKeys(params: ListLLMProxyAPIKeysPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<ListAPIKeysResponse>({
     queryKey: ["llm-proxy-api-keys", params.orgName, params.projName, params.proxyId],
     queryFn: () => listLLMProxyAPIKeys(params, getToken),
-    enabled: !!(params.orgName && params.projName && params.proxyId),
+    enabled: gatewayPresent && !!(params.orgName && params.projName && params.proxyId),
   });
 }
 

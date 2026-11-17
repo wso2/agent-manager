@@ -30,7 +30,11 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { PageLayout, useFormValidation } from "@agent-management-platform/views";
+import {
+  PageLayout,
+  useFormValidation,
+  useIsUIModuleInstalled,
+} from "@agent-management-platform/views";
 import {
   useUnsavedChangesGuard,
   useAgentWizardReturn,
@@ -66,6 +70,9 @@ export const CatalogAgentFlow: React.FC = () => {
     projectId?: string;
     kindId?: string;
   }>();
+  // LLM providers and MCP servers are ai-gateway resources: without that
+  // module there is nothing to pick, so their sections are left out.
+  const gatewayInstalled = useIsUIModuleInstalled("ai-gateway") === true;
 
   const { data: kind, isLoading: isKindLoading } = useGetAgentKind({
     orgName: orgId,
@@ -379,6 +386,8 @@ export const CatalogAgentFlow: React.FC = () => {
           </Alert>
         )}
 
+        {gatewayInstalled && (
+        <>
         <LLMProviderSection
           llmProviders={llmProviders}
           setLLMProviders={setLLMProviders}
@@ -415,6 +424,8 @@ export const CatalogAgentFlow: React.FC = () => {
             ]);
           })()}
         />
+        </>
+        )}
 
         <AgentCreateEnvironmentVariables
           formData={formData}

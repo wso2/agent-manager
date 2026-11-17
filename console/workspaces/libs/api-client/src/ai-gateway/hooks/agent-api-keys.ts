@@ -19,6 +19,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 import type {
   AgentAPIKeyListResponse,
   CreateAgentAPIKeyPathParams,
@@ -41,11 +42,14 @@ import {
 } from "../apis/agent-api-keys";
 
 export function useListAgentAPIKeys(params: ListAgentAPIKeysPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentAPIKeyListResponse>({
     queryKey: ["agent-api-keys", params.orgName, params.projName, params.agentName, params.envId],
     queryFn: () => listAgentAPIKeys(params, getToken),
-    enabled: !!(params.orgName && params.projName && params.agentName && params.envId),
+    enabled:
+      gatewayPresent
+      && !!(params.orgName && params.projName && params.agentName && params.envId),
   });
 }
 

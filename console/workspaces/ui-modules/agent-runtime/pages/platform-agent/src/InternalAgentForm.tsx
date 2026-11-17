@@ -49,6 +49,7 @@ import {
   SelectionCard,
   TextInput,
   useExternalComponentModulesByMountPoint,
+  useIsUIModuleInstalled,
   type PrivateRepoSourceProps,
   FormGridSpacer,
 } from "@agent-management-platform/views";
@@ -109,6 +110,9 @@ export const InternalAgentForm = ({
   firstEnvOnlyNotice,
 }: InternalAgentFormProps) => {
   const { orgId, projectId } = useParams<{ orgId: string; projectId: string }>();
+  // LLM providers and MCP servers are ai-gateway resources: without that
+  // module there is nothing to pick, so their sections are left out.
+  const gatewayInstalled = useIsUIModuleInstalled("ai-gateway") === true;
 
   const [copied, setCopied] = useState(false);
   const handleCopyBalImport = useCallback(async () => {
@@ -793,6 +797,8 @@ export const InternalAgentForm = ({
       )}
       {/* Gap, not margin: the accordions zero their own margins. */}
       <Stack spacing={1.5} useFlexGap>
+        {gatewayInstalled && (
+        <>
         <OptionalSection
           title="LLM Providers"
           description="Give the agent model access through a platform LLM provider."
@@ -850,6 +856,8 @@ export const InternalAgentForm = ({
           />
           )}
         </OptionalSection>
+        </>
+        )}
         <OptionalSection
           title="Environment Variables"
           description="Pass configuration and secrets to the agent at runtime."
