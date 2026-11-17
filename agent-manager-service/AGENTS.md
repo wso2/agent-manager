@@ -8,7 +8,8 @@ The core (orgs, projects, environments, agents, identity, tokens, events) lives 
 
 | Need | Location |
 |---|---|
-| API contract (source of truth) | `docs/api_v1_openapi.yaml` |
+| API contract (source of truth) | `docs/api_v1_openapi.yaml` (embedded by `docs/openapi.go`) |
+| Served spec and reference page | `apicatalog/` (filters the spec to the active modules), `apidocs/` (Redoc at `/api/docs`), `api/openapi_routes.go` |
 | Generated request/response types | `spec/` (regenerated wholesale — do not edit) |
 | HTTP handlers | `controllers/` |
 | Business logic | `services/` |
@@ -40,7 +41,7 @@ Follow [docs/amp-lite/modules.md](../docs/amp-lite/modules.md): what belongs in 
 
 Do these in order. Steps 1–2 are mandatory before writing any Go type for the request/response.
 
-1. **Edit `docs/api_v1_openapi.yaml`** — add/modify the path, operation, and schemas.
+1. **Edit `docs/api_v1_openapi.yaml`** — add/modify the path, operation, and schemas. Give every operation `x-amp-module: <module>` (`core`, or the module whose package registers the route) and, if it answers 501, `x-amp-not-served: true`; `api/openapi_catalog_invariant_test.go` checks both against the routes.
 2. **`make spec`** — regenerates `spec/` from the YAML (needs Docker). Never write a request/response struct by hand; the whole `spec/` dir is deleted and rebuilt, so edits there are lost.
 3. **Add permission(s)** in `rbac/permissions.go` (`resource:verb`, see Permissions).
 4. **Implement controller → service → repository** (see Layering). Add a repository/service *interface* if needed.

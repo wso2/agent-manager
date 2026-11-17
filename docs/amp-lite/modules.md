@@ -148,6 +148,17 @@ rt.Handle(http.MethodGet, "/tags", "widget-read", func(w http.ResponseWriter, r 
 - `rt.IssueToken(ctx, modkit.TokenRequest{Subject, OrgID, Scopes, TTL, Claims})`: a short-lived token (15 minutes by default, at most an hour), signed with the core's key, audience `amp-module:<name>`. The public API refuses it.
 - `rt.IssueCredential(ctx, modkit.CredentialRequest{...})`: an id and secret (only a hash is stored in `workload_credentials`) that a workload exchanges for a token at `POST /api/internal/v1/workload-tokens`. `rt.RevokeCredential` revokes one.
 
+### Describing your API
+
+The REST API is described by one OpenAPI document, `agent-manager-service/docs/api_v1_openapi.yaml`. A running server serves it at `/api/v1/openapi.yaml` and `/api/v1/openapi.json`, cut down to the core and the modules active at that moment, and renders it at `/api/docs`. So that your routes appear there exactly while your module is active:
+
+1. Add an operation for every public route you register, and give it `x-amp-module: <name>`. Routes from `rt.Handle` go under `/m/<name>/...` (the spec's server URL is `/api/v1`). Keep the existing `tags` for grouping; the extension is what the server filters on.
+2. If a route answers 501 because this version doesn't serve it, add `x-amp-not-served: true`; such operations are never served.
+3. Run `make spec` and commit what it regenerates. The extensions don't change generated code.
+4. Run `make test-unit`. `api/openapi_catalog_invariant_test.go` fails when a route has no operation, an operation has no route, `x-amp-module` names a module other than the one whose package registers the route, or `x-amp-not-served` doesn't match a 501 handler. It walks the core's routes and the built-in modules' route packages (`routePackages`); for paths under `/m/<name>/` it checks only that `x-amp-module` is `<name>`, so cover those routes in your module's integration tests. Routes on the internal server (`HandleInternal`) are not part of the public spec.
+
+Splitting the document into one file per module is not done yet; because every operation already names its module, it can be done later by moving operations without changing what the server serves.
+
 ### Hooks
 
 Hooks run synchronously inside the core's create, update or delete of an agent or environment:
@@ -243,7 +254,7 @@ To run it on `modkit.Runtime` alone, the core needs:
 
 - **Unit tests** for the module's own logic, with no database. The host's lifecycle (install, enable, disable, dependency resolution, reconcile) is covered in `internal/modhost`; you don't need to repeat it.
 - **Integration tests** in the style of `tests/module_contract_test.go` (`TestModuleContract`): build a host with `modhost.NewWith(db, driver, log, []modkit.Module{...})` so the test binary stands in for a distribution, then check what your module changes over the real API: routes 404 before install and after disable, permissions 403 and 200, hooks refusing and writing, events delivered after commit, capabilities found. Run them on both databases: `make test-integration` uses SQLite, and `DB_DRIVER=postgres make test-integration` uses the server in `.env.test`.
-- **Invariant tests** in `api/` walk every route and permission, modules included: every route is authorized (`route_authz_invariant_test.go`), every mutating route is audited (`audit_coverage_test.go`), and every permission has one owner and reaches roles and ThunderID (`permission_owner_invariant_test.go`). They run in `make test-unit`; `make security-test-static` at the repository root runs the authorization ones alone.
+- **Invariant tests** in `api/` walk every route and permission, modules included: every route is authorized (`route_authz_invariant_test.go`), every mutating route is audited (`audit_coverage_test.go`), and every permission has one owner and reaches roles and ThunderID (`permission_owner_invariant_test.go`), and the OpenAPI spec matches the routes and names their modules (`openapi_catalog_invariant_test.go`). They run in `make test-unit`; `make security-test-static` at the repository root runs the authorization ones alone.
 - **Smoke tests** against a running stack: `make up` then `make smoke`, and `make up-core` then `make smoke-core` (`deployments/standalone/scripts/smoke.sh amp|amp-core`). Run both whenever a change touches the line between the core and a module.
 
 ## Console UI

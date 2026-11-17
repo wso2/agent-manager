@@ -85,6 +85,8 @@ Run these in `agent-manager-service`:
 
 CI fails if generated code is out of date (`make codegenfmt-check`). Commit the generated files with your change.
 
+The spec in `docs/api_v1_openapi.yaml` describes every route, and each operation names the module that serves it with `x-amp-module` (`core`, `gateway`, `legacy`); operations that answer 501 also say `x-amp-not-served: true`. `api/openapi_catalog_invariant_test.go` fails when a route has no operation, an operation has no route, or either extension disagrees with the code. A running server serves the spec cut to its active modules at `/api/v1/openapi.yaml` and `/api/v1/openapi.json`, rendered at `/api/docs` (no sign-in needed). To read the full spec without running anything, open it in the Swagger Editor with `https://editor.swagger.io/?url=` followed by the file's raw URL (for this branch, https://editor.swagger.io/?url=https://raw.githubusercontent.com/wso2/agent-manager/amp-2.x/agent-manager-service/docs/api_v1_openapi.yaml), or build a static page with `npx @redocly/cli build-docs agent-manager-service/docs/api_v1_openapi.yaml -o api-reference.html`.
+
 Every route needs an RBAC permission, and operations on credentials, permissions or deletions need an audit event. The [database schema](amp-lite/database-schema.md) explains the tables and the rules they follow.
 
 Settings come from the environment, with an optional `amp.yaml` for the rest; [`amp.example.yaml`](../agent-manager-service/amp.example.yaml) lists the common ones.
