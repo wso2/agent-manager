@@ -61,7 +61,7 @@ agent identity uses it; `amctl` and the MCP endpoints need `idp`.
 docker compose -p amp-lite-core -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.core.yml up -d --build --wait
 ```
 
-With no gateway, agents send OTLP straight to the collector, published on `127.0.0.1:${OTEL_COLLECTOR_PORT:-4318}`. Nothing authenticates it, and the agent labels its own spans with the headers the gateway would otherwise set from its token: `x-user-organization-name`, `x-user-project-name` and `x-user-agent-name`.
+With no gateway, agents send OTLP straight to the collector, published on `127.0.0.1:${OTEL_COLLECTOR_PORT:-4318}`. Nothing authenticates it, and the agent labels its own spans with what the gateway would otherwise derive from its token, either as headers (`x-user-organization-name`, `x-user-project-name`, `x-user-agent-name`) or as resource attributes. The AMP instrumentation SDK sends only `x-amp-api-key`, which the collector ignores, so with it set `AMP_OTEL_ENDPOINT=http://localhost:4318` and `OTEL_RESOURCE_ATTRIBUTES=agent-manager/organization=default,agent-manager/project=<project>,agent-manager/agent=<agent>`. The console's setup instructions still describe the gateway.
 
 ```bash
 curl -X POST http://localhost:4318/v1/traces \

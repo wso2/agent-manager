@@ -3,8 +3,8 @@
 #
 # Agents send traces straight to the collector, published on the host's
 # loopback as OTEL_COLLECTOR_PORT. Nothing authenticates that ingest, and the
-# agent sets the x-user-* headers the gateway would otherwise add (see
-# README.md).
+# agent labels its spans itself, with the x-user-* headers the gateway would
+# otherwise add or the matching resource attributes (see README.md).
 
 services:
   amp-init:
