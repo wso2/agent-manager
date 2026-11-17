@@ -73,7 +73,7 @@ const (
 	ActionShadowConnectionTest   Action = "shadow-connection:test"
 	ActionShadowScanCreate       Action = "shadow-scan:create"
 	ActionShadowScanClear        Action = "shadow-scan:clear"
-	ActionShadowFindingUpdate    Action = "shadow-finding:update"
+	ActionShadowFindingOnboard   Action = "shadow-finding:onboard"
 	ActionShadowFindingDelete    Action = "shadow-finding:delete"
 	ActionShadowFindingClear     Action = "shadow-finding:clear"
 
@@ -343,8 +343,8 @@ func init() {
 	RegisterDetailSchema(ActionShadowScanCreate, nil)
 	Register(ActionShadowScanClear, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionShadowScanClear, nil)
-	Register(ActionShadowFindingUpdate, ClassConfig, SeverityInfo)
-	RegisterDetailSchema(ActionShadowFindingUpdate, nil)
+	Register(ActionShadowFindingOnboard, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowFindingOnboard, nil)
 	Register(ActionShadowFindingDelete, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionShadowFindingDelete, nil)
 	Register(ActionShadowFindingClear, ClassConfig, SeverityNotice)

@@ -36,7 +36,6 @@ export type ShadowProvider =
  */
 export type ShadowFindingKind = "platform_agent" | "runtime";
 
-export type ShadowFindingStatus = "new" | "reviewed" | "dismissed";
 
 export type ShadowScanStatus = "queued" | "running" | "succeeded" | "partial" | "failed";
 
@@ -237,7 +236,8 @@ export interface ShadowAgentSummary {
   /** The agents found that their platforms still list, each agent once. */
   totalFindings: number;
   byProvider: Record<string, number>;
-  byStatus: Record<string, number>;
+  /** How many of those agents are onboarded as external agents. */
+  onboarded: number;
   connections: number;
   latestScan?: ShadowScanResponse;
 }
@@ -276,7 +276,6 @@ export interface ShadowFindingSummary {
   scope: string;
   /** The agent's state as its platform reports it. */
   state: string;
-  status: ShadowFindingStatus;
   /** Who created the agent, only when its platform's listing says so. */
   ownerHint: ShadowOwnerHint;
   providerCreatedAt?: string;
@@ -285,6 +284,12 @@ export interface ShadowFindingSummary {
   /** False once a complete listing of its connection no longer returns the agent. */
   present: boolean;
   foundBy: ShadowFindingSource[];
+  /** Whether the agent is onboarded as an external agent. */
+  onboarded: boolean;
+  /** The project and name of the external agent it was onboarded as. */
+  linkedProject?: string;
+  linkedAgent?: string;
+  onboardedAt?: string;
 }
 
 export interface ShadowFindingListResponse {
@@ -297,7 +302,8 @@ export interface ShadowFindingListResponse {
 export interface ShadowFindingListQuery {
   /** A platform. */
   provider?: string;
-  status?: string;
+  /** "true": only onboarded agents; "false": only the others. */
+  onboarded?: "true" | "false";
   connectionId?: string;
   /** Keep the agents this scan found; without it, only the agents still listed. */
   scanId?: string;
@@ -330,8 +336,12 @@ export interface ShadowFindingDetail extends ShadowFindingSummary {
   /** Agents on other platforms that may be the same agent. */
   related: ShadowFindingRelation[];
   signals: ShadowFindingSignal[];
+  /** Who onboarded the agent. */
+  onboardedBy?: string;
 }
 
-export interface ShadowFindingUpdateRequest {
-  status: "new" | "reviewed" | "dismissed";
+/** POST .../findings/{findingId}/onboarding: the registered external agent. */
+export interface ShadowOnboardingRequest {
+  projectName: string;
+  agentName: string;
 }

@@ -32,9 +32,9 @@ import {
   listShadowFindings,
   listShadowProviders,
   listShadowScans,
+  onboardShadowFinding,
   testShadowConnection,
   updateShadowConnection,
-  updateShadowFinding,
 } from "../apis";
 import type {
   ShadowAgentSummary,
@@ -45,7 +45,7 @@ import type {
   ShadowFindingDetail,
   ShadowFindingListQuery,
   ShadowFindingListResponse,
-  ShadowFindingUpdateRequest,
+  ShadowOnboardingRequest,
   ShadowProviderListResponse,
   ShadowFindingClearResponse,
   ShadowScanClearResponse,
@@ -227,12 +227,16 @@ export function useClearShadowScans(orgName: string | undefined) {
   });
 }
 
-export function useUpdateShadowFinding(orgName: string | undefined, findingId: string | undefined) {
+/** Links the agent to the external agent registered for it. */
+export function useOnboardShadowFinding(
+  orgName: string | undefined,
+  findingId: string | undefined,
+) {
   const { getToken } = useAuthHooks();
   const invalidate = useInvalidateShadow();
-  return useApiMutation<ShadowFindingDetail, unknown, ShadowFindingUpdateRequest>({
-    action: { verb: "update", target: "agent" },
-    mutationFn: (body) => updateShadowFinding(orgName, findingId ?? "", body, getToken),
+  return useApiMutation<ShadowFindingDetail, unknown, ShadowOnboardingRequest>({
+    successMessage: () => "Agent onboarded",
+    mutationFn: (body) => onboardShadowFinding(orgName, findingId ?? "", body, getToken),
     onSuccess: () => invalidate(),
   });
 }

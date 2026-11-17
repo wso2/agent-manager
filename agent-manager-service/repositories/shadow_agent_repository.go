@@ -57,8 +57,10 @@ type ShadowConnectionApply struct {
 
 // ShadowFindingFilter selects agents.
 type ShadowFindingFilter struct {
-	Provider     string
-	Status       string
+	Provider string
+	// Onboarded keeps only the onboarded agents (true) or only the others
+	// (false); nil keeps both.
+	Onboarded    *bool
 	ConnectionID *uuid.UUID
 	// ScanID keeps the agents that scan found, present or not. Without it,
 	// only the agents present now are listed.
@@ -88,11 +90,12 @@ type ShadowFindingRow struct {
 }
 
 // ShadowSummary counts an org's agents (each agent once, however many
-// connections found it) and connections.
+// connections found it, and only the agents their platforms still list),
+// how many of them are onboarded, and the connections.
 type ShadowSummary struct {
 	Total       int
 	ByProvider  map[string]int
-	ByStatus    map[string]int
+	Onboarded   int
 	Connections int
 }
 
@@ -143,9 +146,11 @@ type ShadowAgentRepository interface {
 	ListFindings(ctx context.Context, ouID string, f ShadowFindingFilter) ([]ShadowFindingRow, int, error)
 	GetFinding(ctx context.Context, ouID string, id uuid.UUID) (*ShadowFindingRow, error)
 	ListSignals(ctx context.Context, ouID string, findingID uuid.UUID) ([]models.ShadowFindingSignal, error)
-	// UpdateFindingStatus sets the review status of the agent, on its
-	// finding in every connection that found it.
-	UpdateFindingStatus(ctx context.Context, ouID string, id uuid.UUID, status string) error
+	// OnboardFinding links the agent (its finding in every connection that
+	// found it) to the externally-hosted agent registered for it. It fails
+	// with utils.ErrShadowAlreadyOnboarded when the agent is already linked,
+	// and gorm.ErrRecordNotFound when the org has no such finding.
+	OnboardFinding(ctx context.Context, ouID string, id uuid.UUID, project, agent, by string, at time.Time) error
 	// DeleteFinding deletes an agent: every row of it (one per connection
 	// that found it) with its evidence and its per-scan links. It returns
 	// false when the org has no finding with that ID.
@@ -403,10 +408,15 @@ func upsertShadowFinding(tx *gorm.DB, in ShadowConnectionApply, f *models.Shadow
 	if err != nil {
 		return uuid.Nil, err
 	}
+	link, err := shadowAgentOnboarding(tx, in.OUID, f)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("reading the agent's onboarding: %w", err)
+	}
 	err = tx.Raw(`
 		INSERT INTO shadow_findings (ou_id, connection_id, provider, kind, external_id, display_name, scope, state,
-			owner_hint, attributes, provider_created_at, first_seen_at, last_seen_at, last_scan_id, present, status, related)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, TRUE, ?, '[]'::jsonb)
+			owner_hint, attributes, provider_created_at, first_seen_at, last_seen_at, last_scan_id, present, related,
+			linked_project, linked_agent, onboarded_at, onboarded_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, TRUE, '[]'::jsonb, ?, ?, ?, ?)
 		ON CONFLICT (ou_id, connection_id, kind, external_id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
 			scope = EXCLUDED.scope,
@@ -420,7 +430,8 @@ func upsertShadowFinding(tx *gorm.DB, in ShadowConnectionApply, f *models.Shadow
 			updated_at = NOW()
 		RETURNING id`,
 		in.OUID, in.ConnectionID, f.Provider, f.Kind, f.ExternalID, f.DisplayName, f.Scope, f.State,
-		owner, attrs, f.ProviderCreatedAt, now, now, in.ScanID, shadowNewFindingStatus(tx, in.OUID, f),
+		owner, attrs, f.ProviderCreatedAt, now, now, in.ScanID,
+		link.LinkedProject, link.LinkedAgent, link.OnboardedAt, link.OnboardedBy,
 	).Scan(&row).Error
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("writing finding: %w", err)
@@ -428,18 +439,15 @@ func upsertShadowFinding(tx *gorm.DB, in ShadowConnectionApply, f *models.Shadow
 	return row.ID, nil
 }
 
-// shadowNewFindingStatus is the review status a new finding starts with:
-// the status the same agent already has through another connection, so the
-// agent has one status however many connections found it.
-func shadowNewFindingStatus(tx *gorm.DB, ouID string, f *models.ShadowFinding) string {
-	var status string
-	err := tx.Raw(`SELECT status FROM shadow_findings
-		WHERE ou_id = ? AND provider = ? AND kind = ? AND external_id = ?
-		ORDER BY updated_at DESC LIMIT 1`, ouID, f.Provider, f.Kind, f.ExternalID).Scan(&status).Error
-	if err != nil || status == "" {
-		return models.ShadowStatusNew
-	}
-	return status
+// shadowAgentOnboarding is the onboarding link a new finding starts with:
+// the link the same agent already has through another connection, so an
+// onboarded agent stays onboarded when another connection finds it.
+func shadowAgentOnboarding(tx *gorm.DB, ouID string, f *models.ShadowFinding) (models.ShadowFinding, error) {
+	var link models.ShadowFinding
+	err := tx.Raw(`SELECT linked_project, linked_agent, onboarded_at, onboarded_by FROM shadow_findings
+		WHERE ou_id = ? AND provider = ? AND kind = ? AND external_id = ? AND linked_agent <> ''
+		ORDER BY onboarded_at LIMIT 1`, ouID, f.Provider, f.Kind, f.ExternalID).Scan(&link).Error
+	return link, err
 }
 
 func upsertShadowSignal(tx *gorm.DB, ouID string, findingID, scanID uuid.UUID, s *models.ShadowFindingSignal) error {
@@ -537,9 +545,12 @@ func (r *shadowAgentRepository) ListFindings(
 		where = append(where, "f.provider = ?")
 		args = append(args, flt.Provider)
 	}
-	if flt.Status != "" {
-		where = append(where, "f.status = ?")
-		args = append(args, flt.Status)
+	if flt.Onboarded != nil {
+		if *flt.Onboarded {
+			where = append(where, "f.linked_agent <> ''")
+		} else {
+			where = append(where, "f.linked_agent = ''")
+		}
 	}
 	if flt.ConnectionID != nil {
 		where = append(where, "f.connection_id = ?")
@@ -638,20 +649,33 @@ func (r *shadowAgentRepository) ListSignals(ctx context.Context, ouID string, fi
 	return out, err
 }
 
-func (r *shadowAgentRepository) UpdateFindingStatus(ctx context.Context, ouID string, id uuid.UUID, status string) error {
-	res := r.db.WithContext(ctx).Exec(`
-		UPDATE shadow_findings f SET status = ?, updated_at = NOW()
-		FROM shadow_findings o
-		WHERE o.ou_id = ? AND o.id = ?
-			AND f.ou_id = o.ou_id AND f.provider = o.provider AND f.kind = o.kind AND f.external_id = o.external_id`,
-		status, ouID, id)
-	if res.Error != nil {
-		return res.Error
-	}
-	if res.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+func (r *shadowAgentRepository) OnboardFinding(
+	ctx context.Context, ouID string, id uuid.UUID, project, agent, by string, at time.Time,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var f models.ShadowFinding
+		if err := tx.Select("id").Where("ou_id = ? AND id = ?", ouID, id).First(&f).Error; err != nil {
+			return err
+		}
+		// Every connection's finding of the agent gets the link, and only an
+		// agent that is not onboarded yet is onboarded (atomic).
+		res := tx.Exec(`
+			UPDATE shadow_findings f SET linked_project = ?, linked_agent = ?, onboarded_at = ?, onboarded_by = ?, updated_at = NOW()
+			FROM shadow_findings o
+			WHERE o.ou_id = ? AND o.id = ?
+				AND f.ou_id = o.ou_id AND f.provider = o.provider AND f.kind = o.kind AND f.external_id = o.external_id
+				AND NOT EXISTS (SELECT 1 FROM shadow_findings l
+					WHERE l.ou_id = o.ou_id AND l.provider = o.provider AND l.kind = o.kind
+						AND l.external_id = o.external_id AND l.linked_agent <> '')`,
+			project, agent, at, by, ouID, id)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return utils.ErrShadowAlreadyOnboarded
+		}
+		return nil
+	})
 }
 
 func (r *shadowAgentRepository) DeleteFinding(ctx context.Context, ouID string, id uuid.UUID) (bool, error) {
@@ -684,24 +708,26 @@ func (r *shadowAgentRepository) DeleteFindings(ctx context.Context, ouID string)
 }
 
 func (r *shadowAgentRepository) Summary(ctx context.Context, ouID string) (ShadowSummary, error) {
-	sum := ShadowSummary{ByProvider: map[string]int{}, ByStatus: map[string]int{}}
+	sum := ShadowSummary{ByProvider: map[string]int{}}
 	var rows []struct {
-		Provider string `gorm:"column:provider"`
-		Status   string `gorm:"column:status"`
-		N        int    `gorm:"column:n"`
+		Provider  string `gorm:"column:provider"`
+		Onboarded bool   `gorm:"column:onboarded"`
+		N         int    `gorm:"column:n"`
 	}
 	if err := r.db.WithContext(ctx).Raw(`
-		SELECT provider, status, COUNT(*) AS n FROM (
-			SELECT DISTINCT ON (provider, kind, external_id) provider, status
+		SELECT provider, onboarded, COUNT(*) AS n FROM (
+			SELECT DISTINCT ON (provider, kind, external_id) provider, linked_agent <> '' AS onboarded
 			FROM shadow_findings WHERE ou_id = ? AND present
 			ORDER BY provider, kind, external_id, last_seen_at DESC
-		) agents GROUP BY provider, status`, ouID).Scan(&rows).Error; err != nil {
+		) agents GROUP BY provider, onboarded`, ouID).Scan(&rows).Error; err != nil {
 		return sum, err
 	}
 	for _, row := range rows {
 		sum.Total += row.N
 		sum.ByProvider[row.Provider] += row.N
-		sum.ByStatus[row.Status] += row.N
+		if row.Onboarded {
+			sum.Onboarded += row.N
+		}
 	}
 	var conns int64
 	if err := r.db.WithContext(ctx).Model(&models.ShadowConnection{}).Where("ou_id = ?", ouID).Count(&conns).Error; err != nil {

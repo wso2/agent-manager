@@ -33,7 +33,6 @@ type ShadowFindingSummary struct {
 	Scope string `json:"scope"`
 	// The agent's state as its platform reports it.
 	State             string          `json:"state"`
-	Status            string          `json:"status"`
 	OwnerHint         ShadowOwnerHint `json:"ownerHint"`
 	ProviderCreatedAt *time.Time      `json:"providerCreatedAt,omitempty"`
 	FirstSeenAt       time.Time       `json:"firstSeenAt"`
@@ -42,13 +41,20 @@ type ShadowFindingSummary struct {
 	Present bool `json:"present"`
 	// Every connection that found this agent.
 	FoundBy []ShadowFindingSource `json:"foundBy"`
+	// Whether the agent is onboarded as an external agent.
+	Onboarded bool `json:"onboarded"`
+	// The project of the external agent it was onboarded as.
+	LinkedProject *string `json:"linkedProject,omitempty"`
+	// The name of the external agent it was onboarded as.
+	LinkedAgent *string    `json:"linkedAgent,omitempty"`
+	OnboardedAt *time.Time `json:"onboardedAt,omitempty"`
 }
 
 // NewShadowFindingSummary instantiates a new ShadowFindingSummary object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewShadowFindingSummary(id string, connectionId string, connectionName string, provider string, kind string, externalId string, displayName string, scope string, state string, status string, ownerHint ShadowOwnerHint, firstSeenAt time.Time, lastSeenAt time.Time, present bool, foundBy []ShadowFindingSource) *ShadowFindingSummary {
+func NewShadowFindingSummary(id string, connectionId string, connectionName string, provider string, kind string, externalId string, displayName string, scope string, state string, ownerHint ShadowOwnerHint, firstSeenAt time.Time, lastSeenAt time.Time, present bool, foundBy []ShadowFindingSource, onboarded bool) *ShadowFindingSummary {
 	this := ShadowFindingSummary{}
 	this.Id = id
 	this.ConnectionId = connectionId
@@ -59,12 +65,12 @@ func NewShadowFindingSummary(id string, connectionId string, connectionName stri
 	this.DisplayName = displayName
 	this.Scope = scope
 	this.State = state
-	this.Status = status
 	this.OwnerHint = ownerHint
 	this.FirstSeenAt = firstSeenAt
 	this.LastSeenAt = lastSeenAt
 	this.Present = present
 	this.FoundBy = foundBy
+	this.Onboarded = onboarded
 	return &this
 }
 
@@ -292,30 +298,6 @@ func (o *ShadowFindingSummary) SetState(v string) {
 	o.State = v
 }
 
-// GetStatus returns the Status field value
-func (o *ShadowFindingSummary) GetStatus() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.Status
-}
-
-// GetStatusOk returns a tuple with the Status field value
-// and a boolean to check if the value has been set.
-func (o *ShadowFindingSummary) GetStatusOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.Status, true
-}
-
-// SetStatus sets field value
-func (o *ShadowFindingSummary) SetStatus(v string) {
-	o.Status = v
-}
-
 // GetOwnerHint returns the OwnerHint field value
 func (o *ShadowFindingSummary) GetOwnerHint() ShadowOwnerHint {
 	if o == nil {
@@ -468,6 +450,126 @@ func (o *ShadowFindingSummary) SetFoundBy(v []ShadowFindingSource) {
 	o.FoundBy = v
 }
 
+// GetOnboarded returns the Onboarded field value
+func (o *ShadowFindingSummary) GetOnboarded() bool {
+	if o == nil {
+		var ret bool
+		return ret
+	}
+
+	return o.Onboarded
+}
+
+// GetOnboardedOk returns a tuple with the Onboarded field value
+// and a boolean to check if the value has been set.
+func (o *ShadowFindingSummary) GetOnboardedOk() (*bool, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Onboarded, true
+}
+
+// SetOnboarded sets field value
+func (o *ShadowFindingSummary) SetOnboarded(v bool) {
+	o.Onboarded = v
+}
+
+// GetLinkedProject returns the LinkedProject field value if set, zero value otherwise.
+func (o *ShadowFindingSummary) GetLinkedProject() string {
+	if o == nil || IsNil(o.LinkedProject) {
+		var ret string
+		return ret
+	}
+	return *o.LinkedProject
+}
+
+// GetLinkedProjectOk returns a tuple with the LinkedProject field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowFindingSummary) GetLinkedProjectOk() (*string, bool) {
+	if o == nil || IsNil(o.LinkedProject) {
+		return nil, false
+	}
+	return o.LinkedProject, true
+}
+
+// HasLinkedProject returns a boolean if a field has been set.
+func (o *ShadowFindingSummary) HasLinkedProject() bool {
+	if o != nil && !IsNil(o.LinkedProject) {
+		return true
+	}
+
+	return false
+}
+
+// SetLinkedProject gets a reference to the given string and assigns it to the LinkedProject field.
+func (o *ShadowFindingSummary) SetLinkedProject(v string) {
+	o.LinkedProject = &v
+}
+
+// GetLinkedAgent returns the LinkedAgent field value if set, zero value otherwise.
+func (o *ShadowFindingSummary) GetLinkedAgent() string {
+	if o == nil || IsNil(o.LinkedAgent) {
+		var ret string
+		return ret
+	}
+	return *o.LinkedAgent
+}
+
+// GetLinkedAgentOk returns a tuple with the LinkedAgent field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowFindingSummary) GetLinkedAgentOk() (*string, bool) {
+	if o == nil || IsNil(o.LinkedAgent) {
+		return nil, false
+	}
+	return o.LinkedAgent, true
+}
+
+// HasLinkedAgent returns a boolean if a field has been set.
+func (o *ShadowFindingSummary) HasLinkedAgent() bool {
+	if o != nil && !IsNil(o.LinkedAgent) {
+		return true
+	}
+
+	return false
+}
+
+// SetLinkedAgent gets a reference to the given string and assigns it to the LinkedAgent field.
+func (o *ShadowFindingSummary) SetLinkedAgent(v string) {
+	o.LinkedAgent = &v
+}
+
+// GetOnboardedAt returns the OnboardedAt field value if set, zero value otherwise.
+func (o *ShadowFindingSummary) GetOnboardedAt() time.Time {
+	if o == nil || IsNil(o.OnboardedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.OnboardedAt
+}
+
+// GetOnboardedAtOk returns a tuple with the OnboardedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowFindingSummary) GetOnboardedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.OnboardedAt) {
+		return nil, false
+	}
+	return o.OnboardedAt, true
+}
+
+// HasOnboardedAt returns a boolean if a field has been set.
+func (o *ShadowFindingSummary) HasOnboardedAt() bool {
+	if o != nil && !IsNil(o.OnboardedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetOnboardedAt gets a reference to the given time.Time and assigns it to the OnboardedAt field.
+func (o *ShadowFindingSummary) SetOnboardedAt(v time.Time) {
+	o.OnboardedAt = &v
+}
+
 func (o ShadowFindingSummary) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -487,7 +589,6 @@ func (o ShadowFindingSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["scope"] = o.Scope
 	toSerialize["state"] = o.State
-	toSerialize["status"] = o.Status
 	toSerialize["ownerHint"] = o.OwnerHint
 	if !IsNil(o.ProviderCreatedAt) {
 		toSerialize["providerCreatedAt"] = o.ProviderCreatedAt
@@ -496,6 +597,16 @@ func (o ShadowFindingSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize["lastSeenAt"] = o.LastSeenAt
 	toSerialize["present"] = o.Present
 	toSerialize["foundBy"] = o.FoundBy
+	toSerialize["onboarded"] = o.Onboarded
+	if !IsNil(o.LinkedProject) {
+		toSerialize["linkedProject"] = o.LinkedProject
+	}
+	if !IsNil(o.LinkedAgent) {
+		toSerialize["linkedAgent"] = o.LinkedAgent
+	}
+	if !IsNil(o.OnboardedAt) {
+		toSerialize["onboardedAt"] = o.OnboardedAt
+	}
 	return toSerialize, nil
 }
 

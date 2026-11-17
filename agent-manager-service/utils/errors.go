@@ -168,6 +168,7 @@ var (
 	ErrShadowScanInProgress           = errors.New("a scan is already queued or running for this organization")
 	ErrShadowNoConnections            = errors.New("no platform connection to scan")
 	ErrShadowFindingNotFound          = errors.New("shadow agent finding not found")
+	ErrShadowAlreadyOnboarded         = errors.New("the agent is already onboarded")
 	ErrEventSubscriptionNotFound      = errors.New("event subscription not found")
 	ErrEvaluatorNotFound              = errors.New("evaluator not found")
 	ErrCustomEvaluatorNotFound        = errors.New("custom evaluator not found")

@@ -90,7 +90,7 @@ func TestShadowApplyConnectionResultIsIdempotent(t *testing.T) {
 	bot := rows[0]
 	assert.Equal(t, "conn", bot.ConnectionName)
 	assert.True(t, bot.Present)
-	assert.Equal(t, models.ShadowStatusNew, bot.Status)
+	assert.Empty(t, bot.LinkedAgent, "not onboarded")
 	assert.Equal(t, "alice@example.com", bot.OwnerHint.Email)
 	require.Len(t, bot.FoundBy, 1)
 	assert.Equal(t, c.ID.String(), bot.FoundBy[0].ConnectionID)
@@ -238,7 +238,7 @@ func TestShadowStaleEvidenceRemovedOnCompleteListing(t *testing.T) {
 }
 
 // The same agent (provider, kind, external ID) found through two connections
-// is one agent: listed once with both connections, counted once, one status.
+// is one agent: listed once with both connections, counted once, onboarded once.
 func TestShadowAgentsAreDeduplicatedAcrossConnections(t *testing.T) {
 	ctx := context.Background()
 	repo := NewShadowAgentRepository(db.GetDB())
@@ -288,23 +288,34 @@ func TestShadowAgentsAreDeduplicatedAcrossConnections(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, total)
 
-	// One status for the agent, whichever row is reviewed.
-	require.NoError(t, repo.UpdateFindingStatus(ctx, ou, shared.FoundBy[0].findingUUID(t), models.ShadowStatusReviewed))
+	// Onboarding links the agent on every connection, whichever row is used.
+	at := t0.Add(time.Minute)
+	require.NoError(t, repo.OnboardFinding(ctx, ou, shared.FoundBy[0].findingUUID(t), "default", "shared-agent", "user-1", at))
 	for _, src := range shared.FoundBy {
 		got, err := repo.GetFinding(ctx, ou, src.findingUUID(t))
 		require.NoError(t, err)
-		assert.Equal(t, models.ShadowStatusReviewed, got.Status, src.ConnectionName)
+		assert.Equal(t, "default", got.LinkedProject, src.ConnectionName)
+		assert.Equal(t, "shared-agent", got.LinkedAgent, src.ConnectionName)
+		assert.Equal(t, "user-1", got.OnboardedBy)
+		require.NotNil(t, got.OnboardedAt)
+		assert.True(t, got.OnboardedAt.Equal(at))
 		assert.Len(t, got.FoundBy, 2)
 	}
-	_, total, err = repo.ListFindings(ctx, ou, ShadowFindingFilter{Status: models.ShadowStatusReviewed, Limit: 10})
+	err = repo.OnboardFinding(ctx, ou, shared.FoundBy[1].findingUUID(t), "default", "other", "user-2", at)
+	assert.ErrorIs(t, err, utils.ErrShadowAlreadyOnboarded, "an agent is onboarded once, through any connection")
+	on, off := true, false
+	_, total, err = repo.ListFindings(ctx, ou, ShadowFindingFilter{Onboarded: &on, Limit: 10})
+	require.NoError(t, err)
+	assert.Equal(t, 1, total)
+	_, total, err = repo.ListFindings(ctx, ou, ShadowFindingFilter{Onboarded: &off, Limit: 10})
 	require.NoError(t, err)
 	assert.Equal(t, 1, total)
 	sum, err = repo.Summary(ctx, ou)
 	require.NoError(t, err)
-	assert.Equal(t, 1, sum.ByStatus[models.ShadowStatusReviewed])
-	assert.Equal(t, 1, sum.ByStatus[models.ShadowStatusNew])
+	assert.Equal(t, 2, sum.Total)
+	assert.Equal(t, 1, sum.Onboarded)
 
-	// A third connection that finds the agent later inherits its status.
+	// A third connection that finds the agent later inherits its onboarding.
 	c := newShadowConnection(t, repo, ou, "Gamma")
 	_, err = repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
 		OUID: ou, ConnectionID: c.ID, ScanID: newShadowScan(t, repo, ou), ScanStartedAt: t0.Add(2 * time.Minute), Complete: true,
@@ -314,10 +325,13 @@ func TestShadowAgentsAreDeduplicatedAcrossConnections(t *testing.T) {
 	rows, _, err = repo.ListFindings(ctx, ou, ShadowFindingFilter{Search: "shared", Limit: 10})
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
-	assert.Equal(t, models.ShadowStatusReviewed, rows[0].Status)
+	assert.Equal(t, "shared-agent", rows[0].LinkedAgent)
 	assert.Len(t, rows[0].FoundBy, 3)
+	var unlinked int64
+	require.NoError(t, db.GetDB().Raw(`SELECT COUNT(*) FROM shadow_findings WHERE ou_id = ? AND external_id = 'agent_shared' AND linked_agent = ''`, ou).Scan(&unlinked).Error)
+	assert.Zero(t, unlinked, "every connection's row carries the link")
 
-	assert.True(t, IsShadowNotFound(repo.UpdateFindingStatus(ctx, ou, uuid.New(), models.ShadowStatusReviewed)))
+	assert.True(t, IsShadowNotFound(repo.OnboardFinding(ctx, ou, uuid.New(), "default", "x", "u", at)))
 }
 
 func (s ShadowFindingSource) findingUUID(t *testing.T) uuid.UUID {
