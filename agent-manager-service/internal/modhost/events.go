@@ -37,21 +37,33 @@ import (
 // A drainer on every replica claims the deliveries of the modules it runs,
 // calls their handlers off any request with a deadline, and deletes a
 // delivery once its module has handled it. A failed delivery is retried with
-// backoff, so each subscriber gets each event at least once.
+// backoff, so each subscriber gets each event at least once. A handler that
+// overruns the deadline is abandoned, not stopped: it may still be running
+// when the retry starts, here or on another replica, so handlers must
+// tolerate running concurrently and more than once. Deliveries expire after
+// EventRetention, handled or not, and an uninstalled module's are dropped.
+//
+// Times are each replica's clock (dbx.Now), as everywhere else in the
+// schema; replicas are expected to keep their clocks in sync.
 
 var coreEvents = []string{modkit.EventAgentCreated, modkit.EventAgentDeleted, modkit.EventEnvironmentCreated}
 
 const (
-	// eventHandlerTimeout bounds one delivery to one module.
-	eventHandlerTimeout = 30 * time.Second
-	// eventClaimLease is how long a claimed delivery stays with its replica.
-	// It outlasts the handler deadline, so a delivery is never handed to a
-	// second replica while the first may still be running it.
+	// DefaultEventDeliveryTimeout bounds one delivery to one module, all its
+	// handlers for the event together.
+	DefaultEventDeliveryTimeout = 30 * time.Second
+	// eventClaimLease is how long a claimed delivery stays with its replica,
+	// four times the delivery deadline, so a delivery is not handed to a
+	// second replica while the first is still within its deadline.
 	eventClaimLease = 2 * time.Minute
+	// EventRetention is how long a delivery is kept, pending or failed.
+	EventRetention = 7 * 24 * time.Hour
+	// eventSweepInterval is how often a replica drops expired deliveries.
+	eventSweepInterval = time.Hour
 	// eventMaxAttempts is how often a delivery is tried before it is kept as failed.
 	eventMaxAttempts = 10
-	// eventBatch is how many deliveries a drainer claims at once, and runs in parallel.
-	eventBatch = 8
+	// eventWorkers is how many deliveries a replica runs at once.
+	eventWorkers = 8
 	// DefaultEventRetryBase is the first retry delay; it doubles each attempt.
 	DefaultEventRetryBase = 2 * time.Second
 	maxEventRetry         = 5 * time.Minute
@@ -145,7 +157,11 @@ func (h *Host) publish(ctx context.Context, tx *gorm.DB, module, eventType strin
 		return fmt.Errorf("modkit: event %s names no organization", eventType)
 	}
 	if tx == nil {
-		tx = hookTx(ctx)
+		hook, inHook := hookTx(ctx)
+		if inHook && hook == nil {
+			return errReadOnlyHook
+		}
+		tx = hook
 	}
 	if tx == nil {
 		tx = h.db
@@ -170,24 +186,43 @@ type eventRow struct {
 	CreatedAt time.Time
 }
 
-// drain delivers module events until ctx ends.
+// drain delivers module events until ctx ends. Each claimed delivery runs on
+// its own worker, so a slow module holds up only its own deliveries.
 func (h *Host) drain(ctx context.Context) {
-	t := time.NewTicker(500 * time.Millisecond)
-	defer t.Stop()
+	workers := make(chan struct{}, eventWorkers)
+	var wg sync.WaitGroup
+	defer wg.Wait()
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	sweep := time.NewTicker(eventSweepInterval)
+	defer sweep.Stop()
+	h.ExpireEvents(ctx, "")
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case <-sweep.C:
+			h.ExpireEvents(ctx, "")
+		case <-tick.C:
 		}
-		for h.drainOnce(ctx) == eventBatch && ctx.Err() == nil {
+		for free := eventWorkers - len(workers); free > 0 && ctx.Err() == nil; free = eventWorkers - len(workers) {
+			v, lease, claimed := h.claim(ctx, free)
+			for _, d := range claimed {
+				workers <- struct{}{}
+				wg.Go(func() {
+					defer func() { <-workers }()
+					h.deliver(ctx, v, d, lease)
+				})
+			}
+			if len(claimed) < free {
+				break
+			}
 		}
 	}
 }
 
-// drainOnce claims and runs one batch of due deliveries for the modules this
-// replica runs, and returns how many it claimed.
-func (h *Host) drainOnce(ctx context.Context) int {
+// claim claims up to n due deliveries for the modules this replica runs.
+func (h *Host) claim(ctx context.Context, n int) (*view, string, []deliveryRow) {
 	v := h.current()
 	var modules []string
 	for _, subs := range v.subs {
@@ -198,18 +233,18 @@ func (h *Host) drainOnce(ctx context.Context) int {
 		}
 	}
 	if len(modules) == 0 {
-		return 0
+		return v, "", nil
 	}
 	db := h.db.WithContext(ctx)
 	now := dbx.Now()
 	var due []deliveryRow
 	if err := db.Raw(`SELECT event_id, module, attempts FROM module_event_deliveries
 		WHERE available_at <= ? AND failed_at IS NULL AND module IN ? ORDER BY available_at LIMIT ?`,
-		now, modules, eventBatch).Scan(&due).Error; err != nil {
+		now, modules, n).Scan(&due).Error; err != nil {
 		if ctx.Err() == nil {
 			h.log.Error("modhost:reading module event deliveries failed", "error", err)
 		}
-		return 0
+		return v, "", nil
 	}
 	lease := uuid.NewString()
 	var claimed []deliveryRow
@@ -221,15 +256,18 @@ func (h *Host) drainOnce(ctx context.Context) int {
 			claimed = append(claimed, d)
 		}
 	}
-	var wg sync.WaitGroup
-	for _, d := range claimed {
-		wg.Go(func() { h.deliver(ctx, v, d, lease) })
-	}
-	wg.Wait()
-	return len(due)
+	return v, lease, claimed
 }
 
-// deliver runs one module's handlers for one event and records the outcome.
+func (h *Host) deliveryTimeout() time.Duration {
+	if h.EventDeliveryTimeout > 0 {
+		return min(h.EventDeliveryTimeout, eventClaimLease/4)
+	}
+	return DefaultEventDeliveryTimeout
+}
+
+// deliver runs one module's handlers for one event, under one deadline, and
+// records the outcome.
 func (h *Host) deliver(ctx context.Context, v *view, d deliveryRow, lease string) {
 	db := h.db.WithContext(context.WithoutCancel(ctx))
 	var rows []eventRow
@@ -243,22 +281,27 @@ func (h *Host) deliver(ctx context.Context, v *view, d deliveryRow, lease string
 	if er.Subject != nil {
 		e.Subject = *er.Subject
 	}
-	var err error
+	var handlers []modkit.EventHandler
 	for _, s := range v.subs[e.Type] {
-		if s.module != d.Module {
-			continue
+		if s.module == d.Module {
+			handlers = append(handlers, s.fn)
 		}
-		if err = h.runHandler(ctx, s, e); err != nil {
-			break
-		}
+	}
+	err := h.runHandlers(ctx, handlers, e)
+	if ctx.Err() != nil {
+		// Shutting down: give the delivery back without counting an attempt.
+		_ = db.Exec(`UPDATE module_event_deliveries SET available_at = ?, claimed_by = NULL
+			WHERE event_id = ? AND module = ? AND claimed_by = ?`, dbx.Now(), d.EventID, d.Module, lease).Error
+		return
 	}
 	h.finish(db, d, lease, err)
 }
 
-// runHandler calls a handler with a hard deadline. A handler that overruns is
-// abandoned and the delivery counts as failed.
-func (h *Host) runHandler(ctx context.Context, s subEntry, e modkit.Event) error {
-	hctx, cancel := context.WithTimeout(modkit.WithOrgID(ctx, e.OrgID), eventHandlerTimeout)
+// runHandlers calls a module's handlers in turn, all under one deadline. A
+// handler that overruns is abandoned and the delivery counts as failed.
+func (h *Host) runHandlers(ctx context.Context, handlers []modkit.EventHandler, e modkit.Event) error {
+	timeout := h.deliveryTimeout()
+	hctx, cancel := context.WithTimeout(modkit.WithOrgID(ctx, e.OrgID), timeout)
 	defer cancel()
 	done := make(chan error, 1)
 	go func() {
@@ -267,14 +310,48 @@ func (h *Host) runHandler(ctx context.Context, s subEntry, e modkit.Event) error
 				done <- fmt.Errorf("panic: %v", p)
 			}
 		}()
-		done <- s.fn(hctx, e)
+		for _, fn := range handlers {
+			if err := fn(hctx, e); err != nil {
+				done <- err
+				return
+			}
+		}
+		done <- nil
 	}()
 	select {
 	case err := <-done:
 		return err
 	case <-hctx.Done():
-		return fmt.Errorf("did not finish within %s", eventHandlerTimeout)
+		return fmt.Errorf("did not finish within %s", timeout)
 	}
+}
+
+// ExpireEvents drops deliveries older than EventRetention, pending or failed,
+// for one module or (module "") all, and the events no delivery needs.
+func (h *Host) ExpireEvents(ctx context.Context, module string) {
+	if err := dropDeliveries(h.db.WithContext(ctx), module, dbx.Now().Add(-EventRetention)); err != nil && ctx.Err() == nil {
+		h.log.Error("modhost:expiring module event deliveries failed", "error", err)
+	}
+}
+
+// dropDeliveries deletes the deliveries of events created before cutoff (all
+// of them when cutoff is zero), for one module or all, then orphaned events.
+func dropDeliveries(db *gorm.DB, module string, cutoff time.Time) error {
+	q := `DELETE FROM module_event_deliveries WHERE 1 = 1`
+	var args []any
+	if module != "" {
+		q += ` AND module = ?`
+		args = append(args, module)
+	}
+	if !cutoff.IsZero() {
+		q += ` AND event_id IN (SELECT id FROM module_events WHERE created_at < ?)`
+		args = append(args, cutoff)
+	}
+	if err := db.Exec(q, args...).Error; err != nil {
+		return err
+	}
+	return db.Exec(`DELETE FROM module_events WHERE NOT EXISTS
+		(SELECT 1 FROM module_event_deliveries WHERE module_event_deliveries.event_id = module_events.id)`).Error
 }
 
 func (h *Host) retryBase() time.Duration {

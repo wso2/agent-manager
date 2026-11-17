@@ -113,9 +113,31 @@ const StalledTag = "stalled"
 // deadline; it must never.
 var AfterTimeout atomic.Bool
 
-// FailEnvironment makes the environment apply hook fail after writing a row
-// tagged EnvironmentTag.
-var FailEnvironment atomic.Bool
+// Environment hook behaviours for EnvironmentMode.
+const (
+	EnvironmentOK int32 = iota
+	// EnvironmentFail writes a row tagged EnvironmentTag, then fails.
+	EnvironmentFail
+	// EnvironmentHang writes a row tagged EnvironmentTag, then runs a
+	// statement that outlasts every deadline.
+	EnvironmentHang
+)
+
+// EnvironmentMode sets what the environment apply hook does.
+var EnvironmentMode atomic.Int32
+
+// DeletePublishErr is what Publish returned when the delete validate hook
+// tried it, for an agent tagged "publish-on-delete".
+var DeletePublishErr atomic.Pointer[error]
+
+// slowStatement runs one statement that takes far longer than any hook
+// deadline, so the hook is stopped in the middle of it.
+func slowStatement(db *gorm.DB) error {
+	if db.Name() == "postgres" {
+		return db.Exec(`SELECT pg_sleep(60)`).Error
+	}
+	return db.Exec(`WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c LIMIT 10000000000) SELECT count(*) FROM c`).Error
+}
 
 // EnvironmentTag marks the row a failing environment hook writes.
 const EnvironmentTag = "env-hook"
@@ -153,6 +175,10 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 			}
 			if len(tags) == 1 && tags[0] == "undeletable" {
 				return &modkit.Error{Status: http.StatusConflict, Message: "the agent is tagged undeletable"}
+			}
+			if len(tags) == 1 && tags[0] == "publish-on-delete" {
+				err := rt.Publish(ctx, WidgetCreated, map[string]string{"name": "from-delete-validate"})
+				DeletePublishErr.Store(&err)
 			}
 			return nil
 		}
@@ -211,20 +237,30 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		if err := req.Tx.Exec(`DELETE FROM mod_testmod_agent_tags WHERE agent_id = ?`, req.ID).Error; err != nil {
 			return err
 		}
-		if len(tags) == 1 && tags[0] == "finalize-fails" {
-			// Finalize cannot refuse: the delete goes ahead.
+		switch {
+		case len(tags) == 1 && tags[0] == "finalize-fails":
+			// A failing statement after a partial write: both are undone,
+			// and on PostgreSQL the core transaction must survive it.
+			// Finalize cannot refuse, so the delete goes ahead.
+			_ = req.Tx.Exec(`SELECT no_such_column FROM mod_testmod_agent_tags`).Error
 			return errors.New("finalize failed on request")
+		case len(tags) == 1 && tags[0] == "finalize-hangs":
+			return slowStatement(req.Tx)
 		}
 		return nil
 	})
 	rt.Hook(modkit.ResourceEnvironment, modkit.Apply, func(_ context.Context, req modkit.HookRequest) error {
-		if !FailEnvironment.Load() {
+		mode := EnvironmentMode.Load()
+		if mode == EnvironmentOK {
 			return nil
 		}
-		// Written, then undone with the savepoint when the hook fails.
+		// Written, then undone with the hook's savepoint.
 		if err := req.Tx.Exec(`INSERT INTO mod_testmod_agent_tags (agent_id, org_id, tag) VALUES (?, ?, ?)`,
 			req.ID, req.OrgID, EnvironmentTag).Error; err != nil {
 			return err
+		}
+		if mode == EnvironmentHang {
+			return slowStatement(req.Tx)
 		}
 		return errors.New("environment hook failed on request")
 	})

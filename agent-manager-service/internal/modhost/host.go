@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -64,6 +65,9 @@ type Host struct {
 	// EventRetryBase is the first retry delay of a failed module event
 	// delivery; zero means DefaultEventRetryBase. Set it before Boot.
 	EventRetryBase time.Duration
+	// EventDeliveryTimeout bounds one module event delivery; zero means
+	// DefaultEventDeliveryTimeout. Set it before Boot.
+	EventDeliveryTimeout time.Duration
 
 	// Passive hosts track module state without activating anything, for
 	// commands that change module state on behalf of running servers.
@@ -136,10 +140,22 @@ func NewWith(db *gorm.DB, driver string, log *slog.Logger, mods []modkit.Module)
 		if err := modkit.CheckName(mf.Name, h.names()); err != nil {
 			panic(err.Error())
 		}
+		if err := checkReserved(mf); err != nil {
+			panic(err.Error())
+		}
 		h.mods[mf.Name] = m
 		h.manifests[mf.Name] = mf
 	}
 	return h
+}
+
+// checkReserved refuses a module named after a core permission resource; a
+// built-in module is part of the core and may.
+func checkReserved(mf modkit.Manifest) error {
+	if !mf.Builtin && slices.Contains(rbac.ReservedResources(), mf.Name) {
+		return fmt.Errorf("modhost: module name %q is reserved for the core's %s:* permissions", mf.Name, mf.Name)
+	}
+	return nil
 }
 
 func (h *Host) names() []string {
@@ -588,6 +604,9 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 		if err := h.schemaReady(tx, name); err != nil {
 			return err
 		}
+		if err := dropDeliveries(tx, name, dbx.Now().Add(-EventRetention)); err != nil {
+			return err
+		}
 		if _, err := setState(tx, name, h.manifests[name].Version, StateActive); err != nil {
 			return err
 		}
@@ -608,6 +627,12 @@ func (h *Host) Disable(ctx context.Context, name string) error {
 		if deps := Dependents(name, h.manifests, states, false); len(deps) > 0 {
 			return &ResolveError{Msg: fmt.Sprintf("%s is required by %v", name, deps), Hint: "disable those first"}
 		}
+		// Deliveries already queued for the module stay while it is
+		// disabled, and expire after EventRetention, so enabling it later
+		// replays no more than that.
+		if err := dropDeliveries(tx, name, dbx.Now().Add(-EventRetention)); err != nil {
+			return err
+		}
 		return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateDisabled, dbx.Now(), name).Error
 	})
 }
@@ -625,6 +650,10 @@ func (h *Host) Uninstall(ctx context.Context, name string) error {
 		}
 		if deps := Dependents(name, h.manifests, states, true); len(deps) > 0 {
 			return &ResolveError{Msg: fmt.Sprintf("%s is required by %v", name, deps), Hint: "uninstall those first"}
+		}
+		// An uninstalled module gets no more events.
+		if err := dropDeliveries(tx, name, time.Time{}); err != nil {
+			return err
 		}
 		return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateUninstalled, dbx.Now(), name).Error
 	})

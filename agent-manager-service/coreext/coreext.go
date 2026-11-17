@@ -66,11 +66,30 @@ func Set(x Extensions) {
 }
 
 // Begin starts an operation on the installed implementation, or a no-op one.
+// When ctx carries an operation on the same resource (see Start), Begin
+// returns that one instead.
 func Begin(ctx context.Context, resource string) Operation {
+	if c, ok := ctx.Value(opKey{}).(carried); ok && c.resource == resource {
+		return c.op
+	}
 	if h := current.Load(); h != nil {
 		return h.Begin(ctx, resource)
 	}
 	return none{}
+}
+
+type opKey struct{}
+
+type carried struct {
+	resource string
+	op       Operation
+}
+
+// Start begins an operation and returns ctx carrying it, for a change made in
+// steps: deleting an agent asks the modules (validate) before the core tears
+// anything down, and deletes later, and both steps must see the same modules.
+func Start(ctx context.Context, resource string) context.Context {
+	return context.WithValue(ctx, opKey{}, carried{resource: resource, op: Begin(ctx, resource)})
 }
 
 type none struct{}

@@ -78,11 +78,10 @@ type moduleWorld struct {
 	limited  http.Handler // signed in without them
 	internal http.Handler
 	signer   services.WorkloadTokenSigner
-	// fresh is signed in to an organization nobody has used yet.
-	fresh       http.Handler
-	freshHandle string
-	org         string
-	handle      string
+	// freshOrg signs in to an organization nobody has used yet.
+	freshOrg func() (http.Handler, string)
+	org      string
+	handle   string
 }
 
 func (w moduleWorld) call(t *testing.T, h http.Handler, method, path string, body any, header ...string) (int, []byte) {
@@ -128,9 +127,6 @@ func newModuleWorld(t *testing.T) moduleWorld {
 	}
 	full := params(moduleAuth(org, handle, "amp:testmod:widget-read", "amp:testmod:widget-write"))
 	limited := params(moduleAuth(org, handle))
-	freshOrg := uuid.Must(uuid.NewV7()).String()
-	freshHandle := "mod-" + freshOrg[len(freshOrg)-8:]
-	fresh := params(moduleAuth(freshOrg, freshHandle))
 
 	stop, err := app.StartModules(ctx, host, database, full)
 	require.NoError(t, err)
@@ -145,15 +141,18 @@ func newModuleWorld(t *testing.T) moduleWorld {
 		}
 	})
 	return moduleWorld{
-		host:        host,
-		full:        api.MakeHTTPHandlerWithModules(full, nil, nil, host),
-		limited:     api.MakeHTTPHandlerWithModules(limited, nil, nil, host),
-		internal:    api.MakeInternalHTTPHandlerWithModules(full, host),
-		signer:      full.AgentTokenManagerService.(services.WorkloadTokenSigner),
-		fresh:       api.MakeHTTPHandlerWithModules(fresh, nil, nil, host),
-		freshHandle: freshHandle,
-		org:         org,
-		handle:      handle,
+		host:     host,
+		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host),
+		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host),
+		internal: api.MakeInternalHTTPHandlerWithModules(full, host),
+		signer:   full.AgentTokenManagerService.(services.WorkloadTokenSigner),
+		freshOrg: func() (http.Handler, string) {
+			id := uuid.Must(uuid.NewV7()).String()
+			h := "mod-" + id[len(id)-8:]
+			return api.MakeHTTPHandlerWithModules(params(moduleAuth(id, h)), nil, nil, host), h
+		},
+		org:    org,
+		handle: handle,
 	}
 }
 
@@ -271,9 +270,31 @@ func TestModuleContract(t *testing.T) {
 		require.Equal(t, http.StatusNoContent, code, string(body))
 		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/tagged", nil)
 		assert.Equal(t, http.StatusNotFound, code)
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/tags", nil)
-		require.Equal(t, http.StatusOK, code)
-		assert.JSONEq(t, `[]`, string(body))
+		var n int64
+		require.NoError(t, db.DB(ctx).Raw(`SELECT count(*) FROM mod_testmod_agent_tags WHERE tag = ? AND org_id = ?`, "finalize-fails", w.org).Scan(&n).Error)
+		assert.EqualValues(t, 1, n, "the failed finalize's own delete is undone with its savepoint")
+	})
+
+	t.Run("a finalize hook that hangs mid-statement cannot break a delete", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("hangs", map[string]any{"testmod": map[string]any{"tag": "finalize-hangs"}}))
+		require.Equal(t, http.StatusAccepted, code, string(body))
+		start := time.Now()
+		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/hangs", nil)
+		require.Equal(t, http.StatusNoContent, code, string(body))
+		assert.Less(t, time.Since(start), modkit.OperationTimeout+2*time.Second)
+		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/hangs", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+	})
+
+	t.Run("a delete's validate hook cannot publish", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("quiet", map[string]any{"testmod": map[string]any{"tag": "publish-on-delete"}}))
+		require.Equal(t, http.StatusAccepted, code, string(body))
+		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/quiet", nil)
+		require.Equal(t, http.StatusNoContent, code, string(body))
+		perr := testmod.DeletePublishErr.Load()
+		require.NotNil(t, perr, "the validate hook ran")
+		require.Error(t, *perr)
+		assert.Contains(t, (*perr).Error(), "cannot write")
 	})
 
 	t.Run("a hook that runs out of time leaves nothing behind", func(t *testing.T) {
@@ -332,15 +353,25 @@ func TestModuleContract(t *testing.T) {
 		assert.Zero(t, failed)
 	})
 
-	t.Run("a failing environment hook cannot block a new organization", func(t *testing.T) {
-		testmod.FailEnvironment.Store(true)
-		defer testmod.FailEnvironment.Store(false)
-		code, body := w.call(t, w.fresh, http.MethodGet, "/api/v1/orgs/"+w.freshHandle+"/projects", nil)
-		require.Equal(t, http.StatusOK, code, string(body))
-		var n int64
-		require.NoError(t, db.DB(ctx).Raw(`SELECT count(*) FROM mod_testmod_agent_tags WHERE tag = ?`, testmod.EnvironmentTag).Scan(&n).Error)
-		assert.Zero(t, n, "the failed hook's write is undone")
-	})
+	for _, tc := range []struct {
+		name string
+		mode int32
+	}{{"fails", testmod.EnvironmentFail}, {"hangs mid-statement", testmod.EnvironmentHang}} {
+		t.Run("an environment hook that "+tc.name+" cannot block a new organization", func(t *testing.T) {
+			testmod.EnvironmentMode.Store(tc.mode)
+			defer testmod.EnvironmentMode.Store(testmod.EnvironmentOK)
+			fresh, handle := w.freshOrg()
+			start := time.Now()
+			code, body := w.call(t, fresh, http.MethodGet, "/api/v1/orgs/"+handle+"/projects", nil)
+			require.Equal(t, http.StatusOK, code, string(body))
+			assert.Less(t, time.Since(start), modkit.OperationTimeout+2*time.Second)
+			code, body = w.call(t, fresh, http.MethodGet, "/api/v1/orgs/"+handle+"/projects", nil)
+			require.Equal(t, http.StatusOK, code, string(body))
+			var n int64
+			require.NoError(t, db.DB(ctx).Raw(`SELECT count(*) FROM mod_testmod_agent_tags WHERE tag = ?`, testmod.EnvironmentTag).Scan(&n).Error)
+			assert.Zero(t, n, "the failed hook's write is undone")
+		})
+	}
 
 	t.Run("a capability resolves through the provider", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testcap/echo?s=hi", nil)

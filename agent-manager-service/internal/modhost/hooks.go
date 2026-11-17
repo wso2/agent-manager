@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -130,17 +131,37 @@ func (e *HookError) Unwrap() error { return e.Err }
 
 type hookTxKey struct{}
 
+// hookScope marks a hook's ctx. tx is the transaction the hook may write
+// through; nil in the validate phase of a delete, which must only read.
+type hookScope struct{ tx *gorm.DB }
+
 // withHookTx marks ctx as a hook's, so Publish and IssueCredential called with
-// it write through the core transaction instead of a second connection.
+// it write through the core transaction instead of a second connection, or
+// are refused where the hook has no transaction.
 func withHookTx(ctx context.Context, tx *gorm.DB) context.Context {
-	return context.WithValue(ctx, hookTxKey{}, tx)
+	return context.WithValue(ctx, hookTxKey{}, hookScope{tx: tx})
 }
 
-func hookTx(ctx context.Context) *gorm.DB {
-	tx, _ := ctx.Value(hookTxKey{}).(*gorm.DB)
-	return tx
+// hookTx returns the transaction of the hook ctx belongs to, and whether ctx
+// is a hook's at all.
+func hookTx(ctx context.Context) (*gorm.DB, bool) {
+	s, ok := ctx.Value(hookTxKey{}).(hookScope)
+	return s.tx, ok
 }
 
+var errReadOnlyHook = errors.New("modkit: a validate hook on a delete runs outside the transaction and cannot write; " +
+	"publish or issue credentials from the finalize hook")
+
+var savepoints atomic.Uint64
+
+// call runs one hook. With a transaction, the hook runs inside its own
+// savepoint, rolled back if the hook fails or runs out of time, so a module
+// can neither leave partial writes nor leave the core transaction aborted.
+// The hook's deadline never reaches the core's own statements: on PostgreSQL a
+// cancelled statement closes the connection and with it the transaction, so
+// there the hook's statements run uncancelled and the server's
+// statement_timeout bounds them instead. On SQLite cancelling only interrupts
+// the statement.
 func (op *operation) call(ctx context.Context, tx *gorm.DB, e hookEntry, req modkit.HookRequest) error {
 	deadline := time.Now().Add(modkit.HookTimeout)
 	if op.deadline.Before(deadline) {
@@ -148,12 +169,29 @@ func (op *operation) call(ctx context.Context, tx *gorm.DB, e hookEntry, req mod
 	}
 	hctx, cancel := context.WithDeadline(modkit.WithOrgID(ctx, req.OrgID), deadline)
 	defer cancel()
-	var closed atomic.Bool
-	defer closed.Store(true)
+
+	conn := &guardedConn{}
+	var core *gorm.DB
+	var sp string
 	if tx != nil {
-		req.Tx = guard(tx.WithContext(hctx), &closed)
-		hctx = withHookTx(hctx, req.Tx)
+		core = tx.WithContext(context.WithoutCancel(ctx))
+		sp = fmt.Sprintf("modhook_%d", savepoints.Add(1))
+		if err := core.SavePoint(sp).Error; err != nil {
+			return fmt.Errorf("module %s: opening a savepoint: %w", e.module, err)
+		}
+		stmtCtx := hctx
+		if op.h.driver == "postgres" {
+			ms := max(time.Until(deadline).Milliseconds(), 1)
+			if err := core.Exec(fmt.Sprintf("SET LOCAL statement_timeout = %d", ms)).Error; err != nil {
+				return fmt.Errorf("module %s: bounding the hook's statements: %w", e.module, err)
+			}
+			stmtCtx = context.WithoutCancel(hctx)
+		}
+		conn.inner = core.Statement.ConnPool
+		req.Tx = guard(core.WithContext(stmtCtx), conn)
 	}
+	hctx = withHookTx(hctx, req.Tx)
+
 	done := make(chan error, 1)
 	go func() {
 		defer func() {
@@ -169,6 +207,26 @@ func (op *operation) call(ctx context.Context, tx *gorm.DB, e hookEntry, req mod
 	case <-hctx.Done():
 		err = fmt.Errorf("did not finish in time: %w", hctx.Err())
 	}
+	// Waits for a statement the hook is running, then refuses any more. A
+	// hook that ran out of time keeps running in its goroutine until it
+	// returns, but can no longer touch the transaction.
+	conn.close()
+
+	if tx != nil {
+		if err == nil {
+			if op.h.driver == "postgres" {
+				err = core.Exec("SET LOCAL statement_timeout TO DEFAULT").Error
+			}
+			if err == nil {
+				err = core.Exec("RELEASE SAVEPOINT " + sp).Error
+			}
+		}
+		if err != nil {
+			if rbErr := core.RollbackTo(sp).Error; rbErr != nil {
+				return fmt.Errorf("module %s: %w (and undoing its writes failed: %w)", e.module, err, rbErr)
+			}
+		}
+	}
 	if err == nil {
 		return nil
 	}
@@ -180,56 +238,70 @@ func (op *operation) call(ctx context.Context, tx *gorm.DB, e hookEntry, req mod
 	return &HookError{Module: e.module, Resource: op.resource, Phase: e.phase, Err: err}
 }
 
-// guard returns tx behind a connection that refuses every statement once
-// closed is set, so a hook that outlives its call, or ran out of time, can no
-// longer write through the core transaction. Nested transactions use
-// savepoints, as on the transaction itself; ending the transaction is refused.
-func guard(tx *gorm.DB, closed *atomic.Bool) *gorm.DB {
+// guard returns tx behind conn, which refuses every statement once closed, so
+// a hook that outlives its call, or ran out of time, can no longer use the
+// core transaction. Nested transactions use savepoints, as on the transaction
+// itself; ending the transaction is refused.
+func guard(tx *gorm.DB, conn *guardedConn) *gorm.DB {
 	g := tx.Session(&gorm.Session{NewDB: true, Context: tx.Statement.Context})
-	g.Statement.ConnPool = &guardedConn{inner: tx.Statement.ConnPool, closed: closed}
+	g.Statement.ConnPool = conn
 	return g
 }
 
 var errHookTxClosed = errors.New("modkit: the hook's transaction is no longer usable")
 
+// guardedConn holds its lock across the closed check and the statement, so
+// close waits for a statement in progress and none starts after it. Rows a
+// query returns are read after the lock is released; gorm reads them before
+// the call that ran the query returns.
 type guardedConn struct {
 	inner  gorm.ConnPool
-	closed *atomic.Bool
+	mu     sync.Mutex
+	closed bool
 }
 
-// use returns ctx, or an already cancelled one once the hook is over.
-func (g *guardedConn) use(ctx context.Context) context.Context {
-	if !g.closed.Load() {
-		return ctx
-	}
-	c, cancel := context.WithCancelCause(ctx)
-	cancel(errHookTxClosed)
-	return c
+func (g *guardedConn) close() {
+	g.mu.Lock()
+	g.closed = true
+	g.mu.Unlock()
 }
 
 func (g *guardedConn) PrepareContext(ctx context.Context, query string) (*sql.Stmt, error) {
-	if g.closed.Load() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.closed {
 		return nil, errHookTxClosed
 	}
 	return g.inner.PrepareContext(ctx, query)
 }
 
 func (g *guardedConn) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
-	if g.closed.Load() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.closed {
 		return nil, errHookTxClosed
 	}
 	return g.inner.ExecContext(ctx, query, args...)
 }
 
 func (g *guardedConn) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
-	if g.closed.Load() {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.closed {
 		return nil, errHookTxClosed
 	}
 	return g.inner.QueryContext(ctx, query, args...)
 }
 
 func (g *guardedConn) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
-	return g.inner.QueryRowContext(g.use(ctx), query, args...)
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if g.closed {
+		c, cancel := context.WithCancelCause(ctx)
+		cancel(errHookTxClosed)
+		ctx = c
+	}
+	return g.inner.QueryRowContext(ctx, query, args...)
 }
 
 // Commit and Rollback make gorm treat the handle as a transaction (nested

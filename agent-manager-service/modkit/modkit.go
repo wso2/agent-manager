@@ -149,15 +149,19 @@ type Phase string
 
 // The hooks of one create, update or delete see the same set of active
 // modules and share one deadline, OperationTimeout; each hook also has at most
-// HookTimeout. A hook that runs out of time fails the operation, and the
-// transaction handle it was given stops working.
+// HookTimeout. Inside a transaction each hook runs in its own savepoint: if it
+// fails or runs out of time its writes are undone and the core's transaction
+// carries on. A hook that runs out of time is abandoned, not stopped: its
+// goroutine runs until it returns, but the transaction handle it was given
+// stops working.
 const (
 	// Validate runs in activation order and may refuse the change: an error
 	// rolls it back and fails the request (a modkit.Error carries its status
 	// and message to the caller; any other error is a 500). On create and
 	// update it runs inside the core transaction, before the write. On
 	// delete it runs before the core tears anything down, outside any
-	// transaction (Tx is nil), so it must only read.
+	// transaction (Tx is nil), so it must only read: Publish and
+	// IssueCredential called with its ctx are refused.
 	Validate Phase = "validate"
 	// Apply runs inside the core transaction after a create or update is
 	// written, in activation order. An error rolls the change back.
@@ -242,9 +246,13 @@ type Event struct {
 }
 
 // EventHandler handles an event. Handlers run in the background, after the
-// change that raised the event has committed, on one replica, with a deadline.
-// Each subscribing module gets the event at least once: a handler that fails
-// is retried with backoff, so handlers must be idempotent.
+// change that raised the event has committed, on one replica. A module's
+// handlers for one event share one deadline. Each subscribing module gets the
+// event at least once: a handler that fails is retried with backoff, and one
+// that overruns its deadline is abandoned, not stopped, so it may still be
+// running when the retry starts on this or another replica. Handlers must be
+// idempotent and tolerate running concurrently. Undelivered events expire
+// after a retention period.
 type EventHandler func(ctx context.Context, e Event) error
 
 // ErrNotFound is returned by the read API for a resource that does not exist

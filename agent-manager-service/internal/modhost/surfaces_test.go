@@ -64,6 +64,9 @@ func installAll(t *testing.T, h *modhost.Host, names ...string) {
 	}
 }
 
+// inTx runs fn in a transaction on g, as the core runs hooks.
+func inTx(g *gorm.DB, fn func(tx *gorm.DB) error) error { return g.Transaction(fn) }
+
 // eachDatabase runs a test on SQLite and, in the integration tier, PostgreSQL.
 func eachDatabase(t *testing.T, test func(t *testing.T, d database)) {
 	for _, d := range databases(t) {
@@ -87,8 +90,8 @@ func hooksRunInOrder(t *testing.T, d database) {
 	op := h.Begin(ctx, modkit.ResourceAgent)
 	require.NoError(t, op.Check(ext))
 	req := modkit.HookRequest{Action: modkit.ActionCreate}
-	require.NoError(t, op.Run(ctx, g, modkit.Validate, req, ext))
-	require.NoError(t, op.Run(ctx, g, modkit.Finalize, req, ext))
+	require.NoError(t, inTx(g, func(tx *gorm.DB) error { return op.Run(ctx, tx, modkit.Validate, req, ext) }))
+	require.NoError(t, inTx(g, func(tx *gorm.DB) error { return op.Run(ctx, tx, modkit.Finalize, req, ext) }))
 
 	block := func(n string) string {
 		if n == "t-a" {
@@ -133,15 +136,22 @@ func hookFailures(t *testing.T, d database) {
 	req := modkit.HookRequest{}
 
 	start := time.Now()
-	err := h.Begin(ctx, modkit.ResourceAgent).Run(ctx, g, modkit.Validate, req, nil)
+	err := inTx(g, func(tx *gorm.DB) error {
+		return h.Begin(ctx, modkit.ResourceAgent).Run(ctx, tx, modkit.Validate, req, nil)
+	})
 	var hookErr *modhost.HookError
 	require.ErrorAs(t, err, &hookErr)
 	assert.Less(t, time.Since(start), modkit.HookTimeout+2*time.Second)
 
-	require.ErrorAs(t, h.Begin(ctx, modkit.ResourceAgent).Run(ctx, g, modkit.Apply, req, nil), &hookErr)
+	require.ErrorAs(t, inTx(g, func(tx *gorm.DB) error {
+		return h.Begin(ctx, modkit.ResourceAgent).Run(ctx, tx, modkit.Apply, req, nil)
+	}), &hookErr)
 	assert.Contains(t, hookErr.Error(), "panic")
 
-	assert.NoError(t, h.Begin(ctx, modkit.ResourceAgent).Run(ctx, g, modkit.Finalize, req, nil), "finalize cannot refuse")
+	assert.NoError(t, inTx(g, func(tx *gorm.DB) error {
+		return h.Begin(ctx, modkit.ResourceAgent).Run(ctx, tx, modkit.Finalize, req, nil)
+	}),
+		"finalize cannot refuse")
 }
 
 // The hooks of one operation share a deadline: two slow modules cannot hold
@@ -164,7 +174,9 @@ func TestOneDeadlinePerOperation(t *testing.T) {
 	h, g := replica(t, ctx, databases(t)[0], []modkit.Module{slow("t-s1"), slow("t-s2"), slow("t-s3")})
 	installAll(t, h, "t-s1", "t-s2", "t-s3")
 	start := time.Now()
-	err := h.Begin(ctx, modkit.ResourceAgent).Run(ctx, g, modkit.Apply, modkit.HookRequest{}, nil)
+	err := inTx(g, func(tx *gorm.DB) error {
+		return h.Begin(ctx, modkit.ResourceAgent).Run(ctx, tx, modkit.Apply, modkit.HookRequest{}, nil)
+	})
 	require.Error(t, err, "three hooks of 4.5s each overrun the operation's deadline")
 	assert.Less(t, time.Since(start), modkit.OperationTimeout+time.Second)
 }

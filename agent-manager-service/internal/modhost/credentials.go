@@ -53,6 +53,9 @@ func (h *Host) issueCredential(ctx context.Context, module string, req modkit.Cr
 	if req.Subject == "" {
 		return modkit.Credential{}, errors.New("modkit: a workload credential needs a subject")
 	}
+	if tx, inHook := hookTx(ctx); inHook && tx == nil {
+		return modkit.Credential{}, errReadOnlyHook
+	}
 	if err := checkScopes(req.Scopes); err != nil {
 		return modkit.Credential{}, err
 	}
@@ -86,7 +89,7 @@ func (h *Host) issueCredential(ctx context.Context, module string, req modkit.Cr
 	if err != nil {
 		return modkit.Credential{}, err
 	}
-	db := hookTx(ctx)
+	db, _ := hookTx(ctx)
 	if db == nil {
 		db = h.db
 	}

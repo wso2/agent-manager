@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -775,7 +776,9 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 	}
 
 	// Modules may refuse the delete; ask before anything is torn down, so a
-	// refusal leaves the agent and everything it owns in place.
+	// refusal leaves the agent and everything it owns in place. The check and
+	// the delete share one operation, so they see the same modules.
+	ctx = coreext.Start(ctx, modkit.ResourceAgent)
 	if err := s.platform.CheckDeleteAgent(ctx, ouID, projectName, agentName); err != nil && !errors.Is(err, utils.ErrAgentNotFound) {
 		return err
 	}

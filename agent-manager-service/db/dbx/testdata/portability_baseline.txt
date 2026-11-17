@@ -13,3 +13,4 @@ repositories/org_scheduler_credential_repository.go 1
 services/a2a_card_reconciler.go 1
 services/mcp_proxy_service.go 1
 services/monitor_scheduler.go 1
+tests/modules/testmod/testmod.go 1
