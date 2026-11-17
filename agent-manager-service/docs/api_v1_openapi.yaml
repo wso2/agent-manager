@@ -14642,6 +14642,20 @@ components:
           buildpack: "#/components/schemas/BuildpackBuild"
           docker: "#/components/schemas/DockerBuild"
 
+    Extensions:
+      type: object
+      description: >-
+        Settings for the modules that extend this resource, keyed by module
+        name. Each module sees only its own block. A block for a module that
+        is not active, or that does not extend this resource, is rejected with
+        400.
+      additionalProperties:
+        type: object
+        additionalProperties: true
+      example:
+        example-module:
+          enabled: true
+
     Labels:
       type: object
       description: >-
@@ -14706,6 +14720,8 @@ components:
             $ref: "#/components/schemas/MCPConfigRequest"
         labels:
           $ref: "#/components/schemas/Labels"
+        extensions:
+          $ref: "#/components/schemas/Extensions"
 
     GitHubAppSource:
       type: object
@@ -14795,6 +14811,8 @@ components:
           description: Description of the agent
         labels:
           $ref: "#/components/schemas/Labels"
+        extensions:
+          $ref: "#/components/schemas/Extensions"
 
     UpdateAgentBuildParametersRequest:
       type: object
@@ -17874,6 +17892,8 @@ components:
         gateway:
           description: Optional gateway configuration with ingress and egress network specs. Environments cannot be created, so this is not used.
           $ref: "#/components/schemas/GatewaySpec"
+        extensions:
+          $ref: "#/components/schemas/Extensions"
 
     UpdateEnvironmentRequest:
       type: object
@@ -17896,6 +17916,8 @@ components:
         gateway:
           description: Updated gateway configuration with ingress and egress network specs. Omit to keep the current value.
           $ref: "#/components/schemas/GatewaySpec"
+        extensions:
+          $ref: "#/components/schemas/Extensions"
 
     ThunderSystemClientRequest:
       type: object
