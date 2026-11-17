@@ -142,6 +142,8 @@ export interface AppConfig {
   externalProjectManagementUrl?: string;
   /** URL for the product documentation. Shown as a "Docs" link in the footer. */
   docsUrl?: string;
+  /** Base URL of the Identity Platform console for configuring agent delegation. */
+  identityPlatformConsoleUrl?: string;
   /** URLs rendered in the footer. */
   footerLinks?: {
     privacyPolicyUrl?: string;

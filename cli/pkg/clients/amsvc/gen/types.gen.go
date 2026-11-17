@@ -2793,6 +2793,9 @@ type ConfigResponse struct {
 	// false.
 	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
 
+	// IdentityControlPlaneEnabled Whether this deployment manages agent identities through the identity control plane. Absent is treated as false.
+	IdentityControlPlaneEnabled *bool `json:"identityControlPlaneEnabled,omitempty"`
+
 	// ObserverBaseUrl Base URL for the agent-manager-observer service
 	ObserverBaseUrl string `json:"observerBaseUrl"`
 }

@@ -51,7 +51,12 @@ import {
   Trash,
 } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { IDENTITY_ENV_PARAM, type ThunderGroup, type ThunderRole } from "@agent-management-platform/types";
+import {
+  globalConfig,
+  IDENTITY_ENV_PARAM,
+  type ThunderGroup,
+  type ThunderRole,
+} from "@agent-management-platform/types";
 import { PageLayout, TextInput } from "@agent-management-platform/views";
 import {
   useAddAgentIdentityGroupMembers,
@@ -59,6 +64,7 @@ import {
   useListAgentIdentityAgents,
   useListAgentIdentityGroups,
   useListAgentIdentityRoles,
+  useRuntimeConfig,
   useListEnvironments,
   useRemoveAgentIdentityGroupMembers,
   useRemoveAgentIdentityRoleAssignees,
@@ -73,6 +79,7 @@ import {
   useUnsavedChangesGuard,
 } from "@agent-management-platform/shared-component";
 import { useAssignmentDelta } from "../subComponents/agentIdentity/useAssignmentDelta";
+import { DelegatedAccessSection } from "./DelegatedAccessSection";
 
 type IdentityItem = {
   id: string;
@@ -262,6 +269,7 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
 
   const { data: identityAgentsData, isLoading: isLoadingIdentityAgents } =
     useListAgentIdentityAgents({ orgName: orgId, envName: envId });
+  const { data: runtimeConfig } = useRuntimeConfig();
   const { data: allRolesData, isLoading: isLoadingAllRoles } = useListAgentIdentityRoles(
     { orgName: orgId, envName: envId },
     { offset: 0, limit: CATALOG_PAGE_SIZE },
@@ -617,6 +625,14 @@ const AgentIdentitySection: React.FC<AgentIdentitySectionProps> = ({
               </Typography>
             </Alert>
           )}
+          <DelegatedAccessSection
+            enabled={runtimeConfig?.identityControlPlaneEnabled === true}
+            consoleUrl={globalConfig.identityPlatformConsoleUrl}
+            orgName={orgId}
+            projectName={projectId}
+            identityId={provisioned ? binding.agentId : undefined}
+            isExternal={isExternal}
+          />
         </Stack>
       </TabPanel>
 

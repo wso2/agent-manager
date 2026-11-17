@@ -25,6 +25,8 @@ type ConfigResponse struct {
 	ConsoleAnalyticsEnabled *bool `json:"consoleAnalyticsEnabled,omitempty"`
 	// Whether this deployment delivers platform events to event destinations, that is, whether it runs an event bus (EVENTS_MODE is not off). The console hides Events when false. Absent is treated as false.
 	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
+	// Whether this deployment manages agent identities through the identity control plane. Absent is treated as false.
+	IdentityControlPlaneEnabled *bool `json:"identityControlPlaneEnabled,omitempty"`
 }
 
 // NewConfigResponse instantiates a new ConfigResponse object
@@ -133,6 +135,38 @@ func (o *ConfigResponse) SetEventsEnabled(v bool) {
 	o.EventsEnabled = &v
 }
 
+// GetIdentityControlPlaneEnabled returns the IdentityControlPlaneEnabled field value if set, zero value otherwise.
+func (o *ConfigResponse) GetIdentityControlPlaneEnabled() bool {
+	if o == nil || IsNil(o.IdentityControlPlaneEnabled) {
+		var ret bool
+		return ret
+	}
+	return *o.IdentityControlPlaneEnabled
+}
+
+// GetIdentityControlPlaneEnabledOk returns a tuple with the IdentityControlPlaneEnabled field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConfigResponse) GetIdentityControlPlaneEnabledOk() (*bool, bool) {
+	if o == nil || IsNil(o.IdentityControlPlaneEnabled) {
+		return nil, false
+	}
+	return o.IdentityControlPlaneEnabled, true
+}
+
+// HasIdentityControlPlaneEnabled returns a boolean if a field has been set.
+func (o *ConfigResponse) HasIdentityControlPlaneEnabled() bool {
+	if o != nil && !IsNil(o.IdentityControlPlaneEnabled) {
+		return true
+	}
+
+	return false
+}
+
+// SetIdentityControlPlaneEnabled gets a reference to the given bool and assigns it to the IdentityControlPlaneEnabled field.
+func (o *ConfigResponse) SetIdentityControlPlaneEnabled(v bool) {
+	o.IdentityControlPlaneEnabled = &v
+}
+
 func (o ConfigResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -149,6 +183,9 @@ func (o ConfigResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.EventsEnabled) {
 		toSerialize["eventsEnabled"] = o.EventsEnabled
+	}
+	if !IsNil(o.IdentityControlPlaneEnabled) {
+		toSerialize["identityControlPlaneEnabled"] = o.IdentityControlPlaneEnabled
 	}
 	return toSerialize, nil
 }

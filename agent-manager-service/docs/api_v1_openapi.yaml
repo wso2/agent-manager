@@ -14901,6 +14901,9 @@ components:
             destinations, that is, whether it runs an event bus (EVENTS_MODE is
             not off). The console hides Events when false. Absent is treated as
             false.
+        identityControlPlaneEnabled:
+          type: boolean
+          description: Whether this deployment manages agent identities through the identity control plane. Absent is treated as false.
 
     CreateLLMAPIKeyRequest:
       type: object
