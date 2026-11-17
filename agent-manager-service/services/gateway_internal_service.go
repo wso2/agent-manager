@@ -42,6 +42,7 @@ type GatewayInternalAPIService struct {
 	infraResourceMgr InfraResourceManager
 	encryptionKey    []byte
 	artifacts        GatewayArtifacts
+	gatewaySecrets   repositories.GatewaySecretRepository
 }
 
 // GatewayArtifacts names an artifact as the gateway knows it: the kind, and the id it stores it under; ok is false
@@ -73,8 +74,10 @@ func NewGatewayInternalAPIService(
 	infraResourceMgr InfraResourceManager,
 	encryptionKey []byte,
 	artifacts GatewayArtifacts,
+	gatewaySecrets repositories.GatewaySecretRepository,
 ) *GatewayInternalAPIService {
 	return &GatewayInternalAPIService{
+		gatewaySecrets:   gatewaySecrets,
 		artifacts:        artifacts,
 		providerRepo:     providerRepo,
 		proxyRepo:        proxyRepo,

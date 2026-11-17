@@ -105,7 +105,7 @@ func TestGatewaySyncRoutesAskTheKinds(t *testing.T) {
 			return []models.GatewaySyncRow{row}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, nil, stubGatewayArtifacts{})
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, nil, stubGatewayArtifacts{}, nil)
 
 	got, err := svc.ListGatewayDeployments(context.Background(), "ou-1", "gw-1")
 
@@ -159,7 +159,7 @@ func TestFetchDeploymentBatch(t *testing.T) {
 			return []models.GatewayDeploymentContent{provider, proxy, mcp, restAPI}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds(), nil)
 
 	got, err := svc.FetchDeploymentBatch(context.Background(), "ou-1", "gw-1", []string{
 		strings.ToUpper(provider.DeploymentID.String()), "", proxy.DeploymentID.String(), "not-a-uuid",
@@ -202,7 +202,7 @@ func TestCheckArtifactsExist(t *testing.T) {
 			return []models.ArtifactRef{provider, proxy}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, nil, artifacts, nil, nil, nil, gatewayKinds())
+	svc := NewGatewayInternalAPIService(nil, nil, nil, artifacts, nil, nil, nil, gatewayKinds(), nil)
 
 	got, err := svc.CheckArtifactsExist(context.Background(), "ou-1", []string{
 		strings.ToUpper(provider.ArtifactUUID.String()), provider.ArtifactUUID.String(), "proxy-handle",

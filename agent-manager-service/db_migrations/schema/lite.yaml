@@ -3,6 +3,13 @@
 #
 # Types: id (UUID v7 from the app), text (needs size), longtext, json, bool, int, bigint, time (UTC), binary.
 # Every column is NOT NULL unless `nullable: true`. on_delete is `cascade` or omitted (no action).
+#
+# Tables go into the baseline (001) unless they name a later migration, which creates them on a database the baseline
+# already ran on. Once a migration has shipped, add new tables in a new one rather than editing it.
+
+migrations:
+  - {id: "002", name: secret_jobs}
+  - {id: "003", name: gateway_secret_handles}
 
 tables:
   # --- Orgs, projects, environments ---------------------------------------------------------
@@ -158,6 +165,48 @@ tables:
     foreign_keys:
       - {columns: [org_id], references: organizations, ref_columns: [id]}
     indexes: [[org_id, owner_kind, owner_id]]
+
+  # Work on an external vault that waits for the database change needing it to commit: promote copies a value
+  # sealed into the row to the configured external vault, destroy removes a value no row refers to any more.
+  # No foreign keys: a job outlives the secret and the organization it cleans up after.
+  - name: secret_jobs
+    migration: "002"
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: secret_id, type: id}
+      - {name: owner_kind, type: text, size: 32}
+      - {name: action, type: text, size: 16}
+      - {name: provider, type: text, size: 16, nullable: true}
+      - {name: external_ref, type: text, size: 512, nullable: true}
+      - {name: staged_provider, type: text, size: 16, nullable: true}
+      - {name: staged_ref, type: text, size: 512, nullable: true}
+      - {name: version, type: int, nullable: true}
+      - {name: attempts, type: int}
+      - {name: last_error, type: longtext, nullable: true}
+      - {name: available_at, type: time}
+      - {name: claimed_by, type: text, size: 255, nullable: true}
+      - {name: claimed_until, type: time, nullable: true}
+      - {name: created_at, type: time}
+    primary_key: [id]
+    indexes: [[available_at, id], [secret_id], [provider, external_ref]]
+
+  # The handles a gateway artifact names a secret by, in its {{ secret "handle" }} placeholders. A handle names one
+  # value: a new credential gets a new secret and handle, so a gateway re-renders the deployment that names it.
+  # retired_at is set when the owner stops using the secret; the secret is released once no gateway can still be
+  # running a deployment that names the handle.
+  - name: gateway_secret_handles
+    migration: "003"
+    columns:
+      - {name: handle, type: text, size: 64}
+      - {name: org_id, type: id}
+      - {name: secret_id, type: id}
+      - {name: retired_at, type: time, nullable: true}
+      - {name: created_at, type: time}
+    primary_key: [handle]
+    foreign_keys:
+      - {columns: [org_id, secret_id], references: secrets, ref_columns: [org_id, id]}
+    indexes: [[secret_id], [org_id, retired_at]]
 
   # --- Gateways -----------------------------------------------------------------------------
 

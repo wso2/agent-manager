@@ -65,12 +65,12 @@ var activeDeploymentLookups = []struct {
 const testArtifactID = "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f"
 
 func newGatewayInternalServiceWithDeployments(repo *repomocks.DeploymentRepositoryMock) *GatewayInternalAPIService {
-	return NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, nil, gatewayKinds())
+	return NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, nil, gatewayKinds(), nil)
 }
 
 // gatewayKinds names artifacts as the registered kinds do; naming needs none of their dependencies.
 func gatewayKinds() *reconcile.Core {
-	return reconcile.NewCore(nil, nil, nil, reconcile.Kinds{NewLLMProviderKind(), &LLMProxyKind{}, &MCPProxyKind{}, &A2AAgentKind{}},
+	return reconcile.NewCore(nil, nil, nil, reconcile.Kinds{NewLLMProviderKind(nil), &LLMProxyKind{}, &MCPProxyKind{}, &A2AAgentKind{}},
 		reconcile.Config{}, discardLogger())
 }
 
@@ -151,7 +151,7 @@ func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
 			return &models.Deployment{Content: []byte(stored)}, nil
 		},
 	}
-	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds(), nil)
 
 	got, err := svc.GetActiveAgentDeploymentByGateway(context.Background(), testArtifactID, "ou-1", "gw-1")
 	require.NoError(t, err)

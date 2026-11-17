@@ -38,6 +38,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/vault"
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
@@ -83,6 +84,7 @@ type AppParams struct {
 	AgentThunderReconciler           services.AgentThunderReconcilerService
 	A2ACardReconciler                services.A2ACardReconcilerService
 	DeploymentTimeoutSweeper         services.DeploymentTimeoutSweeper
+	SecretJobWorker                  services.SecretJobWorker
 	ReconcileWorker                  *reconcile.Worker
 	DefaultGatewaySeeder             *services.DefaultGatewaySeeder
 
@@ -155,12 +157,34 @@ func ProvideJWTSigningConfig(config config.Config) config.JWTSigningConfig {
 
 // ProvideEncryptionKey decodes the hex-encoded encryption key from config.
 func ProvideEncryptionKey(cfg config.Config) ([]byte, error) {
-	key, err := hex.DecodeString(cfg.EncryptionKey)
+	return decodeEncryptionKey("ENCRYPTION_KEY", cfg.EncryptionKey)
+}
+
+func decodeEncryptionKey(name, value string) ([]byte, error) {
+	key, err := hex.DecodeString(strings.TrimSpace(value))
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode ENCRYPTION_KEY: %w", err)
+		return nil, fmt.Errorf("failed to decode %s: %w", name, err)
 	}
-	if len(key) != 32 {
-		return nil, fmt.Errorf("ENCRYPTION_KEY must decode to exactly 32 bytes (got %d)", len(key))
+	if len(key) != vault.KeySize {
+		return nil, fmt.Errorf("%s must decode to exactly %d bytes (got %d)", name, vault.KeySize, len(key))
 	}
 	return key, nil
+}
+
+// ProvideSecretVaults builds the vault that protects values in the secrets
+// table. SECRET_VAULT_PROVIDER selects it; ENCRYPTION_KEY_PREVIOUS lists keys
+// that were rotated out but still open what they sealed.
+func ProvideSecretVaults(cfg config.Config, encryptionKey []byte) (*vault.Vaults, error) {
+	vaultCfg := vault.Config{EncryptionKey: encryptionKey}
+	for _, value := range strings.Split(cfg.PreviousEncryptionKeys, ",") {
+		if strings.TrimSpace(value) == "" {
+			continue
+		}
+		key, err := decodeEncryptionKey("ENCRYPTION_KEY_PREVIOUS", value)
+		if err != nil {
+			return nil, err
+		}
+		vaultCfg.PreviousKeys = append(vaultCfg.PreviousKeys, key)
+	}
+	return vault.Open(cfg.SecretManager.VaultProvider, vaultCfg)
 }

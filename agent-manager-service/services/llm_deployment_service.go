@@ -462,6 +462,11 @@ func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, d
 
 // generateLLMProviderDeploymentYAML generates deployment YAML for an LLM provider
 func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provider *models.LLMProvider, _ string) (string, error) {
+	if provider != nil && provider.UpstreamSecretID != nil {
+		if err := s.providerRepo.ResolveUpstreamAuth(context.Background(), nil, provider); err != nil {
+			return "", err
+		}
+	}
 	return renderLLMProvider(provider)
 }
 

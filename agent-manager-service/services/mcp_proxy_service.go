@@ -594,9 +594,18 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 
 		// Endpoint config is fully specified on each PUT, so reconcile by replacing the
 		// endpoint set: delete existing endpoints (cascade removes their join rows) and
-		// re-insert. Preserved env artifact UUIDs keep agent bindings resolving.
+		// re-insert. Preserved env artifact UUIDs keep agent bindings resolving, and a
+		// credential the request omitted keeps its secret, which the new row takes over.
+		// The secrets of replaced or removed credentials are released with their rows; an
+		// external vault value is only removed once this transaction commits.
+		var keptSecrets []uuid.UUID
+		for _, endpoint := range endpoints {
+			if endpoint.upstreamSecretID != nil {
+				keptSecrets = append(keptSecrets, *endpoint.upstreamSecretID)
+			}
+		}
 		for _, endpoint := range proxy.Endpoints {
-			if err := s.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil &&
+			if err := s.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID, keptSecrets...); err != nil &&
 				!errors.Is(err, gorm.ErrRecordNotFound) {
 				return fmt.Errorf("failed to delete existing MCP proxy endpoint: %w", err)
 			}
@@ -963,10 +972,16 @@ func firstMapValue(values map[string]interface{}, keys ...string) interface{} {
 	return nil
 }
 
-func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *models.UpstreamAuth) (*models.UpstreamAuth, error) {
+// prepareMCPUpstreamAuthForStorage builds the auth an endpoint stores from the stored one and the request's. A new
+// plaintext credential is encrypted into SecretRef, which the endpoint repository moves into the secrets table. When
+// the request omits the credential, the stored one is kept: an inline SecretRef from before credentials moved is
+// carried in the auth, and a credential in the secrets table is kept by returning existingSecret.
+func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(
+	existing *models.UpstreamAuth, existingSecret *uuid.UUID, updated *models.UpstreamAuth,
+) (*models.UpstreamAuth, *uuid.UUID, error) {
 	auth := preserveUpstreamAuthCredential(existing, updated)
 	if auth == nil {
-		return nil, nil //nolint:nilnil // A nil auth value is valid when upstream auth is omitted.
+		return nil, nil, nil
 	}
 
 	if auth.Header != nil {
@@ -983,28 +998,33 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *mo
 	}
 
 	if err := auth.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
 	}
 
+	// The stored credential is kept when the request supplies none.
+	var keptSecret *uuid.UUID
+	if auth.Value == nil && auth.SecretRef == nil {
+		keptSecret = existingSecret
+	}
 	hasHeader := auth.Header != nil && *auth.Header != ""
-	hasCredential := auth.Value != nil || auth.SecretRef != nil
+	hasCredential := auth.Value != nil || auth.SecretRef != nil || keptSecret != nil
 	if !hasHeader && !hasCredential {
-		return nil, nil //nolint:nilnil // Empty auth fields mean the endpoint should not store auth.
+		return nil, nil, nil
 	}
 	if hasHeader != hasCredential {
-		return nil, fmt.Errorf("%w: authentication header and value must be provided together", utils.ErrInvalidInput)
+		return nil, nil, fmt.Errorf("%w: authentication header and value must be provided together", utils.ErrInvalidInput)
 	}
 
 	if auth.Value != nil {
 		encoded, err := utils.EncryptSecretRef(*auth.Value, s.encryptionKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
+			return nil, nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
 		}
 		auth.SecretRef = &encoded
 		auth.Value = nil
 	}
 
-	return auth, nil
+	return auth, keptSecret, nil
 }
 
 // FetchServerInfo fetches server information from an MCP backend. Probes are
@@ -1764,6 +1784,8 @@ type storableMCPEndpoint struct {
 	name         string
 	config       models.MCPEndpointConfig
 	envArtifacts map[string]uuid.UUID // environment UUID -> artifact UUID
+	// upstreamSecretID is the stored credential's secret the endpoint keeps, when the request omitted the credential.
+	upstreamSecretID *uuid.UUID
 }
 
 // existingMCPEndpointIndex indexes a proxy's currently-stored endpoints so an update can
@@ -1772,6 +1794,8 @@ type storableMCPEndpoint struct {
 type existingMCPEndpointIndex struct {
 	// authByEndpointHandle carries the stored upstream auth for credential preservation.
 	authByEndpointHandle map[string]*models.UpstreamAuth
+	// secretByEndpointHandle carries the secret holding each endpoint's stored credential.
+	secretByEndpointHandle map[string]*uuid.UUID
 	// artifactByEnv is keyed by environment UUID: uq_proxy_env_single guarantees one
 	// artifact per environment per proxy, so the identity survives an endpoint remap.
 	artifactByEnv map[string]uuid.UUID
@@ -1779,12 +1803,16 @@ type existingMCPEndpointIndex struct {
 
 func indexExistingMCPEndpoints(endpoints []models.MCPProxyEndpoint) existingMCPEndpointIndex {
 	idx := existingMCPEndpointIndex{
-		authByEndpointHandle: map[string]*models.UpstreamAuth{},
-		artifactByEnv:        map[string]uuid.UUID{},
+		authByEndpointHandle:   map[string]*models.UpstreamAuth{},
+		secretByEndpointHandle: map[string]*uuid.UUID{},
+		artifactByEnv:          map[string]uuid.UUID{},
 	}
 	for _, endpoint := range endpoints {
 		if endpoint.Configuration.Upstream != nil {
 			idx.authByEndpointHandle[strings.TrimSpace(endpoint.Handle)] = endpoint.Configuration.Upstream.Auth
+		}
+		if endpoint.UpstreamSecretID != nil {
+			idx.secretByEndpointHandle[strings.TrimSpace(endpoint.Handle)] = endpoint.UpstreamSecretID
 		}
 		for _, ee := range endpoint.Environments {
 			if ee.ArtifactUUID != uuid.Nil {
@@ -1803,11 +1831,15 @@ func indexExistingMCPEndpoints(endpoints []models.MCPProxyEndpoint) existingMCPE
 // This performs no network I/O, so it is safe to call inside a transaction.
 func (s *MCPProxyService) buildMCPEndpointsForStorage(incoming []models.MCPProxyEndpointDTO, existing *existingMCPEndpointIndex) ([]storableMCPEndpoint, error) {
 	authByHandle := map[string]*models.UpstreamAuth{}
+	secretByHandle := map[string]*uuid.UUID{}
 	artifactByEnv := map[string]uuid.UUID{}
 	if existing != nil {
 		authByHandle = existing.authByEndpointHandle
+		secretByHandle = existing.secretByEndpointHandle
 		artifactByEnv = existing.artifactByEnv
 	}
+	// A stored secret is kept by at most one incoming endpoint, even if the request repeats a handle.
+	keptSecrets := map[uuid.UUID]bool{}
 
 	out := make([]storableMCPEndpoint, 0, len(incoming))
 	for _, incomingEndpoint := range incoming {
@@ -1819,13 +1851,22 @@ func (s *MCPProxyService) buildMCPEndpointsForStorage(incoming []models.MCPProxy
 			SpecVersions: specVersionsFromPtr(incomingEndpoint.McpSpecVersions),
 			Security:     defaultMCPProxySecurity(incomingEndpoint.Security),
 		}
+		var keptSecret *uuid.UUID
 		if incomingEndpoint.Upstream.Main != nil {
 			endpoint := *incomingEndpoint.Upstream.Main
 			endpoint.URL = strings.TrimSpace(endpoint.URL)
-			auth, err := s.prepareMCPUpstreamAuthForStorage(authByHandle[handle], incomingEndpoint.Upstream.Main.Auth)
+			storedSecret := secretByHandle[handle]
+			if storedSecret != nil && keptSecrets[*storedSecret] {
+				storedSecret = nil
+			}
+			auth, kept, err := s.prepareMCPUpstreamAuthForStorage(authByHandle[handle], storedSecret, incomingEndpoint.Upstream.Main.Auth)
 			if err != nil {
 				return nil, err
 			}
+			if kept != nil {
+				keptSecrets[*kept] = true
+			}
+			keptSecret = kept
 			endpoint.Auth = auth
 			config.Upstream = &endpoint
 		}
@@ -1844,10 +1885,11 @@ func (s *MCPProxyService) buildMCPEndpointsForStorage(incoming []models.MCPProxy
 		}
 
 		out = append(out, storableMCPEndpoint{
-			handle:       handle,
-			name:         strings.TrimSpace(incomingEndpoint.Name),
-			config:       config,
-			envArtifacts: envArtifacts,
+			handle:           handle,
+			name:             strings.TrimSpace(incomingEndpoint.Name),
+			config:           config,
+			envArtifacts:     envArtifacts,
+			upstreamSecretID: keptSecret,
 		})
 	}
 	return out, nil
@@ -1927,12 +1969,13 @@ func (s *MCPProxyService) persistMCPEndpoints(ctx context.Context, tx *gorm.DB, 
 	for _, endpoint := range endpoints {
 		endpointUUID := uuid.New()
 		row := &models.MCPProxyEndpoint{
-			UUID:          endpointUUID,
-			MCPProxyUUID:  proxyUUID,
-			Handle:        endpoint.handle,
-			Name:          endpoint.name,
-			Status:        models.StatusCreated,
-			Configuration: endpoint.config,
+			UUID:             endpointUUID,
+			MCPProxyUUID:     proxyUUID,
+			Handle:           endpoint.handle,
+			Name:             endpoint.name,
+			Status:           models.StatusCreated,
+			Configuration:    endpoint.config,
+			UpstreamSecretID: endpoint.upstreamSecretID,
 		}
 		if err := s.endpointRepo.CreateEndpoint(ctx, tx, row); err != nil {
 			return err

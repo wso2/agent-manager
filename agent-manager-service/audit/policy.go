@@ -162,6 +162,7 @@ var coalesceWindows = map[string]time.Duration{
 	"/llm-providers/api-keys": 5 * time.Minute,
 	"/llm-proxies/api-keys":   5 * time.Minute,
 	"/apis/api-keys":          5 * time.Minute,
+	"/secrets":                5 * time.Minute,
 
 	// The gateway failure summary answers 503 when the fleet is over its
 	// failure threshold, so it is built to be a monitor's target and will be
@@ -190,6 +191,8 @@ var sensitiveReadPaths = map[string]bool{
 	"/llm-providers/api-keys": true,
 	"/llm-proxies/api-keys":   true,
 	"/apis/api-keys":          true,
+	"/secrets":                true,
+	"/secrets/{handle}/value": true,
 
 	// Security configuration — who holds which privilege.
 	"/orgs/{orgName}/identities/permissions":                          true,
@@ -363,6 +366,8 @@ var actionOverrides = map[string]Action{
 	"GET /llm-providers/api-keys":         "api-key:sync",
 	"GET /llm-proxies/api-keys":           "api-key:sync",
 	"GET /apis/api-keys":                  "api-key:sync",
+	"GET /secrets":                        "secret:sync",
+	"GET /secrets/{handle}/value":         "secret:read-value",
 	// The gateway's startup sync. Reads expressed as POST because the ids go in
 	// the body; the batch carries the same resolved secrets as the per-artifact
 	// pulls.

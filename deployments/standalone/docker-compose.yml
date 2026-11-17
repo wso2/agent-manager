@@ -218,7 +218,6 @@ services:
       THUNDER_RESOLVE_TO_HOST: thunder:${THUNDER_PORT}
       THUNDER_CLIENT_ID: amp-system-client
       THUNDER_CLIENT_SECRET: ${AMP_SYSTEM_CLIENT_SECRET}
-      SECRET_MANAGER_PROVIDER: unsupported
       ENCRYPTION_KEY: ${AMP_ENCRYPTION_KEY}
       INTERNAL_SERVER_CERT_DIR: /var/lib/agent-manager/certs
       EVENTS_MODE: embedded

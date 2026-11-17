@@ -44,7 +44,7 @@ func seedCatalogProvider(t *testing.T) (models.Placement, uuid.UUID) {
 		},
 		Status: "CREATED",
 	}
-	require.NoError(t, NewLLMProviderRepo(gdb).Create(gdb, provider, provider.Configuration.Handle,
+	require.NoError(t, NewLLMProviderRepo(gdb, testSecrets(t)).Create(gdb, provider, provider.Configuration.Handle,
 		provider.Configuration.Name, "v1.0", p.OUID))
 	require.NoError(t, NewArtifactRepo(gdb).UpdateCatalogStatus(gdb, provider.UUID.String(), p.OUID, true))
 	env := dbtest.Environment(t, gdb, p.OUID) // the gateway is mapped to it

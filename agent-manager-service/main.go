@@ -23,7 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/app"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/unsupported"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/inhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 )
 
@@ -45,8 +45,8 @@ func main() {
 		return
 	}
 
-	// No secret store is bundled yet; secret writes report ErrNotSupported.
-	secretProvider := unsupported.NewProvider()
+	// Secrets are kept in the agent manager database, behind the secret vault.
+	secretProvider := inhouse.NewProvider()
 
 	// Open-source: DB-backed AgentID provisioning (env-Thunder credential read
 	// from Postgres, not a key vault — see DBBackedAgentThunderProvisioning)

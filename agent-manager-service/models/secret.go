@@ -22,10 +22,9 @@ import (
 	"github.com/google/uuid"
 )
 
-// SecretProviderLocal secrets hold their value encrypted in the row.
-const SecretProviderLocal = "local"
-
-// Secret is a credential another row refers to by id, so the owning row never holds the value.
+// Secret is a credential another row refers to by id, so the owning row never holds the value. Provider names
+// the vault that protects it: Ciphertext and KeyID are set when that vault encrypts into the row, ExternalRef
+// when it keeps the value elsewhere.
 type Secret struct {
 	ID          uuid.UUID `gorm:"column:id;primaryKey"`
 	OrgID       string    `gorm:"column:org_id"`
@@ -41,3 +40,64 @@ type Secret struct {
 }
 
 func (Secret) TableName() string { return "secrets" }
+
+// Secret job actions.
+const (
+	// SecretJobPromote copies a value sealed into the row to the external vault that seals new values.
+	SecretJobPromote = "promote"
+	// SecretJobDestroy removes a value from an external vault once no row refers to it.
+	SecretJobDestroy = "destroy"
+)
+
+// SecretJob is external-vault work that runs only after the transaction that queued it commits. A promote job
+// names the secret's Version it promotes, and in Provider and ExternalRef the external value that version replaces,
+// which is destroyed once the promoted value is in the row. StagedProvider and StagedRef record a value the job wrote
+// to a vault before recording it in the row, so a retry can reclaim it. A destroy job names the value in Provider and
+// ExternalRef.
+type SecretJob struct {
+	ID             uuid.UUID  `gorm:"column:id;primaryKey"`
+	OrgID          string     `gorm:"column:org_id"`
+	SecretID       uuid.UUID  `gorm:"column:secret_id"`
+	OwnerKind      string     `gorm:"column:owner_kind"`
+	Action         string     `gorm:"column:action"`
+	Provider       *string    `gorm:"column:provider"`
+	ExternalRef    *string    `gorm:"column:external_ref"`
+	StagedProvider *string    `gorm:"column:staged_provider"`
+	StagedRef      *string    `gorm:"column:staged_ref"`
+	Version        *int       `gorm:"column:version"`
+	Attempts       int        `gorm:"column:attempts"`
+	LastError      *string    `gorm:"column:last_error"`
+	AvailableAt    time.Time  `gorm:"column:available_at"`
+	ClaimedBy      *string    `gorm:"column:claimed_by"`
+	ClaimedUntil   *time.Time `gorm:"column:claimed_until"`
+	CreatedAt      time.Time  `gorm:"column:created_at"`
+}
+
+func (SecretJob) TableName() string { return "secret_jobs" }
+
+// GatewaySecretHandle is the handle a gateway artifact names a secret by, in a {{ secret "handle" }} placeholder.
+// RetiredAt is set once the owner stops using the secret; it is released when no gateway can still be running a
+// deployment that names the handle.
+type GatewaySecretHandle struct {
+	Handle    string     `gorm:"column:handle;primaryKey"`
+	OrgID     string     `gorm:"column:org_id"`
+	SecretID  uuid.UUID  `gorm:"column:secret_id"`
+	RetiredAt *time.Time `gorm:"column:retired_at"`
+	CreatedAt time.Time  `gorm:"column:created_at"`
+}
+
+func (GatewaySecretHandle) TableName() string { return "gateway_secret_handles" }
+
+// GatewaySecretRef is a secret a gateway may read: its handle and what the sync protocol reports about it.
+type GatewaySecretRef struct {
+	Handle    string
+	SecretID  uuid.UUID
+	Version   int
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// GatewaySecretPlaceholder is the gateway template expression that resolves to the secret handle names.
+func GatewaySecretPlaceholder(handle string) string {
+	return `{{ secret "` + handle + `" }}`
+}

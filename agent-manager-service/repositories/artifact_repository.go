@@ -93,8 +93,16 @@ func (r *ArtifactRepo) Delete(tx *gorm.DB, uuid string) error {
 
 // deleteArtifactDependents removes the rows that exist only for the artifact: an agent exposure, an A2A proxy (with its
 // upstream secret) and an MCP endpoint's environment binding. Their tables already cascade from their parent, and
-// schema rule 7 allows one cascading key per table, so they go here rather than by a second cascade.
+// schema rule 7 allows one cascading key per table, so they go here rather than by a second cascade. It also releases
+// the upstream secrets of an LLM provider and of an MCP proxy's endpoints, whose rows cascade from the artifact.
+// They are retired: a gateway may still be running the artifact until its delete reaches it.
 func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
+	if err := retireUpstreamSecrets(tx, models.LLMProvider{}.TableName(), "id = ?", artifactID); err != nil {
+		return err
+	}
+	if err := retireUpstreamSecrets(tx, models.MCPProxyEndpoint{}.TableName(), "mcp_proxy_id = ?", artifactID); err != nil {
+		return err
+	}
 	if err := tx.Where("artifact_id = ?", artifactID).Delete(&models.MCPProxyEndpointEnvironment{}).Error; err != nil {
 		return err
 	}
@@ -110,7 +118,29 @@ func deleteArtifactDependents(tx *gorm.DB, artifactID string) error {
 		if err := tx.Where("id = ?", p.ID).Delete(&models.A2AProxy{}).Error; err != nil {
 			return err
 		}
-		if err := deleteSecret(tx, p.UpstreamAuthSecretID); err != nil {
+		if err := releaseSecret(tx, p.UpstreamAuthSecretID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// retireUpstreamSecrets clears upstream_secret_id on the rows of table matching where and retires the secrets they
+// referred to, so the rows can go without leaving a secret behind.
+func retireUpstreamSecrets(tx *gorm.DB, table, where string, args ...any) error {
+	var ids []uuid.UUID
+	if err := tx.Table(table).Where(where, args...).Where("upstream_secret_id IS NOT NULL").
+		Pluck("upstream_secret_id", &ids).Error; err != nil {
+		return fmt.Errorf("failed to read %s upstream secrets: %w", table, err)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	if err := tx.Table(table).Where(where, args...).Update("upstream_secret_id", nil).Error; err != nil {
+		return fmt.Errorf("failed to detach %s upstream secrets: %w", table, err)
+	}
+	for i := range ids {
+		if err := retireSecret(tx, &ids[i]); err != nil {
 			return err
 		}
 	}

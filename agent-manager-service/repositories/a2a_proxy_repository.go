@@ -65,16 +65,17 @@ type A2AProxyRepository interface {
 }
 
 type a2aProxyRepository struct {
-	db *gorm.DB
+	db      *gorm.DB
+	secrets *SecretStore
 }
 
 // NewA2AProxyRepository creates an A2AProxyRepository.
-func NewA2AProxyRepository(db *gorm.DB) A2AProxyRepository {
-	return &a2aProxyRepository{db: db}
+func NewA2AProxyRepository(db *gorm.DB, secrets *SecretStore) A2AProxyRepository {
+	return &a2aProxyRepository{db: db, secrets: secrets}
 }
 
 func (r *a2aProxyRepository) WithTx(tx *gorm.DB) A2AProxyRepository {
-	return &a2aProxyRepository{db: tx}
+	return &a2aProxyRepository{db: tx, secrets: r.secrets}
 }
 
 // LockAgentEnv locks the agent's row: Lite has one environment per agent, so the agent row serialises its proxy.
@@ -111,7 +112,7 @@ func (r *a2aProxyRepository) first(ctx context.Context, query string, args ...in
 	if err != nil {
 		return nil, err
 	}
-	if row.UpstreamAuthSecret, err = getSecret(db, row.UpstreamAuthSecretID); err != nil {
+	if row.UpstreamAuthSecret, err = r.secrets.getAsStored(db, row.UpstreamAuthSecretID); err != nil {
 		return nil, err
 	}
 	return &row, nil
@@ -141,7 +142,7 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy)
 				proxy.ID = newID()
 			}
 			proxy.CreatedAt = now
-			secretID, err := putSecret(tx, proxy.OUID, a2aProxySecretOwner, proxy.ID, nil, secretIfHeader(proxy))
+			secretID, err := r.secrets.put(tx, proxy.OUID, a2aProxySecretOwner, proxy.ID, nil, secretIfHeader(proxy))
 			if err != nil {
 				return err
 			}
@@ -150,7 +151,7 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy)
 		}
 		current := existing[0]
 		proxy.ID, proxy.CreatedAt = current.ID, current.CreatedAt
-		secretID, err := putSecret(tx, proxy.OUID, a2aProxySecretOwner, proxy.ID, current.UpstreamAuthSecretID, secretIfHeader(proxy))
+		secretID, err := r.secrets.put(tx, proxy.OUID, a2aProxySecretOwner, proxy.ID, current.UpstreamAuthSecretID, secretIfHeader(proxy))
 		if err != nil {
 			return err
 		}
@@ -163,7 +164,7 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy)
 		}
 		proxy.UpstreamAuthSecretID = secretID
 		if secretID == nil {
-			return deleteSecret(tx, current.UpstreamAuthSecretID)
+			return r.secrets.delete(tx, current.UpstreamAuthSecretID)
 		}
 		return nil
 	})
@@ -188,7 +189,7 @@ func (r *a2aProxyRepository) deleteProxies(ctx context.Context, cond string, arg
 			if err := tx.Where("id = ?", row.ID).Delete(&models.A2AProxy{}).Error; err != nil {
 				return err
 			}
-			if err := deleteSecret(tx, row.UpstreamAuthSecretID); err != nil {
+			if err := r.secrets.delete(tx, row.UpstreamAuthSecretID); err != nil {
 				return err
 			}
 		}
@@ -226,7 +227,7 @@ func (r *a2aProxyRepository) ListForEnvironment(ctx context.Context, ouID string
 		return nil, err
 	}
 	for i := range rows {
-		if rows[i].UpstreamAuthSecret, err = getSecret(r.db.WithContext(ctx), rows[i].UpstreamAuthSecretID); err != nil {
+		if rows[i].UpstreamAuthSecret, err = r.secrets.getAsStored(r.db.WithContext(ctx), rows[i].UpstreamAuthSecretID); err != nil {
 			return nil, err
 		}
 	}

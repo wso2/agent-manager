@@ -66,7 +66,7 @@ func cleanupProxy(t *testing.T, repo A2AProxyRepository, proxy *models.A2AProxy)
 }
 
 func TestA2AProxyUpsertCreatesAndUpdates(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), testSecrets(t))
 	ctx := context.Background()
 	proxy := newTestProxy(t, "upsert-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
@@ -90,7 +90,7 @@ func TestA2AProxyUpsertCreatesAndUpdates(t *testing.T) {
 }
 
 func TestA2AProxyLookupsAreOrgScopedAndReportAMissingRow(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), testSecrets(t))
 	ctx := context.Background()
 	proxy := newTestProxy(t, "scoped-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
@@ -103,7 +103,7 @@ func TestA2AProxyLookupsAreOrgScopedAndReportAMissingRow(t *testing.T) {
 }
 
 func TestA2AProxyDeleteReportsAMissingRow(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), testSecrets(t))
 	ctx := context.Background()
 	proxy := newTestProxy(t, "delete-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
@@ -114,7 +114,7 @@ func TestA2AProxyDeleteReportsAMissingRow(t *testing.T) {
 }
 
 func TestA2AProxyDeletesForAgentAndEnvironment(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), testSecrets(t))
 	ctx := context.Background()
 	dev := newTestProxy(t, "bulk-"+uuid.New().String()[:8])
 	prod := newTestProxyIn(t, "Production", dev.AgentName)
@@ -134,7 +134,7 @@ func TestA2AProxyDeletesForAgentAndEnvironment(t *testing.T) {
 }
 
 func TestA2AProxyWithTxRollsBack(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), testSecrets(t))
 	ctx := context.Background()
 	proxy := newTestProxy(t, "tx-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, proxy)
@@ -152,7 +152,7 @@ func TestA2AProxyWithTxRollsBack(t *testing.T) {
 // The lock holds a second transaction on the same environment until the first ends, and only that one.
 func TestA2AProxyLockAgentEnvSerialisesOneEnvironment(t *testing.T) {
 	gormDB := db.GetDB()
-	repo := NewA2AProxyRepository(gormDB)
+	repo := NewA2AProxyRepository(gormDB, testSecrets(t))
 	ctx := context.Background()
 	ouID := dbtest.Org(t, gormDB)
 	dbtest.Agent(t, gormDB, ouID, dbtest.Project(t, gormDB, ouID, "checkout"), "weather")
@@ -184,7 +184,7 @@ func TestA2AProxyLockAgentEnvSerialisesOneEnvironment(t *testing.T) {
 }
 
 func TestA2AProxyListsTheEnvironmentUUIDsUnderAName(t *testing.T) {
-	repo := NewA2AProxyRepository(db.GetDB())
+	repo := NewA2AProxyRepository(db.GetDB(), testSecrets(t))
 	ctx := context.Background()
 	old := newTestProxy(t, "names-"+uuid.New().String()[:8])
 	cleanupProxy(t, repo, old)

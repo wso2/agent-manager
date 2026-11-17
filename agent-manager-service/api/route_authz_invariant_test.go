@@ -125,6 +125,8 @@ var gatewayInternalRoutes = []string{
 	"GET /llm-proxies/{proxyId}",
 	"GET /mcp-proxies/{proxyId}",
 	"GET /agents/{agentId}",
+	"GET /secrets",
+	"GET /secrets/{handle}/value",
 }
 
 func init() {

@@ -57,7 +57,8 @@ func loadLLMProxy(ctx context.Context, artifact models.ArtifactRef) (*models.LLM
 	if err != nil {
 		return nil, nil, err
 	}
-	provider, err := repositories.NewLLMProviderRepo(tx).GetByUUID(proxy.Configuration.Provider, artifact.OUID)
+	// A proxy fronts the provider by handle and carries its own upstream credential, so the provider's stays unread.
+	provider, err := repositories.NewLLMProviderRepo(tx, nil).GetByUUID(proxy.Configuration.Provider, artifact.OUID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil, reconcile.Permanent(utils.ErrLLMProviderNotFound)
 	}

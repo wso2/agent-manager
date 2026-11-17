@@ -24,7 +24,7 @@ import (
 //			CreateEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
 //				panic("mock out the CreateEndpoint method")
 //			},
-//			DeleteEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error {
+//			DeleteEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, keepSecrets ...uuid.UUID) error {
 //				panic("mock out the DeleteEndpoint method")
 //			},
 //			GetEndpointFunc: func(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error) {
@@ -45,6 +45,9 @@ import (
 //			RemoveEndpointEnvironmentFunc: func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, envUUID uuid.UUID) error {
 //				panic("mock out the RemoveEndpointEnvironment method")
 //			},
+//			ResolveUpstreamAuthFunc: func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
+//				panic("mock out the ResolveUpstreamAuth method")
+//			},
 //			UpdateEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
 //				panic("mock out the UpdateEndpoint method")
 //			},
@@ -62,7 +65,7 @@ type MCPProxyEndpointRepositoryMock struct {
 	CreateEndpointFunc func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
 
 	// DeleteEndpointFunc mocks the DeleteEndpoint method.
-	DeleteEndpointFunc func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error
+	DeleteEndpointFunc func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, keepSecrets ...uuid.UUID) error
 
 	// GetEndpointFunc mocks the GetEndpoint method.
 	GetEndpointFunc func(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
@@ -81,6 +84,9 @@ type MCPProxyEndpointRepositoryMock struct {
 
 	// RemoveEndpointEnvironmentFunc mocks the RemoveEndpointEnvironment method.
 	RemoveEndpointEnvironmentFunc func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, envUUID uuid.UUID) error
+
+	// ResolveUpstreamAuthFunc mocks the ResolveUpstreamAuth method.
+	ResolveUpstreamAuthFunc func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
 
 	// UpdateEndpointFunc mocks the UpdateEndpoint method.
 	UpdateEndpointFunc func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
@@ -113,6 +119,8 @@ type MCPProxyEndpointRepositoryMock struct {
 			Tx *gorm.DB
 			// EndpointUUID is the endpointUUID argument value.
 			EndpointUUID uuid.UUID
+			// KeepSecrets is the keepSecrets argument value.
+			KeepSecrets []uuid.UUID
 		}
 		// GetEndpoint holds details about calls to the GetEndpoint method.
 		GetEndpoint []struct {
@@ -162,6 +170,15 @@ type MCPProxyEndpointRepositoryMock struct {
 			// EnvUUID is the envUUID argument value.
 			EnvUUID uuid.UUID
 		}
+		// ResolveUpstreamAuth holds details about calls to the ResolveUpstreamAuth method.
+		ResolveUpstreamAuth []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Tx is the tx argument value.
+			Tx *gorm.DB
+			// Endpoint is the endpoint argument value.
+			Endpoint *models.MCPProxyEndpoint
+		}
 		// UpdateEndpoint holds details about calls to the UpdateEndpoint method.
 		UpdateEndpoint []struct {
 			// Ctx is the ctx argument value.
@@ -181,6 +198,7 @@ type MCPProxyEndpointRepositoryMock struct {
 	lockListEndpointEnvironmentsByProxy sync.RWMutex
 	lockListEndpointsByProxy            sync.RWMutex
 	lockRemoveEndpointEnvironment       sync.RWMutex
+	lockResolveUpstreamAuth             sync.RWMutex
 	lockUpdateEndpoint                  sync.RWMutex
 }
 
@@ -265,7 +283,7 @@ func (mock *MCPProxyEndpointRepositoryMock) CreateEndpointCalls() []struct {
 }
 
 // DeleteEndpoint calls DeleteEndpointFunc.
-func (mock *MCPProxyEndpointRepositoryMock) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error {
+func (mock *MCPProxyEndpointRepositoryMock) DeleteEndpoint(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, keepSecrets ...uuid.UUID) error {
 	if mock.DeleteEndpointFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.DeleteEndpointFunc: method is nil but MCPProxyEndpointRepository.DeleteEndpoint was just called")
 	}
@@ -273,15 +291,17 @@ func (mock *MCPProxyEndpointRepositoryMock) DeleteEndpoint(ctx context.Context, 
 		Ctx          context.Context
 		Tx           *gorm.DB
 		EndpointUUID uuid.UUID
+		KeepSecrets  []uuid.UUID
 	}{
 		Ctx:          ctx,
 		Tx:           tx,
 		EndpointUUID: endpointUUID,
+		KeepSecrets:  keepSecrets,
 	}
 	mock.lockDeleteEndpoint.Lock()
 	mock.calls.DeleteEndpoint = append(mock.calls.DeleteEndpoint, callInfo)
 	mock.lockDeleteEndpoint.Unlock()
-	return mock.DeleteEndpointFunc(ctx, tx, endpointUUID)
+	return mock.DeleteEndpointFunc(ctx, tx, endpointUUID, keepSecrets...)
 }
 
 // DeleteEndpointCalls gets all the calls that were made to DeleteEndpoint.
@@ -292,11 +312,13 @@ func (mock *MCPProxyEndpointRepositoryMock) DeleteEndpointCalls() []struct {
 	Ctx          context.Context
 	Tx           *gorm.DB
 	EndpointUUID uuid.UUID
+	KeepSecrets  []uuid.UUID
 } {
 	var calls []struct {
 		Ctx          context.Context
 		Tx           *gorm.DB
 		EndpointUUID uuid.UUID
+		KeepSecrets  []uuid.UUID
 	}
 	mock.lockDeleteEndpoint.RLock()
 	calls = mock.calls.DeleteEndpoint
@@ -529,6 +551,46 @@ func (mock *MCPProxyEndpointRepositoryMock) RemoveEndpointEnvironmentCalls() []s
 	mock.lockRemoveEndpointEnvironment.RLock()
 	calls = mock.calls.RemoveEndpointEnvironment
 	mock.lockRemoveEndpointEnvironment.RUnlock()
+	return calls
+}
+
+// ResolveUpstreamAuth calls ResolveUpstreamAuthFunc.
+func (mock *MCPProxyEndpointRepositoryMock) ResolveUpstreamAuth(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
+	if mock.ResolveUpstreamAuthFunc == nil {
+		panic("MCPProxyEndpointRepositoryMock.ResolveUpstreamAuthFunc: method is nil but MCPProxyEndpointRepository.ResolveUpstreamAuth was just called")
+	}
+	callInfo := struct {
+		Ctx      context.Context
+		Tx       *gorm.DB
+		Endpoint *models.MCPProxyEndpoint
+	}{
+		Ctx:      ctx,
+		Tx:       tx,
+		Endpoint: endpoint,
+	}
+	mock.lockResolveUpstreamAuth.Lock()
+	mock.calls.ResolveUpstreamAuth = append(mock.calls.ResolveUpstreamAuth, callInfo)
+	mock.lockResolveUpstreamAuth.Unlock()
+	return mock.ResolveUpstreamAuthFunc(ctx, tx, endpoint)
+}
+
+// ResolveUpstreamAuthCalls gets all the calls that were made to ResolveUpstreamAuth.
+// Check the length with:
+//
+//	len(mockedMCPProxyEndpointRepository.ResolveUpstreamAuthCalls())
+func (mock *MCPProxyEndpointRepositoryMock) ResolveUpstreamAuthCalls() []struct {
+	Ctx      context.Context
+	Tx       *gorm.DB
+	Endpoint *models.MCPProxyEndpoint
+} {
+	var calls []struct {
+		Ctx      context.Context
+		Tx       *gorm.DB
+		Endpoint *models.MCPProxyEndpoint
+	}
+	mock.lockResolveUpstreamAuth.RLock()
+	calls = mock.calls.ResolveUpstreamAuth
+	mock.lockResolveUpstreamAuth.RUnlock()
 	return calls
 }
 

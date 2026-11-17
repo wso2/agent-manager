@@ -37,13 +37,13 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 	for _, first := range []string{"rotation", "settings"} {
 		t.Run(first+" wins", func(t *testing.T) {
 			ctx := context.Background()
-			repo := NewEventRepository(db.GetDB())
+			repo := NewEventRepository(db.GetDB(), testSecrets(t))
 			d := &models.EventDestination{
 				ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
-				Kind:            models.DestinationKindWebhook,
-				Config:          json.RawMessage(`{"url":"https://old.example.com"}`),
-				SecretEncrypted: []byte("old-secret"),
-				Availability:    models.DestinationAvailableAll, Projects: []string{},
+				Kind:         models.DestinationKindWebhook,
+				Config:       json.RawMessage(`{"url":"https://old.example.com"}`),
+				Secret:       "old-secret",
+				Availability: models.DestinationAvailableAll, Projects: []string{},
 			}
 			require.NoError(t, repo.CreateDestination(ctx, d))
 			t.Cleanup(func() { _, err := repo.DeleteDestination(ctx, d.OUID, d.ID); assert.NoError(t, err) })
@@ -52,12 +52,12 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			stale, err := repo.GetDestination(ctx, d.OUID, d.ID)
 			require.NoError(t, err)
 			if first == "rotation" {
-				current.SecretEncrypted = []byte("new-secret")
+				current.Secret = "new-secret"
 				stale.Config = json.RawMessage(`{"url":"https://new.example.com"}`)
 			} else {
 				current.Config = json.RawMessage(`{"url":"https://new.example.com"}`)
 				current.Availability = models.DestinationAvailableOrg
-				stale.SecretEncrypted = []byte("new-secret")
+				stale.Secret = "new-secret"
 			}
 			require.NoError(t, repo.UpdateDestination(ctx, current, nil))
 			checked := false
@@ -66,7 +66,7 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			assert.False(t, checked, "stale input is rejected before availability checks")
 			saved, err := repo.GetDestination(ctx, d.OUID, d.ID)
 			require.NoError(t, err)
-			assert.Equal(t, current.SecretEncrypted, saved.SecretEncrypted)
+			assert.Equal(t, current.Secret, saved.Secret)
 			assert.JSONEq(t, string(current.Config), string(saved.Config))
 			assert.Equal(t, current.Availability, saved.Availability)
 			assert.True(t, current.UpdatedAt.Equal(saved.UpdatedAt), "returned revision matches the stored one")
@@ -78,7 +78,7 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			fresh, err := repo.GetDestination(ctx, d.OUID, d.ID)
 			require.NoError(t, err)
 			assert.Equal(t, "fresh edit", fresh.Description)
-			assert.Equal(t, current.SecretEncrypted, fresh.SecretEncrypted)
+			assert.Equal(t, current.Secret, fresh.Secret)
 			assert.JSONEq(t, string(current.Config), string(fresh.Config))
 		})
 	}
@@ -86,7 +86,7 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 
 func TestEventDeliveryClaimAndFinishedOutcomes(t *testing.T) {
 	ctx := context.Background()
-	repo := NewEventRepository(db.GetDB())
+	repo := NewEventRepository(db.GetDB(), testSecrets(t))
 	d := &models.EventDestination{
 		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
 		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`),
@@ -137,7 +137,7 @@ func TestEventDeliveryClaimAndFinishedOutcomes(t *testing.T) {
 func TestEventDeliveryFailStaleDeliveries(t *testing.T) {
 	ctx := context.Background()
 	gdb := db.GetDB()
-	repo := NewEventRepository(gdb)
+	repo := NewEventRepository(gdb, testSecrets(t))
 	d := &models.EventDestination{
 		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
 		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://example.com"}`),

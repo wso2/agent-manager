@@ -48,8 +48,10 @@ jobs:
       - name: The API reports file mode
         run: |
           set -euo pipefail
+          # grep reads to the end: with -q it exits on the first match, and the
+          # writer's SIGPIPE fails the pipeline under pipefail.
           docker logs amp-lite-amp-api-1 2>&1 \
-            | grep -q '"msg":"file-based authentication enabled"' \
+            | grep '"msg":"file-based authentication enabled"' >/dev/null \
             || { echo "::error::the API did not start in file mode"; exit 1; }
 
       - name: amp-init generated the user file
@@ -104,7 +106,7 @@ jobs:
       - name: The console agrees with the API
         run: |
           set -euo pipefail
-          curl -sf http://localhost:3000/config.js | grep -q "authMode: 'file'" \
+          curl -sf http://localhost:3000/config.js | grep "authMode: 'file'" >/dev/null \
             || { echo "::error::the console is not in file mode; it would post sign-in to a 404"; exit 1; }
 
       - name: Capture stack logs on failure

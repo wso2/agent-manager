@@ -54,7 +54,7 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 	f := &mcpFixture{proxyFixture: newProxyFixture(t)}
 	gormDB := db.GetDB()
 	gateways := repositories.NewGatewayRepo(gormDB)
-	kind := NewMCPProxyKind(gateways, f.sync.repo)
+	kind := NewMCPProxyKind(gateways, f.sync.repo, f.secrets)
 	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(core, slog.New(slog.DiscardHandler))
@@ -62,7 +62,7 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 		db: gormDB, tx: NewTxRunner(gormDB), repo: repositories.NewMCPProxyRepo(gormDB), deploymentRepo: f.sync.repo,
 		gatewayRepo: gateways, artifactRepo: repositories.NewArtifactRepo(gormDB),
 		mcpProxyScopeRepo: repositories.NewMCPProxyScopeRepository(gormDB), logger: slog.New(slog.DiscardHandler),
-		endpointRepo: repositories.NewMCPProxyEndpointRepository(gormDB), core: core, kind: kind,
+		endpointRepo: repositories.NewMCPProxyEndpointRepository(gormDB, f.secrets), core: core, kind: kind,
 		envMCPMappingRepo: repositories.NewEnvAgentMCPMappingRepository(gormDB),
 	}
 
