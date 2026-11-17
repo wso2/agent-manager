@@ -65,6 +65,7 @@ hex() { od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'; }
 
 # --- Sign-in ---------------------------------------------------------------------
 check health 200 "$(code "$API/healthz")"
+[ "$fail" -eq 0 ] || { echo "== $DIST: the API at $API is not up; stopping" >&2; exit 1; }
 check jwks 200 "$(code "$API/auth/external/jwks.json")"
 TOKEN=$(jq -n --arg p "$PASSWORD" '{username: "admin", password: $p}' \
   | curl -s -X POST "$API/auth/login" -H 'Content-Type: application/json' -d @- \
@@ -74,7 +75,9 @@ A=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
 
 # --- Core API ------------------------------------------------------------------------
 check orgs 200 "$(code "${A[@]}" "$API/api/v1/orgs")"
-ORG=$(jq -r '.organizations[0].name // .orgs[0].name // .[0].name // empty' "$BODY" 2>/dev/null)
+# A fresh install lists its default organization before anything is written to it.
+ORG=$(jq -r '.organizations[0].name // empty' "$BODY" 2>/dev/null)
+if [ -n "$ORG" ]; then check orgs-listed ok ok; else check orgs-listed ok "none"; fi
 ORG=${ORG:-default}
 B=$API/api/v1/orgs/$ORG
 P=smoke-$RANDOM
