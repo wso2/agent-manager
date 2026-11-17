@@ -116,17 +116,22 @@ func record(db *gorm.DB, e modkit.Event, modules []string) error {
 		subject = e.Subject
 	}
 	now := dbx.Now()
-	if err := db.Exec(`INSERT INTO module_events (id, org_id, type, source, subject, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		e.ID, org, e.Type, e.Source, subject, string(data), now).Error; err != nil {
-		return err
-	}
-	for _, m := range modules {
-		if err := db.Exec(`INSERT INTO module_event_deliveries (event_id, module, attempts, available_at) VALUES (?, ?, 0, ?)`,
-			e.ID, m, now).Error; err != nil {
+	// One transaction (a savepoint inside the caller's): the sweep drops
+	// events without deliveries, so an event committed on its own can vanish
+	// before its deliveries are written.
+	return db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`INSERT INTO module_events (id, org_id, type, source, subject, data, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			e.ID, org, e.Type, e.Source, subject, string(data), now).Error; err != nil {
 			return err
 		}
-	}
-	return nil
+		for _, m := range modules {
+			if err := tx.Exec(`INSERT INTO module_event_deliveries (event_id, module, attempts, available_at) VALUES (?, ?, 0, ?)`,
+				e.ID, m, now).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // Emit records a core event for the modules subscribed to it in the

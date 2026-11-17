@@ -138,11 +138,16 @@ func eventRetentionAndUninstallPurge(t *testing.T, d database) {
 			created = old // expired, and failed long ago
 			failed = old
 		}
-		require.NoError(t, g.Exec(`INSERT INTO module_events (id, org_id, type, source, data, created_at) VALUES (?, ?, ?, 'core', '{}', ?)`,
-			id, org, modkit.EventAgentCreated, created).Error)
-		// Not due, so the drainer leaves them alone.
-		require.NoError(t, g.Exec(`INSERT INTO module_event_deliveries (event_id, module, attempts, available_at, failed_at) VALUES (?, ?, 0, ?, ?)`,
-			id, module, dbx.Now().Add(time.Hour), failed).Error)
+		// Together, so the drainer's sweep never sees the event without its
+		// delivery. Not due, so the drainer leaves them alone.
+		require.NoError(t, g.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Exec(`INSERT INTO module_events (id, org_id, type, source, data, created_at) VALUES (?, ?, ?, 'core', '{}', ?)`,
+				id, org, modkit.EventAgentCreated, created).Error; err != nil {
+				return err
+			}
+			return tx.Exec(`INSERT INTO module_event_deliveries (event_id, module, attempts, available_at, failed_at) VALUES (?, ?, 0, ?, ?)`,
+				id, module, dbx.Now().Add(time.Hour), failed).Error
+		}))
 	}
 
 	h.ExpireEvents(ctx, "")
