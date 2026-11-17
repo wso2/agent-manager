@@ -28,6 +28,7 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  Link,
   Stack,
   Tooltip,
   Typography,
@@ -86,7 +87,7 @@ function BulletList({ items }: { items: string[] }) {
   );
 }
 
-function Section({ p }: { p: ShadowPermissionSpec }) {
+export function Section({ p }: { p: ShadowPermissionSpec }) {
   return (
     <Box>
       <Typography variant="subtitle2">{p.title}</Typography>
@@ -128,13 +129,29 @@ function Section({ p }: { p: ShadowPermissionSpec }) {
   );
 }
 
-function linkLabel(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.hostname}${u.pathname === "/" ? "" : u.pathname}`;
-  } catch {
-    return url;
-  }
+/**
+ * A provider's official documentation as worded links that open in a new
+ * tab ("GitHub documentation"), without showing the addresses.
+ */
+export function DocLinks({ spec }: { spec: ShadowProviderSpec }) {
+  return (
+    <Stack spacing={0.5} sx={{ mt: 0.5 }} alignItems="flex-start">
+      {spec.docs.map((d, i) => (
+        <Link
+          key={d}
+          href={d}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="body2"
+          sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
+        >
+          {spec.displayName} documentation
+          {spec.docs.length > 1 ? ` (${i + 1} of ${spec.docs.length})` : ""}
+          <ExternalLink size={14} aria-hidden />
+        </Link>
+      ))}
+    </Stack>
+  );
 }
 
 /** Every section, what is never stored, and the official links. */
@@ -155,16 +172,7 @@ function Guide({ spec }: { spec: ShadowProviderSpec }) {
       {spec.docs.length > 0 && (
         <Box>
           <Typography variant="subtitle2">Official documentation</Typography>
-          <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-            {spec.docs.map((d) => (
-              <Typography key={d} variant="body2">
-                <a href={d} target="_blank" rel="noreferrer noopener">
-                  {linkLabel(d)}
-                </a>{" "}
-                <ExternalLink size={12} />
-              </Typography>
-            ))}
-          </Stack>
+          <DocLinks spec={spec} />
         </Box>
       )}
     </Stack>

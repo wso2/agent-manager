@@ -34,7 +34,13 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronDown, ChevronRight, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  SquareTerminal,
+  Trash2,
+} from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { PageLayout, TextInput, useReturnTo } from "@agent-management-platform/views";
 import {
@@ -63,6 +69,8 @@ import {
 } from "../capabilities";
 import { AnalyzeSection } from "./AnalyzeSection";
 import { PermissionsPanel } from "./PermissionsPanel";
+import { SourceScanGuide } from "./SourceScanGuide";
+import { type CommandTarget, GenerateCommandDialog } from "./GenerateCommandDialog";
 
 type KeyMapRow = { id: string; key: string };
 
@@ -709,6 +717,8 @@ export function ConnectionEditor({
   const [serverError, setServerError] = useState<string | null>(null);
   // null until the user toggles Advanced configuration.
   const [advancedOpen, setAdvancedOpen] = useState<boolean | null>(null);
+  // GitHub and Azure DevOps: the connection to generate a scan command for.
+  const [commandFor, setCommandFor] = useState<CommandTarget | null>(null);
 
   const spec = useMemo(
     () =>
@@ -742,9 +752,11 @@ export function ConnectionEditor({
     (!!spec &&
       !!draft &&
       (advancedInUse(spec, draft, existing.data) ||
-        spec.fields.some((f) => f.advanced && !!errors[f.key])));
+        spec.fields.some((f) => f.advanced && !!errors[f.key]) ||
+        spec.endpoints.some((e) => e.advanced && !!errors[`endpoint:${e.key}`])));
 
   const isDirty = !!draft && JSON.stringify(draft) !== initial;
+  const saved = existing.data;
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
 
   const choose = (p: ShadowProviderSpec) => {
@@ -768,13 +780,17 @@ export function ConnectionEditor({
       ...(isEdit && draft.removed.length > 0 ? { removeSecrets: draft.removed } : {}),
     };
     const onSuccess = () => allowNavigation(() => navigate(returnTo));
+    // A new source host goes straight on to Generate command; closing it
+    // returns to the platforms.
+    const onCreated = (c: { id: string; name: string }) =>
+      spec.sourceHost ? setCommandFor({ id: c.id, name: c.name }) : onSuccess();
     const onError = (e: unknown) =>
       setServerError(
         (e as { message?: string })?.message ??
           "The platform could not be saved. Check the values and try again.",
       );
     if (isEdit) update.mutate(body, { onSuccess, onError });
-    else create.mutate(body, { onSuccess, onError });
+    else create.mutate(body, { onSuccess: onCreated, onError });
   };
 
   const title = isEdit ? `Edit ${existing.data?.name ?? "platform"}` : "Add a platform";
@@ -837,7 +853,8 @@ export function ConnectionEditor({
         </Stack>
       ) : (
         <Grid container spacing={3}>
-          <Grid size={{ xs: 12, lg: 7 }}>
+          {/* A source host explains itself in a dialog: its form takes the long-form width. */}
+          <Grid size={spec.sourceHost ? { xs: 12, xl: 8 } : { xs: 12, lg: 7 }}>
             <Stack spacing={2.5}>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Typography variant="subtitle1">{spec.displayName}</Typography>
@@ -850,28 +867,24 @@ export function ConnectionEditor({
                     Change platform
                   </Button>
                 )}
+                {spec.sourceHost && <SourceScanGuide spec={spec} />}
+                {spec.sourceHost && isEdit && saved && (
+                  // The command scans the saved connection, so unsaved edits come first.
+                  <Tooltip title={isDirty ? "Save your changes first" : ""}>
+                    <span>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<SquareTerminal size={16} />}
+                        disabled={isDirty}
+                        onClick={() => setCommandFor({ id: saved.id, name: saved.name })}
+                      >
+                        Generate command
+                      </Button>
+                    </span>
+                  </Tooltip>
+                )}
               </Stack>
-              {spec.sourceHost && (
-                <Alert severity="info">
-                  <Typography variant="body2" fontWeight={500}>
-                    How it works
-                  </Typography>
-                  <Box component="ol" sx={{ m: 0, pl: 2.5 }}>
-                    <li>
-                      Save the organization and repositories here. No token is entered or stored.
-                    </li>
-                    <li>
-                      On the Platforms tab, choose Generate command and decide whether to use AI
-                      review.
-                    </li>
-                    <li>
-                      Run the command in a terminal. It asks for a read-only token when the
-                      repositories are private, scans them on your machine and publishes only the
-                      agents it confirms.
-                    </li>
-                  </Box>
-                </Alert>
-              )}
               <AnalyzeSection
                 providerName={spec.displayName}
                 statuses={statuses}
@@ -879,7 +892,9 @@ export function ConnectionEditor({
               />
               <TextInput
                 label="Name"
-                placeholder="e.g. OpenAI production"
+                placeholder={
+                  spec.sourceHost ? `e.g. ${spec.displayName} my-org` : "e.g. OpenAI production"
+                }
                 value={draft.name}
                 maxLength={INPUT_LIMITS.NAME}
                 hideCharacterCount
@@ -998,19 +1013,9 @@ export function ConnectionEditor({
                 <Box>
                   <Typography variant="subtitle1">Endpoints</Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                    {spec.sourceHost ? (
-                      <>
-                        The official endpoint is filled in. Change it only for a server you host,
-                        such as GitHub Enterprise Server: the scan command reads the repositories
-                        from it with your token.
-                      </>
-                    ) : (
-                      <>
-                        The official endpoints are filled in. Change one only to reach the platform
-                        through a host you trust: the credential is sent to it. Placeholders such
-                        as {"{region}"} are filled in for each region or location you scan.
-                      </>
-                    )}
+                    The official endpoints are filled in. Change one only to reach the platform
+                    through a host you trust: the credential is sent to it. Placeholders such as{" "}
+                    {"{region}"} are filled in for each region or location you scan.
                   </Typography>
                   <Stack spacing={2}>
                     {spec.endpoints
@@ -1054,11 +1059,22 @@ export function ConnectionEditor({
               </Stack>
             </Stack>
           </Grid>
-          <Grid size={{ xs: 12, lg: 5 }}>
-            <PermissionsPanel spec={spec} />
-          </Grid>
+          {!spec.sourceHost && (
+            <Grid size={{ xs: 12, lg: 5 }}>
+              <PermissionsPanel spec={spec} />
+            </Grid>
+          )}
         </Grid>
       )}
+      <GenerateCommandDialog
+        orgName={orgName}
+        target={commandFor}
+        onClose={() => {
+          setCommandFor(null);
+          // A new connection is saved: closing returns to the platforms.
+          if (!isEdit) allowNavigation(() => navigate(returnTo));
+        }}
+      />
     </PageLayout>
   );
 }

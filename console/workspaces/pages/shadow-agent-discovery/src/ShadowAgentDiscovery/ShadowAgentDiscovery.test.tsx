@@ -17,7 +17,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import type {
   ShadowAgentSummary,
@@ -25,6 +25,7 @@ import type {
   ShadowFindingDetail,
   ShadowFindingListQuery,
   ShadowFindingSummary,
+  ShadowProviderSpec,
   ShadowScanResponse,
 } from "@agent-management-platform/types";
 
@@ -114,6 +115,8 @@ const hoisted = vi.hoisted(() => ({
   deleteAgent: vi.fn(),
   deleteAll: vi.fn(),
   test: vi.fn(),
+  generate: vi.fn(),
+  resetGenerate: vi.fn(),
   addConfirmation: vi.fn(),
 }));
 
@@ -144,6 +147,11 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useStartShadowScan: () => ({ mutate: hoisted.start, isPending: false }),
   useDeleteShadowConnection: () => ({ mutate: vi.fn(), isPending: false }),
   useTestShadowConnection: () => ({ mutate: hoisted.test, isPending: false }),
+  useCreateShadowRunnerScan: () => ({
+    mutate: hoisted.generate,
+    reset: hoisted.resetGenerate,
+    isPending: false,
+  }),
   isShadowScanActive: (s: string | undefined) => s === "queued" || s === "running",
   useTrack: () => ({ track: vi.fn() }),
   ConsoleAction: {},
@@ -174,6 +182,7 @@ vi.mock("@agent-management-platform/shared-component", async () => {
     isListEmpty: ({ isLoading, count }: { isLoading: boolean; count: number }) =>
       !isLoading && count === 0,
     formatRelativeTime: () => "2 days ago",
+    CodeBlock: ({ code }: { code: string }) => React.createElement("pre", null, code),
     useConfirmationDialog: () => ({ addConfirmation: hoisted.addConfirmation }),
     useUnsavedChangesGuard: () => ({ allowNavigation: (fn: () => void) => fn() }),
   };
@@ -188,6 +197,9 @@ import { ScansTab } from "./subComponents/ScansTab";
 import { ShadowAgentDiscovery } from "./ShadowAgentDiscovery";
 import { AnalyzeSection } from "./subComponents/AnalyzeSection";
 import { ScanStatusChip } from "./shadowUi";
+import { SourceScanGuide } from "./subComponents/SourceScanGuide";
+import { DocLinks } from "./subComponents/PermissionsPanel";
+import { GenerateCommandDialog } from "./subComponents/GenerateCommandDialog";
 
 function ShowLocation() {
   const l = useLocation();
@@ -651,13 +663,21 @@ describe("ConnectionsTab (Platforms)", () => {
       "Created",
       "",
     ]);
-    expect(within(source).getByText("acme · All repositories · Private")).toBeInTheDocument();
+    expect(within(source).getByText("acme · All repositories · Private and public")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Scan OpenAI prod" }));
     expect(hoisted.start).toHaveBeenCalledWith({ connectionIds: ["c1"] });
     // A source host has no credential to test and no cloud scan.
     expect(screen.queryByRole("button", { name: "Scan Repos" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Test Repos" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit Repos" })).toBeInTheDocument();
+  });
+
+  it("opens Generate command from a source code repository row", () => {
+    hoisted.connections = [connection({ id: "c2", name: "Repos", provider: "github" })];
+    renderTab();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Generate command for Repos" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Generate scan command: Repos");
   });
 
   it("shows only the sections that have platforms", () => {
@@ -809,5 +829,150 @@ describe("AnalyzeSection", () => {
   it("renders nothing for a platform without capabilities", () => {
     const { container } = render(<AnalyzeSection providerName="X" statuses={[]} />);
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+const sourceHostSpec = (over: Partial<ShadowProviderSpec> = {}): ShadowProviderSpec => ({
+  provider: "github",
+  displayName: "GitHub",
+  description: "",
+  endpoints: [],
+  fields: [],
+  permissions: [
+    {
+      title: "Fine-grained personal access token (read-only), for private repositories",
+      summary: "The scan command asks for it in your terminal when it runs.",
+      items: ["Repository permissions: Contents: Read-only."],
+    },
+  ],
+  docs: ["https://docs.github.com/en/authentication"],
+  sourceHost: true,
+  capabilities: [],
+  ...over,
+});
+
+describe("SourceScanGuide", () => {
+  it("explains the GitHub scan in a dialog, with worded documentation links", () => {
+    render(<SourceScanGuide spec={sourceHostSpec()} />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "How it works" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("How GitHub scanning works");
+    expect(dialog).toHaveTextContent("Save the organization and repositories here");
+    expect(dialog).toHaveTextContent("when private repositories are included");
+    expect(dialog).toHaveTextContent("Repository permissions: Contents: Read-only.");
+    expect(dialog).toHaveTextContent("Your Git token, your LLM key and your code");
+    const link = within(dialog).getByRole("link", { name: "GitHub documentation" });
+    expect(link).toHaveAttribute("href", "https://docs.github.com/en/authentication");
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(dialog).not.toHaveTextContent("docs.github.com");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+  });
+
+  it("says projects, and an always-needed token, for Azure DevOps", () => {
+    render(
+      <SourceScanGuide
+        spec={sourceHostSpec({ provider: "azure_devops", displayName: "Azure DevOps" })}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "How it works" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("Save the organization and projects here");
+    expect(dialog).not.toHaveTextContent("when private repositories are included");
+  });
+});
+
+describe("DocLinks", () => {
+  it("numbers several links of one platform instead of showing their addresses", () => {
+    render(
+      <DocLinks
+        spec={sourceHostSpec({
+          displayName: "Amazon Bedrock",
+          docs: ["https://docs.aws.amazon.com/a", "https://docs.aws.amazon.com/b"],
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("link", { name: "Amazon Bedrock documentation (1 of 2)" }),
+    ).toHaveAttribute("href", "https://docs.aws.amazon.com/a");
+    expect(screen.getByRole("link", { name: "Amazon Bedrock documentation (2 of 2)" })).toBeVisible();
+    expect(screen.queryByText(/docs\.aws\.amazon\.com/)).not.toBeInTheDocument();
+  });
+});
+
+describe("GenerateCommandDialog", () => {
+  type MutateOptions = {
+    onSuccess: (r: { scanId: string; command: string; expiresAt: string }) => void;
+    onError: (e: unknown) => void;
+  };
+  const target = { id: "c2", name: "WSO2 GitHub" };
+
+  it("offers the LLM judge only with AI review, and warns about AI mistakes", () => {
+    render(<GenerateCommandDialog orgName="acme" target={target} onClose={vi.fn()} />);
+    const ai = screen.getByRole("switch", { name: /^AI review/ });
+    const judge = screen.getByRole("switch", { name: /^LLM judge/ });
+    expect(judge).toBeDisabled();
+    expect(screen.queryByText("AI review can make mistakes.")).not.toBeInTheDocument();
+    fireEvent.click(ai);
+    expect(judge).toBeEnabled();
+    expect(screen.getByText("AI review can make mistakes.")).toBeInTheDocument();
+    fireEvent.click(judge);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c2", aiReview: true, llmJudge: true },
+      expect.anything(),
+    );
+  });
+
+  it("shows the command once it is generated", () => {
+    render(<GenerateCommandDialog orgName="acme" target={target} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    expect(hoisted.generate).toHaveBeenLastCalledWith(
+      { connectionId: "c2", aiReview: false, llmJudge: false },
+      expect.anything(),
+    );
+    const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
+    act(() =>
+      opts.onSuccess({
+        scanId: "s9",
+        command: "docker run --rm -it scan --scan-id s9",
+        expiresAt: "2026-11-17T10:00:00Z",
+      }),
+    );
+    expect(screen.getByText("docker run --rm -it scan --scan-id s9")).toBeInTheDocument();
+    expect(screen.getByText(/Shown once: copy it now/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Generate" })).not.toBeInTheDocument();
+  });
+
+  it("never shows a command again after closing, and closes only with Close", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <GenerateCommandDialog orgName="acme" target={target} onClose={onClose} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
+    act(() =>
+      opts.onSuccess({ scanId: "s9", command: "docker run secret", expiresAt: "bad date" }),
+    );
+    // The command is kept only in the dialog, not in the mutation cache.
+    expect(hoisted.resetGenerate).toHaveBeenCalled();
+    expect(screen.getByText(/valid for 1 hour;/)).toBeInTheDocument();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    rerender(<GenerateCommandDialog orgName="acme" target={null} onClose={onClose} />);
+    rerender(<GenerateCommandDialog orgName="acme" target={target} onClose={onClose} />);
+    expect(screen.queryByText("docker run secret")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Generate" })).toBeInTheDocument();
+  });
+
+  it("says why the command could not be generated", () => {
+    render(<GenerateCommandDialog orgName="acme" target={target} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate" }));
+    const opts = hoisted.generate.mock.lastCall?.[1] as MutateOptions;
+    act(() => opts.onError({ message: "Not found" }));
+    expect(screen.getByText("Not found")).toBeInTheDocument();
   });
 });

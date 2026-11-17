@@ -56,7 +56,7 @@ function countOf(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-/** What a GitHub or Azure DevOps connection scans: "acme · All repositories · Private". */
+/** What a GitHub or Azure DevOps connection scans: "acme · All repositories · Public only". */
 export function sourceScopeLabel(
   provider: string,
   settings: Record<string, unknown> | undefined,
@@ -73,7 +73,7 @@ export function sourceScopeLabel(
       s.allRepositories === true
         ? "All repositories"
         : countOf(listed(s.repositories), "repository", "repositories"),
-      s.privateRepositories === true ? "Private" : "Public",
+      s.privateRepositories === true ? "Private and public" : "Public only",
     );
   }
   return parts.filter(Boolean).join(" · ");

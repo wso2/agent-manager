@@ -29,6 +29,8 @@ import type {
   ShadowFindingListResponse,
   ShadowFindingUpdateRequest,
   ShadowProviderListResponse,
+  ShadowRunnerScanRequest,
+  ShadowRunnerScanResponse,
   ShadowScanClearResponse,
   ShadowScanListResponse,
   ShadowScanRequest,
@@ -162,6 +164,22 @@ export async function createShadowScan(
 ): Promise<ShadowScanResponse> {
   const token = await tokenOf(getToken);
   const res = await httpPOST(`${shadowBase(orgName)}/scans`, body, { token });
+  return res.json();
+}
+
+/** Creates a pending source code scan and returns the command that runs it. */
+export async function createShadowRunnerScan(
+  orgName: string | undefined,
+  connectionId: string,
+  body: ShadowRunnerScanRequest,
+  getToken?: () => Promise<string>,
+): Promise<ShadowRunnerScanResponse> {
+  const token = await tokenOf(getToken);
+  const res = await httpPOST(
+    `${shadowBase(orgName)}/connections/${encodeURIComponent(connectionId)}/runner-scans`,
+    body,
+    { token },
+  );
   return res.json();
 }
 

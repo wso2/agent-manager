@@ -32,7 +32,15 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Pencil, PlugZap, Plus, Radar, Trash2, TriangleAlert } from "@wso2/oxygen-ui-icons-react";
+import {
+  Pencil,
+  PlugZap,
+  Plus,
+  Radar,
+  SquareTerminal,
+  Trash2,
+  TriangleAlert,
+} from "@wso2/oxygen-ui-icons-react";
 import {
   isShadowScanActive,
   useDeleteShadowConnection,
@@ -60,6 +68,7 @@ import {
   unlockLabels,
 } from "../shadowUi";
 import { scopedKeyCount } from "../capabilities";
+import { type CommandTarget, GenerateCommandDialog } from "./GenerateCommandDialog";
 
 /** The number of keys an OpenAI or Anthropic platform lists agents with. */
 export function ScopedKeysChip({
@@ -105,6 +114,7 @@ interface ConnectionsTabProps {
  */
 export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: ConnectionsTabProps) {
   const [search, setSearch] = useState("");
+  const [commandFor, setCommandFor] = useState<CommandTarget | null>(null);
   const [testResult, setTestResult] = useState<{
     name: string;
     result: ShadowConnectionTest;
@@ -364,6 +374,15 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
                       <ListingTable.Cell align="right">
                         {canManage && (
                           <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                            <Tooltip title="Generate command">
+                              <IconButton
+                                size="small"
+                                aria-label={`Generate command for ${c.name}`}
+                                onClick={() => setCommandFor({ id: c.id, name: c.name })}
+                              >
+                                <SquareTerminal size={18} />
+                              </IconButton>
+                            </Tooltip>
                             <Tooltip title="Edit">
                               <IconButton
                                 size="small"
@@ -393,6 +412,12 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           )}
         </Stack>
       </ResourceListShell>
+
+      <GenerateCommandDialog
+        orgName={orgName}
+        target={commandFor}
+        onClose={() => setCommandFor(null)}
+      />
 
       <Dialog open={!!testResult} onClose={() => setTestResult(null)} maxWidth="sm" fullWidth>
         <DialogTitle>Test of {testResult?.name}</DialogTitle>

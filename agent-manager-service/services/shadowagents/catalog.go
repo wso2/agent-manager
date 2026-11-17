@@ -441,7 +441,7 @@ var sourceHostSpecs = []ProviderSpec{
 		Description: "Repositories of a GitHub organization or user account: agent framework and model SDK dependencies, MCP and A2A configuration, and agent code.",
 		Endpoints: []EndpointSpec{{
 			Key: EPGitHubAPI, Label: "GitHub API", Default: "https://api.github.com",
-			OfficialHostSuffixes: []string{"api.github.com"},
+			OfficialHostSuffixes: []string{"api.github.com"}, Advanced: true,
 		}},
 		Fields: []FieldSpec{
 			{
@@ -453,7 +453,7 @@ var sourceHostSpecs = []ProviderSpec{
 				Placeholder: "e.g. payments-service", Help: "Repository names in the organization, one per line.",
 			},
 			{
-				Key: OptPrivateRepos, Label: "Private repositories", Kind: FieldCheckbox, DefaultBool: true,
+				Key: OptPrivateRepos, Label: "Include private repositories", Kind: FieldCheckbox, DefaultBool: true,
 				Help: "The scan command asks for a read-only token when it runs. Agent Manager never receives it.",
 			},
 			readCIAndEnvField("GitHub Actions workflows (.github/workflows) and files such as .env.example."),
@@ -474,7 +474,7 @@ var sourceHostSpecs = []ProviderSpec{
 			{
 				Title:   "GitHub Enterprise Server",
 				Summary: "Point the connection at your server instead of github.com.",
-				Items:   []string{"Set the GitHub API endpoint to https://HOSTNAME/api/v3."},
+				Items:   []string{"Open Advanced configuration and set GitHub API to your server's API address, which ends in /api/v3."},
 			},
 		},
 		Docs: []string{"https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens"},
@@ -487,13 +487,13 @@ var sourceHostSpecs = []ProviderSpec{
 		Endpoints: []EndpointSpec{
 			{
 				Key: EPAzureDevOps, Label: "Azure DevOps", Default: "https://dev.azure.com",
-				OfficialHostSuffixes: []string{"dev.azure.com"},
+				OfficialHostSuffixes: []string{"dev.azure.com"}, Advanced: true,
 			},
 		},
 		Fields: []FieldSpec{
 			{
 				Key: "organization", Label: "Organization", Kind: FieldText, Required: true, Placeholder: "e.g. contoso",
-				Help: "The organization name in https://dev.azure.com/{organization}.",
+				Help: "The organization name from your Azure DevOps address.",
 			},
 			{Key: OptAllProjects, Label: "Scan every project", Kind: FieldCheckbox, DefaultBool: true},
 			{

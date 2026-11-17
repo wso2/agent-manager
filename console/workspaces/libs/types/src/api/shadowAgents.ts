@@ -210,6 +210,25 @@ export interface ShadowScanConnectionResult {
   calls: ShadowScanCallResult[];
 }
 
+/** Generate command for a GitHub or Azure DevOps connection. */
+export interface ShadowRunnerScanRequest {
+  /** Send matches the rules cannot prove to the customer's LLM for review. */
+  aiReview: boolean;
+  /** A second model must agree with the reviewer; needs aiReview. */
+  llmJudge: boolean;
+}
+
+/**
+ * The pending scan and the command that runs it. The command holds a scan
+ * token, so it is shown once and never cached.
+ */
+export interface ShadowRunnerScanResponse {
+  scanId: string;
+  command: string;
+  /** When the scan token in the command expires (1 hour). */
+  expiresAt: string;
+}
+
 export interface ShadowScanRequest {
   /** The connections to scan; every connection when empty. */
   connectionIds?: string[];

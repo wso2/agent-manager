@@ -209,7 +209,8 @@ func (s *shadowAgentService) CreateConnection(ctx context.Context, ouID string, 
 		SecretHints:     secretHints(secret),
 		CreatedBy:       audit.BuildEvent(ctx, audit.ActionShadowConnectionCreate).ActorID,
 	}
-	attempt, err := audit.Begin(ctx, audit.ActionShadowConnectionCreate, connectionAuditOpts(ouID, c, true)...)
+	// A source host stores no secret, so creating one changes none.
+	attempt, err := audit.Begin(ctx, audit.ActionShadowConnectionCreate, connectionAuditOpts(ouID, c, !spec.SourceHost)...)
 	if err != nil {
 		return nil, err
 	}

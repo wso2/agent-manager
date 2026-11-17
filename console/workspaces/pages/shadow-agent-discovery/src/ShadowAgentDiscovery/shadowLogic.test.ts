@@ -243,10 +243,10 @@ describe("labels", () => {
         allRepositories: true,
         privateRepositories: true,
       }),
-    ).toBe("acme · All repositories · Private");
+    ).toBe("acme · All repositories · Private and public");
     expect(
       sourceScopeLabel("github", { organization: "acme", repositories: ["payments"] }),
-    ).toBe("acme · 1 repository · Public");
+    ).toBe("acme · 1 repository · Public only");
     expect(sourceScopeLabel("azure_devops", { organization: "contoso", allProjects: true })).toBe(
       "contoso · All projects",
     );
