@@ -24,7 +24,7 @@ type ShadowFindingSummary struct {
 	ConnectionId   string `json:"connectionId"`
 	ConnectionName string `json:"connectionName"`
 	Provider       string `json:"provider"`
-	// runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+	// runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 	Kind string `json:"kind"`
 	// The platform's own ID of the agent (agent ID, ARN or resource name).
 	ExternalId  string `json:"externalId"`

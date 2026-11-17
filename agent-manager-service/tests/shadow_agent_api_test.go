@@ -201,7 +201,19 @@ func TestShadowAgentDiscoveryAPI_Catalog(t *testing.T) {
 		"bedrock.agentcore_runtime", "bedrock.registry_agent_record", "bedrock.classic_agent",
 		"google.agent_runtime_engine", "google.registry_agent",
 		"foundry.agent_object", "foundry.classic_agent", "foundry.external_possible_duplicate",
-	}, codes)
+	}, codes[:10])
+	sourceSlugs := []string{
+		"d1_agent_dependency", "d2_agent_import", "d3_mcp_client_config", "d4_mcp_client_code",
+		"d5_a2a_artifact", "d6_agent_platform_iac", "d7_tool_calling", "d8_mcp_server_code",
+		"d9_agent_definition", "d10_model_sdk", "d11_llm_env_var", "d12_developer_tooling",
+	}
+	var sourceCodes []string
+	for _, host := range []string{"github", "azure_devops"} {
+		for _, slug := range sourceSlugs {
+			sourceCodes = append(sourceCodes, host+"."+slug)
+		}
+	}
+	assert.Equal(t, sourceCodes, codes[10:])
 }
 
 // TestShadowAgentDiscoveryAPI covers the whole flow against a fake OpenAI:

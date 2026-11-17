@@ -53,6 +53,9 @@ const (
 	// ShadowKindRuntime is an AgentCore runtime or a Google Agent Runtime
 	// engine (reasoning engine).
 	ShadowKindRuntime = "runtime"
+	// ShadowKindCodeAgent is an agent found in a repository's source code by
+	// the source code scan.
+	ShadowKindCodeAgent = "code_agent"
 )
 
 // Finding review statuses.

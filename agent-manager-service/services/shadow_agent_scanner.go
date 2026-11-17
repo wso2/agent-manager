@@ -375,8 +375,9 @@ func toShadowApply(
 	in := repositories.ShadowConnectionApply{
 		OUID: scan.OUID, ConnectionID: c.ID, ScanID: scan.ID, ScanStartedAt: startedAt, Complete: complete,
 	}
+	spec, _ := sa.Provider(c.Provider)
 	for _, f := range out.Findings {
-		if f == nil || strings.TrimSpace(f.ExternalID) == "" || !validShadowKind(f.Kind) {
+		if f == nil || strings.TrimSpace(f.ExternalID) == "" || !validShadowKind(spec.SourceHost, f.Kind) {
 			continue
 		}
 		fi := repositories.ShadowFindingInput{
@@ -394,8 +395,8 @@ func toShadowApply(
 		}
 		for _, sig := range f.Signals {
 			d, ok := sa.Def(sig.Code)
-			if !ok {
-				log.Warn("Dropping an unknown evidence code", "provider", c.Provider, "code", sig.Code)
+			if !ok || d.Provider != c.Provider {
+				log.Warn("Dropping evidence unknown to the platform", "provider", c.Provider, "code", sig.Code)
 				continue
 			}
 			fi.Signals = append(fi.Signals, models.ShadowFindingSignal{
@@ -406,8 +407,8 @@ func toShadowApply(
 			})
 		}
 		if len(fi.Signals) == 0 {
-			// Every finding is an agent a listing returned; one without that
-			// evidence is not stored.
+			// Every finding is an agent a platform listing or the source code
+			// scan returned; one without that evidence is not stored.
 			continue
 		}
 		in.Findings = append(in.Findings, fi)
@@ -415,7 +416,13 @@ func toShadowApply(
 	return in
 }
 
-func validShadowKind(kind string) bool {
+// validShadowKind reports whether a finding kind fits its platform: a source
+// repository host finds code agents only, an agent platform lists platform
+// agents and runtimes.
+func validShadowKind(sourceHost bool, kind string) bool {
+	if sourceHost {
+		return kind == models.ShadowKindCodeAgent
+	}
 	return kind == models.ShadowKindPlatformAgent || kind == models.ShadowKindRuntime
 }
 
@@ -493,7 +500,9 @@ func CorrelateShadowFindings(
 	byName := map[string][]*models.ShadowFinding{}
 	for i := range findings {
 		f := &findings[i]
-		if f.Provider == models.ShadowProviderFoundry {
+		// Code agents are named after code, not an endpoint, so they are not
+		// matched against Foundry external agents.
+		if f.Provider == models.ShadowProviderFoundry || f.Kind == models.ShadowKindCodeAgent {
 			continue
 		}
 		if n := normalizeShadowName(f.DisplayName); n != "" {

@@ -827,12 +827,74 @@ func TestToShadowApply_AppliesRetentionAndCatalog(t *testing.T) {
 	assert.False(t, toShadowApply(scan, conn, out, started, started, false, log).Complete)
 }
 
-func TestValidShadowKind_AgentsOnly(t *testing.T) {
-	assert.True(t, validShadowKind(models.ShadowKindPlatformAgent))
-	assert.True(t, validShadowKind(models.ShadowKindRuntime))
-	for _, k := range []string{"api_key", "principal", "tool_infrastructure", "project", "deployment", ""} {
-		assert.False(t, validShadowKind(k), k)
+// TestToShadowApply_KeepsCodeAgentEvidence stores a code agent the source
+// code scan found, with its source evidence and who confirmed it.
+func TestToShadowApply_KeepsCodeAgentEvidence(t *testing.T) {
+	out := &sa.Result{
+		Findings: []*sa.Finding{{
+			Kind: models.ShadowKindCodeAgent, ExternalID: "acme/agent:src/agent.py", DisplayName: "agent",
+			Attributes: map[string]any{"framework": "langgraph", "reviewedBy": "rules", "snippet": shadowPromptMark},
+			Signals:    []sa.Signal{{Code: "github.d1_agent_dependency", Source: "requirements.txt"}},
+		}},
 	}
+	scan := &models.ShadowScan{ID: uuid.New(), OUID: shadowTestOU}
+	conn := &models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
+	now := time.Now().UTC()
+	in := toShadowApply(scan, conn, out, now, now, true, slog.New(slog.DiscardHandler))
+
+	require.Len(t, in.Findings, 1)
+	f := in.Findings[0]
+	assert.Equal(t, models.ShadowKindCodeAgent, f.Finding.Kind)
+	assert.Equal(t, map[string]any{"framework": "langgraph", "reviewedBy": "rules"}, f.Finding.Attributes)
+	require.Len(t, f.Signals, 1)
+	assert.Equal(t, "github.d1_agent_dependency", f.Signals[0].Code)
+	assert.Equal(t, "requirements.txt", f.Signals[0].Source)
+}
+
+func TestValidShadowKind_AgentsOnly(t *testing.T) {
+	assert.True(t, validShadowKind(false, models.ShadowKindPlatformAgent))
+	assert.True(t, validShadowKind(false, models.ShadowKindRuntime))
+	assert.False(t, validShadowKind(false, models.ShadowKindCodeAgent), "an agent platform lists no code agents")
+	assert.True(t, validShadowKind(true, models.ShadowKindCodeAgent))
+	assert.False(t, validShadowKind(true, models.ShadowKindPlatformAgent), "a repository host finds code agents only")
+	assert.False(t, validShadowKind(true, models.ShadowKindRuntime))
+	for _, k := range []string{"api_key", "principal", "tool_infrastructure", "project", "deployment", ""} {
+		assert.False(t, validShadowKind(false, k), k)
+		assert.False(t, validShadowKind(true, k), k)
+	}
+}
+
+func TestToShadowApply_DropsFindingsAndEvidenceOfAnotherPlatform(t *testing.T) {
+	out := &sa.Result{
+		Findings: []*sa.Finding{
+			{
+				Kind: models.ShadowKindPlatformAgent, ExternalID: "asst_1", DisplayName: "platform agent",
+				Signals: []sa.Signal{{Code: "github.d1_agent_dependency", Source: "requirements.txt"}},
+			},
+			{
+				Kind: models.ShadowKindCodeAgent, ExternalID: "acme/agent:src/agent.py", DisplayName: "agent",
+				Signals: []sa.Signal{
+					{Code: "azure_devops.d1_agent_dependency", Source: "requirements.txt"},
+					{Code: "foundry.agent_object", Source: "scan"},
+					{Code: "github.d2_agent_import", Source: "src/agent.py"},
+				},
+			},
+			{
+				Kind: models.ShadowKindCodeAgent, ExternalID: "acme/other:main.py", DisplayName: "other",
+				Signals: []sa.Signal{{Code: "openai.agent_object", Source: "scan"}},
+			},
+		},
+	}
+	scan := &models.ShadowScan{ID: uuid.New(), OUID: shadowTestOU}
+	conn := &models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderGitHub}
+	now := time.Now().UTC()
+	in := toShadowApply(scan, conn, out, now, now, true, slog.New(slog.DiscardHandler))
+
+	require.Len(t, in.Findings, 1, "the platform agent and the finding with only another platform's evidence are dropped")
+	f := in.Findings[0]
+	assert.Equal(t, "acme/agent:src/agent.py", f.Finding.ExternalID)
+	require.Len(t, f.Signals, 1)
+	assert.Equal(t, "github.d2_agent_import", f.Signals[0].Code)
 }
 
 func TestConnectionOutcome(t *testing.T) {

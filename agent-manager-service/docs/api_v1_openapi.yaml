@@ -24912,10 +24912,11 @@ components:
           type: string
         kind:
           type: string
-          enum: [platform_agent, runtime]
+          enum: [platform_agent, runtime, code_agent]
           description: >-
             runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent
-            object a platform lists.
+            object a platform lists; code_agent is an agent found in a repository's source code by the source
+            code scan.
         externalId:
           type: string
           description: The platform's own ID of the agent (agent ID, ARN or resource name).

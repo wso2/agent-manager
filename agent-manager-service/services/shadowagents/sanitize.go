@@ -72,6 +72,7 @@ var allowedAttributes = map[string]bool{
 	"description":       true, // the platform's short description field (not instructions)
 	"displayName":       true,
 	"runtimeReference":  true, // Google registry -> engine reference
+	"reviewedBy":        true, // rules | ai_review | ai_review_judge (who confirmed a code agent)
 }
 
 // AllowedAttributes returns the attributes whose keys are on the allow-list,

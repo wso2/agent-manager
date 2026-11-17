@@ -1581,6 +1581,7 @@ func (e ShadowFieldSpecKind) Valid() bool {
 
 // Defines values for ShadowFindingDetailKind.
 const (
+	ShadowFindingDetailKindCodeAgent     ShadowFindingDetailKind = "code_agent"
 	ShadowFindingDetailKindPlatformAgent ShadowFindingDetailKind = "platform_agent"
 	ShadowFindingDetailKindRuntime       ShadowFindingDetailKind = "runtime"
 )
@@ -1588,6 +1589,8 @@ const (
 // Valid indicates whether the value is a known member of the ShadowFindingDetailKind enum.
 func (e ShadowFindingDetailKind) Valid() bool {
 	switch e {
+	case ShadowFindingDetailKindCodeAgent:
+		return true
 	case ShadowFindingDetailKindPlatformAgent:
 		return true
 	case ShadowFindingDetailKindRuntime:
@@ -1620,6 +1623,7 @@ func (e ShadowFindingDetailStatus) Valid() bool {
 
 // Defines values for ShadowFindingSummaryKind.
 const (
+	ShadowFindingSummaryKindCodeAgent     ShadowFindingSummaryKind = "code_agent"
 	ShadowFindingSummaryKindPlatformAgent ShadowFindingSummaryKind = "platform_agent"
 	ShadowFindingSummaryKindRuntime       ShadowFindingSummaryKind = "runtime"
 )
@@ -1627,6 +1631,8 @@ const (
 // Valid indicates whether the value is a known member of the ShadowFindingSummaryKind enum.
 func (e ShadowFindingSummaryKind) Valid() bool {
 	switch e {
+	case ShadowFindingSummaryKindCodeAgent:
+		return true
 	case ShadowFindingSummaryKindPlatformAgent:
 		return true
 	case ShadowFindingSummaryKindRuntime:
@@ -6828,7 +6834,7 @@ type ShadowFindingDetail struct {
 	FoundBy []ShadowFindingSource `json:"foundBy"`
 	Id      openapi_types.UUID    `json:"id"`
 
-	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 	Kind       ShadowFindingDetailKind `json:"kind"`
 	LastSeenAt time.Time               `json:"lastSeenAt"`
 
@@ -6854,7 +6860,7 @@ type ShadowFindingDetail struct {
 	Status ShadowFindingDetailStatus `json:"status"`
 }
 
-// ShadowFindingDetailKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+// ShadowFindingDetailKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 type ShadowFindingDetailKind string
 
 // ShadowFindingDetailStatus defines model for ShadowFindingDetail.Status.
@@ -6909,7 +6915,7 @@ type ShadowFindingSummary struct {
 	FoundBy []ShadowFindingSource `json:"foundBy"`
 	Id      openapi_types.UUID    `json:"id"`
 
-	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+	// Kind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 	Kind       ShadowFindingSummaryKind `json:"kind"`
 	LastSeenAt time.Time                `json:"lastSeenAt"`
 
@@ -6929,7 +6935,7 @@ type ShadowFindingSummary struct {
 	Status ShadowFindingSummaryStatus `json:"status"`
 }
 
-// ShadowFindingSummaryKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists.
+// ShadowFindingSummaryKind runtime is an AgentCore runtime or a Google Agent Runtime engine; platform_agent is any other agent object a platform lists; code_agent is an agent found in a repository's source code by the source code scan.
 type ShadowFindingSummaryKind string
 
 // ShadowFindingSummaryStatus defines model for ShadowFindingSummary.Status.
