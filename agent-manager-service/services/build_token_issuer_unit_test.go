@@ -144,10 +144,10 @@ func TestNewBuildTokenIssuer_EnabledUsesTheServiceClient(t *testing.T) {
 	require.NotNil(t, issuer)
 	impl, ok := issuer.(*buildTokenIssuer)
 	require.True(t, ok)
-	assert.Equal(t, "https://idp.example.com/oauth2/token", impl.idpTokenURL)
-	assert.Equal(t, btClientID, impl.clientID)
-	assert.Equal(t, btClientSecret, impl.clientSecret)
-	assert.Equal(t, "urn:wso2:cloud", impl.resource)
+	assert.Equal(t, "https://idp.example.com/oauth2/token", impl.minter.idpTokenURL)
+	assert.Equal(t, btClientID, impl.minter.clientID)
+	assert.Equal(t, btClientSecret, impl.minter.clientSecret)
+	assert.Equal(t, "urn:wso2:cloud", impl.minter.resource)
 	_, isSetter := issuer.(BuildTokenIssuerBackgroundContextSetter)
 	assert.True(t, isSetter, "app.Run must be able to install the background context")
 }
@@ -254,7 +254,7 @@ func TestBuildTokenIssuer_RefusesTokensThatAreNotThisOrganizationsBuildToken(t *
 		{
 			name:    "token that expires too soon for a build",
 			token:   func(t *testing.T) string { return btToken(t, btClaims(btOrg, btClientID, 5*time.Minute)) },
-			wantErr: "less than the 10m0s a build needs",
+			wantErr: "less than the 10m0s required",
 		},
 		{
 			name:    "opaque token",
