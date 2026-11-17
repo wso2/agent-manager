@@ -1720,6 +1720,36 @@ paths:
   # GATEWAY ENVIRONMENT ENDPOINTS
   # ============================================
 
+  /orgs/{orgName}/thunder-instances:
+    get:
+      x-amp-module: core
+      summary: List the identity provider of each environment
+      description: |
+        Lists, per environment, the OAuth2 identity provider agents use to mint and validate tokens.
+      operationId: listThunderInstances
+      tags:
+        - Environments
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Issuer, token and JWKS URLs of each environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThunderInstanceListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/environments:
     parameters:
       - name: orgName
@@ -2583,6 +2613,98 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/gateways/status:
+    get:
+      x-amp-module: gateway
+      summary: Get the status of gateways
+      operationId: getGatewayStatus
+      tags:
+        - Gateways
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: gatewayId
+          in: query
+          required: false
+          description: Only this gateway
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lightweight status of the organization's gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayStatusListResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /platform/gateways/failure-summary:
+    get:
+      x-amp-module: gateway
+      summary: Summarize gateway failures across organizations
+      description: |
+        Reports how many gateways across all organizations have stopped reporting.
+        Platform administrators only (a token from PLATFORM_ADMIN_OU_ID). Without
+        includeDetails the status is 503 when the failure percentage is over the
+        threshold, so a probe can alert on it; read `healthy` in the body either way.
+      operationId: getPlatformGatewayFailureSummary
+      tags:
+        - Gateways
+      parameters:
+        - name: includeDetails
+          in: query
+          required: false
+          description: List the failed gateways and always answer 200
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: The fleet is healthy, or includeDetails was set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayFailureSummaryResponse"
+        "403":
+          description: The caller is not a platform administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The fleet is over the failure threshold (only without includeDetails)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayFailureSummaryResponse"
         "500":
           description: Internal server error
           content:
@@ -12620,6 +12742,675 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/identities/users/invite:
+    post:
+      x-amp-module: core
+      summary: Invite a user
+      description: |
+        Creates a sign-up invitation for an email address and returns the invitation link. The link grants access to the organization, so treat it as a secret.
+      operationId: inviteUser
+      tags:
+        - Identity - Users
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteUserRequest"
+      responses:
+        "200":
+          description: Invitation created; share the link with the invitee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteUserResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/users/{userId}/groups:
+    get:
+      x-amp-module: core
+      summary: List the groups of a user
+      operationId: getUserGroups
+      tags:
+        - Identity - Users
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Groups the user belongs to
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroupsResponse"
+        "403":
+          description: Forbidden - missing org context or user does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/users/{userId}/roles:
+    get:
+      x-amp-module: core
+      summary: List the roles of a user
+      operationId: getUserRoles
+      tags:
+        - Identity - Users
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Roles assigned to the user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityRolesResponse"
+        "403":
+          description: Forbidden - missing org context or user does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/groups/{groupId}/members:
+    get:
+      x-amp-module: core
+      summary: List the members of a group
+      operationId: getGroupMembers
+      tags:
+        - Identity - Groups
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID
+          schema:
+            type: string
+        - name: offset
+          in: query
+          required: false
+          description: Number of members to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of members to return (1-100; other values fall back to 20)
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Members of the group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+        "403":
+          description: Forbidden - missing org context or group does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/groups/{groupId}/members/add:
+    post:
+      x-amp-module: core
+      summary: Add users to a group
+      operationId: addGroupMembers
+      tags:
+        - Identity - Groups
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMembersRequest"
+      responses:
+        "200":
+          description: Members added
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request or empty userIds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or group does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/groups/{groupId}/members/remove:
+    post:
+      x-amp-module: core
+      summary: Remove users from a group
+      operationId: removeGroupMembers
+      tags:
+        - Identity - Groups
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMembersRequest"
+      responses:
+        "200":
+          description: Members removed
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request or empty userIds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or group does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/groups/{groupId}/roles:
+    get:
+      x-amp-module: core
+      summary: List the roles of a group
+      operationId: getGroupRoles
+      tags:
+        - Identity - Groups
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Roles assigned to the group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityRolesResponse"
+        "403":
+          description: Forbidden - missing org context or group does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/assignments:
+    get:
+      x-amp-module: core
+      summary: List the users and groups a role is assigned to
+      operationId: getRoleAssignments
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Users and groups holding the role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleAssignmentsResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/assignees/add:
+    post:
+      x-amp-module: core
+      summary: Assign a role to users and groups
+      operationId: addRoleAssignees
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleAssigneesRequest"
+      responses:
+        "200":
+          description: Role assigned
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request, or neither userIds nor groupIds given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/assignees/remove:
+    post:
+      x-amp-module: core
+      summary: Unassign a role from users and groups
+      operationId: removeRoleAssignees
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleAssigneesRequest"
+      responses:
+        "200":
+          description: Role unassigned
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request, or neither userIds nor groupIds given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/permissions/add:
+    post:
+      x-amp-module: core
+      summary: Grant permissions to a role
+      operationId: addRolePermissions
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RolePermissionsRequest"
+      responses:
+        "200":
+          description: Permissions granted
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/permissions/remove:
+    post:
+      x-amp-module: core
+      summary: Revoke permissions from a role
+      operationId: removeRolePermissions
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RolePermissionsRequest"
+      responses:
+        "200":
+          description: Permissions revoked
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/permissions:
+    get:
+      x-amp-module: core
+      summary: List the permissions a role can grant
+      operationId: listIdentityPermissions
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The permissions of the Agent Manager resource server in the identity provider, with display names
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionCatalogResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/environments/{envName}/agent-identities/groups:
     parameters:
       - $ref: "#/components/parameters/AgentIdentityOrgName"
@@ -22498,6 +23289,272 @@ components:
           nullable: true
 
     # Identity Management Schemas
+    InviteUserRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          example: "jane@example.com"
+
+    InviteUserResponse:
+      type: object
+      required:
+        - inviteLink
+      properties:
+        inviteLink:
+          type: string
+          description: Sign-up link for the invitee
+
+    UserGroupsResponse:
+      type: object
+      required:
+        - groups
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupResponse"
+
+    IdentityRolesResponse:
+      type: object
+      required:
+        - roles
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleResponse"
+
+    GroupMembersRequest:
+      type: object
+      required:
+        - userIds
+      properties:
+        userIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+
+    RoleAssigneesRequest:
+      type: object
+      description: At least one user or group ID is required.
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+        groupIds:
+          type: array
+          items:
+            type: string
+
+    RoleAssignmentsResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserResponse"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupResponse"
+
+    RolePermissionsRequest:
+      type: object
+      required:
+        - resourceServerId
+        - permissions
+      properties:
+        resourceServerId:
+          type: string
+          description: Resource server the permissions belong to (resourceServerId of GET .../identities/permissions)
+        permissions:
+          type: array
+          items:
+            type: string
+          example: ["project:create"]
+
+    PermissionCatalogEntry:
+      type: object
+      required:
+        - name
+        - resourceServerId
+      properties:
+        name:
+          type: string
+          example: "project:create"
+        resourceServerId:
+          type: string
+        actionName:
+          type: string
+          example: "Create"
+        resourceName:
+          type: string
+          example: "Project"
+
+    PermissionCatalogResponse:
+      type: object
+      required:
+        - permissions
+        - resourceServerId
+      properties:
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionCatalogEntry"
+        resourceServerId:
+          type: string
+
+    ThunderInstanceResponse:
+      type: object
+      required:
+        - envName
+        - displayName
+        - isProduction
+        - issuerUrl
+        - tokenUrl
+        - jwksUrl
+        - namespace
+      properties:
+        envName:
+          type: string
+        displayName:
+          type: string
+        isProduction:
+          type: boolean
+        issuerUrl:
+          type: string
+        tokenUrl:
+          type: string
+        jwksUrl:
+          type: string
+        namespace:
+          type: string
+
+    ThunderInstanceListResponse:
+      type: object
+      required:
+        - thunderInstances
+      properties:
+        thunderInstances:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThunderInstanceResponse"
+
+    GatewayStatusEntry:
+      type: object
+      required:
+        - id
+        - name
+        - isActive
+        - isCritical
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        isActive:
+          type: boolean
+        isCritical:
+          type: boolean
+
+    GatewayStatusListResponse:
+      type: object
+      required:
+        - count
+        - list
+        - pagination
+      properties:
+        count:
+          type: integer
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/GatewayStatusEntry"
+        pagination:
+          type: object
+          required:
+            - total
+            - offset
+            - limit
+          properties:
+            total:
+              type: integer
+            offset:
+              type: integer
+            limit:
+              type: integer
+
+    FailedGatewayDetail:
+      type: object
+      required:
+        - id
+        - name
+        - organizationId
+        - lastUpdatedAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        organizationId:
+          type: string
+        lastUpdatedAt:
+          type: string
+          format: date-time
+
+    GatewayFailureSummaryResponse:
+      type: object
+      required:
+        - total
+        - abandoned
+        - considered
+        - failed
+        - failurePercentage
+        - healthy
+        - failurePercentageThreshold
+        - stalenessThresholdSeconds
+        - maxAgeSeconds
+        - evaluatedAt
+      properties:
+        total:
+          type: integer
+          format: int64
+        abandoned:
+          type: integer
+          format: int64
+          description: Gateways silent for longer than maxAgeSeconds, left out of the percentage
+        considered:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+        failurePercentage:
+          type: number
+        healthy:
+          type: boolean
+          description: The verdict; branch on this rather than on the status code
+        failurePercentageThreshold:
+          type: number
+        stalenessThresholdSeconds:
+          type: integer
+        maxAgeSeconds:
+          type: integer
+        evaluatedAt:
+          type: string
+          format: date-time
+        failedGateways:
+          type: array
+          items:
+            $ref: "#/components/schemas/FailedGatewayDetail"
+        truncated:
+          type: boolean
+
     UserResponse:
       type: object
       required:
