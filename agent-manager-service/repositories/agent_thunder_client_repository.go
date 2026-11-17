@@ -26,6 +26,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
 
@@ -210,6 +211,28 @@ type AgentThunderClientRepo struct {
 // NewAgentThunderClientRepo creates a new agent Thunder client repository.
 func NewAgentThunderClientRepo(db *gorm.DB) AgentThunderClientRepository {
 	return &AgentThunderClientRepo{db: db}
+}
+
+// AgentThunderBindingLocker serializes work on one AgentID binding across every
+// replica of the service. AgentThunderClientRepo implements it; the service
+// discovers it by type assertion so the generated repository mock need not.
+type AgentThunderBindingLocker interface {
+	// LockBinding blocks until the binding's lock is free or ctx is done. On
+	// success the caller holds the lock until it calls release, exactly once.
+	LockBinding(ctx context.Context, key string) (release func(), err error)
+}
+
+var _ AgentThunderBindingLocker = (*AgentThunderClientRepo)(nil)
+
+// LockBinding holds an advisory lock on key until release, on a connection
+// from the dedicated lock pool (db.GetLockDB), so a held lock never takes a
+// connection the binding's own repository calls need. See holdAdvisoryLock.
+func (r *AgentThunderClientRepo) LockBinding(ctx context.Context, key string) (func(), error) {
+	release, err := holdAdvisoryLock(ctx, db.GetLockDB(), agentThunderBindingLockNamespace, key)
+	if err != nil {
+		return nil, fmt.Errorf("lock agent thunder binding: %w", err)
+	}
+	return release, nil
 }
 
 func (r *AgentThunderClientRepo) Upsert(ctx context.Context, c *models.AgentThunderClient) error {

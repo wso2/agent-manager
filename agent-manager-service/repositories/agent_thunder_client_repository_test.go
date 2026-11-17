@@ -431,3 +431,130 @@ func TestAgentThunderClientRepo_ListHomeAgentsPagesDistinctAgentsWithACompletedD
 	require.NotEmpty(t, second)
 	assert.Equal(t, "atc-home-c", second[0].AgentName, "one entry per agent, in order, and no pending-only agent")
 }
+
+func newBindingLocker(t *testing.T) AgentThunderBindingLocker {
+	t.Helper()
+	locker, ok := NewAgentThunderClientRepo(db.GetDB()).(AgentThunderBindingLocker)
+	require.True(t, ok, "AgentThunderClientRepo must implement AgentThunderBindingLocker")
+	return locker
+}
+
+// lockAsync calls LockBinding on its own goroutine and delivers the outcome.
+func lockAsync(ctx context.Context, locker AgentThunderBindingLocker, key string) <-chan func() {
+	acquired := make(chan func(), 1)
+	go func() {
+		release, err := locker.LockBinding(ctx, key)
+		if err != nil {
+			close(acquired)
+			return
+		}
+		acquired <- release
+	}()
+	return acquired
+}
+
+// assertBlocked fails if acquired delivers within a short window.
+func assertBlocked(t *testing.T, acquired <-chan func(), msg string) {
+	t.Helper()
+	select {
+	case release, ok := <-acquired:
+		if ok {
+			release()
+		}
+		t.Fatal(msg)
+	case <-time.After(300 * time.Millisecond):
+	}
+}
+
+// awaitAcquired returns the release func acquired delivers, failing if it never does.
+func awaitAcquired(t *testing.T, acquired <-chan func(), msg string) func() {
+	t.Helper()
+	select {
+	case release, ok := <-acquired:
+		require.True(t, ok, msg)
+		return release
+	case <-time.After(5 * time.Second):
+		t.Fatal(msg)
+		return nil
+	}
+}
+
+// TestAgentThunderClientRepo_LockBinding_SerializesSameKey stands in for two
+// replicas: each LockBinding call runs on its own pooled connection, so only
+// the database can make the second wait.
+func TestAgentThunderClientRepo_LockBinding_SerializesSameKey(t *testing.T) {
+	locker := newBindingLocker(t)
+	key := "lock-test|" + uuid.NewString()
+
+	release, err := locker.LockBinding(context.Background(), key)
+	require.NoError(t, err)
+
+	waiter := lockAsync(context.Background(), locker, key)
+	assertBlocked(t, waiter, "a second LockBinding on the same key must wait for the holder")
+
+	release()
+	awaitAcquired(t, waiter, "the waiter must get the lock once the holder releases")()
+}
+
+func TestAgentThunderClientRepo_LockBinding_DifferentKeysDoNotBlock(t *testing.T) {
+	locker := newBindingLocker(t)
+	release, err := locker.LockBinding(context.Background(), "lock-test|"+uuid.NewString())
+	require.NoError(t, err)
+	defer release()
+
+	other := lockAsync(context.Background(), locker, "lock-test|"+uuid.NewString())
+	awaitAcquired(t, other, "a different key must not wait behind an unrelated holder")()
+}
+
+func TestAgentThunderClientRepo_LockBinding_WaiterReturnsWhenCtxDone(t *testing.T) {
+	locker := newBindingLocker(t)
+	key := "lock-test|" + uuid.NewString()
+	release, err := locker.LockBinding(context.Background(), key)
+	require.NoError(t, err)
+	defer release()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	waiterRelease, err := locker.LockBinding(ctx, key)
+	require.Error(t, err, "a waiter whose context ends must give up instead of acquiring")
+	assert.Nil(t, waiterRelease)
+	assert.Less(t, time.Since(start), 5*time.Second, "the waiter must return promptly once its context ends")
+}
+
+// TestAgentThunderClientRepo_LockBinding_HeldPastHolderCtxCancel guards that
+// the lock lives until release, not until the caller's context ends: a
+// rotation must stay serialized after the HTTP request that started it gives up.
+func TestAgentThunderClientRepo_LockBinding_HeldPastHolderCtxCancel(t *testing.T) {
+	locker := newBindingLocker(t)
+	key := "lock-test|" + uuid.NewString()
+	holderCtx, cancelHolder := context.WithCancel(context.Background())
+	release, err := locker.LockBinding(holderCtx, key)
+	require.NoError(t, err)
+	cancelHolder()
+
+	waiter := lockAsync(context.Background(), locker, key)
+	assertBlocked(t, waiter, "the lock must stay held after the holder's context is cancelled")
+
+	release()
+	awaitAcquired(t, waiter, "the waiter must get the lock once the holder releases")()
+}
+
+// TestAgentThunderClientRepo_LockBinding_HolderCanUseCappedPool is the review
+// scenario: with DB_MAX_OPEN_COUNT=1, a held binding lock must not take the
+// connection the holder needs for its own reads and writes of that binding.
+func TestAgentThunderClientRepo_LockBinding_HolderCanUseCappedPool(t *testing.T) {
+	repo := NewAgentThunderClientRepo(cappedPool(t, 1))
+	org, project, agent := "org-"+uuid.NewString(), "proj", "agent"
+	require.NoError(t, repo.Upsert(context.Background(), newTestAgentThunderClient(org, project, agent, "dev")))
+	cleanupAgentThunderClients(t, NewAgentThunderClientRepo(db.GetDB()), org, project, agent)
+
+	release, err := repo.(AgentThunderBindingLocker).LockBinding(context.Background(), "lock-test|"+uuid.NewString())
+	require.NoError(t, err)
+	defer release()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = repo.Get(ctx, org, project, agent, "dev")
+	require.NoError(t, err, "the holder must still reach the database through a capped pool")
+}

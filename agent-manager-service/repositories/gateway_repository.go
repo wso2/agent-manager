@@ -638,8 +638,9 @@ const (
 	agentVariableLockNamespace = 4713
 	DriftScanLockNamespace     = 4714
 	gatewayLockNamespace       = 4715
-	// 4716 is reserved for AgentID binding locks.
-	llmProviderSyncLockNamespace = 4717
+	// Locks held across work on other connections; see holdAdvisoryLock.
+	agentThunderBindingLockNamespace = 4716
+	llmProviderSyncLockNamespace     = 4717
 )
 
 // advisoryXactLock takes a transaction-scoped advisory lock on key within namespace, released on
