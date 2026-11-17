@@ -79,7 +79,8 @@ jobs:
             name: .name,
             "service-dir": .dir,
             dockerfile: (.dir + "/Dockerfile"),
-            context: (.context // "")
+            context: (.context // ""),
+            "build-contexts": (.buildContexts // "")
           }]' "$CONFIG_FILE")
 
           echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
@@ -134,6 +135,7 @@ jobs:
           registry-org: ${{ env.REGISTRY_ORG }}
           tag: ${{ needs.compute-version.outputs.dev-version }}
           context: ${{ matrix.image.context }}
+          build-contexts: ${{ matrix.image.build-contexts }}
 
   e2e:
     name: E2E

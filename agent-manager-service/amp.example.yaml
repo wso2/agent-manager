@@ -1,11 +1,12 @@
 # Example amp.yaml. Every key is an environment variable name written as
 # nested YAML: `db: {driver: sqlite}` is DB_DRIVER. A variable set in the
-# environment always wins over this file. Read from --config, $AMP_CONFIG, or
-# ./amp.yaml.
+# environment always wins over this file, even when empty. One file is read:
+# --config, else $AMP_CONFIG, else ./amp.yaml. Keys no setting reads are
+# logged at startup (likely typos).
 
 server:
   port: 8080                      # SERVER_PORT
-  public_url: http://localhost:9000  # SERVER_PUBLIC_URL
+  public_url: http://localhost:9000  # SERVER_PUBLIC_URL; set it behind a proxy
 
 db:
   driver: sqlite                  # DB_DRIVER: sqlite or postgres
@@ -25,14 +26,17 @@ auth:
 # the settings above where the service can work them out.
 console:
   enabled: true                   # CONSOLE_ENABLED
+  # ui_modules_enable: agent-runtime agent-portal  # CONSOLE_UI_MODULES_ENABLE
   docs_url: https://wso2.com/agent-platform/docs/next  # CONSOLE_DOCS_URL
   feature_flag_enable_user_management: true  # CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT
 
 # The modules to run, reconciled at every boot: listed modules are installed
 # and enabled (or disabled with `enabled: false`); other installed modules are
-# disabled unless a listed one requires them. Omit the key to manage modules
-# with `amp module …` instead. AMP_MODULES (`gateway,widgets=off`) overrides
-# the list. Built-in modules (gateway, legacy) are always active.
+# disabled unless a listed one requires them. Omit the key (or leave every
+# entry commented out) to manage modules with `amp module …` instead; `[]`
+# disables every module that is not built in. AMP_MODULES (`gateway,widgets=off`,
+# or `none`) overrides the list. Built-in modules (gateway, legacy) are always
+# active.
 modules:
   - gateway
   # - name: widgets

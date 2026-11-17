@@ -32,7 +32,7 @@ This branch is **AMP Lite**, a development preview of Agent Manager without Open
 
 | Component | Description |
 |-----------|-------------|
-| **amp-console** ([console](console)) | Web-based management console for the platform |
+| **console** ([console](console)) | Web-based management console, built into and served by amp-api |
 | **amp-api** ([agent-manager-service](agent-manager-service)) | Backend API and MCP server powering the control plane |
 | **amp-observer** ([agent-manager-observer](agent-manager-observer)) | API for querying trace data in OpenSearch |
 | **amctl** ([cli](cli)) | Command-line client for the Agent Manager API |

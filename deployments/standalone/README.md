@@ -38,7 +38,7 @@ docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build -
 
 `docker-compose.build.yml` builds the Agent Manager images from the checkout; release bundles leave it out.
 
-Sign in to the console (http://localhost:9000, served by `amp-api`) as `admin` with `AMP_ADMIN_PASSWORD` from `.env`. The console's settings are `CONSOLE_*` variables on `amp-api` (each fills the `$NAME` of the same name in the console's `config.js`); which of its pages show comes from the modules the API runs (`GET /api/v1/ui-manifest`).
+Sign in to the console (http://localhost:9000, served by `amp-api`) as `admin` with `AMP_ADMIN_PASSWORD` from `.env`. The console's settings are `CONSOLE_*` variables on `amp-api` (each fills the `$NAME` of the same name in the console's `config.js`); which of its pages show comes from the modules the API runs (`GET /api/v1/ui-manifest`), plus any listed in `CONSOLE_UI_MODULES_ENABLE`. Behind a reverse proxy, set `SERVER_PUBLIC_URL` on amp-api to the public origin.
 
 `AUTH_MODE` decides how sign-in works and ships as `file`: the API checks the
 password against `/etc/amp/users.yaml` and issues its own tokens, with no

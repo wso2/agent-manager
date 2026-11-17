@@ -1,12 +1,9 @@
 {
   "images": [
     {
-      "name": "amp-console",
-      "dir": "console"
-    },
-    {
       "name": "amp-api",
-      "dir": "agent-manager-service"
+      "dir": "agent-manager-service",
+      "buildContexts": "console-src=./console"
     },
     {
       "name": "amp-observer",

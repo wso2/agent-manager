@@ -193,7 +193,7 @@ If a change needs `if (module X is installed)` inside another module's page, sto
 - `false` → Asgardeo OAuth2 (`AsgardeoProvider`, real tokens/scopes).
 - `true` → no-auth stub (`getToken` → empty string, always authenticated) for local dev.
 
-`globalConfig` = `window.__RUNTIME_CONFIG__`, injected by `apps/web-ui/public/config.js` **before React mounts**. It is filled from `config.template.js`: in dev, the Vite server serves it from `apps/web-ui/.env.development` plus the process env (`vite.config.ts`, `runtimeConfig`); in production, the image's `40-config-setup.sh` renders it with envsubst. To change auth mode you set `DISABLE_AUTH` in that config and reload — it cannot flip at runtime.
+`globalConfig` = `window.__RUNTIME_CONFIG__`, injected by `apps/web-ui/public/config.js` **before React mounts**. It is filled from `config.template.js`: in dev, the Vite server serves it from `apps/web-ui/.env.development` plus the process env (`vite.config.ts`, `runtimeConfig`); in production, agent-manager-service renders it (the console is embedded in its binary; each `$NAME` comes from `CONSOLE_<NAME>` or a default the service derives). To change auth mode you set `DISABLE_AUTH` in that config and reload — it cannot flip at runtime.
 
 ## Conventions & gotchas
 

@@ -38,3 +38,4 @@ services:
     image: amp-init:dev
     build:
       context: ../../agent-manager-service
+      args: { CONSOLE: none }

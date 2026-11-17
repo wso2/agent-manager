@@ -58,7 +58,7 @@ runs:
         export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
         if [ "$WITH_CONSOLE" != "true" ]; then
           # Skip the console build: amp-api then serves a placeholder page.
-          printf 'services:\n  amp-api:\n    build:\n      additional_contexts: !reset {}\n' > ci-no-console.yml
+          printf 'services:\n  amp-api:\n    build:\n      args: { CONSOLE: none }\n' > ci-no-console.yml
           COMPOSE_FILE="$COMPOSE_FILE:ci-no-console.yml"
         fi
         # OpenSearch refuses to start below this on Linux hosts.

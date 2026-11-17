@@ -251,6 +251,9 @@ services:
       CONSOLE_FEATURE_FLAG_ENABLE_PROFILE_MANAGEMENT: "true"
       CONSOLE_FEATURE_FLAG_ENABLE_USER_MANAGEMENT: "true"
       CONSOLE_FEATURE_FLAG_ENABLE_SELF_HOSTED_GATEWAYS: "true"
+      # Console UI modules to turn on besides the ones the API's modules
+      # offer, e.g. "agent-runtime agent-portal".
+      CONSOLE_UI_MODULES_ENABLE: ${CONSOLE_UI_MODULES_ENABLE:-}
     volumes:
       - amp-data:/var/lib/agent-manager
       - amp-keys:/app/keys

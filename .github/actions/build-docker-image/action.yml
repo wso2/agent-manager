@@ -6,7 +6,7 @@ inputs:
     description: 'Service directory name containing Dockerfile'
     required: true
   image-name:
-    description: 'Image name to push (e.g., amp-console)'
+    description: 'Image name to push (e.g., amp-api)'
     required: true
   registry:
     description: 'Container registry URL'
@@ -19,6 +19,10 @@ inputs:
     required: true
   context:
     description: 'Docker build context path (defaults to ./<service-dir>). Override to "." for builds that need the project root.'
+    required: false
+    default: ''
+  build-contexts:
+    description: 'Extra named build contexts, one name=path per line (e.g. console-src=./console for amp-api).'
     required: false
     default: ''
 
@@ -56,6 +60,7 @@ runs:
         push: true
         platforms: linux/amd64,linux/arm64
         tags: ${{ inputs.registry }}/${{ inputs.registry-org }}/${{ inputs.image-name }}:${{ inputs.tag }}
+        build-contexts: ${{ inputs.build-contexts }}
         build-args: |
           VERSION=${{ inputs.tag }}
 

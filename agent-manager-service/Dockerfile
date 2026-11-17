@@ -1,3 +1,7 @@
+# CONSOLE=embed builds the console into the binary; CONSOLE=none skips the
+# Node stage entirely (backend-only images, `amp init` in the dev stack).
+ARG CONSOLE=embed
+
 # The console's source: the repository's console/ directory, passed as a named
 # build context (`--build-context console-src=../console`, or Compose's
 # additional_contexts). Without it this stage is empty and the binary is built
@@ -6,7 +10,7 @@ FROM scratch AS console-src
 
 # Builds the console that the binary embeds. Runs natively on the build
 # platform: the output is plain static files.
-FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:26.12.1-slim AS console
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/node:26.12.1-slim AS console-embed
 # Node 25+ no longer bundles corepack; it activates the pnpm version pinned in
 # package.json's packageManager field.
 RUN npm install -g corepack@0.36.0 && corepack enable
@@ -18,6 +22,11 @@ ENV NODE_OPTIONS=--max-old-space-size=3072
 RUN mkdir -p /out && if [ -f package.json ]; then \
       pnpm install --frozen-lockfile && pnpm build && cp -r apps/web-ui/dist/. /out/ ; \
     else echo "no console source: building the binary without the console"; fi
+
+FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/alpine:3.24 AS console-none
+RUN mkdir /out
+
+FROM console-${CONSOLE} AS console
 
 FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.26.10-alpine AS builder
 
