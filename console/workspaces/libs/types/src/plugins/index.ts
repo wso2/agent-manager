@@ -139,11 +139,58 @@ export interface PluginNavItemContribution extends PluginContributionBase {
   pinBottom?: boolean;
 }
 
-/** A component rendered at one of the shell's mount points (see MountPoints). */
+/**
+ * A component rendered at a mount point: one of the shell's layout slots
+ * (MountPoints) or a page's (PLUGIN_MOUNT_POINTS). The page decides what props
+ * the component receives; see each mount point's documentation.
+ */
 export interface PluginPanelContribution extends PluginContributionBase {
   type: "panel";
   mountPoint: string;
   load: PluginComponentLoader;
+  /** Sort key at the mount point; lower comes first. Defaults to 0. */
+  order?: number;
+  /**
+   * "half" asks for half a row on wide screens, beside the next half-width
+   * panel; one without a partner takes the full row. Defaults to "full".
+   * Only mount points that lay panels out in rows (the overview sections)
+   * honour it.
+   */
+  width?: "full" | "half";
+}
+
+/** What a resource-summary card shows, from its `useSummary` hook. */
+export interface ResourceSummaryState {
+  /** How many there are; leave undefined while loading or for a countless card. */
+  count?: number;
+  isLoading?: boolean;
+  /** The card shows no count (e.g. the resource is not counted cheaply). */
+  countless?: boolean;
+  /** Label and absolute href of the card's link, e.g. "Add an LLM provider". */
+  actionLabel: string;
+  to: string;
+}
+
+/**
+ * A resource card on the organization overview ("LLM Service Providers: 4").
+ * The module that owns the resource contributes it. Cards for empty resources
+ * are left out unless `alwaysShow` is set, and the rest rotate in a few slots.
+ */
+export interface PluginResourceSummaryContribution extends PluginContributionBase {
+  type: "resource-summary";
+  title: string;
+  description: string;
+  icon: IconType;
+  /** Sort key; lower comes first. Defaults to 0. */
+  order?: number;
+  /** Show the card even when the count is 0 (something every org needs). */
+  alwaysShow?: boolean;
+  /**
+   * React hook returning the count and the card's action. It runs in its own
+   * component on the organization overview, with the router's org params
+   * available; keep it cheap (one cached list query).
+   */
+  useSummary: () => ResourceSummaryState;
 }
 
 /**
@@ -181,15 +228,28 @@ export interface PluginAgentTypeContribution extends PluginContributionBase {
  * slots. Pages read panels with useExternalComponentModulesByMountPoint.
  */
 export const PLUGIN_MOUNT_POINTS = {
-  /** Below the agent-type cards on the "Add a New Agent" page (e.g. samples). */
+  /** Below the agent-type cards on the "Add a New Agent" page (e.g. samples). No props. */
   addNewAgentOptions: "add-new-agent-options",
+  /**
+   * Top of an agent's overview: what the agent is built from (its source
+   * repository, or its catalog kind). Props: AgentOverviewPanelProps.
+   */
+  agentOverviewInfo: "agent-overview-info",
+  /**
+   * An agent's overview, per environment: one section per panel, in `order`;
+   * `width: "half"` panels pair up. Props: AgentOverviewPanelProps.
+   */
+  agentOverviewEnvironment: "agent-overview-environment",
+  /** The side column of a project's overview. Props: ProjectOverviewPanelProps. */
+  projectOverviewSide: "project-overview-side",
 } as const;
 
 export type PluginContribution =
   | PluginRouteContribution
   | PluginNavItemContribution
   | PluginPanelContribution
-  | PluginAgentTypeContribution;
+  | PluginAgentTypeContribution
+  | PluginResourceSummaryContribution;
 
 export interface PluginManifest {
   /** Stable id, used in the runtime config to disable the plugin. */

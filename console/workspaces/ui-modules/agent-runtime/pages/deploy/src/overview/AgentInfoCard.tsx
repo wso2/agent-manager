@@ -36,9 +36,12 @@ import {
     type RepositoryConfig,
     absoluteRouteMap,
 } from "@agent-management-platform/types";
-import { formatRelativeTime, parseGitHubUrl } from "@agent-management-platform/shared-component";
+import {
+  formatRelativeTime,
+  parseGitHubUrl,
+  UppercaseCaptionLabel,
+} from "@agent-management-platform/shared-component";
 import { generatePath, Link } from "react-router-dom";
-import { UppercaseCaptionLabel } from "./SectionHeader";
 
 interface AgentInfoCardProps {
     orgId: string;

@@ -22,6 +22,7 @@ import {
   DrawerWrapper,
   PageLayout,
   TextInput,
+  useIsUIModuleInstalled,
 } from "@agent-management-platform/views";
 import {
   CodeBlock,
@@ -477,6 +478,9 @@ export const ViewMCPServerComponent = () => {
   // its variables from, so all three surfaces agree on API key vs OAuth vs None.
   const authenticationType = resolveAuthenticationType(sourceProxyEndpoint);
   const usesIdentitySecurity = authenticationType === "identity";
+  // The agent's client credentials and the identity provider come from Agent
+  // Identity; without that module there is nothing to fetch or show.
+  const identityInstalled = useIsUIModuleInstalled("agent-identity") === true;
   const usesAPIKeySecurity = authenticationType === "apiKey";
   // A failed or in-flight proxy fetch leaves sourceProxyEndpoint undefined,
   // which resolveAuthenticationType reads as "None" — indistinguishable from a
@@ -727,21 +731,32 @@ export const ViewMCPServerComponent = () => {
                 </Form.Section>
               )}
 
-              <Form.Section>
-                <Form.Subheader>Client Credentials</Form.Subheader>
-                <ConnectIdentityCredentials
-                  key={selectedEnvName}
-                  orgId={orgId ?? ""}
-                  projectId={projectId ?? ""}
-                  agentId={agentId ?? ""}
-                  envId={selectedEnvName}
-                />
-              </Form.Section>
+              {identityInstalled ? (
+                <>
+                  <Form.Section>
+                    <Form.Subheader>Client Credentials</Form.Subheader>
+                    <ConnectIdentityCredentials
+                      key={selectedEnvName}
+                      orgId={orgId ?? ""}
+                      projectId={projectId ?? ""}
+                      agentId={agentId ?? ""}
+                      envId={selectedEnvName}
+                    />
+                  </Form.Section>
 
-              <Form.Section>
-                <Form.Subheader>Identity Provider Endpoints</Form.Subheader>
-                <ConnectIdentityEndpoints orgId={orgId ?? ""} envId={selectedEnvName} />
-              </Form.Section>
+                  <Form.Section>
+                    <Form.Subheader>Identity Provider Endpoints</Form.Subheader>
+                    <ConnectIdentityEndpoints orgId={orgId ?? ""} envId={selectedEnvName} />
+                  </Form.Section>
+                </>
+              ) : (
+                <Alert severity="warning">
+                  <Typography variant="body2">
+                    The Agent Identity module is off, so this console can&apos;t show the
+                    client credentials or identity provider endpoints for this tool.
+                  </Typography>
+                </Alert>
+              )}
 
               {uniqueScopes.length > 0 && (
                 <Form.Section>

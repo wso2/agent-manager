@@ -110,3 +110,4 @@ export {
 };
 
 export default EvalMonitorsComponent;
+export { EnvMonitorsSection } from './overview/EnvMonitorsSection';

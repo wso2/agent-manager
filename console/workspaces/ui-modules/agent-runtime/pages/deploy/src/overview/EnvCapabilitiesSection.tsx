@@ -21,10 +21,10 @@ import { Alert, Box, Button, Chip, Tooltip, Typography } from "@wso2/oxygen-ui";
 import { Plug } from "@wso2/oxygen-ui-icons-react";
 import { useGetAgent, useGetAgentConfigurations } from "@agent-management-platform/api-client";
 import {
-    CollapsibleSection,
-    DeploymentStatus,
-    getAgentDeploymentPath,
-    OverviewSectionCard,
+  CollapsibleSection,
+  DeploymentStatus,
+  getAgentDeploymentPath,
+  OverviewSectionCard,
 } from "@agent-management-platform/shared-component";
 import { TextInput } from "@agent-management-platform/views";
 import { ConsumerConfigDrawer, type AuthMode } from "./ConsumerConfigDrawer";

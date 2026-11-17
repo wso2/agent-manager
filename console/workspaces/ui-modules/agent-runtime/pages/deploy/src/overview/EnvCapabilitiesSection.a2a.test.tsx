@@ -19,7 +19,9 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { DeploymentStatus } from "@agent-management-platform/shared-component";
+import {
+  DeploymentStatus,
+} from "@agent-management-platform/shared-component";
 import type { ConfigurationResponse } from "@agent-management-platform/types";
 
 vi.mock("@agent-management-platform/api-client", () => ({

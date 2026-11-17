@@ -19,10 +19,12 @@
 // Plugin manifest. The shell imports this module eagerly, so it must not import
 // the page components: they are reached only through the dynamic import() in
 // `load`, which keeps them in their own chunk.
+import type { ComponentType } from "react";
 import { Workflow } from "@wso2/oxygen-ui-icons-react";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginManifest,
 } from "@agent-management-platform/types";
 
@@ -35,6 +37,14 @@ export const tracesPlugin: PluginManifest = {
   name: "Traces",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      // Agent overview, per environment: recent traces and latency.
+      type: "panel",
+      id: "overview-observability",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewEnvironment,
+      order: 70,
+      load: () => import("./index").then((m) => ({ default: m.EnvObservabilitySection as ComponentType })),
+    },
     {
       type: "route",
       id: "page",

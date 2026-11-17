@@ -17,7 +17,12 @@
  */
 
 import React, { useMemo } from "react";
-import { NESTED_CARD_SX } from "@agent-management-platform/shared-component";
+import {
+  NESTED_CARD_SX,
+  DonutIcon,
+  getDonutColorForPercent,
+  SectionHeader,
+} from "@agent-management-platform/shared-component";
 import {
     Box,
     Card,
@@ -39,8 +44,6 @@ import {
 } from "@agent-management-platform/types";
 import { formatTraceWindow } from "@agent-management-platform/views";
 import { generatePath, Link } from "react-router-dom";
-import { DonutIcon, getDonutColorForPercent } from "./DonutIcon";
-import { SectionHeader } from "./SectionHeader";
 
 interface EnvMonitorsSectionProps {
     orgId: string;

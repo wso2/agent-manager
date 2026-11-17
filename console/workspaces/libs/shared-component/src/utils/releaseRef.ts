@@ -23,7 +23,9 @@ import { globalConfig } from "@agent-management-platform/types";
  * not injected (dev), which falls back to `main`.
  */
 export function getAmpVersion(): string {
-  return globalConfig.ampVersion?.trim() || "";
+  // globalConfig is absent where the runtime config script has not run (unit
+  // tests); with no version, refs fall back to main as a dev build does.
+  return globalConfig?.ampVersion?.trim() || "";
 }
 
 /**

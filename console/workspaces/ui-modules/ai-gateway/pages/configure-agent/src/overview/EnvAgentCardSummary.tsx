@@ -21,7 +21,10 @@ import { ExternalLink, Plus } from "@wso2/oxygen-ui-icons-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useGetAgent, useGetAgentCard } from "@agent-management-platform/api-client";
-import { OverviewSectionCard, validateEndpointUrl } from "@agent-management-platform/shared-component";
+import {
+  OverviewSectionCard,
+  validateEndpointUrl,
+} from "@agent-management-platform/shared-component";
 import { buildConfigureTabHref, servesA2A, TextInput } from "@agent-management-platform/views";
 
 interface EnvAgentCardSummaryProps {

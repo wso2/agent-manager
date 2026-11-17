@@ -4998,6 +4998,9 @@ importers:
       '@wso2/oxygen-ui':
         specifier: 0.20.0
         version: 0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@wso2/oxygen-ui-charts-react':
+        specifier: 0.20.0
+        version: 0.20.0(@types/react@19.2.14)(@wso2/oxygen-ui@0.20.0(@mui/system@7.3.11(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@emotion/styled@11.13.5(@emotion/react@11.13.5(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(react@19.2.3))(@types/react@19.2.14)(@wso2/oxygen-ui-icons-react@0.20.0(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react-is@19.2.8)(react@19.2.3)(redux@5.0.1)
       '@wso2/oxygen-ui-icons-react':
         specifier: 0.20.0
         version: 0.20.0(react@19.2.3)

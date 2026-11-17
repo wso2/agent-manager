@@ -18,7 +18,10 @@
 
 import { useGetAgentKind } from "@agent-management-platform/api-client";
 import { absoluteRouteMap } from "@agent-management-platform/types";
-import { formatRelativeTime } from "@agent-management-platform/shared-component";
+import {
+  formatRelativeTime,
+  UppercaseCaptionLabel,
+} from "@agent-management-platform/shared-component";
 import { MarkdownView } from "@agent-management-platform/views";
 import {
     Box,
@@ -33,7 +36,6 @@ import {
 import { ExternalLink, Tag } from "@wso2/oxygen-ui-icons-react";
 import React from "react";
 import { generatePath, Link } from "react-router-dom";
-import { UppercaseCaptionLabel } from "./SectionHeader";
 
 interface KindInfoCardProps {
     orgId: string;

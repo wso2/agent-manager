@@ -20,13 +20,16 @@
 // the page components: they are reached only through the dynamic import() in
 // each `load`, which keeps them in the package's own chunk.
 import type { ComponentType } from "react";
-import { BrainCircuit } from "@wso2/oxygen-ui-icons-react";
-import { useFeatureManagement } from "@agent-management-platform/feature-management";
+import { BrainCircuit, Brain } from "@wso2/oxygen-ui-icons-react";
+import { useFeatureManagement, useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
+  type ResourceSummaryState,
 } from "@agent-management-platform/types";
+import { generatePath, useParams } from "react-router-dom";
+import { useListLLMProviders } from "@agent-management-platform/api-client";
 
 // Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
@@ -43,11 +46,36 @@ const useResourcesNav = () => {
   );
 };
 
+/** The organization overview's LLM Service Providers card. */
+const useLLMProvidersSummary = (): ResourceSummaryState => {
+  const { orgId = "" } = useParams();
+  const { canWrite } = useResourceAccess("llm_provider");
+  const { data, isLoading } = useListLLMProviders({ orgName: orgId });
+  const llmProviders = absoluteRouteMap.children.org.children.llmProviders;
+  return {
+    count: data?.total,
+    isLoading,
+    actionLabel: canWrite ? "Add an LLM provider" : "View LLM providers",
+    to: generatePath(canWrite ? llmProviders.children.add.path : llmProviders.path, { orgId }),
+  };
+};
+
 export const llmProvidersPlugin: PluginManifest = {
   id: "llm-providers",
   name: "LLM service providers",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      // Organization overview: the LLM Service Providers card.
+      type: "resource-summary",
+      id: "llm-providers-summary",
+      order: 20,
+      title: "LLM Service Providers",
+      description: "Model providers your agents call, with guardrails and rate limits.",
+      icon: Brain,
+      alwaysShow: true,
+      useSummary: useLLMProvidersSummary,
+    },
     {
       type: "route",
       id: "org-page",

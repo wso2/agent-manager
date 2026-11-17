@@ -19,9 +19,9 @@
 import { useMemo } from "react";
 import { useGetAgentEndpoints } from "@agent-management-platform/api-client";
 import {
-    extractOpenApiResources,
-    parseOpenApiSpecContent,
-    type OpenApiResource,
+  extractOpenApiResources,
+  parseOpenApiSpecContent,
+  type OpenApiResource,
 } from "@agent-management-platform/shared-component";
 
 interface UseAgentEndpointResourcesParams {

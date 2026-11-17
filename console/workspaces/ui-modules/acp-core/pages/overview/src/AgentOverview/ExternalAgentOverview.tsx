@@ -28,6 +28,7 @@ import {
   DeploymentStatus,
   EnvironmentCard,
   usePipelineEnvironmentsState,
+  UppercaseCaptionLabel,
 } from "@agent-management-platform/shared-component";
 import { InstrumentationDrawer } from "./InstrumentationDrawer";
 import { otelGatewayVhost } from "./otelGateway";
@@ -35,7 +36,6 @@ import { NoDataFound } from "@agent-management-platform/views";
 import { EnvironmentSectionsContent } from "./EnvironmentSectionsContent";
 import { EnvironmentSingleHeader } from "./EnvironmentSingleHeader";
 import { EnvironmentTabsBar } from "./EnvironmentTabsBar";
-import { UppercaseCaptionLabel } from "./SectionHeader";
 import { ENV_SEARCH_PARAM, useSelectedEnvironmentParam } from "./useSelectedEnvironmentParam";
 
 export const ExternalAgentOverview = () => {

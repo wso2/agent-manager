@@ -17,7 +17,10 @@
  */
 
 import { Box, Typography } from "@wso2/oxygen-ui";
-import { CollapsibleSection, OverviewSectionCard } from "@agent-management-platform/shared-component";
+import {
+  CollapsibleSection,
+  OverviewSectionCard,
+} from "@agent-management-platform/shared-component";
 import type { AgentModelConfigListItem } from "@agent-management-platform/types";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { AddConfigCard } from "./AddConfigCard";

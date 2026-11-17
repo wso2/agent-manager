@@ -43,3 +43,4 @@ export const agentIdMetaData: PageMetadata = {
 export { ThunderInstancesOrganization, thunderInstancesMetadata, AgentIdComponent };
 
 export default ThunderInstancesOrganization;
+export { EnvAgentRolesGroupsSection } from './overview/EnvAgentRolesGroupsSection';

@@ -37,3 +37,6 @@ export {
 
 
 export default DeployComponent;
+export { EnvCapabilitiesSection } from './overview/EnvCapabilitiesSection';
+export { EnvAgentInterfaceCard } from './overview/EnvAgentInterfaceCard';
+export { AgentInfoPanel } from './overview/AgentInfoPanel';

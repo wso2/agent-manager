@@ -60,6 +60,8 @@ import {
 import {
   AgentTypesProvider,
   ExternalModuleProvider,
+  ResourceSummariesProvider,
+  type ResourceSummaryOption,
   UIModuleStatusProvider,
   type AgentTypeOption,
   type ExternalComponentModule,
@@ -433,7 +435,7 @@ export function PluginProvider({
     <PluginHostContext.Provider value={value}>
       <UIModuleStatusProvider value={moduleStatus}>
         <PanelModules externalModules={externalModules}>
-          <AgentTypes>{children}</AgentTypes>
+          <PageContributions>{children}</PageContributions>
         </PanelModules>
       </UIModuleStatusProvider>
     </PluginHostContext.Provider>
@@ -458,9 +460,13 @@ function PanelModules({
           mountPoint: contribution.mountPoint,
           moduleName: key,
           component: panelComponentFor(contribution),
+          order: contribution.order,
+          width: contribution.width,
         });
       }
     }
+    // Stable sort: equal orders keep module registration order.
+    panels.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     return panels.length ? [...externalModules, ...panels] : externalModules;
   }, [contributions, externalModules]);
   return (
@@ -471,13 +477,16 @@ function PanelModules({
 }
 
 /**
- * Feeds the active agent-type contributions to the "Add a New Agent" page
- * (useAgentTypes). A type is listed once it is settled: its activation has
+ * Feeds page-level contributions to the pages that list them: agent types to
+ * the "Add a New Agent" page (useAgentTypes), resource summaries to the
+ * organization overview (useResourceSummaries).
+ *
+ * Agent types: one is listed once it is settled: its activation has
  * answered and its module's install detection is done. `isPending` says the
  * page's content may still change: a type or a panel at the page's mount point
  * is unsettled, so the page must not act on what it has yet (e.g. redirect).
  */
-function AgentTypes({ children }: { children: ReactNode }) {
+function PageContributions({ children }: { children: ReactNode }) {
   const contributions = useContributions();
   const { catalog, phases } = useContext(PluginHostContext);
   // Plugins of modules whose install detection is still running: they run
@@ -508,7 +517,22 @@ function AgentTypes({ children }: { children: ReactNode }) {
     agentTypes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     return { agentTypes, isPending };
   }, [contributions, checkingPlugins]);
-  return <AgentTypesProvider value={value}>{children}</AgentTypesProvider>;
+  // Resource cards on the organization overview: active ones only. A pending
+  // card joins once settled; the overview reflows, so nothing waits for it.
+  const resourceSummaries = useMemo(() => {
+    const list: ResourceSummaryOption[] = [];
+    for (const { plugin, contribution, key, state } of contributions) {
+      if (contribution.type === "resource-summary" && state === true) {
+        list.push({ ...contribution, key, pluginId: plugin.id });
+      }
+    }
+    return list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [contributions]);
+  return (
+    <AgentTypesProvider value={value}>
+      <ResourceSummariesProvider value={resourceSummaries}>{children}</ResourceSummariesProvider>
+    </AgentTypesProvider>
+  );
 }
 
 // ---------------------------------------------------------------------------

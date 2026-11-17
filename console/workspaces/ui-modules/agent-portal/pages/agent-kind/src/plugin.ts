@@ -21,15 +21,18 @@
 // each `load`, which keeps them in the package's own chunk.
 import type { ComponentType } from "react";
 import { BookOpenText, Megaphone } from "@wso2/oxygen-ui-icons-react";
-import { useRouteAgent } from "@agent-management-platform/api-client";
+import { useRouteAgent, useListAgentKinds } from "@agent-management-platform/api-client";
 import { useIsUIModuleInstalled } from "@agent-management-platform/views";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginActivationState,
   type PluginManifest,
+  type ResourceSummaryState,
 } from "@agent-management-platform/types";
 import { CatalogIllustration } from "./createAgent/CatalogIllustration";
+import { generatePath, useParams } from "react-router-dom";
 
 // Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
@@ -51,11 +54,49 @@ const useAgentRuntimePresent = (): PluginActivationState =>
 
 const fromCatalog = orgNav.projects.children.newAgent.children.create.children.catalog;
 
+/** An agent created from a catalog kind. */
+const useKindAgent = (): PluginActivationState => {
+  const { data: agent, isLoading } = useRouteAgent();
+  if (isLoading) return undefined;
+  return !!agent?.kindName;
+};
+
+/** The organization overview's Agent Catalog card. */
+const useCatalogSummary = (): ResourceSummaryState => {
+  const { orgId = "" } = useParams();
+  const { data, isLoading } = useListAgentKinds({ orgName: orgId });
+  return {
+    count: data?.total,
+    isLoading,
+    actionLabel: "Browse the catalog",
+    to: generatePath(absoluteRouteMap.children.org.children.catalog.path, { orgId }),
+  };
+};
+
 export const agentKindPlugin: PluginManifest = {
   id: "agent-kind",
   name: "Agent catalog and publishing",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      // Organization overview: the Agent Catalog card.
+      type: "resource-summary",
+      id: "catalog-summary",
+      order: 10,
+      title: "Agent Catalog",
+      description: "Reusable, versioned agent templates your teams can create agents from.",
+      icon: BookOpenText,
+      useSummary: useCatalogSummary,
+    },
+    {
+      // Agent overview: the catalog kind the agent was created from.
+      type: "panel",
+      id: "overview-built-from",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewInfo,
+      order: 20,
+      useActivation: useKindAgent,
+      load: () => import("./index").then((m) => ({ default: m.KindInfoPanel as ComponentType })),
+    },
     {
       type: "agent-type",
       id: "from-catalog",

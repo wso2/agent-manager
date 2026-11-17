@@ -21,7 +21,10 @@ import { Alert, Box, Card, Form, Link, Typography } from "@wso2/oxygen-ui";
 import { Plug } from "@wso2/oxygen-ui-icons-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useListEnvironmentIdentityProviders } from "@agent-management-platform/api-client";
-import { CodeBlock, getAgentSecurityPath } from "@agent-management-platform/shared-component";
+import {
+  CodeBlock,
+  getAgentSecurityPath,
+} from "@agent-management-platform/shared-component";
 import { DrawerWrapper, DrawerHeader, DrawerContent, TextInput } from "@agent-management-platform/views";
 
 /** Builds a multi-line `curl ... \` command from its individual flag/arg parts. */

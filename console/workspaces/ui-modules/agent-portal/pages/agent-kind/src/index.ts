@@ -30,3 +30,4 @@ export {
 } from "@agent-management-platform/shared-component";
 
 export default PublishComponent;
+export { KindInfoPanel } from './overview/KindInfoPanel';

@@ -35,6 +35,7 @@ import {
   DrawerHeader,
   DrawerWrapper,
   useFormValidation,
+  useIsUIModuleInstalled,
 } from "@agent-management-platform/views";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
@@ -166,6 +167,8 @@ export function CreateScopeDrawer({
   // post-save close stay direct.
   const handleGuardedClose = () => confirmIfUnsaved(onClose, isDirty);
 
+  // Roles come from Agent Identity; skip them when that module is off.
+  const identityInstalled = useIsUIModuleInstalled("agent-identity") === true;
   const roleQueries = useQueries({
     queries: environments.map(
       (env): UseQueryOptions<AgentIdentityRoleListResponse> => ({
@@ -180,7 +183,7 @@ export function CreateScopeDrawer({
             { offset: 0, limit: ROLES_PAGE_SIZE },
             getToken,
           ),
-        enabled: open && !!orgName && !!env.name,
+        enabled: identityInstalled && open && !!orgName && !!env.name,
       }),
     ),
   });
@@ -402,6 +405,9 @@ export function CreateScopeDrawer({
               />
             </FormControl>
 
+            {/* Granting the scope to roles needs Agent Identity: without that
+                module there are no roles, and nothing to fetch. */}
+            {identityInstalled && (
             <Stack spacing={1.5}>
               <FormLabel>
                 {environments.length > 1
@@ -456,6 +462,7 @@ export function CreateScopeDrawer({
                 deployed to.
               </Typography>
             </Stack>
+            )}
 
             <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
               <Button

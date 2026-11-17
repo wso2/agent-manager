@@ -25,8 +25,12 @@ import { useFeatureAccess } from "@agent-management-platform/feature-management"
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginManifest,
+  type ResourceSummaryState,
 } from "@agent-management-platform/types";
+import { generatePath, useParams } from "react-router-dom";
+import { useListEvaluators } from "@agent-management-platform/api-client";
 
 // Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
@@ -52,11 +56,41 @@ const monitorRoute = (id: string, path: string, page: string) => ({
   level: "agent" as const,
 });
 
+/** The organization overview's Evaluators card. */
+const useEvaluatorsSummary = (): ResourceSummaryState => {
+  const { orgId = "" } = useParams();
+  const { data, isLoading } = useListEvaluators({ orgName: orgId });
+  return {
+    count: data?.total,
+    isLoading,
+    actionLabel: "Browse evaluators",
+    to: generatePath(absoluteRouteMap.children.org.children.evaluators.path, { orgId }),
+  };
+};
+
 export const evalPlugin: PluginManifest = {
   id: "eval",
   name: "Evaluation",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      // Organization overview: the Evaluators card.
+      type: "resource-summary",
+      id: "evaluators-summary",
+      order: 40,
+      title: "Evaluators",
+      description: "Checks that score your agents' traces, from built-in to your own.",
+      icon: Code,
+      useSummary: useEvaluatorsSummary,
+    },
+    {
+      // Agent overview, per environment: evaluation monitors and scores.
+      type: "panel",
+      id: "overview-monitors",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewEnvironment,
+      order: 60,
+      load: () => import("./index").then((m) => ({ default: m.EnvMonitorsSection as ComponentType })),
+    },
     evaluatorRoute("evaluators-page", evaluators.path, "evalEvaluators"),
     evaluatorRoute(
       "create-evaluator-page",

@@ -19,9 +19,9 @@
 import { Box, Chip, Typography, type ChipProps } from "@wso2/oxygen-ui";
 import { generatePath } from "react-router-dom";
 import {
-    CollapsibleSection,
-    DeploymentStatus,
-    OverviewSectionCard,
+  CollapsibleSection,
+  DeploymentStatus,
+  OverviewSectionCard,
 } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { useAgentEndpointResources } from "./useAgentEndpointResources";

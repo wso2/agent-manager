@@ -36,3 +36,4 @@ export {
 };
 
 export default TracesComponent;
+export { EnvObservabilitySection } from './overview/EnvObservabilitySection';
