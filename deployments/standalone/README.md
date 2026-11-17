@@ -53,6 +53,26 @@ and `OBSERVER_JWKS_URL`, which default to the API's own key set and do not follo
 `AUTH_MODE`. `.env.example` lists all three. ThunderID runs either way, because
 agent identity uses it; `amctl` and the MCP endpoints need `idp`.
 
+### amp-core (no AI Gateway)
+
+`make up-core` builds the core binary (`DISTRIBUTION=amp-core`: organizations, projects, agents, sign-in, tokens, traces, no modules) and starts it without `gateway-controller` and `gateway-runtime`; `amp-init` writes no gateway configuration. It adds `docker-compose.core.yml` and runs as its own Compose project, `amp-lite-core`, so its data stays apart from the full stack's. Both use the same ports, so run one at a time. `make down-core` and `make reset-core` stop it; `DB=postgres` works as for `make up`. The console shows only the pages the core serves. Without make, from this folder:
+
+```bash
+docker compose -p amp-lite-core -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.core.yml up -d --build --wait
+```
+
+With no gateway, agents send OTLP straight to the collector, published on `127.0.0.1:${OTEL_COLLECTOR_PORT:-4318}`. Nothing authenticates it, and the agent labels its own spans with the headers the gateway would otherwise set from its token: `x-user-organization-name`, `x-user-project-name` and `x-user-agent-name`.
+
+```bash
+curl -X POST http://localhost:4318/v1/traces \
+  -H 'x-user-organization-name: default' -H 'x-user-project-name: <project>' \
+  -H 'x-user-agent-name: <agent>' -H 'Content-Type: application/json' -d @spans.json
+```
+
+### Smoke test
+
+`make smoke` (or `make smoke-core`) runs `scripts/smoke.sh amp|amp-core` against the running stack: sign-in, the core API, which routes the distribution serves, one trace end to end, the console and the UI manifest. It reads ports and `AMP_ADMIN_PASSWORD` from the environment or `.env`, and needs `AUTH_MODE=file`.
+
 ### PostgreSQL
 
 SQLite is the default database. To use PostgreSQL, uncomment `COMPOSE_PROFILES=postgres` and `AMP_DB_DRIVER=postgres` in `.env` (or run `make up DB=postgres`); `amp-api` migrates it on start. Switching does not copy data between the two.

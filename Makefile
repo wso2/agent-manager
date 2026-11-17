@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-eval-artifacts gen-instrumentation-contract check-contract-drift e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima up-core down-core reset-core smoke smoke-core setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-eval-artifacts gen-instrumentation-contract check-contract-drift e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -18,7 +18,10 @@ help:
 	@echo "  make down                    - Stop the stack (data kept)"
 	@echo "  make logs                    - Tail all stack logs"
 	@echo "  make reset                   - Stop the stack and delete all its data"
-	@echo "  DB=postgres                  - With up/dev-up/reset: use PostgreSQL instead of SQLite"
+	@echo "  make up-core                 - The same with the amp-core binary (no AI Gateway)"
+	@echo "  make down-core / reset-core  - Stop / delete the amp-core stack"
+	@echo "  make smoke / smoke-core      - Smoke-test the running amp / amp-core stack"
+	@echo "  DB=postgres                  - With up/dev-up/reset (and -core): use PostgreSQL instead of SQLite"
 	@echo ""
 	@echo "💻 Daily Development (API hot-reloads under air, console via vite):"
 	@echo "  make dev-up                  - Start the stack and the console dev server"
@@ -76,6 +79,10 @@ export AMP_DB_DRIVER := postgres
 endif
 COMPOSE     := docker compose --project-directory $(STACK_DIR) -f $(STACK_DIR)/docker-compose.yml -f $(STACK_DIR)/docker-compose.build.yml
 DEV_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.dev.yml
+# amp-core: the core binary without modules (no AI Gateway), as its own
+# Compose project so its data never mixes with the full stack's. It uses the
+# same ports, so run one of the two at a time.
+CORE_COMPOSE := $(COMPOSE) -f $(STACK_DIR)/docker-compose.core.yml -p amp-lite-core
 # The stop targets name every profile, so they also stop PostgreSQL from a
 # DB=postgres run.
 ALL_PROFILES := --profile postgres
@@ -106,6 +113,26 @@ logs:
 
 reset:
 	@$(COMPOSE) $(ALL_PROFILES) down -v
+
+up-core: $(STACK_DIR)/.env
+	@echo "🚀 Building the amp-core image and starting AMP core (no AI Gateway)..."
+	@$(CORE_COMPOSE) up -d --build --wait --remove-orphans
+	@echo "✅ AMP core is running"
+	@echo "   Console: http://localhost:9000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
+	@echo "   OTLP:    http://localhost:4318 (traces straight to the collector)"
+
+down-core:
+	@$(CORE_COMPOSE) $(ALL_PROFILES) down
+
+reset-core:
+	@$(CORE_COMPOSE) $(ALL_PROFILES) down -v
+
+# Smoke checks against a running stack (scripts/smoke.sh reads .env).
+smoke:
+	@$(STACK_DIR)/scripts/smoke.sh amp
+
+smoke-core:
+	@$(STACK_DIR)/scripts/smoke.sh amp-core
 
 # Setup individual components
 setup-colima:

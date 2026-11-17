@@ -9,7 +9,13 @@ description: >
   (default-default.gateway.localhost).
 
   amp-api is built without the embedded console unless `console` is true.
+  With `distribution: amp-core` it is the core binary instead, with no AI
+  Gateway (docker-compose.core.yml).
 inputs:
+  distribution:
+    description: Which binary amp-api runs, "amp" (everything) or "amp-core" (no modules).
+    required: false
+    default: "amp"
   console:
     description: Build the console into amp-api (served on :9000).
     required: false
@@ -36,6 +42,7 @@ runs:
       shell: bash
       env:
         WITH_CONSOLE: ${{ inputs.console }}
+        DISTRIBUTION: ${{ inputs.distribution }}
         AUTH_MODE: ${{ inputs.auth_mode }}
       run: |
         set -euo pipefail
@@ -56,6 +63,11 @@ runs:
           } >> .env
         fi
         export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
+        case "$DISTRIBUTION" in
+          amp) ;;
+          amp-core) COMPOSE_FILE="$COMPOSE_FILE:docker-compose.core.yml" ;;
+          *) echo "::error::unknown distribution: $DISTRIBUTION"; exit 1 ;;
+        esac
         if [ "$WITH_CONSOLE" != "true" ]; then
           # Skip the console build: amp-api then serves a placeholder page.
           printf 'services:\n  amp-api:\n    build:\n      args: { CONSOLE: none }\n' > ci-no-console.yml

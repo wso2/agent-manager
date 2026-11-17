@@ -30,6 +30,7 @@ jobs:
           shellcheck -S error \
             deployments/setup/*.sh \
             deployments/standalone/thunder/entrypoint.sh \
+            deployments/standalone/scripts/*.sh \
             .github/scripts/*.sh
         shell: bash
 
@@ -39,6 +40,7 @@ jobs:
           cp .env.example .env
           docker compose config -q
           docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.dev.yml config -q
+          docker compose -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.core.yml config -q
           COMPOSE_PROFILES=postgres AMP_DB_DRIVER=postgres docker compose config -q
         shell: bash
 
@@ -52,7 +54,7 @@ jobs:
           bash .github/scripts/build-standalone-bundle.sh 0.0.0-check dist
           mkdir unpacked && tar xzf dist/wso2-agent-manager-standalone-0.0.0-check.tar.gz -C unpacked
           cd unpacked/standalone
-          test ! -e docker-compose.build.yml && test ! -e docker-compose.dev.yml
+          test ! -e docker-compose.build.yml && test ! -e docker-compose.dev.yml && test ! -e docker-compose.core.yml
           cp .env.example .env
           docker compose config -q
           grep -q '^AMP_API_IMAGE=ghcr.io/wso2/amp-api:v0.0.0-check$' .env

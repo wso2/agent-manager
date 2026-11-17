@@ -1,0 +1,66 @@
+# Brings up the Compose stack once per distribution and runs
+# deployments/standalone/scripts/smoke.sh against it: sign-in, the core API,
+# which routes each binary serves, a trace end to end and the UI manifest.
+# amp-core is the only cover the core binary gets as a running stack.
+name: Standalone smoke
+
+on:
+  pull_request:
+    branches:
+      - amp-2.x
+    paths:
+      - 'agent-manager-service/**'
+      - 'agent-manager-observer/**'
+      - 'deployments/standalone/**'
+      - '.github/workflows/standalone-smoke.yaml'
+      - '.github/actions/amp-dev-stack/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: standalone-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Smoke (${{ matrix.distribution }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        distribution: [amp, amp-core]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      # File mode, so the script signs in as admin. The console build is left
+      # out; file-auth-smoke covers the console the API serves.
+      - uses: ./.github/actions/amp-dev-stack
+        with:
+          auth_mode: file
+          distribution: ${{ matrix.distribution }}
+
+      - name: Smoke checks
+        run: deployments/standalone/scripts/smoke.sh ${{ matrix.distribution }} --no-console
+
+      - name: Capture stack logs on failure
+        if: failure()
+        working-directory: deployments/standalone
+        run: |
+          mkdir -p "$RUNNER_TEMP/standalone-smoke"
+          docker compose ps -a > "$RUNNER_TEMP/standalone-smoke/services.txt" 2>&1 || true
+          for s in amp-init amp-api amp-observer otel-collector gateway-controller gateway-runtime; do
+            docker compose logs --no-color --tail 300 "$s" \
+              > "$RUNNER_TEMP/standalone-smoke/$s.log" 2>&1 || true
+          done
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: standalone-smoke-${{ matrix.distribution }}
+          path: ${{ runner.temp }}/standalone-smoke/
