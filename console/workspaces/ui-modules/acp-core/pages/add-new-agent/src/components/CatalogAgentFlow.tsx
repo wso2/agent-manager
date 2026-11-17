@@ -34,20 +34,18 @@ import { PageLayout, useFormValidation } from "@agent-management-platform/views"
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
+import { useInitialEnvironment } from "../utils/useInitialEnvironment";
 import { absoluteRouteMap, type AgentKindVersionResponse, OrgProjPathParams } from "@agent-management-platform/types";
 import {
   useCreateAgent,
   useGetAgent,
   useGetAgentKind,
-  useGetDeploymentPipeline,
 } from "@agent-management-platform/api-client";
 import { createAgentSchema, type CreateAgentFormValues, type LLMProviderFormEntry, type MCPProxyFormEntry } from "../form/schema";
 import { CreateButtons } from "./CreateButtons";
 import {
   buildCatalogAgentPayload,
   deriveCatalogEnvSeed,
-  findLowestEnvironmentName,
-  hasMultipleEnvironments,
 } from "../utils/buildAgentPayload";
 import { CatalogAgentForm } from "../forms/CatalogAgentForm";
 import { LLMProviderSection } from "./LLMProviderSection";
@@ -194,16 +192,11 @@ export const CatalogAgentFlow: React.FC = () => {
     }),
     [orgId, projectId]
   );
-  const { data: deploymentPipeline, isLoading: isDeploymentPipelineLoading } =
-    useGetDeploymentPipeline(params);
-  const initialEnvironmentName = useMemo(
-    () => findLowestEnvironmentName(deploymentPipeline?.promotionPaths),
-    [deploymentPipeline?.promotionPaths],
-  );
-  const multipleEnvironments = useMemo(
-    () => hasMultipleEnvironments(deploymentPipeline?.promotionPaths),
-    [deploymentPipeline?.promotionPaths],
-  );
+  const {
+    initialEnvironmentName,
+    multipleEnvironments,
+    isLoading: isInitialEnvironmentLoading,
+  } = useInitialEnvironment(params);
   // When the deployment pipeline spans multiple environments, the create-time
   // config applies only to the first environment.
   const firstEnvOnlyNotice = multipleEnvironments ? initialEnvironmentName : undefined;
@@ -390,7 +383,7 @@ export const CatalogAgentFlow: React.FC = () => {
           setLLMProviders={setLLMProviders}
           agentDisplayName={formData.displayName}
           initialEnvironmentName={initialEnvironmentName}
-          isInitialEnvironmentLoading={isDeploymentPipelineLoading}
+          isInitialEnvironmentLoading={isInitialEnvironmentLoading}
           externalEnvKeys={(() => {
             const agentNameUpper = formData.displayName
               ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
@@ -407,7 +400,7 @@ export const CatalogAgentFlow: React.FC = () => {
           setMCPProxies={setMCPProxies}
           agentDisplayName={formData.displayName}
           initialEnvironmentName={initialEnvironmentName}
-          isInitialEnvironmentLoading={isDeploymentPipelineLoading}
+          isInitialEnvironmentLoading={isInitialEnvironmentLoading}
           externalEnvKeys={(() => {
             const agentNameUpper = formData.displayName
               ? formData.displayName.toUpperCase().replace(/[^A-Z0-9]/g, "_")
@@ -448,7 +441,7 @@ export const CatalogAgentFlow: React.FC = () => {
           lastSubmittedValidationErrors={lastSubmittedValidationErrors}
           isPending={
             isPending ||
-            ((llmProviders.length > 0 || mcpProxies.length > 0) && isDeploymentPipelineLoading)
+            ((llmProviders.length > 0 || mcpProxies.length > 0) && isInitialEnvironmentLoading)
           }
           onCancel={handleCancel}
           onSubmit={handleDeploy}

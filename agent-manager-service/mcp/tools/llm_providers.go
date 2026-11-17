@@ -594,7 +594,7 @@ func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, 
 // CORS, rate limiting (managed separately), MCP-only and mediation policies.
 // The gateways report them alongside the guardrails, and the console hides them
 // from its guardrail picker with this same list; keep the two in step:
-// console/workspaces/libs/api-client/src/hooks/guardrails.ts,
+// console/workspaces/libs/api-client/src/ai-gateway/hooks/guardrails.ts,
 // NON_GUARDRAIL_POLICY_EXCLUDELIST.
 var nonGuardrailPolicies = map[string]bool{
 	"api-key-auth":             true,

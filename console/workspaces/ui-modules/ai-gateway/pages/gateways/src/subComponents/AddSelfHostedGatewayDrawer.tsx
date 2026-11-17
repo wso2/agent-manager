@@ -41,7 +41,7 @@ import {
   useCreateSelfHostedGatewayToken,
   useListEnvironments,
 } from "@agent-management-platform/api-client";
-import { getErrorMessage } from "@agent-management-platform/shared-component";
+import { getErrorMessage, onlyEnvironmentName } from "@agent-management-platform/shared-component";
 import type { GatewayResponse } from "@agent-management-platform/types";
 import {
   addSelfHostedGatewaySchema,
@@ -103,9 +103,15 @@ export function AddSelfHostedGatewayDrawer({
     setCreated(null);
   }, [open, clearErrors]);
 
+  // With a single environment there is nothing to choose: the field is hidden
+  // and the form uses that environment (see onlyEnvironmentName).
+  const onlyEnvironment = onlyEnvironmentName(environments);
+  const withEnvironment = (form: AddSelfHostedGatewayFormValues) =>
+    form.environment || !onlyEnvironment ? form : { ...form, environment: onlyEnvironment };
+
   const update = (next: AddSelfHostedGatewayFormValues) => {
     setValues(next);
-    if (submitted) validateForm(next);
+    if (submitted) validateForm(withEnvironment(next));
   };
 
   const setField = (field: keyof AddSelfHostedGatewayFormValues, value: string) =>
@@ -125,9 +131,10 @@ export function AddSelfHostedGatewayDrawer({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
-    if (!validateForm(values)) return;
+    const submittedValues = withEnvironment(values);
+    if (!validateForm(submittedValues)) return;
     setSubmitError(null);
-    const { displayName, name, environment, publicUrl, description } = values;
+    const { displayName, name, environment, publicUrl, description } = submittedValues;
 
     let gateway: GatewayResponse;
     try {
@@ -230,6 +237,7 @@ export function AddSelfHostedGatewayDrawer({
                       disabled={isPending}
                     />
                   </FormControl>
+                  {!onlyEnvironment && (
                   <FormControl fullWidth error={Boolean(errors.environment)}>
                     <FormLabel required>Environment</FormLabel>
                     <Select
@@ -252,6 +260,7 @@ export function AddSelfHostedGatewayDrawer({
                       </Typography>
                     )}
                   </FormControl>
+                  )}
                   <FormControl fullWidth error={Boolean(errors.publicUrl)}>
                     <FormLabel required>Public URL</FormLabel>
                     <TextField

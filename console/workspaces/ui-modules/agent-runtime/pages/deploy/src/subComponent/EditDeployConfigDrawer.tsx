@@ -45,6 +45,8 @@ import {
   ALLOWED,
   ConfigSection,
   RestrictedAction,
+  SecurityConfigSections,
+  type SecurityConfigHandle,
   useAgentEnvironmentAccess,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
@@ -72,7 +74,6 @@ import {
   seedFileMountRows,
   toFileMount,
 } from "../utils/fileMounts";
-import { SecurityConfigSections, type SecurityConfigHandle } from "./SecurityConfigSections";
 
 export interface EditDeployConfigDrawerProps {
   open: boolean;

@@ -30,11 +30,14 @@ import { gatewaysPlugin } from "@agent-management-platform/gateways/plugin";
 import { llmProvidersPlugin } from "@agent-management-platform/llm-providers/plugin";
 import { mcpProxiesPlugin } from "@agent-management-platform/mcp-proxies/plugin";
 import { agentSecurityPlugin } from "@agent-management-platform/agent-security/plugin";
+import { configureAgentPlugin } from "@agent-management-platform/configure-agent/plugin";
 
 export const aiGatewayModule: UIModuleManifest = {
   id: "ai-gateway",
   name: "AI Gateway",
-  description: "Gateways, LLM service providers, MCP servers and agent credentials.",
+  description:
+    "Gateways, LLM service providers, MCP servers, agent credentials, and each agent's " +
+    "LLM, MCP and A2A configuration.",
   apiVersion: PLUGIN_API_VERSION,
   installation: {
     chart: "wso2-amp-api-platform-gateway-extension",
@@ -51,5 +54,11 @@ export const aiGatewayModule: UIModuleManifest = {
       },
     ],
   },
-  plugins: [gatewaysPlugin, llmProvidersPlugin, mcpProxiesPlugin, agentSecurityPlugin],
+  plugins: [
+    gatewaysPlugin,
+    llmProvidersPlugin,
+    mcpProxiesPlugin,
+    agentSecurityPlugin,
+    configureAgentPlugin,
+  ],
 };

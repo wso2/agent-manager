@@ -27,6 +27,7 @@ import { useFeatureAccess, useResourceAccess } from "@agent-management-platform/
 import {
   useListAgents,
   useGetProject,
+  useIsSingleEnvironment,
 } from "@agent-management-platform/api-client";
 import { AgentTypeSummary } from "./subComponents/AgentTypeSummary";
 import { DeploymentPipelineCard } from "./subComponents/DeploymentPipelineCard";
@@ -41,6 +42,8 @@ export const ProjectOverview: React.FC = () => {
   const navigate = useNavigate();
   const { canWrite: canWriteProject } = useResourceAccess("project");
   const canCreateAgent = useFeatureAccess("agent_create");
+  // Pipelines belong to the agent runtime; without it there is none to show.
+  const singleEnv = useIsSingleEnvironment();
   const { data: project, isLoading } = useGetProject({
     orgName: orgId,
     projName: projectId,
@@ -89,7 +92,7 @@ export const ProjectOverview: React.FC = () => {
         </Box>
         <Stack gap={2} sx={{ width: { xs: "100%", lg: 380 }, flexShrink: 0 }}>
           <AgentTypeSummary />
-          <DeploymentPipelineCard />
+          {singleEnv === false && <DeploymentPipelineCard />}
         </Stack>
       </Stack>
     </PageLayout>

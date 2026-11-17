@@ -21,7 +21,6 @@
   },
   "dependencies": {
     "@agent-management-platform/types": "workspace:*",
-    "@agent-management-platform/configure-agent": "workspace:*",
     "@agent-management-platform/build": "workspace:*",
     "@agent-management-platform/deploy": "workspace:*",
     "@agent-management-platform/test": "workspace:*",

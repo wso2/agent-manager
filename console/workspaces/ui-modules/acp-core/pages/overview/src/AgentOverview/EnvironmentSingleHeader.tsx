@@ -18,6 +18,7 @@
 
 import type { Environment } from "@agent-management-platform/types";
 import { Box, Tooltip, Typography } from "@wso2/oxygen-ui";
+import { useIsSingleEnvironment } from "@agent-management-platform/api-client";
 import {
   DeploymentStatus,
   IsolationTierBadge,
@@ -55,6 +56,10 @@ export function EnvironmentSingleHeader({
   status,
   dotColor,
 }: EnvironmentSingleHeaderProps) {
+  // Without the agent runtime the only environment is implicit, and there is
+  // no deployment status to show.
+  const singleEnv = useIsSingleEnvironment();
+  if (singleEnv) return null;
   return (
     <Box display="flex" alignItems="center" gap={0.75} mb={1}>
       <IsolationTierBadge tier={environment.isolationTier} size={14} />
