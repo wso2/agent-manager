@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Component, useEffect, type ReactNode } from "react";
+import { Component, useLayoutEffect, type ReactNode } from "react";
 import type { ResourceSummaryState } from "@agent-management-platform/types";
 
 /**
@@ -34,7 +34,9 @@ export function ResourceSummaryProbe({
   onReport: (key: string, state: ResourceSummaryState) => void;
 }) {
   const { count, isLoading, countless, actionLabel, to } = useSummary();
-  useEffect(() => {
+  // A layout effect, so the overview re-renders with the card before the first
+  // paint instead of showing an empty card row for a frame.
+  useLayoutEffect(() => {
     onReport(summaryKey, { count, isLoading, countless, actionLabel, to });
   }, [summaryKey, count, isLoading, countless, actionLabel, to, onReport]);
   return null;

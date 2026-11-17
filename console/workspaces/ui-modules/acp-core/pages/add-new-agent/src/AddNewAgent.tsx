@@ -17,35 +17,17 @@
  */
 
 import React from "react";
-import { Navigate, generatePath, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import { useFeatureAccess } from "@agent-management-platform/feature-management";
+import { RequireAgentCreateAccess } from "@agent-management-platform/shared-component";
 import { NewAgentOptions } from "./components/NewAgentOptions";
 
 /**
  * "Add a New Agent": lists the agent types the installed modules offer. Each
  * type's create form is its module's own page (see NewAgentOptions).
  */
-export const AddNewAgent: React.FC = () => {
-  const canCreate = useFeatureAccess("agent_create");
-  const { orgId, projectId } = useParams<{
-    orgId: string;
-    projectId?: string;
-  }>();
-
-  if (!canCreate) {
-    return (
-      <Navigate
-        to={generatePath(absoluteRouteMap.children.org.children.projects.path, {
-          orgId: orgId ?? '',
-          projectId: projectId ?? 'default',
-        })}
-        replace
-      />
-    );
-  }
-
-  return <NewAgentOptions />;
-};
+export const AddNewAgent: React.FC = () => (
+  <RequireAgentCreateAccess>
+    <NewAgentOptions />
+  </RequireAgentCreateAccess>
+);
 
 export default AddNewAgent;

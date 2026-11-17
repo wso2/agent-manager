@@ -68,9 +68,6 @@ export const agentKindKeys = {
 };
 
 /**
- * Hook to list all Agent Kinds for an organization
- */
-/**
  * Agent kinds belong to the agent-portal module. Without it (turned off in
  * ui-modules.js, or not installed) every query below stays idle, wherever it
  * is called from: pages outside the module (an agent's overview or build card
@@ -80,6 +77,9 @@ function useAgentPortalPresent(): boolean {
   return useUIModulePresent("agent-portal");
 }
 
+/**
+ * Hook to list all Agent Kinds for an organization
+ */
 export function useListAgentKinds(
   params: ListAgentKindsPathParams,
   query?: ListAgentKindsQuery,

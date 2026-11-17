@@ -159,8 +159,10 @@ export function MCPProxySecurityTab({
   onDirtyChange,
 }: MCPProxySecurityTabProps) {
   const { canWrite } = useResourceAccess("mcp_server");
-  // OAuth (AgentID) security issues tokens through Agent Identity.
-  const identityInstalled = useIsUIModuleInstalled("agent-identity") === true;
+  // OAuth (AgentID) security issues tokens through Agent Identity. Only a
+  // module known to be off blocks it; while it is still being detected the
+  // option stays as it was.
+  const identityInstalled = useIsUIModuleInstalled("agent-identity") !== false;
   const [authenticationType, setAuthenticationType] =
     useState<AuthenticationType>("apiKey");
   const [keyValue, setKeyValue] = useState("");

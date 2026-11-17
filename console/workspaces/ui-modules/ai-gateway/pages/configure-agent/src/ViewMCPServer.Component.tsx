@@ -479,8 +479,11 @@ export const ViewMCPServerComponent = () => {
   const authenticationType = resolveAuthenticationType(sourceProxyEndpoint);
   const usesIdentitySecurity = authenticationType === "identity";
   // The agent's client credentials and the identity provider come from Agent
-  // Identity; without that module there is nothing to fetch or show.
-  const identityInstalled = useIsUIModuleInstalled("agent-identity") === true;
+  // Identity; without that module there is nothing to fetch or show. Undefined
+  // while the module is still being detected: neither is shown until it is known.
+  const identityStatus = useIsUIModuleInstalled("agent-identity");
+  const identityInstalled = identityStatus === true;
+  const identityOff = identityStatus === false;
   const usesAPIKeySecurity = authenticationType === "apiKey";
   // A failed or in-flight proxy fetch leaves sourceProxyEndpoint undefined,
   // which resolveAuthenticationType reads as "None" — indistinguishable from a
@@ -749,14 +752,14 @@ export const ViewMCPServerComponent = () => {
                     <ConnectIdentityEndpoints orgId={orgId ?? ""} envId={selectedEnvName} />
                   </Form.Section>
                 </>
-              ) : (
+              ) : identityOff ? (
                 <Alert severity="warning">
                   <Typography variant="body2">
                     The Agent Identity module is off, so this console can&apos;t show the
                     client credentials or identity provider endpoints for this tool.
                   </Typography>
                 </Alert>
-              )}
+              ) : null}
 
               {uniqueScopes.length > 0 && (
                 <Form.Section>
