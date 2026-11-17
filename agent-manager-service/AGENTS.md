@@ -2,6 +2,8 @@
 
 Go control-plane API. Layered **controller → service → repository**, wired with `wire`. Request/response types and mocks are **generated** — never hand-edited.
 
+The core (orgs, projects, environments, agents, identity, tokens, events) lives in the top-level packages below and imports no module. The AI Gateway (gateways, LLM and MCP proxies, A2A, agent API keys, agent identities) is the built-in `gateway` module under `modules/gateway/`, with the same layers in `gwapi/`, `gwctl/`, `gwsvc/`, `gwrepo/` and `gwwire/`; it plugs into the server through `builtin/` and reaches the core's agent lifecycle through the capabilities in `modkit/contracts/`. Routes this version does not serve (answering 501) and the evaluator catalog are the `legacy` module's (`modules/legacy/`). `cmd/amp` links every module; `cmd/amp-core` links none.
+
 ## File map
 
 | Need | Location |
@@ -16,8 +18,8 @@ Go control-plane API. Layered **controller → service → repository**, wired w
 | Audit trail (actions, redaction, sinks) | `audit/` |
 | Role → permission map | `rbac/predefined_roles.go` |
 | Sentinel errors | `utils/errors.go` |
-| Generated mocks | `repositories/repomocks/`, `clients/clientmocks/` |
-| DI wiring | `wiring/wire.go` |
+| Generated mocks | `repositories/repomocks/`, `clients/clientmocks/`, `modules/gateway/gwrepo/gwrepomocks/` |
+| DI wiring | `wiring/wire.go` (core), `modules/gateway/gwwire/wire.go` (gateway) |
 
 ## Golden path: add or change an API resource
 
