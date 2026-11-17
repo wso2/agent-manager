@@ -32,6 +32,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
@@ -332,11 +333,23 @@ func (h *Host) refuseBuiltin(name string) error {
 	return nil
 }
 
-func setState(tx *gorm.DB, name, version, state string) error {
-	now := time.Now().UTC()
-	return tx.Exec(`INSERT INTO modules (name, version, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (name) DO UPDATE SET version = excluded.version, state = excluded.state, updated_at = excluded.updated_at`,
-		name, version, state, now, now).Error
+// setState records a module's version and state, and reports whether that
+// changed anything. Callers hold the generation row lock, so the read and the
+// write cannot race another lifecycle change.
+func setState(tx *gorm.DB, name, version, state string) (bool, error) {
+	now := dbx.Now()
+	var n int64
+	if err := tx.Raw(`SELECT count(*) FROM modules WHERE name = ?`, name).Scan(&n).Error; err != nil {
+		return false, err
+	}
+	if n == 0 {
+		err := tx.Exec(`INSERT INTO modules (name, version, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			name, version, state, now, now).Error
+		return err == nil, err
+	}
+	r := tx.Exec(`UPDATE modules SET version = ?, state = ?, updated_at = ? WHERE name = ? AND (version <> ? OR state <> ?)`,
+		version, state, now, name, version, state)
+	return r.RowsAffected > 0, r.Error
 }
 
 // Install installs a module (and, with withDeps, the providers of its missing
@@ -358,7 +371,7 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 			if err := h.schemaReady(tx, s.Module); err != nil {
 				return err
 			}
-			if err := setState(tx, s.Module, h.manifests[s.Module].Version, StateActive); err != nil {
+			if _, err := setState(tx, s.Module, h.manifests[s.Module].Version, StateActive); err != nil {
 				return err
 			}
 		}
@@ -395,7 +408,8 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 		if err := h.schemaReady(tx, name); err != nil {
 			return err
 		}
-		return setState(tx, name, h.manifests[name].Version, StateActive)
+		_, err := setState(tx, name, h.manifests[name].Version, StateActive)
+		return err
 	})
 }
 
@@ -411,7 +425,7 @@ func (h *Host) Disable(ctx context.Context, name string) error {
 		if deps := Dependents(name, h.manifests, states, false); len(deps) > 0 {
 			return &ResolveError{Msg: fmt.Sprintf("%s is required by %v", name, deps), Hint: "disable those first"}
 		}
-		return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateDisabled, time.Now().UTC(), name).Error
+		return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateDisabled, dbx.Now(), name).Error
 	})
 }
 
@@ -429,7 +443,7 @@ func (h *Host) Uninstall(ctx context.Context, name string) error {
 		if deps := Dependents(name, h.manifests, states, true); len(deps) > 0 {
 			return &ResolveError{Msg: fmt.Sprintf("%s is required by %v", name, deps), Hint: "uninstall those first"}
 		}
-		return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateUninstalled, time.Now().UTC(), name).Error
+		return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateUninstalled, dbx.Now(), name).Error
 	})
 }
 

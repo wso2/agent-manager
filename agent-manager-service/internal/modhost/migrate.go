@@ -29,19 +29,12 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
 )
-
-// migrationLockKey is the Postgres advisory lock that serialises module
-// migrations across processes started together. SQLite needs none: its
-// transactions take the write lock when they begin.
-const migrationLockKey int64 = 0x616d706d6f64 // "ampmod"
-
-const driverPostgres = "postgres"
 
 // migration is one module migration file for the current database.
 type migration struct {
@@ -193,10 +186,9 @@ func (h *Host) migrateModule(ctx context.Context, name string) (MigrationResult,
 	}
 	res.Total = len(ms)
 	err = h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if h.driver == driverPostgres {
-			if err := tx.Exec(`SELECT pg_advisory_xact_lock(?)`, migrationLockKey).Error; err != nil {
-				return err
-			}
+		// Serialise with other migrators and lifecycle changes, on every database.
+		if err := dbx.LockRow(tx, "module_generation", "value", "id = ?", 1); err != nil {
+			return err
 		}
 		todo, err := pending(tx, name, ms)
 		if err != nil {
@@ -210,7 +202,7 @@ func (h *Host) migrateModule(ctx context.Context, name string) (MigrationResult,
 				}
 			}
 			if err := tx.Exec(`INSERT INTO module_migrations (module, version, checksum, applied_at) VALUES (?, ?, ?, ?)`,
-				name, m.Version, m.Checksum, time.Now().UTC()).Error; err != nil {
+				name, m.Version, m.Checksum, dbx.Now()).Error; err != nil {
 				return err
 			}
 		}
@@ -224,21 +216,21 @@ func (h *Host) migrateModule(ctx context.Context, name string) (MigrationResult,
 // module's version to the compiled one. Either bumps the generation.
 func (h *Host) recordVersion(tx *gorm.DB, name string) error {
 	mf := h.manifests[name]
-	now := time.Now().UTC()
-	var r *gorm.DB
+	var changed bool
 	if mf.Builtin {
-		r = tx.Exec(`INSERT INTO modules (name, version, state, created_at, updated_at) VALUES (?, ?, 'active', ?, ?)
-			ON CONFLICT (name) DO UPDATE SET version = excluded.version, state = 'active', updated_at = excluded.updated_at
-			WHERE modules.version <> excluded.version OR modules.state <> 'active'`,
-			name, mf.Version, now, now)
+		var err error
+		if changed, err = setState(tx, name, mf.Version, StateActive); err != nil {
+			return err
+		}
 	} else {
-		r = tx.Exec(`UPDATE modules SET version = ?, updated_at = ? WHERE name = ? AND version <> ? AND state <> 'uninstalled'`,
-			mf.Version, now, name, mf.Version)
+		r := tx.Exec(`UPDATE modules SET version = ?, updated_at = ? WHERE name = ? AND version <> ? AND state <> 'uninstalled'`,
+			mf.Version, dbx.Now(), name, mf.Version)
+		if r.Error != nil {
+			return r.Error
+		}
+		changed = r.RowsAffected > 0
 	}
-	if r.Error != nil {
-		return r.Error
-	}
-	if r.RowsAffected == 0 {
+	if !changed {
 		return nil
 	}
 	h.log.Info("modhost:module version recorded", "module", name, "version", mf.Version)

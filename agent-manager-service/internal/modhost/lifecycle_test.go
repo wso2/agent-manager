@@ -22,9 +22,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"net/url"
 	"path/filepath"
-	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -32,12 +30,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
@@ -165,44 +160,26 @@ type database struct {
 	open   func(t *testing.T) *gorm.DB
 }
 
+// postgresDatabase is set by the integration tier, which runs the lifecycle on
+// PostgreSQL too when the test environment points at one.
+var postgresDatabase func(t *testing.T) (database, bool)
+
 // databases are the databases the lifecycle runs on: SQLite always, and
-// Postgres when the test environment points at one (DB_DRIVER=postgres).
+// PostgreSQL in the integration tier.
 func databases(t *testing.T) []database {
-	dir := t.TempDir()
-	sqliteDSN := "file:" + filepath.Join(dir, "amp.db") + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate&_time_format=sqlite"
-	out := []database{{driver: config.DBDriverSQLite, open: func(t *testing.T) *gorm.DB {
-		g, err := gorm.Open(sqlitedialect.Open(sqliteDSN), &gorm.Config{Logger: logger.Discard})
+	dsn := "file:" + filepath.Join(t.TempDir(), "amp.db") +
+		"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_txlock=immediate&_time_format=sqlite"
+	out := []database{{driver: "sqlite", open: func(t *testing.T) *gorm.DB {
+		g, err := gorm.Open(sqlitedialect.Open(dsn), &gorm.Config{Logger: logger.Discard})
 		require.NoError(t, err)
 		return g
 	}}}
-	if config.GetConfig().Database.Driver == config.DBDriverPostgres {
-		name := "modhost_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-		created := false
-		out = append(out, database{driver: config.DBDriverPostgres, open: func(t *testing.T) *gorm.DB {
-			if !created {
-				admin := db.DB(context.Background())
-				require.NoError(t, admin.Exec(`CREATE DATABASE `+name).Error)
-				t.Cleanup(func() { _ = admin.Exec(`DROP DATABASE IF EXISTS ` + name + ` WITH (FORCE)`).Error })
-				created = true
-			}
-			g, err := gorm.Open(postgres.Open(scratchDSN(name)), &gorm.Config{Logger: logger.Discard})
-			require.NoError(t, err)
-			return g
-		}})
+	if postgresDatabase != nil {
+		if d, ok := postgresDatabase(t); ok {
+			out = append(out, d)
+		}
 	}
 	return out
-}
-
-func scratchDSN(name string) string {
-	cfg := config.GetConfig().POSTGRESQL
-	params := url.Values{}
-	if cfg.SSLMode != "" {
-		params.Set("sslmode", cfg.SSLMode)
-	}
-	return (&url.URL{
-		Scheme: "postgres", User: url.UserPassword(cfg.User, cfg.Password),
-		Host: fmt.Sprintf("%s:%d", cfg.Host, cfg.Port), Path: "/" + name, RawQuery: params.Encode(),
-	}).String()
 }
 
 var quiet = slog.New(slog.NewTextHandler(io.Discard, nil))
