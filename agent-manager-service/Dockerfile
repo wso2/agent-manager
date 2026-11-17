@@ -4,6 +4,8 @@ FROM --platform=$BUILDPLATFORM public.ecr.aws/docker/library/golang:1.26.10-alpi
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev
+# The distribution to build: amp (the core and every module) or amp-core.
+ARG DISTRIBUTION=amp
 
 WORKDIR /app
 
@@ -23,7 +25,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags="-w -s -X github.com/wso2/agent-manager/agent-manager-service/config.Version=${VERSION}" \
     -o /go/bin/agent-manager-service \
     -buildvcs=false \
-    ./cmd/amp
+    ./cmd/${DISTRIBUTION}
 
 FROM public.ecr.aws/docker/library/alpine:3.24
 
