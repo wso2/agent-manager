@@ -67,11 +67,13 @@ var routeModuleOfPackage = map[string]string{
 // client can call belongs in the spec.
 var unspecifiedRoutes = map[string]string{
 	// Not part of the REST API.
-	"GET /healthz":        "liveness probe for the container runtime, not a client API.",
-	"POST /auth/login":    "file-mode sign-in form endpoint; it issues the bearer token every spec operation requires.",
-	"OPTIONS /auth/login": "CORS preflight of the sign-in endpoint above.",
-	"/mcp":                "the MCP server (JSON-RPC over HTTP); its tools are described by MCP tools/list, not OpenAPI.",
-	"/mcp/":               "the MCP server, as above.",
+	"GET /healthz":         "liveness probe for the container runtime, not a client API.",
+	"POST /auth/login":     "file-mode sign-in form endpoint; it issues the bearer token every spec operation requires.",
+	"OPTIONS /auth/login":  "CORS preflight of the sign-in endpoint above.",
+	"/mcp":                 "the MCP server (JSON-RPC over HTTP); its tools are described by MCP tools/list, not OpenAPI.",
+	"/mcp/":                "the MCP server, as above.",
+	"GET /api/docs":        "the HTML API reference that renders this spec.",
+	"GET /api/docs/{file}": "the reference viewer's script and licence texts, embedded in the binary.",
 	"GET /.well-known/oauth-protected-resource":     "RFC 9728 discovery document, defined by that RFC rather than by this API.",
 	"GET /.well-known/oauth-protected-resource/mcp": "RFC 9728 discovery document for the MCP resource.",
 

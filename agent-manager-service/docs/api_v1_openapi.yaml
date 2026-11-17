@@ -49,6 +49,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /openapi.yaml:
+    get:
+      x-amp-module: core
+      security: []
+      summary: Get the API spec as YAML
+      description: |
+        The OpenAPI document of this server: the core's operations and those of
+        the modules active now, without the operations this version does not
+        serve. `info.x-amp-modules` lists the modules it covers, and each
+        operation names its module in `x-amp-module`. /api/docs renders it.
+      operationId: getOpenAPISpecYAML
+      tags:
+        - Config
+      responses:
+        "200":
+          description: The OpenAPI document
+          content:
+            application/yaml:
+              schema:
+                type: object
+        "500":
+          description: The document could not be rendered
+  /openapi.json:
+    get:
+      x-amp-module: core
+      security: []
+      summary: Get the API spec as JSON
+      description: |
+        The OpenAPI document of this server: the core's operations and those of
+        the modules active now, without the operations this version does not
+        serve. `info.x-amp-modules` lists the modules it covers, and each
+        operation names its module in `x-amp-module`. /api/docs renders it.
+      operationId: getOpenAPISpecJSON
+      tags:
+        - Config
+      responses:
+        "200":
+          description: The OpenAPI document
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: The document could not be rendered
   /orgs:
     get:
       x-amp-module: core
