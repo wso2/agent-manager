@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -181,6 +182,32 @@ func (c *AzureClient) GetJSON(ctx context.Context, u string, out any) error {
 	return nil
 }
 
+// entraErrorCodes are the Microsoft Entra sign-in errors a wrong tenant ID,
+// client ID or client secret gives, by their AADSTS code.
+var entraErrorCodes = map[string]string{
+	"90002":   "the tenant was not found; check the Directory (tenant) ID",
+	"900023":  "the tenant ID is not valid; check the Directory (tenant) ID",
+	"700016":  "no app with this client ID in the tenant; check the Application (client) ID (not the Object ID) and that the app is in this tenant",
+	"7000215": "the client secret is not valid for this app; use the Value of a secret created for this app, not its Secret ID",
+	"7000222": "the client secret has expired; create a new secret for this app",
+}
+
+var aadstsRE = regexp.MustCompile(`AADSTS(\d+)`)
+
+// entraSignInMessage names the sign-in problem from the AADSTS code in
+// Entra's error response. Only the code is used: the response text itself is
+// never kept.
+func entraSignInMessage(text string) string {
+	m := aadstsRE.FindStringSubmatch(text)
+	if m == nil {
+		return "Microsoft Entra sign-in failed; check the tenant ID, client ID and client secret"
+	}
+	if why, ok := entraErrorCodes[m[1]]; ok {
+		return "Microsoft Entra sign-in failed (AADSTS" + m[1] + "): " + why
+	}
+	return "Microsoft Entra sign-in failed (AADSTS" + m[1] + "); check the tenant ID, client ID and client secret"
+}
+
 func azureError(err error) error {
 	var authErr *azidentity.AuthenticationFailedError
 	if errors.As(err, &authErr) {
@@ -188,7 +215,7 @@ func azureError(err error) error {
 		if authErr.RawResponse != nil {
 			status = authErr.RawResponse.StatusCode
 		}
-		return &CallError{Outcome: models.ShadowCallAuthFailed, Status: status, Message: "Microsoft Entra sign-in failed; check the tenant ID, client ID and client secret"}
+		return &CallError{Outcome: models.ShadowCallAuthFailed, Status: status, Message: entraSignInMessage(authErr.Error())}
 	}
 	var respErr *azcore.ResponseError
 	if errors.As(err, &respErr) {

@@ -102,9 +102,10 @@ var providerCapabilities = map[string][]CapabilitySpec{
 			Needs:       []string{OptGoogleRegistry},
 		},
 		{
-			Key: "google.globalMulti", Title: "Global registry and us/eu multi-regions",
-			Description: "Also lists the global Agent Registry location and the us and eu multi-region Agent Runtime endpoints.",
-			Needs:       []string{OptGlobalMulti},
+			Key: "google.locations", Title: "Every location",
+			Description: "Finds the locations where Agent Runtime and the Agent Registry are available to each project, and " +
+				"lists the agents in every one. Without it, the locations you enter (and, if ticked, global and the us/eu multi-regions).",
+			Needs: []string{OptGoogleAllLocations},
 		},
 	},
 	models.ShadowProviderFoundry: {

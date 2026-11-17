@@ -19,7 +19,9 @@ package google
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -46,6 +48,18 @@ type scanner struct {
 	// skipped only if no scope ran them.
 	deferredSkips map[string]string
 	skipOrder     []string
+	// builtins are the Google built-in registry agents left out, by agent
+	// ID (their display name), and builtinEntries how many entries named them.
+	builtins       map[string]string
+	builtinEntries int
+
+	// tolerant is set while listing found locations: a location that is not
+	// available to the project (403 or 404) is noted in unavailable, by
+	// call, with the first such error, instead of failing the call.
+	tolerant    bool
+	location    string
+	unavailable map[string][]string
+	firstErr    map[string]error
 }
 
 // engine is one Agent Runtime engine and its finding.
@@ -65,6 +79,7 @@ func (c *Connector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
 	s := &scanner{
 		c: c, conn: conn, calls: sa.NewCalls(), findings: sa.NewFindings(),
 		aliases: map[string]map[string]bool{}, recorded: map[string]bool{}, deferredSkips: map[string]string{},
+		builtins: map[string]string{}, unavailable: map[string][]string{}, firstErr: map[string]error{},
 	}
 	st, problems := readSettings(conn)
 	if len(problems) > 0 {
@@ -80,15 +95,29 @@ func (c *Connector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
 	}
 	s.api = api
 
+	registry := sa.ServiceEnabled(conn.Config, sa.OptGoogleRegistry)
+	runtimeLocs, registryLocs := map[string][]string{}, map[string][]string{}
+	for _, p := range st.projects {
+		runtimeLocs[p], registryLocs[p] = st.runtimeLocations, st.registryLocations
+		if st.discover {
+			runtimeLocs[p] = s.listLocations(ctx, p, callRuntimeLocations)
+			if registry {
+				registryLocs[p] = s.listLocations(ctx, p, callRegistryLocations)
+			}
+		}
+	}
+	s.tolerant = st.discover
 	// Engines first: registry agents are merged into the engines they run on.
 	for _, p := range st.projects {
-		for _, l := range st.runtimeLocations {
+		for _, l := range runtimeLocs[p] {
+			s.location = l
 			s.listEngines(ctx, p, l)
 		}
 	}
-	if sa.ServiceEnabled(conn.Config, sa.OptGoogleRegistry) {
+	if registry {
 		for _, p := range st.projects {
-			for _, l := range st.registryLocations {
+			for _, l := range registryLocs[p] {
+				s.location = l
 				s.listAgents(ctx, p, l)
 			}
 		}
@@ -99,6 +128,40 @@ func (c *Connector) Scan(ctx context.Context, conn sa.Connection) *sa.Result {
 }
 
 func (s *scanner) result() *sa.Result {
+	for _, call := range []string{callEngines, callAgents} {
+		locs := s.unavailable[call]
+		if len(locs) == 0 {
+			continue
+		}
+		if !s.recorded[call] {
+			// No location could be read: report the error.
+			s.calls.Record(call, 0, s.firstErr[call])
+			continue
+		}
+		shown := locs
+		if len(shown) > 8 {
+			shown = shown[:8]
+		}
+		note := fmt.Sprintf("%d %s not available to this project, left out: %s", len(locs),
+			map[bool]string{true: "location", false: "locations"}[len(locs) == 1], strings.Join(shown, ", "))
+		if len(locs) > len(shown) {
+			note += ", ..."
+		}
+		s.calls.Note(call, note)
+	}
+	if n := len(s.builtins); n > 0 {
+		names := make([]string, 0, n)
+		for _, name := range s.builtins {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		note := fmt.Sprintf("%d Google built-in %s left out: %s", n, map[bool]string{true: "agent", false: "agents"}[n == 1],
+			strings.Join(names, ", "))
+		if s.builtinEntries > n {
+			note += fmt.Sprintf(" (%d entries across the locations)", s.builtinEntries)
+		}
+		s.calls.Note(callAgents, note)
+	}
 	for _, call := range s.skipOrder {
 		if !s.recorded[call] {
 			s.calls.Skip(call, s.deferredSkips[call])
@@ -119,6 +182,15 @@ func (s *scanner) result() *sa.Result {
 // record records one scope of a call. An authentication failure stops the
 // rest of the scan: the token is shared by every call.
 func (s *scanner) record(call string, items int, err error) {
+	if s.tolerant && err != nil && s.location != "" {
+		if o := sa.OutcomeOf(err); o == models.ShadowCallNotFound || o == models.ShadowCallPermissionDenied {
+			s.unavailable[call] = append(s.unavailable[call], s.location)
+			if s.firstErr[call] == nil {
+				s.firstErr[call] = err
+			}
+			return
+		}
+	}
 	s.calls.Record(call, items, err)
 	s.recorded[call] = true
 	if sa.OutcomeOf(err) == models.ShadowCallAuthFailed {
@@ -258,4 +330,57 @@ func (s *scanner) findEngine(ref engineRef) *engine {
 
 func scopeOf(project, location string) string {
 	return "projects/" + project + "/locations/" + location
+}
+
+// locationsResponse is a locations.list page (Agent Runtime and Agent
+// Registry use the same shape).
+type locationsResponse struct {
+	Locations []struct {
+		LocationID string `json:"locationId"`
+	} `json:"locations"`
+	NextPageToken string `json:"nextPageToken"`
+}
+
+// listLocations lists the project's Agent Runtime or Agent Registry
+// locations. Agent Runtime serves regions and the us/eu multi-regions (no
+// global); the Agent Registry serves global, the multi-regions and regions.
+func (s *scanner) listLocations(ctx context.Context, project, call string) []string {
+	if !s.proceed(ctx, call) {
+		return nil
+	}
+	var base string
+	var err error
+	if call == callRuntimeLocations {
+		base, err = runtimeBase(s.conn, discoveryHost)
+	} else {
+		base, err = baseURL(s.conn, sa.EPGoogleRegistry)
+	}
+	if err != nil {
+		s.record(call, 0, &sa.CallError{Outcome: models.ShadowCallFailed, Message: err.Error()})
+		return nil
+	}
+	u := base + "/v1/projects/" + url.PathEscape(project) + "/locations"
+	var out []string
+	s.paginate(ctx, call, maxEnginePages, func(token string) (string, int, error) {
+		q := url.Values{"pageSize": {"100"}}
+		if token != "" {
+			q.Set("pageToken", token)
+		}
+		var resp locationsResponse
+		if err := s.api.GetJSON(ctx, u, q, &resp); err != nil {
+			return "", 0, err
+		}
+		for _, l := range resp.Locations {
+			id := strings.ToLower(l.LocationID)
+			if !locationRE.MatchString(id) {
+				continue
+			}
+			if call == callRuntimeLocations && !strings.Contains(id, "-") && !isMultiRegion(id) {
+				continue // global and other codes Agent Runtime does not serve
+			}
+			out = append(out, id)
+		}
+		return resp.NextPageToken, len(resp.Locations), nil
+	})
+	return dedupe(out)
 }

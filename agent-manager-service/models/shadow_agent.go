@@ -125,6 +125,9 @@ type ShadowConnectionConfig struct {
 	// Google: projects and locations to scan.
 	ProjectIDs []string `json:"projectIds,omitempty"`
 	Locations  []string `json:"locations,omitempty"`
+	// AllLocations lists each project's Agent Runtime and Agent Registry
+	// locations instead of using Locations.
+	AllLocations bool `json:"allLocations,omitempty"`
 	// IncludeGlobalAndMultiRegion adds the "global" Agent Registry location
 	// and the us/eu multi-region Agent Runtime locations.
 	IncludeGlobalAndMultiRegion bool `json:"includeGlobalAndMultiRegion,omitempty"`

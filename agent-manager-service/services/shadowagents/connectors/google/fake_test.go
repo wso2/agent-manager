@@ -144,6 +144,8 @@ func routeOf(r *http.Request) string {
 		return "engines"
 	case strings.HasSuffix(p, "/agents"):
 		return "agents"
+	case strings.HasSuffix(p, "/locations"):
+		return "locations"
 	default:
 		return ""
 	}
