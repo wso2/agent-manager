@@ -308,3 +308,94 @@ func TestCacheFollowsFragmentContent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Same(t, second, again)
 }
+
+// An anchor on an operation that is filtered out must not leave its aliases
+// pointing at nothing.
+const anchored = `openapi: 3.0.3
+info:
+  title: t
+  version: "1"
+paths:
+  /gw/{id}:
+    parameters: &idParams
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      x-amp-module: gateway
+      responses:
+        "200":
+          description: ok
+  /core/{id}:
+    parameters: *idParams
+    get:
+      x-amp-module: core
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+  /gw-pets:
+    get:
+      x-amp-module: gateway
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Pet"
+  /gw-dogs:
+    get:
+      x-amp-module: gateway
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dog"
+components:
+  schemas:
+    Pet:
+      oneOf:
+        - $ref: "#/components/schemas/Cat"
+      discriminator:
+        propertyName: kind
+        mapping:
+          cat: "#/components/schemas/Cat"
+          dog: Dog
+    Cat:
+      type: object
+    Dog:
+      type: object
+`
+
+func TestAliasesSurviveFiltering(t *testing.T) {
+	s, err := New([]byte(anchored)).For(nil, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, string(s.YAML), "*idParams", "aliases are expanded")
+	var doc struct {
+		Paths map[string]map[string]any `yaml:"paths"`
+	}
+	require.NoError(t, yaml.Unmarshal(s.YAML, &doc), "the YAML still parses")
+	require.Contains(t, doc.Paths, "/core/{id}")
+	assert.NotEmpty(t, doc.Paths["/core/{id}"]["parameters"], "the kept path keeps its parameters")
+	assert.NotContains(t, doc.Paths, "/gw/{id}")
+}
+
+func TestDiscriminatorMappingKeepsItsSchemas(t *testing.T) {
+	s, err := New([]byte(anchored)).For(nil, nil)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"Pet", "Cat", "Dog"}, components(t, s, "schemas"),
+		"once the gateway operation that referenced Dog is gone, the core still reaches it through the mapping, by bare name")
+}
+
+func TestMergeKeysAreRefused(t *testing.T) {
+	_, err := New([]byte("openapi: 3.0.3\ninfo: &i {title: t, version: '1'}\npaths: {}\nx: {<<: *i}\n")).For(nil, nil)
+	assert.Error(t, err)
+}

@@ -159,6 +159,9 @@ func Filter(raw []byte, modules []string, fragments map[string][]byte) (doc *yam
 	if doc.Kind != yaml.DocumentNode || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
 		return nil, nil, errors.New("spec is not a YAML mapping")
 	}
+	if err := expandAliases(doc); err != nil {
+		return nil, nil, fmt.Errorf("spec: %w", err)
+	}
 	root := doc.Content[0]
 	keep := map[string]bool{}
 	for _, m := range modules {
@@ -295,15 +298,36 @@ func collectRefs(n *yaml.Node, fn func(componentRef)) {
 	}
 	if n.Kind == yaml.MappingNode {
 		for i := 0; i+1 < len(n.Content); i += 2 {
-			if n.Content[i].Value == "$ref" && n.Content[i+1].Kind == yaml.ScalarNode {
-				if r, ok := parseRef(n.Content[i+1].Value); ok {
+			k, v := n.Content[i].Value, n.Content[i+1]
+			if k == "$ref" && v.Kind == yaml.ScalarNode {
+				if r, ok := parseRef(v.Value); ok {
 					fn(r)
 				}
+			}
+			// A discriminator's mapping names schemas too, as a reference or
+			// as a bare schema name. Following one that is not meant as a
+			// reference can only keep a schema, never drop a needed one.
+			if k == "discriminator" {
+				collectMappingRefs(mappingValue(v, "mapping"), fn)
 			}
 		}
 	}
 	for _, c := range n.Content {
 		collectRefs(c, fn)
+	}
+}
+
+func collectMappingRefs(mapping *yaml.Node, fn func(componentRef)) {
+	if mapping == nil || mapping.Kind != yaml.MappingNode {
+		return
+	}
+	for i := 1; i < len(mapping.Content); i += 2 {
+		target := mapping.Content[i].Value
+		if r, ok := parseRef(target); ok {
+			fn(r)
+		} else if !strings.ContainsAny(target, "/#") {
+			fn(componentRef{kind: "schemas", name: target})
+		}
 	}
 }
 
@@ -369,4 +393,60 @@ func setMappingValue(n *yaml.Node, key string, v *yaml.Node) {
 		}
 	}
 	n.Content = append(n.Content, &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: key}, v)
+}
+
+// expandAliases replaces every YAML alias in n with a copy of what its anchor
+// holds, and drops the anchors. Filtering can then remove an anchored node
+// without leaving an alias to nothing in the YAML output, or two places
+// sharing one node. Merge keys (<<) are refused rather than half-supported.
+func expandAliases(n *yaml.Node) error { return expand(n, 0) }
+
+// maxDepth bounds nesting, so an anchor that contains its own alias is an
+// error rather than endless recursion.
+const maxDepth = 256
+
+func expand(n *yaml.Node, depth int) error {
+	if depth > maxDepth {
+		return fmt.Errorf("line %d: nested more than %d levels deep (a recursive alias?)", n.Line, maxDepth)
+	}
+	n.Anchor = ""
+	for i, c := range n.Content {
+		if n.Kind == yaml.MappingNode && i%2 == 0 && c.Value == "<<" && c.ShortTag() == "!!merge" {
+			return fmt.Errorf("line %d: YAML merge keys (<<) are not supported", c.Line)
+		}
+		if c.Kind == yaml.AliasNode {
+			if c.Alias == nil {
+				return fmt.Errorf("line %d: alias without an anchor", c.Line)
+			}
+			cp, err := deepCopy(c.Alias, depth)
+			if err != nil {
+				return err
+			}
+			c = cp
+			n.Content[i] = c
+		}
+		if err := expand(c, depth+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func deepCopy(n *yaml.Node, depth int) (*yaml.Node, error) {
+	if depth > maxDepth {
+		return nil, fmt.Errorf("line %d: nested more than %d levels deep (a recursive alias?)", n.Line, maxDepth)
+	}
+	if n.Kind == yaml.AliasNode {
+		return deepCopy(n.Alias, depth+1)
+	}
+	out := *n
+	out.Content = make([]*yaml.Node, len(n.Content))
+	for i, c := range n.Content {
+		cp, err := deepCopy(c, depth+1)
+		if err != nil {
+			return nil, err
+		}
+		out.Content[i] = cp
+	}
+	return &out, nil
 }

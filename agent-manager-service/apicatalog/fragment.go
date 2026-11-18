@@ -38,6 +38,9 @@ func mergeFragment(root *yaml.Node, module string, raw []byte) error {
 	if doc.Kind != yaml.DocumentNode || len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
 		return errors.New("not a YAML mapping")
 	}
+	if err := expandAliases(&doc); err != nil {
+		return err
+	}
 	frag := doc.Content[0]
 
 	// Check everything before changing anything.
