@@ -210,6 +210,16 @@ export interface ShadowScanConnectionResult {
   message?: string;
   findingsCount: number;
   calls: ShadowScanCallResult[];
+  /** Repositories a source code scan scanned. Only on GET a scan, never the list. */
+  scannedRepositories?: string[];
+  /** Repositories a source code scan could not scan. Only on GET a scan, never the list. */
+  failedRepositories?: ShadowScanFailedRepository[];
+}
+
+/** A repository a source code scan could not scan, and why. */
+export interface ShadowScanFailedRepository {
+  name: string;
+  message: string;
 }
 
 /** Generate command for a GitHub or Azure DevOps connection. */

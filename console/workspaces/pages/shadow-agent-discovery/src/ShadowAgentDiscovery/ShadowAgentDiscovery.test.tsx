@@ -110,6 +110,10 @@ const hoisted = vi.hoisted(() => ({
   summary: undefined as ShadowAgentSummary | undefined,
   connections: [] as ShadowConnectionResponse[],
   scans: [] as ShadowScanResponse[],
+  scanDetail: null as ShadowScanResponse | null,
+  scanIds: [] as (string | undefined)[],
+  scanLoading: false,
+  scanError: null as unknown,
   update: vi.fn(),
   start: vi.fn(),
   clear: vi.fn(),
@@ -152,7 +156,16 @@ vi.mock("@agent-management-platform/api-client", () => ({
     error: null,
   }),
   useShadowScans: () => ({ data: { scans: hoisted.scans }, isLoading: false, error: null }),
-  useShadowScan: () => ({ data: hoisted.scans[0], isLoading: false, error: null }),
+  useShadowScan: (_org: string | undefined, id: string | undefined) => {
+    hoisted.scanIds.push(id);
+    const data =
+      hoisted.scanDetail?.id === id ? hoisted.scanDetail : hoisted.scans.find((s) => s.id === id);
+    return {
+      data: id ? data : undefined,
+      isLoading: !!id && hoisted.scanLoading,
+      error: id ? hoisted.scanError : null,
+    };
+  },
   useClearShadowScans: () => ({ mutate: hoisted.clear, isPending: false }),
   useStartShadowScan: () => ({ mutate: hoisted.start, isPending: false }),
   useDeleteShadowConnection: () => ({ mutate: vi.fn(), isPending: false }),
@@ -203,7 +216,7 @@ import { FindingDetail, relationLabel } from "./subComponents/FindingDetail";
 import { OverviewPanel } from "./subComponents/OverviewPanel";
 import { RunScanButton } from "./subComponents/RunScanButton";
 import { ConnectionsTab, ScopedKeysChip } from "./subComponents/ConnectionsTab";
-import { ScansTab } from "./subComponents/ScansTab";
+import { ScanDetailsDrawer, ScansTab } from "./subComponents/ScansTab";
 import { ShadowAgentDiscovery } from "./ShadowAgentDiscovery";
 import { AnalyzeSection } from "./subComponents/AnalyzeSection";
 import { ScanStatusChip } from "./shadowUi";
@@ -257,6 +270,10 @@ beforeEach(() => {
   hoisted.summary = undefined;
   hoisted.connections = [];
   hoisted.scans = [];
+  hoisted.scanDetail = null;
+  hoisted.scanIds = [];
+  hoisted.scanLoading = false;
+  hoisted.scanError = null;
   hoisted.providers = [];
 });
 
@@ -775,10 +792,126 @@ describe("ScansTab", () => {
     expect(hoisted.clear).toHaveBeenCalledTimes(1);
   });
 
+  const github = {
+    connectionId: "c2",
+    connectionName: "GitHub acme",
+    provider: "github",
+    outcome: "ok",
+    findingsCount: 1,
+    calls: [],
+  };
+  const openGithubScan = () => {
+    router(<ScansTab orgName="acme" canManage />);
+    fireEvent.click(screen.getByText("GitHub acme"));
+    return screen.getByRole("dialog", { name: "Scan details" });
+  };
+
+  it("opens a scan with its detail, which has the repositories", () => {
+    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
+    hoisted.scanDetail = scan({
+      id: "s2",
+      connectionIds: ["c2"],
+      results: [{ ...github, scannedRepositories: ["acme/api"] }],
+    });
+    router(<ScansTab orgName="acme" canManage />);
+    expect(hoisted.scanIds.filter(Boolean)).toEqual([]);
+    fireEvent.click(screen.getByText("GitHub acme"));
+    expect(hoisted.scanIds).toContain("s2");
+    const drawer = screen.getByRole("dialog", { name: "Scan details" });
+    expect(within(drawer).getByText("1 scanned")).toBeInTheDocument();
+  });
+
+  it("shows the list item, not a detail of another scan", () => {
+    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
+    hoisted.scanDetail = scan({
+      id: "s9",
+      connectionIds: ["c2"],
+      results: [{ ...github, scannedRepositories: ["acme/other"] }],
+    });
+    const drawer = openGithubScan();
+    expect(within(drawer).getByText("GitHub acme")).toBeInTheDocument();
+    expect(within(drawer).queryByText("Repositories")).not.toBeInTheDocument();
+  });
+
+  it("says the repositories are loading while the detail loads", () => {
+    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
+    hoisted.scanLoading = true;
+    const drawer = openGithubScan();
+    expect(within(drawer).getByText("Loading repositories…")).toBeInTheDocument();
+  });
+
+  it("says the repositories could not be loaded when the detail fails", () => {
+    hoisted.scans = [scan({ id: "s2", connectionIds: ["c2"], results: [github] })];
+    hoisted.scanError = new Error("boom");
+    const drawer = openGithubScan();
+    expect(
+      within(drawer).getByText("Couldn't load the repositories. Close and reopen to try again."),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing about repositories for an AI platform while the detail loads", () => {
+    hoisted.scans = [scan()];
+    hoisted.scanLoading = true;
+    router(<ScansTab orgName="acme" canManage />);
+    fireEvent.click(screen.getAllByText("OpenAI prod")[0]);
+    const drawer = screen.getByRole("dialog", { name: "Scan details" });
+    expect(within(drawer).queryByText("Loading repositories…")).not.toBeInTheDocument();
+  });
+
   it("keeps a pending scan when clearing", () => {
     hoisted.scans = [scan({ id: "s2", status: "pending" })];
     router(<ScansTab orgName="acme" canManage />);
     expect(screen.getByRole("button", { name: "Clear scans" })).toBeDisabled();
+  });
+});
+
+describe("ScanDetailsDrawer", () => {
+  const sourceScan = () =>
+    scan({
+      connectionIds: ["c2"],
+      results: [
+        {
+          connectionId: "c2",
+          connectionName: "GitHub acme",
+          provider: "github",
+          outcome: "partial",
+          findingsCount: 2,
+          calls: [],
+          scannedRepositories: ["acme/api", "acme/web"],
+          failedRepositories: [{ name: "acme/big", message: "clone timed out" }],
+        },
+      ],
+    });
+
+  it("shows the failed repositories with their reasons", () => {
+    render(<ScanDetailsDrawer scan={sourceScan()} onClose={() => undefined} />);
+    expect(screen.getByText("Repositories")).toBeInTheDocument();
+    expect(screen.getByText("2 scanned, 1 failed")).toBeInTheDocument();
+    const failed = screen.getByRole("list", { name: "Failed repositories" });
+    expect(within(failed).getByText("acme/big")).toBeInTheDocument();
+    expect(within(failed).getByText("clone timed out")).toBeInTheDocument();
+  });
+
+  it("lists the scanned repositories on request", () => {
+    render(<ScanDetailsDrawer scan={sourceScan()} onClose={() => undefined} />);
+    expect(screen.queryByText("acme/api")).not.toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "Show 2 scanned repositories" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    const list = screen.getByRole("list", { name: "Scanned repositories" });
+    expect(toggle).toHaveAttribute("aria-controls", list.id);
+    expect(within(list).getAllByRole("listitem").map((l) => l.textContent)).toEqual([
+      "acme/api",
+      "acme/web",
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Hide scanned repositories" }));
+    expect(screen.queryByText("acme/api")).not.toBeInTheDocument();
+  });
+
+  it("shows no repositories for an AI platform", () => {
+    render(<ScanDetailsDrawer scan={scan()} onClose={() => undefined} />);
+    expect(screen.getByText("OpenAI prod")).toBeInTheDocument();
+    expect(screen.queryByText("Repositories")).not.toBeInTheDocument();
   });
 });
 
