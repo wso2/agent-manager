@@ -119,7 +119,6 @@ up-core: $(STACK_DIR)/.env
 	@$(CORE_COMPOSE) up -d --build --wait --remove-orphans
 	@echo "✅ AMP core is running"
 	@echo "   Console: http://localhost:9000 (sign in as admin, password AMP_ADMIN_PASSWORD in $(STACK_DIR)/.env)"
-	@echo "   OTLP:    http://localhost:4318 (traces straight to the collector)"
 
 down-core:
 	@$(CORE_COMPOSE) $(ALL_PROFILES) down

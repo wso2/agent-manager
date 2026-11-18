@@ -33,7 +33,6 @@ services:
       THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
       THUNDER_PORT: ${THUNDER_PORT}
       AMP_PUBLIC_URL: http://localhost:${AMP_API_PORT}
-      OBSERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
       # The console is served by amp-api. The dev console (`make console`,
       # Vite on CONSOLE_PORT) may sign in too.
       CONSOLE_URL: http://localhost:${AMP_API_PORT}
@@ -128,41 +127,6 @@ services:
     networks: [amp]
     restart: unless-stopped
 
-  # --- Trace storage ------------------------------------------------------------
-  opensearch:
-    image: ${OPENSEARCH_IMAGE:?copy .env.example to .env first}
-    environment:
-      discovery.type: single-node
-      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
-      OPENSEARCH_INITIAL_ADMIN_PASSWORD: ${OPENSEARCH_PASSWORD}
-    ulimits:
-      memlock: { soft: -1, hard: -1 }
-      nofile: { soft: 65536, hard: 65536 }
-    volumes:
-      - opensearch-data:/usr/share/opensearch/data
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sfk -u 'admin:${OPENSEARCH_PASSWORD}' https://localhost:9200/_cluster/health"]
-      interval: 5s
-      retries: 60
-    networks: [amp]
-    restart: unless-stopped
-
-  otel-collector:
-    image: ${OTEL_COLLECTOR_IMAGE:?copy .env.example to .env first}
-    command: ["--config=/etc/otelcol/config.yaml"]
-    environment:
-      OPENSEARCH_USERNAME: admin
-      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
-    volumes:
-      - ./otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
-    depends_on:
-      # The observer puts the span index template before it reports healthy,
-      # so the first span index is created with keyword mappings.
-      amp-observer:
-        condition: service_healthy
-    networks: [amp]
-    restart: unless-stopped
-
   # --- Agent Manager ------------------------------------------------------------
   # The API, and the console on the same port.
   amp-api:
@@ -194,8 +158,6 @@ services:
       JWT_SIGNING_DEFAULT_EXPIRY: 2160h
       JWT_SIGNING_ISSUER: agent-manager-service
       JWT_SIGNING_DEFAULT_ENVIRONMENT: default
-      AM_OBSERVER_URL: http://amp-observer:9098
-      AM_OBSERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
       IDP_TOKEN_URL: http://thunder:${THUNDER_PORT}/oauth2/token
       IDP_CLIENT_ID: amp-api-client
       IDP_CLIENT_SECRET: ${AMP_API_CLIENT_SECRET}
@@ -204,9 +166,8 @@ services:
       # sign-in to ThunderID. ThunderID keeps running either way — agent
       # identity still uses it.
       #
-      # Switching to idp means three values: AUTH_MODE=idp, plus
-      # KEY_MANAGER_JWKS_URL here and OBSERVER_JWKS_URL on amp-observer pointed
-      # back at ThunderID (both named inline).
+      # Switching to idp means two values: AUTH_MODE=idp, plus
+      # KEY_MANAGER_JWKS_URL here pointed back at ThunderID (named inline).
       #
       # Known limitation in file mode: OAUTH_AUTHORIZATION_SERVERS above still
       # advertises ThunderID, so amctl's discovery sends it to ThunderID's
@@ -229,8 +190,6 @@ services:
       ENCRYPTION_KEY: ${AMP_ENCRYPTION_KEY}
       INTERNAL_SERVER_CERT_DIR: /var/lib/agent-manager/certs
       EVENTS_MODE: embedded
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://${GATEWAY_HOST}:${GATEWAY_PORT}/otel
-      INSTRUMENTATION_URL: http://${GATEWAY_HOST}:${GATEWAY_PORT}/otel
       DEFAULT_GATEWAY_PORT: ${GATEWAY_PORT}
       A2A_CARD_FETCH_DIAL_ADDR: gateway-runtime:19080
       PLATFORM_ADMIN_OU_ID: 01900000-0000-7000-8000-000000000001
@@ -238,12 +197,9 @@ services:
       DEFAULT_GATEWAY_NAME: default
       DEFAULT_GATEWAY_VHOST: http://${GATEWAY_HOST}:${GATEWAY_PORT}
       DEFAULT_GATEWAY_TOKEN_FILE: /amp/gw/registration-token
-      # Every gateway gets the trace-ingest API (/otel), forwarding to the collector.
-      OTEL_INGEST_UPSTREAM_URL: http://otel-collector:4318
       # The console's settings (CONSOLE_<NAME> fills $NAME in its config.js).
-      # The API base URL, ThunderID URL, sign-in redirects, AUTH_MODE, the
-      # instrumentation URL and the sign-in scopes default from the settings
-      # above.
+      # The API base URL, ThunderID URL, sign-in redirects, AUTH_MODE and the
+      # sign-in scopes default from the settings above.
       CONSOLE_GATEWAY_CONTROL_PLANE_URL: https://localhost:${AMP_INTERNAL_PORT}
       CONSOLE_GATEWAY_VERSION: v2026.09.24
       CONSOLE_DOCS_URL: https://wso2.com/agent-platform/docs/${DOCS_VERSION:-next}
@@ -272,47 +228,10 @@ services:
     networks: [amp]
     restart: unless-stopped
 
-  amp-observer:
-    image: ${AMP_OBSERVER_IMAGE:?copy .env.example to .env first}
-    ports:
-      - "${OBSERVER_PORT}:9098"
-    environment:
-      AM_OBSERVER_PORT: "9098"
-      OPENSEARCH_ADDRESS: https://opensearch:9200
-      OPENSEARCH_TRACE_INDEX: otel-traces-*
-      OPENSEARCH_TLS_INSECURE_SKIP_VERIFY: "true"
-      OPENSEARCH_USERNAME: admin
-      OPENSEARCH_PASSWORD: ${OPENSEARCH_PASSWORD}
-      # The observer is a second validator of the same operator tokens, so it
-      # follows amp-api's key set: in file mode the issuer is amp-api, not
-      # ThunderID, and a token minted there would otherwise be rejected here
-      # with nothing naming the reason. Switching AUTH_MODE to idp wants
-      # OBSERVER_JWKS_URL set to http://thunder:${THUNDER_PORT}/oauth2/jwks.
-      KEY_MANAGER_JWKS_URL: ${OBSERVER_JWKS_URL:-http://amp-api:8080/auth/external/jwks.json}
-      # Both issuers are allowed so the observer keeps working across a mode
-      # switch without a second edit; the JWKS above decides which tokens
-      # actually verify.
-      KEY_MANAGER_ISSUER: http://${THUNDER_HOST}:${THUNDER_PORT},amp-file-auth
-      KEY_MANAGER_AUDIENCE: urn:wso2:amp,amp-api-client,amp-console-client,am-obs-mcp,http://localhost:${OBSERVER_PORT}/mcp
-      SERVER_PUBLIC_URL: http://localhost:${OBSERVER_PORT}
-      OAUTH_AUTHORIZATION_SERVERS: http://${THUNDER_HOST}:${THUNDER_PORT}
-      OAUTH_SCOPES_SUPPORTED: amp:observability:log-read,amp:observability:trace-read,amp:observability:metric-read,amp:observability:build-log-read
-    depends_on:
-      opensearch:
-        condition: service_healthy
-      thunder:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -T 4 -O /dev/null http://127.0.0.1:9098/health"]
-      interval: 3s
-      retries: 60
-    networks: [amp]
-    restart: unless-stopped
-
   # --- AI Gateway -----------------------------------------------------------------
   # Uses config.toml from amp-init and connects to amp-api with the registration
-  # token amp-api registered at startup; amp-api pushes its APIs, including the
-  # trace-ingest API, over that connection.
+  # token amp-api registered at startup; amp-api pushes its APIs over that
+  # connection.
   gateway-controller:
     image: ${GATEWAY_CONTROLLER_IMAGE:?copy .env.example to .env first}
     command: ["-config", "/amp/gw/config.toml"]
@@ -345,12 +264,8 @@ services:
     depends_on:
       gateway-controller:
         condition: service_healthy
-      otel-collector:
-        condition: service_started
-    # Healthy once the router listens and the trace-ingest upstream accepts
-    # connections, so `up --wait` returns with /otel/v1/traces working.
     healthcheck:
-      test: ["CMD-SHELL", "nc -z localhost 19080 && nc -z otel-collector 4318"]
+      test: ["CMD-SHELL", "nc -z localhost 19080"]
       interval: 3s
       retries: 40
     networks:
@@ -363,7 +278,6 @@ volumes:
   thunder-db:
   thunder-certs:
   thunder-secrets:
-  opensearch-data:
   postgres-data:
   amp-data:
   amp-keys:

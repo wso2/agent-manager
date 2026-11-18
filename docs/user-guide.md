@@ -1,6 +1,6 @@
 # AMP Lite user guide
 
-How to install and run AMP Lite, register your agents and see their traces. AMP Lite is a development preview of WSO2 Agent Manager without OpenChoreo, and it is not production-ready. To work on AMP itself, see the [developer guide](developer-guide.md).
+How to install and run AMP Lite and register your agents. AMP Lite is a development preview of WSO2 Agent Manager without OpenChoreo, and it is not production-ready. To work on AMP itself, see the [developer guide](developer-guide.md).
 
 ## What you get
 
@@ -10,20 +10,17 @@ AMP Lite runs as one Docker Compose stack. There is no Kubernetes or Helm.
 |---|---|---|
 | Agent Manager | Console, REST API and MCP server | http://localhost:9000 |
 | ThunderID | Sign-in and agent identities | http://thunder.amp.localhost:8080 |
-| AI Gateway | Agent traffic, LLM and MCP calls, trace ingest | http://default-default.gateway.localhost:19080 |
-| Observer | Trace queries | http://localhost:9098 |
-| OpenSearch and OpenTelemetry Collector | Trace storage | internal only |
+| AI Gateway | Agent traffic, LLM and MCP calls | http://default-default.gateway.localhost:19080 |
 
-Your agents run wherever you host them. You register them in AMP, which gives each one an identity and a token. Agents send LLM, MCP and A2A calls and their traces through the AI Gateway.
+Your agents run wherever you host them. You register them in AMP, which gives each one an identity and a token. Agents send LLM, MCP and A2A calls through the AI Gateway. This preview stores no traces; tracing will return as an optional module.
 
 ![AMP Lite architecture](amp-lite/architecture.png)
 
 ## Requirements
 
 - Docker with Compose v2: Docker Desktop, Colima or Docker Engine on Linux.
-- About 2 GB of free memory for the stack. OpenSearch uses most of it.
-- Free host ports: 8080, 9000, 9098, 9243 and 19080. Change them in `.env` if any are taken.
-- On Linux hosts, OpenSearch needs `sudo sysctl -w vm.max_map_count=262144`. Docker Desktop and Colima already set it.
+- About 1 GB of free memory for the stack.
+- Free host ports: 8080, 9000, 9243 and 19080. Change them in `.env` if any are taken.
 
 ## Install
 
@@ -44,7 +41,7 @@ Edit `.env` before the first start. The defaults are for local development only.
 | `AMP_ADMIN_PASSWORD` | The console admin password |
 | `AMP_API_CLIENT_SECRET`, `AMP_CONSOLE_CLIENT_SECRET`, `AMP_PUBLISHER_CLIENT_SECRET`, `AMP_SYSTEM_CLIENT_SECRET` | Random strings |
 | `AMP_ENCRYPTION_KEY` | 64 hex characters, from `openssl rand -hex 32`. It encrypts stored secrets; keep it safe, because data encrypted with it can't be read without it |
-| `GATEWAY_ADMIN_PASSWORD`, `OPENSEARCH_PASSWORD` | Strong passwords (OpenSearch needs upper case, lower case, a digit and a symbol) |
+| `GATEWAY_ADMIN_PASSWORD` | A strong password |
 | `AMP_DEFAULT_USERS` | Optional extra console users, as `username:password[:admin]` entries separated by commas |
 
 Then start it:
@@ -98,11 +95,11 @@ AMP_DEFAULT_USERS=dev:dev-password, lead:lead-password:admin
 
 | Entry | Role | Scopes |
 | --- | --- | --- |
-| `dev:dev-password` | Developer | 56 |
-| `lead:lead-password:admin` | Agent Manager Admin | 105 |
+| `dev:dev-password` | Developer | 52 |
+| `lead:lead-password:admin` | Agent Manager Admin | 101 |
 
 Developer covers day-to-day work: full control of projects, agents and LLM
-proxies, plus monitors, git secrets and the traces and logs. It can read and
+proxies, plus monitors and git secrets. It can read and
 connect to MCP servers and LLM providers but not create them, and it cannot
 touch organization settings, identity providers, gateways, roles or groups.
 Admin holds everything.
@@ -122,13 +119,12 @@ deployment should use: accounts, sessions and password policy are then the
 identity provider's rather than a file on the host. File mode is aimed at local
 and single-operator installs.
 
-Switching takes three settings, because the two key-set URLs default to the
-API's own and do not follow `AUTH_MODE`:
+Switching takes two settings, because the key-set URL defaults to the API's
+own and does not follow `AUTH_MODE`:
 
 ```
 AUTH_MODE=idp
 KEY_MANAGER_JWKS_URL=http://thunder:${THUNDER_PORT}/oauth2/jwks
-OBSERVER_JWKS_URL=http://thunder:${THUNDER_PORT}/oauth2/jwks
 ```
 
 Set `AUTH_MODE` alone and every token is refused with a bare `401`.
@@ -136,23 +132,12 @@ Set `AUTH_MODE` alone and every token is refused with a bare `401`.
 ThunderID runs in both modes: agent identity uses it either way. `amctl` and the
 MCP endpoints also sign in through ThunderID, so they need `AUTH_MODE=idp`.
 
-## Register an agent and send traces
+## Register an agent
 
 1. In the console, open a project, click **New agent**, enter a name and click **Register**.
-2. The **Setup Agent** panel opens with an API key already generated, valid for 90 days. To change that, pick another **Token Duration** and click **Regenerate**. Choose your agent's language, then copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it shows. The key is shown only once; reopen the panel later with **Set up agent** on the agent's page to generate a new one.
-3. Run your agent with those two values set. For a Python agent, install [amp-instrumentation](../libs/amp-instrumentation) and start the agent through `amp-instrument`; it traces common AI frameworks with no code changes:
+2. Get the agent a key with `POST /api/v1/orgs/{org}/projects/{project}/agents/{agent}/token`, or the `create_external_agent` tool on the MCP server, which registers the agent and returns its key in one step. The agent sends the key in an `x-amp-api-key` header on its calls through the AI Gateway.
 
-   ```bash
-   pip install amp-instrumentation
-   export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
-   export AMP_AGENT_API_KEY="<key from the console>"
-   amp-instrument python main.py
-   ```
-
-   Other languages send OTLP/HTTP to `<AMP_OTEL_ENDPOINT>/v1/traces` with the key in an `x-amp-api-key` header. [samples/dotnet-agent](../samples/dotnet-agent) shows one way.
-4. Use the agent, then open **Traces** for that agent in the console.
-
-The [samples](../samples) folder has ready-to-run agents, and each README walks through these steps.
+The [samples](../samples) folder has ready-to-run agents. Their tracing steps need a trace store, which this preview does not run.
 
 ## Route LLM and MCP calls through the gateway
 
@@ -182,20 +167,18 @@ When the generated ThunderID settings change, ThunderID's setup runs again. It k
 
 ### Back up
 
-The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `amp-lite`): the AMP database (SQLite or PostgreSQL), ThunderID's database, the gateway's state, and OpenSearch. Stop the stack before copying them. Also keep your `.env`, especially `AMP_ENCRYPTION_KEY`.
+The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `amp-lite`): the AMP database (SQLite or PostgreSQL), ThunderID's database, the gateway's state. Stop the stack before copying them. Also keep your `.env`, especially `AMP_ENCRYPTION_KEY`.
 
 ## Troubleshooting
 
 - **A port is already in use:** change the matching `*_PORT` setting in `.env` and start again.
 - **`thunder-setup` fails with `can't open '/amp/thunder/entrypoint.sh'`:** Docker can't see the bundle's folder. On macOS with Colima, move the `standalone` folder inside your home folder.
 - **`thunder.amp.localhost` or `*.gateway.localhost` doesn't resolve:** browsers resolve `*.localhost` to 127.0.0.1 themselves, but some command-line tools and agent runtimes don't. Add the names to `/etc/hosts`, or call `localhost:19080` with a `Host: default-default.gateway.localhost` header.
-- **OpenSearch exits on Linux:** set `vm.max_map_count` as shown under Requirements.
-- **Traces don't appear:** check that the agent's key hasn't expired, and that the agent can reach the gateway address in `AMP_OTEL_ENDPOINT`. `docker compose logs gateway-runtime otel-collector` shows rejected or failed requests.
 - **Sign-in fails after an upgrade:** the admin password was reset to `AMP_ADMIN_PASSWORD` in `.env`.
 
 ## Limits of this preview
 
-- Only external agents are supported. Hosted agents (builds and deployments) and evaluations are not available; their API routes answer `501 Not Implemented`.
+- Only external agents are supported. Hosted agents (builds and deployments) and evaluations are not available; their API routes answer `501 Not Implemented`. No traces are stored.
 - Each organization has one internal environment, which the console doesn't show.
 - It is not production-ready: there is no high availability, and TLS is up to you.
 - Sign-in is file-based by default, which suits local and single-operator installs. Use `AUTH_MODE=idp` for anything shared; see [How sign-in works](#how-sign-in-works).
