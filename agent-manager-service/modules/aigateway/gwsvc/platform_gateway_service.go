@@ -201,7 +201,10 @@ type TokenRotationResponse struct {
 
 // GatewayTokenInfo represents a token's metadata (no secret values exposed)
 type GatewayTokenInfo struct {
-	ID        string     `json:"id"`
+	ID string `json:"id"`
+	// Prefix is the token's first tokenPrefixShownLen characters, enough to match a
+	// token in use to its entry but not to authenticate with.
+	Prefix    string     `json:"prefix"`
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"createdAt"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
@@ -801,11 +804,12 @@ func (s *PlatformGatewayService) ListTokens(gatewayID, ouID string) (*GatewayTok
 		return nil, fmt.Errorf("failed to get tokens: %w", err)
 	}
 
-	// 3. Map to metadata DTOs (never expose hash/salt/prefix)
+	// 3. Map to metadata DTOs (never expose hash/salt or the full lookup prefix)
 	tokens := make([]GatewayTokenInfo, 0, len(activeTokens))
 	for _, t := range activeTokens {
 		tokens = append(tokens, GatewayTokenInfo{
 			ID:        t.UUID.String(),
+			Prefix:    shownTokenPrefix(t.TokenPrefix),
 			Status:    t.Status,
 			CreatedAt: t.CreatedAt,
 			RevokedAt: t.RevokedAt,
@@ -943,36 +947,21 @@ func (s *PlatformGatewayService) resolveGatewayUUID(gatewayID, ouID string) (str
 	return gw.UUID.String(), nil
 }
 
-// resolveManagedGatewayUUID is resolveGatewayUUID for operations a self-hosted gateway does
-// not support: a self-hosted gateway is reported as not found.
-func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID string) (string, error) {
-	gw, err := s.orgGateway(gatewayID, ouID)
-	if err != nil {
-		return "", err
-	}
-	if !gw.IsManaged() {
-		return "", gwerr.ErrGatewayNotFound
-	}
-	return gw.UUID.String(), nil
-}
-
 // UpsertIdentityProvider creates or updates an identity provider mirror row for a
 // gateway. System provenance is derived from the well-known provider names.
 //
-// The gateway's runtime configuration (its config.toml) is changed out of band by the
-// operator; this writes the mirror only.
+// Only the mirror is written: a gateway's runtime configuration is applied out of band
+// (a self-hosted gateway's owner adds the key manager to its config.toml; the console
+// shows the entry). Both managed and self-hosted gateways are supported.
 func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*gwmodels.GatewayIdentityProvider, error) {
 	if name == gwmodels.ReservedIdentityProviderName {
 		return nil, httpx.ErrInvalidInput
 	}
-	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
+	gw, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
 		return nil, err
 	}
-	gwUUID, err := uuid.Parse(gwUUIDStr)
-	if err != nil {
-		return nil, gwerr.ErrGatewayNotFound
-	}
+	gwUUID := gw.UUID
 	providerType := gwmodels.IdentityProviderTypeCustom
 	if gwmodels.IsSystemIdentityProvider(name) {
 		providerType = gwmodels.IdentityProviderTypeSystem
@@ -999,11 +988,11 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 // DeleteIdentityProvider removes an identity provider mirror row for a gateway.
 // System providers cannot be deleted (enforced in the repository).
 func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gatewayID, ouID, name string) error {
-	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
+	gw, err := s.orgGateway(gatewayID, ouID)
 	if err != nil {
 		return err
 	}
-	return s.gatewayRepo.DeleteIdentityProvider(gwUUIDStr, name)
+	return s.gatewayRepo.DeleteIdentityProvider(gw.UUID.String(), name)
 }
 
 // ListIdentityProvidersByGateway lists the identity providers mirrored for a gateway.
@@ -1421,6 +1410,18 @@ func normalizeGatewayRole(functionalityType string) (string, error) {
 // Format: {UUID}-{32-random-bytes-base64}
 // The UUID prefix ensures uniqueness and enables fast indexed lookups
 // The random suffix provides 256 bits of entropy for security
+// tokenPrefixShownLen is how much of a token is listed: the first group of its UUID
+// prefix, enough to tell tokens apart without revealing the full lookup key.
+const tokenPrefixShownLen = 8
+
+// shownTokenPrefix returns the part of a token's prefix that may be listed.
+func shownTokenPrefix(prefix string) string {
+	if len(prefix) <= tokenPrefixShownLen {
+		return prefix
+	}
+	return prefix[:tokenPrefixShownLen]
+}
+
 func generateToken() (token string, prefix string, err error) {
 	// Generate UUID for uniqueness
 	tokenUUID := uuid.New()

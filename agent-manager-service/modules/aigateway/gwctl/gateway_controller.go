@@ -390,7 +390,7 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 	// Map service DTOs to spec types
 	tokenInfos := make([]gwspec.GatewayTokenInfo, 0, len(svcResp.List))
 	for _, t := range svcResp.List {
-		info := gwspec.NewGatewayTokenInfo(t.ID, t.Status, t.CreatedAt)
+		info := gwspec.NewGatewayTokenInfo(t.ID, t.Prefix, t.Status, t.CreatedAt)
 		if t.RevokedAt != nil {
 			info.SetRevokedAt(*t.RevokedAt)
 		} else {

@@ -15,11 +15,14 @@
  * under the License.
  */
 
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
+import {
+  FeatureManagementProvider,
+  type FeatureFlags,
+} from "@agent-management-platform/feature-management";
 import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
+import { identityProviderConfigMode } from "./ManageIdentityProviderDialog";
 
 const hoisted = vi.hoisted(() => ({
   query: {} as Record<string, unknown>,
@@ -32,7 +35,8 @@ vi.mock("@agent-management-platform/api-client", () => ({
   useListIdentityProviders: () => hoisted.query,
 }));
 
-vi.mock("./ManageIdentityProviderDialog", () => ({
+vi.mock("./ManageIdentityProviderDialog", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./ManageIdentityProviderDialog")>()),
   ManageIdentityProviderDialog: ({
     open,
     mode,
@@ -56,14 +60,26 @@ vi.mock("./ManageIdentityProviderDialog", () => ({
 
 const ENVS = [{ id: "e1", name: "dev", displayName: "Development" }];
 
-const renderCard = (canWrite = true) =>
+const renderCard = ({
+  canWrite = true,
+  selfHosted = true,
+  featureFlags = {},
+}: {
+  canWrite?: boolean;
+  selfHosted?: boolean;
+  featureFlags?: Partial<FeatureFlags>;
+} = {}) =>
   render(
-    <FeatureManagementProvider featureAccess={{ gateway_write: canWrite }}>
+    <FeatureManagementProvider
+      featureFlags={featureFlags}
+      featureAccess={{ gateway_write: canWrite }}
+    >
       <GatewayIdentityProvidersCard
         orgId="acme"
         gatewayId="gw-1"
         gatewayName="Edge"
         environments={ENVS as never}
+        selfHosted={selfHosted}
       />
     </FeatureManagementProvider>,
   );
@@ -73,6 +89,8 @@ const providers = [
   { name: "Platform", type: "system", issuer: "", gatewayId: "gw-1", environmentName: "dev" },
   { name: "OtherIdP", type: "custom", issuer: "https://other", gatewayId: "gw-2", environmentName: "dev" },
 ];
+
+const addButton = () => screen.queryByRole("button", { name: "Add identity provider" });
 
 beforeEach(() => {
   hoisted.query = { data: { list: providers }, isLoading: false, error: null };
@@ -110,9 +128,9 @@ describe("GatewayIdentityProvidersCard", () => {
   });
 
   it("offers neither add nor remove without write access", () => {
-    renderCard(false);
+    renderCard({ canWrite: false });
     fireEvent.mouseEnter(screen.getByText("AcmeIdP").closest("tr")!);
-    expect(screen.queryByRole("button", { name: "Add identity provider" })).not.toBeInTheDocument();
+    expect(addButton()).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Remove identity provider" })).not.toBeInTheDocument();
   });
 
@@ -128,7 +146,7 @@ describe("GatewayIdentityProvidersCard", () => {
     hoisted.query = { data: undefined, isLoading: false, error: new Error("forbidden") };
     renderCard();
     expect(screen.getByText("forbidden")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add identity provider" })).not.toBeInTheDocument();
+    expect(addButton()).not.toBeInTheDocument();
   });
 
   it("shows no providers or empty state while loading", () => {
@@ -136,5 +154,52 @@ describe("GatewayIdentityProvidersCard", () => {
     renderCard();
     expect(screen.queryByText("No identity providers configured")).not.toBeInTheDocument();
     expect(screen.queryByText("AcmeIdP")).not.toBeInTheDocument();
+  });
+});
+
+describe("GatewayIdentityProvidersCard adding issuers", () => {
+  beforeEach(() => {
+    hoisted.query = { data: { list: [] }, isLoading: false, error: null };
+  });
+
+  it("is hidden on a managed gateway whose config cannot be patched", () => {
+    renderCard({ selfHosted: false });
+
+    expect(addButton()).not.toBeInTheDocument();
+    expect(
+      screen.getByText("This gateway accepts tokens only from its built-in issuers."),
+    ).toBeInTheDocument();
+  });
+
+  it("is offered on a managed gateway in managed mode", () => {
+    renderCard({ selfHosted: false, featureFlags: { enableIdentityProviderManagedMode: true } });
+
+    expect(addButton()).toBeInTheDocument();
+  });
+
+  it("is offered on a self-hosted gateway, whose owner edits its config", () => {
+    renderCard({ selfHosted: true });
+
+    expect(addButton()).toBeInTheDocument();
+  });
+
+  it("tells a read-only viewer the truth about a gateway that accepts custom issuers", () => {
+    renderCard({ selfHosted: true, canWrite: false });
+
+    expect(addButton()).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No custom token issuers have been added to this gateway."),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("identityProviderConfigMode", () => {
+  it.each([
+    [true, false, "manual"],
+    [true, true, "manual"],
+    [false, true, "applied"],
+    [false, false, "fixed"],
+  ] as const)("selfHosted=%s managedMode=%s is %s", (selfHosted, flag, want) => {
+    expect(identityProviderConfigMode(selfHosted, flag)).toBe(want);
   });
 });

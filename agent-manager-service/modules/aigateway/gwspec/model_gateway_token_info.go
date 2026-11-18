@@ -22,6 +22,8 @@ var _ MappedNullable = &GatewayTokenInfo{}
 type GatewayTokenInfo struct {
 	// Unique token identifier (UUID)
 	Id string `json:"id"`
+	// The first characters of the token itself, so a token in use can be matched to its entry. Not enough to authenticate with.
+	Prefix string `json:"prefix"`
 	// Current token status
 	Status string `json:"status"`
 	// Timestamp when the token was created
@@ -34,9 +36,10 @@ type GatewayTokenInfo struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewGatewayTokenInfo(id string, status string, createdAt time.Time) *GatewayTokenInfo {
+func NewGatewayTokenInfo(id string, prefix string, status string, createdAt time.Time) *GatewayTokenInfo {
 	this := GatewayTokenInfo{}
 	this.Id = id
+	this.Prefix = prefix
 	this.Status = status
 	this.CreatedAt = createdAt
 	return &this
@@ -72,6 +75,30 @@ func (o *GatewayTokenInfo) GetIdOk() (*string, bool) {
 // SetId sets field value
 func (o *GatewayTokenInfo) SetId(v string) {
 	o.Id = v
+}
+
+// GetPrefix returns the Prefix field value
+func (o *GatewayTokenInfo) GetPrefix() string {
+	if o == nil {
+		var ret string
+		return ret
+	}
+
+	return o.Prefix
+}
+
+// GetPrefixOk returns a tuple with the Prefix field value
+// and a boolean to check if the value has been set.
+func (o *GatewayTokenInfo) GetPrefixOk() (*string, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Prefix, true
+}
+
+// SetPrefix sets field value
+func (o *GatewayTokenInfo) SetPrefix(v string) {
+	o.Prefix = v
 }
 
 // GetStatus returns the Status field value
@@ -176,6 +203,7 @@ func (o GatewayTokenInfo) MarshalJSON() ([]byte, error) {
 func (o GatewayTokenInfo) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["id"] = o.Id
+	toSerialize["prefix"] = o.Prefix
 	toSerialize["status"] = o.Status
 	toSerialize["createdAt"] = o.CreatedAt
 	if o.RevokedAt.IsSet() {

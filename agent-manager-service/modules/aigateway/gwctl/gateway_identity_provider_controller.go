@@ -132,11 +132,11 @@ func (c *gatewayController) ListGatewayIdentityProviders(w http.ResponseWriter, 
 }
 
 // UpsertGatewayIdentityProvider creates or updates an identity provider mirror row.
-// This touches only the AMS mirror, not the gateway's config.toml (the runtime source
-// of truth). Writing here without changing the gateway lets the two diverge: agent OAuth
-// deploy-time validation checks the mirror, so a mirror-only issuer passes validation
-// while the gateway rejects its tokens at runtime. The operator adds the key manager
-// entry the console generates to the gateway's config.toml.
+// Only the mirror is written: the gateway's runtime config is changed out of band
+// (manage-identity-provider.sh for a managed gateway; the owner edits a self-hosted
+// gateway's config.toml). Agent OAuth deploy-time validation checks the mirror,
+// so an issuer missing from the gateway's config passes validation while the gateway
+// rejects its tokens at runtime.
 func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -176,9 +176,8 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 }
 
 // DeleteGatewayIdentityProvider removes an identity provider mirror row. System
-// providers cannot be deleted. Like the upsert, this touches only the AMS mirror, not
-// the gateway's config.toml (the runtime source of truth); deleting here alone leaves
-// the issuer trusted by the gateway at runtime until its entry is removed there too.
+// providers cannot be deleted. Like the upsert, the gateway runtime config is changed
+// out of band; until the key manager is removed there, the issuer stays trusted.
 func (c *gatewayController) DeleteGatewayIdentityProvider(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	ouID := modkit.OrgID(r.Context())

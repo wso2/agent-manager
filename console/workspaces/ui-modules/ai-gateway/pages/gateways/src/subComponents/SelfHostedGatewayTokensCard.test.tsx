@@ -15,7 +15,6 @@
  * under the License.
  */
 
-
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
@@ -45,7 +44,13 @@ vi.mock("@agent-management-platform/shared-component", () => ({
 }));
 
 const CREATED = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-const token = (id: string, status: "active" | "revoked") => ({ id, status, createdAt: CREATED });
+const token = (id: string, status: "active" | "revoked") => ({
+  id,
+  prefix: `${id}-pre`,
+  status,
+  createdAt: CREATED,
+});
+const masked = (id: string) => `${id}-pre-••••••••`;
 
 const renderCard = (canManageTokens = true) =>
   render(
@@ -66,10 +71,16 @@ beforeEach(() => {
 });
 
 describe("SelfHostedGatewayTokensCard", () => {
+  it("lists a token by its masked start, not by its record id", () => {
+    renderCard();
+    expect(screen.getByText(masked("tok-a"))).toBeInTheDocument();
+    expect(screen.queryByText("tok-a")).not.toBeInTheDocument();
+  });
+
   it("lists tokens with their status and age", () => {
     renderCard();
-    expect(screen.getByText("tok-a")).toBeInTheDocument();
-    expect(screen.getByText("tok-b")).toBeInTheDocument();
+    expect(screen.getByText(masked("tok-a"))).toBeInTheDocument();
+    expect(screen.getByText(masked("tok-b"))).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Revoked")).toBeInTheDocument();
     expect(screen.getAllByText("Created 2 days ago")).toHaveLength(2);
@@ -129,7 +140,7 @@ describe("SelfHostedGatewayTokensCard", () => {
 
   it("is read-only without the token permission", () => {
     renderCard(false);
-    expect(screen.getByText("tok-a")).toBeInTheDocument();
+    expect(screen.getByText(masked("tok-a"))).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New token" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Revoke token" })).not.toBeInTheDocument();
   });
