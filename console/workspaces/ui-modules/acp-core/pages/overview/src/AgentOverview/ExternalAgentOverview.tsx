@@ -16,22 +16,25 @@
  * under the License.
  */
 
-import { Box, Skeleton } from "@wso2/oxygen-ui";
-import { useParams } from "react-router-dom";
+import { Box, Button, Skeleton } from "@wso2/oxygen-ui";
+import { Settings } from "@wso2/oxygen-ui-icons-react";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
   DeploymentStatus,
   EnvironmentCard,
   usePipelineEnvironmentsState,
   UppercaseCaptionLabel,
 } from "@agent-management-platform/shared-component";
+import { InstrumentationDrawer } from "./InstrumentationDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
 import { EnvironmentSectionsContent } from "./EnvironmentSectionsContent";
 import { EnvironmentSingleHeader } from "./EnvironmentSingleHeader";
 import { EnvironmentTabsBar } from "./EnvironmentTabsBar";
-import { useSelectedEnvironmentParam } from "./useSelectedEnvironmentParam";
+import { ENV_SEARCH_PARAM, useSelectedEnvironmentParam } from "./useSelectedEnvironmentParam";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   // Show only the environments in the current project's deployment pipeline,
   // ordered by the promotion chain. isLoading covers environments + project + pipelines.
@@ -39,6 +42,34 @@ export const ExternalAgentOverview = () => {
     usePipelineEnvironmentsState(orgId, projectId);
   const { selectedEnvironment, selectEnvironment } =
     useSelectedEnvironmentParam(sortedEnvironmentList);
+  const selectedEnvironmentId = selectedEnvironment?.id ?? "";
+
+  // Sets both the selected environment and setup=true in one functional
+  // update — two separate setSearchParams calls in the same handler would
+  // each independently compute `next` from `prev`, so the second call risks
+  // clobbering the first's change instead of building on it.
+  const handleSetupAgent = (environmentName: string) => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.set(ENV_SEARCH_PARAM, environmentName);
+        next.set("setup", "true");
+        return next;
+      },
+      { replace: true },
+    );
+  };
+
+  const closeSetupDrawer = () => {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("setup");
+        return next;
+      },
+      { replace: true },
+    );
+  };
 
   // Once loaded, a single environment doesn't need a "which environment" tab
   // strip or section label — only shown when there's more than one, or while
@@ -87,6 +118,16 @@ export const ExternalAgentOverview = () => {
                   />
                 )
               }
+              actions={
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<Settings size={16} />}
+                  onClick={() => handleSetupAgent(selectedEnvironment.name)}
+                >
+                  Set up agent
+                </Button>
+              }
               bottomContent={
                 <EnvironmentSectionsContent
                   orgId={orgId}
@@ -100,6 +141,18 @@ export const ExternalAgentOverview = () => {
           )
         )}
       </Box>
+      {/* No tracing guide: nothing in this deployment ingests traces, so the
+          drawer offers only the agent's API key. */}
+      <InstrumentationDrawer
+        open={searchParams.get("setup") === "true" && selectedEnvironmentId !== ""}
+        onClose={closeSetupDrawer}
+        agentId={agentId ?? ""}
+        orgName={orgId ?? "default"}
+        projName={projectId ?? "default"}
+        agentName={agentId ?? ""}
+        environment={selectedEnvironment?.name}
+        autoGenerate
+      />
     </>
   );
 };

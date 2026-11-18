@@ -135,7 +135,9 @@ MCP endpoints also sign in through ThunderID, so they need `AUTH_MODE=idp`.
 ## Register an agent
 
 1. In the console, open a project, click **New agent**, enter a name and click **Register**.
-2. Get the agent a key with `POST /api/v1/orgs/{org}/projects/{project}/agents/{agent}/token`, or the `create_external_agent` tool on the MCP server, which registers the agent and returns its key in one step. The agent sends the key in an `x-amp-api-key` header on its calls through the AI Gateway.
+2. The **Setup Agent** panel opens with an API key already generated, valid for 90 days. To change that, pick another **Token Duration** and click **Regenerate**. The key is shown only once; reopen the panel later with **Set up agent** on the agent's page to generate a new one. The agent sends the key in an `x-amp-api-key` header on its calls through the AI Gateway.
+
+You can also get a key with `POST /api/v1/orgs/{org}/projects/{project}/agents/{agent}/token`, or with the `create_external_agent` tool on the MCP server, which registers the agent and returns its key in one step.
 
 The [samples](../samples) folder has ready-to-run agents. Their tracing steps need a trace store, which this preview does not run.
 

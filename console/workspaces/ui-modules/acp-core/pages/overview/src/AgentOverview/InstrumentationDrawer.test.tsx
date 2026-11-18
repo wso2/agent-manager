@@ -49,6 +49,26 @@ const renderDrawer = () =>
   );
 
 describe("InstrumentationDrawer", () => {
+  it("offers only the API key when there is no trace endpoint", () => {
+    render(
+      <InstrumentationDrawer
+        open
+        onClose={() => {}}
+        agentId="agent"
+        orgName="org"
+        projName="proj"
+        agentName="agent"
+      />,
+    );
+
+    expect(screen.getByTestId("token-step")).toHaveTextContent("1");
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    const text = document.body.textContent ?? "";
+    expect(text).toContain("x-amp-api-key");
+    expect(text).not.toContain("OTEL");
+    expect(text).not.toContain("amp-instrument");
+  });
+
   it("shows generic OTLP exporter settings when Other is selected", () => {
     renderDrawer();
 

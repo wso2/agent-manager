@@ -81,7 +81,7 @@ export const ExternalAgentFlow: React.FC = () => {
                   projectId: params.projName ?? "",
                   agentId: payload.body.name,
                 }
-              )
+              ) + "?setup=true"
             )
           );
         },
