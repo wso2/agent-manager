@@ -75,7 +75,7 @@ docker run --rm -it \
   <scanner-image> scan \
   --scan-id <scan-id> \
   --github-org <organization> \
-  --repos <repositories> \
+  --repos=<repositories> \
   --include-private \
   --read-ci \
   --ai-review \
@@ -84,8 +84,8 @@ docker run --rm -it \
 
 | Platform | Options |
 |---|---|
-| GitHub | `--github-org <organization>`; `--all-repos` or `--repos a,b`; `--include-private`; `--read-ci`; `--github-api-url <url>` only when it is not the default |
-| Azure DevOps | `--azure-devops-org <organization>`; `--all-projects` or `--projects a,b`; `--read-ci`; `--azure-devops-url <url>` only when it is not the default |
+| GitHub | `--github-org <organization>`; `--all-repos` or `--repos=a,b`; `--include-private`; `--read-ci`; `--github-api-url <url>` only when it is not the default |
+| Azure DevOps | `--azure-devops-org <organization>`; `--all-projects` or `--projects=a,b`; `--read-ci`; `--azure-devops-url <url>` only when it is not the default |
 | Both | `--ai-review` with AI review; `--judge` with the LLM judge |
 
 The scan command's image (`AMP_SHADOW_RUNNER_IMAGE`) is not released yet, so the command cannot be run until it is.

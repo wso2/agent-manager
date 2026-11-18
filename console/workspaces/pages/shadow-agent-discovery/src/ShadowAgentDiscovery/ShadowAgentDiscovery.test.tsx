@@ -1276,12 +1276,12 @@ describe("ConnectionEditor (source code repositories)", () => {
   it("shows the scan command next to the form, following the organization field", () => {
     openNew();
     expect(screen.getByText("Scan command")).toBeInTheDocument();
-    expect(commandText()).toContain("--github-org <organization> --repos <repositories>");
+    expect(commandText()).toContain("--github-org <organization> --repos=<repositories>");
     expect(commandText()).toContain("-e AMP_SCAN_TOKEN=<scan-token>");
     fireEvent.change(screen.getByRole("textbox", { name: /Organization or user account/ }), {
       target: { value: "acme" },
     });
-    expect(commandText()).toContain("--github-org acme --repos <repositories>");
+    expect(commandText()).toContain("--github-org acme --repos=<repositories>");
     fireEvent.click(screen.getByRole("checkbox", { name: "Scan every repository" }));
     expect(commandText()).toContain("--github-org acme --all-repos --include-private --read-ci");
     expect(screen.getByText(/filled in when you save/)).toBeInTheDocument();
@@ -1371,6 +1371,6 @@ describe("ConnectionEditor (source code repositories)", () => {
     expect(screen.queryByRole("button", { name: "payments" })).not.toBeInTheDocument();
     fireEvent.keyUp(screen.getByText("payments"), { key: "Delete" });
     expect(screen.getByText("payments")).toBeInTheDocument();
-    expect(commandText()).toContain("--repos payments");
+    expect(commandText()).toContain("--repos=payments");
   });
 });

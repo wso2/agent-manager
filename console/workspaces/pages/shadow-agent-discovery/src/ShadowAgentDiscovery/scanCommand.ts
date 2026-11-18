@@ -76,10 +76,11 @@ export function buildScanCommand(
   // One option per line, so the command reads top to bottom in a narrow panel.
   const lines: string[] = [];
   // "Every repository" is its own flag: a list can hold a repository named "all".
+  // The list is joined with "=", so a name starting with "-" is not read as an option.
   const scope = (all: unknown, allFlag: string, list: unknown, listFlag: string, none: string) => {
     if (all === true) return allFlag;
     const names = items(list);
-    return `${listFlag} ${names.length > 0 ? shellQuote(names.join(",")) : none}`;
+    return `${listFlag}=${names.length > 0 ? shellQuote(names.join(",")) : none}`;
   };
   const url = customURL(spec, input);
   if (spec.provider === "azure_devops") {

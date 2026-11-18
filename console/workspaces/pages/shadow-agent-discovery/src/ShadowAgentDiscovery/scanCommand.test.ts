@@ -48,7 +48,7 @@ describe("buildScanCommand", () => {
         "  <scanner-image> scan \\",
         "  --scan-id <scan-id> \\",
         "  --github-org <organization> \\",
-        "  --repos <repositories>",
+        "  --repos=<repositories>",
       ].join("\n"),
     );
   });
@@ -60,11 +60,22 @@ describe("buildScanCommand", () => {
     );
     const listed = { organization: "acme", allRepositories: false, repositories: ["a", "b"] };
     expect(lastLine(buildScanCommand(github, { settings: listed, endpoints: {} }, off))).toBe(
-      "--github-org acme --repos a,b",
+      "--github-org acme --repos=a,b",
     );
     const named = { organization: "acme", repositories: ["all"] };
     expect(lastLine(buildScanCommand(github, { settings: named, endpoints: {} }, off))).toBe(
-      "--github-org acme --repos all",
+      "--github-org acme --repos=all",
+    );
+  });
+
+  it("joins the list to its flag, so a name starting with - is not read as an option", () => {
+    const dash = { organization: "acme", repositories: ["-foo", "bar"] };
+    expect(lastLine(buildScanCommand(github, { settings: dash, endpoints: {} }, off))).toBe(
+      "--github-org acme --repos=-foo,bar",
+    );
+    const spaced = { organization: "contoso", projects: ["My Project"] };
+    expect(lastLine(buildScanCommand(ado, { settings: spaced, endpoints: {} }, off))).toBe(
+      "--azure-devops-org contoso --projects='My Project'",
     );
   });
 
@@ -99,7 +110,7 @@ describe("buildScanCommand", () => {
 
   it("builds the Azure DevOps flags", () => {
     expect(lastLine(buildScanCommand(ado, { settings: {}, endpoints: {} }, off))).toBe(
-      "--azure-devops-org <organization> --projects <projects>",
+      "--azure-devops-org <organization> --projects=<projects>",
     );
     const settings = { organization: "contoso", projects: ["Payments", "Web"], readCiFiles: true };
     expect(
@@ -111,7 +122,7 @@ describe("buildScanCommand", () => {
         ),
       ),
     ).toBe(
-      "--azure-devops-org contoso --projects Payments,Web --read-ci --azure-devops-url https://ado.contoso.com/tfs --ai-review",
+      "--azure-devops-org contoso --projects=Payments,Web --read-ci --azure-devops-url https://ado.contoso.com/tfs --ai-review",
     );
     expect(
       lastLine(buildScanCommand(ado, { settings: { organization: "c", allProjects: true }, endpoints: {} }, off)),
@@ -125,7 +136,7 @@ describe("buildScanCommand", () => {
     expect(shellQuote("$(rm -rf /)")).toBe("'$(rm -rf /)'");
     const settings = { organization: "Contoso Ltd", projects: ["My Project", "Web"] };
     expect(lastLine(buildScanCommand(ado, { settings, endpoints: {} }, off))).toBe(
-      "--azure-devops-org 'Contoso Ltd' --projects 'My Project,Web'",
+      "--azure-devops-org 'Contoso Ltd' --projects='My Project,Web'",
     );
   });
 
