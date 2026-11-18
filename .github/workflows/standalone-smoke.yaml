@@ -1,6 +1,6 @@
 # Brings up the Compose stack once per distribution and runs
 # deployments/standalone/scripts/smoke.sh against it: sign-in, the core API,
-# which routes each binary serves, a trace end to end and the UI manifest.
+# which routes each binary serves and the UI manifest.
 # amp-core is the only cover the core binary gets as a running stack.
 name: Standalone smoke
 
@@ -10,7 +10,6 @@ on:
       - amp-2.x
     paths:
       - 'agent-manager-service/**'
-      - 'agent-manager-observer/**'
       - 'deployments/standalone/**'
       - '.github/workflows/standalone-smoke.yaml'
       - '.github/actions/amp-dev-stack/**'
@@ -55,7 +54,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/standalone-smoke"
           docker compose ps -a > "$RUNNER_TEMP/standalone-smoke/services.txt" 2>&1 || true
-          for s in amp-init amp-api amp-observer otel-collector gateway-controller gateway-runtime; do
+          for s in amp-init amp-api gateway-controller gateway-runtime; do
             docker compose logs --no-color --tail 300 "$s" \
               > "$RUNNER_TEMP/standalone-smoke/$s.log" 2>&1 || true
           done
