@@ -106,7 +106,7 @@ class Config:
             agent_version=_env("AGENT_VERSION", "dev"),
             use_llm_provider=use_llm_provider,
             # The name must be a model the LLM behind the provider serves, e.g.
-            # gemini-2.5-flash for Google's OpenAI-compatible Gemini endpoint.
+            # gemini-flash-latest for Google's OpenAI-compatible Gemini endpoint.
             llm_model=_env("LLM_MODEL", "gpt-4o-mini"),
             llm_provider_url=llm_provider_url,
             llm_provider_key=llm_provider_key,
