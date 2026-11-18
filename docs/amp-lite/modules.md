@@ -274,6 +274,7 @@ type Proxy interface {
 - Lookups always see the current set of active modules. `ok` is false when no active module provides it, so handle that, typically with a 400 naming the capability.
 - A capability is a call between modules, not a way for the core to drive one. The core never calls `llm.proxy/v1` or `mcp.proxy/v1`; agent bindings reach the gateway through its extension block and hooks (see [Where the gateway stands](#where-the-gateway-stands)).
 - A new major version is a new id (`llm.proxy/v2`) and package; providers can offer both while consumers move.
+- **Core capabilities.** The core provides a few capabilities itself, listed in `modhost.CoreCapabilities` (today `identity.directory/v1`). A module lists one in `Requires` like any other; it is always satisfied, and no module may provide it (a manifest that does is refused at startup). The server supplies the implementations when it attaches the host; a CLI host has none, so a lookup there returns `ok` false.
 
 ### Optional interfaces
 
@@ -395,6 +396,7 @@ What it already does as a module:
 - **Audit and webhooks:** its routes declare their audit actions (`ai-gateway:<resource>.<verb>`, such as `ai-gateway:api-keys.rotate`) and webhook events (`ai-gateway.<type>`, such as `ai-gateway.llm_provider.created`) with `modkit.Audit`, `AuditCoalesce` and `Emits`; the manifest declares them (`gwaudit`).
 
 - **MCP tools:** its 11 tools are registered with `rt.MCPTool` from `Activate` (`gwmcp`), so they leave `/mcp` with the module, and the MCP endpoint's protected-resource metadata lists their scopes only while it is active.
+- **Agent identity:** its agent-identity pages and MCP proxy scopes reach the environment's directory through the core's `identity.directory/v1`, not a ThunderID client of their own.
 
 What is left: its workers and settings still come through `builtin.Bundle` (`Build(ctx, *wiring.AppParams)` builds it on the core's Go services and repositories), and its packages import core `services`, `repositories`, `controllers` and `models` (its data types still live in core `models`). Don't copy this for a new module.
 
@@ -433,6 +435,26 @@ A package belongs in `pkg/` only if all of these hold:
 - **It knows nothing about AMP's domain.** No agents, projects, permissions or audit records. A helper that needs those is a core service, and a module reaches it through a capability.
 
 The proof of concept allows modules to import only `modkit`. `pkg/` is a deliberate extension of that rule: its packages cannot reach into the core's data or services, so importing them cannot bypass the contract, while copying them into every module would let the copies drift and versioning them as contract would freeze helpers that change freely. If a helper fails one of the three tests above, it is not a `pkg/` library.
+
+### Reaching the core
+
+A module reaches core data and services in one of three ways:
+
+| Use | For | Example |
+|---|---|---|
+| `rt.Core()` | Reading core resources (organizations, projects, agents, environments) and the few core writes a module needs inside a hook (`LockAgent`, `EnsureOrg`). It is org-scoped: every call names the organization, and another organization's resource is not found. | The gateway resolves an agent's name with `GetAgent`. |
+| A capability | A core or module service with behaviour behind it, versioned so it can change without breaking its users. | The gateway's agent-identity pages manage roles and groups through `identity.directory/v1`. |
+| `rt.DB()` | The module's own tables (`mod_<name>_*`), never the core's or another module's. | The gateway's repositories. |
+
+Add a capability when a module needs the core (or another module) to *do* something, or to read something `Core()` does not offer. Add a `pkg/` library only for code with no domain and no state that both sides would otherwise copy. If you are unsure, it is a capability: a `pkg/` package can never reach core data, so it cannot replace one.
+
+Capabilities today:
+
+| Capability | Version | Provider | Methods | Consumers |
+|---|---|---|---|---|
+| `identity.directory/v1` (`modkit/contracts/identityv1`) | 1 | the core | `For(org, environment)` opens an environment's directory; the client lists, gets, creates, updates and deletes groups and roles, changes group members, role permissions and role assignments, and ensures or removes MCP resource servers. In Lite only the default environment has one (the platform ThunderID); any other answers `ErrNotProvisioned`. | `ai-gateway` (agent-identity pages, MCP proxy scopes) |
+| `llm.proxy/v1` (`modkit/contracts/llmv1`) | 1 | `ai-gateway` | `ValidateProviders` | none in this repository |
+| `mcp.proxy/v1` (`modkit/contracts/mcpv1`) | 1 | `ai-gateway` | `ValidateProxies` | none in this repository |
 
 ## Testing
 

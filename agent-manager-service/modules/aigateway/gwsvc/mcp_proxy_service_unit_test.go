@@ -33,9 +33,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
@@ -278,32 +278,32 @@ func TestMCPProxyDelete_CleansThunderResourceServers(t *testing.T) {
 	var deletedHandle string
 	type removedPermission struct {
 		roleID string
-		req    thundersvc.RolePermissionRequest
+		req    identityv1.RolePermission
 	}
 	var removed []removedPermission
-	envClient := &clientmocks.EnvIdentityClientMock{
-		DeleteProxyResourceServerFunc: func(_ context.Context, proxyHandle string) error {
+	envClient := &identitymocks.ClientMock{
+		DeleteResourceServerFunc: func(_ context.Context, proxyHandle string) error {
 			deletedHandle = proxyHandle
 			return nil
 		},
-		ListRolesFunc: func(_ context.Context, ouID string, offset, _ int) ([]thundersvc.ThunderRole, int, error) {
+		ListRolesFunc: func(_ context.Context, ouID string, offset, _ int) ([]identityv1.Role, int, error) {
 			assert.Equal(t, "", ouID, "role sweep must list every role in the env-Thunder, not filter by a platform OU")
 			if offset > 0 {
 				return nil, 1, nil
 			}
-			return []thundersvc.ThunderRole{
-				{ID: "role-1", Permissions: []thundersvc.RolePermissionRequest{
+			return []identityv1.Role{
+				{ID: "role-1", Permissions: []identityv1.RolePermission{
 					{ResourceServerID: "rs-1", Permissions: []string{"gh-proxy:read", "gh-proxy:write"}},
 				}},
 			}, 1, nil
 		},
-		RemoveRolePermissionsFunc: func(_ context.Context, roleID string, req thundersvc.RolePermissionRequest) error {
+		RemoveRolePermissionsFunc: func(_ context.Context, roleID string, req identityv1.RolePermission) error {
 			removed = append(removed, removedPermission{roleID: roleID, req: req})
 			return nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, ouID, _, envName string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, ouID, envName string) (identityv1.Client, error) {
 			assert.Equal(t, "org-uuid", ouID, "cleanup must resolve by ouID (orgUUID), not orgName")
 			assert.Equal(t, "env-a", envName)
 			return envClient, nil
@@ -324,8 +324,8 @@ func TestMCPProxyDelete_CleansThunderResourceServers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "gh-proxy", deletedHandle)
 	if assert.Len(t, removed, 2) {
-		assert.Equal(t, thundersvc.RolePermissionRequest{ResourceServerID: "rs-1", Permissions: []string{"gh-proxy:read"}}, removed[0].req)
-		assert.Equal(t, thundersvc.RolePermissionRequest{ResourceServerID: "rs-1", Permissions: []string{"gh-proxy:write"}}, removed[1].req)
+		assert.Equal(t, identityv1.RolePermission{ResourceServerID: "rs-1", Permissions: []string{"gh-proxy:read"}}, removed[0].req)
+		assert.Equal(t, identityv1.RolePermission{ResourceServerID: "rs-1", Permissions: []string{"gh-proxy:write"}}, removed[1].req)
 	}
 }
 
@@ -350,8 +350,8 @@ func TestMCPProxyDelete_CleanupSurvivesResolverError(t *testing.T) {
 	infra := stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
 		return []*models.EnvironmentResponse{{Name: "env-a", UUID: envUUID.String()}}, nil
 	}}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return nil, assert.AnError
 		},
 	}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -69,8 +70,8 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	mcpProxyEndpointRepository := gwrepo.NewMCPProxyEndpointRepository(db)
 	infraResourceManager := core.InfraResourceManager
 	mcpProxyScopeRepository := gwrepo.NewMCPProxyScopeRepository(db)
-	envThunderResolver := core.EnvThunderResolver
-	mcpProxyService := gwsvc.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, logger, v, mcpProxyScopeRepository, envThunderResolver, reconcileCore, mcpProxyKind, platformRepository)
+	identityDirectory := gwsvc.NewIdentityDirectory()
+	mcpProxyService := gwsvc.NewMCPProxyService(db, mcpProxyRepository, mcpProxyEndpointRepository, deploymentRepository, gatewayRepository, envAgentMCPMappingRepository, agentConfigurationRepository, gatewayEventsService, apiKeyRepository, infraResourceManager, logger, v, mcpProxyScopeRepository, identityDirectory, reconcileCore, mcpProxyKind, platformRepository)
 	llmProxyDeploymentService := gwsvc.NewLLMProxyDeploymentService(txRunner, deploymentRepository, llmProxyRepository, llmProviderRepository, gatewayRepository, gatewayEventsService, reconcileCore, llmProxyKind)
 	llmProxyAPIKeyService := gwsvc.NewLLMProxyAPIKeyService(llmProxyRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, platformRepository)
 	llmProviderAPIKeyService := gwsvc.NewLLMProviderAPIKeyService(llmProviderRepository, gatewayRepository, gatewayEventsService, apiKeyRepository)
@@ -111,10 +112,10 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	catalogService := gwsvc.NewCatalogService(logger, catalogRepository, platformRepository)
 	catalogController := gwctl.NewCatalogController(catalogService)
 	agentConfigurationController := gwctl.NewAgentConfigurationController(agentConfigurationService)
-	mcpProxyScopeService := gwsvc.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, envThunderResolver, mcpProxyService, logger)
+	mcpProxyScopeService := gwsvc.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, identityDirectory, mcpProxyService, logger)
 	mcpProxyScopeController := gwctl.NewMCPProxyScopeController(mcpProxyScopeService)
 	agentThunderClientRepository := core.AgentThunderClientRepository
-	agentIdentityController := gwctl.NewAgentIdentityController(envThunderResolver, agentThunderClientRepository, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
+	agentIdentityController := gwctl.NewAgentIdentityController(identityDirectory, agentThunderClientRepository, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
 	agentGatewayService := gwsvc.NewAgentGatewayService(db, platformRepository, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, a2APublisher, a2AAgentCardRepository, agentExposurePublisher, logger)
 	agentGatewayController := gwctl.NewAgentGatewayController(agentGatewayService)
 	environmentGatewayService := gwsvc.NewEnvironmentGatewayService(logger, gatewayRepository, platformRepository)
@@ -154,6 +155,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 		MCPProxyService:              mcpProxyService,
 		AgentConfigurationService:    agentConfigurationService,
 		AgentGateway:                 agentGatewayService,
+		IdentityDirectory:            identityDirectory,
 	}
 	return gateway, nil
 }
@@ -164,7 +166,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 var coreSet = wire.NewSet(wire.FieldsOf(
 	new(*wiring.AppParams),
 	"DB", "Config", "Logger", "PlatformRepository", "InfraResourceManager",
-	"EncryptionKey", "SecretManagementClient", "EnvThunderResolver",
+	"EncryptionKey", "SecretManagementClient",
 	"AgentThunderClientRepository",
 ), wiring.ProvideConfigFromPtr,
 )
@@ -184,7 +186,7 @@ var repositoryProviderSet = wire.NewSet(
 )
 
 var serviceProviderSet = wire.NewSet(gwsvc.NewA2ACardFetcher, gwsvc.NewA2ACardReconcilerService, gwsvc.NewConfiguredDeploymentTimeoutSweeper, gwsvc.NewA2AAgentCardService, ProvideTxRunner, gwsvc.NewAgentExposurePublisher, gwsvc.NewA2APublisher, gwsvc.NewA2AProxyService, ProvideA2AProxyHooks,
-	ProvidePlatformGatewayService, gwsvc.NewLLMProviderTemplateService, gwsvc.NewLLMProviderService, gwsvc.NewLLMProxyService, gwsvc.NewLLMProviderDeploymentService, gwsvc.NewLLMProviderAPIKeyService, gwsvc.NewLLMProxyAPIKeyService, gwsvc.NewAgentAPIKeyService, gwsvc.NewLLMProxyDeploymentService, gwsvc.NewMCPProxyService, gwsvc.NewMCPProxyScopeService, wire.Bind(new(gwsvc.MCPProxyRedeployer), new(*gwsvc.MCPProxyService)), wire.Bind(new(gwctl.MCPResourceServerIdentifierResolver), new(*gwsvc.MCPProxyService)), gwsvc.NewGatewayInternalAPIService, gwsvc.NewCatalogService, gwsvc.NewLLMProxyProvisioner, gwsvc.NewAgentConfigurationService, gwsvc.NewLLMTemplateStore, gwsvc.NewAIApplicationService, gwsvc.NewAgentGatewayService, gwsvc.NewEnvironmentGatewayService,
+	ProvidePlatformGatewayService, gwsvc.NewLLMProviderTemplateService, gwsvc.NewLLMProviderService, gwsvc.NewLLMProxyService, gwsvc.NewLLMProviderDeploymentService, gwsvc.NewLLMProviderAPIKeyService, gwsvc.NewLLMProxyAPIKeyService, gwsvc.NewAgentAPIKeyService, gwsvc.NewLLMProxyDeploymentService, gwsvc.NewMCPProxyService, gwsvc.NewIdentityDirectory, wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)), gwsvc.NewMCPProxyScopeService, wire.Bind(new(gwsvc.MCPProxyRedeployer), new(*gwsvc.MCPProxyService)), wire.Bind(new(gwctl.MCPResourceServerIdentifierResolver), new(*gwsvc.MCPProxyService)), gwsvc.NewGatewayInternalAPIService, gwsvc.NewCatalogService, gwsvc.NewLLMProxyProvisioner, gwsvc.NewAgentConfigurationService, gwsvc.NewLLMTemplateStore, gwsvc.NewAIApplicationService, gwsvc.NewAgentGatewayService, gwsvc.NewEnvironmentGatewayService,
 )
 
 var controllerProviderSet = wire.NewSet(gwctl.NewGatewayController, gwctl.NewLLMController, gwctl.NewLLMDeploymentController, gwctl.NewLLMProviderAPIKeyController, gwctl.NewLLMProxyAPIKeyController, gwctl.NewAgentAPIKeyController, gwctl.NewA2AAgentCardController, gwctl.NewA2AProxyController, gwctl.NewLLMProxyDeploymentController, gwctl.NewMCPProxyController, ProvideWebSocketController, gwctl.NewGatewayInternalController, gwctl.NewCatalogController, gwctl.NewAgentConfigurationController, gwctl.NewMCPProxyScopeController, gwctl.NewAgentIdentityController, gwctl.NewAgentGatewayController, gwctl.NewEnvironmentGatewayController)

@@ -28,9 +28,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -38,7 +38,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -86,11 +85,11 @@ type MCPResourceServerIdentifierResolver interface {
 	EnvironmentUUIDByName(ctx context.Context, ouID, envName string) (uuid.UUID, error)
 	MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *gwmodels.MCPProxy) (string, error)
 	// EnsureResourceServer ensures proxy's resource server exists with exactly actions.
-	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *gwmodels.MCPProxy, actions []string) (string, error)
+	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client identityv1.Client, proxy *gwmodels.MCPProxy, actions []string) (string, error)
 }
 
 type agentIdentityController struct {
-	resolver      thundersvc.EnvThunderResolver
+	resolver      identityv1.Directory
 	bindingRepo   repositories.AgentThunderClientRepository
 	proxyRepo     gwrepo.MCPProxyRepository
 	scopeRepo     gwrepo.MCPProxyScopeRepository
@@ -99,7 +98,7 @@ type agentIdentityController struct {
 
 // NewAgentIdentityController creates a new agent-identity passthrough controller.
 func NewAgentIdentityController(
-	resolver thundersvc.EnvThunderResolver,
+	resolver identityv1.Directory,
 	bindingRepo repositories.AgentThunderClientRepository,
 	proxyRepo gwrepo.MCPProxyRepository,
 	scopeRepo gwrepo.MCPProxyScopeRepository,
@@ -131,7 +130,7 @@ func (c *agentIdentityController) resolveScopeEnvironment(w http.ResponseWriter,
 
 // ensureGroupResourceServer ensures the group's resource server exists,
 // writing the HTTP error itself when ok=false.
-func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWriter, r *http.Request, client thundersvc.EnvIdentityClient, envID uuid.UUID, g *proxyScopeGroup) (string, bool) {
+func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWriter, r *http.Request, client identityv1.Client, envID uuid.UUID, g *proxyScopeGroup) (string, bool) {
 	ctx := r.Context()
 	ouID := middleware.OUIDFromRequest(r)
 	envName := r.PathValue("envName")
@@ -154,10 +153,10 @@ func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWrite
 // writing the error response itself when resolution fails (returns ok=false).
 // An unprovisioned or unreachable environment surfaces 503 so callers know to
 // retry once the environment's Thunder is available, rather than a generic 500.
-func (c *agentIdentityController) envClient(w http.ResponseWriter, r *http.Request) (thundersvc.EnvIdentityClient, bool) {
+func (c *agentIdentityController) envClient(w http.ResponseWriter, r *http.Request) (identityv1.Client, bool) {
 	ouID := middleware.OUIDFromRequest(r)
 	envName := r.PathValue("envName")
-	client, err := services.ResolveEnvThunderIdentity(r.Context(), c.resolver, ouID, envName)
+	client, err := c.resolver.For(r.Context(), ouID, envName)
 	if err != nil {
 		logger.GetLogger(r.Context()).Error("agent-identity: env-thunder resolve failed", "ouID", ouID, "env", envName, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable,
@@ -171,18 +170,18 @@ func (c *agentIdentityController) envClient(w http.ResponseWriter, r *http.Reque
 
 // managedGroup fetches the group and treats Thunder's native Administrators
 // group as nonexistent, matching its exclusion from the OU-scoped listing — see
-// thundersvc.NativeAdministratorsGroupName for why that group grants admin.
+// identityv1.AdministratorsGroupName for why that group grants admin.
 // Writes the error response itself when ok=false.
 //
 // Unlike managedRole, which leaves RemoveRoleAssignees and the read-only
 // assignment lookups open so a mis-assignment can be cleaned up through the
 // same API, this guards every group operation: an agent already mis-added to
 // the native group must be removed with direct Thunder admin access.
-func (c *agentIdentityController) managedGroup(w http.ResponseWriter, r *http.Request, client thundersvc.EnvIdentityClient, groupID string) (*thundersvc.ThunderGroup, bool) {
+func (c *agentIdentityController) managedGroup(w http.ResponseWriter, r *http.Request, client identityv1.Client, groupID string) (*identityv1.Group, bool) {
 	ctx := r.Context()
 	group, err := client.GetGroup(ctx, groupID)
 	if err != nil {
-		if thundersvc.IsNotFound(err) {
+		if errors.Is(err, identityv1.ErrNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return nil, false
 		}
@@ -193,7 +192,7 @@ func (c *agentIdentityController) managedGroup(w http.ResponseWriter, r *http.Re
 	if !controllers.ValidateSystemGroup(w, group.Name) {
 		return nil, false
 	}
-	return group, true
+	return &group, true
 }
 
 func (c *agentIdentityController) ListGroups(w http.ResponseWriter, r *http.Request) {
@@ -204,7 +203,7 @@ func (c *agentIdentityController) ListGroups(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	ouID, err := client.GetDefaultOUID(ctx)
+	ouID, err := client.DefaultOUID(ctx)
 	if err != nil {
 		log.Error("agent-identity ListGroups: resolve default OU failed", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadGateway, "Failed to resolve environment identity provider OU")
@@ -214,7 +213,7 @@ func (c *agentIdentityController) ListGroups(w http.ResponseWriter, r *http.Requ
 	offset, limit := paginationParams(r)
 	// ListGroupsByOUId excludes the native Administrators group before paginating,
 	// so offset/limit/total need no adjustment here.
-	groups, total, err := client.ListGroupsByOUId(ctx, ouID, offset, limit)
+	groups, total, err := client.ListGroups(ctx, ouID, offset, limit)
 	if err != nil {
 		log.Error("agent-identity ListGroups failed", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list groups")
@@ -244,16 +243,16 @@ func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
-	ouID, err := client.GetDefaultOUID(ctx)
+	ouID, err := client.DefaultOUID(ctx)
 	if err != nil {
 		log.Error("agent-identity CreateGroup: resolve default OU failed", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadGateway, "Failed to resolve environment identity provider OU")
 		return
 	}
 
-	group, err := client.CreateGroup(ctx, thundersvc.CreateGroupRequest{
+	group, err := client.CreateGroup(ctx, identityv1.GroupInput{
 		Name:        body.Name,
-		OuID:        ouID,
+		OUID:        ouID,
 		Description: derefString(body.Description),
 	})
 	if err != nil {
@@ -306,9 +305,9 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 	}
 	// Thunder's PUT /groups/{id} is a full replace: NewGroupReplace preserves the
 	// group's current name when the body omits it, applying only the given fields.
-	group, err := client.UpdateGroup(ctx, groupID, thundersvc.NewGroupReplace(*current, namePtr, body.Description))
+	group, err := client.UpdateGroup(ctx, groupID, groupReplace(*current, namePtr, body.Description))
 	if err != nil {
-		if thundersvc.IsNotFound(err) {
+		if errors.Is(err, identityv1.ErrNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
@@ -332,7 +331,7 @@ func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Req
 		return
 	}
 	if err := client.DeleteGroup(ctx, groupID); err != nil {
-		if thundersvc.IsNotFound(err) {
+		if errors.Is(err, identityv1.ErrNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
@@ -358,7 +357,7 @@ func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http
 	offset, limit := paginationParams(r)
 	// Agent-identity group members are agents, not users, so return the raw typed
 	// member entries rather than resolving user members.
-	members, total, err := client.ListGroupMemberEntries(ctx, groupID, offset, limit)
+	members, total, err := client.ListGroupMembers(ctx, groupID, offset, limit)
 	if err != nil {
 		log.Error("agent-identity GetGroupMembers failed", "groupID", groupID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
@@ -389,7 +388,7 @@ func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http
 	if _, ok := c.managedGroup(w, r, client, groupID); !ok {
 		return
 	}
-	if err := client.AddGroupMemberEntries(ctx, groupID, agentMemberEntries(body.AgentIds)); err != nil {
+	if err := client.AddGroupMembers(ctx, groupID, agentMemberEntries(body.AgentIds)); err != nil {
 		log.Error("agent-identity AddGroupMembers failed", "groupID", groupID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
 		return
@@ -419,7 +418,7 @@ func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *h
 	if _, ok := c.managedGroup(w, r, client, groupID); !ok {
 		return
 	}
-	if err := client.RemoveGroupMemberEntries(ctx, groupID, agentMemberEntries(body.AgentIds)); err != nil {
+	if err := client.RemoveGroupMembers(ctx, groupID, agentMemberEntries(body.AgentIds)); err != nil {
 		log.Error("agent-identity RemoveGroupMembers failed", "groupID", groupID, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
 		return
@@ -441,7 +440,7 @@ func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.R
 	}
 	roles, err := client.GetGroupRoles(ctx, groupID)
 	if err != nil {
-		if thundersvc.IsNotFound(err) {
+		if errors.Is(err, identityv1.ErrNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
@@ -462,7 +461,7 @@ func (c *agentIdentityController) ListRoles(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	ouID, err := client.GetDefaultOUID(ctx)
+	ouID, err := client.DefaultOUID(ctx)
 	if err != nil {
 		log.Error("agent-identity ListRoles: resolve default OU failed", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadGateway, "Failed to resolve environment identity provider OU")
@@ -513,7 +512,7 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 	if !ok {
 		return
 	}
-	ouID, err := client.GetDefaultOUID(ctx)
+	ouID, err := client.DefaultOUID(ctx)
 	if err != nil {
 		log.Error("agent-identity CreateRole: resolve default OU failed", "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadGateway, "Failed to resolve environment identity provider OU")
@@ -539,9 +538,9 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	role, err := client.CreateRole(ctx, thundersvc.CreateRoleRequest{
+	role, err := client.CreateRole(ctx, identityv1.RoleInput{
 		Name:        body.Name,
-		OuID:        ouID,
+		OUID:        ouID,
 		Description: derefString(body.Description),
 	})
 	if err != nil {
@@ -552,7 +551,7 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 
 	for _, handle := range sortedKeys(groups) {
 		g := groups[handle]
-		if err := client.AddRolePermissions(ctx, role.ID, thundersvc.RolePermissionRequest{ResourceServerID: rsIDByHandle[handle], Permissions: g.scopes}); err != nil {
+		if err := client.AddRolePermissions(ctx, role.ID, identityv1.RolePermission{ResourceServerID: rsIDByHandle[handle], Permissions: g.scopes}); err != nil {
 			log.Error("agent-identity CreateRole: add role permissions failed", "roleID", role.ID, "proxy", g.handle, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Role created but scope permissions failed; edit the role to retry")
 			return
@@ -574,17 +573,17 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 // nonexistent (404, matching their exclusion from ListRoles): both carry the
 // built-in "system" scope, and exposing either through this API is how agent
 // identities were acquiring env-Thunder admin — see
-// thundersvc.NativeAdministratorRoleName and thundersvc.AMPSystemClientRoleName.
+// identityv1.AdministratorRoleName and identityv1.SystemClientRoleName.
 // Writes the error response itself when ok=false. RemoveRoleAssignees deliberately
 // skips this guard so an existing mis-assignment can still be cleaned up through
 // the same API, and the read-only GetRoleAssignments/GetGroupRoles stay unguarded
 // for the same reason — finding which agents and groups to clean up requires
 // seeing them.
-func (c *agentIdentityController) managedRole(w http.ResponseWriter, r *http.Request, client thundersvc.EnvIdentityClient, roleID string) (*thundersvc.ThunderRole, bool) {
+func (c *agentIdentityController) managedRole(w http.ResponseWriter, r *http.Request, client identityv1.Client, roleID string) (*identityv1.Role, bool) {
 	ctx := r.Context()
 	role, err := client.GetRole(ctx, roleID)
 	if err != nil {
-		if thundersvc.IsNotFound(err) {
+		if errors.Is(err, identityv1.ErrNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return nil, false
 		}
@@ -592,11 +591,11 @@ func (c *agentIdentityController) managedRole(w http.ResponseWriter, r *http.Req
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role")
 		return nil, false
 	}
-	if role.Name == thundersvc.NativeAdministratorRoleName || role.Name == thundersvc.AMPSystemClientRoleName {
+	if role.Name == identityv1.AdministratorRoleName || role.Name == identityv1.SystemClientRoleName {
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 		return nil, false
 	}
-	return role, true
+	return &role, true
 }
 
 func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request) {
@@ -651,9 +650,9 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 	// role's ouId and current permissions and preserves the name when the body
 	// omits it, so a metadata change never blanks the name or drops permissions.
 	// The scope reconcile below then applies the requested additions/removals.
-	updated, err := client.UpdateRole(ctx, roleID, thundersvc.NewRoleReplace(*current, namePtr, body.Description))
+	updated, err := client.UpdateRole(ctx, roleID, roleReplace(*current, namePtr, body.Description))
 	if err != nil {
-		if thundersvc.IsNotFound(err) {
+		if errors.Is(err, identityv1.ErrNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
@@ -715,14 +714,14 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 		additions := stringSetDifference(desired[rsID], currentByRS[rsID])
 		removals := stringSetDifference(currentByRS[rsID], desired[rsID])
 		if len(additions) > 0 {
-			if err := client.AddRolePermissions(ctx, roleID, thundersvc.RolePermissionRequest{ResourceServerID: rsID, Permissions: additions}); err != nil {
+			if err := client.AddRolePermissions(ctx, roleID, identityv1.RolePermission{ResourceServerID: rsID, Permissions: additions}); err != nil {
 				log.Error("agent-identity UpdateRole: add role permissions failed", "roleID", roleID, "resourceServerID", rsID, "error", err)
 				httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role permissions")
 				return
 			}
 		}
 		if len(removals) > 0 {
-			if err := client.RemoveRolePermissions(ctx, roleID, thundersvc.RolePermissionRequest{ResourceServerID: rsID, Permissions: removals}); err != nil {
+			if err := client.RemoveRolePermissions(ctx, roleID, identityv1.RolePermission{ResourceServerID: rsID, Permissions: removals}); err != nil {
 				log.Error("agent-identity UpdateRole: remove role permissions failed", "roleID", roleID, "resourceServerID", rsID, "error", err)
 				httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role permissions")
 				return
@@ -753,7 +752,7 @@ func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := client.DeleteRole(ctx, roleID); err != nil {
-		if thundersvc.IsNotFound(err) {
+		if errors.Is(err, identityv1.ErrNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
@@ -773,9 +772,9 @@ func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *h
 	if !ok {
 		return
 	}
-	assignments, err := client.GetAgentRoleAssignments(ctx, roleID)
+	assignments, err := client.GetRoleAssignments(ctx, roleID)
 	if err != nil {
-		if thundersvc.IsNotFound(err) {
+		if errors.Is(err, identityv1.ErrNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
@@ -884,35 +883,35 @@ func paginationParams(r *http.Request) (offset, limit int) {
 }
 
 // agentMemberEntries maps agent IDs to typed group member entries.
-func agentMemberEntries(agentIDs []string) []thundersvc.GroupMember {
-	members := make([]thundersvc.GroupMember, 0, len(agentIDs))
+func agentMemberEntries(agentIDs []string) []identityv1.Member {
+	members := make([]identityv1.Member, 0, len(agentIDs))
 	for _, id := range agentIDs {
-		members = append(members, thundersvc.GroupMember{ID: id, Type: "agent"})
+		members = append(members, identityv1.Member{ID: id, Type: "agent"})
 	}
 	return members
 }
 
 // decodeAgentIdentityAssignments converts the request payload into the Thunder
 // assignments shape, accepting only agent and group assignee types.
-func decodeAgentIdentityAssignments(r *http.Request) (thundersvc.RoleAssignmentsRequest, error) {
+func decodeAgentIdentityAssignments(r *http.Request) ([]identityv1.Member, error) {
 	var body gwspec.AgentIdentityAssignmentsRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		return thundersvc.RoleAssignmentsRequest{}, errors.New("invalid request body")
+		return nil, errors.New("invalid request body")
 	}
 	if len(body.Assignments) == 0 {
-		return thundersvc.RoleAssignmentsRequest{}, errors.New("assignments must not be empty")
+		return nil, errors.New("assignments must not be empty")
 	}
-	entries := make([]thundersvc.AssignmentEntry, 0, len(body.Assignments))
+	entries := make([]identityv1.Member, 0, len(body.Assignments))
 	for _, a := range body.Assignments {
 		if a.Type != "agent" && a.Type != "group" {
-			return thundersvc.RoleAssignmentsRequest{}, fmt.Errorf("assignment type %q is not allowed (must be agent or group)", a.Type)
+			return nil, fmt.Errorf("assignment type %q is not allowed (must be agent or group)", a.Type)
 		}
 		if a.Id == "" {
-			return thundersvc.RoleAssignmentsRequest{}, errors.New("assignment id must not be empty")
+			return nil, errors.New("assignment id must not be empty")
 		}
-		entries = append(entries, thundersvc.AssignmentEntry{ID: a.Id, Type: a.Type})
+		entries = append(entries, identityv1.Member{ID: a.Id, Type: a.Type})
 	}
-	return thundersvc.RoleAssignmentsRequest{Assignments: entries}, nil
+	return entries, nil
 }
 
 // proxyScopeGroup is one proxy's slice of a role's requested scopes.
@@ -997,4 +996,29 @@ func stringSetDifference(a, b []string) []string {
 		}
 	}
 	return diff
+}
+
+// groupReplace is a full-replace update of cur: the directory's PUT replaces the whole group, so the organization
+// unit is always carried over. A nil override keeps the current value.
+func groupReplace(cur identityv1.Group, name, description *string) identityv1.GroupInput {
+	in := identityv1.GroupInput{OUID: cur.OUID, Name: cur.Name, Description: cur.Description}
+	if name != nil {
+		in.Name = *name
+	}
+	if description != nil {
+		in.Description = *description
+	}
+	return in
+}
+
+// roleReplace is groupReplace for a role, which also carries its permissions over.
+func roleReplace(cur identityv1.Role, name, description *string) identityv1.RoleInput {
+	in := identityv1.RoleInput{OUID: cur.OUID, Name: cur.Name, Description: cur.Description, Permissions: cur.Permissions}
+	if name != nil {
+		in.Name = *name
+	}
+	if description != nil {
+		in.Description = *description
+	}
+	return in
 }

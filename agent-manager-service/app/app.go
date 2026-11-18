@@ -42,6 +42,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -383,6 +384,7 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		Core:          repositories.NewCoreReadAPI(database),
 		Secrets:       repositories.NewModuleSecretStore(database, deps.EncryptionKey),
 		InternalURL:   config.GetConfig().InternalServerPublicURL,
+		Capabilities:  map[string]any{identityv1.ID: services.NewIdentityDirectory(deps.EnvThunderResolver)},
 	}
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
 		attach.Tokens = signer

@@ -24,9 +24,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
@@ -72,12 +72,12 @@ func TestMCPResourceServerEnsureUsesEachEnvironmentsThunder(t *testing.T) {
 	proxy, svc := deployedIdentityProxy(envA, envB)
 
 	var resolved []string
-	svc.resolver = &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, ouID, _, envName string) (thundersvc.EnvIdentityClient, error) {
+	svc.resolver = &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, ouID, envName string) (identityv1.Client, error) {
 			require.Equal(t, "ou-1", ouID)
 			resolved = append(resolved, envName)
-			return &clientmocks.EnvIdentityClientMock{
-				EnsureProxyResourceServerFunc: func(_ context.Context, handle, name, identifier string, actions []string) (string, error) {
+			return &identitymocks.ClientMock{
+				EnsureResourceServerFunc: func(_ context.Context, handle, name, identifier string, actions []string) (string, error) {
 					require.Equal(t, "deepwiki", handle)
 					require.Equal(t, "Deep Wiki", name)
 					require.Equal(t, "https://gw.example.com/deepwiki/mcp", identifier)
@@ -98,8 +98,8 @@ func TestLegacyMCPResourceServerProvider(t *testing.T) {
 	request := MCPResourceServerRequest{OrganizationID: "ou-1", ProxyHandle: "deepwiki", Environment: "dev"}
 
 	t.Run("a resolver failure is returned, not swallowed", func(t *testing.T) {
-		provider := &legacyMCPResourceServerProvider{resolver: &clientmocks.EnvThunderResolverMock{
-			ResolveIdentityFunc: func(context.Context, string, string, string) (thundersvc.EnvIdentityClient, error) {
+		provider := &legacyMCPResourceServerProvider{resolver: &identitymocks.DirectoryMock{
+			ForFunc: func(context.Context, string, string) (identityv1.Client, error) {
 				return nil, errors.New("unreachable")
 			},
 		}}
@@ -108,10 +108,10 @@ func TestLegacyMCPResourceServerProvider(t *testing.T) {
 
 	t.Run("no roles are swept when the resource server was never there", func(t *testing.T) {
 		// ListRoles is not stubbed: the mock panics if it is called.
-		provider := &legacyMCPResourceServerProvider{logger: discardLogger(), resolver: &clientmocks.EnvThunderResolverMock{
-			ResolveIdentityFunc: func(context.Context, string, string, string) (thundersvc.EnvIdentityClient, error) {
-				return &clientmocks.EnvIdentityClientMock{
-					DeleteProxyResourceServerActionFunc: func(context.Context, string, string) (string, error) { return "", nil },
+		provider := &legacyMCPResourceServerProvider{logger: discardLogger(), resolver: &identitymocks.DirectoryMock{
+			ForFunc: func(context.Context, string, string) (identityv1.Client, error) {
+				return &identitymocks.ClientMock{
+					RemoveResourceServerActionFunc: func(context.Context, string, string) (string, error) { return "", nil },
 				}, nil
 			},
 		}}
@@ -119,10 +119,10 @@ func TestLegacyMCPResourceServerProvider(t *testing.T) {
 	})
 
 	t.Run("a failed server delete skips the role sweep", func(t *testing.T) {
-		provider := &legacyMCPResourceServerProvider{logger: discardLogger(), resolver: &clientmocks.EnvThunderResolverMock{
-			ResolveIdentityFunc: func(context.Context, string, string, string) (thundersvc.EnvIdentityClient, error) {
-				return &clientmocks.EnvIdentityClientMock{
-					DeleteProxyResourceServerFunc: func(context.Context, string) error { return errors.New("boom") },
+		provider := &legacyMCPResourceServerProvider{logger: discardLogger(), resolver: &identitymocks.DirectoryMock{
+			ForFunc: func(context.Context, string, string) (identityv1.Client, error) {
+				return &identitymocks.ClientMock{
+					DeleteResourceServerFunc: func(context.Context, string) error { return errors.New("boom") },
 				}, nil
 			},
 		}}

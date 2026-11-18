@@ -116,10 +116,13 @@ type Deps struct {
 	// for the endpoints a heartbeat returns; empty means the origin each
 	// heartbeat arrived on.
 	InternalURL string
+	// Capabilities are the core's implementations of CoreCapabilities, by id.
+	Capabilities map[string]any
 }
 
 // Attach supplies the core services modules use. Call it before Boot.
 func (h *Host) Attach(d Deps) {
+	checkCoreCapabilities(d.Capabilities)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.d = d

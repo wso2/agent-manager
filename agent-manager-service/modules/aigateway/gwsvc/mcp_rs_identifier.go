@@ -24,7 +24,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -32,7 +32,7 @@ import (
 
 // ensureResourceServerPerEnvTimeout bounds one environment's ensure attempt
 // inside EnsureResourceServersForProxy's fan-out. Thunder's HTTP client
-// already times out a single request at 30s (see thundersvc.httpClientTimeout),
+// already times out a single request at 30s,
 // but EnsureResourceServer can make several such calls per environment, so
 // without its own bound one slow environment could stall the whole fan-out
 // far past that.
@@ -100,14 +100,14 @@ func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID 
 // exist in envID's env-Thunder, so role creation and scope save register the
 // identical server. Returns the resource server's Thunder ID.
 func (s *MCPProxyService) EnsureResourceServer(
-	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
+	ctx context.Context, ouID string, envID uuid.UUID, client identityv1.Client,
 	proxy *gwmodels.MCPProxy, actions []string,
 ) (string, error) {
 	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
 	if err != nil {
 		return "", err
 	}
-	return client.EnsureProxyResourceServer(ctx, proxyHandleOf(proxy), mcpResourceServerDisplayName(proxy), identifier, actions)
+	return client.EnsureResourceServer(ctx, proxyHandleOf(proxy), mcpResourceServerDisplayName(proxy), identifier, actions)
 }
 
 // mcpResourceServerDisplayName is the proxy's display name, falling back to its handle.
@@ -178,7 +178,7 @@ func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouI
 			envCtx, cancel := context.WithTimeout(ctx, ensureResourceServerPerEnvTimeout)
 			_, err := s.ensureProxyResourceServerInEnv(envCtx, ouID, ee.EnvironmentUUID, name, proxy, actions)
 			cancel()
-			if errors.Is(err, thundersvc.ErrThunderNotProvisioned) {
+			if errors.Is(err, identityv1.ErrNotProvisioned) {
 				s.logger.Info("ensure resource server: skipped, the environment has no identity provider yet", "proxy", handle, "env", name)
 				continue
 			}

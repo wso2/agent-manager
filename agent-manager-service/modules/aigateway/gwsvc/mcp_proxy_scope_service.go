@@ -29,7 +29,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
@@ -61,7 +61,7 @@ type mcpProxyScopeService struct {
 	scopeRepo    gwrepo.MCPProxyScopeRepository
 	proxyRepo    gwrepo.MCPProxyRepository
 	infraManager services.InfraResourceManager
-	resolver     thundersvc.EnvThunderResolver
+	resolver     identityv1.Directory
 	proxySvc     MCPProxyRedeployer
 	logger       *slog.Logger
 }
@@ -71,7 +71,7 @@ func NewMCPProxyScopeService(
 	scopeRepo gwrepo.MCPProxyScopeRepository,
 	proxyRepo gwrepo.MCPProxyRepository,
 	infraManager services.InfraResourceManager,
-	resolver thundersvc.EnvThunderResolver,
+	resolver identityv1.Directory,
 	proxySvc MCPProxyRedeployer,
 	logger *slog.Logger,
 ) MCPProxyScopeService {
@@ -365,7 +365,7 @@ func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID str
 // share it without duplicating the env-Thunder-OU-trap-prone ListRoles walk.
 // ListRoles("") pages all roles WITH permissions populated, so filtering is
 // in-memory (same pattern as GetGroupRoles, identity_client.go).
-func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thundersvc.EnvIdentityClient, envName, scopeStr string) {
+func sweepRolePermission(ctx context.Context, logger *slog.Logger, client identityv1.Client, envName, scopeStr string) {
 	const pageSize = 50
 	for offset := 0; ; {
 		roles, total, err := client.ListRoles(ctx, "", offset, pageSize)
@@ -378,7 +378,7 @@ func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thunde
 				if !slices.Contains(grp.Permissions, scopeStr) {
 					continue
 				}
-				if err := client.RemoveRolePermissions(ctx, role.ID, thundersvc.RolePermissionRequest{
+				if err := client.RemoveRolePermissions(ctx, role.ID, identityv1.RolePermission{
 					ResourceServerID: grp.ResourceServerID, Permissions: []string{scopeStr},
 				}); err != nil {
 					logger.Warn("scope cleanup: permission strip failed", "env", envName, "role", role.ID, "scope", scopeStr, "error", err)

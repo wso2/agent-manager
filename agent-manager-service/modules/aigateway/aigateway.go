@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
@@ -77,6 +78,7 @@ func (module) Manifest() modkit.Manifest {
 		CoreAPI:      modkit.CoreAPIVersion,
 		Builtin:      true,
 		Provides:     []string{llmv1.ID, mcpv1.ID},
+		Requires:     []string{identityv1.ID},
 		Permissions:  perms,
 		RoleGrants:   gwperm.RoleGrants,
 		Events:       gwaudit.Events,
@@ -127,6 +129,9 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	if gw == nil {
 		return errNotBuilt
 	}
+	gw.IdentityDirectory.Use(func() (identityv1.Directory, bool) {
+		return modkit.Lookup[identityv1.Directory](rt, identityv1.ID)
+	})
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
 	registerHooks(rt, gw.AgentGateway)

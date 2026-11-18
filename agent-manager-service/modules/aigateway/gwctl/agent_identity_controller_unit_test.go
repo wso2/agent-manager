@@ -30,10 +30,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -61,7 +61,7 @@ func (s stubRSIdentifierResolver) MCPResourceServerIdentifier(_ context.Context,
 // shape (derive identifier, then call the client) so tests exercise the same
 // error propagation the real implementation does.
 func (s stubRSIdentifierResolver) EnsureResourceServer(
-	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
+	ctx context.Context, ouID string, envID uuid.UUID, client identityv1.Client,
 	proxy *gwmodels.MCPProxy, actions []string,
 ) (string, error) {
 	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
@@ -72,7 +72,7 @@ func (s stubRSIdentifierResolver) EnsureResourceServer(
 	if proxy.Artifact != nil && proxy.Artifact.Name != "" {
 		name = proxy.Artifact.Name
 	}
-	return client.EnsureProxyResourceServer(ctx, proxy.Handle, name, identifier, actions)
+	return client.EnsureResourceServer(ctx, proxy.Handle, name, identifier, actions)
 }
 
 // TestAgentIdentityCreateRole_EnsuresPerProxyRSBeforePermissionWrite proves each
@@ -82,34 +82,34 @@ func TestAgentIdentityCreateRole_EnsuresPerProxyRSBeforePermissionWrite(t *testi
 	ghUUID, jiraUUID := uuid.New(), uuid.New()
 	var calls []string
 	addByRS := map[string][]string{}
-	envClient := &clientmocks.EnvIdentityClientMock{
-		GetDefaultOUIDFunc: func(_ context.Context) (string, error) { return "ou-env", nil },
-		EnsureProxyResourceServerFunc: func(_ context.Context, handle, _, identifier string, _ []string) (string, error) {
+	envClient := &identitymocks.ClientMock{
+		DefaultOUIDFunc: func(_ context.Context) (string, error) { return "ou-env", nil },
+		EnsureResourceServerFunc: func(_ context.Context, handle, _, identifier string, _ []string) (string, error) {
 			calls = append(calls, "ensure:"+handle)
 			assert.Equal(t, "https://gw.example.com/"+handle+"/mcp", identifier, "the resolver-derived identifier must reach the RS ensure")
 			return "rs-" + handle, nil
 		},
-		CreateRoleFunc: func(_ context.Context, req thundersvc.CreateRoleRequest) (*thundersvc.ThunderRole, error) {
+		CreateRoleFunc: func(_ context.Context, req identityv1.RoleInput) (identityv1.Role, error) {
 			calls = append(calls, "create")
-			return &thundersvc.ThunderRole{ID: "role-1", Name: req.Name}, nil
+			return identityv1.Role{ID: "role-1", Name: req.Name}, nil
 		},
-		AddRolePermissionsFunc: func(_ context.Context, _ string, req thundersvc.RolePermissionRequest) error {
+		AddRolePermissionsFunc: func(_ context.Context, _ string, req identityv1.RolePermission) error {
 			calls = append(calls, "add:"+req.ResourceServerID)
 			addByRS[req.ResourceServerID] = req.Permissions
 			return nil
 		},
 		// The handler re-fetches after the permission writes so the response
 		// carries the reconciled scopes rather than the empty create payload.
-		GetRoleFunc: func(_ context.Context, roleID string) (*thundersvc.ThunderRole, error) {
+		GetRoleFunc: func(_ context.Context, roleID string) (identityv1.Role, error) {
 			calls = append(calls, "get")
-			return &thundersvc.ThunderRole{ID: roleID, Name: "readers", Permissions: []thundersvc.RolePermissionRequest{
+			return identityv1.Role{ID: roleID, Name: "readers", Permissions: []identityv1.RolePermission{
 				{ResourceServerID: "rs-gh-proxy", Permissions: []string{"gh-proxy:read"}},
 				{ResourceServerID: "rs-jira-proxy", Permissions: []string{"jira-proxy:write"}},
 			}}, nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -153,15 +153,15 @@ func TestAgentIdentityCreateRole_EnsuresPerProxyRSBeforePermissionWrite(t *testi
 
 func TestAgentIdentityCreateRole_ProxyNotDeployedToEnvRejected(t *testing.T) {
 	proxyUUID := uuid.New()
-	envClient := &clientmocks.EnvIdentityClientMock{
-		GetDefaultOUIDFunc: func(_ context.Context) (string, error) { return "ou-env", nil },
-		EnsureProxyResourceServerFunc: func(_ context.Context, _, _, _ string, _ []string) (string, error) {
+	envClient := &identitymocks.ClientMock{
+		DefaultOUIDFunc: func(_ context.Context) (string, error) { return "ou-env", nil },
+		EnsureResourceServerFunc: func(_ context.Context, _, _, _ string, _ []string) (string, error) {
 			t.Fatal("RS ensure must not run when the identifier cannot be derived")
 			return "", nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -194,7 +194,7 @@ func TestAgentIdentityCreateRole_ProxyNotDeployedToEnvRejected(t *testing.T) {
 // proxy that does not exist is rejected with 400 before the environment's Thunder
 // is contacted (the resolver's ResolveIdentityFunc is left nil, so any call panics).
 func TestAgentIdentityCreateRole_UnknownProxyHandleRejected(t *testing.T) {
-	resolver := &clientmocks.EnvThunderResolverMock{} // ResolveIdentityFunc nil: must not be called
+	resolver := &identitymocks.DirectoryMock{} // ResolveIdentityFunc nil: must not be called
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
 		GetByHandleFunc: func(_ context.Context, _, _ string) (*gwmodels.MCPProxy, error) {
 			return nil, gorm.ErrRecordNotFound
@@ -219,7 +219,7 @@ func TestAgentIdentityCreateRole_UnknownProxyHandleRejected(t *testing.T) {
 // TestAgentIdentityCreateRole_UnknownActionRejected proves a scope whose action is
 // not defined on an existing proxy is rejected with 400.
 func TestAgentIdentityCreateRole_UnknownActionRejected(t *testing.T) {
-	resolver := &clientmocks.EnvThunderResolverMock{} // must not be called
+	resolver := &identitymocks.DirectoryMock{} // must not be called
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
 		GetByHandleFunc: func(_ context.Context, _, _ string) (*gwmodels.MCPProxy, error) {
 			return &gwmodels.MCPProxy{UUID: uuid.New()}, nil
@@ -249,7 +249,7 @@ func TestAgentIdentityCreateRole_UnknownActionRejected(t *testing.T) {
 // <proxy-handle>:<action> is rejected with 400 before any repository or Thunder call
 // (both repo funcs are left nil, so any call panics).
 func TestAgentIdentityCreateRole_MalformedScopeRejected(t *testing.T) {
-	resolver := &clientmocks.EnvThunderResolverMock{}
+	resolver := &identitymocks.DirectoryMock{}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{}      // GetByHandleFunc nil: must not be called
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{} // GetFunc nil: must not be called
 	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, nil)
@@ -275,18 +275,18 @@ func TestAgentIdentityUpdateRole_ReconcilesAcrossResourceServers(t *testing.T) {
 	ghUUID, jiraUUID := uuid.New(), uuid.New()
 	addByRS := map[string][]string{}
 	removeByRS := map[string][]string{}
-	currentPerms := []thundersvc.RolePermissionRequest{
+	currentPerms := []identityv1.RolePermission{
 		{ResourceServerID: "rs-gh", Permissions: []string{"gh-proxy:read", "gh-proxy:write"}},
 		{ResourceServerID: "rs-old", Permissions: []string{"old-proxy:use"}},
 	}
-	envClient := &clientmocks.EnvIdentityClientMock{
-		GetRoleFunc: func(_ context.Context, roleID string) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, OuID: "ou-env", Name: "readers", Permissions: currentPerms}, nil
+	envClient := &identitymocks.ClientMock{
+		GetRoleFunc: func(_ context.Context, roleID string) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, OUID: "ou-env", Name: "readers", Permissions: currentPerms}, nil
 		},
-		UpdateRoleFunc: func(_ context.Context, roleID string, req thundersvc.UpdateRoleRequest) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, Name: req.Name}, nil
+		UpdateRoleFunc: func(_ context.Context, roleID string, req identityv1.RoleInput) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, Name: req.Name}, nil
 		},
-		EnsureProxyResourceServerFunc: func(_ context.Context, handle, _, identifier string, _ []string) (string, error) {
+		EnsureResourceServerFunc: func(_ context.Context, handle, _, identifier string, _ []string) (string, error) {
 			assert.Equal(t, "https://gw.example.com/"+handle+"/mcp", identifier, "the resolver-derived identifier must reach the RS ensure")
 			switch handle {
 			case "gh-proxy":
@@ -296,17 +296,17 @@ func TestAgentIdentityUpdateRole_ReconcilesAcrossResourceServers(t *testing.T) {
 			}
 			return "", fmt.Errorf("unexpected handle %q", handle)
 		},
-		AddRolePermissionsFunc: func(_ context.Context, _ string, req thundersvc.RolePermissionRequest) error {
+		AddRolePermissionsFunc: func(_ context.Context, _ string, req identityv1.RolePermission) error {
 			addByRS[req.ResourceServerID] = req.Permissions
 			return nil
 		},
-		RemoveRolePermissionsFunc: func(_ context.Context, _ string, req thundersvc.RolePermissionRequest) error {
+		RemoveRolePermissionsFunc: func(_ context.Context, _ string, req identityv1.RolePermission) error {
 			removeByRS[req.ResourceServerID] = req.Permissions
 			return nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -350,18 +350,18 @@ func TestAgentIdentityUpdateRole_ReconcilesAcrossResourceServers(t *testing.T) {
 // replace, so an empty name would blank it). scopes is omitted (nil) and the role
 // has no permissions, so the handler returns right after the metadata write.
 func TestAgentIdentityUpdateRole_PreservesNameWhenOmitted(t *testing.T) {
-	var captured thundersvc.UpdateRoleRequest
-	envClient := &clientmocks.EnvIdentityClientMock{
-		GetRoleFunc: func(_ context.Context, roleID string) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, OuID: "ou-1", Name: "readers"}, nil
+	var captured identityv1.RoleInput
+	envClient := &identitymocks.ClientMock{
+		GetRoleFunc: func(_ context.Context, roleID string) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, OUID: "ou-1", Name: "readers"}, nil
 		},
-		UpdateRoleFunc: func(_ context.Context, roleID string, req thundersvc.UpdateRoleRequest) (*thundersvc.ThunderRole, error) {
+		UpdateRoleFunc: func(_ context.Context, roleID string, req identityv1.RoleInput) (identityv1.Role, error) {
 			captured = req
-			return &thundersvc.ThunderRole{ID: roleID, OuID: req.OuID, Name: req.Name}, nil
+			return identityv1.Role{ID: roleID, OUID: req.OUID, Name: req.Name}, nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -378,7 +378,7 @@ func TestAgentIdentityUpdateRole_PreservesNameWhenOmitted(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "readers", captured.Name, "omitted name must preserve the current role name")
-	assert.Equal(t, "ou-1", captured.OuID, "update must carry the role's ouId")
+	assert.Equal(t, "ou-1", captured.OUID, "update must carry the role's ouId")
 	assert.Equal(t, "metadata only", captured.Description, "provided description must be applied")
 }
 
@@ -387,27 +387,27 @@ func TestAgentIdentityUpdateRole_PreservesNameWhenOmitted(t *testing.T) {
 // untouched: omitting scopes decodes to nil, which skips the reconcile entirely,
 // so no resource server is written to.
 func TestAgentIdentityUpdateRole_OmittedScopesPreservesPermissions(t *testing.T) {
-	currentPerms := []thundersvc.RolePermissionRequest{
+	currentPerms := []identityv1.RolePermission{
 		{ResourceServerID: "rs-gh", Permissions: []string{"gh-proxy:read", "gh-proxy:write"}},
 	}
-	envClient := &clientmocks.EnvIdentityClientMock{
-		GetRoleFunc: func(_ context.Context, roleID string) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, OuID: "ou-1", Name: "readers", Permissions: currentPerms}, nil
+	envClient := &identitymocks.ClientMock{
+		GetRoleFunc: func(_ context.Context, roleID string) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, OUID: "ou-1", Name: "readers", Permissions: currentPerms}, nil
 		},
-		UpdateRoleFunc: func(_ context.Context, roleID string, req thundersvc.UpdateRoleRequest) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, OuID: req.OuID, Name: req.Name}, nil
+		UpdateRoleFunc: func(_ context.Context, roleID string, req identityv1.RoleInput) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, OUID: req.OUID, Name: req.Name}, nil
 		},
-		AddRolePermissionsFunc: func(_ context.Context, _ string, _ thundersvc.RolePermissionRequest) error {
+		AddRolePermissionsFunc: func(_ context.Context, _ string, _ identityv1.RolePermission) error {
 			t.Fatal("metadata-only update must not add permissions")
 			return nil
 		},
-		RemoveRolePermissionsFunc: func(_ context.Context, _ string, _ thundersvc.RolePermissionRequest) error {
+		RemoveRolePermissionsFunc: func(_ context.Context, _ string, _ identityv1.RolePermission) error {
 			t.Fatal("metadata-only update must not remove permissions")
 			return nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -430,27 +430,27 @@ func TestAgentIdentityUpdateRole_OmittedScopesPreservesPermissions(t *testing.T)
 // slice decodes to non-nil and drives the reconcile to remove all current scopes.
 func TestAgentIdentityUpdateRole_ExplicitEmptyScopesClearsPermissions(t *testing.T) {
 	removeByRS := map[string][]string{}
-	currentPerms := []thundersvc.RolePermissionRequest{
+	currentPerms := []identityv1.RolePermission{
 		{ResourceServerID: "rs-gh", Permissions: []string{"gh-proxy:read", "gh-proxy:write"}},
 	}
-	envClient := &clientmocks.EnvIdentityClientMock{
-		GetRoleFunc: func(_ context.Context, roleID string) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, OuID: "ou-1", Name: "readers", Permissions: currentPerms}, nil
+	envClient := &identitymocks.ClientMock{
+		GetRoleFunc: func(_ context.Context, roleID string) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, OUID: "ou-1", Name: "readers", Permissions: currentPerms}, nil
 		},
-		UpdateRoleFunc: func(_ context.Context, roleID string, req thundersvc.UpdateRoleRequest) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, OuID: req.OuID, Name: req.Name}, nil
+		UpdateRoleFunc: func(_ context.Context, roleID string, req identityv1.RoleInput) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, OUID: req.OUID, Name: req.Name}, nil
 		},
-		AddRolePermissionsFunc: func(_ context.Context, _ string, _ thundersvc.RolePermissionRequest) error {
+		AddRolePermissionsFunc: func(_ context.Context, _ string, _ identityv1.RolePermission) error {
 			t.Fatal("clearing scopes must not add permissions")
 			return nil
 		},
-		RemoveRolePermissionsFunc: func(_ context.Context, _ string, req thundersvc.RolePermissionRequest) error {
+		RemoveRolePermissionsFunc: func(_ context.Context, _ string, req identityv1.RolePermission) error {
 			removeByRS[req.ResourceServerID] = req.Permissions
 			return nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -475,20 +475,20 @@ func TestAgentIdentityUpdateRole_ExplicitEmptyScopesClearsPermissions(t *testing
 // fetches the current group and preserves its name when the body omits "name",
 // applying only the provided description.
 func TestAgentIdentityUpdateGroup_PreservesNameWhenOmitted(t *testing.T) {
-	var captured thundersvc.UpdateGroupRequest
+	var captured identityv1.GroupInput
 	getCalled := false
-	envClient := &clientmocks.EnvIdentityClientMock{
-		GetGroupFunc: func(_ context.Context, groupID string) (*thundersvc.ThunderGroup, error) {
+	envClient := &identitymocks.ClientMock{
+		GetGroupFunc: func(_ context.Context, groupID string) (identityv1.Group, error) {
 			getCalled = true
-			return &thundersvc.ThunderGroup{ID: groupID, Name: "team-a"}, nil
+			return identityv1.Group{ID: groupID, Name: "team-a"}, nil
 		},
-		UpdateGroupFunc: func(_ context.Context, groupID string, req thundersvc.UpdateGroupRequest) (*thundersvc.ThunderGroup, error) {
+		UpdateGroupFunc: func(_ context.Context, groupID string, req identityv1.GroupInput) (identityv1.Group, error) {
 			captured = req
-			return &thundersvc.ThunderGroup{ID: groupID, Name: req.Name, Description: req.Description}, nil
+			return identityv1.Group{ID: groupID, Name: req.Name, Description: req.Description}, nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -513,9 +513,9 @@ func TestAgentIdentityUpdateGroup_PreservesNameWhenOmitted(t *testing.T) {
 // has no provisioned Thunder, a passthrough handler surfaces 503 (not 500) so
 // callers know to retry once the environment is provisioned.
 func TestAgentIdentityRoutes_EnvThunderUnavailable(t *testing.T) {
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
-			return nil, thundersvc.ErrThunderNotProvisioned
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
+			return nil, identityv1.ErrNotProvisioned
 		},
 	}
 	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
@@ -550,7 +550,7 @@ func TestAgentIdentityListAgents_ReturnsBindings(t *testing.T) {
 			}, nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{} // must not be called
+	resolver := &identitymocks.DirectoryMock{} // must not be called
 	ctrl := NewAgentIdentityController(resolver, bindingRepo, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/orgs/o1/environments/dev/agent-identities/agents", nil)
@@ -584,17 +584,17 @@ func TestAgentIdentityListAgents_ReturnsBindings(t *testing.T) {
 // never the user-store GetRoleAssignments (its mock func is left nil, so any
 // call panics).
 func TestAgentIdentityGetRoleAssignments_UsesAgentSemantics(t *testing.T) {
-	envClient := &clientmocks.EnvIdentityClientMock{
-		GetAgentRoleAssignmentsFunc: func(_ context.Context, roleID string) (*thundersvc.AgentRoleAssignments, error) {
+	envClient := &identitymocks.ClientMock{
+		GetRoleAssignmentsFunc: func(_ context.Context, roleID string) (identityv1.RoleAssignments, error) {
 			assert.Equal(t, "r1", roleID)
-			return &thundersvc.AgentRoleAssignments{
-				Agents: []thundersvc.AssignmentEntry{{ID: "thunder-1", Type: "agent"}},
-				Groups: []thundersvc.ThunderGroup{{ID: "g1", Name: "readers"}},
+			return identityv1.RoleAssignments{
+				Agents: []identityv1.Member{{ID: "thunder-1", Type: "agent"}},
+				Groups: []identityv1.Group{{ID: "g1", Name: "readers"}},
 			}, nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -630,17 +630,17 @@ func TestAgentIdentityGetRoleAssignments_UsesAgentSemantics(t *testing.T) {
 // adminRoleEnvClient returns an env client whose GetRole always resolves the
 // native Administrator role. Every mutating func is left nil, so any write
 // reaching Thunder panics the test.
-func adminRoleEnvClient() *clientmocks.EnvIdentityClientMock {
-	return &clientmocks.EnvIdentityClientMock{
-		GetRoleFunc: func(_ context.Context, roleID string) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, OuID: "ou-env", Name: thundersvc.NativeAdministratorRoleName}, nil
+func adminRoleEnvClient() *identitymocks.ClientMock {
+	return &identitymocks.ClientMock{
+		GetRoleFunc: func(_ context.Context, roleID string) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, OUID: "ou-env", Name: identityv1.AdministratorRoleName}, nil
 		},
 	}
 }
 
-func adminRoleController(envClient *clientmocks.EnvIdentityClientMock) AgentIdentityController {
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+func adminRoleController(envClient *identitymocks.ClientMock) AgentIdentityController {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 			return envClient, nil
 		},
 	}
@@ -724,7 +724,7 @@ func TestAgentIdentityAddRoleAssignees_NativeAdministratorRejected(t *testing.T)
 func TestAgentIdentityRemoveRoleAssignees_NativeAdministratorAllowed(t *testing.T) {
 	removed := false
 	envClient := adminRoleEnvClient()
-	envClient.RemoveRoleAssigneesFunc = func(_ context.Context, roleID string, req thundersvc.RoleAssignmentsRequest) error {
+	envClient.RemoveRoleAssigneesFunc = func(_ context.Context, roleID string, req []identityv1.Member) error {
 		removed = true
 		assert.Equal(t, "r-admin", roleID)
 		return nil
@@ -745,10 +745,10 @@ func TestAgentIdentityRemoveRoleAssignees_NativeAdministratorAllowed(t *testing.
 // env-Thunder's own bootstrap-seeded AMP System Client Thunder Admin role.
 // Every mutating func is left nil, so any write reaching Thunder panics the
 // test.
-func sysClientRoleEnvClient() *clientmocks.EnvIdentityClientMock {
-	return &clientmocks.EnvIdentityClientMock{
-		GetRoleFunc: func(_ context.Context, roleID string) (*thundersvc.ThunderRole, error) {
-			return &thundersvc.ThunderRole{ID: roleID, OuID: "ou-env", Name: thundersvc.AMPSystemClientRoleName}, nil
+func sysClientRoleEnvClient() *identitymocks.ClientMock {
+	return &identitymocks.ClientMock{
+		GetRoleFunc: func(_ context.Context, roleID string) (identityv1.Role, error) {
+			return identityv1.Role{ID: roleID, OUID: "ou-env", Name: identityv1.SystemClientRoleName}, nil
 		},
 	}
 }
@@ -834,7 +834,7 @@ func TestAgentIdentityAddRoleAssignees_AMPSystemClientRejected(t *testing.T) {
 func TestAgentIdentityRemoveRoleAssignees_AMPSystemClientAllowed(t *testing.T) {
 	removed := false
 	envClient := sysClientRoleEnvClient()
-	envClient.RemoveRoleAssigneesFunc = func(_ context.Context, roleID string, req thundersvc.RoleAssignmentsRequest) error {
+	envClient.RemoveRoleAssigneesFunc = func(_ context.Context, roleID string, req []identityv1.Member) error {
 		removed = true
 		assert.Equal(t, "r-sysclient", roleID)
 		return nil
@@ -854,10 +854,10 @@ func TestAgentIdentityRemoveRoleAssignees_AMPSystemClientAllowed(t *testing.T) {
 // adminGroupEnvClient returns an env client whose GetGroup always resolves the
 // native Administrators group. Every other func is left nil, so any read or
 // write that slips past the guard and reaches Thunder panics the test.
-func adminGroupEnvClient() *clientmocks.EnvIdentityClientMock {
-	return &clientmocks.EnvIdentityClientMock{
-		GetGroupFunc: func(_ context.Context, groupID string) (*thundersvc.ThunderGroup, error) {
-			return &thundersvc.ThunderGroup{ID: groupID, OuID: "ou-env", Name: thundersvc.NativeAdministratorsGroupName}, nil
+func adminGroupEnvClient() *identitymocks.ClientMock {
+	return &identitymocks.ClientMock{
+		GetGroupFunc: func(_ context.Context, groupID string) (identityv1.Group, error) {
+			return identityv1.Group{ID: groupID, OUID: "ou-env", Name: identityv1.AdministratorsGroupName}, nil
 		},
 	}
 }
@@ -937,10 +937,10 @@ func TestAgentIdentityGroupHandlers_NativeAdministratorsHidden(t *testing.T) {
 // be created under the native Administrators name, which would shadow the hidden
 // system group. CreateGroupFunc is nil, so any write reaching Thunder panics.
 func TestAgentIdentityCreateGroup_ReservedNameRejected(t *testing.T) {
-	ctrl := adminRoleController(&clientmocks.EnvIdentityClientMock{})
+	ctrl := adminRoleController(&identitymocks.ClientMock{})
 
 	req := adminGroupRequest(http.MethodPost, "/orgs/o1/environments/dev/agent-identities/groups",
-		`{"name":"`+thundersvc.NativeAdministratorsGroupName+`"}`)
+		`{"name":"`+identityv1.AdministratorsGroupName+`"}`)
 	w := httptest.NewRecorder()
 
 	ctrl.CreateGroup(w, req)
@@ -952,10 +952,10 @@ func TestAgentIdentityCreateGroup_ReservedNameRejected(t *testing.T) {
 // cannot be renamed into the native Administrators name. The guard runs before
 // the group is fetched, so GetGroupFunc is nil here too.
 func TestAgentIdentityUpdateGroup_ReservedRenameRejected(t *testing.T) {
-	ctrl := adminRoleController(&clientmocks.EnvIdentityClientMock{})
+	ctrl := adminRoleController(&identitymocks.ClientMock{})
 
 	req := adminGroupRequest(http.MethodPut, "/orgs/o1/environments/dev/agent-identities/groups/g-1",
-		`{"name":"`+thundersvc.NativeAdministratorsGroupName+`"}`)
+		`{"name":"`+identityv1.AdministratorsGroupName+`"}`)
 	w := httptest.NewRecorder()
 
 	ctrl.UpdateGroup(w, req)
@@ -967,10 +967,10 @@ func TestAgentIdentityUpdateGroup_ReservedRenameRejected(t *testing.T) {
 // created under the native Administrator name. CreateRoleFunc is nil, so any
 // write reaching Thunder panics.
 func TestAgentIdentityCreateRole_ReservedNameRejected(t *testing.T) {
-	ctrl := adminRoleController(&clientmocks.EnvIdentityClientMock{})
+	ctrl := adminRoleController(&identitymocks.ClientMock{})
 
 	req := adminRoleRequest(http.MethodPost, "/orgs/o1/environments/dev/agent-identities/roles",
-		`{"name":"`+thundersvc.NativeAdministratorRoleName+`"}`)
+		`{"name":"`+identityv1.AdministratorRoleName+`"}`)
 	w := httptest.NewRecorder()
 
 	ctrl.CreateRole(w, req)
@@ -982,10 +982,10 @@ func TestAgentIdentityCreateRole_ReservedNameRejected(t *testing.T) {
 // cannot be renamed into the native Administrator name. managedRole already
 // blocks editing the native role itself; this closes the other direction.
 func TestAgentIdentityUpdateRole_ReservedRenameRejected(t *testing.T) {
-	ctrl := adminRoleController(&clientmocks.EnvIdentityClientMock{})
+	ctrl := adminRoleController(&identitymocks.ClientMock{})
 
 	req := adminRoleRequest(http.MethodPut, "/orgs/o1/environments/dev/agent-identities/roles/r-1",
-		`{"name":"`+thundersvc.NativeAdministratorRoleName+`"}`)
+		`{"name":"`+identityv1.AdministratorRoleName+`"}`)
 	w := httptest.NewRecorder()
 
 	ctrl.UpdateRole(w, req)
@@ -998,10 +998,10 @@ func TestAgentIdentityUpdateRole_ReservedRenameRejected(t *testing.T) {
 // under the system-client's reserved name either. CreateRoleFunc is nil, so
 // any write reaching Thunder panics.
 func TestAgentIdentityCreateRole_AMPSystemClientNameRejected(t *testing.T) {
-	ctrl := adminRoleController(&clientmocks.EnvIdentityClientMock{})
+	ctrl := adminRoleController(&identitymocks.ClientMock{})
 
 	req := adminRoleRequest(http.MethodPost, "/orgs/o1/environments/dev/agent-identities/roles",
-		`{"name":"`+thundersvc.AMPSystemClientRoleName+`"}`)
+		`{"name":"`+identityv1.SystemClientRoleName+`"}`)
 	w := httptest.NewRecorder()
 
 	ctrl.CreateRole(w, req)
@@ -1013,10 +1013,10 @@ func TestAgentIdentityCreateRole_AMPSystemClientNameRejected(t *testing.T) {
 // TestAgentIdentityUpdateRole_ReservedRenameRejected: an ordinary role cannot
 // be renamed into the system-client's reserved name either.
 func TestAgentIdentityUpdateRole_AMPSystemClientRenameRejected(t *testing.T) {
-	ctrl := adminRoleController(&clientmocks.EnvIdentityClientMock{})
+	ctrl := adminRoleController(&identitymocks.ClientMock{})
 
 	req := adminRoleRequest(http.MethodPut, "/orgs/o1/environments/dev/agent-identities/roles/r-1",
-		`{"name":"`+thundersvc.AMPSystemClientRoleName+`"}`)
+		`{"name":"`+identityv1.SystemClientRoleName+`"}`)
 	w := httptest.NewRecorder()
 
 	ctrl.UpdateRole(w, req)

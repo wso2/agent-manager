@@ -30,9 +30,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
@@ -318,33 +318,33 @@ func TestMCPProxyScopeDelete_CleansThunderBestEffort(t *testing.T) {
 
 	type removedPermission struct {
 		roleID string
-		req    thundersvc.RolePermissionRequest
+		req    identityv1.RolePermission
 	}
 	var removed []removedPermission
-	envAClient := &clientmocks.EnvIdentityClientMock{
-		DeleteProxyResourceServerActionFunc: func(ctx context.Context, proxyHandle, action string) (string, error) {
+	envAClient := &identitymocks.ClientMock{
+		RemoveResourceServerActionFunc: func(ctx context.Context, proxyHandle, action string) (string, error) {
 			assert.Equal(t, "gh-proxy", proxyHandle)
 			assert.Equal(t, "read", action)
 			return "rs-1", nil
 		},
-		ListRolesFunc: func(ctx context.Context, ouID string, offset, limit int) ([]thundersvc.ThunderRole, int, error) {
+		ListRolesFunc: func(ctx context.Context, ouID string, offset, limit int) ([]identityv1.Role, int, error) {
 			assert.Equal(t, "", ouID, "role sweep must list every role in the env-Thunder, not filter by a platform OU")
 			if offset > 0 {
 				return nil, 1, nil
 			}
-			return []thundersvc.ThunderRole{
-				{ID: "role-1", Permissions: []thundersvc.RolePermissionRequest{
+			return []identityv1.Role{
+				{ID: "role-1", Permissions: []identityv1.RolePermission{
 					{ResourceServerID: "rs-1", Permissions: []string{"gh-proxy:read", "gh-proxy:write"}},
 				}},
 			}, 1, nil
 		},
-		RemoveRolePermissionsFunc: func(ctx context.Context, roleID string, req thundersvc.RolePermissionRequest) error {
+		RemoveRolePermissionsFunc: func(ctx context.Context, roleID string, req identityv1.RolePermission) error {
 			removed = append(removed, removedPermission{roleID: roleID, req: req})
 			return nil
 		},
 	}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(ctx context.Context, ouID, orgNamespace, envName string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(ctx context.Context, ouID, envName string) (identityv1.Client, error) {
 			if envName == "env-a" {
 				return envAClient, nil
 			}
@@ -362,7 +362,7 @@ func TestMCPProxyScopeDelete_CleansThunderBestEffort(t *testing.T) {
 	assert.NoError(t, err)
 	if assert.Len(t, removed, 1) {
 		assert.Equal(t, "role-1", removed[0].roleID)
-		assert.Equal(t, thundersvc.RolePermissionRequest{
+		assert.Equal(t, identityv1.RolePermission{
 			ResourceServerID: "rs-1", Permissions: []string{"gh-proxy:read"},
 		}, removed[0].req)
 	}
@@ -387,8 +387,8 @@ func TestMCPProxyScopeDelete_BestEffortSurvivesResolverError(t *testing.T) {
 	infra := stubInfraManager{listOrgEnvs: func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
 		return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}}, nil
 	}}
-	resolver := &clientmocks.EnvThunderResolverMock{
-		ResolveIdentityFunc: func(ctx context.Context, ouID, orgNamespace, envName string) (thundersvc.EnvIdentityClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ForFunc: func(ctx context.Context, ouID, envName string) (identityv1.Client, error) {
 			return nil, errors.New("env-thunder unreachable")
 		},
 	}

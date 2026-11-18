@@ -186,6 +186,11 @@ func checkReserved(mf modkit.Manifest) error {
 	if !mf.Builtin && slices.Contains(rbac.ReservedResources(), mf.Name) {
 		return fmt.Errorf("modhost: module name %q is reserved for the core's %s:* permissions", mf.Name, mf.Name)
 	}
+	for _, c := range mf.Provides {
+		if isCoreCapability(c) {
+			return fmt.Errorf("modhost: module %q provides %s, which the core provides", mf.Name, c)
+		}
+	}
 	return nil
 }
 
@@ -406,7 +411,7 @@ func (h *Host) buildView(ctx context.Context, states map[string]string) (*view, 
 		}
 		active = append(active, name)
 	}
-	v, failed := newView(), map[string]error{}
+	v, failed := h.seedCore(newView()), map[string]error{}
 	order, cycles := ActivationOrder(active, h.manifests)
 	for _, c := range cycles {
 		for _, name := range c[:len(c)-1] {
@@ -435,7 +440,7 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 		return err
 	}
 	for _, c := range mf.Requires {
-		if _, ok := v.caps[c]; !ok {
+		if _, ok := v.caps[c]; !ok && !isCoreCapability(c) {
 			return fmt.Errorf("required capability %s is not provided by an active module", c)
 		}
 	}

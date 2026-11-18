@@ -36,8 +36,8 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -104,7 +104,7 @@ type MCPProxyService struct {
 	client               *http.Client
 	logger               *slog.Logger
 	encryptionKey        []byte
-	resolver             thundersvc.EnvThunderResolver
+	resolver             identityv1.Directory
 	core                 *reconcile.Core
 	kind                 *MCPProxyKind
 	isExternalAgent      externalAgentLookup
@@ -131,7 +131,7 @@ func NewMCPProxyService(
 	logger *slog.Logger,
 	encryptionKey []byte,
 	mcpProxyScopeRepo gwrepo.MCPProxyScopeRepository,
-	resolver thundersvc.EnvThunderResolver,
+	resolver identityv1.Directory,
 	core *reconcile.Core,
 	kind *MCPProxyKind,
 	ocClient repositories.PlatformRepository,

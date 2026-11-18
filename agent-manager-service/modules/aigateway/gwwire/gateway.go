@@ -61,4 +61,5 @@ type Gateway struct {
 	MCPProxyService              *gwsvc.MCPProxyService
 	AgentConfigurationService    gwsvc.AgentConfigurationService
 	AgentGateway                 *gwsvc.AgentGatewayService
+	IdentityDirectory            *gwsvc.IdentityDirectory
 }

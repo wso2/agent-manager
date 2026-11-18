@@ -24,9 +24,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -157,11 +157,11 @@ func TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvir
 				return &gwmodels.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
 			},
 		},
-		resolver: &clientmocks.EnvThunderResolverMock{
-			ResolveIdentityFunc: func(_ context.Context, _, _, envName string) (thundersvc.EnvIdentityClient, error) {
+		resolver: &identitymocks.DirectoryMock{
+			ForFunc: func(_ context.Context, _, envName string) (identityv1.Client, error) {
 				resolvedEnvs = append(resolvedEnvs, envName)
-				return &clientmocks.EnvIdentityClientMock{
-					EnsureProxyResourceServerFunc: func(_ context.Context, _, _, _ string, actions []string) (string, error) {
+				return &identitymocks.ClientMock{
+					EnsureResourceServerFunc: func(_ context.Context, _, _, _ string, actions []string) (string, error) {
 						ensuredActions = append(ensuredActions, actions)
 						return "rs-1", nil
 					},
@@ -261,8 +261,8 @@ func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
 				return &gwmodels.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
 			},
 		},
-		resolver: &clientmocks.EnvThunderResolverMock{
-			ResolveIdentityFunc: func(_ context.Context, _, _, _ string) (thundersvc.EnvIdentityClient, error) {
+		resolver: &identitymocks.DirectoryMock{
+			ForFunc: func(_ context.Context, _, _ string) (identityv1.Client, error) {
 				return nil, errors.New("env-thunder unreachable")
 			},
 		},

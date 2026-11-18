@@ -42,6 +42,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -252,7 +253,7 @@ func TestCoreSpecHasNoModulePaths(t *testing.T) {
 // never called, and returns its ledgers.
 func mountedGateway(t *testing.T) (*modhost.Host, []audit.RouteMeta, []audit.RouteMeta) {
 	t.Helper()
-	gw := &gwwire.Gateway{}
+	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory()}
 	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
 	prev := aigateway.Current()
 	aigateway.SetCurrent(gw)

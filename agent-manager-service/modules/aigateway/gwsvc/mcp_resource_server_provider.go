@@ -21,8 +21,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 )
 
 // MCPResourceServerRequest names one MCP proxy's resource server in one environment.
@@ -71,19 +70,19 @@ type MCPResourceServerProvider interface {
 }
 
 // mcpResourceServerProviderFor returns the provider a call uses: the environment's own Thunder.
-func mcpResourceServerProviderFor(resolver thundersvc.EnvThunderResolver, logger *slog.Logger) MCPResourceServerProvider {
+func mcpResourceServerProviderFor(resolver identityv1.Directory, logger *slog.Logger) MCPResourceServerProvider {
 	return &legacyMCPResourceServerProvider{resolver: resolver, logger: logger}
 }
 
 // legacyMCPResourceServerProvider registers resource servers in each environment's own Thunder.
 // It also strips a removed scope from that Thunder's roles.
 type legacyMCPResourceServerProvider struct {
-	resolver thundersvc.EnvThunderResolver
+	resolver identityv1.Directory
 	logger   *slog.Logger
 }
 
-func (p *legacyMCPResourceServerProvider) client(ctx context.Context, request MCPResourceServerRequest) (thundersvc.EnvIdentityClient, error) {
-	client, err := services.ResolveEnvThunderIdentity(ctx, p.resolver, request.OrganizationID, request.Environment)
+func (p *legacyMCPResourceServerProvider) client(ctx context.Context, request MCPResourceServerRequest) (identityv1.Client, error) {
+	client, err := p.resolver.For(ctx, request.OrganizationID, request.Environment)
 	if err != nil {
 		return nil, fmt.Errorf("env-Thunder unavailable: %w", err)
 	}
@@ -95,7 +94,7 @@ func (p *legacyMCPResourceServerProvider) EnsureMCPResourceServer(ctx context.Co
 	if err != nil {
 		return MCPResourceServerResult{}, err
 	}
-	id, err := client.EnsureProxyResourceServer(ctx, request.ProxyHandle, request.DisplayName, request.Identifier, request.Actions)
+	id, err := client.EnsureResourceServer(ctx, request.ProxyHandle, request.DisplayName, request.Identifier, request.Actions)
 	if err != nil {
 		return MCPResourceServerResult{}, err
 	}
@@ -107,7 +106,7 @@ func (p *legacyMCPResourceServerProvider) RemoveMCPResourceServerAction(ctx cont
 	if err != nil {
 		return err
 	}
-	rsID, err := client.DeleteProxyResourceServerAction(ctx, request.ProxyHandle, action)
+	rsID, err := client.RemoveResourceServerAction(ctx, request.ProxyHandle, action)
 	if err != nil {
 		return err
 	}
@@ -123,7 +122,7 @@ func (p *legacyMCPResourceServerProvider) DeleteMCPResourceServer(ctx context.Co
 	if err != nil {
 		return err
 	}
-	if err := client.DeleteProxyResourceServer(ctx, request.ProxyHandle); err != nil {
+	if err := client.DeleteResourceServer(ctx, request.ProxyHandle); err != nil {
 		return err
 	}
 	for _, action := range request.Actions {

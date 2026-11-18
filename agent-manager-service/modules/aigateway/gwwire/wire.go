@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -26,7 +27,7 @@ var coreSet = wire.NewSet(
 	wire.FieldsOf(
 		new(*wiring.AppParams),
 		"DB", "Config", "Logger", "PlatformRepository", "InfraResourceManager",
-		"EncryptionKey", "SecretManagementClient", "EnvThunderResolver",
+		"EncryptionKey", "SecretManagementClient",
 		"AgentThunderClientRepository",
 	),
 	wiring.ProvideConfigFromPtr,
@@ -75,6 +76,8 @@ var serviceProviderSet = wire.NewSet(
 	gwsvc.NewAgentAPIKeyService,
 	gwsvc.NewLLMProxyDeploymentService,
 	gwsvc.NewMCPProxyService,
+	gwsvc.NewIdentityDirectory,
+	wire.Bind(new(identityv1.Directory), new(*gwsvc.IdentityDirectory)),
 	gwsvc.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to
 	// the concrete service so scope mutations can re-emit gateway policies.
