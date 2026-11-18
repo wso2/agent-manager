@@ -17,8 +17,9 @@
 """The engine is pure: no network, no subprocesses.
 
 The static check scans every module under ``amp_shadow_runner/engine`` for imports of networking or
-process modules. The runtime checks import every engine module, and walk and parse a small tree, with
-sockets and process creation patched to raise. When ``scan_tree`` lands, it gets the same runtime check.
+process modules. The runtime checks import every engine module, and walk, parse and read the imports of
+a small tree, with sockets and process creation patched to raise. When ``scan_tree`` lands, it gets the
+same runtime check.
 """
 
 import ast
@@ -33,6 +34,7 @@ import pytest
 
 import amp_shadow_runner.engine as engine
 from amp_shadow_runner.engine.files import FileKind, walk
+from amp_shadow_runner.engine.imports import extract_imports
 from amp_shadow_runner.engine.languages import parse
 
 ENGINE_DIR = Path(engine.__file__).resolve().parent
@@ -164,4 +166,9 @@ def test_walk_and_parse_never_touch_network(tmp_path: Path) -> None:
     ]
     for f in result.files:
         if f.language is not None:
-            assert parse(f.language, f.absolute.read_bytes()) is not None
+            source = f.absolute.read_bytes()
+            tree = parse(f.language, source)
+            assert tree is not None
+            # Compared by field: the import test above reloads the engine, which replaces its classes.
+            symbols = extract_imports(f.language, tree, source).resolve("openai")
+            assert [(s.module, s.name) for s in symbols] == [("openai", None)]
