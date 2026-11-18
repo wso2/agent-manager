@@ -476,6 +476,9 @@ func (s *ProjectMCPProxyService) discoveryTarget(ctx context.Context, ouID strin
 	if callerGaveCapabilities(endpoint.Configuration) {
 		return nil, errMCPDiscoveryNotNeeded
 	}
+	if direct, err := s.directDiscoveryTarget(proxy, endpoint, ee); direct != nil || err != nil {
+		return direct, err
+	}
 	resp, err := s.environmentResponse(ctx, ouID, proxy, endpoint, ee)
 	if err != nil {
 		return nil, err
@@ -489,7 +492,10 @@ func (s *ProjectMCPProxyService) discoveryTarget(ctx context.Context, ouID strin
 	}
 	security := endpoint.Configuration.Security
 	if security != nil && (security.Enabled == nil || *security.Enabled) && !security.RequiresAPIKey() {
-		return s.upstreamDiscoveryTarget(proxy, endpoint, ee)
+		return nil, &mcpDiscoveryPermanentError{
+			reason: "the binding is secured with a scheme AMS cannot authenticate to, and its MCP server is " +
+				"reachable only through the gateway; send capabilities with the binding",
+		}
 	}
 	if resp.PublicURL == "" {
 		return nil, fmt.Errorf("the binding's gateway has no public URL")
@@ -497,17 +503,19 @@ func (s *ProjectMCPProxyService) discoveryTarget(ctx context.Context, ouID strin
 	return &mcpDiscoveryTarget{artifact: ee.ArtifactUUID.String(), publicURL: resp.PublicURL, security: security}, nil
 }
 
-// upstreamDiscoveryTarget is the target of a binding whose gateway takes only a scheme AMS cannot get a credential
-// for (Agent Identity)
-func (s *ProjectMCPProxyService) upstreamDiscoveryTarget(
+// directDiscoveryTarget is the target of a binding whose MCP server was registered by URL: Agent Manager lists it from
+// the control plane, at that URL with the binding's upstream credential, as the org proxy flow does, whatever the
+// binding's gateway security. Through the gateway the answer would have been through the binding's policies
+// (mcp-acl-list drops what it hides, mcp-rewrite renames and filters), so its stored list would lose capabilities.
+// nil for a component's MCP server, whose upstream is an in-cluster address of the data plane that only the gateway
+// reaches. An MCP server the control plane cannot reach fails discovery; its capabilities are then given with the
+// binding.
+func (s *ProjectMCPProxyService) directDiscoveryTarget(
 	proxy *models.MCPProxy, endpoint *models.MCPProxyEndpoint, ee *models.MCPProxyEndpointEnvironment,
 ) (*mcpDiscoveryTarget, error) {
 	upstream := endpoint.Configuration.Upstream
 	if proxy.Configuration.Source != nil || upstream == nil || strings.TrimSpace(upstream.URL) == "" {
-		return nil, &mcpDiscoveryPermanentError{
-			reason: "the binding is secured with a scheme AMS cannot authenticate to, and its MCP server is " +
-				"reachable only through the gateway; send capabilities with the binding",
-		}
+		return nil, nil //nolint:nilnil // not a direct target
 	}
 	target := &mcpDiscoveryTarget{artifact: ee.ArtifactUUID.String(), publicURL: strings.TrimSpace(upstream.URL), upstream: true}
 	if auth := upstream.Auth; auth != nil && strings.EqualFold(valueOrEmpty(auth.Type), "api-key") {
