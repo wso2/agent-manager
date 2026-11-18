@@ -20,15 +20,27 @@ import argparse
 import json
 import sys
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 from amp_shadow_runner._version import __version__
-from amp_shadow_runner.config import DEFAULT_AZURE_DEVOPS_URL, DEFAULT_GITHUB_API_URL, ConfigError, build_scan_config
+from amp_shadow_runner.config import (
+    DEFAULT_AZURE_DEVOPS_URL,
+    DEFAULT_GITHUB_API_URL,
+    ConfigError,
+    agent_manager_env,
+    build_scan_config,
+    check_scan_id,
+)
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.prompts import git_token
+from amp_shadow_runner.publish import Publisher, PublishError, report_exit_code
+from amp_shadow_runner.report import DEFAULT_REPORT_PATH, ReportError, read_report
 from amp_shadow_runner.scantoken import ScanTokenError
 
 PROG = "amp-shadow-runner"
+UPLOAD_MIN_SECONDS = 60
+"""``upload`` only publishes, so it needs a minute of token lifetime, not a scan's ten."""
 
 Handler = Callable[[argparse.Namespace], int]
 
@@ -68,6 +80,42 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     return _cmd_not_implemented(args)
 
 
+def _cmd_upload(args: argparse.Namespace) -> int:
+    path = Path(args.report)
+    try:
+        scan_id = check_scan_id(args.scan_id)
+        amp_url, token, expires_at = agent_manager_env(min_seconds=UPLOAD_MIN_SECONDS)
+        report = read_report(path)
+        if report.scan_id.lower() != scan_id:
+            raise ConfigError(
+                f"{path} is the report of scan {report.scan_id}, not of scan {scan_id}. "
+                "Upload a report with the scan ID it was made for."
+            )
+        result = Publisher(amp_url, token, expires_at=expires_at).publish(report, report_location=str(path))
+    except (ConfigError, ScanTokenError, ReportError, PublishError) as exc:  # Their messages never hold a token.
+        print(f"{PROG}: {exc}", file=sys.stderr)
+        return exc.exit_code
+    print_published(result.status, result.findings_count)
+    return report_exit_code(report)
+
+
+def print_published(status: str, findings_count: int) -> None:
+    """The line printed after a successful publish."""
+    agents = "1 agent" if findings_count == 1 else f"{findings_count} agents"
+    print(f"Published to Agent Manager: scan {status}, {agents} saved.", file=sys.stderr)
+
+
+def _add_upload_arguments(sub: argparse.ArgumentParser) -> None:
+    sub.epilog = "AMP_URL and AMP_SCAN_TOKEN must be set in the environment, as for scan."
+    sub.add_argument("--scan-id", required=True, help="The scan ID the report was made for.")
+    sub.add_argument(
+        "report",
+        nargs="?",
+        default=str(DEFAULT_REPORT_PATH),
+        help=f"The saved scan report (default {DEFAULT_REPORT_PATH}).",
+    )
+
+
 def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
     sub.epilog = (
         "AMP_URL and AMP_SCAN_TOKEN must be set in the environment. "
@@ -105,10 +153,10 @@ def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
     both.add_argument("--judge", action="store_true", help="Have a second LLM check the AI review (needs --ai-review).")
 
 
-# (name, help, handler). ``upload`` is a stub for now.
+# (name, help, handler).
 _COMMANDS: tuple[tuple[str, str, Handler], ...] = (
     ("scan", "Scan repositories and publish the confirmed agents to Agent Manager.", _cmd_scan),
-    ("upload", "Publish a saved scan report to Agent Manager.", _cmd_not_implemented),
+    ("upload", "Publish a saved scan report to Agent Manager.", _cmd_upload),
     ("version", "Print the runner version, engine version and rule-pack id.", _cmd_version),
 )
 
@@ -126,6 +174,8 @@ def build_parser() -> argparse.ArgumentParser:
         sub.set_defaults(handler=handler)
         if name == "scan":
             _add_scan_arguments(sub)
+        elif name == "upload":
+            _add_upload_arguments(sub)
         elif name == "version":
             sub.add_argument("--json", action="store_true", help="Print the versions as a JSON object.")
     return parser

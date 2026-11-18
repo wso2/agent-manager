@@ -85,9 +85,9 @@ def test_missing_command_exits_2(capsys: pytest.CaptureFixture[str]) -> None:
     assert "a command is required" in capsys.readouterr().err
 
 
-def test_upload_is_a_stub(capsys: pytest.CaptureFixture[str]) -> None:
-    assert main(["upload"]) == ExitCode.RUNTIME_ERROR
-    assert capsys.readouterr().err.strip() == "amp-shadow-runner upload: not implemented yet"
+def test_upload_without_a_scan_id_exits_2(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["upload"]) == ExitCode.CONFIG_ERROR
+    assert "the following arguments are required: --scan-id" in capsys.readouterr().err
 
 
 def test_scan_without_flags_exits_2(capsys: pytest.CaptureFixture[str]) -> None:

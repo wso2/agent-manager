@@ -34,7 +34,7 @@ from typing import ClassVar, Literal
 from urllib.parse import urlsplit
 
 from amp_shadow_runner.exitcodes import ExitCode
-from amp_shadow_runner.scantoken import require_lifetime
+from amp_shadow_runner.scantoken import DEFAULT_MIN_SECONDS, require_lifetime
 
 Provider = Literal["github", "azure_devops"]
 
@@ -203,6 +203,36 @@ def _azure_devops(args: argparse.Namespace) -> tuple[str, bool, tuple[str, ...],
     return org, all_projects, projects, api_url
 
 
+def check_scan_id(raw: str) -> str:
+    """Return ``--scan-id`` trimmed and in lowercase, or raise ConfigError when it is not a scan ID."""
+    scan_id = raw.strip()
+    if not _SCAN_ID.fullmatch(scan_id):
+        raise ConfigError(f"--scan-id must be the scan ID that Agent Manager issued. {_COPY_AGAIN}")
+    return scan_id.lower()
+
+
+def agent_manager_env(
+    env: Mapping[str, str] | None = None,
+    *,
+    min_seconds: int = DEFAULT_MIN_SECONDS,
+    now: Callable[[], float] = time.time,
+) -> tuple[str, str, datetime]:
+    """Return ``AMP_URL`` (checked, no trailing slash), ``AMP_SCAN_TOKEN`` and the token's expiry.
+
+    ``env`` defaults to ``os.environ``. Raises ConfigError for an unset or unusable variable, and
+    ScanTokenError when the token has under ``min_seconds`` left or cannot be read.
+    """
+    env = os.environ if env is None else env
+    amp_url = env.get("AMP_URL", "")
+    if not amp_url.strip():
+        raise ConfigError(f"AMP_URL is not set. {_COPY_AGAIN}")
+    amp_url = _url(amp_url, "AMP_URL")
+    token = env.get("AMP_SCAN_TOKEN", "").strip()
+    if not token:
+        raise ConfigError(f"AMP_SCAN_TOKEN is not set. {_COPY_AGAIN}")
+    return amp_url, token, require_lifetime(token, min_seconds, now=now)
+
+
 def build_scan_config(
     args: argparse.Namespace,
     env: Mapping[str, str] | None = None,
@@ -215,10 +245,7 @@ def build_scan_config(
     or variable, and ScanTokenError when the token has under 10 minutes left
     or cannot be read. Both have exit code CONFIG_ERROR.
     """
-    env = os.environ if env is None else env
-    scan_id: str = args.scan_id.strip()
-    if not _SCAN_ID.fullmatch(scan_id):
-        raise ConfigError(f"--scan-id must be the scan ID that Agent Manager issued. {_COPY_AGAIN}")
+    scan_id = check_scan_id(args.scan_id)
     provider: Provider
     if args.github_org is not None:
         provider = "github"
@@ -231,20 +258,13 @@ def build_scan_config(
     if judge and not ai_review:
         raise ConfigError("--judge needs --ai-review.")
 
-    amp_url = env.get("AMP_URL", "")
-    if not amp_url.strip():
-        raise ConfigError(f"AMP_URL is not set. {_COPY_AGAIN}")
-    amp_url = _url(amp_url, "AMP_URL")
-    token = env.get("AMP_SCAN_TOKEN", "").strip()
-    if not token:
-        raise ConfigError(f"AMP_SCAN_TOKEN is not set. {_COPY_AGAIN}")
-    expires_at = require_lifetime(token, now=now)
+    amp_url, token, expires_at = agent_manager_env(env, now=now)
 
     return ScanConfig(
         amp_url=amp_url,
         token=token,
         token_expires_at=expires_at,
-        scan_id=scan_id.lower(),
+        scan_id=scan_id,
         provider=provider,
         organization=org,
         all_repositories=all_repos,
