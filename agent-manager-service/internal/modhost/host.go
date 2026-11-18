@@ -105,6 +105,11 @@ type view struct {
 	// hooks are by resource and phase, in activation order.
 	hooks map[string]map[modkit.Phase][]hookEntry
 	subs  map[string][]subEntry
+
+	// apiFragments are the active modules' OpenAPI fragments, collected once
+	// by Host.API.
+	apiOnce      sync.Once
+	apiFragments map[string][]byte
 }
 
 func newView() *view {

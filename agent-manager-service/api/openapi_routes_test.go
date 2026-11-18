@@ -145,3 +145,26 @@ func TestAPIDocsIsNotTheConsole(t *testing.T) {
 	body := get(t, mux, http.MethodGet, "/api/docs/nosuch.js").Body.String()
 	assert.False(t, strings.Contains(body, "<redoc") || strings.Contains(strings.ToLower(body), "<html"))
 }
+
+// snapshotModules is a module host that hands out its active set and its
+// fragments together, and counts how often it is asked.
+type snapshotModules struct {
+	fakeModules
+	frags map[string][]byte
+	calls int
+}
+
+func (s *snapshotModules) API() ([]string, map[string][]byte) {
+	s.calls++
+	return s.Active(), s.frags
+}
+
+func TestOpenAPISpecReadsModulesAndFragmentsTogether(t *testing.T) {
+	mods := &snapshotModules{
+		fakeModules: fakeModules{active: []string{"widgets"}},
+		frags:       map[string][]byte{"widgets": []byte("paths:\n  /tags:\n    get:\n      responses:\n        \"200\":\n          description: ok\n")},
+	}
+	spec := fetchSpec(t, catalogMux(mods))
+	assert.Contains(t, spec.Paths, "/m/widgets/tags")
+	assert.Equal(t, 1, mods.calls, "one snapshot per request")
+}

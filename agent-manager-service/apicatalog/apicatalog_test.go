@@ -292,3 +292,19 @@ func TestBadModuleFragmentIsLeftOutWhole(t *testing.T) {
 		})
 	}
 }
+
+func TestCacheFollowsFragmentContent(t *testing.T) {
+	c := New([]byte(sample))
+	first, err := c.For([]string{"widgets"}, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, paths(t, first), "/m/widgets/tags", "no fragment yet")
+
+	second, err := c.For([]string{"widgets"}, map[string][]byte{"widgets": []byte(widgetsFragment)})
+	require.NoError(t, err)
+	assert.Contains(t, paths(t, second), "/m/widgets/tags",
+		"the same module set with a fragment is not served the cached spec built without one")
+
+	again, err := c.For([]string{"widgets"}, map[string][]byte{"widgets": []byte(widgetsFragment)})
+	require.NoError(t, err)
+	assert.Same(t, second, again)
+}

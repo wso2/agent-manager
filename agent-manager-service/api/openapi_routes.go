@@ -33,17 +33,23 @@ type ActiveModules interface {
 	Active() []string
 }
 
-// ModuleAPIFragments returns the OpenAPI fragments of the active modules that
-// describe their own routes (modkit.APIDescriber), by module name.
-type ModuleAPIFragments interface {
-	APIFragments() map[string][]byte
+// ModuleAPI is a module host that can also say, from one snapshot, which
+// modules are active and the OpenAPI fragments they describe their own routes
+// in (modkit.APIDescriber).
+type ModuleAPI interface {
+	API() (active []string, fragments map[string][]byte)
 }
 
-func fragments(modules ActiveModules) map[string][]byte {
-	if f, ok := modules.(ModuleAPIFragments); ok {
-		return f.APIFragments()
+// moduleAPI reads the active modules and their fragments together.
+func moduleAPI(modules ActiveModules) ([]string, map[string][]byte) {
+	switch m := modules.(type) {
+	case nil:
+		return nil, nil
+	case ModuleAPI:
+		return m.API()
+	default:
+		return m.Active(), nil
 	}
-	return nil
 }
 
 // registerAPICatalogRoutes serves the REST API's description: the OpenAPI
@@ -64,11 +70,7 @@ func registerAPICatalogRoutes(mux *http.ServeMux, modules ActiveModules) {
 				w.WriteHeader(http.StatusMethodNotAllowed)
 				return
 			}
-			var active []string
-			if modules != nil {
-				active = modules.Active()
-			}
-			s, err := catalog.For(active, fragments(modules))
+			s, err := catalog.For(moduleAPI(modules))
 			if err != nil {
 				logger.GetLogger(r.Context()).Error("failed to render the API spec", "error", err)
 				http.Error(w, "failed to render the API spec", http.StatusInternalServerError)

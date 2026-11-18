@@ -356,20 +356,6 @@ type UIEntry struct {
 
 // UI lists the console UI of the active modules, in activation order. An
 // entry naming a permission the module cannot use is left out and logged.
-// APIFragments returns the OpenAPI fragments of the active modules that
-// describe their routes (modkit.APIDescriber), by module name.
-func (h *Host) APIFragments() map[string][]byte {
-	out := map[string][]byte{}
-	for _, name := range h.current().active {
-		if d, ok := h.mods[name].(modkit.APIDescriber); ok {
-			if frag := d.OpenAPI(); len(frag) > 0 {
-				out[name] = frag
-			}
-		}
-	}
-	return out
-}
-
 func (h *Host) UI() []ModuleUI {
 	v := h.current()
 	out := make([]ModuleUI, 0, len(v.active))
@@ -402,4 +388,24 @@ func (h *Host) UI() []ModuleUI {
 		out = append(out, m)
 	}
 	return out
+}
+
+// API returns, from one snapshot of the active set, the active modules in
+// activation order and the OpenAPI fragments those that describe their routes
+// (modkit.APIDescriber) return, by module name. Reading both from the same
+// view means a module enabled in between can never appear without its
+// fragment. Each view asks its modules for their fragments once.
+func (h *Host) API() (active []string, fragments map[string][]byte) {
+	v := h.current()
+	v.apiOnce.Do(func() {
+		v.apiFragments = map[string][]byte{}
+		for _, name := range v.active {
+			if d, ok := h.mods[name].(modkit.APIDescriber); ok {
+				if frag := d.OpenAPI(); len(frag) > 0 {
+					v.apiFragments[name] = frag
+				}
+			}
+		}
+	})
+	return append([]string(nil), v.active...), v.apiFragments
 }

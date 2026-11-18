@@ -26,6 +26,8 @@ package apicatalog
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -79,11 +81,12 @@ func New(raw []byte) *Catalog {
 
 // For returns the spec of the core and the active modules, with the OpenAPI
 // fragments those modules describe their own routes in (by module name; see
-// Filter). A module's fragment is fixed for the life of the binary, so the
-// set of modules is the cache key.
+// Filter). Pass both from one snapshot of the module host. A spec is cached
+// under the module set and the content of the fragments merged into it, so
+// the cache never serves a spec built from a different fragment.
 func (c *Catalog) For(active []string, fragments map[string][]byte) (*Spec, error) {
 	mods := Modules(active)
-	key := strings.Join(mods, ",")
+	key := cacheKey(mods, fragments)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if s, ok := c.cache[key]; ok {
@@ -114,6 +117,19 @@ func (c *Catalog) For(active []string, fragments map[string][]byte) (*Spec, erro
 	}
 	c.cache[key] = s
 	return s, nil
+}
+
+// cacheKey names a module set and the fragments of its modules.
+func cacheKey(mods []string, fragments map[string][]byte) string {
+	h := sha256.New()
+	for _, m := range mods {
+		if frag, ok := fragments[m]; ok {
+			// A hash.Hash never returns an error from Write.
+			_, _ = fmt.Fprintf(h, "%s\x00%d\x00", m, len(frag))
+			_, _ = h.Write(frag)
+		}
+	}
+	return strings.Join(mods, ",") + "@" + hex.EncodeToString(h.Sum(nil))
 }
 
 // Modules is the sorted set of the core and the given modules.
