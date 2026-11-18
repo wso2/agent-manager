@@ -30,11 +30,15 @@ conditional signature (see ``Condition``) gives ``proven`` only when its conditi
   takes that evidence from the lenient lookup.
 - ``CREW``: never; a crew is a finding only when it links no agent, and is then ``not_sure``.
 - ``TOOL_LOOP``: the matcher found the call loops (``Match.condition_met``).
+- ``NAMESPACE``: the matcher resolved the C# class through a ``using`` or a qualified name
+  (``Match.condition_met``).
+- ``TEXT``: never; a Ballerina text match is always ``not_sure``.
 
 Evidence codes here carry no provider prefix: the publish step adds ``github.`` or ``azure_devops.``.
 
 - ``d2_agent_import``: the file that uses the signature, with ``observed.imports`` the number of the
-  framework's imports in it (for TS/JS, the imports whose package is one of the framework's).
+  framework's imports in it (for TS/JS, the imports whose package is one of the framework's; for C#, the
+  usings in scope, with the project's global usings and its ``.csproj`` ``<Using>`` items).
 - ``d1_agent_dependency``: a dependency manifest that declares the framework's package (see
   ``Dependencies.declaring``), with ``observed.declared`` true.
 - ``d7_tool_calling``: for a graph wired to tools, the file that wires it, with a true flag for each thing
@@ -166,8 +170,8 @@ def classify(
                     evidence.append(Evidence(D7_TOOL_CALLING, wired[0], {k.value: True for k in sorted(wired[1])}))
             elif (
                 (condition == Condition.DEPENDENCY and manifest is None)
-                or condition == Condition.CREW
-                or (condition == Condition.TOOL_LOOP and not match.condition_met)
+                or condition in (Condition.CREW, Condition.TEXT)
+                or (condition in (Condition.TOOL_LOOP, Condition.NAMESPACE) and not match.condition_met)
             ):
                 verdict = Verdict.NOT_SURE
             findings.append(

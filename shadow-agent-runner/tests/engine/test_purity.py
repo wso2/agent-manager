@@ -18,8 +18,8 @@
 
 The static check scans every module under ``amp_shadow_runner/engine`` for imports of networking or
 process modules. The runtime checks import every engine module afresh, walk, parse and read the imports
-of a small tree, and run ``scan_tree`` on a tree with Python and TypeScript agents, with sockets and
-process creation patched to raise.
+of a small tree, and run ``scan_tree`` on a tree with an agent in every language, with sockets and process
+creation patched to raise.
 """
 
 import ast
@@ -191,5 +191,16 @@ def test_scan_tree_never_touches_network(tmp_path: Path) -> None:
     (tmp_path / "agent.py").write_bytes(b"from crewai import Agent\nresearcher = Agent(role='r')\n")
     (tmp_path / "package.json").write_bytes(b'{"dependencies": {"@mastra/core": "1"}}\n')
     (tmp_path / "agent.ts").write_bytes(b'import { Agent } from "@mastra/core";\nconst bot = new Agent({});\n')
+    (tmp_path / "App.csproj").write_bytes(
+        b'<Project><ItemGroup><Using Include="Microsoft.Agents.AI"/></ItemGroup></Project>'
+    )
+    (tmp_path / "Host.cs").write_bytes(b"var host = new ChatClientAgent(client);\n")
+    (tmp_path / "Ballerina.toml").write_bytes(b'[package]\nname = "bot"\n')
+    (tmp_path / "main.bal").write_bytes(b"import ballerina/ai;\nfinal ai:Agent helper = check new (m);\n")
     result = scan_tree(tmp_path, repository="r", read_ci=True)
-    assert [f.external_id for f in result.findings] == ["r:agent.py:researcher", "r:agent.ts:bot"]
+    assert [f.external_id for f in result.findings] == [
+        "r:Host.cs:host",
+        "r:agent.py:researcher",
+        "r:agent.ts:bot",
+        "r:main.bal:helper",
+    ]

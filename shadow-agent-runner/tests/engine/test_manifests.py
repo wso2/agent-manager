@@ -18,13 +18,17 @@
 
 import pytest
 
+from amp_shadow_runner.engine.imports import ImportKind
 from amp_shadow_runner.engine.manifests import (
     Dependencies,
     Ecosystem,
+    ballerina_packages,
+    csproj_usings,
     ecosystem,
     is_python_manifest,
     normalise,
     npm_packages,
+    nuget_packages,
     python_packages,
     read_packages,
     service_folder,
@@ -113,8 +117,12 @@ def test_npm_packages(text: str, packages: set[str]) -> None:
         ("requirements.txt", Ecosystem.PYTHON),
         ("svc/pyproject.toml", Ecosystem.PYTHON),
         ("web/package.json", Ecosystem.NPM),
-        ("App.csproj", None),
-        ("Ballerina.toml", None),
+        ("src/App/App.csproj", Ecosystem.NUGET),
+        ("src/App/APP.CSPROJ", Ecosystem.NUGET),
+        ("Directory.Packages.props", Ecosystem.NUGET),
+        ("legacy/packages.config", Ecosystem.NUGET),
+        ("Ballerina.toml", Ecosystem.BALLERINA),
+        ("Dependencies.toml", None),
     ],
 )
 def test_ecosystem(path: str, kind: Ecosystem | None) -> None:
@@ -122,8 +130,115 @@ def test_ecosystem(path: str, kind: Ecosystem | None) -> None:
 
 
 def test_read_packages_by_ecosystem() -> None:
-    assert read_packages("web/package.json", b'{"dependencies": {"AI": "5"}}') == {"ai"}
-    assert read_packages("requirements.txt", b"crewai\n") == {"crewai"}
+    assert read_packages("web/package.json", b'{"dependencies": {"AI": "5"}}') == frozenset({"ai"})
+    assert read_packages("requirements.txt", b"crewai\n") == frozenset({"crewai"})
+    assert read_packages(
+        "App.csproj", b'<Project><ItemGroup><PackageReference Include="A.B"/></ItemGroup></Project>'
+    ) == frozenset({"a-b"})
+    assert read_packages("App.csproj", b"<!DOCTYPE x><Project/>") is None
+    assert read_packages("Ballerina.toml", b'[[dependency]]\norg = "ballerina"\nname = "ai"\n') == frozenset(
+        {"ballerina/ai"}
+    )
+
+
+SDK_CSPROJ = """<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SemanticKernel.Agents.Core" Version="1.60.0" />
+    <PackageReference Include="Azure.Identity;Microsoft.Agents.AI" />
+    <PackageReference Include="$(SharedPackage)" />
+    <PackageReference Update="Ignored.Update" />
+    <Using Include="Microsoft.SemanticKernel.Agents" />
+    <Using Include="Microsoft.Agents.AI.ChatClientAgent" Alias="Agent" />
+    <Using Include="System.Math" Static="True" />
+    <Using Remove="System.Linq" />
+  </ItemGroup>
+</Project>
+"""
+LEGACY_CSPROJ = (
+    '\ufeff<?xml version="1.0" encoding="utf-8"?>\n'
+    '<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">\n'
+    '  <ItemGroup><PackageReference Include="Microsoft.SemanticKernel"><Version>1.0</Version></PackageReference>'
+    "</ItemGroup>\n</Project>\n"
+)
+
+
+@pytest.mark.parametrize(
+    ("data", "packages"),
+    [
+        (
+            SDK_CSPROJ.encode(),
+            {"microsoft-semantickernel-agents-core", "azure-identity", "microsoft-agents-ai"},
+        ),
+        (LEGACY_CSPROJ.encode(), {"microsoft-semantickernel"}),
+        (
+            b'<Project><ItemGroup><PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1"/>'
+            b"</ItemGroup></Project>",
+            {"microsoft-agents-ai-openai"},
+        ),
+        (b'<packages><package id="Microsoft.SemanticKernel" version="1.0" /></packages>', {"microsoft-semantickernel"}),
+        (b"<Project></Project>", set()),
+    ],
+)
+def test_nuget_packages(data: bytes, packages: set[str]) -> None:
+    assert nuget_packages(data) == frozenset(packages)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        # A DTD or entity is refused before parsing, so no entity is ever expanded.
+        b'<?xml version="1.0"?>\n<!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;">]>\n'
+        b'<Project><ItemGroup><PackageReference Include="&lol2;" /></ItemGroup></Project>',
+        b'<!doctype Project SYSTEM "file:///etc/passwd"><Project/>',
+        b"<Project><!ENTITY x></Project>",
+        # Not UTF-8 (a DTD could hide in UTF-16), or not XML.
+        '<?xml version="1.0" encoding="utf-16"?><Project/>'.encode("utf-16"),
+        b"<Project><ItemGroup>",
+        b"\xff\xfe",
+        b"",
+    ],
+)
+def test_unsafe_or_broken_msbuild_is_unreadable(data: bytes) -> None:
+    assert nuget_packages(data) is None
+    assert csproj_usings(data) == ()
+
+
+def test_csproj_usings() -> None:
+    usings = csproj_usings(SDK_CSPROJ.encode())
+    assert [(u.module, u.local, u.kind, u.global_) for u in usings] == [
+        ("Microsoft.SemanticKernel.Agents", None, ImportKind.NAMESPACE, True),
+        ("Microsoft.Agents.AI.ChatClientAgent", "Agent", ImportKind.ALIAS, True),
+        ("System.Math", None, ImportKind.STATIC, True),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("text", "packages"),
+    [
+        (
+            '[package]\norg = "acme"\nname = "bot"\n[[dependency]]\norg = "ballerinax"\nname = "ai.agent"\n'
+            '[[dependency]]\norg = "ballerina"\nname = "http"\n[[dependency]]\nname = "no-org"\n',
+            {"ballerinax/ai-agent", "ballerina/http"},
+        ),
+        ('[package]\nname = "bot"\n', set()),
+        ('dependency = "x"\n', set()),
+        ("not = [toml", set()),
+    ],
+)
+def test_ballerina_packages(text: str, packages: set[str]) -> None:
+    assert ballerina_packages(text.encode()) == packages
+
+
+def test_declaring_matches_a_package_prefix() -> None:
+    dependencies = Dependencies(
+        {
+            "src/App/App.csproj": frozenset({normalise("Microsoft.SemanticKernel.Agents.Core")}),
+            "src/Other/Other.csproj": frozenset({normalise("Microsoft.SemanticKernelX")}),
+        }
+    )
+    wanted = ["Microsoft.SemanticKernel", "Microsoft.SemanticKernel.*"]
+    assert dependencies.declaring(wanted, "src/App/Host.cs") == "src/App/App.csproj"
+    assert dependencies.declaring(wanted, "src/Other/Host.cs") is None
 
 
 def test_normalise() -> None:

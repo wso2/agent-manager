@@ -23,6 +23,7 @@ that uses it:
 - ``FACTORY``: a classmethod of the symbol's class is called, ``ReActAgent.from_tools(...)``. Its symbol is
   the method, as ``ImportTable.resolve`` gives it: ``Symbol("llama_index.core.agent.ReActAgent", "from_tools")``.
 - ``SUBCLASS``: a class derives from the symbol, ``class MyAgent(Agent)``.
+- ``EXTENSION``: a C# extension method is called on any object (see ``Shape.EXTENSION``).
 
 In TypeScript and JavaScript, ``CALL`` covers ``new Agent(...)`` as well as a plain call, and a symbol's
 module is a package root (``@mastra/core``) that also covers the package's subpaths (``@mastra/core/agent``)
@@ -60,6 +61,11 @@ class Condition(StrEnum):
     """A model call that runs tools in a loop (AI SDK ``generateText``): proven when it passes ``tools`` and
     lets the model take more than one step; with ``tools`` but no loop it is Not sure, and with no ``tools``
     no match at all. The matcher checks it in the call itself (``Match.condition_met``)."""
+    NAMESPACE = "namespace"
+    """A C# class whose namespace must be imported to be the framework's: proven when it resolves through a
+    ``using`` (or is fully qualified), Not sure when only its bare name matches (``Match.condition_met``)."""
+    TEXT = "text"
+    """A text match in a language with no grammar (Ballerina): never proven, always Not sure."""
 
 
 class Shape(StrEnum):
@@ -68,6 +74,10 @@ class Shape(StrEnum):
     CALL = "call"
     FACTORY = "factory"
     SUBCLASS = "subclass"
+    EXTENSION = "extension"
+    """A C# extension method called on any object, ``client.CreateAIAgent(...)``. Its symbol is the namespace
+    that must be imported for the method to exist, and the method name; with no such ``using`` the call is
+    no match (any class may have a method of that name)."""
 
 
 @dataclass(frozen=True)
