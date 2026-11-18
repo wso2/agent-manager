@@ -12954,7 +12954,7 @@ func NewListAvailableMCPPoliciesRequest(server string, orgName string, params *L
 
 		if params.ProxyId != nil {
 
-			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "proxyId", *params.ProxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "proxyId", *params.ProxyId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
 				return nil, err

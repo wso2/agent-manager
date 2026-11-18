@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -46,23 +45,6 @@ type llmPolicyManifestItem struct {
 	SystemParameters map[string]interface{}
 }
 
-// intersectActiveGatewayLLMPolicies returns, keyed by "name\x00version", the full policy
-// definitions available across every active managed gateway in the org (listCatalogGateways).
-// Used when the caller has no specific provider/deployment to scope to (e.g. a
-// provider-agnostic listing).
-// See intersectLLMPolicies for the availability semantics.
-func intersectActiveGatewayLLMPolicies(gatewayRepo repositories.GatewayRepository, orgUUID string) (map[string]llmPolicyManifestItem, error) {
-	if gatewayRepo == nil {
-		return map[string]llmPolicyManifestItem{}, nil
-	}
-
-	gateways, err := listCatalogGateways(gatewayRepo, orgUUID)
-	if err != nil {
-		return nil, err
-	}
-	return intersectLLMPolicies(gateways), nil
-}
-
 // listCatalogGateways is the gateways whose reported policies make up an org-wide policy catalog: the active managed
 // ones. A self-hosted gateway runs whatever bundle its operator installed; one older bundle would narrow the catalog
 // for the whole org.
@@ -77,23 +59,6 @@ func listCatalogGateways(gatewayRepo repositories.GatewayRepository, orgUUID str
 		return nil, fmt.Errorf("failed to list active gateways: %w", err)
 	}
 	return gateways, nil
-}
-
-// intersectDeployedGatewayLLMPolicies returns, keyed by "name\x00version", the full policy
-// definitions available across the gateways a specific LLM provider is deployed to. Used
-// to scope the guardrail catalog to what that provider's actual gateways support, instead
-// of every active gateway in the org. See intersectLLMPolicies for the availability
-// semantics.
-func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, providerUUID uuid.UUID, orgUUID string) (map[string]llmPolicyManifestItem, error) {
-	if gatewayRepo == nil || deploymentRepo == nil {
-		return map[string]llmPolicyManifestItem{}, nil
-	}
-
-	gateways, _, err := resolveCatalogGateways(ctx, gatewayRepo, deploymentRepo, orgUUID, []uuid.UUID{providerUUID})
-	if err != nil {
-		return nil, err
-	}
-	return intersectLLMPolicies(gateways), nil
 }
 
 // resolveCatalogGateways returns the gateways a policy catalog is checked against. When the artifacts are placed on at
@@ -327,22 +292,6 @@ func compareVersions(a, b string) int {
 		}
 	}
 	return len(segmentsA) - len(segmentsB)
-}
-
-// sortedLLMPolicyManifestItems returns the map's values sorted by Name then Version,
-// for a stable API response.
-func sortedLLMPolicyManifestItems(available map[string]llmPolicyManifestItem) []llmPolicyManifestItem {
-	items := make([]llmPolicyManifestItem, 0, len(available))
-	for _, item := range available {
-		items = append(items, item)
-	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Name == items[j].Name {
-			return items[i].Version < items[j].Version
-		}
-		return items[i].Name < items[j].Name
-	})
-	return items
 }
 
 // extractLLMPolicyManifestItems recursively walks a gateway's arbitrarily-shaped,

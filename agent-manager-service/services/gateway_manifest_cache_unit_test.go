@@ -132,7 +132,7 @@ func TestGatewayManifestPushDoesNotLeakAcrossOrgs(t *testing.T) {
 		},
 	}
 
-	llm, err := intersectActiveGatewayLLMPolicies(repo, "org-b")
+	llm, err := activeGatewayPolicies(repo, "org-b")
 	require.NoError(t, err)
 	require.Len(t, llm, 1)
 	require.Contains(t, llm, "word-count-guardrail\x00v1")

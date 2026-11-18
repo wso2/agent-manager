@@ -646,7 +646,7 @@ type ApiListAvailableMCPPoliciesRequest struct {
 	proxyId    *string
 }
 
-// When set, scope the result to the gateways this MCP proxy is deployed to, instead of every active managed gateway in the organization.
+// MCP proxy handle (same identifier as /mcp-proxies/{proxyId}). When set, scope the result to the gateways this MCP proxy is deployed to, instead of every active managed gateway in the organization.
 func (r ApiListAvailableMCPPoliciesRequest) ProxyId(proxyId string) ApiListAvailableMCPPoliciesRequest {
 	r.proxyId = &proxyId
 	return r
