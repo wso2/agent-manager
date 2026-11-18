@@ -116,6 +116,7 @@ Rules:
 | Command | Regenerates | From | Needs |
 |---|---|---|---|
 | `make spec` | `spec/` types | `docs/api_v1_openapi.yaml` | Docker |
+| `make spec MODULE=<name>` | the module's types, `modules/<dir>/<package>/` | `modules/<dir>/api/openapi.yaml` | Docker |
 | `make codegen` | wire DI + mocks (`repomocks/`, `clientmocks/`) | `//go:generate` directives | `moq` on PATH |
 | `make mocks` | mocks only (`repomocks/`, `clientmocks/`), no wire. `PKG=./repositories/...` to scope it | `//go:generate moq` directives | `moq` **`v0.5.3`** installed |
 

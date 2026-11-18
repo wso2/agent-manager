@@ -103,10 +103,34 @@ build: ## Build bin/amp and bin/amp-core, with the console when `make console-em
 lint: ## Lint code.
 	bash scripts/lint.sh
 
+# A module's own OpenAPI document is <dir>/api/openapi.yaml; its Go types go
+# to <dir>/<package>. MODULE names the module (its directory is
+# modules/<name without dashes>); MODULE_DIR names the directory instead. The
+# package is the document's info.x-go-package, or <name without dashes>spec.
+MODULE ?=
+MODULE_DIR ?= $(if $(MODULE),modules/$(subst -,,$(MODULE)))
+
 .PHONY: spec
-spec: ## Code gen type/client for openapi spec.
-	sh scripts/gen_client.sh
+spec: ## Code gen types for the core's OpenAPI spec, or a module's with MODULE=<name>.
+	@if [ -n "$(MODULE_DIR)" ]; then \
+	  doc="$(MODULE_DIR)/api/openapi.yaml"; \
+	  [ -f "$$doc" ] || { echo "$$doc not found"; exit 1; }; \
+	  name=$$(awk '/^  x-amp-module:/ {print $$2; exit}' "$$doc"); \
+	  pkg=$$(awk '/^  x-go-package:/ {print $$2; exit}' "$$doc"); \
+	  [ -n "$$pkg" ] || pkg="$$(echo "$$name" | tr -d -)spec"; \
+	  sh scripts/gen_client.sh "$$doc" "$(MODULE_DIR)/$$pkg" "$$pkg"; \
+	else \
+	  sh scripts/gen_client.sh; \
+	fi
 	sh scripts/fmt.sh
+
+.PHONY: spec-all
+spec-all: ## Code gen types for the core's OpenAPI spec and every module's.
+	@$(MAKE) spec MODULE= MODULE_DIR=
+	@for doc in modules/*/api/openapi.yaml; do \
+	  [ -f "$$doc" ] || continue; \
+	  $(MAKE) spec MODULE= MODULE_DIR="$${doc%/api/openapi.yaml}"; \
+	done
 
 # Pin the oapi-codegen CLI version. Must stay in lockstep with the
 # `github.com/oapi-codegen/runtime` version in go.mod — mismatched versions
@@ -127,7 +151,7 @@ gen-api-platform-client: ## Generate API Platform API client from upstream OpenA
 .PHONY: codegenfmt-check
 codegenfmt-check:
 	@$(MAKE) wire
-	@$(MAKE) spec
+	@$(MAKE) spec-all
 	@$(MAKE) codegen
 	@$(MAKE) fmt
 	@go mod tidy
