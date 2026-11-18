@@ -70,8 +70,17 @@ func booted(t *testing.T, ctx context.Context, d database, mods []modkit.Module)
 func closeAtCleanup(t *testing.T, g *gorm.DB) {
 	t.Helper()
 	t.Cleanup(func() {
-		if sqlDB, err := g.DB(); err == nil {
-			_ = sqlDB.Close()
+		sqlDB, err := g.DB()
+		if err != nil {
+			return
+		}
+		_ = sqlDB.Close()
+		// Close does not wait for connections in use: a host goroutine's last
+		// query closes its connection later, and SQLite then removes its WAL
+		// files while the test's temporary directory is being deleted.
+		deadline := time.Now().Add(5 * time.Second)
+		for sqlDB.Stats().OpenConnections > 0 && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
 		}
 	})
 }
