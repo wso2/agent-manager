@@ -196,6 +196,10 @@ func loadEnvs() {
 		TokenURL:     r.readOptionalString("IDP_TOKEN_URL", "http://thunder.amp.localhost:8080/oauth2/token"),
 		ClientID:     r.readOptionalString("IDP_CLIENT_ID", "amp-api-client"),
 		ClientSecret: r.readOptionalString("IDP_CLIENT_SECRET", "amp-api-client-secret"),
+		// See IDPConfig.OrgTokenEndpointEnabled: true (the default) for multi-org
+		// deployments whose identity provider serves /ou/<ouId>/oauth2/token;
+		// single-org on-prem installs set false.
+		OrgTokenEndpointEnabled: r.readOptionalBool("IDP_ORG_TOKEN_ENDPOINT_ENABLED", true),
 	}
 
 	// JWT Signing configuration for agent API tokens
@@ -643,12 +647,12 @@ func validateThunderConfig(cfg *Config, r *configReader) {
 }
 
 // validateBuildClientConfig checks the build-token settings together. A build
-// token is minted with this service's own identity provider client on the
-// organization token endpoint derived from IDP_TOKEN_URL, so enabling it without
-// that client, or with a token URL the endpoint cannot be derived from, would make
-// every build that takes the token fail rather than the service fail at startup;
-// and an empty workflow list would leave the flag on with nothing it could ever
-// apply to.
+// token is minted with this service's own identity provider client from
+// IDP_TOKEN_URL (or the organization token endpoint derived from it), so
+// enabling it without that client, or with a token URL the endpoint cannot be
+// derived from, would make every build that takes the token fail rather than the
+// service fail at startup; and an empty workflow list would leave the flag on
+// with nothing it could ever apply to.
 func validateBuildClientConfig(cfg *Config, r *configReader) {
 	if !cfg.BuildClient.Enabled {
 		return

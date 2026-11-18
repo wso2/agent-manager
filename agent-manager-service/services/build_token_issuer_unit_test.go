@@ -127,7 +127,8 @@ func (s *btStore) mock(ref string, err error) *clientmocks.SecretManagementClien
 }
 
 func newTestBuildTokenIssuer(srv *httptest.Server, store *clientmocks.SecretManagementClientMock) *buildTokenIssuer {
-	return newBuildTokenIssuer(srv.URL+"/oauth2/token", btClientID, btClientSecret, "", srv.Client(), store, discardLogger())
+	return newBuildTokenIssuer(srv.URL+"/oauth2/token", btClientID, btClientSecret, "", true, srv.Client(), store,
+		discardLogger())
 }
 
 func TestNewBuildTokenIssuer_DisabledIsNil(t *testing.T) {
@@ -137,7 +138,10 @@ func TestNewBuildTokenIssuer_DisabledIsNil(t *testing.T) {
 
 func TestNewBuildTokenIssuer_EnabledUsesTheServiceClient(t *testing.T) {
 	cfg := config.Config{
-		IDP:         config.IDPConfig{TokenURL: "https://idp.example.com/oauth2/token", ClientID: btClientID, ClientSecret: btClientSecret},
+		IDP: config.IDPConfig{
+			TokenURL: "https://idp.example.com/oauth2/token", ClientID: btClientID, ClientSecret: btClientSecret,
+			OrgTokenEndpointEnabled: true,
+		},
 		BuildClient: config.BuildClientConfig{Enabled: true, Workflows: []string{"amp-docker"}, Resource: "urn:wso2:cloud"},
 	}
 	issuer := NewBuildTokenIssuer(cfg, discardLogger(), &clientmocks.SecretManagementClientMock{})
@@ -148,6 +152,7 @@ func TestNewBuildTokenIssuer_EnabledUsesTheServiceClient(t *testing.T) {
 	assert.Equal(t, btClientID, impl.minter.clientID)
 	assert.Equal(t, btClientSecret, impl.minter.clientSecret)
 	assert.Equal(t, "urn:wso2:cloud", impl.minter.resource)
+	assert.True(t, impl.minter.orgTokenEndpoint, "IDP_ORG_TOKEN_ENDPOINT_ENABLED reaches the minter")
 	_, isSetter := issuer.(BuildTokenIssuerBackgroundContextSetter)
 	assert.True(t, isSetter, "app.Run must be able to install the background context")
 }
@@ -196,7 +201,7 @@ func TestBuildTokenIssuer_RequestsTheConfiguredResource(t *testing.T) {
 	idp := &btIdP{status: http.StatusOK, body: `{"access_token":"` + token + `"}`}
 	srv := idp.server(t)
 	store := &btStore{}
-	issuer := newBuildTokenIssuer(srv.URL+"/oauth2/token", btClientID, btClientSecret, " urn:wso2:cloud ",
+	issuer := newBuildTokenIssuer(srv.URL+"/oauth2/token", btClientID, btClientSecret, " urn:wso2:cloud ", true,
 		srv.Client(), store.mock(btSecretRef, nil), discardLogger())
 
 	got, err := issuer.IssueBuildToken(auditableCtx(t), btOrg)

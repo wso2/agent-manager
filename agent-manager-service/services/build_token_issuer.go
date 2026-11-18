@@ -41,9 +41,11 @@ import (
 // build publisher endpoint with.
 //
 // The token is an access token this service obtains for the build's organization
-// from the identity provider's organization token endpoint
-// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) with its own
-// client (IDP_CLIENT_ID / IDP_CLIENT_SECRET). It names that organization in its
+// from the identity provider with its own client (IDP_CLIENT_ID /
+// IDP_CLIENT_SECRET): from the organization token endpoint
+// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) when
+// IDP_ORG_TOKEN_ENDPOINT_ENABLED is true, otherwise from IDP_TOKEN_URL itself,
+// which issues tokens for the client's own organization only. It names that organization in its
 // ouId claim and that client in its client_id claim, which is exactly what
 // jwtassertion.BuildClientAuthMiddleware requires of a caller, so a build can only
 // ever publish for the organization its token was issued for. It carries the
@@ -119,17 +121,18 @@ func NewBuildTokenIssuer(
 	logger.Info("Build tokens enabled", "workflows", cfg.BuildClient.Workflows, "clientId", cfg.IDP.ClientID,
 		"scope", jwtassertion.BuildTokenScope(), "resource", cfg.BuildClient.Resource)
 	return newBuildTokenIssuer(cfg.IDP.TokenURL, cfg.IDP.ClientID, cfg.IDP.ClientSecret, cfg.BuildClient.Resource,
-		requests.NewRetryableHTTPClient(&http.Client{}), secretClient, logger)
+		cfg.IDP.OrgTokenEndpointEnabled, requests.NewRetryableHTTPClient(&http.Client{}), secretClient, logger)
 }
 
 func newBuildTokenIssuer(
 	idpTokenURL, clientID, clientSecret, resource string,
+	orgTokenEndpoint bool,
 	httpClient requests.HttpClient,
 	secretClient secretmanagersvc.SecretManagementClient,
 	logger *slog.Logger,
 ) *buildTokenIssuer {
 	return &buildTokenIssuer{
-		minter:       newOrgClientTokenMinter(idpTokenURL, clientID, clientSecret, resource, httpClient),
+		minter:       newOrgClientTokenMinter(idpTokenURL, clientID, clientSecret, resource, orgTokenEndpoint, httpClient),
 		secretClient: secretClient,
 		logger:       logger,
 		baseCtx:      context.Background(),

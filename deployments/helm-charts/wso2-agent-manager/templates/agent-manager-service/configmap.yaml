@@ -66,6 +66,7 @@ data:
   AMP_ENVIRONMENT: {{ .environment | default "" | quote }}
   {{- end }}
   IDP_TOKEN_URL: {{ .Values.agentManagerService.config.oidc.tokenUrl | quote }}
+  IDP_ORG_TOKEN_ENDPOINT_ENABLED: {{ .Values.agentManagerService.config.oidc.orgTokenEndpointEnabled | default false | quote }}
   IDP_CLIENT_ID: {{ .Values.agentManagerService.config.oidc.clientId | quote }}
   JWT_SIGNING_PRIVATE_KEY_PATH: {{ .Values.agentManagerService.config.jwtSigning.privateKeyPath | default "/app/keys/private.pem" | quote }}
   JWT_SIGNING_PUBLIC_KEYS_CONFIG: {{ .Values.agentManagerService.config.jwtSigning.publicKeysConfig | default "/app/keys/public-keys-config.json" | quote }}

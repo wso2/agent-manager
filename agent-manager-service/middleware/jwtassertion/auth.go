@@ -145,9 +145,8 @@ func PublisherClientAuthMiddleware() func(http.Handler) http.Handler {
 }
 
 // BuildClientAuthMiddleware admits only a build token: a token this service
-// obtained for one organization from the identity provider's organization token
-// endpoint with its own client (IDP_CLIENT_ID) and handed to that organization's
-// build. The token must have been issued to that client (client_id) and carry the
+// obtained for one organization from the identity provider with its own client
+// (IDP_CLIENT_ID) and handed to that organization's build. The token must have been issued to that client (client_id) and carry the
 // organization it was issued for (ouId), and carry the build scope
 // (BuildTokenScope) and no other scope; the organization is taken from the token
 // alone, so a build can act only for the organization its token names. A token
@@ -176,9 +175,8 @@ func BuildClientOrg(ctx context.Context) string {
 }
 
 // ShadowPublisherAuthMiddleware admits only a scan token: a token this
-// service obtained for one organization from the identity provider's
-// organization token endpoint with its own client (IDP_CLIENT_ID) and handed
-// to a source code scan command. Like a build token, it must have been issued
+// service obtained for one organization from the identity provider with its
+// own client (IDP_CLIENT_ID) and handed to a source code scan command. Like a build token, it must have been issued
 // to that client and carry the organization it was issued for (ouId), and
 // carry the scan publish scope (amp:shadow-agent:publish) and no other scope.
 // A user token is refused even when its role grants that permission, and so

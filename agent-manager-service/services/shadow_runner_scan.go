@@ -100,7 +100,8 @@ func NewShadowScanRunner(cfg config.Config, logger *slog.Logger) ShadowScanRunne
 	} else {
 		runner.Issuer = &shadowScanTokenIssuer{
 			minter: newOrgClientTokenMinter(cfg.IDP.TokenURL, cfg.IDP.ClientID, cfg.IDP.ClientSecret,
-				cfg.ShadowRunner.Resource, requests.NewRetryableHTTPClient(&http.Client{})),
+				cfg.ShadowRunner.Resource, cfg.IDP.OrgTokenEndpointEnabled,
+				requests.NewRetryableHTTPClient(&http.Client{})),
 		}
 	}
 	if runner.AMPURL == "" {

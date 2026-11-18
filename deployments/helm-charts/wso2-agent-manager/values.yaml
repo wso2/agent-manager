@@ -342,6 +342,11 @@ agentManagerService:
       existingSecret: ""
       existingSecretKey: "idp-client-secret"
       clientSecret: "amp-api-client-secret"
+      # Request organization tokens (build token, source code scan token) from
+      # /ou/{ouId}/oauth2/token. On-prem runs a single organization, and its
+      # Thunder 1.x has no such endpoint, so this stays false. Set true only for
+      # a multi-org identity provider that serves it.
+      orgTokenEndpointEnabled: false
     # JWT Signing configuration
     jwtSigning:
       privateKeyPath: "/app/keys/private.pem"

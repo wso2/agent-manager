@@ -33,16 +33,22 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// orgClientTokenMinter obtains access tokens for an organization from the
-// identity provider's organization token endpoint
-// (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token) with this
-// service's own client (IDP_CLIENT_ID / IDP_CLIENT_SECRET). Each token names that
-// organization in its ouId claim and that client in its client_id claim, and
-// carries exactly the one scope it was requested for.
+// orgClientTokenMinter obtains access tokens for an organization with this
+// service's own client (IDP_CLIENT_ID / IDP_CLIENT_SECRET). With orgTokenEndpoint
+// (IDP_ORG_TOKEN_ENDPOINT_ENABLED) it asks the identity provider's organization
+// token endpoint (<IDP_TOKEN_URL without /oauth2/token>/ou/<ouId>/oauth2/token),
+// for multi-org deployments; without it, it asks IDP_TOKEN_URL itself, whose
+// tokens name the client's own organization, so only that organization can be
+// issued tokens (single-org on-prem). Each token names the organization in its
+// ouId claim and that client in its client_id claim, and carries exactly the one
+// scope it was requested for.
 type orgClientTokenMinter struct {
 	idpTokenURL  string
 	clientID     string
 	clientSecret string
+	// orgTokenEndpoint requests tokens from the organization token endpoint
+	// rather than from idpTokenURL itself.
+	orgTokenEndpoint bool
 	// resource is the RFC 8707 resource indicator tokens are requested for; empty
 	// requests none.
 	resource   string
@@ -52,15 +58,17 @@ type orgClientTokenMinter struct {
 
 func newOrgClientTokenMinter(
 	idpTokenURL, clientID, clientSecret, resource string,
+	orgTokenEndpoint bool,
 	httpClient requests.HttpClient,
 ) *orgClientTokenMinter {
 	return &orgClientTokenMinter{
-		idpTokenURL:  idpTokenURL,
-		clientID:     strings.TrimSpace(clientID),
-		clientSecret: clientSecret,
-		resource:     strings.TrimSpace(resource),
-		httpClient:   httpClient,
-		now:          time.Now,
+		idpTokenURL:      idpTokenURL,
+		clientID:         strings.TrimSpace(clientID),
+		clientSecret:     clientSecret,
+		orgTokenEndpoint: orgTokenEndpoint,
+		resource:         strings.TrimSpace(resource),
+		httpClient:       httpClient,
+		now:              time.Now,
 	}
 }
 
@@ -75,9 +83,15 @@ type orgClientTokenResponse struct {
 func (m *orgClientTokenMinter) mint(
 	ctx context.Context, ouID, scope string, minValidity time.Duration,
 ) (string, time.Time, error) {
-	tokenURL, err := config.OrganizationTokenURL(m.idpTokenURL, ouID)
+	// Built in both modes so an empty or malformed organization is refused before
+	// any request: a token naming no organization could act for any.
+	orgURL, err := config.OrganizationTokenURL(m.idpTokenURL, ouID)
 	if err != nil {
 		return "", time.Time{}, err
+	}
+	tokenURL := m.idpTokenURL
+	if m.orgTokenEndpoint {
+		tokenURL = orgURL
 	}
 	token, err := m.requestToken(ctx, tokenURL, scope)
 	if err != nil {
@@ -90,7 +104,7 @@ func (m *orgClientTokenMinter) mint(
 	return token, expiresAt, nil
 }
 
-// requestToken asks the organization token endpoint for a client_credentials
+// requestToken asks the token endpoint for a client_credentials
 // token, authenticating with client_secret_basic as this service's other token
 // requests do. It requests scope only, for the configured resource server when
 // there is one: an identity provider issues a scope only for the resource server
@@ -151,6 +165,11 @@ func (m *orgClientTokenMinter) checkToken(
 		return time.Time{}, errors.New("the identity provider's access token is not a readable JWT")
 	}
 	if got := claims.OuId; strings.TrimSpace(got) != ouID {
+		if !m.orgTokenEndpoint {
+			return time.Time{}, fmt.Errorf("the token was issued for organization %q, not %q; "+
+				"IDP_ORG_TOKEN_ENDPOINT_ENABLED is false, so tokens can only be issued for the client's own organization",
+				got, ouID)
+		}
 		return time.Time{}, fmt.Errorf("the token was issued for organization %q, not %q", got, ouID)
 	}
 	if got := claims.ClientID; strings.TrimSpace(got) != m.clientID {

@@ -257,8 +257,10 @@ func TestNewShadowScanRunner(t *testing.T) {
 	cfg.IDP.TokenURL = "https://idp.example.com/oauth2/token"
 	cfg.IDP.ClientID = "amp-api-client"
 	cfg.IDP.ClientSecret = "secret"
+	cfg.IDP.OrgTokenEndpointEnabled = true
 	runner = NewShadowScanRunner(cfg, discardLogger())
-	assert.NotNil(t, runner.Issuer)
+	require.NotNil(t, runner.Issuer)
+	assert.True(t, runner.Issuer.(*shadowScanTokenIssuer).minter.orgTokenEndpoint)
 	assert.Equal(t, "amp-api-client", runner.ClientID)
 	assert.Empty(t, runner.unavailable)
 }
@@ -268,7 +270,7 @@ func shadowScanIssuer(t *testing.T, idp *btIdP, resource string) ShadowScanToken
 	t.Helper()
 	srv := idp.server(t)
 	return &shadowScanTokenIssuer{
-		minter: newOrgClientTokenMinter(srv.URL+"/oauth2/token", btClientID, btClientSecret, resource, srv.Client()),
+		minter: newOrgClientTokenMinter(srv.URL+"/oauth2/token", btClientID, btClientSecret, resource, true, srv.Client()),
 	}
 }
 

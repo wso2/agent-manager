@@ -951,6 +951,12 @@
                 "existingSecretKey": {
                   "description": "Data key in the existing Kubernetes Secret. Defaults to idp-client-secret.",
                   "type": "string"
+                },
+                "orgTokenEndpointEnabled": {
+                  "default": false,
+                  "description": "Request organization tokens from /ou/{ouId}/oauth2/token. Keep false for a single-organization install; set true only for a multi-org identity provider that serves that endpoint.",
+                  "title": "orgTokenEndpointEnabled",
+                  "type": "boolean"
                 }
               },
               "required": [],
