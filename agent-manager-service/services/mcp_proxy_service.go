@@ -360,10 +360,11 @@ func (s *MCPProxyService) List(ctx context.Context, orgUUID string, projectUUID 
 // ListAvailableMCPPolicies returns the policy versions every catalog gateway in the organization
 // (listCatalogGateways) reports. Gateways that have not reported a manifest yet are left out
 // (see gatewayManifest).
-func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID string) (*models.MCPPolicyAvailabilityResponse, error) {
+func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID string) (*models.PolicyCatalogResponse, error) {
 	_ = ctx
+	// Task 5: replace with buildPolicyCatalog (hub merge, not_installed, custom, proxyId scoping). Stub maps installed items only.
 	if s.gatewayRepo == nil {
-		return &models.MCPPolicyAvailabilityResponse{List: []models.MCPPolicyAvailableItem{}}, nil
+		return &models.PolicyCatalogResponse{List: []models.PolicyCatalogItem{}, AvailabilityScope: models.PolicyAvailabilityScopeOrgManaged}, nil
 	}
 
 	gateways, err := listCatalogGateways(s.gatewayRepo, orgUUID)
@@ -371,14 +372,14 @@ func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID 
 		return nil, err
 	}
 
-	var available map[string]models.MCPPolicyAvailableItem
+	var available map[string]mcpPolicyAvailableItem
 	seenGateway := false
 	for _, gateway := range gateways {
 		manifest, known := gatewayManifest(gateway)
 		if !known {
 			continue
 		}
-		gatewayPolicies := map[string]models.MCPPolicyAvailableItem{}
+		gatewayPolicies := map[string]mcpPolicyAvailableItem{}
 		for _, policy := range extractGatewayPolicyManifestItems(manifest) {
 			if policy.Name == "" || policy.Version == "" {
 				continue
@@ -399,22 +400,33 @@ func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID 
 	}
 
 	if available == nil {
-		available = map[string]models.MCPPolicyAvailableItem{}
+		available = map[string]mcpPolicyAvailableItem{}
 	}
-	items := make([]models.MCPPolicyAvailableItem, 0, len(available))
+	sorted := make([]mcpPolicyAvailableItem, 0, len(available))
 	for _, item := range available {
-		items = append(items, item)
+		sorted = append(sorted, item)
 	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Name == items[j].Name {
-			return items[i].Version < items[j].Version
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Name == sorted[j].Name {
+			return sorted[i].Version < sorted[j].Version
 		}
-		return items[i].Name < items[j].Name
+		return sorted[i].Name < sorted[j].Name
 	})
+	items := make([]models.PolicyCatalogItem, 0, len(sorted))
+	for _, item := range sorted {
+		items = append(items, models.PolicyCatalogItem{
+			Name:       item.Name,
+			Version:    item.Version,
+			Source:     models.PolicyCatalogSourceHub,
+			Status:     models.PolicyCatalogStatusInstalled,
+			Categories: []string{},
+		})
+	}
 
-	return &models.MCPPolicyAvailabilityResponse{
-		Count: int32(len(items)),
-		List:  items,
+	return &models.PolicyCatalogResponse{
+		Count:             int32(len(items)),
+		List:              items,
+		AvailabilityScope: models.PolicyAvailabilityScopeOrgManaged,
 	}, nil
 }
 
@@ -1024,9 +1036,15 @@ func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, pr
 	return errors.Join(errs...)
 }
 
-func extractGatewayPolicyManifestItems(value interface{}) []models.MCPPolicyAvailableItem {
+// mcpPolicyAvailableItem identifies one gateway-installed policy version.
+type mcpPolicyAvailableItem struct {
+	Name    string
+	Version string
+}
+
+func extractGatewayPolicyManifestItems(value interface{}) []mcpPolicyAvailableItem {
 	seen := map[string]struct{}{}
-	items := make([]models.MCPPolicyAvailableItem, 0)
+	items := make([]mcpPolicyAvailableItem, 0)
 	var walk func(interface{})
 
 	add := func(name, version string) {
@@ -1040,7 +1058,7 @@ func extractGatewayPolicyManifestItems(value interface{}) []models.MCPPolicyAvai
 			return
 		}
 		seen[key] = struct{}{}
-		items = append(items, models.MCPPolicyAvailableItem{Name: name, Version: version})
+		items = append(items, mcpPolicyAvailableItem{Name: name, Version: version})
 	}
 
 	stringValue := func(v interface{}) string {

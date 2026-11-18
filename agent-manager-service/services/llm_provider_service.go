@@ -501,7 +501,7 @@ func (s *LLMProviderService) List(ouID string, limit, offset int) ([]*models.LLM
 // without depending on the external policy hub. When providerID is non-empty, the result
 // is scoped to the gateways that provider is currently deployed to, instead of every
 // active gateway in the org.
-func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
+func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID, providerID string) (*models.PolicyCatalogResponse, error) {
 	var available map[string]llmPolicyManifestItem
 	var err error
 	if providerID != "" {
@@ -524,11 +524,19 @@ func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID,
 	}
 
 	sorted := sortedLLMPolicyManifestItems(available)
-	items := make([]models.LLMPolicyDefinition, 0, len(sorted))
+	scope := models.PolicyAvailabilityScopeOrgManaged
+	if providerID != "" {
+		scope = models.PolicyAvailabilityScopeDeployed
+	}
+	// Task 5: replace with buildPolicyCatalog (hub merge, not_installed, custom). Stub maps installed items only.
+	items := make([]models.PolicyCatalogItem, 0, len(sorted))
 	for _, item := range sorted {
-		items = append(items, models.LLMPolicyDefinition{
+		items = append(items, models.PolicyCatalogItem{
 			Name:             item.Name,
 			Version:          item.Version,
+			Source:           models.PolicyCatalogSourceHub,
+			Status:           models.PolicyCatalogStatusInstalled,
+			Categories:       []string{},
 			DisplayName:      item.DisplayName,
 			Description:      item.Description,
 			Parameters:       item.Parameters,
@@ -536,9 +544,10 @@ func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID,
 		})
 	}
 
-	return &models.LLMPolicyAvailabilityResponse{
-		Count: int32(len(items)),
-		List:  items,
+	return &models.PolicyCatalogResponse{
+		Count:             int32(len(items)),
+		List:              items,
+		AvailabilityScope: scope,
 	}, nil
 }
 

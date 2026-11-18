@@ -338,10 +338,10 @@ func TestGetLLMProviderNamesDeploymentEnvironments(t *testing.T) {
 // report no guardrails, the org's gateways do.
 type undeployedProviderMock struct{ policiesMock }
 
-func (m undeployedProviderMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
+func (m undeployedProviderMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.PolicyCatalogResponse, error) {
 	if providerID != "" {
 		m.recordCall("ListLLMGuardrails", ouID, providerID)
-		return &models.LLMPolicyAvailabilityResponse{}, nil
+		return &models.PolicyCatalogResponse{}, nil
 	}
 	return m.MockToolsetHandler.ListLLMGuardrails(ctx, ouID, providerID) // records the org-wide call
 }

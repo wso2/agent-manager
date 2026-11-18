@@ -101,23 +101,6 @@ type LLMPolicyPath struct {
 	Params  map[string]interface{} `json:"params"`
 }
 
-// LLMPolicyAvailabilityResponse lists LLM guardrail policies reported by active gateways.
-type LLMPolicyAvailabilityResponse struct {
-	Count int32                 `json:"count"`
-	List  []LLMPolicyDefinition `json:"list"`
-}
-
-// LLMPolicyDefinition is one gateway-installed guardrail policy, including the metadata
-// and parameter schema needed to render it in the console without a policy-hub round-trip.
-type LLMPolicyDefinition struct {
-	Name             string                 `json:"name"`
-	Version          string                 `json:"version"`
-	DisplayName      string                 `json:"displayName,omitempty"`
-	Description      string                 `json:"description,omitempty"`
-	Parameters       map[string]interface{} `json:"parameters,omitempty"`
-	SystemParameters map[string]interface{} `json:"systemParameters,omitempty"`
-}
-
 // LLMRateLimitingConfig represents rate limiting configuration
 type LLMRateLimitingConfig struct {
 	ProviderLevel *RateLimitingScopeConfig `json:"providerLevel,omitempty"`

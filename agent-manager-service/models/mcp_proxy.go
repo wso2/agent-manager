@@ -264,18 +264,6 @@ type MCPEndpointEnvironmentDTO struct {
 	GatewayID        *string `json:"gatewayId,omitempty"`
 }
 
-// MCPPolicyAvailabilityResponse lists MCP policies reported by active gateways.
-type MCPPolicyAvailabilityResponse struct {
-	Count int32                    `json:"count"`
-	List  []MCPPolicyAvailableItem `json:"list"`
-}
-
-// MCPPolicyAvailableItem identifies one gateway-installed policy version.
-type MCPPolicyAvailableItem struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
-}
-
 // MCPProxyListItem is the list representation for an MCP proxy.
 type MCPProxyListItem struct {
 	Context        *string    `json:"context,omitempty"`

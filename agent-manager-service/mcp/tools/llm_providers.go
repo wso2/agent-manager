@@ -567,7 +567,7 @@ func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, 
 		if err != nil {
 			return nil, nil, wrapToolError("list_llm_guardrails", err)
 		}
-		var policies []models.LLMPolicyDefinition
+		var policies []models.PolicyCatalogItem
 		if resp != nil {
 			policies = resp.List
 		}
