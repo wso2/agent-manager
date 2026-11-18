@@ -1,0 +1,119 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { render, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
+import type { LLMProviderResponse } from "@agent-management-platform/types";
+
+const catalog = vi.hoisted(() => ({
+  state: { data: undefined as unknown, error: null as unknown },
+}));
+
+vi.mock("@agent-management-platform/api-client", () => ({
+  useLLMPoliciesCatalog: () => ({
+    data: catalog.state.data,
+    error: catalog.state.error,
+    isLoading: false,
+  }),
+  filterGuardrailPolicies: (items: unknown[]) => items,
+  ConsoleAction: {},
+  useTrack: () => ({ track: vi.fn() }),
+}));
+vi.mock("@agent-management-platform/feature-management", () => ({
+  useResourceAccess: () => ({ canWrite: true }),
+}));
+vi.mock("../hooks/useOpenApiSpec", () => ({
+  useOpenApiSpec: () => ({ text: "", isLoading: false, error: null }),
+}));
+
+import { ConfirmationDialogProvider } from "@agent-management-platform/shared-component";
+import { LLMProviderGuardrailsTab } from "./LLMProviderGuardrailsTab";
+
+const provider = {
+  uuid: "prov-1",
+  openapi: "",
+  policies: [
+    {
+      name: "legacy-guard",
+      version: "v1.0.0",
+      paths: [{ path: "/*", methods: ["*"], params: { mode: "strict" } }],
+    },
+  ],
+} as unknown as LLMProviderResponse;
+
+const renderTab = (onUpdate = vi.fn()) =>
+  render(
+    <MemoryRouter>
+      <ConfirmationDialogProvider>
+        <LLMProviderGuardrailsTab
+          providerData={provider}
+          onUpdate={onUpdate}
+          isUpdating={false}
+        />
+      </ConfirmationDialogProvider>
+    </MemoryRouter>,
+  );
+
+const loadedCatalog = (data: unknown[]) => ({
+  count: data.length,
+  data,
+  hubAvailable: true,
+  availabilityScope: "deployed",
+});
+
+describe("LLMProviderGuardrailsTab unavailable guardrails", () => {
+  it("flags an applied guardrail missing from the catalog, opens it read-only and keeps Remove", () => {
+    catalog.state = { data: loadedCatalog([]), error: null };
+    const onUpdate = vi.fn().mockResolvedValue(provider);
+    renderTab(onUpdate);
+
+    expect(screen.getByText("Not available on this gateway")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(/legacy-guard/));
+    expect(screen.getByRole("presentation").textContent).toContain(
+      '"mode": "strict"',
+    );
+    expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
+  });
+
+  it("lets an unavailable guardrail be removed", () => {
+    catalog.state = { data: loadedCatalog([]), error: null };
+    renderTab();
+    const chip = screen.getByText(/legacy-guard/).closest(".MuiChip-root")!;
+    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon")!);
+    expect(screen.queryByText(/legacy-guard/)).not.toBeInTheDocument();
+  });
+
+  it("shows no warning while the catalog is still loading", () => {
+    catalog.state = { data: undefined, error: null };
+    renderTab();
+    expect(screen.getByText(/legacy-guard/)).toBeInTheDocument();
+    expect(
+      screen.queryByText("Not available on this gateway"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows no warning when the catalog failed to load", () => {
+    catalog.state = { data: undefined, error: new Error("boom") };
+    renderTab();
+    expect(
+      screen.queryByText("Not available on this gateway"),
+    ).not.toBeInTheDocument();
+  });
+});

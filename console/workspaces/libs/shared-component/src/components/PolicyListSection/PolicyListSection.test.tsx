@@ -194,7 +194,7 @@ describe("PolicyListSection applied policies", () => {
     expect(onRemove).toHaveBeenCalledWith("legacy-guard", "v1.0.0");
   });
 
-  it("does not flag an applied policy that is only not-installed", () => {
+  it("flags an applied policy whose only catalog match is not installed", () => {
     renderList(
       {
         catalogData: catalog([

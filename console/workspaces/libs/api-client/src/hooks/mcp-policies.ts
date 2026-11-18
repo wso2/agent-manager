@@ -23,7 +23,10 @@ import {
   type GuardrailDefinition,
   type GuardrailsCatalogResponse,
 } from "./guardrails";
+import { normalizePolicyVersionToMajor } from "../utils/policyVersion";
 import { useApiQuery } from "./react-query-notifications";
+
+export { normalizePolicyVersionToMajor };
 
 export interface MCPPolicyDefinition extends GuardrailDefinition {
   /**
@@ -75,25 +78,4 @@ export function useMCPPoliciesCatalog(orgName?: string, proxyId?: string) {
       return toMCPCatalog(resp);
     },
   });
-}
-
-/** `v1.0.2` -> `v1`; anything that is not a numeric version is returned as given. */
-export function normalizePolicyVersionToMajor(version: string): string {
-  const trimmedVersion = version.trim();
-  if (!trimmedVersion) return trimmedVersion;
-
-  let versionWithoutPrefix = trimmedVersion;
-  if (versionWithoutPrefix.toLowerCase().startsWith("v")) {
-    versionWithoutPrefix = versionWithoutPrefix.slice(1);
-  }
-  if (!versionWithoutPrefix) return trimmedVersion;
-
-  let majorVersion = versionWithoutPrefix;
-  const dotIndex = majorVersion.indexOf(".");
-  if (dotIndex >= 0) majorVersion = majorVersion.slice(0, dotIndex);
-  const dashIndex = majorVersion.indexOf("-");
-  if (dashIndex >= 0) majorVersion = majorVersion.slice(0, dashIndex);
-  majorVersion = majorVersion.trim();
-  if (!/^\d+$/.test(majorVersion)) return trimmedVersion;
-  return `v${majorVersion}`;
 }

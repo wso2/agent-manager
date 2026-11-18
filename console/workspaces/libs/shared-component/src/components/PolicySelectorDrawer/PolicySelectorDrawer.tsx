@@ -424,6 +424,7 @@ export function PolicySelectorDrawer({
                       width: "100%",
                       justifyContent: "flex-start",
                       opacity: notInstalled ? 0.6 : 1,
+                      cursor: unselectable ? "not-allowed" : undefined,
                     }}
                   >
                     <CardContent>

@@ -31,6 +31,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { MANAGED_MCP_POLICY_NAMES } from "../constants";
+import { applyPolicySelection } from "./mcpPolicySelection";
 
 function isManagedMCPPolicy(name: string): boolean {
   return MANAGED_MCP_POLICY_NAMES.includes(name);
@@ -112,26 +113,7 @@ export function MCPProxyPoliciesTab({
 
   const replacePolicy = useCallback(
     (nextSelection: PolicySelection) => {
-      const nextPolicies = [...policies];
-      // The picker hands back the exact catalog version; store its major.
-      const mcpPolicy = selectionsToMCPPolicies([
-        {
-          ...nextSelection,
-          version: normalizePolicyVersionToMajor(nextSelection.version),
-        },
-      ])[0];
-      const existingPolicyIndex = nextPolicies.findIndex(
-        (policy) =>
-          policy.name === mcpPolicy.name &&
-          policy.version === mcpPolicy.version,
-      );
-
-      if (existingPolicyIndex >= 0) {
-        nextPolicies[existingPolicyIndex] = mcpPolicy;
-        onPoliciesChange(nextPolicies);
-      } else {
-        onPoliciesChange([...policies, mcpPolicy]);
-      }
+      onPoliciesChange(applyPolicySelection(policies, nextSelection));
     },
     [onPoliciesChange, policies],
   );
