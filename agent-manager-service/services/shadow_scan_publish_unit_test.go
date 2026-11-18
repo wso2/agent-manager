@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -446,4 +447,72 @@ func TestToShadowApply_NormalisesGitHubScopes(t *testing.T) {
 		out, now, now, true, slog.New(slog.DiscardHandler))
 	require.Len(t, ado.Findings, 1)
 	assert.Equal(t, "Proj/My-Repo", ado.Findings[0].Finding.Scope)
+}
+
+// Attributes a scan command publishes arrive decoded from JSON; lists and
+// objects are stored in the same typed forms the cloud connectors store.
+func TestShadowPublishRunnerScan_StoresListAndMapAttributes(t *testing.T) {
+	body := `{"complete":true,"scannedRepositories":["a"],"agents":[{
+		"externalId":"x","name":"agent","repository":"a",
+		"attributes":{
+			"reviewedBy":"rules",
+			"tools":[{"type":"function","name":"search","schema":{"secret":"` + shadowPromptMark + `"}},{"type":"mcp"}],
+			"mcpServers":[{"label":"files","origin":"https://user:pw@mcp.example.com/sse?token=x"}],
+			"skills":["triage","summarise"],
+			"labels":{"team":"ops","env":"dev"},
+			"protocolType":["A2A",3],
+			"framework":["not","a","string"]
+		},
+		"evidence":[{"code":"github.d4_mcp_client_code","source":"agent.py"}]}]}`
+	var req models.PublishShadowScanRequest
+	require.NoError(t, json.Unmarshal([]byte(body), &req))
+
+	f := newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{AllRepositories: true},
+		models.ShadowScanOptions{})
+	_, err := f.publish(auditableCtx(t), &req)
+	require.NoError(t, err)
+	require.Len(t, f.published.Apply.Findings, 1)
+	attrs := f.published.Apply.Findings[0].Finding.Attributes
+
+	assert.Equal(t, []sa.ToolRef{{Type: "function", Name: "search"}, {Type: "mcp"}}, attrs["tools"],
+		"type and name only")
+	assert.Equal(t, []sa.MCPServerRef{{Label: "files", Origin: "https://mcp.example.com"}}, attrs["mcpServers"],
+		"the origin only")
+	assert.Equal(t, []string{"triage", "summarise"}, attrs["skills"])
+	assert.Equal(t, map[string]string{"team": "ops", "env": "dev"}, attrs["labels"])
+	assert.NotContains(t, attrs, "protocolType", "a list that is not all strings is dropped")
+	assert.NotContains(t, attrs, "framework", "a list is dropped where the platforms store a string")
+	assert.Equal(t, "rules", attrs["reviewedBy"])
+
+	stored, err := json.Marshal(attrs)
+	require.NoError(t, err)
+	assert.NotContains(t, string(stored), shadowPromptMark)
+	assert.NotContains(t, string(stored), "token=x")
+}
+
+func TestShadowPublishAttributeValue_DropsMalformedShapes(t *testing.T) {
+	cases := map[string]struct {
+		key string
+		raw string
+	}{
+		"a tool that is not an object":     {"tools", `["search"]`},
+		"a tool name that is not text":     {"tools", `[{"type":"function","name":7}]`},
+		"an MCP server that is not object": {"mcpServers", `[["files"]]`},
+		"an MCP origin that is not text":   {"mcpServers", `[{"label":"files","origin":true}]`},
+		"a label value that is not text":   {"labels", `{"team":"ops","count":2}`},
+		"a list with an object in it":      {"skills", `["triage",{"x":1}]`},
+		"a list where a string belongs":    {"framework", `["langgraph"]`},
+		"an object where a string belongs": {"model", `{"name":"gpt"}`},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			var v any
+			require.NoError(t, json.Unmarshal([]byte(tc.raw), &v))
+			_, ok := shadowPublishAttributeValue(tc.key, v)
+			assert.False(t, ok)
+		})
+	}
+	v, ok := shadowPublishAttributeValue("toolCount", float64(2))
+	assert.True(t, ok, "scalars pass through to the sanitiser")
+	assert.InDelta(t, 2.0, v, 0)
 }

@@ -224,13 +224,19 @@ func checkShadowReviewedBy(attrs map[string]any, opts models.ShadowScanOptions) 
 	}
 }
 
-// shadowPublishAttributes copies the attributes with the repository URL
-// reduced to its scheme, host and path; toShadowApply applies the
-// allow-list.
+// shadowPublishAttributes copies the attributes in the typed forms the cloud
+// connectors store, which SanitizeAttributes then applies the allow-list and
+// limits to. Attributes decoded from JSON arrive as []any and map[string]any:
+// tools become []sa.ToolRef ({type, name}), mcpServers []sa.MCPServerRef
+// ({label, origin}), any other list of strings []string and any object of
+// strings map[string]string (labels). A value of another shape is dropped.
+// The repository URL is reduced to its scheme, host and path.
 func shadowPublishAttributes(in map[string]any) map[string]any {
 	out := make(map[string]any, len(in))
 	for k, v := range in {
-		out[k] = v
+		if typed, ok := shadowPublishAttributeValue(k, v); ok {
+			out[k] = typed
+		}
 	}
 	if raw, ok := out["repositoryUrl"].(string); ok {
 		if u := sa.RepositoryURL(raw); u != "" {
@@ -240,6 +246,85 @@ func shadowPublishAttributes(in map[string]any) map[string]any {
 		}
 	}
 	return out
+}
+
+// shadowPublishAttributeValue converts one decoded JSON attribute value, and
+// reports false for a list or object of the wrong shape.
+func shadowPublishAttributeValue(key string, v any) (any, bool) {
+	switch x := v.(type) {
+	case []any:
+		switch key {
+		case "tools":
+			tools := make([]sa.ToolRef, 0, len(x))
+			for _, e := range x {
+				fields, ok := shadowStringFields(e, "type", "name")
+				if !ok {
+					return nil, false
+				}
+				tools = append(tools, sa.ToolRef{Type: fields["type"], Name: fields["name"]})
+			}
+			return tools, true
+		case "mcpServers":
+			servers := make([]sa.MCPServerRef, 0, len(x))
+			for _, e := range x {
+				fields, ok := shadowStringFields(e, "label", "origin")
+				if !ok {
+					return nil, false
+				}
+				servers = append(servers, sa.MCPServerRef{Label: fields["label"], Origin: fields["origin"]})
+			}
+			return servers, true
+		case "skills", "protocolType":
+			list := make([]string, 0, len(x))
+			for _, e := range x {
+				str, ok := e.(string)
+				if !ok {
+					return nil, false
+				}
+				list = append(list, str)
+			}
+			return list, true
+		default:
+			return nil, false
+		}
+	case map[string]any:
+		if key != "labels" {
+			return nil, false
+		}
+		m := make(map[string]string, len(x))
+		for mk, mv := range x {
+			str, ok := mv.(string)
+			if !ok {
+				return nil, false
+			}
+			m[mk] = str
+		}
+		return m, true
+	default:
+		return v, true
+	}
+}
+
+// shadowStringFields reads the named fields of a decoded JSON object. Each
+// must be a string when present; other fields are ignored.
+func shadowStringFields(v any, names ...string) (map[string]string, bool) {
+	obj, ok := v.(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	out := make(map[string]string, len(names))
+	for _, n := range names {
+		raw, present := obj[n]
+		if !present || raw == nil {
+			continue
+		}
+		str, ok := raw.(string)
+		if !ok {
+			return nil, false
+		}
+		out[n] = str
+	}
+	return out, true
 }
 
 func shadowAgentLabel(i int, externalID string) string {
