@@ -80,13 +80,10 @@ func healthProbeIPs(ctx context.Context, host string, lookupIP func(context.Cont
 		host = host[1 : len(host)-1]
 	}
 	ipv4Loopback, ipv6Loopback := net.IPv4(127, 0, 0, 1), net.IPv6loopback
-	if host == "" {
-		return []net.IP{ipv4Loopback, ipv6Loopback}, nil
-	}
 	ip := net.ParseIP(host)
-	if ip.IsUnspecified() {
-		if ip.To4() != nil {
-			return []net.IP{ipv4Loopback}, nil
+	if host == "" || ip.IsUnspecified() {
+		if host == "" || ip.To4() != nil {
+			return []net.IP{ipv4Loopback, ipv6Loopback}, nil
 		}
 		return []net.IP{ipv6Loopback, ipv4Loopback}, nil
 	}
@@ -130,11 +127,18 @@ func checkHealth(ctx context.Context, host string, port int) error {
 			// Try the alternate family only when TCP cannot connect. HTTP
 			// responses and redirects never trigger a second probe.
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
-				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), portText))
-				if err != nil && len(ips) == 2 {
-					return dialer.DialContext(ctx, network, net.JoinHostPort(ips[1].String(), portText))
+				firstAddr := net.JoinHostPort(ips[0].String(), portText)
+				if len(ips) == 1 {
+					return dialer.DialContext(ctx, network, firstAddr)
 				}
-				return conn, err
+				// Reserve time for the other family if the first dial stalls.
+				firstCtx, cancel := context.WithTimeout(ctx, 300*time.Millisecond)
+				conn, err := dialer.DialContext(firstCtx, network, firstAddr)
+				cancel()
+				if err == nil {
+					return conn, nil
+				}
+				return dialer.DialContext(ctx, network, net.JoinHostPort(ips[1].String(), portText))
 			},
 		},
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {

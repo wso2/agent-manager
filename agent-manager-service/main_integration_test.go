@@ -22,6 +22,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -56,14 +57,16 @@ func TestCheckHealthHTTP(t *testing.T) {
 func TestCheckHealthIPv6WildcardReachesIPv4Listener(t *testing.T) {
 	listener, err := net.Listen("tcp4", "127.0.0.1:0")
 	require.NoError(t, err)
-	server := &httptest.Server{
-		Listener: listener,
-		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		})},
-	}
+	var received atomic.Bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		received.Store(true)
+		w.WriteHeader(http.StatusOK)
+	})
+	server := &httptest.Server{Listener: listener, Config: &http.Server{Handler: mux}}
 	server.Start()
 	defer server.Close()
 
 	require.NoError(t, checkHealth(t.Context(), "[::]", listener.Addr().(*net.TCPAddr).Port))
+	require.True(t, received.Load(), "the IPv4 listener must receive the probe")
 }
