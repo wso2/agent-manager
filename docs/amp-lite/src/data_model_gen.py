@@ -396,8 +396,8 @@ for key, t, tb, p in deferred:
 outside = [
     ("o_thunder", "Thunder", "own database",
      "Issues agent identities. Ours stores only the IDs it returns. One Thunder per install, set in config."),
-    ("o_obs", "Traces, logs, metrics", "observability store",
-     "Agent traces, runtime and build logs, and metrics live outside this database."),
+    ("o_obs", "Traces, logs, metrics", "observability module (later)",
+     "Not stored in Lite. When observability returns as a module, they live in its own store, not this database."),
     ("o_users", "Users and roles", "config file",
      "Console sign-in and role mapping come from a file. Tables refer to users by username."),
 ]

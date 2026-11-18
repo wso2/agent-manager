@@ -19,7 +19,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 - Gateways belong to an org, with no limit per org, and are managed by the gateway module. With `amp`, the default org's bundled gateway is running out of the box; users add more (managed or self-hosted).
 - Secrets live in our database, encrypted. Production can plug in an external vault.
 - Audit log (console actions) and console usage tracking are stored in our database.
-- Traces, runtime logs, build logs and metrics are stored elsewhere.
+- Traces, runtime logs, build logs and metrics are not stored in Lite; they come back with an observability module and its own store.
 - Databases: SQLite ships with Lite and holds everything. Production uses PostgreSQL 18, SQL Server 2025 or Oracle 19c.
 
 ## Database rules
@@ -223,7 +223,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 - `artifact_deployments` (was `deployments`): artifact_id cascade; gateway_id and base_deployment_id no action (SQL Server rejects multiple cascade paths and self-referencing SET NULL; the service clears them). content binary, metadata JSON.
 - `artifact_gateway_status` (was `deployment_status`): PK (artifact_id, gateway_id), org_id. Cascade from artifact only; deleting a gateway clears its rows in the service. Status CHECK constraints kept. claimed_by, claimed_until for the render queue.
 - Typed rows share the artifact's id (`llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`): FK id → artifacts(id) ON DELETE CASCADE, so deleting the artifact deletes the typed row and everything under it. Their project FK has no action, so a project that still has LLM proxies or MCP servers can't be deleted.
-- `OtelIngest`: the built-in trace-ingest API (`/otel`) that every gateway serves. One artifact per org (handle `amp-otel-ingest`), created when a gateway first connects and deployed to each gateway on connect unless it already serves the current version. Gateways receive it as a RestApi. It has no typed row.
+- `OtelIngest`: the built-in trace-ingest API (`/otel`), published only when `OTEL_INGEST_UPSTREAM_URL` is set; the Lite stack leaves it empty, so no gateway serves it. One artifact per org (handle `amp-otel-ingest`), created when a gateway first connects and deployed to each gateway on connect unless it already serves the current version. Gateways receive it as a RestApi. It has no typed row.
 
 ### LLM
 

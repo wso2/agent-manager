@@ -12,7 +12,7 @@ This repo is a **multi-aspect monorepo**. Each aspect has its own `AGENTS.md` wi
 | **Web console** | `console/` | React 19, TS, Vite, pnpm workspaces, Oxygen UI (MUI 7), TanStack Query | [`console/AGENTS.md`](console/AGENTS.md) |
 | **Oxygen UI library** | `console/.ai/oxygen-ui/` | WSO2 React component lib | [`console/.ai/oxygen-ui/AGENTS.md`](console/.ai/oxygen-ui/AGENTS.md) |
 | **CLI (`amctl`)** | `cli/` | Go, cobra-style, factory-injected deps | [`cli/AGENTS.md`](cli/AGENTS.md) |
-| **Trace/observability API** | `agent-manager-observer/` | Go, stdlib `net/http`, `slog` | [`agent-manager-observer/AGENTS.md`](agent-manager-observer/AGENTS.md) |
+| **Trace/observability API** (not in the Lite stack) | `agent-manager-observer/` | Go, stdlib `net/http`, `slog` | [`agent-manager-observer/AGENTS.md`](agent-manager-observer/AGENTS.md) |
 | **Instrumentation lib** | `libs/amp-instrumentation/` | Python, OpenTelemetry / Traceloop | [`libs/amp-instrumentation/AGENTS.md`](libs/amp-instrumentation/AGENTS.md) |
 | **Evaluation lib** | `libs/amp-evaluation/` | Python, Pydantic v2 | [`libs/amp-evaluation/AGENTS.md`](libs/amp-evaluation/AGENTS.md) |
 | **Evaluation job** | `evaluation-job/` | Python (Dockerized Argo job) | [`evaluation-job/AGENTS.md`](evaluation-job/AGENTS.md) |
@@ -36,17 +36,14 @@ Repeatable, error-prone procedures are captured as Claude Code skills in `.claud
 
 ```text
 console ──HTTP──▶ agent-manager-service ──▶ SQLite or PostgreSQL / ThunderID / AI Gateway
-   │                       │
-   │                       └─ registers external agents; they run under amp-instrument
-   │                          (libs/amp-instrumentation) and send traces via the AI Gateway
-   │                                                     │
-   └──HTTP──▶ agent-manager-observer ──▶ Observer ──▶ OTel traces from instrumented agents
-                                                     │
+                           │
+                           └─ registers external agents; their LLM, MCP and A2A calls
+                              go through the AI Gateway
 cli (amctl) ──HTTP──▶ agent-manager-service   (same API as the console)
 ```
 
 - **`agent-manager-service`** is the hub — the REST and MCP API the console and CLI both call. It also serves the built console on its own port. Its core imports no module; the AI Gateway is the built-in `gateway` module (see [Writing a module](docs/amp-lite/modules.md)).
-- **Instrumented agents** emit OTel traces (via `amp-instrumentation`, run with `amp-instrument`); `agent-manager-observer` serves them to the console. `evaluation-job` and `amp-evaluation` are kept as source for a future evaluation module; Lite neither builds nor runs them.
+- **Not in the Lite stack:** the stack stores no traces, so `agent-manager-observer` does not run and agents instrumented with `libs/amp-instrumentation` have nowhere to send spans; `evaluation-job` and `amp-evaluation` are neither built nor run. Their source stays for the observability and evaluation modules planned to replace them.
 
 ## Local dev environment (from repo root)
 
