@@ -45,20 +45,16 @@ interface LLMProviderConsumersTabProps {
 function consumerLink(
   orgId: string,
   consumer: LLMProviderConsumerItem,
-): string | undefined {
-  if (consumer.consumerType === "agent") {
-    return generatePath(
-      absoluteRouteMap.children.org.children.projects.children.agents.children
-        .configure.path,
-      {
-        orgId,
-        projectId: consumer.projectName,
-        agentId: consumer.consumerName,
-      },
-    );
-  }
-  // Monitors require envId which we don't have
-  return undefined;
+): string {
+  return generatePath(
+    absoluteRouteMap.children.org.children.projects.children.agents.children
+      .configure.path,
+    {
+      orgId,
+      projectId: consumer.projectName,
+      agentId: consumer.consumerName,
+    },
+  );
 }
 
 export const LLMProviderConsumersTab: React.FC<
@@ -72,8 +68,6 @@ export const LLMProviderConsumersTab: React.FC<
   });
   const { resolveAgentName, resolveProjectName } = useOrgAgentDisplayNames({ orgName });
 
-  // Monitors aren't agents and will never resolve to anything here, so they
-  // naturally fall back to their raw consumerName/projectName.
   const displayNameFor = (consumer: LLMProviderConsumerItem) =>
     resolveAgentName(consumer.projectName, consumer.consumerName);
   const projectDisplayNameFor = (consumer: LLMProviderConsumerItem) =>
@@ -103,7 +97,7 @@ export const LLMProviderConsumersTab: React.FC<
         <ListingTable.EmptyState
           illustration={<Users size={64} />}
           title="No consumers yet"
-          description="Agents and monitors that use an LLM proxy pointing to this provider will appear here."
+          description="Agents that use an LLM proxy pointing to this provider will appear here."
         />
       </ListingTable.Container>
     );
@@ -140,21 +134,12 @@ export const LLMProviderConsumersTab: React.FC<
                   </Typography>
                 </ListingTable.Cell>
                 <ListingTable.Cell>
-                  {consumer.consumerType === "agent" ? (
-                    <Chip
-                      label="Agent"
-                      size="small"
-                      variant="outlined"
-                      color="primary"
-                    />
-                  ) : (
-                    <Chip
-                      label="Monitor"
-                      size="small"
-                      variant="outlined"
-                      color="default"
-                    />
-                  )}
+                  <Chip
+                    label="Agent"
+                    size="small"
+                    variant="outlined"
+                    color="primary"
+                  />
                 </ListingTable.Cell>
                 <ListingTable.Cell>
                   <Typography variant="body2" color="text.secondary">
