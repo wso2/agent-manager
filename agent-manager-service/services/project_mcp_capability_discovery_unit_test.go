@@ -524,6 +524,55 @@ func TestCapabilityDiscovery_IdentityBindingOfAComponentFails(t *testing.T) {
 	assert.Contains(t, row.LastError, "reachable only through the gateway")
 }
 
+// Every MCP server registered by URL is listed from the control plane at its upstream, whatever the binding's gateway
+// security: no gateway key is issued, and the binding's policies never filter the list.
+func TestCapabilityDiscovery_ServerRegisteredByURLIsProbedAtItsUpstreamForEverySecurity(t *testing.T) {
+	for name, security := range map[string]func() *models.SecurityConfig{
+		"api key": func() *models.SecurityConfig {
+			on := true
+			return &models.SecurityConfig{Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &on, Key: "X-API-Key", In: "header"}}
+		},
+		"security off": func() *models.SecurityConfig { off := false; return &models.SecurityConfig{Enabled: &off} },
+		"no security":  func() *models.SecurityConfig { return nil },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+			f.identityByURL(t, upstreamAPIKey("Authorization", "Bearer github-pat"))
+			f.proxy.Endpoints[0].Configuration.Security = security()
+			f.enqueue(t)
+
+			f.recon.RunOnce(context.Background())
+
+			require.Len(t, f.calls, 1)
+			assert.Equal(t, probeCall{url: discoveryUpstreamURL, header: "Authorization", value: "Bearer github-pat"}, f.calls[0])
+			assert.Empty(t, f.keys, "no gateway key is issued")
+			assert.Equal(t, models.MCPCapabilityDiscoveryDiscovered, f.row(t).Status)
+		})
+	}
+}
+
+// The control plane lists the MCP server itself, so an ACL on the binding does not narrow what is stored.
+func TestCapabilityDiscovery_ServerRegisteredByURLIsNotFilteredByItsACL(t *testing.T) {
+	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
+	f.identityByURL(t, nil)
+	cfg := &f.proxy.Endpoints[0].Configuration
+	on := true // API key security, which was listed through the gateway before
+	cfg.Security = &models.SecurityConfig{Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &on, Key: "X-API-Key", In: "header"}}
+	cfg.Policies = append(cfg.Policies, models.MCPPolicy{Name: "mcp-acl-list", Version: "v1", Params: map[string]interface{}{
+		"tools": map[string]interface{}{"mode": "deny", "exceptions": []interface{}{"get_weather"}},
+	}})
+	f.enqueue(t)
+
+	f.recon.RunOnce(context.Background())
+
+	require.Len(t, f.calls, 1)
+	assert.Equal(t, discoveryUpstreamURL, f.calls[0].url, "the upstream, not the gateway the ACL runs on")
+	resp := f.get(t)
+	require.NotNil(t, resp.Capabilities)
+	require.NotNil(t, resp.Capabilities.Tools)
+	assert.Len(t, *resp.Capabilities.Tools, 2, "every tool the MCP server lists")
+}
+
 // An error that echoes the attempt key is stored, and so shown, with the key redacted.
 func TestCapabilityDiscovery_ErrorsAreStoredWithTheKeyRedacted(t *testing.T) {
 	f := newDiscoveryFixture(t, models.MCPProxyEnvironmentRequest{})
