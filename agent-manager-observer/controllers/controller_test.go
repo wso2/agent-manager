@@ -615,8 +615,9 @@ func TestEnrichTraceOverview_SkipsLeafAggregationForHugeTraces(t *testing.T) {
 // GetSpanDetails calls, while preserving span kind/status/attributes.
 func TestExportTraces_UsesBulkAttributes(t *testing.T) {
 	now := time.Now()
+	const structuredInput = `{"inputs":["hello","world"]}`
 	rootAttrs := map[string]interface{}{
-		"traceloop.entity.input":  `{"inputs":"hello"}`,
+		"traceloop.entity.input":  structuredInput,
 		"traceloop.entity.output": `{"outputs":{"messages":[{"kwargs":{"content":"hi"}}]}}`,
 	}
 	fake := &fakeObserverClient{
@@ -648,6 +649,9 @@ func TestExportTraces_UsesBulkAttributes(t *testing.T) {
 		t.Fatalf("expected 1 exported trace, got %d", len(resp.Traces))
 	}
 	tr := resp.Traces[0]
+	if input, ok := tr.Input.(string); !ok || input != structuredInput {
+		t.Errorf("expected trace input to retain the JSON text, got %T %v", tr.Input, tr.Input)
+	}
 	if len(tr.Spans) != 2 {
 		t.Fatalf("expected 2 spans, got %d", len(tr.Spans))
 	}

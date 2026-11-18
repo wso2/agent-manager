@@ -82,6 +82,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BookingCreateResponse"
+        "422":
+          description: The request contains more than 100 room entries
   /bookings/{booking_id}:
     get:
       summary: Get a booking by id
@@ -139,6 +141,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/BookingUpdateResponse"
+        "422":
+          description: The request contains more than 100 room entries
     delete:
       summary: Cancel a booking
       parameters:
@@ -411,6 +415,8 @@ components:
           type: string
         rooms:
           type: array
+          maxItems: 100
+          description: For older bookings with more than 100 room entries, only the first 100 are returned.
           items:
             $ref: "#/components/schemas/BookingRoom"
         user_id:
@@ -450,6 +456,7 @@ components:
           type: string
         rooms:
           type: array
+          maxItems: 100
           items:
             $ref: "#/components/schemas/BookingRoom"
         check_in_date:
@@ -493,6 +500,7 @@ components:
           type: string
         rooms:
           type: array
+          maxItems: 100
           items:
             $ref: "#/components/schemas/BookingRoom"
         check_in_date:

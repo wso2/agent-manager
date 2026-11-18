@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 DATA_PATH = Path(__file__).resolve().parent / "storage" / "bookings.json"
 DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
 BOOKINGS_PAGE_SIZE = 100
+MAX_BOOKING_ROOM_ENTRIES = 100
 
 router = APIRouter()
 
@@ -63,8 +64,26 @@ def _update_booking_record(bookings: list[dict[str, Any]], booking_id: str, upda
     return None
 
 
+def _validate_room_count(payload: dict[str, Any]) -> None:
+    rooms = payload.get("rooms")
+    if isinstance(rooms, list) and len(rooms) > MAX_BOOKING_ROOM_ENTRIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"A booking can contain at most {MAX_BOOKING_ROOM_ENTRIES} room entries",
+        )
+
+
+def _booking_response(booking: dict[str, Any]) -> dict[str, Any]:
+    rooms = booking.get("rooms")
+    if isinstance(rooms, list) and len(rooms) > MAX_BOOKING_ROOM_ENTRIES:
+        # Older bookings can exceed the limit. Keep the stored list intact.
+        return {**booking, "rooms": rooms[:MAX_BOOKING_ROOM_ENTRIES]}
+    return booking
+
+
 @router.post("/bookings", status_code=201)
 def create_booking(payload: dict[str, Any]):
+    _validate_room_count(payload)
     user_id = payload.get("user_id", "guest")
     pricing: list[dict[str, Any]] = []
 
@@ -114,7 +133,7 @@ def get_bookings(user_id: str, offset: Annotated[int, Query(ge=0)] = 0):
         matching = (booking for booking in bookings if booking.get("user_id") == user_id)
         if offset >= len(bookings):
             return []
-        return list(islice(matching, offset, offset + BOOKINGS_PAGE_SIZE))
+        return [_booking_response(booking) for booking in islice(matching, offset, offset + BOOKINGS_PAGE_SIZE)]
     except Exception:
         logger.exception("get_bookings: failed to fetch bookings")
         raise HTTPException(
@@ -140,7 +159,7 @@ def get_booking(booking_id: str, user_id: str):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=_error_response("Booking not found", "BOOKING_NOT_FOUND"),
             )
-        return booking
+        return _booking_response(booking)
     except HTTPException:
         raise
     except Exception:
@@ -153,6 +172,7 @@ def get_booking(booking_id: str, user_id: str):
 
 @router.put("/bookings/{booking_id}")
 def update_booking(booking_id: str, payload: dict[str, Any]):
+    _validate_room_count(payload)
     user_id = payload.get("user_id", "guest")
     try:
         bookings = _load_bookings()
@@ -187,7 +207,7 @@ def update_booking(booking_id: str, payload: dict[str, Any]):
         _save_bookings(bookings)
         return {
             "message": "Booking updated successfully",
-            "booking_details": updated_booking,
+            "booking_details": _booking_response(updated_booking),
         }
     except HTTPException:
         raise
@@ -228,7 +248,7 @@ def cancel_booking(booking_id: str, user_id: str):
         _save_bookings(bookings)
         return {
             "message": "Booking cancelled successfully",
-            "booking_details": updated_booking,
+            "booking_details": _booking_response(updated_booking),
         }
     except HTTPException:
         raise
