@@ -1037,6 +1037,7 @@ func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, pr
 }
 
 // mcpPolicyAvailableItem identifies one gateway-installed policy version.
+// Task 5: remove once the MCP catalog is built by buildPolicyCatalog.
 type mcpPolicyAvailableItem struct {
 	Name    string
 	Version string
