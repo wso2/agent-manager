@@ -18,7 +18,6 @@
 
 import { useAuthHooks } from "@agent-management-platform/auth";
 import {
-  globalConfig,
   type GuardrailCapabilities,
   type PolicyCatalogAvailabilityScope,
   type PolicyCatalogGatewayRef,
@@ -46,8 +45,7 @@ export interface GuardrailDefinition {
   missingOn?: PolicyCatalogGatewayRef[];
   /**
    * Present only for installed policies (see useLLMPoliciesCatalog). When set,
-   * PolicySelectorDrawer renders the parameter form directly from these instead of
-   * fetching+parsing a YAML definition.
+   * PolicySelectorDrawer renders the parameter form directly from these.
    */
   parameters?: Record<string, unknown>;
   systemParameters?: Record<string, unknown>;
@@ -178,53 +176,6 @@ export function toGuardrailCatalog(
     hubAvailable: resp.hubAvailable,
     availabilityScope: resp.availabilityScope,
   };
-}
-
-/**
- * Fetches a single guardrail policy definition (YAML) by name and version.
- *
- * The definition endpoint returns YAML content which should be
- * parsed by the consumer (e.g. with `parsePolicyYaml`).
- *
- * URL pattern:
- * `{guardrailsDefinitionBaseUrl}/{name}/versions/{version}/definition`
- */
-export function useGuardrailPolicyDefinition(
-  name: string | undefined,
-  version: string | undefined,
-) {
-  const baseUrl = globalConfig.guardrailsDefinitionBaseUrl;
-  const { getToken } = useAuthHooks();
-  const enabled = Boolean(baseUrl && name && version);
-
-  return useApiQuery<string>({
-    queryKey: ["Guardrail policy definition", baseUrl, name, version],
-    enabled,
-    queryFn: async () => {
-      if (!baseUrl || !name || !version) {
-        throw new Error(
-          "Guardrails definition base URL, policy name," +
-            " and version are required.",
-        );
-      }
-
-      const token = await getToken();
-      const url =
-        `${baseUrl}/${encodeURIComponent(name)}` +
-        `/versions/${encodeURIComponent(version)}` +
-        `/definition`;
-      const res = await fetch(url, {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      });
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        throw new Error(
-          errText || `Failed to fetch policy definition: ${res.status}`,
-        );
-      }
-      return res.text();
-    },
-  });
 }
 
 /**

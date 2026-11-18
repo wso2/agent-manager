@@ -87,7 +87,6 @@ window.__RUNTIME_CONFIG__ = {
   agentManagerInternalCpHost: '$AGENT_MANAGER_INTERNAL_CP_HOST',
   idpHostBaseDomain: '$IDP_HOST_BASE_DOMAIN',
   tlsEnabled: '$TLS_ENABLED' === 'true',
-  guardrailsDefinitionBaseUrl: '$GUARDRAILS_DEFINITION_BASE_URL',
   guardrailCapabilities: {
     awsBedrock: '$GUARDRAIL_CAP_AWS_BEDROCK' === 'true',
     azureContentSafety: '$GUARDRAIL_CAP_AZURE_CONTENT_SAFETY' === 'true',

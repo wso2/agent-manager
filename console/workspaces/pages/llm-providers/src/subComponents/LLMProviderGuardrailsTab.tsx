@@ -365,7 +365,10 @@ export function LLMProviderGuardrailsTab({
   const handleOpenEditDrawer = useCallback(
     (entry: PolicyEntry) => {
       const guardrailDef = availableGuardrails.find(
-        (g) => g.name === entry.policy.name && g.version === entry.policy.version,
+        (g) =>
+          g.status === "installed" &&
+          g.name === entry.policy.name &&
+          g.version === entry.policy.version,
       );
       if (!guardrailDef) return;
 

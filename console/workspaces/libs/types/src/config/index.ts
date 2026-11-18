@@ -112,7 +112,6 @@ export interface AppConfig {
    * provisions the matching scheme.
    */
   tlsEnabled?: boolean;
-  guardrailsDefinitionBaseUrl: string;
   /**
    * Capability flags that unlock guardrail policies requiring external system configuration.
    * OOTB policies are always shown regardless of these flags.

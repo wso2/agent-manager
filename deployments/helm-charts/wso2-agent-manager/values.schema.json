@@ -1954,12 +1954,6 @@
               "title": "guardrailCapabilities",
               "type": "object"
             },
-            "guardrailsDefinitionBaseUrl": {
-              "default": "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies",
-              "description": "Guardrails definition base URL for fetching policy definitions",
-              "title": "guardrailsDefinitionBaseUrl",
-              "type": "string"
-            },
             "idpHostBaseDomain": {
               "default": "amp.localhost",
               "description": "Base domain env-Thunder instances are hosted under, and whether this deployment serves them over TLS. Mirrors agentManagerService.config's own idpHostBaseDomain/tlsEnabled \u2014 kept in sync so the Create Environment drawer's rendered command matches this deployment. VM/production installs override both (see deployments/vm/lib-vm.sh).",

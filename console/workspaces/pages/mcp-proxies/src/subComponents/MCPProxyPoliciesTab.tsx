@@ -17,8 +17,8 @@
 
 import { useCallback, useMemo } from "react";
 import {
+  normalizePolicyVersionToMajor,
   useMCPPoliciesCatalog,
-  type MCPPoliciesCatalogResponse,
 } from "@agent-management-platform/api-client";
 import type {
   MCPEndpointConfig,
@@ -26,6 +26,7 @@ import type {
 } from "@agent-management-platform/types";
 import {
   PolicyListSection,
+  type PolicyListSectionProps,
   type PolicySelection,
 } from "@agent-management-platform/shared-component";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
@@ -57,6 +58,16 @@ function selectionsToMCPPolicies(
   }));
 }
 
+// MCP proxies save the major version (e.g. "v1") while the catalog lists the
+// exact gateway version, so saved policies are matched by name and major.
+const matchApplied: NonNullable<PolicyListSectionProps["matchApplied"]> = (
+  applied,
+  item,
+) =>
+  applied.name === item.name &&
+  normalizePolicyVersionToMajor(applied.version) ===
+    normalizePolicyVersionToMajor(item.version);
+
 export type MCPProxyPoliciesTabProps = {
   config: MCPEndpointConfig | undefined;
   selectedEndpointId: string;
@@ -80,20 +91,6 @@ export function MCPProxyPoliciesTab({
     error: catalogError,
   } = useMCPPoliciesCatalog(orgName, proxyId);
 
-  // MCP proxies store the major version (e.g. "v1") on a policy, so the picker
-  // selects and matches by that rather than the exact gateway version.
-  const catalogData = useMemo<MCPPoliciesCatalogResponse | undefined>(
-    () =>
-      mcpCatalog && {
-        ...mcpCatalog,
-        data: mcpCatalog.data.map((policy) => ({
-          ...policy,
-          version: policy.savedVersion,
-        })),
-      },
-    [mcpCatalog],
-  );
-
   // The selected environment's policies (all of them, including managed ones the
   // other tabs own). Edits are persisted immediately to that environment's block.
   const policies = useMemo(() => config?.policies ?? [], [config?.policies]);
@@ -116,12 +113,18 @@ export function MCPProxyPoliciesTab({
   const replacePolicy = useCallback(
     (nextSelection: PolicySelection) => {
       const nextPolicies = [...policies];
+      // The picker hands back the exact catalog version; store its major.
+      const mcpPolicy = selectionsToMCPPolicies([
+        {
+          ...nextSelection,
+          version: normalizePolicyVersionToMajor(nextSelection.version),
+        },
+      ])[0];
       const existingPolicyIndex = nextPolicies.findIndex(
         (policy) =>
-          policy.name === nextSelection.name &&
-          policy.version === nextSelection.version,
+          policy.name === mcpPolicy.name &&
+          policy.version === mcpPolicy.version,
       );
-      const mcpPolicy = selectionsToMCPPolicies([nextSelection])[0];
 
       if (existingPolicyIndex >= 0) {
         nextPolicies[existingPolicyIndex] = mcpPolicy;
@@ -168,7 +171,8 @@ export function MCPProxyPoliciesTab({
       onRemove={removePolicy}
       onReorder={reorderPolicies}
       readOnly={!canWrite}
-      catalogData={catalogData}
+      catalogData={mcpCatalog}
+      matchApplied={matchApplied}
       isLoadingCatalog={isLoadingCatalog}
       catalogError={catalogError}
       filterPolicies={(items) =>

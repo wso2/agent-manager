@@ -55,9 +55,12 @@ export function toMCPCatalog(
 
 export function useMCPPoliciesCatalog(orgName?: string, proxyId?: string) {
   const { getToken } = useAuthHooks();
+  // Route params fall back to "" when missing; that means no proxy, not a proxy
+  // named "".
+  const scopedProxyId = proxyId || undefined;
 
   return useApiQuery<MCPPoliciesCatalogResponse>({
-    queryKey: ["MCP policies catalog", orgName, proxyId],
+    queryKey: ["MCP policies catalog", orgName, scopedProxyId],
     enabled: Boolean(orgName),
     queryFn: async () => {
       if (!orgName) {
@@ -66,7 +69,7 @@ export function useMCPPoliciesCatalog(orgName?: string, proxyId?: string) {
       const token = await getToken();
       const resp = await listAvailableMCPPolicies(
         { orgName },
-        { proxyId },
+        { proxyId: scopedProxyId },
         async () => token,
       );
       return toMCPCatalog(resp);
@@ -74,7 +77,8 @@ export function useMCPPoliciesCatalog(orgName?: string, proxyId?: string) {
   });
 }
 
-function normalizePolicyVersionToMajor(version: string): string {
+/** `v1.0.2` -> `v1`; anything that is not a numeric version is returned as given. */
+export function normalizePolicyVersionToMajor(version: string): string {
   const trimmedVersion = version.trim();
   if (!trimmedVersion) return trimmedVersion;
 

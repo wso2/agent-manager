@@ -16,11 +16,13 @@
  * under the License.
  */
 
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import {
   Box,
   Button,
   Card,
+  Chip,
   Form,
   IconButton,
   Stack,
@@ -29,9 +31,10 @@ import {
 } from "@wso2/oxygen-ui";
 import { Plus, ShieldCheck, Trash } from "@wso2/oxygen-ui-icons-react";
 import { NoDataFound } from "@agent-management-platform/views";
-import type {
-  GuardrailDefinition,
-  GuardrailsCatalogResponse,
+import {
+  useLLMPoliciesCatalog,
+  type GuardrailDefinition,
+  type GuardrailsCatalogResponse,
 } from "@agent-management-platform/api-client";
 import type { ParameterValues } from "../../utils/policyParameterEditor";
 import { PolicySelectorDrawer } from "../PolicySelectorDrawer/PolicySelectorDrawer";
@@ -59,7 +62,16 @@ export interface PolicyListSectionProps {
    */
   providerId?: string;
   filterPolicies?: (policies: GuardrailDefinition[]) => GuardrailDefinition[];
-  getPolicyDefinitionVersion?: (policy: GuardrailDefinition) => string;
+  /** False when the policy hub is unreachable; defaults to the catalog's own flag. */
+  hubAvailable?: boolean;
+  /** Defaults to the catalog's own scope. */
+  availabilityScope?: "deployed" | "org_managed";
+  /**
+   * Whether a saved policy is the given catalog item. Defaults to name and
+   * version equality; MCP passes name and major version, since it saves "v1"
+   * while the catalog lists the exact gateway version.
+   */
+  matchApplied?: (applied: PolicySelection, item: GuardrailDefinition) => boolean;
   title?: string;
   description?: string;
   addButtonLabel?: string;
@@ -79,6 +91,11 @@ export interface PolicyListSectionProps {
   readOnly?: boolean;
 }
 
+const matchByNameAndVersion = (
+  applied: PolicySelection,
+  item: GuardrailDefinition,
+): boolean => applied.name === item.name && applied.version === item.version;
+
 export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   policies,
   onAdd,
@@ -90,7 +107,9 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   catalogError,
   providerId,
   filterPolicies,
-  getPolicyDefinitionVersion,
+  hubAvailable,
+  availabilityScope,
+  matchApplied = matchByNameAndVersion,
   title = "Policies",
   description = "Add policies to enforce consistent protections.",
   addButtonLabel = "Add policy",
@@ -116,6 +135,51 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const reorderEnabled = !readOnly && !!onReorder;
+
+  // The list needs the catalog to flag applied policies the gateway lacks, so
+  // it owns the default fetch and hands the result to the drawer.
+  const { orgId } = useParams<{ orgId: string }>();
+  const {
+    data: defaultCatalogData,
+    isLoading: defaultIsLoadingCatalog,
+    error: defaultCatalogError,
+  } = useLLMPoliciesCatalog(
+    orgId,
+    !catalogData &&
+      isLoadingCatalog === undefined &&
+      catalogError === undefined &&
+      !filterPolicies,
+    providerId,
+  );
+  const activeCatalog = catalogData ?? defaultCatalogData;
+  const activeIsLoading = isLoadingCatalog ?? defaultIsLoadingCatalog;
+  const activeError = catalogError ?? defaultCatalogError;
+
+  // Judged against the whole catalog, not the picker's filtered view: a policy
+  // the picker hides is still available on the gateway.
+  const isUnavailable = useCallback(
+    (policy: PolicySelection) =>
+      Boolean(activeCatalog) &&
+      !activeCatalog!.data.some(
+        (item) => item.status !== "not_installed" && matchApplied(policy, item),
+      ),
+    [activeCatalog, matchApplied],
+  );
+
+  const matchEditing = useCallback(
+    (item: GuardrailDefinition) =>
+      editingPolicy ? matchApplied(editingPolicy, item) : false,
+    [editingPolicy, matchApplied],
+  );
+
+  const isAdded = useMemo(
+    () =>
+      editingPolicy
+        ? undefined
+        : (item: GuardrailDefinition) =>
+            policies.some((policy) => matchApplied(policy, item)),
+    [editingPolicy, policies, matchApplied],
+  );
 
   const handleAdd = useCallback(
     (policy: GuardrailDefinition, settings: ParameterValues) => {
@@ -315,6 +379,14 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
                   >
                     {label}
                   </Typography>
+                  {isUnavailable(policy) && (
+                    <Chip
+                      label="Not available on this gateway"
+                      size="small"
+                      color="warning"
+                      variant="outlined"
+                    />
+                  )}
                   {!readOnly && (
                   <Tooltip title="Remove" placement="top" arrow>
                     <IconButton
@@ -341,16 +413,18 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
         open={drawerOpen}
         onClose={handleCloseDrawer}
         onSubmit={editingPolicy ? handleEdit : handleAdd}
-        catalogData={catalogData}
-        isLoadingCatalog={isLoadingCatalog}
-        catalogError={catalogError}
-        providerId={providerId}
+        catalogData={activeCatalog}
+        isLoadingCatalog={activeIsLoading}
+        catalogError={activeError}
         filterPolicies={filterPolicies}
-        getPolicyDefinitionVersion={getPolicyDefinitionVersion}
-        disabledPolicyKeys={
-          editingPolicy
-            ? []
-            : policies.map((policy) => `${policy.name}@${policy.version}`)
+        hubAvailable={hubAvailable}
+        availabilityScope={availabilityScope}
+        isAdded={isAdded}
+        matchEdit={matchEditing}
+        unavailablePolicy={
+          editingPolicy && isUnavailable(editingPolicy)
+            ? editingPolicy
+            : undefined
         }
         existingSettings={
           editingPolicy
