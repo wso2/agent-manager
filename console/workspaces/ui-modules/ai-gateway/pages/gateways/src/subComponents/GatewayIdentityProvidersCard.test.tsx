@@ -17,12 +17,12 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import {
-  FeatureManagementProvider,
-  type FeatureFlags,
-} from "@agent-management-platform/feature-management";
+import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
 import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
-import { identityProviderConfigMode } from "./ManageIdentityProviderDialog";
+import {
+  identityProviderConfigMode,
+  type IdentityProviderConfigMode,
+} from "./ManageIdentityProviderDialog";
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useListIdentityProviders: () => ({ data: { list: [] }, isLoading: false, error: null }),
@@ -33,22 +33,15 @@ vi.mock("./ManageIdentityProviderDialog", async (importOriginal) => ({
   ManageIdentityProviderDialog: () => null,
 }));
 
-const renderCard = (
-  selfHosted: boolean,
-  featureFlags: Partial<FeatureFlags> = {},
-  canWrite = true,
-) =>
+const renderCard = (configMode: IdentityProviderConfigMode, canWrite = true) =>
   render(
-    <FeatureManagementProvider
-      featureFlags={featureFlags}
-      featureAccess={{ gateway_write: canWrite }}
-    >
+    <FeatureManagementProvider featureAccess={{ gateway_write: canWrite }}>
       <GatewayIdentityProvidersCard
         orgId="acme"
         gatewayId="gw-1"
         gatewayName="Gateway 1"
         environments={[]}
-        selfHosted={selfHosted}
+        configMode={configMode}
       />
     </FeatureManagementProvider>,
   );
@@ -56,8 +49,8 @@ const renderCard = (
 const addButton = () => screen.queryByRole("button", { name: "Add identity provider" });
 
 describe("GatewayIdentityProvidersCard adding issuers", () => {
-  it("is hidden on a managed gateway whose config cannot be patched", () => {
-    renderCard(false);
+  it("is hidden on a gateway nothing applies issuer changes to", () => {
+    renderCard("fixed");
 
     expect(addButton()).not.toBeInTheDocument();
     expect(
@@ -65,20 +58,20 @@ describe("GatewayIdentityProvidersCard adding issuers", () => {
     ).toBeInTheDocument();
   });
 
-  it("is offered on a managed gateway in managed mode", () => {
-    renderCard(false, { enableIdentityProviderManagedMode: true });
+  it("is offered on a gateway whose config the service patches", () => {
+    renderCard("applied");
 
     expect(addButton()).toBeInTheDocument();
   });
 
   it("is offered on a self-hosted gateway, whose owner edits its config", () => {
-    renderCard(true);
+    renderCard("manual");
 
     expect(addButton()).toBeInTheDocument();
   });
 
   it("tells a read-only viewer the truth about a gateway that accepts custom issuers", () => {
-    renderCard(true, {}, false);
+    renderCard("manual", false);
 
     expect(addButton()).not.toBeInTheDocument();
     expect(
@@ -89,11 +82,25 @@ describe("GatewayIdentityProvidersCard adding issuers", () => {
 
 describe("identityProviderConfigMode", () => {
   it.each([
-    [true, false, "manual"],
-    [true, true, "manual"],
-    [false, true, "applied"],
-    [false, false, "fixed"],
-  ] as const)("selfHosted=%s managedMode=%s is %s", (selfHosted, flag, want) => {
-    expect(identityProviderConfigMode(selfHosted, flag)).toBe(want);
+    ["APPLIED", "MANAGED", "applied"],
+    ["MANUAL", "SELF_HOSTED", "manual"],
+    ["UNSUPPORTED", "MANAGED", "fixed"],
+  ] as const)("a gateway reporting %s is %s", (identityProviderMode, hosting, want) => {
+    expect(identityProviderConfigMode({ identityProviderMode, hosting })).toBe(want);
+  });
+
+  it("follows the service's report over the hosting", () => {
+    // The service decides: a managed gateway is only applied where it says so.
+    expect(identityProviderConfigMode({ identityProviderMode: "APPLIED", hosting: "MANAGED" }))
+      .toBe("applied");
+    expect(
+      identityProviderConfigMode({ identityProviderMode: "UNSUPPORTED", hosting: "MANAGED" }),
+    ).toBe("fixed");
+  });
+
+  it("assumes nothing is applied when the service does not report a mode", () => {
+    expect(identityProviderConfigMode({ hosting: "SELF_HOSTED" })).toBe("manual");
+    expect(identityProviderConfigMode({ hosting: "MANAGED" })).toBe("fixed");
+    expect(identityProviderConfigMode({})).toBe("fixed");
   });
 });

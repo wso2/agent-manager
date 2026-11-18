@@ -242,6 +242,21 @@ func TestListTokens_ShowsShortPrefix(t *testing.T) {
 	require.Equal(t, "", shownTokenPrefix(""))
 }
 
+// The mode a gateway reports is what an identity provider change does to it: applied
+// only where an applier patches a managed gateway.
+func TestIdentityProviderMode(t *testing.T) {
+	managed := storedGateway(models.GatewayHostingManaged, "org")
+	selfHosted := storedGateway(models.GatewayHostingSelfHosted, "org")
+	withApplier := NewPlatformGatewayService(nil, panickingApplier{})
+	withoutApplier := NewPlatformGatewayService(nil, nil)
+
+	require.Equal(t, IdentityProviderModeApplied, withApplier.toGatewayResponse(managed).IdentityProviderMode)
+	require.Equal(t, IdentityProviderModeUnsupported, withoutApplier.toGatewayResponse(managed).IdentityProviderMode)
+	for _, svc := range []*PlatformGatewayService{withApplier, withoutApplier} {
+		require.Equal(t, IdentityProviderModeManual, svc.toGatewayResponse(selfHosted).IdentityProviderMode)
+	}
+}
+
 // panickingApplier fails the test by panicking on any call.
 type panickingApplier struct{}
 

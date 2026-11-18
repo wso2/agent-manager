@@ -40,6 +40,7 @@ import {
 import { PageLayout } from "@agent-management-platform/views";
 import { useGatewayFeatures } from "@agent-management-platform/feature-management";
 import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
+import { identityProviderConfigMode } from "./ManageIdentityProviderDialog";
 import { SelfHostedGatewayTokensCard } from "./SelfHostedGatewayTokensCard";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
 
@@ -194,7 +195,7 @@ export const ViewGateway: React.FC = () => {
               gatewayId={gateway.uuid}
               gatewayName={gateway.displayName || gateway.name}
               environments={gateway.environments ?? []}
-              selfHosted={isSelfHosted}
+              configMode={identityProviderConfigMode(gateway)}
             />
           </Stack>
         )}

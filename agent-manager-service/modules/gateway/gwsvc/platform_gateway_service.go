@@ -131,8 +131,11 @@ type GatewayResponse struct {
 	FunctionalityType string                 `json:"functionalityType"`
 	IsActive          bool                   `json:"isActive"`
 	Hosting           string                 `json:"hosting"`
-	CreatedAt         time.Time              `json:"createdAt"`
-	UpdatedAt         time.Time              `json:"updatedAt"`
+	// IdentityProviderMode is how a custom identity provider change reaches this
+	// gateway; see identityProviderMode.
+	IdentityProviderMode string    `json:"identityProviderMode"`
+	CreatedAt            time.Time `json:"createdAt"`
+	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
 // gatewayHostingWire is the gateway's hosting as the API emits it: uppercase, like roles.
@@ -143,23 +146,45 @@ func gatewayHostingWire(gw *models.Gateway) string {
 	return string(spec.GATEWAYHOSTING_SELF_HOSTED)
 }
 
+// Identity provider modes, as the API emits them.
+const (
+	IdentityProviderModeApplied     = "APPLIED"
+	IdentityProviderModeManual      = "MANUAL"
+	IdentityProviderModeUnsupported = "UNSUPPORTED"
+)
+
+// identityProviderMode is how a custom identity provider change reaches a gateway. It is
+// derived from the same check UpsertIdentityProvider and DeleteIdentityProvider make
+// (appliesToGateway), so what the API reports is what those calls do.
+func (s *PlatformGatewayService) identityProviderMode(gw *models.Gateway) string {
+	switch {
+	case s.appliesToGateway(gw):
+		return IdentityProviderModeApplied
+	case gw.IsManaged():
+		return IdentityProviderModeUnsupported
+	default:
+		return IdentityProviderModeManual
+	}
+}
+
 // toGatewayResponse maps a stored gateway to its DTO; the one-time token is never part of it.
-func toGatewayResponse(gw *models.Gateway) *GatewayResponse {
+func (s *PlatformGatewayService) toGatewayResponse(gw *models.Gateway) *GatewayResponse {
 	return &GatewayResponse{
-		ID:                gw.UUID.String(),
-		OrganizationID:    gw.OUID,
-		Name:              gw.Name,
-		DisplayName:       gw.DisplayName,
-		Description:       gw.Description,
-		Properties:        gw.Properties,
-		Vhost:             gw.Vhost,
-		RuntimeURL:        gw.RuntimeURL,
-		IsCritical:        gw.IsCritical,
-		FunctionalityType: gw.GatewayFunctionalityType,
-		IsActive:          gw.IsActive,
-		Hosting:           gatewayHostingWire(gw),
-		CreatedAt:         gw.CreatedAt,
-		UpdatedAt:         gw.UpdatedAt,
+		IdentityProviderMode: s.identityProviderMode(gw),
+		ID:                   gw.UUID.String(),
+		OrganizationID:       gw.OUID,
+		Name:                 gw.Name,
+		DisplayName:          gw.DisplayName,
+		Description:          gw.Description,
+		Properties:           gw.Properties,
+		Vhost:                gw.Vhost,
+		RuntimeURL:           gw.RuntimeURL,
+		IsCritical:           gw.IsCritical,
+		FunctionalityType:    gw.GatewayFunctionalityType,
+		IsActive:             gw.IsActive,
+		Hosting:              gatewayHostingWire(gw),
+		CreatedAt:            gw.CreatedAt,
+		UpdatedAt:            gw.UpdatedAt,
 	}
 }
 
@@ -326,7 +351,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 	}
 	s.placeEnvironments(gateway.OUID, uniqueEnvIDs)
 
-	return toGatewayResponse(gateway), nil
+	return s.toGatewayResponse(gateway), nil
 }
 
 // GatewayListFilters contains optional filters for listing gateways
@@ -380,7 +405,7 @@ func (s *PlatformGatewayService) ListGateways(ouID *string, filters *GatewayList
 	// Convert to DTOs
 	responses := make([]GatewayResponse, 0, len(gateways))
 	for _, gw := range gateways {
-		responses = append(responses, *toGatewayResponse(gw))
+		responses = append(responses, *s.toGatewayResponse(gw))
 	}
 
 	// Build constitution-compliant list response with pagination metadata
@@ -438,7 +463,7 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 		return nil, utils.ErrGatewayNotFound
 	}
 
-	return toGatewayResponse(gateway), nil
+	return s.toGatewayResponse(gateway), nil
 }
 
 // SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest
@@ -513,7 +538,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 		return nil, err
 	}
 
-	return toGatewayResponse(gateway), nil
+	return s.toGatewayResponse(gateway), nil
 }
 
 // DeleteGateway deletes a gateway after verifying no active deployments exist

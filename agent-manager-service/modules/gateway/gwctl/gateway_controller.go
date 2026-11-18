@@ -954,6 +954,10 @@ func convertGatewayToSpecResponse(gw *gwsvc.GatewayResponse, ouID string, enviro
 		CreatedAt:   gw.CreatedAt,
 		UpdatedAt:   gw.UpdatedAt,
 	}
+	if gw.IdentityProviderMode != "" {
+		mode := spec.GatewayIdentityProviderMode(gw.IdentityProviderMode)
+		response.IdentityProviderMode = &mode
+	}
 
 	// Convert environments
 	if len(environments) > 0 {

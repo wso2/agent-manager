@@ -25,8 +25,6 @@ export interface FeatureFlags {
   disableThunderConsole: boolean;
   /** Shows the private Git repository option when building agents from source. */
   enablePrivateRepoSupport: boolean;
-  /** Identity provider management calls the REST API instead of showing the script. */
-  enableIdentityProviderManagedMode: boolean;
   /**
    * Enables Profile Settings editing and the organization Settings navigation. Off for
    * deployments where an external identity platform owns users and the organization.
