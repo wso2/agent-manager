@@ -9,7 +9,7 @@ The package has two parts:
 - `amp_shadow_runner`: the command line.
 - `amp_shadow_runner.engine`: the scan engine, a pure library that parses a local source tree with tree-sitter. It never opens a network connection or starts a process (`tests/engine/test_purity.py` enforces this).
 
-> Scanning is not implemented yet. `scan` checks its options, `AMP_URL` and `AMP_SCAN_TOKEN`, then exits with status 1 and "not implemented yet". `upload` is a stub, and only `version` works in full.
+> Scanning is not implemented yet. `scan` checks its options, `AMP_URL` and `AMP_SCAN_TOKEN`, asks for the Git token when one is needed, then exits with status 1 and "not implemented yet". `upload` is a stub, and only `version` works in full.
 
 ## Command line
 
@@ -36,6 +36,8 @@ Agent Manager builds the `scan` command, so its options match what the console s
 | `--judge` | Have a second LLM check the AI review. Needs `--ai-review`. |
 
 `--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL`, `--github-api-url` and `--azure-devops-url` accept `http://` or `https://` addresses.
+
+The command asks in the terminal, with hidden input, for the secrets Agent Manager never receives. It asks for a GitHub token only with `--include-private` (a fine-grained token with read-only Contents access), and always for an Azure DevOps personal access token (Code read, and Project and team read). `docker run -it` gives the command the terminal it needs. To skip the question, or to run without a terminal, export `GITHUB_TOKEN` or `AZURE_DEVOPS_TOKEN` in your shell and pass it to the container with `-e NAME`, which copies an exported variable into the container. A GitHub scan of public repositories also uses `GITHUB_TOKEN` when it is passed, for a higher API rate limit, but never asks for it. When the GitHub or Azure DevOps address is plain `http://`, the command warns that the token will be sent to it unencrypted.
 
 | Exit code | Meaning |
 |---|---|

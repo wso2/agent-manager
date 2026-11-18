@@ -81,7 +81,8 @@ class ScanConfig:
 def _url(raw: str, label: str) -> str:
     """Return the http(s) URL without trailing slashes, or raise ConfigError. The value is never echoed.
 
-    Plain http is accepted, as Agent Manager accepts it; callers can tell by the ``http://`` prefix.
+    Plain http is accepted, as Agent Manager accepts it; callers can tell by the ``http://`` prefix
+    (the scheme is returned in lowercase).
     """
     value = raw.strip()
     if any(c.isspace() or c == "\\" or not c.isprintable() for c in value):
@@ -99,6 +100,7 @@ def _url(raw: str, label: str) -> str:
         raise ConfigError(f"{label} must not contain a user name or password.")
     if "?" in value or "#" in value:
         raise ConfigError(f"{label} must not contain a query or fragment.")
+    value = parts.scheme + value[len(parts.scheme) :]  # urlsplit lowercases the scheme: HTTP:// becomes http://.
     return value.rstrip("/")
 
 

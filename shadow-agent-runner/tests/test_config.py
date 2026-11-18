@@ -243,6 +243,14 @@ def test_plain_http_is_accepted() -> None:
     assert config.api_url == "http://ado.test/tfs"
 
 
+def test_url_scheme_is_lowercased() -> None:
+    config = _config(
+        _scan("--github-org", "o", "--all-repos", "--github-api-url", "HTTP://GHE.acme.test/API"),
+        {"AMP_URL": "HTTPS://agent-manager.example.com", "AMP_SCAN_TOKEN": TOKEN},
+    )
+    assert (config.api_url, config.amp_url) == ("http://GHE.acme.test/API", "https://agent-manager.example.com")
+
+
 def test_owner_slash_name_is_kept_as_the_name() -> None:
     config = _config(_scan("--github-org", "Acme", "--repos", "acme/api,api,ACME/Web,web"))
     assert config.repositories == ("api", "Web")

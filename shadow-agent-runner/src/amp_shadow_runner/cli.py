@@ -25,6 +25,7 @@ from amp_shadow_runner._version import __version__
 from amp_shadow_runner.config import DEFAULT_AZURE_DEVOPS_URL, DEFAULT_GITHUB_API_URL, ConfigError, build_scan_config
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
+from amp_shadow_runner.prompts import git_token
 from amp_shadow_runner.scantoken import ScanTokenError
 
 PROG = "amp-shadow-runner"
@@ -59,8 +60,9 @@ def _cmd_not_implemented(args: argparse.Namespace) -> int:
 
 def _cmd_scan(args: argparse.Namespace) -> int:
     try:
-        build_scan_config(args)
-    except (ConfigError, ScanTokenError) as exc:  # Their messages never contain the token.
+        config = build_scan_config(args)
+        git_token(config)  # R16 hands the token to the scan; it is never stored in the config.
+    except (ConfigError, ScanTokenError) as exc:  # Their messages never contain a token.
         print(f"{PROG}: {exc}", file=sys.stderr)
         return exc.exit_code
     return _cmd_not_implemented(args)

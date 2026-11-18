@@ -16,9 +16,11 @@
 
 """The command-line contract: subcommands, version output and exit codes."""
 
+import io
 import json
 import subprocess
 import sys
+import time
 
 import pytest
 
@@ -26,6 +28,7 @@ from amp_shadow_runner import __version__
 from amp_shadow_runner.cli import main
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
+from tests.test_config import _token
 
 
 def test_exit_code_contract_is_stable() -> None:
@@ -123,3 +126,33 @@ def test_python_dash_m_entry_point() -> None:
     )
     assert result.returncode == 0, result.stderr
     assert set(json.loads(result.stdout)) == {"runner_version", "engine_version", "rule_pack_id"}
+
+
+def test_scan_of_private_repos_without_a_terminal_or_token_exits_2(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("AMP_URL", "https://agent-manager.example.com")
+    monkeypatch.setenv("AMP_SCAN_TOKEN", _token(time.time() + 3600))
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.setattr(sys, "stdin", io.StringIO())  # Not a terminal.
+    argv = ["scan", "--scan-id", "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f", "--github-org", "o", "--all-repos"]
+    assert main([*argv, "--include-private"]) == ExitCode.CONFIG_ERROR
+    assert capsys.readouterr().err == (
+        "amp-shadow-runner: A GitHub token is needed for private repositories. "
+        "Run it with docker run -it, or set GITHUB_TOKEN and pass it with -e GITHUB_TOKEN.\n"
+    )
+
+
+def test_scan_of_azure_devops_with_the_token_set_reaches_the_scan(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    token = "ado-pat-value"
+    monkeypatch.setenv("AMP_URL", "https://agent-manager.example.com")
+    monkeypatch.setenv("AMP_SCAN_TOKEN", _token(time.time() + 3600))
+    monkeypatch.setenv("AZURE_DEVOPS_TOKEN", token)
+    monkeypatch.setattr(sys, "stdin", io.StringIO())
+    argv = ["scan", "--scan-id", "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f", "--azure-devops-org", "o", "--all-projects"]
+    assert main(argv) == ExitCode.RUNTIME_ERROR
+    out, err = capsys.readouterr()
+    assert err == "amp-shadow-runner scan: not implemented yet\n"
+    assert token not in out + err
