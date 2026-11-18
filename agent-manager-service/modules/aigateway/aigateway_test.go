@@ -40,5 +40,4 @@ func TestConfigureSetsOptions(t *testing.T) {
 	require.Equal(t, Options{}, currentOptions())
 	Configure(Options{GatewayConfigApplier: fakeApplier{}})
 	require.Equal(t, fakeApplier{}, currentOptions().GatewayConfigApplier)
-	require.Nil(t, currentOptions().MCPResourceServerProvider)
 }

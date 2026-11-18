@@ -82,21 +82,6 @@ type Options struct {
 	// management and OAuth endpoints. nil preserves on-premises behavior. Run
 	// automatically applies it to endpoint-aware provisioning implementations.
 	EnvThunderEndpointResolver thundersvc.EnvThunderEndpointResolver
-	// ProjectAgentIdentityProvider enables project-scoped AgentID creation in
-	// CP_MANAGED mode. nil is the safe default for LEGACY_DIRECT deployments.
-	ProjectAgentIdentityProvider services.ProjectAgentIdentityProvider
-	// IdentityRoleProvider keeps agent identity roles, and the MCP scopes assigned to them, on an
-	// identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE is CP_MANAGED; in
-	// LEGACY_DIRECT mode (the default) roles are in each environment's own Thunder and this is
-	// ignored. CP_MANAGED without it reports role listing and scope assignment as unavailable and
-	// never uses the per-environment Thunder.
-	IdentityRoleProvider services.IdentityRoleProvider
-	// IdentityGroupProvider manages the groups of an environment, their members and the roles
-	// they hold through an identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE
-	// is CP_MANAGED; in LEGACY_DIRECT mode (the default) groups are in each environment's own
-	// Thunder and this is ignored. CP_MANAGED without it reports group management as unavailable
-	// and never uses the per-environment Thunder.
-	IdentityGroupProvider services.IdentityGroupProvider
 	// BackgroundContextDecorator optionally marks contexts created for trusted
 	// background workers. Request contexts never pass through this hook.
 	BackgroundContextDecorator func(context.Context) context.Context
@@ -109,7 +94,7 @@ type Options struct {
 	// credentials). encryptionKey is the platform ENCRYPTION_KEY, used to decrypt
 	// the env-Thunder system-client credential from AMS's own Postgres — that one
 	// is not read back from a key vault.
-	AgentThunderProvisioning func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, platform repositories.PlatformRepository, encryptionKey []byte) services.AgentThunderProvisioningService
+	AgentThunderProvisioning func(db *gorm.DB, secretMgmtClient secretmanagersvc.SecretManagementClient, encryptionKey []byte) services.AgentThunderProvisioningService
 	// OrgOverrideResolver lets a deployment's control plane act on a tenant's
 	// behalf on the few routes it drives (gateway listing, environment Thunder
 	// registration, gateway identity providers), typically by trusting an
@@ -180,14 +165,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		return
 	}
 
-	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
-		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
-		os.Exit(1)
-	}
-
-	services.SetIdentityRoleProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityRoleProvider)
-	services.SetIdentityGroupProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityGroupProvider)
-
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
 
@@ -204,18 +181,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 			slog.Error("failed to load encryption key for AgentID provisioning", "error", err)
 			os.Exit(1)
 		}
-		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, repositories.NewPlatformRepo(database), encryptionKey)
-		if setter, ok := agentThunderProvisioning.(services.ProjectAgentIdentityProviderSetter); ok {
-			if err := setter.SetProjectAgentIdentityProvider(
-				thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.ProjectAgentIdentityProvider,
-			); err != nil {
-				slog.Error("failed to configure project AgentID provisioning", "error", err)
-				os.Exit(1)
-			}
-		} else if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) {
-			slog.Error("AgentID provisioning implementation does not support CP_MANAGED mode")
-			os.Exit(1)
-		}
+		agentThunderProvisioning = opts.AgentThunderProvisioning(database, secretMgmtClientForProvisioning, encryptionKey)
 		if setter, ok := agentThunderProvisioning.(services.EnvThunderEndpointResolverSetter); ok {
 			setter.SetEnvThunderEndpointResolver(opts.EnvThunderEndpointResolver)
 		}

@@ -35,7 +35,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
-	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
@@ -182,7 +181,6 @@ func Wire(core *wiring.AppParams) (*gwwire.Gateway, error) {
 	}
 	gwsvc.SetGatewayManifestCacheBackend(backend)
 	opts := currentOptions()
-	gwsvc.SetMCPResourceServerProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.MCPResourceServerProvider)
 	return gwwire.Initialize(core, opts.GatewayConfigApplier)
 }
 
@@ -194,13 +192,6 @@ type Options struct {
 	// sync. nil preserves the script-driven behaviour; cloud deployments
 	// inject an implementation. See gwsvc.GatewayConfigApplier.
 	GatewayConfigApplier gwsvc.GatewayConfigApplier
-	// MCPResourceServerProvider registers MCP resource servers through an
-	// identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE
-	// is CP_MANAGED; in LEGACY_DIRECT mode (the default) MCP resource servers
-	// are registered in each environment's own Thunder and this is ignored.
-	// CP_MANAGED without it reports MCP resource servers as unavailable and
-	// never uses the per-environment Thunder.
-	MCPResourceServerProvider gwsvc.MCPResourceServerProvider
 }
 
 var options atomic.Pointer[Options]

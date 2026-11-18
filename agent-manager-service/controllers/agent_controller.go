@@ -733,10 +733,6 @@ func (c *agentController) GetAgentRoles(w http.ResponseWriter, r *http.Request) 
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "The identity provider is not set up for this environment yet")
 			return
 		}
-		if errors.Is(err, services.ErrIdentityRoleUnavailable) {
-			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "Identity management is not configured for this deployment")
-			return
-		}
 		log.Error("GetAgentRoles: failed to get agent roles", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
 		HandleCommonErrors(w, err, "Failed to get agent roles")
 		return
@@ -780,10 +776,6 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 			// The environment has no identity provider yet, so the agent holds no groups there.
 			log.Warn("GetAgentGroups: the environment has no identity provider", "orgName", orgName, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "The identity provider is not set up for this environment yet")
-			return
-		}
-		if errors.Is(err, services.ErrIdentityGroupUnavailable) {
-			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "Identity management is not configured for this deployment")
 			return
 		}
 		log.Error("GetAgentGroups: failed to get agent groups", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)

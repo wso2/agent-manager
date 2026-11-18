@@ -119,9 +119,7 @@ func mcpResourceServerDisplayName(proxy *gwmodels.MCPProxy) string {
 }
 
 // ensureProxyResourceServerInEnv registers the proxy's resource server and actions in one
-// environment through the configured MCPResourceServerProvider: each environment's own Thunder in
-// LEGACY_DIRECT mode, the identity control plane in CP_MANAGED mode. It returns the resource
-// server's ID.
+// environment's own Thunder and returns the resource server's ID.
 func (s *MCPProxyService) ensureProxyResourceServerInEnv(
 	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *gwmodels.MCPProxy, actions []string,
 ) (string, error) {
@@ -134,15 +132,6 @@ func (s *MCPProxyService) ensureProxyResourceServerInEnv(
 		Environment: envName, Identifier: identifier, Actions: actions,
 	})
 	return result.ResourceServerID, err
-}
-
-// EnsureResourceServerInEnv ensures proxy's resource server and the given actions exist for one
-// environment, through the MCPResourceServerProvider, and returns the resource server's ID. Role
-// writes use it, so they reach the same server scope saves do, whichever identity mode is on.
-func (s *MCPProxyService) EnsureResourceServerInEnv(
-	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *gwmodels.MCPProxy, actions []string,
-) (string, error) {
-	return s.ensureProxyResourceServerInEnv(ctx, ouID, envID, envName, proxy, actions)
 }
 
 // EnsureResourceServersForProxy best-effort registers proxy's resource server

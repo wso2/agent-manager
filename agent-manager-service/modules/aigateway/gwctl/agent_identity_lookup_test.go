@@ -62,7 +62,6 @@ func TestAgentRolesInAnEnvironmentWithoutAnIdentityProvider(t *testing.T) {
 		want int
 	}{
 		"no identity provider": {fmt.Errorf("resolve: %w", thundersvc.ErrThunderNotProvisioned), http.StatusNotFound},
-		"no role provider":     {services.ErrIdentityRoleUnavailable, http.StatusServiceUnavailable},
 		"anything else":        {errors.New("boom"), http.StatusInternalServerError},
 	}
 	for name, test := range cases {
@@ -82,7 +81,6 @@ func TestAgentGroupsInAnEnvironmentWithoutAnIdentityProvider(t *testing.T) {
 		want int
 	}{
 		"no identity provider": {fmt.Errorf("resolve: %w", thundersvc.ErrThunderNotProvisioned), http.StatusNotFound},
-		"no group provider":    {services.ErrIdentityGroupUnavailable, http.StatusServiceUnavailable},
 		"anything else":        {errors.New("boom"), http.StatusInternalServerError},
 	}
 	for name, test := range cases {

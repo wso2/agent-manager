@@ -19,7 +19,6 @@ package gwsvc
 import (
 	"context"
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/google/uuid"
@@ -30,50 +29,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
-// recordingMCPProvider records what a deployment's provider is asked to do.
-type recordingMCPProvider struct {
-	mu       sync.Mutex
-	ensured  []MCPResourceServerRequest
-	removed  []MCPResourceServerRequest
-	removedA []string
-	deleted  []MCPResourceServerRequest
-	err      error
-}
-
-func (p *recordingMCPProvider) EnsureMCPResourceServer(_ context.Context, r MCPResourceServerRequest) (MCPResourceServerResult, error) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.ensured = append(p.ensured, r)
-	return MCPResourceServerResult{ResourceServerID: "rs-1"}, p.err
-}
-
-func (p *recordingMCPProvider) RemoveMCPResourceServerAction(_ context.Context, r MCPResourceServerRequest, action string) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.removed = append(p.removed, r)
-	p.removedA = append(p.removedA, action)
-	return p.err
-}
-
-func (p *recordingMCPProvider) DeleteMCPResourceServer(_ context.Context, r MCPResourceServerRequest) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.deleted = append(p.deleted, r)
-	return p.err
-}
-
-// useMCPMode installs the process-wide setting for one test and restores the default after it.
-func useMCPMode(t *testing.T, mode thundersvc.IdentityManagementMode, provider MCPResourceServerProvider) {
-	t.Helper()
-	SetMCPResourceServerProvider(mode, provider)
-	t.Cleanup(func() { SetMCPResourceServerProvider(thundersvc.IdentityManagementLegacyDirect, nil) })
-}
-
-// deployedIdentityProxy is a proxy deployed to envA (identity enabled) and envB (identity enabled),
-// with the gateway lookups that derive its public identifier.
 func deployedIdentityProxy(envA, envB uuid.UUID) (*gwmodels.MCPProxy, *MCPProxyService) {
 	gwUUID := uuid.New()
 	ctxPath := "/deepwiki"
@@ -110,59 +67,7 @@ func deployedIdentityProxy(envA, envB uuid.UUID) (*gwmodels.MCPProxy, *MCPProxyS
 	return proxy, svc
 }
 
-func TestMCPResourceServerEnsureGoesThroughTheProviderInCPManagedMode(t *testing.T) {
-	provider := &recordingMCPProvider{}
-	useMCPMode(t, thundersvc.IdentityManagementCPManaged, provider)
-	envA, envB := uuid.New(), uuid.New()
-	proxy, svc := deployedIdentityProxy(envA, envB)
-
-	svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read", "write"})
-
-	require.Len(t, provider.ensured, 2, "once for each deployed, identity-secured environment")
-	for i, env := range []string{"dev", "prod"} {
-		got := provider.ensured[i]
-		require.Equal(t, "ou-1", got.OrganizationID, "the organization unit ID is always passed")
-		require.Equal(t, "deepwiki", got.ProxyHandle)
-		require.Equal(t, "Deep Wiki", got.DisplayName)
-		require.Equal(t, env, got.Environment)
-		require.Equal(t, "https://gw.example.com/deepwiki/mcp", got.Identifier)
-		require.Equal(t, []string{"read", "write"}, got.Actions)
-	}
-}
-
-func TestMCPResourceServerProviderFailureIsLoggedNotPropagated(t *testing.T) {
-	provider := &recordingMCPProvider{err: ErrMCPResourceServerEnvironmentNotReady}
-	useMCPMode(t, thundersvc.IdentityManagementCPManaged, provider)
-	envA, envB := uuid.New(), uuid.New()
-	proxy, svc := deployedIdentityProxy(envA, envB)
-
-	require.NotPanics(t, func() {
-		svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
-	})
-	require.Len(t, provider.ensured, 2, "one environment failing does not stop the next")
-}
-
-func TestMCPResourceServerCPManagedWithoutAProviderFailsClosed(t *testing.T) {
-	useMCPMode(t, thundersvc.IdentityManagementCPManaged, nil)
-	envA, envB := uuid.New(), uuid.New()
-	proxy, svc := deployedIdentityProxy(envA, envB)
-
-	// A nil resolver would panic if the per-environment Thunder were reached.
-	require.NotPanics(t, func() {
-		svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
-	})
-
-	provider := mcpResourceServerProviderFor(nil, discardLogger())
-	req := MCPResourceServerRequest{OrganizationID: "ou-1", ProxyHandle: "deepwiki", Environment: "dev", Identifier: "https://x/y"}
-	_, err := provider.EnsureMCPResourceServer(context.Background(), req)
-	require.ErrorIs(t, err, ErrMCPResourceServerUnavailable)
-	require.ErrorIs(t, provider.RemoveMCPResourceServerAction(context.Background(), req, "read"), ErrMCPResourceServerUnavailable)
-	require.ErrorIs(t, provider.DeleteMCPResourceServer(context.Background(), req), ErrMCPResourceServerUnavailable)
-}
-
-func TestMCPResourceServerLegacyModeIgnoresAProvider(t *testing.T) {
-	provider := &recordingMCPProvider{}
-	useMCPMode(t, thundersvc.IdentityManagementLegacyDirect, provider)
+func TestMCPResourceServerEnsureUsesEachEnvironmentsThunder(t *testing.T) {
 	envA, envB := uuid.New(), uuid.New()
 	proxy, svc := deployedIdentityProxy(envA, envB)
 
@@ -185,79 +90,7 @@ func TestMCPResourceServerLegacyModeIgnoresAProvider(t *testing.T) {
 
 	svc.EnsureResourceServersForProxy(context.Background(), "ou-1", proxy, []string{"read"})
 
-	require.Equal(t, []string{"dev", "prod"}, resolved, "each environment's own Thunder, as before")
-	require.Empty(t, provider.ensured, "the provider is not used outside CP_MANAGED mode")
-}
-
-func TestMCPResourceServerScopeDeleteGoesThroughTheProvider(t *testing.T) {
-	provider := &recordingMCPProvider{}
-	useMCPMode(t, thundersvc.IdentityManagementCPManaged, provider)
-	envA, envB := uuid.New(), uuid.New()
-	proxy, _ := deployedIdentityProxy(envA, envB)
-	scopeSvc := &mcpProxyScopeService{
-		infraManager: stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
-			return []*models.EnvironmentResponse{{Name: "dev", UUID: envA.String()}, {Name: "prod", UUID: envB.String()}}, nil
-		}},
-		logger: discardLogger(),
-	}
-
-	scopeSvc.cleanupDeletedScope(context.Background(), "ou-1", proxy, "read")
-
-	require.Equal(t, []string{"read", "read"}, provider.removedA)
-	require.Len(t, provider.removed, 2)
-	require.Equal(t, "ou-1", provider.removed[0].OrganizationID)
-	require.Equal(t, "dev", provider.removed[0].Environment)
-	require.Equal(t, "prod", provider.removed[1].Environment)
-	require.Equal(t, "deepwiki", provider.removed[0].ProxyHandle)
-}
-
-func TestMCPResourceServerProxyDeleteGoesThroughTheProvider(t *testing.T) {
-	provider := &recordingMCPProvider{}
-	useMCPMode(t, thundersvc.IdentityManagementCPManaged, provider)
-	envA, envB := uuid.New(), uuid.New()
-	proxy, svc := deployedIdentityProxy(envA, envB)
-
-	svc.cleanupProxyResourceServers(context.Background(), "ou-1", proxy, []gwmodels.MCPProxyScope{{Action: "read"}, {Action: "write"}})
-
-	require.Len(t, provider.deleted, 2)
-	for i, env := range []string{"dev", "prod"} {
-		require.Equal(t, "ou-1", provider.deleted[i].OrganizationID)
-		require.Equal(t, env, provider.deleted[i].Environment)
-		require.Equal(t, "deepwiki", provider.deleted[i].ProxyHandle)
-		require.Equal(t, []string{"read", "write"}, provider.deleted[i].Actions, "the actions the proxy had")
-	}
-}
-
-func TestMCPResourceServerRequestsAreCheckedBeforeTheProvider(t *testing.T) {
-	provider := &recordingMCPProvider{}
-	useMCPMode(t, thundersvc.IdentityManagementCPManaged, provider)
-	checked := mcpResourceServerProviderFor(nil, discardLogger())
-	ctx := context.Background()
-	valid := MCPResourceServerRequest{OrganizationID: "ou-1", ProxyHandle: "deepwiki", Environment: "dev", Identifier: "https://x/y"}
-
-	for name, mutate := range map[string]func(*MCPResourceServerRequest){
-		"no organization unit ID": func(r *MCPResourceServerRequest) { r.OrganizationID = " " },
-		"no proxy handle":         func(r *MCPResourceServerRequest) { r.ProxyHandle = "" },
-		"no environment":          func(r *MCPResourceServerRequest) { r.Environment = "" },
-		"no identifier":           func(r *MCPResourceServerRequest) { r.Identifier = "" },
-	} {
-		t.Run(name, func(t *testing.T) {
-			request := valid
-			mutate(&request)
-			_, err := checked.EnsureMCPResourceServer(ctx, request)
-			require.ErrorIs(t, err, httpx.ErrInvalidInput)
-		})
-	}
-	require.Empty(t, provider.ensured, "an invalid request never reaches the provider")
-
-	require.ErrorIs(t, checked.RemoveMCPResourceServerAction(ctx, valid, " "), httpx.ErrInvalidInput)
-	require.ErrorIs(t, checked.DeleteMCPResourceServer(ctx, MCPResourceServerRequest{ProxyHandle: "deepwiki", Environment: "dev"}), httpx.ErrInvalidInput)
-	require.Empty(t, provider.removed)
-	require.Empty(t, provider.deleted)
-
-	// A valid delete needs no identifier.
-	require.NoError(t, checked.DeleteMCPResourceServer(ctx, MCPResourceServerRequest{OrganizationID: "ou-1", ProxyHandle: "deepwiki", Environment: "dev"}))
-	require.Len(t, provider.deleted, 1)
+	require.Equal(t, []string{"dev", "prod"}, resolved, "each environment's own Thunder")
 }
 
 func TestLegacyMCPResourceServerProvider(t *testing.T) {
