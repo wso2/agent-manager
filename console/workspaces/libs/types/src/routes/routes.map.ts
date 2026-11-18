@@ -264,6 +264,11 @@ export const rootRouteMap: AppRoute = {
                         }
                     },
                 },
+                agentRegistry: {
+                    path: 'agent-registry',
+                    index: true,
+                    children: {},
+                },
                 newProject: {
                     path: 'newProject',
                     index: true,

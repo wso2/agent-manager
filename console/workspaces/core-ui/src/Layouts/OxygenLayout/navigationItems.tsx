@@ -42,6 +42,7 @@ import {
   Layers,
   MonitorCheck,
   RadioTower,
+  Library,
 } from "@wso2/oxygen-ui-icons-react";
 import {
   generatePath,
@@ -871,6 +872,19 @@ export function useNavigationItems(): Array<
         ),
         isActive: !!matchPath(
           absoluteRouteMap.children.org.children.projectListing.path,
+          pathname,
+        ),
+      },
+      {
+        label: "Agent registry",
+        type: "item",
+        icon: <Library size={20} />,
+        href: generatePath(
+          absoluteRouteMap.children.org.children.agentRegistry.path,
+          { orgId },
+        ),
+        isActive: !!matchPath(
+          absoluteRouteMap.children.org.children.agentRegistry.wildPath,
           pathname,
         ),
       },
