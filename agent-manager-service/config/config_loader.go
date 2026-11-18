@@ -171,7 +171,6 @@ func loadSettings(strict bool) {
 			"DEFAULT_GATEWAY_NAME needs DEFAULT_GATEWAY_VHOST and DEFAULT_GATEWAY_TOKEN or DEFAULT_GATEWAY_TOKEN_FILE",
 		))
 	}
-	config.OtelIngest = OtelIngestConfig{UpstreamURL: r.readOptionalString("OTEL_INGEST_UPSTREAM_URL", "")}
 	config.A2ACardFetchDialAddr = r.readOptionalString("A2A_CARD_FETCH_DIAL_ADDR", "")
 	if addr := config.A2ACardFetchDialAddr; addr != "" {
 		if host, port, err := net.SplitHostPort(addr); err != nil {

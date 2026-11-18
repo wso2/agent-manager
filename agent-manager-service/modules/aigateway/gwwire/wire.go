@@ -3,7 +3,6 @@
 package gwwire
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -157,8 +155,6 @@ var reconcileProviderSet = wire.NewSet(
 	gwsvc.NewMCPProxyKind,
 	gwsvc.NewPlatformAgentExposures,
 	gwsvc.NewA2AAgentKind,
-	ProvideOtelIngestKind,
-	gwsvc.NewOtelIngestPublisher,
 	ProvideDefaultGatewaySeeder,
 	ProvideReconcileKinds,
 	ProvideReconcileCore,
@@ -208,25 +204,9 @@ func ProvideWebSocketController(
 	hub eventhub.EventHub,
 	gatewayService *gwsvc.PlatformGatewayService,
 	ackHandler *gwsvc.DeploymentAckHandler,
-	otelIngest *gwsvc.OtelIngestPublisher,
 	cfg config.Config,
-	logger *slog.Logger,
 ) gwctl.WebSocketController {
-	rateLimitCount := cfg.WebSocket.RateLimitPerMin
-	// A connecting gateway gets the trace-ingest API if it does not serve the current one yet.
-	onConnect := func(ctx context.Context, gateway *models.Gateway) {
-		ctx, cancel := context.WithTimeout(ctx, time.Minute)
-		defer cancel()
-		if err := otelIngest.EnsureOnGateway(ctx, gateway.OUID, gateway.UUID); err != nil {
-			logger.Error("Failed to deploy the trace-ingest API", "gatewayID", gateway.UUID, "error", err)
-		}
-	}
-	return gwctl.NewWebSocketController(manager, hub, gatewayService, ackHandler, rateLimitCount, onConnect)
-}
-
-// ProvideOtelIngestKind is the built-in trace-ingest API, accepting tokens Agent Manager signs.
-func ProvideOtelIngestKind(cfg config.Config) *gwsvc.OtelIngestKind {
-	return gwsvc.NewOtelIngestKind(cfg.OtelIngest.UpstreamURL, cfg.JWTSigning.Issuer)
+	return gwctl.NewWebSocketController(manager, hub, gatewayService, ackHandler, cfg.WebSocket.RateLimitPerMin)
 }
 
 // ProvideDefaultGatewaySeeder registers the gateway named in configuration.
@@ -245,9 +225,9 @@ func ProvideDeploymentAckHandler(deploymentRepo gwrepo.DeploymentRepository, cor
 // ProvideReconcileKinds lists the gateway artifact kinds the reconcile core deploys.
 func ProvideReconcileKinds(
 	llmProvider *gwsvc.LLMProviderKind, llmProxy *gwsvc.LLMProxyKind, mcp *gwsvc.MCPProxyKind,
-	agent *gwsvc.A2AAgentKind, otelIngest *gwsvc.OtelIngestKind,
+	agent *gwsvc.A2AAgentKind,
 ) reconcile.Kinds {
-	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, otelIngest}
+	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent}
 }
 
 // ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and

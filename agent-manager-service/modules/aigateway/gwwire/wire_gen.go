@@ -7,7 +7,6 @@
 package gwwire
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -55,10 +53,8 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	gatewayEventsService := gwsvc.NewGatewayEventsService(eventHub)
 	v := core.EncryptionKey
 	a2AAgentKind := gwsvc.NewA2AAgentKind(txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, platformRepository, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
+	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind)
 	config := core.Config
-	configConfig := wiring.ProvideConfigFromPtr(config)
-	otelIngestKind := ProvideOtelIngestKind(configConfig)
-	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind, otelIngestKind)
 	reconcileCore := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, config, logger)
 	worker := reconcile.NewWorker(reconcileCore, logger)
 	platformGatewayService := ProvidePlatformGatewayService(gatewayRepository, gatewayApplier, worker, reconcileCore)
@@ -93,6 +89,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	llmDeploymentController := gwctl.NewLLMDeploymentController(llmProviderDeploymentService)
 	llmProviderAPIKeyController := gwctl.NewLLMProviderAPIKeyController(llmProviderAPIKeyService)
 	llmProxyAPIKeyController := gwctl.NewLLMProxyAPIKeyController(llmProxyAPIKeyService)
+	configConfig := wiring.ProvideConfigFromPtr(config)
 	manager := ProvideWebSocketManager(configConfig, eventHub)
 	gatewayConnectionChecker := ProvideGatewayConnectionChecker(manager)
 	agentAPIKeyService := gwsvc.NewAgentAPIKeyService(artifactRepository, platformRepository, gatewayRepository, gatewayEventsService, apiKeyRepository, gatewayConnectionChecker)
@@ -107,8 +104,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	llmProxyDeploymentController := gwctl.NewLLMProxyDeploymentController(llmProxyDeploymentService)
 	mcpProxyController := gwctl.NewMCPProxyController(mcpProxyService, agentConfigurationService, platformRepository)
 	deploymentAckHandler := ProvideDeploymentAckHandler(deploymentRepository, reconcileCore)
-	otelIngestPublisher := gwsvc.NewOtelIngestPublisher(db, otelIngestKind, artifactRepository, deploymentRepository, reconcileCore, logger)
-	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, otelIngestPublisher, configConfig, logger)
+	webSocketController := ProvideWebSocketController(manager, eventHub, platformGatewayService, deploymentAckHandler, configConfig)
 	gatewayInternalAPIService := gwsvc.NewGatewayInternalAPIService(llmProviderRepository, llmProxyRepository, deploymentRepository, artifactRepository, gatewayRepository, infraResourceManager, v, reconcileCore)
 	gatewayInternalController := gwctl.NewGatewayInternalController(platformGatewayService, gatewayInternalAPIService, apiKeyRepository, aiApplicationRepository)
 	catalogRepository := ProvideCatalogRepository(db)
@@ -212,7 +208,7 @@ func ProvideGatewayManifestCacheBackend(cfg config.Config) (gwsvc.GatewayManifes
 	}
 }
 
-var reconcileProviderSet = wire.NewSet(gwsvc.NewLLMProviderKind, gwsvc.NewLLMProxyKind, gwsvc.NewMCPProxyKind, gwsvc.NewPlatformAgentExposures, gwsvc.NewA2AAgentKind, ProvideOtelIngestKind, gwsvc.NewOtelIngestPublisher, ProvideDefaultGatewaySeeder,
+var reconcileProviderSet = wire.NewSet(gwsvc.NewLLMProviderKind, gwsvc.NewLLMProxyKind, gwsvc.NewMCPProxyKind, gwsvc.NewPlatformAgentExposures, gwsvc.NewA2AAgentKind, ProvideDefaultGatewaySeeder,
 	ProvideReconcileKinds,
 	ProvideReconcileCore, wire.Bind(new(gwsvc.GatewayArtifacts), new(*reconcile.Core)), reconcile.NewWorker,
 )
@@ -257,25 +253,9 @@ func ProvideWebSocketController(
 	hub eventhub.EventHub,
 	gatewayService *gwsvc.PlatformGatewayService,
 	ackHandler *gwsvc.DeploymentAckHandler,
-	otelIngest *gwsvc.OtelIngestPublisher,
 	cfg config.Config,
-	logger *slog.Logger,
 ) gwctl.WebSocketController {
-	rateLimitCount := cfg.WebSocket.RateLimitPerMin
-
-	onConnect := func(ctx context.Context, gateway *models.Gateway) {
-		ctx, cancel := context.WithTimeout(ctx, time.Minute)
-		defer cancel()
-		if err := otelIngest.EnsureOnGateway(ctx, gateway.OUID, gateway.UUID); err != nil {
-			logger.Error("Failed to deploy the trace-ingest API", "gatewayID", gateway.UUID, "error", err)
-		}
-	}
-	return gwctl.NewWebSocketController(manager, hub, gatewayService, ackHandler, rateLimitCount, onConnect)
-}
-
-// ProvideOtelIngestKind is the built-in trace-ingest API, accepting tokens Agent Manager signs.
-func ProvideOtelIngestKind(cfg config.Config) *gwsvc.OtelIngestKind {
-	return gwsvc.NewOtelIngestKind(cfg.OtelIngest.UpstreamURL, cfg.JWTSigning.Issuer)
+	return gwctl.NewWebSocketController(manager, hub, gatewayService, ackHandler, cfg.WebSocket.RateLimitPerMin)
 }
 
 // ProvideDefaultGatewaySeeder registers the gateway named in configuration.
@@ -294,9 +274,9 @@ func ProvideDeploymentAckHandler(deploymentRepo gwrepo.DeploymentRepository, cor
 // ProvideReconcileKinds lists the gateway artifact kinds the reconcile core deploys.
 func ProvideReconcileKinds(
 	llmProvider *gwsvc.LLMProviderKind, llmProxy *gwsvc.LLMProxyKind, mcp *gwsvc.MCPProxyKind,
-	agent *gwsvc.A2AAgentKind, otelIngest *gwsvc.OtelIngestKind,
+	agent *gwsvc.A2AAgentKind,
 ) reconcile.Kinds {
-	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent, otelIngest}
+	return reconcile.Kinds{llmProvider, llmProxy, mcp, agent}
 }
 
 // ProvideReconcileCore builds the reconcile core with the worker's intervals, lease and attempt budget from cfg, and
