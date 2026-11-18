@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -56,7 +57,7 @@ func TestSelfHostedVhost(t *testing.T) {
 		{"https://gw.example.com:99999"},
 	} {
 		_, err := selfHostedVhost(endpoints)
-		require.ErrorIs(t, err, utils.ErrInvalidInput, "endpoints %v", endpoints)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput, "endpoints %v", endpoints)
 	}
 }
 
@@ -115,7 +116,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 
 		_, err := svc.RegisterSelfHostedGateway("org", input("regular"))
 
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		require.Nil(t, created)
 	})
 
@@ -128,7 +129,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 
 			_, err := svc.RegisterSelfHostedGateway("org", in)
 
-			require.ErrorIs(t, err, utils.ErrInvalidInput, "handle %q", handle)
+			require.ErrorIs(t, err, httpx.ErrInvalidInput, "handle %q", handle)
 			require.Nil(t, created)
 		}
 	})

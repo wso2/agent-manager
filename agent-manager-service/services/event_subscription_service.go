@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -155,7 +156,7 @@ func (s *eventSubscriptionService) EventTypes(scope string) ([]events.Type, erro
 		return events.Types(""), nil
 	}
 	if !events.Scope(scope).Valid() {
-		return nil, fmt.Errorf("%w: scope must be org, project or agent", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: scope must be org, project or agent", httpx.ErrInvalidInput)
 	}
 	return events.Subscribable(events.Scope(scope)), nil
 }
@@ -326,7 +327,7 @@ func (s *eventSubscriptionService) Create(
 	}
 	if len(existing) >= maxEventSubscriptionsPerOwner {
 		return nil, fmt.Errorf("%w: at most %d event subscriptions are allowed here",
-			utils.ErrInvalidInput, maxEventSubscriptionsPerOwner)
+			httpx.ErrInvalidInput, maxEventSubscriptionsPerOwner)
 	}
 	sub := &models.EventSubscription{
 		ID:            uuid.New(),
@@ -411,12 +412,12 @@ func (s *eventSubscriptionService) Deliveries(
 		q.Limit = defaultEventDeliveryLimit
 	}
 	if q.Offset < 0 {
-		return nil, fmt.Errorf("%w: offset must not be negative", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: offset must not be negative", httpx.ErrInvalidInput)
 	}
 	switch q.Status {
 	case "", models.EventDeliveryPending, models.EventDeliveryDelivered, models.EventDeliveryFailed, models.EventDeliverySkipped:
 	default:
-		return nil, fmt.Errorf("%w: status must be pending, delivered, failed or skipped", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: status must be pending, delivered, failed or skipped", httpx.ErrInvalidInput)
 	}
 	page, total, err := s.repo.ListDeliveries(ctx, repositories.DeliveryFilter{
 		OUID:           t.OUID,
@@ -507,25 +508,25 @@ func (s *eventSubscriptionService) validate(t repositories.EventTarget, in *Even
 	in.Name = strings.TrimSpace(in.Name)
 	in.Description = strings.TrimSpace(in.Description)
 	if in.Name == "" || len(in.Name) > maxEventNameLength {
-		return fmt.Errorf("%w: name is required and must be at most %d characters", utils.ErrInvalidInput, maxEventNameLength)
+		return fmt.Errorf("%w: name is required and must be at most %d characters", httpx.ErrInvalidInput, maxEventNameLength)
 	}
 	if len(in.Description) > maxEventDescriptionLength {
-		return fmt.Errorf("%w: description must be at most %d characters", utils.ErrInvalidInput, maxEventDescriptionLength)
+		return fmt.Errorf("%w: description must be at most %d characters", httpx.ErrInvalidInput, maxEventDescriptionLength)
 	}
 	if in.DestinationID == uuid.Nil {
-		return fmt.Errorf("%w: destinationId is required", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: destinationId is required", httpx.ErrInvalidInput)
 	}
 	types := uniqueTrimmed(in.EventTypes)
 	switch {
 	case len(types) == 0:
-		return fmt.Errorf("%w: select at least one event", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: select at least one event", httpx.ErrInvalidInput)
 	case len(types) > 1 && slices.Contains(types, events.AllEvents):
 		return fmt.Errorf("%w: %q selects every event and cannot be combined with other events",
-			utils.ErrInvalidInput, events.AllEvents)
+			httpx.ErrInvalidInput, events.AllEvents)
 	}
 	for _, name := range types {
 		if name != events.AllEvents && !events.CanSubscribe(events.Scope(t.Scope), name) {
-			return fmt.Errorf("%w: %q is not an event a %s subscription can receive", utils.ErrInvalidInput, name, t.Scope)
+			return fmt.Errorf("%w: %q is not an event a %s subscription can receive", httpx.ErrInvalidInput, name, t.Scope)
 		}
 	}
 	in.EventTypes = types
@@ -561,7 +562,7 @@ func (s *eventSubscriptionService) checkTarget(ctx context.Context, t repositori
 	}
 	for _, name := range environments {
 		if !known[name] {
-			return fmt.Errorf("%w: environment %q does not exist", utils.ErrInvalidInput, name)
+			return fmt.Errorf("%w: environment %q does not exist", httpx.ErrInvalidInput, name)
 		}
 	}
 	return nil
@@ -573,7 +574,7 @@ func destinationCheck(t repositories.EventTarget) func(*models.EventDestination)
 	return func(d *models.EventDestination) error {
 		if !d.UsableBy(t.Scope, t.ProjectName) {
 			return fmt.Errorf("%w: the destination %q is not available to project %s",
-				utils.ErrInvalidInput, d.Name, t.ProjectName)
+				httpx.ErrInvalidInput, d.Name, t.ProjectName)
 		}
 		return nil
 	}
@@ -583,8 +584,8 @@ func destinationCheck(t repositories.EventTarget) func(*models.EventDestination)
 func subscriptionSaveError(err error, fallback string) error {
 	switch {
 	case errors.Is(err, gorm.ErrRecordNotFound):
-		return fmt.Errorf("%w: the destination does not exist", utils.ErrInvalidInput)
-	case errors.Is(err, utils.ErrInvalidInput):
+		return fmt.Errorf("%w: the destination does not exist", httpx.ErrInvalidInput)
+	case errors.Is(err, httpx.ErrInvalidInput):
 		return err
 	default:
 		return fmt.Errorf("%s: %w", fallback, err)

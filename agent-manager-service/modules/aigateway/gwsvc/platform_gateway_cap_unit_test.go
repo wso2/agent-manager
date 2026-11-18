@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -42,9 +43,9 @@ func TestNormalizeGatewayRole(t *testing.T) {
 		{name: "lowercase accepted", input: "both", want: gwmodels.GatewayRoleBoth},
 		{name: "alias REGULAR maps to both", input: "REGULAR", want: gwmodels.GatewayRoleBoth},
 		{name: "alias AI maps to egress", input: "AI", want: gwmodels.GatewayRoleEgress},
-		{name: "event is rejected", input: "EVENT", wantErr: true, wantErrIs: utils.ErrBadRequest},
-		{name: "empty is rejected", input: "", wantErr: true, wantErrIs: utils.ErrBadRequest},
-		{name: "unknown is rejected", input: "sideways", wantErr: true, wantErrIs: utils.ErrBadRequest},
+		{name: "event is rejected", input: "EVENT", wantErr: true, wantErrIs: httpx.ErrBadRequest},
+		{name: "empty is rejected", input: "", wantErr: true, wantErrIs: httpx.ErrBadRequest},
+		{name: "unknown is rejected", input: "sideways", wantErr: true, wantErrIs: httpx.ErrBadRequest},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

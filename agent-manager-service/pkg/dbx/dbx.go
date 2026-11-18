@@ -31,7 +31,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 )
 
 // MaxInList is the most values one IN list may hold (Oracle's limit; SQL Server caps parameters at 2,100).

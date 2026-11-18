@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -55,7 +56,7 @@ func TestValidateProvidersInCatalog(t *testing.T) {
 	require.ErrorIs(t, s.ValidateProvidersInCatalog(ctx, "org", []string{"missing"}),
 		utils.ErrLLMProviderNotFound)
 	require.ErrorIs(t, s.ValidateProvidersInCatalog(ctx, "org", []string{"notcat"}),
-		utils.ErrInvalidInput)
+		httpx.ErrInvalidInput)
 	require.ErrorIs(t, s.ValidateProvidersInCatalog(ctx, "org", []string{""}),
-		utils.ErrInvalidInput)
+		httpx.ErrInvalidInput)
 }

@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -129,7 +130,7 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 	for name, p := range map[string]*gwmodels.LLMProvider{"self-hosted only": selfHosted, "not deployed": unplaced} {
 		t.Run(name, func(t *testing.T) {
 			err := platformAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"))
-			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			require.ErrorIs(t, err, httpx.ErrInvalidInput)
 			assert.ErrorContains(t, err, "not deployed to a managed gateway in this environment (platform-hosted agents can only use")
 			assert.ErrorContains(t, err, deployProviderHint)
 		})
@@ -140,7 +141,7 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 			gwmodels.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 				"dev": {ProviderName: "self-p"},
 			}}, "user", platformAgentPolicy)
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.ErrorContains(t, err, "managed gateway")
 	})
 }
@@ -161,7 +162,7 @@ func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 			gwmodels.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 				"ok": {ProviderName: "managed-p"}, "bad": {ProviderName: "self-p"},
 			}}, "user", platformAgentPolicy)
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.ErrorContains(t, err, `LLM provider "self-p" in environment bad: `)
 	})
 }
@@ -302,7 +303,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 	for name, p := range map[string]*gwmodels.LLMProvider{"not deployed": unplaced, "deployed to another environment": elsewhere} {
 		t.Run(name, func(t *testing.T) {
 			err := externalAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"))
-			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			require.ErrorIs(t, err, httpx.ErrInvalidInput)
 			assert.ErrorContains(t, err, notInEnv)
 			assert.NotContains(t, err.Error(), "managed")
 		})
@@ -313,7 +314,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 			gwmodels.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 				"dev": {ProviderName: "unplaced-p"},
 			}}, "user", externalAgentPolicy)
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.ErrorContains(t, err, notInEnv)
 	})
 
@@ -336,7 +337,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 			gwmodels.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 				"dev": {ProviderName: "unplaced-p"},
 			}})
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.ErrorContains(t, err, `LLM provider "unplaced-p" in environment dev: `)
 		assert.ErrorContains(t, err, notInEnv)
 	})

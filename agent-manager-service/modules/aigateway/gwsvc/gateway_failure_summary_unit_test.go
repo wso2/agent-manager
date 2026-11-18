@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -185,7 +186,7 @@ func TestGatewayFailureSummary_RejectsInvalidThresholds(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			_, err := svc.GetCrossOrgGatewayFailureSummary(context.Background(), tc.query)
-			assert.ErrorIs(t, err, utils.ErrBadRequest)
+			assert.ErrorIs(t, err, httpx.ErrBadRequest)
 		})
 	}
 }

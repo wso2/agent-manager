@@ -29,7 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // goldenProxy is an agent's proxy in front of goldenProvider, with every part of the proxy render: api-key
@@ -84,7 +84,7 @@ func TestLLMProxyKindRejectsAnInvalidSecurityConfig(t *testing.T) {
 
 	_, err := goldenProxyKind(proxy).Render(context.Background(), gwmodels.ArtifactRef{Handle: proxy.Handle})
 
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.True(t, reconcile.IsPermanent(err))
 }
 

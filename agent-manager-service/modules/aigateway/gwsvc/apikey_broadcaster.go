@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -69,7 +70,7 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*gwmodels.Gatew
 	}
 	if utf8.RuneCountInString(keyName) < gwmodels.MinAPIKeyNameLength {
 		return nil, fmt.Errorf("%w: API key name %q must be at least %d characters",
-			utils.ErrBadRequest, keyName, gwmodels.MinAPIKeyNameLength)
+			httpx.ErrBadRequest, keyName, gwmodels.MinAPIKeyNameLength)
 	}
 
 	apiKey, err := utils.GenerateAPIKey()

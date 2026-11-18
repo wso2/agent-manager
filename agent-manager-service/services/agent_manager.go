@@ -26,16 +26,18 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 type AgentManagerService interface {
@@ -293,7 +295,7 @@ func paginateSlice[T any](items []T, offset, limit int32) []T {
 // agent runtime, which this control plane does not provide.
 func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error {
 	if req.Provisioning.Type != string(utils.ExternalAgent) {
-		return fmt.Errorf("%w: only external agents can be created", utils.ErrNotImplemented)
+		return fmt.Errorf("%w: only external agents can be created", httpx.ErrNotImplemented)
 	}
 
 	in := repositories.CreateAgentInput{
@@ -435,7 +437,7 @@ func (s *agentManagerService) GenerateName(ctx context.Context, ouID string, pay
 		return uniqueName, nil
 	}
 	if payload.ResourceType == string(utils.ResourceTypeEnvironment) {
-		return "", fmt.Errorf("%w: environments cannot be created", utils.ErrNotImplemented)
+		return "", fmt.Errorf("%w: environments cannot be created", httpx.ErrNotImplemented)
 	}
 	return "", errors.New("invalid resource type for name generation")
 }
@@ -702,7 +704,7 @@ func (s *agentManagerService) ProvisionAgentIdentity(ctx context.Context, ouID s
 	default:
 		return models.AgentIdentityEnvironmentView{}, false, fmt.Errorf(
 			"%w: agent %q has unsupported provisioning type %q",
-			utils.ErrInvalidInput, agentName, agent.Provisioning.Type,
+			httpx.ErrInvalidInput, agentName, agent.Provisioning.Type,
 		)
 	}
 

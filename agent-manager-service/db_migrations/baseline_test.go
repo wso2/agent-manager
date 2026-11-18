@@ -29,9 +29,9 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
-	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 )
 
 func TestSplitStatements(t *testing.T) {

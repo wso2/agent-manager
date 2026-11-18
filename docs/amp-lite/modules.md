@@ -135,7 +135,7 @@ tables:
   ```
 
 - `amp migrate` (or `amp serve --migrate`) applies the core's migrations, then every compiled-in module's in name order, whether the module is installed or not. Each applied file is recorded in `module_migrations` with a sha256 checksum. The runner refuses an applied file that was edited, a recorded file the binary doesn't have (a database newer than the binary), a new file that sorts before an applied one, and any statement that touches a table outside the module's prefix. Add a new file; never edit one. A server won't start while migrations are pending.
-- Queries you write in Go follow the [database rules](database-schema.md#rules): one SQL text for SQLite and PostgreSQL, no `ON CONFLICT`, no row-lock clauses, no database-specific functions. `db/dbx/portability_test.go` checks the repository for them.
+- Queries you write in Go follow the [database rules](database-schema.md#rules): one SQL text for SQLite and PostgreSQL, no `ON CONFLICT`, no row-lock clauses, no database-specific functions. `db/portability_test.go` checks the repository for them; `pkg/dbx` has the portable helpers (claims, upserts, row locks).
 
 ## Activate and the Runtime
 
@@ -376,7 +376,7 @@ reports each installed module (or one) as `ok`, `degraded` or `inactive`, with i
 
 A module must not:
 
-- import the core's packages (`services`, `repositories`, `controllers`, `models`, ...): only `modkit` and `modkit/contracts` (`tests/modules/testmod` uses every surface above with nothing else);
+- import the core's packages (`services`, `repositories`, `controllers`, `models`, ...): see [Module boundaries](#module-boundaries) for what it may import (`tests/modules/testmod` uses every surface above with `modkit` alone);
 - read or write core tables, or another module's tables; use `rt.Core()`, a capability or an event instead;
 - be named after a core permission resource, or declare permissions outside its own namespace (only built-in modules keep older full names);
 - do work in `Activate` beyond registering: it runs on every replica on every module change.
@@ -397,6 +397,42 @@ What it already does as a module:
 - **MCP tools:** its 11 tools are registered with `rt.MCPTool` from `Activate` (`gwmcp`), so they leave `/mcp` with the module, and the MCP endpoint's protected-resource metadata lists their scopes only while it is active.
 
 What is left: its workers and settings still come through `builtin.Bundle` (`Build(ctx, *wiring.AppParams)` builds it on the core's Go services and repositories), and its packages import core `services`, `repositories`, `controllers` and `models` (its data types still live in core `models`). Don't copy this for a new module.
+
+## Module boundaries
+
+A module talks to the core only through the contract. The import rules make that checkable: anything a module can import either is the contract or cannot reach the core's internals.
+
+### What a module may import
+
+| Import | Why it is allowed |
+|---|---|
+| `modkit` and `modkit/contracts/...` | The contract: the Runtime, the manifest types and the capability interfaces. |
+| `pkg/...` | Leaf libraries with no domain and no state (below). |
+| Its own packages (`modules/<name>/...`) | The module's code. |
+| The standard library and third-party modules in `go.mod` | |
+
+Everything else under `agent-manager-service/` is the core (`services`, `repositories`, `controllers`, `models`, `utils`, `config`, `db`, `middleware`, `audit`, `rbac`, ...) and is off limits, in tests too. Another module's packages are off limits as well; use its capability.
+
+### Leaf libraries (`pkg/`)
+
+`agent-manager-service/pkg/` holds code that the core and modules both need and that has nothing to do with AMP's domain:
+
+| Package | What it is |
+|---|---|
+| `pkg/httpx` | JSON success and error responses, `ValidationError`, the classification errors (`ErrInvalidInput`, `ErrNotFound`, ...) and the generic error codes. |
+| `pkg/dbx` | Portable SQL helpers on a `*gorm.DB` you pass in: `InsertIfAbsent`, `Upsert`, `ClaimRows`, `TryLock`, `LockRow(s)`, keyset pages (`After`), `Chunks`, `JSON`, `Now`. |
+| `pkg/dberr` | Classifies driver errors (duplicate key, foreign key, ...) the same way on SQLite and PostgreSQL. |
+| `pkg/sqlitedialect` | The GORM SQLite dialect the core opens databases with. |
+| `pkg/ssrf` | Checks that an outbound URL points at a public host, and `ErrInvalidURL`. |
+| `pkg/logger` | The request-scoped `slog` logger and the correlation id carried in the context. |
+
+A package belongs in `pkg/` only if all of these hold:
+
+- **It imports no core package.** Only the standard library, third-party modules and other `pkg/` packages.
+- **It holds no global state.** No database handle, no configuration read, no registry: it works on what the caller passes in (`pkg/dbx` takes the `*gorm.DB`, it never opens one).
+- **It knows nothing about AMP's domain.** No agents, projects, permissions or audit records. A helper that needs those is a core service, and a module reaches it through a capability.
+
+The proof of concept allows modules to import only `modkit`. `pkg/` is a deliberate extension of that rule: its packages cannot reach into the core's data or services, so importing them cannot bypass the contract, while copying them into every module would let the copies drift and versioning them as contract would freeze helpers that change freely. If a helper fails one of the three tests above, it is not a `pkg/` library.
 
 ## Testing
 

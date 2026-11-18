@@ -30,9 +30,10 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -154,14 +155,14 @@ func validateScopeTools(tools []string, union map[string]struct{}) ([]string, er
 	for _, tl := range tools {
 		tl = strings.TrimSpace(tl)
 		if tl == "" {
-			return nil, fmt.Errorf("%w: tool names must be non-empty", utils.ErrInvalidInput)
+			return nil, fmt.Errorf("%w: tool names must be non-empty", httpx.ErrInvalidInput)
 		}
 		if _, dup := seen[tl]; dup {
-			return nil, fmt.Errorf("%w: duplicate tool %q", utils.ErrInvalidInput, tl)
+			return nil, fmt.Errorf("%w: duplicate tool %q", httpx.ErrInvalidInput, tl)
 		}
 		if len(union) > 0 {
 			if _, known := union[tl]; !known {
-				return nil, fmt.Errorf("%w: tool %q is not among the proxy's discovered tools", utils.ErrInvalidInput, tl)
+				return nil, fmt.Errorf("%w: tool %q is not among the proxy's discovered tools", httpx.ErrInvalidInput, tl)
 			}
 		}
 		seen[tl] = struct{}{}
@@ -175,7 +176,7 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 	_ = orgName // unused: env-Thunder calls below are resolved by ouID, not orgName
 
 	if !mcpScopeActionRe.MatchString(in.Action) {
-		return nil, fmt.Errorf("%w: action must match ^[A-Za-z0-9._\\-]{1,100}$", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: action must match ^[A-Za-z0-9._\\-]{1,100}$", httpx.ErrInvalidInput)
 	}
 
 	proxy, err := s.resolveOrgOwnedProxy(ctx, ouID, proxyHandle)
@@ -184,7 +185,7 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 	}
 
 	if _, err := s.scopeRepo.Get(ctx, proxy.UUID, in.Action); err == nil {
-		return nil, fmt.Errorf("%w: scope action %q already exists on proxy %q", utils.ErrConflict, in.Action, proxyHandle)
+		return nil, fmt.Errorf("%w: scope action %q already exists on proxy %q", httpx.ErrConflict, in.Action, proxyHandle)
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("failed to check scope existence: %w", err)
 	}
@@ -206,7 +207,7 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 		// this insert; the unique constraint (uq_mcp_proxy_scopes_proxy_action)
 		// then fires. Map it to a conflict so the API returns 409.
 		if dberr.IsDuplicateKey(err) {
-			return nil, fmt.Errorf("%w: scope action %q already exists on proxy %q", utils.ErrConflict, in.Action, proxyHandle)
+			return nil, fmt.Errorf("%w: scope action %q already exists on proxy %q", httpx.ErrConflict, in.Action, proxyHandle)
 		}
 		return nil, fmt.Errorf("failed to create mcp proxy scope: %w", err)
 	}

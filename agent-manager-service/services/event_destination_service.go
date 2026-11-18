@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -249,7 +250,7 @@ func (s *eventDestinationService) Create(
 		return nil, "", err
 	}
 	if _, ok := driver.(eventdestinations.CredentialDriver); ok && credential == "" {
-		return nil, "", fmt.Errorf("%w: url is required", utils.ErrInvalidInput)
+		return nil, "", fmt.Errorf("%w: url is required", httpx.ErrInvalidInput)
 	}
 	existing, err := s.repo.ListDestinations(ctx, ouID)
 	if err != nil {
@@ -257,7 +258,7 @@ func (s *eventDestinationService) Create(
 	}
 	if len(existing) >= maxEventDestinationsPerOrg {
 		return nil, "", fmt.Errorf("%w: an organization can have at most %d event destinations",
-			utils.ErrInvalidInput, maxEventDestinationsPerOrg)
+			httpx.ErrInvalidInput, maxEventDestinationsPerOrg)
 	}
 	secret, encrypted, err := s.newSecret(driver)
 	if err != nil {
@@ -303,7 +304,7 @@ func (s *eventDestinationService) Update(
 		return nil, err
 	}
 	if in.Kind != d.Kind {
-		return nil, fmt.Errorf("%w: the kind of an event destination cannot be changed", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: the kind of an event destination cannot be changed", httpx.ErrInvalidInput)
 	}
 	driver, credential, err := s.validate(ctx, &in)
 	if err != nil {
@@ -316,7 +317,7 @@ func (s *eventDestinationService) Update(
 	} else if _, ok := driver.(eventdestinations.CredentialDriver); ok && !equalJSONValue(in.Config, d.Config) {
 		// The stored credential belongs to the old settings (another
 		// service's URL), so it cannot be kept.
-		return nil, fmt.Errorf("%w: enter the url again when changing the service", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: enter the url again when changing the service", httpx.ErrInvalidInput)
 	}
 	d.Name, d.Description, d.Config = in.Name, in.Description, in.Config
 	d.Availability, d.Projects = in.Availability, in.Projects
@@ -389,14 +390,14 @@ func (s *eventDestinationService) RotateSecret(ctx context.Context, ouID string,
 	}
 	driver, ok := s.drivers.Get(d.Kind)
 	if !ok {
-		return "", fmt.Errorf("%w: event destination kind %q is not supported", utils.ErrInvalidInput, d.Kind)
+		return "", fmt.Errorf("%w: event destination kind %q is not supported", httpx.ErrInvalidInput, d.Kind)
 	}
 	secret, encrypted, err := s.newSecret(driver)
 	if err != nil {
 		return "", err
 	}
 	if secret == "" {
-		return "", fmt.Errorf("%w: %s destinations have no generated secret", utils.ErrInvalidInput, d.Kind)
+		return "", fmt.Errorf("%w: %s destinations have no generated secret", httpx.ErrInvalidInput, d.Kind)
 	}
 	attempt, err := audit.Begin(ctx, audit.ActionEventDestinationRotateSecret, s.auditOpts(ouID, d, driver)...)
 	if err != nil {
@@ -463,7 +464,7 @@ func (s *eventDestinationService) Resolve(
 	driver, ok := s.drivers.Get(d.Kind)
 	if !ok {
 		return nil, eventdestinations.Destination{},
-			fmt.Errorf("%w: event destination kind %q is not supported", utils.ErrInvalidInput, d.Kind)
+			fmt.Errorf("%w: event destination kind %q is not supported", httpx.ErrInvalidInput, d.Kind)
 	}
 	dest := eventdestinations.Destination{Config: d.Config}
 	if len(d.SecretEncrypted) > 0 {
@@ -485,10 +486,10 @@ func (s *eventDestinationService) validate(
 	in.Name = strings.TrimSpace(in.Name)
 	in.Description = strings.TrimSpace(in.Description)
 	if in.Name == "" || len(in.Name) > maxEventNameLength {
-		return nil, "", fmt.Errorf("%w: name is required and must be at most %d characters", utils.ErrInvalidInput, maxEventNameLength)
+		return nil, "", fmt.Errorf("%w: name is required and must be at most %d characters", httpx.ErrInvalidInput, maxEventNameLength)
 	}
 	if len(in.Description) > maxEventDescriptionLength {
-		return nil, "", fmt.Errorf("%w: description must be at most %d characters", utils.ErrInvalidInput, maxEventDescriptionLength)
+		return nil, "", fmt.Errorf("%w: description must be at most %d characters", httpx.ErrInvalidInput, maxEventDescriptionLength)
 	}
 	switch in.Availability {
 	case models.DestinationAvailableAll, models.DestinationAvailableOrg:
@@ -496,14 +497,14 @@ func (s *eventDestinationService) validate(
 	case models.DestinationAvailableProjects:
 		in.Projects = uniqueTrimmed(in.Projects)
 		if len(in.Projects) == 0 {
-			return nil, "", fmt.Errorf("%w: select at least one project to make the destination available to", utils.ErrInvalidInput)
+			return nil, "", fmt.Errorf("%w: select at least one project to make the destination available to", httpx.ErrInvalidInput)
 		}
 	default:
-		return nil, "", fmt.Errorf("%w: availability must be all, org or projects", utils.ErrInvalidInput)
+		return nil, "", fmt.Errorf("%w: availability must be all, org or projects", httpx.ErrInvalidInput)
 	}
 	driver, ok := s.drivers.Get(in.Kind)
 	if !ok {
-		return nil, "", fmt.Errorf("%w: kind must be one of %s", utils.ErrInvalidInput, strings.Join(s.drivers.Kinds(), ", "))
+		return nil, "", fmt.Errorf("%w: kind must be one of %s", httpx.ErrInvalidInput, strings.Join(s.drivers.Kinds(), ", "))
 	}
 	cfg, err := driver.NormalizeConfig(ctx, in.Config)
 	if err != nil {

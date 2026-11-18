@@ -26,9 +26,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -55,7 +56,7 @@ func NewLLMProxyService(
 // Create creates a new LLM proxy
 func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, proxy *gwmodels.LLMProxy) (*gwmodels.LLMProxy, error) {
 	if proxy == nil {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	// Extract handle, name, and version from configuration
@@ -70,12 +71,12 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 	if handle == "" || name == "" || version == "" || provider == "" {
 		logger.GetLogger(ctx).Error("handle, name, version or provider is empty", "ouID", ouID,
 			"nameMissing", name == "", "versionMissing", version == "", "providerMissing", provider == "")
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	if proxy.ProjectUUID == uuid.Nil {
 		slog.Error("project uuid is nil")
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 	// Validate provider exists
 	providerModel, err := s.providerRepo.GetByUUID(provider, ouID)
@@ -113,7 +114,7 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 	}
 
 	if err := proxy.Configuration.Resilience.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
 	// Encrypt upstream auth value if provided
@@ -178,7 +179,7 @@ func (s *LLMProxyService) List(ouID string, projectID *string, limit, offset int
 // Get retrieves an LLM proxy by ID
 func (s *LLMProxyService) Get(proxyID, ouID string) (*gwmodels.LLMProxy, error) {
 	if proxyID == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
@@ -198,7 +199,7 @@ func (s *LLMProxyService) Get(proxyID, ouID string) (*gwmodels.LLMProxy, error) 
 // Update updates an existing LLM proxy
 func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProxy) (*gwmodels.LLMProxy, error) {
 	if proxyID == "" || updates == nil {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	// Fetch existing proxy to preserve sensitive fields
@@ -230,7 +231,7 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProx
 	}
 
 	if err := updates.Configuration.Resilience.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
 	// Preserve stored upstream auth credential when not supplied in update payload
@@ -312,14 +313,14 @@ func (s *LLMProxyService) Delete(ctx context.Context, proxyID, ouID string, depl
 // DeleteInProject enforces the project named by the public API before cleanup starts.
 func (s *LLMProxyService) DeleteInProject(ctx context.Context, proxyID, ouID, projectUUID string, deploymentService *LLMProxyDeploymentService) error {
 	if projectUUID == "" {
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 	return s.deleteProxy(ctx, proxyID, ouID, projectUUID, deploymentService)
 }
 
 func (s *LLMProxyService) deleteProxy(ctx context.Context, proxyID, ouID, projectUUID string, deploymentService *LLMProxyDeploymentService) error {
 	if proxyID == "" {
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 	proxy, err := s.proxyRepo.GetByIDCtx(ctx, proxyID, ouID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -365,7 +366,7 @@ func proxyDeleteError(err error) error {
 // ListByProvider lists all proxies for a specific provider
 func (s *LLMProxyService) ListByProvider(ouID, providerID string, limit, offset int) ([]*gwmodels.LLMProxy, int, error) {
 	if providerID == "" {
-		return nil, 0, utils.ErrInvalidInput
+		return nil, 0, httpx.ErrInvalidInput
 	}
 
 	// Get provider to get its UUID

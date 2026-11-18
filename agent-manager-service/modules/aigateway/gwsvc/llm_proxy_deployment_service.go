@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -155,7 +156,7 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *gwmodels
 		return nil, fmt.Errorf("failed to list the gateways the proxy is placed on: %w", err)
 	}
 	if err := validateEgressPlacement(s.gatewayRepo, gateway, existing); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
 	var applied *reconcile.Applied
@@ -508,7 +509,7 @@ func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *gwmode
 		return "", errors.New("proxy is required")
 	}
 	if proxy.Configuration.Provider == "" {
-		return "", utils.ErrInvalidInput
+		return "", httpx.ErrInvalidInput
 	}
 
 	// Get provider to validate it exists

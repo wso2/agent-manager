@@ -25,7 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // The gateway extension chart's pre-upgrade hook PUTs runtimeUrl on an already-registered
@@ -59,6 +59,6 @@ func TestUpdateGatewayRejectsInvalidRuntimeURL(t *testing.T) {
 	bad := "http://exfil.dev:53"
 
 	_, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &bad)
-	require.ErrorIs(t, err, utils.ErrBadRequest)
+	require.ErrorIs(t, err, httpx.ErrBadRequest)
 	require.False(t, runtimeURLOf(t, tx, id).Valid)
 }

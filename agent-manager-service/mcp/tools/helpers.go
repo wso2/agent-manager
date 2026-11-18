@@ -30,7 +30,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	reqlogger "github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -136,7 +137,7 @@ func wrapToolError(toolName string, err error) error {
 		return fmt.Errorf("%s: MCP proxy not found. Call list_mcp_proxies to see valid proxies", toolName)
 	case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
 		return fmt.Errorf("%s: the agent already has a configuration with this name. Pass a different config_name", toolName)
-	case errors.Is(err, utils.ErrNotFound):
+	case errors.Is(err, httpx.ErrNotFound):
 		msg := strings.ToLower(err.Error())
 		switch {
 		case strings.Contains(msg, "namespace not found") || strings.Contains(msg, "organization not found"):

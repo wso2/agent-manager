@@ -25,12 +25,13 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -125,7 +126,7 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 	var req gwspec.CreateLLMProviderTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateLLMProviderTemplate: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -136,24 +137,24 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrSystemTemplateOverride):
-			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot use handle of built-in template")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "Cannot use handle of built-in template")
 			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateExists):
-			utils.WriteErrorResponse(w, http.StatusConflict, "LLM provider template already exists")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM provider template already exists")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
 		default:
 			log.Error("CreateLLMProviderTemplate: failed to create template", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider template")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider template")
 			return
 		}
 	}
 
 	// Convert model response to spec
 	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(created)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.Request) {
@@ -179,7 +180,7 @@ func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.
 	templates, totalCount, err := c.templateService.List(ouID, limit, offset)
 	if err != nil {
 		log.Error("ListLLMProviderTemplates: failed to list templates", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM provider templates")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM provider templates")
 		return
 	}
 
@@ -195,7 +196,7 @@ func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.
 		Limit:     int32(limit),
 		Offset:    int32(offset),
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
@@ -208,21 +209,21 @@ func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid template id")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid template id")
 			return
 		default:
 			log.Error("GetLLMProviderTemplate: failed to get template", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get LLM provider template")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get LLM provider template")
 			return
 		}
 	}
 
 	// Convert model to spec response
 	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(template)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
@@ -234,7 +235,7 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	var req gwspec.UpdateLLMProviderTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProviderTemplate: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -257,24 +258,24 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrSystemTemplateImmutable):
-			utils.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be modified")
+			httpx.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be modified")
 			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
 		default:
 			log.Error("UpdateLLMProviderTemplate: failed to update template", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider template")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider template")
 			return
 		}
 	}
 
 	// Convert model to spec response
 	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(updated)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
@@ -286,22 +287,22 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 	if err := c.templateService.Delete(ouID, templateID); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrSystemTemplateImmutable):
-			utils.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be deleted")
+			httpx.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be deleted")
 			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid template id")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid template id")
 			return
 		default:
 			log.Error("DeleteLLMProviderTemplate: failed to delete template", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete LLM provider template")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete LLM provider template")
 			return
 		}
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
 // ---- Provider Handlers ----
@@ -316,19 +317,19 @@ func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, ouID, t
 		// The ID is auto-generated from the name and is what's actually unique (not the
 		// display name, which can be reused) — renaming a provider never changes its ID,
 		// so this collision can surface even when no provider currently shows this name.
-		utils.WriteErrorResponse(w, http.StatusConflict, fmt.Sprintf(
+		httpx.WriteErrorResponse(w, http.StatusConflict, fmt.Sprintf(
 			"A provider with the ID %q already exists (auto-generated from the name). Try a different name, or rename/delete the existing provider first.",
 			providerHandle,
 		))
 	case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 		log.Error("CreateLLMProvider: template not found", "ouID", ouID, "templateHandle", templateHandle, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
-	case errors.Is(err, utils.ErrInvalidInput):
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+	case errors.Is(err, httpx.ErrInvalidInput):
 		log.Error("CreateLLMProvider: invalid input", "ouID", ouID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 	default:
 		log.Error("CreateLLMProvider: failed to create provider", "ouID", ouID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM provider")
 	}
 }
 
@@ -342,7 +343,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	var req gwspec.CreateLLMProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateLLMProvider: failed to decode request", "ouID", ouID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	log.Info("CreateLLMProvider: request decoded", "ouID", ouID, "templateHandle", req.Template,
@@ -403,7 +404,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	// Convert model to spec response
 	response := gwconv.ConvertModelToSpecLLMProviderResponse(created)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 // ListAvailableLLMPolicies handles GET /orgs/{orgName}/llm-providers/policies.
@@ -419,16 +420,16 @@ func (c *llmController) ListAvailableLLMPolicies(w http.ResponseWriter, r *http.
 	if err != nil {
 		if errors.Is(err, utils.ErrLLMProviderNotFound) {
 			log.Warn("ListAvailableLLMPolicies: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		}
 		log.Error("ListAvailableLLMPolicies: failed", "ouID", ouID, "providerID", providerID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list available LLM policies")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list available LLM policies")
 		return
 	}
 
 	log.Info("ListAvailableLLMPolicies: completed", "ouID", ouID, "count", resp.Count)
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request) {
@@ -458,7 +459,7 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 	providers, totalCount, err := c.providerService.List(ouID, limit, offset)
 	if err != nil {
 		log.Error("ListLLMProviders: failed to list providers", "ouID", ouID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM providers")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM providers")
 		return
 	}
 
@@ -476,7 +477,7 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 		Limit:     int32(limit),
 		Offset:    int32(offset),
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
@@ -494,15 +495,15 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("GetLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
+		case errors.Is(err, httpx.ErrInvalidInput):
 			log.Error("GetLLMProvider: invalid provider id", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
 			return
 		default:
 			log.Error("GetLLMProvider: failed to get provider", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get LLM provider")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get LLM provider")
 			return
 		}
 	}
@@ -515,13 +516,13 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	gatewayMappings, err := c.providerService.GetProviderGatewayMapping(ctx, provider.UUID, ouID, c.deploymentService)
 	if err != nil {
 		log.Error("error while fetching deployed gateways for provider", "providerID", providerID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Error fetching deployed gateways")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Error fetching deployed gateways")
 		return
 	}
 
 	response.SetGateways(gatewayMappings)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // preserveOmittedProviderFields carries forward optional fields the request left out.
@@ -572,7 +573,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	var req gwspec.UpdateLLMProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProvider: failed to decode request", "ouID", ouID, "providerID", providerID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -589,11 +590,11 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("UpdateLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		default:
 			log.Error("UpdateLLMProvider: failed to fetch existing provider", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
 			return
 		}
 	}
@@ -677,23 +678,23 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 			switch {
 			case errors.Is(err, utils.ErrLLMProviderExists):
 				log.Warn("UpdateLLMProvider: provider name and version already exist", "ouID", ouID, "providerID", providerID)
-				utils.WriteErrorResponse(w, http.StatusConflict, "Another LLM provider already uses this name and version")
+				httpx.WriteErrorResponse(w, http.StatusConflict, "Another LLM provider already uses this name and version")
 				return
 			case errors.Is(err, utils.ErrLLMProviderNotFound):
 				log.Warn("UpdateLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
-				utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+				httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 				return
 			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 				log.Error("UpdateLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+				httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
-			case errors.Is(err, utils.ErrInvalidInput):
+			case errors.Is(err, httpx.ErrInvalidInput):
 				log.Error("UpdateLLMProvider: invalid input", "ouID", ouID, "providerID", providerID, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+				httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 				return
 			default:
 				log.Error("UpdateLLMProvider: failed to update provider", "ouID", ouID, "providerID", providerID, "error", err)
-				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
+				httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
 				return
 			}
 		}
@@ -733,23 +734,23 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 			switch {
 			case errors.Is(err, utils.ErrLLMProviderExists):
 				log.Warn("UpdateLLMProvider: provider name and version already exist", "ouID", ouID, "providerID", providerID)
-				utils.WriteErrorResponse(w, http.StatusConflict, "Another LLM provider already uses this name and version")
+				httpx.WriteErrorResponse(w, http.StatusConflict, "Another LLM provider already uses this name and version")
 				return
 			case errors.Is(err, utils.ErrLLMProviderNotFound):
 				log.Warn("UpdateLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
-				utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+				httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 				return
 			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 				log.Error("UpdateLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+				httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
-			case errors.Is(err, utils.ErrInvalidInput):
+			case errors.Is(err, httpx.ErrInvalidInput):
 				log.Error("UpdateLLMProvider: invalid input", "ouID", ouID, "providerID", providerID, "error", err)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+				httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 				return
 			default:
 				log.Error("UpdateLLMProvider: failed to update provider", "ouID", ouID, "providerID", providerID, "error", err)
-				utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
+				httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM provider")
 				return
 			}
 		}
@@ -781,7 +782,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	// Convert model to spec response
 	response := gwconv.ConvertModelToSpecLLMProviderResponse(updated)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request) {
@@ -798,34 +799,34 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("DeleteLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
+		case errors.Is(err, httpx.ErrInvalidInput):
 			log.Error("DeleteLLMProvider: invalid provider id", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
 			return
 		case errors.Is(err, utils.ErrLLMProviderHasProxies):
 			log.Warn("DeleteLLMProvider: provider has associated proxies", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderHasProxies.Error())
+			httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderHasProxies.Error())
 			return
 		case errors.Is(err, utils.ErrLLMProviderUndeployFailed):
 			log.Error("DeleteLLMProvider: undeployment failed", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderUndeployFailed.Error())
+			httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderUndeployFailed.Error())
 			return
 		case errors.Is(err, utils.ErrLLMProviderDeleteInProgress):
 			log.Warn("DeleteLLMProvider: delete already in progress", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderDeleteInProgress.Error())
+			httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderDeleteInProgress.Error())
 			return
 		default:
 			log.Error("DeleteLLMProvider: failed to delete provider", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete LLM provider")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete LLM provider")
 			return
 		}
 	}
 
 	log.Info("DeleteLLMProvider: provider deleted successfully", "ouID", ouID, "providerID", providerID)
 
-	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
 // ---- Proxy Handlers ----
@@ -841,18 +842,18 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
 			log.Error("CreateLLMProxy: project not found", "ouID", ouID, "projectName", projectName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		log.Error("CreateLLMProxy: failed to resolve project", "ouID", ouID, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
 	var req gwspec.CreateLLMProxyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateLLMProxy: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -860,7 +861,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	proxy, err := gwconv.ConvertSpecToModelLLMProxy(&req, projectUUID)
 	if err != nil {
 		log.Error("CreateLLMProxy: failed to convert spec to model", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid UUID in request")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid UUID in request")
 		return
 	}
 
@@ -868,30 +869,30 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyExists):
-			utils.WriteErrorResponse(w, http.StatusConflict, "LLM proxy already exists")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM proxy already exists")
 			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced provider not found")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced provider not found")
 			return
 		case errors.Is(err, utils.ErrLLMProviderBeingDeleted):
-			utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderBeingDeleted.Error())
+			httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderBeingDeleted.Error())
 			return
 		case errors.Is(err, utils.ErrProjectNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
 		default:
 			log.Error("CreateLLMProxy: failed to create proxy", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM proxy")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create LLM proxy")
 			return
 		}
 	}
 
 	// Convert model to spec response
 	response := gwconv.ConvertModelToSpecLLMProxyResponse(created)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
@@ -905,11 +906,11 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
 			log.Error("ListLLMProxies: project not found", "ouID", ouID, "projectName", projectName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		log.Error("ListLLMProxies: failed to resolve project", "ouID", ouID, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -931,11 +932,11 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 	proxies, totalCount, err := c.proxyService.List(ouID, &projectUUID, limit, offset)
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		log.Error("ListLLMProxies: failed to list proxies", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM proxies")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM proxies")
 		return
 	}
 
@@ -951,7 +952,7 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 		Limit:   int32(limit),
 		Offset:  int32(offset),
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.Request) {
@@ -979,14 +980,14 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
 			return
 		default:
 			log.Error("ListLLMProxiesByProvider: failed to list proxies", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM proxies")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list LLM proxies")
 			return
 		}
 	}
@@ -1003,7 +1004,7 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 		Limit:   int32(limit),
 		Offset:  int32(offset),
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
@@ -1018,11 +1019,11 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
 			log.Error("GetLLMProxy: project not found", "ouID", ouID, "projectName", projectName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		log.Error("GetLLMProxy: failed to resolve project", "ouID", ouID, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -1030,21 +1031,21 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid proxy id")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid proxy id")
 			return
 		default:
 			log.Error("GetLLMProxy: failed to get proxy", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get LLM proxy")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get LLM proxy")
 			return
 		}
 	}
 
 	// Convert model to spec response
 	response := gwconv.ConvertModelToSpecLLMProxyResponse(proxy)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
@@ -1059,11 +1060,11 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
 			log.Error("UpdateLLMProxy: project not found", "ouID", ouID, "projectName", projectName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		log.Error("UpdateLLMProxy: failed to resolve project", "ouID", ouID, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -1075,7 +1076,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	var req gwspec.UpdateLLMProxyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProxy: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1089,7 +1090,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	proxy, err := gwconv.ConvertSpecToModelLLMProxy(proxyReq, projectUUID)
 	if err != nil {
 		log.Error("UpdateLLMProxy: failed to convert spec to model", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid UUID in request")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid UUID in request")
 		return
 	}
 
@@ -1097,24 +1098,24 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced provider not found")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced provider not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
 		default:
 			log.Error("UpdateLLMProxy: failed to update proxy", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM proxy")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update LLM proxy")
 			return
 		}
 	}
 
 	// Convert model to spec response
 	response := gwconv.ConvertModelToSpecLLMProxyResponse(updated)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
@@ -1129,11 +1130,11 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
 			log.Error("DeleteLLMProxy: project not found", "ouID", ouID, "projectName", projectName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		log.Error("DeleteLLMProxy: failed to resolve project", "ouID", ouID, "projectName", projectName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Internal server error")
 		return
 	}
 
@@ -1145,19 +1146,19 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	if err := c.proxyService.DeleteInProject(ctx, proxyID, ouID, projectUUID, c.proxyDeploymentService); err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProxyNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid proxy id")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid proxy id")
 			return
 		default:
 			log.Error("DeleteLLMProxy: failed to delete proxy", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete LLM proxy")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete LLM proxy")
 			return
 		}
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
 // ListLLMProviderConsumers handles GET /orgs/{ouID}/llm-providers/{providerId}/consumers
@@ -1171,14 +1172,14 @@ func (c *llmController) ListLLMProviderConsumers(w http.ResponseWriter, r *http.
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
 			return
 		default:
 			log.Error("ListLLMProviderConsumers: failed to list consumers", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list provider consumers")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list provider consumers")
 			return
 		}
 	}
@@ -1198,7 +1199,7 @@ func (c *llmController) ListLLMProviderConsumers(w http.ResponseWriter, r *http.
 		Consumers: items,
 		Total:     int32(len(items)),
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 // UpdateLLMProviderCatalogStatus handles PUT /orgs/{ouID}/llm-providers/{id}/catalog
@@ -1213,7 +1214,7 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	var req gwspec.UpdateLLMProviderCatalogRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProviderCatalogStatus: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1222,19 +1223,19 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider ID")
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider ID")
 			return
 		default:
 			log.Error("UpdateLLMProviderCatalogStatus: failed to update catalog status", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update catalog status")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update catalog status")
 			return
 		}
 	}
 
 	// Convert to response
 	response := gwconv.ConvertModelToSpecLLMProviderResponse(provider)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }

@@ -24,8 +24,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -45,7 +46,7 @@ func identityGroupProvider(w http.ResponseWriter) (provider services.IdentityGro
 		return nil, false, true
 	}
 	if provider == nil {
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable,
 			"Group management through the identity control plane is not configured")
 		return nil, true, false
 	}
@@ -56,19 +57,19 @@ func identityGroupProvider(w http.ResponseWriter) (provider services.IdentityGro
 func writeIdentityGroupError(w http.ResponseWriter, r *http.Request, operation string, err error) {
 	switch {
 	case errors.Is(err, services.ErrIdentityGroupNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 	case errors.Is(err, services.ErrIdentityGroupUnsupported):
-		utils.WriteErrorResponse(w, http.StatusNotImplemented, "Groups are not supported through the identity control plane yet")
+		httpx.WriteErrorResponse(w, http.StatusNotImplemented, "Groups are not supported through the identity control plane yet")
 	case errors.Is(err, thundersvc.ErrThunderNotProvisioned):
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "The identity provider is not set up for this environment yet")
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "The identity provider is not set up for this environment yet")
 	case errors.Is(err, services.ErrIdentityGroupUnavailable):
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Group management through the identity control plane is not configured")
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "Group management through the identity control plane is not configured")
 	case errors.Is(err, services.ErrIdentityRoleNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 	default:
 		logger.GetLogger(r.Context()).Error("agent-identity: group provider failed", "operation", operation,
 			"env", r.PathValue("envName"), "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadGateway, "Failed to "+operation+" through the identity control plane")
+		httpx.WriteErrorResponse(w, http.StatusBadGateway, "Failed to "+operation+" through the identity control plane")
 	}
 }
 
@@ -87,7 +88,7 @@ func (c *agentIdentityController) managedGroupViaProvider(
 		return nil, false
 	}
 	if group == nil {
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 		return nil, false
 	}
 	if !controllers.ValidateSystemGroup(w, group.Name) {
@@ -105,7 +106,7 @@ func (c *agentIdentityController) listGroupsViaProvider(w http.ResponseWriter, r
 		writeIdentityGroupError(w, r, "list groups", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": list.Groups, "total": list.Total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": list.Groups, "total": list.Total, "offset": offset, "limit": limit})
 }
 
 func (c *agentIdentityController) getGroupViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityGroupProvider) {
@@ -113,17 +114,17 @@ func (c *agentIdentityController) getGroupViaProvider(w http.ResponseWriter, r *
 	if !ok {
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, group)
+	httpx.WriteSuccessResponse(w, http.StatusOK, group)
 }
 
 func (c *agentIdentityController) createGroupViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityGroupProvider) {
 	var body gwspec.AgentIdentityGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if body.Name == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	if !controllers.ValidateReservedGroupName(w, body.Name) {
@@ -137,14 +138,14 @@ func (c *agentIdentityController) createGroupViaProvider(w http.ResponseWriter, 
 		writeIdentityGroupError(w, r, "create group", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusCreated, group)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, group)
 }
 
 func (c *agentIdentityController) updateGroupViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityGroupProvider) {
 	groupID := r.PathValue(utils.PathParamGroupID)
 	var body gwspec.AgentIdentityGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if !controllers.ValidateReservedGroupName(w, body.Name) {
@@ -165,7 +166,7 @@ func (c *agentIdentityController) updateGroupViaProvider(w http.ResponseWriter, 
 		writeIdentityGroupError(w, r, "update group", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, group)
+	httpx.WriteSuccessResponse(w, http.StatusOK, group)
 }
 
 func (c *agentIdentityController) deleteGroupViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityGroupProvider) {
@@ -193,7 +194,7 @@ func (c *agentIdentityController) getGroupMembersViaProvider(w http.ResponseWrit
 		writeIdentityGroupError(w, r, "get group members", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"members": members.Members, "total": members.Total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"members": members.Members, "total": members.Total, "offset": offset, "limit": limit})
 }
 
 // changeGroupMembersViaProvider adds or removes agent members. Adding checks the agents against the
@@ -204,11 +205,11 @@ func (c *agentIdentityController) changeGroupMembersViaProvider(
 	groupID := r.PathValue(utils.PathParamGroupID)
 	var body gwspec.AgentIdentityMembersRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if len(body.AgentIds) == 0 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "agentIds must not be empty")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "agentIds must not be empty")
 		return
 	}
 	if _, ok := c.managedGroupViaProvider(w, r, provider, groupID); !ok {
@@ -230,7 +231,7 @@ func (c *agentIdentityController) changeGroupMembersViaProvider(
 		writeIdentityGroupError(w, r, operation, err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 func (c *agentIdentityController) getGroupRolesViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityGroupProvider) {
@@ -243,5 +244,5 @@ func (c *agentIdentityController) getGroupRolesViaProvider(w http.ResponseWriter
 		writeIdentityGroupError(w, r, "get group roles", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
 }

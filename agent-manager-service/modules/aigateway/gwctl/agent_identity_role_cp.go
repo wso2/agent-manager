@@ -25,10 +25,11 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -49,7 +50,7 @@ func identityRoleProvider(w http.ResponseWriter) (provider services.IdentityRole
 		return nil, false, true
 	}
 	if provider == nil {
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable,
 			"Role management through the identity control plane is not configured")
 		return nil, true, false
 	}
@@ -60,17 +61,17 @@ func identityRoleProvider(w http.ResponseWriter) (provider services.IdentityRole
 func writeIdentityRoleError(w http.ResponseWriter, r *http.Request, operation string, err error) {
 	switch {
 	case errors.Is(err, services.ErrIdentityRoleNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 	case errors.Is(err, thundersvc.ErrThunderNotProvisioned):
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "The identity provider is not set up for this environment yet")
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "The identity provider is not set up for this environment yet")
 	case errors.Is(err, services.ErrIdentityRoleUnavailable):
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Role management through the identity control plane is not configured")
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "Role management through the identity control plane is not configured")
 	case errors.Is(err, services.ErrIdentityGroupUnsupported):
-		utils.WriteErrorResponse(w, http.StatusNotImplemented, "Groups are not supported through the identity control plane yet")
+		httpx.WriteErrorResponse(w, http.StatusNotImplemented, "Groups are not supported through the identity control plane yet")
 	default:
 		logger.GetLogger(r.Context()).Error("agent-identity: role provider failed", "operation", operation,
 			"env", r.PathValue("envName"), "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadGateway, "Failed to "+operation+" through the identity control plane")
+		httpx.WriteErrorResponse(w, http.StatusBadGateway, "Failed to "+operation+" through the identity control plane")
 	}
 }
 
@@ -83,7 +84,7 @@ func (c *agentIdentityController) listRolesViaProvider(w http.ResponseWriter, r 
 		writeIdentityRoleError(w, r, "list roles", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": list.Roles, "total": list.Total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": list.Roles, "total": list.Total, "offset": offset, "limit": limit})
 }
 
 // managedRoleViaProvider reads the role and treats the hidden native roles as nonexistent, as
@@ -99,7 +100,7 @@ func (c *agentIdentityController) managedRoleViaProvider(
 		return nil, false
 	}
 	if role == nil || role.Name == thundersvc.NativeAdministratorRoleName || role.Name == thundersvc.AMPSystemClientRoleName {
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 		return nil, false
 	}
 	return role, true
@@ -110,7 +111,7 @@ func (c *agentIdentityController) getRoleViaProvider(w http.ResponseWriter, r *h
 	if !ok {
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, role)
+	httpx.WriteSuccessResponse(w, http.StatusOK, role)
 }
 
 // scopePermissionsViaProvider validates the requested scopes against the proxy scope catalog, makes
@@ -125,7 +126,7 @@ func (c *agentIdentityController) scopePermissionsViaProvider(
 	ouID := middleware.OUIDFromRequest(r)
 	groups, err := c.resolveScopeGroups(ctx, ouID, scopes)
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return nil, false
 	}
 	permissions := make([]thundersvc.RolePermissionRequest, 0, len(groups))
@@ -153,31 +154,31 @@ func (c *agentIdentityController) scopePermissionsViaProvider(
 func (c *agentIdentityController) writeEnsureError(w http.ResponseWriter, r *http.Request, g *proxyScopeGroup, envName string, err error) {
 	switch {
 	case errors.Is(err, gwsvc.ErrMCPProxyNotDeployedToEnvironment):
-		utils.WriteErrorResponse(w, http.StatusBadRequest,
+		httpx.WriteErrorResponse(w, http.StatusBadRequest,
 			fmt.Sprintf("MCP proxy %q is not deployed to environment %q; deploy it there before granting its scopes", g.handle, envName))
 	case errors.Is(err, thundersvc.ErrThunderNotProvisioned):
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable,
 			fmt.Sprintf("The identity provider is not set up for environment %q yet", envName))
 	case errors.Is(err, gwsvc.ErrMCPResourceServerUnavailable):
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "MCP resource servers are not configured for this deployment")
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "MCP resource servers are not configured for this deployment")
 	case errors.Is(err, gwsvc.ErrMCPResourceServerEnvironmentNotReady):
 		// A condition that clears on its own: the environment has not caught up with the change yet.
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable,
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable,
 			fmt.Sprintf("Environment %q is not ready for the scopes of MCP proxy %q yet; try again shortly", envName, g.handle))
 	default:
 		logger.GetLogger(r.Context()).Error("agent-identity: ensure proxy resource server failed", "proxy", g.handle, "env", envName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadGateway, "Failed to register scopes with the environment identity provider")
+		httpx.WriteErrorResponse(w, http.StatusBadGateway, "Failed to register scopes with the environment identity provider")
 	}
 }
 
 func (c *agentIdentityController) createRoleViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
 	var body gwspec.AgentIdentityRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if body.Name == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	if !controllers.ValidateReservedRoleName(w, body.Name) {
@@ -195,14 +196,14 @@ func (c *agentIdentityController) createRoleViaProvider(w http.ResponseWriter, r
 		writeIdentityRoleError(w, r, "create role", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusCreated, role)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, role)
 }
 
 func (c *agentIdentityController) updateRoleViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
 	roleID := r.PathValue(utils.PathParamRoleID)
 	var body gwspec.AgentIdentityRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if !controllers.ValidateReservedRoleName(w, body.Name) {
@@ -233,7 +234,7 @@ func (c *agentIdentityController) updateRoleViaProvider(w http.ResponseWriter, r
 		writeIdentityRoleError(w, r, "update role", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, role)
+	httpx.WriteSuccessResponse(w, http.StatusOK, role)
 }
 
 // deleteRoleViaProvider removes the role from the control plane and the environment, after checking
@@ -262,7 +263,7 @@ func (c *agentIdentityController) getRoleAssignmentsViaProvider(w http.ResponseW
 		writeIdentityRoleError(w, r, "get role assignments", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, assignments)
+	httpx.WriteSuccessResponse(w, http.StatusOK, assignments)
 }
 
 // addRoleAssigneesViaProvider assigns agents and groups to the role. Agents must be provisioned in the
@@ -272,7 +273,7 @@ func (c *agentIdentityController) addRoleAssigneesViaProvider(w http.ResponseWri
 	roleID := r.PathValue(utils.PathParamRoleID)
 	assignments, err := decodeAgentIdentityAssignments(r)
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if _, ok := c.managedRoleViaProvider(w, r, provider, roleID); !ok {
@@ -296,7 +297,7 @@ func (c *agentIdentityController) addRoleAssigneesViaProvider(w http.ResponseWri
 		writeIdentityRoleError(w, r, "add role assignees", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 // removeRoleAssigneesViaProvider removes assignees. It does not check the environment's agents, so an
@@ -305,7 +306,7 @@ func (c *agentIdentityController) addRoleAssigneesViaProvider(w http.ResponseWri
 func (c *agentIdentityController) removeRoleAssigneesViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
 	assignments, err := decodeAgentIdentityAssignments(r)
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := provider.RemoveRoleAssignees(r.Context(), services.IdentityRoleAssignmentWrite{
@@ -315,7 +316,7 @@ func (c *agentIdentityController) removeRoleAssigneesViaProvider(w http.Response
 		writeIdentityRoleError(w, r, "remove role assignees", err)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 // agentsInEnvironment checks that every agent ID is an agent identity provisioned for the request's
@@ -328,7 +329,7 @@ func (c *agentIdentityController) agentsInEnvironment(w http.ResponseWriter, r *
 	rows, err := c.bindingRepo.FindByOuAndEnvironment(r.Context(), middleware.OUIDFromRequest(r), envName)
 	if err != nil {
 		logger.GetLogger(r.Context()).Error("agent-identity: list environment agents failed", "env", envName, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to check the agents of the environment")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to check the agents of the environment")
 		return false
 	}
 	// Only a completed binding is in the environment. A failed promotion leaves the source
@@ -341,7 +342,7 @@ func (c *agentIdentityController) agentsInEnvironment(w http.ResponseWriter, r *
 	}
 	for _, id := range agentIDs {
 		if _, ok := known[id]; !ok {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("agent %q is not provisioned in environment %q", id, envName))
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("agent %q is not provisioned in environment %q", id, envName))
 			return false
 		}
 	}
@@ -366,7 +367,7 @@ func (c *agentIdentityController) groupsInEnvironment(w http.ResponseWriter, r *
 		// managedGroupViaProvider sees them.
 		if errors.Is(err, services.ErrIdentityGroupNotFound) ||
 			(err == nil && (group == nil || group.Name == thundersvc.NativeAdministratorsGroupName)) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("group %q is not a group of environment %q", id, r.PathValue("envName")))
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("group %q is not a group of environment %q", id, r.PathValue("envName")))
 			return false
 		}
 		if err != nil {

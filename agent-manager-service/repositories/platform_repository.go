@@ -28,9 +28,10 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -248,7 +249,7 @@ func (r *platformRepo) DeleteProject(ctx context.Context, ouID, projectName stri
 			return err
 		}
 		if agents > 0 {
-			return fmt.Errorf("%w: project %q still has %d agent(s)", utils.ErrConflict, projectName, agents)
+			return fmt.Errorf("%w: project %q still has %d agent(s)", httpx.ErrConflict, projectName, agents)
 		}
 		// Modules clean up their rows of the project, or refuse the delete
 		// while they still hold some, as a foreign key would.

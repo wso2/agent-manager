@@ -26,11 +26,12 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -432,7 +433,7 @@ func writeAPIKeys(w http.ResponseWriter, keys []gwmodels.StoredAPIKey) {
 		result = append(result, resp)
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, result)
+	httpx.WriteSuccessResponse(w, http.StatusOK, result)
 }
 
 // GetSubscriptionPlans handles GET /api/internal/v1/subscription-plans
@@ -443,7 +444,7 @@ func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, 
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, []struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, []struct{}{})
 }
 
 // gatewayApplicationResponse is the bulk-sync response format for AI applications.
@@ -501,7 +502,7 @@ func (c *gatewayInternalController) GetApplications(w http.ResponseWriter, r *ht
 		})
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, result)
+	httpx.WriteSuccessResponse(w, http.StatusOK, result)
 }
 
 // maxGatewayManifestBytes bounds a pushed policy manifest, which is cached until the gateway's next connect.

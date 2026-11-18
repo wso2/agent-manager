@@ -33,7 +33,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db/connpool"
-	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 )
 
 var (

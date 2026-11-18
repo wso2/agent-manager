@@ -28,7 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/webconsole"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )

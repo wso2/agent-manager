@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -74,7 +75,7 @@ func TestRequireEnvTier_ProductionEnvNeedsProductionScope(t *testing.T) {
 	svc, _ := tierService(map[string]bool{tierProdEnv: true}, nil)
 
 	env, err := svc.requireEnvTier(tierCtx(t, gwperm.DeployNonProduction), tierOUID, tierProdEnv)
-	require.ErrorIs(t, err, utils.ErrForbidden)
+	require.ErrorIs(t, err, httpx.ErrForbidden)
 	require.NotNil(t, env, "the environment is returned even on a denial, so the caller can record it")
 	require.True(t, env.IsProduction)
 	require.Contains(t, err.Error(), gwperm.DeployProduction.Scope(),
@@ -104,7 +105,7 @@ func TestRequireEnvTier_ProductionScopeAloneIsNotEnough(t *testing.T) {
 	svc, _ := tierService(map[string]bool{tierProdEnv: true}, nil)
 
 	_, err := svc.requireEnvTier(tierCtx(t, gwperm.DeployProduction), tierOUID, tierProdEnv)
-	require.ErrorIs(t, err, utils.ErrForbidden)
+	require.ErrorIs(t, err, httpx.ErrForbidden)
 	require.Contains(t, err.Error(), gwperm.DeployNonProduction.Scope(),
 		"the missing floor must be the scope the error names")
 }
@@ -126,7 +127,7 @@ func TestRequireEnvTier_NonProductionEnvDeniedWithoutFloor(t *testing.T) {
 	svc, _ := tierService(map[string]bool{tierDevEnv: false}, nil)
 
 	_, err := svc.requireEnvTier(tierCtx(t, gwperm.DeployProduction), tierOUID, tierDevEnv)
-	require.ErrorIs(t, err, utils.ErrForbidden)
+	require.ErrorIs(t, err, httpx.ErrForbidden)
 	require.Contains(t, err.Error(), gwperm.DeployNonProduction.Scope())
 }
 
@@ -135,7 +136,7 @@ func TestRequireEnvTier_NoScopesDenies(t *testing.T) {
 	svc, _ := tierService(map[string]bool{tierDevEnv: false}, nil)
 
 	_, err := svc.requireEnvTier(tierCtx(t), tierOUID, tierDevEnv)
-	require.ErrorIs(t, err, utils.ErrForbidden)
+	require.ErrorIs(t, err, httpx.ErrForbidden)
 }
 
 // TestRequireEnvTier_UnknownEnvIsNotFound keeps the 404 the controller already
@@ -201,7 +202,7 @@ func TestRequireEnvTier_DenialIsAudited(t *testing.T) {
 		&jwtassertion.TokenClaims{OuId: tierOUID, Scope: gwperm.DeployNonProduction.Scope()})
 
 	_, err := svc.requireEnvTier(ctx, tierOUID, tierProdEnv)
-	require.ErrorIs(t, err, utils.ErrForbidden)
+	require.ErrorIs(t, err, httpx.ErrForbidden)
 	flush()
 
 	event, found := findEvent(sink.captured(), audit.ActionAuthzDeny)

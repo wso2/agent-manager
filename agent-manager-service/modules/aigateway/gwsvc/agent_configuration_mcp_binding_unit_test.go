@@ -26,7 +26,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // mcpVarRows builds the pair of env var rows (url + apikey) that configuring an MCP
@@ -536,7 +536,7 @@ func TestRequireSingleMCPProxy_RejectsMixedProxies(t *testing.T) {
 
 	err := requireSingleMCPProxy(map[string]*gwmodels.MCPProxy{"dev": p1, "prod": p2})
 
-	require.ErrorIs(t, err, utils.ErrInvalidInput, "must surface as a 400, not a 500")
+	require.ErrorIs(t, err, httpx.ErrInvalidInput, "must surface as a 400, not a 500")
 }
 
 func TestRequireSingleMCPProxy_AcceptsOneProxyEverywhere(t *testing.T) {

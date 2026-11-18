@@ -39,6 +39,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -99,7 +101,7 @@ func TestMCPProxyCreate_RejectsNonKebabHandle(t *testing.T) {
 	for _, id := range []string{"Bad_Handle", "UPPER", "has space", "trail-", "-lead", "a--b", strings.Repeat("a", 101)} {
 		_, err := svc.Create(context.Background(), "org-uuid", "system",
 			&gwmodels.MCPProxyDTO{ID: id, Name: "x", Version: "v1"})
-		assert.ErrorIs(t, err, utils.ErrInvalidInput, "handle %q must be rejected", id)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput, "handle %q must be rejected", id)
 		assert.Contains(t, err.Error(), "kebab-case", "handle %q must be rejected by the kebab check, not a later validation", id)
 	}
 }
@@ -113,7 +115,7 @@ func TestValidateMCPEndpoints_RejectsBothVariantsEnabled(t *testing.T) {
 		}),
 	}
 	err := validateMCPEndpoints(endpoints)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 }
 
 func TestValidateMCPEndpoints_RejectsDuplicateEnvironmentAcrossEndpoints(t *testing.T) {
@@ -137,7 +139,7 @@ func TestValidateMCPEndpointSecurity_IdentityNeedsGatewayPolicies(t *testing.T) 
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 }
 
 func TestValidateMCPEndpointSecurity_IdentityAcceptedWithGatewayPolicies(t *testing.T) {
@@ -186,7 +188,7 @@ func TestValidateMCPEndpointSecurity_IdentityRefusedByReportedGatewayDespiteSile
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 }
 
 // A gateway that has not reported its manifest must not empty the org's MCP policy list.
@@ -448,7 +450,7 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_NoDeployment_OneNonCompli
 	}
 
 	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.Contains(t, err.Error(), nonCompliant.Name)
 }
 
@@ -488,7 +490,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{ingress, egress}), nil)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(ingress.UUID.String())}, nil)
-		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.ErrorIs(t, err, errInvalidEgressGateway)
 	})
 
@@ -496,7 +498,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{both, egress}), nil)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
-		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 
@@ -518,7 +520,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
-		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.ErrorIs(t, err, errPlacementFixed)
 	})
 
@@ -691,7 +693,7 @@ func TestMapMCPProxyWriteError_NameVersionConflict(t *testing.T) {
 
 	mapped := svc.mapMCPProxyWriteError(err, "some-handle", "org-uuid")
 
-	assert.ErrorIs(t, mapped, utils.ErrInvalidInput)
+	assert.ErrorIs(t, mapped, httpx.ErrInvalidInput)
 }
 
 func TestMapMCPProxyWriteError_UnrecognizedConstraintReturnsNil(t *testing.T) {
@@ -1181,7 +1183,7 @@ func TestValidateMCPSpecVersionsInRequest(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := validateMCPSpecVersionsInRequest(tt.mcpSpecVersion, tt.endpoints)
 			if tt.wantErr {
-				assert.ErrorIs(t, err, utils.ErrInvalidInput)
+				assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 				return
 			}
 			assert.NoError(t, err)
@@ -1274,7 +1276,7 @@ func TestMCPUpstream_ShapeCheckedOnSelfHosted(t *testing.T) {
 		endpoint := privateUpstreamEndpoint("")
 		endpoint.Upstream.Main.URL = upstream
 		err := validateMCPEndpoints([]gwmodels.MCPProxyEndpointDTO{endpoint})
-		assert.ErrorIs(t, err, utils.ErrInvalidURL, "upstream %q", upstream)
+		assert.ErrorIs(t, err, ssrf.ErrInvalidURL, "upstream %q", upstream)
 	}
 }
 
@@ -1285,7 +1287,7 @@ func TestMCPPrivateUpstream_ManagedTargetRefused(t *testing.T) {
 
 	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
 		[]gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
-	assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 }
 
 func TestMCPPrivateUpstream_UpdateAddingManagedRefused(t *testing.T) {
@@ -1307,7 +1309,7 @@ func TestMCPPrivateUpstream_UpdateAddingManagedRefused(t *testing.T) {
 
 	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{endpoint},
 		map[string]uuid.UUID{})
-	assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 }
 
 func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
@@ -1319,7 +1321,7 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 	t.Run("no gateway mapped yet", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
 		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
-		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+		assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 	})
 
 	t.Run("anchor lookup fails", func(t *testing.T) {
@@ -1331,7 +1333,7 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{selfHosted}), depRepo)
 		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
-		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+		assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 	})
 
 	t.Run("malformed environment id", func(t *testing.T) {
@@ -1339,7 +1341,7 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 		endpoint := privateUpstreamEndpoint("")
 		endpoint.Environments[0].EnvironmentUUID = "not-a-uuid"
 		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{endpoint}, nil)
-		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+		assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 	})
 
 	t.Run("none named and inference is ambiguous", func(t *testing.T) {
@@ -1356,7 +1358,7 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 		}
 		svc := placementService(repo, nil)
 		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
-		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+		assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 	})
 }
 
@@ -1382,7 +1384,7 @@ func TestValidateMCPEndpointPlacement_ReturnsExemptGateways(t *testing.T) {
 
 		_, err = svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
 			[]gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint(managed.UUID.String())}, nil)
-		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+		assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 	})
 
 	t.Run("an endpoint with an unresolved environment is not exempt", func(t *testing.T) {
@@ -1394,7 +1396,7 @@ func TestValidateMCPEndpointPlacement_ReturnsExemptGateways(t *testing.T) {
 
 		_, err = svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
 			[]gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
-		assert.ErrorIs(t, err, utils.ErrInvalidURL)
+		assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 	})
 }
 
@@ -1487,7 +1489,7 @@ func TestMCPCreate_PrivateUpstreamOnManagedGatewayStillRejected(t *testing.T) {
 		Endpoints: []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")},
 	})
 
-	assert.ErrorIs(t, err, utils.ErrInvalidURL)
+	assert.ErrorIs(t, err, ssrf.ErrInvalidURL)
 }
 
 // A stock self-hosted gateway has no ThunderKeyManager, so an identity-mode proxy there would
@@ -1553,7 +1555,7 @@ func TestValidateMCPEndpointPlacement_RefusesIdentityOnSelfHosted(t *testing.T) 
 				assert.NoError(t, err)
 				return
 			}
-			assert.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 			assert.ErrorIs(t, err, errMCPIdentityOnSelfHostedGateway)
 			assert.ErrorContains(t, err, "Agent Identity")
 			assert.ErrorContains(t, err, selfHosted.Name)

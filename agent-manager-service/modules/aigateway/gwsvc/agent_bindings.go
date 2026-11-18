@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -210,12 +211,12 @@ func (s *AgentGatewayService) ValidateAgentExtension(ctx context.Context, tx *go
 // rejectBinding turns a refusal of a requested provider or proxy into a 400;
 // any other error stays a server error.
 func rejectBinding(field string, err error) error {
-	for _, want := range []error{utils.ErrInvalidInput, utils.ErrLLMProviderNotFound, utils.ErrMCPProxyNotFound} {
+	for _, want := range []error{httpx.ErrInvalidInput, utils.ErrLLMProviderNotFound, utils.ErrMCPProxyNotFound} {
 		if errors.Is(err, want) {
 			return modkit.Reject("extensions.ai-gateway.%s: %v", field, err)
 		}
 	}
-	var verr *utils.ValidationError
+	var verr *httpx.ValidationError
 	if errors.As(err, &verr) {
 		return modkit.Reject("extensions.ai-gateway.%s: %s", field, verr.Message)
 	}

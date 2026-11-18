@@ -25,8 +25,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ErrRecorderUnavailable indicates the audit trail could not accept a record
@@ -142,7 +142,7 @@ func newEvent(ctx context.Context, action Action) Event {
 		Outcome:       OutcomeSuccess,
 		ActorType:     ActorAnonymous,
 		Surface:       SurfaceSystem,
-		CorrelationID: utils.GetCorrelationId(ctx),
+		CorrelationID: logger.GetCorrelationId(ctx),
 		Details:       map[string]any{},
 	}
 

@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -649,7 +650,7 @@ func TestSetA2AProxyEnforcesTheEnvironmentTier(t *testing.T) {
 		return &models.EnvironmentResponse{UUID: proxyTestEnvUUID, Name: name, IsProduction: true}, nil
 	}
 	err := h.svc.SetA2AProxy(tierCtx(t, gwperm.DeployNonProduction), "org-1", "checkout", "weather", "prod", nil)
-	assert.ErrorIs(t, err, utils.ErrForbidden)
+	assert.ErrorIs(t, err, httpx.ErrForbidden)
 	assert.Zero(t, h.transactions)
 }
 

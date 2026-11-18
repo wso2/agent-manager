@@ -27,7 +27,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 )
 
 const (

@@ -21,9 +21,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 func TestResolveResilienceTimeoutSeconds(t *testing.T) {
@@ -48,7 +49,7 @@ func TestResolveResilienceTimeoutSeconds(t *testing.T) {
 			got, err := resolveResilienceTimeoutSeconds(tc.existing, tc.requested, tc.withDef)
 			if tc.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, utils.ErrInvalidInput)
+				assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 				return
 			}
 			require.NoError(t, err)

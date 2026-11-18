@@ -34,16 +34,18 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
-	"gorm.io/gorm"
 )
 
 // mcpProxyHandleRe constrains proxy handles to kebab-case. The handle becomes the
@@ -111,7 +113,7 @@ type MCPProxyService struct {
 }
 
 // externalAgentLookup reports whether the named agent of an organization is an external agent
-// (one that does not run on the platform). An unknown agent fails with utils.ErrNotFound.
+// (one that does not run on the platform). An unknown agent fails with httpx.ErrNotFound.
 type externalAgentLookup func(ctx context.Context, ouID, agentName string) (bool, error)
 
 // NewMCPProxyService creates a new MCP proxy service.
@@ -200,8 +202,8 @@ func mcpDeployErrorIsFatal(err error) bool {
 func mcpDeployRejection(err error) error {
 	switch {
 	case mcpDeployErrorIsFatal(err):
-		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
-	case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrContextInUse):
+		return fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
+	case errors.Is(err, httpx.ErrInvalidInput), errors.Is(err, utils.ErrContextInUse):
 		return err
 	}
 	return nil
@@ -228,18 +230,18 @@ func (s *MCPProxyService) deploySavedMCPProxy(
 // gateway artifact identity that agents later reuse.
 func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string, req *gwmodels.MCPProxyDTO) (*gwmodels.MCPProxyDTO, error) {
 	if req == nil {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	handle := strings.TrimSpace(req.ID)
 	name := strings.TrimSpace(req.Name)
 	version := strings.TrimSpace(req.Version)
 	if handle == "" || name == "" || version == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	if len(handle) > 100 || !mcpProxyHandleRe.MatchString(handle) {
-		return nil, fmt.Errorf("%w: proxy id must be kebab-case (lowercase letters, digits, single hyphens) and at most 100 characters", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: proxy id must be kebab-case (lowercase letters, digits, single hyphens) and at most 100 characters", httpx.ErrInvalidInput)
 	}
 
 	if err := validateMCPEndpoints(req.Endpoints); err != nil {
@@ -414,7 +416,7 @@ func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID 
 func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*gwmodels.MCPProxyDTO, error) {
 	handle := strings.TrimSpace(proxyID)
 	if handle == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
@@ -489,21 +491,21 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*gw
 // work (e.g. redeploying agent-scoped mapping artifacts).
 func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, req *gwmodels.MCPProxyDTO) (*gwmodels.MCPProxyDTO, error) {
 	if req == nil {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	handle := strings.TrimSpace(proxyID)
 	if handle == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 	if strings.TrimSpace(req.ID) != "" && strings.TrimSpace(req.ID) != handle {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	name := strings.TrimSpace(req.Name)
 	version := strings.TrimSpace(req.Version)
 	if name == "" || version == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	// Refuse a project proxy before any validation or network work; it is re-checked on
@@ -668,7 +670,7 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 
 	handle := strings.TrimSpace(proxyID)
 	if handle == "" {
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 
 	proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
@@ -986,7 +988,7 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *gw
 	}
 
 	if err := auth.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
 	hasHeader := auth.Header != nil && *auth.Header != ""
@@ -995,7 +997,7 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *gw
 		return nil, nil //nolint:nilnil // Empty auth fields mean the endpoint should not store auth.
 	}
 	if hasHeader != hasCredential {
-		return nil, fmt.Errorf("%w: authentication header and value must be provided together", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: authentication header and value must be provided together", httpx.ErrInvalidInput)
 	}
 
 	if auth.Value != nil {
@@ -1014,10 +1016,10 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *gw
 // capped per user and per pod, and each one has an overall deadline.
 func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID, userID string, req *gwmodels.MCPServerInfoFetchRequest) (*gwmodels.MCPServerInfoFetchResponse, error) {
 	if req == nil || req.URL == nil || strings.TrimSpace(*req.URL) == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 	if req.ProxyID != nil && strings.TrimSpace(*req.ProxyID) != "" {
-		return nil, fmt.Errorf("proxyId refresh is not supported yet: %w", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("proxyId refresh is not supported yet: %w", httpx.ErrInvalidInput)
 	}
 
 	release, ok := mcpServerInfoLimiter.tryAcquire(mcpServerInfoLimiterKey(orgUUID, userID))
@@ -1032,7 +1034,7 @@ func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID, userID s
 	// Validated inside the deadline: the check resolves DNS for the host.
 	endpointURL := strings.TrimSpace(*req.URL)
 	if err := ssrf.ValidateURL(ctx, endpointURL); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+		return nil, fmt.Errorf("%w: %w", ssrf.ErrInvalidURL, err)
 	}
 
 	headerName, headerValue := authHeader(req.Auth)
@@ -1282,7 +1284,7 @@ func convertModelMCPProxyToListItem(proxy *gwmodels.MCPProxy) gwmodels.MCPProxyL
 // the request is checked here too.
 func validateMCPSpecVersionsInRequest(mcpSpecVersion *string, endpoints []gwmodels.MCPProxyEndpointDTO) error {
 	if mcpSpecVersion != nil && *mcpSpecVersion != "" && !isMCPVersionDate(*mcpSpecVersion) {
-		return fmt.Errorf("%w: mcpSpecVersion: %q is not an MCP version (YYYY-MM-DD)", utils.ErrInvalidInput, *mcpSpecVersion)
+		return fmt.Errorf("%w: mcpSpecVersion: %q is not an MCP version (YYYY-MM-DD)", httpx.ErrInvalidInput, *mcpSpecVersion)
 	}
 	for _, endpoint := range endpoints {
 		if endpoint.McpSpecVersions == nil {
@@ -1290,12 +1292,12 @@ func validateMCPSpecVersionsInRequest(mcpSpecVersion *string, endpoints []gwmode
 		}
 		if len(*endpoint.McpSpecVersions) == 0 {
 			return fmt.Errorf("%w: endpoint %q: mcpSpecVersions must list at least one MCP version",
-				utils.ErrInvalidInput, endpoint.ID)
+				httpx.ErrInvalidInput, endpoint.ID)
 		}
 		for _, version := range *endpoint.McpSpecVersions {
 			if !isMCPVersionDate(version) {
 				return fmt.Errorf("%w: endpoint %q: mcpSpecVersions: %q is not an MCP version (YYYY-MM-DD)",
-					utils.ErrInvalidInput, endpoint.ID, version)
+					httpx.ErrInvalidInput, endpoint.ID, version)
 			}
 		}
 	}
@@ -1332,7 +1334,7 @@ func validateMCPProxyDeploymentHandleLengths(proxyHandle string, endpoints []gwm
 			if len(artifactHandle) > maxMCPProxyDeploymentHandleLength {
 				return fmt.Errorf(
 					"%w: endpoint %q would produce a %d-character gateway deployment name, exceeding the limit of %d; shorten the endpoint name/id or the proxy id",
-					utils.ErrInvalidInput, endpointHandle, len(artifactHandle), maxMCPProxyDeploymentHandleLength,
+					httpx.ErrInvalidInput, endpointHandle, len(artifactHandle), maxMCPProxyDeploymentHandleLength,
 				)
 			}
 		}
@@ -1347,7 +1349,7 @@ func validateMCPProxyDeploymentHandleLengths(proxyHandle string, endpoints []gwm
 // the upstream depends on where the proxy is placed, so it lives in validateMCPEndpointPlacement.
 func validateMCPEndpoints(endpoints []gwmodels.MCPProxyEndpointDTO) error {
 	if len(endpoints) == 0 {
-		return fmt.Errorf("%w: at least one endpoint is required", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: at least one endpoint is required", httpx.ErrInvalidInput)
 	}
 	seenHandles := make(map[string]struct{}, len(endpoints))
 	// Enforces uq_proxy_env_single at the service layer: no environment may be bound to
@@ -1356,10 +1358,10 @@ func validateMCPEndpoints(endpoints []gwmodels.MCPProxyEndpointDTO) error {
 	for _, endpoint := range endpoints {
 		handle := strings.TrimSpace(endpoint.ID)
 		if handle == "" {
-			return fmt.Errorf("%w: an endpoint is missing an id", utils.ErrInvalidInput)
+			return fmt.Errorf("%w: an endpoint is missing an id", httpx.ErrInvalidInput)
 		}
 		if _, dup := seenHandles[handle]; dup {
-			return fmt.Errorf("%w: duplicate endpoint id %q", utils.ErrInvalidInput, handle)
+			return fmt.Errorf("%w: duplicate endpoint id %q", httpx.ErrInvalidInput, handle)
 		}
 		seenHandles[handle] = struct{}{}
 
@@ -1369,34 +1371,34 @@ func validateMCPEndpoints(endpoints []gwmodels.MCPProxyEndpointDTO) error {
 			apiKeyOn := sec.APIKey != nil && isBoolTrue(sec.APIKey.Enabled)
 			identityOn := sec.Identity != nil && isBoolTrue(sec.Identity.Enabled)
 			if apiKeyOn && identityOn {
-				return fmt.Errorf("%w: endpoint %q: apiKey and identity security are mutually exclusive", utils.ErrInvalidInput, handle)
+				return fmt.Errorf("%w: endpoint %q: apiKey and identity security are mutually exclusive", httpx.ErrInvalidInput, handle)
 			}
 		}
 
 		if endpoint.Upstream.Main == nil || strings.TrimSpace(endpoint.Upstream.Main.URL) == "" {
-			return fmt.Errorf("%w: endpoint %q is missing an upstream url", utils.ErrInvalidInput, handle)
+			return fmt.Errorf("%w: endpoint %q is missing an upstream url", httpx.ErrInvalidInput, handle)
 		}
 		if _, err := ssrf.ValidateURLShape(strings.TrimSpace(endpoint.Upstream.Main.URL)); err != nil {
-			return fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
+			return fmt.Errorf("%w: endpoint %q upstream url: %w", ssrf.ErrInvalidURL, handle, err)
 		}
 		if err := endpoint.Resilience.Validate(); err != nil {
-			return fmt.Errorf("%w: endpoint %q: %w", utils.ErrInvalidInput, handle, err)
+			return fmt.Errorf("%w: endpoint %q: %w", httpx.ErrInvalidInput, handle, err)
 		}
 
 		if len(endpoint.Environments) == 0 {
-			return fmt.Errorf("%w: endpoint %q must target at least one environment", utils.ErrInvalidInput, handle)
+			return fmt.Errorf("%w: endpoint %q must target at least one environment", httpx.ErrInvalidInput, handle)
 		}
 		seenEnvsInEndpoint := make(map[string]struct{}, len(endpoint.Environments))
 		for _, env := range endpoint.Environments {
 			envUUID := strings.TrimSpace(env.EnvironmentUUID)
 			if envUUID == "" {
-				return fmt.Errorf("%w: endpoint %q has an environment binding missing an environment id", utils.ErrInvalidInput, handle)
+				return fmt.Errorf("%w: endpoint %q has an environment binding missing an environment id", httpx.ErrInvalidInput, handle)
 			}
 			if _, err := uuid.Parse(envUUID); err != nil {
-				return fmt.Errorf("%w: endpoint %q has an invalid environment id %q: %w", utils.ErrInvalidInput, handle, envUUID, err)
+				return fmt.Errorf("%w: endpoint %q has an invalid environment id %q: %w", httpx.ErrInvalidInput, handle, envUUID, err)
 			}
 			if _, dup := seenEnvsInEndpoint[envUUID]; dup {
-				return fmt.Errorf("%w: endpoint %q lists environment %q more than once", utils.ErrInvalidInput, handle, envUUID)
+				return fmt.Errorf("%w: endpoint %q lists environment %q more than once", httpx.ErrInvalidInput, handle, envUUID)
 			}
 			seenEnvsInEndpoint[envUUID] = struct{}{}
 			if owner, bound := envToEndpoint[envUUID]; bound {
@@ -1475,7 +1477,7 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 					continue // not reported yet: like no gateway, checked once it reports
 				}
 				if !supported {
-					return fmt.Errorf("%w: endpoint %q environment %q: gateway %q does not support mcp-auth/mcp-authz v1 policies required for Agent Identity security", utils.ErrInvalidInput, handle, env.EnvironmentUUID, gateway.Name)
+					return fmt.Errorf("%w: endpoint %q environment %q: gateway %q does not support mcp-auth/mcp-authz v1 policies required for Agent Identity security", httpx.ErrInvalidInput, handle, env.EnvironmentUUID, gateway.Name)
 				}
 			}
 		}
@@ -1486,7 +1488,7 @@ func (s *MCPProxyService) validateMCPEndpointSecurity(
 // errMCPIdentityOnSelfHostedGateway refuses Agent Identity security where the binding's gateway
 // is self-hosted. Such a gateway takes its key managers from its own static config, and AMS
 // pushes it no ThunderKeyManager, so mcp-auth would reject every identity token with a 401.
-var errMCPIdentityOnSelfHostedGateway = fmt.Errorf("%w: Agent Identity isn't available on self-hosted gateways", utils.ErrInvalidInput)
+var errMCPIdentityOnSelfHostedGateway = fmt.Errorf("%w: Agent Identity isn't available on self-hosted gateways", httpx.ErrInvalidInput)
 
 // validateMCPEndpointPlacement resolves the egress gateway for every (endpoint, environment)
 // binding before the save's transaction opens, so a caller-supplied gatewayId that cannot host
@@ -1546,7 +1548,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 
 			gateway, err := resolveEgressGatewayForArtifact(s.gatewayRepo, orgUUID, envUUID, deployed, requestedGatewayUUID(env))
 			if mcpDeployErrorIsFatal(err) {
-				return nil, fmt.Errorf("%w: endpoint %q environment %q: %w", utils.ErrInvalidInput, handle, envIDStr, err)
+				return nil, fmt.Errorf("%w: endpoint %q environment %q: %w", httpx.ErrInvalidInput, handle, envIDStr, err)
 			}
 			if err != nil || gateway == nil {
 				needsSSRFGuard = true
@@ -1563,7 +1565,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 				}
 				if users.consumerRefuses(gateway) {
 					return nil, fmt.Errorf("%w: environment %q: platform-hosted agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; use a separate MCP proxy for self-hosted gateways",
-						utils.ErrInvalidInput, envUUID, gateway.Name)
+						httpx.ErrInvalidInput, envUUID, gateway.Name)
 				}
 			}
 			needsSSRFGuard = needsSSRFGuard || gatewayNeedsPublicUpstream(gateway)
@@ -1579,7 +1581,7 @@ func (s *MCPProxyService) validateMCPEndpointPlacement(
 			upstreamURL = strings.TrimSpace(endpoint.Upstream.Main.URL)
 		}
 		if err := ssrf.ValidateURL(ctx, upstreamURL); err != nil {
-			return nil, fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
+			return nil, fmt.Errorf("%w: endpoint %q upstream url: %w", ssrf.ErrInvalidURL, handle, err)
 		}
 	}
 	return exempt, nil
@@ -1672,7 +1674,7 @@ func (s *MCPProxyService) anyInternalAgent(ctx context.Context, configs []gwmode
 			return true, nil
 		}
 		external, err := s.isExternalAgent(ctx, config.OUID, config.AgentID)
-		if errors.Is(err, utils.ErrAgentNotFound) || errors.Is(err, utils.ErrNotFound) {
+		if errors.Is(err, utils.ErrAgentNotFound) || errors.Is(err, httpx.ErrNotFound) {
 			continue
 		}
 		if err != nil {
@@ -1943,7 +1945,7 @@ func (s *MCPProxyService) persistMCPEndpoints(ctx context.Context, tx *gorm.DB, 
 		for envUUIDStr, artifactUUID := range endpoint.envArtifacts {
 			envUUID, err := uuid.Parse(envUUIDStr)
 			if err != nil {
-				return fmt.Errorf("%w: invalid environment id %q: %w", utils.ErrInvalidInput, envUUIDStr, err)
+				return fmt.Errorf("%w: invalid environment id %q: %w", httpx.ErrInvalidInput, envUUIDStr, err)
 			}
 			// The join row's artifact_uuid FKs to artifacts (fk_endpoint_env_artifact), so
 			// the backing artifacts row must exist before the join row is inserted. Create
@@ -2005,7 +2007,7 @@ func (s *MCPProxyService) mapMCPProxyWriteError(err error, handle, orgUUID strin
 	case "uq_proxy_env_single", "uq_endpoint_env":
 		return fmt.Errorf("%w", utils.ErrMCPEnvAlreadyBound)
 	case "uq_mcp_endpoint_handle":
-		return fmt.Errorf("%w: duplicate endpoint id", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: duplicate endpoint id", httpx.ErrInvalidInput)
 	case "uq_artifact_handle_ou_id":
 		if conflicting, getErr := s.artifactRepo.GetByHandle(handle, orgUUID); getErr == nil &&
 			conflicting != nil && conflicting.Kind != gwmodels.KindMCPProxy {
@@ -2013,7 +2015,7 @@ func (s *MCPProxyService) mapMCPProxyWriteError(err error, handle, orgUUID strin
 		}
 		return fmt.Errorf("%w: handle already in use: %w", utils.ErrMCPProxyExists, utils.ErrMCPProxyHandleInUse)
 	case "uq_artifact_name_version_ou_id":
-		return fmt.Errorf("%w: another artifact already uses this name and version", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: another artifact already uses this name and version", httpx.ErrInvalidInput)
 	default:
 		return nil
 	}
@@ -2373,7 +2375,7 @@ func (s *MCPProxyService) postJSONRPC(ctx context.Context, endpointURL string, p
 
 	resp, err := s.client.Do(httpReq)
 	if err != nil {
-		if errors.Is(err, utils.ErrInvalidURL) {
+		if errors.Is(err, ssrf.ErrInvalidURL) {
 			return nil, nil, err
 		}
 		return nil, nil, fmt.Errorf("%w: failed to reach MCP server: %w", utils.ErrURLUnreachable, err)

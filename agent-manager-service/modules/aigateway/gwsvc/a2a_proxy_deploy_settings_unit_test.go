@@ -31,8 +31,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // deploySettingsService wires UpdateAgentDeploySettings for the external agent in externalAgent.
@@ -199,7 +199,7 @@ func TestUpdateAgentDeploySettingsRejectsADirectExternalEnvironment(t *testing.T
 	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
 		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
 
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.Contains(t, err.Error(), "gateway")
 	assert.Empty(t, txConfigs.UpsertCalls())
 	assert.Zero(t, m.transactions, "refused before any transaction opens")

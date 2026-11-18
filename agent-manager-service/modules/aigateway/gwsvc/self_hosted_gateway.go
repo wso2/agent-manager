@@ -23,8 +23,9 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 // SelfHostedGatewayInput is the registration request for a self-hosted gateway.
@@ -92,14 +93,14 @@ func requireSelfHostedFunctionalityType(functionalityType string) error {
 	if SelfHostedFunctionalityType(functionalityType) == "ai" {
 		return nil
 	}
-	return utils.NewInvalidInputError("Self-hosted gateways support only the AI functionality type",
+	return httpx.NewInvalidInputError("Self-hosted gateways support only the AI functionality type",
 		"unsupported self-hosted gateway functionality type: "+functionalityType)
 }
 
 // selfHostedVhost returns the first endpoint as a base URL, scheme and host only. Proxy context paths, which start with
 // "/", are appended to it, so it may end in a "/" but carry no other path, and no query or fragment.
 func selfHostedVhost(endpoints []string) (string, error) {
-	invalid := utils.NewInvalidInputError(
+	invalid := httpx.NewInvalidInputError(
 		"The gateway needs a base http or https URL, such as https://gateway.example.com, with no path, query or fragment",
 		"invalid self-hosted gateway endpoint",
 	)

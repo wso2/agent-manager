@@ -26,8 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 )
 
 const (
@@ -40,7 +39,7 @@ const (
 // returns its issuer and jwks_uri. rawURL may be an issuer base URL or a full
 // .well-known/openid-configuration URL. The fetch is SSRF-protected (the host
 // must resolve to a public IP). Client-fixable failures — a bad or unreachable
-// URL, or a malformed document — wrap utils.ErrInvalidURL so the controller can
+// URL, or a malformed document — wrap ssrf.ErrInvalidURL so the controller can
 // map them to HTTP 400.
 func (s *PlatformGatewayService) DiscoverOIDC(ctx context.Context, rawURL string) (string, string, error) {
 	discoveryURL, err := buildOidcDiscoveryURL(rawURL)
@@ -48,24 +47,24 @@ func (s *PlatformGatewayService) DiscoverOIDC(ctx context.Context, rawURL string
 		return "", "", err
 	}
 	if err := ssrf.ValidateURL(ctx, discoveryURL); err != nil {
-		return "", "", fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+		return "", "", fmt.Errorf("%w: %w", ssrf.ErrInvalidURL, err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, discoveryURL, nil)
 	if err != nil {
-		return "", "", fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+		return "", "", fmt.Errorf("%w: %w", ssrf.ErrInvalidURL, err)
 	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := ssrf.NewClient(oidcDiscoveryTimeout).Do(req)
 	if err != nil {
 		// Do not surface the raw error: it may leak internal probe results.
-		return "", "", fmt.Errorf("%w: could not reach the discovery endpoint", utils.ErrInvalidURL)
+		return "", "", fmt.Errorf("%w: could not reach the discovery endpoint", ssrf.ErrInvalidURL)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("%w: discovery endpoint returned status %d", utils.ErrInvalidURL, resp.StatusCode)
+		return "", "", fmt.Errorf("%w: discovery endpoint returned status %d", ssrf.ErrInvalidURL, resp.StatusCode)
 	}
 
 	var doc struct {
@@ -73,10 +72,10 @@ func (s *PlatformGatewayService) DiscoverOIDC(ctx context.Context, rawURL string
 		JWKSURI string `json:"jwks_uri"`
 	}
 	if err := json.NewDecoder(io.LimitReader(resp.Body, maxOidcDiscoveryBody+1)).Decode(&doc); err != nil {
-		return "", "", fmt.Errorf("%w: discovery document is not valid JSON", utils.ErrInvalidURL)
+		return "", "", fmt.Errorf("%w: discovery document is not valid JSON", ssrf.ErrInvalidURL)
 	}
 	if doc.Issuer == "" || doc.JWKSURI == "" {
-		return "", "", fmt.Errorf("%w: discovery document is missing issuer or jwks_uri", utils.ErrInvalidURL)
+		return "", "", fmt.Errorf("%w: discovery document is missing issuer or jwks_uri", ssrf.ErrInvalidURL)
 	}
 	return doc.Issuer, doc.JWKSURI, nil
 }
@@ -87,11 +86,11 @@ func (s *PlatformGatewayService) DiscoverOIDC(ctx context.Context, rawURL string
 func buildOidcDiscoveryURL(rawURL string) (string, error) {
 	trimmed := strings.TrimSpace(rawURL)
 	if trimmed == "" {
-		return "", fmt.Errorf("%w: url is required", utils.ErrInvalidURL)
+		return "", fmt.Errorf("%w: url is required", ssrf.ErrInvalidURL)
 	}
 	parsed, err := url.Parse(trimmed)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", fmt.Errorf("%w: url must be an absolute http(s) URL", utils.ErrInvalidURL)
+		return "", fmt.Errorf("%w: url must be an absolute http(s) URL", ssrf.ErrInvalidURL)
 	}
 	if strings.HasSuffix(strings.TrimRight(parsed.Path, "/"), oidcWellKnownPath) {
 		return trimmed, nil

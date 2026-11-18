@@ -27,8 +27,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 )
 
 const (
@@ -155,7 +154,7 @@ func (f *a2aCardFetcher) fetch(
 
 	resp, err := client.Do(req)
 	if err != nil {
-		if guarded && errors.Is(err, utils.ErrInvalidURL) {
+		if guarded && errors.Is(err, ssrf.ErrInvalidURL) {
 			return nil, refusedCardURL(err)
 		}
 		// The dial error can name internal addresses; the cause is logged via a2aLogError, never shown.

@@ -24,6 +24,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -47,10 +48,10 @@ func TestHandleGatewayErrors_Status(t *testing.T) {
 		{"token not found", utils.ErrGatewayTokenNotFound, http.StatusNotFound, "Token not found"},
 		{
 			"validation error",
-			utils.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters"),
+			httpx.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters"),
 			http.StatusBadRequest, "Gateway name must be 3 to 64 characters",
 		},
-		{"bare invalid input", fmt.Errorf("internal detail: %w", utils.ErrInvalidInput), http.StatusBadRequest, "Invalid input"},
+		{"bare invalid input", fmt.Errorf("internal detail: %w", httpx.ErrInvalidInput), http.StatusBadRequest, "Invalid input"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

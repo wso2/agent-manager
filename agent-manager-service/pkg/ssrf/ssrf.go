@@ -32,8 +32,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // blockedIPPrefixes are IP ranges that must never be reached by SSRF-guarded
@@ -103,6 +101,9 @@ func ValidateURLShape(rawURL string) (*url.URL, error) {
 }
 
 // ErrHostNotPublic marks a host that is unresolvable, localhost or non-public; its detail can reveal internal DNS.
+// ErrInvalidURL classifies a URL that cannot be used as given; callers answer it with 400.
+var ErrInvalidURL = errors.New("invalid URL")
+
 var ErrHostNotPublic = errors.New("url host is not publicly reachable")
 
 type hostNotPublicError struct{ err error }
@@ -198,7 +199,7 @@ func NewClient(timeout time.Duration) *http.Client {
 				return errors.New("stopped after 10 redirects")
 			}
 			if err := ValidateURL(req.Context(), req.URL.String()); err != nil {
-				return fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+				return fmt.Errorf("%w: %w", ErrInvalidURL, err)
 			}
 			return nil
 		},
@@ -216,7 +217,7 @@ func (d *dialer) DialContext(ctx context.Context, network string, address string
 	}
 	ips, err := ResolvePublicIPs(ctx, host)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 
 	var firstErr error

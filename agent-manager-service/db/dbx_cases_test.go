@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbx_test
+package db_test
 
 import (
 	"context"
@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
 // The cases run against the baseline schema on every database: see dbx_sqlite_test.go and dbx_postgres_test.go.

@@ -26,13 +26,14 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 // mcpArtifact is what one (endpoint, environment) artifact of an MCP proxy renders from.
@@ -127,7 +128,7 @@ func (k *MCPProxyKind) Render(ctx context.Context, artifact gwmodels.ArtifactRef
 	}
 	content, err := renderMCPProxy(a.deployable, a.proxyHandle, a.scopes)
 	if err != nil {
-		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid MCP proxy configuration: %w", utils.ErrInvalidInput, err))
+		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid MCP proxy configuration: %w", httpx.ErrInvalidInput, err))
 	}
 	return renderedDeployment(a.deployable.Handle, []byte(content)), nil
 }

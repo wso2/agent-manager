@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -64,7 +65,7 @@ func TestRegisterGateway_InvalidRuntimeURLRejectedBeforeAnyWrite(t *testing.T) {
 	_, err := svc.RegisterGateway("org", "gw1", "GW", "", "https://ext.example.com",
 		"http://exfil.dev:53", false, "BOTH", nil, nil, gwmodels.GatewayHostingManaged)
 
-	require.ErrorIs(t, err, utils.ErrBadRequest)
+	require.ErrorIs(t, err, httpx.ErrBadRequest)
 	require.Empty(t, repo.GetByNameAndOrgIDCalls())
 	require.Empty(t, repo.CreateTxCalls())
 }
@@ -131,7 +132,7 @@ func TestUpdateGateway_InvalidRuntimeURLRejectedBeforeWrite(t *testing.T) {
 
 	_, err := svc.UpdateGateway(id, "org", nil, nil, nil, nil, &bad)
 
-	require.ErrorIs(t, err, utils.ErrBadRequest)
+	require.ErrorIs(t, err, httpx.ErrBadRequest)
 	require.Nil(t, *updated)
 	require.Empty(t, repo.UpdateGatewayCalls())
 }

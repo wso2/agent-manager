@@ -1,4 +1,4 @@
-// Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
 // Version 2.0 (the "License"); you may not use this file except
@@ -13,24 +13,20 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+package logger
 
-package utils
+import "context"
 
-import (
-	"context"
-)
+type correlationKey struct{}
 
-type ctxKey struct{}
-
-var correlationId ctxKey
-
+// CorrelationIdCtxKey is the context key the correlation-id middleware stores the request's id under.
 func CorrelationIdCtxKey() any {
-	return correlationId
+	return correlationKey{}
 }
 
+// GetCorrelationId returns the request's correlation id, or "-" when there is none.
 func GetCorrelationId(ctx context.Context) string {
-	v, ok := ctx.Value(correlationId).(string)
-	if ok {
+	if v, ok := ctx.Value(correlationKey{}).(string); ok {
 		return v
 	}
 	return "-"

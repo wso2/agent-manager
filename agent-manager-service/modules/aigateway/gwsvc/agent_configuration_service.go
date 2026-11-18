@@ -34,13 +34,14 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -850,7 +851,7 @@ func (s *agentConfigurationService) ValidateProvidersInCatalog(
 	seen := make(map[string]struct{}, len(providerHandles))
 	for _, handle := range providerHandles {
 		if handle == "" {
-			return fmt.Errorf("%w: provider name is required", utils.ErrInvalidInput)
+			return fmt.Errorf("%w: provider name is required", httpx.ErrInvalidInput)
 		}
 		if _, dup := seen[handle]; dup {
 			continue
@@ -865,7 +866,7 @@ func (s *agentConfigurationService) ValidateProvidersInCatalog(
 			return fmt.Errorf("failed to validate provider %s: %w", handle, err)
 		}
 		if !provider.InCatalog {
-			return fmt.Errorf("%w: provider %s must be in catalog", utils.ErrInvalidInput, handle)
+			return fmt.Errorf("%w: provider %s must be in catalog", httpx.ErrInvalidInput, handle)
 		}
 	}
 	return nil
@@ -884,7 +885,7 @@ func (s *agentConfigurationService) ValidateMCPProxiesInCatalog(
 	for _, handle := range proxyHandles {
 		handle = strings.TrimSpace(handle)
 		if handle == "" {
-			return fmt.Errorf("%w: MCP proxy name is required", utils.ErrInvalidInput)
+			return fmt.Errorf("%w: MCP proxy name is required", httpx.ErrInvalidInput)
 		}
 		if _, dup := seen[handle]; dup {
 			continue
@@ -923,7 +924,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, ouID, projectNam
 	policy := placementPolicyFor(agent)
 
 	if !isExternalProvisioned(agent) {
-		return nil, fmt.Errorf("%w: configurations of hosted agents", utils.ErrNotImplemented)
+		return nil, fmt.Errorf("%w: configurations of hosted agents", httpx.ErrNotImplemented)
 	}
 
 	switch req.Type {
@@ -941,7 +942,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 	// The binding:"required,min=1" tag on the DTO is ignored by net/http + json.NewDecoder,
 	// so we enforce it explicitly here.
 	if len(req.EnvMappings) == 0 {
-		return nil, fmt.Errorf("%w: at least one environment mapping is required", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: at least one environment mapping is required", httpx.ErrInvalidInput)
 	}
 
 	// Fail fast: validate env var names before any I/O.
@@ -949,7 +950,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 	// before any gateway/proxy/deployment resources have been created.
 	// The returned slice is intentionally discarded; it is rebuilt at deployment time.
 	if _, err := s.buildEnvironmentVariables(req.Name, req.EnvironmentVariables); err != nil {
-		return nil, errors.Join(utils.ErrInvalidInput, err)
+		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	// Validate all providers exist and are in catalog (shared with the create-time preflight).
@@ -957,7 +958,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 	for envName, envMapping := range req.EnvMappings {
 		handles = append(handles, envMapping.ProviderName)
 		if err := envMapping.Configuration.Resilience.Validate(); err != nil {
-			return nil, fmt.Errorf("%w: environment %s: %w", utils.ErrInvalidInput, envName, err)
+			return nil, fmt.Errorf("%w: environment %s: %w", httpx.ErrInvalidInput, envName, err)
 		}
 	}
 	if err := s.ValidateProvidersInCatalog(ctx, ouID, handles); err != nil {
@@ -1229,17 +1230,17 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		return nil, fmt.Errorf("MCP configuration service is not fully configured")
 	}
 	if len(req.EnvMappings) == 0 {
-		return nil, fmt.Errorf("%w: at least one environment mapping is required", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: at least one environment mapping is required", httpx.ErrInvalidInput)
 	}
 	if _, err := s.buildMCPMappingEnvironmentVariables(req.Name, req.EnvironmentVariables); err != nil {
-		return nil, errors.Join(utils.ErrInvalidInput, err)
+		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	proxiesByEnv := make(map[string]*gwmodels.MCPProxy, len(req.EnvMappings))
 	for envName, envMapping := range req.EnvMappings {
 		proxyHandle := strings.TrimSpace(envMapping.ProviderName)
 		if proxyHandle == "" {
-			return nil, fmt.Errorf("%w: MCP proxy is required for environment %s", utils.ErrInvalidInput, envName)
+			return nil, fmt.Errorf("%w: MCP proxy is required for environment %s", httpx.ErrInvalidInput, envName)
 		}
 		proxy, err := s.mcpProxyRepo.GetByHandle(ctx, proxyHandle, ouID)
 		if err != nil {
@@ -2149,7 +2150,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		}
 		proxyHandle := strings.TrimSpace(envMapping.ProviderName)
 		if proxyHandle == "" {
-			return nil, fmt.Errorf("%w: MCP proxy is required for environment %s", utils.ErrInvalidInput, envName)
+			return nil, fmt.Errorf("%w: MCP proxy is required for environment %s", httpx.ErrInvalidInput, envName)
 		}
 		proxy, err := s.mcpProxyRepo.GetByHandle(ctx, proxyHandle, ouID)
 		if err != nil {
@@ -2319,7 +2320,7 @@ func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 		}
 		newTemplates, err := s.buildMCPMappingEnvironmentVariables(config.Name, merged)
 		if err != nil {
-			return errors.Join(utils.ErrInvalidInput, err)
+			return errors.Join(httpx.ErrInvalidInput, err)
 		}
 
 		changedOldKeys := make([]string, 0, len(overrides))
@@ -2335,7 +2336,7 @@ func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 		for _, template := range newTemplates {
 			for _, v := range agentVars {
 				if v.ConfigUUID != config.UUID && v.VariableName == template.Name {
-					return fmt.Errorf("%w: environment variable name %q belongs to another configuration", utils.ErrInvalidInput, template.Name)
+					return fmt.Errorf("%w: environment variable name %q belongs to another configuration", httpx.ErrInvalidInput, template.Name)
 				}
 			}
 		}
@@ -2586,7 +2587,7 @@ func (s *agentConfigurationService) UpdateMCP(ctx context.Context, configUUID uu
 		return nil, fmt.Errorf("failed to validate agent: %w", err)
 	}
 	if !isExternalProvisioned(agent) {
-		return nil, fmt.Errorf("%w: configurations of hosted agents", utils.ErrNotImplemented)
+		return nil, fmt.Errorf("%w: configurations of hosted agents", httpx.ErrNotImplemented)
 	}
 
 	return s.updateMCPConfig(ctx, config, ouID, projectName, agentName, req)
@@ -2620,7 +2621,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 		return nil, fmt.Errorf("failed to validate agent: %w", err)
 	}
 	if !isExternalProvisioned(agent) {
-		return nil, fmt.Errorf("%w: configurations of hosted agents", utils.ErrNotImplemented)
+		return nil, fmt.Errorf("%w: configurations of hosted agents", httpx.ErrNotImplemented)
 	}
 	// Fail-closed: a GetComponent error above returns rather than defaulting to internal, which could corrupt CRs.
 	policy := placementPolicyFor(agent)
@@ -2657,7 +2658,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	if req.EnvMappings != nil {
 		for envName, envMapping := range req.EnvMappings {
 			if err := envMapping.Configuration.Resilience.Validate(); err != nil {
-				return nil, fmt.Errorf("%w: environment %s: %w", utils.ErrInvalidInput, envName, err)
+				return nil, fmt.Errorf("%w: environment %s: %w", httpx.ErrInvalidInput, envName, err)
 			}
 			provider, err := s.llmProviderRepo.GetByHandle(envMapping.ProviderName, ouID)
 			if err != nil {
@@ -2668,7 +2669,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 				return nil, fmt.Errorf("failed to validate provider for environment %s: %w", envName, err)
 			}
 			if !provider.InCatalog {
-				return nil, fmt.Errorf("%w: provider %s must be in catalog for environment %s", utils.ErrInvalidInput, envMapping.ProviderName, envName)
+				return nil, fmt.Errorf("%w: provider %s must be in catalog for environment %s", httpx.ErrInvalidInput, envMapping.ProviderName, envName)
 			}
 		}
 	}
@@ -2735,7 +2736,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 				_, validateErr = s.buildEnvironmentVariables(existingConfig.Name, mergedOverrides)
 			}
 			if validateErr != nil {
-				return errors.Join(utils.ErrInvalidInput, validateErr)
+				return errors.Join(httpx.ErrInvalidInput, validateErr)
 			}
 			keyNameMap := make(map[string]string, len(req.EnvironmentVariables))
 			for _, ev := range req.EnvironmentVariables {
@@ -3549,7 +3550,7 @@ func (s *agentConfigurationService) resolveDeployableMCPGateway(
 	sharedArtifactUUID := mcpProxyEnvArtifactUUID(proxy, envUUID.String())
 	if sharedArtifactUUID == uuid.Nil {
 		s.logger.Warn("Treating MCP environment as non-deployable; missing shared artifact",
-			"ouID", ouID, "correlationID", utils.GetCorrelationId(ctx),
+			"ouID", ouID, "correlationID", logger.GetCorrelationId(ctx),
 			"environmentUUID", envUUID, "mcpProxyUUID", proxy.UUID)
 		return nil, errMCPEnvNotDeployable
 	}
@@ -3604,7 +3605,7 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 // gateway in the environment is self-hosted (see placementPolicy).
 func errMCPProxyOnSelfHostedGateway(proxy *gwmodels.MCPProxy, envName string) error {
 	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; platform-hosted agents can only use MCP proxies on managed gateways; use a separate MCP proxy for self-hosted gateways",
-		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
+		httpx.ErrInvalidInput, mcpProxyHandle(proxy), envName)
 }
 
 // errMCPGatewayNotManaged reports that an MCP proxy resolves to a self-hosted gateway in an environment
@@ -4185,7 +4186,7 @@ func (s *agentConfigurationService) mcpEnvTemplatesFromVars(
 ) ([]EnvConfigTemplate, error) {
 	envTemplates, err := s.buildMCPMappingEnvironmentVariables(config.Name, varNamesToOverrides(s.variableNameMap(config.UUID, vars)))
 	if err != nil {
-		return nil, errors.Join(utils.ErrInvalidInput, err)
+		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 	return envTemplates, nil
 }
@@ -4913,7 +4914,7 @@ func mcpProxyBindableFromProject(proxy *gwmodels.MCPProxy, agentProjectUUID stri
 		return nil
 	}
 	if proxy.Artifact == nil || !proxy.Artifact.InCatalog {
-		return fmt.Errorf("%w: MCP proxy %s must be in catalog", utils.ErrInvalidInput, proxyHandleOf(proxy))
+		return fmt.Errorf("%w: MCP proxy %s must be in catalog", httpx.ErrInvalidInput, proxyHandleOf(proxy))
 	}
 	return nil
 }

@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -43,7 +44,7 @@ func TestSetAgentCardSourceErrorsMapToStatusCodes(t *testing.T) {
 	for sentinel, code := range map[error]int{
 		utils.ErrA2AProxyOriginChangeNeedsAuthReset: http.StatusConflict,
 		utils.ErrA2ACardURLNotProxyable:             http.StatusBadRequest,
-		utils.ErrInvalidURL:                         http.StatusBadRequest,
+		ssrf.ErrInvalidURL:                          http.StatusBadRequest,
 		utils.ErrAgentCardSourceNotExternal:         http.StatusBadRequest,
 	} {
 		t.Run(sentinel.Error(), func(t *testing.T) {

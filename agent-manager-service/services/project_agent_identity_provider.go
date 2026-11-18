@@ -23,7 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // ProjectAgentIdentityRequest identifies one project-scoped AgentID operation.
@@ -131,7 +131,7 @@ var errProjectAgentIdentitySecretUnavailable = errors.New("project AgentID secre
 // ErrProjectAgentIdentityDefaultEnvironmentOnly tells callers that only the default
 // environment holds a project AgentID.
 var ErrProjectAgentIdentityDefaultEnvironmentOnly = fmt.Errorf(
-	"%w: a project AgentID exists only in the default environment", utils.ErrConflict,
+	"%w: a project AgentID exists only in the default environment", httpx.ErrConflict,
 )
 
 // ProjectAgentIdentityProviderSetter is an optional deployment hook. The

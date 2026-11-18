@@ -1,5 +1,3 @@
-//go:build integration
-
 // Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
 //
 // WSO2 LLC. licenses this file to you under the Apache License,
@@ -16,14 +14,12 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbx_test
+package db_test
 
 import (
-	"context"
-	"strings"
+	"path/filepath"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
@@ -32,31 +28,20 @@ import (
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 )
 
-// postgresBaseline is a fresh database next to the test database, holding the PostgreSQL baseline.
-func postgresBaseline(t *testing.T) *gorm.DB {
+func sqliteBaseline(t *testing.T) *gorm.DB {
 	t.Helper()
-	if config.GetConfig().Database.Driver != config.DBDriverPostgres {
-		t.Skip("needs DB_DRIVER=postgres")
-	}
-	admin := db.DB(context.Background())
-	name := "dbx_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	require.NoError(t, admin.Exec(`CREATE DATABASE `+name).Error)
-	cfg := config.GetConfig()
-	pg := cfg.POSTGRESQL
-	pg.DBName = name
-	scratch, err := db.Open(config.DatabaseConfig{Driver: config.DBDriverPostgres}, pg)
+	gormDB, err := db.Open(config.DatabaseConfig{Driver: config.DBDriverSQLite, SQLitePath: filepath.Join(t.TempDir(), "amp.db")}, config.POSTGRESQL{})
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		if sqlDB, err := scratch.DB(); err == nil {
+		if sqlDB, err := gormDB.DB(); err == nil {
 			_ = sqlDB.Close()
 		}
-		require.NoError(t, admin.Exec(`DROP DATABASE IF EXISTS `+name+` WITH (FORCE)`).Error)
 	})
-	require.NoError(t, dbmigrations.MigrateBaseline(scratch, config.DBDriverPostgres))
-	return scratch
+	require.NoError(t, dbmigrations.MigrateBaseline(gormDB, config.DBDriverSQLite))
+	return gormDB
 }
 
-func TestPostgres(t *testing.T) {
+func TestSQLite(t *testing.T) {
 	cases := map[string]func(*testing.T, *gorm.DB){
 		"insert if absent and upsert": runInsertIfAbsentAndUpsert,
 		"concurrent claims":           runConcurrentClaims,
@@ -65,6 +50,6 @@ func TestPostgres(t *testing.T) {
 		"lock row and keyset":         runLockRowAndKeyset,
 	}
 	for name, run := range cases {
-		t.Run(name, func(t *testing.T) { run(t, postgresBaseline(t)) })
+		t.Run(name, func(t *testing.T) { run(t, sqliteBaseline(t)) })
 	}
 }

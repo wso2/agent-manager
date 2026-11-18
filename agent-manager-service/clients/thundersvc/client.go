@@ -34,7 +34,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 )
 
 // ThunderClient encapsulates the Thunder API calls needed to create OAuth2 applications.

@@ -28,7 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // agentPlacementFixture is a proxy with one environment (testMCPEnvUUID) that has a managed and a
@@ -75,7 +75,7 @@ func newAgentPlacementFixture(t *testing.T) *agentPlacementFixture {
 			f.lookups = append(f.lookups, agentName)
 			external, known := f.agentIsExternal[agentName]
 			if !known {
-				return false, fmt.Errorf("component %s: %w", agentName, utils.ErrNotFound)
+				return false, fmt.Errorf("component %s: %w", agentName, httpx.ErrNotFound)
 			}
 			return external, nil
 		},
@@ -139,7 +139,7 @@ func TestMCPProxyUpdate_ReAddingAnAgentBoundEnvironmentOnSelfHostedIsRefused(t *
 
 	err := f.update(f.selfHosted.UUID.String())
 
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.ErrorContains(t, err, testMCPEnvUUID)
 	assert.ErrorContains(t, err, "platform-hosted agents use this MCP proxy")
 }
@@ -152,7 +152,7 @@ func TestMCPProxyUpdate_AgentReferenceWithoutMappingsRefusesSelfHosted(t *testin
 
 	err := f.update(f.selfHosted.UUID.String())
 
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.ErrorContains(t, err, testMCPEnvUUID)
 }
 
@@ -165,7 +165,7 @@ func TestValidateMCPEndpointPlacement_AgentReferences(t *testing.T) {
 		f := newAgentPlacementFixture(t)
 		f.agentBoundIn("7b1f2f0e-0d0c-4e9a-9a53-6a0c5f1d2b11")
 		f.agentReferences()
-		require.ErrorIs(t, place(f, f.selfHosted.UUID.String(), nil), utils.ErrInvalidInput)
+		require.ErrorIs(t, place(f, f.selfHosted.UUID.String(), nil), httpx.ErrInvalidInput)
 	})
 
 	t.Run("no agent references allow a self-hosted placement", func(t *testing.T) {
@@ -218,7 +218,7 @@ func TestMCPProxySelfHostedPlacement_MixedInternalAndExternalIsRefused(t *testin
 
 	err := f.place(f.selfHosted.UUID.String(), nil)
 
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.ErrorContains(t, err, "use a separate MCP proxy for self-hosted gateways")
 }
 
@@ -256,7 +256,7 @@ func TestMCPProxySelfHostedPlacement_UnmatchedMappingRowCountsAsInternal(t *test
 
 		err := f.place(f.selfHosted.UUID.String(), nil)
 
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.ErrorContains(t, err, testMCPEnvUUID)
 	})
 

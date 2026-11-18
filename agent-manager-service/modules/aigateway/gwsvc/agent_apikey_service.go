@@ -25,16 +25,18 @@ import (
 	"strings"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 // GatewayConnectionChecker reports live websocket connections for a gateway.
@@ -171,7 +173,7 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 	req *gwmodels.CreateAPIKeyRequest,
 ) (*gwmodels.CreateAPIKeyResponse, error) {
 	if req != nil && (strings.HasPrefix(req.Name, gwmodels.APIKeyTestKeyPrefix) || req.Name == legacyTestKeyName) {
-		return nil, fmt.Errorf("%w: names starting with %q are reserved for console test keys", utils.ErrBadRequest, gwmodels.APIKeyTestKeyPrefix)
+		return nil, fmt.Errorf("%w: names starting with %q are reserved for console test keys", httpx.ErrBadRequest, gwmodels.APIKeyTestKeyPrefix)
 	}
 	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
@@ -343,7 +345,7 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 	var resp *gwmodels.CreateAPIKeyResponse
 	if existing != nil {
 		if existing.Purpose != gwmodels.APIKeyPurposeTest {
-			return nil, fmt.Errorf("%w: %q is reserved for console test keys", utils.ErrBadRequest, keyName)
+			return nil, fmt.Errorf("%w: %q is reserved for console test keys", httpx.ErrBadRequest, keyName)
 		}
 		// Same DB row, new hash + expiry; purpose is preserved (Upsert.DoUpdates excludes it).
 		resp, err = s.broadcaster.broadcastRotateToGateways(gateways, ouID, artifactUUID, artifactUUID, keyName,

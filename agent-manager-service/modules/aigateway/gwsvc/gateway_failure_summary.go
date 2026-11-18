@@ -32,7 +32,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // maxFailedGatewayDetailRows caps the detail list. The number of failed
@@ -162,7 +162,7 @@ func (s *PlatformGatewayService) GetCrossOrgGatewayFailureSummary(
 	ctx context.Context, query GatewayFailureSummaryQuery,
 ) (*GatewayFailureSummaryResponse, error) {
 	if query.StalenessThreshold <= 0 {
-		return nil, fmt.Errorf("%w: gateway staleness threshold must be greater than zero", utils.ErrBadRequest)
+		return nil, fmt.Errorf("%w: gateway staleness threshold must be greater than zero", httpx.ErrBadRequest)
 	}
 	// An upper bound at or below the lower one is an empty window: no updated_at
 	// can satisfy both, so every fleet reports perfectly healthy. Refused rather
@@ -170,7 +170,7 @@ func (s *PlatformGatewayService) GetCrossOrgGatewayFailureSummary(
 	if query.MaxAge <= query.StalenessThreshold {
 		return nil, fmt.Errorf(
 			"%w: gateway failure max age must be greater than the staleness threshold",
-			utils.ErrBadRequest,
+			httpx.ErrBadRequest,
 		)
 	}
 	// Guarded here as well as at startup: this decides whether callers are told
@@ -185,7 +185,7 @@ func (s *PlatformGatewayService) GetCrossOrgGatewayFailureSummary(
 		query.FailurePercentageThreshold > 100 {
 		return nil, fmt.Errorf(
 			"%w: gateway failure percentage threshold must be greater than zero and at most 100",
-			utils.ErrBadRequest,
+			httpx.ErrBadRequest,
 		)
 	}
 

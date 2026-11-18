@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -137,7 +138,7 @@ func AuthFailureRecorder(recorder Recorder) func(r *http.Request, reason string)
 			UserAgent:     r.UserAgent(),
 			RequestMethod: r.Method,
 			RequestPath:   r.URL.Path,
-			CorrelationID: utils.GetCorrelationId(ctx),
+			CorrelationID: logger.GetCorrelationId(ctx),
 			Details: map[string]any{
 				"reason":     reason,
 				"authHeader": r.Header.Get("Authorization") != "",

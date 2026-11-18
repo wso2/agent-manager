@@ -17,14 +17,13 @@
 package utils
 
 import (
-	"encoding/json"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
@@ -68,7 +67,7 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 	// The platform does not run external agents, so health checks sent for one
 	// would be dropped without effect.
 	if payload.HealthChecks != nil {
-		return NewValidationError(
+		return httpx.NewValidationError(
 			"Health checks can only be set for agents built from source",
 			"healthChecks is only allowed for internal agents built from a repository",
 		)
@@ -90,13 +89,13 @@ func validateAgentPayload(payload agentPayload) error {
 		return err
 	}
 	if payload.provisioning.Type != string(ExternalAgent) {
-		return NewValidationError(
+		return httpx.NewValidationError(
 			"Only external agents can be created",
 			"provisioning type must be 'external'",
 		)
 	}
 	if payload.agentType == nil {
-		return NewValidationError(
+		return httpx.NewValidationError(
 			"Agent type is required",
 			"agentType is required",
 		)
@@ -111,7 +110,7 @@ func validateAgentType(agentType spec.AgentType, provisioningType string) error 
 		return fmt.Errorf("unsupported agent type: %s", agentType.Type)
 	}
 	if want := AgentTypeForProvisioning(provisioningType); agentType.Type != string(want) {
-		return NewValidationError(
+		return httpx.NewValidationError(
 			fmt.Sprintf("Agent type must be %s for %s agents", want, provisioningType),
 			fmt.Sprintf("agentType.type must be %q for provisioning type %q, got %q", want, provisioningType, agentType.Type),
 		)
@@ -280,82 +279,6 @@ func ValidateResourceNameRequest(payload spec.ResourceNameRequest) error {
 		}
 	}
 	return nil
-}
-
-// WriteSuccessResponse writes a successful API response
-func WriteSuccessResponse[T any](w http.ResponseWriter, statusCode int, data T) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	if statusCode == http.StatusNoContent {
-		return
-	}
-	_ = json.NewEncoder(w).Encode(data) // Ignore encoding errors for response
-}
-
-// WriteErrorResponse writes an error API response with auto-derived error code.
-// For more control, use WriteErrorResponseWithReason.
-func WriteErrorResponse(w http.ResponseWriter, statusCode int, message string) {
-	code := statusCodeToErrorCode(statusCode)
-	WriteErrorResponseWithReason(w, statusCode, message, "", code)
-}
-
-// WriteErrorResponseWithReason writes an error API response with full error details.
-// - message: User-friendly message for display in UI
-// - reason: Technical details for debugging (can be empty)
-// - code: Machine-readable error code for programmatic handling
-func WriteErrorResponseWithReason(w http.ResponseWriter, statusCode int, message, reason, code string) {
-	if code == "" {
-		// default error code based on status code if not provided
-		code = statusCodeToErrorCode(statusCode)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	errPayload := spec.NewErrorResponse(message, code)
-	if reason != "" {
-		errPayload.SetReason(reason)
-	}
-	_ = json.NewEncoder(w).Encode(errPayload) // Ignore encoding errors for response
-}
-
-// WriteValidationErrorResponse writes a validation error response.
-// If err is a ValidationError, uses its user-friendly Message and technical Reason.
-// Otherwise, uses err.Error() for both message and reason.
-func WriteValidationErrorResponse(w http.ResponseWriter, err error) {
-	if ve := IsValidationError(err); ve != nil {
-		WriteErrorResponseWithReason(w, http.StatusBadRequest, ve.Message, ve.Reason, ErrCodeValidation)
-		return
-	}
-	// Fallback for non-ValidationError
-	WriteErrorResponseWithReason(w, http.StatusBadRequest, err.Error(), err.Error(), ErrCodeValidation)
-}
-
-// statusCodeToErrorCode maps HTTP status codes to default error codes
-func statusCodeToErrorCode(statusCode int) string {
-	switch statusCode {
-	case http.StatusBadRequest:
-		return ErrCodeBadRequest
-	case http.StatusUnauthorized:
-		return ErrCodeUnauthorized
-	case http.StatusForbidden:
-		return ErrCodeForbidden
-	case http.StatusNotFound:
-		return ErrCodeNotFound
-	case http.StatusConflict:
-		return ErrCodeConflict
-	case http.StatusInternalServerError:
-		return ErrCodeInternalError
-	case http.StatusServiceUnavailable:
-		return ErrCodeServiceUnavailable
-	case http.StatusNotImplemented:
-		return ErrCodeNotImplemented
-	default:
-		// Classify unmapped status codes by range
-		if statusCode >= 400 && statusCode < 500 {
-			return ErrCodeBadRequest
-		}
-		return ErrCodeInternalError
-	}
 }
 
 // generateRandomSuffix creates a random suffix of specified length using custom alphabet

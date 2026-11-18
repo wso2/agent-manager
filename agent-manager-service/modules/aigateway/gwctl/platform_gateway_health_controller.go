@@ -22,9 +22,9 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 )
 
 // GetPlatformGatewayFailureSummary serves the platform-wide gateway failure
@@ -62,7 +62,7 @@ func (c *gatewayController) GetPlatformGatewayFailureSummary(w http.ResponseWrit
 	if !middleware.IsPlatformAdminRequest(ctx) {
 		log.Error("GetPlatformGatewayFailureSummary: reached without the platform-admin guard; " +
 			"the route is registered without HandleFuncWithValidationAndPlatformAdminAuthz")
-		utils.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
 		return
 	}
 
@@ -103,5 +103,5 @@ func (c *gatewayController) GetPlatformGatewayFailureSummary(w http.ResponseWrit
 	// not 2xx from 5xx. A degraded fleet is reported as the same document either
 	// way, because the caller wants the numbers whichever side of the threshold
 	// they fall on.
-	utils.WriteSuccessResponse(w, status, summary)
+	httpx.WriteSuccessResponse(w, status, summary)
 }

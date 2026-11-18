@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package dbx_test
+package db_test
 
 import (
 	"flag"
@@ -55,8 +55,8 @@ func countPostgresOnly(t *testing.T, root string) map[string]int {
 		rel = filepath.ToSlash(rel)
 		if d.IsDir() {
 			switch rel {
-			// db/sqlitedialect is the SQLite dialect itself: it names these clauses to translate them.
-			case "tmp", "spec", "vendor", "clients/clientmocks", "db/sqlitedialect":
+			// pkg/sqlitedialect is the SQLite dialect itself: it names these clauses to translate them.
+			case "tmp", "spec", "vendor", "clients/clientmocks", "pkg/sqlitedialect":
 				return filepath.SkipDir
 			}
 			return nil
@@ -90,7 +90,7 @@ func countPostgresOnly(t *testing.T, root string) map[string]int {
 // TestNoNewPostgresOnlySQL is a ratchet: a file may not gain PostgreSQL-only SQL, and a file that loses some must
 // lower its recorded count (run with -update-portability) so it cannot come back.
 func TestNoNewPostgresOnlySQL(t *testing.T) {
-	got := countPostgresOnly(t, filepath.Join("..", ".."))
+	got := countPostgresOnly(t, "..")
 
 	if *updatePortability {
 		var lines []string
@@ -98,7 +98,7 @@ func TestNoNewPostgresOnlySQL(t *testing.T) {
 			lines = append(lines, fmt.Sprintf("%s %d", f, n))
 		}
 		sort.Strings(lines)
-		body := "# PostgreSQL-only lines per file (schema rule 10). Only ever lowered: go test ./db/dbx -update-portability\n" +
+		body := "# PostgreSQL-only lines per file (schema rule 10). Only ever lowered: go test ./db -run TestNoNewPostgresOnlySQL -update-portability\n" +
 			strings.Join(lines, "\n") + "\n"
 		require.NoError(t, os.WriteFile(portabilityBaseline, []byte(body), 0o600))
 		return
@@ -123,7 +123,7 @@ func TestNoNewPostgresOnlySQL(t *testing.T) {
 	}
 	for f, n := range want {
 		if got[f] < n {
-			t.Errorf("%s: down to %d PostgreSQL-only lines from %d; lower the record: go test ./db/dbx -update-portability", f, got[f], n)
+			t.Errorf("%s: down to %d PostgreSQL-only lines from %d; lower the record: go test ./db -run TestNoNewPostgresOnlySQL -update-portability", f, got[f], n)
 		}
 	}
 }

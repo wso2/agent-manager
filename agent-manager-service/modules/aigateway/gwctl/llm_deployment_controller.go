@@ -22,10 +22,11 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -64,14 +65,14 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 
 	if providerID == "" {
 		log.Error("DeployLLMProvider: provider ID is empty", "ouID", ouID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
 		return
 	}
 
 	var req gwmodels.DeployAPIRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("DeployLLMProvider: failed to decode request", "ouID", ouID, "providerID", providerID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -80,7 +81,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 
 	if req.GatewayID == "" {
 		log.Error("DeployLLMProvider: gateway ID is required", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId is required")
 		return
 	}
 
@@ -92,36 +93,36 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 		switch {
 		case errors.Is(err, utils.ErrContextInUse):
 			log.Warn("DeployLLMProvider: context in use on the gateway", "ouID", ouID, "error", err)
-			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
 				utils.ErrCodeContextInUse)
 			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("DeployLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
 			log.Warn("DeployLLMProvider: gateway not found", "ouID", ouID, "providerID", providerID, "gatewayID", req.GatewayID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentBaseNotCurrent):
 			log.Warn("DeployLLMProvider: base is not current", "ouID", ouID, "providerID", providerID, "base", req.Base)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrDeploymentBaseNotCurrent.Error())
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrDeploymentBaseNotCurrent.Error())
 			return
 		case errors.Is(err, utils.ErrDeploymentGatewayIDRequired):
 			log.Error("DeployLLMProvider: gateway ID required", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Gateway ID is required")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Gateway ID is required")
 			return
 		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
 			log.Error("DeployLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
+		case errors.Is(err, httpx.ErrInvalidInput):
 			log.Error("DeployLLMProvider: invalid input", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 			return
 		default:
 			log.Error("DeployLLMProvider: failed to deploy", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to deploy LLM provider")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to deploy LLM provider")
 			return
 		}
 	}
@@ -129,7 +130,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	log.Info("DeployLLMProvider: deployment created successfully", "ouID", ouID, "providerID", providerID,
 		"deploymentID", deployment.DeploymentID, "gatewayID", req.GatewayID)
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	httpx.WriteSuccessResponse(w, http.StatusCreated, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
@@ -149,17 +150,17 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 
 	if providerID == "" {
 		log.Error("UndeployLLMProviderDeployment: provider ID is empty", "ouID", ouID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
 		return
 	}
 	if deploymentID == "" {
 		log.Error("UndeployLLMProviderDeployment: deployment ID is empty", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "deploymentId query parameter is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "deploymentId query parameter is required")
 		return
 	}
 	if gatewayID == "" {
 		log.Error("UndeployLLMProviderDeployment: gateway ID is empty", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId query parameter is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId query parameter is required")
 		return
 	}
 
@@ -171,27 +172,27 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("UndeployLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotFound):
 			log.Warn("UndeployLLMProviderDeployment: deployment not found", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
 			log.Warn("UndeployLLMProviderDeployment: gateway not found", "ouID", ouID, "gatewayID", gatewayID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotActive):
 			log.Warn("UndeployLLMProviderDeployment: deployment not active", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusConflict, "The deployment isn't the gateway's current deployment, or it is already undeployed or being undeployed")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "The deployment isn't the gateway's current deployment, or it is already undeployed or being undeployed")
 			return
 		case errors.Is(err, utils.ErrGatewayIDMismatch):
 			log.Error("UndeployLLMProviderDeployment: gateway ID mismatch", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment is bound to a different gateway")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Deployment is bound to a different gateway")
 			return
 		default:
 			log.Error("UndeployLLMProviderDeployment: failed to undeploy", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to undeploy deployment")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to undeploy deployment")
 			return
 		}
 	}
@@ -199,7 +200,7 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 	log.Info("UndeployLLMProviderDeployment: undeployed successfully", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
 	resp := map[string]string{"message": "LLM provider undeployed successfully"}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
@@ -219,17 +220,17 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 
 	if providerID == "" {
 		log.Error("RestoreLLMProviderDeployment: provider ID is empty", "ouID", ouID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
 		return
 	}
 	if deploymentID == "" {
 		log.Error("RestoreLLMProviderDeployment: deployment ID is empty", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "deploymentId query parameter is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "deploymentId query parameter is required")
 		return
 	}
 	if gatewayID == "" {
 		log.Error("RestoreLLMProviderDeployment: gateway ID is empty", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId query parameter is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "gatewayId query parameter is required")
 		return
 	}
 
@@ -241,39 +242,39 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 		switch {
 		case errors.Is(err, utils.ErrContextInUse):
 			log.Warn("RestoreLLMProviderDeployment: context in use on the gateway", "ouID", ouID, "error", err)
-			utils.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
+			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
 				utils.ErrCodeContextInUse)
 			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("RestoreLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotFound):
 			log.Warn("RestoreLLMProviderDeployment: deployment not found", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
 			log.Warn("RestoreLLMProviderDeployment: gateway not found", "ouID", ouID, "gatewayID", gatewayID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentAlreadyDeployed):
 			log.Warn("RestoreLLMProviderDeployment: deployment already deployed", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot restore the deployment the gateway is already deploying or serving")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "Cannot restore the deployment the gateway is already deploying or serving")
 			return
 		case errors.Is(err, utils.ErrGatewayIDMismatch):
 			log.Error("RestoreLLMProviderDeployment: gateway ID mismatch", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment is bound to a different gateway")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Deployment is bound to a different gateway")
 			return
 		default:
 			log.Error("RestoreLLMProviderDeployment: failed to restore", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to restore deployment")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to restore deployment")
 			return
 		}
 	}
 
 	log.Info("RestoreLLMProviderDeployment: restored successfully", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	httpx.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
@@ -289,12 +290,12 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 
 	if providerID == "" {
 		log.Error("DeleteLLMProviderDeployment: provider ID is empty", "ouID", ouID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
 		return
 	}
 	if deploymentID == "" {
 		log.Error("DeleteLLMProviderDeployment: deployment ID is empty", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Deployment ID is required")
 		return
 	}
 
@@ -305,26 +306,26 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("DeleteLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotFound):
 			log.Warn("DeleteLLMProviderDeployment: deployment not found", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentIsDeployed):
 			log.Warn("DeleteLLMProviderDeployment: deployment is active", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusConflict, "Cannot delete the gateway's current deployment - undeploy it and wait until it is UNDEPLOYED")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "Cannot delete the gateway's current deployment - undeploy it and wait until it is UNDEPLOYED")
 			return
 		default:
 			log.Error("DeleteLLMProviderDeployment: failed to delete", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete deployment")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete deployment")
 			return
 		}
 	}
 
 	log.Info("DeleteLLMProviderDeployment: deleted successfully", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
 func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
@@ -340,12 +341,12 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 
 	if providerID == "" {
 		log.Error("GetLLMProviderDeployment: provider ID is empty", "ouID", ouID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
 		return
 	}
 	if deploymentID == "" {
 		log.Error("GetLLMProviderDeployment: deployment ID is empty", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Deployment ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Deployment ID is required")
 		return
 	}
 
@@ -356,22 +357,22 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("GetLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrDeploymentNotFound):
 			log.Warn("GetLLMProviderDeployment: deployment not found", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
 		default:
 			log.Error("GetLLMProviderDeployment: failed to get deployment", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve deployment")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve deployment")
 			return
 		}
 	}
 
 	log.Info("GetLLMProviderDeployment: retrieved successfully", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	httpx.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWriter, r *http.Request) {
@@ -391,7 +392,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 
 	if providerID == "" {
 		log.Error("GetLLMProviderDeployments: provider ID is empty", "ouID", ouID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "LLM provider ID is required")
 		return
 	}
 
@@ -412,20 +413,20 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("GetLLMProviderDeployments: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrInvalidDeploymentStatus):
 			log.Error("GetLLMProviderDeployments: invalid status", "ouID", ouID, "providerID", providerID, "status", status)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid deployment status")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid deployment status")
 			return
 		default:
 			log.Error("GetLLMProviderDeployments: failed to get deployments", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve deployments")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve deployments")
 			return
 		}
 	}
 
 	log.Info("GetLLMProviderDeployments: retrieved successfully", "ouID", ouID, "providerID", providerID, "count", len(deployments))
 
-	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponses(deployments))
+	httpx.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponses(deployments))
 }

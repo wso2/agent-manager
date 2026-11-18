@@ -22,10 +22,11 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -65,16 +66,16 @@ func (c *llmProviderAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("ListLLMProviderAPIKeys: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		default:
 			log.Error("ListLLMProviderAPIKeys: failed to list API keys", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
 			return
 		}
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // CreateAPIKey handles POST /api/v1/orgs/{ouID}/llm-providers/{id}/api-keys
@@ -90,7 +91,7 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 	var specReq gwspec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateLLMProviderAPIKey: failed to decode request", "ouID", ouID, "providerID", providerID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -105,7 +106,7 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 
 	if name == "" && displayName == "" {
 		log.Error("CreateLLMProviderAPIKey: name or displayName required", "ouID", ouID, "providerID", providerID)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one of 'name' or 'displayName' must be provided")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "At least one of 'name' or 'displayName' must be provided")
 		return
 	}
 
@@ -120,28 +121,28 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 	response, err := c.apiKeyService.CreateAPIKey(ctx, ouID, providerID, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrBadRequest):
+		case errors.Is(err, httpx.ErrBadRequest):
 			log.Warn("CreateLLMProviderAPIKey: invalid request", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("CreateLLMProviderAPIKey: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
 			log.Error("CreateLLMProviderAPIKey: no gateways found", "ouID", ouID)
-			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
+			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
 			log.Error("CreateLLMProviderAPIKey: failed to create API key", "ouID", ouID, "providerID", providerID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create API key")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create API key")
 			return
 		}
 	}
 
 	log.Info("CreateLLMProviderAPIKey: API key created successfully", "ouID", ouID, "providerID", providerID, "keyID", response.KeyID)
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 // RevokeAPIKey handles DELETE /api/v1/orgs/{ouID}/llm-providers/{id}/api-keys/{keyName}
@@ -159,15 +160,15 @@ func (c *llmProviderAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *htt
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("RevokeLLMProviderAPIKey: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
 			log.Error("RevokeLLMProviderAPIKey: no gateways found", "ouID", ouID)
-			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
+			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
 			log.Error("RevokeLLMProviderAPIKey: failed to revoke API key", "ouID", ouID, "providerID", providerID, "keyName", keyName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to revoke API key")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to revoke API key")
 			return
 		}
 	}
@@ -202,20 +203,20 @@ func (c *llmProviderAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *htt
 		switch {
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
 			log.Warn("RotateLLMProviderAPIKey: provider not found", "ouID", ouID, "providerID", providerID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrGatewayNotFound):
 			log.Error("RotateLLMProviderAPIKey: no gateways found", "ouID", ouID)
-			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
+			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
 		default:
 			log.Error("RotateLLMProviderAPIKey: failed to rotate API key", "ouID", ouID, "providerID", providerID, "keyName", keyName, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to rotate API key")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to rotate API key")
 			return
 		}
 	}
 
 	log.Info("RotateLLMProviderAPIKey: API key rotated successfully", "ouID", ouID, "providerID", providerID, "keyName", keyName)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }

@@ -25,7 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // llmProviderWith builds the nested LLMProvider literal every test in this file needs,
@@ -746,7 +746,7 @@ func TestValidateProxyAPIKeyLocation(t *testing.T) {
 				return
 			}
 			require.Error(t, err)
-			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		})
 	}
 }

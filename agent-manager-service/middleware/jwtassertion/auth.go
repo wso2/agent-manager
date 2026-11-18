@@ -36,6 +36,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -141,7 +142,7 @@ func BuildClientAuthMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if BuildClientOrg(r.Context()) == "" {
-				utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -279,7 +280,7 @@ func JWTAuthMiddlewareWithResourceMetadataResolver(
 			if tokenString == "" {
 				notifyAuthFailure(r, "missing-header")
 				w.Header().Set("WWW-Authenticate", buildBearerChallenge(metadataURL, ""))
-				utils.WriteErrorResponse(w, http.StatusUnauthorized, fmt.Sprintf("missing header: %s", header))
+				httpx.WriteErrorResponse(w, http.StatusUnauthorized, fmt.Sprintf("missing header: %s", header))
 				return
 			}
 			// replace "Bearer " prefix
@@ -298,7 +299,7 @@ func JWTAuthMiddlewareWithResourceMetadataResolver(
 					"clientIp", utils.ClientIP(r))
 				notifyAuthFailure(r, classifyAuthFailure(err))
 				w.Header().Set("WWW-Authenticate", buildBearerChallenge(metadataURL, "invalid_token"))
-				utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid jwt")
+				httpx.WriteErrorResponse(w, http.StatusUnauthorized, "invalid jwt")
 				return
 			}
 			ctx := r.Context()

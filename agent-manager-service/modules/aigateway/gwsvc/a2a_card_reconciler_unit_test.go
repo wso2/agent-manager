@@ -35,8 +35,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // externalPendingCard is a pending card fetched from the agent's own origin: platform rows can no longer be fetched.
@@ -140,7 +140,7 @@ func TestCardReconcilerSkipsTheReplacementCheckOnAFailedAttempt(t *testing.T) {
 func TestCardReconcilerDropsAReplacedAgentsUndeployedCardAsReplaced(t *testing.T) {
 	h := newCardReconcilerHarness("http://dev-org.gw.example/trip-planner/")
 	h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
-		return nil, utils.ErrNotFound
+		return nil, httpx.ErrNotFound
 	}
 	h.repo.DeleteIfUnchangedFunc = func(context.Context, gwmodels.A2AAgentCard) error { return nil }
 	var logs strings.Builder
@@ -556,7 +556,7 @@ func TestCardReconcilerDropsTheCardOfAReplacedAgent(t *testing.T) {
 		"replaced": {&recorded, func() (*models.AgentResponse, error) {
 			return &models.AgentResponse{UUID: uuid.NewString()}, nil
 		}, true},
-		"deleted": {&recorded, func() (*models.AgentResponse, error) { return nil, utils.ErrNotFound }, true},
+		"deleted": {&recorded, func() (*models.AgentResponse, error) { return nil, httpx.ErrNotFound }, true},
 		"same agent": {&recorded, func() (*models.AgentResponse, error) {
 			return &models.AgentResponse{UUID: recorded.String()}, nil
 		}, false},

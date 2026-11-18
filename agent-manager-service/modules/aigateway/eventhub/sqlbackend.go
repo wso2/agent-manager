@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"gorm.io/gorm"
 )
 

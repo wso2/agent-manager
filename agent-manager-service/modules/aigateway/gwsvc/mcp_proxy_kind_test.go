@@ -32,11 +32,11 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // mcpFixture is an org with an MCP proxy whose one endpoint is bound to env, and the MCP service over the real
@@ -164,7 +164,7 @@ func TestMCPScopeChangeThatFailsToRenderReachesTheCaller(t *testing.T) {
 
 	err := f.svc.RedeployMCPProxy(context.Background(), f.proxy, f.sync.ouID)
 
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	row := f.mcpRow(t, gateway)
 	assert.Equal(t, before, *row.DeploymentID, "no deployment was written")
 	assert.Nil(t, row.NextAttemptAt, "no redeploy was queued")
@@ -258,7 +258,7 @@ func TestMCPSaveThatCannotRenderCommitsNothing(t *testing.T) {
 
 			_, err := f.svc.Create(context.Background(), f.sync.ouID, "me", invalidMCPRequest(handle, env))
 
-			assert.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 			var artifacts int64
 			require.NoError(t, db.GetDB().Table("mod_ai_gateway_artifacts").Where("handle LIKE ?", handle+"%").Count(&artifacts).Error)
 			assert.Zero(t, artifacts, "neither the proxy nor its environment artifact is committed")
@@ -274,7 +274,7 @@ func TestMCPSaveThatCannotRenderCommitsNothing(t *testing.T) {
 			handle := mcpSourceHandle(f.proxy)
 			_, err := f.svc.Update(context.Background(), f.sync.ouID, handle, invalidMCPRequest(handle, f.env))
 
-			assert.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 			stored, err := f.svc.repo.GetByUUID(context.Background(), f.proxy.UUID.String(), f.sync.ouID)
 			require.NoError(t, err)
 			require.Len(t, stored.Endpoints, 1)

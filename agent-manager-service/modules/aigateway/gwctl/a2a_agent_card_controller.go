@@ -24,10 +24,12 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -60,7 +62,7 @@ func (c *a2aAgentCardController) GetAgentCard(w http.ResponseWriter, r *http.Req
 		writeAgentCardError(w, r, err, "Failed to get agent card")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *a2aAgentCardController) RefreshAgentCard(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +79,7 @@ func (c *a2aAgentCardController) SetAgentCardSource(w http.ResponseWriter, r *ht
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req gwspec.SetAgentCardSourceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if err := c.cardService.SetA2ACardSource(r.Context(), ouID, projName, agentName, envName, req.Url); err != nil {
@@ -108,16 +110,16 @@ func writeAgentCardError(w http.ResponseWriter, r *http.Request, err error, fall
 	logger.GetLogger(r.Context()).Warn("Agent card request failed", "path", r.URL.Path, "error", err)
 	switch {
 	case errors.Is(err, utils.ErrAgentCardNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent card not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent card not found")
 	case errors.Is(err, utils.ErrAgentNotDeployedInEnvironment):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent is not deployed in this environment")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent is not deployed in this environment")
 	case errors.Is(err, utils.ErrAgentNotA2A),
 		errors.Is(err, utils.ErrAgentCardSourceNotExternal),
-		errors.Is(err, utils.ErrInvalidURL),
+		errors.Is(err, ssrf.ErrInvalidURL),
 		errors.Is(err, utils.ErrA2ACardURLNotProxyable):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrA2AProxyOriginChangeNeedsAuthReset):
-		utils.WriteErrorResponse(w, http.StatusConflict, utils.ErrA2AProxyOriginChangeNeedsAuthReset.Error())
+		httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrA2AProxyOriginChangeNeedsAuthReset.Error())
 	default:
 		controllers.HandleCommonErrors(w, err, fallback)
 	}

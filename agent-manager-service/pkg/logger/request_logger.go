@@ -20,8 +20,6 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
-
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type loggerKey struct{}
@@ -44,7 +42,7 @@ func RequestLogger() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			correlationID := "unknown"
-			if id := r.Context().Value(utils.CorrelationIdCtxKey()); id != nil {
+			if id := r.Context().Value(CorrelationIdCtxKey()); id != nil {
 				if idStr, ok := id.(string); ok {
 					correlationID = idStr
 				}

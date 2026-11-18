@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -45,7 +46,7 @@ func TestMCPProxyBindableFromProject(t *testing.T) {
 	})
 	t.Run("org proxy not in catalog", func(t *testing.T) {
 		err := mcpProxyBindableFromProject(&gwmodels.MCPProxy{Artifact: &gwmodels.Artifact{InCatalog: false}}, "p-1")
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	})
 	t.Run("project proxy of the same project, not in catalog", func(t *testing.T) {
 		require.NoError(t, mcpProxyBindableFromProject(projectScopedProxy("p-1", "p1"), "p-1"))

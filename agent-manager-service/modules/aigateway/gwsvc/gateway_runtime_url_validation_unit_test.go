@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // The port rule is the load-bearing one: the agent sandbox NetworkPolicy permits egress to
@@ -77,7 +77,7 @@ func TestValidateGatewayRuntimeURL(t *testing.T) {
 			err := validateGatewayRuntimeURL(tt.input)
 			if tt.wantErr {
 				require.Error(t, err)
-				require.ErrorIs(t, err, utils.ErrBadRequest)
+				require.ErrorIs(t, err, httpx.ErrBadRequest)
 				return
 			}
 			require.NoError(t, err)

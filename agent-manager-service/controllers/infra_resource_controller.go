@@ -25,7 +25,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -74,14 +75,14 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListOrganizations: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
 		log.Error("ListOrganizations: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
 
@@ -108,7 +109,7 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 		Limit:         int32(limit),
 		Offset:        int32(offset),
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, orgResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, orgResponse)
 }
 
 func (c *infraResourceController) GetOrganization(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +131,7 @@ func (c *infraResourceController) GetOrganization(w http.ResponseWriter, r *http
 	}
 
 	orgResponse := utils.ConvertToOrganizationResponse(org)
-	utils.WriteSuccessResponse(w, http.StatusOK, orgResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, orgResponse)
 }
 
 func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Request) {
@@ -154,14 +155,14 @@ func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Re
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListProjects: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
 		log.Error("ListProjects: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
 
@@ -178,7 +179,7 @@ func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Re
 		Limit:    int32(limit),
 		Offset:   int32(offset),
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, projectResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, projectResponse)
 }
 
 func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.Request) {
@@ -192,19 +193,19 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 	var payload spec.CreateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("CreateProject: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := utils.ValidateResourceName(payload.Name, "project"); err != nil {
 		log.Error("CreateProject: invalid project name", "projectName", payload.Name, "error", err)
-		utils.WriteValidationErrorResponse(w, err)
+		httpx.WriteValidationErrorResponse(w, err)
 		return
 	}
 
 	if err := utils.ValidateResourceDisplayName(payload.DisplayName, "project"); err != nil {
 		log.Error("CreateProject: invalid project display name", "projectDisplayName", payload.DisplayName, "error", err)
-		utils.WriteValidationErrorResponse(w, err)
+		httpx.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -223,7 +224,7 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 		CreatedAt:          project.CreatedAt,
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusAccepted, projectResponse)
+	httpx.WriteSuccessResponse(w, http.StatusAccepted, projectResponse)
 }
 
 func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.Request) {
@@ -238,13 +239,13 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 	var payload spec.UpdateProjectRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("UpdateProject: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := utils.ValidateProjectUpdatePayload(payload); err != nil {
 		log.Error("UpdateProject: invalid project payload", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
+		httpx.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -264,7 +265,7 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 		CreatedAt:          project.CreatedAt,
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, projectResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, projectResponse)
 }
 
 func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.Request) {
@@ -285,7 +286,7 @@ func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.R
 		c.eventsCleaner.RemoveForProject(ctx, ouID, projectName)
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, "")
 }
 
 func (c *infraResourceController) GetProject(w http.ResponseWriter, r *http.Request) {
@@ -300,20 +301,20 @@ func (c *infraResourceController) GetProject(w http.ResponseWriter, r *http.Requ
 	if err != nil {
 		log.Error("GetProject: failed to get project", "error", err)
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 			return
 		}
 		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get project")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get project")
 		return
 	}
 
 	projectResponse := utils.ConvertToProjectResponse(project)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, projectResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, projectResponse)
 }
 
 func (c *infraResourceController) ListOrgEnvironments(w http.ResponseWriter, r *http.Request) {
@@ -330,5 +331,5 @@ func (c *infraResourceController) ListOrgEnvironments(w http.ResponseWriter, r *
 		return
 	}
 	environmentsListResponse := utils.ConvertToEnvironmentListResponse(environments)
-	utils.WriteSuccessResponse(w, http.StatusOK, environmentsListResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, environmentsListResponse)
 }

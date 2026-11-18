@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -48,15 +49,15 @@ func NewLLMProviderTemplateService(
 // Create creates a new LLM provider template
 func (s *LLMProviderTemplateService) Create(ouID, createdBy string, template *gwmodels.LLMProviderTemplate) (*gwmodels.LLMProviderTemplate, error) {
 	if template == nil {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 	if template.Handle == "" || template.Name == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	// Validate template handle format
 	if err := utils.ValidateTemplateHandle(template.Handle); err != nil {
-		return nil, errors.Join(utils.ErrInvalidInput, err)
+		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	// Check if handle conflicts with built-in template
@@ -142,12 +143,12 @@ func (s *LLMProviderTemplateService) List(ouID string, limit, offset int) ([]*gw
 // Get retrieves an LLM provider template by ID (checks built-in first, then user templates)
 func (s *LLMProviderTemplateService) Get(ouID, templateID string) (*gwmodels.LLMProviderTemplate, error) {
 	if templateID == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	// Validate template handle format
 	if err := utils.ValidateTemplateHandle(templateID); err != nil {
-		return nil, errors.Join(utils.ErrInvalidInput, err)
+		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	// First check built-in templates
@@ -175,15 +176,15 @@ func (s *LLMProviderTemplateService) Get(ouID, templateID string) (*gwmodels.LLM
 // Update updates an existing LLM provider template
 func (s *LLMProviderTemplateService) Update(ouID, templateID string, updates *gwmodels.LLMProviderTemplate) (*gwmodels.LLMProviderTemplate, error) {
 	if templateID == "" || updates == nil {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 	if updates.Name == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	// Validate template handle format
 	if err := utils.ValidateTemplateHandle(templateID); err != nil {
-		return nil, errors.Join(utils.ErrInvalidInput, err)
+		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	// Check if this is a system template (cannot be modified)
@@ -229,12 +230,12 @@ func (s *LLMProviderTemplateService) Update(ouID, templateID string, updates *gw
 // Delete deletes an LLM provider template
 func (s *LLMProviderTemplateService) Delete(ouID, templateID string) error {
 	if templateID == "" {
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 
 	// Validate template handle format
 	if err := utils.ValidateTemplateHandle(templateID); err != nil {
-		return errors.Join(utils.ErrInvalidInput, err)
+		return errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	// Check if this is a system template (cannot be deleted)

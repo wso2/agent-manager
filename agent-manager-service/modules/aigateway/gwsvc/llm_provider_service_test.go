@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -181,7 +182,7 @@ func TestLLMProviderService_CreateAndDeploy_RejectsIngressOnlyGateway(t *testing
 		&gwmodels.LLMProvider{}, []string{ingress.UUID.String()}, nil)
 
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, utils.ErrInvalidInput), "expected error to wrap utils.ErrInvalidInput, got: %v", err)
+	assert.True(t, errors.Is(err, httpx.ErrInvalidInput), "expected error to wrap httpx.ErrInvalidInput, got: %v", err)
 	assert.False(t, createCalled, "CreateAndDeploy must not create the provider when the sole named gateway fails placement")
 }
 
@@ -247,7 +248,7 @@ func TestLLMProviderService_CreateAndDeploy_RejectsSameEnvironmentClashWithinReq
 		&gwmodels.LLMProvider{}, []string{first.UUID.String(), second.UUID.String()}, nil)
 
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, utils.ErrInvalidInput), "expected error to wrap utils.ErrInvalidInput, got: %v", err)
+	assert.True(t, errors.Is(err, httpx.ErrInvalidInput), "expected error to wrap httpx.ErrInvalidInput, got: %v", err)
 	assert.False(t, createCalled, "CreateAndDeploy must not create the provider when a named gateway fails placement")
 }
 
@@ -305,7 +306,7 @@ func TestLLMProviderService_UpdateAndSync_RejectsPlacementInvalidGatewayWithoutU
 		&gwmodels.LLMProvider{}, []string{gatewayB.UUID.String()}, deploymentSvc)
 
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, utils.ErrInvalidInput), "expected error to wrap utils.ErrInvalidInput, got: %v", err)
+	assert.True(t, errors.Is(err, httpx.ErrInvalidInput), "expected error to wrap httpx.ErrInvalidInput, got: %v", err)
 	assert.False(t, undeployPathReached, "UpdateAndSync must not attempt to deploy/undeploy any gateway once placement validation hard-fails")
 }
 

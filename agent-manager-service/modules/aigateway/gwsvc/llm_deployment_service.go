@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -166,7 +167,7 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		return nil, fmt.Errorf("failed to list the gateways the provider is placed on: %w", err)
 	}
 	if err := validateEgressPlacement(s.gatewayRepo, gateway, existing); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
 	var applied *reconcile.Applied
@@ -478,13 +479,13 @@ func renderLLMProvider(provider *gwmodels.LLMProvider) (string, error) {
 
 	// Enhanced upstream validation (check both Upstream and Main are non-nil)
 	if provider.Configuration.Upstream == nil || provider.Configuration.Upstream.Main == nil {
-		return "", fmt.Errorf("upstream.main configuration is required: %w", utils.ErrInvalidInput)
+		return "", fmt.Errorf("upstream.main configuration is required: %w", httpx.ErrInvalidInput)
 	}
 
 	main := provider.Configuration.Upstream.Main
 	// Validate that either URL or Ref is provided
 	if main.URL == "" && main.Ref == "" {
-		return "", fmt.Errorf("upstream.main must have either url or ref: %w", utils.ErrInvalidInput)
+		return "", fmt.Errorf("upstream.main must have either url or ref: %w", httpx.ErrInvalidInput)
 	}
 
 	// Template handle is already stored in provider.TemplateHandle

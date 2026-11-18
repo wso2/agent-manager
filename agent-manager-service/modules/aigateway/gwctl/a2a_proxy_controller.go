@@ -22,10 +22,11 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -53,7 +54,7 @@ func (c *a2aProxyController) GetA2AProxy(w http.ResponseWriter, r *http.Request)
 		writeA2AProxyError(w, r, err, "Failed to get the A2A proxy")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK,
+	httpx.WriteSuccessResponse(w, http.StatusOK,
 		gwspec.NewA2AProxyResponse(string(status.Status), status.StatusReason, status.UpstreamAuthHeader, status.GatewayURL))
 }
 
@@ -62,7 +63,7 @@ func (c *a2aProxyController) SetA2AProxy(w http.ResponseWriter, r *http.Request)
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 	var req gwspec.SetA2AProxyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	err := c.proxyService.SetA2AProxy(r.Context(), ouID, projName, agentName, envName, toA2AProxyAuthUpdate(req.UpstreamAuth))
@@ -105,15 +106,15 @@ func writeA2AProxyError(w http.ResponseWriter, r *http.Request, err error, fallb
 	logger.GetLogger(r.Context()).Warn("A2A proxy request failed", "path", r.URL.Path, "error", err)
 	switch {
 	case errors.Is(err, utils.ErrEnvironmentNotProxied):
-		utils.WriteErrorResponse(w, http.StatusNotFound, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, utils.ErrA2AProxyNeedsCardSource):
-		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrAgentNotA2A),
 		errors.Is(err, utils.ErrA2AProxyAgentNotExternal),
 		errors.Is(err, utils.ErrInvalidUpstreamAuth),
 		errors.Is(err, utils.ErrA2AProxyUpstreamAuthNeedsHTTPS),
 		errors.Is(err, utils.ErrA2ACardURLNotProxyable):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	default:
 		controllers.HandleCommonErrors(w, err, fallback)
 	}

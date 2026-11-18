@@ -23,7 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // a2aVersionHeader is the header the gateway requires on every A2A operation.
@@ -65,19 +65,19 @@ func resolveCardCORSOverride(existing *gwmodels.AgentConfig, req *gwspec.AgentCa
 // override (an enabled card needs origins, and cannot pair credentials with "*").
 func validateCardCORS(isA2A bool, req *gwspec.AgentCardCORSConfig, override *gwmodels.CardCORS) error {
 	if req != nil && !isA2A {
-		return fmt.Errorf("%w: agentCardCorsConfig applies only to A2A agents", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: agentCardCorsConfig applies only to A2A agents", httpx.ErrInvalidInput)
 	}
 	if req != nil && !req.GetInherit() && req.Enabled == nil {
-		return fmt.Errorf("%w: agentCardCorsConfig.enabled is required unless inherit is true", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: agentCardCorsConfig.enabled is required unless inherit is true", httpx.ErrInvalidInput)
 	}
 	if override == nil || !override.Enabled {
 		return nil
 	}
 	if len(override.AllowOrigins) == 0 {
-		return fmt.Errorf("%w: agentCardCorsConfig.allowOrigin must list at least one origin when enabled", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: agentCardCorsConfig.allowOrigin must list at least one origin when enabled", httpx.ErrInvalidInput)
 	}
 	if override.AllowCredentials && slices.Contains(override.AllowOrigins, "*") {
-		return fmt.Errorf("%w: agentCardCorsConfig.allowCredentials cannot be true when allowOrigin contains \"*\"", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: agentCardCorsConfig.allowCredentials cannot be true when allowOrigin contains \"*\"", httpx.ErrInvalidInput)
 	}
 	return nil
 }

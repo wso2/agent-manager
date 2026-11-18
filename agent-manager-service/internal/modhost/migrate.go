@@ -32,8 +32,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
 // migration is one module migration file for the current database.

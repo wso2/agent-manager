@@ -25,9 +25,11 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
+
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -544,7 +546,7 @@ func (r *GatewayRepo) EnvironmentMappingExists(gatewayID, environmentID string) 
 // keyed by (gateway_id, name). The reserved internal provider is never mirrored.
 func (r *GatewayRepo) UpsertIdentityProvider(provider *gwmodels.GatewayIdentityProvider) error {
 	if provider.Name == models.ReservedIdentityProviderName {
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 	if provider.OrgID == uuid.Nil {
 		orgID, err := r.gatewayOrgID(r.db, provider.GatewayUUID)
@@ -568,7 +570,7 @@ func (r *GatewayRepo) UpsertIdentityProvider(provider *gwmodels.GatewayIdentityP
 // name. System providers (and the reserved internal provider) cannot be deleted.
 func (r *GatewayRepo) DeleteIdentityProvider(gatewayID, name string) error {
 	if name == models.ReservedIdentityProviderName || models.IsSystemIdentityProvider(name) {
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 	var existing gwmodels.GatewayIdentityProvider
 	err := r.db.Where("gateway_id = ? AND name = ?", gatewayID, name).First(&existing).Error
@@ -576,7 +578,7 @@ func (r *GatewayRepo) DeleteIdentityProvider(gatewayID, name string) error {
 		return err
 	}
 	if existing.Type == gwmodels.IdentityProviderTypeSystem {
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 	return r.db.Where("gateway_id = ? AND name = ?", gatewayID, name).
 		Delete(&gwmodels.GatewayIdentityProvider{}).Error

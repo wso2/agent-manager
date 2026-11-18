@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -913,7 +914,7 @@ func TestProvisionForEnvironmentIfMissing_CPManagedRequiresPromotion(t *testing.
 
 	assert.False(t, alreadyExisted)
 	assert.ErrorIs(t, err, ErrProjectAgentIdentityDefaultEnvironmentOnly)
-	assert.ErrorIs(t, err, utils.ErrConflict)
+	assert.ErrorIs(t, err, httpx.ErrConflict)
 }
 
 // TestProvisionForAgent_AwaitEnvAttemptsInline guards the first-deploy single
@@ -1084,7 +1085,7 @@ func TestRegenerateSecret_Internal_CreateSecretErrorPropagatesDirectly_NoInjecto
 	store := &clientmocks.SecretManagementClientMock{
 		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
 			createCalls++
-			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w: %w", secretmanagersvc.ErrReferenceNameTaken, utils.ErrNotFound)
+			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w: %w", secretmanagersvc.ErrReferenceNameTaken, httpx.ErrNotFound)
 		},
 	}
 	repo := &repomocks.AgentThunderClientRepositoryMock{
@@ -1100,7 +1101,7 @@ func TestRegenerateSecret_Internal_CreateSecretErrorPropagatesDirectly_NoInjecto
 	_, _, _, err := svc.RegenerateSecret(context.Background(), "acme", "proj1", "my-agent", "staging")
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, utils.ErrNotFound)
+	assert.ErrorIs(t, err, httpx.ErrNotFound)
 	assert.Equal(t, 1, createCalls, "no retry — the error propagates on the first and only attempt")
 }
 
@@ -2560,7 +2561,7 @@ func TestStoreCredential_PlainNotFound_IsNotRetried(t *testing.T) {
 	store := &clientmocks.SecretManagementClientMock{
 		CreateSecretFunc: func(context.Context, secretmanagersvc.SecretLocation, map[string]string) (string, error) {
 			createCalls++
-			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w", utils.ErrNotFound)
+			return "", fmt.Errorf("failed to upsert secret: failed to update secret after create conflict: %w", httpx.ErrNotFound)
 		},
 	}
 	repo := &repomocks.AgentThunderClientRepositoryMock{
@@ -2576,7 +2577,7 @@ func TestStoreCredential_PlainNotFound_IsNotRetried(t *testing.T) {
 	_, _, _, err := svc.RegenerateSecret(context.Background(), "acme", "proj1", "my-agent", "staging")
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, utils.ErrNotFound)
+	assert.ErrorIs(t, err, httpx.ErrNotFound)
 	assert.Equal(t, 1, createCalls, "no retry without the provider's sentinel")
 }
 

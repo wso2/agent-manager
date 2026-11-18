@@ -20,14 +20,7 @@ package utils
 // These codes are stable and should not change once defined.
 const (
 	// Client error codes (4xx)
-	ErrCodeValidation     = "VALIDATION_ERROR"
-	ErrCodeNotFound       = "NOT_FOUND"
-	ErrCodeConflict       = "CONFLICT"
-	ErrCodeBadRequest     = "BAD_REQUEST"
-	ErrCodeUnauthorized   = "UNAUTHORIZED"
-	ErrCodeForbidden      = "FORBIDDEN"
 	ErrCodeImmutableField = "IMMUTABLE_FIELD"
-	ErrCodeInvalidInput   = "INVALID_INPUT"
 	// ErrCodeHandleInUse: the MCP proxy handle belongs to an org-level or another project's proxy.
 	ErrCodeHandleInUse = "HANDLE_IN_USE"
 	// ErrCodeProjectOwned: an org route tried to mutate a project-scoped MCP proxy.
@@ -40,11 +33,6 @@ const (
 	ErrCodeContextInUse = "CONTEXT_IN_USE"
 	// ErrCodeAmbiguousGateway: the binding's environment has several egress gateways and no gatewayId was given.
 	ErrCodeAmbiguousGateway = "AMBIGUOUS_GATEWAY"
-
-	// Server error codes (5xx)
-	ErrCodeInternalError      = "INTERNAL_ERROR"
-	ErrCodeServiceUnavailable = "SERVICE_UNAVAILABLE"
-	ErrCodeNotImplemented     = "NOT_IMPLEMENTED"
 
 	// Resource-specific error codes
 	ErrCodeAgentNotFound           = "AGENT_NOT_FOUND"

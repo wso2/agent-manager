@@ -22,8 +22,9 @@ import (
 	"strconv"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -50,15 +51,15 @@ func NewEnvironmentController(environmentService services.EnvironmentService) En
 func HandleEnvironmentErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 	case errors.Is(err, utils.ErrResourceBeingDeleted):
-		utils.WriteErrorResponse(w, http.StatusConflict, "An environment with this name is still being deleted, try again shortly")
-	case errors.Is(err, utils.ErrConflict):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Environment already exists")
-	case errors.Is(err, utils.ErrInvalidInput):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+		httpx.WriteErrorResponse(w, http.StatusConflict, "An environment with this name is still being deleted, try again shortly")
+	case errors.Is(err, httpx.ErrConflict):
+		httpx.WriteErrorResponse(w, http.StatusConflict, "Environment already exists")
+	case errors.Is(err, httpx.ErrInvalidInput):
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 	default:
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
 	}
 }
 
@@ -77,7 +78,7 @@ func (c *environmentController) GetEnvironment(w http.ResponseWriter, r *http.Re
 	}
 
 	response := convertToSpecEnvironmentResponse(env)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.Request) {
@@ -92,18 +93,18 @@ func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.
 
 	// Validate limits
 	if limit < utils.MinLimit || limit > utils.MaxLimit {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid limit parameter")
 		return
 	}
 	if offset < 0 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter")
 		return
 	}
 
 	envList, err := c.environmentService.ListEnvironments(ctx, ouID, int32(limit), int32(offset))
 	if err != nil {
 		log.Error("ListEnvironments: failed to list environments", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list environments")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list environments")
 		return
 	}
 
@@ -113,7 +114,7 @@ func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.
 		specEnvs[i] = convertToSpecEnvironmentResponse(&env)
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, specEnvs)
+	httpx.WriteSuccessResponse(w, http.StatusOK, specEnvs)
 }
 
 // Helper function to get int query param with default value
@@ -155,9 +156,9 @@ func (c *environmentController) ListThunderInstances(w http.ResponseWriter, r *h
 	result, err := c.environmentService.ListThunderInstances(ctx, ouID)
 	if err != nil {
 		log.Error("ListThunderInstances: failed to list thunder instances", "ouID", ouID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list Thunder instances")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list Thunder instances")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, result)
+	httpx.WriteSuccessResponse(w, http.StatusOK, result)
 }

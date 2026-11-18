@@ -24,10 +24,11 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -63,12 +64,12 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 
 	// Validate parameters
 	if limit < utils.MinLimit || limit > utils.MaxLimit {
-		utils.WriteErrorResponse(w, http.StatusBadRequest,
+		httpx.WriteErrorResponse(w, http.StatusBadRequest,
 			fmt.Sprintf("Invalid limit parameter. Must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 	if offset < 0 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter. Must be non-negative")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid offset parameter. Must be non-negative")
 		return
 	}
 
@@ -76,7 +77,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	if kind != "" && !isValidCatalogKind(kind) {
 		validKinds := validCatalogKinds()
 		log.Error("ListCatalog: invalid kind parameter", "kind", kind)
-		utils.WriteErrorResponse(w, http.StatusBadRequest,
+		httpx.WriteErrorResponse(w, http.StatusBadRequest,
 			fmt.Sprintf("Invalid kind parameter. Must be one of: %s", strings.Join(validKinds, ", ")))
 		return
 	}
@@ -84,7 +85,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	// Validate name parameter length if provided
 	if name != "" && len(name) > 255 {
 		log.Error("ListCatalog: name parameter too long", "length", len(name))
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Name parameter exceeds maximum length of 255 characters")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Name parameter exceeds maximum length of 255 characters")
 		return
 	}
 
@@ -93,12 +94,12 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 		// Prevent DoS by checking length before parsing
 		if len(environmentUUID) > 100 {
 			log.Error("ListCatalog: environment UUID parameter too long", "length", len(environmentUUID))
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment UUID format")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment UUID format")
 			return
 		}
 		if _, err := uuid.Parse(environmentUUID); err != nil {
 			log.Error("ListCatalog: invalid environment UUID format", "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment UUID format")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid environment UUID format")
 			return
 		}
 	}
@@ -113,7 +114,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 		gatewayHosting = gwmodels.GatewayHostingSelfHosted
 	default:
 		log.Error("ListCatalog: invalid gatewayHosting parameter", "gatewayHosting", hosting)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid gatewayHosting parameter. Must be one of: %s, %s",
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid gatewayHosting parameter. Must be one of: %s, %s",
 			gwspec.GATEWAYHOSTING_MANAGED, gwspec.GATEWAYHOSTING_SELF_HOSTED))
 		return
 	}
@@ -134,13 +135,13 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 		llmEntries, total, err := c.catalogService.ListLLMProviders(ctx, filters)
 		if err != nil {
 			log.Error("ListCatalog: failed to list LLM providers", "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list catalog entries")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list catalog entries")
 			return
 		}
 
 		// Convert to spec response
 		response := convertToLLMProviderCatalogResponse(llmEntries, int32(total), int32(limit), int32(offset))
-		utils.WriteSuccessResponse(w, http.StatusOK, response)
+		httpx.WriteSuccessResponse(w, http.StatusOK, response)
 		return
 	}
 
@@ -148,13 +149,13 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	entries, total, err := c.catalogService.ListCatalog(ctx, ouID, kind, limit, offset)
 	if err != nil {
 		log.Error("ListCatalog: failed to list catalog", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list catalog entries")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list catalog entries")
 		return
 	}
 
 	// Convert to spec response
 	response := convertToCatalogListResponse(entries, int32(total), int32(limit), int32(offset))
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func convertToCatalogListResponse(entries []gwmodels.CatalogEntry, total, limit, offset int32) *gwspec.CatalogListResponse {

@@ -23,7 +23,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // policyByName returns the policy map with the given name from a policy slice, or nil.
@@ -66,7 +66,7 @@ func TestValidateAuthExclusivity(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error, got nil")
 				}
-				if !errors.Is(err, utils.ErrInvalidInput) {
+				if !errors.Is(err, httpx.ErrInvalidInput) {
 					t.Fatalf("expected ErrInvalidInput, got %v", err)
 				}
 			} else if err != nil {
@@ -276,7 +276,7 @@ func TestValidateOAuthSecurityConfig(t *testing.T) {
 				if err == nil {
 					t.Fatalf("expected error, got nil")
 				}
-				if !errors.Is(err, utils.ErrInvalidInput) {
+				if !errors.Is(err, httpx.ErrInvalidInput) {
 					t.Fatalf("expected ErrInvalidInput, got %v", err)
 				}
 			} else if err != nil {

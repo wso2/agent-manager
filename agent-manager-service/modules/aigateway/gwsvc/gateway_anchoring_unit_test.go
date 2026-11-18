@@ -32,7 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // This file covers the six newly-anchored gateway resolution sites end to end, each
@@ -308,7 +308,7 @@ func TestMCPSave_PinnedExemptGatewayGoneIsA400(t *testing.T) {
 	err := f.save()
 
 	require.Error(t, err)
-	require.ErrorIs(t, mcpDeployRejection(err), utils.ErrInvalidInput)
+	require.ErrorIs(t, mcpDeployRejection(err), httpx.ErrInvalidInput)
 	assert.Empty(t, f.hub.published)
 }
 
@@ -328,7 +328,7 @@ func TestMCPSave_PinnedExemptGatewayGoneIsA400WhateverTheEnvironmentUUIDSpelling
 	err = f.save()
 
 	require.Error(t, err)
-	require.ErrorIs(t, mcpDeployRejection(err), utils.ErrInvalidInput)
+	require.ErrorIs(t, mcpDeployRejection(err), httpx.ErrInvalidInput)
 	assert.Empty(t, f.hub.published)
 }
 

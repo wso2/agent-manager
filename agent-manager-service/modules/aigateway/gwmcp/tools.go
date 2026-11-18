@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -225,7 +226,7 @@ func wrapToolError(toolName string, err error) error {
 		return fmt.Errorf("%s: MCP proxy not found. Call list_mcp_proxies to see valid proxies", toolName)
 	case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
 		return fmt.Errorf("%s: the agent already has a configuration with this name. Pass a different config_name", toolName)
-	case errors.Is(err, utils.ErrNotFound):
+	case errors.Is(err, httpx.ErrNotFound):
 		msg := strings.ToLower(err.Error())
 		switch {
 		case strings.Contains(msg, "namespace not found") || strings.Contains(msg, "organization not found"):

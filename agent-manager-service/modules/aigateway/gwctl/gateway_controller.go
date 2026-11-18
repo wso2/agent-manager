@@ -32,12 +32,13 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -176,31 +177,31 @@ func (c *gatewayController) resolveEnvironment(ctx context.Context, ouID, envIde
 func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, utils.ErrGatewayNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 	case errors.Is(err, utils.ErrGatewayAlreadyExists):
-		utils.WriteErrorResponse(w, http.StatusConflict, "A gateway with this name already exists")
+		httpx.WriteErrorResponse(w, http.StatusConflict, "A gateway with this name already exists")
 	case errors.Is(err, utils.ErrGatewayHasDeployments):
-		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayIngressCapExceeded):
-		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayEnvironmentFixed):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", utils.ErrCodeGatewayEnvironmentFixed)
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", utils.ErrCodeGatewayEnvironmentFixed)
 	case errors.Is(err, utils.ErrGatewayTokenLimitReached):
-		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrGatewayTokenNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
-	case errors.Is(err, utils.ErrBadRequest):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
+	case errors.Is(err, httpx.ErrBadRequest):
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
-	case utils.IsValidationError(err) != nil:
-		utils.WriteValidationErrorResponse(w, err)
-	case errors.Is(err, utils.ErrInvalidInput):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+	case httpx.IsValidationError(err) != nil:
+		httpx.WriteValidationErrorResponse(w, err)
+	case errors.Is(err, httpx.ErrInvalidInput):
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid input")
 	case errors.Is(err, gorm.ErrRecordNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Resource not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Resource not found")
 	default:
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, fallbackMsg)
 	}
 }
 
@@ -217,7 +218,7 @@ func refusedForeignBodyOrg(w http.ResponseWriter, r *http.Request, bodyOrg *stri
 		audit.Org(callerOUID),
 		audit.Detail("requestedOrgId", *bodyOrg),
 	)
-	utils.WriteErrorResponse(w, http.StatusForbidden, "orgId does not match the caller's organization")
+	httpx.WriteErrorResponse(w, http.StatusForbidden, "orgId does not match the caller's organization")
 	return true
 }
 
@@ -227,7 +228,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 	var req gwspec.CreateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("RegisterGateway: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -241,11 +242,11 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		envs, err := c.ocClient.ListEnvironments(ctx, ouID)
 		if err != nil {
 			log.Error("environment validation failed: failed to list environments")
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "environment validation erro")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "environment validation erro")
 			return
 		}
 		if len(envs) == 0 {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "no environments registered")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "no environments registered")
 			return
 		}
 		envMap := make(map[string]string)
@@ -255,7 +256,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		for _, envId := range req.EnvironmentIds {
 			if _, ok := envMap[envId]; !ok {
 				log.Error("environment validation failed: environment not found", "envId", envId)
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "environment validation failed")
+				httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment validation failed")
 				return
 			}
 		}
@@ -308,7 +309,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 
 	// Convert to spec response
 	response := convertGatewayToSpecResponse(gateway, ouID, environments)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
@@ -330,7 +331,7 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gateway.ID)
 
 	response := convertGatewayToSpecResponse(gateway, ouID, environments)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // impersonatedOUID returns the organization a trusted caller asked to act on
@@ -386,7 +387,7 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 			// A 400 rather than a 404: the collection exists, the filter value does
 			// not. listGateways declares 400 but no 404.
 			log.Error("ListGateways: unknown environment filter", "environment", envParam)
-			utils.WriteErrorResponse(w, http.StatusBadRequest,
+			httpx.WriteErrorResponse(w, http.StatusBadRequest,
 				fmt.Sprintf("Unknown environment %q in 'environment' filter", envParam))
 			return
 		case err != nil:
@@ -405,7 +406,7 @@ func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, c.toSpecGatewayList(ctx, ouID, gatewaysResp, limit, offset))
+	httpx.WriteSuccessResponse(w, http.StatusOK, c.toSpecGatewayList(ctx, ouID, gatewaysResp, limit, offset))
 }
 
 // gatewayPagination reads limit and offset, falling back to the defaults for negative
@@ -468,7 +469,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	var req gwspec.UpdateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateGateway: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -492,7 +493,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gateway.ID)
 
 	response := convertGatewayToSpecResponse(gateway, ouID, environments)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request) {
@@ -518,7 +519,7 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 	}
 	attempt.Complete(ctx, nil)
 
-	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
 func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -588,7 +589,7 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 		}
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, map[string]string{"message": "Gateway assigned successfully"})
+	httpx.WriteSuccessResponse(w, http.StatusCreated, map[string]string{"message": "Gateway assigned successfully"})
 }
 
 func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request) {
@@ -625,7 +626,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 	if err := removeErr; err != nil {
 		log.Error("RemoveGatewayFromEnvironment: failed to remove mapping", "error", err)
 		if errors.Is(err, utils.ErrGatewayServesEnvironment) {
-			utils.WriteErrorResponse(w, http.StatusConflict,
+			httpx.WriteErrorResponse(w, http.StatusConflict,
 				"The gateway still serves this environment's agents or proxies; undeploy them from this gateway, or remove the LLM configuration from the agents and monitors in this environment, first")
 			return
 		}
@@ -634,18 +635,18 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 			return
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) || strings.Contains(err.Error(), "mapping not found") {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway-environment mapping not found")
 			return
 		}
 		if strings.Contains(err.Error(), "invalid") {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove gateway from environment")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove gateway from environment")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
 func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *http.Request) {
@@ -666,7 +667,7 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 		Environments: specEnvs,
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Request) {
@@ -695,7 +696,7 @@ func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Re
 		"checkedAt": gateway.UpdatedAt,
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Request) {
@@ -726,7 +727,7 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 	}
 
 	response := gwspec.NewGatewayTokenListResponse(int32(svcResp.Count), tokenInfos)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Request) {
@@ -745,7 +746,7 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 		var req gwspec.RotateGatewayTokenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("RotateGatewayToken: failed to decode request", "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 		if refusedForeignBodyOrg(w, r, req.OrgId, ouID) {
@@ -785,7 +786,7 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 		ExpiresAt: nil, // Token doesn't have expiry in current implementation
 	}
 
-	utils.WriteSuccessResponse(w, successStatus, response)
+	httpx.WriteSuccessResponse(w, successStatus, response)
 }
 
 func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
@@ -838,7 +839,7 @@ func (c *gatewayController) GetGatewayStatus(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, statusResp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, statusResp)
 }
 
 // getGatewayEnvironmentsFromDB retrieves environments associated with a gateway

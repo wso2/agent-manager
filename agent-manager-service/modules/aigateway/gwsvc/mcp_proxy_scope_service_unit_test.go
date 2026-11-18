@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -168,7 +169,7 @@ func TestMCPProxyScopeCreate_ValidatesAction(t *testing.T) {
 	for _, action := range []string{"", "has space", "with:colon", "with/slash", strings.Repeat("a", 101)} {
 		_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
 			gwmodels.MCPProxyScopeInput{Action: action, Tools: []string{"list_repos"}})
-		assert.ErrorIs(t, err, utils.ErrInvalidInput, "action %q", action)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput, "action %q", action)
 	}
 }
 
@@ -176,7 +177,7 @@ func TestMCPProxyScopeCreate_StrictToolValidationWhenCapabilitiesKnown(t *testin
 	svc := newScopeSvcForTest(&gwrepomocks.MCPProxyScopeRepositoryMock{}, scopeTestProxy("gh-proxy", "list_repos", "get_repo"))
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
 		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos", "not_a_tool"}})
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.Contains(t, err.Error(), "not_a_tool")
 }
 
@@ -202,7 +203,7 @@ func TestMCPProxyScopeCreate_DuplicateActionConflicts(t *testing.T) {
 	svc := newScopeSvcForTest(scopeRepo, scopeTestProxy("gh-proxy", "list_repos"))
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
 		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos"}})
-	assert.ErrorIs(t, err, utils.ErrConflict)
+	assert.ErrorIs(t, err, httpx.ErrConflict)
 }
 
 func TestMCPProxyScopeCreate_UnknownProxy404(t *testing.T) {

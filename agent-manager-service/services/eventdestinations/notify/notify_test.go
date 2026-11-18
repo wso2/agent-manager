@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // sampleURLs holds a valid URL of each offered service; the tokens in them
@@ -93,7 +93,7 @@ func TestNormalizeConfig(t *testing.T) {
 		"self-hosted on loopback": `{"service":"gotify","url":"gotify://localhost/Aaa.bbb"}`,
 	} {
 		_, err := d.NormalizeConfig(ctx, json.RawMessage(raw))
-		assert.ErrorIs(t, err, utils.ErrInvalidInput, name)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput, name)
 	}
 
 	_, err = New(true).NormalizeConfig(ctx, json.RawMessage(`{"service":"gotify","url":"gotify://localhost/Aaa.bbb"}`))

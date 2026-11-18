@@ -25,15 +25,16 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 const a2aCardSourceURLMaxLen = 2048
@@ -248,18 +249,18 @@ func a2aCapable(agent *models.AgentResponse) bool {
 	return isExternalProvisioned(agent) || utils.IsA2AAgentSubType(agent.Type.SubType)
 }
 
-// validateCardSourceURL wraps every rejection in utils.ErrInvalidURL.
+// validateCardSourceURL wraps every rejection in ssrf.ErrInvalidURL.
 func validateCardSourceURL(ctx context.Context, sourceURL string) error {
 	if sourceURL == "" {
-		return fmt.Errorf("%w: url is required", utils.ErrInvalidURL)
+		return fmt.Errorf("%w: url is required", ssrf.ErrInvalidURL)
 	}
 	if utf8.RuneCountInString(sourceURL) > a2aCardSourceURLMaxLen {
-		return fmt.Errorf("%w: url must be at most %d characters", utils.ErrInvalidURL, a2aCardSourceURLMaxLen)
+		return fmt.Errorf("%w: url must be at most %d characters", ssrf.ErrInvalidURL, a2aCardSourceURLMaxLen)
 	}
 	if err := ssrf.ValidateURL(ctx, sourceURL); errors.Is(err, ssrf.ErrHostNotPublic) {
-		return fmt.Errorf("%w: %s", utils.ErrInvalidURL, a2aCardHostNotPublicMsg)
+		return fmt.Errorf("%w: %s", ssrf.ErrInvalidURL, a2aCardHostNotPublicMsg)
 	} else if err != nil {
-		return fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+		return fmt.Errorf("%w: %w", ssrf.ErrInvalidURL, err)
 	}
 	return nil
 }

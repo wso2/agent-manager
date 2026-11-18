@@ -25,8 +25,8 @@ import (
 	"sync"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // MCPResourceServerRequest names one MCP proxy's resource server in one environment.
@@ -218,13 +218,13 @@ type checkedMCPResourceServerProvider struct {
 func checkMCPResourceServerRequest(request MCPResourceServerRequest, needIdentifier bool) error {
 	switch {
 	case strings.TrimSpace(request.OrganizationID) == "":
-		return fmt.Errorf("%w: the organization unit ID is required for an MCP resource server", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: the organization unit ID is required for an MCP resource server", httpx.ErrInvalidInput)
 	case strings.TrimSpace(request.ProxyHandle) == "":
-		return fmt.Errorf("%w: the proxy handle is required for an MCP resource server", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: the proxy handle is required for an MCP resource server", httpx.ErrInvalidInput)
 	case strings.TrimSpace(request.Environment) == "":
-		return fmt.Errorf("%w: the environment is required for an MCP resource server", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: the environment is required for an MCP resource server", httpx.ErrInvalidInput)
 	case needIdentifier && strings.TrimSpace(request.Identifier) == "":
-		return fmt.Errorf("%w: the identifier is required to ensure an MCP resource server", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: the identifier is required to ensure an MCP resource server", httpx.ErrInvalidInput)
 	}
 	return nil
 }
@@ -241,7 +241,7 @@ func (p checkedMCPResourceServerProvider) RemoveMCPResourceServerAction(ctx cont
 		return err
 	}
 	if strings.TrimSpace(action) == "" {
-		return fmt.Errorf("%w: the action is required to remove an MCP resource server action", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: the action is required to remove an MCP resource server action", httpx.ErrInvalidInput)
 	}
 	return p.next.RemoveMCPResourceServerAction(ctx, request, action)
 }

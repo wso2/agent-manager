@@ -30,7 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // recordingMCPProvider records what a deployment's provider is asked to do.
@@ -245,13 +245,13 @@ func TestMCPResourceServerRequestsAreCheckedBeforeTheProvider(t *testing.T) {
 			request := valid
 			mutate(&request)
 			_, err := checked.EnsureMCPResourceServer(ctx, request)
-			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		})
 	}
 	require.Empty(t, provider.ensured, "an invalid request never reaches the provider")
 
-	require.ErrorIs(t, checked.RemoveMCPResourceServerAction(ctx, valid, " "), utils.ErrInvalidInput)
-	require.ErrorIs(t, checked.DeleteMCPResourceServer(ctx, MCPResourceServerRequest{ProxyHandle: "deepwiki", Environment: "dev"}), utils.ErrInvalidInput)
+	require.ErrorIs(t, checked.RemoveMCPResourceServerAction(ctx, valid, " "), httpx.ErrInvalidInput)
+	require.ErrorIs(t, checked.DeleteMCPResourceServer(ctx, MCPResourceServerRequest{ProxyHandle: "deepwiki", Environment: "dev"}), httpx.ErrInvalidInput)
 	require.Empty(t, provider.removed)
 	require.Empty(t, provider.deleted)
 

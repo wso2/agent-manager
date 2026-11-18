@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -298,7 +299,7 @@ func TestMCPConfig_SelfHostedRefusalAppliesNothing(t *testing.T) {
 	_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1", gwmodels.UpdateAgentModelConfigRequest{
 		EnvMappings: map[string]gwmodels.EnvModelConfigRequest{"managed": {ProviderName: "proxy1"}, "selfhosted": {ProviderName: "proxy1"}},
 	})
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	require.ErrorContains(t, err, "self-hosted gateway in environment selfhosted")
 	assert.False(t, scopeRecorded, "the connection scope must not be recorded for a refused update")
 }
@@ -310,7 +311,7 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
 			gwmodels.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", platformAgentPolicy)
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
 	})
 
@@ -318,7 +319,7 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
 			gwmodels.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", platformAgentPolicy)
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	})
 
 	t.Run("update", func(t *testing.T) {
@@ -326,7 +327,7 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 		existing := &gwmodels.AgentConfiguration{UUID: uuid.New(), OUID: f.ouID, Name: "cfg1"}
 		_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1",
 			gwmodels.UpdateAgentModelConfigRequest{EnvMappings: mappings})
-		require.ErrorIs(t, err, utils.ErrInvalidInput)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
 		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
 	})
 }
@@ -458,7 +459,7 @@ func TestMCPConfig_ExternalAgentRefusedForIdentityProxyOnSelfHosted(t *testing.T
 	_, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, map[string]*gwmodels.MCPProxy{"dev": proxy}, envMap, externalAgentPolicy)
 
 	require.ErrorIs(t, err, errMCPIdentityOnSelfHostedGateway)
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	require.ErrorContains(t, err, "environment dev")
 }
 

@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -123,7 +124,7 @@ func TestA2AProxyErrorsMapToStatusCodes(t *testing.T) {
 		utils.ErrInvalidUpstreamAuth:            http.StatusBadRequest,
 		utils.ErrA2AProxyAgentNotExternal:       http.StatusBadRequest,
 		utils.ErrAgentNotA2A:                    http.StatusBadRequest,
-		utils.ErrForbidden:                      http.StatusForbidden,
+		httpx.ErrForbidden:                      http.StatusForbidden,
 		audit.ErrRecorderUnavailable:            http.StatusServiceUnavailable,
 	} {
 		t.Run(sentinel.Error(), func(t *testing.T) {

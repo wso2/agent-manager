@@ -20,15 +20,15 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // writeIfNotImplemented answers 501 for an operation that needs a capability
 // this deployment does not provide, and reports whether it wrote a response.
 func writeIfNotImplemented(w http.ResponseWriter, err error) bool {
-	if !errors.Is(err, utils.ErrNotImplemented) {
+	if !errors.Is(err, httpx.ErrNotImplemented) {
 		return false
 	}
-	utils.WriteErrorResponse(w, http.StatusNotImplemented, err.Error())
+	httpx.WriteErrorResponse(w, http.StatusNotImplemented, err.Error())
 	return true
 }

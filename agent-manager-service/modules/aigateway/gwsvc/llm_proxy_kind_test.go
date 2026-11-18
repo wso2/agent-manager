@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -139,7 +140,7 @@ func TestAgentConfigProxyWithAnInvalidSecurityConfigCommitsNothing(t *testing.T)
 		env := uuid.New()
 		gateway := f.mapGateway(t, env)
 		_, err := f.proxies.DeployForEnvironment(context.Background(), proxy, f.sync.ouID, env, gateway)
-		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 		assert.Nil(t, f.row(t, proxy, gateway))
 	})
 	t.Run("without a gateway", func(t *testing.T) {
@@ -151,7 +152,7 @@ func TestAgentConfigProxyWithAnInvalidSecurityConfigCommitsNothing(t *testing.T)
 			_, err := f.proxies.core.DeployRecord(context.Background(), tx, f.kind, record)
 			return err
 		})
-		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	})
 	assert.Empty(t, f.hub.published)
 }
@@ -306,7 +307,7 @@ func TestPublicDeployRefusesASecondGatewayOfAPlacedEnvironment(t *testing.T) {
 
 		_, err = f.proxies.DeployLLMProxy(proxy.Handle, &gwmodels.DeployAPIRequest{GatewayID: second.String()}, f.sync.ouID)
 
-		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	})
 	t.Run("LLM provider", func(t *testing.T) {
 		_, err := f.deployment.DeployLLMProvider(f.provider.UUID.String(),
@@ -316,7 +317,7 @@ func TestPublicDeployRefusesASecondGatewayOfAPlacedEnvironment(t *testing.T) {
 		_, err = f.deployment.DeployLLMProvider(f.provider.UUID.String(),
 			&gwmodels.DeployAPIRequest{GatewayID: second.String()}, f.sync.ouID)
 
-		assert.ErrorIs(t, err, utils.ErrInvalidInput)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	})
 }
 

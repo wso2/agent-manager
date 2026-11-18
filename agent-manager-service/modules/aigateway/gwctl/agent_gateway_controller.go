@@ -23,11 +23,12 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -53,11 +54,11 @@ func (c *AgentGatewayController) UpdateAgentDeploySettings(w http.ResponseWriter
 	var payload gwspec.UpdateAgentDeploySettingsRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("UpdateAgentDeploySettings: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if payload.EnvironmentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
 		return
 	}
 	events.SetEnvironment(ctx, payload.EnvironmentName)
@@ -87,7 +88,7 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 	}
 
 	deploymentResponses := gwconv.ConvertToDeploymentDetailsResponse(deployments)
-	utils.WriteSuccessResponse(w, http.StatusOK, deploymentResponses)
+	httpx.WriteSuccessResponse(w, http.StatusOK, deploymentResponses)
 }
 
 // GetAgentConfigurations returns the agent's gateway settings in an environment
@@ -121,5 +122,5 @@ func (c *AgentGatewayController) GetAgentConfigurations(w http.ResponseWriter, r
 		}
 		resp.Bindings = append(resp.Bindings, item)
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }

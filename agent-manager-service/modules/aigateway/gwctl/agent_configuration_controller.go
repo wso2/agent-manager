@@ -30,12 +30,13 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -92,19 +93,19 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	var specReq gwspec.CreateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateAgentModelConfig: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if err := utils.ValidateConfigName(specReq.Name); err != nil {
 		log.Warn("CreateAgentModelConfig: invalid name", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
+		httpx.WriteValidationErrorResponse(w, err)
 		return
 	}
 
 	if specReq.Type != gwmodels.AgentConfigTypeLLM {
 		log.Warn("CreateAgentModelConfig: invalid type", "type", specReq.Type)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Type must be llm")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Type must be llm")
 		return
 	}
 
@@ -112,7 +113,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	req, err := convertCreateAgentModelConfigRequest(specReq)
 	if err != nil {
 		log.Error("CreateAgentModelConfig: failed to convert request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
 
@@ -121,42 +122,42 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
-			utils.WriteErrorResponse(w, http.StatusConflict, "Agent configuration already exists")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "Agent configuration already exists")
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
-		case errors.Is(err, utils.ErrUnauthorized):
-			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
+		case errors.Is(err, httpx.ErrUnauthorized):
+			httpx.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
 			return
-		case errors.Is(err, utils.ErrForbidden):
-			utils.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
+		case errors.Is(err, httpx.ErrForbidden):
+			httpx.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
 			return
 		case errors.Is(err, utils.ErrLLMProxyExists):
-			utils.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
 			return
 		default:
 			log.Error("CreateAgentModelConfig: failed to create configuration", "error", err)
 			if writeIfNotImplemented(w, err) {
 				return
 			}
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent model configuration")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent model configuration")
 			return
 		}
 	}
 
 	// Convert response to spec model
 	specResponse := convertAgentModelConfigResponse(*response)
-	utils.WriteSuccessResponse(w, http.StatusCreated, specResponse)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, specResponse)
 }
 
 // GetAgentModelConfig handles GET /orgs/{ouID}/projects/{projName}/agents/{agentName}/model-configs/{configId}
@@ -172,32 +173,32 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
 		log.Error("GetAgentModelConfig: invalid config ID", "configId", configID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
 
 	response, err := c.agentConfigService.Get(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("GetAgentModelConfig: failed to get configuration", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get configuration")
 		return
 	}
 
 	if response.Type != gwmodels.AgentConfigTypeLLM {
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 		return
 	}
 
 	// Convert response to spec model
 	specResponse := convertAgentModelConfigResponse(*response)
-	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // ListAgentModelConfigs handles GET /orgs/{ouID}/projects/{projName}/agents/{agentName}/model-configs
@@ -228,13 +229,13 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list configurations")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list configurations")
 		return
 	}
 
 	// Convert response to spec model
 	specResponse := convertAgentModelConfigListResponse(*response)
-	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // UpdateAgentModelConfig handles PUT /orgs/{ouID}/projects/{projName}/agents/{agentName}/model-configs/{configId}
@@ -250,7 +251,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
 		log.Error("UpdateAgentModelConfig: invalid config ID", "configId", configID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
 
@@ -258,14 +259,14 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	var specReq gwspec.UpdateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("UpdateAgentModelConfig: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if specReq.Name != nil {
 		if err := utils.ValidateConfigName(*specReq.Name); err != nil {
 			log.Warn("UpdateAgentModelConfig: invalid name", "error", err)
-			utils.WriteValidationErrorResponse(w, err)
+			httpx.WriteValidationErrorResponse(w, err)
 			return
 		}
 	}
@@ -274,25 +275,25 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	req, err := convertUpdateAgentModelConfigRequest(specReq)
 	if err != nil {
 		log.Error("UpdateAgentModelConfig: failed to convert request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
 
 	existing, err := c.agentConfigService.Get(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("UpdateAgentModelConfig: failed to get configuration", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 		return
 	}
 	if existing.Type != gwmodels.AgentConfigTypeLLM {
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 		return
 	}
 
@@ -300,42 +301,42 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrAgentConfigNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrLLMProviderNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
-		case errors.Is(err, utils.ErrUnauthorized):
-			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
+		case errors.Is(err, httpx.ErrUnauthorized):
+			httpx.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
 			return
-		case errors.Is(err, utils.ErrForbidden):
-			utils.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
+		case errors.Is(err, httpx.ErrForbidden):
+			httpx.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
 			return
 		case errors.Is(err, utils.ErrLLMProxyExists):
-			utils.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
 			return
 		default:
 			log.Error("UpdateAgentModelConfig: failed to update configuration", "error", err)
 			if writeIfNotImplemented(w, err) {
 				return
 			}
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 			return
 		}
 	}
 
 	// Convert response to spec model
 	specResponse := convertAgentModelConfigResponse(*response)
-	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // DeleteAgentModelConfig handles DELETE /orgs/{ouID}/projects/{projName}/agents/{agentName}/model-configs/{configId}
@@ -351,38 +352,38 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
 		log.Error("DeleteAgentModelConfig: invalid config ID", "configId", configID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
 
 	existing, err := c.agentConfigService.Get(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("DeleteAgentModelConfig: failed to get configuration", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
 	if existing.Type != gwmodels.AgentConfigTypeLLM {
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 		return
 	}
 
 	if err := c.agentConfigService.Delete(ctx, configUUID, ouID, projectName, agentName); err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("DeleteAgentModelConfig: failed to delete configuration", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
 
@@ -403,21 +404,21 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	var specReq gwspec.CreateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateAgentMCPConfig: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	specReq.Type = gwmodels.AgentConfigTypeMCP
 
 	if err := utils.ValidateConfigName(specReq.Name); err != nil {
 		log.Warn("CreateAgentMCPConfig: invalid name", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
+		httpx.WriteValidationErrorResponse(w, err)
 		return
 	}
 
 	req, err := convertCreateAgentModelConfigRequest(specReq)
 	if err != nil {
 		log.Error("CreateAgentMCPConfig: failed to convert request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
 
@@ -425,35 +426,35 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
-			utils.WriteErrorResponse(w, http.StatusConflict, "Agent MCP configuration already exists")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "Agent MCP configuration already exists")
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
-		case errors.Is(err, utils.ErrUnauthorized):
-			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
+		case errors.Is(err, httpx.ErrUnauthorized):
+			httpx.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
 			return
-		case errors.Is(err, utils.ErrForbidden):
-			utils.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
+		case errors.Is(err, httpx.ErrForbidden):
+			httpx.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
 			return
 		default:
 			log.Error("CreateAgentMCPConfig: failed to create configuration", "error", err)
 			if writeIfNotImplemented(w, err) {
 				return
 			}
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent MCP configuration")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create agent MCP configuration")
 			return
 		}
 	}
 
 	specResponse := convertAgentModelConfigResponse(*response)
-	utils.WriteSuccessResponse(w, http.StatusCreated, specResponse)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, specResponse)
 }
 
 // GetAgentMCPConfig handles GET /orgs/{ouID}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}
@@ -469,25 +470,25 @@ func (c *agentConfigurationController) GetAgentMCPConfig(w http.ResponseWriter, 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
 		log.Error("GetAgentMCPConfig: invalid config ID", "configId", configID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
 
 	response, err := c.agentConfigService.GetMCP(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("GetAgentMCPConfig: failed to get configuration", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get configuration")
 		return
 	}
 	specResponse := convertAgentModelConfigResponse(*response)
-	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // ListAgentMCPConfigs handles GET /orgs/{ouID}/projects/{projName}/agents/{agentName}/mcp-configs
@@ -517,12 +518,12 @@ func (c *agentConfigurationController) ListAgentMCPConfigs(w http.ResponseWriter
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list configurations")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list configurations")
 		return
 	}
 
 	specResponse := convertAgentModelConfigListResponse(*response)
-	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // UpdateAgentMCPConfig handles PUT /orgs/{ouID}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}
@@ -538,35 +539,35 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
 		log.Error("UpdateAgentMCPConfig: invalid config ID", "configId", configID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
 
 	_, err = c.agentConfigService.GetMCP(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("UpdateAgentMCPConfig: failed to get configuration", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
 	var specReq gwspec.UpdateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("UpdateAgentMCPConfig: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if specReq.Name != nil {
 		if err := utils.ValidateConfigName(*specReq.Name); err != nil {
 			log.Warn("UpdateAgentMCPConfig: invalid name", "error", err)
-			utils.WriteValidationErrorResponse(w, err)
+			httpx.WriteValidationErrorResponse(w, err)
 			return
 		}
 	}
@@ -574,7 +575,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 	req, err := convertUpdateAgentModelConfigRequest(specReq)
 	if err != nil {
 		log.Error("UpdateAgentMCPConfig: failed to convert request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
 
@@ -582,35 +583,35 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrAgentConfigNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		case errors.Is(err, utils.ErrMCPProxyNotFound):
-			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 			return
-		case errors.Is(err, utils.ErrInvalidInput):
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, httpx.ErrInvalidInput):
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
-		case errors.Is(err, utils.ErrUnauthorized):
-			utils.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
+		case errors.Is(err, httpx.ErrUnauthorized):
+			httpx.WriteErrorResponse(w, http.StatusUnauthorized, "Unauthorized access")
 			return
-		case errors.Is(err, utils.ErrForbidden):
-			utils.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
+		case errors.Is(err, httpx.ErrForbidden):
+			httpx.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
 			return
 		default:
 			log.Error("UpdateAgentMCPConfig: failed to update configuration", "error", err)
 			if writeIfNotImplemented(w, err) {
 				return
 			}
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 			return
 		}
 	}
 
 	specResponse := convertAgentModelConfigResponse(*response)
-	utils.WriteSuccessResponse(w, http.StatusOK, specResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, specResponse)
 }
 
 // DeleteAgentMCPConfig handles DELETE /orgs/{ouID}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}
@@ -626,33 +627,33 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
 		log.Error("DeleteAgentMCPConfig: invalid config ID", "configId", configID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return
 	}
 
 	_, err = c.agentConfigService.GetMCP(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("DeleteAgentMCPConfig: failed to get configuration", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
 	if err := c.agentConfigService.DeleteMCP(ctx, configUUID, ouID, projectName, agentName); err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("DeleteAgentMCPConfig: failed to delete configuration", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
 
@@ -951,7 +952,7 @@ func (c *agentConfigurationController) configEnvAPIKeyParams(w http.ResponseWrit
 	configID := r.PathValue(utils.PathParamConfigId)
 	parsed, err := uuid.Parse(configID)
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
 		return "", "", "", "", uuid.Nil, false
 	}
 	return ouID, projName, agentName, envName, parsed, true
@@ -961,20 +962,20 @@ func (c *agentConfigurationController) configEnvAPIKeyParams(w http.ResponseWrit
 // responses for the create/rotate/revoke handlers. operation labels the log line.
 func (c *agentConfigurationController) writeConfigAPIKeyError(w http.ResponseWriter, log *slog.Logger, operation string, err error) {
 	switch {
-	case errors.Is(err, utils.ErrBadRequest):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, httpx.ErrBadRequest):
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, utils.ErrAgentConfigNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 	case errors.Is(err, utils.ErrAgentConfigNotExternal):
-		utils.WriteErrorResponse(w, http.StatusForbidden, "API key management is only available for external agents")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "API key management is only available for external agents")
 	case errors.Is(err, utils.ErrGatewayNotFound):
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 	default:
 		log.Error(operation+": failed", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to manage API key")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to manage API key")
 	}
 }
 
@@ -991,7 +992,7 @@ func apiKeyCreateNameDisplayName(w http.ResponseWriter, name, displayName *strin
 		dn = *displayName
 	}
 	if n == "" && dn == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "At least one of 'name' or 'displayName' must be provided")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "At least one of 'name' or 'displayName' must be provided")
 		return "", "", false
 	}
 	return n, dn, true
@@ -1010,17 +1011,17 @@ func (c *agentConfigurationController) ListMCPConfigAPIKeys(w http.ResponseWrite
 	response, err := c.agentConfigService.ListMCPConfigAPIKeys(ctx, ouID, projName, agentName, configUUID, envName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("ListMCPConfigAPIKeys: failed to list API keys", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // CreateMCPConfigAPIKey handles POST .../mcp-configs/{configId}/environments/{envName}/api-keys
@@ -1035,7 +1036,7 @@ func (c *agentConfigurationController) CreateMCPConfigAPIKey(w http.ResponseWrit
 
 	var specReq gwspec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	name, displayName, ok := apiKeyCreateNameDisplayName(w, specReq.Name, specReq.DisplayName)
@@ -1060,7 +1061,7 @@ func (c *agentConfigurationController) CreateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 // RotateMCPConfigAPIKey handles PUT .../mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}
@@ -1078,7 +1079,7 @@ func (c *agentConfigurationController) RotateMCPConfigAPIKey(w http.ResponseWrit
 	// Body is optional for rotation: an empty body (io.EOF) is allowed, but any
 	// other decode error indicates a malformed request and must be rejected.
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil && !errors.Is(err, io.EOF) {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1098,7 +1099,7 @@ func (c *agentConfigurationController) RotateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // RevokeMCPConfigAPIKey handles DELETE .../mcp-configs/{configId}/environments/{envName}/api-keys/{keyName}
@@ -1140,17 +1141,17 @@ func (c *agentConfigurationController) ListLLMConfigAPIKeys(w http.ResponseWrite
 	response, err := c.agentConfigService.ListLLMConfigAPIKeys(ctx, ouID, projName, agentName, configUUID, envName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentConfigNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
 		log.Error("ListLLMConfigAPIKeys: failed to list API keys", "error", err)
 		if writeIfNotImplemented(w, err) {
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list API keys")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // CreateLLMConfigAPIKey handles POST .../model-configs/{configId}/environments/{envName}/api-keys
@@ -1165,7 +1166,7 @@ func (c *agentConfigurationController) CreateLLMConfigAPIKey(w http.ResponseWrit
 
 	var specReq gwspec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	name, displayName, ok := apiKeyCreateNameDisplayName(w, specReq.Name, specReq.DisplayName)
@@ -1190,7 +1191,7 @@ func (c *agentConfigurationController) CreateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusCreated, response)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
 // RotateLLMConfigAPIKey handles PUT .../model-configs/{configId}/environments/{envName}/api-keys/{keyName}
@@ -1208,7 +1209,7 @@ func (c *agentConfigurationController) RotateLLMConfigAPIKey(w http.ResponseWrit
 	// Body is optional for rotation: an empty body (io.EOF) is allowed, but any
 	// other decode error indicates a malformed request and must be rejected.
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil && !errors.Is(err, io.EOF) {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1228,7 +1229,7 @@ func (c *agentConfigurationController) RotateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // RevokeLLMConfigAPIKey handles DELETE .../model-configs/{configId}/environments/{envName}/api-keys/{keyName}

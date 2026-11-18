@@ -29,10 +29,10 @@ import (
 	"github.com/gorilla/websocket"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	ws "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 )
 
 // WebSocketController defines interface for WebSocket HTTP handlers

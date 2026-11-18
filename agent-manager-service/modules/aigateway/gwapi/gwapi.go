@@ -22,7 +22,7 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // RegisterRoutes registers the gateway's public routes.
@@ -54,5 +54,5 @@ func RegisterInternalRoutes(rr InternalRouter, gw *gwwire.Gateway) {
 
 // notImplemented answers 501 for a route this version does not serve.
 func notImplemented(w http.ResponseWriter, _ *http.Request) {
-	utils.WriteErrorResponse(w, http.StatusNotImplemented, "This operation is not available in this version")
+	httpx.WriteErrorResponse(w, http.StatusNotImplemented, "This operation is not available in this version")
 }

@@ -25,9 +25,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // RequireEnvironmentTier authorizes the caller to act on the named environment and
@@ -99,7 +99,7 @@ func RequireEnvironmentTier(
 			audit.Detail("grantedScopes", jwtassertion.GrantedScopeCount(ctx)),
 		)
 		return env, fmt.Errorf("%w: %s is required to act on environment %q",
-			utils.ErrForbidden, perm.Scope(), envName)
+			httpx.ErrForbidden, perm.Scope(), envName)
 	}
 	return env, nil
 }

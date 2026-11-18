@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -343,8 +344,8 @@ func TestValidateGatewayInput_IsInvalidInput(t *testing.T) {
 
 	err := svc.validateGatewayInput(gatewayTestOUID, strings.Repeat("a", 65), "Edge", "edge.example.com")
 
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
-	ve := utils.IsValidationError(err)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
+	ve := httpx.IsValidationError(err)
 	require.NotNil(t, ve)
 	assert.Equal(t, "Gateway name must be 3 to 64 characters", ve.Message)
 }
@@ -365,7 +366,7 @@ func TestUpdateGateway_RejectsRuntimeURLOnSelfHostedGateway(t *testing.T) {
 
 	_, err := svc.UpdateGateway(gw.UUID.String(), gatewayTestOUID, nil, nil, nil, nil, &runtimeURL)
 
-	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.Empty(t, repo.UpdateGatewayCalls())
 }
 
@@ -377,7 +378,7 @@ func TestUpdateGateway_RejectsInvalidDisplayName(t *testing.T) {
 
 		_, err := svc.UpdateGateway(gw.UUID.String(), gatewayTestOUID, nil, &displayName, nil, nil, nil)
 
-		require.ErrorIs(t, err, utils.ErrInvalidInput, "displayName %q", displayName)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput, "displayName %q", displayName)
 		assert.Empty(t, repo.UpdateGatewayCalls())
 	}
 }

@@ -23,6 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -270,7 +271,7 @@ func WithPathParamValidation(handler http.HandlerFunc, requiredParams ...string)
 		for _, paramName := range requiredParams {
 			value := r.PathValue(paramName)
 			if strings.TrimSpace(value) == "" {
-				utils.WriteErrorResponse(w, http.StatusBadRequest, "Missing required path parameter: "+paramName)
+				httpx.WriteErrorResponse(w, http.StatusBadRequest, "Missing required path parameter: "+paramName)
 				return
 			}
 		}

@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -157,7 +158,7 @@ func TestValidateProviderVersion(t *testing.T) {
 	// despite the spec pattern.
 	for _, invalid := range []string{"v1", "1.0", "v1.0.0", "", "latest"} {
 		err := validateProviderVersion(invalid)
-		assert.ErrorIs(t, err, utils.ErrInvalidInput, "version %q should be rejected", invalid)
+		assert.ErrorIs(t, err, httpx.ErrInvalidInput, "version %q should be rejected", invalid)
 	}
 }
 

@@ -31,7 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // renderedDeployment names a rendered artifact after its handle and its content, so two renders of the same
@@ -75,7 +75,7 @@ func (k *LLMProviderKind) Render(ctx context.Context, artifact gwmodels.Artifact
 	}
 	content, err := renderLLMProvider(provider)
 	if err != nil {
-		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid LLM provider configuration: %w", utils.ErrInvalidInput, err))
+		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid LLM provider configuration: %w", httpx.ErrInvalidInput, err))
 	}
 	return renderedDeployment(provider.Configuration.Handle, []byte(content)), nil
 }

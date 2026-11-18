@@ -30,10 +30,11 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -120,7 +121,7 @@ var providerVersionPattern = regexp.MustCompile(`^v\d+\.\d+$`)
 
 func validateProviderVersion(version string) error {
 	if !providerVersionPattern.MatchString(version) {
-		return fmt.Errorf("%w: version must match %s, e.g. v1.0", utils.ErrInvalidInput, providerVersionPattern)
+		return fmt.Errorf("%w: version must match %s, e.g. v1.0", httpx.ErrInvalidInput, providerVersionPattern)
 	}
 	return nil
 }
@@ -236,7 +237,7 @@ func validateProxyAPIKeyLocation(provider *gwmodels.LLMProvider) error {
 		return nil
 	}
 	if err := provider.Configuration.Security.ValidateAPIKeyLocation(); err != nil {
-		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 	return nil
 }
@@ -272,7 +273,7 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 
 	if provider == nil {
 		slog.Error("LLMProviderService.Create: provider is nil", "ouID", ouID)
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 
 	// Extract handle, name, and version from configuration
@@ -287,7 +288,7 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 
 	if handle == "" || name == "" || version == "" {
 		slog.Error("LLMProviderService.Create: missing required fields", "ouID", ouID, "handle", handle, "name", name, "version", version)
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 
 	// Fail fast if a provider with this handle already exists, before touching KV.
@@ -300,7 +301,7 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 	template := provider.Configuration.Template
 	if template == "" {
 		slog.Error("LLMProviderService.Create: template not specified", "ouID", ouID, "handle", handle)
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 
 	if err := validateProxyAPIKeyLocation(provider); err != nil {
@@ -359,7 +360,7 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 	}
 
 	if err := provider.Configuration.Resilience.Validate(); err != nil {
-		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
 	// Encrypt upstream API key if provided
@@ -516,7 +517,7 @@ func (s *LLMProviderService) Get(providerID, ouID string) (*gwmodels.LLMProvider
 
 	if providerID == "" {
 		slog.Error("LLMProviderService.Get: providerID is empty", "ouID", ouID)
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	provider, err := s.resolveProvider(providerID, ouID)
@@ -552,7 +553,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 
 	if providerID == "" || updates == nil {
 		slog.Error("LLMProviderService.Update: invalid input", "ouID", ouID, "providerID", providerID, "updatesIsNil", updates == nil)
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	// Validate template exists (check both built-in and user templates)
@@ -596,7 +597,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 		}
 	}
 	if err := updates.Configuration.Resilience.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 	}
 
 	// Encrypt upstream API key if a new value is provided
@@ -702,7 +703,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 
 	if providerID == "" {
 		slog.Error("LLMProviderService.Delete: providerID is empty", "ouID", ouID)
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 
 	// Verify provider exists
@@ -939,7 +940,7 @@ func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID
 		}
 		if err := validateEgressPlacement(s.gatewayRepo, gateway, placementAccumulator); err != nil {
 			slog.Error("LLMProviderService.UpdateAndSync: gateway failed egress placement check", "providerID", providerID, "gatewayID", gatewayID, "error", err)
-			return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+			return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 		}
 		placementAccumulator = append(placementAccumulator, gatewayID)
 	}
@@ -1128,7 +1129,7 @@ func (s *LLMProviderService) SyncDependentProxyAuthHeaders(
 	proxyDeploymentService *LLMProxyDeploymentService,
 ) error {
 	if provider == nil || proxyService == nil || proxyDeploymentService == nil {
-		return utils.ErrInvalidInput
+		return httpx.ErrInvalidInput
 	}
 
 	// Serialise before reading: the re-read below only helps if no other sync for this
@@ -1393,7 +1394,7 @@ func (s *LLMProviderService) syncProxyAuthHeader(
 // ListProxiesByProvider lists all LLM proxies for a provider
 func (s *LLMProviderService) ListProxiesByProvider(providerID, ouID string, limit, offset int) ([]*gwmodels.LLMProxy, int, error) {
 	if providerID == "" {
-		return nil, 0, utils.ErrInvalidInput
+		return nil, 0, httpx.ErrInvalidInput
 	}
 
 	// Get provider to get its UUID
@@ -1469,7 +1470,7 @@ func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdB
 		// state to leave behind by failing the whole request now.
 		if err := validateEgressPlacement(s.gatewayRepo, gateway, validGatewayIDs); err != nil {
 			slog.Error("LLMProviderService.CreateAndDeploy: gateway failed egress placement check", "ouID", ouID, "gatewayID", gatewayID, "error", err)
-			return nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+			return nil, fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 		}
 
 		validGatewayIDs = append(validGatewayIDs, gatewayID)
@@ -1543,7 +1544,7 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, ouID string, inCata
 	_, err := uuid.Parse(providerID)
 	if err != nil {
 		slog.Error("LLMProviderService.UpdateCatalogStatus: invalid provider UUID", "providerID", providerID, "error", err)
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	// Start transaction
@@ -1616,7 +1617,7 @@ type LLMProviderConsumer struct {
 // ListConsumers returns all agents consuming any proxy under the given provider.
 func (s *LLMProviderService) ListConsumers(ctx context.Context, providerID, ouID string) ([]LLMProviderConsumer, error) {
 	if providerID == "" || ouID == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 
 	provider, err := s.resolveProvider(providerID, ouID)

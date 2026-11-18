@@ -26,11 +26,12 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -86,7 +87,7 @@ func (k *LLMProxyKind) Render(ctx context.Context, artifact gwmodels.ArtifactRef
 	}
 	content, err := renderLLMProxy(proxy, provider)
 	if err != nil {
-		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid LLM proxy configuration: %w", utils.ErrInvalidInput, err))
+		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("%w: invalid LLM proxy configuration: %w", httpx.ErrInvalidInput, err))
 	}
 	return renderedDeployment(artifact.Handle, []byte(content)), nil
 }

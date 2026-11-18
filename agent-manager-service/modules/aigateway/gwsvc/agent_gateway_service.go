@@ -24,6 +24,8 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -32,9 +34,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 // AgentGatewayService is the gateway's side of an agent: the LLM and MCP
@@ -127,7 +129,7 @@ func resolveResilienceTimeoutSeconds(existingConfig *gwmodels.AgentConfig, reque
 	if requested != nil {
 		if *requested < constants.MinResilienceTimeoutSeconds || *requested > constants.MaxResilienceTimeoutSeconds {
 			return 0, fmt.Errorf("%w: resilienceTimeoutSeconds must be between %d and %d seconds, got %d",
-				utils.ErrInvalidInput, constants.MinResilienceTimeoutSeconds, constants.MaxResilienceTimeoutSeconds, *requested)
+				httpx.ErrInvalidInput, constants.MinResilienceTimeoutSeconds, constants.MaxResilienceTimeoutSeconds, *requested)
 		}
 		resolved = *requested
 	}
@@ -483,7 +485,7 @@ func resolveAPIConfig(existingConfig *gwmodels.AgentConfig, enableApiKeySecurity
 // security — only one auth policy may be attached to an agent endpoint.
 func validateAuthExclusivity(cfg resolvedCORSConfig) error {
 	if cfg.EnableApiKeySecurity && cfg.EnableOAuthSecurity {
-		return fmt.Errorf("%w: API key and OAuth security are mutually exclusive — enable only one", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: API key and OAuth security are mutually exclusive — enable only one", httpx.ErrInvalidInput)
 	}
 	return nil
 }
@@ -495,7 +497,7 @@ func validateAuthExclusivity(cfg resolvedCORSConfig) error {
 // environment context is available.)
 func validateOAuthSecurityConfig(cfg resolvedCORSConfig) error {
 	if cfg.EnableOAuthSecurity && len(cfg.OAuthIssuers) == 0 {
-		return fmt.Errorf("%w: OAuth security requires at least one identity provider issuer", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: OAuth security requires at least one identity provider issuer", httpx.ErrInvalidInput)
 	}
 	return nil
 }
@@ -517,7 +519,7 @@ func (s *AgentGatewayService) validateOAuthIssuersInEnvironment(envUUID string, 
 	}
 	for _, issuer := range cfg.OAuthIssuers {
 		if !valid[issuer] {
-			return fmt.Errorf("%w: identity provider %q is not configured for this environment", utils.ErrInvalidInput, issuer)
+			return fmt.Errorf("%w: identity provider %q is not configured for this environment", httpx.ErrInvalidInput, issuer)
 		}
 	}
 	return nil
@@ -560,7 +562,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	s.logger.Info("Updating agent deploy settings", "agentName", agentName, "ouID", ouID, "projectName", projectName, "environment", req.EnvironmentName)
 
 	if req.EnvironmentName == "" {
-		return fmt.Errorf("%w: environmentName is required", utils.ErrInvalidInput)
+		return fmt.Errorf("%w: environmentName is required", httpx.ErrInvalidInput)
 	}
 
 	agent, err := s.platform.GetAgent(ctx, ouID, projectName, agentName)
@@ -569,7 +571,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	}
 	// Hosted agents take their settings through a runtime that is not available.
 	if !isExternalProvisioned(agent) {
-		return fmt.Errorf("%w: deploy settings of hosted agents", utils.ErrNotImplemented)
+		return fmt.Errorf("%w: deploy settings of hosted agents", httpx.ErrNotImplemented)
 	}
 	// Both validates the environment and authorizes the caller against its tier
 	// — one lookup, because requireEnvTier resolves the same environment and
@@ -588,7 +590,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	// A direct external environment has nothing that applies deploy settings.
 	if !publishes {
 		return fmt.Errorf("%w: deploy settings apply only to environments that route this agent through the gateway",
-			utils.ErrInvalidInput)
+			httpx.ErrInvalidInput)
 	}
 
 	// Resolve final settings: precedence is request → existing DB

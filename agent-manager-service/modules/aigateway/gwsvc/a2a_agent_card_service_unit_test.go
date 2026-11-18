@@ -30,6 +30,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -192,7 +194,7 @@ func TestRefreshA2AAgentCardEnforcesTheEnvironmentTier(t *testing.T) {
 		return &models.EnvironmentResponse{Name: name, IsProduction: true}, nil
 	}
 	err := svc.RefreshA2AAgentCard(tierCtx(t, gwperm.DeployNonProduction), "org", "proj", "agent", "prod")
-	assert.ErrorIs(t, err, utils.ErrForbidden)
+	assert.ErrorIs(t, err, httpx.ErrForbidden)
 	assert.Empty(t, repo.EnqueueCalls())
 }
 
@@ -227,10 +229,10 @@ func TestSetA2ACardSourceRejects(t *testing.T) {
 		want                             error
 	}{
 		{"platform agent", "internal", "a2a-agent", "https://93.184.215.14/c", utils.ErrAgentCardSourceNotExternal},
-		{"loopback URL", "external", "a2a-agent", "http://127.0.0.1/c", utils.ErrInvalidURL},
-		{"non-http scheme", "external", "a2a-agent", "ftp://93.184.215.14/c", utils.ErrInvalidURL},
-		{"empty URL", "external", "a2a-agent", "   ", utils.ErrInvalidURL},
-		{"too long", "external", "a2a-agent", "https://93.184.215.14/" + strings.Repeat("a", 2048), utils.ErrInvalidURL},
+		{"loopback URL", "external", "a2a-agent", "http://127.0.0.1/c", ssrf.ErrInvalidURL},
+		{"non-http scheme", "external", "a2a-agent", "ftp://93.184.215.14/c", ssrf.ErrInvalidURL},
+		{"empty URL", "external", "a2a-agent", "   ", ssrf.ErrInvalidURL},
+		{"too long", "external", "a2a-agent", "https://93.184.215.14/" + strings.Repeat("a", 2048), ssrf.ErrInvalidURL},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -278,8 +280,8 @@ func TestSetA2ACardSourceHidesWhyAHostIsRefused(t *testing.T) {
 	internal := svc.SetA2ACardSource(ctx, "org", "proj", "agent", "dev", "https://10.0.0.1/c")
 	unresolvable := svc.SetA2ACardSource(ctx, "org", "proj", "agent", "dev", "https://nope.invalid/c")
 
-	require.ErrorIs(t, internal, utils.ErrInvalidURL)
-	require.ErrorIs(t, unresolvable, utils.ErrInvalidURL)
+	require.ErrorIs(t, internal, ssrf.ErrInvalidURL)
+	require.ErrorIs(t, unresolvable, ssrf.ErrInvalidURL)
 	assert.Equal(t, internal.Error(), unresolvable.Error())
 	assert.NotContains(t, unresolvable.Error(), "lookup")
 }
@@ -291,7 +293,7 @@ func TestSetA2ACardSourceChecksTheTierBeforeTheURL(t *testing.T) {
 		return &models.EnvironmentResponse{Name: name, IsProduction: true}, nil
 	}
 	err := svc.SetA2ACardSource(tierCtx(t, gwperm.DeployNonProduction), "org", "proj", "agent", "prod", "https://10.0.0.1/c")
-	assert.ErrorIs(t, err, utils.ErrForbidden)
+	assert.ErrorIs(t, err, httpx.ErrForbidden)
 	assert.Empty(t, repo.EnqueueCalls())
 }
 

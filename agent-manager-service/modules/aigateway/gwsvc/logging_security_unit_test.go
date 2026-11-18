@@ -26,10 +26,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 )
 
 // captureSecurityLogs restores the global logger; callers must not run in parallel.
@@ -65,7 +65,7 @@ func TestLLMProxyCreate_InvalidConfigurationLogsFixedKeys(t *testing.T) {
 			svc := NewLLMProxyService(&gwrepomocks.LLMProxyRepositoryMock{}, &gwrepomocks.LLMProviderRepositoryMock{}, nil)
 			ctx := logger.WithLogger(context.Background(), slog.Default().With("correlation_id", "request-123"))
 			result, err := svc.Create(ctx, "org", "actor", &gwmodels.LLMProxy{Configuration: cfg})
-			require.ErrorIs(t, err, utils.ErrInvalidInput)
+			require.ErrorIs(t, err, httpx.ErrInvalidInput)
 			require.Nil(t, result)
 			var record map[string]any
 			require.NoError(t, json.Unmarshal(buf.Bytes(), &record))

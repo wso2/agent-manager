@@ -35,7 +35,6 @@ import (
 	"gorm.io/gorm/logger"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
@@ -44,6 +43,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/modules/testmod"
 )

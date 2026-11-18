@@ -16,73 +16,7 @@
 
 package utils
 
-import (
-	"errors"
-	"fmt"
-)
-
-// ValidationError represents a validation error with both user-friendly message and technical details.
-// Use this when you need to communicate errors to both end-users (via Message) and developers (via Reason).
-type ValidationError struct {
-	// Message is a user-friendly error message suitable for display in UI.
-	// Should be clear, non-technical, and actionable.
-	// Example: "Please provide a valid schema path starting with /"
-	Message string
-
-	// Reason contains technical details for debugging.
-	// Can include field names, specific validation rules, etc.
-	// Example: "inputInterface.schema.path is required and must start with /"
-	Reason string
-
-	// sentinel, when set, is the classification error this failure also matches
-	// under errors.Is — so a check like errors.Is(err, ErrInvalidInput) still
-	// recognises a ValidationError raised in place of a wrapped sentinel.
-	// Unexported so a constructor is the only way to set it.
-	sentinel error
-}
-
-// Error implements the error interface, returning the technical reason for logging.
-func (e *ValidationError) Error() string {
-	return e.Reason
-}
-
-// Unwrap exposes the classification sentinel to errors.Is/errors.As.
-func (e *ValidationError) Unwrap() error {
-	return e.sentinel
-}
-
-// NewValidationError creates a new ValidationError with user-friendly message and technical reason.
-func NewValidationError(message, reason string) *ValidationError {
-	return &ValidationError{Message: message, Reason: reason, sentinel: nil}
-}
-
-// NewInvalidInputError is NewValidationError for a failure that must also keep
-// matching ErrInvalidInput under errors.Is, so callers that route on the
-// sentinel keep working while the UI gets the short Message instead of the
-// whole technical string.
-//
-// The sentinel is fixed rather than a parameter because every ValidationError
-// is rendered as 400 by WriteValidationErrorResponse — pairing one with a
-// not-found or conflict sentinel would still answer 400.
-func NewInvalidInputError(message, reason string) *ValidationError {
-	return &ValidationError{Message: message, Reason: reason, sentinel: ErrInvalidInput}
-}
-
-// NewValidationErrorf creates a new ValidationError with formatted reason string.
-// The message should be user-friendly, while reasonFmt is for technical details.
-func NewValidationErrorf(message, reasonFmt string, args ...interface{}) *ValidationError {
-	return NewValidationError(message, fmt.Sprintf(reasonFmt, args...))
-}
-
-// IsValidationError checks if an error is a ValidationError and returns it.
-// Returns nil if the error is not a ValidationError.
-func IsValidationError(err error) *ValidationError {
-	var ve *ValidationError
-	if errors.As(err, &ve) {
-		return ve
-	}
-	return nil
-}
+import "errors"
 
 var (
 	// Resource not found errors
@@ -113,7 +47,6 @@ var (
 	ErrEventDestinationInUse        = errors.New("event destination is used by one or more subscriptions")
 	ErrEventDestinationNameTaken    = errors.New("an event destination with this name already exists")
 	ErrEventSubscriptionNotFound    = errors.New("event subscription not found")
-	ErrInvalidInput                 = errors.New("invalid input")
 	ErrImmutableFieldChange         = errors.New("cannot change immutable field")
 	ErrScopeNotFound                = errors.New("scope not found")
 	// ErrA2AProxyOriginChangeNeedsAuthReset keeps a stored upstream secret from following the card URL to another origin. Maps to 409.
@@ -121,21 +54,11 @@ var (
 		"the stored upstream credential would be sent to the new card URL's origin; clear the upstream auth before moving the card to another origin, then enter it again",
 	)
 
-	// HTTP errors
-	ErrBadRequest   = errors.New("bad request")
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
-	ErrNotFound     = errors.New("not found")
-	ErrConflict     = errors.New("conflict")
 	// ErrResourceBeingDeleted is returned when a create collides with a same-named
 	// resource that has been deleted but is still waiting on its cleanup finalizer.
 	// It deliberately does not wrap ErrConflict: callers that recover from a conflict
 	// by updating the existing object must not do so against one that is going away.
 	ErrResourceBeingDeleted = errors.New("a resource with this name is still being deleted")
-
-	// Server errors
-	ErrInternalServerError = errors.New("internal server error")
-	ErrServiceUnavailable  = errors.New("service unavailable")
 
 	// Gateway-related errors
 	ErrGatewayNotFound          = errors.New("gateway not found")
@@ -197,7 +120,6 @@ var (
 	ErrMCPProxyExists            = errors.New("MCP proxy already exists")
 	ErrMCPProxyHasMappings       = errors.New("cannot delete MCP proxy: it has associated MCP proxy mappings. Please delete all mappings before deleting the proxy")
 	ErrMCPEnvAlreadyBound        = errors.New("environment is already assigned to another endpoint in this MCP proxy")
-	ErrInvalidURL                = errors.New("invalid URL")
 	ErrURLUnreachable            = errors.New("URL unreachable")
 	ErrMCPServerUnauthorized     = errors.New("MCP server unauthorized")
 	ErrMCPResponseTooLarge       = errors.New("MCP response body too large")
@@ -214,9 +136,6 @@ var (
 	ErrDevPortalNotFound           = errors.New("devportal not found")
 	ErrAPIAlreadyPublished         = errors.New("api is already published to devportal")
 	ErrAPIPublicationNotFound      = errors.New("api publication not found")
-
-	// Implementation status errors
-	ErrNotImplemented = errors.New("not implemented")
 
 	// Agent Configuration errors
 	ErrAgentConfigNotFound      = errors.New("agent configuration not found")

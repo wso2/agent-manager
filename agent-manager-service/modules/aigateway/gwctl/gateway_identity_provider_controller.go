@@ -25,12 +25,13 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 )
 
 // toSpecIdentityProvider maps a mirror row to the API representation.
@@ -71,7 +72,7 @@ func (c *gatewayController) ListIdentityProviders(w http.ResponseWriter, r *http
 	rows, err := c.gatewayService.ListIdentityProvidersByOrg(ouID)
 	if err != nil {
 		log.Error("ListIdentityProviders: failed to list", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list identity providers")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list identity providers")
 		return
 	}
 
@@ -91,7 +92,7 @@ func (c *gatewayController) ListIdentityProviders(w http.ResponseWriter, r *http
 	for _, row := range rows {
 		providers = append(providers, enrichSpecIdentityProvider(row, envNames))
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, identityProviderListResponse(providers))
+	httpx.WriteSuccessResponse(w, http.StatusOK, identityProviderListResponse(providers))
 }
 
 // enrichSpecIdentityProvider maps an org-wide row, attaching gateway/env context.
@@ -128,7 +129,7 @@ func (c *gatewayController) ListGatewayIdentityProviders(w http.ResponseWriter, 
 	for _, p := range providers {
 		specProviders = append(specProviders, toSpecIdentityProvider(p))
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, identityProviderListResponse(specProviders))
+	httpx.WriteSuccessResponse(w, http.StatusOK, identityProviderListResponse(specProviders))
 }
 
 // UpsertGatewayIdentityProvider creates or updates an identity provider mirror row.
@@ -159,7 +160,7 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 	var req gwspec.UpsertIdentityProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpsertGatewayIdentityProvider: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -193,7 +194,7 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, toSpecIdentityProvider(*provider))
+	httpx.WriteSuccessResponse(w, http.StatusOK, toSpecIdentityProvider(*provider))
 }
 
 // DeleteGatewayIdentityProvider removes an identity provider mirror row. System
@@ -225,7 +226,7 @@ func (c *gatewayController) DeleteGatewayIdentityProvider(w http.ResponseWriter,
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, struct{}{})
 }
 
 // ListEnvironmentIdentityProviders lists the identity providers available in an
@@ -239,14 +240,14 @@ func (c *gatewayController) ListEnvironmentIdentityProviders(w http.ResponseWrit
 	envUUID, err := c.resolveEnvironmentUUID(ctx, ouID, environmentID)
 	if err != nil {
 		log.Error("ListEnvironmentIdentityProviders: failed to resolve environment", "error", err)
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 		return
 	}
 
 	providers, err := c.gatewayService.ListIdentityProvidersByEnvironment(envUUID)
 	if err != nil {
 		log.Error("ListEnvironmentIdentityProviders: failed to list", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list environment identity providers")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list environment identity providers")
 		return
 	}
 
@@ -254,7 +255,7 @@ func (c *gatewayController) ListEnvironmentIdentityProviders(w http.ResponseWrit
 	for _, p := range providers {
 		specProviders = append(specProviders, toSpecIdentityProvider(p))
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, identityProviderListResponse(specProviders))
+	httpx.WriteSuccessResponse(w, http.StatusOK, identityProviderListResponse(specProviders))
 }
 
 // DiscoverOidcConfiguration fetches an OpenID Connect discovery document for the
@@ -266,22 +267,22 @@ func (c *gatewayController) DiscoverOidcConfiguration(w http.ResponseWriter, r *
 
 	rawURL := strings.TrimSpace(r.URL.Query().Get("url"))
 	if rawURL == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'url' is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Query parameter 'url' is required")
 		return
 	}
 
 	issuer, jwksURI, err := c.gatewayService.DiscoverOIDC(ctx, rawURL)
 	if err != nil {
-		if errors.Is(err, utils.ErrInvalidURL) {
+		if errors.Is(err, ssrf.ErrInvalidURL) {
 			log.Warn("DiscoverOidcConfiguration: discovery failed", "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Could not discover OIDC configuration from the provided URL")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Could not discover OIDC configuration from the provided URL")
 			return
 		}
 		log.Error("DiscoverOidcConfiguration: unexpected error", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to discover OIDC configuration")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to discover OIDC configuration")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, gwspec.OidcDiscoveryResponse{Issuer: issuer, JwksUri: jwksURI})
+	httpx.WriteSuccessResponse(w, http.StatusOK, gwspec.OidcDiscoveryResponse{Issuer: issuer, JwksUri: jwksURI})
 }
 
 func derefString(s *string) string {

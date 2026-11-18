@@ -28,9 +28,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -80,7 +81,7 @@ func HandleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	// A module hook rejected the change, with a status and message for the caller.
 	var rejected *modkit.Error
 	if errors.As(err, &rejected) {
-		utils.WriteErrorResponse(w, rejected.Status, rejected.Message)
+		httpx.WriteErrorResponse(w, rejected.Status, rejected.Message)
 		return
 	}
 	switch {
@@ -90,91 +91,91 @@ func HandleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	// the generic 500 fallback.
 	//
 	// Keep this FIRST: a ValidationError may also match a classification
-	// sentinel (utils.NewInvalidInputError sets ErrInvalidInput), and the
+	// sentinel (httpx.NewInvalidInputError sets ErrInvalidInput), and the
 	// sentinel cases below relabel the response with a generic bucket message.
 	// Moving this case down silently replaces every such error's own
 	// user-facing Message with "Invalid input provided".
-	case utils.IsValidationError(err) != nil:
-		utils.WriteValidationErrorResponse(w, err)
+	case httpx.IsValidationError(err) != nil:
+		httpx.WriteValidationErrorResponse(w, err)
 
 	// Not found errors
 	case errors.Is(err, utils.ErrOrganizationNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+		httpx.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Organization not found", err.Error(), utils.ErrCodeOrganizationNotFound)
 	case errors.Is(err, utils.ErrProjectNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+		httpx.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Project not found", err.Error(), utils.ErrCodeProjectNotFound)
 	case errors.Is(err, utils.ErrAgentNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+		httpx.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Agent not found", err.Error(), utils.ErrCodeAgentNotFound)
 	case errors.Is(err, utils.ErrLLMProviderNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+		httpx.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"LLM provider not found", err.Error(), utils.ErrCodeProviderNotFound)
 	case errors.Is(err, utils.ErrMCPProxyNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
-			"MCP proxy not found", err.Error(), utils.ErrCodeNotFound)
+		httpx.WriteErrorResponseWithReason(w, http.StatusNotFound,
+			"MCP proxy not found", err.Error(), httpx.ErrCodeNotFound)
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
-		utils.WriteErrorResponseWithReason(w, http.StatusNotFound,
+		httpx.WriteErrorResponseWithReason(w, http.StatusNotFound,
 			"Environment not found", err.Error(), utils.ErrCodeEnvironmentNotFound)
 	case errors.Is(err, utils.ErrAgentAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Agent already exists", err.Error(), utils.ErrCodeAgentAlreadyExists)
 	case errors.Is(err, utils.ErrOrphanedAgentConfigsExist):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Configurations from a deleted agent with this name still exist", err.Error(), utils.ErrCodeConflict)
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Configurations from a deleted agent with this name still exist", err.Error(), httpx.ErrCodeConflict)
 	case errors.Is(err, utils.ErrProjectAlreadyExists):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Project already exists", err.Error(), utils.ErrCodeProjectAlreadyExists)
 	case errors.Is(err, utils.ErrProjectHasAssociatedAgents):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Project has associated agents", err.Error(), utils.ErrCodeConflict)
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Project has associated agents", err.Error(), httpx.ErrCodeConflict)
 	case errors.Is(err, utils.ErrSecretPathConflict):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Secret path conflict", err.Error(), utils.ErrCodeConflict)
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Secret path conflict", err.Error(), httpx.ErrCodeConflict)
 	case errors.Is(err, utils.ErrResourceBeingDeleted):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"A resource with this name is still being deleted", err.Error(), utils.ErrCodeConflict)
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"A resource with this name is still being deleted", err.Error(), httpx.ErrCodeConflict)
 	// Generic conflict catch-all: any unclassified conflict (e.g. a raw "already exists"
 	//) is a 409, never a 500. Keep this after the specific conflict cases
 	// above so they win; err.Error() carries the detail in the response reason.
-	case errors.Is(err, utils.ErrConflict):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
-			"Conflict", err.Error(), utils.ErrCodeConflict)
+	case errors.Is(err, httpx.ErrConflict):
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict,
+			"Conflict", err.Error(), httpx.ErrCodeConflict)
 
 	// Bad request errors
-	case errors.Is(err, utils.ErrInvalidInput):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Invalid input provided", err.Error(), utils.ErrCodeValidation)
+	case errors.Is(err, httpx.ErrInvalidInput):
+		httpx.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Invalid input provided", err.Error(), httpx.ErrCodeValidation)
 	case errors.Is(err, utils.ErrImmutableFieldChange):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+		httpx.WriteErrorResponseWithReason(w, http.StatusBadRequest,
 			"Cannot modify immutable field", err.Error(), utils.ErrCodeImmutableField)
-	case errors.Is(err, utils.ErrBadRequest):
-		utils.WriteErrorResponseWithReason(w, http.StatusBadRequest,
-			"Bad request", err.Error(), utils.ErrCodeBadRequest)
+	case errors.Is(err, httpx.ErrBadRequest):
+		httpx.WriteErrorResponseWithReason(w, http.StatusBadRequest,
+			"Bad request", err.Error(), httpx.ErrCodeBadRequest)
 	case errors.Is(err, utils.ErrEnvironmentHasNoGateway):
-		utils.WriteErrorResponseWithReason(w, http.StatusConflict,
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict,
 			"Environment has no ingress gateway", err.Error(), utils.ErrCodeEnvironmentHasNoGateway)
 
 	// Authorization errors
-	case errors.Is(err, utils.ErrUnauthorized):
-		utils.WriteErrorResponseWithReason(w, http.StatusUnauthorized,
-			"Unauthorized", err.Error(), utils.ErrCodeUnauthorized)
-	case errors.Is(err, utils.ErrForbidden):
-		utils.WriteErrorResponseWithReason(w, http.StatusForbidden,
-			"Forbidden", err.Error(), utils.ErrCodeForbidden)
+	case errors.Is(err, httpx.ErrUnauthorized):
+		httpx.WriteErrorResponseWithReason(w, http.StatusUnauthorized,
+			"Unauthorized", err.Error(), httpx.ErrCodeUnauthorized)
+	case errors.Is(err, httpx.ErrForbidden):
+		httpx.WriteErrorResponseWithReason(w, http.StatusForbidden,
+			"Forbidden", err.Error(), httpx.ErrCodeForbidden)
 
 	// Service unavailable
-	case errors.Is(err, utils.ErrServiceUnavailable):
-		utils.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
-			"Service temporarily unavailable", err.Error(), utils.ErrCodeServiceUnavailable)
+	case errors.Is(err, httpx.ErrServiceUnavailable):
+		httpx.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
+			"Service temporarily unavailable", err.Error(), httpx.ErrCodeServiceUnavailable)
 	case errors.Is(err, audit.ErrRecorderUnavailable):
 		// A fail-closed service refused to act unrecorded; nothing was changed.
-		utils.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
-			"The audit trail is unavailable, so the change was not made", "", utils.ErrCodeServiceUnavailable)
+		httpx.WriteErrorResponseWithReason(w, http.StatusServiceUnavailable,
+			"The audit trail is unavailable, so the change was not made", "", httpx.ErrCodeServiceUnavailable)
 
 	default:
-		utils.WriteErrorResponseWithReason(w, http.StatusInternalServerError,
-			fallbackMsg, "Internal server error", utils.ErrCodeInternalError)
+		httpx.WriteErrorResponseWithReason(w, http.StatusInternalServerError,
+			fallbackMsg, "Internal server error", httpx.ErrCodeInternalError)
 	}
 }
 
@@ -194,7 +195,7 @@ func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	agentResponse := utils.ConvertToAgentResponse(agent)
-	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, agentResponse)
 }
 
 func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
@@ -218,21 +219,21 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < utils.MinLimit || limit > utils.MaxLimit {
 		log.Error("ListAgents: invalid limit parameter", "limit", limitStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid limit parameter: must be between %d and %d", utils.MinLimit, utils.MaxLimit))
 		return
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < utils.MinOffset {
 		log.Error("ListAgents: invalid offset parameter", "offset", offsetStr)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid offset parameter: must be %d or greater", utils.MinOffset))
 		return
 	}
 
 	labelFilter, err := utils.ParseLabelSelectors(r.URL.Query()["label"])
 	if err != nil {
 		log.Debug("ListAgents: invalid label parameter", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
+		httpx.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -251,7 +252,7 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 		Offset: int32(offset),
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *agentController) ListOrgAgents(w http.ResponseWriter, r *http.Request) {
@@ -269,7 +270,7 @@ func (c *agentController) ListOrgAgents(w http.ResponseWriter, r *http.Request) 
 	response := &spec.AgentSummaryListResponse{
 		Agents: utils.ConvertToAgentSummaryListResponse(agents),
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
@@ -284,19 +285,19 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	var payload spec.CreateAgentRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("CreateAgent: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// Hosted agents need an agent runtime; refuse them before validating the
 	// fields only they carry.
 	if payload.Provisioning.Type == string(utils.InternalAgent) {
-		utils.WriteErrorResponse(w, http.StatusNotImplemented, "Only external agents can be created in this deployment")
+		httpx.WriteErrorResponse(w, http.StatusNotImplemented, "Only external agents can be created in this deployment")
 		return
 	}
 	if err := utils.ValidateAgentCreatePayload(payload); err != nil {
 		log.Error("CreateAgent: invalid agent payload", "error", err)
-		utils.WriteValidationErrorResponse(w, err)
+		httpx.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -322,7 +323,7 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:    time.Now(),
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusAccepted, response)
+	httpx.WriteSuccessResponse(w, http.StatusAccepted, response)
 }
 
 func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request) {
@@ -338,11 +339,11 @@ func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Re
 	var payload spec.UpdateAgentBasicInfoRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("UpdateAgent: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if err := utils.ValidateAgentBasicInfoUpdatePayload(payload); err != nil {
-		utils.WriteValidationErrorResponse(w, err)
+		httpx.WriteValidationErrorResponse(w, err)
 		return
 	}
 
@@ -354,7 +355,7 @@ func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Re
 	}
 
 	agentResponse := utils.ConvertToAgentResponse(agent)
-	utils.WriteSuccessResponse(w, http.StatusOK, agentResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, agentResponse)
 }
 
 func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
@@ -374,7 +375,7 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	if c.eventsCleaner != nil {
 		c.eventsCleaner.RemoveForAgent(ctx, ouID, projName, agentName)
 	}
-	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
+	httpx.WriteSuccessResponse(w, http.StatusNoContent, "")
 }
 
 func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
@@ -387,14 +388,14 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 	var payload spec.ResourceNameRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("GenerateName: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	err := utils.ValidateResourceNameRequest(payload)
 	if err != nil {
 		log.Error("GenerateName: invalid resource name payload", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid resource name payload")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid resource name payload")
 		return
 	}
 
@@ -410,7 +411,7 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 		DisplayName:  payload.DisplayName,
 		ResourceType: payload.ResourceType,
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
+	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // GetAgentIdentity handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities
@@ -453,7 +454,7 @@ func (c *agentController) GetAgentIdentity(w http.ResponseWriter, r *http.Reques
 		}
 		views = filtered
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, views)
+	httpx.WriteSuccessResponse(w, http.StatusOK, views)
 }
 
 // RegenerateAgentIdentitySecret handles
@@ -476,12 +477,12 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 	var payload models.AgentIdentityActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("RegenerateAgentIdentitySecret: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	envID := payload.Environment
 	if envID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment is required in the request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment is required in the request body")
 		return
 	}
 
@@ -505,7 +506,7 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 		attempt.Complete(ctx, err)
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
 			log.Warn("RegenerateAgentIdentitySecret: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
 		log.Error("RegenerateAgentIdentitySecret: failed to regenerate secret", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
@@ -515,7 +516,7 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 
 	attempt.Complete(ctx, nil)
 	log.Info("RegenerateAgentIdentitySecret: secret regenerated successfully", "orgName", orgName, "agentName", agentName, "envID", envID)
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 // RevokeAgentIdentitySecret handles
@@ -533,7 +534,7 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 	agentName := r.PathValue(utils.PathParamAgentName)
 	envID := r.URL.Query().Get("environment")
 	if envID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
 		return
 	}
 
@@ -557,7 +558,7 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 		attempt.Complete(ctx, err)
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
 			log.Warn("RevokeAgentIdentitySecret: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
 		log.Error("RevokeAgentIdentitySecret: failed to revoke secret", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
@@ -567,7 +568,7 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 
 	attempt.Complete(ctx, nil)
 	log.Info("RevokeAgentIdentitySecret: secret revoked successfully", "orgName", orgName, "agentName", agentName, "envID", envID)
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 // ProvisionAgentIdentity handles
@@ -588,7 +589,7 @@ func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.
 	agentName := r.PathValue(utils.PathParamAgentName)
 	envID := r.URL.Query().Get("environment")
 	if envID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
 		return
 	}
 
@@ -627,7 +628,7 @@ func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.
 		attempt.Complete(ctx, nil)
 	}
 	log.Info("ProvisionAgentIdentity: completed", "orgName", orgName, "agentName", agentName, "envID", envID, "alreadyExisted", alreadyExisted)
-	utils.WriteSuccessResponse(w, status, view)
+	httpx.WriteSuccessResponse(w, status, view)
 }
 
 // RetryAgentIdentityProvisioning handles
@@ -649,12 +650,12 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 	var payload models.AgentIdentityActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("RetryAgentIdentityProvisioning: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	envID := payload.Environment
 	if envID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment is required in the request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment is required in the request body")
 		return
 	}
 
@@ -678,12 +679,12 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 		attempt.Complete(ctx, err)
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
 			log.Warn("RetryAgentIdentityProvisioning: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
 		if errors.Is(err, utils.ErrAgentIdentityRetryNotAllowed) {
 			log.Warn("RetryAgentIdentityProvisioning: binding not in a failed state", "orgName", orgName, "agentName", agentName, "envID", envID)
-			utils.WriteErrorResponse(w, http.StatusConflict, "Agent identity binding is not in a failed state and cannot be retried")
+			httpx.WriteErrorResponse(w, http.StatusConflict, "Agent identity binding is not in a failed state and cannot be retried")
 			return
 		}
 		log.Error("RetryAgentIdentityProvisioning: failed to retry provisioning", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
@@ -693,7 +694,7 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 
 	attempt.Complete(ctx, nil)
 	log.Info("RetryAgentIdentityProvisioning: retry scheduled", "orgName", orgName, "agentName", agentName, "envID", envID)
-	utils.WriteSuccessResponse(w, http.StatusAccepted, view)
+	httpx.WriteSuccessResponse(w, http.StatusAccepted, view)
 }
 
 // GetAgentRoles handles
@@ -713,7 +714,7 @@ func (c *agentController) GetAgentRoles(w http.ResponseWriter, r *http.Request) 
 	agentName := r.PathValue(utils.PathParamAgentName)
 	envID := r.URL.Query().Get("environment")
 	if envID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
 		return
 	}
 
@@ -723,17 +724,17 @@ func (c *agentController) GetAgentRoles(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
 			log.Warn("GetAgentRoles: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
 		if errors.Is(err, thundersvc.ErrThunderNotProvisioned) {
 			// The environment has no identity provider yet, so the agent holds no roles there.
 			log.Warn("GetAgentRoles: the environment has no identity provider", "orgName", orgName, "agentName", agentName, "envID", envID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "The identity provider is not set up for this environment yet")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "The identity provider is not set up for this environment yet")
 			return
 		}
 		if errors.Is(err, services.ErrIdentityRoleUnavailable) {
-			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Identity management is not configured for this deployment")
+			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "Identity management is not configured for this deployment")
 			return
 		}
 		log.Error("GetAgentRoles: failed to get agent roles", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
@@ -742,7 +743,7 @@ func (c *agentController) GetAgentRoles(w http.ResponseWriter, r *http.Request) 
 	}
 
 	log.Info("GetAgentRoles: completed", "orgName", orgName, "agentName", agentName, "envID", envID)
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
 }
 
 // GetAgentGroups handles
@@ -762,7 +763,7 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 	agentName := r.PathValue(utils.PathParamAgentName)
 	envID := r.URL.Query().Get("environment")
 	if envID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environment query parameter is required")
 		return
 	}
 
@@ -772,17 +773,17 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentIdentityNotProvisioned) {
 			log.Warn("GetAgentGroups: identity not yet provisioned", "orgName", orgName, "agentName", agentName, "envID", envID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent identity not yet provisioned for this environment")
 			return
 		}
 		if errors.Is(err, thundersvc.ErrThunderNotProvisioned) {
 			// The environment has no identity provider yet, so the agent holds no groups there.
 			log.Warn("GetAgentGroups: the environment has no identity provider", "orgName", orgName, "agentName", agentName, "envID", envID)
-			utils.WriteErrorResponse(w, http.StatusNotFound, "The identity provider is not set up for this environment yet")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "The identity provider is not set up for this environment yet")
 			return
 		}
 		if errors.Is(err, services.ErrIdentityGroupUnavailable) {
-			utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Identity management is not configured for this deployment")
+			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "Identity management is not configured for this deployment")
 			return
 		}
 		log.Error("GetAgentGroups: failed to get agent groups", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
@@ -791,5 +792,5 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 	}
 
 	log.Info("GetAgentGroups: completed", "orgName", orgName, "agentName", agentName, "envID", envID)
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups})
 }

@@ -24,7 +24,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 func TestWithA2AVersionHeader(t *testing.T) {
@@ -87,12 +87,12 @@ func TestValidateCardCORS(t *testing.T) {
 	ok := &gwmodels.CardCORS{Enabled: true, AllowOrigins: []string{"*"}}
 	req := &gwspec.AgentCardCORSConfig{Enabled: gwspec.PtrBool(true)}
 
-	assert.ErrorIs(t, validateCardCORS(false, req, ok), utils.ErrInvalidInput, "non-A2A agents cannot set it")
+	assert.ErrorIs(t, validateCardCORS(false, req, ok), httpx.ErrInvalidInput, "non-A2A agents cannot set it")
 	assert.NoError(t, validateCardCORS(false, nil, nil), "and are untouched when they don't")
-	assert.ErrorIs(t, validateCardCORS(true, &gwspec.AgentCardCORSConfig{}, nil), utils.ErrInvalidInput, "enabled is required unless inheriting")
+	assert.ErrorIs(t, validateCardCORS(true, &gwspec.AgentCardCORSConfig{}, nil), httpx.ErrInvalidInput, "enabled is required unless inheriting")
 	assert.NoError(t, validateCardCORS(true, &gwspec.AgentCardCORSConfig{Inherit: gwspec.PtrBool(true)}, nil))
-	assert.ErrorIs(t, validateCardCORS(true, req, enabledNoOrigins), utils.ErrInvalidInput)
-	assert.ErrorIs(t, validateCardCORS(true, req, wildcardCreds), utils.ErrInvalidInput)
+	assert.ErrorIs(t, validateCardCORS(true, req, enabledNoOrigins), httpx.ErrInvalidInput)
+	assert.ErrorIs(t, validateCardCORS(true, req, wildcardCreds), httpx.ErrInvalidInput)
 	assert.NoError(t, validateCardCORS(true, req, ok))
 	assert.NoError(t, validateCardCORS(true, nil, &gwmodels.CardCORS{Enabled: false}), "a disabled card needs no origins")
 }

@@ -24,11 +24,12 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -96,7 +97,7 @@ func (c *gatewayController) ListSelfHostedGateways(w http.ResponseWriter, r *htt
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, c.toSpecGatewayList(ctx, ouID, gatewaysResp, limit, offset))
+	httpx.WriteSuccessResponse(w, http.StatusOK, c.toSpecGatewayList(ctx, ouID, gatewaysResp, limit, offset))
 }
 
 func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *http.Request) {
@@ -107,7 +108,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 	var req gwspec.SelfHostedGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("RegisterSelfHostedGateway: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -152,7 +153,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 
 	// A self-hosted gateway is mapped to exactly the environment it was registered in.
 	environments := []models.GatewayEnvironmentResponse{gatewayEnvironmentResponse(env, ouID)}
-	utils.WriteSuccessResponse(w, http.StatusCreated, convertGatewayToSpecResponse(gateway, ouID, environments))
+	httpx.WriteSuccessResponse(w, http.StatusCreated, convertGatewayToSpecResponse(gateway, ouID, environments))
 }
 
 // UpdateSelfHostedGateway changes only the fields a self-hosted gateway lets its owner
@@ -166,7 +167,7 @@ func (c *gatewayController) UpdateSelfHostedGateway(w http.ResponseWriter, r *ht
 	var req gwspec.SelfHostedGatewayUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateSelfHostedGateway: failed to decode request", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -195,5 +196,5 @@ func (c *gatewayController) UpdateSelfHostedGateway(w http.ResponseWriter, r *ht
 	}
 
 	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gateway.ID)
-	utils.WriteSuccessResponse(w, http.StatusOK, convertGatewayToSpecResponse(gateway, ouID, environments))
+	httpx.WriteSuccessResponse(w, http.StatusOK, convertGatewayToSpecResponse(gateway, ouID, environments))
 }

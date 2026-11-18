@@ -25,7 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // gatewayConsumer is who uses an artifact on a gateway. The zero value is the most restrictive.
@@ -179,10 +179,10 @@ func (p placementPolicy) requireProvider(
 	// Callers name the provider and environment; the message is returned to the user as is.
 	if p.allowsSelfHosted() {
 		return fmt.Errorf("%w: not deployed to a gateway in this environment; %s",
-			utils.ErrInvalidInput, deployProviderHint)
+			httpx.ErrInvalidInput, deployProviderHint)
 	}
 	return fmt.Errorf("%w: not deployed to a managed gateway in this environment (%s can only use LLM providers deployed to managed gateways); %s",
-		utils.ErrInvalidInput, p.consumerNoun(), deployProviderHint)
+		httpx.ErrInvalidInput, p.consumerNoun(), deployProviderHint)
 }
 
 const deployProviderHint = "deploy it from the LLM provider's Deployment tab"

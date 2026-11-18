@@ -24,11 +24,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // mcpActivationCleanupTimeout bounds the rollback of a half-built MCP binding. It runs on a
@@ -87,7 +88,7 @@ func requireSingleMCPProxy(proxiesByEnv map[string]*gwmodels.MCPProxy) error {
 		if proxy.UUID != first.UUID {
 			return fmt.Errorf("%w: an MCP connection uses one MCP proxy in every environment, but environment %s "+
 				"names %q while %s names %q — attach the other proxy as a separate MCP connection",
-				utils.ErrInvalidInput, firstEnv, mcpProxyHandle(first), envName, mcpProxyHandle(proxy))
+				httpx.ErrInvalidInput, firstEnv, mcpProxyHandle(first), envName, mcpProxyHandle(proxy))
 		}
 	}
 	return nil

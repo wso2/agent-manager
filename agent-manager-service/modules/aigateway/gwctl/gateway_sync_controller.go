@@ -24,8 +24,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -73,7 +74,7 @@ func (c *gatewayInternalController) GetDeployments(w http.ResponseWriter, r *htt
 		http.Error(w, "Failed to list deployments", http.StatusInternalServerError)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, controlPlaneDeploymentsResponse{Deployments: deployments})
+	httpx.WriteSuccessResponse(w, http.StatusOK, controlPlaneDeploymentsResponse{Deployments: deployments})
 }
 
 // FetchDeploymentBatch handles POST /api/internal/v1/deployments/fetch-batch: a tar.gz with one directory per
@@ -135,7 +136,7 @@ func (c *gatewayInternalController) CheckArtifactsExist(w http.ResponseWriter, r
 		http.Error(w, "Failed to check artifacts", http.StatusInternalServerError)
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, artifactsExistResponse{Artifacts: artifacts})
+	httpx.WriteSuccessResponse(w, http.StatusOK, artifactsExistResponse{Artifacts: artifacts})
 }
 
 // decodeSyncIDs reads the ids a startup-sync request names, answering 400 for a body it can't read and 413 for more

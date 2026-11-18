@@ -30,8 +30,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // renameVarRows builds one environment's url + apikey rows under the pre-rename names.
@@ -124,10 +124,10 @@ func TestUpdateMCPConfigEnvironmentVariableNames_RejectsOtherConfigOwnership(t *
 			err = svc.updateMCPConfigEnvironmentVariableNames(context.Background(), &gwmodels.AgentConfiguration{UUID: configID, Name: "github"}, f.ouID, "project", "agent", nil, policy, "default", []gwmodels.EnvironmentVariableConfig{{Key: "url", Name: "GITHUB_URL"}})
 			switch scenario {
 			case "collision":
-				require.ErrorIs(t, err, utils.ErrInvalidInput)
+				require.ErrorIs(t, err, httpx.ErrInvalidInput)
 			case "ownership read fails":
 				require.ErrorIs(t, err, readErr)
-				require.NotErrorIs(t, err, utils.ErrInvalidInput)
+				require.NotErrorIs(t, err, httpx.ErrInvalidInput)
 			default:
 				require.NoError(t, err)
 			}

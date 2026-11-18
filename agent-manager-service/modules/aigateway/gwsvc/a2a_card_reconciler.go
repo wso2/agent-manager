@@ -28,8 +28,10 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -192,7 +194,7 @@ func (s *a2aCardReconcilerService) agentReplaced(ctx context.Context, row gwmode
 	}
 	current, err := s.ocClient.GetAgent(ctx, row.OUID, row.ProjectName, row.AgentName)
 	switch {
-	case errors.Is(err, utils.ErrAgentNotFound), errors.Is(err, utils.ErrNotFound):
+	case errors.Is(err, utils.ErrAgentNotFound), errors.Is(err, httpx.ErrNotFound):
 		return true
 	case err != nil:
 		return false

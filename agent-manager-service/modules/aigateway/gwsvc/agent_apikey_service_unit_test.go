@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -246,7 +247,7 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 
 		_, err := fx.svc.IssueTestAPIKey(auditableCtx(t), org, proj, agent, env, "user-a-sub")
 
-		assert.ErrorIs(t, err, utils.ErrBadRequest)
+		assert.ErrorIs(t, err, httpx.ErrBadRequest)
 	})
 }
 
@@ -360,7 +361,7 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 		_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
 			&gwmodels.CreateAPIKeyRequest{Name: gwmodels.APIKeyTestKeyPrefix + "deadbeef0123"})
 
-		assert.ErrorIs(t, err, utils.ErrBadRequest)
+		assert.ErrorIs(t, err, httpx.ErrBadRequest)
 	})
 
 	t.Run("reports gateway websocket connectivity in the response", func(t *testing.T) {
@@ -404,7 +405,7 @@ func TestAgentAPIKeyService_CreateAPIKey_MinNameLength(t *testing.T) {
 
 			_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env, req)
 
-			assert.ErrorIs(t, err, utils.ErrBadRequest)
+			assert.ErrorIs(t, err, httpx.ErrBadRequest)
 			assert.Empty(t, *fx.upsertedKeys)
 		})
 	}

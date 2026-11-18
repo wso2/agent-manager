@@ -22,12 +22,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 // waitingForEndpoint is what a platform agent's row waits on until its release binding publishes a service URL.
@@ -72,7 +73,7 @@ func (e *PlatformAgentExposures) exposure(
 // serviceURL is the endpoint the agent's release binding serves; the render waits while there is none.
 func (e *PlatformAgentExposures) serviceURL(ctx context.Context, exposure *gwmodels.PlatformAgentExposure) (string, error) {
 	// Platform-hosted agents need an agent runtime, which is not available.
-	return "", fmt.Errorf("%w: agent %s has no hosted endpoint", utils.ErrNotImplemented, exposure.AgentName)
+	return "", fmt.Errorf("%w: agent %s has no hosted endpoint", httpx.ErrNotImplemented, exposure.AgentName)
 }
 
 // target is the record's environment's ingress gateway, read in the transaction ctx carries, if any.

@@ -41,6 +41,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -496,7 +497,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 	// one is simply wrong. Validated on every write for the same reason as at registration.
 	if runtimeURL != nil {
 		if !gateway.IsManaged() && strings.TrimSpace(*runtimeURL) != "" {
-			return nil, utils.NewInvalidInputError("A self-hosted gateway has no runtime URL",
+			return nil, httpx.NewInvalidInputError("A self-hosted gateway has no runtime URL",
 				"runtimeURL set on self-hosted gateway "+gateway.UUID.String())
 		}
 		if err := validateGatewayRuntimeURL(*runtimeURL); err != nil {
@@ -952,7 +953,7 @@ func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*gw
 // (nil applier) write the mirror only and rely on manage-identity-provider.sh.
 func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*gwmodels.GatewayIdentityProvider, error) {
 	if name == models.ReservedIdentityProviderName {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
 	if err != nil {
@@ -1057,7 +1058,7 @@ func (s *PlatformGatewayService) ListIdentityProvidersByOrg(ouID string) ([]gwre
 // point — RegisterGateway drives the same transactional helper.
 func (s *PlatformGatewayService) AssignGatewayToEnvironment(gatewayID, environmentID string) error {
 	if _, err := uuid.Parse(gatewayID); err != nil {
-		return fmt.Errorf("%w: invalid gateway UUID %q", utils.ErrBadRequest, gatewayID)
+		return fmt.Errorf("%w: invalid gateway UUID %q", httpx.ErrBadRequest, gatewayID)
 	}
 	gateway, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
@@ -1085,7 +1086,7 @@ func (s *PlatformGatewayService) AssignGatewayToEnvironment(gatewayID, environme
 func (s *PlatformGatewayService) refuseSelfHostedNewEnvironment(gateway *gwmodels.Gateway, environmentID string) error {
 	envUUID, err := uuid.Parse(environmentID)
 	if err != nil {
-		return fmt.Errorf("%w: invalid environment UUID %q", utils.ErrBadRequest, environmentID)
+		return fmt.Errorf("%w: invalid environment UUID %q", httpx.ErrBadRequest, environmentID)
 	}
 	exists, err := s.gatewayRepo.EnvironmentMappingExists(gateway.UUID.String(), envUUID.String())
 	if err != nil {
@@ -1112,7 +1113,7 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 ) error {
 	envUUID, err := uuid.Parse(environmentID)
 	if err != nil {
-		return fmt.Errorf("%w: invalid environment UUID %q", utils.ErrBadRequest, environmentID)
+		return fmt.Errorf("%w: invalid environment UUID %q", httpx.ErrBadRequest, environmentID)
 	}
 	envIDStr := envUUID.String()
 
@@ -1284,30 +1285,30 @@ func (s *PlatformGatewayService) DeleteGatewayEnvironmentMappings(gatewayID stri
 func (s *PlatformGatewayService) validateGatewayInput(ouID, name, displayName, vhost string) error {
 	// Organization ID validation
 	if strings.TrimSpace(ouID) == "" {
-		return utils.NewInvalidInputError("Organization is required", "organization name is required")
+		return httpx.NewInvalidInputError("Organization is required", "organization name is required")
 	}
 
 	// Gateway name validation
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return utils.NewInvalidInputError("Gateway name is required", "gateway name is required")
+		return httpx.NewInvalidInputError("Gateway name is required", "gateway name is required")
 	}
 	if len(name) < 3 {
-		return utils.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must be at least 3 characters")
+		return httpx.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must be at least 3 characters")
 	}
 	if len(name) > 64 {
-		return utils.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters")
+		return httpx.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters")
 	}
 
 	// Check pattern: ^[a-z0-9-]+$
 	namePattern := regexp.MustCompile(`^[a-z0-9-]+$`)
 	if !namePattern.MatchString(name) {
-		return utils.NewInvalidInputError("Gateway name may contain only lowercase letters, numbers and hyphens", "gateway name must contain only lowercase letters, numbers, and hyphens")
+		return httpx.NewInvalidInputError("Gateway name may contain only lowercase letters, numbers and hyphens", "gateway name must contain only lowercase letters, numbers, and hyphens")
 	}
 
 	// No leading/trailing hyphens
 	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") {
-		return utils.NewInvalidInputError("Gateway name cannot start or end with a hyphen", "gateway name cannot start or end with a hyphen")
+		return httpx.NewInvalidInputError("Gateway name cannot start or end with a hyphen", "gateway name cannot start or end with a hyphen")
 	}
 
 	if err := validateGatewayDisplayName(displayName); err != nil {
@@ -1317,7 +1318,7 @@ func (s *PlatformGatewayService) validateGatewayInput(ouID, name, displayName, v
 	// VHost validation
 	vhost = strings.TrimSpace(vhost)
 	if vhost == "" {
-		return utils.NewInvalidInputError("Host is required", "vhost is required")
+		return httpx.NewInvalidInputError("Host is required", "vhost is required")
 	}
 
 	return nil
@@ -1326,10 +1327,10 @@ func (s *PlatformGatewayService) validateGatewayInput(ouID, name, displayName, v
 func validateGatewayDisplayName(displayName string) error {
 	displayName = strings.TrimSpace(displayName)
 	if displayName == "" {
-		return utils.NewInvalidInputError("Display name is required", "display name is required")
+		return httpx.NewInvalidInputError("Display name is required", "display name is required")
 	}
 	if len(displayName) > 128 {
-		return utils.NewInvalidInputError("Display name must not exceed 128 characters", "display name must not exceed 128 characters")
+		return httpx.NewInvalidInputError("Display name must not exceed 128 characters", "display name must not exceed 128 characters")
 	}
 	return nil
 }
@@ -1352,29 +1353,29 @@ func validateGatewayRuntimeURL(runtimeURL string) error {
 	}
 	parsed, err := url.Parse(runtimeURL)
 	if err != nil {
-		return fmt.Errorf("%w: runtimeUrl is not a valid URL: %w", utils.ErrBadRequest, err)
+		return fmt.Errorf("%w: runtimeUrl is not a valid URL: %w", httpx.ErrBadRequest, err)
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return fmt.Errorf("%w: runtimeUrl scheme must be http or https", utils.ErrBadRequest)
+		return fmt.Errorf("%w: runtimeUrl scheme must be http or https", httpx.ErrBadRequest)
 	}
 	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return fmt.Errorf("%w: runtimeUrl must not carry userinfo, a query or a fragment", utils.ErrBadRequest)
+		return fmt.Errorf("%w: runtimeUrl must not carry userinfo, a query or a fragment", httpx.ErrBadRequest)
 	}
 	// Any path, "/" included, would concatenate into a double slash Envoy does not merge.
 	if parsed.Path != "" {
-		return fmt.Errorf("%w: runtimeUrl must be a base URL without a path", utils.ErrBadRequest)
+		return fmt.Errorf("%w: runtimeUrl must be a base URL without a path", httpx.ErrBadRequest)
 	}
 	port, err := strconv.Atoi(parsed.Port())
 	if err != nil || port < 1 || port > 65535 {
-		return fmt.Errorf("%w: runtimeUrl must specify an explicit numeric port", utils.ErrBadRequest)
+		return fmt.Errorf("%w: runtimeUrl must specify an explicit numeric port", httpx.ErrBadRequest)
 	}
 	if port == 80 || port == 443 || port == 53 {
 		return fmt.Errorf("%w: runtimeUrl must not use port 80, 443 or 53; the agent sandbox "+
-			"egress policy permits arbitrary destinations on those ports", utils.ErrBadRequest)
+			"egress policy permits arbitrary destinations on those ports", httpx.ErrBadRequest)
 	}
 	if !isClusterLocalHost(parsed.Hostname()) {
 		return fmt.Errorf("%w: runtimeUrl host must be cluster-local: a dotless Service name, "+
-			"name.namespace[.svc[.cluster.local]], or a private-range IP", utils.ErrBadRequest)
+			"name.namespace[.svc[.cluster.local]], or a private-range IP", httpx.ErrBadRequest)
 	}
 	return nil
 }
@@ -1424,7 +1425,7 @@ func isClusterLocalHost(host string) bool {
 func normalizeGatewayRole(functionalityType string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(functionalityType)) {
 	case "":
-		return "", fmt.Errorf("%w: gateway functionality type is required", utils.ErrBadRequest)
+		return "", fmt.Errorf("%w: gateway functionality type is required", httpx.ErrBadRequest)
 	case gwmodels.GatewayRoleIngress:
 		return gwmodels.GatewayRoleIngress, nil
 	case gwmodels.GatewayRoleEgress, "ai":
@@ -1432,7 +1433,7 @@ func normalizeGatewayRole(functionalityType string) (string, error) {
 	case gwmodels.GatewayRoleBoth, "regular":
 		return gwmodels.GatewayRoleBoth, nil
 	default:
-		return "", fmt.Errorf("%w: gateway type must be one of: INGRESS, EGRESS, BOTH", utils.ErrBadRequest)
+		return "", fmt.Errorf("%w: gateway type must be one of: INGRESS, EGRESS, BOTH", httpx.ErrBadRequest)
 	}
 }
 
