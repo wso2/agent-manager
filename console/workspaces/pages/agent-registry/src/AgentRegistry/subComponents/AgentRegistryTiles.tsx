@@ -28,10 +28,11 @@ import {
 import { Bot } from "@wso2/oxygen-ui-icons-react";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import type { AgentRegistryEntry } from "@agent-management-platform/types";
-import { agentTypeText, useOpenAgent } from "./agentRow";
+import { agentTypeText, canOpenAgent, useOpenAgent } from "./agentRow";
 import { EnvironmentStatusChips } from "./EnvironmentStatusChips";
 import { LifecycleChip } from "./LifecycleChip";
 import { NoOwnerLabel } from "./NoOwnerLabel";
+import { UnregisteredBadge } from "./UnregisteredBadge";
 
 // Multiples of the columns at each breakpoint, so a full page has no ragged last row.
 const TILES_PER_PAGE_OPTIONS = [12, 24, 48];
@@ -50,27 +51,41 @@ function AgentTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry 
   const details = (
     <Stack spacing={1} component="span" sx={{ display: "flex" }}>
       <Typography variant="body2" color="text.secondary" component="span" noWrap>
-        {agent.projectDisplayName} ·{" "}
-        {agent.owner ? (
-          agent.owner.displayName
+        {agent.registration === "unregistered" ? (
+          // A shadow agent has no project or owner; show who made it when its platform says.
+          agent.discovery?.ownerHint ? (
+            <>Owner hint: {agent.discovery.ownerHint}</>
+          ) : (
+            <NoOwnerLabel />
+          )
         ) : (
-          <NoOwnerLabel />
+          <>
+            {agent.projectDisplayName} ·{" "}
+            {agent.owner ? agent.owner.displayName : <NoOwnerLabel />}
+          </>
         )}
       </Typography>
-      <Typography variant="caption" color="text.secondary" component="span" noWrap>
-        {agentTypeText(agent)}
-      </Typography>
-      <Stack
-        direction="row"
-        spacing={1}
-        alignItems="center"
-        component="span"
-        divider={<Divider orientation="vertical" flexItem />}
-        sx={{ display: "flex" }}
-      >
-        <LifecycleChip state={agent.lifecycleState} variant="filled" />
-        <EnvironmentStatusChips environments={agent.environments} />
+      {/* ListingCard shows only text in its title, so the badge leads this line. */}
+      <Stack direction="row" spacing={0.75} alignItems="center" component="span" sx={{ display: "flex" }}>
+        {agent.registration === "unregistered" && <UnregisteredBadge />}
+        <Typography variant="caption" color="text.secondary" component="span" noWrap>
+          {agentTypeText(agent)}
+        </Typography>
       </Stack>
+      {/* Lifecycle and environments exist only for registered agents. */}
+      {agent.lifecycleState && (
+        <Stack
+          direction="row"
+          spacing={1}
+          alignItems="center"
+          component="span"
+          divider={<Divider orientation="vertical" flexItem />}
+          sx={{ display: "flex" }}
+        >
+          <LifecycleChip state={agent.lifecycleState} variant="filled" />
+          <EnvironmentStatusChips environments={agent.environments} />
+        </Stack>
+      )}
     </Stack>
   );
 
@@ -79,10 +94,10 @@ function AgentTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry 
       title={agent.displayName}
       description={details}
       icon={<Bot size={20} />}
-      updatedLabel="Last active"
+      updatedLabel={agent.registration === "unregistered" ? "Last seen" : "Last active"}
       updatedTime={agent.lastActivityAt ? formatRelativeTime(agent.lastActivityAt) : "never"}
       updatedDateTime={agent.lastActivityAt ?? undefined}
-      onClick={() => openAgent(agent)}
+      onClick={canOpenAgent(agent) ? () => openAgent(agent) : undefined}
     />
   );
 }

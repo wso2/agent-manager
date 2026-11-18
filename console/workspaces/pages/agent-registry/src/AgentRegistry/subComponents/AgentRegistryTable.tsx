@@ -22,14 +22,30 @@ import { Users } from "@wso2/oxygen-ui-icons-react";
 import { EntityAvatar } from "@agent-management-platform/views";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import type { AgentRegistryEntry } from "@agent-management-platform/types";
-import { agentTypeText, useOpenAgent } from "./agentRow";
+import { agentTypeText, canOpenAgent, useOpenAgent } from "./agentRow";
 import { EnvironmentStatusChips } from "./EnvironmentStatusChips";
 import { LifecycleChip } from "./LifecycleChip";
 import { NoOwnerLabel } from "./NoOwnerLabel";
+import { UnregisteredBadge } from "./UnregisteredBadge";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
 
 function OwnerCell({ agent }: { agent: AgentRegistryEntry }) {
+  // A shadow agent has no owner yet; show who made it when its platform says.
+  const ownerHint = agent.registration === "unregistered" ? agent.discovery?.ownerHint : undefined;
+  if (ownerHint) {
+    return (
+      <Typography
+        variant="body2"
+        color="text.secondary"
+        noWrap
+        title={ownerHint}
+        sx={{ maxWidth: 150 }}
+      >
+        Owner hint: {ownerHint}
+      </Typography>
+    );
+  }
   if (!agent.owner) {
     return (
       <Typography variant="body2" noWrap>
@@ -88,8 +104,8 @@ export function AgentRegistryTable({ orgId, agents }: AgentRegistryTableProps) {
               <ListingTable.Row
                 key={`${agent.projectName}/${agent.name}`}
                 variant="card"
-                hover
-                clickable
+                hover={canOpenAgent(agent)}
+                clickable={canOpenAgent(agent)}
                 onClick={() => openAgent(agent)}
               >
                 <ListingTable.Cell>
@@ -102,34 +118,61 @@ export function AgentRegistryTable({ orgId, agents }: AgentRegistryTableProps) {
                       sx={{ flexShrink: 0 }}
                     />
                     <Box sx={{ minWidth: 0 }}>
-                      <Typography variant="body1" noWrap>
-                        {agent.displayName}
-                      </Typography>
                       <Typography
-                        variant="caption"
-                        color="text.secondary"
+                        variant="body1"
                         noWrap
-                        component="div"
+                        title={agent.displayName}
                         sx={{ maxWidth: 180 }}
                       >
-                        {agentTypeText(agent)}
+                        {agent.displayName}
                       </Typography>
+                      {/* The badge goes on the second line so the column stays narrow. */}
+                      <Stack direction="row" spacing={0.75} alignItems="center">
+                        {agent.registration === "unregistered" && <UnregisteredBadge />}
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          noWrap
+                          component="div"
+                          title={agentTypeText(agent)}
+                          sx={{ maxWidth: agent.registration === "unregistered" ? 80 : 180 }}
+                        >
+                          {agentTypeText(agent)}
+                        </Typography>
+                      </Stack>
                     </Box>
                   </Stack>
                 </ListingTable.Cell>
                 <ListingTable.Cell>
-                  <Typography variant="body2" noWrap>
-                    {agent.projectDisplayName}
+                  <Typography
+                    variant="body2"
+                    noWrap
+                    color={agent.projectDisplayName ? "text.primary" : "text.secondary"}
+                  >
+                    {agent.projectDisplayName || "—"}
                   </Typography>
                 </ListingTable.Cell>
                 <ListingTable.Cell>
                   <OwnerCell agent={agent} />
                 </ListingTable.Cell>
                 <ListingTable.Cell>
-                  <LifecycleChip state={agent.lifecycleState} />
+                  {agent.lifecycleState ? (
+                    <LifecycleChip state={agent.lifecycleState} />
+                  ) : (
+                    // Unregistered agents have no lifecycle until they are onboarded.
+                    <Typography variant="body2" color="text.secondary">
+                      —
+                    </Typography>
+                  )}
                 </ListingTable.Cell>
                 <ListingTable.Cell>
-                  <EnvironmentStatusChips environments={agent.environments} />
+                  {agent.registration === "unregistered" ? (
+                    <Typography variant="body2" color="text.secondary">
+                      —
+                    </Typography>
+                  ) : (
+                    <EnvironmentStatusChips environments={agent.environments} />
+                  )}
                 </ListingTable.Cell>
                 <ListingTable.Cell align="right">
                   <Typography variant="body2" color="text.secondary" noWrap>

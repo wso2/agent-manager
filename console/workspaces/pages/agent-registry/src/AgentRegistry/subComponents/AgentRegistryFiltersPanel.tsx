@@ -19,7 +19,10 @@
 import React, { useCallback, useEffect } from "react";
 import {
   Button,
+  Checkbox,
   Divider,
+  FormControlLabel,
+  FormHelperText,
   Grow,
   IconButton,
   MenuItem,
@@ -34,8 +37,10 @@ import {
   ALL,
   type AgentRegistryFilterOptions,
   PANEL_FILTER_NAMES,
+  type PanelDraft,
   type PanelFilterKey,
-  type PanelFilters,
+  registrationFromTicks,
+  registrationTicks,
 } from "../agentRegistryFilters";
 
 export const FILTERS_PANEL_ID = "agent-registry-filters-panel";
@@ -54,9 +59,9 @@ const ANY_LABELS: Record<PanelFilterKey, string> = {
 
 interface PanelSelectProps {
   filterKey: PanelFilterKey;
-  draft: PanelFilters;
+  draft: PanelDraft;
   options: AgentRegistryFilterOptions;
-  onDraftChange: (draft: PanelFilters) => void;
+  onDraftChange: (draft: PanelDraft) => void;
 }
 
 /** One field of the panel: a select with "Any …" and the values agents have. */
@@ -80,6 +85,51 @@ function PanelSelect({ filterKey, draft, options, onDraftChange }: PanelSelectPr
   );
 }
 
+interface RegistrationChecksProps {
+  draft: PanelDraft;
+  onDraftChange: (draft: PanelDraft) => void;
+}
+
+/** Registered and Unregistered (shadow) agents; Unregistered is unticked by default. */
+function RegistrationChecks({ draft, onDraftChange }: RegistrationChecksProps) {
+  // While both are unticked the draft holds null, which reads as neither ticked.
+  const ticks = draft.registration
+    ? registrationTicks(draft.registration)
+    : { registered: false, unregistered: false };
+  const setTicks = (registered: boolean, unregistered: boolean) =>
+    onDraftChange({ ...draft, registration: registrationFromTicks(registered, unregistered) });
+
+  return (
+    <Stack spacing={0}>
+      <FormControlLabel
+        label="Registered"
+        control={
+          <Checkbox
+            size="small"
+            checked={ticks.registered}
+            onChange={(e) => setTicks(e.target.checked, ticks.unregistered)}
+          />
+        }
+        slotProps={{ typography: { variant: "body2" } }}
+      />
+      <FormControlLabel
+        label="Unregistered (shadow agents found outside Agent Manager)"
+        control={
+          <Checkbox
+            size="small"
+            checked={ticks.unregistered}
+            onChange={(e) => setTicks(ticks.registered, e.target.checked)}
+          />
+        }
+        slotProps={{ typography: { variant: "body2" } }}
+      />
+      {draft.registration === null && (
+        <FormHelperText error>Tick at least one.</FormHelperText>
+      )}
+    </Stack>
+  );
+}
+
 /** A titled group of panel fields. */
 function FilterSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -95,11 +145,11 @@ function FilterSection({ title, children }: { title: string; children: React.Rea
 export interface AgentRegistryFiltersPanelProps {
   /** The Filters button the panel hangs from. */
   anchorEl: HTMLElement;
-  draft: PanelFilters;
+  draft: PanelDraft;
   options: AgentRegistryFilterOptions;
   /** Says where the Access filters look, e.g. "Production" or "any environment". */
   environmentLabel: string;
-  onDraftChange: (draft: PanelFilters) => void;
+  onDraftChange: (draft: PanelDraft) => void;
   onReset: () => void;
   onApply: () => void;
   onClose: () => void;
@@ -117,6 +167,7 @@ export function AgentRegistryFiltersPanel({
   onClose,
 }: AgentRegistryFiltersPanelProps) {
   const fieldProps = { draft, options, onDraftChange };
+  const isValid = draft.registration !== null;
 
   // A callback ref, as the panel mounts in the portal after this component.
   const focusOnMount = useCallback(
@@ -190,13 +241,18 @@ export function AgentRegistryFiltersPanel({
                 <PanelSelect filterKey="owner" {...fieldProps} />
                 <PanelSelect filterKey="tag" {...fieldProps} />
               </FilterSection>
-              <FilterSection title="Access">
-                <Typography variant="caption" color="text.secondary">
-                  What the agent can reach in {environmentLabel}.
-                </Typography>
-                <PanelSelect filterKey="llmProvider" {...fieldProps} />
-                <PanelSelect filterKey="mcpServer" {...fieldProps} />
-              </FilterSection>
+              <Stack spacing={2.5} divider={<Divider flexItem />} sx={{ flex: 1, minWidth: 0 }}>
+                <FilterSection title="Access">
+                  <Typography variant="caption" color="text.secondary">
+                    What the agent can reach in {environmentLabel}.
+                  </Typography>
+                  <PanelSelect filterKey="llmProvider" {...fieldProps} />
+                  <PanelSelect filterKey="mcpServer" {...fieldProps} />
+                </FilterSection>
+                <FilterSection title="Registration">
+                  <RegistrationChecks draft={draft} onDraftChange={onDraftChange} />
+                </FilterSection>
+              </Stack>
             </Stack>
             <Stack
               direction="row"
@@ -207,7 +263,7 @@ export function AgentRegistryFiltersPanel({
               <Button variant="text" onClick={onReset}>
                 Reset
               </Button>
-              <Button variant="contained" onClick={onApply}>
+              <Button variant="contained" disabled={!isValid} onClick={onApply}>
                 Filter
               </Button>
             </Stack>

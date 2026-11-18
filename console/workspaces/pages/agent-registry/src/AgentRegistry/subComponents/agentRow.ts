@@ -23,13 +23,30 @@ import { absoluteRouteMap, type AgentRegistryEntry } from "@agent-management-pla
 
 // Shared by the table and the tile views.
 
-/** Hosting, interface and kind in one line, e.g. "Platform · A2A · Kind reviewer 0.4.1". */
+/**
+ * Hosting, interface and kind in one line, e.g. "Platform · A2A · Kind reviewer 0.4.1".
+ * For an unregistered agent: where it was found, e.g. "Found on OpenAI · proj_cs".
+ */
 export function agentTypeText(agent: AgentRegistryEntry): string {
+  if (agent.registration === "unregistered") {
+    const found = agent.discovery
+      ? [`Found on ${agent.discovery.providerDisplayName}`, agent.discovery.scope]
+      : ["Found outside Agent Manager"];
+    return found.filter(Boolean).join(" · ");
+  }
   const hosting = agent.hosting === "platform" ? "Platform" : "External";
   const kind = agent.kindName
     ? `Kind ${agent.kindName}${agent.kindVersion ? ` ${agent.kindVersion}` : ""}`
     : undefined;
-  return [hosting, displayAgentSubType(agent.interface), kind].filter(Boolean).join(" · ");
+  const agentInterface = displayAgentSubType(agent.interface ?? undefined);
+  return [hosting, agentInterface, kind].filter(Boolean).join(" · ");
+}
+
+/** True when the row can open a page. */
+export function canOpenAgent(agent: AgentRegistryEntry): boolean {
+  // Unregistered agents will open their Shadow Agent Discovery finding once that
+  // page is on this branch; until then they open nothing.
+  return agent.registration === "registered";
 }
 
 /** Opens the agent's own page in its project. */
@@ -37,6 +54,7 @@ export function useOpenAgent(orgId: string) {
   const navigate = useNavigate();
   return useCallback(
     (agent: AgentRegistryEntry) =>
+      canOpenAgent(agent) &&
       navigate(
         generatePath(absoluteRouteMap.children.org.children.projects.children.agents.path, {
           orgId,
