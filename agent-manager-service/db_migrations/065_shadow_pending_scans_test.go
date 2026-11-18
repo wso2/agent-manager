@@ -26,16 +26,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration064AddsPendingScansAndOptions(t *testing.T) {
+func TestMigration065AddsPendingScansAndOptions(t *testing.T) {
 	g := scratchDatabase(t)
-	require.NoError(t, migrateTo(g, 63))
+	require.NoError(t, migrateTo(g, 64))
 	insert := `INSERT INTO shadow_scans (id, ou_id, status, connection_ids, results, findings_count, requested_by, attempts)
-		VALUES (?, 'org-064', ?, '[]', '[]', 0, '', 0)`
-	require.Error(t, g.Exec(insert, uuid.New(), "pending").Error, "pending is not a status before 064")
+		VALUES (?, 'org-065', ?, '[]', '[]', 0, '', 0)`
+	require.Error(t, g.Exec(insert, uuid.New(), "pending").Error, "pending is not a status before 065")
 	old := uuid.New()
 	exec(t, g, insert, old, "succeeded")
 
-	require.NoError(t, migrateTo(g, 64))
+	require.NoError(t, migrateTo(g, 65))
 
 	pending := uuid.New()
 	exec(t, g, insert, pending, "pending")
@@ -47,6 +47,6 @@ func TestMigration064AddsPendingScansAndOptions(t *testing.T) {
 	require.NoError(t, g.Raw(`SELECT count(*) FROM pg_indexes WHERE indexname = 'idx_shadow_scans_pending'`).Scan(&idx).Error)
 	assert.EqualValues(t, 1, idx)
 
-	require.NoError(t, migration064.Migrate(g), "running the migration again must succeed")
+	require.NoError(t, migration065.Migrate(g), "running the migration again must succeed")
 	exec(t, g, insert, uuid.New(), "pending")
 }

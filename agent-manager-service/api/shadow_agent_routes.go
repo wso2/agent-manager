@@ -49,7 +49,7 @@ func registerShadowAgentRoutes(rr *middleware.RouteRegistrar, controller control
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/findings"), rbac.ShadowAgentRead, controller.ListFindings)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/findings"), rbac.ShadowAgentManage, controller.DeleteFindings)
 	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/findings/{findingId}"), rbac.ShadowAgentRead, controller.GetFinding)
-	rr.HandleFuncWithValidationAndAuthz(route("PATCH", base+"/findings/{findingId}"), rbac.ShadowAgentManage, controller.UpdateFinding)
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/findings/{findingId}/onboarding"), rbac.ShadowAgentManage, controller.OnboardFinding)
 	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/findings/{findingId}"), rbac.ShadowAgentManage, controller.DeleteFinding)
 
 	// POST /shadow-agent-publisher/scans/{scanId}/results - a source code scan

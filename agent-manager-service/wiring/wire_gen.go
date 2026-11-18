@@ -220,7 +220,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	shadowAgentRepository := repositories.NewShadowAgentRepository(db)
 	shadowConnectors := ProvideShadowConnectors(logger)
 	shadowScanRunner := services.NewShadowScanRunner(configConfig, logger)
-	shadowAgentService := services.NewShadowAgentServiceWithScanRunner(shadowAgentRepository, shadowConnectors, v, logger, shadowScanRunner)
+	shadowAgentService := services.NewShadowAgentServiceWithScanRunner(shadowAgentRepository, shadowConnectors, agentManagerService, v, logger, shadowScanRunner)
 	shadowAgentController := controllers.NewShadowAgentController(shadowAgentService)
 	monitorAlertService := services.NewMonitorAlertService(monitorAlertRepository, monitorRepository, eventRepository)
 	monitorAlertController := controllers.NewMonitorAlertController(monitorAlertService)
@@ -481,7 +481,7 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	shadowAgentRepository := repositories.NewShadowAgentRepository(db)
 	shadowConnectors := ProvideShadowConnectors(logger)
 	shadowScanRunner := services.NewShadowScanRunner(configConfig, logger)
-	shadowAgentService := services.NewShadowAgentServiceWithScanRunner(shadowAgentRepository, shadowConnectors, v, logger, shadowScanRunner)
+	shadowAgentService := services.NewShadowAgentServiceWithScanRunner(shadowAgentRepository, shadowConnectors, agentManagerService, v, logger, shadowScanRunner)
 	shadowAgentController := controllers.NewShadowAgentController(shadowAgentService)
 	monitorAlertService := services.NewMonitorAlertService(monitorAlertRepository, monitorRepository, eventRepository)
 	monitorAlertController := controllers.NewMonitorAlertController(monitorAlertService)
@@ -596,7 +596,7 @@ var clientProviderSet = wire.NewSet(
 )
 
 var serviceProviderSet = wire.NewSet(services.NewAgentManagerService, services.NewAgentKindService, services.NewInfraResourceManager, services.NewAgentTokenManagerService, ProvideGitCredentialsService, services.NewRepositoryService, services.NewMonitorExecutor, services.NewMonitorManagerService, ProvideThunderConfig, services.NewMonitorSchedulerService, ProvideAgentIdentityInjectionServiceWithEndpointResolver, services.NewAgentThunderReconcilerService, services.NewA2ACardFetcher, services.NewA2ACardReconcilerService, services.NewProjectMCPCapabilityDiscoveryService, services.NewConfiguredDeploymentTimeoutSweeper, services.NewA2AAgentCardService, ProvideTxRunner, services.NewAgentExposurePublisher, services.NewA2APublisher, services.NewA2AProxyService, ProvideA2AProxyHooks, services.NewEvaluatorManagerService, services.NewEnvironmentService, ProvidePlatformGatewayService, services.NewLLMProviderTemplateService, services.NewLLMProviderService, services.NewLLMProxyService, services.NewLLMProviderDeploymentService, services.NewLLMProviderAPIKeyService, services.NewLLMProxyAPIKeyService, services.NewAgentAPIKeyService, services.NewLLMProxyDeploymentService, services.NewMCPProxyService, services.NewProjectMCPProxyService, services.NewMCPProxyScopeService, wire.Bind(new(services.MCPProxyRedeployer), new(*services.MCPProxyService)), wire.Bind(new(controllers.MCPResourceServerIdentifierResolver), new(*services.MCPProxyService)), services.NewGatewayInternalAPIService, services.NewMonitorScoresService, services.NewBuildPublisherService, services.NewCatalogService, services.NewLLMProxyProvisioner, services.NewAgentConfigurationService, services.NewLLMTemplateStore, services.NewGitSecretService, services.NewAIApplicationService, ProvideEventBus,
-	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService, services.NewMonitorAlertService, services.NewMonitorAlertProcessor, ProvideShadowConnectors, services.NewShadowScanRunner, services.NewShadowAgentServiceWithScanRunner, services.NewShadowAgentScanner,
+	ProvideEventPublisher, repositories.NewEventOutboxRepository, services.NewMonitorRunEvents, ProvideDestinationDrivers, services.NewEventDestinationService, services.NewEventSubscriptionService, wire.Bind(new(services.EventsCleaner), new(services.EventSubscriptionService)), wire.Bind(new(services.DestinationResolver), new(services.EventDestinationService)), services.NewEventDispatcherService, services.NewMonitorAlertService, services.NewMonitorAlertProcessor, ProvideShadowConnectors, services.NewShadowScanRunner, services.NewShadowAgentServiceWithScanRunner, wire.Bind(new(services.ShadowAgentLookup), new(services.AgentManagerService)), services.NewShadowAgentScanner,
 )
 
 var instrumentationProviderSet = wire.NewSet(

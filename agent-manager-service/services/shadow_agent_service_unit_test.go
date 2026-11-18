@@ -49,8 +49,19 @@ const (
 
 var shadowTestKey = bytes.Repeat([]byte{7}, 32)
 
+// fakeAgentLookup finds the agents it lists ("project/agent").
+type fakeAgentLookup map[string]bool
+
+func (f fakeAgentLookup) GetAgent(_ context.Context, _ string, project, agent string) (*models.AgentResponse, error) {
+	if !f[project+"/"+agent] {
+		return nil, utils.ErrAgentNotFound
+	}
+	return &models.AgentResponse{Name: agent, ProjectName: project}, nil
+}
+
 func newShadowSvc(repo *repomocks.ShadowAgentRepositoryMock) *shadowAgentService {
-	return NewShadowAgentService(repo, ShadowConnectors{}, shadowTestKey, discardLogger()).(*shadowAgentService)
+	return NewShadowAgentService(repo, ShadowConnectors{}, fakeAgentLookup{"default/support-agent": true},
+		shadowTestKey, discardLogger()).(*shadowAgentService)
 }
 
 const shadowProjectKey = "sk-proj-AAAAAAAAAAAAAAAA"
@@ -721,33 +732,13 @@ func TestShadowListFindings_Validation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 50, got.Limit)
 	assert.Equal(t, 0, got.Offset)
-	for _, f := range []repositories.ShadowFindingFilter{
-		{Provider: "acme"},
-		{Status: "onboarded"},
-		{Status: "retired"},
-	} {
-		_, _, err = svc.ListFindings(context.Background(), shadowTestOU, f)
-		assert.ErrorIs(t, err, utils.ErrInvalidInput, f)
-	}
-}
-
-func TestShadowUpdateFindingStatus(t *testing.T) {
-	f := models.ShadowFinding{ID: uuid.New()}
-	repo := findingRepo(f)
-	repo.UpdateFindingStatusFunc = func(context.Context, string, uuid.UUID, string) error { return nil }
-	svc := newShadowSvc(repo)
-	for _, s := range []string{models.ShadowStatusReviewed, models.ShadowStatusDismissed, models.ShadowStatusNew} {
-		_, err := svc.UpdateFindingStatus(auditableCtx(t), shadowTestOU, f.ID, s)
-		require.NoError(t, err, s)
-	}
-	require.Len(t, repo.UpdateFindingStatusCalls(), 3)
-	for _, s := range []string{"onboarded", "retired", "agent"} {
-		_, err := svc.UpdateFindingStatus(auditableCtx(t), shadowTestOU, f.ID, s)
-		assert.ErrorIs(t, err, utils.ErrInvalidInput, s)
-	}
-	repo.UpdateFindingStatusFunc = func(context.Context, string, uuid.UUID, string) error { return gorm.ErrRecordNotFound }
-	_, err := svc.UpdateFindingStatus(auditableCtx(t), shadowTestOU, f.ID, models.ShadowStatusReviewed)
-	assert.ErrorIs(t, err, utils.ErrShadowFindingNotFound)
+	_, _, err = svc.ListFindings(context.Background(), shadowTestOU, repositories.ShadowFindingFilter{Provider: "acme"})
+	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	on := true
+	_, _, err = svc.ListFindings(context.Background(), shadowTestOU, repositories.ShadowFindingFilter{Onboarded: &on})
+	require.NoError(t, err)
+	require.NotNil(t, got.Onboarded)
+	assert.True(t, *got.Onboarded, "the onboarding filter reaches the repository")
 }
 
 func TestCorrelateShadowFindings(t *testing.T) {
@@ -1139,4 +1130,49 @@ func TestShadowDeleteAgents(t *testing.T) {
 	err = svc.DeleteFinding(context.Background(), shadowTestOU, id)
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, utils.ErrShadowFindingNotFound)
+}
+
+// Onboarding links the agent to a registered external agent that exists in
+// the org, once.
+func TestShadowOnboardAgent(t *testing.T) {
+	id := uuid.New()
+	row := &repositories.ShadowFindingRow{ShadowFinding: models.ShadowFinding{
+		ID: id, OUID: shadowTestOU, Provider: models.ShadowProviderOpenAI, Kind: models.ShadowKindPlatformAgent, ExternalID: "agent_1",
+	}}
+	onboarded := false
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		GetFindingFunc: func(_ context.Context, ou string, got uuid.UUID) (*repositories.ShadowFindingRow, error) {
+			if ou != shadowTestOU || got != id {
+				return nil, gorm.ErrRecordNotFound
+			}
+			r := *row
+			return &r, nil
+		},
+		ListSignalsFunc: func(context.Context, string, uuid.UUID) ([]models.ShadowFindingSignal, error) { return nil, nil },
+		OnboardFindingFunc: func(_ context.Context, _ string, _ uuid.UUID, project, agent, _ string, _ time.Time) error {
+			if onboarded {
+				return utils.ErrShadowAlreadyOnboarded
+			}
+			onboarded = true
+			row.LinkedProject, row.LinkedAgent = project, agent
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	ctx := auditableCtx(t)
+
+	_, err := svc.Onboard(ctx, shadowTestOU, id, " ", "support-agent")
+	assert.ErrorIs(t, err, utils.ErrInvalidInput, "a project is required")
+	_, err = svc.Onboard(ctx, shadowTestOU, id, "default", "missing-agent")
+	assert.ErrorIs(t, err, utils.ErrAgentNotFound, "only an agent that exists can be linked")
+	_, err = svc.Onboard(ctx, shadowTestOU, uuid.New(), "default", "support-agent")
+	assert.ErrorIs(t, err, utils.ErrShadowFindingNotFound)
+	assert.Empty(t, repo.OnboardFindingCalls(), "nothing is linked before the checks pass")
+
+	v, err := svc.Onboard(ctx, shadowTestOU, id, " default ", "support-agent")
+	require.NoError(t, err)
+	assert.Equal(t, "default", v.Row.LinkedProject)
+	assert.Equal(t, "support-agent", v.Row.LinkedAgent)
+	_, err = svc.Onboard(ctx, shadowTestOU, id, "default", "support-agent")
+	assert.ErrorIs(t, err, utils.ErrShadowAlreadyOnboarded)
 }

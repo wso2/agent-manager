@@ -16,28 +16,35 @@
  * under the License.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Box,
-  Button,
   Card,
   CardContent,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
   IconButton,
   Link,
   Stack,
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { Copy, ExternalLink } from "@wso2/oxygen-ui-icons-react";
+import {
+  Check,
+  ChevronDown,
+  Copy,
+  ExternalLink,
+  Eye,
+  KeyRound,
+  ShieldCheck,
+  Wrench,
+} from "@wso2/oxygen-ui-icons-react";
 import type { ShadowPermissionSpec, ShadowProviderSpec } from "@agent-management-platform/types";
 
 /** A policy document, pretty-printed, with a copy button. */
 export function CopyBlock({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
   const pretty = useMemo(() => {
     try {
       return JSON.stringify(JSON.parse(text), null, 2);
@@ -57,75 +64,150 @@ export function CopyBlock({ text }: { text: string }) {
     >
       <Box
         component="pre"
-        sx={{ m: 0, p: 1.5, pr: 5, overflowX: "auto", fontSize: 12, maxHeight: 240 }}
+        sx={{ m: 0, p: 1.5, pr: 5, overflowX: "auto", fontSize: 12, maxHeight: 260 }}
       >
         {pretty}
       </Box>
-      <Tooltip title="Copy">
+      <Tooltip title={copied ? "Copied" : "Copy"}>
         <IconButton
           size="small"
           aria-label="Copy policy"
           sx={{ position: "absolute", top: 4, right: 4 }}
-          onClick={() => void navigator.clipboard?.writeText(pretty)}
+          onClick={() =>
+            void navigator.clipboard
+              ?.writeText(pretty)
+              .then(() => setCopied(true))
+              .catch(() => setCopied(false))
+          }
         >
-          <Copy size={16} />
+          {copied ? <Check size={16} /> : <Copy size={16} />}
         </IconButton>
       </Tooltip>
     </Box>
   );
 }
 
-function BulletList({ items }: { items: string[] }) {
+function GroupTitle({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <Box component="ul" sx={{ pl: 2.5, my: 0.5 }}>
-      {items.map((it) => (
-        <Typography key={it} component="li" variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
-          {it}
-        </Typography>
-      ))}
-    </Box>
+    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.75 }}>
+      <Box sx={{ color: "text.secondary", display: "flex" }}>{icon}</Box>
+      <Typography variant="body2" fontWeight={600}>
+        {children}
+      </Typography>
+    </Stack>
   );
 }
 
-export function Section({ p }: { p: ShadowPermissionSpec }) {
+/** What Agent Manager reads: a checked list. */
+function ReadsList({ items }: { items: string[] }) {
   return (
-    <Box>
-      <Typography variant="subtitle2">{p.title}</Typography>
-      {p.summary && (
-        <Typography variant="body2" sx={{ mt: 0.5 }}>
-          {p.summary}
-        </Typography>
-      )}
-      {p.reads && p.reads.length > 0 && (
-        <Box sx={{ mt: 1 }}>
-          <Typography variant="overline" color="text.secondary">
-            What Agent Manager reads
+    <Stack spacing={0.75}>
+      {items.map((it) => (
+        <Stack key={it} direction="row" spacing={1} alignItems="flex-start">
+          <Box sx={{ color: "success.main", display: "flex", mt: "3px" }} aria-hidden>
+            <Check size={14} />
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            {it}
           </Typography>
-          <BulletList items={p.reads} />
-        </Box>
-      )}
-      {p.items.length > 0 && (
-        <Box sx={{ mt: 1 }}>
-          <Typography variant="overline" color="text.secondary">
-            How to set it up
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+/** How to set it up: numbered steps. */
+function StepsList({ items }: { items: string[] }) {
+  return (
+    <Stack component="ol" spacing={0.75} sx={{ m: 0, pl: 0, listStyle: "none" }}>
+      {items.map((it, i) => (
+        <Stack key={it} component="li" direction="row" spacing={1} alignItems="flex-start">
+          <Box
+            sx={{
+              minWidth: 20,
+              height: 20,
+              borderRadius: "50%",
+              bgcolor: "action.selected",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 11,
+              fontWeight: 600,
+              mt: "1px",
+            }}
+          >
+            {i + 1}
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            {it}
           </Typography>
-          <BulletList items={p.items} />
-        </Box>
-      )}
-      {p.policy && (
-        <Box sx={{ mt: 1 }}>
-          <Typography variant="overline" color="text.secondary">
-            Least-privilege policy
-          </Typography>
-          <CopyBlock text={p.policy} />
-        </Box>
-      )}
-      {p.note && (
-        <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
-          {p.note}
-        </Typography>
-      )}
-    </Box>
+        </Stack>
+      ))}
+    </Stack>
+  );
+}
+
+/**
+ * One credential or source: a collapsible section with what is read, how to
+ * set it up and the policy.
+ */
+export function Section({
+  p,
+  defaultExpanded = true,
+}: {
+  p: ShadowPermissionSpec;
+  defaultExpanded?: boolean;
+}) {
+  return (
+    <Accordion
+      defaultExpanded={defaultExpanded}
+      disableGutters
+      variant="outlined"
+      sx={{ "&&": { m: 0, borderRadius: 1 }, "&::before": { display: "none" } }}
+    >
+      <AccordionSummary expandIcon={<ChevronDown size={18} />} sx={{ px: 2 }}>
+        <Stack direction="row" spacing={1.5} alignItems="flex-start" sx={{ minWidth: 0 }}>
+          <Box sx={{ color: "primary.main", display: "flex", mt: "2px" }} aria-hidden>
+            <KeyRound size={18} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle2">{p.title}</Typography>
+            {p.summary && (
+              <Typography variant="caption" color="text.secondary" component="p">
+                {p.summary}
+              </Typography>
+            )}
+          </Box>
+        </Stack>
+      </AccordionSummary>
+      <AccordionDetails sx={{ px: 2, pb: 2, pt: 0 }}>
+        <Stack spacing={2}>
+          {p.reads && p.reads.length > 0 && (
+            <Box>
+              <GroupTitle icon={<Eye size={16} />}>What Agent Manager reads</GroupTitle>
+              <ReadsList items={p.reads} />
+            </Box>
+          )}
+          {p.items.length > 0 && (
+            <Box>
+              <GroupTitle icon={<Wrench size={16} />}>How to set it up</GroupTitle>
+              <StepsList items={p.items} />
+            </Box>
+          )}
+          {p.policy && (
+            <Box>
+              <GroupTitle icon={<ShieldCheck size={16} />}>Least-privilege policy</GroupTitle>
+              <CopyBlock text={p.policy} />
+            </Box>
+          )}
+          {p.note && (
+            <Typography variant="caption" color="text.secondary" component="p">
+              {p.note}
+            </Typography>
+          )}
+        </Stack>
+      </AccordionDetails>
+    </Accordion>
   );
 }
 
@@ -154,102 +236,53 @@ export function DocLinks({ spec }: { spec: ShadowProviderSpec }) {
   );
 }
 
-/** Every section, what is never stored, and the official links. */
-function Guide({ spec }: { spec: ShadowProviderSpec }) {
-  return (
-    <Stack spacing={2.5} divider={<Divider flexItem />}>
-      {spec.permissions.map((p) => (
-        <Section key={p.title} p={p} />
-      ))}
-      <Box>
-        <Typography variant="subtitle2">What is never stored</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          Every call is read-only. Prompts, completions, tool inputs and outputs and agent
-          instructions are never stored or logged; the credential is stored encrypted and is never
-          shown again.
-        </Typography>
-      </Box>
-      {spec.docs.length > 0 && (
-        <Box>
-          <Typography variant="subtitle2">Official documentation</Typography>
-          <DocLinks spec={spec} />
-        </Box>
-      )}
-    </Stack>
-  );
-}
-
 /**
- * What Agent Manager does with each credential and source of the provider,
- * shown next to the form. When it is taller than the screen allows, it is cut
- * and "Show more" opens all of it in a dialog.
+ * What to give Agent Manager for the platform and what it does with it,
+ * shown next to the form: a read-only note, one collapsible section per
+ * credential or source, and the official documentation.
  */
 export function PermissionsPanel({ spec }: { spec: ShadowProviderSpec }) {
-  const [open, setOpen] = useState(false);
-  const [overflowing, setOverflowing] = useState(false);
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return undefined;
-    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight + 1);
-    measure();
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : undefined;
-    ro?.observe(el);
-    window.addEventListener("resize", measure);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [spec]);
-  const title = `How ${spec.displayName} is used`;
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="subtitle1" gutterBottom>
-          {title}
+        <Typography variant="subtitle1">How {spec.displayName} is used</Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          What to give Agent Manager, and what it does with it.
         </Typography>
-        <Box
-          ref={boxRef}
-          sx={{
-            maxHeight: "calc(100vh - 260px)",
-            minHeight: 240,
-            overflow: "hidden",
-            position: "relative",
-          }}
-        >
-          <Guide spec={spec} />
-          {overflowing && (
-            <Box
-              aria-hidden
-              sx={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: 0,
-                height: 64,
-                background: (t) =>
-                  `linear-gradient(to bottom, transparent, ${t.palette.background.paper})`,
-              }}
-            />
+        <Stack spacing={1.5}>
+          <Stack
+            direction="row"
+            spacing={1.5}
+            alignItems="flex-start"
+            sx={{ bgcolor: "action.hover", borderRadius: 1, p: 1.5 }}
+          >
+            <Box sx={{ color: "success.main", display: "flex", mt: "2px" }} aria-hidden>
+              <ShieldCheck size={18} />
+            </Box>
+            <Box>
+              <Typography variant="body2" fontWeight={600}>
+                Read-only, and nothing sensitive is stored
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="p">
+                Every call is read-only. Prompts, completions, tool inputs and outputs and agent
+                instructions are never stored or logged; the credential is stored encrypted and is
+                never shown again.
+              </Typography>
+            </Box>
+          </Stack>
+          {spec.permissions.map((p, i) => (
+            <Section key={p.title} p={p} defaultExpanded={i === 0} />
+          ))}
+          {spec.docs.length > 0 && (
+            <Box sx={{ pt: 0.5 }}>
+              <Typography variant="caption" color="text.secondary" component="p">
+                Official documentation
+              </Typography>
+              <DocLinks spec={spec} />
+            </Box>
           )}
-        </Box>
-        {overflowing && (
-          <Button variant="outlined" size="small" sx={{ mt: 1.5 }} onClick={() => setOpen(true)}>
-            Show more
-          </Button>
-        )}
+        </Stack>
       </CardContent>
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth scroll="paper">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogContent dividers>
-          <Guide spec={spec} />
-        </DialogContent>
-        <DialogActions sx={{ justifyContent: "flex-start", px: 3, pb: 2 }}>
-          <Button variant="outlined" onClick={() => setOpen(false)}>
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Card>
   );
 }

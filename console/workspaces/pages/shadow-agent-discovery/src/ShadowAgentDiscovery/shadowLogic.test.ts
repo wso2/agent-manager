@@ -34,7 +34,6 @@ import {
   PROVIDER_LABELS,
   SOURCE_HOSTS,
   sourceScopeLabel,
-  STATUS_LABELS,
   unlockLabels,
 } from "./shadowUi";
 import {
@@ -256,7 +255,6 @@ describe("labels", () => {
   });
 
   it("has only the review statuses, and the five agent platforms", () => {
-    expect(STATUS_LABELS).toEqual({ new: "New", reviewed: "Reviewed", dismissed: "Dismissed" });
     expect(AGENT_PLATFORMS).toEqual(["openai", "anthropic", "bedrock", "google", "foundry"]);
     for (const host of SOURCE_HOSTS) expect(AGENT_PLATFORMS).not.toContain(host);
     expect(Object.keys(PROVIDER_LABELS).sort()).toEqual(

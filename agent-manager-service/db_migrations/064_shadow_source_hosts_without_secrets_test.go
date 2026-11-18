@@ -26,17 +26,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMigration063DropsSourceHostSecrets(t *testing.T) {
+func TestMigration064DropsSourceHostSecrets(t *testing.T) {
 	g := scratchDatabase(t)
-	require.NoError(t, migrateTo(g, 62))
+	require.NoError(t, migrateTo(g, 63))
 	gh, ado, openai := uuid.New(), uuid.New(), uuid.New()
 	insert := `INSERT INTO shadow_connections (id, ou_id, name, provider, config, secret_encrypted, secret_hints, last_test_result)
-		VALUES (?, 'org-063', ?, ?, ?::jsonb, '\x01'::bytea, '{"personalAccessToken": "gith...wxyz"}', '{"checks": []}')`
+		VALUES (?, 'org-064', ?, ?, ?::jsonb, '\x01'::bytea, '{"personalAccessToken": "gith...wxyz"}', '{"checks": []}')`
 	exec(t, g, insert, gh, "GitHub", "github", `{"organization": "acme", "allRepositories": true}`)
 	exec(t, g, insert, ado, "Azure DevOps", "azure_devops", `{"organization": "contoso", "useEntra": true, "tenantId": "t", "clientId": "c"}`)
 	exec(t, g, insert, openai, "OpenAI", "openai", `{"tenantId": "kept"}`)
 
-	require.NoError(t, migrateTo(g, 63))
+	require.NoError(t, migrateTo(g, 64))
 
 	type row struct {
 		SecretEncrypted []byte  `gorm:"column:secret_encrypted"`
@@ -64,7 +64,7 @@ func TestMigration063DropsSourceHostSecrets(t *testing.T) {
 	assert.JSONEq(t, `{"tenantId": "kept"}`, other.Config)
 	assert.NotNil(t, other.LastTestResult)
 
-	require.NoError(t, migration063.Migrate(g), "running the migration again must succeed")
+	require.NoError(t, migration064.Migrate(g), "running the migration again must succeed")
 	assert.Nil(t, get(gh).SecretEncrypted)
 	assert.Equal(t, []byte{0x01}, get(openai).SecretEncrypted)
 }

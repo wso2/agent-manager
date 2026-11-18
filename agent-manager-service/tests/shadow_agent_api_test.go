@@ -44,6 +44,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -218,13 +219,23 @@ func TestShadowAgentDiscoveryAPI_Catalog(t *testing.T) {
 
 // TestShadowAgentDiscoveryAPI covers the whole flow against a fake OpenAI:
 // platforms, tests, scans of one platform and of all, the deduplicated
-// unregistered agents with the platform filter, review status, agents no
-// longer listed, clearing scans, retention and isolation.
+// unregistered agents with the platform filter, onboarding as an external
+// agent, agents no longer listed, deleting, clearing scans, retention and
+// isolation.
 func TestShadowAgentDiscoveryAPI(t *testing.T) {
 	ctx := context.Background()
 	org := "shadow-org-" + uuid.NewString()[:6]
 	ouID := "ou-" + uuid.NewString()
 	oc := apitestutils.CreateMockOpenChoreoClient()
+	// The registered external agent "default/support-agent" exists; no other.
+	agentLookups := 0
+	oc.GetComponentFunc = func(_ context.Context, _ string, projName, agentName string) (*models.AgentResponse, error) {
+		agentLookups++
+		if projName != "default" || agentName != "support-agent" {
+			return nil, utils.ErrNotFound
+		}
+		return &models.AgentResponse{Name: agentName, ProjectName: projName}, nil
+	}
 	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{OpenChoreoClient: oc},
 		jwtassertion.NewMockMiddlewareWithOUID(t, ouID))
 	api := shadowAPI{t: t, app: app, org: org}
@@ -370,25 +381,48 @@ func TestShadowAgentDiscoveryAPI(t *testing.T) {
 	assert.Contains(t, detail.Signals[0].Condition, "GET /v1/agents")
 	assert.Len(t, detail.FoundBy, 2)
 	assert.Equal(t, "gpt-x", detail.Attributes["model"])
-	for _, removed := range []string{"score", "verdict", "usage", "keys", "retirement", "linkedAgent", "requestsInWindow"} {
+	assert.False(t, detail.Onboarded)
+	for _, removed := range []string{"score", "verdict", "usage", "keys", "retirement", "status", "linkedAgent", "requestsInWindow"} {
 		assert.NotContains(t, string(body), `"`+removed+`"`, removed)
 	}
 
-	// Review: one status for the agent, on every platform that found it.
-	code, body = api.do(http.MethodPatch, "/findings/"+alpha.Id, map[string]any{"status": "reviewed"})
+	// The review status is gone.
+	code, _ = api.do(http.MethodPatch, "/findings/"+alpha.Id, map[string]any{"status": "reviewed"})
+	assert.GreaterOrEqual(t, code, 400)
+	code, _ = api.do(http.MethodGet, "/findings?onboarded=maybe", nil)
+	assert.Equal(t, http.StatusBadRequest, code)
+
+	// Onboard as an external agent: only to a registered agent that exists,
+	// for every platform that found the agent, and once.
+	code, _ = api.do(http.MethodPost, "/findings/"+alpha.Id+"/onboarding", map[string]any{"projectName": "default", "agentName": "missing"})
+	assert.Equal(t, http.StatusNotFound, code, "the registered agent must exist")
+	code, _ = api.do(http.MethodPost, "/findings/"+alpha.Id+"/onboarding", map[string]any{"projectName": "default"})
+	assert.Equal(t, http.StatusBadRequest, code)
+	assert.EqualValues(t, 0, api.agents("?onboarded=true").Total)
+	code, body = api.do(http.MethodPost, "/findings/"+alpha.Id+"/onboarding", map[string]any{"projectName": "default", "agentName": "support-agent"})
 	require.Equal(t, http.StatusOK, code, string(body))
+	onboarded := decodeInto[spec.ShadowFindingDetail](t, body)
+	assert.True(t, onboarded.Onboarded)
+	require.NotNil(t, onboarded.LinkedProject)
+	require.NotNil(t, onboarded.LinkedAgent)
+	assert.Equal(t, "default", *onboarded.LinkedProject)
+	assert.Equal(t, "support-agent", *onboarded.LinkedAgent)
+	assert.NotNil(t, onboarded.OnboardedAt)
 	for _, src := range detail.FoundBy {
 		code, body = api.do(http.MethodGet, "/findings/"+src.FindingId, nil)
 		require.Equal(t, http.StatusOK, code)
-		assert.Equal(t, "reviewed", decodeInto[spec.ShadowFindingDetail](t, body).Status, src.ConnectionName)
+		assert.True(t, decodeInto[spec.ShadowFindingDetail](t, body).Onboarded, src.ConnectionName)
 	}
-	assert.EqualValues(t, 1, api.agents("?status=reviewed").Total)
-	code, _ = api.do(http.MethodPatch, "/findings/"+alpha.Id, map[string]any{"status": "onboarded"})
-	assert.Equal(t, http.StatusBadRequest, code)
+	assert.EqualValues(t, 1, api.agents("?onboarded=true").Total)
+	assert.EqualValues(t, 2, api.agents("?onboarded=false").Total)
+	code, body = api.do(http.MethodGet, "/summary", nil)
+	require.Equal(t, http.StatusOK, code)
+	assert.EqualValues(t, 1, decodeInto[spec.ShadowAgentSummary](t, body).Onboarded)
+	code, _ = api.do(http.MethodPost, "/findings/"+alpha.Id+"/onboarding", map[string]any{"projectName": "default", "agentName": "support-agent"})
+	assert.Equal(t, http.StatusConflict, code, "an agent is onboarded once")
+	assert.Positive(t, agentLookups)
 
-	// Onboarding and retirement are gone.
-	code, _ = api.do(http.MethodPost, "/findings/"+alpha.Id+"/onboarding", map[string]any{"projectName": "p", "agentName": "a"})
-	assert.GreaterOrEqual(t, code, 400)
+	// Credential retirement is gone.
 	code, _ = api.do(http.MethodPost, "/findings/"+alpha.Id+"/retirement/confirm", nil)
 	assert.GreaterOrEqual(t, code, 400)
 
@@ -463,7 +497,7 @@ func TestShadowAgentDiscoveryAPI(t *testing.T) {
 	list = api.agents("")
 	require.EqualValues(t, 1, list.Total)
 	assert.Equal(t, "agent_alpha", list.Findings[0].ExternalId)
-	assert.Equal(t, "new", list.Findings[0].Status)
+	assert.False(t, list.Findings[0].Onboarded, "a deleted agent comes back without its onboarding")
 	assert.Len(t, list.Findings[0].FoundBy, 2)
 
 	// Delete all: every agent goes; platforms and scans stay.

@@ -18,14 +18,14 @@ package dbmigrations
 
 import "gorm.io/gorm"
 
-// migration064 adds the pending scan status and the scan options. A pending
+// migration065 adds the pending scan status and the scan options. A pending
 // scan is a source code scan created by Generate command: it waits for its
 // scan command to publish results, so the worker never claims it and it does
 // not count as the org's active scan. Options hold the choices made in
 // Generate command (AI review, LLM judge). The index finds the pending scans
 // to expire.
-var migration064 = migration{
-	ID: 64,
+var migration065 = migration{
+	ID: 65,
 	Migrate: func(db *gorm.DB) error {
 		return db.Transaction(func(tx *gorm.DB) error {
 			return runSQL(tx,

@@ -202,27 +202,33 @@ export const generatedRouteMap =  {
           "children": {}
         },
         "shadowAgentDiscovery": {
-          "path": "/org/:orgId/shadow-agent-discovery",
-          "wildPath": "/org/:orgId/shadow-agent-discovery/*",
+          "path": "/organizations/:orgId/shadow-agent-discovery",
+          "wildPath": "/organizations/:orgId/shadow-agent-discovery/*",
           "children": {
             "finding": {
-              "path": "/org/:orgId/shadow-agent-discovery/agents/:findingId",
-              "wildPath": "/org/:orgId/shadow-agent-discovery/agents/:findingId/*",
-              "children": {}
+              "path": "/organizations/:orgId/shadow-agent-discovery/agents/:findingId",
+              "wildPath": "/organizations/:orgId/shadow-agent-discovery/agents/:findingId/*",
+              "children": {
+                "onboard": {
+                  "path": "/organizations/:orgId/shadow-agent-discovery/agents/:findingId/onboard",
+                  "wildPath": "/organizations/:orgId/shadow-agent-discovery/agents/:findingId/onboard/*",
+                  "children": {}
+                }
+              }
             },
             "scan": {
-              "path": "/org/:orgId/shadow-agent-discovery/scans/:scanId",
-              "wildPath": "/org/:orgId/shadow-agent-discovery/scans/:scanId/*",
+              "path": "/organizations/:orgId/shadow-agent-discovery/scans/:scanId",
+              "wildPath": "/organizations/:orgId/shadow-agent-discovery/scans/:scanId/*",
               "children": {}
             },
             "newConnection": {
-              "path": "/org/:orgId/shadow-agent-discovery/platforms/new",
-              "wildPath": "/org/:orgId/shadow-agent-discovery/platforms/new/*",
+              "path": "/organizations/:orgId/shadow-agent-discovery/platforms/new",
+              "wildPath": "/organizations/:orgId/shadow-agent-discovery/platforms/new/*",
               "children": {}
             },
             "editConnection": {
-              "path": "/org/:orgId/shadow-agent-discovery/platforms/:connectionId/edit",
-              "wildPath": "/org/:orgId/shadow-agent-discovery/platforms/:connectionId/edit/*",
+              "path": "/organizations/:orgId/shadow-agent-discovery/platforms/:connectionId/edit",
+              "wildPath": "/organizations/:orgId/shadow-agent-discovery/platforms/:connectionId/edit/*",
               "children": {}
             }
           }

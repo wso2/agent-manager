@@ -48,7 +48,13 @@ import {
   type ShadowFindingListQuery,
   type ShadowFindingSummary,
 } from "@agent-management-platform/types";
-import { AGENT_PLATFORMS, kindLabel, providerLabel, SOURCE_HOSTS, StatusChip } from "../shadowUi";
+import {
+  AGENT_PLATFORMS,
+  kindLabel,
+  OnboardingChip,
+  providerLabel,
+  SOURCE_HOSTS,
+} from "../shadowUi";
 
 const PAGE_SIZE = 50;
 
@@ -72,8 +78,8 @@ function lookalikeKey(f: ShadowFindingSummary): string {
   return [f.provider, f.kind, f.displayName, f.scope].join("\u0000");
 }
 
-/** The connections that found an agent: one name, or "A, B" for an agent found twice. */
-function foundByLabel(f: ShadowFindingSummary): string {
+/** The connections that list an agent: one name, or "A, B" for an agent found twice. */
+function sourceLabel(f: ShadowFindingSummary): string {
   const names = (f.foundBy ?? []).map((s) => s.connectionName);
   return names.length > 0 ? names.join(", ") : f.connectionName;
 }
@@ -95,18 +101,25 @@ export function FindingsTab({
   const location = useLocation();
   const [search, setSearch] = useState("");
   const [ownProvider, setOwnProvider] = useState("");
-  const [status, setStatus] = useState("");
+  const [onboarded, setOnboarded] = useState<"" | "true" | "false">("");
   const [offset, setOffset] = useState(0);
   const provider = controlledProvider ?? ownProvider;
   const deferredSearch = useDeferredValue(search.trim());
   const query = useMemo<ShadowFindingListQuery>(
-    () => ({ scanId, search: deferredSearch, provider, status, limit: PAGE_SIZE, offset }),
-    [scanId, deferredSearch, provider, status, offset],
+    () => ({
+      scanId,
+      search: deferredSearch,
+      provider,
+      onboarded: onboarded || undefined,
+      limit: PAGE_SIZE,
+      offset,
+    }),
+    [scanId, deferredSearch, provider, onboarded, offset],
   );
   const { data, isLoading, error } = useShadowFindings(orgName, query);
   const findings = useMemo(() => data?.findings ?? [], [data]);
   const total = data?.total ?? 0;
-  const isFiltered = !!(deferredSearch || provider || status);
+  const isFiltered = !!(deferredSearch || provider || onboarded);
   // Distinct agents can share a name (a platform allows it): their rows also
   // show the platform ID, so they do not read as duplicates.
   const lookalikes = useMemo(() => {
@@ -123,7 +136,7 @@ export function FindingsTab({
     addConfirmation({
       title: `Delete ${f.displayName}?`,
       description:
-        `The agent and its evidence are deleted from Agent Manager, for every platform that found it (${foundByLabel(f)}). ` +
+        `The agent and its evidence are deleted from Agent Manager, for every platform that found it (${sourceLabel(f)}). ` +
         "Nothing changes on the platform: a later scan lists the agent again if the platform still has it.",
       confirmButtonText: "Delete",
       confirmButtonColor: "error",
@@ -169,19 +182,21 @@ export function FindingsTab({
         />
       </Box>
       <Box sx={{ flex: 1 }} />
-      <Box sx={{ minWidth: 150 }}>
+      <Box sx={{ minWidth: 170 }}>
         <TextInput
           select
-          aria-label="Status"
-          value={status}
-          onChange={(e) => setFilter(setStatus)(e.target.value)}
+          aria-label="Onboarding"
+          value={onboarded}
+          onChange={(e) => {
+            setOnboarded(e.target.value as "" | "true" | "false");
+            setOffset(0);
+          }}
           size="small"
-          slotProps={{ select: { displayEmpty: true, inputProps: { "aria-label": "Status" } } }}
+          slotProps={{ select: { displayEmpty: true, inputProps: { "aria-label": "Onboarding" } } }}
         >
-          <MenuItem value="">All statuses</MenuItem>
-          <MenuItem value="new">New</MenuItem>
-          <MenuItem value="reviewed">Reviewed</MenuItem>
-          <MenuItem value="dismissed">Dismissed</MenuItem>
+          <MenuItem value="">All agents</MenuItem>
+          <MenuItem value="false">Not onboarded</MenuItem>
+          <MenuItem value="true">Onboarded</MenuItem>
         </TextInput>
       </Box>
       <Box sx={{ minWidth: 220 }}>
@@ -250,10 +265,10 @@ export function FindingsTab({
           <ListingTable.Row>
             <ListingTable.Cell>Agent</ListingTable.Cell>
             <ListingTable.Cell>Platform</ListingTable.Cell>
-            <ListingTable.Cell>Found by</ListingTable.Cell>
+            <ListingTable.Cell>Source</ListingTable.Cell>
             <ListingTable.Cell>State</ListingTable.Cell>
             <ListingTable.Cell>Last seen</ListingTable.Cell>
-            <ListingTable.Cell>Status</ListingTable.Cell>
+            <ListingTable.Cell>Onboarding</ListingTable.Cell>
             {canDelete && <ListingTable.Cell align="right">Actions</ListingTable.Cell>}
           </ListingTable.Row>
         </ListingTable.Head>
@@ -289,7 +304,7 @@ export function FindingsTab({
               </ListingTable.Cell>
               <ListingTable.Cell>
                 <Typography variant="body2" color="text.secondary">
-                  {foundByLabel(f)}
+                  {sourceLabel(f)}
                 </Typography>
               </ListingTable.Cell>
               <ListingTable.Cell>
@@ -313,7 +328,7 @@ export function FindingsTab({
                 </Typography>
               </ListingTable.Cell>
               <ListingTable.Cell>
-                <StatusChip status={f.status} />
+                <OnboardingChip onboarded={f.onboarded} />
               </ListingTable.Cell>
               {canDelete && (
                 <ListingTable.Cell align="right" onClick={(e) => e.stopPropagation()}>

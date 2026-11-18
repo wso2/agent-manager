@@ -148,6 +148,7 @@ var serviceProviderSet = wire.NewSet(
 	ProvideShadowConnectors,
 	services.NewShadowScanRunner,
 	services.NewShadowAgentServiceWithScanRunner,
+	wire.Bind(new(services.ShadowAgentLookup), new(services.AgentManagerService)),
 	services.NewShadowAgentScanner,
 )
 

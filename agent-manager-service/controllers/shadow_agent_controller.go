@@ -64,7 +64,7 @@ type ShadowAgentController interface {
 	ClearScans(w http.ResponseWriter, r *http.Request)
 	ListFindings(w http.ResponseWriter, r *http.Request)
 	GetFinding(w http.ResponseWriter, r *http.Request)
-	UpdateFinding(w http.ResponseWriter, r *http.Request)
+	OnboardFinding(w http.ResponseWriter, r *http.Request)
 	DeleteFinding(w http.ResponseWriter, r *http.Request)
 	DeleteFindings(w http.ResponseWriter, r *http.Request)
 }
@@ -172,7 +172,7 @@ func (c *shadowAgentController) GetSummary(w http.ResponseWriter, r *http.Reques
 	resp := spec.ShadowAgentSummary{
 		TotalFindings: int32(sum.Total), //nolint:gosec // bounded by row counts
 		ByProvider:    toInt32Map(sum.ByProvider),
-		ByStatus:      toInt32Map(sum.ByStatus),
+		Onboarded:     int32(sum.Onboarded),   //nolint:gosec // bounded by row counts
 		Connections:   int32(sum.Connections), //nolint:gosec // bounded by the per-org limit
 	}
 	if latest != nil {
@@ -449,7 +449,16 @@ func shadowFindingID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 func (c *shadowAgentController) ListFindings(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	f := repositories.ShadowFindingFilter{
-		Provider: q.Get("provider"), Status: q.Get("status"), Search: q.Get("search"), Limit: 50,
+		Provider: q.Get("provider"), Search: q.Get("search"), Limit: 50,
+	}
+	switch v := q.Get("onboarded"); v {
+	case "":
+	case "true", "false":
+		on := v == "true"
+		f.Onboarded = &on
+	default:
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "onboarded must be true or false")
+		return
 	}
 	if v := q.Get("connectionId"); v != "" {
 		id, err := uuid.Parse(v)
@@ -507,19 +516,21 @@ func (c *shadowAgentController) GetFinding(w http.ResponseWriter, r *http.Reques
 	utils.WriteSuccessResponse(w, http.StatusOK, toShadowFindingDetail(v))
 }
 
-func (c *shadowAgentController) UpdateFinding(w http.ResponseWriter, r *http.Request) {
+// OnboardFinding links the agent to the externally-hosted agent registered
+// for it, on every connection that found it.
+func (c *shadowAgentController) OnboardFinding(w http.ResponseWriter, r *http.Request) {
 	id, ok := shadowFindingID(w, r)
 	if !ok {
 		return
 	}
-	var req spec.ShadowFindingUpdateRequest
+	var req spec.ShadowOnboardingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	v, err := c.svc.UpdateFindingStatus(r.Context(), middleware.OUIDFromRequest(r), id, req.Status)
+	v, err := c.svc.Onboard(r.Context(), middleware.OUIDFromRequest(r), id, req.ProjectName, req.AgentName)
 	if err != nil {
-		writeShadowError(w, r, err, "Failed to update the agent")
+		writeShadowError(w, r, err, "Failed to onboard the agent")
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, toShadowFindingDetail(v))
@@ -560,6 +571,12 @@ func writeShadowError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 	case errors.Is(err, services.ErrShadowScanPublishDisabled):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Source code scan publishing is turned off on this server")
+	case errors.Is(err, utils.ErrProjectNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+	case errors.Is(err, utils.ErrAgentNotFound):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "The registered agent was not found in the project")
+	case errors.Is(err, utils.ErrShadowAlreadyOnboarded):
+		utils.WriteErrorResponse(w, http.StatusConflict, "The agent is already onboarded")
 	case errors.Is(err, utils.ErrShadowConnectionNameTaken):
 		utils.WriteErrorResponse(w, http.StatusConflict, "A connection with this name already exists")
 	case errors.Is(err, utils.ErrShadowScanInProgress):
@@ -683,9 +700,11 @@ func toShadowFindingSummary(row *repositories.ShadowFindingRow) spec.ShadowFindi
 	return spec.ShadowFindingSummary{
 		Id: f.ID.String(), ConnectionId: f.ConnectionID.String(), ConnectionName: row.ConnectionName,
 		Provider: f.Provider, Kind: f.Kind, ExternalId: f.ExternalID, DisplayName: f.DisplayName,
-		Scope: f.Scope, State: f.State, Status: f.Status,
+		Scope: f.Scope, State: f.State,
 		OwnerHint: toShadowOwnerHint(f.OwnerHint), ProviderCreatedAt: f.ProviderCreatedAt,
 		FirstSeenAt: f.FirstSeenAt, LastSeenAt: f.LastSeenAt, Present: f.Present, FoundBy: foundBy,
+		Onboarded: f.LinkedAgent != "", LinkedProject: optionalString(f.LinkedProject),
+		LinkedAgent: optionalString(f.LinkedAgent), OnboardedAt: f.OnboardedAt,
 	}
 }
 
@@ -695,8 +714,10 @@ func toShadowFindingDetail(v *services.ShadowFindingView) spec.ShadowFindingDeta
 	out := spec.ShadowFindingDetail{
 		Id: sum.Id, ConnectionId: sum.ConnectionId, ConnectionName: sum.ConnectionName, Provider: sum.Provider,
 		Kind: sum.Kind, ExternalId: sum.ExternalId, DisplayName: sum.DisplayName, Scope: sum.Scope, State: sum.State,
-		Status: sum.Status, OwnerHint: sum.OwnerHint, ProviderCreatedAt: sum.ProviderCreatedAt,
+		OwnerHint: sum.OwnerHint, ProviderCreatedAt: sum.ProviderCreatedAt,
 		FirstSeenAt: sum.FirstSeenAt, LastSeenAt: sum.LastSeenAt, Present: sum.Present, FoundBy: sum.FoundBy,
+		Onboarded: sum.Onboarded, LinkedProject: sum.LinkedProject, LinkedAgent: sum.LinkedAgent,
+		OnboardedAt: sum.OnboardedAt, OnboardedBy: optionalString(f.OnboardedBy),
 		Attributes: sa.AllowedAttributes(f.Attributes), Related: make([]spec.ShadowFindingRelation, 0, len(v.Related)),
 		Signals: make([]spec.ShadowFindingSignal, 0, len(v.Signals)),
 	}

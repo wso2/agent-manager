@@ -58,13 +58,6 @@ const (
 	ShadowKindCodeAgent = "code_agent"
 )
 
-// Finding review statuses.
-const (
-	ShadowStatusNew       = "new"
-	ShadowStatusReviewed  = "reviewed"
-	ShadowStatusDismissed = "dismissed"
-)
-
 // Scan statuses. A pending scan is a source code scan waiting for its scan
 // command to publish results: the worker never claims it, and it does not
 // count as the org's active scan.
@@ -306,7 +299,6 @@ type ShadowFinding struct {
 	DisplayName       string                  `gorm:"column:display_name;not null"`
 	Scope             string                  `gorm:"column:scope;not null"`
 	State             string                  `gorm:"column:state;not null"`
-	Status            string                  `gorm:"column:status;not null"`
 	OwnerHint         ShadowOwnerHint         `gorm:"column:owner_hint;type:jsonb;serializer:json;not null"`
 	Attributes        map[string]any          `gorm:"column:attributes;type:jsonb;serializer:json;not null"`
 	Related           []ShadowFindingRelation `gorm:"column:related;type:jsonb;serializer:json;not null"`
@@ -317,9 +309,17 @@ type ShadowFinding struct {
 	// Present is false once a complete listing of its connection no longer
 	// returns the agent: it was deleted at the platform, or is out of the
 	// connection's scope now.
-	Present   bool      `gorm:"column:present;not null"`
-	CreatedAt time.Time `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt time.Time `gorm:"column:updated_at;not null;default:NOW()"`
+	Present bool `gorm:"column:present;not null"`
+	// LinkedProject and LinkedAgent name the externally-hosted agent the
+	// agent was onboarded as (empty until it is onboarded); OnboardedAt and
+	// OnboardedBy say when and by whom. Every connection's finding of the
+	// same agent carries the same link.
+	LinkedProject string     `gorm:"column:linked_project;not null"`
+	LinkedAgent   string     `gorm:"column:linked_agent;not null"`
+	OnboardedAt   *time.Time `gorm:"column:onboarded_at"`
+	OnboardedBy   string     `gorm:"column:onboarded_by;not null"`
+	CreatedAt     time.Time  `gorm:"column:created_at;not null;default:NOW()"`
+	UpdatedAt     time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
 func (ShadowFinding) TableName() string { return "shadow_findings" }

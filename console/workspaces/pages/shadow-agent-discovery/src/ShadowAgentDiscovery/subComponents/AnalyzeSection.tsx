@@ -27,7 +27,7 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { CheckCircle, XCircle } from "@wso2/oxygen-ui-icons-react";
+import { CheckCircle, ListChecks, XCircle } from "@wso2/oxygen-ui-icons-react";
 import type { CapabilityStatus } from "../capabilities";
 
 function CapabilityRow({ status }: { status: CapabilityStatus }) {
@@ -57,10 +57,30 @@ function CapabilityRow({ status }: { status: CapabilityStatus }) {
   );
 }
 
+/** One thing a platform's scan lists: its title and what it covers. */
+function ListedRow({ title, description }: { title: string; description: string }) {
+  return (
+    <Stack direction="row" spacing={1.5} alignItems="flex-start">
+      <Box sx={{ mt: "2px", color: "primary.main", display: "flex" }} aria-hidden>
+        <ListChecks size={18} />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography variant="body2" fontWeight={500}>
+          {title}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" component="p">
+          {description}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+}
+
 /**
- * "What does Agent Manager list?" (for a source repository host, "What does
- * the scan look for?"): how many capabilities the form's credentials and
- * options unlock, and a dialog that lists each one with what it still needs.
+ * "What does Agent Manager list?": a short description of what a scan of the
+ * platform lists, and a dialog with each listing. For a source repository
+ * host ("What does the scan look for?"), how many capabilities the form's
+ * options unlock, each with what it still needs.
  */
 export function AnalyzeSection({
   providerName,
@@ -74,9 +94,56 @@ export function AnalyzeSection({
 }) {
   const [open, setOpen] = useState(false);
   if (statuses.length === 0) return null;
+  if (!sourceHost) {
+    const titles = statuses.map((s) => s.capability.title);
+    return (
+      <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.5}
+          alignItems={{ sm: "center" }}
+          justifyContent="space-between"
+        >
+          <Box>
+            <Typography variant="subtitle2">What does Agent Manager list?</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {titles.join(", ")}, with read-only calls.
+            </Typography>
+          </Box>
+          <Button variant="outlined" size="small" onClick={() => setOpen(true)}>
+            See what it lists
+          </Button>
+        </Stack>
+        <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
+          <DialogTitle>What Agent Manager lists</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2.5}>
+              <Typography variant="body2" color="text.secondary">
+                A scan calls only {providerName}&apos;s agent listings, read-only. Instructions,
+                prompts and secrets are never stored.
+              </Typography>
+              <Stack spacing={1.75}>
+                {statuses.map((s) => (
+                  <ListedRow
+                    key={s.capability.key}
+                    title={s.capability.title}
+                    description={s.capability.description}
+                  />
+                ))}
+              </Stack>
+            </Stack>
+          </DialogContent>
+          <DialogActions sx={{ justifyContent: "flex-start", px: 3, pb: 2 }}>
+            <Button variant="outlined" onClick={() => setOpen(false)}>
+              Close
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    );
+  }
   const available = statuses.filter((s) => s.available);
   const unavailable = statuses.filter((s) => !s.available);
-  const heading = sourceHost ? "What does the scan look for?" : "What does Agent Manager list?";
   return (
     <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
       <Stack
@@ -86,35 +153,24 @@ export function AnalyzeSection({
         justifyContent="space-between"
       >
         <Box>
-          <Typography variant="subtitle2">{heading}</Typography>
+          <Typography variant="subtitle2">What does the scan look for?</Typography>
           <Typography variant="body2" color="text.secondary">
-            {available.length} of {statuses.length}{" "}
-            {sourceHost ? "with these options." : "available with these credentials and options."}
+            {available.length} of {statuses.length} with these options.
           </Typography>
         </Box>
         <Button variant="outlined" size="small" onClick={() => setOpen(true)}>
-          {sourceHost ? "See what it looks for" : "See what it lists"}
+          See what it looks for
         </Button>
       </Stack>
       <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {sourceHost ? "What the scan looks for" : "What Agent Manager lists"}
-        </DialogTitle>
+        <DialogTitle>What the scan looks for</DialogTitle>
         <DialogContent>
           <Stack spacing={2.5}>
-            {sourceHost ? (
-              <Typography variant="body2" color="text.secondary">
-                {providerName}, with the options in this form. The scan runs on your machine: the
-                code is read there and deleted, and only confirmed agents are sent to Agent Manager
-                (name, repository, file, line, framework, matched symbol and commit).
-              </Typography>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                {providerName}, with the credentials and options in this form. Every read is
-                read-only; only the platform&apos;s agent listings are called, and instructions,
-                prompts and secrets are never stored.
-              </Typography>
-            )}
+            <Typography variant="body2" color="text.secondary">
+              {providerName}, with the options in this form. The scan runs on your machine: the
+              code is read there and deleted, and only confirmed agents are sent to Agent Manager
+              (name, repository, file, line, framework, matched symbol and commit).
+            </Typography>
             <Box>
               <Typography variant="overline" color="text.secondary">
                 Available ({available.length})

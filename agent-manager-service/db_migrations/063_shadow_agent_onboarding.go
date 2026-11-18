@@ -18,25 +18,22 @@ package dbmigrations
 
 import "gorm.io/gorm"
 
-// migration063 stops storing a credential for source repository hosts
-// (GitHub, Azure DevOps): the source code scan runs on the customer's machine
-// and asks for the Git token there. Their stored tokens, Entra sign-in
-// settings and connection test results are deleted. GitHub connections saved
-// with a token are marked as private, so the scan command asks for one.
+// migration063 records onboarding as an external agent and drops the review
+// status. An agent onboarded through Shadow Agent Discovery is linked to the
+// externally-hosted agent registered for it (project and agent name, who and
+// when); every connection's finding of the same agent carries the link. The
+// review status (new, reviewed, dismissed) is no longer used.
 var migration063 = migration{
 	ID: 63,
 	Migrate: func(db *gorm.DB) error {
 		return db.Transaction(func(tx *gorm.DB) error {
 			return runSQL(tx,
-				`ALTER TABLE shadow_connections ALTER COLUMN secret_encrypted DROP NOT NULL`,
-				`UPDATE shadow_connections
-				SET secret_encrypted = NULL, secret_hints = '{}'::jsonb,
-					last_tested_at = NULL, last_test_result = NULL,
-					config = config - 'useEntra' - 'tenantId' - 'clientId'
-				WHERE provider IN ('github', 'azure_devops')`,
-				`UPDATE shadow_connections
-				SET config = config || '{"privateRepositories": true}'::jsonb
-				WHERE provider = 'github'`,
+				`ALTER TABLE shadow_findings
+					ADD COLUMN IF NOT EXISTS linked_project TEXT NOT NULL DEFAULT '',
+					ADD COLUMN IF NOT EXISTS linked_agent TEXT NOT NULL DEFAULT '',
+					ADD COLUMN IF NOT EXISTS onboarded_at TIMESTAMPTZ,
+					ADD COLUMN IF NOT EXISTS onboarded_by TEXT NOT NULL DEFAULT ''`,
+				`ALTER TABLE shadow_findings DROP COLUMN IF EXISTS status`,
 			)
 		})
 	},

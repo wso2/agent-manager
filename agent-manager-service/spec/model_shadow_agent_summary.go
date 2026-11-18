@@ -20,22 +20,23 @@ var _ MappedNullable = &ShadowAgentSummary{}
 // ShadowAgentSummary struct for ShadowAgentSummary
 type ShadowAgentSummary struct {
 	// The agents found that their platforms still list, each agent once.
-	TotalFindings int32               `json:"totalFindings"`
-	ByProvider    map[string]int32    `json:"byProvider"`
-	ByStatus      map[string]int32    `json:"byStatus"`
-	Connections   int32               `json:"connections"`
-	LatestScan    *ShadowScanResponse `json:"latestScan,omitempty"`
+	TotalFindings int32            `json:"totalFindings"`
+	ByProvider    map[string]int32 `json:"byProvider"`
+	// How many of those agents are onboarded as external agents.
+	Onboarded   int32               `json:"onboarded"`
+	Connections int32               `json:"connections"`
+	LatestScan  *ShadowScanResponse `json:"latestScan,omitempty"`
 }
 
 // NewShadowAgentSummary instantiates a new ShadowAgentSummary object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewShadowAgentSummary(totalFindings int32, byProvider map[string]int32, byStatus map[string]int32, connections int32) *ShadowAgentSummary {
+func NewShadowAgentSummary(totalFindings int32, byProvider map[string]int32, onboarded int32, connections int32) *ShadowAgentSummary {
 	this := ShadowAgentSummary{}
 	this.TotalFindings = totalFindings
 	this.ByProvider = byProvider
-	this.ByStatus = byStatus
+	this.Onboarded = onboarded
 	this.Connections = connections
 	return &this
 }
@@ -96,28 +97,28 @@ func (o *ShadowAgentSummary) SetByProvider(v map[string]int32) {
 	o.ByProvider = v
 }
 
-// GetByStatus returns the ByStatus field value
-func (o *ShadowAgentSummary) GetByStatus() map[string]int32 {
+// GetOnboarded returns the Onboarded field value
+func (o *ShadowAgentSummary) GetOnboarded() int32 {
 	if o == nil {
-		var ret map[string]int32
+		var ret int32
 		return ret
 	}
 
-	return o.ByStatus
+	return o.Onboarded
 }
 
-// GetByStatusOk returns a tuple with the ByStatus field value
+// GetOnboardedOk returns a tuple with the Onboarded field value
 // and a boolean to check if the value has been set.
-func (o *ShadowAgentSummary) GetByStatusOk() (*map[string]int32, bool) {
+func (o *ShadowAgentSummary) GetOnboardedOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
-	return &o.ByStatus, true
+	return &o.Onboarded, true
 }
 
-// SetByStatus sets field value
-func (o *ShadowAgentSummary) SetByStatus(v map[string]int32) {
-	o.ByStatus = v
+// SetOnboarded sets field value
+func (o *ShadowAgentSummary) SetOnboarded(v int32) {
+	o.Onboarded = v
 }
 
 // GetConnections returns the Connections field value
@@ -188,7 +189,7 @@ func (o ShadowAgentSummary) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["totalFindings"] = o.TotalFindings
 	toSerialize["byProvider"] = o.ByProvider
-	toSerialize["byStatus"] = o.ByStatus
+	toSerialize["onboarded"] = o.Onboarded
 	toSerialize["connections"] = o.Connections
 	if !IsNil(o.LatestScan) {
 		toSerialize["latestScan"] = o.LatestScan

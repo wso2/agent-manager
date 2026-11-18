@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { httpDELETE, httpGET, httpPATCH, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
+import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../utils";
 import type {
   ShadowAgentSummary,
   ShadowConnectionListResponse,
@@ -27,7 +27,7 @@ import type {
   ShadowFindingDetail,
   ShadowFindingListQuery,
   ShadowFindingListResponse,
-  ShadowFindingUpdateRequest,
+  ShadowOnboardingRequest,
   ShadowProviderListResponse,
   ShadowRunnerScanRequest,
   ShadowRunnerScanResponse,
@@ -239,15 +239,16 @@ export async function deleteShadowFindings(
   return res.json();
 }
 
-export async function updateShadowFinding(
+/** Links the agent to the external agent registered for it (on every connection). */
+export async function onboardShadowFinding(
   orgName: string | undefined,
   findingId: string,
-  body: ShadowFindingUpdateRequest,
+  body: ShadowOnboardingRequest,
   getToken?: () => Promise<string>,
 ): Promise<ShadowFindingDetail> {
   const token = await tokenOf(getToken);
-  const res = await httpPATCH(
-    `${shadowBase(orgName)}/findings/${encodeURIComponent(findingId)}`,
+  const res = await httpPOST(
+    `${shadowBase(orgName)}/findings/${encodeURIComponent(findingId)}/onboarding`,
     body,
     { token },
   );

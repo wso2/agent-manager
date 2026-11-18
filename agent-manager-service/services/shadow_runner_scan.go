@@ -140,11 +140,11 @@ func (i *shadowScanTokenIssuer) IssueScanToken(ctx context.Context, ouID string)
 // creates source code scan commands and accepts their results when runner is
 // enabled and set up. NewShadowAgentService creates one that refuses both.
 func NewShadowAgentServiceWithScanRunner(
-	repo repositories.ShadowAgentRepository, connectors ShadowConnectors, encryptionKey []byte, logger *slog.Logger,
-	runner ShadowScanRunner,
+	repo repositories.ShadowAgentRepository, connectors ShadowConnectors, agents ShadowAgentLookup,
+	encryptionKey []byte, logger *slog.Logger, runner ShadowScanRunner,
 ) ShadowAgentService {
 	return &shadowAgentService{
-		repo: repo, connectors: connectors, encryptionKey: encryptionKey, logger: logger, now: time.Now,
+		repo: repo, connectors: connectors, agents: agents, encryptionKey: encryptionKey, logger: logger, now: time.Now,
 		runner: runner,
 	}
 }

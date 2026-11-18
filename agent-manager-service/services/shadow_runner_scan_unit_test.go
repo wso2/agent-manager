@@ -55,7 +55,7 @@ func shadowRunner(issuer ShadowScanTokenIssuer) ShadowScanRunner {
 }
 
 func newRunnerShadowSvc(repo *repomocks.ShadowAgentRepositoryMock, runner ShadowScanRunner) ShadowAgentService {
-	return NewShadowAgentServiceWithScanRunner(repo, ShadowConnectors{}, shadowTestKey, discardLogger(), runner)
+	return NewShadowAgentServiceWithScanRunner(repo, ShadowConnectors{}, fakeAgentLookup{}, shadowTestKey, discardLogger(), runner)
 }
 
 // shadowRepoWith returns a repository holding one connection of provider.
@@ -240,7 +240,7 @@ func TestShadowCreateRunnerScan_NotSetUp(t *testing.T) {
 
 	// NewShadowAgentService refuses scan commands as not set up, without
 	// naming a setting it cannot know is missing.
-	_, err := NewShadowAgentService(shadowRepoWith(source), ShadowConnectors{}, shadowTestKey, discardLogger()).
+	_, err := NewShadowAgentService(shadowRepoWith(source), ShadowConnectors{}, fakeAgentLookup{}, shadowTestKey, discardLogger()).
 		CreateRunnerScan(auditableCtx(t), shadowTestOU, source.ID, models.ShadowScanOptions{})
 	require.ErrorIs(t, err, utils.ErrShadowScanCommandUnavailable)
 	assert.Equal(t, utils.ErrShadowScanCommandUnavailable.Error(), err.Error())
