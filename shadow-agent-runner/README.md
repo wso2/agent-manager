@@ -9,14 +9,33 @@ The package has two parts:
 - `amp_shadow_runner`: the command line.
 - `amp_shadow_runner.engine`: the scan engine, a pure library that parses a local source tree with tree-sitter. It never opens a network connection or starts a process (`tests/engine/test_purity.py` enforces this).
 
-> `scan` and `upload` are stubs for now. They exit with status 1 and "not implemented yet". Only `version` works.
+> Scanning is not implemented yet. `scan` checks its options, `AMP_URL` and `AMP_SCAN_TOKEN`, then exits with status 1 and "not implemented yet". `upload` is a stub, and only `version` works in full.
 
 ## Command line
 
 ```bash
 amp-shadow-runner --version
 amp-shadow-runner version --json
+amp-shadow-runner scan --scan-id <id> --github-org <org> --all-repos
 ```
+
+Agent Manager builds the `scan` command, so its options match what the console shows. `AMP_URL` (the Agent Manager address) and `AMP_SCAN_TOKEN` (the scan token, valid for 1 hour) come from the environment. A scan needs at least 10 minutes left on the token.
+
+| Option | Meaning |
+|---|---|
+| `--scan-id <id>` | The scan that Agent Manager issued. Required. |
+| `--github-org <org>` | Scan a GitHub organization or user account. Give this or `--azure-devops-org`. |
+| `--all-repos` or `--repos a,b` | GitHub: every repository, or the named ones. |
+| `--include-private` | GitHub: also scan private repositories. |
+| `--github-api-url <url>` | GitHub: the API address of GitHub Enterprise. The default is `https://api.github.com`. |
+| `--azure-devops-org <org>` | Scan an Azure DevOps organization. |
+| `--all-projects` or `--projects a,b` | Azure DevOps: every project, or the named ones. |
+| `--azure-devops-url <url>` | Azure DevOps: the address of Azure DevOps Server. The default is `https://dev.azure.com`. |
+| `--read-ci` | Also read CI pipeline definitions. |
+| `--ai-review` | Have an LLM review the agents the rules find. |
+| `--judge` | Have a second LLM check the AI review. Needs `--ai-review`. |
+
+`--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL`, `--github-api-url` and `--azure-devops-url` accept `http://` or `https://` addresses.
 
 | Exit code | Meaning |
 |---|---|

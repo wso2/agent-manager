@@ -82,10 +82,36 @@ def test_missing_command_exits_2(capsys: pytest.CaptureFixture[str]) -> None:
     assert "a command is required" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("command", ["scan", "upload"])
-def test_stub_commands_exit_1(command: str, capsys: pytest.CaptureFixture[str]) -> None:
-    assert main([command]) == ExitCode.RUNTIME_ERROR
-    assert capsys.readouterr().err.strip() == f"amp-shadow-runner {command}: not implemented yet"
+def test_upload_is_a_stub(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["upload"]) == ExitCode.RUNTIME_ERROR
+    assert capsys.readouterr().err.strip() == "amp-shadow-runner upload: not implemented yet"
+
+
+def test_scan_without_flags_exits_2(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["scan"]) == ExitCode.CONFIG_ERROR
+    assert "the following arguments are required: --scan-id" in capsys.readouterr().err
+
+
+def test_scan_help_lists_the_console_flags(capsys: pytest.CaptureFixture[str]) -> None:
+    assert main(["scan", "--help"]) == ExitCode.OK
+    out = capsys.readouterr().out
+    for flag in (
+        "--scan-id",
+        "--github-org",
+        "--all-repos",
+        "--repos",
+        "--include-private",
+        "--github-api-url",
+        "--azure-devops-org",
+        "--all-projects",
+        "--projects",
+        "--azure-devops-url",
+        "--read-ci",
+        "--ai-review",
+        "--judge",
+        "AMP_SCAN_TOKEN",
+    ):
+        assert flag in out
 
 
 def test_python_dash_m_entry_point() -> None:

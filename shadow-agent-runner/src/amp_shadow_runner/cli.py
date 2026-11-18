@@ -22,8 +22,10 @@ import sys
 from collections.abc import Callable, Sequence
 
 from amp_shadow_runner._version import __version__
+from amp_shadow_runner.config import DEFAULT_AZURE_DEVOPS_URL, DEFAULT_GITHUB_API_URL, ConfigError, build_scan_config
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
+from amp_shadow_runner.scantoken import ScanTokenError
 
 PROG = "amp-shadow-runner"
 
@@ -55,9 +57,55 @@ def _cmd_not_implemented(args: argparse.Namespace) -> int:
     return ExitCode.RUNTIME_ERROR
 
 
-# (name, help, handler). Every command except ``version`` is a stub for now.
+def _cmd_scan(args: argparse.Namespace) -> int:
+    try:
+        build_scan_config(args)
+    except (ConfigError, ScanTokenError) as exc:  # Their messages never contain the token.
+        print(f"{PROG}: {exc}", file=sys.stderr)
+        return exc.exit_code
+    return _cmd_not_implemented(args)
+
+
+def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
+    sub.epilog = (
+        "AMP_URL and AMP_SCAN_TOKEN must be set in the environment. "
+        "Agent Manager builds the whole command; copy it from there."
+    )
+    sub.add_argument("--scan-id", required=True, help="The scan ID that Agent Manager issued.")
+    org = sub.add_mutually_exclusive_group(required=True)
+    org.add_argument("--github-org", metavar="ORG", help="Scan this GitHub organization or user account.")
+    org.add_argument("--azure-devops-org", metavar="ORG", help="Scan this Azure DevOps organization.")
+
+    github = sub.add_argument_group("GitHub")
+    repos = github.add_mutually_exclusive_group()
+    repos.add_argument("--all-repos", action="store_true", help="Scan every repository.")
+    repos.add_argument("--repos", metavar="NAMES", help="Scan these repositories (comma-separated names).")
+    github.add_argument("--include-private", action="store_true", help="Also scan private repositories.")
+    github.add_argument(
+        "--github-api-url",
+        metavar="URL",
+        help=f"The GitHub API address, for GitHub Enterprise (default {DEFAULT_GITHUB_API_URL}).",
+    )
+
+    ado = sub.add_argument_group("Azure DevOps")
+    projects = ado.add_mutually_exclusive_group()
+    projects.add_argument("--all-projects", action="store_true", help="Scan every project.")
+    projects.add_argument("--projects", metavar="NAMES", help="Scan these projects (comma-separated names).")
+    ado.add_argument(
+        "--azure-devops-url",
+        metavar="URL",
+        help=f"The Azure DevOps Server address (default {DEFAULT_AZURE_DEVOPS_URL}).",
+    )
+
+    both = sub.add_argument_group("GitHub and Azure DevOps")
+    both.add_argument("--read-ci", action="store_true", help="Also read CI pipeline definitions.")
+    both.add_argument("--ai-review", action="store_true", help="Have an LLM review the agents the rules find.")
+    both.add_argument("--judge", action="store_true", help="Have a second LLM check the AI review (needs --ai-review).")
+
+
+# (name, help, handler). ``upload`` is a stub for now.
 _COMMANDS: tuple[tuple[str, str, Handler], ...] = (
-    ("scan", "Scan repositories and publish the confirmed agents to Agent Manager.", _cmd_not_implemented),
+    ("scan", "Scan repositories and publish the confirmed agents to Agent Manager.", _cmd_scan),
     ("upload", "Publish a saved scan report to Agent Manager.", _cmd_not_implemented),
     ("version", "Print the runner version, engine version and rule-pack id.", _cmd_version),
 )
@@ -72,9 +120,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"{PROG} {__version__}")
     subparsers = parser.add_subparsers(dest="command", metavar="COMMAND")
     for name, help_text, handler in _COMMANDS:
-        sub = subparsers.add_parser(name, help=help_text, description=help_text)
+        sub = subparsers.add_parser(name, help=help_text, description=help_text, allow_abbrev=False)
         sub.set_defaults(handler=handler)
-        if name == "version":
+        if name == "scan":
+            _add_scan_arguments(sub)
+        elif name == "version":
             sub.add_argument("--json", action="store_true", help="Print the versions as a JSON object.")
     return parser
 
