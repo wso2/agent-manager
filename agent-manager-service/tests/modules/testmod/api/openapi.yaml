@@ -1,0 +1,255 @@
+openapi: 3.0.3
+info:
+  title: Test Module API
+  version: 1.0.0
+  description: Routes of the test module, which exercises the module contract in the tests.
+  x-amp-module: testmod
+servers:
+  - url: /m/testmod
+security:
+  - BearerAuth: []
+paths:
+  /tags:
+    get:
+      operationId: listTags
+      summary: Tags testmod put on agents
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /whoami:
+    get:
+      operationId: whoAmI
+      summary: The caller as testmod sees it
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /widgets:
+    post:
+      operationId: createWidget
+      summary: Create a widget
+      responses:
+        "201":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /received:
+    get:
+      operationId: listReceived
+      summary: Events testmod received
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /workloads:
+    post:
+      operationId: issueWorkload
+      summary: Issue a workload token and credential
+      responses:
+        "201":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /workloads/revoke:
+    post:
+      operationId: revokeWorkload
+      summary: Revoke a workload credential
+      responses:
+        "204":
+          description: Done
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /widgets/{name}/archive:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: archiveWidget
+      summary: Archive a widget
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /secrets/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: putSecret
+      summary: Store a secret
+      responses:
+        "204":
+          description: Done
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    get:
+      operationId: getSecret
+      summary: Read a secret
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteSecret
+      summary: Delete a secret
+      responses:
+        "204":
+          description: Done
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /lookup:
+    get:
+      operationId: lookup
+      summary: Look core resources up by name
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /org:
+    post:
+      operationId: ensureOrg
+      summary: Make sure the caller's organization exists
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /projects/{name}/pin:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    post:
+      operationId: pinProject
+      summary: Pin a project
+      responses:
+        "204":
+          description: Done
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: unpinProject
+      summary: Unpin a project
+      responses:
+        "204":
+          description: Done
+        default:
+          description: Error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string

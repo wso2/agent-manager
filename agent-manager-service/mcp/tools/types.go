@@ -32,6 +32,8 @@ type Toolsets struct {
 	LLMProviderToolset LLMProviderToolsetHandler
 	MCPProxyToolset    MCPProxyToolsetHandler
 	AgentConfigToolset AgentConfigToolsetHandler
+	// Modules lists the tools of the active modules, served beside these.
+	Modules ModuleToolSource
 }
 
 type ProjectToolsetHandler interface {

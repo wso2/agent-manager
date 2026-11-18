@@ -41,13 +41,30 @@ type Route struct {
 	// Permission guards a public route; empty means any signed-in user.
 	Permission rbac.Permission
 	// Scope guards an internal route.
-	Scope   string
+	Scope string
+	// At is the fixed path of a route mounted with HandleInternalAt, below
+	// /api/internal/v1; the route authenticates its callers itself.
+	At      string
 	Handler http.HandlerFunc
+
+	// AuditAction, when set, is the full name of the route's audit action;
+	// otherwise the permission names it. AuditRead records a read route.
+	AuditAction   string
+	AuditRead     bool
+	AuditCoalesce time.Duration
+	// Event, of EventScope, is the webhook event the route emits after a 2xx
+	// response.
+	Event            string
+	EventScope       string
+	EventWithoutData bool
 }
 
 // Pattern is the route's net/http pattern: /m/<module><path> on the API port,
 // or /m/<module>/internal<path> on the internal server.
 func (r Route) Pattern() string {
+	if r.At != "" {
+		return r.Method + " " + r.At
+	}
 	if r.Scope != "" {
 		return r.Method + " /m/" + r.Module + "/internal" + r.Path
 	}
@@ -80,9 +97,15 @@ type Deps struct {
 	// Mount registers a module's public route on mux behind the core's
 	// route middleware (permission check, audit, org resolution). It may
 	// panic on a route the middleware refuses.
-	Mount  func(mux *http.ServeMux, r Route)
-	Core   modkit.CoreAPI
-	Tokens Tokens
+	Mount func(mux *http.ServeMux, r Route)
+	// MountInternal registers a module's HandleInternalAt route on mux
+	// behind the core's internal route middleware (audit). It may panic on a
+	// route the middleware refuses.
+	MountInternal func(mux *http.ServeMux, r Route)
+	Core          modkit.CoreAPI
+	Tokens        Tokens
+	// Secrets is the core's secret store.
+	Secrets SecretStore
 }
 
 // Attach supplies the core services modules use. Call it before Boot.
@@ -192,6 +215,40 @@ func (h *Host) ServeAPI() http.Handler {
 		}
 		mux.ServeHTTP(w, r)
 	})
+}
+
+// ServeInternalAt serves the routes modules mount at fixed paths with
+// HandleInternalAt, below /api/internal/v1 on the internal server. Like the
+// other module routes, they are looked up in the current snapshot on every
+// request, so they are gone as soon as their module is disabled.
+func (h *Host) ServeInternalAt() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mux := h.current().internalAt
+		if mux == nil {
+			writeNotFound(w)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
+}
+
+// mountInternalAt builds the mux of every HandleInternalAt route in a
+// snapshot. Two modules claiming one pattern refuse the second.
+func mountInternalAt(mount func(*http.ServeMux, Route), routes []Route) (mux *http.ServeMux, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("route refused: %v", p)
+		}
+	}()
+	mux = http.NewServeMux()
+	for _, rt := range routes {
+		if mount != nil {
+			mount(mux, rt)
+		} else {
+			mux.HandleFunc(rt.Pattern(), rt.Handler)
+		}
+	}
+	return mux, nil
 }
 
 // ServeInternal serves module workload routes, mounted at /m/ on the internal

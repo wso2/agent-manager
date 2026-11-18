@@ -22,8 +22,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/mcp"
+	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
@@ -70,6 +72,11 @@ type Modules interface {
 	ServeInternal() http.Handler
 	// ServeTokenExchange serves POST /api/internal/v1/workload-tokens.
 	ServeTokenExchange() http.Handler
+	// ServeInternalAt serves the routes modules mount at fixed paths below
+	// /api/internal/v1.
+	ServeInternalAt() http.Handler
+	// MCPTools lists the active modules' MCP tools.
+	MCPTools() []modhost.MCPTool
 }
 
 // ModuleMounter registers a module's public route behind the same middleware
@@ -78,7 +85,31 @@ func ModuleMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route)
 	return func(mux *http.ServeMux, r modhost.Route) {
 		rr := middleware.NewRouteRegistrar(mux, params.OrgResolver, params.AuditRecorder)
 		rr.SetEventPublisher(params.EventPublisher)
-		rr.HandleModuleRoute(r.Pattern(), r.Permission, r.Handler)
+		mountModuleRoute(rr, r)
+	}
+}
+
+// ModuleInternalMounter registers a module's route at a fixed internal path
+// (HandleInternalAt) behind the internal server's audit middleware.
+func ModuleInternalMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route) {
+	return func(mux *http.ServeMux, r modhost.Route) {
+		rr := middleware.NewInternalRouteRegistrar(mux, params.AuditRecorder)
+		rr.HandleModuleInternalRoute(r.Pattern(), modulePolicy(r), r.Handler)
+	}
+}
+
+func mountModuleRoute(rr *middleware.RouteRegistrar, r modhost.Route) {
+	rr.HandleModuleRoute(r.Pattern(), r.Permission, modulePolicy(r), r.Handler)
+}
+
+// modulePolicy is what a module route declared for the audit trail and
+// webhooks.
+func modulePolicy(r modhost.Route) middleware.ModuleRoutePolicy {
+	return middleware.ModuleRoutePolicy{
+		Audit:            audit.RoutePolicy{Action: audit.Action(r.AuditAction), Read: r.AuditRead, Coalesce: r.AuditCoalesce},
+		Event:            r.Event,
+		EventScope:       events.Scope(r.EventScope),
+		EventWithoutData: r.EventWithoutData,
 	}
 }
 
@@ -116,12 +147,16 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 			middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceMCP)(next),
 		)
 	}
-	mcp.RegisterRoute(mux, mcp.Dependencies{
+	mcpDeps := mcp.Dependencies{
 		InfraResourceManager:     params.InfraResourceManager,
 		AgentManagerService:      params.AgentManagerService,
 		AgentTokenManagerService: params.AgentTokenManagerService,
 		EnvironmentService:       params.EnvironmentService,
-	}, mcpMiddleware, bundles.MCPTools()...)
+	}
+	if modules != nil {
+		mcpDeps.ModuleTools = moduleTools{modules}
+	}
+	mcp.RegisterRoute(mux, mcpDeps, mcpMiddleware, bundles.MCPTools()...)
 
 	// Other routes of built-in bundles that live at the root authenticate
 	// themselves.
@@ -218,6 +253,9 @@ func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Module
 	bundles.InternalRoutes(internalRR, internalMux)
 	if modules != nil {
 		internalMux.Handle("POST /workload-tokens", modules.ServeTokenExchange())
+		// Routes modules mount at fixed paths (HandleInternalAt); every
+		// path the core serves here is more specific.
+		internalMux.Handle("/", modules.ServeInternalAt())
 	}
 	mux.Handle("/api/internal/v1/", http.StripPrefix("/api/internal/v1", internalChain(params, internalMux)))
 	if modules != nil {
@@ -228,4 +266,20 @@ func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Module
 	}
 
 	return mux
+}
+
+// moduleTools hands the active modules' MCP tools to the MCP server.
+type moduleTools struct{ modules Modules }
+
+func (m moduleTools) ModuleTools() []tools.ModuleTool {
+	listed := m.modules.MCPTools()
+	out := make([]tools.ModuleTool, 0, len(listed))
+	for _, t := range listed {
+		out = append(out, tools.ModuleTool{
+			Module: t.Module, Name: t.Tool.Name, Title: t.Tool.Title, Description: t.Tool.Description,
+			InputSchema: t.Tool.InputSchema, ReadOnly: t.Tool.ReadOnly, Destructive: t.Tool.Destructive,
+			Permission: t.Permission, Action: audit.Action(t.Action), AuditRead: t.AuditRead, Handler: t.Handler,
+		})
+	}
+	return out
 }

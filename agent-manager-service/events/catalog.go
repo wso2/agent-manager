@@ -19,6 +19,7 @@ package events
 import (
 	"slices"
 	"sort"
+	"sync/atomic"
 )
 
 // Type describes one event type subscriptions can name.
@@ -179,11 +180,41 @@ var typesByName = func() map[string]Type {
 	return m
 }()
 
+// moduleTypes are the webhook event types the active modules declare. The
+// module host replaces them whenever the set of active modules changes.
+var moduleTypes atomic.Pointer[map[string]Type]
+
+// SetModuleTypes replaces the event types the active modules declare. A type
+// that clashes with a core type is ignored.
+func SetModuleTypes(ts []Type) {
+	m := make(map[string]Type, len(ts))
+	for _, t := range ts {
+		if _, core := typesByName[t.Name]; !core {
+			m[t.Name] = t
+		}
+	}
+	moduleTypes.Store(&m)
+}
+
+// all is the core catalog and the active modules' types.
+func all() []Type {
+	m := moduleTypes.Load()
+	if m == nil || len(*m) == 0 {
+		return types
+	}
+	out := slices.Clone(types)
+	for _, t := range *m {
+		out = append(out, t)
+	}
+	return out
+}
+
 // Types returns the catalog for a scope, or every scope when scope is empty,
 // ordered by category then name.
 func Types(scope Scope) []Type {
-	out := make([]Type, 0, len(types))
-	for _, t := range types {
+	cat := all()
+	out := make([]Type, 0, len(cat))
+	for _, t := range cat {
 		if scope == "" || t.Scope == scope {
 			out = append(out, t)
 		}
@@ -202,8 +233,14 @@ func Types(scope Scope) []Type {
 
 // Lookup returns the catalog entry for an event type.
 func Lookup(name string) (Type, bool) {
-	t, ok := typesByName[name]
-	return t, ok
+	if t, ok := typesByName[name]; ok {
+		return t, true
+	}
+	if m := moduleTypes.Load(); m != nil {
+		t, ok := (*m)[name]
+		return t, ok
+	}
+	return Type{}, false
 }
 
 // rank orders scopes from the widest to the narrowest: an org holds
@@ -229,7 +266,7 @@ func Subscribable(scope Scope) []Type {
 	if !scope.Valid() {
 		return []Type{}
 	}
-	out := make([]Type, 0, len(types))
+	out := []Type{}
 	for _, t := range Types("") {
 		if t.Scope.rank() >= scope.rank() {
 			out = append(out, t)
@@ -242,7 +279,7 @@ func Subscribable(scope Scope) []Type {
 // type name. Types outside the catalog, such as TypeDestinationTest, never
 // qualify.
 func CanSubscribe(scope Scope, name string) bool {
-	t, ok := typesByName[name]
+	t, ok := Lookup(name)
 	return ok && scope.Valid() && t.Scope.rank() >= scope.rank()
 }
 

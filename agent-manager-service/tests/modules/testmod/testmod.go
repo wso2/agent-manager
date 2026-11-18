@@ -15,10 +15,12 @@
 // under the License.
 
 // Package testmod holds two small modules that exercise every surface of the
-// module contract from the tests: routes and permissions, agent and
-// environment hooks, events, a capability, and workload tokens. No binary
-// links them; tests pass them to the module host explicitly, so they do not
-// register themselves.
+// module contract from the tests: routes and permissions, audit and webhook
+// route options, agent, environment and project hooks, events, a capability,
+// workload tokens, background workers, MCP tools, secrets, the core's lookups
+// and its own OpenAPI document. No binary links them; tests pass them to the
+// module host explicitly, so they do not register themselves. They import
+// nothing of the core but modkit, as a module may.
 package testmod
 
 import (
@@ -46,12 +48,30 @@ const (
 	Echo = "testmod.echo/v1"
 	// WidgetCreated is the event Name publishes.
 	WidgetCreated = "testmod.widget_created"
+	// WidgetArchived is the webhook event Name's archive route emits.
+	WidgetArchived = "testmod.widget_archived"
+	// Tool is the MCP tool Name adds.
+	Tool = "testmod_count_tags"
+	// LegacyPath is the fixed internal path Name serves with
+	// HandleInternalAt, and LegacyKey the api-key it checks there.
+	LegacyPath = "/api/internal/v1/testmod-legacy/ping"
+	LegacyKey  = "testmod-legacy-key"
 	// PingScope is the workload scope of Name's internal route.
 	PingScope = "ping"
 )
 
 //go:embed migrations
 var migrations embed.FS
+
+//go:embed api/openapi.yaml
+var openAPI []byte
+
+// WorkerRuns counts the times Name's worker started; WorkerRunning is how
+// many copies run now.
+var (
+	WorkerRuns    atomic.Int32
+	WorkerRunning atomic.Int32
+)
 
 // Echoer is the contract of the Echo capability.
 type Echoer interface {
@@ -72,16 +92,26 @@ type module struct{}
 
 func (module) Manifest() modkit.Manifest {
 	return modkit.Manifest{
-		Name:     Name,
-		Version:  "1.0.0",
-		CoreAPI:  modkit.CoreAPIVersion,
-		Provides: []string{Echo},
+		Name:        Name,
+		DisplayName: "Test Module",
+		Version:     "1.0.0",
+		CoreAPI:     modkit.CoreAPIVersion,
+		Provides:    []string{Echo},
 		Permissions: []modkit.Permission{
-			{Name: "widget-read", Description: "Read widgets"},
-			{Name: "widget-write", Description: "Write widgets"},
+			{Name: "widget-read", DisplayName: "Read Widgets", Description: "Read widgets"},
+			{Name: "widget-write", DisplayName: "Write Widgets", Description: "Write widgets"},
 		},
 		RoleGrants: map[string][]string{"Agent Manager Admin": {"widget-read", "widget-write"}},
-		Events:     []string{WidgetCreated},
+		Events: []modkit.EventType{
+			{Name: WidgetCreated, Description: "A widget was created."},
+			{Name: WidgetArchived, Scope: "org", Description: "A widget was archived."},
+		},
+		AuditActions: []modkit.AuditAction{
+			{Name: "widget-archive", Description: "Archive a widget"},
+			{Name: "secret-write", Class: "credential", Description: "Store a secret"},
+			{Name: "secret-read", Class: "credential", Description: "Read a secret"},
+			{Name: "legacy-ping", Description: "Ping the fixed internal path"},
+		},
 	}
 }
 
@@ -95,6 +125,9 @@ func (module) Migrations() fs.FS {
 
 func (module) UI() fs.FS { return nil }
 
+// OpenAPI describes the routes Name mounts with Handle.
+func (module) OpenAPI() []byte { return openAPI }
+
 // extension is the agent extension block Name accepts.
 type extension struct {
 	Tag    string `json:"tag"`
@@ -104,6 +137,9 @@ type extension struct {
 	Stall bool `json:"stall"`
 	// Announce publishes WidgetCreated from inside the apply hook.
 	Announce bool `json:"announce"`
+	// Lock locks the agent's row from the apply hook and checks it is the
+	// agent being written.
+	Lock bool `json:"lock"`
 }
 
 // StalledTag is the tag a stalling hook writes before it runs out of time.
@@ -218,6 +254,15 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 				return err
 			}
 		}
+		if ext.Lock {
+			a, err := rt.Core().LockAgent(ctx, req.Tx, req.OrgID, req.ID)
+			if err != nil {
+				return err
+			}
+			if a.Name != req.Object["name"] {
+				return errors.New("LockAgent returned another agent")
+			}
+		}
 		if ext.Tag == "" {
 			return nil
 		}
@@ -263,6 +308,54 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 			return slowStatement(req.Tx)
 		}
 		return errors.New("environment hook failed on request")
+	})
+
+	// A pinned project cannot be deleted; an unpinned one takes its pins'
+	// leftovers with it. The cleanup is undone when the delete is refused.
+	rt.Hook(modkit.ResourceProject, modkit.Finalize, func(_ context.Context, req modkit.HookRequest) error {
+		var pins int64
+		if err := req.Tx.Raw(`SELECT count(*) FROM mod_testmod_project_pins WHERE project_id = ?`, req.ID).Scan(&pins).Error; err != nil {
+			return err
+		}
+		if err := req.Tx.Exec(`DELETE FROM mod_testmod_project_pins WHERE project_id = ?`, req.ID).Error; err != nil {
+			return err
+		}
+		if pins > 0 {
+			return &modkit.Error{Status: http.StatusConflict, Message: "the project is pinned by testmod"}
+		}
+		return nil
+	})
+
+	rt.Go("ticker", func(ctx context.Context) error {
+		WorkerRuns.Add(1)
+		WorkerRunning.Add(1)
+		defer WorkerRunning.Add(-1)
+		<-ctx.Done()
+		return nil
+	})
+
+	rt.MCPTool(modkit.MCPTool{
+		Name: Tool, Title: "Count tags", Description: "Counts the agents testmod has tagged in the organization.",
+		InputSchema: json.RawMessage(`{"type":"object","properties":{"tag":{"type":"string"}}}`), ReadOnly: true,
+	}, "widget-read", func(ctx context.Context, args json.RawMessage) (any, error) {
+		var in struct {
+			Tag string `json:"tag"`
+		}
+		if err := json.Unmarshal(args, &in); err != nil {
+			return nil, modkit.Reject("arguments: %v", err)
+		}
+		if in.Tag == "fail" {
+			return nil, modkit.Reject("failing on request")
+		}
+		q := rt.DB().WithContext(ctx).Table("mod_testmod_agent_tags").Where("org_id = ?", modkit.OrgID(ctx))
+		if in.Tag != "" {
+			q = q.Where("tag = ?", in.Tag)
+		}
+		var n int64
+		if err := q.Count(&n).Error; err != nil {
+			return nil, err
+		}
+		return map[string]any{"orgId": modkit.OrgID(ctx), "tags": n}, nil
 	})
 
 	record := func(ctx context.Context, e modkit.Event) error {
@@ -406,6 +499,111 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+
+	rt.Handle(http.MethodPost, "/widgets/{name}/archive", "widget-write", func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"name": r.PathValue("name"), "state": "archived"})
+	}, modkit.Audit("widget-archive"), modkit.Emits(WidgetArchived))
+
+	rt.Handle(http.MethodPut, "/secrets/{name}", "widget-write", func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Value string `json:"value"`
+			Org   string `json:"org"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		org := modkit.OrgID(r.Context())
+		if body.Org != "" {
+			org = body.Org
+		}
+		if err := rt.Secrets().Put(r.Context(), org, "notes/"+r.PathValue("name"), body.Value); err != nil {
+			status := http.StatusBadRequest
+			if errors.Is(err, modkit.ErrNotFound) {
+				status = http.StatusNotFound
+			}
+			writeJSON(w, status, map[string]string{"message": err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}, modkit.Audit("secret-write"))
+	rt.Handle(http.MethodGet, "/secrets/{name}", "widget-read", func(w http.ResponseWriter, r *http.Request) {
+		v, err := rt.Secrets().Get(r.Context(), modkit.OrgID(r.Context()), "notes/"+r.PathValue("name"))
+		if errors.Is(err, modkit.ErrNotFound) {
+			writeJSON(w, http.StatusNotFound, map[string]string{"message": "no such secret"})
+			return
+		}
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"value": v})
+	}, modkit.Audit("secret-read"))
+	rt.Handle(http.MethodDelete, "/secrets/{name}", "widget-write", func(w http.ResponseWriter, r *http.Request) {
+		if err := rt.Secrets().Delete(r.Context(), modkit.OrgID(r.Context()), "notes/"+r.PathValue("name")); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"message": err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}, modkit.Audit("secret-write"))
+
+	rt.Handle(http.MethodGet, "/lookup", "widget-read", func(w http.ResponseWriter, r *http.Request) {
+		ctx, org, q := r.Context(), modkit.OrgID(r.Context()), r.URL.Query()
+		out := map[string]string{}
+		if p, err := rt.Core().GetProjectByName(ctx, org, q.Get("project")); err == nil {
+			out["project"] = p.ID
+		}
+		if a, err := rt.Core().GetAgentByName(ctx, org, q.Get("project"), q.Get("agent")); err == nil {
+			out["agent"] = a.ID
+		}
+		if e, err := rt.Core().GetEnvironmentByName(ctx, org, q.Get("environment")); err == nil {
+			out["environment"] = e.ID
+		}
+		writeJSON(w, http.StatusOK, out)
+	})
+	rt.Handle(http.MethodPost, "/org", "widget-write", func(w http.ResponseWriter, r *http.Request) {
+		o, err := rt.Core().EnsureOrg(r.Context(), modkit.OrgID(r.Context()))
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"message": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"id": o.ID, "handle": o.Handle})
+	})
+	rt.Handle(http.MethodPost, "/projects/{name}/pin", "widget-write", func(w http.ResponseWriter, r *http.Request) {
+		ctx, org := r.Context(), modkit.OrgID(r.Context())
+		p, err := rt.Core().GetProjectByName(ctx, org, r.PathValue("name"))
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"message": err.Error()})
+			return
+		}
+		if err := rt.DB().WithContext(ctx).Exec(`INSERT INTO mod_testmod_project_pins (project_id, org_id) VALUES (?, ?)`, p.ID, org).Error; err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"message": err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+	rt.Handle(http.MethodDelete, "/projects/{name}/pin", "widget-write", func(w http.ResponseWriter, r *http.Request) {
+		ctx, org := r.Context(), modkit.OrgID(r.Context())
+		p, err := rt.Core().GetProjectByName(ctx, org, r.PathValue("name"))
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]string{"message": err.Error()})
+			return
+		}
+		if err := rt.DB().WithContext(ctx).Exec(`DELETE FROM mod_testmod_project_pins WHERE project_id = ?`, p.ID).Error; err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"message": err.Error()})
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	// A route at a fixed internal path, which authenticates its callers
+	// itself, as the AI Gateway's controller routes do.
+	legacy := func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("api-key") != LegacyKey {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"message": "invalid api-key"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"method": r.Method})
+	}
+	rt.HandleInternalAt(http.MethodGet, LegacyPath, legacy)
+	rt.HandleInternalAt(http.MethodPost, LegacyPath, legacy, modkit.Audit("legacy-ping"))
 
 	rt.HandleInternal(http.MethodGet, "/ping", PingScope, func(w http.ResponseWriter, r *http.Request) {
 		wl, _ := modkit.WorkloadFrom(r.Context())

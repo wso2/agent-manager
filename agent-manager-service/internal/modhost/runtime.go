@@ -18,10 +18,12 @@ package modhost
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -56,6 +58,9 @@ type runtime struct {
 	internal []Route
 	hooks    []hookEntry
 	subs     []subEntry
+	workers  []workerEntry
+	at       []Route
+	tools    []toolEntry
 }
 
 var _ modkit.Runtime = (*runtime)(nil)
@@ -116,7 +121,32 @@ func (r *runtime) checkRoute(kind, method, path string, h http.HandlerFunc) erro
 	return nil
 }
 
-func (r *runtime) Handle(method, path, perm string, h http.HandlerFunc) {
+// options resolves a route's options against the manifest: the audit action
+// it names and the webhook event it emits must be the module's own.
+func (r *runtime) options(rt *Route, opts []modkit.RouteOption) error {
+	o := modkit.Options(opts)
+	if o.AuditAction != "" {
+		full, err := r.h.auditAction(r.name, o.AuditAction)
+		if err != nil {
+			return err
+		}
+		rt.AuditAction, rt.AuditRead = full, o.AuditRead
+	}
+	if o.AuditCoalesce < 0 {
+		return fmt.Errorf("negative audit coalesce window %s", o.AuditCoalesce)
+	}
+	rt.AuditCoalesce = o.AuditCoalesce
+	if o.Event != "" {
+		e, ok := r.mf.Event(o.Event)
+		if !ok || e.Scope == "" {
+			return fmt.Errorf("emits %s, which the manifest does not list as an event with a scope", o.Event)
+		}
+		rt.Event, rt.EventScope, rt.EventWithoutData = o.Event, e.Scope, o.EventWithoutData
+	}
+	return nil
+}
+
+func (r *runtime) Handle(method, path, perm string, h http.HandlerFunc, opts ...modkit.RouteOption) {
 	if !r.registering("Handle") {
 		return
 	}
@@ -141,12 +171,17 @@ func (r *runtime) Handle(method, path, perm string, h http.HandlerFunc) {
 		r.fail(fmt.Errorf("Handle %s %s: a %s route needs a permission", method, path, method))
 		return
 	}
+	route := Route{Module: r.name, Method: method, Path: path, Permission: full, Handler: h}
+	if err := r.options(&route, opts); err != nil {
+		r.fail(fmt.Errorf("Handle %s %s: %w", method, path, err))
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.routes = append(r.routes, Route{Module: r.name, Method: method, Path: path, Permission: full, Handler: h})
+	r.routes = append(r.routes, route)
 }
 
-func (r *runtime) HandleInternal(method, path, scope string, h http.HandlerFunc) {
+func (r *runtime) HandleInternal(method, path, scope string, h http.HandlerFunc, opts ...modkit.RouteOption) {
 	if !r.registering("HandleInternal") {
 		return
 	}
@@ -158,21 +193,128 @@ func (r *runtime) HandleInternal(method, path, scope string, h http.HandlerFunc)
 		r.fail(fmt.Errorf("HandleInternal %s %s: a workload route needs a scope", method, path))
 		return
 	}
+	route := Route{Module: r.name, Method: method, Path: path, Scope: scope, Handler: h}
+	if err := r.options(&route, opts); err != nil {
+		r.fail(fmt.Errorf("HandleInternal %s %s: %w", method, path, err))
+		return
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.internal = append(r.internal, Route{Module: r.name, Method: method, Path: path, Scope: scope, Handler: h})
+	r.internal = append(r.internal, route)
 }
+
+// internalAtPrefix is the internal API's prefix; HandleInternalAt paths live
+// below it.
+const internalAtPrefix = "/api/internal/v1"
+
+// internalAtReserved are the core's own paths below the internal prefix.
+var internalAtReserved = []string{"/m", "/workload-tokens", "/workloads", "/health"}
+
+func (r *runtime) HandleInternalAt(method, absPath string, h http.HandlerFunc, opts ...modkit.RouteOption) {
+	if !r.registering("HandleInternalAt") {
+		return
+	}
+	rel, ok := strings.CutPrefix(absPath, internalAtPrefix)
+	if !ok || !strings.HasPrefix(rel, "/") || rel == "/" {
+		r.fail(fmt.Errorf("HandleInternalAt %s %s: the path must be below %s/", method, absPath, internalAtPrefix))
+		return
+	}
+	if err := r.checkRoute("HandleInternalAt", method, rel, h); err != nil {
+		r.fail(err)
+		return
+	}
+	for _, p := range internalAtReserved {
+		if rel == p || strings.HasPrefix(rel, p+"/") {
+			r.fail(fmt.Errorf("HandleInternalAt %s %s: %s%s belongs to the core", method, absPath, internalAtPrefix, p))
+			return
+		}
+	}
+	route := Route{Module: r.name, Method: method, Path: rel, At: rel, Handler: h}
+	if err := r.options(&route, opts); err != nil {
+		r.fail(fmt.Errorf("HandleInternalAt %s %s: %w", method, absPath, err))
+		return
+	}
+	if method != http.MethodGet && route.AuditAction == "" {
+		// Nothing else names it: the route has no permission.
+		r.fail(fmt.Errorf("HandleInternalAt %s %s: a %s route names its audit action with modkit.Audit", method, absPath, method))
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.at = append(r.at, route)
+}
+
+var toolNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+
+func (r *runtime) MCPTool(tool modkit.MCPTool, perm string, h modkit.MCPToolHandler, opts ...modkit.RouteOption) {
+	if !r.registering("MCPTool") {
+		return
+	}
+	if !toolNamePattern.MatchString(tool.Name) || len(tool.Name) > 64 {
+		r.fail(fmt.Errorf("MCPTool %q: the name must be lowercase letters, digits and underscores, starting with a letter, at most 64 characters", tool.Name))
+		return
+	}
+	if tool.Description == "" || h == nil {
+		r.fail(fmt.Errorf("MCPTool %s: a tool needs a description and a handler", tool.Name))
+		return
+	}
+	if len(tool.InputSchema) > 0 {
+		var schema map[string]any
+		if err := json.Unmarshal(tool.InputSchema, &schema); err != nil || schema["type"] != "object" {
+			r.fail(fmt.Errorf("MCPTool %s: the input schema must be a JSON Schema object of type object", tool.Name))
+			return
+		}
+	}
+	if perm == "" {
+		r.fail(fmt.Errorf("MCPTool %s: a tool needs a permission", tool.Name))
+		return
+	}
+	full, err := r.h.permission(r.name, perm)
+	if err != nil {
+		r.fail(fmt.Errorf("MCPTool %s: %w", tool.Name, err))
+		return
+	}
+	route := Route{}
+	if err := r.options(&route, opts); err != nil {
+		r.fail(fmt.Errorf("MCPTool %s: %w", tool.Name, err))
+		return
+	}
+	if route.Event != "" {
+		r.fail(fmt.Errorf("MCPTool %s: tools emit no webhook events", tool.Name))
+		return
+	}
+	action := route.AuditAction
+	if action == "" {
+		action = string(full)
+	}
+	r.mu.Lock()
+	twice := slices.ContainsFunc(r.tools, func(t toolEntry) bool { return t.tool.Name == tool.Name })
+	if !twice {
+		r.tools = append(r.tools, toolEntry{module: r.name, tool: tool, perm: full, action: action, auditRead: route.AuditRead, fn: h})
+	}
+	r.mu.Unlock()
+	if twice {
+		r.fail(fmt.Errorf("MCPTool %s registered twice", tool.Name))
+	}
+}
+
+func (r *runtime) Secrets() modkit.Secrets { return moduleSecrets{h: r.h, module: r.name} }
 
 func (r *runtime) Hook(resource string, phase modkit.Phase, h modkit.HookFunc) {
 	if !r.registering("Hook") {
 		return
 	}
-	if resource != modkit.ResourceAgent && resource != modkit.ResourceEnvironment {
-		r.fail(fmt.Errorf("Hook: resource %q takes no hooks (want %s or %s)", resource, modkit.ResourceAgent, modkit.ResourceEnvironment))
+	if resource != modkit.ResourceAgent && resource != modkit.ResourceEnvironment && resource != modkit.ResourceProject {
+		r.fail(fmt.Errorf("Hook: resource %q takes no hooks (want %s, %s or %s)", resource,
+			modkit.ResourceAgent, modkit.ResourceEnvironment, modkit.ResourceProject))
 		return
 	}
 	if phase != modkit.Validate && phase != modkit.Apply && phase != modkit.Finalize {
 		r.fail(fmt.Errorf("Hook: unknown phase %q", phase))
+		return
+	}
+	if resource == modkit.ResourceProject && phase != modkit.Finalize {
+		r.fail(fmt.Errorf("Hook: projects take only %s hooks", modkit.Finalize))
 		return
 	}
 	if h == nil {
@@ -201,12 +343,35 @@ func (r *runtime) Subscribe(eventType string, h modkit.EventHandler) {
 	r.subs = append(r.subs, subEntry{module: r.name, event: eventType, fn: h})
 }
 
+func (r *runtime) Go(name string, fn func(ctx context.Context) error) {
+	if !r.registering("Go") {
+		return
+	}
+	if name == "" || strings.ContainsAny(name, " \t") {
+		r.fail(fmt.Errorf("Go: worker name %q must be one word", name))
+		return
+	}
+	if fn == nil {
+		r.fail(fmt.Errorf("Go %s: nil worker", name))
+		return
+	}
+	r.mu.Lock()
+	twice := slices.ContainsFunc(r.workers, func(w workerEntry) bool { return w.name == name })
+	if !twice {
+		r.workers = append(r.workers, workerEntry{module: r.name, name: name, fn: fn})
+	}
+	r.mu.Unlock()
+	if twice {
+		r.fail(fmt.Errorf("Go: worker %s registered twice", name))
+	}
+}
+
 func (r *runtime) Publish(ctx context.Context, eventType string, data any) error {
 	return r.PublishTx(ctx, nil, eventType, data)
 }
 
 func (r *runtime) PublishTx(ctx context.Context, tx *gorm.DB, eventType string, data any) error {
-	if !slices.Contains(r.mf.Events, eventType) {
+	if _, ok := r.mf.Event(eventType); !ok {
 		return fmt.Errorf("modkit: %s publishes %s, which its manifest does not list", r.name, eventType)
 	}
 	return r.h.publish(ctx, tx, r.name, eventType, data)

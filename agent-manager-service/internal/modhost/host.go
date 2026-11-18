@@ -69,6 +69,13 @@ type Host struct {
 	// DefaultEventDeliveryTimeout. Set it before Boot.
 	EventDeliveryTimeout time.Duration
 
+	// WorkerDrainTimeout is how long a stopping module worker gets to return;
+	// zero means DefaultWorkerDrainTimeout. WorkerRetryBase is the first delay
+	// before a failed worker restarts; zero means DefaultWorkerRetryBase. Set
+	// them before Boot.
+	WorkerDrainTimeout time.Duration
+	WorkerRetryBase    time.Duration
+
 	// Passive hosts track module state without activating anything, for
 	// commands that change module state on behalf of running servers.
 	// Install and Enable still trial-activate the module set they produce.
@@ -89,6 +96,12 @@ type Host struct {
 	failed map[string]error
 	// d holds the core services the server attached.
 	d Deps
+
+	// workMu guards the running module workers. runCtx is Boot's ctx, which
+	// workers run under; nil before Boot.
+	workMu  sync.Mutex
+	runCtx  context.Context
+	running map[string]*moduleWorkers
 }
 
 // view is an immutable snapshot of what the active modules registered.
@@ -105,6 +118,15 @@ type view struct {
 	// hooks are by resource and phase, in activation order.
 	hooks map[string]map[modkit.Phase][]hookEntry
 	subs  map[string][]subEntry
+	// workers are each active module's background workers.
+	workers map[string][]workerEntry
+	// at holds every HandleInternalAt route, served by internalAt.
+	at         []Route
+	internalAt *http.ServeMux
+	// tools are the active modules' MCP tools, in activation order.
+	tools []toolEntry
+	// routes are each active module's public routes, as registered.
+	routes map[string][]Route
 }
 
 func newView() *view {
@@ -112,6 +134,7 @@ func newView() *view {
 		caps: map[string]any{}, capBy: map[string]string{}, perms: rbac.NewRegistry(),
 		public: map[string]*http.ServeMux{}, internal: map[string]*http.ServeMux{},
 		hooks: map[string]map[modkit.Phase][]hookEntry{}, subs: map[string][]subEntry{},
+		workers: map[string][]workerEntry{}, routes: map[string][]Route{},
 	}
 }
 
@@ -141,6 +164,7 @@ func NewWith(db *gorm.DB, driver string, log *slog.Logger, mods []modkit.Module)
 		db: db, driver: driver, log: log,
 		mods: map[string]modkit.Module{}, manifests: map[string]modkit.Manifest{},
 		states: map[string]string{}, dbVer: map[string]string{}, v: newView(),
+		running: map[string]*moduleWorkers{},
 	}
 	for _, m := range mods {
 		mf := m.Manifest()
@@ -198,6 +222,11 @@ func (h *Host) Active() []string {
 func (h *Host) Boot(ctx context.Context) error {
 	if err := h.CheckSchema(ctx); err != nil {
 		return err
+	}
+	if !h.Passive {
+		h.workMu.Lock()
+		h.runCtx = ctx
+		h.workMu.Unlock()
 	}
 	if err := h.Reload(ctx); err != nil {
 		return err
@@ -355,6 +384,8 @@ func (h *Host) Reload(ctx context.Context) error {
 	h.mu.Unlock()
 	if !h.Passive {
 		h.log.Info("modhost:modules loaded", "generation", gen, "active", v.active)
+		h.publishCatalogs(v)
+		h.syncWorkers(v)
 	}
 	return nil
 }
@@ -434,6 +465,9 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 // added unless all of it is accepted.
 func (h *Host) commit(rt *runtime, v *view) error {
 	name := rt.name
+	if err := checkManifest(rt.mf); err != nil {
+		return err
+	}
 	if err := declare(v.perms.Clone(), rt.mf); err != nil {
 		return err
 	}
@@ -451,8 +485,29 @@ func (h *Host) commit(rt *runtime, v *view) error {
 			return err
 		}
 	}
+	var at *http.ServeMux
+	if len(rt.at) > 0 {
+		var err error
+		if at, err = mountInternalAt(d.MountInternal, append(slices.Clone(v.at), rt.at...)); err != nil {
+			return err
+		}
+	}
+	for _, t := range rt.tools {
+		for _, other := range v.tools {
+			if other.tool.Name == t.tool.Name {
+				return fmt.Errorf("MCP tool %s is already added by %s", t.tool.Name, other.module)
+			}
+		}
+	}
 	if err := declare(v.perms, rt.mf); err != nil {
 		return err
+	}
+	if at != nil {
+		v.at, v.internalAt = append(v.at, rt.at...), at
+	}
+	v.tools = append(v.tools, rt.tools...)
+	if len(rt.routes) > 0 {
+		v.routes[name] = rt.routes
 	}
 	if pub != nil {
 		v.public[name] = pub
@@ -468,6 +523,9 @@ func (h *Host) commit(rt *runtime, v *view) error {
 	}
 	for _, s := range rt.subs {
 		v.subs[s.event] = append(v.subs[s.event], s)
+	}
+	if len(rt.workers) > 0 {
+		v.workers[name] = rt.workers
 	}
 	return nil
 }

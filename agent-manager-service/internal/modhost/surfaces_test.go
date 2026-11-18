@@ -257,7 +257,7 @@ func modulePermissionsAndRoutes(t *testing.T, d database) {
 	mf := manifest("t-perm", nil, nil)
 	mf.Permissions = []modkit.Permission{{Name: "thing-read"}}
 	mf.RoleGrants = map[string][]string{rbac.RoleDeveloper: {"thing-read"}}
-	mf.Events = []string{"t-perm.happened"}
+	mf.Events = []modkit.EventType{{Name: "t-perm.happened"}}
 	var published error
 	m := &testModule{manifest: mf, activate: func(rt modkit.Runtime) error {
 		rt.Handle(http.MethodGet, "/things", "thing-read", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusTeapot) })

@@ -56,7 +56,10 @@ var ErrNotImplemented = errors.New("modkit: not implemented by this core")
 // Manifest describes a module: what it needs, what it offers and what it adds
 // to the API and the console.
 type Manifest struct {
-	Name        string `json:"name"`
+	Name string `json:"name"`
+	// DisplayName names the module to people, such as its permissions'
+	// resource in the identity provider; empty means Name.
+	DisplayName string `json:"displayName,omitempty"`
 	Version     string `json:"version"`
 	Description string `json:"description,omitempty"`
 	CoreAPI     int    `json:"coreApi"`
@@ -83,7 +86,10 @@ type Manifest struct {
 	RoleGrants map[string][]string `json:"roleGrants,omitempty"`
 
 	// Events lists the event types this module publishes.
-	Events []string `json:"events,omitempty"`
+	Events []EventType `json:"events,omitempty"`
+	// AuditActions lists the audit actions the module's routes and tools
+	// name with Audit, and classifies any of its permissions that name one.
+	AuditActions []AuditAction `json:"auditActions,omitempty"`
 
 	UI *UI `json:"ui,omitempty"`
 }
@@ -97,9 +103,22 @@ func (m Manifest) PermissionName(name string) string {
 	return m.Name + ":" + name
 }
 
+// Event returns the manifest's event type named name.
+func (m Manifest) Event(name string) (EventType, bool) {
+	for _, e := range m.Events {
+		if e.Name == name {
+			return e, true
+		}
+	}
+	return EventType{}, false
+}
+
 // Permission is a module-defined permission.
 type Permission struct {
-	Name        string `json:"name"`
+	Name string `json:"name"`
+	// DisplayName names the permission to people, such as its action in the
+	// identity provider; empty means Name.
+	DisplayName string `json:"displayName,omitempty"`
 	Description string `json:"description"`
 }
 
@@ -193,15 +212,20 @@ const (
 	// written, in activation order. An error rolls the change back.
 	Apply Phase = "apply"
 	// Finalize runs inside the core transaction that deletes a resource, in
-	// reverse activation order, to clean up the module's own rows. It cannot
-	// refuse the delete: an error is logged. Refuse a delete in Validate.
+	// reverse activation order, to clean up the module's own rows. On agents
+	// and environments it cannot refuse the delete: an error is logged, and
+	// a delete is refused in Validate. On projects, which take no other hook,
+	// it is how a module refuses: an error rolls the delete back, as a
+	// foreign key from the module's rows would.
 	Finalize Phase = "finalize"
 )
 
-// Resources that take hooks, and the actions they report.
+// Resources that take hooks, and the actions they report. Projects take only
+// Finalize, on delete.
 const (
 	ResourceAgent       = "agent"
 	ResourceEnvironment = "environment"
+	ResourceProject     = "project"
 
 	ActionCreate = "create"
 	ActionUpdate = "update"
@@ -216,7 +240,7 @@ const OperationTimeout = 10 * time.Second
 
 // HookRequest is passed to a hook.
 type HookRequest struct {
-	Resource string `json:"resource"` // ResourceAgent or ResourceEnvironment
+	Resource string `json:"resource"` // ResourceAgent, ResourceEnvironment or ResourceProject
 	Action   string `json:"action"`   // ActionCreate, ActionUpdate or ActionDelete
 	OrgID    string `json:"orgId,omitempty"`
 	// ID is the resource id. It is empty in the validate phase of a create.
@@ -338,6 +362,21 @@ type CoreAPI interface {
 	ListAgents(ctx context.Context, orgID, projectID string) ([]Agent, error)
 	GetAgent(ctx context.Context, orgID, agentID string) (Agent, error)
 	ListEnvironments(ctx context.Context, orgID string) ([]Environment, error)
+
+	// GetProjectByName, GetAgentByName and GetEnvironmentByName look a
+	// resource up by the name the API addresses it with.
+	GetProjectByName(ctx context.Context, orgID, name string) (Project, error)
+	GetAgentByName(ctx context.Context, orgID, projectName, name string) (Agent, error)
+	GetEnvironmentByName(ctx context.Context, orgID, name string) (Environment, error)
+	// LockAgent locks an agent's row inside tx, a hook's Tx or the module's
+	// own transaction, until tx ends, so that changes to the agent made
+	// meanwhile wait; it returns the agent, or ErrNotFound.
+	LockAgent(ctx context.Context, tx *gorm.DB, orgID, agentID string) (Agent, error)
+	// EnsureOrg returns the organization, creating it, with its default
+	// environment, if it does not exist yet. An organization exists in the
+	// core from its first request; a module's route that writes rows of an
+	// organization before any core route ran calls it first.
+	EnsureOrg(ctx context.Context, orgID string) (Org, error)
 }
 
 // OrgID is the organization of the request ctx belongs to, set on every module
@@ -369,19 +408,34 @@ type Runtime interface {
 	Config(key string) string
 
 	// Handle mounts an API route at /m/<module><path> on the API port, beside
-	// the core's /api/v1, behind the same
-	// sign-in, permission check and audit trail as the core's routes. path is
-	// a net/http pattern path ("/widgets/{id}"). perm is one of the module's
-	// permissions (as named in its manifest) or a core permission; "" means
-	// any signed-in user of the organization, which only reads may use.
-	Handle(method, path, perm string, h http.HandlerFunc)
+	// the core's /api/v1, behind the same sign-in, permission check and audit
+	// trail as the core's routes. path is a net/http pattern path
+	// ("/widgets/{id}"); paths under /internal are the workload routes'. perm
+	// is one of the module's permissions (as named in its manifest) or a core
+	// permission; "" means any signed-in user of the organization, which only
+	// reads may use. Every route that changes state is audited, under the
+	// permission's name unless an Audit option names the action.
+	Handle(method, path, perm string, h http.HandlerFunc, opts ...RouteOption)
 	// HandleInternal mounts a route for the module's workloads at
-	// /m/<module>/internal<path> on the internal server. Callers
-	// present a token from IssueToken (or exchanged for a workload
-	// credential) that carries scope.
-	HandleInternal(method, path, scope string, h http.HandlerFunc)
-	// Hook registers a synchronous hook on a core resource (ResourceAgent or
-	// ResourceEnvironment).
+	// /m/<module>/internal<path> on the internal server. Callers present a
+	// token from IssueToken (or exchanged for a workload credential) that
+	// carries scope.
+	HandleInternal(method, path, scope string, h http.HandlerFunc, opts ...RouteOption)
+	// HandleInternalAt mounts a route at a fixed path under /api/internal/v1
+	// on the internal server ("/api/internal/v1/things"), served only while
+	// the module is active. The core does not authenticate its callers: the
+	// handler does. A route that changes state names its audit action with
+	// Audit. It exists only so the AI Gateway can keep the paths its released
+	// controllers call until they can register as workloads
+	// (wso2/agent-manager#2493), and goes away then; new modules use
+	// HandleInternal.
+	HandleInternalAt(method, absPath string, h http.HandlerFunc, opts ...RouteOption)
+	// MCPTool adds a tool to the core's MCP server at /mcp while the module
+	// is active. perm is the permission a caller needs, as for Handle; the
+	// call is audited under its name unless an Audit option names the action.
+	MCPTool(tool MCPTool, perm string, h MCPToolHandler, opts ...RouteOption)
+	// Hook registers a synchronous hook on a core resource (ResourceAgent,
+	// ResourceEnvironment or ResourceProject).
 	Hook(resource string, phase Phase, h HookFunc)
 	// Subscribe registers an asynchronous event handler for an event type:
 	// a core event, or one a module declares in its manifest.
@@ -403,6 +457,20 @@ type Runtime interface {
 	IssueCredential(ctx context.Context, req CredentialRequest) (Credential, error)
 	// RevokeCredential revokes one of the module's credentials.
 	RevokeCredential(ctx context.Context, id string) error
+
+	// Go runs fn in the background while the module is active on this
+	// replica: from when the activation that registered it is in effect until
+	// the module is disabled or uninstalled, or the server stops. Then fn's
+	// ctx is cancelled and fn must return; a worker that does not return in
+	// time is abandoned. A module that stays active keeps its running
+	// workers when the module set changes. Workers run on every replica where
+	// the module is active, so work that must happen once needs its own claim
+	// (a row lock or a lease). A worker that returns an error or panics is
+	// restarted with backoff; one that returns nil is done. name identifies
+	// it in logs and is unique within the module.
+	Go(name string, fn func(ctx context.Context) error)
+	// Secrets is the core's secret store, limited to the module's own paths.
+	Secrets() Secrets
 
 	// Provide registers the implementation of a capability listed in Provides.
 	Provide(capability string, impl any)

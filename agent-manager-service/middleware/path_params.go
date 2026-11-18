@@ -143,10 +143,14 @@ func (rr *RouteRegistrar) registerWithOrgOverride(
 		handler = RequireOrgMatch(rr.orgResolver)(handler)
 	}
 
-	rr.routes = append(rr.routes, meta)
-	handler = WithAudit(rr.auditor, meta)(handler)
+	rr.install(pattern, meta, handler)
+}
 
-	rr.mux.HandleFunc(pattern, handler)
+// install records a route in the ledger, wraps it in the audit middleware,
+// outermost, and registers it.
+func (rr *RouteRegistrar) install(pattern string, meta audit.RouteMeta, handler http.HandlerFunc) {
+	rr.routes = append(rr.routes, meta)
+	rr.mux.HandleFunc(pattern, WithAudit(rr.auditor, meta)(handler))
 }
 
 func (rr *RouteRegistrar) HandleFuncWithValidation(pattern string, handler http.HandlerFunc) {

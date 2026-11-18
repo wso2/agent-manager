@@ -59,5 +59,10 @@ func (tools *Toolsets) register(server *gomcp.Server) *toolRegistry {
 	if tools.AgentConfigToolset != nil {
 		tools.registerAgentConfigTools(server, reg)
 	}
+	if tools.Modules != nil {
+		// Added last, so it runs first: module tool calls never reach the
+		// core's authorization middleware, which would deny them as unknown.
+		server.AddReceivingMiddleware(reg.moduleToolsMiddleware(tools.Modules))
+	}
 	return reg
 }

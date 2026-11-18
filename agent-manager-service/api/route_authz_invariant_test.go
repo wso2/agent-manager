@@ -115,6 +115,9 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"RouteRegistrar.HandleModuleRoute, which applies the permission check.",
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module workload routes; the module host requires a " +
 		"workload token issued for that module and carrying the route's scope.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "/"}: "routes modules mount at fixed internal paths with " +
+		"HandleInternalAt (time-boxed to wso2/agent-manager#2493); each authenticates its callers itself, as the " +
+		"gateway's internal routes do, and is audited through the internal route registrar.",
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "POST /workload-tokens"}: "workload credential exchange: the caller " +
 		"authenticates with the credential's secret in the body; the exchange is audited fail-closed.",
 	{"RegisterRoute", "Handle", "/mcp"}:  "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",

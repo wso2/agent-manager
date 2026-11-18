@@ -1,0 +1,8 @@
+module: testmod
+tables:
+  # A pin holds a project: the project finalize hook refuses to let it go.
+  - name: mod_testmod_project_pins
+    columns:
+      - {name: project_id, type: id}
+      - {name: org_id, type: id}
+    primary_key: [project_id]

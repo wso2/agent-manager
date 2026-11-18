@@ -409,11 +409,14 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 
 // StartModules attaches the core services to the module host, boots it, and
 // makes the core's resource code run module hooks. The host drains module
-// events itself. The returned function detaches the host from the core.
+// events and runs module workers itself. The returned function stops the
+// workers and detaches the host from the core.
 func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, deps *wiring.AppParams) (func(), error) {
 	attach := modhost.Deps{
-		Mount: api.ModuleMounter(deps),
-		Core:  repositories.NewCoreReadAPI(database),
+		Mount:         api.ModuleMounter(deps),
+		MountInternal: api.ModuleInternalMounter(deps),
+		Core:          repositories.NewCoreReadAPI(database),
+		Secrets:       repositories.NewModuleSecretStore(database, deps.EncryptionKey),
 	}
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
 		attach.Tokens = signer
@@ -423,7 +426,10 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		return func() {}, err
 	}
 	coreext.Set(host)
-	return func() { coreext.Set(nil) }, nil
+	return func() {
+		host.StopWorkers()
+		coreext.Set(nil)
+	}, nil
 }
 
 // ReconcileModules applies the declarative modules list (amp.yaml `modules:`

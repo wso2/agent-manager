@@ -94,6 +94,46 @@ func NewRouteMetaForSurface(pattern string, params []string, perms []rbac.Permis
 	return meta
 }
 
+// RoutePolicy is what a module route declares about its audit record, in
+// place of the core's tables of overrides, sensitive reads and coalesce
+// windows, which are keyed by core route patterns.
+type RoutePolicy struct {
+	// Action, when set, names the route's action instead of its permission.
+	Action Action
+	// Read records the route even though it is a read.
+	Read bool
+	// Coalesce records the route at most once per caller per window.
+	Coalesce time.Duration
+}
+
+// NewRouteMetaWithPolicy resolves the audit policy for a module route. As for
+// a core route, every route that changes state is audited, and one that
+// yields no action panics.
+func NewRouteMetaWithPolicy(pattern string, params []string, perms []rbac.Permission, surface Surface, p RoutePolicy) RouteMeta {
+	method, path := splitPattern(pattern)
+	meta := RouteMeta{
+		Pattern:  pattern,
+		Method:   method,
+		Path:     path,
+		Params:   params,
+		Perms:    perms,
+		Audited:  shouldAudit(method, path) || p.Read,
+		Surface:  surface,
+		Coalesce: p.Coalesce,
+	}
+	if !meta.Audited {
+		return meta
+	}
+	meta.Action = p.Action
+	if meta.Action == "" {
+		meta.Action = deriveAction(method, path, perms)
+	}
+	if meta.Action == "" {
+		panic(fmt.Sprintf("audit: cannot derive an action for audited route %q; name it with modkit.Audit", pattern))
+	}
+	return meta
+}
+
 // splitPattern separates "POST /orgs/{orgName}/x" into method and path.
 func splitPattern(pattern string) (method, path string) {
 	if idx := strings.Index(pattern, " "); idx != -1 {

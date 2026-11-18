@@ -237,6 +237,11 @@ func (r *platformRepo) DeleteProject(ctx context.Context, ouID, projectName stri
 	if err != nil {
 		return err
 	}
+	op := coreext.Begin(ctx, modkit.ResourceProject)
+	req := modkit.HookRequest{
+		Action: modkit.ActionDelete, OrgID: org.ID.String(), ID: p.ID.String(),
+		Object: map[string]any{"id": p.ID.String(), "orgId": org.ID.String(), "name": p.Name, "displayName": p.DisplayName},
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var left []string
 		for _, owned := range []struct {
@@ -253,6 +258,11 @@ func (r *platformRepo) DeleteProject(ctx context.Context, ouID, projectName stri
 		}
 		if len(left) > 0 {
 			return fmt.Errorf("%w: project %q still has %s", utils.ErrConflict, projectName, strings.Join(left, ", "))
+		}
+		// Modules clean up their rows of the project, or refuse the delete
+		// while they still hold some, as a foreign key would.
+		if err := op.Run(ctx, tx, modkit.Finalize, req, nil); err != nil {
+			return err
 		}
 		// Event settings scoped to the project go with it.
 		if err := tx.Where("org_id = ? AND project_id = ?", org.ID, p.ID).Delete(&models.EventSubscription{}).Error; err != nil {

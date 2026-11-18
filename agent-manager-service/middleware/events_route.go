@@ -55,6 +55,16 @@ func WithEvents(publisher events.Publisher, meta audit.RouteMeta) func(http.Hand
 	if !found {
 		panic("events: route " + meta.Pattern + " emits " + eventType + ", which is not in the catalog")
 	}
+	return withRouteEvent(publisher, meta, eventType, def.Scope, omitData)
+}
+
+// withRouteEvent emits eventType, of scope, after a 2xx response; an empty
+// eventType emits nothing. Module routes name their event and its scope
+// themselves.
+func withRouteEvent(publisher events.Publisher, meta audit.RouteMeta, eventType string, scope events.Scope, omitData bool) func(http.HandlerFunc) http.HandlerFunc {
+	if publisher == nil || eventType == "" {
+		return func(next http.HandlerFunc) http.HandlerFunc { return next }
+	}
 
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
@@ -75,7 +85,7 @@ func WithEvents(publisher events.Publisher, meta audit.RouteMeta) func(http.Hand
 			if ae.OUID == "" {
 				return
 			}
-			e := events.New("evt_"+uuid.NewString(), eventType, def.Scope, ae.OUID,
+			e := events.New("evt_"+uuid.NewString(), eventType, scope, ae.OUID,
 				r.PathValue(utils.PathParamProjName), r.PathValue(utils.PathParamAgentName), time.Now())
 			e.OrgHandle = ae.OrgHandle
 			if ae.ActorID != "" {

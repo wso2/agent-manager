@@ -93,7 +93,7 @@ func (op *operation) Run(ctx context.Context, tx *gorm.DB, phase modkit.Phase, r
 		if err == nil {
 			continue
 		}
-		if phase == modkit.Finalize {
+		if phase == modkit.Finalize && op.resource != modkit.ResourceProject {
 			// Finalize only cleans up; the delete goes ahead.
 			op.h.log.Error("modhost:finalize hook failed; the delete goes ahead", "module", e.module, "resource", op.resource, "error", err)
 			continue

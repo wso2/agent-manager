@@ -16,7 +16,10 @@
 
 package audit
 
-import "strings"
+import (
+	"strings"
+	"sync/atomic"
+)
 
 // Action names the operation that was performed, in "<resource>:<verb>" form
 // ("agent:create", "role:grant-permission"). It is the human- and SIEM-facing
@@ -116,11 +119,37 @@ func RegisteredActions() []Action {
 	return out
 }
 
+// ModuleAction classifies an audit action an active module declares.
+type ModuleAction struct {
+	Class    ActionClass
+	Severity Severity
+}
+
+// moduleActions are the actions the active modules declare. The module host
+// replaces them whenever the set of active modules changes.
+var moduleActions atomic.Pointer[map[Action]ModuleAction]
+
+// SetModuleActions replaces the actions the active modules declare.
+func SetModuleActions(m map[Action]ModuleAction) {
+	moduleActions.Store(&m)
+}
+
+func moduleAction(a Action) (ModuleAction, bool) {
+	if m := moduleActions.Load(); m != nil {
+		meta, ok := (*m)[a]
+		return meta, ok
+	}
+	return ModuleAction{}, false
+}
+
 // Class returns the action's class, falling back to a heuristic for actions
 // derived from route permissions.
 func (a Action) Class() ActionClass {
 	if meta, ok := registry[a]; ok {
 		return meta.class
+	}
+	if meta, ok := moduleAction(a); ok {
+		return meta.Class
 	}
 	class, _ := classify(a)
 	return class
@@ -130,6 +159,9 @@ func (a Action) Class() ActionClass {
 func (a Action) Severity() Severity {
 	if meta, ok := registry[a]; ok {
 		return meta.severity
+	}
+	if meta, ok := moduleAction(a); ok {
+		return meta.Severity
 	}
 	_, severity := classify(a)
 	return severity

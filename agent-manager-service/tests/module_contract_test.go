@@ -255,6 +255,108 @@ func TestModuleContract(t *testing.T) {
 		assert.JSONEq(t, `[{"agent":"tagged","tag":"blue"}]`, string(body))
 	})
 
+	t.Run("the core looks resources up by name and can lock an agent from a hook", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("locked",
+			map[string]any{"testmod": map[string]any{"tag": "green", "lock": true}}))
+		require.Equal(t, http.StatusAccepted, code, string(body))
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/lookup?project="+project+"&agent=locked&environment=default", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var ids map[string]string
+		require.NoError(t, json.Unmarshal(body, &ids))
+		for _, k := range []string{"project", "agent", "environment"} {
+			_, err := uuid.Parse(ids[k])
+			assert.NoError(t, err, "%s looked up by name", k)
+		}
+		// (Lite has one environment: a route's environment parameter always
+		// names it, so only the project and agent can miss.)
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/lookup?project=nosuch&agent=locked", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.NotContains(t, string(body), `"project"`)
+		assert.NotContains(t, string(body), `"agent"`)
+		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/locked", nil)
+		require.Equal(t, http.StatusNoContent, code, string(body))
+	})
+
+	t.Run("a module can create the caller's organization", func(t *testing.T) {
+		h, _ := w.freshOrg()
+		code, body := w.call(t, h, http.MethodPost, "/m/testmod/org", nil)
+		// The fresh org's token has no testmod permission.
+		require.Equal(t, http.StatusForbidden, code, string(body))
+		code, body = w.call(t, w.full, http.MethodPost, "/m/testmod/org", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var org map[string]string
+		require.NoError(t, json.Unmarshal(body, &org))
+		assert.Equal(t, w.org, org["id"])
+		assert.Equal(t, w.handle, org["handle"])
+	})
+
+	t.Run("secrets stay within the module and the organization", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPut, "/m/testmod/secrets/n1", map[string]string{"value": "v1"})
+		require.Equal(t, http.StatusNoContent, code, string(body))
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/secrets/n1", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.JSONEq(t, `{"value":"v1"}`, string(body))
+		code, _ = w.call(t, w.full, http.MethodPut, "/m/testmod/secrets/n1", map[string]string{"value": "v", "org": uuid.NewString()})
+		assert.Equal(t, http.StatusNotFound, code, "a module cannot write another organization's secret from a request")
+		code, _ = w.call(t, w.full, http.MethodPut, "/m/testmod/secrets/..", map[string]string{"value": "v"})
+		assert.NotEqual(t, http.StatusNoContent, code)
+		code, _ = w.call(t, w.full, http.MethodDelete, "/m/testmod/secrets/n1", nil)
+		require.Equal(t, http.StatusNoContent, code)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/secrets/n1", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+	})
+
+	t.Run("a project finalize hook can refuse a project delete", func(t *testing.T) {
+		projects := "/api/v1/orgs/" + w.handle + "/projects"
+		code, body := w.call(t, w.full, http.MethodPost, projects, map[string]any{"name": "pinned", "displayName": "Pinned"})
+		require.Equal(t, http.StatusAccepted, code, string(body))
+		code, body = w.call(t, w.full, http.MethodPost, "/m/testmod/projects/pinned/pin", nil)
+		require.Equal(t, http.StatusNoContent, code, string(body))
+		code, body = w.call(t, w.full, http.MethodDelete, projects+"/pinned", nil)
+		assert.Equal(t, http.StatusConflict, code, string(body))
+		assert.Contains(t, string(body), "pinned by testmod")
+		code, _ = w.call(t, w.full, http.MethodGet, projects+"/pinned", nil)
+		assert.Equal(t, http.StatusOK, code, "the refused delete keeps the project")
+		// The hook's own cleanup was rolled back with the delete: the pin is
+		// still there and still refuses.
+		code, _ = w.call(t, w.full, http.MethodDelete, projects+"/pinned", nil)
+		assert.Equal(t, http.StatusConflict, code)
+
+		code, _ = w.call(t, w.full, http.MethodDelete, "/m/testmod/projects/pinned/pin", nil)
+		require.Equal(t, http.StatusNoContent, code)
+		code, body = w.call(t, w.full, http.MethodDelete, projects+"/pinned", nil)
+		assert.Less(t, code, 300, string(body))
+		code, _ = w.call(t, w.full, http.MethodGet, projects+"/pinned", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+	})
+
+	t.Run("route options name the audit action and the webhook event", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/widgets/w1/archive", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.Contains(t, string(body), testmod.WidgetArchived, "a module's webhook event is in the catalog while it is active")
+		assert.NotContains(t, string(body), testmod.WidgetCreated, "an event without a scope is not")
+	})
+
+	t.Run("workers, MCP tools and fixed internal routes run while the module is active", func(t *testing.T) {
+		eventually(t, "the worker", func() bool { return testmod.WorkerRunning.Load() == 1 })
+		var tools []string
+		for _, tool := range w.host.MCPTools() {
+			tools = append(tools, tool.Tool.Name)
+		}
+		assert.Contains(t, tools, testmod.Tool)
+
+		code, _ := w.call(t, w.internal, http.MethodGet, testmod.LegacyPath, nil)
+		assert.Equal(t, http.StatusUnauthorized, code, "the route checks its own credential")
+		code, body := w.call(t, w.internal, http.MethodGet, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
+		require.Equal(t, http.StatusOK, code, string(body))
+		code, body = w.call(t, w.internal, http.MethodPost, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
+		require.Equal(t, http.StatusOK, code, string(body))
+		code, _ = w.call(t, w.full, http.MethodGet, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
+		assert.Equal(t, http.StatusNotFound, code, "only on the internal server")
+	})
+
 	t.Run("a module refuses a delete before anything is torn down", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPut, agentsPath+"/tagged",
 			map[string]any{"displayName": "Tagged", "description": "", "extensions": map[string]any{"testmod": map[string]any{"tag": "undeletable"}}})
@@ -467,6 +569,13 @@ func TestModuleContract(t *testing.T) {
 
 		code, _ = w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil, "Authorization", "Bearer "+issued.Token)
 		assert.Equal(t, http.StatusNotFound, code)
+		code, _ = w.call(t, w.internal, http.MethodGet, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
+		assert.Equal(t, http.StatusNotFound, code, "a disabled module's fixed internal routes are gone")
+		assert.Zero(t, testmod.WorkerRunning.Load(), "and its workers stopped")
+		assert.Empty(t, w.host.MCPTools(), "and its MCP tools")
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.NotContains(t, string(body), testmod.WidgetArchived, "and its webhook events")
 		code, _ = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
 			map[string]string{"credentialId": issued.CredentialID, "secret": issued.Secret})
 		assert.Equal(t, http.StatusUnauthorized, code, "a credential of an inactive module")
