@@ -31,9 +31,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -102,7 +102,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 		return
 	}
 
-	if specReq.Type != models.AgentConfigTypeLLM {
+	if specReq.Type != gwmodels.AgentConfigTypeLLM {
 		log.Warn("CreateAgentModelConfig: invalid type", "type", specReq.Type)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Type must be llm")
 		return
@@ -190,7 +190,7 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 		return
 	}
 
-	if response.Type != models.AgentConfigTypeLLM {
+	if response.Type != gwmodels.AgentConfigTypeLLM {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 		return
 	}
@@ -222,7 +222,7 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 		offset = 0
 	}
 
-	response, err := c.agentConfigService.ListByType(ctx, ouID, projectName, agentName, models.AgentConfigTypeIDLLM, limit, offset)
+	response, err := c.agentConfigService.ListByType(ctx, ouID, projectName, agentName, gwmodels.AgentConfigTypeIDLLM, limit, offset)
 	if err != nil {
 		log.Error("ListAgentModelConfigs: failed to list configurations", "error", err)
 		if writeIfNotImplemented(w, err) {
@@ -291,7 +291,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update configuration")
 		return
 	}
-	if existing.Type != models.AgentConfigTypeLLM {
+	if existing.Type != gwmodels.AgentConfigTypeLLM {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 		return
 	}
@@ -368,7 +368,7 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete configuration")
 		return
 	}
-	if existing.Type != models.AgentConfigTypeLLM {
+	if existing.Type != gwmodels.AgentConfigTypeLLM {
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 		return
 	}
@@ -406,7 +406,7 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	specReq.Type = models.AgentConfigTypeMCP
+	specReq.Type = gwmodels.AgentConfigTypeMCP
 
 	if err := utils.ValidateConfigName(specReq.Name); err != nil {
 		log.Warn("CreateAgentMCPConfig: invalid name", "error", err)
@@ -661,31 +661,31 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 
 // Converter functions between spec and models
 
-func convertCreateAgentModelConfigRequest(specReq gwspec.CreateAgentModelConfigRequest) (models.CreateAgentModelConfigRequest, error) {
-	envMappings := make(map[string]models.EnvModelConfigRequest)
+func convertCreateAgentModelConfigRequest(specReq gwspec.CreateAgentModelConfigRequest) (gwmodels.CreateAgentModelConfigRequest, error) {
+	envMappings := make(map[string]gwmodels.EnvModelConfigRequest)
 	for envName, envConfig := range specReq.EnvMappings {
 		proxyName := resolveEnvConfigProxyName(envConfig)
 		if proxyName == "" {
-			return models.CreateAgentModelConfigRequest{}, fmt.Errorf("providerName or proxyName is required for environment %s", envName)
+			return gwmodels.CreateAgentModelConfigRequest{}, fmt.Errorf("providerName or proxyName is required for environment %s", envName)
 		}
-		envMappings[envName] = models.EnvModelConfigRequest{
+		envMappings[envName] = gwmodels.EnvModelConfigRequest{
 			ProviderName: proxyName,
-			Configuration: models.EnvProviderConfiguration{
+			Configuration: gwmodels.EnvProviderConfiguration{
 				Policies:   convertToModelPolicies(&envConfig.Configuration),
 				Resilience: gwconv.ConvertSpecToModelResilience(envConfig.Configuration.Resilience),
 			},
 		}
 	}
 
-	var envVars []models.EnvironmentVariableConfig
+	var envVars []gwmodels.EnvironmentVariableConfig
 	if specReq.EnvironmentVariables != nil {
-		envVars = make([]models.EnvironmentVariableConfig, 0, len(specReq.EnvironmentVariables))
+		envVars = make([]gwmodels.EnvironmentVariableConfig, 0, len(specReq.EnvironmentVariables))
 		for _, ev := range specReq.EnvironmentVariables {
-			envVars = append(envVars, models.EnvironmentVariableConfig{Key: ev.Key, Name: ev.Name})
+			envVars = append(envVars, gwmodels.EnvironmentVariableConfig{Key: ev.Key, Name: ev.Name})
 		}
 	}
 
-	return models.CreateAgentModelConfigRequest{
+	return gwmodels.CreateAgentModelConfigRequest{
 		Name:                 specReq.Name,
 		Description:          getString(specReq.Description),
 		Type:                 specReq.Type,
@@ -694,8 +694,8 @@ func convertCreateAgentModelConfigRequest(specReq gwspec.CreateAgentModelConfigR
 	}, nil
 }
 
-func convertUpdateAgentModelConfigRequest(specReq gwspec.UpdateAgentModelConfigRequest) (models.UpdateAgentModelConfigRequest, error) {
-	req := models.UpdateAgentModelConfigRequest{}
+func convertUpdateAgentModelConfigRequest(specReq gwspec.UpdateAgentModelConfigRequest) (gwmodels.UpdateAgentModelConfigRequest, error) {
+	req := gwmodels.UpdateAgentModelConfigRequest{}
 
 	if specReq.Name != nil {
 		req.Name = *specReq.Name
@@ -704,15 +704,15 @@ func convertUpdateAgentModelConfigRequest(specReq gwspec.UpdateAgentModelConfigR
 		req.Description = *specReq.Description
 	}
 	if specReq.EnvMappings != nil {
-		envMappings := make(map[string]models.EnvModelConfigRequest)
+		envMappings := make(map[string]gwmodels.EnvModelConfigRequest)
 		for envName, envConfig := range *specReq.EnvMappings {
 			proxyName := resolveEnvConfigProxyName(envConfig)
 			if proxyName == "" {
-				return models.UpdateAgentModelConfigRequest{}, fmt.Errorf("providerName or proxyName is required for environment %s", envName)
+				return gwmodels.UpdateAgentModelConfigRequest{}, fmt.Errorf("providerName or proxyName is required for environment %s", envName)
 			}
-			envMappings[envName] = models.EnvModelConfigRequest{
+			envMappings[envName] = gwmodels.EnvModelConfigRequest{
 				ProviderName: proxyName,
-				Configuration: models.EnvProviderConfiguration{
+				Configuration: gwmodels.EnvProviderConfiguration{
 					Policies:   convertToModelPolicies(&envConfig.Configuration),
 					Resilience: gwconv.ConvertSpecToModelResilience(envConfig.Configuration.Resilience),
 				},
@@ -721,16 +721,16 @@ func convertUpdateAgentModelConfigRequest(specReq gwspec.UpdateAgentModelConfigR
 		req.EnvMappings = envMappings
 	}
 	if specReq.EnvironmentVariables != nil {
-		req.EnvironmentVariables = make([]models.EnvironmentVariableConfig, 0, len(specReq.EnvironmentVariables))
+		req.EnvironmentVariables = make([]gwmodels.EnvironmentVariableConfig, 0, len(specReq.EnvironmentVariables))
 		for _, ev := range specReq.EnvironmentVariables {
-			req.EnvironmentVariables = append(req.EnvironmentVariables, models.EnvironmentVariableConfig{Key: ev.Key, Name: ev.Name})
+			req.EnvironmentVariables = append(req.EnvironmentVariables, gwmodels.EnvironmentVariableConfig{Key: ev.Key, Name: ev.Name})
 		}
 	}
 
 	return req, nil
 }
 
-func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) gwspec.AgentModelConfigResponse {
+func convertAgentModelConfigResponse(modelResp gwmodels.AgentModelConfigResponse) gwspec.AgentModelConfigResponse {
 	envModelConfig := make(map[string]gwspec.EnvProviderConfigMappings)
 	for envName, envConfig := range modelResp.EnvModelConfig {
 		specEnvConfig := gwspec.EnvProviderConfigMappings{
@@ -775,7 +775,7 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 			// just the create that returns the key. Value stays creation-only.
 			if envConfig.LLMProxy.AuthHeaderName != nil && *envConfig.LLMProxy.AuthHeaderName != "" {
 				// A proxy's api-key security can be configured to read from the query
-				// string instead of a header (see models.LLMProxyInfo.AuthIn) — assuming
+				// string instead of a header (see gwmodels.LLMProxyInfo.AuthIn) — assuming
 				// "header" here would tell the caller to send a working credential the
 				// wrong way.
 				in := "header"
@@ -838,7 +838,7 @@ func resolveEnvConfigProxyName(envConfig gwspec.EnvModelConfigRequest) string {
 	}
 }
 
-func convertAgentModelConfigListResponse(modelResp models.AgentModelConfigListResponse) gwspec.AgentModelConfigListResponse {
+func convertAgentModelConfigListResponse(modelResp gwmodels.AgentModelConfigListResponse) gwspec.AgentModelConfigListResponse {
 	configs := make([]gwspec.AgentModelConfigListItem, len(modelResp.Configs))
 	for i, config := range modelResp.Configs {
 		configs[i] = gwspec.AgentModelConfigListItem{
@@ -864,7 +864,7 @@ func convertAgentModelConfigListResponse(modelResp models.AgentModelConfigListRe
 
 // Helper functions
 
-func convertToSpecPolicies(modelPolicies *[]models.LLMPolicy) []gwspec.LLMPolicy {
+func convertToSpecPolicies(modelPolicies *[]gwmodels.LLMPolicy) []gwspec.LLMPolicy {
 	if modelPolicies == nil {
 		return nil
 	}
@@ -879,7 +879,7 @@ func convertToSpecPolicies(modelPolicies *[]models.LLMPolicy) []gwspec.LLMPolicy
 	return policies
 }
 
-func convertToSpecPolicyPaths(modelPaths *[]models.LLMPolicyPath) []gwspec.LLMPolicyPath {
+func convertToSpecPolicyPaths(modelPaths *[]gwmodels.LLMPolicyPath) []gwspec.LLMPolicyPath {
 	if modelPaths == nil {
 		return nil
 	}
@@ -894,13 +894,13 @@ func convertToSpecPolicyPaths(modelPaths *[]models.LLMPolicyPath) []gwspec.LLMPo
 	return paths
 }
 
-func convertToModelPolicies(specConfig *gwspec.EnvProviderConfiguration) []models.LLMPolicy {
+func convertToModelPolicies(specConfig *gwspec.EnvProviderConfiguration) []gwmodels.LLMPolicy {
 	if specConfig == nil {
 		return nil
 	}
-	policies := make([]models.LLMPolicy, len(specConfig.Policies))
+	policies := make([]gwmodels.LLMPolicy, len(specConfig.Policies))
 	for i, policy := range specConfig.Policies {
-		policies[i] = models.LLMPolicy{
+		policies[i] = gwmodels.LLMPolicy{
 			Name:    policy.Name,
 			Version: policy.Version,
 			Paths:   convertToModelPolicyPaths(&policy.Paths),
@@ -909,13 +909,13 @@ func convertToModelPolicies(specConfig *gwspec.EnvProviderConfiguration) []model
 	return policies
 }
 
-func convertToModelPolicyPaths(specPaths *[]gwspec.LLMPolicyPath) []models.LLMPolicyPath {
+func convertToModelPolicyPaths(specPaths *[]gwspec.LLMPolicyPath) []gwmodels.LLMPolicyPath {
 	if specPaths == nil {
 		return nil
 	}
-	paths := make([]models.LLMPolicyPath, len(*specPaths))
+	paths := make([]gwmodels.LLMPolicyPath, len(*specPaths))
 	for i, path := range *specPaths {
-		paths[i] = models.LLMPolicyPath{
+		paths[i] = gwmodels.LLMPolicyPath{
 			Path:    path.Path,
 			Methods: path.Methods,
 			Params:  path.Params,
@@ -1049,7 +1049,7 @@ func (c *agentConfigurationController) CreateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	response, err := c.agentConfigService.CreateMCPConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, &models.CreateAPIKeyRequest{
+	response, err := c.agentConfigService.CreateMCPConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, &gwmodels.CreateAPIKeyRequest{
 		Name:        name,
 		DisplayName: displayName,
 		ExpiresAt:   specReq.ExpiresAt,
@@ -1088,7 +1088,7 @@ func (c *agentConfigurationController) RotateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	response, err := c.agentConfigService.RotateMCPConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, keyName, &models.RotateAPIKeyRequest{
+	response, err := c.agentConfigService.RotateMCPConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, keyName, &gwmodels.RotateAPIKeyRequest{
 		DisplayName: specReq.DisplayName,
 		ExpiresAt:   specReq.ExpiresAt,
 	})
@@ -1179,7 +1179,7 @@ func (c *agentConfigurationController) CreateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	response, err := c.agentConfigService.CreateLLMConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, &models.CreateAPIKeyRequest{
+	response, err := c.agentConfigService.CreateLLMConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, &gwmodels.CreateAPIKeyRequest{
 		Name:        name,
 		DisplayName: displayName,
 		ExpiresAt:   specReq.ExpiresAt,
@@ -1218,7 +1218,7 @@ func (c *agentConfigurationController) RotateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	response, err := c.agentConfigService.RotateLLMConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, keyName, &models.RotateAPIKeyRequest{
+	response, err := c.agentConfigService.RotateLLMConfigAPIKey(ctx, ouID, projName, agentName, configUUID, envName, keyName, &gwmodels.RotateAPIKeyRequest{
 		DisplayName: specReq.DisplayName,
 		ExpiresAt:   specReq.ExpiresAt,
 	})

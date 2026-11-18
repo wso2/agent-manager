@@ -30,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
@@ -69,27 +70,27 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 		assert.Same(t, txSentinel, tx)
 		return h.txProxies
 	}
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 		return nil, gwrepo.ErrA2AProxyNotFound
 	}
 	h.txProxies.LockAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error {
 		h.steps = append(h.steps, "lock")
 		return nil
 	}
-	h.txProxies.GetByEnvUUIDFunc = func(ctx context.Context, ouID, projectName, agentName string, envUUID uuid.UUID) (*models.A2AProxy, error) {
+	h.txProxies.GetByEnvUUIDFunc = func(ctx context.Context, ouID, projectName, agentName string, envUUID uuid.UUID) (*gwmodels.A2AProxy, error) {
 		h.steps = append(h.steps, "read-proxy")
 		return m.proxies.GetByEnvUUIDFunc(ctx, ouID, projectName, agentName, envUUID)
 	}
-	h.txCards.GetFunc = func(ctx context.Context, ouID, projectName, agentName, envName string) (*models.A2AAgentCard, error) {
+	h.txCards.GetFunc = func(ctx context.Context, ouID, projectName, agentName, envName string) (*gwmodels.A2AAgentCard, error) {
 		return h.cards.GetFunc(ctx, ouID, projectName, agentName, envName)
 	}
-	m.artifacts.GetByHandleFunc = func(string, string) (*models.Artifact, error) {
-		return &models.Artifact{UUID: h.artifactUUID, Kind: models.KindAgent}, nil
+	m.artifacts.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) {
+		return &gwmodels.Artifact{UUID: h.artifactUUID, Kind: gwmodels.KindAgent}, nil
 	}
 	h.cards = &gwrepomocks.A2AAgentCardRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
-			return &models.A2AAgentCard{
-				Source: models.A2AAgentCardSourceExternal, SourceURL: "https://agent.example/.well-known/agent-card.json",
+		GetFunc: func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
+			return &gwmodels.A2AAgentCard{
+				Source: gwmodels.A2AAgentCardSourceExternal, SourceURL: "https://agent.example/.well-known/agent-card.json",
 			}, nil
 		},
 		WithTxFunc: func(tx *gorm.DB) gwrepo.A2AAgentCardRepository {
@@ -118,15 +119,15 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 
 // cardAt registers sourceURL as the environment's external card URL.
 func (h *proxyHarness) cardAt(sourceURL string) {
-	h.cards.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
-		return &models.A2AAgentCard{Source: models.A2AAgentCardSourceExternal, SourceURL: sourceURL}, nil
+	h.cards.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
+		return &gwmodels.A2AAgentCard{Source: gwmodels.A2AAgentCardSourceExternal, SourceURL: sourceURL}, nil
 	}
 }
 
 // proxied makes the environment proxied; an empty secret means no upstream auth is stored.
 func (h *proxyHarness) proxied(header, secret string) {
-	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-		return &models.A2AProxy{
+	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
+		return &gwmodels.A2AProxy{
 			EnvironmentUUID: uuid.MustParse(proxyTestEnvUUID), UpstreamAuthHeader: header, UpstreamAuthSecret: secret,
 		}, nil
 	}
@@ -147,16 +148,16 @@ func (h *proxyHarness) assertNothingWritten(t *testing.T) {
 
 // acceptsWrites lets every write a transition may make succeed, inside the transaction only.
 func (h *proxyHarness) acceptsWrites() {
-	h.txProxies.UpsertFunc = func(context.Context, *models.A2AProxy) error { return nil }
+	h.txProxies.UpsertFunc = func(context.Context, *gwmodels.A2AProxy) error { return nil }
 	h.txProxies.DeleteFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
-	h.txCards.EnqueueFunc = func(context.Context, *models.A2AAgentCard) error { return nil }
+	h.txCards.EnqueueFunc = func(context.Context, *gwmodels.A2AAgentCard) error { return nil }
 	h.txCards.ClearCardFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
 	h.txCards.RequeueFunc = func(context.Context, string, string, string, string) error { return nil }
 	h.txCards.DeleteForAgentEnvFunc = func(context.Context, string, string, string, string) error { return nil }
-	h.txConfigs.CreateIfAbsentFunc = func(context.Context, *models.AgentConfig) error { return nil }
+	h.txConfigs.CreateIfAbsentFunc = func(context.Context, *gwmodels.AgentConfig) error { return nil }
 	// txExposures.UpsertFunc is nil: an external agent's record is its proxy row, never an exposure.
 	h.txExposures.DeleteForAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
-	h.artifacts.CreateFunc = func(*gorm.DB, *models.Artifact) error { return nil }
+	h.artifacts.CreateFunc = func(*gorm.DB, *gwmodels.Artifact) error { return nil }
 	h.artifacts.DeleteFunc = func(*gorm.DB, string) error { return nil }
 	h.txDeployments.PlacedGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) {
 		return []string{proxyTestGateway.String()}, nil
@@ -164,10 +165,10 @@ func (h *proxyHarness) acceptsWrites() {
 	h.txDeployments.DeleteEventGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) {
 		return []string{proxyTestGateway.String()}, nil
 	}
-	h.txDeployments.GetStatusRecordFunc = func(context.Context, models.Placement) (*models.DeploymentStatusRecord, error) {
-		return &models.DeploymentStatusRecord{PerformedAt: models.NewPerformedAt(time.Now())}, nil
+	h.txDeployments.GetStatusRecordFunc = func(context.Context, gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error) {
+		return &gwmodels.DeploymentStatusRecord{PerformedAt: gwmodels.NewPerformedAt(time.Now())}, nil
 	}
-	h.deployments.BeginUndeployFunc = func(context.Context, *gorm.DB, models.Placement) (bool, error) { return true, nil }
+	h.deployments.BeginUndeployFunc = func(context.Context, *gorm.DB, gwmodels.Placement) (bool, error) { return true, nil }
 	h.deployments.QueueRenderFunc = func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string,
 		gwrepo.QueueScope,
 	) (int64, error) {
@@ -200,7 +201,7 @@ func TestSetA2AProxySwitchesADirectEnvironmentToProxied(t *testing.T) {
 	value := "s3cret"
 
 	require.NoError(t, h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
-		&models.A2AProxyAuthUpdate{Header: "X-Upstream-Key", Value: &value}))
+		&gwmodels.A2AProxyAuthUpdate{Header: "X-Upstream-Key", Value: &value}))
 
 	upserted := h.txProxies.UpsertCalls()
 	require.Len(t, upserted, 1)
@@ -223,7 +224,7 @@ func TestSetA2AProxySwitchesADirectEnvironmentToProxied(t *testing.T) {
 
 func TestSetA2AProxyNeedsARegisteredCardURL(t *testing.T) {
 	h := newProxyHarness(t)
-	h.cards.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+	h.cards.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
 
@@ -236,8 +237,8 @@ func TestSetA2AProxyNeedsARegisteredCardURL(t *testing.T) {
 // A URL the gateway could never front is refused before anything parks the card.
 func TestSetA2AProxyRefusesACardURLTheGatewayCannotFront(t *testing.T) {
 	h := newProxyHarness(t)
-	h.cards.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
-		return &models.A2AAgentCard{Source: models.A2AAgentCardSourceExternal, SourceURL: "https://agent.example/card.json"}, nil
+	h.cards.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
+		return &gwmodels.A2AAgentCard{Source: gwmodels.A2AAgentCardSourceExternal, SourceURL: "https://agent.example/card.json"}, nil
 	}
 
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
@@ -254,7 +255,7 @@ func TestSetA2AProxyRefusesACredentialForAnHTTPCardURL(t *testing.T) {
 	value := "s3cret"
 
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
-		&models.A2AProxyAuthUpdate{Header: "X-Upstream-Key", Value: &value})
+		&gwmodels.A2AProxyAuthUpdate{Header: "X-Upstream-Key", Value: &value})
 
 	assert.ErrorIs(t, err, utils.ErrA2AProxyUpstreamAuthNeedsHTTPS)
 	h.assertNothingWritten(t)
@@ -266,7 +267,7 @@ func TestSetA2AProxyRefusesToKeepAStoredSecretOnAnHTTPCardURL(t *testing.T) {
 	h.proxied("X-Old", "b2xk")
 	h.cardAt("http://agent.example/.well-known/agent-card.json")
 
-	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", &models.A2AProxyAuthUpdate{Header: "X-New"})
+	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", &gwmodels.A2AProxyAuthUpdate{Header: "X-New"})
 
 	assert.ErrorIs(t, err, utils.ErrA2AProxyUpstreamAuthNeedsHTTPS)
 	h.assertNothingWritten(t)
@@ -292,7 +293,7 @@ func TestSetA2AProxyUpdatesAProxiedEnvironmentInPlace(t *testing.T) {
 	h.txConfigs.CreateIfAbsentFunc = nil
 
 	require.NoError(t, h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
-		&models.A2AProxyAuthUpdate{Header: "X-New"}))
+		&gwmodels.A2AProxyAuthUpdate{Header: "X-New"}))
 
 	upserted := h.txProxies.UpsertCalls()
 	require.Len(t, upserted, 1)
@@ -306,7 +307,7 @@ func TestSetA2AProxySecretSemantics(t *testing.T) {
 	cases := []struct {
 		name        string
 		stored      string
-		auth        *models.A2AProxyAuthUpdate
+		auth        *gwmodels.A2AProxyAuthUpdate
 		wantHeader  string
 		wantSecret  string
 		wantDecrypt string
@@ -315,19 +316,19 @@ func TestSetA2AProxySecretSemantics(t *testing.T) {
 		{name: "omitting auth clears it", stored: "b2xk", auth: nil},
 		{
 			name: "a header alone keeps the stored secret", stored: "b2xk",
-			auth: &models.A2AProxyAuthUpdate{Header: "X-Key"}, wantHeader: "X-Key", wantSecret: "b2xk",
+			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key"}, wantHeader: "X-Key", wantSecret: "b2xk",
 		},
 		{
 			name: "a value replaces it", stored: "b2xk",
-			auth: &models.A2AProxyAuthUpdate{Header: "X-Key", Value: &replacement}, wantHeader: "X-Key", wantDecrypt: "n3w",
+			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key", Value: &replacement}, wantHeader: "X-Key", wantDecrypt: "n3w",
 		},
 		{
 			name: "an empty value is rejected", stored: "b2xk",
-			auth: &models.A2AProxyAuthUpdate{Header: "X-Key", Value: &empty}, wantErr: utils.ErrInvalidUpstreamAuth,
+			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key", Value: &empty}, wantErr: utils.ErrInvalidUpstreamAuth,
 		},
 		{
 			name: "a header alone needs a stored secret",
-			auth: &models.A2AProxyAuthUpdate{Header: "X-Key"}, wantErr: utils.ErrInvalidUpstreamAuth,
+			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key"}, wantErr: utils.ErrInvalidUpstreamAuth,
 		},
 	}
 	for _, tc := range cases {
@@ -357,7 +358,7 @@ func TestSetA2AProxySecretSemantics(t *testing.T) {
 
 func TestValidateA2AUpstreamAuth(t *testing.T) {
 	value := func(v string) *string { return &v }
-	for _, auth := range []*models.A2AProxyAuthUpdate{
+	for _, auth := range []*gwmodels.A2AProxyAuthUpdate{
 		nil,
 		{Header: "X-Upstream_Key-1"},
 		{Header: "X-Key", Value: value(strings.Repeat("a", 8192))},
@@ -366,7 +367,7 @@ func TestValidateA2AUpstreamAuth(t *testing.T) {
 	} {
 		assert.NoError(t, validateA2AUpstreamAuth(auth))
 	}
-	for name, auth := range map[string]*models.A2AProxyAuthUpdate{
+	for name, auth := range map[string]*gwmodels.A2AProxyAuthUpdate{
 		"a header with a space":  {Header: "X Key", Value: value("v")},
 		"an empty header":        {Header: "", Value: value("v")},
 		"Host":                   {Header: "host", Value: value("v")},
@@ -470,7 +471,7 @@ func TestStoreCardSourceQueuesADirectEnvironmentsURL(t *testing.T) {
 	written := h.txCards.EnqueueCalls()
 	require.Len(t, written, 1)
 	assert.Equal(t, url, written[0].Card.SourceURL)
-	assert.Equal(t, models.A2AAgentCardSourceExternal, written[0].Card.Source)
+	assert.Equal(t, gwmodels.A2AAgentCardSourceExternal, written[0].Card.Source)
 	assert.Equal(t, "dev", written[0].Card.EnvironmentName)
 	assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), written[0].Card.EnvironmentUUID)
 	assert.Empty(t, h.txCards.ClearCardCalls(), "the card is fetched from the origin, not parked")
@@ -481,56 +482,56 @@ func TestStoreCardSourceQueuesADirectEnvironmentsURL(t *testing.T) {
 func TestGetA2AProxyReportsItsDeploymentStatus(t *testing.T) {
 	due := time.Now()
 	for name, tc := range map[string]struct {
-		row  models.DeploymentStatusRecord
-		want models.UserStatus
+		row  gwmodels.DeploymentStatusRecord
+		want gwmodels.UserStatus
 	}{
 		"waiting for its first render": {
-			models.DeploymentStatusRecord{
-				Status: models.DeploymentStatusPending, StatusDesired: models.DeploymentStatusDeployed,
+			gwmodels.DeploymentStatusRecord{
+				Status: gwmodels.DeploymentStatusPending, StatusDesired: gwmodels.DeploymentStatusDeployed,
 				NextAttemptAt: &due, RenderReason: "the origin's card can't be fetched",
 			},
-			models.UserStatus{Status: models.DeploymentStatusDeploying, Reason: "the origin's card can't be fetched"},
+			gwmodels.UserStatus{Status: gwmodels.DeploymentStatusDeploying, Reason: "the origin's card can't be fetched"},
 		},
 		"deploying": {
-			models.DeploymentStatusRecord{Status: models.DeploymentStatusDeploying, StatusDesired: models.DeploymentStatusDeployed},
-			models.UserStatus{Status: models.DeploymentStatusDeploying},
+			gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusDeploying, StatusDesired: gwmodels.DeploymentStatusDeployed},
+			gwmodels.UserStatus{Status: gwmodels.DeploymentStatusDeploying},
 		},
 		"deployed": {
-			models.DeploymentStatusRecord{Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed},
-			models.UserStatus{Status: models.DeploymentStatusDeployed},
+			gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed},
+			gwmodels.UserStatus{Status: gwmodels.DeploymentStatusDeployed},
 		},
 		"failed": {
-			models.DeploymentStatusRecord{
-				Status: models.DeploymentStatusFailed, StatusDesired: models.DeploymentStatusDeployed,
+			gwmodels.DeploymentStatusRecord{
+				Status: gwmodels.DeploymentStatusFailed, StatusDesired: gwmodels.DeploymentStatusDeployed,
 				StatusReason: "DEPLOYMENT_TIMEOUT",
 			},
-			models.UserStatus{Status: models.DeploymentStatusFailed, Reason: "DEPLOYMENT_TIMEOUT"},
+			gwmodels.UserStatus{Status: gwmodels.DeploymentStatusFailed, Reason: "DEPLOYMENT_TIMEOUT"},
 		},
 		"undeploying": {
-			models.DeploymentStatusRecord{Status: models.DeploymentStatusUndeploying, StatusDesired: models.DeploymentStatusUndeployed},
-			models.UserStatus{Status: models.DeploymentStatusUndeploying},
+			gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusUndeploying, StatusDesired: gwmodels.DeploymentStatusUndeployed},
+			gwmodels.UserStatus{Status: gwmodels.DeploymentStatusUndeploying},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			h := newProxyHarness(t)
 			h.proxied("X-Key", "c2VjcmV0")
-			h.gateways.ListWithFiltersFunc = func(f gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+			h.gateways.ListWithFiltersFunc = func(f gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 				require.NotNil(t, f.EnvironmentID)
 				assert.Equal(t, proxyTestEnvUUID, *f.EnvironmentID)
-				return []*models.Gateway{{Vhost: "agents.example.com", GatewayFunctionalityType: models.GatewayRoleIngress}}, nil
+				return []*gwmodels.Gateway{{Vhost: "agents.example.com", GatewayFunctionalityType: gwmodels.GatewayRoleIngress}}, nil
 			}
-			h.deployments.StatusRecordsFunc = func(_ context.Context, ouID string, artifactUUID uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+			h.deployments.StatusRecordsFunc = func(_ context.Context, ouID string, artifactUUID uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 				assert.Equal(t, "org-1", ouID)
 				assert.Equal(t, h.artifactUUID, artifactUUID)
 				row := tc.row
 				row.GatewayUUID = proxyTestGateway
-				return []models.DeploymentStatusRecord{row}, nil
+				return []gwmodels.DeploymentStatusRecord{row}, nil
 			}
 
 			got, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
 
 			require.NoError(t, err)
-			assert.Equal(t, &models.A2AProxyStatus{
+			assert.Equal(t, &gwmodels.A2AProxyStatus{
 				Status: tc.want.Status, StatusReason: tc.want.Reason, UpstreamAuthHeader: "X-Key",
 				GatewayURL: "https://agents.example.com/weather",
 			}, got)
@@ -546,7 +547,7 @@ func TestGetA2AProxyReportsItsDeploymentStatus(t *testing.T) {
 func TestGetA2AProxyWithoutAnIngressGatewayReportsNoGateway(t *testing.T) {
 	h := newProxyHarness(t)
 	h.proxied("", "")
-	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 		return nil, nil
 	}
 
@@ -554,7 +555,7 @@ func TestGetA2AProxyWithoutAnIngressGatewayReportsNoGateway(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Empty(t, got.GatewayURL)
-	assert.Equal(t, models.DeploymentStatusUndeployed, got.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusUndeployed, got.Status)
 	assert.Equal(t, "no gateway in this environment", got.StatusReason)
 }
 
@@ -562,24 +563,24 @@ func TestGetA2AProxyWithoutAnIngressGatewayReportsNoGateway(t *testing.T) {
 func TestGetA2AProxyNotYetPlacedIsDeploying(t *testing.T) {
 	h := newProxyHarness(t)
 	h.proxied("", "")
-	h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-		return []*models.Gateway{{Vhost: "agents.example.com", GatewayFunctionalityType: models.GatewayRoleIngress}}, nil
+	h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+		return []*gwmodels.Gateway{{Vhost: "agents.example.com", GatewayFunctionalityType: gwmodels.GatewayRoleIngress}}, nil
 	}
-	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 		return nil, nil
 	}
 
 	got, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
 
 	require.NoError(t, err)
-	assert.Equal(t, models.DeploymentStatusDeploying, got.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, got.Status)
 	assert.NotEmpty(t, got.StatusReason)
 }
 
 func TestGetA2AProxyReportsAGatewayLookupFailure(t *testing.T) {
 	h := newProxyHarness(t)
 	h.proxied("", "")
-	h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+	h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 		return nil, assert.AnError
 	}
 
@@ -754,7 +755,7 @@ func TestStoreCardSourceStoresTheURLParksTheCardAndRepublishes(t *testing.T) {
 	written := h.txCards.EnqueueCalls()
 	require.Len(t, written, 1, "the URL is written inside the transaction, never on the plain repo")
 	assert.Equal(t, newURL, written[0].Card.SourceURL)
-	assert.Equal(t, models.A2AAgentCardSourceExternal, written[0].Card.Source)
+	assert.Equal(t, gwmodels.A2AAgentCardSourceExternal, written[0].Card.Source)
 	assert.Equal(t, uuid.MustParse(proxyTestEnvUUID), written[0].Card.EnvironmentUUID)
 	assert.Len(t, h.txCards.ClearCardCalls(), 1)
 	assert.Empty(t, h.txExposures.UpsertCalls())
@@ -806,7 +807,7 @@ func TestStoreCardSourceRefusesToMoveAStoredSecretToAnotherOrigin(t *testing.T) 
 func TestStoreCardSourceRefusesWhenNoRegisteredURLVouchesForTheSecret(t *testing.T) {
 	h := newProxyHarness(t)
 	h.proxied("X-Key", "c2VjcmV0")
-	h.cards.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+	h.cards.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
 

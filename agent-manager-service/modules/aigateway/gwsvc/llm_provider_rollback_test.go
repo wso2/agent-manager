@@ -29,8 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -52,7 +52,7 @@ func TestDelete_AlreadyUndeployedProviderBroadcastsCanonicalUUID(t *testing.T) {
 	hub := &stubEventHub{}
 
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByHandleFunc: func(handle, ouID string) (*models.LLMProvider, error) {
+		GetByHandleFunc: func(handle, ouID string) (*gwmodels.LLMProvider, error) {
 			require.Equal(t, created.Configuration.Handle, handle)
 			require.Equal(t, "ou-acme", ouID)
 			return created, nil
@@ -95,18 +95,18 @@ func TestDelete_AlreadyUndeployedProviderBroadcastsCanonicalUUID(t *testing.T) {
 	assert.Equal(t, created.UUID.String(), published.EntityID)
 
 	var envelope struct {
-		Type    string                          `json:"type"`
-		Payload models.LLMProviderDeletionEvent `json:"payload"`
+		Type    string                            `json:"type"`
+		Payload gwmodels.LLMProviderDeletionEvent `json:"payload"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(published.EventData), &envelope))
 	assert.Equal(t, "llmprovider.deleted", envelope.Type)
 	assert.Equal(t, created.UUID.String(), envelope.Payload.ProviderID)
 }
 
-func createdProvider() *models.LLMProvider {
-	return &models.LLMProvider{
+func createdProvider() *gwmodels.LLMProvider {
+	return &gwmodels.LLMProvider{
 		UUID:          uuid.New(),
-		Configuration: models.LLMProviderConfig{Handle: "acme-openai"},
+		Configuration: gwmodels.LLMProviderConfig{Handle: "acme-openai"},
 	}
 }
 
@@ -120,7 +120,7 @@ func TestDelete_RejectsWithoutUndeployingWhenProviderHasAssociatedProxies(t *tes
 	clearCalled := false
 
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc:            func(_, _ string) (*models.LLMProvider, error) { return created, nil },
+		GetByUUIDFunc:            func(_, _ string) (*gwmodels.LLMProvider, error) { return created, nil },
 		MarkDeletingFunc:         func(_ uuid.UUID) (bool, error) { return true, nil },
 		HasAssociatedProxiesFunc: func(_ context.Context, _ uuid.UUID) (bool, error) { return true, nil },
 		ClearDeletingFunc:        func(_ uuid.UUID) error { clearCalled = true; return nil },
@@ -150,7 +150,7 @@ func TestDelete_RejectsWhenAlreadyMarkedDeleting(t *testing.T) {
 	undeployCalled := false
 
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc:    func(_, _ string) (*models.LLMProvider, error) { return created, nil },
+		GetByUUIDFunc:    func(_, _ string) (*gwmodels.LLMProvider, error) { return created, nil },
 		MarkDeletingFunc: func(_ uuid.UUID) (bool, error) { return false, nil },
 	}
 	deploymentRepo := &gwrepomocks.DeploymentRepositoryMock{
@@ -176,7 +176,7 @@ func TestDelete_ClearsDeletingFlagWhenUndeployFails(t *testing.T) {
 	clearCalled := false
 
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc:            func(_, _ string) (*models.LLMProvider, error) { return created, nil },
+		GetByUUIDFunc:            func(_, _ string) (*gwmodels.LLMProvider, error) { return created, nil },
 		HasAssociatedProxiesFunc: func(_ context.Context, _ uuid.UUID) (bool, error) { return false, nil },
 		MarkDeletingFunc:         func(_ uuid.UUID) (bool, error) { return true, nil },
 		ClearDeletingFunc:        func(_ uuid.UUID) error { clearCalled = true; return nil },
@@ -185,7 +185,7 @@ func TestDelete_ClearsDeletingFlagWhenUndeployFails(t *testing.T) {
 		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
 			return []string{"gw-1"}, nil
 		},
-		GetDeploymentsWithStateFunc: func(_ string, _ string, _ *string, _ *string, _ int) ([]*models.Deployment, error) {
+		GetDeploymentsWithStateFunc: func(_ string, _ string, _ *string, _ *string, _ int) ([]*gwmodels.Deployment, error) {
 			// Simulates a gateway fetch failure: the only gateway fails, so Delete's
 			// all-undeployments-failed branch fires and it must bail out and clear
 			// the deleting flag rather than leave it set.
@@ -204,14 +204,14 @@ func TestDelete_ClearsDeletingFlagWhenUndeployFails(t *testing.T) {
 
 func TestDelete_CompletesAfterCancellationFollowingSuccessfulUndeploy(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	deployed := models.DeploymentStatusDeployed
+	deployed := gwmodels.DeploymentStatusDeployed
 	created := createdProvider()
 	gatewayID := uuid.New()
 	deploymentID := uuid.New()
 	deleteCalled := false
 
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc:            func(_, _ string) (*models.LLMProvider, error) { return created, nil },
+		GetByUUIDFunc:            func(_, _ string) (*gwmodels.LLMProvider, error) { return created, nil },
 		MarkDeletingFunc:         func(_ uuid.UUID) (bool, error) { return true, nil },
 		HasAssociatedProxiesFunc: func(_ context.Context, _ uuid.UUID) (bool, error) { return false, nil },
 		ClearDeletingFunc:        func(_ uuid.UUID) error { return nil },
@@ -223,7 +223,7 @@ func TestDelete_CompletesAfterCancellationFollowingSuccessfulUndeploy(t *testing
 			return nil
 		},
 	}
-	deployment := &models.Deployment{
+	deployment := &gwmodels.Deployment{
 		DeploymentID: deploymentID,
 		ArtifactUUID: created.UUID,
 		GatewayUUID:  gatewayID,
@@ -236,19 +236,19 @@ func TestDelete_CompletesAfterCancellationFollowingSuccessfulUndeploy(t *testing
 		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 			return []string{gatewayID.String()}, nil
 		},
-		GetDeploymentsWithStateFunc: func(string, string, *string, *string, int) ([]*models.Deployment, error) {
-			return []*models.Deployment{deployment}, nil
+		GetDeploymentsWithStateFunc: func(string, string, *string, *string, int) ([]*gwmodels.Deployment, error) {
+			return []*gwmodels.Deployment{deployment}, nil
 		},
-		GetWithStateFunc: func(string, string, string) (*models.Deployment, error) {
+		GetWithStateFunc: func(string, string, string) (*gwmodels.Deployment, error) {
 			return deployment, nil
 		},
-		BeginUndeployFunc: func(context.Context, *gorm.DB, models.Placement) (bool, error) {
+		BeginUndeployFunc: func(context.Context, *gorm.DB, gwmodels.Placement) (bool, error) {
 			cancel()
 			return true, nil
 		},
-		GetStatusRecordFunc: func(context.Context, models.Placement) (*models.DeploymentStatusRecord, error) {
-			return &models.DeploymentStatusRecord{
-				Status: models.DeploymentStatusUndeploying, PerformedAt: models.NewPerformedAt(time.Now()),
+		GetStatusRecordFunc: func(context.Context, gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error) {
+			return &gwmodels.DeploymentStatusRecord{
+				Status: gwmodels.DeploymentStatusUndeploying, PerformedAt: gwmodels.NewPerformedAt(time.Now()),
 			}, nil
 		},
 	}

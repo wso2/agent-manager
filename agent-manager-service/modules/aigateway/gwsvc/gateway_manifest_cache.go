@@ -20,7 +20,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // GatewayManifestCacheBackend holds the latest policy manifest each gateway pushed,
@@ -120,7 +120,7 @@ func SetGatewayManifestCacheBackend(backend GatewayManifestCacheBackend) {
 // has not reported since it registered (or since the cache lost its entry). Callers treat
 // that as "not reported yet", not as "supports no policies", and leave the gateway out of
 // policy checks until it reports.
-func gatewayManifest(gateway *models.Gateway) (manifest map[string]interface{}, known bool) {
+func gatewayManifest(gateway *gwmodels.Gateway) (manifest map[string]interface{}, known bool) {
 	if gateway == nil {
 		return nil, false
 	}

@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 )
 
@@ -41,7 +41,7 @@ func NewLLMProviderHandler(
 // AddLLMProviderToCatalog puts the provider back in the catalog, the console's
 // catalog toggle, resolving the handle or UUID to the UUID the toggle keys on.
 // A provider already in the catalog is returned as it is.
-func (h *LLMProviderHandler) AddLLMProviderToCatalog(_ context.Context, ouID string, providerID string) (*models.LLMProvider, error) {
+func (h *LLMProviderHandler) AddLLMProviderToCatalog(_ context.Context, ouID string, providerID string) (*gwmodels.LLMProvider, error) {
 	provider, err := h.providerSvc.Get(providerID, ouID)
 	if err != nil {
 		return nil, err
@@ -68,17 +68,17 @@ func (h *LLMProviderHandler) GatewayEnvironmentIDs(_ context.Context, gatewayIDs
 	return out, nil
 }
 
-func (h *LLMProviderHandler) ListLLMProviders(_ context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error) {
+func (h *LLMProviderHandler) ListLLMProviders(_ context.Context, ouID string, limit int, offset int) ([]*gwmodels.LLMProvider, int, error) {
 	return h.providerSvc.List(ouID, limit, offset)
 }
 
-func (h *LLMProviderHandler) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
+func (h *LLMProviderHandler) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*gwmodels.LLMPolicyAvailabilityResponse, error) {
 	return h.providerSvc.ListAvailableLLMPolicies(ctx, ouID, providerID)
 }
 
 // GetLLMProvider returns the provider and its gateway deployments, the two
 // reads the console's provider page makes.
-func (h *LLMProviderHandler) GetLLMProvider(_ context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error) {
+func (h *LLMProviderHandler) GetLLMProvider(_ context.Context, ouID string, providerID string) (*gwmodels.LLMProvider, []*gwmodels.Deployment, error) {
 	provider, err := h.providerSvc.Get(providerID, ouID)
 	if err != nil {
 		return nil, nil, err
@@ -102,8 +102,8 @@ func (h *LLMProviderHandler) GetLLMProvider(_ context.Context, ouID string, prov
 // else changes. An error from change is returned as is, before anything is saved.
 func (h *LLMProviderHandler) UpdateLLMProviderGuardrails(
 	ctx context.Context, ouID string, providerID string,
-	change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []models.GatewayDeploymentResult, error) {
+	change func([]gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error),
+) (*gwmodels.LLMProvider, []gwmodels.GatewayDeploymentResult, error) {
 	provider, err := h.providerSvc.Get(providerID, ouID)
 	if err != nil {
 		return nil, nil, err

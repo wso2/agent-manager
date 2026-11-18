@@ -29,7 +29,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -92,28 +92,28 @@ type LLMProviderDeploymentYAML struct {
 
 // LLMProviderDeploymentSpec represents the spec section
 type LLMProviderDeploymentSpec struct {
-	DisplayName   string                        `yaml:"displayName" json:"displayName"`
-	Version       string                        `yaml:"version" json:"version"`
-	Context       string                        `yaml:"context,omitempty" json:"context,omitempty"`
-	VHost         string                        `yaml:"vhost,omitempty" json:"vhost,omitempty"`
-	Template      string                        `yaml:"template" json:"template"`
-	Upstream      GatewayUpstream               `yaml:"upstream" json:"upstream"`
-	Resilience    *models.Resilience            `yaml:"resilience,omitempty" json:"resilience,omitempty"`
-	AccessControl *models.LLMAccessControl      `yaml:"accessControl,omitempty" json:"accessControl,omitempty"`
-	RateLimiting  *models.LLMRateLimitingConfig `yaml:"rateLimiting,omitempty" json:"rateLimiting,omitempty"`
-	Policies      []models.LLMPolicy            `yaml:"policies,omitempty" json:"policies,omitempty"`
-	Security      *models.SecurityConfig        `yaml:"security,omitempty" json:"security,omitempty"`
+	DisplayName   string                          `yaml:"displayName" json:"displayName"`
+	Version       string                          `yaml:"version" json:"version"`
+	Context       string                          `yaml:"context,omitempty" json:"context,omitempty"`
+	VHost         string                          `yaml:"vhost,omitempty" json:"vhost,omitempty"`
+	Template      string                          `yaml:"template" json:"template"`
+	Upstream      GatewayUpstream                 `yaml:"upstream" json:"upstream"`
+	Resilience    *gwmodels.Resilience            `yaml:"resilience,omitempty" json:"resilience,omitempty"`
+	AccessControl *gwmodels.LLMAccessControl      `yaml:"accessControl,omitempty" json:"accessControl,omitempty"`
+	RateLimiting  *gwmodels.LLMRateLimitingConfig `yaml:"rateLimiting,omitempty" json:"rateLimiting,omitempty"`
+	Policies      []gwmodels.LLMPolicy            `yaml:"policies,omitempty" json:"policies,omitempty"`
+	Security      *gwmodels.SecurityConfig        `yaml:"security,omitempty" json:"security,omitempty"`
 }
 
 // GatewayUpstream represents the flat upstream structure expected by the gateway
 type GatewayUpstream struct {
-	URL  string               `yaml:"url,omitempty" json:"url,omitempty"`
-	Ref  string               `yaml:"ref,omitempty" json:"ref,omitempty"`
-	Auth *models.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
+	URL  string                 `yaml:"url,omitempty" json:"url,omitempty"`
+	Ref  string                 `yaml:"ref,omitempty" json:"ref,omitempty"`
+	Auth *gwmodels.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
 }
 
 // resolveProvider looks up a provider by UUID or handle.
-func (s *LLMProviderDeploymentService) resolveProvider(identifier, ouID string) (*models.LLMProvider, error) {
+func (s *LLMProviderDeploymentService) resolveProvider(identifier, ouID string) (*gwmodels.LLMProvider, error) {
 	if _, err := uuid.Parse(identifier); err == nil {
 		return s.providerRepo.GetByUUID(identifier, ouID)
 	}
@@ -122,7 +122,7 @@ func (s *LLMProviderDeploymentService) resolveProvider(identifier, ouID string) 
 
 // DeployLLMProvider deploys the provider's current configuration to a gateway. The deployment is named by the
 // kind; a client's name and metadata are ignored.
-func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req *models.DeployAPIRequest, ouID string) (*models.Deployment, error) {
+func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req *gwmodels.DeployAPIRequest, ouID string) (*gwmodels.Deployment, error) {
 	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: starting", "providerID", providerID, "ouID", ouID,
 		"base", req.Base, "gatewayID", req.GatewayID)
 
@@ -193,10 +193,10 @@ func validateDeployBase(base string) error {
 }
 
 // providerPlacement is the provider's artifact on the gateway.
-func providerPlacement(provider *models.LLMProvider, ouID string, gatewayUUID uuid.UUID) models.Placement {
-	return models.Placement{
-		ArtifactRef: models.ArtifactRef{
-			OUID: ouID, ArtifactUUID: provider.UUID, Kind: models.KindLLMProvider, Handle: provider.Configuration.Handle,
+func providerPlacement(provider *gwmodels.LLMProvider, ouID string, gatewayUUID uuid.UUID) gwmodels.Placement {
+	return gwmodels.Placement{
+		ArtifactRef: gwmodels.ArtifactRef{
+			OUID: ouID, ArtifactUUID: provider.UUID, Kind: gwmodels.KindLLMProvider, Handle: provider.Configuration.Handle,
 		},
 		GatewayUUID: gatewayUUID,
 	}
@@ -204,19 +204,19 @@ func providerPlacement(provider *models.LLMProvider, ouID string, gatewayUUID uu
 
 // providerDeploymentEvent tells the gateway to pull the provider's deployment. Events carry the provider's UUID,
 // which is what the gateway stores it under.
-func providerDeploymentEvent(p models.Placement, deploymentID string, performedAt time.Time) *models.LLMProviderDeploymentEvent {
-	return &models.LLMProviderDeploymentEvent{
+func providerDeploymentEvent(p gwmodels.Placement, deploymentID string, performedAt time.Time) *gwmodels.LLMProviderDeploymentEvent {
+	return &gwmodels.LLMProviderDeploymentEvent{
 		ProviderID:     p.ArtifactUUID.String(),
 		DeploymentID:   deploymentID,
 		PerformedAt:    performedAt,
 		GatewayID:      p.GatewayUUID.String(),
 		OrganizationID: p.OUID,
-		Status:         string(models.DeploymentStatusDeployed),
+		Status:         string(gwmodels.DeploymentStatusDeployed),
 	}
 }
 
 // UndeployLLMProviderDeployment undeploys a deployment
-func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID string) (*models.Deployment, error) {
+func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID string) (*gwmodels.Deployment, error) {
 	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: starting", "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID, "ouID", ouID)
 
@@ -244,7 +244,7 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 			"deploymentID", deploymentID, "expectedGatewayID", gatewayID, "actualGatewayID", deployment.GatewayUUID.String())
 		return nil, utils.ErrGatewayIDMismatch
 	}
-	if deployment.Status == nil || *deployment.Status == models.DeploymentStatusArchived {
+	if deployment.Status == nil || *deployment.Status == gwmodels.DeploymentStatusArchived {
 		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not current", "providerID", providerID,
 			"deploymentID", deploymentID, "status", deployment.Status)
 		return nil, utils.ErrDeploymentNotActive
@@ -270,7 +270,7 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 }
 
 // UndeployFromGateway undeploys the provider from a gateway it is placed on, whatever the placement's status.
-func (s *LLMProviderDeploymentService) UndeployFromGateway(ctx context.Context, provider *models.LLMProvider, ouID, gatewayID string) error {
+func (s *LLMProviderDeploymentService) UndeployFromGateway(ctx context.Context, provider *gwmodels.LLMProvider, ouID, gatewayID string) error {
 	gatewayUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
 		return fmt.Errorf("invalid gateway UUID %q: %w", gatewayID, err)
@@ -282,9 +282,9 @@ func (s *LLMProviderDeploymentService) UndeployFromGateway(ctx context.Context, 
 
 // undeployAndRead undeploys the placement and reads back its row in the same transaction.
 func undeployAndRead(
-	ctx context.Context, runTx TxRunner, core *reconcile.Core, repo gwrepo.DeploymentRepository, p models.Placement,
-) (*models.DeploymentStatusRecord, error) {
-	var row *models.DeploymentStatusRecord
+	ctx context.Context, runTx TxRunner, core *reconcile.Core, repo gwrepo.DeploymentRepository, p gwmodels.Placement,
+) (*gwmodels.DeploymentStatusRecord, error) {
+	var row *gwmodels.DeploymentStatusRecord
 	err := runTx(ctx, func(tx *gorm.DB) error {
 		if err := core.Undeploy(ctx, tx, p); err != nil {
 			return err
@@ -298,10 +298,10 @@ func undeployAndRead(
 
 // restoreAndRead restores the deployment on the placement and reads back its row in the same transaction.
 func restoreAndRead(
-	ctx context.Context, runTx TxRunner, core *reconcile.Core, repo gwrepo.DeploymentRepository, p models.Placement,
+	ctx context.Context, runTx TxRunner, core *reconcile.Core, repo gwrepo.DeploymentRepository, p gwmodels.Placement,
 	deploymentID uuid.UUID,
-) (*models.DeploymentStatusRecord, error) {
-	var row *models.DeploymentStatusRecord
+) (*gwmodels.DeploymentStatusRecord, error) {
+	var row *gwmodels.DeploymentStatusRecord
 	err := runTx(ctx, func(tx *gorm.DB) error {
 		if err := core.Restore(ctx, tx, p, deploymentID); err != nil {
 			return err
@@ -314,7 +314,7 @@ func restoreAndRead(
 }
 
 // RestoreLLMProviderDeployment restores a previous deployment
-func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID string) (*models.Deployment, error) {
+func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID string) (*gwmodels.Deployment, error) {
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
@@ -354,19 +354,19 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 // restoresItself reports whether restoring deploymentID would redo what the gateway is already deploying or serving:
 // the row points at it, DEPLOYING or DEPLOYED, with no redeploy owed (as api-platform refuses). A restore over any
 // other status, or one that cancels an owed redeploy, goes ahead.
-func restoresItself(current *models.DeploymentStatusRecord, deploymentID uuid.UUID) bool {
+func restoresItself(current *gwmodels.DeploymentStatusRecord, deploymentID uuid.UUID) bool {
 	if current == nil || current.DeploymentID == nil || *current.DeploymentID != deploymentID || current.NextAttemptAt != nil {
 		return false
 	}
-	return current.Status == models.DeploymentStatusDeployed || current.Status == models.DeploymentStatusDeploying
+	return current.Status == gwmodels.DeploymentStatusDeployed || current.Status == gwmodels.DeploymentStatusDeploying
 }
 
 // restorableDeployment is the artifact's deployment deploymentID; ErrDeploymentNotFound when the id isn't one.
-func (s *LLMProviderDeploymentService) restorableDeployment(deploymentID, artifactUUID, ouID string) (*models.Deployment, error) {
+func (s *LLMProviderDeploymentService) restorableDeployment(deploymentID, artifactUUID, ouID string) (*gwmodels.Deployment, error) {
 	return getRestorableDeployment(s.deploymentRepo, deploymentID, artifactUUID, ouID)
 }
 
-func getRestorableDeployment(repo gwrepo.DeploymentRepository, deploymentID, artifactUUID, ouID string) (*models.Deployment, error) {
+func getRestorableDeployment(repo gwrepo.DeploymentRepository, deploymentID, artifactUUID, ouID string) (*gwmodels.Deployment, error) {
 	if _, err := uuid.Parse(deploymentID); err != nil {
 		return nil, utils.ErrDeploymentNotFound
 	}
@@ -381,7 +381,7 @@ func getRestorableDeployment(repo gwrepo.DeploymentRepository, deploymentID, art
 }
 
 // GetLLMProviderDeployments retrieves all deployments for a provider
-func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouID string, gatewayID *string, status *string) ([]*models.Deployment, error) {
+func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouID string, gatewayID *string, status *string) ([]*gwmodels.Deployment, error) {
 	// Get provider
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
@@ -391,7 +391,7 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouI
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
-	if status != nil && !models.IsDeploymentStatusFilter(*status) {
+	if status != nil && !gwmodels.IsDeploymentStatusFilter(*status) {
 		return nil, utils.ErrInvalidDeploymentStatus
 	}
 
@@ -405,7 +405,7 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouI
 }
 
 // GetLLMProviderDeployment retrieves a specific deployment
-func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, deploymentID, ouID string) (*models.Deployment, error) {
+func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, deploymentID, ouID string) (*gwmodels.Deployment, error) {
 	// Get provider
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
@@ -461,12 +461,12 @@ func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, d
 }
 
 // generateLLMProviderDeploymentYAML generates deployment YAML for an LLM provider
-func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provider *models.LLMProvider, _ string) (string, error) {
+func (s *LLMProviderDeploymentService) generateLLMProviderDeploymentYAML(provider *gwmodels.LLMProvider, _ string) (string, error) {
 	return renderLLMProvider(provider)
 }
 
 // renderLLMProvider is the provider's gateway configuration.
-func renderLLMProvider(provider *models.LLMProvider) (string, error) {
+func renderLLMProvider(provider *gwmodels.LLMProvider) (string, error) {
 	if provider == nil {
 		return "", errors.New("provider is required")
 	}
@@ -511,10 +511,10 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 
 	// Ensure access control has a valid mode with default
 	// Create a local copy to avoid mutating the provider's configuration
-	var accessControl *models.LLMAccessControl
+	var accessControl *gwmodels.LLMAccessControl
 	if provider.Configuration.AccessControl == nil {
 		// Set default to deny_all if not provided
-		accessControl = &models.LLMAccessControl{
+		accessControl = &gwmodels.LLMAccessControl{
 			Mode: "deny_all",
 		}
 	} else {
@@ -528,7 +528,7 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 	}
 
 	// Transform policies: security, rate limiting, and user-defined policies into unified policy array
-	policies := make([]models.LLMPolicy, 0)
+	policies := make([]gwmodels.LLMPolicy, 0)
 
 	// Step 1: Transform security config to API key auth policy
 	security := provider.Configuration.Security
@@ -547,7 +547,7 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 				return "", fmt.Errorf("invalid api key security configuration: in must be 'header' or 'query', got %q", security.APIKey.In)
 			}
 
-			addOrAppendPolicyPath(&policies, apiKeyAuthPolicyName, apiKeyAuthPolicyVersion, models.LLMPolicyPath{
+			addOrAppendPolicyPath(&policies, apiKeyAuthPolicyName, apiKeyAuthPolicyVersion, gwmodels.LLMPolicyPath{
 				Path:    "/*",
 				Methods: []string{"*"},
 				Params: map[string]interface{}{
@@ -562,7 +562,7 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 	rateLimit := provider.Configuration.RateLimiting
 	// costPaths accumulates the specific paths where llm-cost-based-ratelimit is applied,
 	// so llm-cost can be scoped to the same paths rather than applied globally.
-	var costPaths []models.LLMPolicyPath
+	var costPaths []gwmodels.LLMPolicyPath
 	if rateLimit != nil {
 		// Step 2.1: Provider level rate limit
 		providerLevel := rateLimit.ProviderLevel
@@ -576,10 +576,10 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 					if err != nil {
 						return "", fmt.Errorf("invalid token reset window: %w", err)
 					}
-					policies = append(policies, models.LLMPolicy{
+					policies = append(policies, gwmodels.LLMPolicy{
 						Name:    tokenBasedRateLimitPolicyName,
 						Version: rateLimitPolicyVersion,
-						Paths: []models.LLMPolicyPath{
+						Paths: []gwmodels.LLMPolicyPath{
 							{
 								Path:    "/*",
 								Methods: []string{"*"},
@@ -602,10 +602,10 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 					if err != nil {
 						return "", fmt.Errorf("invalid request reset window: %w", err)
 					}
-					policies = append(policies, models.LLMPolicy{
+					policies = append(policies, gwmodels.LLMPolicy{
 						Name:    advancedRateLimitPolicyName,
 						Version: rateLimitPolicyVersion,
-						Paths: []models.LLMPolicyPath{
+						Paths: []gwmodels.LLMPolicyPath{
 							{
 								Path:    "/*",
 								Methods: []string{"*"},
@@ -633,14 +633,14 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 					if err != nil {
 						return "", fmt.Errorf("invalid cost reset window: %w", err)
 					}
-					costPath := models.LLMPolicyPath{
+					costPath := gwmodels.LLMPolicyPath{
 						Path:    "/*",
 						Methods: []string{"*"},
 					}
-					policies = append(policies, models.LLMPolicy{
+					policies = append(policies, gwmodels.LLMPolicy{
 						Name:    costBasedRateLimitPolicyName,
 						Version: rateLimitPolicyVersion,
-						Paths: []models.LLMPolicyPath{
+						Paths: []gwmodels.LLMPolicyPath{
 							{
 								Path:    costPath.Path,
 								Methods: costPath.Methods,
@@ -674,7 +674,7 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 						if err != nil {
 							return "", fmt.Errorf("invalid token reset window for resource %s: %w", r.Resource, err)
 						}
-						addOrAppendPolicyPath(&policies, tokenBasedRateLimitPolicyName, rateLimitPolicyVersion, models.LLMPolicyPath{
+						addOrAppendPolicyPath(&policies, tokenBasedRateLimitPolicyName, rateLimitPolicyVersion, gwmodels.LLMPolicyPath{
 							Path:    resPath,
 							Methods: resMethods,
 							Params: map[string]interface{}{
@@ -694,7 +694,7 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 						if err != nil {
 							return "", fmt.Errorf("invalid request reset window for resource %s: %w", r.Resource, err)
 						}
-						addOrAppendPolicyPath(&policies, advancedRateLimitPolicyName, rateLimitPolicyVersion, models.LLMPolicyPath{
+						addOrAppendPolicyPath(&policies, advancedRateLimitPolicyName, rateLimitPolicyVersion, gwmodels.LLMPolicyPath{
 							Path:    resPath,
 							Methods: resMethods,
 							Params: map[string]interface{}{
@@ -719,8 +719,8 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 						if err != nil {
 							return "", fmt.Errorf("invalid cost reset window for resource %s: %w", r.Resource, err)
 						}
-						costPath := models.LLMPolicyPath{Path: resPath, Methods: resMethods}
-						addOrAppendPolicyPath(&policies, costBasedRateLimitPolicyName, rateLimitPolicyVersion, models.LLMPolicyPath{
+						costPath := gwmodels.LLMPolicyPath{Path: resPath, Methods: resMethods}
+						addOrAppendPolicyPath(&policies, costBasedRateLimitPolicyName, rateLimitPolicyVersion, gwmodels.LLMPolicyPath{
 							Path:    resPath,
 							Methods: resMethods,
 							Params: map[string]interface{}{
@@ -744,7 +744,7 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 					if err != nil {
 						return "", fmt.Errorf("invalid token reset window: %w", err)
 					}
-					addOrAppendPolicyPath(&policies, tokenBasedRateLimitPolicyName, rateLimitPolicyVersion, models.LLMPolicyPath{
+					addOrAppendPolicyPath(&policies, tokenBasedRateLimitPolicyName, rateLimitPolicyVersion, gwmodels.LLMPolicyPath{
 						Path:    "/*",
 						Methods: []string{"*"},
 						Params: map[string]interface{}{
@@ -764,7 +764,7 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 					if err != nil {
 						return "", fmt.Errorf("invalid request reset window: %w", err)
 					}
-					addOrAppendPolicyPath(&policies, advancedRateLimitPolicyName, rateLimitPolicyVersion, models.LLMPolicyPath{
+					addOrAppendPolicyPath(&policies, advancedRateLimitPolicyName, rateLimitPolicyVersion, gwmodels.LLMPolicyPath{
 						Path:    "/*",
 						Methods: []string{"*"},
 						Params: map[string]interface{}{
@@ -789,8 +789,8 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 					if err != nil {
 						return "", fmt.Errorf("invalid cost reset window: %w", err)
 					}
-					costPath := models.LLMPolicyPath{Path: "/*", Methods: []string{"*"}}
-					addOrAppendPolicyPath(&policies, costBasedRateLimitPolicyName, rateLimitPolicyVersion, models.LLMPolicyPath{
+					costPath := gwmodels.LLMPolicyPath{Path: "/*", Methods: []string{"*"}}
+					addOrAppendPolicyPath(&policies, costBasedRateLimitPolicyName, rateLimitPolicyVersion, gwmodels.LLMPolicyPath{
 						Path:    "/*",
 						Methods: []string{"*"},
 						Params: map[string]interface{}{
@@ -816,10 +816,10 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 				if err != nil {
 					return "", fmt.Errorf("invalid consumer token reset window: %w", err)
 				}
-				policies = append(policies, models.LLMPolicy{
+				policies = append(policies, gwmodels.LLMPolicy{
 					Name:    tokenBasedRateLimitPolicyName,
 					Version: rateLimitPolicyVersion,
-					Paths: []models.LLMPolicyPath{
+					Paths: []gwmodels.LLMPolicyPath{
 						{
 							Path:    "/*",
 							Methods: []string{"*"},
@@ -843,10 +843,10 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 				if err != nil {
 					return "", fmt.Errorf("invalid consumer request reset window: %w", err)
 				}
-				policies = append(policies, models.LLMPolicy{
+				policies = append(policies, gwmodels.LLMPolicy{
 					Name:    advancedRateLimitPolicyName,
 					Version: rateLimitPolicyVersion,
-					Paths: []models.LLMPolicyPath{
+					Paths: []gwmodels.LLMPolicyPath{
 						{
 							Path:    "/*",
 							Methods: []string{"*"},
@@ -875,14 +875,14 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 				if err != nil {
 					return "", fmt.Errorf("invalid consumer cost reset window: %w", err)
 				}
-				costPath := models.LLMPolicyPath{
+				costPath := gwmodels.LLMPolicyPath{
 					Path:    "/*",
 					Methods: []string{"*"},
 				}
-				policies = append(policies, models.LLMPolicy{
+				policies = append(policies, gwmodels.LLMPolicy{
 					Name:    costBasedRateLimitPolicyName,
 					Version: rateLimitPolicyVersion,
-					Paths: []models.LLMPolicyPath{
+					Paths: []gwmodels.LLMPolicyPath{
 						{
 							Path:    costPath.Path,
 							Methods: costPath.Methods,
@@ -909,15 +909,15 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 	// llm-cost is scoped to the same paths as llm-cost-based-ratelimit, not globally.
 	if len(costPaths) > 0 {
 		seen := make(map[string]bool, len(costPaths))
-		var llmCostPaths []models.LLMPolicyPath
+		var llmCostPaths []gwmodels.LLMPolicyPath
 		for _, cp := range costPaths {
 			key := cp.Path + "|" + strings.Join(cp.Methods, ",")
 			if !seen[key] {
 				seen[key] = true
-				llmCostPaths = append(llmCostPaths, models.LLMPolicyPath{Path: cp.Path, Methods: cp.Methods})
+				llmCostPaths = append(llmCostPaths, gwmodels.LLMPolicyPath{Path: cp.Path, Methods: cp.Methods})
 			}
 		}
-		policies = append(policies, models.LLMPolicy{
+		policies = append(policies, gwmodels.LLMPolicy{
 			Name:    llmCostPolicyName,
 			Version: rateLimitPolicyVersion,
 			Paths:   llmCostPaths,
@@ -926,7 +926,7 @@ func renderLLMProvider(provider *models.LLMProvider) (string, error) {
 
 	// Step 3: Append user-defined policies with version normalization
 	for _, p := range provider.Configuration.Policies {
-		policies = append(policies, models.LLMPolicy{
+		policies = append(policies, gwmodels.LLMPolicy{
 			Name:    p.Name,
 			Version: normalizePolicyVersionToMajor(p.Version),
 			Paths:   p.Paths,
@@ -1032,7 +1032,7 @@ func normalizePolicyVersionToMajor(version string) string {
 }
 
 // addOrAppendPolicyPath adds a new policy or appends a path to an existing policy
-func addOrAppendPolicyPath(policies *[]models.LLMPolicy, name, version string, path models.LLMPolicyPath) {
+func addOrAppendPolicyPath(policies *[]gwmodels.LLMPolicy, name, version string, path gwmodels.LLMPolicyPath) {
 	for i := range *policies {
 		if (*policies)[i].Name == name && (*policies)[i].Version == version {
 			// Check for duplicate paths by comparing full path structure (Path, Methods, Params)
@@ -1047,15 +1047,15 @@ func addOrAppendPolicyPath(policies *[]models.LLMPolicy, name, version string, p
 		}
 	}
 
-	*policies = append(*policies, models.LLMPolicy{
+	*policies = append(*policies, gwmodels.LLMPolicy{
 		Name:    name,
 		Version: version,
-		Paths:   []models.LLMPolicyPath{path},
+		Paths:   []gwmodels.LLMPolicyPath{path},
 	})
 }
 
 // pathsAreEqual compares two policy paths for equality by checking Path, Methods, and Params
-func pathsAreEqual(a, b models.LLMPolicyPath) bool {
+func pathsAreEqual(a, b gwmodels.LLMPolicyPath) bool {
 	// Compare path strings
 	if a.Path != b.Path {
 		return false

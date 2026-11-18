@@ -28,6 +28,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -44,7 +45,7 @@ type mcpURLTestFixture struct {
 	keyHolderUUID      uuid.UUID
 	gatewayUUID        uuid.UUID
 	ouID               string
-	mapping            models.EnvAgentMCPMapping
+	mapping            gwmodels.EnvAgentMCPMapping
 	gatewayRepo        *gwrepomocks.GatewayRepositoryMock
 	deploymentRepo     *gwrepomocks.DeploymentRepositoryMock
 }
@@ -57,20 +58,20 @@ func newMCPURLTestFixture() *mcpURLTestFixture {
 	ouID := "org1"
 
 	proxyContext := "/proxy-ctx"
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:          uuid.New(),
-		Configuration: models.MCPProxyConfig{Name: "proxy1", Context: &proxyContext},
-		Endpoints: []models.MCPProxyEndpoint{
+		Configuration: gwmodels.MCPProxyConfig{Name: "proxy1", Context: &proxyContext},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
 			{
 				UUID: uuid.New(),
-				Environments: []models.MCPProxyEndpointEnvironment{
+				Environments: []gwmodels.MCPProxyEndpointEnvironment{
 					{EnvironmentUUID: envUUID, ArtifactUUID: sharedArtifactUUID},
 				},
 			},
 		},
 	}
 
-	mapping := models.EnvAgentMCPMapping{
+	mapping := gwmodels.EnvAgentMCPMapping{
 		EnvironmentUUID: envUUID,
 		MCPProxyUUID:    proxy.UUID,
 		ArtifactUUID:    keyHolderUUID, // the per-agent key-holder artifact; never has a deployment row
@@ -91,15 +92,15 @@ func newMCPURLTestFixture() *mcpURLTestFixture {
 		EnvironmentMappingExistsFunc: func(gatewayID string, environmentID string) (bool, error) {
 			return gatewayID == gatewayUUID.String() && environmentID == envUUID.String(), nil
 		},
-		GetByUUIDFunc: func(gatewayId string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(gatewayId string) (*gwmodels.Gateway, error) {
 			if gatewayId == gatewayUUID.String() {
-				return &models.Gateway{UUID: gatewayUUID, Vhost: "https://gw.example.com"}, nil
+				return &gwmodels.Gateway{UUID: gatewayUUID, Vhost: "https://gw.example.com"}, nil
 			}
 			return nil, gorm.ErrRecordNotFound
 		},
 		// No fallback gateway for the environment: forces resolveEgressGatewayForEnvironment
 		// to fail when the deployment-row lookup above didn't already resolve a gateway.
-		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			return nil, nil
 		},
 	}
@@ -136,13 +137,13 @@ func TestBuildConfigResponse_MCPURLUsesSharedArtifact(t *testing.T) {
 		},
 	}
 
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID:           uuid.New(),
 		OUID:           f.ouID,
 		ProjectName:    "proj1",
 		AgentID:        "agent1",
 		Name:           "cfg1",
-		EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
 	}
 
 	resp, err := svc.buildConfigResponse(context.Background(), config, externalAgentPolicy)
@@ -164,23 +165,23 @@ func TestExternalAgentConfig_MCPURLUsesSharedArtifact(t *testing.T) {
 		},
 	}
 
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID:        uuid.New(),
 		OUID:        f.ouID,
 		ProjectName: "proj1",
 		AgentID:     "agent1",
 		Name:        "cfg1",
 	}
-	reloadedConfig := &models.AgentConfiguration{
+	reloadedConfig := &gwmodels.AgentConfiguration{
 		UUID:           config.UUID,
 		OUID:           config.OUID,
 		ProjectName:    config.ProjectName,
 		AgentID:        config.AgentID,
 		Name:           config.Name,
-		EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
 	}
 	svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
-		GetByUUIDFunc: func(ctx context.Context, configUUID uuid.UUID, ouID string) (*models.AgentConfiguration, error) {
+		GetByUUIDFunc: func(ctx context.Context, configUUID uuid.UUID, ouID string) (*gwmodels.AgentConfiguration, error) {
 			return reloadedConfig, nil
 		},
 	}
@@ -218,18 +219,18 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 	t.Helper()
 	f := newMCPURLTestFixture()
 	proxy := f.mapping.MCPProxy
-	f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
-		return &models.Gateway{UUID: f.gatewayUUID, Hosting: models.GatewayHostingSelfHosted}, nil
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+		return &gwmodels.Gateway{UUID: f.gatewayUUID, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
 	}
 	svc := f.newService()
 	svc.mcpProxyRepo = &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(context.Context, string, string) (*models.MCPProxy, error) { return proxy, nil },
+		GetByHandleFunc: func(context.Context, string, string) (*gwmodels.MCPProxy, error) { return proxy, nil },
 	}
 	svc.envMCPMappingRepo = &gwrepomocks.EnvAgentMCPMappingRepositoryMock{
-		ListByConfigFunc: func(context.Context, uuid.UUID) ([]models.EnvAgentMCPMapping, error) { return nil, nil },
+		ListByConfigFunc: func(context.Context, uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) { return nil, nil },
 	}
 	svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
-		CreateFunc:         func(context.Context, *gorm.DB, *models.AgentConfiguration) error { return nil },
+		CreateFunc:         func(context.Context, *gorm.DB, *gwmodels.AgentConfiguration) error { return nil },
 		SetMCPProxyRefFunc: func(context.Context, *gorm.DB, uuid.UUID, uuid.UUID) error { return nil },
 		SetMCPEnvScopeFunc: func(context.Context, *gorm.DB, uuid.UUID, []uuid.UUID, []uuid.UUID) error { return nil },
 		DeleteFunc:         func(context.Context, *gorm.DB, uuid.UUID, string) error { return nil },
@@ -238,7 +239,7 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 	require.NoError(t, err)
 	svc.db = database
 	svc.envVariableRepo = &gwrepomocks.AgentEnvConfigVariableRepositoryMock{
-		ListByConfigFunc: func(context.Context, uuid.UUID) ([]models.AgentEnvConfigVariable, error) { return nil, nil },
+		ListByConfigFunc: func(context.Context, uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) { return nil, nil },
 	}
 	svc.infraResourceManager = stubInfraManager{
 		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
@@ -260,7 +261,7 @@ func TestMCPConfig_SelfHostedRefusalAppliesNothing(t *testing.T) {
 	managedEnv, managedArtifact, managedGateway := uuid.New(), uuid.New(), uuid.New()
 	proxy := f.mapping.MCPProxy
 	proxy.Endpoints[0].Environments = append(proxy.Endpoints[0].Environments,
-		models.MCPProxyEndpointEnvironment{EnvironmentUUID: managedEnv, ArtifactUUID: managedArtifact})
+		gwmodels.MCPProxyEndpointEnvironment{EnvironmentUUID: managedEnv, ArtifactUUID: managedArtifact})
 	selfHostedGateway := f.gatewayUUID
 	f.deploymentRepo.PlacedGatewaysFunc = func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
 		if artifact == managedArtifact {
@@ -269,11 +270,11 @@ func TestMCPConfig_SelfHostedRefusalAppliesNothing(t *testing.T) {
 		return []string{selfHostedGateway.String()}, nil
 	}
 	f.gatewayRepo.EnvironmentMappingExistsFunc = func(string, string) (bool, error) { return true, nil }
-	f.gatewayRepo.GetByUUIDFunc = func(id string) (*models.Gateway, error) {
+	f.gatewayRepo.GetByUUIDFunc = func(id string) (*gwmodels.Gateway, error) {
 		if id == managedGateway.String() {
-			return &models.Gateway{UUID: managedGateway}, nil
+			return &gwmodels.Gateway{UUID: managedGateway}, nil
 		}
-		return &models.Gateway{UUID: selfHostedGateway, Hosting: models.GatewayHostingSelfHosted}, nil
+		return &gwmodels.Gateway{UUID: selfHostedGateway, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
 	}
 	svc.infraResourceManager = stubInfraManager{
 		listOrgEnvs: func(context.Context, string) ([]*models.EnvironmentResponse, error) {
@@ -289,13 +290,13 @@ func TestMCPConfig_SelfHostedRefusalAppliesNothing(t *testing.T) {
 		return nil
 	}
 	// Any mapping write or OpenChoreo env-var update panics: those mocks have no funcs set.
-	existing := &models.AgentConfiguration{
+	existing := &gwmodels.AgentConfiguration{
 		UUID: uuid.New(), OUID: f.ouID, Name: "cfg1",
-		EnvMCPMappings: []models.EnvAgentMCPMapping{{EnvironmentUUID: managedEnv, MCPProxyUUID: proxy.UUID, MCPProxy: proxy}},
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{{EnvironmentUUID: managedEnv, MCPProxyUUID: proxy.UUID, MCPProxy: proxy}},
 	}
 
-	_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1", models.UpdateAgentModelConfigRequest{
-		EnvMappings: map[string]models.EnvModelConfigRequest{"managed": {ProviderName: "proxy1"}, "selfhosted": {ProviderName: "proxy1"}},
+	_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1", gwmodels.UpdateAgentModelConfigRequest{
+		EnvMappings: map[string]gwmodels.EnvModelConfigRequest{"managed": {ProviderName: "proxy1"}, "selfhosted": {ProviderName: "proxy1"}},
 	})
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
 	require.ErrorContains(t, err, "self-hosted gateway in environment selfhosted")
@@ -303,12 +304,12 @@ func TestMCPConfig_SelfHostedRefusalAppliesNothing(t *testing.T) {
 }
 
 func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
-	mappings := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "proxy1"}}
+	mappings := map[string]gwmodels.EnvModelConfigRequest{"dev": {ProviderName: "proxy1"}}
 
 	t.Run("create", func(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
-			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", platformAgentPolicy)
+			gwmodels.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", platformAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
 	})
@@ -316,15 +317,15 @@ func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
 	t.Run("create with unbindable environments deferred still refuses", func(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
 		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
-			models.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", platformAgentPolicy)
+			gwmodels.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", platformAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
 
 	t.Run("update", func(t *testing.T) {
 		svc, f := selfHostedMCPConfigService(t)
-		existing := &models.AgentConfiguration{UUID: uuid.New(), OUID: f.ouID, Name: "cfg1"}
+		existing := &gwmodels.AgentConfiguration{UUID: uuid.New(), OUID: f.ouID, Name: "cfg1"}
 		_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1",
-			models.UpdateAgentModelConfigRequest{EnvMappings: mappings})
+			gwmodels.UpdateAgentModelConfigRequest{EnvMappings: mappings})
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
 	})
@@ -337,8 +338,8 @@ func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
 	proxy := f.mapping.MCPProxy
 
 	t.Run("self-hosted gateway is not bindable", func(t *testing.T) {
-		f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
-			return &models.Gateway{UUID: f.gatewayUUID, Hosting: models.GatewayHostingSelfHosted}, nil
+		f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+			return &gwmodels.Gateway{UUID: f.gatewayUUID, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
 		}
 		targets := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
 		require.Len(t, targets, 1)
@@ -347,8 +348,8 @@ func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
 	})
 
 	t.Run("managed gateway is bindable", func(t *testing.T) {
-		f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
-			return &models.Gateway{UUID: f.gatewayUUID}, nil
+		f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+			return &gwmodels.Gateway{UUID: f.gatewayUUID}, nil
 		}
 		targets := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
 		require.Len(t, targets, 1)
@@ -368,23 +369,23 @@ func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
 // environment an activation starts in, and stops that activation at its first read.
 func selfHostedBackfillService(
 	t *testing.T, provisioning utils.AgentProvisioningType,
-) (svc *agentConfigurationService, proxy *models.MCPProxy, configUUID uuid.UUID, activated *[]uuid.UUID) {
+) (svc *agentConfigurationService, proxy *gwmodels.MCPProxy, configUUID uuid.UUID, activated *[]uuid.UUID) {
 	t.Helper()
 	f := newMCPURLTestFixture()
-	f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
-		return &models.Gateway{UUID: f.gatewayUUID, Hosting: models.GatewayHostingSelfHosted}, nil
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+		return &gwmodels.Gateway{UUID: f.gatewayUUID, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
 	}
 	proxy = f.mapping.MCPProxy
 	configUUID = uuid.New()
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID: configUUID, OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
-		TypeID:       models.AgentConfigTypeIDMCP,
+		TypeID:       gwmodels.AgentConfigTypeIDMCP,
 		MCPProxyRef:  mcpProxyRef(configUUID, proxy.UUID),
 		EnvVariables: mcpVarRows(configUUID, f.envUUID),
 	}
 	svc = f.newService()
 	svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
-		GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*models.AgentConfiguration, error) { return config, nil },
+		GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
 	}
 	svc.ocClient = &repomocks.PlatformRepositoryMock{
 		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
@@ -398,7 +399,7 @@ func selfHostedBackfillService(
 	}
 	activated = &[]uuid.UUID{}
 	svc.envVariableRepo = &gwrepomocks.AgentEnvConfigVariableRepositoryMock{
-		ListByConfigAndEnvFunc: func(_ context.Context, _ uuid.UUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+		ListByConfigAndEnvFunc: func(_ context.Context, _ uuid.UUID, envUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 			*activated = append(*activated, envUUID)
 			return nil, errors.New("activation stopped by the test")
 		},
@@ -421,7 +422,7 @@ func TestDeployableMCPEnvs_IncludesSelfHostedForExternalAgent(t *testing.T) {
 func TestReconcileMCPBindings_SkipsIdentityProxyOnSelfHostedForExternalAgent(t *testing.T) {
 	svc, proxy, configUUID, activated := selfHostedBackfillService(t, utils.ExternalAgent)
 	on := true
-	proxy.Endpoints[0].Configuration.Security = &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}
+	proxy.Endpoints[0].Configuration.Security = &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}
 
 	err := svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil)
 
@@ -434,7 +435,7 @@ func TestReconcileMCPBindings_SkipsIdentityProxyOnSelfHostedForExternalAgent(t *
 func TestMCPConfig_ExternalAgentBindsToSelfHostedProxy(t *testing.T) {
 	svc, f := selfHostedMCPConfigService(t)
 	envMap := map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}}
-	proxiesByEnv := map[string]*models.MCPProxy{"dev": f.mapping.MCPProxy}
+	proxiesByEnv := map[string]*gwmodels.MCPProxy{"dev": f.mapping.MCPProxy}
 
 	resolved, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, proxiesByEnv, envMap, externalAgentPolicy)
 
@@ -451,10 +452,10 @@ func TestMCPConfig_ExternalAgentRefusedForIdentityProxyOnSelfHosted(t *testing.T
 	svc, f := selfHostedMCPConfigService(t)
 	on := true
 	proxy := f.mapping.MCPProxy
-	proxy.Endpoints[0].Configuration.Security = &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}
+	proxy.Endpoints[0].Configuration.Security = &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}
 	envMap := map[string]*models.EnvironmentResponse{"dev": {UUID: f.envUUID.String(), Name: "dev"}}
 
-	_, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, map[string]*models.MCPProxy{"dev": proxy}, envMap, externalAgentPolicy)
+	_, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, map[string]*gwmodels.MCPProxy{"dev": proxy}, envMap, externalAgentPolicy)
 
 	require.ErrorIs(t, err, errMCPIdentityOnSelfHostedGateway)
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -465,13 +466,13 @@ func TestMCPConfig_ExternalAgentRefusedForIdentityProxyOnSelfHosted(t *testing.T
 // gateway the proxy is placed on.
 func TestExternalAgentMCPURL_UsesSelfHostedGateway(t *testing.T) {
 	f := newMCPURLTestFixture()
-	f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
-		return &models.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: models.GatewayHostingSelfHosted}, nil
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+		return &gwmodels.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: gwmodels.GatewayHostingSelfHosted}, nil
 	}
 	ctx := context.Background()
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
-		EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
 	}
 	newService := func() *agentConfigurationService {
 		svc := f.newService()
@@ -481,7 +482,7 @@ func TestExternalAgentMCPURL_UsesSelfHostedGateway(t *testing.T) {
 			},
 		}
 		svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
-			GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*models.AgentConfiguration, error) { return config, nil },
+			GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
 		}
 		return svc
 	}
@@ -508,22 +509,22 @@ func TestExternalAgentMCPURL_SelfHostedGatewayBySecurity(t *testing.T) {
 	on := true
 	cases := []struct {
 		name     string
-		security *models.SecurityConfig
+		security *gwmodels.SecurityConfig
 		wantURL  bool
 	}{
-		{"agent identity gets no URL", &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}, false},
-		{"API key keeps the URL", &models.SecurityConfig{Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &on, Key: "X-API-Key"}}, true},
+		{"agent identity gets no URL", &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}, false},
+		{"API key keeps the URL", &gwmodels.SecurityConfig{Enabled: &on, APIKey: &gwmodels.APIKeySecurity{Enabled: &on, Key: "X-API-Key"}}, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newMCPURLTestFixture()
-			f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
-				return &models.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: models.GatewayHostingSelfHosted}, nil
+			f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+				return &gwmodels.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: gwmodels.GatewayHostingSelfHosted}, nil
 			}
 			f.mapping.MCPProxy.Endpoints[0].Configuration.Security = tc.security
-			config := &models.AgentConfiguration{
+			config := &gwmodels.AgentConfiguration{
 				UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
-				EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
+				EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
 			}
 			svc := f.newService()
 			svc.infraResourceManager = stubInfraManager{
@@ -532,7 +533,7 @@ func TestExternalAgentMCPURL_SelfHostedGatewayBySecurity(t *testing.T) {
 				},
 			}
 			svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
-				GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*models.AgentConfiguration, error) { return config, nil },
+				GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
 			}
 
 			resp, err := svc.buildConfigResponse(context.Background(), config, externalAgentPolicy)
@@ -553,13 +554,13 @@ func TestExternalAgentMCPURL_SelfHostedGatewayBySecurity(t *testing.T) {
 // customer's gateway, neither as its MCP URL nor as its AgentID token audience.
 func TestAgentMCPURLs_EmptyOnSelfHostedGateway(t *testing.T) {
 	f := newMCPURLTestFixture()
-	f.gatewayRepo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
-		return &models.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: models.GatewayHostingSelfHosted}, nil
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+		return &gwmodels.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: gwmodels.GatewayHostingSelfHosted}, nil
 	}
 	ctx := context.Background()
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
-		EnvMCPMappings: []models.EnvAgentMCPMapping{f.mapping},
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
 	}
 
 	t.Run("config response", func(t *testing.T) {

@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
 
@@ -84,7 +84,7 @@ func TestA2AAgentKindDeployEvent(t *testing.T) {
 	performedAt := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
 	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
 	evt := (&A2AAgentKind{}).DeployEvent(reconcile.EventRef{
-		Placement:    models.Placement{ArtifactRef: models.ArtifactRef{ArtifactUUID: agentUUID}},
+		Placement:    gwmodels.Placement{ArtifactRef: gwmodels.ArtifactRef{ArtifactUUID: agentUUID}},
 		DeploymentID: "dep-1",
 		PerformedAt:  performedAt,
 	})
@@ -110,7 +110,7 @@ func TestA2AAgentKindDeployEvent(t *testing.T) {
 
 func TestA2AAgentKindDeleteEvent(t *testing.T) {
 	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
-	evt := (&A2AAgentKind{}).DeleteEvent(models.ArtifactRef{ArtifactUUID: agentUUID})
+	evt := (&A2AAgentKind{}).DeleteEvent(gwmodels.ArtifactRef{ArtifactUUID: agentUUID})
 
 	assert.Equal(t, eventhub.EventType("agent.deleted"), evt.EventType)
 	assert.Equal(t, "DELETE", evt.Action)
@@ -130,7 +130,7 @@ func TestA2AAgentKindUndeployEvent(t *testing.T) {
 	performedAt := time.Date(2026, 10, 13, 9, 30, 0, 0, time.UTC)
 	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
 	evt := (&A2AAgentKind{}).UndeployEvent(reconcile.EventRef{
-		Placement:   models.Placement{ArtifactRef: models.ArtifactRef{ArtifactUUID: agentUUID}},
+		Placement:   gwmodels.Placement{ArtifactRef: gwmodels.ArtifactRef{ArtifactUUID: agentUUID}},
 		PerformedAt: performedAt,
 	})
 

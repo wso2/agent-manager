@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -39,27 +39,27 @@ import (
 // performs after every write; these tests only assert the HTTP contract.
 type noopScopeRedeployer struct{}
 
-func (noopScopeRedeployer) RedeployMCPProxy(context.Context, *models.MCPProxy, string) error {
+func (noopScopeRedeployer) RedeployMCPProxy(context.Context, *gwmodels.MCPProxy, string) error {
 	return nil
 }
 
-func (noopScopeRedeployer) EnsureResourceServersForProxy(context.Context, string, *models.MCPProxy, []string) {
+func (noopScopeRedeployer) EnsureResourceServersForProxy(context.Context, string, *gwmodels.MCPProxy, []string) {
 }
 
 // scopeUpdateTestController wires the real scope service behind the controller so
 // the tests below exercise the whole decode -> validate -> persist path, which is
 // where the nil-vs-empty distinction for "tools" lives.
 func scopeUpdateTestController(scopeRepo *gwrepomocks.MCPProxyScopeRepositoryMock) MCPProxyScopeController {
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:     uuid.New(),
-		Artifact: &models.Artifact{Handle: "t4-deepwiki"},
-		Endpoints: []models.MCPProxyEndpoint{{
+		Artifact: &gwmodels.Artifact{Handle: "t4-deepwiki"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{{
 			UUID:   uuid.New(),
 			Handle: "primary",
 		}},
 	}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, _, _ string) (*models.MCPProxy, error) {
+		GetByHandleFunc: func(_ context.Context, _, _ string) (*gwmodels.MCPProxy, error) {
 			return proxy, nil
 		},
 	}
@@ -80,14 +80,14 @@ func updateScopeRequest(t *testing.T, body string) *http.Request {
 // Regression for the reported 400 on unbinding a scope's last tool: PUT
 // {"tools":[]} must succeed and persist an empty list.
 func TestUpdateMCPProxyScope_EmptyToolsClearsBindings(t *testing.T) {
-	var persisted *models.MCPProxyScope
+	var persisted *gwmodels.MCPProxyScope
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{
+		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{
 				MCPProxyUUID: proxyUUID, Action: action, Tools: []string{"ask_question"},
 			}, nil
 		},
-		UpdateFunc: func(_ context.Context, s *models.MCPProxyScope) error { persisted = s; return nil },
+		UpdateFunc: func(_ context.Context, s *gwmodels.MCPProxyScope) error { persisted = s; return nil },
 	}
 	ctrl := scopeUpdateTestController(scopeRepo)
 
@@ -103,14 +103,14 @@ func TestUpdateMCPProxyScope_EmptyToolsClearsBindings(t *testing.T) {
 // A description-only PUT omits "tools" entirely, which must leave the existing
 // bindings alone rather than clearing them now that empty is a legal value.
 func TestUpdateMCPProxyScope_OmittedToolsKeepsBindings(t *testing.T) {
-	var persisted *models.MCPProxyScope
+	var persisted *gwmodels.MCPProxyScope
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{
+		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{
 				MCPProxyUUID: proxyUUID, Action: action, Tools: []string{"ask_question"},
 			}, nil
 		},
-		UpdateFunc: func(_ context.Context, s *models.MCPProxyScope) error { persisted = s; return nil },
+		UpdateFunc: func(_ context.Context, s *gwmodels.MCPProxyScope) error { persisted = s; return nil },
 	}
 	ctrl := scopeUpdateTestController(scopeRepo)
 

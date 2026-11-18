@@ -25,7 +25,7 @@ import (
 	"github.com/google/uuid"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -33,32 +33,32 @@ import (
 // Guardrails tab leaves them: per-route entries beside, or instead of, /*.
 type policiesMock struct {
 	*MockToolsetHandler
-	policies []models.LLMPolicy
+	policies []gwmodels.LLMPolicy
 }
 
-func (m policiesMock) GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error) {
+func (m policiesMock) GetLLMProvider(ctx context.Context, ouID string, providerID string) (*gwmodels.LLMProvider, []*gwmodels.Deployment, error) {
 	p, d, err := m.MockToolsetHandler.GetLLMProvider(ctx, ouID, providerID)
 	p.Configuration.Policies = m.policies
 	return p, d, err
 }
 
 func (m policiesMock) UpdateLLMProviderGuardrails(
-	_ context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []models.GatewayDeploymentResult, error) {
+	_ context.Context, ouID string, providerID string, change func([]gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error),
+) (*gwmodels.LLMProvider, []gwmodels.GatewayDeploymentResult, error) {
 	return m.saveGuardrails(ouID, providerID, m.policies, change)
 }
 
-func allRoutes(params map[string]any) models.LLMPolicyPath {
-	return models.LLMPolicyPath{Path: guardrailPathAll, Methods: []string{"*"}, Params: params}
+func allRoutes(params map[string]any) gwmodels.LLMPolicyPath {
+	return gwmodels.LLMPolicyPath{Path: guardrailPathAll, Methods: []string{"*"}, Params: params}
 }
 
-func chatRoute(params map[string]any) models.LLMPolicyPath {
-	return models.LLMPolicyPath{Path: "/chat/completions", Methods: []string{"POST"}, Params: params}
+func chatRoute(params map[string]any) gwmodels.LLMPolicyPath {
+	return gwmodels.LLMPolicyPath{Path: "/chat/completions", Methods: []string{"POST"}, Params: params}
 }
 
 // callGuardrailTool runs a tool against a provider holding policies and returns
 // whether it failed, its text, and the guardrails it saved (nil when it saved none).
-func callGuardrailTool(t *testing.T, policies []models.LLMPolicy, tool string, args map[string]any) (bool, string, []models.LLMPolicy) {
+func callGuardrailTool(t *testing.T, policies []gwmodels.LLMPolicy, tool string, args map[string]any) (bool, string, []gwmodels.LLMPolicy) {
 	t.Helper()
 	mock := policiesMock{MockToolsetHandler: NewMockToolsetHandler(), policies: policies}
 	session := setupTestServerWithToolsets(t, &Tools{LLMProviders: mock})
@@ -72,14 +72,14 @@ func callGuardrailTool(t *testing.T, policies []models.LLMPolicy, tool string, a
 	if len(calls) == 0 {
 		return res.IsError, text, nil
 	}
-	return res.IsError, text, calls[0].([]interface{})[2].([]models.LLMPolicy)
+	return res.IsError, text, calls[0].([]interface{})[2].([]gwmodels.LLMPolicy)
 }
 
 // A same-name add must not flatten a guardrail the console scoped to a route
 // onto every route, nor drop its per-route params.
 func TestAddGuardrailKeepsConsoleRouteScopes(t *testing.T) {
 	t.Run("updates the all-routes entry and keeps the route", func(t *testing.T) {
-		policies := []models.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{
+		policies := []gwmodels.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []gwmodels.LLMPolicyPath{
 			chatRoute(map[string]any{"mask": "route"}), allRoutes(map[string]any{"mask": "old"}),
 		}}}
 		failed, text, saved := callGuardrailTool(t, policies, "add_llm_provider_guardrails", map[string]any{
@@ -100,7 +100,7 @@ func TestAddGuardrailKeepsConsoleRouteScopes(t *testing.T) {
 	})
 
 	t.Run("adds an all-routes entry to a route-only guardrail", func(t *testing.T) {
-		policies := []models.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{chatRoute(map[string]any{"mask": "route"})}}}
+		policies := []gwmodels.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []gwmodels.LLMPolicyPath{chatRoute(map[string]any{"mask": "route"})}}}
 		_, text, saved := callGuardrailTool(t, policies, "add_llm_provider_guardrails", map[string]any{
 			"guardrails": []any{map[string]any{"name": testGuardrailName, "version": "v1"}},
 		})
@@ -110,7 +110,7 @@ func TestAddGuardrailKeepsConsoleRouteScopes(t *testing.T) {
 	})
 
 	t.Run("refuses a different version of a guardrail already there", func(t *testing.T) {
-		policies := []models.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{allRoutes(nil)}}}
+		policies := []gwmodels.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []gwmodels.LLMPolicyPath{allRoutes(nil)}}}
 		failed, text, saved := callGuardrailTool(t, policies, "add_llm_provider_guardrails", map[string]any{
 			"guardrails": []any{map[string]any{"name": testGuardrailName, "version": "v2"}},
 		})
@@ -127,7 +127,7 @@ func TestAddGuardrailKeepsConsoleRouteScopes(t *testing.T) {
 // the guardrail to stay, and a route-only guardrail is left to the console.
 func TestRemoveGuardrailKeepsConsoleRouteScopes(t *testing.T) {
 	t.Run("keeps route entries", func(t *testing.T) {
-		policies := []models.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{chatRoute(nil), allRoutes(nil)}}}
+		policies := []gwmodels.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []gwmodels.LLMPolicyPath{chatRoute(nil), allRoutes(nil)}}}
 		failed, text, saved := callGuardrailTool(t, policies, "remove_llm_provider_guardrail", map[string]any{"name": testGuardrailName})
 		if failed {
 			t.Fatalf("tool failed: %s", text)
@@ -141,7 +141,7 @@ func TestRemoveGuardrailKeepsConsoleRouteScopes(t *testing.T) {
 	})
 
 	t.Run("refuses a route-only guardrail", func(t *testing.T) {
-		policies := []models.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{chatRoute(nil)}}}
+		policies := []gwmodels.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []gwmodels.LLMPolicyPath{chatRoute(nil)}}}
 		failed, text, saved := callGuardrailTool(t, policies, "remove_llm_provider_guardrail", map[string]any{"name": testGuardrailName})
 		if !failed || saved != nil {
 			t.Fatalf("want an error and no save, got failed=%v saved=%+v", failed, saved)
@@ -151,9 +151,9 @@ func TestRemoveGuardrailKeepsConsoleRouteScopes(t *testing.T) {
 		}
 	})
 
-	twoVersions := []models.LLMPolicy{
-		{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{allRoutes(nil)}},
-		{Name: testGuardrailName, Version: "v2", Paths: []models.LLMPolicyPath{allRoutes(nil)}},
+	twoVersions := []gwmodels.LLMPolicy{
+		{Name: testGuardrailName, Version: "v1", Paths: []gwmodels.LLMPolicyPath{allRoutes(nil)}},
+		{Name: testGuardrailName, Version: "v2", Paths: []gwmodels.LLMPolicyPath{allRoutes(nil)}},
 	}
 	t.Run("asks for a version when several are there", func(t *testing.T) {
 		failed, text, saved := callGuardrailTool(t, twoVersions, "remove_llm_provider_guardrail", map[string]any{"name": testGuardrailName})
@@ -173,7 +173,7 @@ func TestRemoveGuardrailKeepsConsoleRouteScopes(t *testing.T) {
 // A guardrail the console scoped to single routes must not read as
 // provider-wide, and every route's params must be visible, not just the first.
 func TestGetLLMProviderShowsGuardrailRouteScope(t *testing.T) {
-	policies := []models.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []models.LLMPolicyPath{
+	policies := []gwmodels.LLMPolicy{{Name: testGuardrailName, Version: "v1", Paths: []gwmodels.LLMPolicyPath{
 		chatRoute(map[string]any{"mask": "chat"}),
 		{Path: "/embeddings", Methods: []string{"POST"}, Params: map[string]any{"mask": "embed"}},
 	}}}
@@ -221,8 +221,8 @@ func TestGuardrailUpdatesReadTheProviderOnce(t *testing.T) {
 type failingUpdateMock struct{ *MockToolsetHandler }
 
 func (failingUpdateMock) UpdateLLMProviderGuardrails(
-	context.Context, string, string, func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []models.GatewayDeploymentResult, error) {
+	context.Context, string, string, func([]gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error),
+) (*gwmodels.LLMProvider, []gwmodels.GatewayDeploymentResult, error) {
 	return nil, nil, utils.ErrLLMProviderNotFound
 }
 
@@ -252,10 +252,10 @@ func TestGuardrailUpdateErrors(t *testing.T) {
 // catalogMock lists one provider in the catalog and one taken out of it.
 type catalogMock struct{ *MockToolsetHandler }
 
-func (catalogMock) ListLLMProviders(context.Context, string, int, int) ([]*models.LLMProvider, int, error) {
-	return []*models.LLMProvider{
-		{InCatalog: true, Artifact: &models.Artifact{Handle: "in-catalog"}},
-		{InCatalog: false, Artifact: &models.Artifact{Handle: "out-of-catalog"}},
+func (catalogMock) ListLLMProviders(context.Context, string, int, int) ([]*gwmodels.LLMProvider, int, error) {
+	return []*gwmodels.LLMProvider{
+		{InCatalog: true, Artifact: &gwmodels.Artifact{Handle: "in-catalog"}},
+		{InCatalog: false, Artifact: &gwmodels.Artifact{Handle: "out-of-catalog"}},
 	}, 2, nil
 }
 
@@ -337,10 +337,10 @@ func TestGetLLMProviderNamesDeploymentEnvironments(t *testing.T) {
 // report no guardrails, the org's gateways do.
 type undeployedProviderMock struct{ policiesMock }
 
-func (m undeployedProviderMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
+func (m undeployedProviderMock) ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*gwmodels.LLMPolicyAvailabilityResponse, error) {
 	if providerID != "" {
 		m.recordCall("ListLLMGuardrails", ouID, providerID)
-		return &models.LLMPolicyAvailabilityResponse{}, nil
+		return &gwmodels.LLMPolicyAvailabilityResponse{}, nil
 	}
 	return m.MockToolsetHandler.ListLLMGuardrails(ctx, ouID, providerID) // records the org-wide call
 }

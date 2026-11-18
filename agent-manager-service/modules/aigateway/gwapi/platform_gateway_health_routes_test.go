@@ -30,8 +30,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
@@ -60,8 +60,8 @@ func platformHealthMux(t *testing.T, total, failed, abandoned int64) *http.Serve
 		},
 		ListFailedGatewaysAllOrgsFunc: func(
 			_ context.Context, _ gwrepo.GatewayFailureWindow, _ int,
-		) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				{UUID: uuid.New(), Name: "gw-down", OUID: "ou-abc", UpdatedAt: time.Now().Add(-time.Hour)},
 			}, nil
 		},

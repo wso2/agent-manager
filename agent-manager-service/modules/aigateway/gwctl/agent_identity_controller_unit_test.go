@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -55,7 +56,7 @@ func (s stubRSIdentifierResolver) EnvironmentUUIDByName(_ context.Context, _, _ 
 	return uuid.MustParse("11111111-1111-1111-1111-111111111111"), nil
 }
 
-func (s stubRSIdentifierResolver) MCPResourceServerIdentifier(_ context.Context, _ string, _ uuid.UUID, proxy *models.MCPProxy) (string, error) {
+func (s stubRSIdentifierResolver) MCPResourceServerIdentifier(_ context.Context, _ string, _ uuid.UUID, proxy *gwmodels.MCPProxy) (string, error) {
 	if s.err != nil {
 		return "", s.err
 	}
@@ -67,7 +68,7 @@ func (s stubRSIdentifierResolver) MCPResourceServerIdentifier(_ context.Context,
 // error propagation the real implementation does.
 func (s stubRSIdentifierResolver) EnsureResourceServer(
 	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
-	proxy *models.MCPProxy, actions []string,
+	proxy *gwmodels.MCPProxy, actions []string,
 ) (string, error) {
 	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
 	if err != nil {
@@ -83,7 +84,7 @@ func (s stubRSIdentifierResolver) EnsureResourceServer(
 // EnsureResourceServerInEnv is the provider-based ensure CP_MANAGED role writes use. It records
 // the environment and actions, and returns a resource server ID derived from the proxy handle.
 func (s stubRSIdentifierResolver) EnsureResourceServerInEnv(
-	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
+	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *gwmodels.MCPProxy, actions []string,
 ) (string, error) {
 	if _, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy); err != nil {
 		return "", err
@@ -133,19 +134,19 @@ func TestAgentIdentityCreateRole_EnsuresPerProxyRSBeforePermissionWrite(t *testi
 		},
 	}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
+		GetByHandleFunc: func(_ context.Context, handle, _ string) (*gwmodels.MCPProxy, error) {
 			switch handle {
 			case "gh-proxy":
-				return &models.MCPProxy{UUID: ghUUID, Handle: handle}, nil
+				return &gwmodels.MCPProxy{UUID: ghUUID, Handle: handle}, nil
 			case "jira-proxy":
-				return &models.MCPProxy{UUID: jiraUUID, Handle: handle}, nil
+				return &gwmodels.MCPProxy{UUID: jiraUUID, Handle: handle}, nil
 			}
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
+		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
 		},
 	}
 	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, stubRSIdentifierResolver{})
@@ -185,13 +186,13 @@ func TestAgentIdentityCreateRole_ProxyNotDeployedToEnvRejected(t *testing.T) {
 		},
 	}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
-			return &models.MCPProxy{UUID: proxyUUID, Handle: handle}, nil
+		GetByHandleFunc: func(_ context.Context, handle, _ string) (*gwmodels.MCPProxy, error) {
+			return &gwmodels.MCPProxy{UUID: proxyUUID, Handle: handle}, nil
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
+		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
 		},
 	}
 	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo,
@@ -215,7 +216,7 @@ func TestAgentIdentityCreateRole_ProxyNotDeployedToEnvRejected(t *testing.T) {
 func TestAgentIdentityCreateRole_UnknownProxyHandleRejected(t *testing.T) {
 	resolver := &clientmocks.EnvThunderResolverMock{} // ResolveIdentityFunc nil: must not be called
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, _, _ string) (*models.MCPProxy, error) {
+		GetByHandleFunc: func(_ context.Context, _, _ string) (*gwmodels.MCPProxy, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -240,12 +241,12 @@ func TestAgentIdentityCreateRole_UnknownProxyHandleRejected(t *testing.T) {
 func TestAgentIdentityCreateRole_UnknownActionRejected(t *testing.T) {
 	resolver := &clientmocks.EnvThunderResolverMock{} // must not be called
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, _, _ string) (*models.MCPProxy, error) {
-			return &models.MCPProxy{UUID: uuid.New()}, nil
+		GetByHandleFunc: func(_ context.Context, _, _ string) (*gwmodels.MCPProxy, error) {
+			return &gwmodels.MCPProxy{UUID: uuid.New()}, nil
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, _ uuid.UUID, _ string) (*models.MCPProxyScope, error) {
+		GetFunc: func(_ context.Context, _ uuid.UUID, _ string) (*gwmodels.MCPProxyScope, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -330,19 +331,19 @@ func TestAgentIdentityUpdateRole_ReconcilesAcrossResourceServers(t *testing.T) {
 		},
 	}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
+		GetByHandleFunc: func(_ context.Context, handle, _ string) (*gwmodels.MCPProxy, error) {
 			switch handle {
 			case "gh-proxy":
-				return &models.MCPProxy{UUID: ghUUID, Handle: handle}, nil
+				return &gwmodels.MCPProxy{UUID: ghUUID, Handle: handle}, nil
 			case "jira-proxy":
-				return &models.MCPProxy{UUID: jiraUUID, Handle: handle}, nil
+				return &gwmodels.MCPProxy{UUID: jiraUUID, Handle: handle}, nil
 			}
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
+		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
 		},
 	}
 	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, stubRSIdentifierResolver{})

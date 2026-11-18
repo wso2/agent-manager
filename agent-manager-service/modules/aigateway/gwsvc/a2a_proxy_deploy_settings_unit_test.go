@@ -27,6 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -49,8 +50,8 @@ func deploySettingsService(configs *gwrepomocks.AgentConfigRepositoryMock, publi
 		// UpdateReleaseBindingTraitConfigsFunc is nil: an external agent has no release binding.
 	}
 	artifacts := &gwrepomocks.ArtifactRepositoryMock{
-		GetByHandleFunc: func(handle, ouID string) (*models.Artifact, error) {
-			return &models.Artifact{UUID: uuid.New(), Handle: handle, Kind: models.KindAgent, OUID: ouID}, nil
+		GetByHandleFunc: func(handle, ouID string) (*gwmodels.Artifact, error) {
+			return &gwmodels.Artifact{UUID: uuid.New(), Handle: handle, Kind: gwmodels.KindAgent, OUID: ouID}, nil
 		},
 	}
 	artifacts.WithTxFunc = func(*gorm.DB) gwrepo.ArtifactRepository { return artifacts }
@@ -60,11 +61,11 @@ func deploySettingsService(configs *gwrepomocks.AgentConfigRepositoryMock, publi
 // savedConfigs accepts the upsert inside the save transaction only; a plain Upsert reaches a nil func and panics.
 func savedConfigs(t *testing.T) (configs, txConfigs *gwrepomocks.AgentConfigRepositoryMock) {
 	txConfigs = &gwrepomocks.AgentConfigRepositoryMock{
-		UpsertFunc: func(context.Context, *models.AgentConfig) error { return nil },
+		UpsertFunc: func(context.Context, *gwmodels.AgentConfig) error { return nil },
 	}
 	configs = &gwrepomocks.AgentConfigRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
-			return &models.AgentConfig{EnableApiKeySecurity: true, CORSEnabled: true}, nil
+		GetFunc: func(context.Context, string, string, string, string) (*gwmodels.AgentConfig, error) {
+			return &gwmodels.AgentConfig{EnableApiKeySecurity: true, CORSEnabled: true}, nil
 		},
 		WithTxFunc: func(tx *gorm.DB) gwrepo.AgentConfigRepository {
 			assert.Same(t, txSentinel, tx)
@@ -100,9 +101,9 @@ func TestUpdateAgentDeploySettingsDecidesAProxiedExternalAgentUnderTheLock(t *te
 		steps = append(steps, "lock")
 		return nil
 	}
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 		steps = append(steps, "read-proxy")
-		return &models.A2AProxy{}, nil
+		return &gwmodels.A2AProxy{}, nil
 	}
 	configs, txConfigs := savedConfigs(t)
 	svc := deploySettingsService(configs, m.publisher())
@@ -123,8 +124,8 @@ func TestUpdateAgentDeploySettingsDecidesAProxiedExternalAgentUnderTheLock(t *te
 // The save has committed when a proxied agent's re-render is marked: a failure there is logged, not reported.
 func TestUpdateAgentDeploySettingsSavesWhenTheReRenderCannotBeMarked(t *testing.T) {
 	m := deploySettingsMocks(t)
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-		return &models.A2AProxy{}, nil
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
+		return &gwmodels.A2AProxy{}, nil
 	}
 	m.deployments.QueueRenderFunc = func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string,
 		gwrepo.QueueScope,
@@ -145,8 +146,8 @@ func TestUpdateAgentDeploySettingsSavesWhenTheReRenderCannotBeMarked(t *testing.
 // A proxied external agent takes A2A CORS whatever subtype it was created with.
 func TestUpdateAgentDeploySettingsAppliesA2ACORSToAProxiedExternalAgent(t *testing.T) {
 	m := deploySettingsMocks(t)
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-		return &models.A2AProxy{}, nil
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
+		return &gwmodels.A2AProxy{}, nil
 	}
 	configs, txConfigs := savedConfigs(t)
 	svc := deploySettingsService(configs, m.publisher())
@@ -169,10 +170,10 @@ func TestUpdateAgentDeploySettingsAppliesA2ACORSToAProxiedExternalAgent(t *testi
 func TestUpdateAgentDeploySettingsSeesASwitchToDirectUnderTheLock(t *testing.T) {
 	reads := 0
 	m := deploySettingsMocks(t)
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 		reads++
 		if reads == 1 {
-			return &models.A2AProxy{}, nil
+			return &gwmodels.A2AProxy{}, nil
 		}
 		return nil, gwrepo.ErrA2AProxyNotFound
 	}
@@ -189,7 +190,7 @@ func TestUpdateAgentDeploySettingsSeesASwitchToDirectUnderTheLock(t *testing.T) 
 
 func TestUpdateAgentDeploySettingsRejectsADirectExternalEnvironment(t *testing.T) {
 	m := deploySettingsMocks(t)
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 		return nil, gwrepo.ErrA2AProxyNotFound
 	}
 	configs, txConfigs := savedConfigs(t)

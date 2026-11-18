@@ -32,7 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -93,12 +93,12 @@ type AgentIdentityController interface {
 // per-proxy identifier derivation.
 type MCPResourceServerIdentifierResolver interface {
 	EnvironmentUUIDByName(ctx context.Context, ouID, envName string) (uuid.UUID, error)
-	MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *models.MCPProxy) (string, error)
+	MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *gwmodels.MCPProxy) (string, error)
 	// EnsureResourceServer ensures proxy's resource server exists with exactly actions.
-	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *models.MCPProxy, actions []string) (string, error)
+	EnsureResourceServer(ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient, proxy *gwmodels.MCPProxy, actions []string) (string, error)
 	// EnsureResourceServerInEnv is EnsureResourceServer through the configured MCP resource server
 	// provider, so it needs no environment client. Role writes in CP_MANAGED mode use it.
-	EnsureResourceServerInEnv(ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string) (string, error)
+	EnsureResourceServerInEnv(ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *gwmodels.MCPProxy, actions []string) (string, error)
 }
 
 type agentIdentityController struct {
@@ -1065,7 +1065,7 @@ func decodeAgentIdentityAssignments(r *http.Request) (thundersvc.RoleAssignments
 
 // proxyScopeGroup is one proxy's slice of a role's requested scopes.
 type proxyScopeGroup struct {
-	proxy   *models.MCPProxy
+	proxy   *gwmodels.MCPProxy
 	handle  string
 	actions []string // parsed actions, sorted
 	scopes  []string // full "<handle>:<action>" strings, sorted

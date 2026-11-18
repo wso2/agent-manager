@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -73,16 +74,16 @@ func useMCPMode(t *testing.T, mode thundersvc.IdentityManagementMode, provider M
 
 // deployedIdentityProxy is a proxy deployed to envA (identity enabled) and envB (identity enabled),
 // with the gateway lookups that derive its public identifier.
-func deployedIdentityProxy(envA, envB uuid.UUID) (*models.MCPProxy, *MCPProxyService) {
+func deployedIdentityProxy(envA, envB uuid.UUID) (*gwmodels.MCPProxy, *MCPProxyService) {
 	gwUUID := uuid.New()
 	ctxPath := "/deepwiki"
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:          uuid.New(),
-		Artifact:      &models.Artifact{Handle: "deepwiki", Name: "Deep Wiki"},
-		Configuration: models.MCPProxyConfig{Context: &ctxPath},
-		Endpoints: []models.MCPProxyEndpoint{{
-			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
-			Environments: []models.MCPProxyEndpointEnvironment{
+		Artifact:      &gwmodels.Artifact{Handle: "deepwiki", Name: "Deep Wiki"},
+		Configuration: gwmodels.MCPProxyConfig{Context: &ctxPath},
+		Endpoints: []gwmodels.MCPProxyEndpoint{{
+			Configuration: gwmodels.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: envA, ArtifactUUID: uuid.New()},
 				{EnvironmentUUID: envB, ArtifactUUID: uuid.New()},
 			},
@@ -99,8 +100,8 @@ func deployedIdentityProxy(envA, envB uuid.UUID) (*models.MCPProxy, *MCPProxySer
 		},
 		gatewayRepo: &gwrepomocks.GatewayRepositoryMock{
 			EnvironmentMappingExistsFunc: func(_, _ string) (bool, error) { return true, nil },
-			GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-				return &models.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
+			GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
+				return &gwmodels.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
 			},
 		},
 		// resolver deliberately nil: the legacy per-environment Thunder must not be reached.
@@ -216,7 +217,7 @@ func TestMCPResourceServerProxyDeleteGoesThroughTheProvider(t *testing.T) {
 	envA, envB := uuid.New(), uuid.New()
 	proxy, svc := deployedIdentityProxy(envA, envB)
 
-	svc.cleanupProxyResourceServers(context.Background(), "ou-1", proxy, []models.MCPProxyScope{{Action: "read"}, {Action: "write"}})
+	svc.cleanupProxyResourceServers(context.Background(), "ou-1", proxy, []gwmodels.MCPProxyScope{{Action: "read"}, {Action: "write"}})
 
 	require.Len(t, provider.deleted, 2)
 	for i, env := range []string{"dev", "prod"} {

@@ -22,13 +22,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
 
 func TestPopulateConfigurationResponseReportsInheritedCardCORS(t *testing.T) {
 	resp := &gwspec.AgentConfigurationResponse{}
-	PopulateAgentConfiguration(resp, &models.AgentConfig{CORSEnabled: true, CORSAllowOrigins: []string{"*"}})
+	PopulateAgentConfiguration(resp, &gwmodels.AgentConfig{CORSEnabled: true, CORSAllowOrigins: []string{"*"}})
 	require.NotNil(t, resp.AgentCardCorsConfig)
 	assert.True(t, resp.AgentCardCorsConfig.GetInherit())
 	assert.True(t, resp.AgentCardCorsConfig.GetEnabled())

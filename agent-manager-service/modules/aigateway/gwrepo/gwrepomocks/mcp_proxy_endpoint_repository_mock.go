@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"gorm.io/gorm"
 )
 
@@ -18,34 +18,34 @@ import (
 //
 //		// make and configure a mocked gwrepo.MCPProxyEndpointRepository
 //		mockedMCPProxyEndpointRepository := &MCPProxyEndpointRepositoryMock{
-//			AddEndpointEnvironmentFunc: func(ctx context.Context, tx *gorm.DB, ee *models.MCPProxyEndpointEnvironment) error {
+//			AddEndpointEnvironmentFunc: func(ctx context.Context, tx *gorm.DB, ee *gwmodels.MCPProxyEndpointEnvironment) error {
 //				panic("mock out the AddEndpointEnvironment method")
 //			},
-//			CreateEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
+//			CreateEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpoint *gwmodels.MCPProxyEndpoint) error {
 //				panic("mock out the CreateEndpoint method")
 //			},
 //			DeleteEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error {
 //				panic("mock out the DeleteEndpoint method")
 //			},
-//			GetEndpointFunc: func(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error) {
+//			GetEndpointFunc: func(ctx context.Context, endpointUUID uuid.UUID) (*gwmodels.MCPProxyEndpoint, error) {
 //				panic("mock out the GetEndpoint method")
 //			},
-//			GetEndpointEnvByProxyAndEnvFunc: func(ctx context.Context, proxyUUID uuid.UUID, envUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error) {
+//			GetEndpointEnvByProxyAndEnvFunc: func(ctx context.Context, proxyUUID uuid.UUID, envUUID uuid.UUID) (*gwmodels.MCPProxyEndpointEnvironment, error) {
 //				panic("mock out the GetEndpointEnvByProxyAndEnv method")
 //			},
-//			ListEndpointEnvironmentsFunc: func(ctx context.Context, endpointUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
+//			ListEndpointEnvironmentsFunc: func(ctx context.Context, endpointUUID uuid.UUID) ([]gwmodels.MCPProxyEndpointEnvironment, error) {
 //				panic("mock out the ListEndpointEnvironments method")
 //			},
-//			ListEndpointEnvironmentsByProxyFunc: func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
+//			ListEndpointEnvironmentsByProxyFunc: func(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyEndpointEnvironment, error) {
 //				panic("mock out the ListEndpointEnvironmentsByProxy method")
 //			},
-//			ListEndpointsByProxyFunc: func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpoint, error) {
+//			ListEndpointsByProxyFunc: func(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyEndpoint, error) {
 //				panic("mock out the ListEndpointsByProxy method")
 //			},
 //			RemoveEndpointEnvironmentFunc: func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, envUUID uuid.UUID) error {
 //				panic("mock out the RemoveEndpointEnvironment method")
 //			},
-//			UpdateEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
+//			UpdateEndpointFunc: func(ctx context.Context, tx *gorm.DB, endpoint *gwmodels.MCPProxyEndpoint) error {
 //				panic("mock out the UpdateEndpoint method")
 //			},
 //		}
@@ -56,34 +56,34 @@ import (
 //	}
 type MCPProxyEndpointRepositoryMock struct {
 	// AddEndpointEnvironmentFunc mocks the AddEndpointEnvironment method.
-	AddEndpointEnvironmentFunc func(ctx context.Context, tx *gorm.DB, ee *models.MCPProxyEndpointEnvironment) error
+	AddEndpointEnvironmentFunc func(ctx context.Context, tx *gorm.DB, ee *gwmodels.MCPProxyEndpointEnvironment) error
 
 	// CreateEndpointFunc mocks the CreateEndpoint method.
-	CreateEndpointFunc func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
+	CreateEndpointFunc func(ctx context.Context, tx *gorm.DB, endpoint *gwmodels.MCPProxyEndpoint) error
 
 	// DeleteEndpointFunc mocks the DeleteEndpoint method.
 	DeleteEndpointFunc func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID) error
 
 	// GetEndpointFunc mocks the GetEndpoint method.
-	GetEndpointFunc func(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error)
+	GetEndpointFunc func(ctx context.Context, endpointUUID uuid.UUID) (*gwmodels.MCPProxyEndpoint, error)
 
 	// GetEndpointEnvByProxyAndEnvFunc mocks the GetEndpointEnvByProxyAndEnv method.
-	GetEndpointEnvByProxyAndEnvFunc func(ctx context.Context, proxyUUID uuid.UUID, envUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error)
+	GetEndpointEnvByProxyAndEnvFunc func(ctx context.Context, proxyUUID uuid.UUID, envUUID uuid.UUID) (*gwmodels.MCPProxyEndpointEnvironment, error)
 
 	// ListEndpointEnvironmentsFunc mocks the ListEndpointEnvironments method.
-	ListEndpointEnvironmentsFunc func(ctx context.Context, endpointUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error)
+	ListEndpointEnvironmentsFunc func(ctx context.Context, endpointUUID uuid.UUID) ([]gwmodels.MCPProxyEndpointEnvironment, error)
 
 	// ListEndpointEnvironmentsByProxyFunc mocks the ListEndpointEnvironmentsByProxy method.
-	ListEndpointEnvironmentsByProxyFunc func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error)
+	ListEndpointEnvironmentsByProxyFunc func(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyEndpointEnvironment, error)
 
 	// ListEndpointsByProxyFunc mocks the ListEndpointsByProxy method.
-	ListEndpointsByProxyFunc func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpoint, error)
+	ListEndpointsByProxyFunc func(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyEndpoint, error)
 
 	// RemoveEndpointEnvironmentFunc mocks the RemoveEndpointEnvironment method.
 	RemoveEndpointEnvironmentFunc func(ctx context.Context, tx *gorm.DB, endpointUUID uuid.UUID, envUUID uuid.UUID) error
 
 	// UpdateEndpointFunc mocks the UpdateEndpoint method.
-	UpdateEndpointFunc func(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error
+	UpdateEndpointFunc func(ctx context.Context, tx *gorm.DB, endpoint *gwmodels.MCPProxyEndpoint) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -94,7 +94,7 @@ type MCPProxyEndpointRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Ee is the ee argument value.
-			Ee *models.MCPProxyEndpointEnvironment
+			Ee *gwmodels.MCPProxyEndpointEnvironment
 		}
 		// CreateEndpoint holds details about calls to the CreateEndpoint method.
 		CreateEndpoint []struct {
@@ -103,7 +103,7 @@ type MCPProxyEndpointRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Endpoint is the endpoint argument value.
-			Endpoint *models.MCPProxyEndpoint
+			Endpoint *gwmodels.MCPProxyEndpoint
 		}
 		// DeleteEndpoint holds details about calls to the DeleteEndpoint method.
 		DeleteEndpoint []struct {
@@ -169,7 +169,7 @@ type MCPProxyEndpointRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Endpoint is the endpoint argument value.
-			Endpoint *models.MCPProxyEndpoint
+			Endpoint *gwmodels.MCPProxyEndpoint
 		}
 	}
 	lockAddEndpointEnvironment          sync.RWMutex
@@ -185,14 +185,14 @@ type MCPProxyEndpointRepositoryMock struct {
 }
 
 // AddEndpointEnvironment calls AddEndpointEnvironmentFunc.
-func (mock *MCPProxyEndpointRepositoryMock) AddEndpointEnvironment(ctx context.Context, tx *gorm.DB, ee *models.MCPProxyEndpointEnvironment) error {
+func (mock *MCPProxyEndpointRepositoryMock) AddEndpointEnvironment(ctx context.Context, tx *gorm.DB, ee *gwmodels.MCPProxyEndpointEnvironment) error {
 	if mock.AddEndpointEnvironmentFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.AddEndpointEnvironmentFunc: method is nil but MCPProxyEndpointRepository.AddEndpointEnvironment was just called")
 	}
 	callInfo := struct {
 		Ctx context.Context
 		Tx  *gorm.DB
-		Ee  *models.MCPProxyEndpointEnvironment
+		Ee  *gwmodels.MCPProxyEndpointEnvironment
 	}{
 		Ctx: ctx,
 		Tx:  tx,
@@ -211,12 +211,12 @@ func (mock *MCPProxyEndpointRepositoryMock) AddEndpointEnvironment(ctx context.C
 func (mock *MCPProxyEndpointRepositoryMock) AddEndpointEnvironmentCalls() []struct {
 	Ctx context.Context
 	Tx  *gorm.DB
-	Ee  *models.MCPProxyEndpointEnvironment
+	Ee  *gwmodels.MCPProxyEndpointEnvironment
 } {
 	var calls []struct {
 		Ctx context.Context
 		Tx  *gorm.DB
-		Ee  *models.MCPProxyEndpointEnvironment
+		Ee  *gwmodels.MCPProxyEndpointEnvironment
 	}
 	mock.lockAddEndpointEnvironment.RLock()
 	calls = mock.calls.AddEndpointEnvironment
@@ -225,14 +225,14 @@ func (mock *MCPProxyEndpointRepositoryMock) AddEndpointEnvironmentCalls() []stru
 }
 
 // CreateEndpoint calls CreateEndpointFunc.
-func (mock *MCPProxyEndpointRepositoryMock) CreateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
+func (mock *MCPProxyEndpointRepositoryMock) CreateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *gwmodels.MCPProxyEndpoint) error {
 	if mock.CreateEndpointFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.CreateEndpointFunc: method is nil but MCPProxyEndpointRepository.CreateEndpoint was just called")
 	}
 	callInfo := struct {
 		Ctx      context.Context
 		Tx       *gorm.DB
-		Endpoint *models.MCPProxyEndpoint
+		Endpoint *gwmodels.MCPProxyEndpoint
 	}{
 		Ctx:      ctx,
 		Tx:       tx,
@@ -251,12 +251,12 @@ func (mock *MCPProxyEndpointRepositoryMock) CreateEndpoint(ctx context.Context, 
 func (mock *MCPProxyEndpointRepositoryMock) CreateEndpointCalls() []struct {
 	Ctx      context.Context
 	Tx       *gorm.DB
-	Endpoint *models.MCPProxyEndpoint
+	Endpoint *gwmodels.MCPProxyEndpoint
 } {
 	var calls []struct {
 		Ctx      context.Context
 		Tx       *gorm.DB
-		Endpoint *models.MCPProxyEndpoint
+		Endpoint *gwmodels.MCPProxyEndpoint
 	}
 	mock.lockCreateEndpoint.RLock()
 	calls = mock.calls.CreateEndpoint
@@ -305,7 +305,7 @@ func (mock *MCPProxyEndpointRepositoryMock) DeleteEndpointCalls() []struct {
 }
 
 // GetEndpoint calls GetEndpointFunc.
-func (mock *MCPProxyEndpointRepositoryMock) GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*models.MCPProxyEndpoint, error) {
+func (mock *MCPProxyEndpointRepositoryMock) GetEndpoint(ctx context.Context, endpointUUID uuid.UUID) (*gwmodels.MCPProxyEndpoint, error) {
 	if mock.GetEndpointFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.GetEndpointFunc: method is nil but MCPProxyEndpointRepository.GetEndpoint was just called")
 	}
@@ -341,7 +341,7 @@ func (mock *MCPProxyEndpointRepositoryMock) GetEndpointCalls() []struct {
 }
 
 // GetEndpointEnvByProxyAndEnv calls GetEndpointEnvByProxyAndEnvFunc.
-func (mock *MCPProxyEndpointRepositoryMock) GetEndpointEnvByProxyAndEnv(ctx context.Context, proxyUUID uuid.UUID, envUUID uuid.UUID) (*models.MCPProxyEndpointEnvironment, error) {
+func (mock *MCPProxyEndpointRepositoryMock) GetEndpointEnvByProxyAndEnv(ctx context.Context, proxyUUID uuid.UUID, envUUID uuid.UUID) (*gwmodels.MCPProxyEndpointEnvironment, error) {
 	if mock.GetEndpointEnvByProxyAndEnvFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.GetEndpointEnvByProxyAndEnvFunc: method is nil but MCPProxyEndpointRepository.GetEndpointEnvByProxyAndEnv was just called")
 	}
@@ -381,7 +381,7 @@ func (mock *MCPProxyEndpointRepositoryMock) GetEndpointEnvByProxyAndEnvCalls() [
 }
 
 // ListEndpointEnvironments calls ListEndpointEnvironmentsFunc.
-func (mock *MCPProxyEndpointRepositoryMock) ListEndpointEnvironments(ctx context.Context, endpointUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
+func (mock *MCPProxyEndpointRepositoryMock) ListEndpointEnvironments(ctx context.Context, endpointUUID uuid.UUID) ([]gwmodels.MCPProxyEndpointEnvironment, error) {
 	if mock.ListEndpointEnvironmentsFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.ListEndpointEnvironmentsFunc: method is nil but MCPProxyEndpointRepository.ListEndpointEnvironments was just called")
 	}
@@ -417,7 +417,7 @@ func (mock *MCPProxyEndpointRepositoryMock) ListEndpointEnvironmentsCalls() []st
 }
 
 // ListEndpointEnvironmentsByProxy calls ListEndpointEnvironmentsByProxyFunc.
-func (mock *MCPProxyEndpointRepositoryMock) ListEndpointEnvironmentsByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
+func (mock *MCPProxyEndpointRepositoryMock) ListEndpointEnvironmentsByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyEndpointEnvironment, error) {
 	if mock.ListEndpointEnvironmentsByProxyFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.ListEndpointEnvironmentsByProxyFunc: method is nil but MCPProxyEndpointRepository.ListEndpointEnvironmentsByProxy was just called")
 	}
@@ -453,7 +453,7 @@ func (mock *MCPProxyEndpointRepositoryMock) ListEndpointEnvironmentsByProxyCalls
 }
 
 // ListEndpointsByProxy calls ListEndpointsByProxyFunc.
-func (mock *MCPProxyEndpointRepositoryMock) ListEndpointsByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyEndpoint, error) {
+func (mock *MCPProxyEndpointRepositoryMock) ListEndpointsByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyEndpoint, error) {
 	if mock.ListEndpointsByProxyFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.ListEndpointsByProxyFunc: method is nil but MCPProxyEndpointRepository.ListEndpointsByProxy was just called")
 	}
@@ -533,14 +533,14 @@ func (mock *MCPProxyEndpointRepositoryMock) RemoveEndpointEnvironmentCalls() []s
 }
 
 // UpdateEndpoint calls UpdateEndpointFunc.
-func (mock *MCPProxyEndpointRepositoryMock) UpdateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *models.MCPProxyEndpoint) error {
+func (mock *MCPProxyEndpointRepositoryMock) UpdateEndpoint(ctx context.Context, tx *gorm.DB, endpoint *gwmodels.MCPProxyEndpoint) error {
 	if mock.UpdateEndpointFunc == nil {
 		panic("MCPProxyEndpointRepositoryMock.UpdateEndpointFunc: method is nil but MCPProxyEndpointRepository.UpdateEndpoint was just called")
 	}
 	callInfo := struct {
 		Ctx      context.Context
 		Tx       *gorm.DB
-		Endpoint *models.MCPProxyEndpoint
+		Endpoint *gwmodels.MCPProxyEndpoint
 	}{
 		Ctx:      ctx,
 		Tx:       tx,
@@ -559,12 +559,12 @@ func (mock *MCPProxyEndpointRepositoryMock) UpdateEndpoint(ctx context.Context, 
 func (mock *MCPProxyEndpointRepositoryMock) UpdateEndpointCalls() []struct {
 	Ctx      context.Context
 	Tx       *gorm.DB
-	Endpoint *models.MCPProxyEndpoint
+	Endpoint *gwmodels.MCPProxyEndpoint
 } {
 	var calls []struct {
 		Ctx      context.Context
 		Tx       *gorm.DB
-		Endpoint *models.MCPProxyEndpoint
+		Endpoint *gwmodels.MCPProxyEndpoint
 	}
 	mock.lockUpdateEndpoint.RLock()
 	calls = mock.calls.UpdateEndpoint

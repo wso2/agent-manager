@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -22,7 +22,7 @@ import (
 //			CountFunc: func(ctx context.Context, orgUUID string) (int, error) {
 //				panic("mock out the Count method")
 //			},
-//			CreateFunc: func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error {
+//			CreateFunc: func(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(ctx context.Context, handle string, orgUUID string) error {
@@ -31,28 +31,28 @@ import (
 //			ExistsFunc: func(ctx context.Context, handle string, orgUUID string) (bool, error) {
 //				panic("mock out the Exists method")
 //			},
-//			GetByHandleFunc: func(ctx context.Context, handle string, orgUUID string) (*models.MCPProxy, error) {
+//			GetByHandleFunc: func(ctx context.Context, handle string, orgUUID string) (*gwmodels.MCPProxy, error) {
 //				panic("mock out the GetByHandle method")
 //			},
-//			GetByHandleForUpdateFunc: func(ctx context.Context, tx *gorm.DB, handle string, orgUUID string) (*models.MCPProxy, error) {
+//			GetByHandleForUpdateFunc: func(ctx context.Context, tx *gorm.DB, handle string, orgUUID string) (*gwmodels.MCPProxy, error) {
 //				panic("mock out the GetByHandleForUpdate method")
 //			},
-//			GetByUUIDFunc: func(ctx context.Context, proxyUUID string, orgUUID string) (*models.MCPProxy, error) {
+//			GetByUUIDFunc: func(ctx context.Context, proxyUUID string, orgUUID string) (*gwmodels.MCPProxy, error) {
 //				panic("mock out the GetByUUID method")
 //			},
-//			GetInProjectFunc: func(ctx context.Context, handle string, orgUUID string, projectUUID string) (*models.MCPProxy, error) {
+//			GetInProjectFunc: func(ctx context.Context, handle string, orgUUID string, projectUUID string) (*gwmodels.MCPProxy, error) {
 //				panic("mock out the GetInProject method")
 //			},
-//			GetInProjectByNameFunc: func(ctx context.Context, handle string, orgUUID string, projectName string) (*models.MCPProxy, error) {
+//			GetInProjectByNameFunc: func(ctx context.Context, handle string, orgUUID string, projectName string) (*gwmodels.MCPProxy, error) {
 //				panic("mock out the GetInProjectByName method")
 //			},
-//			ListFunc: func(ctx context.Context, orgUUID string, f gwrepo.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+//			ListFunc: func(ctx context.Context, orgUUID string, f gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 //				panic("mock out the List method")
 //			},
 //			ReassignProjectFunc: func(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID string, projectName string, fromProjectUUID string, toProjectUUID string) error {
 //				panic("mock out the ReassignProject method")
 //			},
-//			UpdateFunc: func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error {
+//			UpdateFunc: func(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, orgUUID string) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -66,7 +66,7 @@ type MCPProxyRepositoryMock struct {
 	CountFunc func(ctx context.Context, orgUUID string) (int, error)
 
 	// CreateFunc mocks the Create method.
-	CreateFunc func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error
+	CreateFunc func(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(ctx context.Context, handle string, orgUUID string) error
@@ -75,28 +75,28 @@ type MCPProxyRepositoryMock struct {
 	ExistsFunc func(ctx context.Context, handle string, orgUUID string) (bool, error)
 
 	// GetByHandleFunc mocks the GetByHandle method.
-	GetByHandleFunc func(ctx context.Context, handle string, orgUUID string) (*models.MCPProxy, error)
+	GetByHandleFunc func(ctx context.Context, handle string, orgUUID string) (*gwmodels.MCPProxy, error)
 
 	// GetByHandleForUpdateFunc mocks the GetByHandleForUpdate method.
-	GetByHandleForUpdateFunc func(ctx context.Context, tx *gorm.DB, handle string, orgUUID string) (*models.MCPProxy, error)
+	GetByHandleForUpdateFunc func(ctx context.Context, tx *gorm.DB, handle string, orgUUID string) (*gwmodels.MCPProxy, error)
 
 	// GetByUUIDFunc mocks the GetByUUID method.
-	GetByUUIDFunc func(ctx context.Context, proxyUUID string, orgUUID string) (*models.MCPProxy, error)
+	GetByUUIDFunc func(ctx context.Context, proxyUUID string, orgUUID string) (*gwmodels.MCPProxy, error)
 
 	// GetInProjectFunc mocks the GetInProject method.
-	GetInProjectFunc func(ctx context.Context, handle string, orgUUID string, projectUUID string) (*models.MCPProxy, error)
+	GetInProjectFunc func(ctx context.Context, handle string, orgUUID string, projectUUID string) (*gwmodels.MCPProxy, error)
 
 	// GetInProjectByNameFunc mocks the GetInProjectByName method.
-	GetInProjectByNameFunc func(ctx context.Context, handle string, orgUUID string, projectName string) (*models.MCPProxy, error)
+	GetInProjectByNameFunc func(ctx context.Context, handle string, orgUUID string, projectName string) (*gwmodels.MCPProxy, error)
 
 	// ListFunc mocks the List method.
-	ListFunc func(ctx context.Context, orgUUID string, f gwrepo.MCPProxyListFilter) ([]*models.MCPProxy, int64, error)
+	ListFunc func(ctx context.Context, orgUUID string, f gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error)
 
 	// ReassignProjectFunc mocks the ReassignProject method.
 	ReassignProjectFunc func(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID string, projectName string, fromProjectUUID string, toProjectUUID string) error
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error
+	UpdateFunc func(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, orgUUID string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -114,7 +114,7 @@ type MCPProxyRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// P is the p argument value.
-			P *models.MCPProxy
+			P *gwmodels.MCPProxy
 			// Handle is the handle argument value.
 			Handle string
 			// Name is the name argument value.
@@ -230,7 +230,7 @@ type MCPProxyRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// P is the p argument value.
-			P *models.MCPProxy
+			P *gwmodels.MCPProxy
 			// OrgUUID is the orgUUID argument value.
 			OrgUUID string
 		}
@@ -286,14 +286,14 @@ func (mock *MCPProxyRepositoryMock) CountCalls() []struct {
 }
 
 // Create calls CreateFunc.
-func (mock *MCPProxyRepositoryMock) Create(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error {
+func (mock *MCPProxyRepositoryMock) Create(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, handle string, name string, version string, orgUUID string, projectUUID *string, projectName *string) error {
 	if mock.CreateFunc == nil {
 		panic("MCPProxyRepositoryMock.CreateFunc: method is nil but MCPProxyRepository.Create was just called")
 	}
 	callInfo := struct {
 		Ctx         context.Context
 		Tx          *gorm.DB
-		P           *models.MCPProxy
+		P           *gwmodels.MCPProxy
 		Handle      string
 		Name        string
 		Version     string
@@ -324,7 +324,7 @@ func (mock *MCPProxyRepositoryMock) Create(ctx context.Context, tx *gorm.DB, p *
 func (mock *MCPProxyRepositoryMock) CreateCalls() []struct {
 	Ctx         context.Context
 	Tx          *gorm.DB
-	P           *models.MCPProxy
+	P           *gwmodels.MCPProxy
 	Handle      string
 	Name        string
 	Version     string
@@ -335,7 +335,7 @@ func (mock *MCPProxyRepositoryMock) CreateCalls() []struct {
 	var calls []struct {
 		Ctx         context.Context
 		Tx          *gorm.DB
-		P           *models.MCPProxy
+		P           *gwmodels.MCPProxy
 		Handle      string
 		Name        string
 		Version     string
@@ -430,7 +430,7 @@ func (mock *MCPProxyRepositoryMock) ExistsCalls() []struct {
 }
 
 // GetByHandle calls GetByHandleFunc.
-func (mock *MCPProxyRepositoryMock) GetByHandle(ctx context.Context, handle string, orgUUID string) (*models.MCPProxy, error) {
+func (mock *MCPProxyRepositoryMock) GetByHandle(ctx context.Context, handle string, orgUUID string) (*gwmodels.MCPProxy, error) {
 	if mock.GetByHandleFunc == nil {
 		panic("MCPProxyRepositoryMock.GetByHandleFunc: method is nil but MCPProxyRepository.GetByHandle was just called")
 	}
@@ -470,7 +470,7 @@ func (mock *MCPProxyRepositoryMock) GetByHandleCalls() []struct {
 }
 
 // GetByHandleForUpdate calls GetByHandleForUpdateFunc.
-func (mock *MCPProxyRepositoryMock) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle string, orgUUID string) (*models.MCPProxy, error) {
+func (mock *MCPProxyRepositoryMock) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle string, orgUUID string) (*gwmodels.MCPProxy, error) {
 	if mock.GetByHandleForUpdateFunc == nil {
 		panic("MCPProxyRepositoryMock.GetByHandleForUpdateFunc: method is nil but MCPProxyRepository.GetByHandleForUpdate was just called")
 	}
@@ -514,7 +514,7 @@ func (mock *MCPProxyRepositoryMock) GetByHandleForUpdateCalls() []struct {
 }
 
 // GetByUUID calls GetByUUIDFunc.
-func (mock *MCPProxyRepositoryMock) GetByUUID(ctx context.Context, proxyUUID string, orgUUID string) (*models.MCPProxy, error) {
+func (mock *MCPProxyRepositoryMock) GetByUUID(ctx context.Context, proxyUUID string, orgUUID string) (*gwmodels.MCPProxy, error) {
 	if mock.GetByUUIDFunc == nil {
 		panic("MCPProxyRepositoryMock.GetByUUIDFunc: method is nil but MCPProxyRepository.GetByUUID was just called")
 	}
@@ -554,7 +554,7 @@ func (mock *MCPProxyRepositoryMock) GetByUUIDCalls() []struct {
 }
 
 // GetInProject calls GetInProjectFunc.
-func (mock *MCPProxyRepositoryMock) GetInProject(ctx context.Context, handle string, orgUUID string, projectUUID string) (*models.MCPProxy, error) {
+func (mock *MCPProxyRepositoryMock) GetInProject(ctx context.Context, handle string, orgUUID string, projectUUID string) (*gwmodels.MCPProxy, error) {
 	if mock.GetInProjectFunc == nil {
 		panic("MCPProxyRepositoryMock.GetInProjectFunc: method is nil but MCPProxyRepository.GetInProject was just called")
 	}
@@ -598,7 +598,7 @@ func (mock *MCPProxyRepositoryMock) GetInProjectCalls() []struct {
 }
 
 // GetInProjectByName calls GetInProjectByNameFunc.
-func (mock *MCPProxyRepositoryMock) GetInProjectByName(ctx context.Context, handle string, orgUUID string, projectName string) (*models.MCPProxy, error) {
+func (mock *MCPProxyRepositoryMock) GetInProjectByName(ctx context.Context, handle string, orgUUID string, projectName string) (*gwmodels.MCPProxy, error) {
 	if mock.GetInProjectByNameFunc == nil {
 		panic("MCPProxyRepositoryMock.GetInProjectByNameFunc: method is nil but MCPProxyRepository.GetInProjectByName was just called")
 	}
@@ -642,7 +642,7 @@ func (mock *MCPProxyRepositoryMock) GetInProjectByNameCalls() []struct {
 }
 
 // List calls ListFunc.
-func (mock *MCPProxyRepositoryMock) List(ctx context.Context, orgUUID string, f gwrepo.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+func (mock *MCPProxyRepositoryMock) List(ctx context.Context, orgUUID string, f gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 	if mock.ListFunc == nil {
 		panic("MCPProxyRepositoryMock.ListFunc: method is nil but MCPProxyRepository.List was just called")
 	}
@@ -738,14 +738,14 @@ func (mock *MCPProxyRepositoryMock) ReassignProjectCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *MCPProxyRepositoryMock) Update(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error {
+func (mock *MCPProxyRepositoryMock) Update(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, orgUUID string) error {
 	if mock.UpdateFunc == nil {
 		panic("MCPProxyRepositoryMock.UpdateFunc: method is nil but MCPProxyRepository.Update was just called")
 	}
 	callInfo := struct {
 		Ctx     context.Context
 		Tx      *gorm.DB
-		P       *models.MCPProxy
+		P       *gwmodels.MCPProxy
 		OrgUUID string
 	}{
 		Ctx:     ctx,
@@ -766,13 +766,13 @@ func (mock *MCPProxyRepositoryMock) Update(ctx context.Context, tx *gorm.DB, p *
 func (mock *MCPProxyRepositoryMock) UpdateCalls() []struct {
 	Ctx     context.Context
 	Tx      *gorm.DB
-	P       *models.MCPProxy
+	P       *gwmodels.MCPProxy
 	OrgUUID string
 } {
 	var calls []struct {
 		Ctx     context.Context
 		Tx      *gorm.DB
-		P       *models.MCPProxy
+		P       *gwmodels.MCPProxy
 		OrgUUID string
 	}
 	mock.lockUpdate.RLock()

@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
 
@@ -53,34 +53,34 @@ func eventPayload(t *testing.T, data string) map[string]any {
 
 // goldenProvider is a provider that exercises every part of the provider render: upstream auth, access control,
 // api-key security, global rate limits, resilience and a user policy.
-func goldenProvider() *models.LLMProvider {
+func goldenProvider() *gwmodels.LLMProvider {
 	enabled := true
 	ctxPath, vhost, timeout := "/openai", "api.example.com", "30s"
 	ref, authType, authHeader := "openai-key", "api-key", "Authorization"
-	return &models.LLMProvider{
+	return &gwmodels.LLMProvider{
 		UUID:           uuid.MustParse("6f1c2a52-0d7e-4c1a-9a3e-0e5b6f7a8b9c"),
 		TemplateHandle: "openai",
-		Artifact:       &models.Artifact{Handle: "acme-openai"},
+		Artifact:       &gwmodels.Artifact{Handle: "acme-openai"},
 		ModelList:      `[{"id":"openai","models":[{"id":"gpt-4o"}]}]`,
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name: "Acme OpenAI", Handle: "acme-openai", Version: "v1.0", Context: &ctxPath, VHost: &vhost,
 			Template: "openai",
-			Upstream: &models.UpstreamConfig{Main: &models.UpstreamEndpoint{
-				URL: "https://api.openai.com/v1", Auth: &models.UpstreamAuth{Type: &authType, Header: &authHeader, SecretRef: &ref},
+			Upstream: &gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{
+				URL: "https://api.openai.com/v1", Auth: &gwmodels.UpstreamAuth{Type: &authType, Header: &authHeader, SecretRef: &ref},
 			}},
-			Resilience:    &models.Resilience{Timeout: &timeout},
-			AccessControl: &models.LLMAccessControl{Mode: "allow_all"},
-			Security: &models.SecurityConfig{
+			Resilience:    &gwmodels.Resilience{Timeout: &timeout},
+			AccessControl: &gwmodels.LLMAccessControl{Mode: "allow_all"},
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &enabled,
-				APIKey:  &models.APIKeySecurity{Enabled: &enabled, Key: "X-API-Key", In: "header"},
+				APIKey:  &gwmodels.APIKeySecurity{Enabled: &enabled, Key: "X-API-Key", In: "header"},
 			},
-			RateLimiting: &models.LLMRateLimitingConfig{ProviderLevel: &models.RateLimitingScopeConfig{
-				Global: &models.RateLimitingLimitConfig{
-					Token:   &models.TokenRateLimit{Enabled: true, Count: 1000, Reset: models.RateLimitResetWindow{Duration: 1, Unit: "minute"}},
-					Request: &models.RequestRateLimit{Enabled: true, Count: 60, Reset: models.RateLimitResetWindow{Duration: 1, Unit: "hour"}},
+			RateLimiting: &gwmodels.LLMRateLimitingConfig{ProviderLevel: &gwmodels.RateLimitingScopeConfig{
+				Global: &gwmodels.RateLimitingLimitConfig{
+					Token:   &gwmodels.TokenRateLimit{Enabled: true, Count: 1000, Reset: gwmodels.RateLimitResetWindow{Duration: 1, Unit: "minute"}},
+					Request: &gwmodels.RequestRateLimit{Enabled: true, Count: 60, Reset: gwmodels.RateLimitResetWindow{Duration: 1, Unit: "hour"}},
 				},
 			}},
-			Policies: []models.LLMPolicy{{Name: "pii-masking", Version: "v1.2.0", Paths: []models.LLMPolicyPath{
+			Policies: []gwmodels.LLMPolicy{{Name: "pii-masking", Version: "v1.2.0", Paths: []gwmodels.LLMPolicyPath{
 				{Path: "/chat/completions", Methods: []string{"POST"}, Params: map[string]any{"mask": true}},
 			}}},
 		},
@@ -90,7 +90,7 @@ func goldenProvider() *models.LLMProvider {
 func TestLLMProviderKindRendersTodaysYAML(t *testing.T) {
 	provider := goldenProvider()
 	kind := providerKindOf(provider)
-	ref := models.ArtifactRef{OUID: "ou-1", ArtifactUUID: provider.UUID, Kind: models.KindLLMProvider, Handle: "acme-openai"}
+	ref := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: provider.UUID, Kind: gwmodels.KindLLMProvider, Handle: "acme-openai"}
 
 	rendered, err := kind.Render(context.Background(), ref)
 
@@ -104,9 +104,9 @@ func TestLLMProviderKindRendersTodaysYAML(t *testing.T) {
 
 func TestLLMProviderKindEvents(t *testing.T) {
 	kind := NewLLMProviderKind()
-	ref := models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindLLMProvider, Handle: "acme-openai"}
-	p := models.Placement{ArtifactRef: ref, GatewayUUID: uuid.New()}
-	at := models.NewPerformedAt(time.Now())
+	ref := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindLLMProvider, Handle: "acme-openai"}
+	p := gwmodels.Placement{ArtifactRef: ref, GatewayUUID: uuid.New()}
+	at := gwmodels.NewPerformedAt(time.Now())
 
 	assert.Equal(t, ref.ArtifactUUID.String(), kind.GatewayArtifactID(ref), "gateways store providers under their UUID")
 

@@ -24,9 +24,9 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -276,7 +276,7 @@ func getLLMProvider(handler LLMProviderToolsetHandler, core CoreReader) func(con
 		for _, d := range deployments {
 			// Archived rows are superseded history; showing them beside the live
 			// deployment on the same gateway reads as a half-deployed provider.
-			if d == nil || (d.Status != nil && *d.Status == models.DeploymentStatusArchived) {
+			if d == nil || (d.Status != nil && *d.Status == gwmodels.DeploymentStatusArchived) {
 				continue
 			}
 			item := providerGatewayDeploymentItem{GatewayID: d.GatewayUUID.String(), Environments: []string{}}
@@ -346,8 +346,8 @@ func addLLMProviderGuardrails(handler LLMProviderToolsetHandler) func(context.Co
 		if err := requireAvailableGuardrails(ctx, toolName, handler, modkit.OrgID(ctx), providerID, added); err != nil {
 			return nil, err
 		}
-		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
-			next := append([]models.LLMPolicy(nil), current...)
+		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error) {
+			next := append([]gwmodels.LLMPolicy(nil), current...)
 			for _, g := range added {
 				if i := indexGuardrail(next, g.Name, g.Version); i >= 0 {
 					// Same guardrail: update its all-routes settings and keep the
@@ -378,7 +378,7 @@ func removeLLMProviderGuardrail(handler LLMProviderToolsetHandler) func(context.
 		if name == "" {
 			return nil, fmt.Errorf("name is required. Call get_llm_provider to see the provider's guardrails")
 		}
-		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
+		return updateProviderGuardrails(ctx, toolName, handler, providerID, func(current []gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error) {
 			match := -1
 			var versions []string
 			for i, p := range current {
@@ -402,7 +402,7 @@ func removeLLMProviderGuardrail(handler LLMProviderToolsetHandler) func(context.
 				return nil, fmt.Errorf("%s: %q on provider %q applies only to routes chosen in the console (%s). Remove it from those routes in the console",
 					toolName, name, providerID, strings.Join(routeLabels(routes), ", "))
 			}
-			next := make([]models.LLMPolicy, 0, len(current))
+			next := make([]gwmodels.LLMPolicy, 0, len(current))
 			next = append(next, current[:match]...)
 			if len(routes) > 0 {
 				p.Paths = routes
@@ -439,13 +439,13 @@ func addLLMProviderToCatalog(handler LLMProviderToolsetHandler) func(context.Con
 // the gateways.
 func updateProviderGuardrails(
 	ctx context.Context, toolName string, handler LLMProviderToolsetHandler, providerID string,
-	change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
+	change func([]gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error),
 ) (any, error) {
 	// change's own errors already name the tool and say what to do, so they go
 	// back as they are; only service errors are wrapped.
-	var next []models.LLMPolicy
+	var next []gwmodels.LLMPolicy
 	var changeErr error
-	updated, results, err := handler.UpdateLLMProviderGuardrails(ctx, modkit.OrgID(ctx), providerID, func(current []models.LLMPolicy) ([]models.LLMPolicy, error) {
+	updated, results, err := handler.UpdateLLMProviderGuardrails(ctx, modkit.OrgID(ctx), providerID, func(current []gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error) {
 		next, changeErr = change(current)
 		return next, changeErr
 	})
@@ -481,7 +481,7 @@ func updateProviderGuardrails(
 
 // indexGuardrail finds a policy by name and version, the pair the console keys
 // guardrails by; -1 when the provider has none.
-func indexGuardrail(policies []models.LLMPolicy, name, version string) int {
+func indexGuardrail(policies []gwmodels.LLMPolicy, name, version string) int {
 	for i, p := range policies {
 		if p.Name == name && p.Version == version {
 			return i
@@ -490,14 +490,14 @@ func indexGuardrail(policies []models.LLMPolicy, name, version string) int {
 	return -1
 }
 
-func isAllRoutesPath(p models.LLMPolicyPath) bool {
+func isAllRoutesPath(p gwmodels.LLMPolicyPath) bool {
 	return p.Path == guardrailPathAll && (len(p.Methods) == 0 || slices.Contains(p.Methods, "*"))
 }
 
 // routeScopedPaths returns the paths the console scoped a guardrail to, leaving
 // out the all-routes entry.
-func routeScopedPaths(paths []models.LLMPolicyPath) []models.LLMPolicyPath {
-	var routes []models.LLMPolicyPath
+func routeScopedPaths(paths []gwmodels.LLMPolicyPath) []gwmodels.LLMPolicyPath {
+	var routes []gwmodels.LLMPolicyPath
 	for _, p := range paths {
 		if !isAllRoutesPath(p) {
 			routes = append(routes, p)
@@ -508,8 +508,8 @@ func routeScopedPaths(paths []models.LLMPolicyPath) []models.LLMPolicyPath {
 
 // withAllRoutesParams sets the params of the policy's all-routes entry, adding
 // that entry when the policy only had route entries, and keeps every route entry.
-func withAllRoutesParams(p models.LLMPolicy, params map[string]any) models.LLMPolicy {
-	paths := make([]models.LLMPolicyPath, 0, len(p.Paths)+1)
+func withAllRoutesParams(p gwmodels.LLMPolicy, params map[string]any) gwmodels.LLMPolicy {
+	paths := make([]gwmodels.LLMPolicyPath, 0, len(p.Paths)+1)
 	found := false
 	for _, path := range p.Paths {
 		if isAllRoutesPath(path) {
@@ -521,13 +521,13 @@ func withAllRoutesParams(p models.LLMPolicy, params map[string]any) models.LLMPo
 		paths = append(paths, path)
 	}
 	if !found {
-		paths = append(paths, models.LLMPolicyPath{Path: guardrailPathAll, Methods: []string{"*"}, Params: params})
+		paths = append(paths, gwmodels.LLMPolicyPath{Path: guardrailPathAll, Methods: []string{"*"}, Params: params})
 	}
 	p.Paths = paths
 	return p
 }
 
-func routeLabels(paths []models.LLMPolicyPath) []string {
+func routeLabels(paths []gwmodels.LLMPolicyPath) []string {
 	labels := make([]string, 0, len(paths))
 	for _, p := range paths {
 		labels = append(labels, strings.Join(p.Methods, ",")+" "+p.Path)
@@ -538,7 +538,7 @@ func routeLabels(paths []models.LLMPolicyPath) []string {
 // toProviderGuardrailItems shows each guardrail with its full scope, so a
 // guardrail the console scoped to single routes never reads as provider-wide.
 // It is never nil, so an empty list is [] in JSON.
-func toProviderGuardrailItems(policies []models.LLMPolicy) []providerGuardrailItem {
+func toProviderGuardrailItems(policies []gwmodels.LLMPolicy) []providerGuardrailItem {
 	items := make([]providerGuardrailItem, 0, len(policies))
 	for _, p := range policies {
 		g := providerGuardrailItem{Name: p.Name, Version: p.Version}
@@ -560,7 +560,7 @@ func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, 
 		if err != nil {
 			return nil, wrapToolError("list_llm_guardrails", err)
 		}
-		var policies []models.LLMPolicyDefinition
+		var policies []gwmodels.LLMPolicyDefinition
 		if resp != nil {
 			policies = resp.List
 		}
@@ -625,7 +625,7 @@ var nonGuardrailPolicies = map[string]bool{
 	"subscription-validation":  true,
 }
 
-func toLLMProviderItem(p *models.LLMProvider) llmProviderItem {
+func toLLMProviderItem(p *gwmodels.LLMProvider) llmProviderItem {
 	item := llmProviderItem{
 		Template:  p.TemplateHandle,
 		Status:    p.Status,
@@ -657,7 +657,7 @@ func validateGuardrails(guardrails []guardrailInput) error {
 // provider's gateways report; a provider on no gateway yet reports nothing, so
 // it is checked against the org's gateways, where it can be deployed.
 func requireAvailableGuardrails(
-	ctx context.Context, toolName string, handler LLMProviderToolsetHandler, ouID, providerID string, guardrails []models.LLMPolicy,
+	ctx context.Context, toolName string, handler LLMProviderToolsetHandler, ouID, providerID string, guardrails []gwmodels.LLMPolicy,
 ) error {
 	if len(guardrails) == 0 {
 		return nil
@@ -757,20 +757,20 @@ func isCredentialName(name string) bool {
 	return false
 }
 
-func toModelGuardrails(guardrails []guardrailInput) ([]models.LLMPolicy, error) {
+func toModelGuardrails(guardrails []guardrailInput) ([]gwmodels.LLMPolicy, error) {
 	if err := validateGuardrails(guardrails); err != nil {
 		return nil, err
 	}
-	out := make([]models.LLMPolicy, 0, len(guardrails))
+	out := make([]gwmodels.LLMPolicy, 0, len(guardrails))
 	for _, g := range guardrails {
 		params := g.Params
 		if params == nil {
 			params = map[string]any{}
 		}
-		out = append(out, models.LLMPolicy{
+		out = append(out, gwmodels.LLMPolicy{
 			Name:    strings.TrimSpace(g.Name),
 			Version: strings.TrimSpace(g.Version),
-			Paths:   []models.LLMPolicyPath{{Path: guardrailPathAll, Methods: []string{"*"}, Params: params}},
+			Paths:   []gwmodels.LLMPolicyPath{{Path: guardrailPathAll, Methods: []string{"*"}, Params: params}},
 		})
 	}
 	return out, nil

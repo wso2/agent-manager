@@ -20,7 +20,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -35,7 +35,7 @@ const (
 // renderOutcome is what a failed render attempt leaves on its row. Waiting for an input is uncounted and never
 // gives up: each wait doubles the last one. Any other error is counted and gives up when the budget is spent, or at
 // once when it is Permanent.
-func renderOutcome(err error, reason string, claim models.ClaimedRender, budget int) gwrepo.RenderOutcome {
+func renderOutcome(err error, reason string, claim gwmodels.ClaimedRender, budget int) gwrepo.RenderOutcome {
 	switch {
 	case errors.Is(err, ErrInputNotReady):
 		next := claim.ClaimedAt.Add(min(max(2*claim.LastDelay, baseBackoff), maxBackoff))

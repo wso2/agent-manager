@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -61,9 +62,9 @@ type A2AProxyHooks interface {
 // A2AProxyService publishes external agents over A2A through their environment's ingress gateway.
 type A2AProxyService interface {
 	A2AProxyHooks
-	GetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string) (*models.A2AProxyStatus, error)
+	GetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string) (*gwmodels.A2AProxyStatus, error)
 	// SetA2AProxy enables the proxy or updates its upstream auth; a nil auth clears the stored credential.
-	SetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string, auth *models.A2AProxyAuthUpdate) error
+	SetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string, auth *gwmodels.A2AProxyAuthUpdate) error
 	DeleteA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string) error
 	RefreshA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string) error
 }
@@ -125,15 +126,15 @@ func newA2AProxyTarget(agent *models.AgentResponse, ouID, projectName string, en
 }
 
 // cardRow is the environment's external card row with sourceURL registered.
-func (t a2aProxyTarget) cardRow(sourceURL string) *models.A2AAgentCard {
-	return &models.A2AAgentCard{
+func (t a2aProxyTarget) cardRow(sourceURL string) *gwmodels.A2AAgentCard {
+	return &gwmodels.A2AAgentCard{
 		OUID: t.key.OUID, ProjectName: t.key.ProjectName, AgentName: t.key.AgentName,
 		EnvironmentName: t.key.EnvironmentName, EnvironmentUUID: t.key.EnvironmentUUID,
-		Source: models.A2AAgentCardSourceExternal, SourceURL: sourceURL, AgentUUID: t.key.AgentUUID,
+		Source: gwmodels.A2AAgentCardSourceExternal, SourceURL: sourceURL, AgentUUID: t.key.AgentUUID,
 	}
 }
 
-func (s *a2aProxyService) GetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string) (*models.A2AProxyStatus, error) {
+func (s *a2aProxyService) GetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string) (*gwmodels.A2AProxyStatus, error) {
 	// Resolved like every other operation: a row a failed cleanup left under a re-created name must not answer.
 	t, err := s.target(ctx, ouID, projectName, agentName, envName)
 	if err != nil {
@@ -154,7 +155,7 @@ func (s *a2aProxyService) GetA2AProxy(ctx context.Context, ouID, projectName, ag
 	if err != nil {
 		return nil, err
 	}
-	return &models.A2AProxyStatus{
+	return &gwmodels.A2AProxyStatus{
 		Status:             shown.Status,
 		StatusReason:       shown.Reason,
 		UpstreamAuthHeader: proxy.UpstreamAuthHeader,
@@ -163,7 +164,7 @@ func (s *a2aProxyService) GetA2AProxy(ctx context.Context, ouID, projectName, ag
 }
 
 func (s *a2aProxyService) SetA2AProxy(
-	ctx context.Context, ouID, projectName, agentName, envName string, auth *models.A2AProxyAuthUpdate,
+	ctx context.Context, ouID, projectName, agentName, envName string, auth *gwmodels.A2AProxyAuthUpdate,
 ) error {
 	if err := validateA2AUpstreamAuth(auth); err != nil {
 		return err
@@ -313,12 +314,12 @@ func (s *a2aProxyService) target(ctx context.Context, ouID, projectName, agentNa
 }
 
 // lockedProxy takes the environment's transition lock and reads its proxy row under it; nil while direct.
-func (s *a2aProxyService) lockedProxy(ctx context.Context, tx *gorm.DB, t a2aProxyTarget) (*models.A2AProxy, error) {
+func (s *a2aProxyService) lockedProxy(ctx context.Context, tx *gorm.DB, t a2aProxyTarget) (*gwmodels.A2AProxy, error) {
 	return lockedA2AProxy(ctx, s.proxyRepo.WithTx(tx), t.key)
 }
 
 // lockedCard reads the environment's card row under the transition lockedProxy took; nil when it has none.
-func (s *a2aProxyService) lockedCard(ctx context.Context, tx *gorm.DB, t a2aProxyTarget) (*models.A2AAgentCard, error) {
+func (s *a2aProxyService) lockedCard(ctx context.Context, tx *gorm.DB, t a2aProxyTarget) (*gwmodels.A2AAgentCard, error) {
 	card, err := s.cardRepo.WithTx(tx).Get(ctx, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.key.EnvironmentName)
 	if errors.Is(err, gwrepo.ErrA2AAgentCardNotFound) {
 		return nil, nil //nolint:nilnil // No row means no card source is registered.
@@ -335,7 +336,7 @@ func (s *a2aProxyService) requireCardSource(ctx context.Context, tx *gorm.DB, t 
 	switch {
 	case err != nil:
 		return "", err
-	case card == nil || card.Source != models.A2AAgentCardSourceExternal || card.SourceURL == "":
+	case card == nil || card.Source != gwmodels.A2AAgentCardSourceExternal || card.SourceURL == "":
 		return "", utils.ErrA2AProxyNeedsCardSource
 	}
 	if err := requireProxyableCardURL(card.SourceURL); err != nil {
@@ -358,7 +359,7 @@ func requireHTTPSForSecret(cardURL, secret string) error {
 
 // requireSecretStaysOnOrigin refuses a card URL on another origin while a stored secret would be sent there.
 func (s *a2aProxyService) requireSecretStaysOnOrigin(
-	ctx context.Context, tx *gorm.DB, t a2aProxyTarget, proxy *models.A2AProxy, sourceURL string,
+	ctx context.Context, tx *gorm.DB, t a2aProxyTarget, proxy *gwmodels.A2AProxy, sourceURL string,
 ) error {
 	if proxy.UpstreamAuthSecret == "" {
 		return nil
@@ -380,9 +381,9 @@ func (s *a2aProxyService) requireSecretStaysOnOrigin(
 
 // proxyRow applies the PUT's secret semantics (no auth clears, a header alone keeps, a value replaces).
 func (s *a2aProxyService) proxyRow(
-	t a2aProxyTarget, existing *models.A2AProxy, auth *models.A2AProxyAuthUpdate,
-) (*models.A2AProxy, bool, error) {
-	row := &models.A2AProxy{
+	t a2aProxyTarget, existing *gwmodels.A2AProxy, auth *gwmodels.A2AProxyAuthUpdate,
+) (*gwmodels.A2AProxy, bool, error) {
+	row := &gwmodels.A2AProxy{
 		OUID: t.key.OUID, ProjectName: t.key.ProjectName, AgentName: t.key.AgentName,
 		EnvironmentUUID: t.key.EnvironmentUUID, EnvironmentName: t.key.EnvironmentName,
 	}
@@ -420,21 +421,21 @@ func (s *a2aProxyService) switchFromDirect(ctx context.Context, tx *gorm.DB, t a
 }
 
 // ensureArtifact creates the proxied environment's agent artifact, which the gateway serves the agent and its keys under.
-func (s *a2aProxyService) ensureArtifact(tx *gorm.DB, t a2aProxyTarget) (models.ArtifactRef, error) {
-	artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, models.KindAgent)
+func (s *a2aProxyService) ensureArtifact(tx *gorm.DB, t a2aProxyTarget) (gwmodels.ArtifactRef, error) {
+	artifact, err := ensureAgentEnvAPIArtifact(tx, s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, gwmodels.KindAgent)
 	if err != nil {
-		return models.ArtifactRef{}, fmt.Errorf("failed to ensure the agent's API artifact: %w", err)
+		return gwmodels.ArtifactRef{}, fmt.Errorf("failed to ensure the agent's API artifact: %w", err)
 	}
 	return agentArtifactRef(artifact), nil
 }
 
-func agentArtifactRef(artifact *models.Artifact) models.ArtifactRef {
-	return models.ArtifactRef{OUID: artifact.OUID, ArtifactUUID: artifact.UUID, Kind: artifact.Kind, Handle: artifact.Handle}
+func agentArtifactRef(artifact *gwmodels.Artifact) gwmodels.ArtifactRef {
+	return gwmodels.ArtifactRef{OUID: artifact.OUID, ArtifactUUID: artifact.UUID, Kind: artifact.Kind, Handle: artifact.Handle}
 }
 
 // republish re-derives the routes from the origin card, then refetches it; a direct environment gets ifDirect (nil: ErrEnvironmentNotProxied).
 func (s *a2aProxyService) republish(ctx context.Context, t a2aProxyTarget, ifDirect a2aCardStep) error {
-	var artifact models.ArtifactRef
+	var artifact gwmodels.ArtifactRef
 	err := s.tx(ctx, func(tx *gorm.DB) error {
 		proxy, err := s.lockedProxy(ctx, tx, t)
 		if err != nil {
@@ -543,13 +544,13 @@ func (s *a2aProxyService) switchToDirect(ctx context.Context, tx *gorm.DB, t a2a
 }
 
 // artifact is the environment's agent artifact; its ArtifactUUID is uuid.Nil when it has none.
-func (s *a2aProxyService) artifact(t a2aProxyTarget) (models.ArtifactRef, error) {
-	artifact, err := agentEnvAPIArtifact(s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, models.KindAgent)
+func (s *a2aProxyService) artifact(t a2aProxyTarget) (gwmodels.ArtifactRef, error) {
+	artifact, err := agentEnvAPIArtifact(s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, gwmodels.KindAgent)
 	if errors.Is(err, utils.ErrArtifactNotFound) {
-		return models.ArtifactRef{OUID: t.key.OUID, Kind: models.KindAgent}, nil
+		return gwmodels.ArtifactRef{OUID: t.key.OUID, Kind: gwmodels.KindAgent}, nil
 	}
 	if err != nil {
-		return models.ArtifactRef{}, fmt.Errorf("failed to read the agent's API artifact: %w", err)
+		return gwmodels.ArtifactRef{}, fmt.Errorf("failed to read the agent's API artifact: %w", err)
 	}
 	return agentArtifactRef(artifact), nil
 }
@@ -638,7 +639,7 @@ func ensureDefaultAgentConfig(ctx context.Context, configs gwrepo.AgentConfigRep
 }
 
 // validateA2AUpstreamAuth enforces what the gateway carries safely: it pastes into single-quoted YAML, doubles '%' and renders {{ }}.
-func validateA2AUpstreamAuth(auth *models.A2AProxyAuthUpdate) error {
+func validateA2AUpstreamAuth(auth *gwmodels.A2AProxyAuthUpdate) error {
 	if auth == nil {
 		return nil
 	}

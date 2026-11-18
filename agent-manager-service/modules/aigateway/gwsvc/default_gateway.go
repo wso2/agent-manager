@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -82,7 +83,7 @@ func (s *DefaultGatewaySeeder) Seed(ctx context.Context) error {
 	switch {
 	case errors.Is(err, utils.ErrGatewayNotFound) || (err == nil && gateway == nil):
 		created, regErr := s.gateways.RegisterGateway(ouID, s.cfg.Name, s.cfg.DisplayName, "", s.cfg.Vhost, "",
-			false, s.cfg.FunctionalityType, nil, []string{env.UUID}, models.GatewayHostingManaged)
+			false, s.cfg.FunctionalityType, nil, []string{env.UUID}, gwmodels.GatewayHostingManaged)
 		if regErr != nil {
 			return fmt.Errorf("default gateway: register %q: %w", s.cfg.Name, regErr)
 		}
@@ -113,7 +114,7 @@ func (s *DefaultGatewaySeeder) token() (string, error) {
 }
 
 // ensureToken stores the token's hash for the gateway unless it is already an active token of it.
-func (s *DefaultGatewaySeeder) ensureToken(ctx context.Context, gateway *models.Gateway, token, prefix string) error {
+func (s *DefaultGatewaySeeder) ensureToken(ctx context.Context, gateway *gwmodels.Gateway, token, prefix string) error {
 	existing, err := s.repo.GetActiveTokenByPrefix(ctx, prefix)
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("default gateway: look up its token: %w", err)
@@ -128,7 +129,7 @@ func (s *DefaultGatewaySeeder) ensureToken(ctx context.Context, gateway *models.
 	if err != nil {
 		return err
 	}
-	if err := s.repo.CreateToken(&models.GatewayToken{
+	if err := s.repo.CreateToken(&gwmodels.GatewayToken{
 		UUID: uuid.New(), GatewayUUID: gateway.UUID, TokenPrefix: prefix, TokenHash: hashToken(token, salt),
 		Salt: hex.EncodeToString(salt), Status: "active",
 	}); err != nil {

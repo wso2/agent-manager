@@ -24,7 +24,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
@@ -66,8 +66,8 @@ func (s *AIApplicationService) EnsureAndBind(
 	ctx context.Context,
 	ouID, projectName, agentID, envName string,
 	appHandle, appName, apiKeyUUID string,
-) (*models.AIApplication, bool, error) {
-	app := &models.AIApplication{
+) (*gwmodels.AIApplication, bool, error) {
+	app := &gwmodels.AIApplication{
 		Handle:          appHandle,
 		Name:            appName,
 		AgentID:         agentID,
@@ -159,7 +159,7 @@ func (s *AIApplicationService) DeleteAllByAgent(ctx context.Context, ouID, proje
 // broadcastDeletionToAllGateways sends an application.updated event with empty mappings to every
 // gateway in the org. The gateway interprets empty mappings as a full revocation of the application,
 // stopping per-consumer rate limit enforcement immediately without requiring a reconnect.
-func (s *AIApplicationService) broadcastDeletionToAllGateways(ctx context.Context, ouID string, app *models.AIApplication) {
+func (s *AIApplicationService) broadcastDeletionToAllGateways(ctx context.Context, ouID string, app *gwmodels.AIApplication) {
 	gateways, err := s.gatewayRepo.GetByOrganizationID(ctx, ouID)
 	if err != nil {
 		s.logger.Warn("Failed to list gateways for application deletion broadcast; gateway will sync on reconnect",
@@ -167,12 +167,12 @@ func (s *AIApplicationService) broadcastDeletionToAllGateways(ctx context.Contex
 		return
 	}
 
-	event := &models.ApplicationUpdatedEvent{
+	event := &gwmodels.ApplicationUpdatedEvent{
 		ApplicationID:   app.Handle,
 		ApplicationUUID: app.UUID.String(),
 		ApplicationName: app.Name,
 		ApplicationType: "ai-agent",
-		Mappings:        []models.ApplicationAPIKeyMapping{},
+		Mappings:        []gwmodels.ApplicationAPIKeyMapping{},
 	}
 
 	for _, gw := range gateways {
@@ -185,7 +185,7 @@ func (s *AIApplicationService) broadcastDeletionToAllGateways(ctx context.Contex
 
 // broadcastToAllGateways sends an application.updated event to every gateway in the org.
 // Errors are logged but not returned so a broadcast failure never blocks the main flow.
-func (s *AIApplicationService) broadcastToAllGateways(ctx context.Context, ouID string, app *models.AIApplication, apiKeyUUID string) {
+func (s *AIApplicationService) broadcastToAllGateways(ctx context.Context, ouID string, app *gwmodels.AIApplication, apiKeyUUID string) {
 	gateways, err := s.gatewayRepo.GetByOrganizationID(ctx, ouID)
 	if err != nil {
 		s.logger.Warn("Failed to list gateways for application broadcast; gateway will sync on reconnect",
@@ -193,12 +193,12 @@ func (s *AIApplicationService) broadcastToAllGateways(ctx context.Context, ouID 
 		return
 	}
 
-	event := &models.ApplicationUpdatedEvent{
+	event := &gwmodels.ApplicationUpdatedEvent{
 		ApplicationID:   app.Handle,
 		ApplicationUUID: app.UUID.String(),
 		ApplicationName: app.Name,
 		ApplicationType: "ai-agent",
-		Mappings: []models.ApplicationAPIKeyMapping{
+		Mappings: []gwmodels.ApplicationAPIKeyMapping{
 			{APIKeyUUID: apiKeyUUID},
 		},
 	}

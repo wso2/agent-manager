@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -19,7 +19,7 @@ import (
 //
 //		// make and configure a mocked gwrepo.EnvAgentModelMappingRepository
 //		mockedEnvAgentModelMappingRepository := &EnvAgentModelMappingRepositoryMock{
-//			CreateFunc: func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error {
+//			CreateFunc: func(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error {
@@ -28,16 +28,16 @@ import (
 //			DeleteByConfigFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 //				panic("mock out the DeleteByConfig method")
 //			},
-//			GetByConfigAndEnvFunc: func(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) (*models.EnvAgentModelMapping, error) {
+//			GetByConfigAndEnvFunc: func(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) (*gwmodels.EnvAgentModelMapping, error) {
 //				panic("mock out the GetByConfigAndEnv method")
 //			},
 //			ListAgentConsumersByProxyUUIDsFunc: func(ctx context.Context, proxyUUIDs []uuid.UUID) ([]gwrepo.AgentConsumer, error) {
 //				panic("mock out the ListAgentConsumersByProxyUUIDs method")
 //			},
-//			ListByConfigFunc: func(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentModelMapping, error) {
+//			ListByConfigFunc: func(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentModelMapping, error) {
 //				panic("mock out the ListByConfig method")
 //			},
-//			UpdateFunc: func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error {
+//			UpdateFunc: func(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -48,7 +48,7 @@ import (
 //	}
 type EnvAgentModelMappingRepositoryMock struct {
 	// CreateFunc mocks the Create method.
-	CreateFunc func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error
+	CreateFunc func(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error
@@ -57,16 +57,16 @@ type EnvAgentModelMappingRepositoryMock struct {
 	DeleteByConfigFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
 
 	// GetByConfigAndEnvFunc mocks the GetByConfigAndEnv method.
-	GetByConfigAndEnvFunc func(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) (*models.EnvAgentModelMapping, error)
+	GetByConfigAndEnvFunc func(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) (*gwmodels.EnvAgentModelMapping, error)
 
 	// ListAgentConsumersByProxyUUIDsFunc mocks the ListAgentConsumersByProxyUUIDs method.
 	ListAgentConsumersByProxyUUIDsFunc func(ctx context.Context, proxyUUIDs []uuid.UUID) ([]gwrepo.AgentConsumer, error)
 
 	// ListByConfigFunc mocks the ListByConfig method.
-	ListByConfigFunc func(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentModelMapping, error)
+	ListByConfigFunc func(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentModelMapping, error)
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error
+	UpdateFunc func(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -77,7 +77,7 @@ type EnvAgentModelMappingRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Mapping is the mapping argument value.
-			Mapping *models.EnvAgentModelMapping
+			Mapping *gwmodels.EnvAgentModelMapping
 		}
 		// Delete holds details about calls to the Delete method.
 		Delete []struct {
@@ -129,7 +129,7 @@ type EnvAgentModelMappingRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Mapping is the mapping argument value.
-			Mapping *models.EnvAgentModelMapping
+			Mapping *gwmodels.EnvAgentModelMapping
 		}
 	}
 	lockCreate                         sync.RWMutex
@@ -142,14 +142,14 @@ type EnvAgentModelMappingRepositoryMock struct {
 }
 
 // Create calls CreateFunc.
-func (mock *EnvAgentModelMappingRepositoryMock) Create(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error {
+func (mock *EnvAgentModelMappingRepositoryMock) Create(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error {
 	if mock.CreateFunc == nil {
 		panic("EnvAgentModelMappingRepositoryMock.CreateFunc: method is nil but EnvAgentModelMappingRepository.Create was just called")
 	}
 	callInfo := struct {
 		Ctx     context.Context
 		Tx      *gorm.DB
-		Mapping *models.EnvAgentModelMapping
+		Mapping *gwmodels.EnvAgentModelMapping
 	}{
 		Ctx:     ctx,
 		Tx:      tx,
@@ -168,12 +168,12 @@ func (mock *EnvAgentModelMappingRepositoryMock) Create(ctx context.Context, tx *
 func (mock *EnvAgentModelMappingRepositoryMock) CreateCalls() []struct {
 	Ctx     context.Context
 	Tx      *gorm.DB
-	Mapping *models.EnvAgentModelMapping
+	Mapping *gwmodels.EnvAgentModelMapping
 } {
 	var calls []struct {
 		Ctx     context.Context
 		Tx      *gorm.DB
-		Mapping *models.EnvAgentModelMapping
+		Mapping *gwmodels.EnvAgentModelMapping
 	}
 	mock.lockCreate.RLock()
 	calls = mock.calls.Create
@@ -266,7 +266,7 @@ func (mock *EnvAgentModelMappingRepositoryMock) DeleteByConfigCalls() []struct {
 }
 
 // GetByConfigAndEnv calls GetByConfigAndEnvFunc.
-func (mock *EnvAgentModelMappingRepositoryMock) GetByConfigAndEnv(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) (*models.EnvAgentModelMapping, error) {
+func (mock *EnvAgentModelMappingRepositoryMock) GetByConfigAndEnv(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) (*gwmodels.EnvAgentModelMapping, error) {
 	if mock.GetByConfigAndEnvFunc == nil {
 		panic("EnvAgentModelMappingRepositoryMock.GetByConfigAndEnvFunc: method is nil but EnvAgentModelMappingRepository.GetByConfigAndEnv was just called")
 	}
@@ -342,7 +342,7 @@ func (mock *EnvAgentModelMappingRepositoryMock) ListAgentConsumersByProxyUUIDsCa
 }
 
 // ListByConfig calls ListByConfigFunc.
-func (mock *EnvAgentModelMappingRepositoryMock) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentModelMapping, error) {
+func (mock *EnvAgentModelMappingRepositoryMock) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentModelMapping, error) {
 	if mock.ListByConfigFunc == nil {
 		panic("EnvAgentModelMappingRepositoryMock.ListByConfigFunc: method is nil but EnvAgentModelMappingRepository.ListByConfig was just called")
 	}
@@ -378,14 +378,14 @@ func (mock *EnvAgentModelMappingRepositoryMock) ListByConfigCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *EnvAgentModelMappingRepositoryMock) Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error {
+func (mock *EnvAgentModelMappingRepositoryMock) Update(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error {
 	if mock.UpdateFunc == nil {
 		panic("EnvAgentModelMappingRepositoryMock.UpdateFunc: method is nil but EnvAgentModelMappingRepository.Update was just called")
 	}
 	callInfo := struct {
 		Ctx     context.Context
 		Tx      *gorm.DB
-		Mapping *models.EnvAgentModelMapping
+		Mapping *gwmodels.EnvAgentModelMapping
 	}{
 		Ctx:     ctx,
 		Tx:      tx,
@@ -404,12 +404,12 @@ func (mock *EnvAgentModelMappingRepositoryMock) Update(ctx context.Context, tx *
 func (mock *EnvAgentModelMappingRepositoryMock) UpdateCalls() []struct {
 	Ctx     context.Context
 	Tx      *gorm.DB
-	Mapping *models.EnvAgentModelMapping
+	Mapping *gwmodels.EnvAgentModelMapping
 } {
 	var calls []struct {
 		Ctx     context.Context
 		Tx      *gorm.DB
-		Mapping *models.EnvAgentModelMapping
+		Mapping *gwmodels.EnvAgentModelMapping
 	}
 	mock.lockUpdate.RLock()
 	calls = mock.calls.Update

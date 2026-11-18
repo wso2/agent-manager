@@ -26,15 +26,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
 type keyReplayFixture struct {
 	hub       *recordingEventHub
 	events    *GatewayEventsService
-	placement models.Placement
+	placement gwmodels.Placement
 	now       time.Time
 	tx        *gorm.DB
 	keys      *gwrepomocks.APIKeyRepositoryMock
@@ -44,8 +44,8 @@ func newKeyReplayFixture(t *testing.T) *keyReplayFixture {
 	t.Helper()
 	f := &keyReplayFixture{
 		hub: &recordingEventHub{},
-		placement: models.Placement{
-			ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindRestAPI},
+		placement: gwmodels.Placement{
+			ArtifactRef: gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindRestAPI},
 			GatewayUUID: uuid.New(),
 		},
 		now: time.Date(2026, 10, 31, 12, 0, 0, 0, time.UTC),
@@ -57,9 +57,9 @@ func newKeyReplayFixture(t *testing.T) *keyReplayFixture {
 }
 
 // storing makes the repository return stored for this fixture's artifact, in this fixture's transaction.
-func (f *keyReplayFixture) storing(stored ...models.StoredAPIKey) {
+func (f *keyReplayFixture) storing(stored ...gwmodels.StoredAPIKey) {
 	f.keys = &gwrepomocks.APIKeyRepositoryMock{
-		ListActiveByArtifactTxFunc: func(_ context.Context, tx *gorm.DB, artifact uuid.UUID, _ time.Time) ([]models.StoredAPIKey, error) {
+		ListActiveByArtifactTxFunc: func(_ context.Context, tx *gorm.DB, artifact uuid.UUID, _ time.Time) ([]gwmodels.StoredAPIKey, error) {
 			if tx != f.tx || artifact != f.placement.ArtifactUUID {
 				return nil, nil
 			}
@@ -72,18 +72,18 @@ func (f *keyReplayFixture) replay() error {
 	return replayAgentKeys(context.Background(), f.tx, f.keys, f.events, f.placement, f.now)
 }
 
-func (f *keyReplayFixture) storedKey(name, hash string) models.StoredAPIKey {
-	return models.StoredAPIKey{
+func (f *keyReplayFixture) storedKey(name, hash string) gwmodels.StoredAPIKey {
+	return gwmodels.StoredAPIKey{
 		UUID: uuid.New(), Name: name, DisplayName: name + " key", ArtifactUUID: f.placement.ArtifactUUID,
 		APIKeyHash: hash, MaskedAPIKey: "****" + hash[:4], Status: "active",
 		CreatedAt: f.now.Add(-time.Hour), UpdatedAt: f.now.Add(-time.Hour),
 	}
 }
 
-func createdPayload(t *testing.T, evt eventhub.Event) models.APIKeyCreatedEvent {
+func createdPayload(t *testing.T, evt eventhub.Event) gwmodels.APIKeyCreatedEvent {
 	t.Helper()
 	var envelope struct {
-		Payload models.APIKeyCreatedEvent `json:"payload"`
+		Payload gwmodels.APIKeyCreatedEvent `json:"payload"`
 	}
 	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
 	return envelope.Payload
@@ -97,7 +97,7 @@ func TestReplayAgentKeysWritesOneEventPerActiveKey(t *testing.T) {
 	require.NoError(t, f.replay())
 
 	require.Len(t, f.hub.published, 2)
-	for i, key := range []models.StoredAPIKey{first, second} {
+	for i, key := range []gwmodels.StoredAPIKey{first, second} {
 		evt := f.hub.published[i]
 		assert.Equal(t, "apikey.created", string(evt.EventType))
 		assert.Equal(t, key.UUID.String(), evt.EntityID)
@@ -134,7 +134,7 @@ func TestReplayAgentKeysTwiceWritesTwice(t *testing.T) {
 func TestReplayAgentKeysAsksForKeysUsableAtNow(t *testing.T) {
 	f := newKeyReplayFixture(t)
 	var askedAt time.Time
-	f.keys.ListActiveByArtifactTxFunc = func(_ context.Context, _ *gorm.DB, _ uuid.UUID, now time.Time) ([]models.StoredAPIKey, error) {
+	f.keys.ListActiveByArtifactTxFunc = func(_ context.Context, _ *gorm.DB, _ uuid.UUID, now time.Time) ([]gwmodels.StoredAPIKey, error) {
 		askedAt = now
 		return nil, nil
 	}

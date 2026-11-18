@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -52,9 +53,9 @@ func listGatewaysRequest(
 // on the filters the controller built rather than on any rows.
 func emptyGatewayRepo(recordFilters *gwrepo.GatewayFilterOptions) *gwrepomocks.GatewayRepositoryMock {
 	return &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			*recordFilters = filters
-			return []*models.Gateway{}, nil
+			return []*gwmodels.Gateway{}, nil
 		},
 		CountWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) (int64, error) {
 			return 0, nil

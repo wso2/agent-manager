@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 func a2aInput() A2AAgentDeploymentInput {
@@ -83,7 +83,7 @@ func TestGenerateA2AAgentDeploymentYAMLOmitsCardWithoutPoliciesAndResilience(t *
 // unset so the gateway's passthrough-with-rewrite default still applies.
 func TestGenerateA2AAgentDeploymentYAMLWritesOnlyCardPolicies(t *testing.T) {
 	in := a2aInput()
-	in.CardPolicies = buildCardPolicies(models.CardCORS{Enabled: true, AllowOrigins: []string{"https://client.example"}, AllowHeaders: []string{"Content-Type"}})
+	in.CardPolicies = buildCardPolicies(gwmodels.CardCORS{Enabled: true, AllowOrigins: []string{"https://client.example"}, AllowHeaders: []string{"Content-Type"}})
 	got, err := generateA2AAgentDeploymentYAML(in)
 	require.NoError(t, err)
 
@@ -101,10 +101,10 @@ func TestGenerateA2AAgentDeploymentYAMLWritesOnlyCardPolicies(t *testing.T) {
 }
 
 func TestBuildCardPolicies(t *testing.T) {
-	assert.Nil(t, buildCardPolicies(models.CardCORS{Enabled: false, AllowOrigins: []string{"*"}}), "disabled")
-	assert.Nil(t, buildCardPolicies(models.CardCORS{Enabled: true}), "enabled without origins")
+	assert.Nil(t, buildCardPolicies(gwmodels.CardCORS{Enabled: false, AllowOrigins: []string{"*"}}), "disabled")
+	assert.Nil(t, buildCardPolicies(gwmodels.CardCORS{Enabled: true}), "enabled without origins")
 
-	got := buildCardPolicies(models.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowHeaders: []string{"Content-Type"}})
+	got := buildCardPolicies(gwmodels.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowHeaders: []string{"Content-Type"}})
 	require.Len(t, got, 1)
 	assert.Equal(t, "cors", got[0]["name"])
 	params := got[0]["params"].(map[string]interface{})
@@ -114,8 +114,8 @@ func TestBuildCardPolicies(t *testing.T) {
 // Card CORS is independent of operation CORS: the card can be public while the
 // operation routes allow no cross-origin callers at all.
 func TestBuildCardPoliciesIndependentOfAgentCORS(t *testing.T) {
-	cfg := &models.AgentConfig{CORSEnabled: false}
-	cfg.SetCardCORSOverride(&models.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowHeaders: []string{"Content-Type"}})
+	cfg := &gwmodels.AgentConfig{CORSEnabled: false}
+	cfg.SetCardCORSOverride(&gwmodels.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowHeaders: []string{"Content-Type"}})
 	assert.Len(t, buildCardPolicies(cfg.EffectiveCardCORS()), 1)
 	assert.Empty(t, buildPolicies(resolveAPIConfig(cfg, nil, nil, nil, nil, false)))
 }
@@ -161,8 +161,8 @@ func proxiedA2AInput() A2AAgentDeploymentInput {
 	in.DisplayName, in.AgentName = "weather", "weather"
 	in.UpstreamURL = "https://agent.example/team"
 	in.Transports = []A2ATransport{{ProtocolBinding: "JSONRPC", PathPrefix: "/a2a/jsonrpc"}, {ProtocolBinding: "HTTP+JSON"}}
-	authType, header, secret := models.AuthTypeAPIKey, "X-Upstream-Key", "c2VjcmV0"
-	in.UpstreamAuth = &models.UpstreamAuth{Type: &authType, Header: &header, SecretRef: &secret}
+	authType, header, secret := gwmodels.AuthTypeAPIKey, "X-Upstream-Key", "c2VjcmV0"
+	in.UpstreamAuth = &gwmodels.UpstreamAuth{Type: &authType, Header: &header, SecretRef: &secret}
 	return in
 }
 

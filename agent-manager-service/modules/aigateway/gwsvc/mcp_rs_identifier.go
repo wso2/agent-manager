@@ -25,7 +25,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -72,7 +72,7 @@ func (s *MCPProxyService) EnvironmentUUIDByName(ctx context.Context, ouID, envNa
 // MCPResourceServerIdentifier derives the absolute public URI the proxy is
 // invoked at in the given environment — the value the env-Thunder resource
 // server's identifier must carry.
-func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *models.MCPProxy) (string, error) {
+func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID string, envID uuid.UUID, proxy *gwmodels.MCPProxy) (string, error) {
 	_, ee := resolveMCPEndpointForEnv(proxy, envID.String())
 	if ee == nil || ee.ArtifactUUID == uuid.Nil {
 		return "", fmt.Errorf("%w: proxy %q, environment %s", ErrMCPProxyNotDeployedToEnvironment, proxyHandleOf(proxy), envID)
@@ -101,7 +101,7 @@ func (s *MCPProxyService) MCPResourceServerIdentifier(ctx context.Context, ouID 
 // identical server. Returns the resource server's Thunder ID.
 func (s *MCPProxyService) EnsureResourceServer(
 	ctx context.Context, ouID string, envID uuid.UUID, client thundersvc.EnvIdentityClient,
-	proxy *models.MCPProxy, actions []string,
+	proxy *gwmodels.MCPProxy, actions []string,
 ) (string, error) {
 	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
 	if err != nil {
@@ -111,7 +111,7 @@ func (s *MCPProxyService) EnsureResourceServer(
 }
 
 // mcpResourceServerDisplayName is the proxy's display name, falling back to its handle.
-func mcpResourceServerDisplayName(proxy *models.MCPProxy) string {
+func mcpResourceServerDisplayName(proxy *gwmodels.MCPProxy) string {
 	if proxy.Artifact != nil && proxy.Artifact.Name != "" {
 		return proxy.Artifact.Name
 	}
@@ -123,7 +123,7 @@ func mcpResourceServerDisplayName(proxy *models.MCPProxy) string {
 // LEGACY_DIRECT mode, the identity control plane in CP_MANAGED mode. It returns the resource
 // server's ID.
 func (s *MCPProxyService) ensureProxyResourceServerInEnv(
-	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
+	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *gwmodels.MCPProxy, actions []string,
 ) (string, error) {
 	identifier, err := s.MCPResourceServerIdentifier(ctx, ouID, envID, proxy)
 	if err != nil {
@@ -140,7 +140,7 @@ func (s *MCPProxyService) ensureProxyResourceServerInEnv(
 // environment, through the MCPResourceServerProvider, and returns the resource server's ID. Role
 // writes use it, so they reach the same server scope saves do, whichever identity mode is on.
 func (s *MCPProxyService) EnsureResourceServerInEnv(
-	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *models.MCPProxy, actions []string,
+	ctx context.Context, ouID string, envID uuid.UUID, envName string, proxy *gwmodels.MCPProxy, actions []string,
 ) (string, error) {
 	return s.ensureProxyResourceServerInEnv(ctx, ouID, envID, envName, proxy, actions)
 }
@@ -149,7 +149,7 @@ func (s *MCPProxyService) EnsureResourceServerInEnv(
 // and actions in every identity-secured, deployed environment. Called from
 // both scope save and proxy save, so whichever happens first fills in what
 // the other missed. Never returns an error: failures are logged and skipped.
-func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouID string, proxy *models.MCPProxy, actions []string) {
+func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouID string, proxy *gwmodels.MCPProxy, actions []string) {
 	hasIdentityEndpoint := false
 	for i := range proxy.Endpoints {
 		if mcpIdentityEnabled(proxy.Endpoints[i].Configuration.Security) {
@@ -204,7 +204,7 @@ func (s *MCPProxyService) EnsureResourceServersForProxy(ctx context.Context, ouI
 
 // ensureResourceServersForCurrentScopes loads proxy's current scopes and
 // delegates to EnsureResourceServersForProxy.
-func (s *MCPProxyService) ensureResourceServersForCurrentScopes(ctx context.Context, ouID string, proxy *models.MCPProxy) {
+func (s *MCPProxyService) ensureResourceServersForCurrentScopes(ctx context.Context, ouID string, proxy *gwmodels.MCPProxy) {
 	scopes, err := s.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
 	if err != nil {
 		s.logger.Warn("ensure resource server (proxy save): listing scopes failed", "proxy", proxyHandleOf(proxy), "error", err)

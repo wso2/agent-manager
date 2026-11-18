@@ -21,8 +21,8 @@ import (
 	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -57,7 +57,7 @@ func NewLLMProviderAPIKeyService(
 func (s *LLMProviderAPIKeyService) ListAPIKeys(
 	ctx context.Context,
 	orgID, providerID string,
-) (*models.ListAPIKeysResponse, error) {
+) (*gwmodels.ListAPIKeysResponse, error) {
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
@@ -71,15 +71,15 @@ func (s *LLMProviderAPIKeyService) ListAPIKeys(
 		return nil, fmt.Errorf("failed to list API keys: %w", err)
 	}
 
-	return &models.ListAPIKeysResponse{Keys: models.ToUserManagedAPIKeyInfos(stored)}, nil
+	return &gwmodels.ListAPIKeysResponse{Keys: gwmodels.ToUserManagedAPIKeyInfos(stored)}, nil
 }
 
 // CreateAPIKey generates an API key for an LLM provider and broadcasts it to all gateways
 func (s *LLMProviderAPIKeyService) CreateAPIKey(
 	ctx context.Context,
 	orgID, providerID string,
-	req *models.CreateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	req *gwmodels.CreateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
@@ -171,8 +171,8 @@ func (s *LLMProviderAPIKeyService) RevokeAllUserManagedKeys(
 func (s *LLMProviderAPIKeyService) RotateAPIKey(
 	ctx context.Context,
 	orgID, providerID, keyName string,
-	req *models.RotateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	req *gwmodels.RotateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	provider, err := s.providerRepo.GetByUUID(providerID, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
@@ -201,7 +201,7 @@ func (s *LLMProviderAPIKeyService) RotateAPIKey(
 // The Artifact relation carries the name and is preloaded by the repository,
 // but it is nil-guarded here so a missing join degrades the record rather than
 // panicking on the credential path.
-func llmProviderName(provider *models.LLMProvider) string {
+func llmProviderName(provider *gwmodels.LLMProvider) string {
 	if provider == nil || provider.Artifact == nil {
 		return ""
 	}

@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
@@ -33,19 +34,19 @@ import (
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/agent_env_config_variable_repository_mock.go . AgentEnvConfigVariableRepository:AgentEnvConfigVariableRepositoryMock
 type AgentEnvConfigVariableRepository interface {
 	// CreateBatch creates multiple variables (use within transaction)
-	CreateBatch(ctx context.Context, tx *gorm.DB, variables []models.AgentEnvConfigVariable) error
+	CreateBatch(ctx context.Context, tx *gorm.DB, variables []gwmodels.AgentEnvConfigVariable) error
 
 	// ListByConfigAndEnv retrieves variables for a config and environment
-	ListByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+	ListByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error)
 
 	// ListByConfig retrieves all variables for a config across all environments
-	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error)
 
 	// LockAndListByAgent serializes renames across an agent's configurations until transaction completion.
-	LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentID string) ([]models.AgentEnvConfigVariable, error)
+	LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentID string) ([]gwmodels.AgentEnvConfigVariable, error)
 
 	// ListByConfigForUpdate retrieves all variables for a config with a row-level lock (use within transaction)
-	ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+	ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error)
 
 	// UpdateVariableNames updates variable_name for matching variable_key entries across all envs (use within transaction)
 	UpdateVariableNames(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error
@@ -70,7 +71,7 @@ func NewAgentEnvConfigVariableRepository(db *gorm.DB) AgentEnvConfigVariableRepo
 	return &agentEnvConfigVariableRepository{db: db}
 }
 
-func (r *agentEnvConfigVariableRepository) CreateBatch(ctx context.Context, tx *gorm.DB, variables []models.AgentEnvConfigVariable) error {
+func (r *agentEnvConfigVariableRepository) CreateBatch(ctx context.Context, tx *gorm.DB, variables []gwmodels.AgentEnvConfigVariable) error {
 	if len(variables) == 0 {
 		return nil
 	}
@@ -83,28 +84,28 @@ func (r *agentEnvConfigVariableRepository) CreateBatch(ctx context.Context, tx *
 	return nil
 }
 
-func (r *agentEnvConfigVariableRepository) ListByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
-	var variables []models.AgentEnvConfigVariable
+func (r *agentEnvConfigVariableRepository) ListByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
+	var variables []gwmodels.AgentEnvConfigVariable
 	err := r.db.WithContext(ctx).
 		Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
 		Find(&variables).Error
 	return variables, err
 }
 
-func (r *agentEnvConfigVariableRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
-	var variables []models.AgentEnvConfigVariable
+func (r *agentEnvConfigVariableRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
+	var variables []gwmodels.AgentEnvConfigVariable
 	err := r.db.WithContext(ctx).
 		Where("config_id = ?", configUUID).
 		Find(&variables).Error
 	return variables, err
 }
 
-func (r *agentEnvConfigVariableRepository) ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
-	if _, err := dbx.LockRows(tx.WithContext(ctx), models.AgentEnvConfigVariable{}.TableName(), "variable_name",
+func (r *agentEnvConfigVariableRepository) ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
+	if _, err := dbx.LockRows(tx.WithContext(ctx), gwmodels.AgentEnvConfigVariable{}.TableName(), "variable_name",
 		"config_id = ?", configUUID); err != nil {
 		return nil, err
 	}
-	var variables []models.AgentEnvConfigVariable
+	var variables []gwmodels.AgentEnvConfigVariable
 	err := tx.WithContext(ctx).
 		Where("config_id = ?", configUUID).
 		Find(&variables).Error
@@ -114,7 +115,7 @@ func (r *agentEnvConfigVariableRepository) ListByConfigForUpdate(ctx context.Con
 func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error {
 	for key, name := range keyNameMap {
 		result := tx.WithContext(ctx).
-			Model(&models.AgentEnvConfigVariable{}).
+			Model(&gwmodels.AgentEnvConfigVariable{}).
 			Where("config_id = ? AND variable_key = ?", configUUID, key).
 			Update("variable_name", name)
 		if result.Error != nil {
@@ -126,7 +127,7 @@ func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Conte
 			// by checking whether any row matches the key at all.
 			var count int64
 			if err := tx.WithContext(ctx).
-				Model(&models.AgentEnvConfigVariable{}).
+				Model(&gwmodels.AgentEnvConfigVariable{}).
 				Where("config_id = ? AND variable_key = ?", configUUID, key).
 				Count(&count).Error; err != nil {
 				return err
@@ -143,13 +144,13 @@ func (r *agentEnvConfigVariableRepository) UpdateVariableNames(ctx context.Conte
 func (r *agentEnvConfigVariableRepository) DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
 		Where("config_id = ?", configUUID).
-		Delete(&models.AgentEnvConfigVariable{}).Error
+		Delete(&gwmodels.AgentEnvConfigVariable{}).Error
 }
 
 func (r *agentEnvConfigVariableRepository) DeleteByConfigAndEnv(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
 		Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
-		Delete(&models.AgentEnvConfigVariable{}).Error
+		Delete(&gwmodels.AgentEnvConfigVariable{}).Error
 }
 
 // ListSecretReferencesByAgentAndEnv returns nothing: secret references named secrets that hosted workloads mounted,
@@ -160,11 +161,11 @@ func (r *agentEnvConfigVariableRepository) ListSecretReferencesByAgentAndEnv(con
 
 // LockAndListByAgent takes the agent lock before any configuration row lock. A
 // separate read after acquisition sees names committed by a competing rename.
-func (r *agentEnvConfigVariableRepository) LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentID string) ([]models.AgentEnvConfigVariable, error) {
+func (r *agentEnvConfigVariableRepository) LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentID string) ([]gwmodels.AgentEnvConfigVariable, error) {
 	if _, err := repositories.LockAgent(ctx, tx, ouID, projectName, agentID); err != nil {
 		return nil, fmt.Errorf("lock agent variable names: %w", err)
 	}
-	var variables []models.AgentEnvConfigVariable
+	var variables []gwmodels.AgentEnvConfigVariable
 	err := tx.WithContext(ctx).Table("mod_ai_gateway_agent_model_config_vars v").Select("v.*").
 		Joins("JOIN mod_ai_gateway_agent_model_configs c ON c.id = v.config_id").
 		Where("c.org_id = ? AND c.agent_id IN (?)", ouID, models.AgentIDQuery(tx, ouID, projectName, agentID)).

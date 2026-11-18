@@ -30,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -367,7 +368,7 @@ func (s *AgentGatewayService) ReconcileAgentBindings(ctx context.Context, orgID,
 	if err != nil {
 		return err
 	}
-	projectName, agentName, err := models.AgentNamesByID(db, aid)
+	projectName, agentName, err := gwmodels.AgentNamesByID(db, aid)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil
 	}
@@ -550,7 +551,7 @@ func (s *AgentGatewayService) TeardownAgent(ctx context.Context, agentID string)
 
 // AgentConfigurations reads an agent's gateway settings in an environment
 // (nil when none are stored yet) and its bindings.
-func (s *AgentGatewayService) AgentConfigurations(ctx context.Context, ouID, projectName, agentName, environment string) (*models.AgentConfig, []AgentBinding, error) {
+func (s *AgentGatewayService) AgentConfigurations(ctx context.Context, ouID, projectName, agentName, environment string) (*gwmodels.AgentConfig, []AgentBinding, error) {
 	if _, err := services.GetProjectAgent(ctx, s.platform, ouID, projectName, agentName); err != nil {
 		return nil, nil, err
 	}

@@ -23,8 +23,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -68,7 +68,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 		return
 	}
 
-	var req models.DeployAPIRequest
+	var req gwmodels.DeployAPIRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("DeployLLMProvider: failed to decode request", "ouID", ouID, "providerID", providerID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")

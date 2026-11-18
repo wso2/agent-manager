@@ -26,19 +26,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
 // gatewayWithLLMPolicyManifest builds a Gateway whose Manifest advertises the given
 // policies, in the shape the gateway-controller actually pushes ({"policies": [...]}).
-func gatewayWithLLMPolicyManifest(policies ...map[string]interface{}) *models.Gateway {
+func gatewayWithLLMPolicyManifest(policies ...map[string]interface{}) *gwmodels.Gateway {
 	items := make([]interface{}, 0, len(policies))
 	for _, p := range policies {
 		items = append(items, p)
 	}
-	return &models.Gateway{Manifest: map[string]interface{}{"policies": items}}
+	return &gwmodels.Gateway{Manifest: map[string]interface{}{"policies": items}}
 }
 
 // -----------------------------------------------------------------------------
@@ -173,8 +173,8 @@ func TestIntersectActiveGatewayLLMPolicies_NilRepoReturnsEmpty(t *testing.T) {
 
 func TestIntersectActiveGatewayLLMPolicies_SingleGateway(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				gatewayWithLLMPolicyManifest(map[string]interface{}{"name": "word-count-guardrail", "version": "v1"}),
 			}, nil
 		},
@@ -191,13 +191,13 @@ func TestIntersectActiveGatewayLLMPolicies_SingleGateway(t *testing.T) {
 // org's guardrail picker: it is left out until it reports.
 func TestIntersectActiveGatewayLLMPolicies_SkipsGatewayThatHasNotReported(t *testing.T) {
 	clearGatewayManifestCache(t)
-	reported := newGateway(t, models.GatewayRoleBoth, true)
+	reported := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	require.NoError(t, gatewayManifestCache.Set(context.Background(), reported.UUID.String(),
 		policyManifest("word-count-guardrail", "v1")))
-	silent := newGateway(t, models.GatewayRoleBoth, true)
+	silent := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{reported, silent}, nil
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{reported, silent}, nil
 		},
 	}
 
@@ -212,8 +212,8 @@ func TestIntersectActiveGatewayLLMPolicies_SkipsGatewayThatHasNotReported(t *tes
 func TestIntersectActiveGatewayLLMPolicies_NothingReportedIsEmpty(t *testing.T) {
 	clearGatewayManifestCache(t)
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{newGateway(t, models.GatewayRoleBoth, true)}, nil
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{newGateway(t, gwmodels.GatewayRoleBoth, true)}, nil
 		},
 	}
 
@@ -225,8 +225,8 @@ func TestIntersectActiveGatewayLLMPolicies_NothingReportedIsEmpty(t *testing.T) 
 
 func TestIntersectActiveGatewayLLMPolicies_OverlappingPoliciesSurvive(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				gatewayWithLLMPolicyManifest(
 					map[string]interface{}{"name": "shared-policy", "version": "v1"},
 					map[string]interface{}{"name": "only-on-first", "version": "v1"},
@@ -249,8 +249,8 @@ func TestIntersectActiveGatewayLLMPolicies_OverlappingPoliciesSurvive(t *testing
 
 func TestIntersectActiveGatewayLLMPolicies_VersionMismatchFallsBackToLowest(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				// Old gateway, not yet upgraded.
 				gatewayWithLLMPolicyManifest(
 					map[string]interface{}{"name": "pii-filter", "version": "1.0.0"},
@@ -275,8 +275,8 @@ func TestIntersectActiveGatewayLLMPolicies_VersionMismatchFallsBackToLowest(t *t
 
 func TestIntersectActiveGatewayLLMPolicies_MissingFromOneGatewayStaysExcluded(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				gatewayWithLLMPolicyManifest(
 					map[string]interface{}{"name": "pii-filter", "version": "1.0.0"},
 				),
@@ -296,8 +296,8 @@ func TestIntersectActiveGatewayLLMPolicies_MissingFromOneGatewayStaysExcluded(t 
 
 func TestIntersectActiveGatewayLLMPolicies_VersionMismatchUsesSemverComparison(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				gatewayWithLLMPolicyManifest(
 					map[string]interface{}{"name": "pii-filter", "version": "1.9.0"},
 				),
@@ -319,8 +319,8 @@ func TestIntersectActiveGatewayLLMPolicies_VersionMismatchUsesSemverComparison(t
 
 func TestIntersectActiveGatewayLLMPolicies_VersionMismatchStripsVPrefixForSemverComparison(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				gatewayWithLLMPolicyManifest(
 					map[string]interface{}{"name": "pii-filter", "version": "v2"},
 				),
@@ -343,9 +343,9 @@ func TestIntersectActiveGatewayLLMPolicies_VersionMismatchStripsVPrefixForSemver
 func TestIntersectActiveGatewayLLMPolicies_OnlyActiveGatewaysQueried(t *testing.T) {
 	var capturedFilters gwrepo.GatewayFilterOptions
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			capturedFilters = filters
-			return []*models.Gateway{}, nil
+			return []*gwmodels.Gateway{}, nil
 		},
 	}
 
@@ -355,13 +355,13 @@ func TestIntersectActiveGatewayLLMPolicies_OnlyActiveGatewaysQueried(t *testing.
 	assert.Equal(t, "org-uuid", capturedFilters.OrganizationID)
 	require.NotNil(t, capturedFilters.Status)
 	assert.True(t, *capturedFilters.Status)
-	assert.Equal(t, models.GatewayHostingManaged, capturedFilters.Hosting)
+	assert.Equal(t, gwmodels.GatewayHostingManaged, capturedFilters.Hosting)
 }
 
 func TestIntersectActiveGatewayLLMPolicies_RepoErrorIsWrapped(t *testing.T) {
 	boom := errors.New("db unreachable")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			return nil, boom
 		},
 	}
@@ -399,7 +399,7 @@ func TestIntersectDeployedGatewayLLMPolicies_ScopesToDeployedGatewaysOnly(t *tes
 		},
 	}
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(gatewayId string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(gatewayId string) (*gwmodels.Gateway, error) {
 			assert.Equal(t, deployedGatewayID, gatewayId)
 			gw := gatewayWithLLMPolicyManifest(
 				map[string]interface{}{"name": "deployed-policy", "version": "v1"},
@@ -424,7 +424,7 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsGatewayFromAnotherOrg(t *testi
 		},
 	}
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
 			gw := gatewayWithLLMPolicyManifest(
 				map[string]interface{}{"name": "cross-org-policy", "version": "v1"},
 			)
@@ -446,7 +446,7 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsStaleGatewayReference(t *testi
 		},
 	}
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}

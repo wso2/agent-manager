@@ -25,7 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
@@ -34,12 +34,12 @@ import (
 func TestRedeployMCPProxyQueuesNothingWhenAnArtifactFailsToRender(t *testing.T) {
 	healthy, broken := uuid.New(), uuid.New()
 	loadErr := errors.New("connection reset")
-	kind := &MCPProxyKind{load: func(_ context.Context, artifact models.ArtifactRef) (*mcpArtifact, error) {
+	kind := &MCPProxyKind{load: func(_ context.Context, artifact gwmodels.ArtifactRef) (*mcpArtifact, error) {
 		if artifact.ArtifactUUID == broken {
 			return nil, loadErr
 		}
-		return &mcpArtifact{deployable: &models.MCPProxy{Handle: "proxy", Configuration: models.MCPProxyConfig{
-			Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"}},
+		return &mcpArtifact{deployable: &gwmodels.MCPProxy{Handle: "proxy", Configuration: gwmodels.MCPProxyConfig{
+			Upstream: gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"}},
 		}}, proxyHandle: "proxy"}, nil
 	}}
 	// QueueRenderFunc is nil: queueing a redeploy panics.
@@ -47,8 +47,8 @@ func TestRedeployMCPProxyQueuesNothingWhenAnArtifactFailsToRender(t *testing.T) 
 		slog.New(slog.DiscardHandler))
 	svc := NewMCPProxyService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler), nil,
 		nil, nil, core, kind, nil)
-	proxy := &models.MCPProxy{Endpoints: []models.MCPProxyEndpoint{{
-		Environments: []models.MCPProxyEndpointEnvironment{{ArtifactUUID: healthy}, {ArtifactUUID: broken}},
+	proxy := &gwmodels.MCPProxy{Endpoints: []gwmodels.MCPProxyEndpoint{{
+		Environments: []gwmodels.MCPProxyEndpointEnvironment{{ArtifactUUID: healthy}, {ArtifactUUID: broken}},
 	}}}
 
 	err := svc.RedeployMCPProxy(context.Background(), proxy, "ou-1")

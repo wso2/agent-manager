@@ -31,26 +31,26 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // DeploymentResult captures the outcome of deploying to a single gateway.
-type DeploymentResult = models.GatewayDeploymentResult
+type DeploymentResult = gwmodels.GatewayDeploymentResult
 
 // CreateAndDeployResponse contains the created provider and deployment results
 type CreateAndDeployResponse struct {
-	Provider    *models.LLMProvider `json:"provider"`
-	Deployments []DeploymentResult  `json:"deployments"`
+	Provider    *gwmodels.LLMProvider `json:"provider"`
+	Deployments []DeploymentResult    `json:"deployments"`
 }
 
 // UpdateAndSyncResponse contains the updated provider and sync results
 type UpdateAndSyncResponse struct {
-	Provider      *models.LLMProvider `json:"provider"`
-	Deployments   []DeploymentResult  `json:"deployments"`   // Results for new gateway deployments
-	Undeployments []DeploymentResult  `json:"undeployments"` // Results for removed gateway undeployments
+	Provider      *gwmodels.LLMProvider `json:"provider"`
+	Deployments   []DeploymentResult    `json:"deployments"`   // Results for new gateway deployments
+	Undeployments []DeploymentResult    `json:"undeployments"` // Results for removed gateway undeployments
 }
 
 // LLMProviderService handles LLM provider business logic
@@ -143,7 +143,7 @@ func summarizeDeploymentFailures(results []DeploymentResult) string {
 }
 
 // resolveTemplate returns the built-in or org-owned template behind handle.
-func (s *LLMProviderService) resolveTemplate(handle, ouID string) (*models.LLMProviderTemplate, error) {
+func (s *LLMProviderService) resolveTemplate(handle, ouID string) (*gwmodels.LLMProviderTemplate, error) {
 	if builtin := s.templateStore.Get(handle); builtin != nil {
 		return builtin, nil
 	}
@@ -169,7 +169,7 @@ func (s *LLMProviderService) resolveTemplate(handle, ouID string) (*models.LLMPr
 //
 // Caller-supplied values always win, and this must run before the credential is
 // encrypted so the template's value prefix lands inside the ciphertext.
-func applyTemplateUpstreamDefaults(provider *models.LLMProvider, template *models.LLMProviderTemplate) {
+func applyTemplateUpstreamDefaults(provider *gwmodels.LLMProvider, template *gwmodels.LLMProviderTemplate) {
 	meta := template.Metadata
 	hasInheritableDefaults := meta != nil && (meta.EndpointURL != "" || meta.Auth != nil)
 	if !hasInheritableDefaults {
@@ -177,10 +177,10 @@ func applyTemplateUpstreamDefaults(provider *models.LLMProvider, template *model
 	}
 
 	if provider.Configuration.Upstream == nil {
-		provider.Configuration.Upstream = &models.UpstreamConfig{}
+		provider.Configuration.Upstream = &gwmodels.UpstreamConfig{}
 	}
 	if provider.Configuration.Upstream.Main == nil {
-		provider.Configuration.Upstream.Main = &models.UpstreamEndpoint{}
+		provider.Configuration.Upstream.Main = &gwmodels.UpstreamEndpoint{}
 	}
 	main := provider.Configuration.Upstream.Main
 
@@ -196,9 +196,9 @@ func applyTemplateUpstreamDefaults(provider *models.LLMProvider, template *model
 // template declares. An endpoint that has a URL but no auth block still gets the
 // template's scheme, so `--upstream-url` without a credential no longer produces a
 // provider that cannot authenticate.
-func applyTemplateAuthDefaults(auth *models.UpstreamAuth, templateAuth *models.LLMProviderTemplateAuth) *models.UpstreamAuth {
+func applyTemplateAuthDefaults(auth *gwmodels.UpstreamAuth, templateAuth *gwmodels.LLMProviderTemplateAuth) *gwmodels.UpstreamAuth {
 	if auth == nil {
-		auth = &models.UpstreamAuth{}
+		auth = &gwmodels.UpstreamAuth{}
 	}
 	// Copied rather than aliased: for a built-in handle templateAuth points into the
 	// process-wide template store, so handing out &templateAuth.Type would let a write
@@ -220,18 +220,18 @@ func applyTemplateAuthDefaults(auth *models.UpstreamAuth, templateAuth *models.L
 }
 
 // resolveProvider looks up a provider by UUID or handle.
-func (s *LLMProviderService) resolveProvider(identifier, ouID string) (*models.LLMProvider, error) {
+func (s *LLMProviderService) resolveProvider(identifier, ouID string) (*gwmodels.LLMProvider, error) {
 	if _, err := uuid.Parse(identifier); err == nil {
 		return s.providerRepo.GetByUUID(identifier, ouID)
 	}
 	return s.providerRepo.GetByHandle(identifier, ouID)
 }
 
-// validateProxyAPIKeyLocation adapts models.SecurityConfig.ValidateAPIKeyLocation — the
+// validateProxyAPIKeyLocation adapts gwmodels.SecurityConfig.ValidateAPIKeyLocation — the
 // single definition of which locations the gateway can enforce — to the ErrInvalidInput
 // convention this package's callers expect, so a rejected location surfaces as a 400
 // rather than a 500.
-func validateProxyAPIKeyLocation(provider *models.LLMProvider) error {
+func validateProxyAPIKeyLocation(provider *gwmodels.LLMProvider) error {
 	if provider == nil {
 		return nil
 	}
@@ -247,7 +247,7 @@ func validateProxyAPIKeyLocation(provider *models.LLMProvider) error {
 // proxies) all agree on one name up front instead of each resolving a blank value
 // separately. Only the name defaults; the location is left as the caller set it, having
 // already been held to header-only by validateProxyAPIKeyLocation.
-func applyDefaultProxyAPIKeyHeader(provider *models.LLMProvider) {
+func applyDefaultProxyAPIKeyHeader(provider *gwmodels.LLMProvider) {
 	sec := provider.Configuration.Security
 	if !isAPIKeyAuthEnabled(sec) {
 		return
@@ -259,7 +259,7 @@ func applyDefaultProxyAPIKeyHeader(provider *models.LLMProvider) {
 }
 
 // Create creates a new LLM provider
-func (s *LLMProviderService) Create(ctx context.Context, ouID, createdBy string, provider *models.LLMProvider) (*models.LLMProvider, error) {
+func (s *LLMProviderService) Create(ctx context.Context, ouID, createdBy string, provider *gwmodels.LLMProvider) (*gwmodels.LLMProvider, error) {
 	if err := s.prepareProvider(ouID, createdBy, provider); err != nil {
 		return nil, err
 	}
@@ -267,7 +267,7 @@ func (s *LLMProviderService) Create(ctx context.Context, ouID, createdBy string,
 }
 
 // prepareProvider validates a new provider, fills its defaults from its template and encrypts its upstream key.
-func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *models.LLMProvider) error {
+func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *gwmodels.LLMProvider) error {
 	slog.Info("LLMProviderService.Create: starting", "ouID", ouID, "createdBy", createdBy)
 
 	if provider == nil {
@@ -387,7 +387,7 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *m
 }
 
 // insertProvider stores a prepared provider and runs then in the same transaction, then reads it back.
-func (s *LLMProviderService) insertProvider(ouID string, provider *models.LLMProvider, then func(tx *gorm.DB) error) (*models.LLMProvider, error) {
+func (s *LLMProviderService) insertProvider(ouID string, provider *gwmodels.LLMProvider, then func(tx *gorm.DB) error) (*gwmodels.LLMProvider, error) {
 	handle := provider.Configuration.Handle
 	slog.Info("LLMProviderService.Create: creating provider in database", "ouID", ouID, "handle", handle)
 	err := s.db.Transaction(func(tx *gorm.DB) error {
@@ -433,7 +433,7 @@ func (s *LLMProviderService) insertProvider(ouID string, provider *models.LLMPro
 }
 
 // List lists all LLM providers for an organization
-func (s *LLMProviderService) List(ouID string, limit, offset int) ([]*models.LLMProvider, int, error) {
+func (s *LLMProviderService) List(ouID string, limit, offset int) ([]*gwmodels.LLMProvider, int, error) {
 	slog.Info("LLMProviderService.List: starting", "ouID", ouID, "limit", limit, "offset", offset)
 
 	providers, err := s.providerRepo.List(ouID, limit, offset)
@@ -469,7 +469,7 @@ func (s *LLMProviderService) List(ouID string, limit, offset int) ([]*models.LLM
 // without depending on the external policy hub. When providerID is non-empty, the result
 // is scoped to the gateways that provider is currently deployed to, instead of every
 // active gateway in the org.
-func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID, providerID string) (*models.LLMPolicyAvailabilityResponse, error) {
+func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID, providerID string) (*gwmodels.LLMPolicyAvailabilityResponse, error) {
 	var available map[string]llmPolicyManifestItem
 	var err error
 	if providerID != "" {
@@ -492,9 +492,9 @@ func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID,
 	}
 
 	sorted := sortedLLMPolicyManifestItems(available)
-	items := make([]models.LLMPolicyDefinition, 0, len(sorted))
+	items := make([]gwmodels.LLMPolicyDefinition, 0, len(sorted))
 	for _, item := range sorted {
-		items = append(items, models.LLMPolicyDefinition{
+		items = append(items, gwmodels.LLMPolicyDefinition{
 			Name:             item.Name,
 			Version:          item.Version,
 			DisplayName:      item.DisplayName,
@@ -504,14 +504,14 @@ func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID,
 		})
 	}
 
-	return &models.LLMPolicyAvailabilityResponse{
+	return &gwmodels.LLMPolicyAvailabilityResponse{
 		Count: int32(len(items)),
 		List:  items,
 	}, nil
 }
 
 // Get retrieves an LLM provider by ID
-func (s *LLMProviderService) Get(providerID, ouID string) (*models.LLMProvider, error) {
+func (s *LLMProviderService) Get(providerID, ouID string) (*gwmodels.LLMProvider, error) {
 	slog.Info("LLMProviderService.Get: starting", "ouID", ouID, "providerID", providerID)
 
 	if providerID == "" {
@@ -547,7 +547,7 @@ func (s *LLMProviderService) Get(providerID, ouID string) (*models.LLMProvider, 
 }
 
 // Update updates an existing LLM provider
-func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string, updates *models.LLMProvider) (*models.LLMProvider, error) {
+func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string, updates *gwmodels.LLMProvider) (*gwmodels.LLMProvider, error) {
 	slog.Info("LLMProviderService.Update: starting", "ouID", ouID, "providerID", providerID)
 
 	if providerID == "" || updates == nil {
@@ -850,7 +850,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 var ErrAllGatewayDeploymentsFailed = errors.New("all gateway deployments failed")
 
 // UpdateAndSync updates an LLM provider and syncs its gateway deployments
-func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID string, updates *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
+func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID string, updates *gwmodels.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*UpdateAndSyncResponse, error) {
 	slog.Info("LLMProviderService.UpdateAndSync: starting", "providerID", providerID, "ouID", ouID, "gatewayCount", len(gatewayIDs))
 
 	// First, update the provider using the existing Update method
@@ -961,7 +961,7 @@ func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID
 			attemptedDeployments++
 			slog.Info("LLMProviderService.UpdateAndSync: deploying to new gateway", "providerID", providerID, "gatewayID", gatewayID)
 
-			deployReq := &models.DeployAPIRequest{GatewayID: gatewayID}
+			deployReq := &gwmodels.DeployAPIRequest{GatewayID: gatewayID}
 
 			if _, err := deploymentService.DeployLLMProvider(providerID, deployReq, ouID); err != nil {
 				slog.Error("LLMProviderService.UpdateAndSync: failed to deploy to new gateway", "providerID", providerID, "gatewayID", gatewayID, "error", err)
@@ -981,7 +981,7 @@ func (s *LLMProviderService) UpdateAndSync(ctx context.Context, providerID, ouID
 		} else {
 			attemptedDeployments++
 			slog.Info("LLMProviderService.UpdateAndSync: updating the current deployment", "providerID", providerID, "gatewayID", gatewayID)
-			deployReq := &models.DeployAPIRequest{GatewayID: gatewayID}
+			deployReq := &gwmodels.DeployAPIRequest{GatewayID: gatewayID}
 
 			if _, err := deploymentService.DeployLLMProvider(providerID, deployReq, ouID); err != nil {
 				slog.Error("LLMProviderService.UpdateAndSync: failed to update deployment in gateway", "providerID", providerID, "gatewayID", gatewayID, "error", err)
@@ -1060,7 +1060,7 @@ const proxyAuthSyncPageSize = 100
 // providerProxyAPIKeySecurity resolves (see llm_deployment_service), so the upstream hop
 // has to resolve it the same way: leaving it blank would forward the credential under no
 // name at all, to a gateway that is checking for the default.
-func providerUpstreamAPIKeyHeader(provider *models.LLMProvider) string {
+func providerUpstreamAPIKeyHeader(provider *gwmodels.LLMProvider) string {
 	if provider == nil {
 		return ""
 	}
@@ -1078,14 +1078,14 @@ func providerUpstreamAPIKeyHeader(provider *models.LLMProvider) string {
 }
 
 // providerUpstreamAPIKeyAuth resolves the header a freshly provisioned proxy must forward
-// the provider's credential under, refusing a location models.UpstreamAuth cannot express
+// the provider's credential under, refusing a location gwmodels.UpstreamAuth cannot express
 // — it can only name a header, so such a proxy would send the key where the provider's
 // gateway never looks and every call through it would fail to authenticate. Failing
 // provisioning surfaces that limit instead of shipping a broken proxy.
 //
 // It shares one rule with the provider write path, so a location refused at save is
 // refused here too, on the legacy rows that were stored before that rule existed.
-func providerUpstreamAPIKeyAuth(provider *models.LLMProvider) (string, error) {
+func providerUpstreamAPIKeyAuth(provider *gwmodels.LLMProvider) (string, error) {
 	if err := validateProxyAPIKeyLocation(provider); err != nil {
 		return "", fmt.Errorf("provider %q: %w", provider.Configuration.Handle, err)
 	}
@@ -1097,7 +1097,7 @@ func providerUpstreamAPIKeyAuth(provider *models.LLMProvider) (string, error) {
 // a sync for an edit that left provider security untouched — every other field update
 // should not redeploy the fleet. A nil provider on either side is treated as changed,
 // since there is nothing to compare against.
-func ProviderAuthHeadersChanged(existing, updated *models.LLMProvider) bool {
+func ProviderAuthHeadersChanged(existing, updated *gwmodels.LLMProvider) bool {
 	if existing == nil || updated == nil {
 		return true
 	}
@@ -1122,7 +1122,7 @@ func ProviderAuthHeadersChanged(existing, updated *models.LLMProvider) bool {
 // returned error covers only a failure to enumerate dependents.
 func (s *LLMProviderService) SyncDependentProxyAuthHeaders(
 	ctx context.Context,
-	provider *models.LLMProvider,
+	provider *gwmodels.LLMProvider,
 	ouID string,
 	proxyService *LLMProxyService,
 	proxyDeploymentService *LLMProxyDeploymentService,
@@ -1186,7 +1186,7 @@ func (s *LLMProviderService) SyncDependentProxyAuthHeaders(
 
 // proxyAuthHeadersStale reports which of a proxy's two hops differ from what its provider
 // now implies, so an edit that leaves security alone redeploys nothing.
-func proxyAuthHeadersStale(proxy *models.LLMProxy, ingress *models.SecurityConfig, upstreamHeader string) (bool, bool) {
+func proxyAuthHeadersStale(proxy *gwmodels.LLMProxy, ingress *gwmodels.SecurityConfig, upstreamHeader string) (bool, bool) {
 	return proxyIngressStale(proxy, ingress),
 		proxyUpstreamAuthAction(proxy, upstreamHeader) != upstreamAuthUnchanged
 }
@@ -1194,7 +1194,7 @@ func proxyAuthHeadersStale(proxy *models.LLMProxy, ingress *models.SecurityConfi
 // proxyIngressStale compares the requirement first, then name and location. Requirement
 // has to come first: a disabled config resolves to the same default name as an enabled
 // one, so comparing names alone couldn't see auth being turned off.
-func proxyIngressStale(proxy *models.LLMProxy, ingress *models.SecurityConfig) bool {
+func proxyIngressStale(proxy *gwmodels.LLMProxy, ingress *gwmodels.SecurityConfig) bool {
 	// A gateway with no recorded deployment of the stored config has nothing queued to
 	// replay, so it stays on the previous auth policy until another sync redeploys it.
 	// The stored config already matches the target, hence this cannot be inferred from
@@ -1209,8 +1209,8 @@ func proxyIngressStale(proxy *models.LLMProxy, ingress *models.SecurityConfig) b
 	if !ingress.RequiresAPIKey() {
 		return false
 	}
-	currentName, currentIn := current.APIKeyNameAndLocation(models.DefaultLLMProxyAPIKeyHeader)
-	targetName, targetIn := ingress.APIKeyNameAndLocation(models.DefaultLLMProxyAPIKeyHeader)
+	currentName, currentIn := current.APIKeyNameAndLocation(gwmodels.DefaultLLMProxyAPIKeyHeader)
+	targetName, targetIn := ingress.APIKeyNameAndLocation(gwmodels.DefaultLLMProxyAPIKeyHeader)
 	return currentName != targetName || currentIn != targetIn
 }
 
@@ -1233,7 +1233,7 @@ const (
 // proxyUpstreamAuthAction decides what the upstream hop needs. Renaming alone isn't
 // enough: a proxy provisioned while its provider was unsecured has no UpstreamAuth at
 // all, so enabling auth later left it calling the provider anonymously.
-func proxyUpstreamAuthAction(proxy *models.LLMProxy, upstreamHeader string) upstreamAuthAction {
+func proxyUpstreamAuthAction(proxy *gwmodels.LLMProxy, upstreamHeader string) upstreamAuthAction {
 	upstream := proxy.Configuration.UpstreamAuth
 	hasCredential := upstream != nil && (upstream.SecretRef != nil || upstream.Value != nil)
 
@@ -1257,12 +1257,12 @@ func proxyUpstreamAuthAction(proxy *models.LLMProxy, upstreamHeader string) upst
 // is written here, so a failure leaves the proxy as it was.
 func (s *LLMProviderService) nextProxyUpstreamAuth(
 	ctx context.Context,
-	proxy *models.LLMProxy,
+	proxy *gwmodels.LLMProxy,
 	ouID string,
-	provider *models.LLMProvider,
+	provider *gwmodels.LLMProvider,
 	upstreamHeader string,
 	action upstreamAuthAction,
-) (*models.UpstreamAuth, error) {
+) (*gwmodels.UpstreamAuth, error) {
 	switch action {
 	case upstreamAuthRename:
 		renamed := *proxy.Configuration.UpstreamAuth
@@ -1277,10 +1277,10 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 			)
 		}
 		keyName := proxy.Configuration.Name
-		apiKey, err := s.apiKeyService.CreateAPIKey(ctx, ouID, provider.UUID.String(), &models.CreateAPIKeyRequest{
+		apiKey, err := s.apiKeyService.CreateAPIKey(ctx, ouID, provider.UUID.String(), &gwmodels.CreateAPIKeyRequest{
 			Name:        keyName,
 			DisplayName: keyName,
-			Purpose:     models.APIKeyPurposeConsoleManaged,
+			Purpose:     gwmodels.APIKeyPurposeConsoleManaged,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to mint upstream api key for proxy %s: %w", proxy.Handle, err)
@@ -1293,8 +1293,8 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 			}
 			return nil, fmt.Errorf("failed to encrypt upstream api key for proxy %s: %w", proxy.Handle, err)
 		}
-		return &models.UpstreamAuth{
-			Type:      utils.StrAsStrPointer(models.AuthTypeAPIKey),
+		return &gwmodels.UpstreamAuth{
+			Type:      utils.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
 			Header:    utils.StrAsStrPointer(upstreamHeader),
 			SecretRef: &encoded,
 		}, nil
@@ -1309,9 +1309,9 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 // target is rebuilt per proxy so each carries its own block rather than sharing one.
 func (s *LLMProviderService) syncProxyAuthHeader(
 	ctx context.Context,
-	proxy *models.LLMProxy,
+	proxy *gwmodels.LLMProxy,
 	ouID string,
-	provider *models.LLMProvider,
+	provider *gwmodels.LLMProvider,
 	upstreamHeader string,
 	proxyService *LLMProxyService,
 	proxyDeploymentService *LLMProxyDeploymentService,
@@ -1327,7 +1327,7 @@ func (s *LLMProviderService) syncProxyAuthHeader(
 	// ingress block is kept only to undo the in-memory change if building the upstream
 	// credential fails. The whole security block is swapped, not its fields — a proxy
 	// changing requirement may have no api-key block.
-	var priorSecurity *models.SecurityConfig
+	var priorSecurity *gwmodels.SecurityConfig
 	if ingressStale {
 		priorSecurity = proxy.Configuration.Security
 		proxy.Configuration.Security = ingress
@@ -1391,7 +1391,7 @@ func (s *LLMProviderService) syncProxyAuthHeader(
 }
 
 // ListProxiesByProvider lists all LLM proxies for a provider
-func (s *LLMProviderService) ListProxiesByProvider(providerID, ouID string, limit, offset int) ([]*models.LLMProxy, int, error) {
+func (s *LLMProviderService) ListProxiesByProvider(providerID, ouID string, limit, offset int) ([]*gwmodels.LLMProxy, int, error) {
 	if providerID == "" {
 		return nil, 0, utils.ErrInvalidInput
 	}
@@ -1420,7 +1420,7 @@ func (s *LLMProviderService) ListProxiesByProvider(providerID, ouID string, limi
 }
 
 // CreateAndDeploy creates an LLM provider and deploys it to the specified gateways
-func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdBy string, provider *models.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*CreateAndDeployResponse, error) {
+func (s *LLMProviderService) CreateAndDeploy(ctx context.Context, ouID, createdBy string, provider *gwmodels.LLMProvider, gatewayIDs []string, deploymentService *LLMProviderDeploymentService) (*CreateAndDeployResponse, error) {
 	slog.Info("LLMProviderService.CreateAndDeploy: starting", "ouID", ouID, "createdBy", createdBy, "gatewayCount", len(gatewayIDs))
 
 	// Validate gateway UUIDs
@@ -1536,7 +1536,7 @@ func (s *LLMProviderService) GetProviderGatewayMapping(ctx context.Context, prov
 }
 
 // UpdateCatalogStatus updates the catalog visibility status of an LLM provider
-func (s *LLMProviderService) UpdateCatalogStatus(providerID, ouID string, inCatalog bool) (*models.LLMProvider, error) {
+func (s *LLMProviderService) UpdateCatalogStatus(providerID, ouID string, inCatalog bool) (*gwmodels.LLMProvider, error) {
 	slog.Info("LLMProviderService.UpdateCatalogStatus: starting", "providerID", providerID, "ouID", ouID, "inCatalog", inCatalog)
 
 	// Validate UUIDs

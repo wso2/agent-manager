@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -34,33 +35,33 @@ import (
 
 const orgPickerUpstream = "https://internal.example.com/mcp"
 
-func orgPickerOrgProxy() *models.MCPProxy {
-	return &models.MCPProxy{UUID: uuid.New(), Artifact: &models.Artifact{Handle: "org-mcp", Name: "Org MCP", Version: "v1"}}
+func orgPickerOrgProxy() *gwmodels.MCPProxy {
+	return &gwmodels.MCPProxy{UUID: uuid.New(), Artifact: &gwmodels.Artifact{Handle: "org-mcp", Name: "Org MCP", Version: "v1"}}
 }
 
-func orgPickerProjectProxy() *models.MCPProxy {
+func orgPickerProjectProxy() *gwmodels.MCPProxy {
 	projUUID, projName := "proj-uuid", "p1"
-	return &models.MCPProxy{
+	return &gwmodels.MCPProxy{
 		UUID:        uuid.New(),
 		ProjectUUID: &projUUID,
 		ProjectName: &projName,
-		Artifact:    &models.Artifact{Handle: "p1-mcp", Name: "P1 MCP", Version: "v1"},
-		Endpoints: []models.MCPProxyEndpoint{{
+		Artifact:    &gwmodels.Artifact{Handle: "p1-mcp", Name: "P1 MCP", Version: "v1"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{{
 			UUID:   uuid.New(),
 			Handle: "primary",
-			Configuration: models.MCPEndpointConfig{
-				Upstream: &models.UpstreamEndpoint{URL: orgPickerUpstream, Auth: &models.UpstreamAuth{}},
+			Configuration: gwmodels.MCPEndpointConfig{
+				Upstream: &gwmodels.UpstreamEndpoint{URL: orgPickerUpstream, Auth: &gwmodels.UpstreamAuth{}},
 			},
 		}},
 	}
 }
 
 // orgPickerSvc serves the proxies by handle and records the filter List was called with.
-func orgPickerSvc(filter *gwrepo.MCPProxyListFilter, proxies ...*models.MCPProxy) *MCPProxyService {
+func orgPickerSvc(filter *gwrepo.MCPProxyListFilter, proxies ...*gwmodels.MCPProxy) *MCPProxyService {
 	return &MCPProxyService{
 		logger: slog.Default(),
 		repo: &gwrepomocks.MCPProxyRepositoryMock{
-			GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
+			GetByHandleFunc: func(_ context.Context, handle, _ string) (*gwmodels.MCPProxy, error) {
 				for _, p := range proxies {
 					if p.Artifact.Handle == handle {
 						return p, nil
@@ -68,11 +69,11 @@ func orgPickerSvc(filter *gwrepo.MCPProxyListFilter, proxies ...*models.MCPProxy
 				}
 				return nil, utils.ErrMCPProxyNotFound
 			},
-			ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+			ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 				if filter != nil {
 					*filter = f
 				}
-				var out []*models.MCPProxy
+				var out []*gwmodels.MCPProxy
 				for _, p := range proxies {
 					switch {
 					case p.ProjectUUID == nil:
@@ -115,7 +116,7 @@ func TestOrgListWithProjectIncludesBoth(t *testing.T) {
 	require.Len(t, resp.List, 2)
 	assert.Equal(t, 2, resp.Count)
 	assert.EqualValues(t, 2, resp.Pagination.Count)
-	byID := map[string]models.MCPProxyListItem{}
+	byID := map[string]gwmodels.MCPProxyListItem{}
 	for _, it := range resp.List {
 		byID[*it.ID] = it
 	}
@@ -140,9 +141,9 @@ func TestOrgGetProjectProxyIsReadOnlyNoEndpoints(t *testing.T) {
 
 func TestOrgGetOrgProxyKeepsUpstreamAndHasNoProjectName(t *testing.T) {
 	p := orgPickerOrgProxy()
-	p.Endpoints = []models.MCPProxyEndpoint{{
+	p.Endpoints = []gwmodels.MCPProxyEndpoint{{
 		UUID: uuid.New(), Handle: "primary",
-		Configuration: models.MCPEndpointConfig{Upstream: &models.UpstreamEndpoint{URL: orgPickerUpstream}},
+		Configuration: gwmodels.MCPEndpointConfig{Upstream: &gwmodels.UpstreamEndpoint{URL: orgPickerUpstream}},
 	}}
 	svc := orgPickerSvc(nil, p)
 
@@ -157,7 +158,7 @@ func TestOrgGetOrgProxyKeepsUpstreamAndHasNoProjectName(t *testing.T) {
 func TestOrgUpdateProjectProxy_409ProjectOwned(t *testing.T) {
 	svc := orgPickerSvc(nil, orgPickerProjectProxy())
 
-	_, err := svc.Update(context.Background(), "org", "p1-mcp", &models.MCPProxyDTO{ID: "p1-mcp", Name: "x", Version: "v1"})
+	_, err := svc.Update(context.Background(), "org", "p1-mcp", &gwmodels.MCPProxyDTO{ID: "p1-mcp", Name: "x", Version: "v1"})
 	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
 }
 
@@ -174,9 +175,9 @@ func TestScopeMutationsOnProjectProxy_ProjectOwned(t *testing.T) {
 	svc := newScopeSvcForTest(scopeRepo, proxy)
 	ctx := context.Background()
 
-	_, err := svc.Create(ctx, "org", "org-name", "p1-mcp", models.MCPProxyScopeInput{Action: "read"})
+	_, err := svc.Create(ctx, "org", "org-name", "p1-mcp", gwmodels.MCPProxyScopeInput{Action: "read"})
 	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
-	_, err = svc.Update(ctx, "org", "org-name", "p1-mcp", "read", models.MCPProxyScopeUpdateInput{})
+	_, err = svc.Update(ctx, "org", "org-name", "p1-mcp", "read", gwmodels.MCPProxyScopeUpdateInput{})
 	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
 	err = svc.Delete(ctx, "org", "org-name", "p1-mcp", "read")
 	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
@@ -185,7 +186,7 @@ func TestScopeMutationsOnProjectProxy_ProjectOwned(t *testing.T) {
 func TestListEnvironmentScopesExcludesProjectProxies(t *testing.T) {
 	var f gwrepo.MCPProxyListFilter
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		ListFunc: func(_ context.Context, _ string, got gwrepo.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+		ListFunc: func(_ context.Context, _ string, got gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 			f = got
 			return nil, 0, nil
 		},

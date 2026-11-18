@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -34,41 +34,41 @@ import (
 
 // goldenProxy is an agent's proxy in front of goldenProvider, with every part of the proxy render: api-key
 // security, upstream auth, resilience and a user policy.
-func goldenProxy() *models.LLMProxy {
+func goldenProxy() *gwmodels.LLMProxy {
 	enabled := true
 	ctxPath, vhost, timeout := "/agent-proxy", "proxy.example.com", "10s"
 	authType, authHeader, ref := "api-key", "X-Upstream-Key", "proxy-upstream-key"
-	return &models.LLMProxy{
+	return &gwmodels.LLMProxy{
 		UUID:   uuid.MustParse("7a2d3b63-1e8f-4d2b-8b4f-1f6c7a8b9cad"),
 		Handle: "acme-agent-proxy",
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name: "Acme Agent Proxy", Version: "v1.0", Context: &ctxPath, Vhost: &vhost,
 			Provider:     goldenProvider().UUID.String(),
-			UpstreamAuth: &models.UpstreamAuth{Type: &authType, Header: &authHeader, SecretRef: &ref},
-			Resilience:   &models.Resilience{Timeout: &timeout},
-			Security: &models.SecurityConfig{
+			UpstreamAuth: &gwmodels.UpstreamAuth{Type: &authType, Header: &authHeader, SecretRef: &ref},
+			Resilience:   &gwmodels.Resilience{Timeout: &timeout},
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &enabled,
-				APIKey:  &models.APIKeySecurity{Enabled: &enabled, Key: "X-Agent-Key", In: "Header"},
+				APIKey:  &gwmodels.APIKeySecurity{Enabled: &enabled, Key: "X-Agent-Key", In: "Header"},
 			},
-			Policies: []models.LLMPolicy{{Name: "content-length-guardrail", Version: "v0.3.1", Paths: []models.LLMPolicyPath{
+			Policies: []gwmodels.LLMPolicy{{Name: "content-length-guardrail", Version: "v0.3.1", Paths: []gwmodels.LLMPolicyPath{
 				{Path: "/*", Methods: []string{"*"}, Params: map[string]any{"maxRequestBytes": 4096}},
 			}}},
 		},
 	}
 }
 
-func goldenProxyKind(proxy *models.LLMProxy) *LLMProxyKind {
+func goldenProxyKind(proxy *gwmodels.LLMProxy) *LLMProxyKind {
 	return &LLMProxyKind{
-		load: func(context.Context, models.ArtifactRef) (*models.LLMProxy, *models.LLMProvider, error) {
+		load: func(context.Context, gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error) {
 			return proxy, goldenProvider(), nil
 		},
-		vhostOf: func(*gorm.DB, models.ArtifactRef) string { return proxyVhost(proxy) },
+		vhostOf: func(*gorm.DB, gwmodels.ArtifactRef) string { return proxyVhost(proxy) },
 	}
 }
 
 func TestLLMProxyKindRendersTodaysYAML(t *testing.T) {
 	proxy := goldenProxy()
-	ref := models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Kind: models.KindLLMProxy, Handle: proxy.Handle}
+	ref := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Kind: gwmodels.KindLLMProxy, Handle: proxy.Handle}
 
 	rendered, err := goldenProxyKind(proxy).Render(context.Background(), ref)
 
@@ -82,7 +82,7 @@ func TestLLMProxyKindRejectsAnInvalidSecurityConfig(t *testing.T) {
 	proxy := goldenProxy()
 	proxy.Configuration.Security.APIKey.Key = ""
 
-	_, err := goldenProxyKind(proxy).Render(context.Background(), models.ArtifactRef{Handle: proxy.Handle})
+	_, err := goldenProxyKind(proxy).Render(context.Background(), gwmodels.ArtifactRef{Handle: proxy.Handle})
 
 	assert.ErrorIs(t, err, utils.ErrInvalidInput)
 	assert.True(t, reconcile.IsPermanent(err))
@@ -91,9 +91,9 @@ func TestLLMProxyKindRejectsAnInvalidSecurityConfig(t *testing.T) {
 func TestLLMProxyKindEvents(t *testing.T) {
 	proxy := goldenProxy()
 	kind := goldenProxyKind(proxy)
-	ref := models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Kind: models.KindLLMProxy, Handle: proxy.Handle}
-	p := models.Placement{ArtifactRef: ref, GatewayUUID: uuid.New()}
-	at := models.NewPerformedAt(time.Now())
+	ref := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Kind: gwmodels.KindLLMProxy, Handle: proxy.Handle}
+	p := gwmodels.Placement{ArtifactRef: ref, GatewayUUID: uuid.New()}
+	at := gwmodels.NewPerformedAt(time.Now())
 
 	assert.Equal(t, proxy.Handle, kind.GatewayArtifactID(ref), "gateways store proxies under their handle")
 
@@ -125,14 +125,14 @@ func TestLLMProxyKindEvents(t *testing.T) {
 // (PlacedGateways is in UUID order), yet the agent's proxy must land on the managed one.
 func TestLLMProxyTargets_PrefersManagedProviderAnchor(t *testing.T) {
 	env := uuid.New()
-	selfHosted := &models.Gateway{
-		UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), GatewayFunctionalityType: models.GatewayRoleBoth,
-		Hosting: models.GatewayHostingSelfHosted, IsActive: true,
+	selfHosted := &gwmodels.Gateway{
+		UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), GatewayFunctionalityType: gwmodels.GatewayRoleBoth,
+		Hosting: gwmodels.GatewayHostingSelfHosted, IsActive: true,
 	}
-	managed := &models.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002"), GatewayFunctionalityType: models.GatewayRoleBoth, IsActive: true}
+	managed := &gwmodels.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002"), GatewayFunctionalityType: gwmodels.GatewayRoleBoth, IsActive: true}
 	proxy := goldenProxy()
 	kind := goldenProxyKind(proxy)
-	kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+	kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{selfHosted, managed})
 	kind.deploymentRepo = &gwrepomocks.DeploymentRepositoryMock{
 		PlacedGatewaysFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
 			if artifact == proxy.UUID {
@@ -143,7 +143,7 @@ func TestLLMProxyTargets_PrefersManagedProviderAnchor(t *testing.T) {
 	}
 
 	got, ok, err := kind.Targets(context.Background(), reconcile.Record{
-		ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
+		ArtifactRef: gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
 	})
 
 	require.NoError(t, err)
@@ -155,11 +155,11 @@ func TestLLMProxyTargets_PrefersManagedProviderAnchor(t *testing.T) {
 // the proxy goes to the environment's managed gateway, or is not targeted when there is none.
 func TestLLMProxyTargets_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
 	env := uuid.New()
-	selfHosted := &models.Gateway{
-		UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), GatewayFunctionalityType: models.GatewayRoleBoth,
-		Hosting: models.GatewayHostingSelfHosted, IsActive: true,
+	selfHosted := &gwmodels.Gateway{
+		UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), GatewayFunctionalityType: gwmodels.GatewayRoleBoth,
+		Hosting: gwmodels.GatewayHostingSelfHosted, IsActive: true,
 	}
-	managed := &models.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002"), GatewayFunctionalityType: models.GatewayRoleBoth, IsActive: true}
+	managed := &gwmodels.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002"), GatewayFunctionalityType: gwmodels.GatewayRoleBoth, IsActive: true}
 	proxy := goldenProxy()
 	placedOnSelfHostedOnly := &gwrepomocks.DeploymentRepositoryMock{
 		PlacedGatewaysFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
@@ -170,12 +170,12 @@ func TestLLMProxyTargets_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
 		},
 	}
 	record := reconcile.Record{
-		ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
+		ArtifactRef: gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
 	}
 
 	t.Run("environment has a managed gateway", func(t *testing.T) {
 		kind := goldenProxyKind(proxy)
-		kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+		kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{selfHosted, managed})
 		kind.deploymentRepo = placedOnSelfHostedOnly
 
 		got, ok, err := kind.Targets(context.Background(), record)
@@ -187,7 +187,7 @@ func TestLLMProxyTargets_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
 
 	t.Run("environment has only the self-hosted gateway", func(t *testing.T) {
 		kind := goldenProxyKind(proxy)
-		kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted})
+		kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{selfHosted})
 		kind.deploymentRepo = placedOnSelfHostedOnly
 
 		_, ok, err := kind.Targets(context.Background(), record)
@@ -201,14 +201,14 @@ func TestLLMProxyTargets_IgnoresSelfHostedOnlyProviderAnchor(t *testing.T) {
 // elsewhere.
 func TestLLMProxyKindTargets_RefusesSelfHostedAnchor(t *testing.T) {
 	env := uuid.New()
-	selfHosted := &models.Gateway{
-		UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress,
-		Hosting: models.GatewayHostingSelfHosted, IsActive: true,
+	selfHosted := &gwmodels.Gateway{
+		UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleEgress,
+		Hosting: gwmodels.GatewayHostingSelfHosted, IsActive: true,
 	}
-	managed := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress, IsActive: true}
+	managed := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleEgress, IsActive: true}
 	proxy := goldenProxy()
 	kind := goldenProxyKind(proxy)
-	kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+	kind.gatewayRepo = gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{selfHosted, managed})
 	kind.deploymentRepo = &gwrepomocks.DeploymentRepositoryMock{
 		PlacedGatewaysFunc: func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
 			if artifact == proxy.UUID {
@@ -219,7 +219,7 @@ func TestLLMProxyKindTargets_RefusesSelfHostedAnchor(t *testing.T) {
 	}
 
 	_, ok, err := kind.Targets(context.Background(), reconcile.Record{
-		ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
+		ArtifactRef: gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: proxy.UUID, Handle: proxy.Handle}, EnvironmentUUID: env,
 	})
 
 	require.ErrorIs(t, err, errSelfHostedAnchor)

@@ -27,8 +27,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -43,24 +43,24 @@ func renderedDeployment(handle string, content []byte) reconcile.Rendered {
 
 // LLMProviderKind deploys LLM providers. Gateways store a provider under its UUID.
 type LLMProviderKind struct {
-	load func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, error)
+	load func(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProvider, error)
 }
 
 // NewLLMProviderKind reads providers through the request's transaction when there is one.
 func NewLLMProviderKind() *LLMProviderKind {
-	return &LLMProviderKind{load: func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProvider, error) {
+	return &LLMProviderKind{load: func(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProvider, error) {
 		return gwrepo.NewLLMProviderRepo(db.DB(ctx)).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
 	}}
 }
 
-func (k *LLMProviderKind) Name() string        { return models.KindLLMProvider }
+func (k *LLMProviderKind) Name() string        { return gwmodels.KindLLMProvider }
 func (k *LLMProviderKind) RendersInline() bool { return true }
 
-func (k *LLMProviderKind) GatewayArtifactID(artifact models.ArtifactRef) string {
+func (k *LLMProviderKind) GatewayArtifactID(artifact gwmodels.ArtifactRef) string {
 	return artifact.ArtifactUUID.String()
 }
 
-func (k *LLMProviderKind) Render(ctx context.Context, artifact models.ArtifactRef) (reconcile.Rendered, error) {
+func (k *LLMProviderKind) Render(ctx context.Context, artifact gwmodels.ArtifactRef) (reconcile.Rendered, error) {
 	provider, err := k.load(ctx, artifact)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return reconcile.Rendered{}, reconcile.Permanent(fmt.Errorf("LLM provider %s not found", artifact.ArtifactUUID))
@@ -86,7 +86,7 @@ func (k *LLMProviderKind) DeployEvent(ref reconcile.EventRef) eventhub.Event {
 }
 
 func (k *LLMProviderKind) UndeployEvent(ref reconcile.EventRef) eventhub.Event {
-	payload := &models.LLMProviderUndeploymentEvent{
+	payload := &gwmodels.LLMProviderUndeploymentEvent{
 		ProviderID:     ref.ArtifactUUID.String(),
 		PerformedAt:    ref.PerformedAt,
 		GatewayID:      ref.GatewayUUID.String(),
@@ -96,7 +96,7 @@ func (k *LLMProviderKind) UndeployEvent(ref reconcile.EventRef) eventhub.Event {
 }
 
 // DeleteEvent drops the provider's config from the gateway: an undeploy keeps it, its keys and its policies.
-func (k *LLMProviderKind) DeleteEvent(artifact models.ArtifactRef) eventhub.Event {
-	payload := &models.LLMProviderDeletionEvent{ProviderID: artifact.ArtifactUUID.String()}
+func (k *LLMProviderKind) DeleteEvent(artifact gwmodels.ArtifactRef) eventhub.Event {
+	payload := &gwmodels.LLMProviderDeletionEvent{ProviderID: artifact.ArtifactUUID.String()}
 	return eventhub.NewGatewayEvent("llmprovider.deleted", "DELETE", payload.ProviderID, payload)
 }

@@ -26,17 +26,17 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ListGatewayDeployments is the gateway's startup sync list: what it should hold, as it stored it. It only reads.
-func (s *GatewayInternalAPIService) ListGatewayDeployments(ctx context.Context, ouID, gatewayID string) ([]models.ControlPlaneDeployment, error) {
+func (s *GatewayInternalAPIService) ListGatewayDeployments(ctx context.Context, ouID, gatewayID string) ([]gwmodels.ControlPlaneDeployment, error) {
 	rows, err := s.deploymentRepo.ListForGatewaySync(ctx, ouID, gatewayID)
 	if err != nil {
 		return nil, err
 	}
-	deployments := make([]models.ControlPlaneDeployment, 0, len(rows))
+	deployments := make([]gwmodels.ControlPlaneDeployment, 0, len(rows))
 	for _, row := range rows {
 		kind, artifactID, ok := s.artifacts.GatewayArtifact(row.ArtifactRef)
 		if !ok {
@@ -45,7 +45,7 @@ func (s *GatewayInternalAPIService) ListGatewayDeployments(ctx context.Context, 
 			continue
 		}
 		deployedAt := row.DeployedAt.UTC()
-		deployments = append(deployments, models.ControlPlaneDeployment{
+		deployments = append(deployments, gwmodels.ControlPlaneDeployment{
 			ArtifactID:   artifactID,
 			DeploymentID: row.DeploymentID,
 			Kind:         kind,
@@ -113,9 +113,9 @@ func (s *GatewayInternalAPIService) FetchDeploymentBatch(
 // resolveSecretsFor decrypts the secrets in a deployment's YAML, by the kind the gateway knows the artifact as.
 func (s *GatewayInternalAPIService) resolveSecretsFor(ctx context.Context, gatewayKind, content string) (string, error) {
 	switch gatewayKind {
-	case models.KindLLMProvider:
+	case gwmodels.KindLLMProvider:
 		return s.resolveSecretsInYAML(ctx, content, "upstream.auth")
-	case models.KindLLMProxy:
+	case gwmodels.KindLLMProxy:
 		return s.resolveSecretsInYAML(ctx, content, "provider.auth")
 	default:
 		return s.resolveAllSecretsInYAML(ctx, content)
@@ -125,7 +125,7 @@ func (s *GatewayInternalAPIService) resolveSecretsFor(ctx context.Context, gatew
 // CheckArtifactsExist answers, for each id the gateway asks about, whether the artifact still exists in the org,
 // whatever it is deployed to. An id may be an artifact UUID or an LLM proxy handle. The gateway keeps an artifact
 // that exists, so an artifact with no deployment keeps its keys there.
-func (s *GatewayInternalAPIService) CheckArtifactsExist(ctx context.Context, ouID string, artifactIDs []string) ([]models.ArtifactExistence, error) {
+func (s *GatewayInternalAPIService) CheckArtifactsExist(ctx context.Context, ouID string, artifactIDs []string) ([]gwmodels.ArtifactExistence, error) {
 	var uuids []uuid.UUID
 	for _, id := range artifactIDs {
 		if parsed, err := uuid.Parse(id); err == nil {
@@ -140,15 +140,15 @@ func (s *GatewayInternalAPIService) CheckArtifactsExist(ctx context.Context, ouI
 	byProxyHandle := make(map[string]bool, len(existing))
 	for _, ref := range existing {
 		byUUID[ref.ArtifactUUID] = true
-		if ref.Kind == models.KindLLMProxy {
+		if ref.Kind == gwmodels.KindLLMProxy {
 			byProxyHandle[ref.Handle] = true
 		}
 	}
-	answers := make([]models.ArtifactExistence, 0, len(artifactIDs))
+	answers := make([]gwmodels.ArtifactExistence, 0, len(artifactIDs))
 	for _, id := range artifactIDs {
 		parsed, err := uuid.Parse(id)
 		exists := byProxyHandle[id] || (err == nil && byUUID[parsed])
-		answers = append(answers, models.ArtifactExistence{ArtifactID: id, Exists: exists})
+		answers = append(answers, gwmodels.ArtifactExistence{ArtifactID: id, Exists: exists})
 	}
 	return answers, nil
 }

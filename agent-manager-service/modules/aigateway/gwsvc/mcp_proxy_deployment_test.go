@@ -25,11 +25,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // findMCPPolicy returns a pointer to the first policy matching name, or nil.
-func findMCPPolicy(policies []models.MCPPolicy, name string) *models.MCPPolicy {
+func findMCPPolicy(policies []gwmodels.MCPPolicy, name string) *gwmodels.MCPPolicy {
 	for i := range policies {
 		if policies[i].Name == name {
 			return &policies[i]
@@ -43,13 +43,13 @@ func findMCPPolicy(policies []models.MCPPolicy, name string) *models.MCPPolicy {
 func TestGenerateMCPProxyDeploymentYAML_Basic(t *testing.T) {
 	service := &MCPProxyService{}
 
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		Handle: "test-mcp-proxy",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:    "Test MCP Proxy",
 			Version: "1.0.0",
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"},
+			Upstream: gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"},
 			},
 		},
 	}
@@ -104,15 +104,15 @@ func TestGenerateMCPProxyDeploymentYAML_WithResilience(t *testing.T) {
 	timeout := "15s"
 	idleTimeout := "20s"
 
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		Handle: "test-mcp-proxy",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:    "Test MCP Proxy",
 			Version: "1.0.0",
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"},
+			Upstream: gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"},
 			},
-			Resilience: &models.Resilience{
+			Resilience: &gwmodels.Resilience{
 				Timeout:     &timeout,
 				IdleTimeout: &idleTimeout,
 			},
@@ -145,16 +145,16 @@ func TestGenerateMCPProxyDeploymentYAML_WithResilience(t *testing.T) {
 func TestGenerateMCPProxyDeploymentYAML_WithContextAndVhost(t *testing.T) {
 	service := &MCPProxyService{}
 
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		Handle: "ctx-proxy",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:        "Ctx Proxy",
 			Version:     "v2",
 			Context:     strPtr("/custom-context"),
 			Vhost:       strPtr("mcp.example.com"),
 			SpecVersion: "2024-11-05",
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"},
+			Upstream: gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"},
 			},
 		},
 	}
@@ -186,13 +186,13 @@ func TestGenerateMCPProxyDeploymentYAML_WithContextAndVhost(t *testing.T) {
 func TestGenerateMCPProxyDeploymentYAML_PreservesUpstreamPath(t *testing.T) {
 	service := &MCPProxyService{}
 
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		Handle: "preserve-proxy",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:    "Preserve Proxy",
 			Version: "v1",
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://host.example.com/godzilla/server/v1.0/mcp"},
+			Upstream: gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{URL: "https://host.example.com/godzilla/server/v1.0/mcp"},
 			},
 		},
 	}
@@ -220,17 +220,17 @@ func TestGenerateMCPProxyDeploymentYAML_PreservesUpstreamPath(t *testing.T) {
 func TestGenerateMCPProxyDeploymentYAML_WithSecurityAPIKey(t *testing.T) {
 	service := &MCPProxyService{}
 
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		Handle: "secure-proxy",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:    "Secure Proxy",
 			Version: "v1",
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"},
+			Upstream: gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"},
 			},
-			Security: &models.SecurityConfig{
+			Security: &gwmodels.SecurityConfig{
 				Enabled: boolPtr(true),
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: boolPtr(true),
 					Key:     "X-API-Key",
 					In:      "header",
@@ -283,17 +283,17 @@ func TestGenerateMCPProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			service := &MCPProxyService{}
-			proxy := &models.MCPProxy{
+			proxy := &gwmodels.MCPProxy{
 				Handle: "sec-proxy",
-				Configuration: models.MCPProxyConfig{
+				Configuration: gwmodels.MCPProxyConfig{
 					Name:    "Sec Proxy",
 					Version: "v1",
-					Upstream: models.UpstreamConfig{
-						Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"},
+					Upstream: gwmodels.UpstreamConfig{
+						Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"},
 					},
-					Security: &models.SecurityConfig{
+					Security: &gwmodels.SecurityConfig{
 						Enabled: boolPtr(true),
-						APIKey: &models.APIKeySecurity{
+						APIKey: &gwmodels.APIKeySecurity{
 							Enabled: boolPtr(true),
 							Key:     tt.key,
 							In:      tt.in,
@@ -324,15 +324,15 @@ func TestGenerateMCPProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 func TestGenerateMCPProxyDeploymentYAML_WithBackendAuth(t *testing.T) {
 	service := &MCPProxyService{}
 
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		Handle: "auth-proxy",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:    "Auth Proxy",
 			Version: "v1",
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{
+			Upstream: gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{
 					URL: "https://mcp.example.com",
-					Auth: &models.UpstreamAuth{
+					Auth: &gwmodels.UpstreamAuth{
 						Type:   strPtr("api-key"),
 						Header: strPtr("Authorization"),
 						Value:  strPtr("Bearer token123"),
@@ -385,17 +385,17 @@ func TestGenerateMCPProxyDeploymentYAML_WithBackendAuth(t *testing.T) {
 func TestGenerateMCPProxyDeploymentYAML_PrefersArtifactIdentity(t *testing.T) {
 	service := &MCPProxyService{}
 
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:   uuid.New(),
 		Handle: "config-handle",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:    "Config Name",
 			Version: "config-version",
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"},
+			Upstream: gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"},
 			},
 		},
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle:  "artifact-handle",
 			Name:    "Artifact Name",
 			Version: "artifact-version",
@@ -428,15 +428,15 @@ func TestGenerateMCPProxyDeploymentYAML_PrefersArtifactIdentity(t *testing.T) {
 func TestGenerateMCPProxyDeploymentYAML_PolicyVersionNormalized(t *testing.T) {
 	service := &MCPProxyService{}
 
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		Handle: "policy-proxy",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:    "Policy Proxy",
 			Version: "v1",
-			Upstream: models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"},
+			Upstream: gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"},
 			},
-			Policies: []models.MCPPolicy{
+			Policies: []gwmodels.MCPPolicy{
 				{Name: "content-length-guardrail", Version: "1.2.3"},
 			},
 		},
@@ -466,23 +466,23 @@ func TestGenerateMCPProxyDeploymentYAML_PolicyVersionNormalized(t *testing.T) {
 func TestGenerateMCPProxyDeploymentYAML_MissingUpstreamURL(t *testing.T) {
 	tests := []struct {
 		name  string
-		proxy *models.MCPProxy
+		proxy *gwmodels.MCPProxy
 	}{
 		{
 			name: "nil upstream main",
-			proxy: &models.MCPProxy{
+			proxy: &gwmodels.MCPProxy{
 				Handle:        "p",
-				Configuration: models.MCPProxyConfig{Name: "p", Version: "v1"},
+				Configuration: gwmodels.MCPProxyConfig{Name: "p", Version: "v1"},
 			},
 		},
 		{
 			name: "empty upstream url",
-			proxy: &models.MCPProxy{
+			proxy: &gwmodels.MCPProxy{
 				Handle: "p",
-				Configuration: models.MCPProxyConfig{
+				Configuration: gwmodels.MCPProxyConfig{
 					Name:     "p",
 					Version:  "v1",
-					Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: "   "}},
+					Upstream: gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{URL: "   "}},
 				},
 			},
 		},
@@ -513,14 +513,14 @@ func TestAppendMCPBackendAuthPolicy(t *testing.T) {
 	})
 
 	t.Run("header without value or secretRef is skipped", func(t *testing.T) {
-		out := appendMCPBackendAuthPolicy(nil, &models.UpstreamAuth{Header: strPtr("Authorization")})
+		out := appendMCPBackendAuthPolicy(nil, &gwmodels.UpstreamAuth{Header: strPtr("Authorization")})
 		if len(out) != 0 {
 			t.Errorf("expected no policies when neither value nor secretRef is set, got %d", len(out))
 		}
 	})
 
 	t.Run("secretRef takes precedence over value", func(t *testing.T) {
-		out := appendMCPBackendAuthPolicy(nil, &models.UpstreamAuth{
+		out := appendMCPBackendAuthPolicy(nil, &gwmodels.UpstreamAuth{
 			Header:    strPtr("Authorization"),
 			Value:     strPtr("plain"),
 			SecretRef: strPtr("encrypted-ref"),
@@ -538,8 +538,8 @@ func TestAppendMCPBackendAuthPolicy(t *testing.T) {
 	})
 
 	t.Run("appends to existing policies", func(t *testing.T) {
-		existing := []models.MCPPolicy{{Name: "log-message", Version: "v1"}}
-		out := appendMCPBackendAuthPolicy(existing, &models.UpstreamAuth{
+		existing := []gwmodels.MCPPolicy{{Name: "log-message", Version: "v1"}}
+		out := appendMCPBackendAuthPolicy(existing, &gwmodels.UpstreamAuth{
 			Header: strPtr("Authorization"),
 			Value:  strPtr("Bearer x"),
 		})
@@ -552,7 +552,7 @@ func TestAppendMCPBackendAuthPolicy(t *testing.T) {
 	})
 }
 
-func firstHeaderParam(t *testing.T, policy models.MCPPolicy) map[string]interface{} {
+func firstHeaderParam(t *testing.T, policy gwmodels.MCPPolicy) map[string]interface{} {
 	t.Helper()
 	request, ok := policy.Params["request"].(map[string]interface{})
 	if !ok {
@@ -582,9 +582,9 @@ func TestAppendMCPAPIKeyAuthPolicy(t *testing.T) {
 	})
 
 	t.Run("disabled api key leaves policies unchanged", func(t *testing.T) {
-		out, err := appendMCPAPIKeyAuthPolicy(nil, &models.SecurityConfig{
+		out, err := appendMCPAPIKeyAuthPolicy(nil, &gwmodels.SecurityConfig{
 			Enabled: boolPtr(true),
-			APIKey:  &models.APIKeySecurity{Enabled: boolPtr(false), Key: "X-API-Key", In: "header"},
+			APIKey:  &gwmodels.APIKeySecurity{Enabled: boolPtr(false), Key: "X-API-Key", In: "header"},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -595,9 +595,9 @@ func TestAppendMCPAPIKeyAuthPolicy(t *testing.T) {
 	})
 
 	t.Run("empty key returns error", func(t *testing.T) {
-		_, err := appendMCPAPIKeyAuthPolicy(nil, &models.SecurityConfig{
+		_, err := appendMCPAPIKeyAuthPolicy(nil, &gwmodels.SecurityConfig{
 			Enabled: boolPtr(true),
-			APIKey:  &models.APIKeySecurity{Enabled: boolPtr(true), Key: "  ", In: "header"},
+			APIKey:  &gwmodels.APIKeySecurity{Enabled: boolPtr(true), Key: "  ", In: "header"},
 		})
 		if err == nil || !strings.Contains(err.Error(), "key is required") {
 			t.Errorf("expected 'key is required' error, got %v", err)
@@ -605,9 +605,9 @@ func TestAppendMCPAPIKeyAuthPolicy(t *testing.T) {
 	})
 
 	t.Run("invalid in returns error", func(t *testing.T) {
-		_, err := appendMCPAPIKeyAuthPolicy(nil, &models.SecurityConfig{
+		_, err := appendMCPAPIKeyAuthPolicy(nil, &gwmodels.SecurityConfig{
 			Enabled: boolPtr(true),
-			APIKey:  &models.APIKeySecurity{Enabled: boolPtr(true), Key: "X-API-Key", In: "cookie"},
+			APIKey:  &gwmodels.APIKeySecurity{Enabled: boolPtr(true), Key: "X-API-Key", In: "cookie"},
 		})
 		if err == nil || !strings.Contains(err.Error(), "in must be 'header' or 'query'") {
 			t.Errorf("expected 'in must be header or query' error, got %v", err)
@@ -615,9 +615,9 @@ func TestAppendMCPAPIKeyAuthPolicy(t *testing.T) {
 	})
 
 	t.Run("in is lowercased", func(t *testing.T) {
-		out, err := appendMCPAPIKeyAuthPolicy(nil, &models.SecurityConfig{
+		out, err := appendMCPAPIKeyAuthPolicy(nil, &gwmodels.SecurityConfig{
 			Enabled: boolPtr(true),
-			APIKey:  &models.APIKeySecurity{Enabled: boolPtr(true), Key: "X-API-Key", In: "HEADER"},
+			APIKey:  &gwmodels.APIKeySecurity{Enabled: boolPtr(true), Key: "X-API-Key", In: "HEADER"},
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -632,7 +632,7 @@ func TestAppendMCPAPIKeyAuthPolicy(t *testing.T) {
 // duplicate policy identities.
 func TestMergeMCPPoliciesForDeployment(t *testing.T) {
 	t.Run("set-headers policies merge their header lists", func(t *testing.T) {
-		policies := []models.MCPPolicy{
+		policies := []gwmodels.MCPPolicy{
 			{
 				Name:    mcpSetHeadersPolicyName,
 				Version: "v1",
@@ -665,7 +665,7 @@ func TestMergeMCPPoliciesForDeployment(t *testing.T) {
 	})
 
 	t.Run("non-mergeable duplicate is overridden by the later policy", func(t *testing.T) {
-		policies := []models.MCPPolicy{
+		policies := []gwmodels.MCPPolicy{
 			{Name: "custom-policy", Version: "v1", Params: map[string]interface{}{"max": 10}},
 			{Name: "custom-policy", Version: "v1", Params: map[string]interface{}{"max": 99}},
 		}
@@ -680,7 +680,7 @@ func TestMergeMCPPoliciesForDeployment(t *testing.T) {
 	})
 
 	t.Run("policies with distinct identities are kept separate", func(t *testing.T) {
-		policies := []models.MCPPolicy{
+		policies := []gwmodels.MCPPolicy{
 			{Name: mcpSetHeadersPolicyName, Version: "v1"},
 			{Name: mcpLogMessagePolicyName, Version: "v1"},
 		}
@@ -711,13 +711,13 @@ func TestGenerateMCPProxyDeploymentYAML_UpstreamURLPassthrough(t *testing.T) {
 	service := &MCPProxyService{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			proxy := &models.MCPProxy{
+			proxy := &gwmodels.MCPProxy{
 				Handle: "passthrough-proxy",
-				Configuration: models.MCPProxyConfig{
+				Configuration: gwmodels.MCPProxyConfig{
 					Name:    "Passthrough Proxy",
 					Version: "v1",
-					Upstream: models.UpstreamConfig{
-						Main: &models.UpstreamEndpoint{URL: tt.in},
+					Upstream: gwmodels.UpstreamConfig{
+						Main: &gwmodels.UpstreamEndpoint{URL: tt.in},
 					},
 				},
 			}
@@ -743,7 +743,7 @@ func TestGenerateMCPProxyDeploymentYAML_UpstreamURLPassthrough(t *testing.T) {
 // rule per tool, inverted from the proxy's scope->tools rows.
 func TestAppendMCPIdentityAuthPolicies_InvertsScopesToPerToolRules(t *testing.T) {
 	sec := identityEnabledSecurity()
-	scopes := []models.MCPProxyScope{
+	scopes := []gwmodels.MCPProxyScope{
 		{Action: "read", Tools: []string{"get_repo", "list_repos"}},
 		{Action: "admin", Tools: []string{"delete_repo", "get_repo"}},
 	}
@@ -776,7 +776,7 @@ func TestAppendMCPIdentityAuthPolicies_NoScopesEmitsAuthOnly(t *testing.T) {
 // A scope covering no tool still belongs in mcp-auth's advertised union — it is a scope
 // clients may request — even though it yields no mcp-authz rule to enforce.
 func TestAppendMCPIdentityAuthPolicies_ToollessScopeIsAdvertisedButNotEnforced(t *testing.T) {
-	scopes := []models.MCPProxyScope{
+	scopes := []gwmodels.MCPProxyScope{
 		{Action: "read", Tools: []string{"get_repo"}},
 		{Action: "audit"},
 	}
@@ -790,16 +790,16 @@ func TestAppendMCPIdentityAuthPolicies_ToollessScopeIsAdvertisedButNotEnforced(t
 }
 
 func TestAppendMCPIdentityAuthPolicies_IdentityOffEmitsNothing(t *testing.T) {
-	scopes := []models.MCPProxyScope{{Action: "read", Tools: []string{"get_repo"}}}
+	scopes := []gwmodels.MCPProxyScope{{Action: "read", Tools: []string{"get_repo"}}}
 
 	assert.Empty(t, appendMCPIdentityAuthPolicies(nil, nil, "gh-proxy", scopes))
 
 	on := true
-	apiKeySec := &models.SecurityConfig{Enabled: &on, APIKey: &models.APIKeySecurity{Enabled: &on}}
+	apiKeySec := &gwmodels.SecurityConfig{Enabled: &on, APIKey: &gwmodels.APIKeySecurity{Enabled: &on}}
 	assert.Empty(t, appendMCPIdentityAuthPolicies(nil, apiKeySec, "gh-proxy", scopes))
 
-	existing := []models.MCPPolicy{{Name: "log-message", Version: "v1"}}
-	disabledIdentitySec := &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: boolPtr(false)}}
+	existing := []gwmodels.MCPPolicy{{Name: "log-message", Version: "v1"}}
+	disabledIdentitySec := &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: boolPtr(false)}}
 	assert.Equal(t, existing, appendMCPIdentityAuthPolicies(existing, disabledIdentitySec, "gh-proxy", scopes))
 }
 
@@ -839,7 +839,7 @@ func TestMCPProxyEnvArtifactHandleDistinguishesEndpoints(t *testing.T) {
 // scope, mcp-authz is omitted entirely and the endpoint degrades to
 // authenticated-only rather than emitting an empty rule set.
 func TestAppendMCPIdentityAuthPolicies_ScopeWithNoToolsEmitsAuthOnly(t *testing.T) {
-	out := appendMCPIdentityAuthPolicies(nil, identityEnabledSecurity(), "gh-proxy", []models.MCPProxyScope{
+	out := appendMCPIdentityAuthPolicies(nil, identityEnabledSecurity(), "gh-proxy", []gwmodels.MCPProxyScope{
 		{Action: "read", Tools: []string{}},
 	})
 	assert.Len(t, out, 1)
@@ -852,29 +852,29 @@ func TestAppendMCPIdentityAuthPolicies_ScopeWithNoToolsEmitsAuthOnly(t *testing.
 func TestGenerateMCPProxyDeploymentYAML_SpecVersions(t *testing.T) {
 	tests := []struct {
 		name             string
-		config           models.MCPProxyConfig
+		config           gwmodels.MCPProxyConfig
 		wantSpecVersions []string
 	}{
 		{
 			name:             "list saved: the list",
-			config:           models.MCPProxyConfig{SpecVersions: []string{"2026-07-28", "2025-11-25"}},
+			config:           gwmodels.MCPProxyConfig{SpecVersions: []string{"2026-07-28", "2025-11-25"}},
 			wantSpecVersions: []string{"2026-07-28", "2025-11-25"},
 		},
 		{
 			name:             "saved before the list existed: the single version as a one-item list",
-			config:           models.MCPProxyConfig{SpecVersion: "2025-11-25"},
+			config:           gwmodels.MCPProxyConfig{SpecVersion: "2025-11-25"},
 			wantSpecVersions: []string{"2025-11-25"},
 		},
 		{
 			name:             "neither: the default version",
-			config:           models.MCPProxyConfig{},
+			config:           gwmodels.MCPProxyConfig{},
 			wantSpecVersions: []string{mcpSpecVersionJune2025},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.config.Upstream = models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: "https://mcp.example.com"}}
-			proxy := &models.MCPProxy{Handle: "spec-versions-proxy", Configuration: tt.config}
+			tt.config.Upstream = gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{URL: "https://mcp.example.com"}}
+			proxy := &gwmodels.MCPProxy{Handle: "spec-versions-proxy", Configuration: tt.config}
 
 			yamlStr, err := (&MCPProxyService{}).generateMCPProxyDeploymentYAML(proxy, "x", nil)
 			if err != nil {
@@ -898,10 +898,10 @@ func TestGenerateMCPProxyDeploymentYAML_SpecVersions(t *testing.T) {
 // Each endpoint's gateway artifact carries that endpoint's own list, next to the proxy's single
 // version, so the deploy uses the endpoint's list and falls back to the proxy's version.
 func TestBuildMCPProxyEnvArtifact_CarriesTheEndpointsVersions(t *testing.T) {
-	source := &models.MCPProxy{Handle: "helpdesk", Configuration: models.MCPProxyConfig{SpecVersion: "2025-06-18"}}
-	dev := &models.MCPProxyEndpoint{Handle: "dev", Configuration: models.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}}
-	prod := &models.MCPProxyEndpoint{Handle: "prod"}
-	env := &models.MCPProxyEndpointEnvironment{EnvironmentUUID: uuid.New(), ArtifactUUID: uuid.New()}
+	source := &gwmodels.MCPProxy{Handle: "helpdesk", Configuration: gwmodels.MCPProxyConfig{SpecVersion: "2025-06-18"}}
+	dev := &gwmodels.MCPProxyEndpoint{Handle: "dev", Configuration: gwmodels.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}}
+	prod := &gwmodels.MCPProxyEndpoint{Handle: "prod"}
+	env := &gwmodels.MCPProxyEndpointEnvironment{EnvironmentUUID: uuid.New(), ArtifactUUID: uuid.New()}
 
 	devArtifact := buildMCPProxyEnvArtifact(source, dev, env)
 	prodArtifact := buildMCPProxyEnvArtifact(source, prod, env)

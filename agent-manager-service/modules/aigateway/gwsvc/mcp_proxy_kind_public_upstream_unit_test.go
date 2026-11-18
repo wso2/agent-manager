@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
@@ -32,19 +32,19 @@ import (
 // An in-cluster upstream is not public: a managed gateway takes it only for a project proxy's binding, whose
 // upstream AMS resolved itself.
 func TestUpstreamIsPublic_ProjectBindingPassesOnManagedGateway(t *testing.T) {
-	inCluster := &models.UpstreamEndpoint{URL: "http://weather.dp-ns.svc.cluster.local:8080/mcp"}
+	inCluster := &gwmodels.UpstreamEndpoint{URL: "http://weather.dp-ns.svc.cluster.local:8080/mcp"}
 	kindFor := func(projectScoped bool) *MCPProxyKind {
-		return &MCPProxyKind{load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
+		return &MCPProxyKind{load: func(context.Context, gwmodels.ArtifactRef) (*mcpArtifact, error) {
 			return &mcpArtifact{
-				deployable: &models.MCPProxy{Configuration: models.MCPProxyConfig{
-					Upstream: models.UpstreamConfig{Main: inCluster},
+				deployable: &gwmodels.MCPProxy{Configuration: gwmodels.MCPProxyConfig{
+					Upstream: gwmodels.UpstreamConfig{Main: inCluster},
 				}},
 				projectScoped: projectScoped,
 			}, nil
 		}}
 	}
-	record := reconcile.Record{ArtifactRef: models.ArtifactRef{OUID: "org", ArtifactUUID: uuid.New()}}
-	managed := &models.Gateway{UUID: uuid.New(), Hosting: models.GatewayHostingManaged}
+	record := reconcile.Record{ArtifactRef: gwmodels.ArtifactRef{OUID: "org", ArtifactUUID: uuid.New()}}
+	managed := &gwmodels.Gateway{UUID: uuid.New(), Hosting: gwmodels.GatewayHostingManaged}
 
 	public, err := kindFor(true).upstreamIsPublic(context.Background(), record, managed)
 	require.NoError(t, err)
@@ -59,8 +59,8 @@ func TestUpstreamIsPublic_ProjectBindingPassesOnManagedGateway(t *testing.T) {
 // an org proxy keeps using its self-hosted anchor.
 func TestTargets_ProjectBindingSkipsSelfHostedGateway(t *testing.T) {
 	env := uuid.New()
-	selfHosted := &models.Gateway{
-		UUID: uuid.New(), Hosting: models.GatewayHostingSelfHosted, GatewayFunctionalityType: models.GatewayRoleBoth,
+	selfHosted := &gwmodels.Gateway{
+		UUID: uuid.New(), Hosting: gwmodels.GatewayHostingSelfHosted, GatewayFunctionalityType: gwmodels.GatewayRoleBoth,
 	}
 	kindFor := func(projectScoped bool) *MCPProxyKind {
 		return &MCPProxyKind{
@@ -71,15 +71,15 @@ func TestTargets_ProjectBindingSkipsSelfHostedGateway(t *testing.T) {
 			},
 			gatewayRepo: &gwrepomocks.GatewayRepositoryMock{
 				EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
-				GetByUUIDFunc:                func(string) (*models.Gateway, error) { return selfHosted, nil },
+				GetByUUIDFunc:                func(string) (*gwmodels.Gateway, error) { return selfHosted, nil },
 			},
-			load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
-				return &mcpArtifact{deployable: &models.MCPProxy{}, projectScoped: projectScoped}, nil
+			load: func(context.Context, gwmodels.ArtifactRef) (*mcpArtifact, error) {
+				return &mcpArtifact{deployable: &gwmodels.MCPProxy{}, projectScoped: projectScoped}, nil
 			},
 		}
 	}
 	record := reconcile.Record{
-		ArtifactRef:     models.ArtifactRef{OUID: "org", ArtifactUUID: uuid.New()},
+		ArtifactRef:     gwmodels.ArtifactRef{OUID: "org", ArtifactUUID: uuid.New()},
 		EnvironmentUUID: env,
 	}
 

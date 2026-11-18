@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -39,21 +39,21 @@ import (
 func TestLLMProxyService_Create_PropagatesProviderBeingDeletedFromRepo(t *testing.T) {
 	providerUUID := uuid.New()
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(_, _ string) (*models.LLMProvider, error) {
-			return &models.LLMProvider{UUID: providerUUID}, nil
+		GetByUUIDFunc: func(_, _ string) (*gwmodels.LLMProvider, error) {
+			return &gwmodels.LLMProvider{UUID: providerUUID}, nil
 		},
 	}
 	proxyRepo := &gwrepomocks.LLMProxyRepositoryMock{
 		ExistsFunc: func(_, _ string) (bool, error) { return false, nil },
-		CreateFunc: func(_ context.Context, _ *models.LLMProxy, _, _, _, _ string) error {
+		CreateFunc: func(_ context.Context, _ *gwmodels.LLMProxy, _, _, _, _ string) error {
 			return utils.ErrLLMProviderBeingDeleted
 		},
 	}
 	svc := NewLLMProxyService(proxyRepo, providerRepo, make([]byte, 32))
 
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		ProjectUUID: uuid.New(),
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     "my-proxy",
 			Version:  "v1",
 			Provider: providerUUID.String(),

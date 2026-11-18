@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -55,7 +56,7 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 			},
 		}
 		repo := &gwrepomocks.GatewayRepositoryMock{
-			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
+			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 				return nil, boom
 			},
 		}
@@ -78,17 +79,17 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 			},
 		}
 		repo := &gwrepomocks.GatewayRepositoryMock{
-			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
-				return []models.GatewayEnvironmentMapping{
+			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+				return []gwmodels.GatewayEnvironmentMapping{
 					{GatewayUUID: activeGW},
 					{GatewayUUID: errorGW},
 					{GatewayUUID: missingGW},
 				}, nil
 			},
-			GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+			GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 				switch id {
 				case activeGW.String():
-					return &models.Gateway{
+					return &gwmodels.Gateway{
 						UUID:                     activeGW,
 						Name:                     "gw-active",
 						DisplayName:              "Active GW",
@@ -117,7 +118,7 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 		assert.Equal(t, activeGW.String(), resp[0].UUID)
 		assert.Equal(t, org, resp[0].OrganizationName)
 		assert.True(t, resp[0].IsCritical)
-		assert.Equal(t, string(models.GatewayStatusActive), resp[0].Status)
+		assert.Equal(t, string(gwmodels.GatewayStatusActive), resp[0].Status)
 	})
 
 	t.Run("maps an inactive gateway to inactive status", func(t *testing.T) {
@@ -128,11 +129,11 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 			},
 		}
 		repo := &gwrepomocks.GatewayRepositoryMock{
-			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
-				return []models.GatewayEnvironmentMapping{{GatewayUUID: gw}}, nil
+			GetEnvironmentMappingsByEnvironmentIDFunc: func(_ string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+				return []gwmodels.GatewayEnvironmentMapping{{GatewayUUID: gw}}, nil
 			},
-			GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-				return &models.Gateway{UUID: gw, Name: "gw-idle", IsActive: false}, nil
+			GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
+				return &gwmodels.Gateway{UUID: gw, Name: "gw-idle", IsActive: false}, nil
 			},
 		}
 		svc := newEnvGatewayService(repo, oc)
@@ -141,7 +142,7 @@ func TestEnvironmentService_GetEnvironmentGateways(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, resp, 1)
-		assert.Equal(t, string(models.GatewayStatusInactive), resp[0].Status)
+		assert.Equal(t, string(gwmodels.GatewayStatusInactive), resp[0].Status)
 	})
 }
 

@@ -24,7 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // MCPProxyScopeRepository persists per-proxy MCP scopes.
@@ -32,13 +32,13 @@ import (
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/mcp_proxy_scope_repository_mock.go . MCPProxyScopeRepository:MCPProxyScopeRepositoryMock
 type MCPProxyScopeRepository interface {
 	// ListByProxy returns the proxy's scopes, action-ascending.
-	ListByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyScope, error)
+	ListByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyScope, error)
 	// ListByProxyUUIDs returns scopes for all given proxies (aggregate endpoint).
-	ListByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]models.MCPProxyScope, error)
+	ListByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]gwmodels.MCPProxyScope, error)
 	// Get returns gorm.ErrRecordNotFound (unwrapped) when absent.
-	Get(ctx context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error)
-	Create(ctx context.Context, scope *models.MCPProxyScope) error
-	Update(ctx context.Context, scope *models.MCPProxyScope) error
+	Get(ctx context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error)
+	Create(ctx context.Context, scope *gwmodels.MCPProxyScope) error
+	Update(ctx context.Context, scope *gwmodels.MCPProxyScope) error
 	Delete(ctx context.Context, proxyUUID uuid.UUID, action string) error
 }
 
@@ -59,7 +59,7 @@ type scopeTool struct {
 func (scopeTool) TableName() string { return "mod_ai_gateway_mcp_proxy_scope_tools" }
 
 // withTools reads each scope's tools, in name order.
-func (r *mcpProxyScopeRepository) withTools(ctx context.Context, scopes []models.MCPProxyScope) ([]models.MCPProxyScope, error) {
+func (r *mcpProxyScopeRepository) withTools(ctx context.Context, scopes []gwmodels.MCPProxyScope) ([]gwmodels.MCPProxyScope, error) {
 	if len(scopes) == 0 {
 		return scopes, nil
 	}
@@ -87,7 +87,7 @@ func (r *mcpProxyScopeRepository) withTools(ctx context.Context, scopes []models
 }
 
 // replaceTools makes the scope's stored tools exactly tools.
-func replaceTools(db *gorm.DB, scope *models.MCPProxyScope) error {
+func replaceTools(db *gorm.DB, scope *gwmodels.MCPProxyScope) error {
 	if err := db.Where("scope_id = ?", scope.UUID).Delete(&scopeTool{}).Error; err != nil {
 		return err
 	}
@@ -104,8 +104,8 @@ func replaceTools(db *gorm.DB, scope *models.MCPProxyScope) error {
 	return nil
 }
 
-func (r *mcpProxyScopeRepository) ListByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyScope, error) {
-	var scopes []models.MCPProxyScope
+func (r *mcpProxyScopeRepository) ListByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
+	var scopes []gwmodels.MCPProxyScope
 	if err := r.db.WithContext(ctx).Where("mcp_proxy_id = ?", proxyUUID).
 		Order("action asc").Find(&scopes).Error; err != nil {
 		return nil, fmt.Errorf("failed to list mcp proxy scopes: %w", err)
@@ -113,13 +113,13 @@ func (r *mcpProxyScopeRepository) ListByProxy(ctx context.Context, proxyUUID uui
 	return r.withTools(ctx, scopes)
 }
 
-func (r *mcpProxyScopeRepository) ListByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]models.MCPProxyScope, error) {
+func (r *mcpProxyScopeRepository) ListByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
 	if len(proxyUUIDs) == 0 {
 		return nil, nil
 	}
-	var scopes []models.MCPProxyScope
+	var scopes []gwmodels.MCPProxyScope
 	for _, chunk := range dbx.Chunks(proxyUUIDs) {
-		var part []models.MCPProxyScope
+		var part []gwmodels.MCPProxyScope
 		if err := r.db.WithContext(ctx).Where("mcp_proxy_id IN ?", chunk).Find(&part).Error; err != nil {
 			return nil, fmt.Errorf("failed to list mcp proxy scopes: %w", err)
 		}
@@ -128,20 +128,20 @@ func (r *mcpProxyScopeRepository) ListByProxyUUIDs(ctx context.Context, proxyUUI
 	return r.withTools(ctx, scopes)
 }
 
-func (r *mcpProxyScopeRepository) Get(ctx context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
-	var scope models.MCPProxyScope
+func (r *mcpProxyScopeRepository) Get(ctx context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+	var scope gwmodels.MCPProxyScope
 	if err := r.db.WithContext(ctx).Where("mcp_proxy_id = ? AND action = ?", proxyUUID, action).
 		First(&scope).Error; err != nil {
 		return nil, err
 	}
-	scopes, err := r.withTools(ctx, []models.MCPProxyScope{scope})
+	scopes, err := r.withTools(ctx, []gwmodels.MCPProxyScope{scope})
 	if err != nil {
 		return nil, err
 	}
 	return &scopes[0], nil
 }
 
-func (r *mcpProxyScopeRepository) Create(ctx context.Context, scope *models.MCPProxyScope) error {
+func (r *mcpProxyScopeRepository) Create(ctx context.Context, scope *gwmodels.MCPProxyScope) error {
 	if scope.UUID == uuid.Nil {
 		scope.UUID = uuid.Must(uuid.NewV7())
 	}
@@ -149,7 +149,7 @@ func (r *mcpProxyScopeRepository) Create(ctx context.Context, scope *models.MCPP
 	scope.CreatedAt, scope.UpdatedAt = now, now
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if scope.OrgID == "" {
-			var proxy models.MCPProxy
+			var proxy gwmodels.MCPProxy
 			if err := tx.Select("org_id").Where("id = ?", scope.MCPProxyUUID).Take(&proxy).Error; err != nil {
 				return err
 			}
@@ -166,14 +166,14 @@ func (r *mcpProxyScopeRepository) Create(ctx context.Context, scope *models.MCPP
 	return nil
 }
 
-func (r *mcpProxyScopeRepository) Update(ctx context.Context, scope *models.MCPProxyScope) error {
+func (r *mcpProxyScopeRepository) Update(ctx context.Context, scope *gwmodels.MCPProxyScope) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var current models.MCPProxyScope
+		var current gwmodels.MCPProxyScope
 		err := tx.Where("mcp_proxy_id = ? AND action = ?", scope.MCPProxyUUID, scope.Action).Take(&current).Error
 		if err != nil {
 			return err
 		}
-		if err := tx.Model(&models.MCPProxyScope{}).Where("id = ?", current.UUID).
+		if err := tx.Model(&gwmodels.MCPProxyScope{}).Where("id = ?", current.UUID).
 			Updates(map[string]any{"description": scope.Description, "updated_at": dbx.Now()}).Error; err != nil {
 			return fmt.Errorf("failed to update mcp proxy scope: %w", err)
 		}
@@ -184,7 +184,7 @@ func (r *mcpProxyScopeRepository) Update(ctx context.Context, scope *models.MCPP
 
 func (r *mcpProxyScopeRepository) Delete(ctx context.Context, proxyUUID uuid.UUID, action string) error {
 	res := r.db.WithContext(ctx).Where("mcp_proxy_id = ? AND action = ?", proxyUUID, action).
-		Delete(&models.MCPProxyScope{})
+		Delete(&gwmodels.MCPProxyScope{})
 	if res.Error != nil {
 		return fmt.Errorf("failed to delete mcp proxy scope: %w", res.Error)
 	}

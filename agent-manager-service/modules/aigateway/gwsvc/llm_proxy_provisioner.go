@@ -31,7 +31,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -79,12 +79,12 @@ type ProvisionProxyParams struct {
 	ProviderHandle string
 	ProxyName      string // e.g. "my-monitor-openai-proxy"
 	ProjectUUID    uuid.UUID
-	Gateway        *models.Gateway
+	Gateway        *gwmodels.Gateway
 	// EnvironmentUUID is the environment of the record the proxy is deployed for (the monitor's).
 	EnvironmentUUID uuid.UUID
-	Policies        models.LLMPolicies // nil/empty for monitors
+	Policies        gwmodels.LLMPolicies // nil/empty for monitors
 	Description     string
-	CreatedBy       string // defaults to models.UserRoleSystem when empty
+	CreatedBy       string // defaults to gwmodels.UserRoleSystem when empty
 	SecretCtx       ProxySecretContext
 	// SkipKVSecret skips storing the proxy API key in the secret store.
 	// Set by callers (e.g. monitors) that manage their own composite secret.
@@ -93,7 +93,7 @@ type ProvisionProxyParams struct {
 
 // ProvisionedProxy is returned from a successful ProvisionProxy call.
 type ProvisionedProxy struct {
-	Proxy         *models.LLMProxy
+	Proxy         *gwmodels.LLMProxy
 	ProxyAPIKey   string // raw key — caller decides how/where to store it
 	ProxyURL      string
 	SecretRefName string // K8s SecretReference name (empty for non-K8s callers)
@@ -175,12 +175,12 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 	}
 
 	contextPath := fmt.Sprintf("/%s", uuid.New())
-	proxyConfig := &models.LLMProxy{
+	proxyConfig := &gwmodels.LLMProxy{
 		Description: params.Description,
 		ProjectUUID: params.ProjectUUID,
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     params.ProxyName,
-			Version:  models.DefaultProxyVersion,
+			Version:  gwmodels.DefaultProxyVersion,
 			Context:  &contextPath,
 			Provider: provider.UUID.String(),
 			Policies: params.Policies,
@@ -198,10 +198,10 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 				return nil, err
 			}
 
-			apiKey, err := p.llmProviderAPIKeyService.CreateAPIKey(ctx, params.OrgName, provider.UUID.String(), &models.CreateAPIKeyRequest{
+			apiKey, err := p.llmProviderAPIKeyService.CreateAPIKey(ctx, params.OrgName, provider.UUID.String(), &gwmodels.CreateAPIKeyRequest{
 				Name:        params.ProxyName,
 				DisplayName: params.ProxyName,
-				Purpose:     models.APIKeyPurposeConsoleManaged,
+				Purpose:     gwmodels.APIKeyPurposeConsoleManaged,
 			})
 			if err != nil {
 				return nil, fmt.Errorf("failed to create provider API key: %w", err)
@@ -224,8 +224,8 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 				return nil, fmt.Errorf("failed to encrypt provider API key: %w", err)
 			}
 			encoded := base64.StdEncoding.EncodeToString(encrypted)
-			proxyConfig.Configuration.UpstreamAuth = &models.UpstreamAuth{
-				Type:      utils.StrAsStrPointer(models.AuthTypeAPIKey),
+			proxyConfig.Configuration.UpstreamAuth = &gwmodels.UpstreamAuth{
+				Type:      utils.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
 				Header:    utils.StrAsStrPointer(upstreamHeader),
 				SecretRef: &encoded,
 				Value:     nil,
@@ -235,7 +235,7 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 
 	createdBy := params.CreatedBy
 	if createdBy == "" {
-		createdBy = models.UserRoleSystem
+		createdBy = gwmodels.UserRoleSystem
 	}
 	proxy, err := p.llmProxyService.Create(ctx, params.OrgName, createdBy, proxyConfig)
 	if err != nil {
@@ -254,9 +254,9 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 	rb.DeploymentID = deployment.DeploymentID
 	rb.GatewayUUID = params.Gateway.UUID
 
-	proxyAPIKey, err := p.llmProxyAPIKeyService.CreateAPIKey(ctx, params.OrgName, proxy.Handle, &models.CreateAPIKeyRequest{
+	proxyAPIKey, err := p.llmProxyAPIKeyService.CreateAPIKey(ctx, params.OrgName, proxy.Handle, &gwmodels.CreateAPIKeyRequest{
 		Name:    k8sNameWithSuffix(baseName, "-key"),
-		Purpose: models.APIKeyPurposeConsoleManaged,
+		Purpose: gwmodels.APIKeyPurposeConsoleManaged,
 	})
 	if err != nil {
 		p.RollbackProxy(ctx, rb, params.OrgName)
@@ -346,7 +346,7 @@ func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRoll
 // CleanupProxy tears down a deployed proxy and its associated secrets.
 // It is used in delete/update flows where an existing proxy must be removed.
 // secretCtx must match the context used when the proxy was provisioned so that KV paths resolve correctly.
-func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *models.LLMProxy, ouID string, secretCtx ProxySecretContext) error {
+func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *gwmodels.LLMProxy, ouID string, secretCtx ProxySecretContext) error {
 	// Handle is gorm:"-" (derived from the Artifact table) so it is empty when the
 	// LLMProxy was loaded via a plain GORM Preload. Fall back to Configuration.Name,
 	// which equals the artifact handle (llm_proxy_service.go: handle := name).

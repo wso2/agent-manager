@@ -23,9 +23,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -153,7 +153,7 @@ func attachLLMProvider(t *Tools) func(context.Context, attachLLMProviderInput) (
 				return nil, err
 			}
 		}
-		out, err := attachConfig(ctx, toolName, t, models.AgentConfigTypeLLM,
+		out, err := attachConfig(ctx, toolName, t, gwmodels.AgentConfigTypeLLM,
 			input.ProjectName, input.AgentName, input.ProviderID, "provider_id", input.ConfigName, input.Environments, policies)
 		if err != nil {
 			return nil, err
@@ -167,7 +167,7 @@ func attachLLMProvider(t *Tools) func(context.Context, attachLLMProviderInput) (
 
 func attachMCPProxy(t *Tools) func(context.Context, attachMCPProxyInput) (any, error) {
 	return func(ctx context.Context, input attachMCPProxyInput) (any, error) {
-		out, err := attachConfig(ctx, "attach_mcp_proxy_to_agent", t, models.AgentConfigTypeMCP,
+		out, err := attachConfig(ctx, "attach_mcp_proxy_to_agent", t, gwmodels.AgentConfigTypeMCP,
 			input.ProjectName, input.AgentName, input.ProxyID, "proxy_id", input.ConfigName, input.Environments, nil)
 		if err != nil {
 			return nil, err
@@ -182,7 +182,7 @@ func attachMCPProxy(t *Tools) func(context.Context, attachMCPProxyInput) (any, e
 func attachConfig(
 	ctx context.Context, toolName string, t *Tools,
 	configType, projectName, agentName, target, targetArg, configName string,
-	environments []string, policies []models.LLMPolicy,
+	environments []string, policies []gwmodels.LLMPolicy,
 ) (*attachConfigOutput, error) {
 	projectName, agentName, target = strings.TrimSpace(projectName), strings.TrimSpace(agentName), strings.TrimSpace(target)
 	if projectName == "" {
@@ -211,7 +211,7 @@ func attachConfig(
 		return nil, wrapToolError(toolName, err)
 	}
 	var envNames []string
-	if configType == models.AgentConfigTypeLLM && !hasEnvironmentNames(environments) {
+	if configType == gwmodels.AgentConfigTypeLLM && !hasEnvironmentNames(environments) {
 		// Create refuses the whole config on any environment where the provider is not placed, so
 		// "every environment" would fail for a provider deployed to only some of them.
 		envNames, err = defaultProviderEnvironments(ctx, toolName, handler, ouID, projectName, agentName, target)
@@ -226,14 +226,14 @@ func attachConfig(
 		return nil, err
 	}
 
-	mappings := make(map[string]models.EnvModelConfigRequest, len(envNames))
+	mappings := make(map[string]gwmodels.EnvModelConfigRequest, len(envNames))
 	for _, env := range envNames {
-		mappings[env] = models.EnvModelConfigRequest{
+		mappings[env] = gwmodels.EnvModelConfigRequest{
 			ProviderName:  target,
-			Configuration: models.EnvProviderConfiguration{Policies: policies},
+			Configuration: gwmodels.EnvProviderConfiguration{Policies: policies},
 		}
 	}
-	req := models.CreateAgentModelConfigRequest{Name: configName, Type: configType, EnvMappings: mappings}
+	req := gwmodels.CreateAgentModelConfigRequest{Name: configName, Type: configType, EnvMappings: mappings}
 
 	resp, err := handler.CreateAgentConfig(ctx, ouID, projectName, agentName, req)
 	if err != nil {
@@ -255,7 +255,7 @@ func attachConfig(
 	}
 	if external {
 		out.UnrevokedKeyEnvironments = revokeIssuedKeys(ctx, handler, resp, ouID, projectName, agentName, configType)
-		if configType == models.AgentConfigTypeMCP {
+		if configType == gwmodels.AgentConfigTypeMCP {
 			out.Note = externalAttachNote("MCP Server", externalMCPKeyHint, out.UnrevokedKeyEnvironments)
 		} else {
 			out.Note = externalAttachNote("LLM Provider", externalLLMKeyHint, out.UnrevokedKeyEnvironments)
@@ -265,7 +265,7 @@ func attachConfig(
 		out.Note += fmt.Sprintf(" Production environments %s were left out: configuring them needs %s.",
 			strings.Join(skipped, ", "), gwperm.DeployProduction.Scope())
 	}
-	if configType == models.AgentConfigTypeLLM {
+	if configType == gwmodels.AgentConfigTypeLLM {
 		out.Proxies = attachedProxies(resp, envNames)
 	}
 	// Only the variable names go back to the model: the response can carry a
@@ -322,7 +322,7 @@ func requireProductionTier(
 
 // attachedProxies lists the per-agent LLM proxy each environment got, so a
 // caller can name the proxy whose key the user manages, without the key.
-func attachedProxies(resp *models.AgentModelConfigResponse, envNames []string) []attachProxyItem {
+func attachedProxies(resp *gwmodels.AgentModelConfigResponse, envNames []string) []attachProxyItem {
 	proxies := []attachProxyItem{}
 	for _, env := range envNames {
 		cfg, ok := resp.EnvModelConfig[env]
@@ -351,7 +351,7 @@ func isExternalAgent(ctx context.Context, agents CoreReader, ouID, projectName, 
 // agent's environments, since the tool withholds it and nobody else holds it.
 // It returns the environments where that failed, for the user to regenerate.
 func revokeIssuedKeys(
-	ctx context.Context, handler AgentConfigToolsetHandler, resp *models.AgentModelConfigResponse,
+	ctx context.Context, handler AgentConfigToolsetHandler, resp *gwmodels.AgentModelConfigResponse,
 	ouID, projectName, agentName, configType string,
 ) []string {
 	envs := make([]string, 0, len(resp.EnvModelConfig))

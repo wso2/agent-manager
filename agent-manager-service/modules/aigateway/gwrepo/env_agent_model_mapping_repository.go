@@ -24,8 +24,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
@@ -42,19 +42,19 @@ type AgentConsumer struct {
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/env_agent_model_mapping_repository_mock.go . EnvAgentModelMappingRepository:EnvAgentModelMappingRepositoryMock
 type EnvAgentModelMappingRepository interface {
 	// Create creates a new environment mapping (use within transaction)
-	Create(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error
+	Create(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error
 
 	// GetByConfigAndEnv retrieves mapping by config UUID and environment
-	GetByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) (*models.EnvAgentModelMapping, error)
+	GetByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) (*gwmodels.EnvAgentModelMapping, error)
 
 	// ListByConfig retrieves all mappings for a configuration
-	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentModelMapping, error)
+	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentModelMapping, error)
 
 	// ListAgentConsumersByProxyUUIDs returns distinct agent consumers for the given proxy UUIDs.
 	ListAgentConsumersByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]AgentConsumer, error)
 
 	// Update updates an existing mapping (use within transaction)
-	Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error
+	Update(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error
 
 	// Delete deletes a mapping by ID (use within transaction)
 	Delete(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error
@@ -73,24 +73,24 @@ func NewEnvAgentModelMappingRepository(db *gorm.DB) EnvAgentModelMappingReposito
 	return &envAgentModelMappingRepository{db: db, core: repositories.NewCoreReadAPI(db)}
 }
 
-func (r *envAgentModelMappingRepository) Create(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error {
+func (r *envAgentModelMappingRepository) Create(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error {
 	return tx.WithContext(ctx).Create(mapping).Error
 }
 
-func (r *envAgentModelMappingRepository) GetByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) (*models.EnvAgentModelMapping, error) {
-	var mapping models.EnvAgentModelMapping
+func (r *envAgentModelMappingRepository) GetByConfigAndEnv(ctx context.Context, configUUID, envUUID uuid.UUID) (*gwmodels.EnvAgentModelMapping, error) {
+	var mapping gwmodels.EnvAgentModelMapping
 	err := r.db.WithContext(ctx).
 		Preload("LLMProxy").
 		Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
 		First(&mapping).Error
 	if err == nil {
-		backfillLLMProxyHandlesInMappings([]models.EnvAgentModelMapping{mapping})
+		backfillLLMProxyHandlesInMappings([]gwmodels.EnvAgentModelMapping{mapping})
 	}
 	return &mapping, err
 }
 
-func (r *envAgentModelMappingRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentModelMapping, error) {
-	var mappings []models.EnvAgentModelMapping
+func (r *envAgentModelMappingRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentModelMapping, error) {
+	var mappings []gwmodels.EnvAgentModelMapping
 	err := r.db.WithContext(ctx).
 		Preload("LLMProxy").
 		Where("config_id = ?", configUUID).
@@ -101,19 +101,19 @@ func (r *envAgentModelMappingRepository) ListByConfig(ctx context.Context, confi
 	return mappings, err
 }
 
-func (r *envAgentModelMappingRepository) Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error {
+func (r *envAgentModelMappingRepository) Update(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error {
 	return tx.WithContext(ctx).Save(mapping).Error
 }
 
 func (r *envAgentModelMappingRepository) Delete(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error {
 	return tx.WithContext(ctx).Where("config_id = ? AND environment_id = ?", configUUID, envUUID).
-		Delete(&models.EnvAgentModelMapping{}).Error
+		Delete(&gwmodels.EnvAgentModelMapping{}).Error
 }
 
 func (r *envAgentModelMappingRepository) DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
 		Where("config_id = ?", configUUID).
-		Delete(&models.EnvAgentModelMapping{}).Error
+		Delete(&gwmodels.EnvAgentModelMapping{}).Error
 }
 
 func (r *envAgentModelMappingRepository) ListAgentConsumersByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]AgentConsumer, error) {

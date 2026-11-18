@@ -27,8 +27,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -40,8 +40,8 @@ import (
 type LLMProxyKind struct {
 	gatewayRepo    gwrepo.GatewayRepository
 	deploymentRepo gwrepo.DeploymentRepository
-	load           func(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProxy, *models.LLMProvider, error)
-	vhostOf        func(tx *gorm.DB, artifact models.ArtifactRef) string
+	load           func(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error)
+	vhostOf        func(tx *gorm.DB, artifact gwmodels.ArtifactRef) string
 }
 
 // NewLLMProxyKind reads proxies and their providers through the request's transaction when there is one.
@@ -51,7 +51,7 @@ func NewLLMProxyKind(gatewayRepo gwrepo.GatewayRepository, deploymentRepo gwrepo
 	}
 }
 
-func loadLLMProxy(ctx context.Context, artifact models.ArtifactRef) (*models.LLMProxy, *models.LLMProvider, error) {
+func loadLLMProxy(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error) {
 	tx := db.DB(ctx)
 	proxy, err := gwrepo.NewLLMProxyRepo(tx).GetByIDCtx(ctx, artifact.Handle, artifact.OUID)
 	if err != nil {
@@ -67,14 +67,16 @@ func loadLLMProxy(ctx context.Context, artifact models.ArtifactRef) (*models.LLM
 	return proxy, provider, nil
 }
 
-func (k *LLMProxyKind) Name() string        { return models.KindLLMProxy }
+func (k *LLMProxyKind) Name() string        { return gwmodels.KindLLMProxy }
 func (k *LLMProxyKind) RendersInline() bool { return true }
 
-func (k *LLMProxyKind) GatewayArtifactID(artifact models.ArtifactRef) string { return artifact.Handle }
+func (k *LLMProxyKind) GatewayArtifactID(artifact gwmodels.ArtifactRef) string {
+	return artifact.Handle
+}
 
 // Render re-checks the proxy itself: a proxy deployed by the public route has no per-environment record, and an
 // agent's or monitor's proxy is deleted with its record.
-func (k *LLMProxyKind) Render(ctx context.Context, artifact models.ArtifactRef) (reconcile.Rendered, error) {
+func (k *LLMProxyKind) Render(ctx context.Context, artifact gwmodels.ArtifactRef) (reconcile.Rendered, error) {
 	proxy, provider, err := k.load(ctx, artifact)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return reconcile.Rendered{}, reconcile.ErrRecordGone
@@ -90,7 +92,7 @@ func (k *LLMProxyKind) Render(ctx context.Context, artifact models.ArtifactRef) 
 }
 
 // proxyEventVhost is the vhost a proxy's events carry: the proxy row's, read in the event's transaction.
-func proxyEventVhost(tx *gorm.DB, artifact models.ArtifactRef) string {
+func proxyEventVhost(tx *gorm.DB, artifact gwmodels.ArtifactRef) string {
 	if tx == nil {
 		return ""
 	}
@@ -102,7 +104,7 @@ func proxyEventVhost(tx *gorm.DB, artifact models.ArtifactRef) string {
 }
 
 func (k *LLMProxyKind) DeployEvent(ref reconcile.EventRef) eventhub.Event {
-	payload := &models.LLMProxyDeploymentEvent{
+	payload := &gwmodels.LLMProxyDeploymentEvent{
 		ProxyID:        ref.Handle,
 		DeploymentID:   ref.DeploymentID,
 		PerformedAt:    ref.PerformedAt,
@@ -110,13 +112,13 @@ func (k *LLMProxyKind) DeployEvent(ref reconcile.EventRef) eventhub.Event {
 		Environment:    "production",
 		GatewayID:      ref.GatewayUUID.String(),
 		OrganizationID: ref.OUID,
-		Status:         string(models.DeploymentStatusDeployed),
+		Status:         string(gwmodels.DeploymentStatusDeployed),
 	}
 	return eventhub.NewGatewayEvent("llmproxy.deployed", "CREATE", payload.ProxyID, payload)
 }
 
 func (k *LLMProxyKind) UndeployEvent(ref reconcile.EventRef) eventhub.Event {
-	payload := &models.LLMProxyUndeploymentEvent{
+	payload := &gwmodels.LLMProxyUndeploymentEvent{
 		ProxyID:        ref.Handle,
 		PerformedAt:    ref.PerformedAt,
 		Vhost:          k.vhost(ref),
@@ -128,8 +130,8 @@ func (k *LLMProxyKind) UndeployEvent(ref reconcile.EventRef) eventhub.Event {
 }
 
 // DeleteEvent drops the proxy's config from the gateway: an undeploy keeps it and its policy chains.
-func (k *LLMProxyKind) DeleteEvent(artifact models.ArtifactRef) eventhub.Event {
-	payload := &models.LLMProxyDeletionEvent{ProxyID: artifact.Handle}
+func (k *LLMProxyKind) DeleteEvent(artifact gwmodels.ArtifactRef) eventhub.Event {
+	payload := &gwmodels.LLMProxyDeletionEvent{ProxyID: artifact.Handle}
 	return eventhub.NewGatewayEvent("llmproxy.deleted", "DELETE", payload.ProxyID, payload)
 }
 
@@ -147,7 +149,7 @@ func (k *LLMProxyKind) UnplacedRecords(
 ) ([]reconcile.Record, error) {
 	agents, agentArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "m.environment_id",
-	}, models.EgressGatewayRoles, ouID, env)
+	}, gwmodels.EgressGatewayRoles, ouID, env)
 	q := db.DB(ctx).Table("mod_ai_gateway_agent_model_config_llm m").
 		Select("a.org_id, a.id AS artifact_id, a.handle, m.environment_id").
 		Joins("JOIN mod_ai_gateway_artifacts a ON a.id = m.llm_proxy_id").
@@ -167,8 +169,8 @@ func (k *LLMProxyKind) UnplacedRecords(
 	records := make([]reconcile.Record, 0, len(rows))
 	for _, r := range rows {
 		records = append(records, reconcile.Record{
-			ArtifactRef: models.ArtifactRef{
-				OUID: r.OUID, ArtifactUUID: r.ArtifactUUID, Kind: models.KindLLMProxy, Handle: r.Handle,
+			ArtifactRef: gwmodels.ArtifactRef{
+				OUID: r.OUID, ArtifactUUID: r.ArtifactUUID, Kind: gwmodels.KindLLMProxy, Handle: r.Handle,
 			},
 			EnvironmentUUID: r.EnvironmentUUID,
 			Key:             r.ArtifactUUID.String() + "/" + r.EnvironmentUUID.String(),

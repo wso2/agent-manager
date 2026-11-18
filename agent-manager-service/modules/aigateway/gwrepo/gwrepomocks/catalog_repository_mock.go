@@ -6,7 +6,7 @@ package gwrepomocks
 import (
 	"sync"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // CatalogRepositoryMock is a mock implementation of gwrepo.CatalogRepository.
@@ -15,13 +15,13 @@ import (
 //
 //		// make and configure a mocked gwrepo.CatalogRepository
 //		mockedCatalogRepository := &CatalogRepositoryMock{
-//			ListAllFunc: func(orgUUID string, limit int, offset int) ([]models.CatalogEntry, int64, error) {
+//			ListAllFunc: func(orgUUID string, limit int, offset int) ([]gwmodels.CatalogEntry, int64, error) {
 //				panic("mock out the ListAll method")
 //			},
-//			ListByKindFunc: func(orgUUID string, kind string, limit int, offset int) ([]models.CatalogEntry, int64, error) {
+//			ListByKindFunc: func(orgUUID string, kind string, limit int, offset int) ([]gwmodels.CatalogEntry, int64, error) {
 //				panic("mock out the ListByKind method")
 //			},
-//			ListLLMProvidersFunc: func(filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
+//			ListLLMProvidersFunc: func(filters *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error) {
 //				panic("mock out the ListLLMProviders method")
 //			},
 //		}
@@ -32,13 +32,13 @@ import (
 //	}
 type CatalogRepositoryMock struct {
 	// ListAllFunc mocks the ListAll method.
-	ListAllFunc func(orgUUID string, limit int, offset int) ([]models.CatalogEntry, int64, error)
+	ListAllFunc func(orgUUID string, limit int, offset int) ([]gwmodels.CatalogEntry, int64, error)
 
 	// ListByKindFunc mocks the ListByKind method.
-	ListByKindFunc func(orgUUID string, kind string, limit int, offset int) ([]models.CatalogEntry, int64, error)
+	ListByKindFunc func(orgUUID string, kind string, limit int, offset int) ([]gwmodels.CatalogEntry, int64, error)
 
 	// ListLLMProvidersFunc mocks the ListLLMProviders method.
-	ListLLMProvidersFunc func(filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error)
+	ListLLMProvidersFunc func(filters *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -65,7 +65,7 @@ type CatalogRepositoryMock struct {
 		// ListLLMProviders holds details about calls to the ListLLMProviders method.
 		ListLLMProviders []struct {
 			// Filters is the filters argument value.
-			Filters *models.CatalogListFilters
+			Filters *gwmodels.CatalogListFilters
 		}
 	}
 	lockListAll          sync.RWMutex
@@ -74,7 +74,7 @@ type CatalogRepositoryMock struct {
 }
 
 // ListAll calls ListAllFunc.
-func (mock *CatalogRepositoryMock) ListAll(orgUUID string, limit int, offset int) ([]models.CatalogEntry, int64, error) {
+func (mock *CatalogRepositoryMock) ListAll(orgUUID string, limit int, offset int) ([]gwmodels.CatalogEntry, int64, error) {
 	if mock.ListAllFunc == nil {
 		panic("CatalogRepositoryMock.ListAllFunc: method is nil but CatalogRepository.ListAll was just called")
 	}
@@ -114,7 +114,7 @@ func (mock *CatalogRepositoryMock) ListAllCalls() []struct {
 }
 
 // ListByKind calls ListByKindFunc.
-func (mock *CatalogRepositoryMock) ListByKind(orgUUID string, kind string, limit int, offset int) ([]models.CatalogEntry, int64, error) {
+func (mock *CatalogRepositoryMock) ListByKind(orgUUID string, kind string, limit int, offset int) ([]gwmodels.CatalogEntry, int64, error) {
 	if mock.ListByKindFunc == nil {
 		panic("CatalogRepositoryMock.ListByKindFunc: method is nil but CatalogRepository.ListByKind was just called")
 	}
@@ -158,12 +158,12 @@ func (mock *CatalogRepositoryMock) ListByKindCalls() []struct {
 }
 
 // ListLLMProviders calls ListLLMProvidersFunc.
-func (mock *CatalogRepositoryMock) ListLLMProviders(filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
+func (mock *CatalogRepositoryMock) ListLLMProviders(filters *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error) {
 	if mock.ListLLMProvidersFunc == nil {
 		panic("CatalogRepositoryMock.ListLLMProvidersFunc: method is nil but CatalogRepository.ListLLMProviders was just called")
 	}
 	callInfo := struct {
-		Filters *models.CatalogListFilters
+		Filters *gwmodels.CatalogListFilters
 	}{
 		Filters: filters,
 	}
@@ -178,10 +178,10 @@ func (mock *CatalogRepositoryMock) ListLLMProviders(filters *models.CatalogListF
 //
 //	len(mockedCatalogRepository.ListLLMProvidersCalls())
 func (mock *CatalogRepositoryMock) ListLLMProvidersCalls() []struct {
-	Filters *models.CatalogListFilters
+	Filters *gwmodels.CatalogListFilters
 } {
 	var calls []struct {
-		Filters *models.CatalogListFilters
+		Filters *gwmodels.CatalogListFilters
 	}
 	mock.lockListLLMProviders.RLock()
 	calls = mock.calls.ListLLMProviders

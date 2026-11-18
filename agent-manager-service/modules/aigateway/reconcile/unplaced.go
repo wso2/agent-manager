@@ -19,7 +19,7 @@ package reconcile
 import (
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // RecordColumns names the SQL expressions of a kind's record query that UnplacedCondition reads.
@@ -41,7 +41,7 @@ func UnplacedCondition(cols RecordColumns, roles []string, ouID string, env *uui
 		AND EXISTS (SELECT 1 FROM mod_ai_gateway_gateway_environments gem
 			INNER JOIN mod_ai_gateway_gateways g ON g.id = gem.gateway_id AND g.hosting = ? AND g.functionality_type IN ?
 			WHERE gem.environment_id = ` + cols.EnvironmentUUID + `)`
-	args := []any{models.GatewayHostingManaged, roles}
+	args := []any{gwmodels.GatewayHostingManaged, roles}
 	if ouID != "" {
 		condition += " AND " + cols.OUID + " = ?"
 		args = append(args, ouID)
@@ -60,5 +60,5 @@ func PlacedCondition(cols RecordColumns, env, gateway uuid.UUID) (string, []any)
 	condition := cols.EnvironmentUUID + ` = ? AND EXISTS (SELECT 1 FROM mod_ai_gateway_artifact_gateway_status ds
 			WHERE ds.artifact_id = ` + cols.ArtifactUUID + `
 			AND ds.gateway_id = ? AND (ds.status_desired = ? OR ds.next_attempt_at IS NOT NULL))`
-	return condition, []any{env, gateway, models.DeploymentStatusDeployed}
+	return condition, []any{env, gateway, gwmodels.DeploymentStatusDeployed}
 }

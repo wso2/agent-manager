@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +18,7 @@ import (
 //
 //		// make and configure a mocked gwrepo.AgentEnvConfigVariableRepository
 //		mockedAgentEnvConfigVariableRepository := &AgentEnvConfigVariableRepositoryMock{
-//			CreateBatchFunc: func(ctx context.Context, tx *gorm.DB, variables []models.AgentEnvConfigVariable) error {
+//			CreateBatchFunc: func(ctx context.Context, tx *gorm.DB, variables []gwmodels.AgentEnvConfigVariable) error {
 //				panic("mock out the CreateBatch method")
 //			},
 //			DeleteByConfigFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
@@ -27,19 +27,19 @@ import (
 //			DeleteByConfigAndEnvFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error {
 //				panic("mock out the DeleteByConfigAndEnv method")
 //			},
-//			ListByConfigFunc: func(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+//			ListByConfigFunc: func(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 //				panic("mock out the ListByConfig method")
 //			},
-//			ListByConfigAndEnvFunc: func(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+//			ListByConfigAndEnvFunc: func(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 //				panic("mock out the ListByConfigAndEnv method")
 //			},
-//			ListByConfigForUpdateFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+//			ListByConfigForUpdateFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 //				panic("mock out the ListByConfigForUpdate method")
 //			},
 //			ListSecretReferencesByAgentAndEnvFunc: func(ctx context.Context, agentID string, ouID string, envUUID uuid.UUID) ([]string, error) {
 //				panic("mock out the ListSecretReferencesByAgentAndEnv method")
 //			},
-//			LockAndListByAgentFunc: func(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]models.AgentEnvConfigVariable, error) {
+//			LockAndListByAgentFunc: func(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]gwmodels.AgentEnvConfigVariable, error) {
 //				panic("mock out the LockAndListByAgent method")
 //			},
 //			UpdateVariableNamesFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error {
@@ -53,7 +53,7 @@ import (
 //	}
 type AgentEnvConfigVariableRepositoryMock struct {
 	// CreateBatchFunc mocks the CreateBatch method.
-	CreateBatchFunc func(ctx context.Context, tx *gorm.DB, variables []models.AgentEnvConfigVariable) error
+	CreateBatchFunc func(ctx context.Context, tx *gorm.DB, variables []gwmodels.AgentEnvConfigVariable) error
 
 	// DeleteByConfigFunc mocks the DeleteByConfig method.
 	DeleteByConfigFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
@@ -62,19 +62,19 @@ type AgentEnvConfigVariableRepositoryMock struct {
 	DeleteByConfigAndEnvFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error
 
 	// ListByConfigFunc mocks the ListByConfig method.
-	ListByConfigFunc func(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+	ListByConfigFunc func(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error)
 
 	// ListByConfigAndEnvFunc mocks the ListByConfigAndEnv method.
-	ListByConfigAndEnvFunc func(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+	ListByConfigAndEnvFunc func(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error)
 
 	// ListByConfigForUpdateFunc mocks the ListByConfigForUpdate method.
-	ListByConfigForUpdateFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error)
+	ListByConfigForUpdateFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error)
 
 	// ListSecretReferencesByAgentAndEnvFunc mocks the ListSecretReferencesByAgentAndEnv method.
 	ListSecretReferencesByAgentAndEnvFunc func(ctx context.Context, agentID string, ouID string, envUUID uuid.UUID) ([]string, error)
 
 	// LockAndListByAgentFunc mocks the LockAndListByAgent method.
-	LockAndListByAgentFunc func(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]models.AgentEnvConfigVariable, error)
+	LockAndListByAgentFunc func(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]gwmodels.AgentEnvConfigVariable, error)
 
 	// UpdateVariableNamesFunc mocks the UpdateVariableNames method.
 	UpdateVariableNamesFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, keyNameMap map[string]string) error
@@ -88,7 +88,7 @@ type AgentEnvConfigVariableRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Variables is the variables argument value.
-			Variables []models.AgentEnvConfigVariable
+			Variables []gwmodels.AgentEnvConfigVariable
 		}
 		// DeleteByConfig holds details about calls to the DeleteByConfig method.
 		DeleteByConfig []struct {
@@ -183,14 +183,14 @@ type AgentEnvConfigVariableRepositoryMock struct {
 }
 
 // CreateBatch calls CreateBatchFunc.
-func (mock *AgentEnvConfigVariableRepositoryMock) CreateBatch(ctx context.Context, tx *gorm.DB, variables []models.AgentEnvConfigVariable) error {
+func (mock *AgentEnvConfigVariableRepositoryMock) CreateBatch(ctx context.Context, tx *gorm.DB, variables []gwmodels.AgentEnvConfigVariable) error {
 	if mock.CreateBatchFunc == nil {
 		panic("AgentEnvConfigVariableRepositoryMock.CreateBatchFunc: method is nil but AgentEnvConfigVariableRepository.CreateBatch was just called")
 	}
 	callInfo := struct {
 		Ctx       context.Context
 		Tx        *gorm.DB
-		Variables []models.AgentEnvConfigVariable
+		Variables []gwmodels.AgentEnvConfigVariable
 	}{
 		Ctx:       ctx,
 		Tx:        tx,
@@ -209,12 +209,12 @@ func (mock *AgentEnvConfigVariableRepositoryMock) CreateBatch(ctx context.Contex
 func (mock *AgentEnvConfigVariableRepositoryMock) CreateBatchCalls() []struct {
 	Ctx       context.Context
 	Tx        *gorm.DB
-	Variables []models.AgentEnvConfigVariable
+	Variables []gwmodels.AgentEnvConfigVariable
 } {
 	var calls []struct {
 		Ctx       context.Context
 		Tx        *gorm.DB
-		Variables []models.AgentEnvConfigVariable
+		Variables []gwmodels.AgentEnvConfigVariable
 	}
 	mock.lockCreateBatch.RLock()
 	calls = mock.calls.CreateBatch
@@ -307,7 +307,7 @@ func (mock *AgentEnvConfigVariableRepositoryMock) DeleteByConfigAndEnvCalls() []
 }
 
 // ListByConfig calls ListByConfigFunc.
-func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 	if mock.ListByConfigFunc == nil {
 		panic("AgentEnvConfigVariableRepositoryMock.ListByConfigFunc: method is nil but AgentEnvConfigVariableRepository.ListByConfig was just called")
 	}
@@ -343,7 +343,7 @@ func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfigCalls() []struct {
 }
 
 // ListByConfigAndEnv calls ListByConfigAndEnvFunc.
-func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfigAndEnv(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfigAndEnv(ctx context.Context, configUUID uuid.UUID, envUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 	if mock.ListByConfigAndEnvFunc == nil {
 		panic("AgentEnvConfigVariableRepositoryMock.ListByConfigAndEnvFunc: method is nil but AgentEnvConfigVariableRepository.ListByConfigAndEnv was just called")
 	}
@@ -383,7 +383,7 @@ func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfigAndEnvCalls() []st
 }
 
 // ListByConfigForUpdate calls ListByConfigForUpdateFunc.
-func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+func (mock *AgentEnvConfigVariableRepositoryMock) ListByConfigForUpdate(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 	if mock.ListByConfigForUpdateFunc == nil {
 		panic("AgentEnvConfigVariableRepositoryMock.ListByConfigForUpdateFunc: method is nil but AgentEnvConfigVariableRepository.ListByConfigForUpdate was just called")
 	}
@@ -467,7 +467,7 @@ func (mock *AgentEnvConfigVariableRepositoryMock) ListSecretReferencesByAgentAnd
 }
 
 // LockAndListByAgent calls LockAndListByAgentFunc.
-func (mock *AgentEnvConfigVariableRepositoryMock) LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]models.AgentEnvConfigVariable, error) {
+func (mock *AgentEnvConfigVariableRepositoryMock) LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID string, projectName string, agentID string) ([]gwmodels.AgentEnvConfigVariable, error) {
 	if mock.LockAndListByAgentFunc == nil {
 		panic("AgentEnvConfigVariableRepositoryMock.LockAndListByAgentFunc: method is nil but AgentEnvConfigVariableRepository.LockAndListByAgent was just called")
 	}

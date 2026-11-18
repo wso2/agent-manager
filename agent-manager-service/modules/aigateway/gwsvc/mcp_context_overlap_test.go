@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 func TestMCPGatewayContext(t *testing.T) {
@@ -29,12 +29,12 @@ func TestMCPGatewayContext(t *testing.T) {
 	project := "p1"
 	projectUUID := "p1-uuid"
 
-	org := &models.MCPProxy{Configuration: models.MCPProxyConfig{Context: &ctx}}
+	org := &gwmodels.MCPProxy{Configuration: gwmodels.MCPProxyConfig{Context: &ctx}}
 	assert.Equal(t, "/weather", mcpGatewayContext(org, "p1"), "an org proxy's context is unchanged")
 
-	proj := &models.MCPProxy{
+	proj := &gwmodels.MCPProxy{
 		ProjectUUID: &projectUUID, ProjectName: &project,
-		Configuration: models.MCPProxyConfig{Context: &ctx},
+		Configuration: gwmodels.MCPProxyConfig{Context: &ctx},
 	}
 	assert.Equal(t, "/p1/weather", mcpGatewayContext(proj, "p1"))
 	assert.Equal(t, "/p1/weather", mcpGatewayContext(proj, ""), "falls back to the proxy's own project")

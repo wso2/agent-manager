@@ -27,7 +27,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
@@ -132,11 +132,11 @@ func a2aAttemptContexts(ctx context.Context, timeout time.Duration) (attempt, re
 
 // findIngressGateway is the environment's INGRESS gateway, where inbound A2A traffic belongs, or nil while none is
 // mapped; egress gateways host outbound LLM/MCP artifacts.
-func findIngressGateway(gatewayRepo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID) (*models.Gateway, error) {
+func findIngressGateway(gatewayRepo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID) (*gwmodels.Gateway, error) {
 	envID := envUUID.String()
 	gateways, err := gatewayRepo.ListWithFilters(gwrepo.GatewayFilterOptions{
 		OrganizationID:      ouID,
-		FunctionalityTypeIn: models.IngressGatewayRoles,
+		FunctionalityTypeIn: gwmodels.IngressGatewayRoles,
 		EnvironmentID:       &envID,
 	})
 	if err != nil {
@@ -152,7 +152,7 @@ func findIngressGateway(gatewayRepo gwrepo.GatewayRepository, ouID string, envUU
 
 // resolveIngressGateway is findIngressGateway for a worker: the bootstrap job registers the gateway after the
 // environment exists, so absence is a timing condition the attempt retries on.
-func resolveIngressGateway(gatewayRepo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID) (*models.Gateway, error) {
+func resolveIngressGateway(gatewayRepo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID) (*gwmodels.Gateway, error) {
 	gateway, err := findIngressGateway(gatewayRepo, ouID, envUUID)
 	if err != nil {
 		return nil, err

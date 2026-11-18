@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -45,31 +46,31 @@ import (
 const testMCPEnvUUID = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
 
 // identityEnabledSecurity returns a SecurityConfig selecting the Agent Identity variant.
-func identityEnabledSecurity() *models.SecurityConfig {
-	return &models.SecurityConfig{
+func identityEnabledSecurity() *gwmodels.SecurityConfig {
+	return &gwmodels.SecurityConfig{
 		Enabled:  boolPtr(true),
-		Identity: &models.IdentitySecurity{Enabled: boolPtr(true)},
+		Identity: &gwmodels.IdentitySecurity{Enabled: boolPtr(true)},
 	}
 }
 
 // endpointWith builds a single-environment endpoint DTO targeting testMCPEnvUUID with the
 // given upstream URL and security.
-func endpointWith(url string, security *models.SecurityConfig) models.MCPProxyEndpointDTO {
-	var upstream models.UpstreamConfig
+func endpointWith(url string, security *gwmodels.SecurityConfig) gwmodels.MCPProxyEndpointDTO {
+	var upstream gwmodels.UpstreamConfig
 	if url != "" {
-		upstream.Main = &models.UpstreamEndpoint{URL: url}
+		upstream.Main = &gwmodels.UpstreamEndpoint{URL: url}
 	}
-	return models.MCPProxyEndpointDTO{
+	return gwmodels.MCPProxyEndpointDTO{
 		ID:           "primary",
 		Upstream:     upstream,
 		Security:     security,
-		Environments: []models.MCPEndpointEnvironmentDTO{{EnvironmentUUID: testMCPEnvUUID}},
+		Environments: []gwmodels.MCPEndpointEnvironmentDTO{{EnvironmentUUID: testMCPEnvUUID}},
 	}
 }
 
 // gatewayWithPolicyManifest builds a Gateway whose Manifest advertises the given
 // name/version policy pairs, in the shape extractGatewayPolicyManifestItems walks.
-func gatewayWithPolicyManifest(nameVersionPairs ...string) *models.Gateway {
+func gatewayWithPolicyManifest(nameVersionPairs ...string) *gwmodels.Gateway {
 	items := make([]interface{}, 0, len(nameVersionPairs)/2)
 	for i := 0; i+1 < len(nameVersionPairs); i += 2 {
 		items = append(items, map[string]interface{}{
@@ -77,16 +78,16 @@ func gatewayWithPolicyManifest(nameVersionPairs ...string) *models.Gateway {
 			"version": nameVersionPairs[i+1],
 		})
 	}
-	return &models.Gateway{
+	return &gwmodels.Gateway{
 		Manifest:                 map[string]interface{}{"policies": items},
-		GatewayFunctionalityType: models.GatewayRoleBoth,
+		GatewayFunctionalityType: gwmodels.GatewayRoleBoth,
 	}
 }
 
 func TestDefaultMCPProxySecurity_IdentityVariantSkipsAPIKeyDefaults(t *testing.T) {
-	out := defaultMCPProxySecurity(&models.SecurityConfig{
+	out := defaultMCPProxySecurity(&gwmodels.SecurityConfig{
 		Enabled:  boolPtr(true),
-		Identity: &models.IdentitySecurity{Enabled: boolPtr(true)},
+		Identity: &gwmodels.IdentitySecurity{Enabled: boolPtr(true)},
 	})
 	assert.Nil(t, out.APIKey, "identity mode must not default an API key on")
 	assert.NotNil(t, out.Identity)
@@ -97,18 +98,18 @@ func TestMCPProxyCreate_RejectsNonKebabHandle(t *testing.T) {
 	svc := &MCPProxyService{}
 	for _, id := range []string{"Bad_Handle", "UPPER", "has space", "trail-", "-lead", "a--b", strings.Repeat("a", 101)} {
 		_, err := svc.Create(context.Background(), "org-uuid", "system",
-			&models.MCPProxyDTO{ID: id, Name: "x", Version: "v1"})
+			&gwmodels.MCPProxyDTO{ID: id, Name: "x", Version: "v1"})
 		assert.ErrorIs(t, err, utils.ErrInvalidInput, "handle %q must be rejected", id)
 		assert.Contains(t, err.Error(), "kebab-case", "handle %q must be rejected by the kebab check, not a later validation", id)
 	}
 }
 
 func TestValidateMCPEndpoints_RejectsBothVariantsEnabled(t *testing.T) {
-	endpoints := []models.MCPProxyEndpointDTO{
-		endpointWith("https://93.184.216.34", &models.SecurityConfig{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
+		endpointWith("https://93.184.216.34", &gwmodels.SecurityConfig{
 			Enabled:  boolPtr(true),
-			APIKey:   &models.APIKeySecurity{Enabled: boolPtr(true)},
-			Identity: &models.IdentitySecurity{Enabled: boolPtr(true)},
+			APIKey:   &gwmodels.APIKeySecurity{Enabled: boolPtr(true)},
+			Identity: &gwmodels.IdentitySecurity{Enabled: boolPtr(true)},
 		}),
 	}
 	err := validateMCPEndpoints(endpoints)
@@ -120,19 +121,19 @@ func TestValidateMCPEndpoints_RejectsDuplicateEnvironmentAcrossEndpoints(t *test
 	first.ID = "primary"
 	second := endpointWith("https://93.184.216.35", nil)
 	second.ID = "secondary"
-	err := validateMCPEndpoints([]models.MCPProxyEndpointDTO{first, second})
+	err := validateMCPEndpoints([]gwmodels.MCPProxyEndpointDTO{first, second})
 	assert.ErrorIs(t, err, utils.ErrMCPEnvAlreadyBound)
 }
 
 func TestValidateMCPEndpointSecurity_IdentityNeedsGatewayPolicies(t *testing.T) {
 	// Gateway advertises mcp-auth but not mcp-authz.
 	gwRepo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{gatewayWithPolicyManifest("mcp-auth", "v1")}, nil
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{gatewayWithPolicyManifest("mcp-auth", "v1")}, nil
 		},
 	}
 	svc := &MCPProxyService{gatewayRepo: gwRepo}
-	endpoints := []models.MCPProxyEndpointDTO{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil)
@@ -141,12 +142,12 @@ func TestValidateMCPEndpointSecurity_IdentityNeedsGatewayPolicies(t *testing.T) 
 
 func TestValidateMCPEndpointSecurity_IdentityAcceptedWithGatewayPolicies(t *testing.T) {
 	gwRepo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{gatewayWithPolicyManifest("mcp-auth", "v1", "mcp-authz", "v1")}, nil
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{gatewayWithPolicyManifest("mcp-auth", "v1", "mcp-authz", "v1")}, nil
 		},
 	}
 	svc := &MCPProxyService{gatewayRepo: gwRepo}
-	endpoints := []models.MCPProxyEndpointDTO{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 	assert.NoError(t, svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil))
@@ -157,14 +158,14 @@ func TestValidateMCPEndpointSecurity_IdentityAcceptedWithGatewayPolicies(t *test
 // Identity; its policies are checked once it reports.
 func TestValidateMCPEndpointSecurity_IdentitySkipsGatewayThatHasNotReported(t *testing.T) {
 	clearGatewayManifestCache(t)
-	silent := newGateway(t, models.GatewayRoleEgress, true)
+	silent := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	gwRepo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{gatewayWithPolicyManifest("mcp-auth", "v1", "mcp-authz", "v1"), silent}, nil
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{gatewayWithPolicyManifest("mcp-auth", "v1", "mcp-authz", "v1"), silent}, nil
 		},
 	}
 	svc := &MCPProxyService{gatewayRepo: gwRepo}
-	endpoints := []models.MCPProxyEndpointDTO{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 	assert.NoError(t, svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil))
@@ -174,14 +175,14 @@ func TestValidateMCPEndpointSecurity_IdentitySkipsGatewayThatHasNotReported(t *t
 // alongside one that has not reported.
 func TestValidateMCPEndpointSecurity_IdentityRefusedByReportedGatewayDespiteSilentOne(t *testing.T) {
 	clearGatewayManifestCache(t)
-	silent := newGateway(t, models.GatewayRoleEgress, true)
+	silent := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	gwRepo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{silent, gatewayWithPolicyManifest("mcp-auth", "v1")}, nil
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{silent, gatewayWithPolicyManifest("mcp-auth", "v1")}, nil
 		},
 	}
 	svc := &MCPProxyService{gatewayRepo: gwRepo}
-	endpoints := []models.MCPProxyEndpointDTO{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil)
@@ -191,13 +192,13 @@ func TestValidateMCPEndpointSecurity_IdentityRefusedByReportedGatewayDespiteSile
 // A gateway that has not reported its manifest must not empty the org's MCP policy list.
 func TestListAvailableMCPPolicies_SkipsGatewayThatHasNotReported(t *testing.T) {
 	clearGatewayManifestCache(t)
-	reported := newGateway(t, models.GatewayRoleEgress, true)
+	reported := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	assert.NoError(t, gatewayManifestCache.Set(context.Background(), reported.UUID.String(),
 		policyManifest("mcp-auth", "v1")))
-	silent := newGateway(t, models.GatewayRoleEgress, true)
+	silent := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	gwRepo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{silent, reported}, nil
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{silent, reported}, nil
 		},
 	}
 
@@ -213,7 +214,7 @@ func TestListAvailableMCPPolicies_SkipsGatewayThatHasNotReported(t *testing.T) {
 func TestListAvailableMCPPolicies_ListsOnlyManagedGateways(t *testing.T) {
 	var captured gwrepo.GatewayFilterOptions
 	gwRepo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			captured = filters
 			return nil, nil
 		},
@@ -222,19 +223,19 @@ func TestListAvailableMCPPolicies_ListsOnlyManagedGateways(t *testing.T) {
 	_, err := (&MCPProxyService{gatewayRepo: gwRepo}).ListAvailableMCPPolicies(context.Background(), "org1")
 
 	assert.NoError(t, err)
-	assert.Equal(t, models.GatewayHostingManaged, captured.Hosting)
+	assert.Equal(t, gwmodels.GatewayHostingManaged, captured.Hosting)
 }
 
 func TestValidateMCPEndpointSecurity_IdentityAllowedWhenNoGatewayYet(t *testing.T) {
 	// No active gateway for the environment yet: identity mode is allowed; policies
 	// are re-checked once a gateway exists.
 	gwRepo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{}, nil
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{}, nil
 		},
 	}
 	svc := &MCPProxyService{gatewayRepo: gwRepo}
-	endpoints := []models.MCPProxyEndpointDTO{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 	assert.NoError(t, svc.validateMCPEndpointSecurity(context.Background(), "org1", endpoints, nil))
@@ -242,11 +243,11 @@ func TestValidateMCPEndpointSecurity_IdentityAllowedWhenNoGatewayYet(t *testing.
 
 // newDeleteTestProxy builds a proxy with one identity-enabled endpoint bound to envUUID,
 // ready for MCPProxyService.Delete's Thunder cleanup.
-func newDeleteTestProxy(handle string, envUUID uuid.UUID) *models.MCPProxy {
-	return &models.MCPProxy{
+func newDeleteTestProxy(handle string, envUUID uuid.UUID) *gwmodels.MCPProxy {
+	return &gwmodels.MCPProxy{
 		UUID:      uuid.New(),
-		Artifact:  &models.Artifact{Handle: handle},
-		Endpoints: []models.MCPProxyEndpoint{identityEnabledEndpoint("primary", envUUID, uuid.Nil, true)},
+		Artifact:  &gwmodels.Artifact{Handle: handle},
+		Endpoints: []gwmodels.MCPProxyEndpoint{identityEnabledEndpoint("primary", envUUID, uuid.Nil, true)},
 	}
 }
 
@@ -255,17 +256,17 @@ func TestMCPProxyDelete_CleansThunderResourceServers(t *testing.T) {
 	proxy := newDeleteTestProxy("gh-proxy", envUUID)
 
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) { return proxy, nil },
+		GetByHandleFunc: func(_ context.Context, handle, _ string) (*gwmodels.MCPProxy, error) { return proxy, nil },
 		DeleteFunc:      func(_ context.Context, _, _ string) error { return nil },
 	}
 	endpointRepo := &gwrepomocks.MCPProxyEndpointRepositoryMock{
-		ListEndpointEnvironmentsByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
+		ListEndpointEnvironmentsByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.MCPProxyEndpointEnvironment, error) {
 			return nil, nil
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyScope, error) {
-			return []models.MCPProxyScope{{Action: "read"}, {Action: "write"}}, nil
+		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
+			return []gwmodels.MCPProxyScope{{Action: "read"}, {Action: "write"}}, nil
 		},
 	}
 	infra := stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
@@ -331,17 +332,17 @@ func TestMCPProxyDelete_CleanupSurvivesResolverError(t *testing.T) {
 	proxy := newDeleteTestProxy("gh-proxy", envUUID)
 
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, _, _ string) (*models.MCPProxy, error) { return proxy, nil },
+		GetByHandleFunc: func(_ context.Context, _, _ string) (*gwmodels.MCPProxy, error) { return proxy, nil },
 		DeleteFunc:      func(_ context.Context, _, _ string) error { return nil },
 	}
 	endpointRepo := &gwrepomocks.MCPProxyEndpointRepositoryMock{
-		ListEndpointEnvironmentsByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyEndpointEnvironment, error) {
+		ListEndpointEnvironmentsByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.MCPProxyEndpointEnvironment, error) {
 			return nil, nil
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyScope, error) {
-			return []models.MCPProxyScope{{Action: "read"}}, nil
+		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
+			return []gwmodels.MCPProxyScope{{Action: "read"}}, nil
 		},
 	}
 	infra := stubInfraManager{listOrgEnvs: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
@@ -370,7 +371,7 @@ func TestMCPProxyDelete_CleanupSurvivesResolverError(t *testing.T) {
 // gatewayWithPolicyManifestAndRole is gatewayWithPolicyManifest with a distinct UUID/Name
 // and an explicit functionality role, so two-egress-gateway scenarios can tell the
 // candidates apart (by UUID for anchoring, by Name for error messages).
-func gatewayWithPolicyManifestAndRole(role string, nameVersionPairs ...string) *models.Gateway {
+func gatewayWithPolicyManifestAndRole(role string, nameVersionPairs ...string) *gwmodels.Gateway {
 	gw := gatewayWithPolicyManifest(nameVersionPairs...)
 	gw.UUID = uuid.New()
 	gw.Name = "gateway-" + gw.UUID.String()
@@ -382,9 +383,9 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_AnchorsOnExistingDeployme
 	// The deployed gateway has full policy support; the other egress candidate lacks
 	// mcp-authz. Environment-based selection requires every candidate to comply and
 	// would therefore fail, so NoError here proves the probe anchored on the deployment.
-	deployed := gatewayWithPolicyManifestAndRole(models.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
-	other := gatewayWithPolicyManifestAndRole(models.GatewayRoleEgress, "mcp-auth", "v1")
-	gwRepo := gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{deployed, other})
+	deployed := gatewayWithPolicyManifestAndRole(gwmodels.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
+	other := gatewayWithPolicyManifestAndRole(gwmodels.GatewayRoleEgress, "mcp-auth", "v1")
+	gwRepo := gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{deployed, other})
 
 	artifactUUID := uuid.New()
 	depRepo := &gwrepomocks.DeploymentRepositoryMock{
@@ -394,7 +395,7 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_AnchorsOnExistingDeployme
 		},
 	}
 	svc := &MCPProxyService{gatewayRepo: gwRepo, deploymentRepo: depRepo}
-	endpoints := []models.MCPProxyEndpointDTO{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 	existingArtifactByEnv := map[string]uuid.UUID{testMCPEnvUUID: artifactUUID}
@@ -404,17 +405,17 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_AnchorsOnExistingDeployme
 
 // The request spells the environment UUID in upper case; the stored anchor is keyed canonically.
 func TestValidateMCPEndpointSecurity_AnchorsWhateverTheEnvironmentUUIDSpelling(t *testing.T) {
-	deployed := gatewayWithPolicyManifestAndRole(models.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
-	other := gatewayWithPolicyManifestAndRole(models.GatewayRoleEgress, "mcp-auth", "v1")
+	deployed := gatewayWithPolicyManifestAndRole(gwmodels.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
+	other := gatewayWithPolicyManifestAndRole(gwmodels.GatewayRoleEgress, "mcp-auth", "v1")
 	artifactUUID := uuid.New()
 	svc := &MCPProxyService{
-		gatewayRepo:    gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{deployed, other}),
+		gatewayRepo:    gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{deployed, other}),
 		deploymentRepo: deployedTo(deployed.UUID.String()),
 	}
 	endpoint := endpointWith("https://93.184.216.34", identityEnabledSecurity())
 	endpoint.Environments[0].EnvironmentUUID = strings.ToUpper(testMCPEnvUUID)
 
-	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", []models.MCPProxyEndpointDTO{endpoint},
+	err := svc.validateMCPEndpointSecurity(context.Background(), "org1", []gwmodels.MCPProxyEndpointDTO{endpoint},
 		map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
 
 	assert.NoError(t, err, "the probe anchors on the deployed gateway, not every candidate")
@@ -424,11 +425,11 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_NoDeployment_AllCandidate
 	// No existing deployment to anchor on (create, or a genuinely new binding): this is a
 	// read-only policy probe, so two egress-capable candidates must not be ambiguous —
 	// both support the required policies, so validation passes.
-	gwA := gatewayWithPolicyManifestAndRole(models.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
-	gwB := gatewayWithPolicyManifestAndRole(models.GatewayRoleEgress, "mcp-auth", "v1", "mcp-authz", "v1")
-	gwRepo := gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{gwA, gwB})
+	gwA := gatewayWithPolicyManifestAndRole(gwmodels.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
+	gwB := gatewayWithPolicyManifestAndRole(gwmodels.GatewayRoleEgress, "mcp-auth", "v1", "mcp-authz", "v1")
+	gwRepo := gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{gwA, gwB})
 	svc := &MCPProxyService{gatewayRepo: gwRepo}
-	endpoints := []models.MCPProxyEndpointDTO{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 
@@ -438,11 +439,11 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_NoDeployment_AllCandidate
 func TestValidateMCPEndpointSecurity_TwoEgressGateways_NoDeployment_OneNonCompliantFails(t *testing.T) {
 	// Same no-anchor situation, but one of the two candidates lacks mcp-authz. The probe
 	// must fail (not silently pick the compliant one) and name the offending gateway.
-	compliant := gatewayWithPolicyManifestAndRole(models.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
-	nonCompliant := gatewayWithPolicyManifestAndRole(models.GatewayRoleEgress, "mcp-auth", "v1")
-	gwRepo := gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{compliant, nonCompliant})
+	compliant := gatewayWithPolicyManifestAndRole(gwmodels.GatewayRoleBoth, "mcp-auth", "v1", "mcp-authz", "v1")
+	nonCompliant := gatewayWithPolicyManifestAndRole(gwmodels.GatewayRoleEgress, "mcp-auth", "v1")
+	gwRepo := gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{compliant, nonCompliant})
 	svc := &MCPProxyService{gatewayRepo: gwRepo}
-	endpoints := []models.MCPProxyEndpointDTO{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{
 		endpointWith("https://93.184.216.34", identityEnabledSecurity()),
 	}
 
@@ -453,7 +454,7 @@ func TestValidateMCPEndpointSecurity_TwoEgressGateways_NoDeployment_OneNonCompli
 
 // endpointBoundToGateway builds a single-environment endpoint DTO targeting testMCPEnvUUID
 // with the caller's gatewayId set (empty string leaves it unset).
-func endpointBoundToGateway(gatewayID string) models.MCPProxyEndpointDTO {
+func endpointBoundToGateway(gatewayID string) gwmodels.MCPProxyEndpointDTO {
 	endpoint := endpointWith("https://93.184.216.34", nil)
 	if gatewayID != "" {
 		endpoint.Environments[0].GatewayID = &gatewayID
@@ -479,30 +480,30 @@ func deployedTo(gatewayIDs ...string) *gwrepomocks.DeploymentRepositoryMock {
 // of the write. Before it, Create committed the proxy and then 400'd from the deploy step,
 // so a client correcting its gatewayId and retrying the same POST hit 409 instead.
 func TestValidateMCPEndpointPlacement(t *testing.T) {
-	both := newGateway(t, models.GatewayRoleBoth, true)
-	egress := newGateway(t, models.GatewayRoleEgress, true)
-	ingress := newGateway(t, models.GatewayRoleIngress, true)
+	both := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	egress := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	ingress := newGateway(t, gwmodels.GatewayRoleIngress, true)
 
 	t.Run("naming an ingress-only gateway fails before any write", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{ingress, egress}), nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{ingress, egress}), nil)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(ingress.UUID.String())}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(ingress.UUID.String())}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorIs(t, err, errInvalidEgressGateway)
 	})
 
 	t.Run("two egress candidates and no gatewayId is ambiguous", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{both, egress}), nil)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 
 	t.Run("naming a valid candidate passes", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{both, egress}), nil)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())}, nil)
 		assert.NoError(t, err)
 	})
 
@@ -511,11 +512,11 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 		// caller names `egress`. Surfacing this pre-write is what the anchor argument buys.
 		artifactUUID := uuid.New()
 		svc := placementService(
-			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}),
+			gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{both, egress}),
 			deployedTo(both.UUID.String()),
 		)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())},
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(egress.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 		assert.ErrorIs(t, err, errPlacementFixed)
@@ -524,11 +525,11 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 	t.Run("redeploying to the environment's current gateway passes", func(t *testing.T) {
 		artifactUUID := uuid.New()
 		svc := placementService(
-			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}),
+			gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{both, egress}),
 			deployedTo(both.UUID.String()),
 		)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(both.UUID.String())},
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(both.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: artifactUUID})
 		assert.NoError(t, err)
 	})
@@ -537,7 +538,7 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 		// Timing condition, not misconfiguration: the deploy step skips and retries later.
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
 		assert.NoError(t, err)
 	})
 
@@ -550,18 +551,18 @@ func TestValidateMCPEndpointPlacement(t *testing.T) {
 				return nil, errors.New("connection refused")
 			},
 		}
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), depRepo)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{both, egress}), depRepo)
 		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")},
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway("")},
 			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
 		assert.NoError(t, err)
 	})
 
 	t.Run("a malformed environment UUID is left to endpoint validation", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{both, egress}), nil)
 		endpoint := endpointBoundToGateway("")
 		endpoint.Environments[0].EnvironmentUUID = "not-a-uuid"
-		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint}, nil)
+		_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{endpoint}, nil)
 		assert.NoError(t, err)
 	})
 }
@@ -639,8 +640,8 @@ func TestMapMCPProxyWriteError_EndpointEnvViolation(t *testing.T) {
 func TestMapMCPProxyWriteError_HandleConflictWithMCPProxy(t *testing.T) {
 	svc := &MCPProxyService{
 		artifactRepo: &gwrepomocks.ArtifactRepositoryMock{
-			GetByHandleFunc: func(_, _ string) (*models.Artifact, error) {
-				return &models.Artifact{Kind: models.KindMCPProxy}, nil
+			GetByHandleFunc: func(_, _ string) (*gwmodels.Artifact, error) {
+				return &gwmodels.Artifact{Kind: gwmodels.KindMCPProxy}, nil
 			},
 		},
 	}
@@ -654,8 +655,8 @@ func TestMapMCPProxyWriteError_HandleConflictWithMCPProxy(t *testing.T) {
 func TestMapMCPProxyWriteError_HandleConflictWithNonMCPArtifact(t *testing.T) {
 	svc := &MCPProxyService{
 		artifactRepo: &gwrepomocks.ArtifactRepositoryMock{
-			GetByHandleFunc: func(_, _ string) (*models.Artifact, error) {
-				return &models.Artifact{Kind: models.KindLLMProvider}, nil
+			GetByHandleFunc: func(_, _ string) (*gwmodels.Artifact, error) {
+				return &gwmodels.Artifact{Kind: gwmodels.KindLLMProvider}, nil
 			},
 		},
 	}
@@ -672,7 +673,7 @@ func TestMapMCPProxyWriteError_HandleConflictWithNonMCPArtifact(t *testing.T) {
 func TestMapMCPProxyWriteError_HandleConflictLookupFailureFallsBackToMCPProxyExists(t *testing.T) {
 	svc := &MCPProxyService{
 		artifactRepo: &gwrepomocks.ArtifactRepositoryMock{
-			GetByHandleFunc: func(_, _ string) (*models.Artifact, error) {
+			GetByHandleFunc: func(_, _ string) (*gwmodels.Artifact, error) {
 				return nil, gorm.ErrRecordNotFound
 			},
 		},
@@ -717,7 +718,7 @@ func TestMapMCPProxyWriteError_NonPgErrorReturnsNil(t *testing.T) {
 // upstream credential and is not declared on the spec's UpstreamAuth, so leaving it
 // populated shipped that ciphertext to every caller with MCP proxy read permission.
 func TestSanitizeMCPUpstreamAuthForResponse_StripsSecretRef(t *testing.T) {
-	sanitized := sanitizeMCPUpstreamAuthForResponse(&models.UpstreamAuth{
+	sanitized := sanitizeMCPUpstreamAuthForResponse(&gwmodels.UpstreamAuth{
 		Type:      strPtr("api-key"),
 		Header:    strPtr("Authorization"),
 		Value:     strPtr("plaintext-upstream-key"),
@@ -733,7 +734,7 @@ func TestSanitizeMCPUpstreamAuthForResponse_StripsSecretRef(t *testing.T) {
 // TestSanitizeMCPUpstreamAuthForResponse_LeavesCallerIntact guards the copy: the
 // sanitizer runs on the persisted configuration, which the write path still needs.
 func TestSanitizeMCPUpstreamAuthForResponse_LeavesCallerIntact(t *testing.T) {
-	auth := &models.UpstreamAuth{
+	auth := &gwmodels.UpstreamAuth{
 		Type:      strPtr("api-key"),
 		SecretRef: strPtr("BASE64-AES-GCM-CIPHERTEXT"),
 	}
@@ -747,14 +748,14 @@ func TestSanitizeMCPUpstreamAuthForResponse_LeavesCallerIntact(t *testing.T) {
 // TestBuildMCPEndpointDTOsForResponse_StripsUpstreamCredentials exercises the path
 // the proxy handlers actually serialize, not just the sanitizer in isolation.
 func TestBuildMCPEndpointDTOsForResponse_StripsUpstreamCredentials(t *testing.T) {
-	dtos := buildMCPEndpointDTOsForResponse([]models.MCPProxyEndpoint{
+	dtos := buildMCPEndpointDTOsForResponse([]gwmodels.MCPProxyEndpoint{
 		{
 			Handle: "primary",
 			Name:   "Primary",
-			Configuration: models.MCPEndpointConfig{
-				Upstream: &models.UpstreamEndpoint{
+			Configuration: gwmodels.MCPEndpointConfig{
+				Upstream: &gwmodels.UpstreamEndpoint{
 					URL: "https://upstream.example",
-					Auth: &models.UpstreamAuth{
+					Auth: &gwmodels.UpstreamAuth{
 						Type:      strPtr("api-key"),
 						SecretRef: strPtr("BASE64-AES-GCM-CIPHERTEXT"),
 					},
@@ -784,7 +785,7 @@ func decodeMCPTestRequest(r *http.Request) mcpTestRequest {
 }
 
 // fetchFromTestMCPServer runs fetch-server-info against a fake MCP server.
-func fetchFromTestMCPServer(t *testing.T, server http.Handler) (*models.MCPServerInfoFetchResponse, error) {
+func fetchFromTestMCPServer(t *testing.T, server http.Handler) (*gwmodels.MCPServerInfoFetchResponse, error) {
 	t.Helper()
 	srv := httptest.NewServer(server)
 	t.Cleanup(srv.Close)
@@ -1158,13 +1159,13 @@ func TestObtainValidMCPVersionsFromServer(t *testing.T) {
 }
 
 func TestValidateMCPSpecVersionsInRequest(t *testing.T) {
-	endpointWith := func(versions *[]string) []models.MCPProxyEndpointDTO {
-		return []models.MCPProxyEndpointDTO{{ID: "dev", McpSpecVersions: versions}}
+	endpointWith := func(versions *[]string) []gwmodels.MCPProxyEndpointDTO {
+		return []gwmodels.MCPProxyEndpointDTO{{ID: "dev", McpSpecVersions: versions}}
 	}
 	tests := []struct {
 		name           string
 		mcpSpecVersion *string
-		endpoints      []models.MCPProxyEndpointDTO
+		endpoints      []gwmodels.MCPProxyEndpointDTO
 		wantErr        bool
 	}{
 		{name: "nothing set"},
@@ -1192,18 +1193,18 @@ func TestValidateMCPSpecVersionsInRequest(t *testing.T) {
 // endpoints had lists, or a project proxy's) deploys the proxy's single version.
 func TestObtainStoredMCPSpecVersions(t *testing.T) {
 	assert.Equal(t, &[]string{"2026-07-28", "2025-11-25"},
-		obtainStoredMCPSpecVersions(models.MCPProxyConfig{SpecVersion: "2025-06-18", SpecVersions: []string{"2026-07-28", "2025-11-25"}}))
+		obtainStoredMCPSpecVersions(gwmodels.MCPProxyConfig{SpecVersion: "2025-06-18", SpecVersions: []string{"2026-07-28", "2025-11-25"}}))
 	assert.Equal(t, &[]string{"2025-06-18"},
-		obtainStoredMCPSpecVersions(models.MCPProxyConfig{SpecVersion: "2025-06-18"}))
-	assert.Nil(t, obtainStoredMCPSpecVersions(models.MCPProxyConfig{}))
+		obtainStoredMCPSpecVersions(gwmodels.MCPProxyConfig{SpecVersion: "2025-06-18"}))
+	assert.Nil(t, obtainStoredMCPSpecVersions(gwmodels.MCPProxyConfig{}))
 }
 
 // The proxy returns its single mcpSpecVersion, as before; each endpoint returns its own list.
 func TestConvertModelMCPProxy_ReturnsMCPSpecVersions(t *testing.T) {
-	proxy := &models.MCPProxy{
-		Configuration: models.MCPProxyConfig{SpecVersion: "2025-06-18"},
-		Endpoints: []models.MCPProxyEndpoint{
-			{Handle: "dev", Configuration: models.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}},
+	proxy := &gwmodels.MCPProxy{
+		Configuration: gwmodels.MCPProxyConfig{SpecVersion: "2025-06-18"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
+			{Handle: "dev", Configuration: gwmodels.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}},
 			{Handle: "prod"},
 		},
 	}
@@ -1219,10 +1220,10 @@ func TestConvertModelMCPProxy_ReturnsMCPSpecVersions(t *testing.T) {
 // The console edits a proxy by sending back what GET returned, with its changes. That must pass
 // the version check.
 func TestConvertModelMCPProxy_ResponseSentBackPassesVersionCheck(t *testing.T) {
-	got := convertModelMCPProxyToSpec(&models.MCPProxy{
-		Configuration: models.MCPProxyConfig{SpecVersion: "2025-06-18"},
-		Endpoints: []models.MCPProxyEndpoint{
-			{Handle: "dev", Configuration: models.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}},
+	got := convertModelMCPProxyToSpec(&gwmodels.MCPProxy{
+		Configuration: gwmodels.MCPProxyConfig{SpecVersion: "2025-06-18"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
+			{Handle: "dev", Configuration: gwmodels.MCPEndpointConfig{SpecVersions: []string{"2026-07-28"}}},
 		},
 	})
 
@@ -1233,7 +1234,7 @@ func TestConvertModelMCPProxy_ResponseSentBackPassesVersionCheck(t *testing.T) {
 func TestBuildMCPEndpointsForStorage_SavesEachEndpointsVersions(t *testing.T) {
 	svc := &MCPProxyService{logger: discardLogger()}
 
-	stored, err := svc.buildMCPEndpointsForStorage([]models.MCPProxyEndpointDTO{
+	stored, err := svc.buildMCPEndpointsForStorage([]gwmodels.MCPProxyEndpointDTO{
 		{ID: "dev", McpSpecVersions: &[]string{"2026-07-28"}},
 		{ID: "prod"},
 	}, nil)
@@ -1245,14 +1246,14 @@ func TestBuildMCPEndpointsForStorage_SavesEachEndpointsVersions(t *testing.T) {
 
 const privateMCPUpstream = "http://10.0.0.5/mcp"
 
-func selfHostedGateway(t *testing.T) *models.Gateway {
+func selfHostedGateway(t *testing.T) *gwmodels.Gateway {
 	t.Helper()
-	gw := newGateway(t, models.GatewayRoleBoth, true)
-	gw.Hosting = models.GatewayHostingSelfHosted
+	gw := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	gw.Hosting = gwmodels.GatewayHostingSelfHosted
 	return gw
 }
 
-func privateUpstreamEndpoint(gatewayID string) models.MCPProxyEndpointDTO {
+func privateUpstreamEndpoint(gatewayID string) gwmodels.MCPProxyEndpointDTO {
 	endpoint := endpointBoundToGateway(gatewayID)
 	endpoint.Upstream.Main.URL = privateMCPUpstream
 	return endpoint
@@ -1260,8 +1261,8 @@ func privateUpstreamEndpoint(gatewayID string) models.MCPProxyEndpointDTO {
 
 func TestMCPPrivateUpstream_SelfHostedOnlyAccepted(t *testing.T) {
 	selfHosted := selfHostedGateway(t)
-	endpoints := []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}
-	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
+	endpoints := []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}
+	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{selfHosted}), nil)
 
 	assert.NoError(t, validateMCPEndpoints(endpoints))
 	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, endpoints, nil)
@@ -1272,52 +1273,52 @@ func TestMCPUpstream_ShapeCheckedOnSelfHosted(t *testing.T) {
 	for _, upstream := range []string{"ftp://10.0.0.5/mcp", "http://user:pw@10.0.0.5/mcp", "http:///mcp", "not a url", "http://10.0.0.5:0/mcp", "http://10.0.0.5:70000/mcp"} {
 		endpoint := privateUpstreamEndpoint("")
 		endpoint.Upstream.Main.URL = upstream
-		err := validateMCPEndpoints([]models.MCPProxyEndpointDTO{endpoint})
+		err := validateMCPEndpoints([]gwmodels.MCPProxyEndpointDTO{endpoint})
 		assert.ErrorIs(t, err, utils.ErrInvalidURL, "upstream %q", upstream)
 	}
 }
 
 func TestMCPPrivateUpstream_ManagedTargetRefused(t *testing.T) {
 	selfHosted := selfHostedGateway(t)
-	managed := newGateway(t, models.GatewayRoleBoth, true)
-	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted, managed}), nil)
+	managed := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{selfHosted, managed}), nil)
 
 	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-		[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+		[]gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
 	assert.ErrorIs(t, err, utils.ErrInvalidURL)
 }
 
 func TestMCPPrivateUpstream_UpdateAddingManagedRefused(t *testing.T) {
 	selfHosted := selfHostedGateway(t)
-	managed := newGateway(t, models.GatewayRoleBoth, true)
+	managed := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	otherEnv := "7b1f2f0e-0d0c-4e9a-9a53-6a0c5f1d2b11"
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			if *f.EnvironmentID == testMCPEnvUUID {
-				return []*models.Gateway{selfHosted}, nil
+				return []*gwmodels.Gateway{selfHosted}, nil
 			}
-			return []*models.Gateway{managed}, nil
+			return []*gwmodels.Gateway{managed}, nil
 		},
 	}
 	selfHostedID := selfHosted.UUID.String()
 	endpoint := privateUpstreamEndpoint(selfHostedID)
-	endpoint.Environments = append(endpoint.Environments, models.MCPEndpointEnvironmentDTO{EnvironmentUUID: otherEnv})
+	endpoint.Environments = append(endpoint.Environments, gwmodels.MCPEndpointEnvironmentDTO{EnvironmentUUID: otherEnv})
 	svc := placementService(repo, nil)
 
-	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint},
+	_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{endpoint},
 		map[string]uuid.UUID{})
 	assert.ErrorIs(t, err, utils.ErrInvalidURL)
 }
 
 func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 	selfHosted := selfHostedGateway(t)
-	egress := newGateway(t, models.GatewayRoleEgress, true)
-	both := newGateway(t, models.GatewayRoleBoth, true)
+	egress := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	both := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	ctx := context.Background()
 
 	t.Run("no gateway mapped yet", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
-		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 
@@ -1327,72 +1328,72 @@ func TestMCPPrivateUpstream_UnresolvedTargetsFailClosed(t *testing.T) {
 				return nil, errors.New("connection refused")
 			},
 		}
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), depRepo)
-		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())},
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{selfHosted}), depRepo)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 
 	t.Run("malformed environment id", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{selfHosted}), nil)
 		endpoint := privateUpstreamEndpoint("")
 		endpoint.Environments[0].EnvironmentUUID = "not-a-uuid"
-		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{endpoint}, nil)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{endpoint}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 
 	t.Run("none named and inference is ambiguous", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{both, egress}), nil)
-		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{both, egress}), nil)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
 		assert.Error(t, err)
 	})
 
 	t.Run("gateway listing fails", func(t *testing.T) {
 		repo := &gwrepomocks.GatewayRepositoryMock{
-			ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+			ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 				return nil, errors.New("db down")
 			},
 		}
 		svc := placementService(repo, nil)
-		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
+		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 }
 
 func TestValidateMCPEndpointPlacement_ReturnsExemptGateways(t *testing.T) {
 	selfHosted := selfHostedGateway(t)
-	managed := newGateway(t, models.GatewayRoleBoth, true)
+	managed := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	ctx := context.Background()
 
 	t.Run("an endpoint only on a self-hosted gateway is exempt there", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{selfHosted}), nil)
 		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint(selfHosted.UUID.String())}, nil)
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]uuid.UUID{testMCPEnvUUID: selfHosted.UUID}, exempt)
 	})
 
 	t.Run("an endpoint on a managed gateway is not exempt", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{managed}), nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{managed}), nil)
 		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(managed.UUID.String())}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(managed.UUID.String())}, nil)
 		assert.NoError(t, err)
 		assert.Empty(t, exempt)
 
 		_, err = svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint(managed.UUID.String())}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint(managed.UUID.String())}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 
 	t.Run("an endpoint with an unresolved environment is not exempt", func(t *testing.T) {
 		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, nil), nil)
 		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway("")}, nil)
 		assert.NoError(t, err)
 		assert.Empty(t, exempt)
 
 		_, err = svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")}, nil)
 		assert.ErrorIs(t, err, utils.ErrInvalidURL)
 	})
 }
@@ -1406,9 +1407,9 @@ func TestPinExemptGateways_FillsOnlyBlankGatewayIDs(t *testing.T) {
 	selfHosted := uuid.New()
 	explicit := uuid.New().String()
 	whitespace := "  "
-	endpoints := []models.MCPProxyEndpointDTO{{
+	endpoints := []gwmodels.MCPProxyEndpointDTO{{
 		ID: "primary",
-		Environments: []models.MCPEndpointEnvironmentDTO{
+		Environments: []gwmodels.MCPEndpointEnvironmentDTO{
 			{EnvironmentUUID: blankEnv, GatewayID: &whitespace},
 			{EnvironmentUUID: explicitEnv, GatewayID: &explicit},
 			{EnvironmentUUID: otherEnv},
@@ -1431,28 +1432,28 @@ func TestPinExemptGateways_FillsOnlyBlankGatewayIDs(t *testing.T) {
 // uuid.Parse accepts other spellings of an environment UUID, and the request body is not normalised before validation.
 func TestValidateMCPEndpointPlacement_ExemptGatewaysWhateverTheEnvironmentUUIDSpelling(t *testing.T) {
 	selfHosted := selfHostedGateway(t)
-	managed := newGateway(t, models.GatewayRoleBoth, true)
+	managed := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	ctx := context.Background()
-	upperCaseEnv := func(gatewayID string) models.MCPProxyEndpointDTO {
+	upperCaseEnv := func(gatewayID string) gwmodels.MCPProxyEndpointDTO {
 		endpoint := privateUpstreamEndpoint(gatewayID)
 		endpoint.Environments[0].EnvironmentUUID = strings.ToUpper(testMCPEnvUUID)
 		return endpoint
 	}
 
 	t.Run("a named self-hosted gateway is exempt under the canonical key", func(t *testing.T) {
-		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{selfHosted}), nil)
+		svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{selfHosted}), nil)
 		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{upperCaseEnv(selfHosted.UUID.String())}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{upperCaseEnv(selfHosted.UUID.String())}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, map[string]uuid.UUID{testMCPEnvUUID: selfHosted.UUID}, exempt)
 	})
 
 	t.Run("an environment anchored on a self-hosted gateway is exempt and pinned", func(t *testing.T) {
 		svc := placementService(
-			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{managed, selfHosted}),
+			gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{managed, selfHosted}),
 			deployedTo(selfHosted.UUID.String()),
 		)
-		endpoints := []models.MCPProxyEndpointDTO{upperCaseEnv("")}
+		endpoints := []gwmodels.MCPProxyEndpointDTO{upperCaseEnv("")}
 
 		exempt, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil, endpoints,
 			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
@@ -1466,11 +1467,11 @@ func TestValidateMCPEndpointPlacement_ExemptGatewaysWhateverTheEnvironmentUUIDSp
 
 	t.Run("the environment's deployed artifact still anchors it", func(t *testing.T) {
 		svc := placementService(
-			gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{managed, selfHosted}),
+			gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{managed, selfHosted}),
 			deployedTo(managed.UUID.String()),
 		)
 		_, err := svc.validateMCPEndpointPlacement(ctx, "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{upperCaseEnv(selfHosted.UUID.String())},
+			[]gwmodels.MCPProxyEndpointDTO{upperCaseEnv(selfHosted.UUID.String())},
 			map[string]uuid.UUID{testMCPEnvUUID: uuid.New()})
 		assert.ErrorIs(t, err, errPlacementFixed)
 	})
@@ -1478,12 +1479,12 @@ func TestValidateMCPEndpointPlacement_ExemptGatewaysWhateverTheEnvironmentUUIDSp
 
 // Validation refuses before the transaction opens, so the service needs no database.
 func TestMCPCreate_PrivateUpstreamOnManagedGatewayStillRejected(t *testing.T) {
-	managed := newGateway(t, models.GatewayRoleBoth, true)
-	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{managed}), nil)
+	managed := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{managed}), nil)
 
-	_, err := svc.Create(context.Background(), "org1", "user", &models.MCPProxyDTO{
+	_, err := svc.Create(context.Background(), "org1", "user", &gwmodels.MCPProxyDTO{
 		ID: "weather", Name: "Weather", Version: "v1.0",
-		Endpoints: []models.MCPProxyEndpointDTO{privateUpstreamEndpoint("")},
+		Endpoints: []gwmodels.MCPProxyEndpointDTO{privateUpstreamEndpoint("")},
 	})
 
 	assert.ErrorIs(t, err, utils.ErrInvalidURL)
@@ -1493,45 +1494,45 @@ func TestMCPCreate_PrivateUpstreamOnManagedGatewayStillRejected(t *testing.T) {
 // mint tokens that every call 401s on. The save refuses it; apiKey and security off stay allowed.
 func TestValidateMCPEndpointPlacement_RefusesIdentityOnSelfHosted(t *testing.T) {
 	selfHosted := selfHostedGateway(t)
-	managed := newGateway(t, models.GatewayRoleBoth, true)
-	apiKeySecurity := &models.SecurityConfig{Enabled: boolPtr(true), APIKey: &models.APIKeySecurity{Enabled: boolPtr(true)}}
-	securityOff := &models.SecurityConfig{Enabled: boolPtr(false)}
+	managed := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	apiKeySecurity := &gwmodels.SecurityConfig{Enabled: boolPtr(true), APIKey: &gwmodels.APIKeySecurity{Enabled: boolPtr(true)}}
+	securityOff := &gwmodels.SecurityConfig{Enabled: boolPtr(false)}
 	existingProxy := uuid.New()
 
 	tests := []struct {
 		name        string
-		gateways    []*models.Gateway
+		gateways    []*gwmodels.Gateway
 		gatewayID   string
-		security    *models.SecurityConfig
+		security    *gwmodels.SecurityConfig
 		proxyUUID   uuid.UUID
 		existing    map[string]uuid.UUID
 		deployRepo  *gwrepomocks.DeploymentRepositoryMock
 		wantRefusal bool
 	}{
 		{
-			name: "identity on create naming a self-hosted gateway", gateways: []*models.Gateway{selfHosted, managed},
+			name: "identity on create naming a self-hosted gateway", gateways: []*gwmodels.Gateway{selfHosted, managed},
 			gatewayID: selfHosted.UUID.String(), security: identityEnabledSecurity(), proxyUUID: uuid.Nil, wantRefusal: true,
 		},
 		{
-			name: "identity on update adding an environment on a self-hosted gateway", gateways: []*models.Gateway{selfHosted, managed},
+			name: "identity on update adding an environment on a self-hosted gateway", gateways: []*gwmodels.Gateway{selfHosted, managed},
 			gatewayID: selfHosted.UUID.String(), security: identityEnabledSecurity(), proxyUUID: existingProxy,
 			existing: map[string]uuid.UUID{}, wantRefusal: true,
 		},
 		{
-			name: "existing environment anchored on a self-hosted gateway switching to identity", gateways: []*models.Gateway{selfHosted, managed},
+			name: "existing environment anchored on a self-hosted gateway switching to identity", gateways: []*gwmodels.Gateway{selfHosted, managed},
 			security: identityEnabledSecurity(), proxyUUID: existingProxy,
 			existing: map[string]uuid.UUID{testMCPEnvUUID: uuid.New()}, deployRepo: deployedTo(selfHosted.UUID.String()), wantRefusal: true,
 		},
 		{
-			name: "identity on a managed gateway", gateways: []*models.Gateway{selfHosted, managed},
+			name: "identity on a managed gateway", gateways: []*gwmodels.Gateway{selfHosted, managed},
 			gatewayID: managed.UUID.String(), security: identityEnabledSecurity(), proxyUUID: uuid.Nil,
 		},
 		{
-			name: "apiKey on a self-hosted gateway", gateways: []*models.Gateway{selfHosted},
+			name: "apiKey on a self-hosted gateway", gateways: []*gwmodels.Gateway{selfHosted},
 			gatewayID: selfHosted.UUID.String(), security: apiKeySecurity, proxyUUID: uuid.Nil,
 		},
 		{
-			name: "security off on a self-hosted gateway", gateways: []*models.Gateway{selfHosted},
+			name: "security off on a self-hosted gateway", gateways: []*gwmodels.Gateway{selfHosted},
 			gatewayID: selfHosted.UUID.String(), security: securityOff, proxyUUID: uuid.Nil,
 		},
 	}
@@ -1546,7 +1547,7 @@ func TestValidateMCPEndpointPlacement_RefusesIdentityOnSelfHosted(t *testing.T) 
 			svc := placementService(gatewayFixtureRepo(t, testMCPEnvUUID, tt.gateways), depRepo)
 
 			_, err := svc.validateMCPEndpointPlacement(context.Background(), "org1", tt.proxyUUID,
-				[]models.MCPProxyEndpointDTO{endpoint}, tt.existing)
+				[]gwmodels.MCPProxyEndpointDTO{endpoint}, tt.existing)
 
 			if !tt.wantRefusal {
 				assert.NoError(t, err)

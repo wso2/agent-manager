@@ -28,8 +28,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -92,15 +92,15 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 
 	// OpenChoreo is not consulted: the artifacts themselves say which environments to clear.
 	oc := &repomocks.PlatformRepositoryMock{}
-	stored := []*models.Artifact{{UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("proj", "agent-2", "env-dev"), Kind: models.KindAgent}}
+	stored := []*gwmodels.Artifact{{UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("proj", "agent-2", "env-dev"), Kind: gwmodels.KindAgent}}
 	for env, id := range artifacts {
 		handle := agentEnvAPIArtifactHandle("proj", "agent", f.env(env).String())
-		stored = append(stored, &models.Artifact{UUID: id, Handle: handle, Kind: models.KindAgent})
+		stored = append(stored, &gwmodels.Artifact{UUID: id, Handle: handle, Kind: gwmodels.KindAgent})
 	}
 	artifactRepo := &gwrepomocks.ArtifactRepositoryMock{
-		ListByHandlePrefixFunc: func(_ context.Context, kinds []string, prefix, _ string) ([]*models.Artifact, error) {
-			require.Equal(t, models.AgentArtifactKinds, kinds)
-			var found []*models.Artifact
+		ListByHandlePrefixFunc: func(_ context.Context, kinds []string, prefix, _ string) ([]*gwmodels.Artifact, error) {
+			require.Equal(t, gwmodels.AgentArtifactKinds, kinds)
+			var found []*gwmodels.Artifact
 			for _, a := range stored {
 				if strings.HasPrefix(a.Handle, prefix) {
 					found = append(found, a)
@@ -135,8 +135,8 @@ func newAgentArtifactDeletionFixture(t *testing.T, artifacts map[string]uuid.UUI
 	}
 	deploymentRepo.WithTxFunc = func(*gorm.DB) gwrepo.DeploymentRepository { return deploymentRepo }
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{}, nil
+		ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{}, nil
 		},
 	}
 	pubRepo := &gwrepomocks.PlatformAgentExposureRepositoryMock{
@@ -247,7 +247,7 @@ func TestDeleteAgentAPIArtifactReportsAListFailure(t *testing.T) {
 	repo, ok := f.svc.artifactRepo.(*gwrepomocks.ArtifactRepositoryMock)
 	require.True(t, ok)
 	boom := errors.New("db unavailable")
-	repo.ListByHandlePrefixFunc = func(context.Context, []string, string, string) ([]*models.Artifact, error) {
+	repo.ListByHandlePrefixFunc = func(context.Context, []string, string, string) ([]*gwmodels.Artifact, error) {
 		return nil, boom
 	}
 

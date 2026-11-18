@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -35,7 +36,7 @@ import (
 // gateway and environment it is registered to, for the org-wide listing.
 // EnvironmentUUID is the environment id from gateway_environments.
 type IdentityProviderWithContext struct {
-	models.GatewayIdentityProvider
+	gwmodels.GatewayIdentityProvider
 	GatewayName     string `gorm:"column:gateway_name"`
 	EnvironmentUUID string `gorm:"column:environment_uuid"`
 }
@@ -45,7 +46,7 @@ type GatewayFilterOptions struct {
 	OrganizationID string
 	// FunctionalityType filters on one exact role (ingress, egress, both).
 	FunctionalityType *string
-	// FunctionalityTypeIn filters on a role set, e.g. models.IngressGatewayRoles.
+	// FunctionalityTypeIn filters on a role set, e.g. gwmodels.IngressGatewayRoles.
 	// Applied as IN (?) alongside, not instead of, FunctionalityType.
 	FunctionalityTypeIn []string
 	Status              *bool   // Filter by is_active
@@ -93,23 +94,23 @@ type GatewayFailureCounts struct {
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/gateway_repository_mock.go . GatewayRepository:GatewayRepositoryMock
 type GatewayRepository interface {
 	// Gateway operations
-	Create(gateway *models.Gateway) error
-	GetByUUID(gatewayId string) (*models.Gateway, error)
-	GetByOrganizationID(ctx context.Context, ouID string) ([]*models.Gateway, error)
-	GetByNameAndOrgID(name, ouID string) (*models.Gateway, error)
-	List() ([]*models.Gateway, error)
-	ListWithFilters(filters GatewayFilterOptions) ([]*models.Gateway, error)
-	ListWithFiltersCtx(ctx context.Context, filters GatewayFilterOptions) ([]*models.Gateway, error)
+	Create(gateway *gwmodels.Gateway) error
+	GetByUUID(gatewayId string) (*gwmodels.Gateway, error)
+	GetByOrganizationID(ctx context.Context, ouID string) ([]*gwmodels.Gateway, error)
+	GetByNameAndOrgID(name, ouID string) (*gwmodels.Gateway, error)
+	List() ([]*gwmodels.Gateway, error)
+	ListWithFilters(filters GatewayFilterOptions) ([]*gwmodels.Gateway, error)
+	ListWithFiltersCtx(ctx context.Context, filters GatewayFilterOptions) ([]*gwmodels.Gateway, error)
 	CountWithFilters(filters GatewayFilterOptions) (int64, error)
 	Delete(gatewayID, ouID string) error
-	UpdateGateway(gateway *models.Gateway) error
+	UpdateGateway(gateway *gwmodels.Gateway) error
 	UpdateActiveStatus(gatewayId string, isActive bool) error
 
 	// Cross-organization fleet health. Both deliberately carry no ou_id
 	// predicate — they back the platform-admin failure summary, which reports
 	// on every tenant at once. Nothing else may call them.
 	CountFailureSummaryAllOrgs(ctx context.Context, window GatewayFailureWindow) (GatewayFailureCounts, error)
-	ListFailedGatewaysAllOrgs(ctx context.Context, window GatewayFailureWindow, limit int) ([]*models.Gateway, error)
+	ListFailedGatewaysAllOrgs(ctx context.Context, window GatewayFailureWindow, limit int) ([]*gwmodels.Gateway, error)
 
 	// Transaction-scoped operations. The ingress cap is enforced in the service under
 	// pg_advisory_xact_lock, so the service needs to drive a transaction it can also
@@ -117,37 +118,37 @@ type GatewayRepository interface {
 	Transaction(fn func(tx *gorm.DB) error) error
 	AcquireEnvironmentLock(tx *gorm.DB, environmentID string) error
 	AcquireGatewayLock(tx *gorm.DB, gatewayID string) error
-	CreateTx(tx *gorm.DB, gateway *models.Gateway) error
-	CreateEnvironmentMappingTx(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error
+	CreateTx(tx *gorm.DB, gateway *gwmodels.Gateway) error
+	CreateEnvironmentMappingTx(tx *gorm.DB, mapping *gwmodels.GatewayEnvironmentMapping) error
 	CountIngressCapableInEnvironment(tx *gorm.DB, environmentID string) (int64, error)
 
 	// Gateway association checking operations
 	HasGatewayDeployments(gatewayID, ouID string) (bool, error)
 
 	// Token operations
-	CreateToken(token *models.GatewayToken) error
-	GetActiveTokensByGatewayUUID(gatewayId string) ([]*models.GatewayToken, error)
-	GetTokenByUUID(tokenId string) (*models.GatewayToken, error)
-	GetActiveTokenByPrefix(ctx context.Context, tokenPrefix string) (*models.GatewayToken, error)
+	CreateToken(token *gwmodels.GatewayToken) error
+	GetActiveTokensByGatewayUUID(gatewayId string) ([]*gwmodels.GatewayToken, error)
+	GetTokenByUUID(tokenId string) (*gwmodels.GatewayToken, error)
+	GetActiveTokenByPrefix(ctx context.Context, tokenPrefix string) (*gwmodels.GatewayToken, error)
 	RevokeToken(tokenId string) error
 	CountActiveTokens(gatewayId string) (int, error)
 
 	// Gateway-Environment mapping operations
-	CreateEnvironmentMapping(mapping *models.GatewayEnvironmentMapping) error
+	CreateEnvironmentMapping(mapping *gwmodels.GatewayEnvironmentMapping) error
 	DeleteEnvironmentMapping(gatewayID, environmentID string) error
 	// DeleteEnvironmentMappingsByEnvironmentID removes every gateway↔env mapping for this env.
 	// Returns the number of rows deleted. Used during env deletion to cascade clean the link table.
 	DeleteEnvironmentMappingsByEnvironmentID(environmentID string) (int64, error)
-	GetEnvironmentMappingsByGatewayID(gatewayID string) ([]models.GatewayEnvironmentMapping, error)
-	GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error)
-	GetEnvironmentMappingsByEnvironmentID(environmentID string) ([]models.GatewayEnvironmentMapping, error)
+	GetEnvironmentMappingsByGatewayID(gatewayID string) ([]gwmodels.GatewayEnvironmentMapping, error)
+	GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]gwmodels.GatewayEnvironmentMapping, error)
+	GetEnvironmentMappingsByEnvironmentID(environmentID string) ([]gwmodels.GatewayEnvironmentMapping, error)
 	EnvironmentMappingExists(gatewayID, environmentID string) (bool, error)
 
 	// Identity provider mirror operations
-	UpsertIdentityProvider(provider *models.GatewayIdentityProvider) error
+	UpsertIdentityProvider(provider *gwmodels.GatewayIdentityProvider) error
 	DeleteIdentityProvider(gatewayID, name string) error
-	ListIdentityProvidersByGateway(gatewayID string) ([]models.GatewayIdentityProvider, error)
-	ListIdentityProvidersByEnvironment(environmentID string) ([]models.GatewayIdentityProvider, error)
+	ListIdentityProvidersByGateway(gatewayID string) ([]gwmodels.GatewayIdentityProvider, error)
+	ListIdentityProvidersByEnvironment(environmentID string) ([]gwmodels.GatewayIdentityProvider, error)
 	ListIdentityProvidersByOrg(ouID string) ([]IdentityProviderWithContext, error)
 
 	// WithTx returns the repository bound to tx.
@@ -170,13 +171,13 @@ func (r *GatewayRepo) WithTx(tx *gorm.DB) GatewayRepository {
 }
 
 // Create inserts a new gateway
-func (r *GatewayRepo) Create(gateway *models.Gateway) error {
+func (r *GatewayRepo) Create(gateway *gwmodels.Gateway) error {
 	return r.CreateTx(r.db, gateway)
 }
 
 // GetByUUID retrieves a gateway by ID
-func (r *GatewayRepo) GetByUUID(gatewayId string) (*models.Gateway, error) {
-	var gateway models.Gateway
+func (r *GatewayRepo) GetByUUID(gatewayId string) (*gwmodels.Gateway, error) {
+	var gateway gwmodels.Gateway
 	err := r.db.Where("id = ?", gatewayId).First(&gateway).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -188,8 +189,8 @@ func (r *GatewayRepo) GetByUUID(gatewayId string) (*models.Gateway, error) {
 }
 
 // GetByOrganizationID retrieves all gateways for an organization
-func (r *GatewayRepo) GetByOrganizationID(ctx context.Context, ouID string) ([]*models.Gateway, error) {
-	var gateways []*models.Gateway
+func (r *GatewayRepo) GetByOrganizationID(ctx context.Context, ouID string) ([]*gwmodels.Gateway, error) {
+	var gateways []*gwmodels.Gateway
 	err := r.db.WithContext(ctx).Where("org_id = ?", ouID).
 		Order("created_at DESC").
 		Find(&gateways).Error
@@ -197,8 +198,8 @@ func (r *GatewayRepo) GetByOrganizationID(ctx context.Context, ouID string) ([]*
 }
 
 // GetByNameAndOrgID checks if a gateway with the given name exists within an organization
-func (r *GatewayRepo) GetByNameAndOrgID(name, ouID string) (*models.Gateway, error) {
-	var gateway models.Gateway
+func (r *GatewayRepo) GetByNameAndOrgID(name, ouID string) (*gwmodels.Gateway, error) {
+	var gateway gwmodels.Gateway
 	err := r.db.Where("name = ? AND org_id = ?", name, ouID).First(&gateway).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -210,18 +211,18 @@ func (r *GatewayRepo) GetByNameAndOrgID(name, ouID string) (*models.Gateway, err
 }
 
 // List retrieves all gateways
-func (r *GatewayRepo) List() ([]*models.Gateway, error) {
-	var gateways []*models.Gateway
+func (r *GatewayRepo) List() ([]*gwmodels.Gateway, error) {
+	var gateways []*gwmodels.Gateway
 	err := r.db.Order("created_at DESC").Find(&gateways).Error
 	return gateways, err
 }
 
 // ListWithFilters retrieves gateways with optional filtering and pagination
-func (r *GatewayRepo) ListWithFilters(filters GatewayFilterOptions) ([]*models.Gateway, error) {
+func (r *GatewayRepo) ListWithFilters(filters GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 	return r.ListWithFiltersCtx(context.Background(), filters)
 }
 
-func (r *GatewayRepo) ListWithFiltersCtx(ctx context.Context, filters GatewayFilterOptions) ([]*models.Gateway, error) {
+func (r *GatewayRepo) ListWithFiltersCtx(ctx context.Context, filters GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 	query := r.buildFilterQuery(filters).WithContext(ctx)
 
 	// Apply pagination at database level
@@ -232,7 +233,7 @@ func (r *GatewayRepo) ListWithFiltersCtx(ctx context.Context, filters GatewayFil
 		query = query.Offset(filters.Offset)
 	}
 
-	var gateways []*models.Gateway
+	var gateways []*gwmodels.Gateway
 	err := query.Order("mod_ai_gateway_gateways.created_at DESC, mod_ai_gateway_gateways.id").Find(&gateways).Error
 	return gateways, err
 }
@@ -252,7 +253,7 @@ func (r *GatewayRepo) CountWithFilters(filters GatewayFilterOptions) (int64, err
 
 // buildFilterQuery constructs the base query with all filters applied
 func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
-	query := r.db.Model(&models.Gateway{})
+	query := r.db.Model(&gwmodels.Gateway{})
 
 	// Filter by organization
 	if filters.OrganizationID != "" {
@@ -293,19 +294,19 @@ func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 func (r *GatewayRepo) Delete(gatewayID, ouID string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("gateway_id = ? AND org_id = ?", gatewayID, ouID).
-			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
+			Delete(&gwmodels.DeploymentStatusRecord{}).Error; err != nil {
 			return err
 		}
 		// A deployment can be another's base; clear those links before deleting.
-		if err := tx.Model(&models.Deployment{}).Where("gateway_id = ? AND org_id = ?", gatewayID, ouID).
+		if err := tx.Model(&gwmodels.Deployment{}).Where("gateway_id = ? AND org_id = ?", gatewayID, ouID).
 			Update("base_deployment_id", nil).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("gateway_id = ? AND org_id = ?", gatewayID, ouID).
-			Delete(&models.Deployment{}).Error; err != nil {
+			Delete(&gwmodels.Deployment{}).Error; err != nil {
 			return err
 		}
-		result := tx.Where("id = ? AND org_id = ?", gatewayID, ouID).Delete(&models.Gateway{})
+		result := tx.Where("id = ? AND org_id = ?", gatewayID, ouID).Delete(&gwmodels.Gateway{})
 		if result.Error != nil {
 			return result.Error
 		}
@@ -320,9 +321,9 @@ func (r *GatewayRepo) Delete(gatewayID, ouID string) error {
 // written here: gateway-reported manifests are large and re-pushed on every gateway
 // (re)connect, so they live in the manifest cache instead. The column is left in place
 // (and still read as a fallback) for rows written before that move.
-func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
+func (r *GatewayRepo) UpdateGateway(gateway *gwmodels.Gateway) error {
 	gateway.UpdatedAt = dbx.Now()
-	res := r.db.Model(&models.Gateway{}).
+	res := r.db.Model(&gwmodels.Gateway{}).
 		Where("id = ?", gateway.UUID).
 		Updates(map[string]interface{}{
 			"display_name": gateway.DisplayName,
@@ -343,7 +344,7 @@ func (r *GatewayRepo) UpdateGateway(gateway *models.Gateway) error {
 
 // UpdateActiveStatus updates the is_active status of a gateway
 func (r *GatewayRepo) UpdateActiveStatus(gatewayId string, isActive bool) error {
-	res := r.db.Model(&models.Gateway{}).
+	res := r.db.Model(&gwmodels.Gateway{}).
 		Where("id = ?", gatewayId).
 		Updates(map[string]interface{}{
 			"is_active":  isActive,
@@ -359,7 +360,7 @@ func (r *GatewayRepo) UpdateActiveStatus(gatewayId string, isActive bool) error 
 }
 
 // CreateToken inserts a new token
-func (r *GatewayRepo) CreateToken(token *models.GatewayToken) error {
+func (r *GatewayRepo) CreateToken(token *gwmodels.GatewayToken) error {
 	token.CreatedAt = dbx.Now()
 	if token.OrgID == uuid.Nil {
 		orgID, err := r.gatewayOrgID(r.db, token.GatewayUUID)
@@ -373,7 +374,7 @@ func (r *GatewayRepo) CreateToken(token *models.GatewayToken) error {
 
 // gatewayOrgID is the organization a gateway belongs to, for child rows that carry org_id.
 func (r *GatewayRepo) gatewayOrgID(db *gorm.DB, gatewayID uuid.UUID) (uuid.UUID, error) {
-	var g models.Gateway
+	var g gwmodels.Gateway
 	if err := db.Select("org_id").Where("id = ?", gatewayID).First(&g).Error; err != nil {
 		return uuid.Nil, err
 	}
@@ -381,8 +382,8 @@ func (r *GatewayRepo) gatewayOrgID(db *gorm.DB, gatewayID uuid.UUID) (uuid.UUID,
 }
 
 // GetActiveTokensByGatewayUUID retrieves all active tokens for a gateway
-func (r *GatewayRepo) GetActiveTokensByGatewayUUID(gatewayId string) ([]*models.GatewayToken, error) {
-	var tokens []*models.GatewayToken
+func (r *GatewayRepo) GetActiveTokensByGatewayUUID(gatewayId string) ([]*gwmodels.GatewayToken, error) {
+	var tokens []*gwmodels.GatewayToken
 	err := r.db.Where("gateway_id = ? AND status = ?", gatewayId, "active").
 		Order("created_at DESC").
 		Find(&tokens).Error
@@ -390,8 +391,8 @@ func (r *GatewayRepo) GetActiveTokensByGatewayUUID(gatewayId string) ([]*models.
 }
 
 // GetTokenByUUID retrieves a specific token by UUID
-func (r *GatewayRepo) GetTokenByUUID(tokenId string) (*models.GatewayToken, error) {
-	var token models.GatewayToken
+func (r *GatewayRepo) GetTokenByUUID(tokenId string) (*gwmodels.GatewayToken, error) {
+	var token gwmodels.GatewayToken
 	err := r.db.Where("id = ?", tokenId).First(&token).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -406,8 +407,8 @@ func (r *GatewayRepo) GetTokenByUUID(tokenId string) (*models.GatewayToken, erro
 // This enables O(1) indexed lookup instead of O(N) full table scan.
 // Takes ctx so a cancelled/timed-out request actually stops the query instead
 // of continuing to hold a DB connection after the caller has given up.
-func (r *GatewayRepo) GetActiveTokenByPrefix(ctx context.Context, tokenPrefix string) (*models.GatewayToken, error) {
-	var token models.GatewayToken
+func (r *GatewayRepo) GetActiveTokenByPrefix(ctx context.Context, tokenPrefix string) (*gwmodels.GatewayToken, error) {
+	var token gwmodels.GatewayToken
 	err := r.db.WithContext(ctx).Where("token_prefix = ? AND status = ?", tokenPrefix, "active").
 		First(&token).Error
 	if err != nil {
@@ -422,7 +423,7 @@ func (r *GatewayRepo) GetActiveTokenByPrefix(ctx context.Context, tokenPrefix st
 // RevokeToken updates token status to revoked
 func (r *GatewayRepo) RevokeToken(tokenId string) error {
 	now := dbx.Now()
-	result := r.db.Model(&models.GatewayToken{}).
+	result := r.db.Model(&gwmodels.GatewayToken{}).
 		Where("id = ?", tokenId).
 		Updates(map[string]interface{}{
 			"status":     "revoked",
@@ -441,7 +442,7 @@ func (r *GatewayRepo) RevokeToken(tokenId string) error {
 // CountActiveTokens counts the number of active tokens for a gateway
 func (r *GatewayRepo) CountActiveTokens(gatewayId string) (int, error) {
 	var count int64
-	err := r.db.Model(&models.GatewayToken{}).
+	err := r.db.Model(&gwmodels.GatewayToken{}).
 		Where("gateway_id = ? AND status = ?", gatewayId, "active").
 		Count(&count).Error
 	return int(count), err
@@ -451,9 +452,9 @@ func (r *GatewayRepo) CountActiveTokens(gatewayId string) (int, error) {
 // UNDEPLOYED. PENDING rows were never sent, and UNDEPLOYED rows are kept for good.
 func (r *GatewayRepo) HasGatewayDeployments(gatewayID, ouID string) (bool, error) {
 	var count int64
-	err := r.db.Model(&models.DeploymentStatusRecord{}).
+	err := r.db.Model(&gwmodels.DeploymentStatusRecord{}).
 		Where("gateway_id = ? AND org_id = ? AND deployment_id IS NOT NULL AND status <> ?",
-			gatewayID, ouID, models.DeploymentStatusUndeployed).
+			gatewayID, ouID, gwmodels.DeploymentStatusUndeployed).
 		Count(&count).Error
 	if err != nil {
 		return false, err
@@ -462,14 +463,14 @@ func (r *GatewayRepo) HasGatewayDeployments(gatewayID, ouID string) (bool, error
 }
 
 // CreateEnvironmentMapping creates a mapping between a gateway and an environment
-func (r *GatewayRepo) CreateEnvironmentMapping(mapping *models.GatewayEnvironmentMapping) error {
+func (r *GatewayRepo) CreateEnvironmentMapping(mapping *gwmodels.GatewayEnvironmentMapping) error {
 	return r.CreateEnvironmentMappingTx(r.db, mapping)
 }
 
 // DeleteEnvironmentMapping deletes a mapping between a gateway and an environment
 func (r *GatewayRepo) DeleteEnvironmentMapping(gatewayID, environmentID string) error {
 	result := r.db.Where("gateway_id = ? AND environment_id = ?", gatewayID, environmentID).
-		Delete(&models.GatewayEnvironmentMapping{})
+		Delete(&gwmodels.GatewayEnvironmentMapping{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -480,8 +481,8 @@ func (r *GatewayRepo) DeleteEnvironmentMapping(gatewayID, environmentID string) 
 }
 
 // GetEnvironmentMappingsByGatewayID retrieves all environment mappings for a gateway
-func (r *GatewayRepo) GetEnvironmentMappingsByGatewayID(gatewayID string) ([]models.GatewayEnvironmentMapping, error) {
-	var mappings []models.GatewayEnvironmentMapping
+func (r *GatewayRepo) GetEnvironmentMappingsByGatewayID(gatewayID string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+	var mappings []gwmodels.GatewayEnvironmentMapping
 	err := r.db.Where("gateway_id = ?", gatewayID).Find(&mappings).Error
 	return mappings, err
 }
@@ -489,14 +490,14 @@ func (r *GatewayRepo) GetEnvironmentMappingsByGatewayID(gatewayID string) ([]mod
 // GetEnvironmentMappingsByGatewayIDs retrieves environment mappings for multiple gateways in bulk
 // Returns a map of gatewayID -> []GatewayEnvironmentMapping
 // This avoids N+1 queries when fetching environments for multiple gateways
-func (r *GatewayRepo) GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error) {
+func (r *GatewayRepo) GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]gwmodels.GatewayEnvironmentMapping, error) {
 	if len(gatewayIDs) == 0 {
-		return make(map[string][]models.GatewayEnvironmentMapping), nil
+		return make(map[string][]gwmodels.GatewayEnvironmentMapping), nil
 	}
 
-	var mappings []models.GatewayEnvironmentMapping
+	var mappings []gwmodels.GatewayEnvironmentMapping
 	for _, chunk := range dbx.Chunks(gatewayIDs) {
-		var part []models.GatewayEnvironmentMapping
+		var part []gwmodels.GatewayEnvironmentMapping
 		if err := r.db.Where("gateway_id IN ?", chunk).Find(&part).Error; err != nil {
 			return nil, err
 		}
@@ -504,7 +505,7 @@ func (r *GatewayRepo) GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (m
 	}
 
 	// Group mappings by gateway UUID
-	result := make(map[string][]models.GatewayEnvironmentMapping)
+	result := make(map[string][]gwmodels.GatewayEnvironmentMapping)
 	for _, mapping := range mappings {
 		gwID := mapping.GatewayUUID.String()
 		result[gwID] = append(result[gwID], mapping)
@@ -514,8 +515,8 @@ func (r *GatewayRepo) GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (m
 }
 
 // GetEnvironmentMappingsByEnvironmentID retrieves all gateway mappings for an environment
-func (r *GatewayRepo) GetEnvironmentMappingsByEnvironmentID(environmentID string) ([]models.GatewayEnvironmentMapping, error) {
-	var mappings []models.GatewayEnvironmentMapping
+func (r *GatewayRepo) GetEnvironmentMappingsByEnvironmentID(environmentID string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+	var mappings []gwmodels.GatewayEnvironmentMapping
 	err := r.db.Where("environment_id = ?", environmentID).Find(&mappings).Error
 	return mappings, err
 }
@@ -523,14 +524,14 @@ func (r *GatewayRepo) GetEnvironmentMappingsByEnvironmentID(environmentID string
 // DeleteEnvironmentMappingsByEnvironmentID removes every mapping pointing at the given env.
 func (r *GatewayRepo) DeleteEnvironmentMappingsByEnvironmentID(environmentID string) (int64, error) {
 	result := r.db.Where("environment_id = ?", environmentID).
-		Delete(&models.GatewayEnvironmentMapping{})
+		Delete(&gwmodels.GatewayEnvironmentMapping{})
 	return result.RowsAffected, result.Error
 }
 
 // EnvironmentMappingExists checks if a mapping exists between a gateway and an environment
 func (r *GatewayRepo) EnvironmentMappingExists(gatewayID, environmentID string) (bool, error) {
 	var count int64
-	err := r.db.Model(&models.GatewayEnvironmentMapping{}).
+	err := r.db.Model(&gwmodels.GatewayEnvironmentMapping{}).
 		Where("gateway_id = ? AND environment_id = ?", gatewayID, environmentID).
 		Count(&count).Error
 	if err != nil {
@@ -541,7 +542,7 @@ func (r *GatewayRepo) EnvironmentMappingExists(gatewayID, environmentID string) 
 
 // UpsertIdentityProvider creates or updates an identity provider mirror row,
 // keyed by (gateway_id, name). The reserved internal provider is never mirrored.
-func (r *GatewayRepo) UpsertIdentityProvider(provider *models.GatewayIdentityProvider) error {
+func (r *GatewayRepo) UpsertIdentityProvider(provider *gwmodels.GatewayIdentityProvider) error {
 	if provider.Name == models.ReservedIdentityProviderName {
 		return utils.ErrInvalidInput
 	}
@@ -553,7 +554,7 @@ func (r *GatewayRepo) UpsertIdentityProvider(provider *models.GatewayIdentityPro
 		provider.OrgID = orgID
 	}
 	_, err := dbx.Upsert(r.db, provider, func(db *gorm.DB) error {
-		return db.Model(&models.GatewayIdentityProvider{}).
+		return db.Model(&gwmodels.GatewayIdentityProvider{}).
 			Where("gateway_id = ? AND name = ?", provider.GatewayUUID, provider.Name).
 			Updates(map[string]any{
 				"issuer": provider.Issuer, "jwks_uri": provider.JWKSUri, "description": provider.Description,
@@ -569,22 +570,22 @@ func (r *GatewayRepo) DeleteIdentityProvider(gatewayID, name string) error {
 	if name == models.ReservedIdentityProviderName || models.IsSystemIdentityProvider(name) {
 		return utils.ErrInvalidInput
 	}
-	var existing models.GatewayIdentityProvider
+	var existing gwmodels.GatewayIdentityProvider
 	err := r.db.Where("gateway_id = ? AND name = ?", gatewayID, name).First(&existing).Error
 	if err != nil {
 		return err
 	}
-	if existing.Type == models.IdentityProviderTypeSystem {
+	if existing.Type == gwmodels.IdentityProviderTypeSystem {
 		return utils.ErrInvalidInput
 	}
 	return r.db.Where("gateway_id = ? AND name = ?", gatewayID, name).
-		Delete(&models.GatewayIdentityProvider{}).Error
+		Delete(&gwmodels.GatewayIdentityProvider{}).Error
 }
 
 // ListIdentityProvidersByGateway returns the identity providers mirrored for a
 // gateway, excluding the reserved internal provider.
-func (r *GatewayRepo) ListIdentityProvidersByGateway(gatewayID string) ([]models.GatewayIdentityProvider, error) {
-	var providers []models.GatewayIdentityProvider
+func (r *GatewayRepo) ListIdentityProvidersByGateway(gatewayID string) ([]gwmodels.GatewayIdentityProvider, error) {
+	var providers []gwmodels.GatewayIdentityProvider
 	err := r.db.Where("gateway_id = ? AND name <> ?", gatewayID, models.ReservedIdentityProviderName).
 		Order("name ASC").
 		Find(&providers).Error
@@ -594,8 +595,8 @@ func (r *GatewayRepo) ListIdentityProvidersByGateway(gatewayID string) ([]models
 // ListIdentityProvidersByEnvironment returns the union (deduped by name) of
 // identity providers configured on the gateways mapped to an environment,
 // excluding the reserved internal provider.
-func (r *GatewayRepo) ListIdentityProvidersByEnvironment(environmentID string) ([]models.GatewayIdentityProvider, error) {
-	var rows []models.GatewayIdentityProvider
+func (r *GatewayRepo) ListIdentityProvidersByEnvironment(environmentID string) ([]gwmodels.GatewayIdentityProvider, error) {
+	var rows []gwmodels.GatewayIdentityProvider
 	err := r.db.
 		Joins("JOIN mod_ai_gateway_gateway_environments ON mod_ai_gateway_gateway_environments.gateway_id = mod_ai_gateway_gateway_identity_providers.gateway_id").
 		Where("mod_ai_gateway_gateway_environments.environment_id = ? AND mod_ai_gateway_gateway_identity_providers.name <> ?", environmentID, models.ReservedIdentityProviderName).
@@ -606,7 +607,7 @@ func (r *GatewayRepo) ListIdentityProvidersByEnvironment(environmentID string) (
 	}
 	// Dedup by name — the same provider may exist on multiple gateways in the env.
 	seen := make(map[string]bool)
-	deduped := make([]models.GatewayIdentityProvider, 0, len(rows))
+	deduped := make([]gwmodels.GatewayIdentityProvider, 0, len(rows))
 	for _, row := range rows {
 		if seen[row.Name] {
 			continue
@@ -652,7 +653,7 @@ func (r *GatewayRepo) AcquireGatewayLock(tx *gorm.DB, gatewayID string) error {
 
 // CreateTx inserts a gateway inside an existing transaction. Mirrors Create,
 // including the is_active=false default at registration.
-func (r *GatewayRepo) CreateTx(tx *gorm.DB, gateway *models.Gateway) error {
+func (r *GatewayRepo) CreateTx(tx *gorm.DB, gateway *gwmodels.Gateway) error {
 	if _, err := repositories.EnsureOrg(tx.Statement.Context, tx, gateway.OUID); err != nil {
 		return err
 	}
@@ -660,7 +661,7 @@ func (r *GatewayRepo) CreateTx(tx *gorm.DB, gateway *models.Gateway) error {
 	gateway.CreatedAt, gateway.UpdatedAt = now, now
 	gateway.IsActive = false
 	if gateway.Hosting == "" {
-		gateway.Hosting = models.GatewayHostingManaged
+		gateway.Hosting = gwmodels.GatewayHostingManaged
 	}
 	if gateway.Properties == nil {
 		gateway.Properties = map[string]interface{}{}
@@ -670,7 +671,7 @@ func (r *GatewayRepo) CreateTx(tx *gorm.DB, gateway *models.Gateway) error {
 
 // CreateEnvironmentMappingTx inserts a gateway↔environment mapping inside an
 // existing transaction.
-func (r *GatewayRepo) CreateEnvironmentMappingTx(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error {
+func (r *GatewayRepo) CreateEnvironmentMappingTx(tx *gorm.DB, mapping *gwmodels.GatewayEnvironmentMapping) error {
 	if mapping.OrgID == uuid.Nil {
 		orgID, err := r.gatewayOrgID(tx, mapping.GatewayUUID)
 		if err != nil {
@@ -692,7 +693,7 @@ func (r *GatewayRepo) CountIngressCapableInEnvironment(tx *gorm.DB, environmentI
 	err := tx.Table("mod_ai_gateway_gateway_environments AS m").
 		Joins("JOIN mod_ai_gateway_gateways g ON g.id = m.gateway_id").
 		Where("m.environment_id = ?", environmentID).
-		Where("g.functionality_type IN ?", models.IngressGatewayRoles).
+		Where("g.functionality_type IN ?", gwmodels.IngressGatewayRoles).
 		Count(&count).Error
 	if err != nil {
 		return 0, fmt.Errorf("failed to count ingress-capable gateways in environment %s: %w", environmentID, err)
@@ -726,7 +727,7 @@ const failedGatewayCondition = managedGatewayCondition + " AND is_active = ? AND
 const abandonedGatewayCondition = managedGatewayCondition + " AND is_active = ? AND updated_at < ?"
 
 // managedGatewayCondition limits the failure summary to the gateways the platform runs.
-const managedGatewayCondition = "hosting = '" + models.GatewayHostingManaged + "'"
+const managedGatewayCondition = "hosting = '" + gwmodels.GatewayHostingManaged + "'"
 
 // CountFailureSummaryAllOrgs counts every managed gateway in the deployment, how many
 // are failed, and how many are abandoned, in one round trip.
@@ -764,13 +765,13 @@ func (r *GatewayRepo) CountFailureSummaryAllOrgs(
 // polling caller.
 func (r *GatewayRepo) ListFailedGatewaysAllOrgs(
 	ctx context.Context, window GatewayFailureWindow, limit int,
-) ([]*models.Gateway, error) {
+) ([]*gwmodels.Gateway, error) {
 	if limit <= 0 {
-		return []*models.Gateway{}, nil
+		return []*gwmodels.Gateway{}, nil
 	}
-	var gateways []*models.Gateway
+	var gateways []*gwmodels.Gateway
 	err := r.db.WithContext(ctx).
-		Model(&models.Gateway{}).
+		Model(&gwmodels.Gateway{}).
 		Where(failedGatewayCondition, false, window.StaleBefore, window.NotOlderThan).
 		// uuid breaks ties. Without it the "oldest N" page is not a stable set:
 		// gateways that dropped in the same write batch share an updated_at, and

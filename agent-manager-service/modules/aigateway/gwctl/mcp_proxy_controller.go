@@ -28,7 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -76,7 +76,7 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 
 	log.Info("CreateMCPProxy: starting", "ouID", ouID)
 
-	var req models.MCPProxyDTO
+	var req gwmodels.MCPProxyDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateMCPProxy: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -221,7 +221,7 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 
 	log.Info("UpdateMCPProxy: starting", "ouID", ouID, "proxyID", proxyID)
 
-	var req models.MCPProxyDTO
+	var req gwmodels.MCPProxyDTO
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateMCPProxy: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -331,7 +331,7 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 
 	log.Info("FetchMCPProxyServerInfo: starting", "ouID", ouID)
 
-	var req models.MCPServerInfoFetchRequest
+	var req gwmodels.MCPServerInfoFetchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("FetchMCPProxyServerInfo: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -382,7 +382,7 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 // FetchServerInfo returns — which is the signal that the caller probed the
 // MCP server before registering it, for amp.connections.create-mcp-proxy's
 // probed_first dimension.
-func mcpProxyWasProbedFirst(endpoints []models.MCPProxyEndpointDTO) bool {
+func mcpProxyWasProbedFirst(endpoints []gwmodels.MCPProxyEndpointDTO) bool {
 	for _, ep := range endpoints {
 		if ep.Capabilities == nil {
 			continue

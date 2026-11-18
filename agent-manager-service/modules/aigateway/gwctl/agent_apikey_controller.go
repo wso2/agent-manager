@@ -26,7 +26,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -98,7 +98,7 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	req := &models.CreateAPIKeyRequest{
+	req := &gwmodels.CreateAPIKeyRequest{
 		Name:        name,
 		DisplayName: displayName,
 		ExpiresAt:   specReq.ExpiresAt,
@@ -165,7 +165,7 @@ func (c *agentAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Reque
 	}
 
 	if keys == nil {
-		keys = []models.StoredAPIKey{}
+		keys = []gwmodels.StoredAPIKey{}
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, keys)
 }
@@ -229,7 +229,7 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	req := &models.RotateAPIKeyRequest{
+	req := &gwmodels.RotateAPIKeyRequest{
 		DisplayName: specReq.DisplayName,
 		ExpiresAt:   specReq.ExpiresAt,
 	}

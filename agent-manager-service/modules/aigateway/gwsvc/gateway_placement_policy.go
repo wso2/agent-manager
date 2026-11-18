@@ -23,6 +23,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -72,9 +73,9 @@ func (p placementPolicy) providerHosting() anchorHosting {
 // user-managed. The platform injects the key into everything else, so it stays console-managed.
 func (p placementPolicy) apiKeyPurpose() int {
 	if p.external() {
-		return models.APIKeyPurposeUserManaged
+		return gwmodels.APIKeyPurposeUserManaged
 	}
-	return models.APIKeyPurposeConsoleManaged
+	return gwmodels.APIKeyPurposeConsoleManaged
 }
 
 // hostingRule is a set of rules a gateway breaks. Each site keeps its own precedence and message.
@@ -88,18 +89,18 @@ const (
 func (r hostingRule) has(x hostingRule) bool { return r&x != 0 }
 
 // consumerRefuses is true when gw is self-hosted and the consumer may only use managed gateways.
-func (p placementPolicy) consumerRefuses(gw *models.Gateway) bool {
+func (p placementPolicy) consumerRefuses(gw *gwmodels.Gateway) bool {
 	return gw != nil && !gw.IsManaged() && !p.allowsSelfHosted()
 }
 
 // identityRefuses is true when gw is self-hosted and security uses Agent Identity, which self-hosted gateways
 // cannot validate.
-func identityRefuses(gw *models.Gateway, security *models.SecurityConfig) bool {
+func identityRefuses(gw *gwmodels.Gateway, security *gwmodels.SecurityConfig) bool {
 	return gw != nil && !gw.IsManaged() && mcpIdentityEnabled(security)
 }
 
 // refusedBy is the rules gw breaks for an agent binding secured by security.
-func (p placementPolicy) refusedBy(gw *models.Gateway, security *models.SecurityConfig) hostingRule {
+func (p placementPolicy) refusedBy(gw *gwmodels.Gateway, security *gwmodels.SecurityConfig) hostingRule {
 	var r hostingRule
 	if p.consumerRefuses(gw) {
 		r |= ruleManagedConsumer
@@ -112,14 +113,14 @@ func (p placementPolicy) refusedBy(gw *models.Gateway, security *models.Security
 
 // gatewayNeedsPublicUpstream is true when the platform runs gw, so an upstream it calls must not resolve to a
 // private address (SSRF guard).
-func gatewayNeedsPublicUpstream(gw *models.Gateway) bool { return gw.IsManaged() }
+func gatewayNeedsPublicUpstream(gw *gwmodels.Gateway) bool { return gw.IsManaged() }
 
 // ownGateway is the gateway the consumer's own LLM or MCP artifact is placed on in envUUID, whatever the placement's
 // hosting, refused when the consumer may not use it rather than resolved again: another gateway would be one the
 // artifact isn't on.
 func (p placementPolicy) ownGateway(
 	repo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID, placed []string,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	gateway, err := resolveEgressGatewayForArtifact(repo, ouID, envUUID, placed, nil)
 	if err != nil {
 		return nil, err
@@ -134,7 +135,7 @@ func (p placementPolicy) ownGateway(
 // providerAnchor is the gateway in envUUID among placed that the consumer's LLM provider placement may use, or nil.
 func (p placementPolicy) providerAnchor(
 	repo gwrepo.GatewayRepository, envUUID uuid.UUID, placed []string,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	return placedAnchor(repo, envUUID, placed, p.providerHosting())
 }
 
@@ -144,7 +145,7 @@ func (p placementPolicy) providerAnchor(
 func (p placementPolicy) providerGateway(
 	ctx context.Context, deployments *LLMProxyDeploymentService, gateways gwrepo.GatewayRepository,
 	ouID, providerUUIDStr string, envUUID uuid.UUID,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	var deployed []string
 	if providerUUID, err := uuid.Parse(providerUUIDStr); err == nil {
 		deployed, err = deployments.PlacedGateways(ctx, ouID, providerUUID)

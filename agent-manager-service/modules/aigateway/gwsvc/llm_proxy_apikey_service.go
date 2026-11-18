@@ -22,8 +22,8 @@ import (
 	"fmt"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -66,7 +66,7 @@ func NewLLMProxyAPIKeyService(
 func (s *LLMProxyAPIKeyService) resolveProjectScopedProxy(
 	ctx context.Context,
 	orgID, projName, proxyID string,
-) (*models.LLMProxy, error) {
+) (*gwmodels.LLMProxy, error) {
 	project, err := s.ocClient.GetProject(ctx, orgID, projName)
 	if err != nil {
 		if errors.Is(err, utils.ErrProjectNotFound) {
@@ -96,7 +96,7 @@ func (s *LLMProxyAPIKeyService) resolveProjectScopedProxy(
 func (s *LLMProxyAPIKeyService) ListAPIKeys(
 	ctx context.Context,
 	orgID, projName, proxyID string,
-) (*models.ListAPIKeysResponse, error) {
+) (*gwmodels.ListAPIKeysResponse, error) {
 	proxy, err := s.resolveProjectScopedProxy(ctx, orgID, projName, proxyID)
 	if err != nil {
 		return nil, err
@@ -107,15 +107,15 @@ func (s *LLMProxyAPIKeyService) ListAPIKeys(
 		return nil, fmt.Errorf("failed to list API keys: %w", err)
 	}
 
-	return &models.ListAPIKeysResponse{Keys: models.ToUserManagedAPIKeyInfos(stored)}, nil
+	return &gwmodels.ListAPIKeysResponse{Keys: gwmodels.ToUserManagedAPIKeyInfos(stored)}, nil
 }
 
 // CreateAPIKey generates an API key for an LLM proxy and broadcasts it to all gateways
 func (s *LLMProxyAPIKeyService) CreateAPIKey(
 	ctx context.Context,
 	orgID, proxyID string,
-	req *models.CreateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	req *gwmodels.CreateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -180,8 +180,8 @@ func (s *LLMProxyAPIKeyService) RevokeAPIKey(
 func (s *LLMProxyAPIKeyService) RotateAPIKey(
 	ctx context.Context,
 	orgID, proxyID, keyName string,
-	req *models.RotateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	req *gwmodels.RotateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

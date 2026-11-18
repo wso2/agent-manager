@@ -24,7 +24,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"gorm.io/gorm"
@@ -90,7 +90,7 @@ var (
 // Self-hosted gateways are never inferred: only a request that names one selects it.
 func resolveEgressGatewayForEnvironment(
 	repo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID, requested *string,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	envIDStr := envUUID.String()
 	gateways, err := repo.ListWithFilters(gwrepo.GatewayFilterOptions{
 		OrganizationID: ouID,
@@ -103,7 +103,7 @@ func resolveEgressGatewayForEnvironment(
 		return nil, errNoGatewayForEnvironment
 	}
 
-	candidates := make([]*models.Gateway, 0, len(gateways))
+	candidates := make([]*gwmodels.Gateway, 0, len(gateways))
 	for _, gw := range gateways {
 		if gw.IsEgressCapable() {
 			candidates = append(candidates, gw)
@@ -123,7 +123,7 @@ func resolveEgressGatewayForEnvironment(
 			errInvalidEgressGateway, *requested, describeGateways(candidates))
 	}
 
-	managed := make([]*models.Gateway, 0, len(candidates))
+	managed := make([]*gwmodels.Gateway, 0, len(candidates))
 	for _, gw := range candidates {
 		if gw.IsManaged() {
 			managed = append(managed, gw)
@@ -153,7 +153,7 @@ func resolveEgressGatewayForEnvironment(
 func resolveEgressGatewayForArtifact(
 	repo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID,
 	deployedGatewayIDs []string, requested *string,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	anchor, err := placedAnchor(repo, envUUID, deployedGatewayIDs, anyHosting)
 	if err != nil {
 		return nil, err
@@ -163,8 +163,8 @@ func resolveEgressGatewayForArtifact(
 
 // resolveEgressGatewayFromAnchor is anchor, or the environment's egress gateway when anchor is nil.
 func resolveEgressGatewayFromAnchor(
-	repo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID, anchor *models.Gateway, requested *string,
-) (*models.Gateway, error) {
+	repo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID, anchor *gwmodels.Gateway, requested *string,
+) (*gwmodels.Gateway, error) {
 	if anchor == nil {
 		return resolveEgressGatewayForEnvironment(repo, ouID, envUUID, requested)
 	}
@@ -196,9 +196,9 @@ const (
 // to this environment, or a deleted gateway — continues to the next candidate.
 func placedAnchor(
 	repo gwrepo.GatewayRepository, envUUID uuid.UUID, gatewayIDs []string, hosting anchorHosting,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	envIDStr := envUUID.String()
-	var selfHosted *models.Gateway
+	var selfHosted *gwmodels.Gateway
 	for _, gwID := range gatewayIDs {
 		exists, err := repo.EnvironmentMappingExists(gwID, envIDStr)
 		if err != nil {
@@ -256,7 +256,7 @@ func pageUnplacedRecords(
 	records := make([]reconcile.Record, 0, len(rows))
 	for _, r := range rows {
 		records = append(records, reconcile.Record{
-			ArtifactRef:     models.ArtifactRef{OUID: r.OUID, ArtifactUUID: r.ArtifactUUID, Kind: r.Kind, Handle: r.Handle},
+			ArtifactRef:     gwmodels.ArtifactRef{OUID: r.OUID, ArtifactUUID: r.ArtifactUUID, Kind: r.Kind, Handle: r.Handle},
 			EnvironmentUUID: r.EnvironmentUUID,
 			Key:             r.ArtifactUUID.String(),
 		})
@@ -292,7 +292,7 @@ func gatewaysIn(ctx context.Context, gateways gwrepo.GatewayRepository) gwrepo.G
 // target gateway's environments through gateway_environment_mappings and rejecting a
 // gateway that shares one with an existing deployment.
 func validateEgressPlacement(
-	repo gwrepo.GatewayRepository, gateway *models.Gateway, existingDeployments []string,
+	repo gwrepo.GatewayRepository, gateway *gwmodels.Gateway, existingDeployments []string,
 ) error {
 	if !gateway.IsEgressCapable() {
 		return fmt.Errorf("%w: gateway %s (%s) is designated for ingress only",
@@ -328,7 +328,7 @@ func validateEgressPlacement(
 }
 
 // describeGateways renders "name (uuid), name (uuid)" for error messages.
-func describeGateways(gateways []*models.Gateway) string {
+func describeGateways(gateways []*gwmodels.Gateway) string {
 	parts := make([]string, 0, len(gateways))
 	for _, gw := range gateways {
 		parts = append(parts, fmt.Sprintf("%s (%s)", gw.Name, gw.UUID))

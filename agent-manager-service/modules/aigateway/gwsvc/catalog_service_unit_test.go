@@ -43,6 +43,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
@@ -74,12 +75,12 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 	t.Run("no kind filter routes to ListAll", func(t *testing.T) {
 		listAllCalled := false
 		repo := &gwrepomocks.CatalogRepositoryMock{
-			ListAllFunc: func(orgUUID string, limit, offset int) ([]models.CatalogEntry, int64, error) {
+			ListAllFunc: func(orgUUID string, limit, offset int) ([]gwmodels.CatalogEntry, int64, error) {
 				listAllCalled = true
 				assert.Equal(t, "acme", orgUUID)
 				assert.Equal(t, 10, limit)
 				assert.Equal(t, 5, offset)
-				return []models.CatalogEntry{{Name: "a"}, {Name: "b"}}, 2, nil
+				return []gwmodels.CatalogEntry{{Name: "a"}, {Name: "b"}}, 2, nil
 			},
 			// ListByKind left nil: must NOT be reached.
 		}
@@ -96,11 +97,11 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 	t.Run("kind filter routes to ListByKind", func(t *testing.T) {
 		listByKindCalled := false
 		repo := &gwrepomocks.CatalogRepositoryMock{
-			ListByKindFunc: func(orgUUID, kind string, limit, offset int) ([]models.CatalogEntry, int64, error) {
+			ListByKindFunc: func(orgUUID, kind string, limit, offset int) ([]gwmodels.CatalogEntry, int64, error) {
 				listByKindCalled = true
 				assert.Equal(t, "acme", orgUUID)
 				assert.Equal(t, "agent", kind)
-				return []models.CatalogEntry{{Name: "agent-1"}}, 1, nil
+				return []gwmodels.CatalogEntry{{Name: "agent-1"}}, 1, nil
 			},
 			// ListAll left nil: must NOT be reached.
 		}
@@ -117,7 +118,7 @@ func TestCatalogService_ListCatalog(t *testing.T) {
 	t.Run("wraps repository error", func(t *testing.T) {
 		boom := errors.New("db down")
 		repo := &gwrepomocks.CatalogRepositoryMock{
-			ListAllFunc: func(_ string, _, _ int) ([]models.CatalogEntry, int64, error) {
+			ListAllFunc: func(_ string, _, _ int) ([]gwmodels.CatalogEntry, int64, error) {
 				return nil, 0, boom
 			},
 		}
@@ -154,7 +155,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 		// Validate() fails on empty OrganizationName before any repo access.
 		svc := newCatalogService(&gwrepomocks.CatalogRepositoryMock{}, &repomocks.PlatformRepositoryMock{})
 
-		_, _, err := svc.ListLLMProviders(context.Background(), &models.CatalogListFilters{
+		_, _, err := svc.ListLLMProviders(context.Background(), &gwmodels.CatalogListFilters{
 			OrganizationName: "",
 			Limit:            10,
 		})
@@ -165,13 +166,13 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 	t.Run("wraps repository error", func(t *testing.T) {
 		boom := errors.New("query failed")
 		repo := &gwrepomocks.CatalogRepositoryMock{
-			ListLLMProvidersFunc: func(_ *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
+			ListLLMProvidersFunc: func(_ *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error) {
 				return nil, 0, boom
 			},
 		}
 		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
 
-		_, _, err := svc.ListLLMProviders(context.Background(), &models.CatalogListFilters{
+		_, _, err := svc.ListLLMProviders(context.Background(), &gwmodels.CatalogListFilters{
 			OrganizationName: "wrap-org",
 			Limit:            10,
 		})
@@ -182,8 +183,8 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 
 	t.Run("skips environment fetch when no deployments exist", func(t *testing.T) {
 		repo := &gwrepomocks.CatalogRepositoryMock{
-			ListLLMProvidersFunc: func(_ *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
-				return []models.CatalogLLMProviderEntry{
+			ListLLMProvidersFunc: func(_ *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error) {
+				return []gwmodels.CatalogLLMProviderEntry{
 					{Name: "openai", Deployments: nil},
 				}, 1, nil
 			},
@@ -192,7 +193,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 		// service does NOT make the external call when there is nothing to enrich.
 		svc := newCatalogService(repo, &repomocks.PlatformRepositoryMock{})
 
-		entries, total, err := svc.ListLLMProviders(context.Background(), &models.CatalogListFilters{
+		entries, total, err := svc.ListLLMProviders(context.Background(), &gwmodels.CatalogListFilters{
 			OrganizationName: "no-deploy-org",
 			Limit:            10,
 		})
@@ -207,13 +208,13 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 		const unknownUUID = "22222222-2222-2222-2222-222222222222"
 
 		repo := &gwrepomocks.CatalogRepositoryMock{
-			ListLLMProvidersFunc: func(_ *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
+			ListLLMProvidersFunc: func(_ *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error) {
 				known := envUUID
 				unknown := unknownUUID
-				return []models.CatalogLLMProviderEntry{
+				return []gwmodels.CatalogLLMProviderEntry{
 					{
 						Name: "openai",
-						Deployments: []models.DeploymentSummary{
+						Deployments: []gwmodels.DeploymentSummary{
 							{GatewayName: "gw-1", EnvironmentName: &known},
 							{GatewayName: "gw-2", EnvironmentName: &unknown},
 							{GatewayName: "gw-3", EnvironmentName: nil},
@@ -234,7 +235,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 		}
 		svc := newCatalogService(repo, oc)
 
-		entries, _, err := svc.ListLLMProviders(context.Background(), &models.CatalogListFilters{
+		entries, _, err := svc.ListLLMProviders(context.Background(), &gwmodels.CatalogListFilters{
 			OrganizationName: "resolve-org",
 			Limit:            10,
 		})
@@ -258,12 +259,12 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 	t.Run("continues without names when environment fetch fails", func(t *testing.T) {
 		const envUUID = "33333333-3333-3333-3333-333333333333"
 		repo := &gwrepomocks.CatalogRepositoryMock{
-			ListLLMProvidersFunc: func(_ *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
+			ListLLMProvidersFunc: func(_ *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error) {
 				known := envUUID
-				return []models.CatalogLLMProviderEntry{
+				return []gwmodels.CatalogLLMProviderEntry{
 					{
 						Name: "openai",
-						Deployments: []models.DeploymentSummary{
+						Deployments: []gwmodels.DeploymentSummary{
 							{GatewayName: "gw-1", EnvironmentName: &known},
 						},
 					},
@@ -279,7 +280,7 @@ func TestCatalogService_ListLLMProviders(t *testing.T) {
 
 		// The enrichment failure is swallowed (logged + empty map); the call
 		// still succeeds and the raw UUID is preserved.
-		entries, total, err := svc.ListLLMProviders(context.Background(), &models.CatalogListFilters{
+		entries, total, err := svc.ListLLMProviders(context.Background(), &gwmodels.CatalogListFilters{
 			OrganizationName: "env-fail-org",
 			Limit:            10,
 		})

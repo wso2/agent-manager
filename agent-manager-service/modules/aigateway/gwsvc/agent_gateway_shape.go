@@ -18,16 +18,17 @@ package gwsvc
 
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // agentGatewayShape is how the gateway holds a platform agent: the kind of its artifact and the protocol of its exposure.
 type agentGatewayShape struct {
 	ArtifactKind string
-	Protocol     models.AgentExposureProtocol
+	Protocol     gwmodels.AgentExposureProtocol
 }
 
-var a2aAgentShape = agentGatewayShape{ArtifactKind: models.KindAgent, Protocol: models.AgentExposureProtocolA2A}
+var a2aAgentShape = agentGatewayShape{ArtifactKind: gwmodels.KindAgent, Protocol: gwmodels.AgentExposureProtocolA2A}
 
 var agentGatewayShapes = map[utils.AgentSubType]agentGatewayShape{
 	utils.AgentSubTypeA2A: a2aAgentShape,
@@ -38,7 +39,7 @@ func agentGatewayShapeFor(subType string) (agentGatewayShape, bool) {
 	return shape, ok
 }
 
-func agentGatewayShapeForProtocol(protocol models.AgentExposureProtocol) (agentGatewayShape, bool) {
+func agentGatewayShapeForProtocol(protocol gwmodels.AgentExposureProtocol) (agentGatewayShape, bool) {
 	for _, shape := range agentGatewayShapes {
 		if shape.Protocol == protocol {
 			return shape, true

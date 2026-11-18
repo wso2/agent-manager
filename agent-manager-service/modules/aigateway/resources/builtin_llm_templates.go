@@ -16,19 +16,19 @@
 
 package resources
 
-import "github.com/wso2/agent-manager/agent-manager-service/models"
+import "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 
 // BuiltInLLMProviderTemplates contains all built-in LLM provider templates
 // These templates are immutable and available globally across all organizations
-var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
+var BuiltInLLMProviderTemplates = []*gwmodels.LLMProviderTemplate{
 	{
 		Handle:   "openai",
 		Name:     "OpenAI",
 		IsSystem: true,
 		OUID:     "",
-		Metadata: &models.LLMProviderTemplateMetadata{
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.openai.com/v1",
-			Auth: &models.LLMProviderTemplateAuth{
+			Auth: &gwmodels.LLMProviderTemplateAuth{
 				Type:        "api-key",
 				Header:      "Authorization",
 				ValuePrefix: "Bearer ",
@@ -36,27 +36,27 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/openai/icon.png",
 			OpenapiSpecURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/openai/openapi.yaml",
 		},
-		PromptTokens: &models.ExtractionIdentifier{
+		PromptTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.prompt_tokens",
 		},
-		CompletionTokens: &models.ExtractionIdentifier{
+		CompletionTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.completion_tokens",
 		},
-		TotalTokens: &models.ExtractionIdentifier{
+		TotalTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.total_tokens",
 		},
-		RemainingTokens: &models.ExtractionIdentifier{
+		RemainingTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "header",
 			Identifier: "x-ratelimit-remaining-tokens",
 		},
-		RequestModel: &models.ExtractionIdentifier{
+		RequestModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
-		ResponseModel: &models.ExtractionIdentifier{
+		ResponseModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
@@ -66,32 +66,32 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Name:     "Anthropic",
 		IsSystem: true,
 		OUID:     "",
-		Metadata: &models.LLMProviderTemplateMetadata{
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.anthropic.com",
-			Auth: &models.LLMProviderTemplateAuth{
+			Auth: &gwmodels.LLMProviderTemplateAuth{
 				Type:   "api-key",
 				Header: "x-api-key",
 			},
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/anthropic.claude/icon.png",
 			OpenapiSpecURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/anthropic.claude/openapi.yaml",
 		},
-		PromptTokens: &models.ExtractionIdentifier{
+		PromptTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.input_tokens",
 		},
-		CompletionTokens: &models.ExtractionIdentifier{
+		CompletionTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.output_tokens",
 		},
-		RemainingTokens: &models.ExtractionIdentifier{
+		RemainingTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "header",
 			Identifier: "anthropic-ratelimit-tokens-remaining",
 		},
-		RequestModel: &models.ExtractionIdentifier{
+		RequestModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
-		ResponseModel: &models.ExtractionIdentifier{
+		ResponseModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
@@ -101,10 +101,10 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Name:     "AWS Bedrock",
 		IsSystem: true,
 		OUID:     "",
-		Metadata: &models.LLMProviderTemplateMetadata{
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{
 			EndpointURL: "https://bedrock-runtime.us-east-1.amazonaws.com",
 			// "bearer" is not a gateway upstream auth type; api-key sets the header verbatim.
-			Auth: &models.LLMProviderTemplateAuth{
+			Auth: &gwmodels.LLMProviderTemplateAuth{
 				Type:        "api-key",
 				Header:      "Authorization",
 				ValuePrefix: "Bearer ",
@@ -112,23 +112,23 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/aws.bedrock/icon.png",
 			OpenapiSpecURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/aws.bedrock/openapi.yaml",
 		},
-		PromptTokens: &models.ExtractionIdentifier{
+		PromptTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.inputTokens",
 		},
-		CompletionTokens: &models.ExtractionIdentifier{
+		CompletionTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.outputTokens",
 		},
-		TotalTokens: &models.ExtractionIdentifier{
+		TotalTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.totalTokens",
 		},
-		RequestModel: &models.ExtractionIdentifier{
+		RequestModel: &gwmodels.ExtractionIdentifier{
 			Location:   "pathParam",
 			Identifier: "model/([A-Za-z0-9.:-]+)/",
 		},
-		ResponseModel: &models.ExtractionIdentifier{
+		ResponseModel: &gwmodels.ExtractionIdentifier{
 			Location:   "pathParam",
 			Identifier: "model/([A-Za-z0-9.:-]+)/",
 		},
@@ -138,35 +138,35 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Name:     "Azure OpenAI",
 		IsSystem: true,
 		OUID:     "",
-		Metadata: &models.LLMProviderTemplateMetadata{
-			Auth: &models.LLMProviderTemplateAuth{
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{
+			Auth: &gwmodels.LLMProviderTemplateAuth{
 				Type:   "api-key",
 				Header: "api-key",
 			},
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/azure.openai/icon.png",
 			OpenapiSpecURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/azure.openai/openapi.yaml",
 		},
-		PromptTokens: &models.ExtractionIdentifier{
+		PromptTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.prompt_tokens",
 		},
-		CompletionTokens: &models.ExtractionIdentifier{
+		CompletionTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.completion_tokens",
 		},
-		TotalTokens: &models.ExtractionIdentifier{
+		TotalTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.total_tokens",
 		},
-		RemainingTokens: &models.ExtractionIdentifier{
+		RemainingTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "header",
 			Identifier: "x-ratelimit-remaining-tokens",
 		},
-		RequestModel: &models.ExtractionIdentifier{
+		RequestModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
-		ResponseModel: &models.ExtractionIdentifier{
+		ResponseModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
@@ -176,34 +176,34 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Name:     "Azure AI Foundry",
 		IsSystem: true,
 		OUID:     "",
-		Metadata: &models.LLMProviderTemplateMetadata{
-			Auth: &models.LLMProviderTemplateAuth{
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{
+			Auth: &gwmodels.LLMProviderTemplateAuth{
 				Type:   "api-key",
 				Header: "api-key",
 			},
 			LogoURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/azure.openai/icon.png",
 		},
-		PromptTokens: &models.ExtractionIdentifier{
+		PromptTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.prompt_tokens",
 		},
-		CompletionTokens: &models.ExtractionIdentifier{
+		CompletionTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.completion_tokens",
 		},
-		TotalTokens: &models.ExtractionIdentifier{
+		TotalTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.total_tokens",
 		},
-		RemainingTokens: &models.ExtractionIdentifier{
+		RemainingTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "header",
 			Identifier: "x-ratelimit-remaining-tokens",
 		},
-		RequestModel: &models.ExtractionIdentifier{
+		RequestModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
-		ResponseModel: &models.ExtractionIdentifier{
+		ResponseModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
@@ -213,34 +213,34 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Name:     "Gemini",
 		IsSystem: true,
 		OUID:     "",
-		Metadata: &models.LLMProviderTemplateMetadata{
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{
 			EndpointURL: "https://generativelanguage.googleapis.com",
-			Auth: &models.LLMProviderTemplateAuth{
+			Auth: &gwmodels.LLMProviderTemplateAuth{
 				Type:   "api-key",
 				Header: "x-goog-api-key",
 			},
 		},
-		PromptTokens: &models.ExtractionIdentifier{
+		PromptTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usageMetadata.promptTokenCount",
 		},
-		CompletionTokens: &models.ExtractionIdentifier{
+		CompletionTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usageMetadata.candidatesTokenCount",
 		},
-		TotalTokens: &models.ExtractionIdentifier{
+		TotalTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usageMetadata.totalTokenCount",
 		},
-		RemainingTokens: &models.ExtractionIdentifier{
+		RemainingTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "header",
 			Identifier: "x-ratelimit-remaining-tokens",
 		},
-		RequestModel: &models.ExtractionIdentifier{
+		RequestModel: &gwmodels.ExtractionIdentifier{
 			Location:   "pathParam",
 			Identifier: "models/([A-Za-z0-9.-]+)",
 		},
-		ResponseModel: &models.ExtractionIdentifier{
+		ResponseModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.modelVersion",
 		},
@@ -250,9 +250,9 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 		Name:     "Mistral",
 		IsSystem: true,
 		OUID:     "",
-		Metadata: &models.LLMProviderTemplateMetadata{
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.mistral.ai",
-			Auth: &models.LLMProviderTemplateAuth{
+			Auth: &gwmodels.LLMProviderTemplateAuth{
 				Type:        "api-key",
 				Header:      "Authorization",
 				ValuePrefix: "Bearer ",
@@ -260,27 +260,27 @@ var BuiltInLLMProviderTemplates = []*models.LLMProviderTemplate{
 			LogoURL:        "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/mistral/icon.png",
 			OpenapiSpecURL: "https://raw.githubusercontent.com/nomadxd/openapi-connectors/main/openapi/mistral/openapi.yaml",
 		},
-		PromptTokens: &models.ExtractionIdentifier{
+		PromptTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.prompt_tokens",
 		},
-		CompletionTokens: &models.ExtractionIdentifier{
+		CompletionTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.completion_tokens",
 		},
-		TotalTokens: &models.ExtractionIdentifier{
+		TotalTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.usage.total_tokens",
 		},
-		RemainingTokens: &models.ExtractionIdentifier{
+		RemainingTokens: &gwmodels.ExtractionIdentifier{
 			Location:   "header",
 			Identifier: "x-ratelimit-remaining-tokens",
 		},
-		RequestModel: &models.ExtractionIdentifier{
+		RequestModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},
-		ResponseModel: &models.ExtractionIdentifier{
+		ResponseModel: &gwmodels.ExtractionIdentifier{
 			Location:   "payload",
 			Identifier: "$.model",
 		},

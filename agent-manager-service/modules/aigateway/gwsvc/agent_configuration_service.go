@@ -38,6 +38,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -48,22 +49,22 @@ import (
 // AgentConfigurationService interface defines agent configuration business logic
 type AgentConfigurationService interface {
 	Create(ctx context.Context, ouID, projectName, agentID string,
-		req models.CreateAgentModelConfigRequest, createdBy string) (*models.AgentModelConfigResponse, error)
+		req gwmodels.CreateAgentModelConfigRequest, createdBy string) (*gwmodels.AgentModelConfigResponse, error)
 	ValidateProvidersInCatalog(ctx context.Context, ouID string, providerHandles []string) error
 	// ProviderEnvironments returns, in org order, the environments where the agent can use the LLM
 	// provider: those where the provider is placed on a gateway this kind of agent may use. It is the
 	// check Create makes per environment, so a create mapped to these environments passes it.
 	ProviderEnvironments(ctx context.Context, ouID, projectName, agentID, providerHandle string) ([]string, error)
 	ValidateMCPProxiesInCatalog(ctx context.Context, ouID, projectName string, proxyHandles []string) error
-	Get(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error)
-	GetMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error)
-	List(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*models.AgentModelConfigListResponse, error)
-	ListByType(ctx context.Context, ouID, projectName, agentName string, typeID uint, limit, offset int) (*models.AgentModelConfigListResponse, error)
-	ListMCP(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*models.AgentModelConfigListResponse, error)
+	Get(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*gwmodels.AgentModelConfigResponse, error)
+	GetMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*gwmodels.AgentModelConfigResponse, error)
+	List(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*gwmodels.AgentModelConfigListResponse, error)
+	ListByType(ctx context.Context, ouID, projectName, agentName string, typeID uint, limit, offset int) (*gwmodels.AgentModelConfigListResponse, error)
+	ListMCP(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*gwmodels.AgentModelConfigListResponse, error)
 	Update(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string,
-		req models.UpdateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
+		req gwmodels.UpdateAgentModelConfigRequest) (*gwmodels.AgentModelConfigResponse, error)
 	UpdateMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string,
-		req models.UpdateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
+		req gwmodels.UpdateAgentModelConfigRequest) (*gwmodels.AgentModelConfigResponse, error)
 	Delete(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) error
 	DeleteMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) error
 	// DeleteForAgentDeletion removes all external proxy resources for a single LLM config during
@@ -89,18 +90,18 @@ type AgentConfigurationService interface {
 	// agent uses to call its MCP server through the gateway. Keyed by the env
 	// mapping artifact (not the shared source MCP proxy). Only one key is managed
 	// per mapping from the console.
-	ListMCPConfigAPIKeys(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string) (*models.ListAPIKeysResponse, error)
-	CreateMCPConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
-	RotateMCPConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
+	ListMCPConfigAPIKeys(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string) (*gwmodels.ListAPIKeysResponse, error)
+	CreateMCPConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string, req *gwmodels.CreateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error)
+	RotateMCPConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string, req *gwmodels.RotateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error)
 	RevokeMCPConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string) error
 
 	// LLM config API keys — the per-config, per-environment API key an external
 	// agent uses to call its LLM provider through the gateway. Resolved from the
 	// config + environment to the backing LLM proxy server-side (the frontend
 	// does not need to know the proxy handle).
-	ListLLMConfigAPIKeys(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string) (*models.ListAPIKeysResponse, error)
-	CreateLLMConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
-	RotateLLMConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
+	ListLLMConfigAPIKeys(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string) (*gwmodels.ListAPIKeysResponse, error)
+	CreateLLMConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string, req *gwmodels.CreateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error)
+	RotateLLMConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string, req *gwmodels.RotateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error)
 	RevokeLLMConfigAPIKey(ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string) error
 }
 
@@ -142,7 +143,7 @@ type rollbackResource struct {
 	proxyAPIKeyID     string                           // API key created for the proxy
 	providerAPIKeyID  string                           // API key name created for the provider
 	providerUUID      string                           // UUID of the provider (needed to revoke the provider API key)
-	mappingKey        *models.EnvAgentModelMapping     // env mapping to revert (HIGH-4, Scenario A only): config and environment
+	mappingKey        *gwmodels.EnvAgentModelMapping   // env mapping to revert (HIGH-4, Scenario A only): config and environment
 	oldProxyUUID      uuid.UUID                        // old proxy UUID to restore in the mapping on rollback (HIGH-4, Scenario A only)
 	providerSecretLoc *secretmanagersvc.SecretLocation // Location for provider API key secret
 	proxySecretLoc    *secretmanagersvc.SecretLocation // Location for proxy API key secret
@@ -156,7 +157,7 @@ type rollbackResource struct {
 	// Set only by processEnvProxyUpdate (Scenario B): the proxy already existed
 	// before this operation, so a later failure must restore its prior
 	// configuration instead of deleting it outright.
-	priorProxyConfig *models.LLMProxy
+	priorProxyConfig *gwmodels.LLMProxy
 	// restoreDeploymentID is the deployment the proxy was on before a Scenario-B
 	// redeploy (Scenario B only). The redeploy pointed the deployment_status row
 	// at the new deployment, and the rollback points it back.
@@ -291,7 +292,7 @@ func ensureURLScheme(host string) string {
 // an optional context path. This is the address for callers outside the cluster, and for
 // MCP, whose URL doubles as the identity resource identifier. Platform-hosted agents get
 // buildInternalProxyURL instead — they reach the gateway in-cluster.
-func buildPublicProxyURL(gateway *models.Gateway, contextPath *string) string {
+func buildPublicProxyURL(gateway *gwmodels.Gateway, contextPath *string) string {
 	base := ensureURLScheme(gateway.Vhost)
 	if contextPath != nil {
 		return fmt.Sprintf("%s%s", base, *contextPath)
@@ -303,7 +304,7 @@ func buildPublicProxyURL(gateway *models.Gateway, contextPath *string) string {
 // serves the proxy on: the proxy's own vhost override when set (the deployment
 // spec forwards it), else the gateway's vhost. Bare hosts default to https and
 // any trailing slash is dropped.
-func mcpProxyServingBase(gateway *models.Gateway, override *string) string {
+func mcpProxyServingBase(gateway *gwmodels.Gateway, override *string) string {
 	base := gateway.Vhost
 	if override != nil {
 		if host := strings.TrimSpace(*override); host != "" {
@@ -315,7 +316,7 @@ func mcpProxyServingBase(gateway *models.Gateway, override *string) string {
 
 // buildMCPProxyURL constructs the MCP proxy URL from the serving base and the
 // proxy's optional context path, appending the "/mcp" route.
-func buildMCPProxyURL(gateway *models.Gateway, cfg models.MCPProxyConfig) string {
+func buildMCPProxyURL(gateway *gwmodels.Gateway, cfg gwmodels.MCPProxyConfig) string {
 	path := "/mcp"
 	if cfg.Context != nil {
 		if trimmed := strings.TrimSpace(*cfg.Context); trimmed != "" {
@@ -331,7 +332,7 @@ func buildMCPProxyURL(gateway *models.Gateway, cfg models.MCPProxyConfig) string
 // key, or injecting the apikey env var — mirroring how an LLM provider with security
 // disabled yields proxies with no API key wired in the gateway. Security is stored
 // per-environment on the blueprint, so the environment UUID selects the block.
-func mcpProxyAPIKeySecurityEnabled(proxy *models.MCPProxy, envID string) bool {
+func mcpProxyAPIKeySecurityEnabled(proxy *gwmodels.MCPProxy, envID string) bool {
 	security := mcpProxySecurityForEnv(proxy, envID)
 	if security == nil || !isBoolTrue(security.Enabled) {
 		return false
@@ -346,27 +347,27 @@ func mcpProxyAPIKeySecurityEnabled(proxy *models.MCPProxy, envID string) bool {
 // than a platform-only default — including when the provider reads its own key from
 // the query string, which a plain header-name lookup would otherwise collapse to a
 // header-based default and lose entirely.
-func providerProxyAPIKeySecurity(provider *models.LLMProvider) (name, in string) {
+func providerProxyAPIKeySecurity(provider *gwmodels.LLMProvider) (name, in string) {
 	if provider == nil {
-		return models.DefaultLLMProxyAPIKeyHeader, "header"
+		return gwmodels.DefaultLLMProxyAPIKeyHeader, "header"
 	}
-	return provider.Configuration.Security.APIKeyNameAndLocation(models.DefaultLLMProxyAPIKeyHeader)
+	return provider.Configuration.Security.APIKeyNameAndLocation(gwmodels.DefaultLLMProxyAPIKeyHeader)
 }
 
 // newProxyIngressSecurity builds a proxy's ingress security from its provider: name,
 // location, and whether a credential is required at all. The requirement used to be
 // hardcoded on, so a provider set to None still produced a proxy demanding API-Key.
 // Name and location are kept when off, so re-enabling restores what was configured.
-func newProxyIngressSecurity(provider *models.LLMProvider) *models.SecurityConfig {
-	var providerSecurity *models.SecurityConfig
+func newProxyIngressSecurity(provider *gwmodels.LLMProvider) *gwmodels.SecurityConfig {
+	var providerSecurity *gwmodels.SecurityConfig
 	if provider != nil {
 		providerSecurity = provider.Configuration.Security
 	}
 	required := providerSecurity.RequiresAPIKey()
 	ingressName, ingressIn := providerProxyAPIKeySecurity(provider)
-	return &models.SecurityConfig{
+	return &gwmodels.SecurityConfig{
 		Enabled: &required,
-		APIKey: &models.APIKeySecurity{
+		APIKey: &gwmodels.APIKeySecurity{
 			Enabled: &required,
 			Key:     ingressName,
 			In:      ingressIn,
@@ -382,14 +383,14 @@ func newProxyIngressSecurity(provider *models.LLMProvider) *models.SecurityConfi
 // requiring a credential), and it never discards a query-based proxy's real parameter
 // name just because the location isn't "header". Unlike an MCP proxy, an LLM proxy
 // stores its security config on the proxy itself rather than per bound environment.
-func llmProxyAPIKeySecurity(proxy *models.LLMProxy) (name, in string) {
+func llmProxyAPIKeySecurity(proxy *gwmodels.LLMProxy) (name, in string) {
 	if proxy == nil || !isAPIKeyAuthEnabled(proxy.Configuration.Security) {
 		return "", ""
 	}
-	return proxy.Configuration.Security.APIKeyNameAndLocation(models.DefaultLLMProxyAPIKeyHeader)
+	return proxy.Configuration.Security.APIKeyNameAndLocation(gwmodels.DefaultLLMProxyAPIKeyHeader)
 }
 
-func mcpProxyAPIKeyHeaderName(proxy *models.MCPProxy, envID string) string {
+func mcpProxyAPIKeyHeaderName(proxy *gwmodels.MCPProxy, envID string) string {
 	security := mcpProxySecurityForEnv(proxy, envID)
 	if security == nil || security.APIKey == nil {
 		return "X-API-Key"
@@ -403,7 +404,7 @@ func mcpProxyAPIKeyHeaderName(proxy *models.MCPProxy, envID string) string {
 
 // mcpProxySecurityForEnv returns the security config from the endpoint bound to the given
 // environment, or nil when the proxy has no endpoint bound to that environment.
-func mcpProxySecurityForEnv(proxy *models.MCPProxy, envID string) *models.SecurityConfig {
+func mcpProxySecurityForEnv(proxy *gwmodels.MCPProxy, envID string) *gwmodels.SecurityConfig {
 	endpoint, _ := resolveMCPEndpointForEnv(proxy, envID)
 	if endpoint == nil {
 		return nil
@@ -416,7 +417,7 @@ func mcpProxySecurityForEnv(proxy *models.MCPProxy, envID string) *models.Securi
 // no endpoint bound to that environment. This UUID is the gateway-facing apiID that
 // per-agent inbound API keys are minted against, so the gateway validates them against the
 // single shared artifact the endpoint deployed for that environment.
-func mcpProxyEnvArtifactUUID(proxy *models.MCPProxy, envID string) uuid.UUID {
+func mcpProxyEnvArtifactUUID(proxy *gwmodels.MCPProxy, envID string) uuid.UUID {
 	_, ee := resolveMCPEndpointForEnv(proxy, envID)
 	if ee == nil {
 		return uuid.Nil
@@ -427,7 +428,7 @@ func mcpProxyEnvArtifactUUID(proxy *models.MCPProxy, envID string) uuid.UUID {
 // resolveMCPMappingAPIID resolves the shared per-environment artifact UUID that a mapping's
 // inbound API key must target on the gateway (the apiID). It prefers the mapping's preloaded
 // source proxy and falls back to loading the proxy by UUID.
-func (s *agentConfigurationService) resolveMCPMappingAPIID(ctx context.Context, mapping *models.EnvAgentMCPMapping, ouID string) uuid.UUID {
+func (s *agentConfigurationService) resolveMCPMappingAPIID(ctx context.Context, mapping *gwmodels.EnvAgentMCPMapping, ouID string) uuid.UUID {
 	if id := mcpProxyEnvArtifactUUID(mapping.MCPProxy, mapping.EnvironmentUUID.String()); id != uuid.Nil {
 		return id
 	}
@@ -444,14 +445,14 @@ func (s *agentConfigurationService) resolveMCPMappingAPIID(ctx context.Context, 
 // per-agent key-holder artifact under which the key is persisted and later listed/revoked.
 // Keeping them distinct lets many agents share one gateway artifact while retaining
 // per-agent key issuance and revocation.
-func (s *agentConfigurationService) createMCPMappingAPIKey(ctx context.Context, ouID string, apiID, storageUUID uuid.UUID, keyName string) (*models.CreateAPIKeyResponse, error) {
+func (s *agentConfigurationService) createMCPMappingAPIKey(ctx context.Context, ouID string, apiID, storageUUID uuid.UUID, keyName string) (*gwmodels.CreateAPIKeyResponse, error) {
 	if s.apiKeyBroadcaster == nil {
 		return nil, fmt.Errorf("API key service is not configured")
 	}
 	if apiID == uuid.Nil {
 		return nil, fmt.Errorf("MCP proxy shared artifact not found")
 	}
-	return s.apiKeyBroadcaster.broadcastCreate(ctx, ouID, apiID.String(), storageUUID.String(), &models.CreateAPIKeyRequest{
+	return s.apiKeyBroadcaster.broadcastCreate(ctx, ouID, apiID.String(), storageUUID.String(), &gwmodels.CreateAPIKeyRequest{
 		Name: keyName,
 	})
 }
@@ -469,15 +470,15 @@ func (s *agentConfigurationService) revokeMCPMappingAPIKey(ctx context.Context, 
 	return s.apiKeyBroadcaster.broadcastRevoke(ctx, ouID, apiID.String(), storageUUID.String(), keyName)
 }
 
-func mcpMappingScopedID(config *models.AgentConfiguration, envName string) string {
+func mcpMappingScopedID(config *gwmodels.AgentConfiguration, envName string) string {
 	return scopedProxyIdentifier(config.ProjectName, config.AgentID, config.Name, envName)
 }
 
-func mcpMappingAPIKeyName(config *models.AgentConfiguration, envName string) string {
+func mcpMappingAPIKeyName(config *gwmodels.AgentConfiguration, envName string) string {
 	return fmt.Sprintf("%s-key", mcpMappingScopedID(config, envName))
 }
 
-func mcpMappingSecretLocation(config *models.AgentConfiguration, ouID, envName string) secretmanagersvc.SecretLocation {
+func mcpMappingSecretLocation(config *gwmodels.AgentConfiguration, ouID, envName string) secretmanagersvc.SecretLocation {
 	scopedID := mcpMappingScopedID(config, envName)
 	return secretmanagersvc.SecretLocation{
 		OrgName:         ouID,
@@ -538,7 +539,7 @@ func (s *agentConfigurationService) revokeAllMCPMappingAPIKeys(ctx context.Conte
 // env mappings preloaded (see AgentConfigurationRepository.GetByUUID).
 func (s *agentConfigurationService) resolveConfigAndEnvUUID(
 	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string,
-) (*models.AgentConfiguration, string, error) {
+) (*gwmodels.AgentConfiguration, string, error) {
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -609,7 +610,7 @@ func (s *agentConfigurationService) resolveMCPMappingKeyBinding(
 // agent's MCP configuration in the given environment.
 func (s *agentConfigurationService) ListMCPConfigAPIKeys(
 	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string,
-) (*models.ListAPIKeysResponse, error) {
+) (*gwmodels.ListAPIKeysResponse, error) {
 	if s.apiKeyBroadcaster == nil || s.apiKeyBroadcaster.apiKeyRepo == nil {
 		return nil, fmt.Errorf("API key service is not configured")
 	}
@@ -623,14 +624,14 @@ func (s *agentConfigurationService) ListMCPConfigAPIKeys(
 		return nil, fmt.Errorf("failed to list API keys: %w", err)
 	}
 
-	return &models.ListAPIKeysResponse{Keys: models.ToUserManagedAPIKeyInfos(stored)}, nil
+	return &gwmodels.ListAPIKeysResponse{Keys: gwmodels.ToUserManagedAPIKeyInfos(stored)}, nil
 }
 
 // CreateMCPConfigAPIKey generates the per-config MCP API key and broadcasts it to
 // the gateways. The key is returned once.
 func (s *agentConfigurationService) CreateMCPConfigAPIKey(
-	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string, req *models.CreateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string, req *gwmodels.CreateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	if s.apiKeyBroadcaster == nil {
 		return nil, fmt.Errorf("API key service is not configured")
 	}
@@ -647,8 +648,8 @@ func (s *agentConfigurationService) CreateMCPConfigAPIKey(
 // RotateMCPConfigAPIKey revokes the current per-config MCP API key and generates a
 // new value under the same key name. The new key is returned once.
 func (s *agentConfigurationService) RotateMCPConfigAPIKey(
-	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string, req *models.RotateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string, req *gwmodels.RotateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	if s.apiKeyBroadcaster == nil {
 		return nil, fmt.Errorf("API key service is not configured")
 	}
@@ -701,7 +702,7 @@ func (s *agentConfigurationService) resolveLLMProxyHandleForConfig(
 // agent's LLM configuration in the given environment.
 func (s *agentConfigurationService) ListLLMConfigAPIKeys(
 	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string,
-) (*models.ListAPIKeysResponse, error) {
+) (*gwmodels.ListAPIKeysResponse, error) {
 	if s.llmProxyAPIKeyService == nil {
 		return nil, fmt.Errorf("API key service is not configured")
 	}
@@ -715,8 +716,8 @@ func (s *agentConfigurationService) ListLLMConfigAPIKeys(
 // CreateLLMConfigAPIKey generates the per-config LLM API key and broadcasts it. The
 // key is returned once.
 func (s *agentConfigurationService) CreateLLMConfigAPIKey(
-	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string, req *models.CreateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName string, req *gwmodels.CreateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	if s.llmProxyAPIKeyService == nil {
 		return nil, fmt.Errorf("API key service is not configured")
 	}
@@ -733,8 +734,8 @@ func (s *agentConfigurationService) CreateLLMConfigAPIKey(
 // RotateLLMConfigAPIKey revokes the current per-config LLM API key and generates a
 // new value under the same key name. The new key is returned once.
 func (s *agentConfigurationService) RotateLLMConfigAPIKey(
-	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string, req *models.RotateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	ctx context.Context, ouID, projectName, agentName string, configUUID uuid.UUID, envName, keyName string, req *gwmodels.RotateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	if s.llmProxyAPIKeyService == nil {
 		return nil, fmt.Errorf("API key service is not configured")
 	}
@@ -906,8 +907,8 @@ func (s *agentConfigurationService) ValidateMCPProxiesInCatalog(
 
 // Create creates a new agent model configuration
 func (s *agentConfigurationService) Create(ctx context.Context, ouID, projectName, agentID string,
-	req models.CreateAgentModelConfigRequest, createdBy string,
-) (*models.AgentModelConfigResponse, error) {
+	req gwmodels.CreateAgentModelConfigRequest, createdBy string,
+) (*gwmodels.AgentModelConfigResponse, error) {
 	// Validate agent exists and determine type
 	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentID)
 	if err != nil {
@@ -926,7 +927,7 @@ func (s *agentConfigurationService) Create(ctx context.Context, ouID, projectNam
 	}
 
 	switch req.Type {
-	case models.AgentConfigTypeMCP:
+	case gwmodels.AgentConfigTypeMCP:
 		return s.createMCPConfig(ctx, ouID, projectName, agentID, req, createdBy, policy)
 	default:
 		return s.createLLMConfig(ctx, ouID, projectName, agentID, req, createdBy, policy)
@@ -934,8 +935,8 @@ func (s *agentConfigurationService) Create(ctx context.Context, ouID, projectNam
 }
 
 func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, projectName, agentID string,
-	req models.CreateAgentModelConfigRequest, createdBy string, policy placementPolicy,
-) (*models.AgentModelConfigResponse, error) {
+	req gwmodels.CreateAgentModelConfigRequest, createdBy string, policy placementPolicy,
+) (*gwmodels.AgentModelConfigResponse, error) {
 	// Validate that at least one environment mapping is provided (CRIT-5).
 	// The binding:"required,min=1" tag on the DTO is ignored by net/http + json.NewDecoder,
 	// so we enforce it explicitly here.
@@ -984,11 +985,11 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 	}
 
 	// Build config struct (UUID assigned on Create)
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		Name:        req.Name,
 		Description: req.Description,
 		AgentID:     agentID,
-		TypeID:      models.AgentConfigTypeToID(req.Type),
+		TypeID:      gwmodels.AgentConfigTypeToID(req.Type),
 		OUID:        ouID,
 		ProjectName: projectName,
 	}
@@ -1086,7 +1087,7 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 		rollbackResources[rbIdx].deploymentID = deployment.DeploymentID
 		rollbackResources[rbIdx].gatewayID = gateway.UUID.String()
 
-		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
+		proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &gwmodels.CreateAPIKeyRequest{
 			Name:    fmt.Sprintf("%s-key", scopedID),
 			Purpose: policy.apiKeyPurpose(),
 		})
@@ -1149,13 +1150,13 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 			s.compensatingDeleteConfig(ctx, config.UUID, ouID)
 			return nil, fmt.Errorf("failed to build environment variables for %s: %w", envName, err)
 		}
-		variables := []models.AgentEnvConfigVariable{}
+		variables := []gwmodels.AgentEnvConfigVariable{}
 		for _, envConfigTemplate := range envConfigTemplates {
 			secretReference := ""
 			if envConfigTemplate.IsSecret {
 				secretReference = secretRefName
 			}
-			variables = append(variables, models.AgentEnvConfigVariable{
+			variables = append(variables, gwmodels.AgentEnvConfigVariable{
 				ConfigUUID:      config.UUID,
 				EnvironmentUUID: envUUID,
 				VariableName:    envConfigTemplate.Name,
@@ -1166,11 +1167,11 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 
 		// Short per-env TX: DB writes only.
 		if err := s.db.Transaction(func(tx *gorm.DB) error {
-			mapping := &models.EnvAgentModelMapping{
+			mapping := &gwmodels.EnvAgentModelMapping{
 				ConfigUUID:          config.UUID,
 				EnvironmentUUID:     envUUID,
 				LLMProxyUUID:        proxy.UUID,
-				PolicyConfiguration: models.LLMPolicies(envMapping.Configuration.Policies),
+				PolicyConfiguration: gwmodels.LLMPolicies(envMapping.Configuration.Policies),
 			}
 			if err := s.envMappingRepo.Create(ctx, tx, mapping); err != nil {
 				return fmt.Errorf("failed to create environment mapping for %s: %w", envName, err)
@@ -1222,8 +1223,8 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 }
 
 func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, projectName, agentID string,
-	req models.CreateAgentModelConfigRequest, createdBy string, policy placementPolicy,
-) (*models.AgentModelConfigResponse, error) {
+	req gwmodels.CreateAgentModelConfigRequest, createdBy string, policy placementPolicy,
+) (*gwmodels.AgentModelConfigResponse, error) {
 	if s.mcpProxyRepo == nil || s.envMCPMappingRepo == nil || s.mcpProxyService == nil {
 		return nil, fmt.Errorf("MCP configuration service is not fully configured")
 	}
@@ -1234,7 +1235,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		return nil, errors.Join(utils.ErrInvalidInput, err)
 	}
 
-	proxiesByEnv := make(map[string]*models.MCPProxy, len(req.EnvMappings))
+	proxiesByEnv := make(map[string]*gwmodels.MCPProxy, len(req.EnvMappings))
 	for envName, envMapping := range req.EnvMappings {
 		proxyHandle := strings.TrimSpace(envMapping.ProviderName)
 		if proxyHandle == "" {
@@ -1275,11 +1276,11 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		return nil, err
 	}
 
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		Name:        req.Name,
 		Description: req.Description,
 		AgentID:     agentID,
-		TypeID:      models.AgentConfigTypeIDMCP,
+		TypeID:      gwmodels.AgentConfigTypeIDMCP,
 		OUID:        ouID,
 		ProjectName: projectName,
 	}
@@ -1374,7 +1375,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		handle := mcpMappingProxyName(projectName, agentID, config.Name, envName)
 		artifactName := handle
 		sourceProxyVersion := mcpProxyArtifactVersion(sourceProxy)
-		mapping := &models.EnvAgentMCPMapping{
+		mapping := &gwmodels.EnvAgentMCPMapping{
 			ConfigUUID:      config.UUID,
 			EnvironmentUUID: envUUID,
 			MCPProxyUUID:    sourceProxy.UUID,
@@ -1401,7 +1402,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		// security enabled. When disabled, no gateway key / app binding is created and no
 		// apikey env var is injected (only the URL).
 		secured := mcpProxyAPIKeySecurityEnabled(sourceProxy, mapping.EnvironmentUUID.String())
-		var proxyAPIKey *models.CreateAPIKeyResponse
+		var proxyAPIKey *gwmodels.CreateAPIKeyResponse
 		var proxySecretLoc secretmanagersvc.SecretLocation
 		secretRefName := ""
 		if secured {
@@ -1438,13 +1439,13 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 				return nil, fmt.Errorf("failed to store MCP API key in KV for environment %s: %w", envName, err)
 			}
 		}
-		variables := make([]models.AgentEnvConfigVariable, 0, len(envTemplates))
+		variables := make([]gwmodels.AgentEnvConfigVariable, 0, len(envTemplates))
 		for _, envTemplate := range envTemplates {
 			secretReference := ""
 			if envTemplate.IsSecret {
 				secretReference = secretRefName
 			}
-			variables = append(variables, models.AgentEnvConfigVariable{
+			variables = append(variables, gwmodels.AgentEnvConfigVariable{
 				ConfigUUID:      config.UUID,
 				EnvironmentUUID: envUUID,
 				VariableName:    envTemplate.Name,
@@ -1499,7 +1500,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 }
 
 // Get retrieves a configuration by UUID with project and agent scoping validation
-func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error) {
+func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*gwmodels.AgentModelConfigResponse, error) {
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1526,7 +1527,7 @@ func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUI
 }
 
 // GetMCP retrieves an MCP proxy mapping by UUID with project and agent scoping validation.
-func (s *agentConfigurationService) GetMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*models.AgentModelConfigResponse, error) {
+func (s *agentConfigurationService) GetMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string) (*gwmodels.AgentModelConfigResponse, error) {
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1534,7 +1535,7 @@ func (s *agentConfigurationService) GetMCP(ctx context.Context, configUUID uuid.
 		}
 		return nil, fmt.Errorf("failed to get MCP configuration: %w", err)
 	}
-	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != models.AgentConfigTypeIDMCP {
+	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != gwmodels.AgentConfigTypeIDMCP {
 		return nil, utils.ErrAgentConfigNotFound
 	}
 
@@ -1548,7 +1549,7 @@ func (s *agentConfigurationService) GetMCP(ctx context.Context, configUUID uuid.
 }
 
 // List lists all configurations for an organization, project, and agent
-func (s *agentConfigurationService) List(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*models.AgentModelConfigListResponse, error) {
+func (s *agentConfigurationService) List(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*gwmodels.AgentModelConfigListResponse, error) {
 	configs, err := s.agentConfigRepo.ListByAgent(ctx, ouID, projectName, agentName, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list configurations: %w", err)
@@ -1559,22 +1560,22 @@ func (s *agentConfigurationService) List(ctx context.Context, ouID, projectName,
 		return nil, fmt.Errorf("failed to count configurations: %w", err)
 	}
 
-	items := make([]models.AgentModelConfigListItem, len(configs))
+	items := make([]gwmodels.AgentModelConfigListItem, len(configs))
 	for i, cfg := range configs {
-		items[i] = models.AgentModelConfigListItem{
+		items[i] = gwmodels.AgentModelConfigListItem{
 			UUID:        cfg.UUID.String(),
 			Name:        cfg.Name,
 			Description: cfg.Description,
 			AgentID:     cfg.AgentID,
-			Type:        models.AgentConfigTypeFromID(cfg.TypeID),
+			Type:        gwmodels.AgentConfigTypeFromID(cfg.TypeID),
 			ProjectName: cfg.ProjectName,
 			CreatedAt:   cfg.CreatedAt,
 		}
 	}
 
-	return &models.AgentModelConfigListResponse{
+	return &gwmodels.AgentModelConfigListResponse{
 		Configs: items,
-		Pagination: models.PaginationInfo{
+		Pagination: gwmodels.PaginationInfo{
 			Count:  int(count),
 			Offset: offset,
 			Limit:  limit,
@@ -1585,7 +1586,7 @@ func (s *agentConfigurationService) List(ctx context.Context, ouID, projectName,
 // ListByType lists configurations for an organization, project, agent, and config type.
 func (s *agentConfigurationService) ListByType(
 	ctx context.Context, ouID, projectName, agentName string, typeID uint, limit, offset int,
-) (*models.AgentModelConfigListResponse, error) {
+) (*gwmodels.AgentModelConfigListResponse, error) {
 	configs, err := s.agentConfigRepo.ListByAgentAndType(ctx, ouID, projectName, agentName, typeID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list configurations by type: %w", err)
@@ -1596,22 +1597,22 @@ func (s *agentConfigurationService) ListByType(
 		return nil, fmt.Errorf("failed to count configurations by type: %w", err)
 	}
 
-	items := make([]models.AgentModelConfigListItem, len(configs))
+	items := make([]gwmodels.AgentModelConfigListItem, len(configs))
 	for i, cfg := range configs {
-		items[i] = models.AgentModelConfigListItem{
+		items[i] = gwmodels.AgentModelConfigListItem{
 			UUID:        cfg.UUID.String(),
 			Name:        cfg.Name,
 			Description: cfg.Description,
 			AgentID:     cfg.AgentID,
-			Type:        models.AgentConfigTypeFromID(cfg.TypeID),
+			Type:        gwmodels.AgentConfigTypeFromID(cfg.TypeID),
 			ProjectName: cfg.ProjectName,
 			CreatedAt:   cfg.CreatedAt,
 		}
 	}
 
-	return &models.AgentModelConfigListResponse{
+	return &gwmodels.AgentModelConfigListResponse{
 		Configs: items,
-		Pagination: models.PaginationInfo{
+		Pagination: gwmodels.PaginationInfo{
 			Count:  int(count),
 			Offset: offset,
 			Limit:  limit,
@@ -1620,8 +1621,8 @@ func (s *agentConfigurationService) ListByType(
 }
 
 // ListMCP lists all MCP proxy mappings for an organization, project, and agent.
-func (s *agentConfigurationService) ListMCP(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*models.AgentModelConfigListResponse, error) {
-	return s.ListByType(ctx, ouID, projectName, agentName, models.AgentConfigTypeIDMCP, limit, offset)
+func (s *agentConfigurationService) ListMCP(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*gwmodels.AgentModelConfigListResponse, error) {
+	return s.ListByType(ctx, ouID, projectName, agentName, gwmodels.AgentConfigTypeIDMCP, limit, offset)
 }
 
 // processEnvProviderChange handles Scenario A: provider changed for an existing environment.
@@ -1643,12 +1644,12 @@ func (s *agentConfigurationService) storeProxyAPIKey(ctx context.Context, policy
 func (s *agentConfigurationService) processEnvProviderChange(
 	ctx context.Context,
 	configUUID uuid.UUID,
-	config *models.AgentConfiguration,
+	config *gwmodels.AgentConfiguration,
 	env *models.EnvironmentResponse,
 	envUUID uuid.UUID,
 	envName string,
-	envMapping models.EnvModelConfigRequest,
-	existingMapping *models.EnvAgentModelMapping,
+	envMapping gwmodels.EnvModelConfigRequest,
+	existingMapping *gwmodels.EnvAgentModelMapping,
 	ouID string,
 	existingVarNames map[string]string,
 	policy placementPolicy,
@@ -1675,11 +1676,11 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		providerAPIKeyID:  providerAPIKeyID,
 		providerUUID:      providerUUID,
 		providerSecretLoc: providerSecretLoc,
-		mappingKey:        &models.EnvAgentModelMapping{ConfigUUID: existingMapping.ConfigUUID, EnvironmentUUID: existingMapping.EnvironmentUUID},
+		mappingKey:        &gwmodels.EnvAgentModelMapping{ConfigUUID: existingMapping.ConfigUUID, EnvironmentUUID: existingMapping.EnvironmentUUID},
 		oldProxyUUID:      existingMapping.LLMProxyUUID,
 	}
 
-	proxy, err := s.llmProxyService.Create(ctx, ouID, models.UserRoleSystem, proxyConfig)
+	proxy, err := s.llmProxyService.Create(ctx, ouID, gwmodels.UserRoleSystem, proxyConfig)
 	if err != nil {
 		return "", rbRes, pendingAppBinding{}, fmt.Errorf("failed to create proxy for environment %s: %w", envName, err)
 	}
@@ -1692,7 +1693,7 @@ func (s *agentConfigurationService) processEnvProviderChange(
 	rbRes.deploymentID = deployment.DeploymentID
 	rbRes.gatewayID = gateway.UUID.String()
 
-	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
+	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &gwmodels.CreateAPIKeyRequest{
 		Name:    fmt.Sprintf("%s-key", scopedID),
 		Purpose: policy.apiKeyPurpose(),
 	})
@@ -1734,13 +1735,13 @@ func (s *agentConfigurationService) processEnvProviderChange(
 		s.rollbackProxies(ctx, []rollbackResource{rbRes}, ouID)
 		return "", rollbackResource{}, pendingAppBinding{}, fmt.Errorf("failed to build environment variables for %s: %w", envName, err)
 	}
-	variables := []models.AgentEnvConfigVariable{}
+	variables := []gwmodels.AgentEnvConfigVariable{}
 	for _, envConfigTemplate := range envConfigTemplates {
 		secretReference := ""
 		if envConfigTemplate.IsSecret {
 			secretReference = secretRefName
 		}
-		variables = append(variables, models.AgentEnvConfigVariable{
+		variables = append(variables, gwmodels.AgentEnvConfigVariable{
 			ConfigUUID:      config.UUID,
 			EnvironmentUUID: envUUID,
 			VariableName:    envConfigTemplate.Name,
@@ -1788,12 +1789,12 @@ func (s *agentConfigurationService) processEnvProviderChange(
 // Returns a non-nil rollback resource only if a new providerAPIKeyID was created.
 func (s *agentConfigurationService) processEnvProxyUpdate(
 	ctx context.Context,
-	config *models.AgentConfiguration,
+	config *gwmodels.AgentConfiguration,
 	env *models.EnvironmentResponse,
 	envUUID uuid.UUID,
 	envName string,
-	envMapping models.EnvModelConfigRequest,
-	existingMapping *models.EnvAgentModelMapping,
+	envMapping gwmodels.EnvModelConfigRequest,
+	existingMapping *gwmodels.EnvAgentModelMapping,
 	ouID string,
 	policy placementPolicy,
 ) (rollbackResource, error) {
@@ -1865,7 +1866,7 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 		"newDeploymentID", newDeploymentID)
 
 	// Persist updated PolicyConfiguration to DB.
-	existingMapping.PolicyConfiguration = models.LLMPolicies(envMapping.Configuration.Policies)
+	existingMapping.PolicyConfiguration = gwmodels.LLMPolicies(envMapping.Configuration.Policies)
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		return s.envMappingRepo.Update(ctx, tx, existingMapping)
 	}); err != nil {
@@ -1909,11 +1910,11 @@ func (s *agentConfigurationService) processEnvProxyUpdate(
 func (s *agentConfigurationService) processNewEnv(
 	ctx context.Context,
 	configUUID uuid.UUID,
-	config *models.AgentConfiguration,
+	config *gwmodels.AgentConfiguration,
 	env *models.EnvironmentResponse,
 	envUUID uuid.UUID,
 	envName string,
-	envMapping models.EnvModelConfigRequest,
+	envMapping gwmodels.EnvModelConfigRequest,
 	ouID string,
 	existingVarNames map[string]string,
 	policy placementPolicy,
@@ -1937,7 +1938,7 @@ func (s *agentConfigurationService) processNewEnv(
 	// Register provider credentials immediately so they are cleaned up on any subsequent failure.
 	rbRes := rollbackResource{providerAPIKeyID: providerAPIKeyID, providerUUID: providerUUID, providerSecretLoc: providerSecretLoc}
 
-	proxy, err := s.llmProxyService.Create(ctx, ouID, models.UserRoleSystem, proxyConfig)
+	proxy, err := s.llmProxyService.Create(ctx, ouID, gwmodels.UserRoleSystem, proxyConfig)
 	if err != nil {
 		return rbRes, pendingAppBinding{}, fmt.Errorf("failed to create proxy for environment %s: %w", envName, err)
 	}
@@ -1950,7 +1951,7 @@ func (s *agentConfigurationService) processNewEnv(
 	rbRes.deploymentID = deployment.DeploymentID
 	rbRes.gatewayID = gateway.UUID.String()
 
-	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &models.CreateAPIKeyRequest{
+	proxyAPIKey, err := s.llmProxyAPIKeyService.CreateAPIKey(ctx, ouID, proxy.Handle, &gwmodels.CreateAPIKeyRequest{
 		Name:    fmt.Sprintf("%s-key", scopedID),
 		Purpose: policy.apiKeyPurpose(),
 	})
@@ -1992,13 +1993,13 @@ func (s *agentConfigurationService) processNewEnv(
 		s.rollbackProxies(ctx, []rollbackResource{rbRes}, ouID)
 		return rollbackResource{}, pendingAppBinding{}, fmt.Errorf("failed to build environment variables for %s: %w", envName, err)
 	}
-	variables := []models.AgentEnvConfigVariable{}
+	variables := []gwmodels.AgentEnvConfigVariable{}
 	for _, envConfigTemplate := range envConfigTemplates {
 		secretReference := ""
 		if envConfigTemplate.IsSecret {
 			secretReference = secretRefName
 		}
-		variables = append(variables, models.AgentEnvConfigVariable{
+		variables = append(variables, gwmodels.AgentEnvConfigVariable{
 			ConfigUUID:      config.UUID,
 			EnvironmentUUID: envUUID,
 			VariableName:    envConfigTemplate.Name,
@@ -2009,7 +2010,7 @@ func (s *agentConfigurationService) processNewEnv(
 
 	// Short per-env TX: DB writes only.
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
-		mapping := &models.EnvAgentModelMapping{
+		mapping := &gwmodels.EnvAgentModelMapping{
 			ConfigUUID:      configUUID,
 			EnvironmentUUID: envUUID,
 			LLMProxyUUID:    proxy.UUID,
@@ -2047,7 +2048,7 @@ func (s *agentConfigurationService) processEnvRemoval(
 	ctx context.Context,
 	configUUID uuid.UUID,
 	envUUIDStr string,
-	mapping *models.EnvAgentModelMapping,
+	mapping *gwmodels.EnvAgentModelMapping,
 	configName string,
 	envName string,
 	ouID string,
@@ -2081,9 +2082,9 @@ func (s *agentConfigurationService) processEnvRemoval(
 	})
 }
 
-func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existingConfig *models.AgentConfiguration, ouID, projectName, agentName string,
-	req models.UpdateAgentModelConfigRequest,
-) (*models.AgentModelConfigResponse, error) {
+func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existingConfig *gwmodels.AgentConfiguration, ouID, projectName, agentName string,
+	req gwmodels.UpdateAgentModelConfigRequest,
+) (*gwmodels.AgentModelConfigResponse, error) {
 	if s.mcpProxyRepo == nil || s.envMCPMappingRepo == nil || s.mcpProxyService == nil {
 		return nil, fmt.Errorf("MCP configuration service is not fully configured")
 	}
@@ -2141,7 +2142,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		return s.GetMCP(ctx, existingConfig.UUID, ouID, projectName, agentName)
 	}
 
-	proxiesByEnv := make(map[string]*models.MCPProxy, len(req.EnvMappings))
+	proxiesByEnv := make(map[string]*gwmodels.MCPProxy, len(req.EnvMappings))
 	for envName, envMapping := range req.EnvMappings {
 		if _, exists := envMap[envName]; !exists {
 			return nil, fmt.Errorf("%w: %s", utils.ErrEnvironmentNotFound, envName)
@@ -2166,7 +2167,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		return nil, err
 	}
 
-	existingEnvMap := make(map[string]*models.EnvAgentMCPMapping, len(existingConfig.EnvMCPMappings))
+	existingEnvMap := make(map[string]*gwmodels.EnvAgentMCPMapping, len(existingConfig.EnvMCPMappings))
 	for i := range existingConfig.EnvMCPMappings {
 		envUUID := existingConfig.EnvMCPMappings[i].EnvironmentUUID.String()
 		name := uuidToEnvName[envUUID]
@@ -2280,12 +2281,12 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 // reports. External agents read them themselves, so only the stored names change.
 func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 	ctx context.Context,
-	config *models.AgentConfiguration,
+	config *gwmodels.AgentConfiguration,
 	ouID, projectName, agentName string,
 	uuidToEnvName map[string]string,
 	policy placementPolicy,
 	firstEnvName string,
-	overrides []models.EnvironmentVariableConfig,
+	overrides []gwmodels.EnvironmentVariableConfig,
 ) error {
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		agentVars, err := s.envVariableRepo.LockAndListByAgent(ctx, tx, ouID, projectName, agentName)
@@ -2346,7 +2347,7 @@ func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 		if err := s.envVariableRepo.UpdateVariableNames(ctx, tx, config.UUID, keyNameMap); err != nil {
 			return err
 		}
-		if err := tx.WithContext(ctx).Model(&models.AgentConfiguration{}).
+		if err := tx.WithContext(ctx).Model(&gwmodels.AgentConfiguration{}).
 			Where("id = ?", config.UUID).
 			Update("updated_at", time.Now()).Error; err != nil {
 			return fmt.Errorf("failed to bump MCP configuration updatedAt: %w", err)
@@ -2359,7 +2360,7 @@ func (s *agentConfigurationService) updateMCPConfigEnvironmentVariableNames(
 	return nil
 }
 
-func (s *agentConfigurationService) refreshAllMCPMappings(ctx context.Context, config *models.AgentConfiguration, ouID string, uuidToEnvName map[string]string,
+func (s *agentConfigurationService) refreshAllMCPMappings(ctx context.Context, config *gwmodels.AgentConfiguration, ouID string, uuidToEnvName map[string]string,
 	envTemplates []EnvConfigTemplate, policy placementPolicy, firstEnvName string,
 ) error {
 	for i := range config.EnvMCPMappings {
@@ -2385,27 +2386,27 @@ func (s *agentConfigurationService) refreshAllMCPMappings(ctx context.Context, c
 	return nil
 }
 
-func (s *agentConfigurationService) updateExistingMCPMapping(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping,
-	sourceProxy *models.MCPProxy, envName, ouID, handle, artifactName, version string, redeploy bool,
+func (s *agentConfigurationService) updateExistingMCPMapping(ctx context.Context, config *gwmodels.AgentConfiguration, mapping *gwmodels.EnvAgentMCPMapping,
+	sourceProxy *gwmodels.MCPProxy, envName, ouID, handle, artifactName, version string, redeploy bool,
 ) error {
 	mapping.MCPProxyUUID = sourceProxy.UUID
 	mapping.MCPProxy = sourceProxy
 	deployedProxy := buildAgentMCPConfigProxy(config, mapping, sourceProxy, envName, ouID, handle)
 	proxyMapping := buildMCPProxyMapping(sourceProxy.UUID, deployedProxy)
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.WithContext(ctx).Model(&models.Artifact{}).
+		if err := tx.WithContext(ctx).Model(&gwmodels.Artifact{}).
 			Where("id = ?", mapping.ArtifactUUID).
 			Updates(map[string]interface{}{
 				"handle":     handle,
 				"name":       artifactName,
 				"version":    version,
-				"kind":       models.KindMCPMapping,
+				"kind":       gwmodels.KindMCPMapping,
 				"in_catalog": false,
 				"updated_at": time.Now(),
 			}).Error; err != nil {
 			return err
 		}
-		if err := tx.WithContext(ctx).Model(&models.MCPProxyMapping{}).
+		if err := tx.WithContext(ctx).Model(&gwmodels.MCPProxyMapping{}).
 			Where("id = ?", mapping.ArtifactUUID).
 			Updates(map[string]interface{}{
 				"source_mcp_proxy_id": proxyMapping.SourceMCPProxyUUID,
@@ -2414,7 +2415,7 @@ func (s *agentConfigurationService) updateExistingMCPMapping(ctx context.Context
 			}).Error; err != nil {
 			return err
 		}
-		if err := tx.WithContext(ctx).Model(&models.EnvAgentMCPMapping{}).
+		if err := tx.WithContext(ctx).Model(&gwmodels.EnvAgentMCPMapping{}).
 			Where("config_id = ? AND environment_id = ?", mapping.ConfigUUID, mapping.EnvironmentUUID).
 			Updates(map[string]interface{}{
 				"mcp_proxy_id":        mapping.MCPProxyUUID,
@@ -2441,7 +2442,7 @@ func (s *agentConfigurationService) updateExistingMCPMapping(ctx context.Context
 // hard (returns an error); the runtime injection is best-effort (logged and continued),
 // mirroring the configured path.
 func (s *agentConfigurationService) provisionUnconfiguredMCPEnv(ctx context.Context,
-	config *models.AgentConfiguration, envUUID uuid.UUID, envName, ouID, projectName, agentID string,
+	config *gwmodels.AgentConfiguration, envUUID uuid.UUID, envName, ouID, projectName, agentID string,
 	envTemplates []EnvConfigTemplate, policy placementPolicy, firstEnvName string,
 	envCredentials map[string]envCredentialData,
 ) error {
@@ -2458,7 +2459,7 @@ func (s *agentConfigurationService) provisionUnconfiguredMCPEnv(ctx context.Cont
 	return nil
 }
 
-func (s *agentConfigurationService) cleanupMCPMappingCredentials(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string) {
+func (s *agentConfigurationService) cleanupMCPMappingCredentials(ctx context.Context, config *gwmodels.AgentConfiguration, mapping *gwmodels.EnvAgentMCPMapping, envName, ouID string) {
 	if config == nil || mapping == nil || envName == "" {
 		return
 	}
@@ -2491,7 +2492,7 @@ func (s *agentConfigurationService) cleanupMCPMappingCredentials(ctx context.Con
 	}
 }
 
-func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping,
+func (s *agentConfigurationService) removeMCPMappingEnvironment(ctx context.Context, config *gwmodels.AgentConfiguration, mapping *gwmodels.EnvAgentMCPMapping,
 	envName, ouID, projectName, agentName string, envTemplates []EnvConfigTemplate, policy placementPolicy, isLastEnv bool,
 ) error {
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
@@ -2524,7 +2525,7 @@ func (s *agentConfigurationService) deleteMCPMappingArtifacts(ctx context.Contex
 	return reconcile.MergeDeleteEvents(events...).Publish(ctx, tx)
 }
 
-func mcpMappingArtifacts(mappings []models.EnvAgentMCPMapping) []uuid.UUID {
+func mcpMappingArtifacts(mappings []gwmodels.EnvAgentMCPMapping) []uuid.UUID {
 	artifactUUIDs := make([]uuid.UUID, 0, len(mappings))
 	for _, mapping := range mappings {
 		artifactUUIDs = append(artifactUUIDs, mapping.ArtifactUUID)
@@ -2537,8 +2538,8 @@ func mcpMappingArtifacts(mappings []models.EnvAgentMCPMapping) []uuid.UUID {
 // the env var name rows (the caller re-points their values to empty). It mirrors
 // removeMCPMappingEnvironment minus the ReleaseBinding/Component env var removal and
 // minus deleting the env var rows.
-func (s *agentConfigurationService) teardownMCPMappingKeepEnvVars(ctx context.Context, config *models.AgentConfiguration,
-	mapping *models.EnvAgentMCPMapping, envName, ouID string,
+func (s *agentConfigurationService) teardownMCPMappingKeepEnvVars(ctx context.Context, config *gwmodels.AgentConfiguration,
+	mapping *gwmodels.EnvAgentMCPMapping, envName, ouID string,
 ) error {
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	return s.db.Transaction(func(tx *gorm.DB) error {
@@ -2549,9 +2550,9 @@ func (s *agentConfigurationService) teardownMCPMappingKeepEnvVars(ctx context.Co
 	})
 }
 
-func mcpProxyArtifactVersion(source *models.MCPProxy) string {
+func mcpProxyArtifactVersion(source *gwmodels.MCPProxy) string {
 	if source == nil {
-		return models.DefaultProxyVersion
+		return gwmodels.DefaultProxyVersion
 	}
 	if source.Artifact != nil && source.Artifact.Version != "" {
 		return source.Artifact.Version
@@ -2562,13 +2563,13 @@ func mcpProxyArtifactVersion(source *models.MCPProxy) string {
 	if source.Configuration.Version != "" {
 		return source.Configuration.Version
 	}
-	return models.DefaultProxyVersion
+	return gwmodels.DefaultProxyVersion
 }
 
 // UpdateMCP updates an existing MCP proxy mapping with project and agent scoping validation.
 func (s *agentConfigurationService) UpdateMCP(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string,
-	req models.UpdateAgentModelConfigRequest,
-) (*models.AgentModelConfigResponse, error) {
+	req gwmodels.UpdateAgentModelConfigRequest,
+) (*gwmodels.AgentModelConfigResponse, error) {
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -2576,7 +2577,7 @@ func (s *agentConfigurationService) UpdateMCP(ctx context.Context, configUUID uu
 		}
 		return nil, fmt.Errorf("failed to get MCP configuration: %w", err)
 	}
-	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != models.AgentConfigTypeIDMCP {
+	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != gwmodels.AgentConfigTypeIDMCP {
 		return nil, utils.ErrAgentConfigNotFound
 	}
 
@@ -2598,8 +2599,8 @@ func (s *agentConfigurationService) UpdateMCP(ctx context.Context, configUUID uu
 // NOTE: Partial failure across multiple environments is an accepted limitation (see SAGA.md).
 // On failure in env N, envs 1..N-1 may already be updated. Retry is possible but not idempotent.
 func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string,
-	req models.UpdateAgentModelConfigRequest,
-) (*models.AgentModelConfigResponse, error) {
+	req gwmodels.UpdateAgentModelConfigRequest,
+) (*gwmodels.AgentModelConfigResponse, error) {
 	// Get existing configuration with all mappings
 	existingConfig, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
@@ -2624,7 +2625,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	// Fail-closed: a GetComponent error above returns rather than defaulting to internal, which could corrupt CRs.
 	policy := placementPolicyFor(agent)
 
-	if existingConfig.TypeID == models.AgentConfigTypeIDMCP {
+	if existingConfig.TypeID == gwmodels.AgentConfigTypeIDMCP {
 		return s.updateMCPConfig(ctx, existingConfig, ouID, projectName, agentName, req)
 	}
 
@@ -2642,7 +2643,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 
 	// Build map of existing environment mappings for comparison, keyed by environment name.
 	// The request uses env names, so we must match by name (not UUID).
-	existingEnvMap := make(map[string]*models.EnvAgentModelMapping, len(existingConfig.EnvMappings))
+	existingEnvMap := make(map[string]*gwmodels.EnvAgentModelMapping, len(existingConfig.EnvMappings))
 	for i := range existingConfig.EnvMappings {
 		envUUID := existingConfig.EnvMappings[i].EnvironmentUUID.String()
 		name := uuidToEnvName[envUUID]
@@ -2709,9 +2710,9 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 				}
 			}
 			// Merge requested renames over persisted names.
-			mergedOverrides := make([]models.EnvironmentVariableConfig, 0, len(persistedVarNames))
+			mergedOverrides := make([]gwmodels.EnvironmentVariableConfig, 0, len(persistedVarNames))
 			for key, name := range persistedVarNames {
-				mergedOverrides = append(mergedOverrides, models.EnvironmentVariableConfig{Key: key, Name: name})
+				mergedOverrides = append(mergedOverrides, gwmodels.EnvironmentVariableConfig{Key: key, Name: name})
 			}
 			for _, ev := range req.EnvironmentVariables {
 				found := false
@@ -2728,7 +2729,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			}
 			// Validate using the merged result (catches uniqueness and format errors against locked names).
 			var validateErr error
-			if existingConfig.TypeID == models.AgentConfigTypeIDMCP {
+			if existingConfig.TypeID == gwmodels.AgentConfigTypeIDMCP {
 				_, validateErr = s.buildMCPMappingEnvironmentVariables(existingConfig.Name, mergedOverrides)
 			} else {
 				_, validateErr = s.buildEnvironmentVariables(existingConfig.Name, mergedOverrides)
@@ -2933,8 +2934,8 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 // because req.Name is empty on any update that is not a rename — recording it
 // directly produced records that named no configuration at all.
 func (s *agentConfigurationService) recordConfigUpdate(ctx context.Context, configUUID uuid.UUID,
-	ouID, projectName, agentName string, existingConfig *models.AgentConfiguration,
-	req models.UpdateAgentModelConfigRequest,
+	ouID, projectName, agentName string, existingConfig *gwmodels.AgentConfiguration,
+	req gwmodels.UpdateAgentModelConfigRequest,
 ) {
 	configName := req.Name
 	if configName == "" && existingConfig != nil {
@@ -2984,7 +2985,7 @@ func (s *agentConfigurationService) DeleteMCP(ctx context.Context, configUUID uu
 		}
 		return fmt.Errorf("failed to get MCP configuration: %w", err)
 	}
-	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != models.AgentConfigTypeIDMCP {
+	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != gwmodels.AgentConfigTypeIDMCP {
 		return utils.ErrAgentConfigNotFound
 	}
 	return s.deleteMCPConfig(ctx, config, ouID, projectName, agentName)
@@ -3007,14 +3008,14 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 	}
 
 	switch existingConfig.TypeID {
-	case models.AgentConfigTypeIDMCP:
+	case gwmodels.AgentConfigTypeIDMCP:
 		return s.deleteMCPConfig(ctx, existingConfig, ouID, projectName, agentName)
 	default:
 		return s.deleteLLMConfig(ctx, existingConfig, ouID, projectName, agentName)
 	}
 }
 
-func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existingConfig *models.AgentConfiguration, ouID, projectName, agentName string) error {
+func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existingConfig *gwmodels.AgentConfiguration, ouID, projectName, agentName string) error {
 	configUUID := existingConfig.UUID
 
 	s.logger.Info("Deleting agent configuration", "configUUID", existingConfig.UUID, "name", existingConfig.Name)
@@ -3209,7 +3210,7 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 		return utils.ErrAgentConfigNotFound
 	}
 
-	if existingConfig.TypeID == models.AgentConfigTypeIDMCP {
+	if existingConfig.TypeID == gwmodels.AgentConfigTypeIDMCP {
 		return s.deleteMCPConfigForAgentDeletion(ctx, existingConfig, ouID)
 	}
 
@@ -3339,7 +3340,7 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 	return nil
 }
 
-func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existingConfig *models.AgentConfiguration, ouID, projectName, agentName string) error {
+func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existingConfig *gwmodels.AgentConfiguration, ouID, projectName, agentName string) error {
 	if s.envMCPMappingRepo == nil {
 		return fmt.Errorf("MCP configuration repository is not configured")
 	}
@@ -3374,7 +3375,7 @@ func (s *agentConfigurationService) deleteMCPConfig(ctx context.Context, existin
 	return nil
 }
 
-func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.Context, existingConfig *models.AgentConfiguration, ouID string) error {
+func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.Context, existingConfig *gwmodels.AgentConfiguration, ouID string) error {
 	if s.envMCPMappingRepo == nil {
 		return fmt.Errorf("MCP configuration repository is not configured")
 	}
@@ -3416,7 +3417,7 @@ func (s *agentConfigurationService) deleteMCPConfigForAgentDeletion(ctx context.
 // (placementPolicy.providerGateway).
 func (s *agentConfigurationService) resolveGatewayForProvider(
 	ctx context.Context, providerUUIDStr, ouID string, envUUID uuid.UUID, policy placementPolicy,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	return policy.providerGateway(ctx, s.llmProxyDeploymentService, s.gatewayRepo, ouID, providerUUIDStr, envUUID)
 }
 
@@ -3471,8 +3472,8 @@ func (s *agentConfigurationService) ProviderEnvironments(
 // environment that would get a new or re-pointed LLM proxy. existing is the config's current mappings
 // by environment name (nil on create); an environment keeping its provider is not re-checked.
 func (s *agentConfigurationService) requireProviderPlacements(
-	ctx context.Context, ouID string, requested map[string]models.EnvModelConfigRequest,
-	envMap map[string]*models.EnvironmentResponse, existing map[string]*models.EnvAgentModelMapping,
+	ctx context.Context, ouID string, requested map[string]gwmodels.EnvModelConfigRequest,
+	envMap map[string]*models.EnvironmentResponse, existing map[string]*gwmodels.EnvAgentModelMapping,
 	policy placementPolicy,
 ) error {
 	envNames := make([]string, 0, len(requested))
@@ -3512,7 +3513,7 @@ func (s *agentConfigurationService) requireProviderPlacements(
 // status (placementPolicy.ownGateway).
 func (s *agentConfigurationService) llmProxyGateway(
 	ctx context.Context, policy placementPolicy, proxyHandle, ouID string, envUUID uuid.UUID,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	placed, err := s.placedGatewaysOfProxy(ctx, proxyHandle, ouID)
 	if err != nil {
 		return nil, err
@@ -3540,8 +3541,8 @@ var errMCPEnvNotDeployable = errors.New("MCP proxy has no deployable endpoint in
 // the environment. Any of those missing yields errMCPEnvNotDeployable; every other error is
 // unexpected and worth surfacing.
 func (s *agentConfigurationService) resolveDeployableMCPGateway(
-	ctx context.Context, proxy *models.MCPProxy, ouID string, envUUID uuid.UUID,
-) (*models.Gateway, error) {
+	ctx context.Context, proxy *gwmodels.MCPProxy, ouID string, envUUID uuid.UUID,
+) (*gwmodels.Gateway, error) {
 	if endpoint, _ := resolveMCPEndpointForEnv(proxy, envUUID.String()); endpoint == nil {
 		return nil, errMCPEnvNotDeployable
 	}
@@ -3564,7 +3565,7 @@ func (s *agentConfigurationService) resolveDeployableMCPGateway(
 
 // mcpEnvGateway is one environment's resolution of the gateway an MCP proxy binding would use.
 type mcpEnvGateway struct {
-	gateway *models.Gateway
+	gateway *gwmodels.Gateway
 	err     error
 }
 
@@ -3574,7 +3575,7 @@ type mcpEnvGateway struct {
 // self-hosted gateways cannot validate. A resolution that fails is kept in the result for the caller's
 // per-environment handling (deferred, strict or not deployable).
 func (s *agentConfigurationService) resolveMCPEnvGateways(
-	ctx context.Context, ouID string, proxiesByEnv map[string]*models.MCPProxy, envMap map[string]*models.EnvironmentResponse,
+	ctx context.Context, ouID string, proxiesByEnv map[string]*gwmodels.MCPProxy, envMap map[string]*models.EnvironmentResponse,
 	policy placementPolicy,
 ) (map[string]mcpEnvGateway, error) {
 	resolved := make(map[string]mcpEnvGateway, len(proxiesByEnv))
@@ -3601,7 +3602,7 @@ func (s *agentConfigurationService) resolveMCPEnvGateways(
 
 // errMCPProxyOnSelfHostedGateway refuses a platform-hosted agent's binding to an MCP proxy whose
 // gateway in the environment is self-hosted (see placementPolicy).
-func errMCPProxyOnSelfHostedGateway(proxy *models.MCPProxy, envName string) error {
+func errMCPProxyOnSelfHostedGateway(proxy *gwmodels.MCPProxy, envName string) error {
 	return fmt.Errorf("%w: MCP proxy %s is on a self-hosted gateway in environment %s; platform-hosted agents can only use MCP proxies on managed gateways; use a separate MCP proxy for self-hosted gateways",
 		utils.ErrInvalidInput, mcpProxyHandle(proxy), envName)
 }
@@ -3617,8 +3618,8 @@ var errMCPGatewayNotManaged = errors.New("MCP proxy is on a self-hosted gateway 
 // through, or errMCPGatewayNotManaged (logged) when the policy refuses that gateway for the proxy's
 // security in the environment.
 func (s *agentConfigurationService) mcpArtifactGateway(
-	ctx context.Context, policy placementPolicy, proxy *models.MCPProxy, artifactUUID uuid.UUID, ouID string, envUUID uuid.UUID,
-) (*models.Gateway, error) {
+	ctx context.Context, policy placementPolicy, proxy *gwmodels.MCPProxy, artifactUUID uuid.UUID, ouID string, envUUID uuid.UUID,
+) (*gwmodels.Gateway, error) {
 	gateway, err := s.placedGatewayForMCPArtifact(ctx, artifactUUID, ouID, envUUID)
 	if err != nil {
 		return nil, err
@@ -3641,7 +3642,7 @@ func (s *agentConfigurationService) mcpArtifactGateway(
 // artifact is placed on, whatever the placement's status and hosting.
 func (s *agentConfigurationService) placedGatewayForMCPArtifact(
 	ctx context.Context, artifactUUID uuid.UUID, ouID string, envUUID uuid.UUID,
-) (*models.Gateway, error) {
+) (*gwmodels.Gateway, error) {
 	var deployed []string
 	if s.mcpProxyService != nil && s.mcpProxyService.deploymentRepo != nil {
 		ids, err := s.mcpProxyService.deploymentRepo.PlacedGateways(ctx, ouID, artifactUUID)
@@ -3665,10 +3666,10 @@ func (s *agentConfigurationService) placedGatewayForMCPArtifact(
 // provider, the new proxy would collide with the still-live old one under the exact same handle.
 func (s *agentConfigurationService) buildLLMProxyConfig(
 	ctx context.Context,
-	config *models.AgentConfiguration,
+	config *gwmodels.AgentConfiguration,
 	envName string,
-	envMapping models.EnvModelConfigRequest,
-) (*models.LLMProxy, string, string, *secretmanagersvc.SecretLocation, string, error) {
+	envMapping gwmodels.EnvModelConfigRequest,
+) (*gwmodels.LLMProxy, string, string, *secretmanagersvc.SecretLocation, string, error) {
 	project, err := s.ocClient.GetProject(ctx, config.OUID, config.ProjectName)
 	if err != nil {
 		return nil, "", "", nil, "", fmt.Errorf("failed to get project: %w", err)
@@ -3698,12 +3699,12 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 	}
 
 	// Build proxy configuration
-	proxyConfig := &models.LLMProxy{
+	proxyConfig := &gwmodels.LLMProxy{
 		Description: fmt.Sprintf("LLM proxy for agent %s", config.AgentID),
 		ProjectUUID: projectUUID,
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:       proxyName,
-			Version:    models.DefaultProxyVersion,
+			Version:    gwmodels.DefaultProxyVersion,
 			Context:    &contextPath,
 			Provider:   provider.UUID.String(),
 			Security:   newProxyIngressSecurity(provider),
@@ -3712,7 +3713,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 		},
 	}
 
-	var upstreamAuthConfig models.UpstreamAuth
+	var upstreamAuthConfig gwmodels.UpstreamAuth
 
 	providerSecurityConfig := provider.Configuration.Security
 	if providerSecurityConfig != nil && providerSecurityConfig.Enabled != nil && *providerSecurityConfig.Enabled {
@@ -3728,10 +3729,10 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				return nil, "", "", nil, "", err
 			}
 
-			apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OUID, provider.UUID.String(), &models.CreateAPIKeyRequest{
+			apiKey, err := s.llmProviderAPIKeyService.CreateAPIKey(ctx, config.OUID, provider.UUID.String(), &gwmodels.CreateAPIKeyRequest{
 				Name:        proxyName,
 				DisplayName: proxyName,
-				Purpose:     models.APIKeyPurposeConsoleManaged,
+				Purpose:     gwmodels.APIKeyPurposeConsoleManaged,
 			})
 			s.logger.Info("Created provider API key", "providerUUID", provider.UUID.String(), "providerKeyName", proxyName)
 			if err != nil {
@@ -3755,7 +3756,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				return nil, "", "", nil, "", fmt.Errorf("failed to encrypt provider API key: %w", err)
 			}
 			encoded := base64.StdEncoding.EncodeToString(encrypted)
-			upstreamAuthConfig.Type = utils.StrAsStrPointer(models.AuthTypeAPIKey)
+			upstreamAuthConfig.Type = utils.StrAsStrPointer(gwmodels.AuthTypeAPIKey)
 			upstreamAuthConfig.Header = utils.StrAsStrPointer(upstreamHeader)
 			upstreamAuthConfig.SecretRef = &encoded // Store encrypted value instead of plaintext
 			upstreamAuthConfig.Value = nil          // No plaintext in DB
@@ -3770,22 +3771,22 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 // It preserves the existing proxy's Name, Context, Security, and ProjectUUID —
 // only mutable fields (Provider, UpstreamAuth, Policies) are updated.
 func (s *agentConfigurationService) buildLLMProxyUpdateConfig(
-	config *models.AgentConfiguration,
-	envMapping models.EnvModelConfigRequest,
-	existingProxy *models.LLMProxy,
-) (*models.LLMProxy, string, error) {
+	config *gwmodels.AgentConfiguration,
+	envMapping gwmodels.EnvModelConfigRequest,
+	existingProxy *gwmodels.LLMProxy,
+) (*gwmodels.LLMProxy, string, error) {
 	provider, err := s.llmProviderRepo.GetByHandle(envMapping.ProviderName, config.OUID)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get provider: %w", err)
 	}
 	providerUUID := provider.UUID.String()
 
-	proxyConfig := &models.LLMProxy{
+	proxyConfig := &gwmodels.LLMProxy{
 		Description: fmt.Sprintf("LLM proxy for agent %s", config.AgentID),
 		ProjectUUID: existingProxy.ProjectUUID,
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:         existingProxy.Configuration.Name,
-			Version:      models.DefaultProxyVersion,
+			Version:      gwmodels.DefaultProxyVersion,
 			Context:      existingProxy.Configuration.Context,
 			Provider:     provider.UUID.String(),
 			Security:     existingProxy.Configuration.Security,
@@ -3801,7 +3802,7 @@ func (s *agentConfigurationService) buildLLMProxyUpdateConfig(
 // buildEnvironmentVariables generates environment variable templates from config name.
 // If overrides are provided, user-supplied names take precedence over auto-generated ones.
 // Validates all names using ValidateEnvironmentVariableName.
-func (s *agentConfigurationService) buildEnvironmentVariables(configName string, overrides []models.EnvironmentVariableConfig) ([]EnvConfigTemplate, error) {
+func (s *agentConfigurationService) buildEnvironmentVariables(configName string, overrides []gwmodels.EnvironmentVariableConfig) ([]EnvConfigTemplate, error) {
 	// Sanitize: Replace any character not in A-Za-z0-9_ with '_'
 	prefix := strings.Map(func(r rune) rune {
 		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
@@ -3873,7 +3874,7 @@ func (s *agentConfigurationService) buildEnvironmentVariables(configName string,
 }
 
 // buildMCPMappingEnvironmentVariables produces the URL and API key env var templates for an MCP mapping.
-func (s *agentConfigurationService) buildMCPMappingEnvironmentVariables(mappingName string, overrides []models.EnvironmentVariableConfig) ([]EnvConfigTemplate, error) {
+func (s *agentConfigurationService) buildMCPMappingEnvironmentVariables(mappingName string, overrides []gwmodels.EnvironmentVariableConfig) ([]EnvConfigTemplate, error) {
 	prefix := strings.Map(func(r rune) rune {
 		if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' {
 			return r
@@ -3932,13 +3933,13 @@ func (s *agentConfigurationService) buildMCPMappingEnvironmentVariables(mappingN
 }
 
 func buildAgentMCPConfigProxy(
-	config *models.AgentConfiguration,
-	mapping *models.EnvAgentMCPMapping,
-	source *models.MCPProxy,
+	config *gwmodels.AgentConfiguration,
+	mapping *gwmodels.EnvAgentMCPMapping,
+	source *gwmodels.MCPProxy,
 	envName string,
 	ouID string,
 	handle string,
-) *models.MCPProxy {
+) *gwmodels.MCPProxy {
 	// The agent configuration no longer deploys its own artifact: it reuses the single
 	// gateway artifact the proxy deployed for this environment. That artifact lives at the
 	// proxy's base context, so the injected proxy URL derived from this value is the shared
@@ -3961,11 +3962,11 @@ func buildAgentMCPConfigProxy(
 	// builder consumes. If no endpoint is bound to this environment the upstream stays
 	// empty and deployment fails clearly ("upstream URL is required").
 	endpoint, _ := resolveMCPEndpointForEnv(source, mapping.EnvironmentUUID.String())
-	var upstream models.UpstreamConfig
-	var resilience *models.Resilience
-	var policies []models.MCPPolicy
-	var capabilities *models.MCPProxyCapabilities
-	var security *models.SecurityConfig
+	var upstream gwmodels.UpstreamConfig
+	var resilience *gwmodels.Resilience
+	var policies []gwmodels.MCPPolicy
+	var capabilities *gwmodels.MCPProxyCapabilities
+	var security *gwmodels.SecurityConfig
 	var specVersions []string
 	if endpoint != nil {
 		cfg := endpoint.Configuration
@@ -3980,11 +3981,11 @@ func buildAgentMCPConfigProxy(
 		specVersions = cfg.SpecVersions
 	}
 
-	return &models.MCPProxy{
+	return &gwmodels.MCPProxy{
 		UUID:        mapping.ArtifactUUID,
 		Description: config.Description,
 		Status:      source.Status,
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:         name,
 			Version:      version,
 			Context:      &context,
@@ -4010,7 +4011,7 @@ func buildAgentMCPConfigProxy(
 // The uq_proxy_env_single constraint guarantees at most one endpoint per environment, so
 // the first match is the only match. Returns (nil, nil) when the proxy has no endpoint
 // bound to that environment (or the proxy / its Endpoints graph was not preloaded).
-func resolveMCPEndpointForEnv(proxy *models.MCPProxy, envID string) (*models.MCPProxyEndpoint, *models.MCPProxyEndpointEnvironment) {
+func resolveMCPEndpointForEnv(proxy *gwmodels.MCPProxy, envID string) (*gwmodels.MCPProxyEndpoint, *gwmodels.MCPProxyEndpointEnvironment) {
 	if proxy == nil {
 		return nil, nil
 	}
@@ -4030,12 +4031,12 @@ func resolveMCPEndpointForEnv(proxy *models.MCPProxy, envID string) (*models.MCP
 	return nil, nil
 }
 
-func buildMCPProxyMapping(sourceProxyUUID uuid.UUID, deployedProxy *models.MCPProxy) *models.MCPProxyMapping {
-	return &models.MCPProxyMapping{
+func buildMCPProxyMapping(sourceProxyUUID uuid.UUID, deployedProxy *gwmodels.MCPProxy) *gwmodels.MCPProxyMapping {
+	return &gwmodels.MCPProxyMapping{
 		UUID:               deployedProxy.UUID,
 		SourceMCPProxyUUID: sourceProxyUUID,
 		Description:        deployedProxy.Description,
-		Status:             models.StatusCreated,
+		Status:             gwmodels.StatusCreated,
 		Configuration:      deployedProxy.Configuration,
 	}
 }
@@ -4044,9 +4045,9 @@ func buildMCPProxyMapping(sourceProxyUUID uuid.UUID, deployedProxy *models.MCPPr
 // references) for a config/environment. The repository uses ON CONFLICT DO NOTHING on
 // the config/environment/name/key unique constraint, so concurrent callers race safely.
 func (s *agentConfigurationService) ensureMCPEnvVarRows(ctx context.Context, configUUID, envUUID uuid.UUID, envTemplates []EnvConfigTemplate) error {
-	variables := make([]models.AgentEnvConfigVariable, 0, len(envTemplates))
+	variables := make([]gwmodels.AgentEnvConfigVariable, 0, len(envTemplates))
 	for _, envTemplate := range envTemplates {
-		variables = append(variables, models.AgentEnvConfigVariable{
+		variables = append(variables, gwmodels.AgentEnvConfigVariable{
 			ConfigUUID:      configUUID,
 			EnvironmentUUID: envUUID,
 			VariableName:    envTemplate.Name,
@@ -4153,13 +4154,13 @@ func (s *agentConfigurationService) CleanupEnvironmentMCPArtifacts(ctx context.C
 
 // varNamesToOverrides converts a key→name map to a slice of EnvironmentVariableConfig.
 // Used when passing existing DB names as overrides to buildEnvironmentVariables.
-func varNamesToOverrides(names map[string]string) []models.EnvironmentVariableConfig {
+func varNamesToOverrides(names map[string]string) []gwmodels.EnvironmentVariableConfig {
 	if len(names) == 0 {
 		return nil
 	}
-	overrides := make([]models.EnvironmentVariableConfig, 0, len(names))
+	overrides := make([]gwmodels.EnvironmentVariableConfig, 0, len(names))
 	for key, name := range names {
-		overrides = append(overrides, models.EnvironmentVariableConfig{Key: key, Name: name})
+		overrides = append(overrides, gwmodels.EnvironmentVariableConfig{Key: key, Name: name})
 	}
 	return overrides
 }
@@ -4168,7 +4169,7 @@ func varNamesToOverrides(names map[string]string) []models.EnvironmentVariableCo
 // names currently persisted for it, so the names the agent already runs with (including user
 // overrides) survive instead of being re-derived from the config name.
 func (s *agentConfigurationService) mcpEnvTemplatesForConfig(
-	ctx context.Context, config *models.AgentConfiguration,
+	ctx context.Context, config *gwmodels.AgentConfiguration,
 ) ([]EnvConfigTemplate, error) {
 	vars, err := s.envVariableRepo.ListByConfig(ctx, config.UUID)
 	if err != nil {
@@ -4180,7 +4181,7 @@ func (s *agentConfigurationService) mcpEnvTemplatesForConfig(
 // mcpEnvTemplatesFromVars is mcpEnvTemplatesForConfig for callers that already hold the
 // config's variable rows.
 func (s *agentConfigurationService) mcpEnvTemplatesFromVars(
-	config *models.AgentConfiguration, vars []models.AgentEnvConfigVariable,
+	config *gwmodels.AgentConfiguration, vars []gwmodels.AgentEnvConfigVariable,
 ) ([]EnvConfigTemplate, error) {
 	envTemplates, err := s.buildMCPMappingEnvironmentVariables(config.Name, varNamesToOverrides(s.variableNameMap(config.UUID, vars)))
 	if err != nil {
@@ -4200,7 +4201,7 @@ func (s *agentConfigurationService) loadExistingVarNames(ctx context.Context, co
 	return s.variableNameMap(configUUID, vars), nil
 }
 
-func (s *agentConfigurationService) variableNameMap(configUUID uuid.UUID, vars []models.AgentEnvConfigVariable) map[string]string {
+func (s *agentConfigurationService) variableNameMap(configUUID uuid.UUID, vars []gwmodels.AgentEnvConfigVariable) map[string]string {
 	result := make(map[string]string)
 	for _, v := range vars {
 		if existing, already := result[v.VariableKey]; already {
@@ -4240,7 +4241,7 @@ func (s *agentConfigurationService) updateMCPMappingSecretReference(ctx context.
 		return nil
 	}
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&models.AgentEnvConfigVariable{}).
+	if err := s.db.WithContext(ctx).Model(&gwmodels.AgentEnvConfigVariable{}).
 		Where("config_id = ? AND environment_id = ? AND variable_key = ?", configUUID, envUUID, "apikey").
 		Count(&count).Error; err != nil {
 		return err
@@ -4251,7 +4252,7 @@ func (s *agentConfigurationService) updateMCPMappingSecretReference(ctx context.
 	return nil
 }
 
-func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string, policy placementPolicy) (string, error) {
+func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Context, config *gwmodels.AgentConfiguration, mapping *gwmodels.EnvAgentMCPMapping, envName, ouID string, policy placementPolicy) (string, error) {
 	keyName := mcpMappingAPIKeyName(config, envName)
 	// storageUUID scopes the key to this agent (persistence + listing); apiID is the shared
 	// per-environment proxy artifact the gateway validates the key against.
@@ -4329,7 +4330,7 @@ func (s *agentConfigurationService) ensureMCPMappingCredentials(ctx context.Cont
 	return newSecretRefName, nil
 }
 
-func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, sourceProxy *models.MCPProxy, envName, ouID string, envTemplates []EnvConfigTemplate, policy placementPolicy, firstEnvName string) error {
+func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.Context, config *gwmodels.AgentConfiguration, mapping *gwmodels.EnvAgentMCPMapping, sourceProxy *gwmodels.MCPProxy, envName, ouID string, envTemplates []EnvConfigTemplate, policy placementPolicy, firstEnvName string) error {
 	if mcpProxyAPIKeySecurityEnabled(sourceProxy, mapping.EnvironmentUUID.String()) {
 		if _, err := s.ensureMCPMappingCredentials(ctx, config, mapping, envName, ouID, policy); err != nil {
 			return err
@@ -4348,7 +4349,7 @@ func (s *agentConfigurationService) reconcileMCPMappingCredentials(ctx context.C
 // false when the environment's env var rows predate this attempt — a backfill binds an
 // environment that was already promoted, and dropping its variable rows would strip the
 // agent's MCP variable names entirely, leaving it worse off than the failed binding.
-func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, config *models.AgentConfiguration, mapping *models.EnvAgentMCPMapping, envName, ouID string, deleteEnvVars bool) {
+func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, config *gwmodels.AgentConfiguration, mapping *gwmodels.EnvAgentMCPMapping, envName, ouID string, deleteEnvVars bool) {
 	s.cleanupMCPMappingCredentials(ctx, config, mapping, envName, ouID)
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if deleteEnvVars {
@@ -4371,9 +4372,9 @@ func (s *agentConfigurationService) cleanupNewMCPMapping(ctx context.Context, co
 // Rows are stored per-environment but the variable name is config-level — agent source code
 // reads url/apikey by the same env var name regardless of which provider is bound to a given
 // environment. First occurrence per key wins.
-func (s *agentConfigurationService) dedupeEnvVariablesByKey(configUUID uuid.UUID, vars []models.AgentEnvConfigVariable) []models.EnvironmentVariableConfig {
+func (s *agentConfigurationService) dedupeEnvVariablesByKey(configUUID uuid.UUID, vars []gwmodels.AgentEnvConfigVariable) []gwmodels.EnvironmentVariableConfig {
 	seen := make(map[string]string)
-	result := make([]models.EnvironmentVariableConfig, 0, len(vars))
+	result := make([]gwmodels.EnvironmentVariableConfig, 0, len(vars))
 	for _, v := range vars {
 		if existing, already := seen[v.VariableKey]; already {
 			if existing != v.VariableName {
@@ -4388,7 +4389,7 @@ func (s *agentConfigurationService) dedupeEnvVariablesByKey(configUUID uuid.UUID
 			continue
 		}
 		seen[v.VariableKey] = v.VariableName
-		result = append(result, models.EnvironmentVariableConfig{Name: v.VariableName, Key: v.VariableKey})
+		result = append(result, gwmodels.EnvironmentVariableConfig{Name: v.VariableName, Key: v.VariableKey})
 	}
 	return result
 }
@@ -4561,7 +4562,7 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 	for _, res := range resources {
 		if res.mappingKey != nil && res.oldProxyUUID != uuid.Nil {
 			revertErr := s.db.Transaction(func(tx *gorm.DB) error {
-				result := tx.Model(&models.EnvAgentModelMapping{}).
+				result := tx.Model(&gwmodels.EnvAgentModelMapping{}).
 					Where("config_id = ? AND environment_id = ?", res.mappingKey.ConfigUUID, res.mappingKey.EnvironmentUUID).
 					Update("llm_proxy_id", res.oldProxyUUID)
 				if result.Error != nil {
@@ -4596,7 +4597,7 @@ func (s *agentConfigurationService) rollbackProxies(ctx context.Context, resourc
 }
 
 // buildConfigResponse builds the full configuration response
-func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, config *models.AgentConfiguration, policy placementPolicy) (*models.AgentModelConfigResponse, error) {
+func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, config *gwmodels.AgentConfiguration, policy placementPolicy) (*gwmodels.AgentModelConfigResponse, error) {
 	// Get environment names
 	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, config.OUID)
 	if err != nil {
@@ -4610,7 +4611,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 	s.logger.Info("Building config response", "configUUID", config.UUID, "envCount", len(envs))
 
 	// Build environment model config map
-	envModelConfig := make(map[string]models.EnvModelConfigResponse)
+	envModelConfig := make(map[string]gwmodels.EnvModelConfigResponse)
 	for _, mapping := range config.EnvMappings {
 		envName := envMap[mapping.EnvironmentUUID.String()]
 		// Fall back to UUID if environment was deleted
@@ -4618,11 +4619,11 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 			envName = mapping.EnvironmentUUID.String()
 		}
 
-		var proxyInfo *models.LLMProxyInfo = nil
+		var proxyInfo *gwmodels.LLMProxyInfo = nil
 		if mapping.LLMProxy != nil {
 			providerUUID := mapping.LLMProxy.ProviderUUID.String()
 			authName, authIn := llmProxyAPIKeySecurity(mapping.LLMProxy)
-			proxyInfo = &models.LLMProxyInfo{
+			proxyInfo = &gwmodels.LLMProxyInfo{
 				ProxyUUID:      utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
 				ProxyName:      utils.StrAsStrPointer(mapping.LLMProxy.Handle),
 				ProviderUUID:   utils.StrAsStrPointer(providerUUID),
@@ -4648,7 +4649,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 			}
 		}
 
-		envModelConfig[envName] = models.EnvModelConfigResponse{
+		envModelConfig[envName] = gwmodels.EnvModelConfigResponse{
 			EnvironmentName: envName,
 			LLMProxy:        proxyInfo,
 		}
@@ -4658,7 +4659,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 		if envName == "" {
 			envName = mapping.EnvironmentUUID.String()
 		}
-		var proxyInfo *models.LLMProxyInfo
+		var proxyInfo *gwmodels.LLMProxyInfo
 		if mapping.MCPProxy != nil {
 			proxyName := ""
 			if mapping.MCPProxy.Artifact != nil {
@@ -4667,7 +4668,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 			if proxyName == "" {
 				proxyName = mapping.MCPProxy.Configuration.Name
 			}
-			proxyInfo = &models.LLMProxyInfo{
+			proxyInfo = &gwmodels.LLMProxyInfo{
 				ProxyUUID:      utils.StrAsStrPointer(mapping.ArtifactUUID.String()),
 				ProviderName:   utils.StrAsStrPointer(proxyName),
 				AuthHeaderName: utils.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
@@ -4681,7 +4682,7 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 				proxyInfo.URL = &url
 			}
 		}
-		envModelConfig[envName] = models.EnvModelConfigResponse{
+		envModelConfig[envName] = gwmodels.EnvModelConfigResponse{
 			EnvironmentName: envName,
 			LLMProxy:        proxyInfo,
 		}
@@ -4690,12 +4691,12 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 	// Variable rows are stored per-environment but names are config-level — collapse to one entry per key.
 	envVars := s.dedupeEnvVariablesByKey(config.UUID, config.EnvVariables)
 
-	return &models.AgentModelConfigResponse{
+	return &gwmodels.AgentModelConfigResponse{
 		UUID:                 config.UUID.String(),
 		Name:                 config.Name,
 		Description:          config.Description,
 		AgentID:              config.AgentID,
-		Type:                 models.AgentConfigTypeFromID(config.TypeID),
+		Type:                 gwmodels.AgentConfigTypeFromID(config.TypeID),
 		ProjectName:          config.ProjectName,
 		EnvModelConfig:       envModelConfig,
 		EnvironmentVariables: envVars,
@@ -4716,9 +4717,9 @@ func envCredentialKeys(m map[string]envCredentialData) []string {
 // buildExternalAgentConfigResponse builds response with one-time credentials for external agents
 func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 	ctx context.Context,
-	config *models.AgentConfiguration,
+	config *gwmodels.AgentConfiguration,
 	envCredentials map[string]envCredentialData,
-) (*models.AgentModelConfigResponse, error) {
+) (*gwmodels.AgentModelConfigResponse, error) {
 	// Reload configuration with relationships (EnvMappings, LLMProxy, etc.)
 	reloadedConfig, err := s.agentConfigRepo.GetByUUID(ctx, config.UUID, config.OUID)
 	if err != nil {
@@ -4744,7 +4745,7 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 	}
 
 	// Build environment model config map WITH credentials
-	envModelConfig := make(map[string]models.EnvModelConfigResponse)
+	envModelConfig := make(map[string]gwmodels.EnvModelConfigResponse)
 	for _, mapping := range reloadedConfig.EnvMappings {
 		envUUID := mapping.EnvironmentUUID.String()
 		envName := envMap[envUUID]
@@ -4752,11 +4753,11 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			envName = envUUID
 		}
 
-		var proxyInfo *models.LLMProxyInfo
+		var proxyInfo *gwmodels.LLMProxyInfo
 		if mapping.LLMProxy != nil {
 			providerUUID := mapping.LLMProxy.ProviderUUID.String()
 			authName, authIn := llmProxyAPIKeySecurity(mapping.LLMProxy)
-			proxyInfo = &models.LLMProxyInfo{
+			proxyInfo = &gwmodels.LLMProxyInfo{
 				ProxyUUID:      utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
 				ProxyName:      utils.StrAsStrPointer(mapping.LLMProxy.Handle),
 				ProviderUUID:   utils.StrAsStrPointer(providerUUID),
@@ -4791,7 +4792,7 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			}
 		}
 
-		envModelConfig[envName] = models.EnvModelConfigResponse{
+		envModelConfig[envName] = gwmodels.EnvModelConfigResponse{
 			EnvironmentName: envName,
 			LLMProxy:        proxyInfo,
 		}
@@ -4803,7 +4804,7 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			envName = envUUID
 		}
 
-		var proxyInfo *models.LLMProxyInfo
+		var proxyInfo *gwmodels.LLMProxyInfo
 		if mapping.MCPProxy != nil {
 			proxyName := ""
 			if mapping.MCPProxy.Artifact != nil {
@@ -4812,13 +4813,13 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			if proxyName == "" {
 				proxyName = mapping.MCPProxy.Configuration.Name
 			}
-			proxyInfo = &models.LLMProxyInfo{
+			proxyInfo = &gwmodels.LLMProxyInfo{
 				ProxyUUID:      utils.StrAsStrPointer(mapping.ArtifactUUID.String()),
 				ProviderName:   utils.StrAsStrPointer(proxyName),
 				AuthHeaderName: utils.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
 			}
 			sharedArtifactUUID := s.resolveMCPMappingAPIID(ctx, &mapping, config.OUID)
-			var gateway *models.Gateway
+			var gateway *gwmodels.Gateway
 			var gwErr error
 			if sharedArtifactUUID != uuid.Nil {
 				gateway, gwErr = s.mcpArtifactGateway(ctx, externalAgentPolicy, mapping.MCPProxy, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID)
@@ -4851,7 +4852,7 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			}
 		}
 
-		envModelConfig[envName] = models.EnvModelConfigResponse{
+		envModelConfig[envName] = gwmodels.EnvModelConfigResponse{
 			EnvironmentName: envName,
 			LLMProxy:        proxyInfo,
 		}
@@ -4860,12 +4861,12 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 	// Variable rows are stored per-environment but names are config-level — collapse to one entry per key.
 	envVars := s.dedupeEnvVariablesByKey(reloadedConfig.UUID, reloadedConfig.EnvVariables)
 
-	return &models.AgentModelConfigResponse{
+	return &gwmodels.AgentModelConfigResponse{
 		UUID:                 reloadedConfig.UUID.String(),
 		Name:                 reloadedConfig.Name,
 		Description:          reloadedConfig.Description,
 		AgentID:              reloadedConfig.AgentID,
-		Type:                 models.AgentConfigTypeFromID(reloadedConfig.TypeID),
+		Type:                 gwmodels.AgentConfigTypeFromID(reloadedConfig.TypeID),
 		ProjectName:          reloadedConfig.ProjectName,
 		EnvModelConfig:       envModelConfig,
 		EnvironmentVariables: envVars,
@@ -4883,7 +4884,7 @@ func (s *agentConfigurationService) processRollBack(ctx context.Context, rollbac
 
 func (s *agentConfigurationService) cleanupMCPConfig(ctx context.Context, configUUID uuid.UUID, ouID string) {
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var mappings []models.EnvAgentMCPMapping
+		var mappings []gwmodels.EnvAgentMCPMapping
 		if s.envMCPMappingRepo != nil {
 			var err error
 			mappings, err = s.envMCPMappingRepo.ListByConfig(ctx, configUUID)
@@ -4904,7 +4905,7 @@ func (s *agentConfigurationService) cleanupMCPConfig(ctx context.Context, config
 // the proxy as a tool. An org proxy must be published to the catalog; a project proxy must belong to
 // the agent's own project, and any other project's proxy is reported as not found so its existence
 // isn't leaked.
-func mcpProxyBindableFromProject(proxy *models.MCPProxy, agentProjectUUID string) error {
+func mcpProxyBindableFromProject(proxy *gwmodels.MCPProxy, agentProjectUUID string) error {
 	if proxy.ProjectUUID != nil {
 		if *proxy.ProjectUUID != agentProjectUUID {
 			return fmt.Errorf("MCP proxy %s not found: %w", proxyHandleOf(proxy), utils.ErrMCPProxyNotFound)
@@ -4921,7 +4922,7 @@ func mcpProxyBindableFromProject(proxy *models.MCPProxy, agentProjectUUID string
 // project proxy must belong to the agent's project (else not found). An org proxy is not checked here, as
 // before; the catalog requirement for org proxies lives in ValidateMCPProxiesInCatalog.
 func (s *agentConfigurationService) requireProjectProxyInProject(
-	ctx context.Context, proxy *models.MCPProxy, ouID, projectName string,
+	ctx context.Context, proxy *gwmodels.MCPProxy, ouID, projectName string,
 ) error {
 	if proxy.ProjectUUID == nil {
 		return nil
@@ -4932,7 +4933,7 @@ func (s *agentConfigurationService) requireProjectProxyInProject(
 // requireMCPProxyBindable applies mcpProxyBindableFromProject for an agent in projectName. The
 // project's UUID is only looked up for a project proxy; an org proxy doesn't need it.
 func (s *agentConfigurationService) requireMCPProxyBindable(
-	ctx context.Context, proxy *models.MCPProxy, ouID, projectName string,
+	ctx context.Context, proxy *gwmodels.MCPProxy, ouID, projectName string,
 ) error {
 	agentProjectUUID := ""
 	if proxy.ProjectUUID != nil {

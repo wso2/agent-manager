@@ -26,6 +26,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -36,13 +37,13 @@ func TestAgentGatewayShapeTable(t *testing.T) {
 	byProtocol, ok := agentGatewayShapeForProtocol(shape.Protocol)
 	require.True(t, ok)
 	assert.Equal(t, shape, byProtocol)
-	assert.Equal(t, models.KindAgent, a2aAgentShape.ArtifactKind)
+	assert.Equal(t, gwmodels.KindAgent, a2aAgentShape.ArtifactKind)
 
 	for _, subType := range []string{string(utils.AgentSubTypeChatAPI), "unknown"} {
 		_, ok = agentGatewayShapeFor(subType)
 		assert.False(t, ok, "subtype %s has no shape", subType)
 	}
-	_, ok = agentGatewayShapeForProtocol(models.AgentExposureProtocolREST)
+	_, ok = agentGatewayShapeForProtocol(gwmodels.AgentExposureProtocolREST)
 	assert.False(t, ok)
 }
 
@@ -67,18 +68,18 @@ func TestAgentGatewayShapeOf(t *testing.T) {
 
 func TestAgentEnvAPIArtifactKinds(t *testing.T) {
 	repo := &gwrepomocks.ArtifactRepositoryMock{
-		GetByHandleFunc: func(handle, ouID string) (*models.Artifact, error) {
-			return &models.Artifact{UUID: uuid.New(), Handle: handle, Kind: models.KindRestAPI, OUID: ouID}, nil
+		GetByHandleFunc: func(handle, ouID string) (*gwmodels.Artifact, error) {
+			return &gwmodels.Artifact{UUID: uuid.New(), Handle: handle, Kind: gwmodels.KindRestAPI, OUID: ouID}, nil
 		},
 	}
 
-	found, err := agentEnvAPIArtifact(repo, "ou", "proj", "agent", "env", models.KindRestAPI)
+	found, err := agentEnvAPIArtifact(repo, "ou", "proj", "agent", "env", gwmodels.KindRestAPI)
 	require.NoError(t, err)
-	assert.Equal(t, models.KindRestAPI, found.Kind)
+	assert.Equal(t, gwmodels.KindRestAPI, found.Kind)
 
-	_, err = agentEnvAPIArtifact(repo, "ou", "proj", "agent", "env", models.KindAgent)
+	_, err = agentEnvAPIArtifact(repo, "ou", "proj", "agent", "env", gwmodels.KindAgent)
 	assert.ErrorIs(t, err, utils.ErrArtifactNotFound)
 
-	_, err = agentEnvAPIArtifact(repo, "ou", "proj", "agent", "env", models.AgentArtifactKinds...)
+	_, err = agentEnvAPIArtifact(repo, "ou", "proj", "agent", "env", gwmodels.AgentArtifactKinds...)
 	assert.NoError(t, err)
 }

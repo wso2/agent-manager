@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
@@ -40,14 +40,14 @@ type failingKind struct {
 	err error
 }
 
-func (k failingKind) Render(context.Context, models.ArtifactRef) (Rendered, error) {
+func (k failingKind) Render(context.Context, gwmodels.ArtifactRef) (Rendered, error) {
 	return Rendered{}, k.err
 }
 
-func testClaim() models.ClaimedRender {
-	return models.ClaimedRender{
-		Placement: models.Placement{
-			ArtifactRef: models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindMCPMapping},
+func testClaim() gwmodels.ClaimedRender {
+	return gwmodels.ClaimedRender{
+		Placement: gwmodels.Placement{
+			ArtifactRef: gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindMCPMapping},
 			GatewayUUID: uuid.New(),
 		},
 		ClaimedAt: time.Now(),
@@ -55,19 +55,19 @@ func testClaim() models.ClaimedRender {
 }
 
 // renderRepo hands out claim as the artifact's one due row and records the outcome written back for it.
-func renderRepo(claim models.ClaimedRender, recordErr error) (*gwrepomocks.DeploymentRepositoryMock, *[]gwrepo.RenderOutcome) {
+func renderRepo(claim gwmodels.ClaimedRender, recordErr error) (*gwrepomocks.DeploymentRepositoryMock, *[]gwrepo.RenderOutcome) {
 	var recorded []gwrepo.RenderOutcome
 	repo := &gwrepomocks.DeploymentRepositoryMock{
 		QueueRenderFunc: func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string, gwrepo.QueueScope) (int64, error) {
 			return 1, nil
 		},
-		ClaimDueRendersOfFunc: func(context.Context, string, uuid.UUID, []uuid.UUID, time.Time, time.Duration) ([]models.ClaimedRender, error) {
-			return []models.ClaimedRender{claim}, nil
+		ClaimDueRendersOfFunc: func(context.Context, string, uuid.UUID, []uuid.UUID, time.Time, time.Duration) ([]gwmodels.ClaimedRender, error) {
+			return []gwmodels.ClaimedRender{claim}, nil
 		},
-		ClaimDueRendersFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ClaimedRender, error) {
-			return []models.ClaimedRender{claim}, nil
+		ClaimDueRendersFunc: func(context.Context, time.Time, time.Duration, int) ([]gwmodels.ClaimedRender, error) {
+			return []gwmodels.ClaimedRender{claim}, nil
 		},
-		RecordRenderOutcomeFunc: func(_ context.Context, _ models.ClaimedRender, outcome gwrepo.RenderOutcome) error {
+		RecordRenderOutcomeFunc: func(_ context.Context, _ gwmodels.ClaimedRender, outcome gwrepo.RenderOutcome) error {
 			recorded = append(recorded, outcome)
 			return recordErr
 		},
@@ -136,7 +136,7 @@ func TestMarkStalePassesOnAFailedInlineRender(t *testing.T) {
 	renderErr := Permanent(errors.New("invalid config"))
 	core := newRenderCore(repo, discardLogger(), failingKind{err: renderErr})
 
-	err := core.MarkStale(context.Background(), models.KindMCPMapping, claim.OUID, claim.ArtifactUUID, nil, "scopes changed")
+	err := core.MarkStale(context.Background(), gwmodels.KindMCPMapping, claim.OUID, claim.ArtifactUUID, nil, "scopes changed")
 
 	var failed *RenderFailedError
 	require.ErrorAs(t, err, &failed)
@@ -149,7 +149,7 @@ func TestMarkStaleLeavesARenderWaitingForAnInputToTheWorker(t *testing.T) {
 	repo, recorded := renderRepo(claim, nil)
 	core := newRenderCore(repo, discardLogger(), failingKind{err: InputNotReady("waiting for the endpoint")})
 
-	err := core.MarkStale(context.Background(), models.KindMCPMapping, claim.OUID, claim.ArtifactUUID, nil, "scopes changed")
+	err := core.MarkStale(context.Background(), gwmodels.KindMCPMapping, claim.OUID, claim.ArtifactUUID, nil, "scopes changed")
 
 	assert.NoError(t, err)
 	require.Len(t, *recorded, 1)

@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -36,19 +36,19 @@ import (
 //			CountWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) (int64, error) {
 //				panic("mock out the CountWithFilters method")
 //			},
-//			CreateFunc: func(gateway *models.Gateway) error {
+//			CreateFunc: func(gateway *gwmodels.Gateway) error {
 //				panic("mock out the Create method")
 //			},
-//			CreateEnvironmentMappingFunc: func(mapping *models.GatewayEnvironmentMapping) error {
+//			CreateEnvironmentMappingFunc: func(mapping *gwmodels.GatewayEnvironmentMapping) error {
 //				panic("mock out the CreateEnvironmentMapping method")
 //			},
-//			CreateEnvironmentMappingTxFunc: func(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error {
+//			CreateEnvironmentMappingTxFunc: func(tx *gorm.DB, mapping *gwmodels.GatewayEnvironmentMapping) error {
 //				panic("mock out the CreateEnvironmentMappingTx method")
 //			},
-//			CreateTokenFunc: func(token *models.GatewayToken) error {
+//			CreateTokenFunc: func(token *gwmodels.GatewayToken) error {
 //				panic("mock out the CreateToken method")
 //			},
-//			CreateTxFunc: func(tx *gorm.DB, gateway *models.Gateway) error {
+//			CreateTxFunc: func(tx *gorm.DB, gateway *gwmodels.Gateway) error {
 //				panic("mock out the CreateTx method")
 //			},
 //			DeleteFunc: func(gatewayID string, ouID string) error {
@@ -66,55 +66,55 @@ import (
 //			EnvironmentMappingExistsFunc: func(gatewayID string, environmentID string) (bool, error) {
 //				panic("mock out the EnvironmentMappingExists method")
 //			},
-//			GetActiveTokenByPrefixFunc: func(ctx context.Context, tokenPrefix string) (*models.GatewayToken, error) {
+//			GetActiveTokenByPrefixFunc: func(ctx context.Context, tokenPrefix string) (*gwmodels.GatewayToken, error) {
 //				panic("mock out the GetActiveTokenByPrefix method")
 //			},
-//			GetActiveTokensByGatewayUUIDFunc: func(gatewayId string) ([]*models.GatewayToken, error) {
+//			GetActiveTokensByGatewayUUIDFunc: func(gatewayId string) ([]*gwmodels.GatewayToken, error) {
 //				panic("mock out the GetActiveTokensByGatewayUUID method")
 //			},
-//			GetByNameAndOrgIDFunc: func(name string, ouID string) (*models.Gateway, error) {
+//			GetByNameAndOrgIDFunc: func(name string, ouID string) (*gwmodels.Gateway, error) {
 //				panic("mock out the GetByNameAndOrgID method")
 //			},
-//			GetByOrganizationIDFunc: func(ctx context.Context, ouID string) ([]*models.Gateway, error) {
+//			GetByOrganizationIDFunc: func(ctx context.Context, ouID string) ([]*gwmodels.Gateway, error) {
 //				panic("mock out the GetByOrganizationID method")
 //			},
-//			GetByUUIDFunc: func(gatewayId string) (*models.Gateway, error) {
+//			GetByUUIDFunc: func(gatewayId string) (*gwmodels.Gateway, error) {
 //				panic("mock out the GetByUUID method")
 //			},
-//			GetEnvironmentMappingsByEnvironmentIDFunc: func(environmentID string) ([]models.GatewayEnvironmentMapping, error) {
+//			GetEnvironmentMappingsByEnvironmentIDFunc: func(environmentID string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 //				panic("mock out the GetEnvironmentMappingsByEnvironmentID method")
 //			},
-//			GetEnvironmentMappingsByGatewayIDFunc: func(gatewayID string) ([]models.GatewayEnvironmentMapping, error) {
+//			GetEnvironmentMappingsByGatewayIDFunc: func(gatewayID string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 //				panic("mock out the GetEnvironmentMappingsByGatewayID method")
 //			},
-//			GetEnvironmentMappingsByGatewayIDsFunc: func(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error) {
+//			GetEnvironmentMappingsByGatewayIDsFunc: func(gatewayIDs []string) (map[string][]gwmodels.GatewayEnvironmentMapping, error) {
 //				panic("mock out the GetEnvironmentMappingsByGatewayIDs method")
 //			},
-//			GetTokenByUUIDFunc: func(tokenId string) (*models.GatewayToken, error) {
+//			GetTokenByUUIDFunc: func(tokenId string) (*gwmodels.GatewayToken, error) {
 //				panic("mock out the GetTokenByUUID method")
 //			},
 //			HasGatewayDeploymentsFunc: func(gatewayID string, ouID string) (bool, error) {
 //				panic("mock out the HasGatewayDeployments method")
 //			},
-//			ListFunc: func() ([]*models.Gateway, error) {
+//			ListFunc: func() ([]*gwmodels.Gateway, error) {
 //				panic("mock out the List method")
 //			},
-//			ListFailedGatewaysAllOrgsFunc: func(ctx context.Context, window gwrepo.GatewayFailureWindow, limit int) ([]*models.Gateway, error) {
+//			ListFailedGatewaysAllOrgsFunc: func(ctx context.Context, window gwrepo.GatewayFailureWindow, limit int) ([]*gwmodels.Gateway, error) {
 //				panic("mock out the ListFailedGatewaysAllOrgs method")
 //			},
-//			ListIdentityProvidersByEnvironmentFunc: func(environmentID string) ([]models.GatewayIdentityProvider, error) {
+//			ListIdentityProvidersByEnvironmentFunc: func(environmentID string) ([]gwmodels.GatewayIdentityProvider, error) {
 //				panic("mock out the ListIdentityProvidersByEnvironment method")
 //			},
-//			ListIdentityProvidersByGatewayFunc: func(gatewayID string) ([]models.GatewayIdentityProvider, error) {
+//			ListIdentityProvidersByGatewayFunc: func(gatewayID string) ([]gwmodels.GatewayIdentityProvider, error) {
 //				panic("mock out the ListIdentityProvidersByGateway method")
 //			},
 //			ListIdentityProvidersByOrgFunc: func(ouID string) ([]gwrepo.IdentityProviderWithContext, error) {
 //				panic("mock out the ListIdentityProvidersByOrg method")
 //			},
-//			ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+//			ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 //				panic("mock out the ListWithFilters method")
 //			},
-//			ListWithFiltersCtxFunc: func(ctx context.Context, filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+//			ListWithFiltersCtxFunc: func(ctx context.Context, filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 //				panic("mock out the ListWithFiltersCtx method")
 //			},
 //			RevokeTokenFunc: func(tokenId string) error {
@@ -126,10 +126,10 @@ import (
 //			UpdateActiveStatusFunc: func(gatewayId string, isActive bool) error {
 //				panic("mock out the UpdateActiveStatus method")
 //			},
-//			UpdateGatewayFunc: func(gateway *models.Gateway) error {
+//			UpdateGatewayFunc: func(gateway *gwmodels.Gateway) error {
 //				panic("mock out the UpdateGateway method")
 //			},
-//			UpsertIdentityProviderFunc: func(provider *models.GatewayIdentityProvider) error {
+//			UpsertIdentityProviderFunc: func(provider *gwmodels.GatewayIdentityProvider) error {
 //				panic("mock out the UpsertIdentityProvider method")
 //			},
 //			WithTxFunc: func(tx *gorm.DB) gwrepo.GatewayRepository {
@@ -161,19 +161,19 @@ type GatewayRepositoryMock struct {
 	CountWithFiltersFunc func(filters gwrepo.GatewayFilterOptions) (int64, error)
 
 	// CreateFunc mocks the Create method.
-	CreateFunc func(gateway *models.Gateway) error
+	CreateFunc func(gateway *gwmodels.Gateway) error
 
 	// CreateEnvironmentMappingFunc mocks the CreateEnvironmentMapping method.
-	CreateEnvironmentMappingFunc func(mapping *models.GatewayEnvironmentMapping) error
+	CreateEnvironmentMappingFunc func(mapping *gwmodels.GatewayEnvironmentMapping) error
 
 	// CreateEnvironmentMappingTxFunc mocks the CreateEnvironmentMappingTx method.
-	CreateEnvironmentMappingTxFunc func(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error
+	CreateEnvironmentMappingTxFunc func(tx *gorm.DB, mapping *gwmodels.GatewayEnvironmentMapping) error
 
 	// CreateTokenFunc mocks the CreateToken method.
-	CreateTokenFunc func(token *models.GatewayToken) error
+	CreateTokenFunc func(token *gwmodels.GatewayToken) error
 
 	// CreateTxFunc mocks the CreateTx method.
-	CreateTxFunc func(tx *gorm.DB, gateway *models.Gateway) error
+	CreateTxFunc func(tx *gorm.DB, gateway *gwmodels.Gateway) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(gatewayID string, ouID string) error
@@ -191,55 +191,55 @@ type GatewayRepositoryMock struct {
 	EnvironmentMappingExistsFunc func(gatewayID string, environmentID string) (bool, error)
 
 	// GetActiveTokenByPrefixFunc mocks the GetActiveTokenByPrefix method.
-	GetActiveTokenByPrefixFunc func(ctx context.Context, tokenPrefix string) (*models.GatewayToken, error)
+	GetActiveTokenByPrefixFunc func(ctx context.Context, tokenPrefix string) (*gwmodels.GatewayToken, error)
 
 	// GetActiveTokensByGatewayUUIDFunc mocks the GetActiveTokensByGatewayUUID method.
-	GetActiveTokensByGatewayUUIDFunc func(gatewayId string) ([]*models.GatewayToken, error)
+	GetActiveTokensByGatewayUUIDFunc func(gatewayId string) ([]*gwmodels.GatewayToken, error)
 
 	// GetByNameAndOrgIDFunc mocks the GetByNameAndOrgID method.
-	GetByNameAndOrgIDFunc func(name string, ouID string) (*models.Gateway, error)
+	GetByNameAndOrgIDFunc func(name string, ouID string) (*gwmodels.Gateway, error)
 
 	// GetByOrganizationIDFunc mocks the GetByOrganizationID method.
-	GetByOrganizationIDFunc func(ctx context.Context, ouID string) ([]*models.Gateway, error)
+	GetByOrganizationIDFunc func(ctx context.Context, ouID string) ([]*gwmodels.Gateway, error)
 
 	// GetByUUIDFunc mocks the GetByUUID method.
-	GetByUUIDFunc func(gatewayId string) (*models.Gateway, error)
+	GetByUUIDFunc func(gatewayId string) (*gwmodels.Gateway, error)
 
 	// GetEnvironmentMappingsByEnvironmentIDFunc mocks the GetEnvironmentMappingsByEnvironmentID method.
-	GetEnvironmentMappingsByEnvironmentIDFunc func(environmentID string) ([]models.GatewayEnvironmentMapping, error)
+	GetEnvironmentMappingsByEnvironmentIDFunc func(environmentID string) ([]gwmodels.GatewayEnvironmentMapping, error)
 
 	// GetEnvironmentMappingsByGatewayIDFunc mocks the GetEnvironmentMappingsByGatewayID method.
-	GetEnvironmentMappingsByGatewayIDFunc func(gatewayID string) ([]models.GatewayEnvironmentMapping, error)
+	GetEnvironmentMappingsByGatewayIDFunc func(gatewayID string) ([]gwmodels.GatewayEnvironmentMapping, error)
 
 	// GetEnvironmentMappingsByGatewayIDsFunc mocks the GetEnvironmentMappingsByGatewayIDs method.
-	GetEnvironmentMappingsByGatewayIDsFunc func(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error)
+	GetEnvironmentMappingsByGatewayIDsFunc func(gatewayIDs []string) (map[string][]gwmodels.GatewayEnvironmentMapping, error)
 
 	// GetTokenByUUIDFunc mocks the GetTokenByUUID method.
-	GetTokenByUUIDFunc func(tokenId string) (*models.GatewayToken, error)
+	GetTokenByUUIDFunc func(tokenId string) (*gwmodels.GatewayToken, error)
 
 	// HasGatewayDeploymentsFunc mocks the HasGatewayDeployments method.
 	HasGatewayDeploymentsFunc func(gatewayID string, ouID string) (bool, error)
 
 	// ListFunc mocks the List method.
-	ListFunc func() ([]*models.Gateway, error)
+	ListFunc func() ([]*gwmodels.Gateway, error)
 
 	// ListFailedGatewaysAllOrgsFunc mocks the ListFailedGatewaysAllOrgs method.
-	ListFailedGatewaysAllOrgsFunc func(ctx context.Context, window gwrepo.GatewayFailureWindow, limit int) ([]*models.Gateway, error)
+	ListFailedGatewaysAllOrgsFunc func(ctx context.Context, window gwrepo.GatewayFailureWindow, limit int) ([]*gwmodels.Gateway, error)
 
 	// ListIdentityProvidersByEnvironmentFunc mocks the ListIdentityProvidersByEnvironment method.
-	ListIdentityProvidersByEnvironmentFunc func(environmentID string) ([]models.GatewayIdentityProvider, error)
+	ListIdentityProvidersByEnvironmentFunc func(environmentID string) ([]gwmodels.GatewayIdentityProvider, error)
 
 	// ListIdentityProvidersByGatewayFunc mocks the ListIdentityProvidersByGateway method.
-	ListIdentityProvidersByGatewayFunc func(gatewayID string) ([]models.GatewayIdentityProvider, error)
+	ListIdentityProvidersByGatewayFunc func(gatewayID string) ([]gwmodels.GatewayIdentityProvider, error)
 
 	// ListIdentityProvidersByOrgFunc mocks the ListIdentityProvidersByOrg method.
 	ListIdentityProvidersByOrgFunc func(ouID string) ([]gwrepo.IdentityProviderWithContext, error)
 
 	// ListWithFiltersFunc mocks the ListWithFilters method.
-	ListWithFiltersFunc func(filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error)
+	ListWithFiltersFunc func(filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error)
 
 	// ListWithFiltersCtxFunc mocks the ListWithFiltersCtx method.
-	ListWithFiltersCtxFunc func(ctx context.Context, filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error)
+	ListWithFiltersCtxFunc func(ctx context.Context, filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error)
 
 	// RevokeTokenFunc mocks the RevokeToken method.
 	RevokeTokenFunc func(tokenId string) error
@@ -251,10 +251,10 @@ type GatewayRepositoryMock struct {
 	UpdateActiveStatusFunc func(gatewayId string, isActive bool) error
 
 	// UpdateGatewayFunc mocks the UpdateGateway method.
-	UpdateGatewayFunc func(gateway *models.Gateway) error
+	UpdateGatewayFunc func(gateway *gwmodels.Gateway) error
 
 	// UpsertIdentityProviderFunc mocks the UpsertIdentityProvider method.
-	UpsertIdentityProviderFunc func(provider *models.GatewayIdentityProvider) error
+	UpsertIdentityProviderFunc func(provider *gwmodels.GatewayIdentityProvider) error
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(tx *gorm.DB) gwrepo.GatewayRepository
@@ -302,31 +302,31 @@ type GatewayRepositoryMock struct {
 		// Create holds details about calls to the Create method.
 		Create []struct {
 			// Gateway is the gateway argument value.
-			Gateway *models.Gateway
+			Gateway *gwmodels.Gateway
 		}
 		// CreateEnvironmentMapping holds details about calls to the CreateEnvironmentMapping method.
 		CreateEnvironmentMapping []struct {
 			// Mapping is the mapping argument value.
-			Mapping *models.GatewayEnvironmentMapping
+			Mapping *gwmodels.GatewayEnvironmentMapping
 		}
 		// CreateEnvironmentMappingTx holds details about calls to the CreateEnvironmentMappingTx method.
 		CreateEnvironmentMappingTx []struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Mapping is the mapping argument value.
-			Mapping *models.GatewayEnvironmentMapping
+			Mapping *gwmodels.GatewayEnvironmentMapping
 		}
 		// CreateToken holds details about calls to the CreateToken method.
 		CreateToken []struct {
 			// Token is the token argument value.
-			Token *models.GatewayToken
+			Token *gwmodels.GatewayToken
 		}
 		// CreateTx holds details about calls to the CreateTx method.
 		CreateTx []struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Gateway is the gateway argument value.
-			Gateway *models.Gateway
+			Gateway *gwmodels.Gateway
 		}
 		// Delete holds details about calls to the Delete method.
 		Delete []struct {
@@ -478,12 +478,12 @@ type GatewayRepositoryMock struct {
 		// UpdateGateway holds details about calls to the UpdateGateway method.
 		UpdateGateway []struct {
 			// Gateway is the gateway argument value.
-			Gateway *models.Gateway
+			Gateway *gwmodels.Gateway
 		}
 		// UpsertIdentityProvider holds details about calls to the UpsertIdentityProvider method.
 		UpsertIdentityProvider []struct {
 			// Provider is the provider argument value.
-			Provider *models.GatewayIdentityProvider
+			Provider *gwmodels.GatewayIdentityProvider
 		}
 		// WithTx holds details about calls to the WithTx method.
 		WithTx []struct {
@@ -741,12 +741,12 @@ func (mock *GatewayRepositoryMock) CountWithFiltersCalls() []struct {
 }
 
 // Create calls CreateFunc.
-func (mock *GatewayRepositoryMock) Create(gateway *models.Gateway) error {
+func (mock *GatewayRepositoryMock) Create(gateway *gwmodels.Gateway) error {
 	if mock.CreateFunc == nil {
 		panic("GatewayRepositoryMock.CreateFunc: method is nil but GatewayRepository.Create was just called")
 	}
 	callInfo := struct {
-		Gateway *models.Gateway
+		Gateway *gwmodels.Gateway
 	}{
 		Gateway: gateway,
 	}
@@ -761,10 +761,10 @@ func (mock *GatewayRepositoryMock) Create(gateway *models.Gateway) error {
 //
 //	len(mockedGatewayRepository.CreateCalls())
 func (mock *GatewayRepositoryMock) CreateCalls() []struct {
-	Gateway *models.Gateway
+	Gateway *gwmodels.Gateway
 } {
 	var calls []struct {
-		Gateway *models.Gateway
+		Gateway *gwmodels.Gateway
 	}
 	mock.lockCreate.RLock()
 	calls = mock.calls.Create
@@ -773,12 +773,12 @@ func (mock *GatewayRepositoryMock) CreateCalls() []struct {
 }
 
 // CreateEnvironmentMapping calls CreateEnvironmentMappingFunc.
-func (mock *GatewayRepositoryMock) CreateEnvironmentMapping(mapping *models.GatewayEnvironmentMapping) error {
+func (mock *GatewayRepositoryMock) CreateEnvironmentMapping(mapping *gwmodels.GatewayEnvironmentMapping) error {
 	if mock.CreateEnvironmentMappingFunc == nil {
 		panic("GatewayRepositoryMock.CreateEnvironmentMappingFunc: method is nil but GatewayRepository.CreateEnvironmentMapping was just called")
 	}
 	callInfo := struct {
-		Mapping *models.GatewayEnvironmentMapping
+		Mapping *gwmodels.GatewayEnvironmentMapping
 	}{
 		Mapping: mapping,
 	}
@@ -793,10 +793,10 @@ func (mock *GatewayRepositoryMock) CreateEnvironmentMapping(mapping *models.Gate
 //
 //	len(mockedGatewayRepository.CreateEnvironmentMappingCalls())
 func (mock *GatewayRepositoryMock) CreateEnvironmentMappingCalls() []struct {
-	Mapping *models.GatewayEnvironmentMapping
+	Mapping *gwmodels.GatewayEnvironmentMapping
 } {
 	var calls []struct {
-		Mapping *models.GatewayEnvironmentMapping
+		Mapping *gwmodels.GatewayEnvironmentMapping
 	}
 	mock.lockCreateEnvironmentMapping.RLock()
 	calls = mock.calls.CreateEnvironmentMapping
@@ -805,13 +805,13 @@ func (mock *GatewayRepositoryMock) CreateEnvironmentMappingCalls() []struct {
 }
 
 // CreateEnvironmentMappingTx calls CreateEnvironmentMappingTxFunc.
-func (mock *GatewayRepositoryMock) CreateEnvironmentMappingTx(tx *gorm.DB, mapping *models.GatewayEnvironmentMapping) error {
+func (mock *GatewayRepositoryMock) CreateEnvironmentMappingTx(tx *gorm.DB, mapping *gwmodels.GatewayEnvironmentMapping) error {
 	if mock.CreateEnvironmentMappingTxFunc == nil {
 		panic("GatewayRepositoryMock.CreateEnvironmentMappingTxFunc: method is nil but GatewayRepository.CreateEnvironmentMappingTx was just called")
 	}
 	callInfo := struct {
 		Tx      *gorm.DB
-		Mapping *models.GatewayEnvironmentMapping
+		Mapping *gwmodels.GatewayEnvironmentMapping
 	}{
 		Tx:      tx,
 		Mapping: mapping,
@@ -828,11 +828,11 @@ func (mock *GatewayRepositoryMock) CreateEnvironmentMappingTx(tx *gorm.DB, mappi
 //	len(mockedGatewayRepository.CreateEnvironmentMappingTxCalls())
 func (mock *GatewayRepositoryMock) CreateEnvironmentMappingTxCalls() []struct {
 	Tx      *gorm.DB
-	Mapping *models.GatewayEnvironmentMapping
+	Mapping *gwmodels.GatewayEnvironmentMapping
 } {
 	var calls []struct {
 		Tx      *gorm.DB
-		Mapping *models.GatewayEnvironmentMapping
+		Mapping *gwmodels.GatewayEnvironmentMapping
 	}
 	mock.lockCreateEnvironmentMappingTx.RLock()
 	calls = mock.calls.CreateEnvironmentMappingTx
@@ -841,12 +841,12 @@ func (mock *GatewayRepositoryMock) CreateEnvironmentMappingTxCalls() []struct {
 }
 
 // CreateToken calls CreateTokenFunc.
-func (mock *GatewayRepositoryMock) CreateToken(token *models.GatewayToken) error {
+func (mock *GatewayRepositoryMock) CreateToken(token *gwmodels.GatewayToken) error {
 	if mock.CreateTokenFunc == nil {
 		panic("GatewayRepositoryMock.CreateTokenFunc: method is nil but GatewayRepository.CreateToken was just called")
 	}
 	callInfo := struct {
-		Token *models.GatewayToken
+		Token *gwmodels.GatewayToken
 	}{
 		Token: token,
 	}
@@ -861,10 +861,10 @@ func (mock *GatewayRepositoryMock) CreateToken(token *models.GatewayToken) error
 //
 //	len(mockedGatewayRepository.CreateTokenCalls())
 func (mock *GatewayRepositoryMock) CreateTokenCalls() []struct {
-	Token *models.GatewayToken
+	Token *gwmodels.GatewayToken
 } {
 	var calls []struct {
-		Token *models.GatewayToken
+		Token *gwmodels.GatewayToken
 	}
 	mock.lockCreateToken.RLock()
 	calls = mock.calls.CreateToken
@@ -873,13 +873,13 @@ func (mock *GatewayRepositoryMock) CreateTokenCalls() []struct {
 }
 
 // CreateTx calls CreateTxFunc.
-func (mock *GatewayRepositoryMock) CreateTx(tx *gorm.DB, gateway *models.Gateway) error {
+func (mock *GatewayRepositoryMock) CreateTx(tx *gorm.DB, gateway *gwmodels.Gateway) error {
 	if mock.CreateTxFunc == nil {
 		panic("GatewayRepositoryMock.CreateTxFunc: method is nil but GatewayRepository.CreateTx was just called")
 	}
 	callInfo := struct {
 		Tx      *gorm.DB
-		Gateway *models.Gateway
+		Gateway *gwmodels.Gateway
 	}{
 		Tx:      tx,
 		Gateway: gateway,
@@ -896,11 +896,11 @@ func (mock *GatewayRepositoryMock) CreateTx(tx *gorm.DB, gateway *models.Gateway
 //	len(mockedGatewayRepository.CreateTxCalls())
 func (mock *GatewayRepositoryMock) CreateTxCalls() []struct {
 	Tx      *gorm.DB
-	Gateway *models.Gateway
+	Gateway *gwmodels.Gateway
 } {
 	var calls []struct {
 		Tx      *gorm.DB
-		Gateway *models.Gateway
+		Gateway *gwmodels.Gateway
 	}
 	mock.lockCreateTx.RLock()
 	calls = mock.calls.CreateTx
@@ -1085,7 +1085,7 @@ func (mock *GatewayRepositoryMock) EnvironmentMappingExistsCalls() []struct {
 }
 
 // GetActiveTokenByPrefix calls GetActiveTokenByPrefixFunc.
-func (mock *GatewayRepositoryMock) GetActiveTokenByPrefix(ctx context.Context, tokenPrefix string) (*models.GatewayToken, error) {
+func (mock *GatewayRepositoryMock) GetActiveTokenByPrefix(ctx context.Context, tokenPrefix string) (*gwmodels.GatewayToken, error) {
 	if mock.GetActiveTokenByPrefixFunc == nil {
 		panic("GatewayRepositoryMock.GetActiveTokenByPrefixFunc: method is nil but GatewayRepository.GetActiveTokenByPrefix was just called")
 	}
@@ -1121,7 +1121,7 @@ func (mock *GatewayRepositoryMock) GetActiveTokenByPrefixCalls() []struct {
 }
 
 // GetActiveTokensByGatewayUUID calls GetActiveTokensByGatewayUUIDFunc.
-func (mock *GatewayRepositoryMock) GetActiveTokensByGatewayUUID(gatewayId string) ([]*models.GatewayToken, error) {
+func (mock *GatewayRepositoryMock) GetActiveTokensByGatewayUUID(gatewayId string) ([]*gwmodels.GatewayToken, error) {
 	if mock.GetActiveTokensByGatewayUUIDFunc == nil {
 		panic("GatewayRepositoryMock.GetActiveTokensByGatewayUUIDFunc: method is nil but GatewayRepository.GetActiveTokensByGatewayUUID was just called")
 	}
@@ -1153,7 +1153,7 @@ func (mock *GatewayRepositoryMock) GetActiveTokensByGatewayUUIDCalls() []struct 
 }
 
 // GetByNameAndOrgID calls GetByNameAndOrgIDFunc.
-func (mock *GatewayRepositoryMock) GetByNameAndOrgID(name string, ouID string) (*models.Gateway, error) {
+func (mock *GatewayRepositoryMock) GetByNameAndOrgID(name string, ouID string) (*gwmodels.Gateway, error) {
 	if mock.GetByNameAndOrgIDFunc == nil {
 		panic("GatewayRepositoryMock.GetByNameAndOrgIDFunc: method is nil but GatewayRepository.GetByNameAndOrgID was just called")
 	}
@@ -1189,7 +1189,7 @@ func (mock *GatewayRepositoryMock) GetByNameAndOrgIDCalls() []struct {
 }
 
 // GetByOrganizationID calls GetByOrganizationIDFunc.
-func (mock *GatewayRepositoryMock) GetByOrganizationID(ctx context.Context, ouID string) ([]*models.Gateway, error) {
+func (mock *GatewayRepositoryMock) GetByOrganizationID(ctx context.Context, ouID string) ([]*gwmodels.Gateway, error) {
 	if mock.GetByOrganizationIDFunc == nil {
 		panic("GatewayRepositoryMock.GetByOrganizationIDFunc: method is nil but GatewayRepository.GetByOrganizationID was just called")
 	}
@@ -1225,7 +1225,7 @@ func (mock *GatewayRepositoryMock) GetByOrganizationIDCalls() []struct {
 }
 
 // GetByUUID calls GetByUUIDFunc.
-func (mock *GatewayRepositoryMock) GetByUUID(gatewayId string) (*models.Gateway, error) {
+func (mock *GatewayRepositoryMock) GetByUUID(gatewayId string) (*gwmodels.Gateway, error) {
 	if mock.GetByUUIDFunc == nil {
 		panic("GatewayRepositoryMock.GetByUUIDFunc: method is nil but GatewayRepository.GetByUUID was just called")
 	}
@@ -1257,7 +1257,7 @@ func (mock *GatewayRepositoryMock) GetByUUIDCalls() []struct {
 }
 
 // GetEnvironmentMappingsByEnvironmentID calls GetEnvironmentMappingsByEnvironmentIDFunc.
-func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByEnvironmentID(environmentID string) ([]models.GatewayEnvironmentMapping, error) {
+func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByEnvironmentID(environmentID string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 	if mock.GetEnvironmentMappingsByEnvironmentIDFunc == nil {
 		panic("GatewayRepositoryMock.GetEnvironmentMappingsByEnvironmentIDFunc: method is nil but GatewayRepository.GetEnvironmentMappingsByEnvironmentID was just called")
 	}
@@ -1289,7 +1289,7 @@ func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByEnvironmentIDCalls() 
 }
 
 // GetEnvironmentMappingsByGatewayID calls GetEnvironmentMappingsByGatewayIDFunc.
-func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByGatewayID(gatewayID string) ([]models.GatewayEnvironmentMapping, error) {
+func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByGatewayID(gatewayID string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 	if mock.GetEnvironmentMappingsByGatewayIDFunc == nil {
 		panic("GatewayRepositoryMock.GetEnvironmentMappingsByGatewayIDFunc: method is nil but GatewayRepository.GetEnvironmentMappingsByGatewayID was just called")
 	}
@@ -1321,7 +1321,7 @@ func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByGatewayIDCalls() []st
 }
 
 // GetEnvironmentMappingsByGatewayIDs calls GetEnvironmentMappingsByGatewayIDsFunc.
-func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error) {
+func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByGatewayIDs(gatewayIDs []string) (map[string][]gwmodels.GatewayEnvironmentMapping, error) {
 	if mock.GetEnvironmentMappingsByGatewayIDsFunc == nil {
 		panic("GatewayRepositoryMock.GetEnvironmentMappingsByGatewayIDsFunc: method is nil but GatewayRepository.GetEnvironmentMappingsByGatewayIDs was just called")
 	}
@@ -1353,7 +1353,7 @@ func (mock *GatewayRepositoryMock) GetEnvironmentMappingsByGatewayIDsCalls() []s
 }
 
 // GetTokenByUUID calls GetTokenByUUIDFunc.
-func (mock *GatewayRepositoryMock) GetTokenByUUID(tokenId string) (*models.GatewayToken, error) {
+func (mock *GatewayRepositoryMock) GetTokenByUUID(tokenId string) (*gwmodels.GatewayToken, error) {
 	if mock.GetTokenByUUIDFunc == nil {
 		panic("GatewayRepositoryMock.GetTokenByUUIDFunc: method is nil but GatewayRepository.GetTokenByUUID was just called")
 	}
@@ -1421,7 +1421,7 @@ func (mock *GatewayRepositoryMock) HasGatewayDeploymentsCalls() []struct {
 }
 
 // List calls ListFunc.
-func (mock *GatewayRepositoryMock) List() ([]*models.Gateway, error) {
+func (mock *GatewayRepositoryMock) List() ([]*gwmodels.Gateway, error) {
 	if mock.ListFunc == nil {
 		panic("GatewayRepositoryMock.ListFunc: method is nil but GatewayRepository.List was just called")
 	}
@@ -1448,7 +1448,7 @@ func (mock *GatewayRepositoryMock) ListCalls() []struct {
 }
 
 // ListFailedGatewaysAllOrgs calls ListFailedGatewaysAllOrgsFunc.
-func (mock *GatewayRepositoryMock) ListFailedGatewaysAllOrgs(ctx context.Context, window gwrepo.GatewayFailureWindow, limit int) ([]*models.Gateway, error) {
+func (mock *GatewayRepositoryMock) ListFailedGatewaysAllOrgs(ctx context.Context, window gwrepo.GatewayFailureWindow, limit int) ([]*gwmodels.Gateway, error) {
 	if mock.ListFailedGatewaysAllOrgsFunc == nil {
 		panic("GatewayRepositoryMock.ListFailedGatewaysAllOrgsFunc: method is nil but GatewayRepository.ListFailedGatewaysAllOrgs was just called")
 	}
@@ -1488,7 +1488,7 @@ func (mock *GatewayRepositoryMock) ListFailedGatewaysAllOrgsCalls() []struct {
 }
 
 // ListIdentityProvidersByEnvironment calls ListIdentityProvidersByEnvironmentFunc.
-func (mock *GatewayRepositoryMock) ListIdentityProvidersByEnvironment(environmentID string) ([]models.GatewayIdentityProvider, error) {
+func (mock *GatewayRepositoryMock) ListIdentityProvidersByEnvironment(environmentID string) ([]gwmodels.GatewayIdentityProvider, error) {
 	if mock.ListIdentityProvidersByEnvironmentFunc == nil {
 		panic("GatewayRepositoryMock.ListIdentityProvidersByEnvironmentFunc: method is nil but GatewayRepository.ListIdentityProvidersByEnvironment was just called")
 	}
@@ -1520,7 +1520,7 @@ func (mock *GatewayRepositoryMock) ListIdentityProvidersByEnvironmentCalls() []s
 }
 
 // ListIdentityProvidersByGateway calls ListIdentityProvidersByGatewayFunc.
-func (mock *GatewayRepositoryMock) ListIdentityProvidersByGateway(gatewayID string) ([]models.GatewayIdentityProvider, error) {
+func (mock *GatewayRepositoryMock) ListIdentityProvidersByGateway(gatewayID string) ([]gwmodels.GatewayIdentityProvider, error) {
 	if mock.ListIdentityProvidersByGatewayFunc == nil {
 		panic("GatewayRepositoryMock.ListIdentityProvidersByGatewayFunc: method is nil but GatewayRepository.ListIdentityProvidersByGateway was just called")
 	}
@@ -1584,7 +1584,7 @@ func (mock *GatewayRepositoryMock) ListIdentityProvidersByOrgCalls() []struct {
 }
 
 // ListWithFilters calls ListWithFiltersFunc.
-func (mock *GatewayRepositoryMock) ListWithFilters(filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+func (mock *GatewayRepositoryMock) ListWithFilters(filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 	if mock.ListWithFiltersFunc == nil {
 		panic("GatewayRepositoryMock.ListWithFiltersFunc: method is nil but GatewayRepository.ListWithFilters was just called")
 	}
@@ -1616,7 +1616,7 @@ func (mock *GatewayRepositoryMock) ListWithFiltersCalls() []struct {
 }
 
 // ListWithFiltersCtx calls ListWithFiltersCtxFunc.
-func (mock *GatewayRepositoryMock) ListWithFiltersCtx(ctx context.Context, filters gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+func (mock *GatewayRepositoryMock) ListWithFiltersCtx(ctx context.Context, filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 	if mock.ListWithFiltersCtxFunc == nil {
 		panic("GatewayRepositoryMock.ListWithFiltersCtxFunc: method is nil but GatewayRepository.ListWithFiltersCtx was just called")
 	}
@@ -1752,12 +1752,12 @@ func (mock *GatewayRepositoryMock) UpdateActiveStatusCalls() []struct {
 }
 
 // UpdateGateway calls UpdateGatewayFunc.
-func (mock *GatewayRepositoryMock) UpdateGateway(gateway *models.Gateway) error {
+func (mock *GatewayRepositoryMock) UpdateGateway(gateway *gwmodels.Gateway) error {
 	if mock.UpdateGatewayFunc == nil {
 		panic("GatewayRepositoryMock.UpdateGatewayFunc: method is nil but GatewayRepository.UpdateGateway was just called")
 	}
 	callInfo := struct {
-		Gateway *models.Gateway
+		Gateway *gwmodels.Gateway
 	}{
 		Gateway: gateway,
 	}
@@ -1772,10 +1772,10 @@ func (mock *GatewayRepositoryMock) UpdateGateway(gateway *models.Gateway) error 
 //
 //	len(mockedGatewayRepository.UpdateGatewayCalls())
 func (mock *GatewayRepositoryMock) UpdateGatewayCalls() []struct {
-	Gateway *models.Gateway
+	Gateway *gwmodels.Gateway
 } {
 	var calls []struct {
-		Gateway *models.Gateway
+		Gateway *gwmodels.Gateway
 	}
 	mock.lockUpdateGateway.RLock()
 	calls = mock.calls.UpdateGateway
@@ -1784,12 +1784,12 @@ func (mock *GatewayRepositoryMock) UpdateGatewayCalls() []struct {
 }
 
 // UpsertIdentityProvider calls UpsertIdentityProviderFunc.
-func (mock *GatewayRepositoryMock) UpsertIdentityProvider(provider *models.GatewayIdentityProvider) error {
+func (mock *GatewayRepositoryMock) UpsertIdentityProvider(provider *gwmodels.GatewayIdentityProvider) error {
 	if mock.UpsertIdentityProviderFunc == nil {
 		panic("GatewayRepositoryMock.UpsertIdentityProviderFunc: method is nil but GatewayRepository.UpsertIdentityProvider was just called")
 	}
 	callInfo := struct {
-		Provider *models.GatewayIdentityProvider
+		Provider *gwmodels.GatewayIdentityProvider
 	}{
 		Provider: provider,
 	}
@@ -1804,10 +1804,10 @@ func (mock *GatewayRepositoryMock) UpsertIdentityProvider(provider *models.Gatew
 //
 //	len(mockedGatewayRepository.UpsertIdentityProviderCalls())
 func (mock *GatewayRepositoryMock) UpsertIdentityProviderCalls() []struct {
-	Provider *models.GatewayIdentityProvider
+	Provider *gwmodels.GatewayIdentityProvider
 } {
 	var calls []struct {
-		Provider *models.GatewayIdentityProvider
+		Provider *gwmodels.GatewayIdentityProvider
 	}
 	mock.lockUpsertIdentityProvider.RLock()
 	calls = mock.calls.UpsertIdentityProvider

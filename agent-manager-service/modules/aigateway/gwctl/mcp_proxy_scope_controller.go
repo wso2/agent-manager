@@ -23,7 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -102,7 +102,7 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 		description = *body.Description
 	}
 
-	result, err := c.svc.Create(ctx, ouID, orgName, proxyID, models.MCPProxyScopeInput{
+	result, err := c.svc.Create(ctx, ouID, orgName, proxyID, gwmodels.MCPProxyScopeInput{
 		Action:      body.Action,
 		Description: description,
 		Tools:       body.Tools,
@@ -151,7 +151,7 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 		return
 	}
 
-	result, err := c.svc.Update(ctx, ouID, orgName, proxyID, action, models.MCPProxyScopeUpdateInput{
+	result, err := c.svc.Update(ctx, ouID, orgName, proxyID, action, gwmodels.MCPProxyScopeUpdateInput{
 		Description: body.Description,
 		Tools:       body.Tools,
 	})
@@ -242,7 +242,7 @@ func (c *mcpProxyScopeController) ListAgentIdentityScopes(w http.ResponseWriter,
 }
 
 // toMCPProxyScopeResponse maps a stored scope to its API representation.
-func toMCPProxyScopeResponse(handle string, s models.MCPProxyScope) gwspec.MCPProxyScopeResponse {
+func toMCPProxyScopeResponse(handle string, s gwmodels.MCPProxyScope) gwspec.MCPProxyScopeResponse {
 	description := s.Description
 	createdAt := s.CreatedAt
 	updatedAt := s.UpdatedAt
@@ -257,7 +257,7 @@ func toMCPProxyScopeResponse(handle string, s models.MCPProxyScope) gwspec.MCPPr
 }
 
 // toAgentIdentityScopeEntry maps an env-filtered scope aggregate entry to its API representation.
-func toAgentIdentityScopeEntry(e models.EnvironmentScopeEntry) gwspec.AgentIdentityScopeEntry {
+func toAgentIdentityScopeEntry(e gwmodels.EnvironmentScopeEntry) gwspec.AgentIdentityScopeEntry {
 	entry := gwspec.AgentIdentityScopeEntry{
 		Scope:      e.Scope,
 		McpProxyId: e.MCPProxyID,

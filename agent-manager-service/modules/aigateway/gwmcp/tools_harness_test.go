@@ -26,8 +26,8 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -77,27 +77,27 @@ func (m *MockToolsetHandler) GetAgentByName(_ context.Context, orgID, projectNam
 
 func (m *MockToolsetHandler) GetAgentDeployments(
 	ctx context.Context, ouID string, projectName string, agentName string,
-) ([]*models.DeploymentResponse, error) {
+) ([]*gwmodels.DeploymentResponse, error) {
 	m.recordCall("GetAgentDeployments", ouID, projectName, agentName)
-	return []*models.DeploymentResponse{}, nil
+	return []*gwmodels.DeploymentResponse{}, nil
 }
 
 // Environment Toolset Handler
 
 func (m *MockToolsetHandler) ListLLMProviders(
 	ctx context.Context, ouID string, limit int, offset int,
-) ([]*models.LLMProvider, int, error) {
+) ([]*gwmodels.LLMProvider, int, error) {
 	m.recordCall("ListLLMProviders", ouID, limit, offset)
-	p := &models.LLMProvider{
+	p := &gwmodels.LLMProvider{
 		TemplateHandle: testTemplateID, Status: "deployed", InCatalog: true,
-		Artifact: &models.Artifact{Handle: testProviderID, Name: "Test Provider"},
+		Artifact: &gwmodels.Artifact{Handle: testProviderID, Name: "Test Provider"},
 	}
-	return []*models.LLMProvider{p}, 1, nil
+	return []*gwmodels.LLMProvider{p}, 1, nil
 }
 
 func (m *MockToolsetHandler) AddLLMProviderToCatalog(
 	ctx context.Context, ouID string, providerID string,
-) (*models.LLMProvider, error) {
+) (*gwmodels.LLMProvider, error) {
 	m.recordCall("AddLLMProviderToCatalog", ouID, providerID)
 	return testLLMProvider(providerID), nil
 }
@@ -115,10 +115,10 @@ func (m *MockToolsetHandler) GatewayEnvironmentIDs(
 
 func (m *MockToolsetHandler) ListLLMGuardrails(
 	ctx context.Context, ouID string, providerID string,
-) (*models.LLMPolicyAvailabilityResponse, error) {
+) (*gwmodels.LLMPolicyAvailabilityResponse, error) {
 	m.recordCall("ListLLMGuardrails", ouID, providerID)
 	schema := map[string]interface{}{"type": "object", "properties": map[string]interface{}{"mask": map[string]interface{}{"type": "boolean"}}}
-	return &models.LLMPolicyAvailabilityResponse{Count: 3, List: []models.LLMPolicyDefinition{
+	return &gwmodels.LLMPolicyAvailabilityResponse{Count: 3, List: []gwmodels.LLMPolicyDefinition{
 		{Name: testGuardrailName, Version: "v1", Parameters: schema},
 		{Name: "word-count", Version: "v1", Parameters: schema},
 		{Name: "cors", Version: "v1", Parameters: schema},
@@ -127,28 +127,28 @@ func (m *MockToolsetHandler) ListLLMGuardrails(
 
 func (m *MockToolsetHandler) GetLLMProvider(
 	ctx context.Context, ouID string, providerID string,
-) (*models.LLMProvider, []*models.Deployment, error) {
+) (*gwmodels.LLMProvider, []*gwmodels.Deployment, error) {
 	m.recordCall("GetLLMProvider", ouID, providerID)
-	status, archived := models.DeploymentStatusDeployed, models.DeploymentStatusArchived
-	return testLLMProvider(providerID), []*models.Deployment{{Status: &status}, {Status: &archived}}, nil
+	status, archived := gwmodels.DeploymentStatusDeployed, gwmodels.DeploymentStatusArchived
+	return testLLMProvider(providerID), []*gwmodels.Deployment{{Status: &status}, {Status: &archived}}, nil
 }
 
 // testLLMProvider is the provider the mock serves: deployed, with an upstream
 // credential and one all-routes guardrail.
-func testLLMProvider(providerID string) *models.LLMProvider {
+func testLLMProvider(providerID string) *gwmodels.LLMProvider {
 	authType, header, value := "api-key", "Authorization", testSecret
-	return &models.LLMProvider{
+	return &gwmodels.LLMProvider{
 		TemplateHandle: testTemplateID, Status: "deployed", InCatalog: true,
-		Artifact: &models.Artifact{Handle: providerID, Name: "Test Provider"},
-		Configuration: models.LLMProviderConfig{
+		Artifact: &gwmodels.Artifact{Handle: providerID, Name: "Test Provider"},
+		Configuration: gwmodels.LLMProviderConfig{
 			Version: "v1.0",
-			Upstream: &models.UpstreamConfig{Main: &models.UpstreamEndpoint{
+			Upstream: &gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{
 				URL:  "https://api.openai.com/v1",
-				Auth: &models.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
+				Auth: &gwmodels.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
 			}},
-			Policies: []models.LLMPolicy{{
+			Policies: []gwmodels.LLMPolicy{{
 				Name: testGuardrailName, Version: "v1",
-				Paths: []models.LLMPolicyPath{{Path: "/*", Methods: []string{"*"}, Params: map[string]interface{}{"mask": true}}},
+				Paths: []gwmodels.LLMPolicyPath{{Path: "/*", Methods: []string{"*"}, Params: map[string]interface{}{"mask": true}}},
 			}},
 		},
 	}
@@ -158,54 +158,54 @@ func testLLMProvider(providerID string) *models.LLMProvider {
 // serves. It records the call only when something is saved, with the saved
 // guardrails as args[2], so "not called" means nothing was saved.
 func (m *MockToolsetHandler) UpdateLLMProviderGuardrails(
-	ctx context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []models.GatewayDeploymentResult, error) {
+	ctx context.Context, ouID string, providerID string, change func([]gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error),
+) (*gwmodels.LLMProvider, []gwmodels.GatewayDeploymentResult, error) {
 	return m.saveGuardrails(ouID, providerID, testLLMProvider(providerID).Configuration.Policies, change)
 }
 
 func (m *MockToolsetHandler) saveGuardrails(
-	ouID, providerID string, current []models.LLMPolicy, change func([]models.LLMPolicy) ([]models.LLMPolicy, error),
-) (*models.LLMProvider, []models.GatewayDeploymentResult, error) {
+	ouID, providerID string, current []gwmodels.LLMPolicy, change func([]gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error),
+) (*gwmodels.LLMProvider, []gwmodels.GatewayDeploymentResult, error) {
 	guardrails, err := change(current)
 	if err != nil {
 		return nil, nil, err
 	}
 	m.recordCall("UpdateLLMProviderGuardrails", ouID, providerID, guardrails)
-	p := &models.LLMProvider{Artifact: &models.Artifact{Handle: providerID}}
+	p := &gwmodels.LLMProvider{Artifact: &gwmodels.Artifact{Handle: providerID}}
 	p.Configuration.Policies = guardrails
-	return p, []models.GatewayDeploymentResult{{GatewayID: testGatewayID, Success: true}}, nil
+	return p, []gwmodels.GatewayDeploymentResult{{GatewayID: testGatewayID, Success: true}}, nil
 }
 
 // MCP Proxy Toolset Handler
 
 func (m *MockToolsetHandler) ListMCPProxies(
 	ctx context.Context, ouID string, limit int, offset int,
-) (*models.MCPProxyListResponse, error) {
+) (*gwmodels.MCPProxyListResponse, error) {
 	m.recordCall("ListMCPProxies", ouID, limit, offset)
 	id, name := testProxyID, "Test Proxy"
-	return &models.MCPProxyListResponse{
+	return &gwmodels.MCPProxyListResponse{
 		Count:      1,
-		List:       []models.MCPProxyListItem{{ID: &id, Name: &name}},
-		Pagination: models.PaginationInfo{Count: 1, Limit: limit, Offset: offset},
+		List:       []gwmodels.MCPProxyListItem{{ID: &id, Name: &name}},
+		Pagination: gwmodels.PaginationInfo{Count: 1, Limit: limit, Offset: offset},
 	}, nil
 }
 
 func (m *MockToolsetHandler) GetMCPProxy(
 	ctx context.Context, ouID string, proxyID string,
-) (*models.MCPProxyDTO, error) {
+) (*gwmodels.MCPProxyDTO, error) {
 	m.recordCall("GetMCPProxy", ouID, proxyID)
 	authType, header, value := "api-key", "Authorization", testSecret
 	tools := []map[string]interface{}{{"name": "search"}}
-	return &models.MCPProxyDTO{
+	return &gwmodels.MCPProxyDTO{
 		ID: proxyID, Name: "Test Proxy", Version: "1.0.0",
-		Endpoints: []models.MCPProxyEndpointDTO{{
+		Endpoints: []gwmodels.MCPProxyEndpointDTO{{
 			ID: "default",
-			Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{
+			Upstream: gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{
 				URL:  "https://mcp.example.com/mcp",
-				Auth: &models.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
+				Auth: &gwmodels.UpstreamAuth{Type: &authType, Header: &header, Value: &value},
 			}},
-			Capabilities: &models.MCPProxyCapabilities{Tools: &tools},
-			Environments: []models.MCPEndpointEnvironmentDTO{{EnvironmentUUID: testEnvUUID, DeploymentStatus: "Deployed"}},
+			Capabilities: &gwmodels.MCPProxyCapabilities{Tools: &tools},
+			Environments: []gwmodels.MCPEndpointEnvironmentDTO{{EnvironmentUUID: testEnvUUID, DeploymentStatus: "Deployed"}},
 		}},
 	}, nil
 }
@@ -227,21 +227,21 @@ func (m *MockToolsetHandler) RevokeConfigAPIKeys(
 }
 
 func (m *MockToolsetHandler) CreateAgentConfig(
-	ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest,
-) (*models.AgentModelConfigResponse, error) {
+	ctx context.Context, ouID string, projectName string, agentName string, req gwmodels.CreateAgentModelConfigRequest,
+) (*gwmodels.AgentModelConfigResponse, error) {
 	m.recordCall("CreateAgentConfig", ouID, projectName, agentName, req)
 	// One per-agent proxy per environment, named the way the service names it.
-	envConfig := make(map[string]models.EnvModelConfigResponse, len(req.EnvMappings))
+	envConfig := make(map[string]gwmodels.EnvModelConfigResponse, len(req.EnvMappings))
 	for env := range req.EnvMappings {
 		proxyName := req.Name + "-" + env + "-proxy"
-		envConfig[env] = models.EnvModelConfigResponse{EnvironmentName: env, LLMProxy: &models.LLMProxyInfo{ProxyName: &proxyName}}
+		envConfig[env] = gwmodels.EnvModelConfigResponse{EnvironmentName: env, LLMProxy: &gwmodels.LLMProxyInfo{ProxyName: &proxyName}}
 	}
-	return &models.AgentModelConfigResponse{
+	return &gwmodels.AgentModelConfigResponse{
 		UUID:           "config-uuid",
 		Name:           req.Name,
 		Type:           req.Type,
 		EnvModelConfig: envConfig,
-		EnvironmentVariables: []models.EnvironmentVariableConfig{
+		EnvironmentVariables: []gwmodels.EnvironmentVariableConfig{
 			{Name: "OPENAI_URL", Key: "url"},
 			{Name: "OPENAI_API_KEY", Key: "apikey"},
 		},

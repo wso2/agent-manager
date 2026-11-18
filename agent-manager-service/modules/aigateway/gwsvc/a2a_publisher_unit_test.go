@@ -30,6 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -75,19 +76,19 @@ func newPublisherMocks(t *testing.T) *publisherMocks {
 	m := &publisherMocks{
 		txExposures: &gwrepomocks.PlatformAgentExposureRepositoryMock{},
 		proxies: &gwrepomocks.A2AProxyRepositoryMock{
-			ListForEnvironmentFunc: func(context.Context, string, uuid.UUID) ([]models.A2AProxy, error) {
-				return []models.A2AProxy{}, nil
+			ListForEnvironmentFunc: func(context.Context, string, uuid.UUID) ([]gwmodels.A2AProxy, error) {
+				return []gwmodels.A2AProxy{}, nil
 			},
 		},
 		txDeployments: &gwrepomocks.DeploymentRepositoryMock{},
 		gateways: &gwrepomocks.GatewayRepositoryMock{
-			ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-				return []*models.Gateway{}, nil
+			ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+				return []*gwmodels.Gateway{}, nil
 			},
 		},
 		envCards: &gwrepomocks.A2AAgentCardRepositoryMock{
-			ListForEnvironmentFunc: func(context.Context, string, uuid.UUID) ([]models.A2AAgentCard, error) {
-				return []models.A2AAgentCard{}, nil
+			ListForEnvironmentFunc: func(context.Context, string, uuid.UUID) ([]gwmodels.A2AAgentCard, error) {
+				return []gwmodels.A2AAgentCard{}, nil
 			},
 		},
 		artifacts: &gwrepomocks.ArtifactRepositoryMock{},
@@ -122,8 +123,8 @@ func (m *publisherMocks) publisher() *A2APublisher {
 }
 
 // testA2AArtifact is the agent's artifact in the environment, ensured in the save's transaction.
-func testA2AArtifact(*gorm.DB) (*models.Artifact, error) {
-	return &models.Artifact{UUID: uuid.New(), Kind: models.KindAgent}, nil
+func testA2AArtifact(*gorm.DB) (*gwmodels.Artifact, error) {
+	return &gwmodels.Artifact{UUID: uuid.New(), Kind: gwmodels.KindAgent}, nil
 }
 
 func testA2AKey() agentExposureKey {
@@ -158,27 +159,27 @@ func TestA2APublisherShouldPublish(t *testing.T) {
 	cases := []struct {
 		name   string
 		agent  *models.AgentResponse
-		lookup func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error)
+		lookup func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error)
 		want   bool
 	}{
 		{name: "an internal A2A agent always, without a proxy lookup", agent: internal, want: true},
 		{name: "a non-A2A agent never", agent: chat, want: false},
 		{
 			name: "an external agent in a direct environment", agent: externalAgent(),
-			lookup: func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+			lookup: func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 				return nil, gwrepo.ErrA2AProxyNotFound
 			},
 		},
 		{
 			name: "an external agent in a proxied environment", agent: externalAgent(), want: true,
-			lookup: func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-				return &models.A2AProxy{}, nil
+			lookup: func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
+				return &gwmodels.A2AProxy{}, nil
 			},
 		},
 		{
 			name: "a legacy external A2A agent in a proxied environment", agent: legacyExternalA2AAgent(), want: true,
-			lookup: func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-				return &models.A2AProxy{}, nil
+			lookup: func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
+				return &gwmodels.A2AProxy{}, nil
 			},
 		},
 	}
@@ -195,7 +196,7 @@ func TestA2APublisherShouldPublish(t *testing.T) {
 
 func TestA2APublisherShouldPublishDoesNotMaskALookupFailure(t *testing.T) {
 	m := newPublisherMocks(t)
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 		return nil, assert.AnError
 	}
 	_, err := m.publisher().ShouldPublish(context.Background(), nil, externalAgent(), "org-1", "checkout", uuid.New())
@@ -210,7 +211,7 @@ func TestA2APublisherSaveAndRepublishSkipsTheLockForAnInternalAgent(t *testing.T
 		Type: models.AgentType{Type: "agent-api", SubType: "a2a-agent"},
 	}
 	m.proxies.WithTxFunc = func(*gorm.DB) gwrepo.A2AProxyRepository { return m.proxies }
-	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return nil }
+	m.txExposures.UpsertFunc = func(context.Context, *gwmodels.PlatformAgentExposure) error { return nil }
 	var savedIn *gorm.DB
 
 	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), testA2AArtifact, func(tx *gorm.DB) error {
@@ -223,7 +224,7 @@ func TestA2APublisherSaveAndRepublishSkipsTheLockForAnInternalAgent(t *testing.T
 	assert.Empty(t, m.proxies.LockAgentEnvCalls())
 	assert.Empty(t, m.proxies.GetByEnvUUIDCalls())
 	require.Len(t, m.txExposures.UpsertCalls(), 1)
-	assert.Equal(t, models.AgentExposureProtocolA2A, m.txExposures.UpsertCalls()[0].Exposure.Protocol)
+	assert.Equal(t, gwmodels.AgentExposureProtocolA2A, m.txExposures.UpsertCalls()[0].Exposure.Protocol)
 }
 
 // An internal agent's save and exposure are one transaction: a failed exposure fails the save.
@@ -233,7 +234,7 @@ func TestA2APublisherSaveAndRepublishFailsWhenTheExposureCannotBeWritten(t *test
 		Name: "weather", Provisioning: models.Provisioning{Type: "internal"},
 		Type: models.AgentType{Type: "agent-api", SubType: "a2a-agent"},
 	}
-	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return assert.AnError }
+	m.txExposures.UpsertFunc = func(context.Context, *gwmodels.PlatformAgentExposure) error { return assert.AnError }
 
 	err := m.publisher().SaveAndRepublish(context.Background(), internal, testA2AKey(), testA2AArtifact, func(*gorm.DB) error {
 		return nil
@@ -262,8 +263,8 @@ func TestA2APublisherSaveAndRepublishExposesNoExternalAgent(t *testing.T) {
 	m := newPublisherMocks(t) // txExposures.UpsertFunc is nil: an exposure would panic
 	m.proxies.WithTxFunc = func(*gorm.DB) gwrepo.A2AProxyRepository { return m.proxies }
 	m.proxies.LockAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
-	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-		return &models.A2AProxy{}, nil
+	m.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
+		return &gwmodels.A2AProxy{}, nil
 	}
 	saved := false
 
@@ -320,8 +321,8 @@ func withA2ACore(p *A2APublisher, hub eventhub.EventHub) *A2APublisher {
 func TestA2APublisherTeardownEnvironmentDropsEachArtifactWithItsDeleteEvents(t *testing.T) {
 	m := newPublisherMocks(t)
 	envUUID, artifactUUID, gateway := uuid.New(), uuid.New(), uuid.New()
-	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.PlatformAgentExposure, error) {
-		return []models.PlatformAgentExposure{{AgentName: "trip-planner", ArtifactUUID: artifactUUID, Protocol: models.AgentExposureProtocolA2A}}, nil
+	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]gwmodels.PlatformAgentExposure, error) {
+		return []gwmodels.PlatformAgentExposure{{AgentName: "trip-planner", ArtifactUUID: artifactUUID, Protocol: gwmodels.AgentExposureProtocolA2A}}, nil
 	}
 	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
@@ -348,17 +349,17 @@ func TestA2APublisherTeardownEnvironmentDropsEachArtifactWithItsDeleteEvents(t *
 func TestA2APublisherTeardownEnvironmentDropsAProxiedAgentsArtifact(t *testing.T) {
 	m := newPublisherMocks(t)
 	envUUID, artifactUUID, gateway := uuid.New(), uuid.New(), uuid.New()
-	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.PlatformAgentExposure, error) {
+	m.exposures.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]gwmodels.PlatformAgentExposure, error) {
 		return nil, nil
 	}
-	m.proxies.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]models.A2AProxy, error) {
-		return []models.A2AProxy{{ProjectName: "checkout", AgentName: "weather"}}, nil
+	m.proxies.ListForEnvironmentFunc = func(context.Context, string, uuid.UUID) ([]gwmodels.A2AProxy, error) {
+		return []gwmodels.A2AProxy{{ProjectName: "checkout", AgentName: "weather"}}, nil
 	}
 	m.exposures.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
 	m.proxies.DeleteForEnvironmentFunc = func(context.Context, string, uuid.UUID) error { return nil }
-	m.artifacts.GetByHandleFunc = func(handle, _ string) (*models.Artifact, error) {
+	m.artifacts.GetByHandleFunc = func(handle, _ string) (*gwmodels.Artifact, error) {
 		assert.Equal(t, agentEnvAPIArtifactHandle("checkout", "weather", envUUID.String()), handle)
-		return &models.Artifact{UUID: artifactUUID, Handle: handle, Kind: models.KindAgent}, nil
+		return &gwmodels.Artifact{UUID: artifactUUID, Handle: handle, Kind: gwmodels.KindAgent}, nil
 	}
 	m.txDeployments.DeleteEventGatewaysFunc = func(context.Context, string, uuid.UUID) ([]string, error) {
 		return []string{gateway.String()}, nil

@@ -32,7 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // snapshotTx opens a snapshot transaction that is rolled back when the
@@ -72,13 +72,13 @@ func insertFailureFixture(
 	t.Helper()
 
 	id := uuid.New()
-	gw := &models.Gateway{
+	gw := &gwmodels.Gateway{
 		UUID:                     id,
 		OUID:                     ouID,
 		Name:                     name,
 		DisplayName:              name,
 		Vhost:                    name + ".test.local",
-		GatewayFunctionalityType: models.GatewayRoleEgress,
+		GatewayFunctionalityType: gwmodels.GatewayRoleEgress,
 		// NOT NULL with a '{}' default the ORM overrides with an explicit NULL.
 		Properties: map[string]interface{}{},
 	}
@@ -160,7 +160,7 @@ func TestGatewayRepo_FailureSummaryAllOrgs(t *testing.T) {
 	failed, err := repo.ListFailedGatewaysAllOrgs(ctx, window, 1000)
 	require.NoError(t, err)
 
-	byID := make(map[uuid.UUID]*models.Gateway, len(failed))
+	byID := make(map[uuid.UUID]*gwmodels.Gateway, len(failed))
 	byName := make(map[string]bool, len(failed))
 	for _, gw := range failed {
 		byID[gw.UUID] = gw
@@ -198,7 +198,7 @@ func TestGatewayRepo_FailureSummaryIgnoresSelfHosted(t *testing.T) {
 	stale := insertFailureFixture(t, tx, org, "gw-self-hosted-stale", false, time.Now().Add(-time.Hour), false)
 	abandoned := insertFailureFixture(t, tx, org, "gw-self-hosted-abandoned", false, time.Now().Add(-8*24*time.Hour), false)
 	require.NoError(t, tx.Exec("UPDATE mod_ai_gateway_gateways SET hosting = ? WHERE id IN (?, ?)",
-		models.GatewayHostingSelfHosted, stale, abandoned).Error)
+		gwmodels.GatewayHostingSelfHosted, stale, abandoned).Error)
 
 	got, err := repo.CountFailureSummaryAllOrgs(ctx, window)
 	require.NoError(t, err)

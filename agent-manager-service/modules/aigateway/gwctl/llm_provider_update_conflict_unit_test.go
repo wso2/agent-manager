@@ -32,7 +32,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -86,20 +86,20 @@ func TestUpdateLLMProvider_UpdateErrors(t *testing.T) {
 			t.Run(tt.name+"/"+gateways.name, func(t *testing.T) {
 				providerUUID := uuid.New()
 				const ouID = "ou-acme"
-				existing := &models.LLMProvider{
+				existing := &gwmodels.LLMProvider{
 					UUID: providerUUID,
-					Artifact: &models.Artifact{
+					Artifact: &gwmodels.Artifact{
 						UUID: providerUUID, OUID: ouID, Handle: "provider-b", Name: "Provider B", Version: "v1.0",
 					},
-					Configuration: models.LLMProviderConfig{Name: "Provider B", Version: "v1.0"},
+					Configuration: gwmodels.LLMProviderConfig{Name: "Provider B", Version: "v1.0"},
 				}
 				repo := &gwrepomocks.LLMProviderRepositoryMock{
-					GetByUUIDFunc: func(id, org string) (*models.LLMProvider, error) {
+					GetByUUIDFunc: func(id, org string) (*gwmodels.LLMProvider, error) {
 						require.Equal(t, providerUUID.String(), id)
 						require.Equal(t, ouID, org)
 						return existing, nil
 					},
-					UpdateFunc: func(ctx context.Context, updates *models.LLMProvider, id, org string) error {
+					UpdateFunc: func(ctx context.Context, updates *gwmodels.LLMProvider, id, org string) error {
 						orgContext, ok := middleware.GetResolvedOrg(ctx)
 						require.True(t, ok)
 						require.Equal(t, ouID, orgContext.OUID)

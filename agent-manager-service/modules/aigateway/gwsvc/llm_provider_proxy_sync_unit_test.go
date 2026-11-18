@@ -31,7 +31,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -58,13 +58,13 @@ func (*noopTx) Rollback() error { return nil }
 // proxySyncFixture is syncProxyAuthHeader's collaborators, mocked down to the repositories: the proxy store, the
 // render queue and the API-key store a minted key is revoked from.
 type proxySyncFixture struct {
-	proxy        *models.LLMProxy
-	provider     *models.LLMProvider
+	proxy        *gwmodels.LLMProxy
+	provider     *gwmodels.LLMProvider
 	proxyRepo    *gwrepomocks.LLMProxyRepositoryMock
 	deployRepo   *gwrepomocks.DeploymentRepositoryMock
 	revokedKeys  []string
 	writtenBack  []uuid.UUID
-	savedConfigs []models.LLMProxyConfig
+	savedConfigs []gwmodels.LLMProxyConfig
 	svc          *LLMProviderService
 	proxySvc     *LLMProxyService
 	deploySvc    *LLMProxyDeploymentService
@@ -78,25 +78,25 @@ func newProxySyncFixture(t *testing.T) *proxySyncFixture {
 	stored := *f.proxy
 
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) { return f.provider, nil },
+		GetByUUIDFunc: func(string, string) (*gwmodels.LLMProvider, error) { return f.provider, nil },
 	}
 	f.proxyRepo = &gwrepomocks.LLMProxyRepositoryMock{
-		GetByIDFunc: func(string, string) (*models.LLMProxy, error) {
+		GetByIDFunc: func(string, string) (*gwmodels.LLMProxy, error) {
 			current := stored
 			return &current, nil
 		},
-		UpdateFunc: func(p *models.LLMProxy, _, _ string) error {
+		UpdateFunc: func(p *gwmodels.LLMProxy, _, _ string) error {
 			f.savedConfigs = append(f.savedConfigs, p.Configuration)
 			return nil
 		},
 	}
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-		GetByOrganizationIDFunc: func(context.Context, string) ([]*models.Gateway, error) {
-			return []*models.Gateway{{UUID: uuid.New()}}, nil
+		GetByOrganizationIDFunc: func(context.Context, string) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{{UUID: uuid.New()}}, nil
 		},
 	}
 	apiKeyRepo := &gwrepomocks.APIKeyRepositoryMock{
-		UpsertFunc: func(*models.StoredAPIKey) error { return nil },
+		UpsertFunc: func(*gwmodels.StoredAPIKey) error { return nil },
 		DeleteFunc: func(_, name string) error {
 			f.revokedKeys = append(f.revokedKeys, name)
 			return nil
@@ -124,12 +124,12 @@ func (f *proxySyncFixture) placeOnGateways(gateways []uuid.UUID, writeBack func(
 	f.deployRepo.QueueRenderFunc = func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string, gwrepo.QueueScope) (int64, error) {
 		return int64(len(gateways)), nil
 	}
-	f.deployRepo.ClaimDueRendersOfFunc = func(_ context.Context, ouID string, artifact uuid.UUID, _ []uuid.UUID, now time.Time, _ time.Duration) ([]models.ClaimedRender, error) {
-		claims := make([]models.ClaimedRender, 0, len(gateways))
+	f.deployRepo.ClaimDueRendersOfFunc = func(_ context.Context, ouID string, artifact uuid.UUID, _ []uuid.UUID, now time.Time, _ time.Duration) ([]gwmodels.ClaimedRender, error) {
+		claims := make([]gwmodels.ClaimedRender, 0, len(gateways))
 		for _, gateway := range gateways {
-			claims = append(claims, models.ClaimedRender{
-				Placement: models.Placement{
-					ArtifactRef: models.ArtifactRef{OUID: ouID, ArtifactUUID: artifact, Kind: models.KindLLMProxy, Handle: f.proxy.Handle},
+			claims = append(claims, gwmodels.ClaimedRender{
+				Placement: gwmodels.Placement{
+					ArtifactRef: gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: artifact, Kind: gwmodels.KindLLMProxy, Handle: f.proxy.Handle},
 					GatewayUUID: gateway,
 				},
 				Token: now, ClaimedAt: now,
@@ -137,7 +137,7 @@ func (f *proxySyncFixture) placeOnGateways(gateways []uuid.UUID, writeBack func(
 		}
 		return claims, nil
 	}
-	f.deployRepo.CompleteRenderFunc = func(_ context.Context, _ *gorm.DB, claim models.ClaimedRender, deployment *models.Deployment) error {
+	f.deployRepo.CompleteRenderFunc = func(_ context.Context, _ *gorm.DB, claim gwmodels.ClaimedRender, deployment *gwmodels.Deployment) error {
 		if err := writeBack(claim.GatewayUUID); err != nil {
 			return err
 		}
@@ -201,7 +201,7 @@ func TestSyncProxyAuthHeaderKeepsHeadersWhenQueueingFails(t *testing.T) {
 // A key minted for a proxy whose save failed has no owner, so it is handed back and nothing is redeployed.
 func TestSyncProxyAuthHeaderRevokesTheKeyWhenTheSaveFails(t *testing.T) {
 	f := newProxySyncFixture(t)
-	f.proxyRepo.UpdateFunc = func(*models.LLMProxy, string, string) error { return errors.New("connection reset") }
+	f.proxyRepo.UpdateFunc = func(*gwmodels.LLMProxy, string, string) error { return errors.New("connection reset") }
 	// QueueRenderFunc is nil: queueing a redeploy panics.
 
 	_, err := f.sync(t)

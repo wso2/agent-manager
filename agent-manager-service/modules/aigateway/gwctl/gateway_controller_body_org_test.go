@@ -27,7 +27,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 )
@@ -105,8 +105,8 @@ func TestRotateGatewayToken_BodyOrgID(t *testing.T) {
 			// At the two-token limit the rotation stops with a conflict right
 			// after finding the caller's gateway.
 			gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-				GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-					return &models.Gateway{OUID: bodyOrgTestCallerOUID}, nil
+				GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
+					return &gwmodels.Gateway{OUID: bodyOrgTestCallerOUID}, nil
 				},
 				CountActiveTokensFunc: func(_ string) (int, error) { return 2, nil },
 			}

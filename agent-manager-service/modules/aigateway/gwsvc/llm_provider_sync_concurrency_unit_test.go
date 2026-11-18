@@ -25,7 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
@@ -36,12 +36,12 @@ import (
 func TestSyncDependentProxyAuthHeaders_SerialisesPerProvider(t *testing.T) {
 	providerUUID := uuid.New()
 	enabled := true
-	stored := &models.LLMProvider{
+	stored := &gwmodels.LLMProvider{
 		UUID: providerUUID,
-		Configuration: models.LLMProviderConfig{
-			Security: &models.SecurityConfig{
+		Configuration: gwmodels.LLMProviderConfig{
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &enabled,
-				APIKey:  &models.APIKeySecurity{Enabled: &enabled, Key: "API-Key", In: "header"},
+				APIKey:  &gwmodels.APIKeySecurity{Enabled: &enabled, Key: "API-Key", In: "header"},
 			},
 		},
 	}
@@ -51,7 +51,7 @@ func TestSyncDependentProxyAuthHeaders_SerialisesPerProvider(t *testing.T) {
 	maxInFlight := 0
 
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(providerID, ouID string) (*models.LLMProvider, error) {
+		GetByUUIDFunc: func(providerID, ouID string) (*gwmodels.LLMProvider, error) {
 			mu.Lock()
 			inFlight++
 			if inFlight > maxInFlight {
@@ -65,7 +65,7 @@ func TestSyncDependentProxyAuthHeaders_SerialisesPerProvider(t *testing.T) {
 		},
 	}
 	proxyRepo := &gwrepomocks.LLMProxyRepositoryMock{
-		ListByProviderFunc: func(ouID, providerUUID string, limit, offset int) ([]*models.LLMProxy, error) {
+		ListByProviderFunc: func(ouID, providerUUID string, limit, offset int) ([]*gwmodels.LLMProxy, error) {
 			mu.Lock()
 			inFlight--
 			mu.Unlock()

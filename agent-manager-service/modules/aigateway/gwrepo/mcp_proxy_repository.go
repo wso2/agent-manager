@@ -26,8 +26,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -39,22 +39,22 @@ type MCPProxyRepository interface {
 	// Create inserts the proxy. projectUUID and projectName are both nil for an
 	// organization-level proxy (listed in the catalog) and both set for a
 	// project-scoped proxy (not in the catalog).
-	Create(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle, name, version, orgUUID string, projectUUID, projectName *string) error
-	Update(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error
-	GetByUUID(ctx context.Context, proxyUUID, orgUUID string) (*models.MCPProxy, error)
-	GetByHandle(ctx context.Context, handle, orgUUID string) (*models.MCPProxy, error)
-	GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle, orgUUID string) (*models.MCPProxy, error)
+	Create(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, handle, name, version, orgUUID string, projectUUID, projectName *string) error
+	Update(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, orgUUID string) error
+	GetByUUID(ctx context.Context, proxyUUID, orgUUID string) (*gwmodels.MCPProxy, error)
+	GetByHandle(ctx context.Context, handle, orgUUID string) (*gwmodels.MCPProxy, error)
+	GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle, orgUUID string) (*gwmodels.MCPProxy, error)
 	// List returns the proxies matching the filter and the total matching count
 	// ignoring Limit/Offset. The zero filter returns organization-level proxies only.
-	List(ctx context.Context, orgUUID string, f MCPProxyListFilter) ([]*models.MCPProxy, int64, error)
+	List(ctx context.Context, orgUUID string, f MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error)
 	// GetInProject returns the proxy only when it belongs to the project;
 	// utils.ErrMCPProxyNotFound when it is in another project or is org-owned.
-	GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*models.MCPProxy, error)
+	GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*gwmodels.MCPProxy, error)
 	// GetInProjectByName returns the project proxy stored under projectName, whatever project
 	// UUID it carries: the lookup for a project that no longer exists, whose
 	// proxies keep the UUID of the deleted project. utils.ErrMCPProxyNotFound when there is
 	// none, or the handle is an org proxy or another project's.
-	GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error)
+	GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*gwmodels.MCPProxy, error)
 	// ReassignProject moves a project proxy stored under projectName from fromProjectUUID to
 	// toProjectUUID: a re-created project (same name, new UUID) adopting the proxy its
 	// deleted predecessor left. A proxy already on toProjectUUID is left as is.
@@ -84,7 +84,7 @@ type MCPProxyListFilter struct {
 // apply adds the org, kind, project and source predicates. The query must already join
 // artifacts as a.
 func (f MCPProxyListFilter) apply(q *gorm.DB, orgUUID string) *gorm.DB {
-	q = q.Where("a.org_id = ? AND a.kind = ?", orgUUID, models.KindMCPProxy)
+	q = q.Where("a.org_id = ? AND a.kind = ?", orgUUID, gwmodels.KindMCPProxy)
 	switch {
 	case f.AllProjects:
 	case f.ProjectUUID == nil:
@@ -114,23 +114,23 @@ func NewMCPProxyRepo(db *gorm.DB) MCPProxyRepository {
 }
 
 // Create inserts a new MCP proxy and its artifact row.
-func (r *MCPProxyRepo) Create(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle, name, version, orgUUID string, projectUUID, projectName *string) error {
+func (r *MCPProxyRepo) Create(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, handle, name, version, orgUUID string, projectUUID, projectName *string) error {
 	if p.UUID == uuid.Nil {
 		p.UUID = uuid.Must(uuid.NewV7())
 	}
 	if p.Status == "" {
-		p.Status = models.StatusCreated
+		p.Status = gwmodels.StatusCreated
 	}
 	p.OrgID = orgUUID
 	p.ProjectUUID, p.ProjectName = projectUUID, projectName
 	now := dbx.Now()
 
-	if err := r.artifactRepo.Create(tx.WithContext(ctx), &models.Artifact{
+	if err := r.artifactRepo.Create(tx.WithContext(ctx), &gwmodels.Artifact{
 		UUID:      p.UUID,
 		Handle:    handle,
 		Name:      name,
 		Version:   version,
-		Kind:      models.KindMCPProxy,
+		Kind:      gwmodels.KindMCPProxy,
 		OUID:      orgUUID,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -146,12 +146,12 @@ func (r *MCPProxyRepo) Create(ctx context.Context, tx *gorm.DB, p *models.MCPPro
 }
 
 // Update modifies an existing MCP proxy and bumps the backing artifact timestamp.
-func (r *MCPProxyRepo) Update(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error {
+func (r *MCPProxyRepo) Update(ctx context.Context, tx *gorm.DB, p *gwmodels.MCPProxy, orgUUID string) error {
 	if p == nil || p.UUID == uuid.Nil {
 		return gorm.ErrRecordNotFound
 	}
 
-	result := tx.WithContext(ctx).Model(&models.MCPProxy{}).
+	result := tx.WithContext(ctx).Model(&gwmodels.MCPProxy{}).
 		Where("id = ?", p.UUID).
 		Updates(map[string]interface{}{
 			"description":   p.Description,
@@ -164,29 +164,29 @@ func (r *MCPProxyRepo) Update(ctx context.Context, tx *gorm.DB, p *models.MCPPro
 		return gorm.ErrRecordNotFound
 	}
 
-	// A project proxy's artifact name is its handle (see models.MCPProxyArtifactName), so its
+	// A project proxy's artifact name is its handle (see gwmodels.MCPProxyArtifactName), so its
 	// display name can repeat across the org.
 	handle := p.Handle
 	if p.Artifact != nil && p.Artifact.Handle != "" {
 		handle = p.Artifact.Handle
 	}
-	return r.artifactRepo.Update(tx.WithContext(ctx), &models.Artifact{
+	return r.artifactRepo.Update(tx.WithContext(ctx), &gwmodels.Artifact{
 		UUID:    p.UUID,
-		Name:    models.MCPProxyArtifactName(p.ProjectName, handle, p.Configuration.Name),
+		Name:    gwmodels.MCPProxyArtifactName(p.ProjectName, handle, p.Configuration.Name),
 		Version: p.Configuration.Version,
 		OUID:    orgUUID,
 	})
 }
 
 // GetByUUID retrieves an MCP proxy by artifact UUID.
-func (r *MCPProxyRepo) GetByUUID(ctx context.Context, proxyUUID, orgUUID string) (*models.MCPProxy, error) {
-	var proxy models.MCPProxy
+func (r *MCPProxyRepo) GetByUUID(ctx context.Context, proxyUUID, orgUUID string) (*gwmodels.MCPProxy, error) {
+	var proxy gwmodels.MCPProxy
 	err := r.db.WithContext(ctx).
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
-		Where("mod_ai_gateway_mcp_proxies.id = ? AND a.org_id = ? AND a.kind = ?", proxyUUID, orgUUID, models.KindMCPProxy).
+		Where("mod_ai_gateway_mcp_proxies.id = ? AND a.org_id = ? AND a.kind = ?", proxyUUID, orgUUID, gwmodels.KindMCPProxy).
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -198,14 +198,14 @@ func (r *MCPProxyRepo) GetByUUID(ctx context.Context, proxyUUID, orgUUID string)
 }
 
 // GetByHandle retrieves an MCP proxy by artifact handle.
-func (r *MCPProxyRepo) GetByHandle(ctx context.Context, handle, orgUUID string) (*models.MCPProxy, error) {
-	var proxy models.MCPProxy
+func (r *MCPProxyRepo) GetByHandle(ctx context.Context, handle, orgUUID string) (*gwmodels.MCPProxy, error) {
+	var proxy gwmodels.MCPProxy
 	err := r.db.WithContext(ctx).
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
-		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, gwmodels.KindMCPProxy).
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -220,19 +220,19 @@ func (r *MCPProxyRepo) GetByHandle(ctx context.Context, handle, orgUUID string) 
 // underlying mcp_proxies and artifacts rows for the duration of the
 // transaction. Use this to serialize read-modify-write flows against
 // concurrent updates.
-func (r *MCPProxyRepo) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle, orgUUID string) (*models.MCPProxy, error) {
+func (r *MCPProxyRepo) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle, orgUUID string) (*gwmodels.MCPProxy, error) {
 	if _, err := dbx.LockRows(tx.WithContext(ctx), "mod_ai_gateway_mcp_proxies", "status",
-		"id IN (?)", tx.Session(&gorm.Session{NewDB: true}).Model(&models.Artifact{}).Select("id").
-			Where("handle = ? AND org_id = ? AND kind = ?", handle, orgUUID, models.KindMCPProxy)); err != nil {
+		"id IN (?)", tx.Session(&gorm.Session{NewDB: true}).Model(&gwmodels.Artifact{}).Select("id").
+			Where("handle = ? AND org_id = ? AND kind = ?", handle, orgUUID, gwmodels.KindMCPProxy)); err != nil {
 		return nil, err
 	}
-	var proxy models.MCPProxy
+	var proxy gwmodels.MCPProxy
 	err := tx.WithContext(ctx).
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
-		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, gwmodels.KindMCPProxy).
 		First(&proxy).Error
 	if err != nil {
 		return nil, err
@@ -241,9 +241,9 @@ func (r *MCPProxyRepo) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, ha
 }
 
 // List retrieves MCP proxies matching the filter, newest first, with the total count.
-func (r *MCPProxyRepo) List(ctx context.Context, orgUUID string, f MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+func (r *MCPProxyRepo) List(ctx context.Context, orgUUID string, f MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 	base := func() *gorm.DB {
-		return f.apply(r.db.WithContext(ctx).Model(&models.MCPProxy{}).
+		return f.apply(r.db.WithContext(ctx).Model(&gwmodels.MCPProxy{}).
 			Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id"), orgUUID)
 	}
 
@@ -263,7 +263,7 @@ func (r *MCPProxyRepo) List(ctx context.Context, orgUUID string, f MCPProxyListF
 	if f.Offset > 0 {
 		q = q.Offset(f.Offset)
 	}
-	var proxies []*models.MCPProxy
+	var proxies []*gwmodels.MCPProxy
 	if err := q.Find(&proxies).Error; err != nil {
 		return nil, 0, err
 	}
@@ -271,15 +271,15 @@ func (r *MCPProxyRepo) List(ctx context.Context, orgUUID string, f MCPProxyListF
 }
 
 // GetInProject retrieves an MCP proxy by handle only when it belongs to the project.
-func (r *MCPProxyRepo) GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*models.MCPProxy, error) {
-	var proxy models.MCPProxy
+func (r *MCPProxyRepo) GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*gwmodels.MCPProxy, error) {
+	var proxy gwmodels.MCPProxy
 	err := r.db.WithContext(ctx).
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
 		Where("a.handle = ? AND a.org_id = ? AND a.kind = ? AND mod_ai_gateway_mcp_proxies.project_id = ?",
-			handle, orgUUID, models.KindMCPProxy, projectUUID).
+			handle, orgUUID, gwmodels.KindMCPProxy, projectUUID).
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -291,7 +291,7 @@ func (r *MCPProxyRepo) GetInProject(ctx context.Context, handle, orgUUID, projec
 }
 
 // GetInProjectByName retrieves a project proxy by handle and its project's name.
-func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error) {
+func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*gwmodels.MCPProxy, error) {
 	project, err := r.core.GetProjectByName(ctx, orgUUID, projectName)
 	if err != nil {
 		if errors.Is(err, modkit.ErrNotFound) {
@@ -299,14 +299,14 @@ func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, 
 		}
 		return nil, err
 	}
-	var proxy models.MCPProxy
+	var proxy gwmodels.MCPProxy
 	err = r.db.WithContext(ctx).
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
 		Where("a.handle = ? AND a.org_id = ? AND a.kind = ? AND mod_ai_gateway_mcp_proxies.project_id = ?",
-			handle, orgUUID, models.KindMCPProxy, project.ID).
+			handle, orgUUID, gwmodels.KindMCPProxy, project.ID).
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -322,9 +322,9 @@ func (r *MCPProxyRepo) ReassignProject(
 	ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID, projectName, fromProjectUUID, toProjectUUID string,
 ) error {
 	db := tx.WithContext(ctx)
-	ownedByOrg := db.Session(&gorm.Session{NewDB: true}).Model(&models.Artifact{}).Select("id").
-		Where("org_id = ? AND kind = ?", orgUUID, models.KindMCPProxy)
-	result := db.Model(&models.MCPProxy{}).
+	ownedByOrg := db.Session(&gorm.Session{NewDB: true}).Model(&gwmodels.Artifact{}).Select("id").
+		Where("org_id = ? AND kind = ?", orgUUID, gwmodels.KindMCPProxy)
+	result := db.Model(&gwmodels.MCPProxy{}).
 		Where("id = ? AND project_id IN (?, ?)", proxyUUID, fromProjectUUID, toProjectUUID).
 		Where("id IN (?)", ownedByOrg).
 		Update("project_id", toProjectUUID)
@@ -340,24 +340,24 @@ func (r *MCPProxyRepo) ReassignProject(
 // Delete removes an MCP proxy and its artifact row.
 func (r *MCPProxyRepo) Delete(ctx context.Context, handle, orgUUID string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var proxy models.MCPProxy
+		var proxy gwmodels.MCPProxy
 		err := tx.
 			Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
-			Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
+			Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, gwmodels.KindMCPProxy).
 			First(&proxy).Error
 		if err != nil {
 			return err
 		}
 
 		if err := tx.Where("artifact_id = ? AND org_id = ?", proxy.UUID, orgUUID).
-			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
+			Delete(&gwmodels.DeploymentStatusRecord{}).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("artifact_id = ? AND org_id = ?", proxy.UUID, orgUUID).
-			Delete(&models.Deployment{}).Error; err != nil {
+			Delete(&gwmodels.Deployment{}).Error; err != nil {
 			return err
 		}
-		if err := tx.Where("id = ?", proxy.UUID).Delete(&models.MCPProxy{}).Error; err != nil {
+		if err := tx.Where("id = ?", proxy.UUID).Delete(&gwmodels.MCPProxy{}).Error; err != nil {
 			if dberr.IsForeignKeyViolation(err) {
 				return utils.ErrMCPProxyHasMappings
 			}
@@ -371,14 +371,14 @@ func (r *MCPProxyRepo) Delete(ctx context.Context, handle, orgUUID string) error
 func (r *MCPProxyRepo) Count(ctx context.Context, orgUUID string) (int, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
-		Model(&models.MCPProxy{}).
+		Model(&gwmodels.MCPProxy{}).
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
-		Where("a.org_id = ? AND a.kind = ? AND mod_ai_gateway_mcp_proxies.project_id IS NULL", orgUUID, models.KindMCPProxy).
+		Where("a.org_id = ? AND a.kind = ? AND mod_ai_gateway_mcp_proxies.project_id IS NULL", orgUUID, gwmodels.KindMCPProxy).
 		Count(&count).Error
 	return int(count), err
 }
 
 // Exists checks whether an MCP proxy exists by handle and organization.
 func (r *MCPProxyRepo) Exists(ctx context.Context, handle, orgUUID string) (bool, error) {
-	return r.artifactRepo.Exists(models.KindMCPProxy, handle, orgUUID)
+	return r.artifactRepo.Exists(gwmodels.KindMCPProxy, handle, orgUUID)
 }

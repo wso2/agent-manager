@@ -23,7 +23,7 @@ import (
 	"log/slog"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -42,7 +42,7 @@ func NewEnvironmentGatewayService(logger *slog.Logger, gatewayRepo gwrepo.Gatewa
 }
 
 // GetEnvironmentGateways lists the gateways mapped to the environment.
-func (s *EnvironmentGatewayService) GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]models.GatewayResponse, error) {
+func (s *EnvironmentGatewayService) GetEnvironmentGateways(ctx context.Context, ouID string, envID string) ([]gwmodels.GatewayResponse, error) {
 	s.logger.Info("Getting environment gateways", "envID", envID, "ouID", ouID)
 
 	// Verify environment exists (envID is environment name)
@@ -70,7 +70,7 @@ func (s *EnvironmentGatewayService) GetEnvironmentGateways(ctx context.Context, 
 	}
 
 	// Fetch each gateway from the gateway repository
-	responses := make([]models.GatewayResponse, 0, len(mappings))
+	responses := make([]gwmodels.GatewayResponse, 0, len(mappings))
 	for _, mapping := range mappings {
 		gatewayID := mapping.GatewayUUID.String()
 
@@ -86,12 +86,12 @@ func (s *EnvironmentGatewayService) GetEnvironmentGateways(ctx context.Context, 
 		}
 
 		// Convert gateway model to response
-		status := string(models.GatewayStatusInactive)
+		status := string(gwmodels.GatewayStatusInactive)
 		if gateway.IsActive {
-			status = string(models.GatewayStatusActive)
+			status = string(gwmodels.GatewayStatusActive)
 		}
 
-		responses = append(responses, models.GatewayResponse{
+		responses = append(responses, gwmodels.GatewayResponse{
 			UUID:             gateway.UUID.String(),
 			OrganizationName: ouID,
 			Name:             gateway.Name,

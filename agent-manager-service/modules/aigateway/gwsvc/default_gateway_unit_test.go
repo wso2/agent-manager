@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -70,14 +71,14 @@ func TestDefaultGatewaySeederDisabledDoesNothing(t *testing.T) {
 
 func TestDefaultGatewaySeederStoresTokenForExistingGateway(t *testing.T) {
 	cfg, token := seedConfig(t)
-	gw := &models.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost}
-	var stored *models.GatewayToken
+	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost}
+	var stored *gwmodels.GatewayToken
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(name, ouID string) (*models.Gateway, error) { return gw, nil },
-		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*models.GatewayToken, error) {
+		GetByNameAndOrgIDFunc: func(name, ouID string) (*gwmodels.Gateway, error) { return gw, nil },
+		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*gwmodels.GatewayToken, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
-		CreateTokenFunc: func(tok *models.GatewayToken) error { stored = tok; return nil },
+		CreateTokenFunc: func(tok *gwmodels.GatewayToken) error { stored = tok; return nil },
 	}
 	s := NewDefaultGatewaySeeder(cfg, NewPlatformGatewayService(repo, nil), repo, seedPlatform(t), discardLogger())
 	require.NoError(t, s.Seed(context.Background()))
@@ -93,12 +94,12 @@ func TestDefaultGatewaySeederStoresTokenForExistingGateway(t *testing.T) {
 
 func TestDefaultGatewaySeederKeepsMatchingToken(t *testing.T) {
 	cfg, token := seedConfig(t)
-	gw := &models.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost}
 	salt, _ := generateSalt()
-	existing := &models.GatewayToken{GatewayUUID: gw.UUID, TokenHash: hashToken(token, salt), Salt: hexOf(salt)}
+	existing := &gwmodels.GatewayToken{GatewayUUID: gw.UUID, TokenHash: hashToken(token, salt), Salt: hexOf(salt)}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(name, ouID string) (*models.Gateway, error) { return gw, nil },
-		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*models.GatewayToken, error) {
+		GetByNameAndOrgIDFunc: func(name, ouID string) (*gwmodels.Gateway, error) { return gw, nil },
+		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*gwmodels.GatewayToken, error) {
 			return existing, nil
 		},
 		// CreateTokenFunc left nil: storing the token again would panic.
@@ -109,12 +110,12 @@ func TestDefaultGatewaySeederKeepsMatchingToken(t *testing.T) {
 
 func TestDefaultGatewaySeederRefusesTokenOfAnotherGateway(t *testing.T) {
 	cfg, token := seedConfig(t)
-	gw := &models.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost}
 	salt, _ := generateSalt()
-	other := &models.GatewayToken{GatewayUUID: uuid.New(), TokenHash: hashToken(token, salt), Salt: hexOf(salt)}
+	other := &gwmodels.GatewayToken{GatewayUUID: uuid.New(), TokenHash: hashToken(token, salt), Salt: hexOf(salt)}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(name, ouID string) (*models.Gateway, error) { return gw, nil },
-		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*models.GatewayToken, error) {
+		GetByNameAndOrgIDFunc: func(name, ouID string) (*gwmodels.Gateway, error) { return gw, nil },
+		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*gwmodels.GatewayToken, error) {
 			return other, nil
 		},
 	}
@@ -124,11 +125,11 @@ func TestDefaultGatewaySeederRefusesTokenOfAnotherGateway(t *testing.T) {
 
 func TestDefaultGatewaySeederRegistersMissingGateway(t *testing.T) {
 	cfg, _ := seedConfig(t)
-	registered := &models.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost}
+	registered := &gwmodels.Gateway{UUID: uuid.New(), OUID: seedOUID, Name: "default", Vhost: cfg.Vhost}
 	lookups := 0
 	transactions := 0
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(name, ouID string) (*models.Gateway, error) {
+		GetByNameAndOrgIDFunc: func(name, ouID string) (*gwmodels.Gateway, error) {
 			lookups++
 			// The seeder's lookup and RegisterGateway's uniqueness check find nothing; the read-back finds it.
 			if lookups <= 2 {
@@ -137,10 +138,10 @@ func TestDefaultGatewaySeederRegistersMissingGateway(t *testing.T) {
 			return registered, nil
 		},
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error { transactions++; return nil },
-		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*models.GatewayToken, error) {
+		GetActiveTokenByPrefixFunc: func(ctx context.Context, prefix string) (*gwmodels.GatewayToken, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
-		CreateTokenFunc: func(tok *models.GatewayToken) error {
+		CreateTokenFunc: func(tok *gwmodels.GatewayToken) error {
 			assert.Equal(t, registered.UUID, tok.GatewayUUID)
 			return nil
 		},

@@ -23,7 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -32,13 +32,13 @@ import (
 // mcpVarRows builds the pair of env var rows (url + apikey) that configuring an MCP
 // connection persists for an environment, whether or not that environment turned out
 // to be deployable.
-func mcpVarRows(configUUID uuid.UUID, envUUIDs ...uuid.UUID) []models.AgentEnvConfigVariable {
-	rows := make([]models.AgentEnvConfigVariable, 0, len(envUUIDs)*2)
+func mcpVarRows(configUUID uuid.UUID, envUUIDs ...uuid.UUID) []gwmodels.AgentEnvConfigVariable {
+	rows := make([]gwmodels.AgentEnvConfigVariable, 0, len(envUUIDs)*2)
 	for _, envUUID := range envUUIDs {
 		rows = append(
 			rows,
-			models.AgentEnvConfigVariable{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "url", VariableName: "BOOKING_URL"},
-			models.AgentEnvConfigVariable{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "apikey", VariableName: "BOOKING_API_KEY"},
+			gwmodels.AgentEnvConfigVariable{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "url", VariableName: "BOOKING_URL"},
+			gwmodels.AgentEnvConfigVariable{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "apikey", VariableName: "BOOKING_API_KEY"},
 		)
 	}
 	return rows
@@ -46,26 +46,26 @@ func mcpVarRows(configUUID uuid.UUID, envUUIDs ...uuid.UUID) []models.AgentEnvCo
 
 // mcpProxyRef builds the agent_mcp_config_proxy relation that records a configuration's
 // environment-agnostic proxy. Its presence is the whole signal — there is no NULL state.
-func mcpProxyRef(configUUID, proxyUUID uuid.UUID) *models.AgentMCPConfigProxy {
-	return &models.AgentMCPConfigProxy{
+func mcpProxyRef(configUUID, proxyUUID uuid.UUID) *gwmodels.AgentMCPConfigProxy {
+	return &gwmodels.AgentMCPConfigProxy{
 		ConfigUUID:   configUUID,
-		TypeID:       models.AgentConfigTypeIDMCP,
+		TypeID:       gwmodels.AgentConfigTypeIDMCP,
 		MCPProxyUUID: proxyUUID,
 	}
 }
 
 // mcpProxyServing builds an org-level MCP proxy with one endpoint bound to each of the
 // given environments — the shape the reconcile reads to decide where a binding could go.
-func mcpProxyServing(proxyUUID uuid.UUID, envUUIDs ...uuid.UUID) *models.MCPProxy {
-	endpoints := make([]models.MCPProxyEndpoint, 0, len(envUUIDs))
+func mcpProxyServing(proxyUUID uuid.UUID, envUUIDs ...uuid.UUID) *gwmodels.MCPProxy {
+	endpoints := make([]gwmodels.MCPProxyEndpoint, 0, len(envUUIDs))
 	for _, envUUID := range envUUIDs {
-		endpoints = append(endpoints, models.MCPProxyEndpoint{
-			Environments: []models.MCPProxyEndpointEnvironment{
+		endpoints = append(endpoints, gwmodels.MCPProxyEndpoint{
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: envUUID, ArtifactUUID: uuid.New()},
 			},
 		})
 	}
-	return &models.MCPProxy{UUID: proxyUUID, Endpoints: endpoints}
+	return &gwmodels.MCPProxy{UUID: proxyUUID, Endpoints: endpoints}
 }
 
 // An environment the proxy serves but the connection has no mapping row for must be
@@ -75,7 +75,7 @@ func TestMCPEnvsNeedingActivation_ReportsProxyEnvWithNoMapping(t *testing.T) {
 	configUUID, proxyUUID := uuid.New(), uuid.New()
 	devEnv, prodEnv := uuid.New(), uuid.New()
 
-	mappings := []models.EnvAgentMCPMapping{
+	mappings := []gwmodels.EnvAgentMCPMapping{
 		{ConfigUUID: configUUID, EnvironmentUUID: devEnv, MCPProxyUUID: proxyUUID},
 	}
 
@@ -93,7 +93,7 @@ func TestMCPEnvsNeedingActivation_ReportsEnvironmentAddedAfterAttach(t *testing.
 	configUUID, proxyUUID := uuid.New(), uuid.New()
 	devEnv, envAddedLater := uuid.New(), uuid.New()
 
-	mappings := []models.EnvAgentMCPMapping{
+	mappings := []gwmodels.EnvAgentMCPMapping{
 		{ConfigUUID: configUUID, EnvironmentUUID: devEnv, MCPProxyUUID: proxyUUID},
 	}
 
@@ -110,7 +110,7 @@ func TestMCPEnvsNeedingActivation_ReportsEachUnmappedEnvOnce(t *testing.T) {
 	configUUID, proxyUUID := uuid.New(), uuid.New()
 	devEnv, prodEnv := uuid.New(), uuid.New()
 
-	mappings := []models.EnvAgentMCPMapping{
+	mappings := []gwmodels.EnvAgentMCPMapping{
 		{ConfigUUID: configUUID, EnvironmentUUID: devEnv, MCPProxyUUID: proxyUUID},
 	}
 	proxy := mcpProxyServing(proxyUUID, devEnv, prodEnv, prodEnv)
@@ -126,7 +126,7 @@ func TestMCPEnvsNeedingActivation_SkipsAlreadyMappedEnv(t *testing.T) {
 	configUUID, proxyUUID := uuid.New(), uuid.New()
 	devEnv := uuid.New()
 
-	mappings := []models.EnvAgentMCPMapping{
+	mappings := []gwmodels.EnvAgentMCPMapping{
 		{ConfigUUID: configUUID, EnvironmentUUID: devEnv, MCPProxyUUID: proxyUUID},
 	}
 
@@ -142,7 +142,7 @@ func TestMCPEnvsNeedingActivation_IgnoresEnvironmentProxyDoesNotServe(t *testing
 	configUUID, proxyUUID := uuid.New(), uuid.New()
 	devEnv, unservedEnv := uuid.New(), uuid.New()
 
-	mappings := []models.EnvAgentMCPMapping{
+	mappings := []gwmodels.EnvAgentMCPMapping{
 		{ConfigUUID: configUUID, EnvironmentUUID: devEnv, MCPProxyUUID: proxyUUID},
 	}
 
@@ -159,7 +159,7 @@ func TestMCPEnvsNeedingActivation_IgnoresEnvironmentProxyDoesNotServe(t *testing
 func TestMCPConfigTargetsProxy_MatchesRecordedProxyWithNoMappings(t *testing.T) {
 	proxyUUID := uuid.New()
 	configUUID := uuid.New()
-	config := &models.AgentConfiguration{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, proxyUUID)}
+	config := &gwmodels.AgentConfiguration{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, proxyUUID)}
 
 	require.True(t, mcpConfigTargetsProxy(config, proxyUUID))
 }
@@ -167,7 +167,7 @@ func TestMCPConfigTargetsProxy_MatchesRecordedProxyWithNoMappings(t *testing.T) 
 func TestMCPConfigTargetsProxy_RejectsDifferentRecordedProxyWithNoMappings(t *testing.T) {
 	proxyUUID, otherProxyUUID := uuid.New(), uuid.New()
 	configUUID := uuid.New()
-	config := &models.AgentConfiguration{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, otherProxyUUID)}
+	config := &gwmodels.AgentConfiguration{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, otherProxyUUID)}
 
 	require.False(t, mcpConfigTargetsProxy(config, proxyUUID),
 		"with no mapping rows the reference is the only record of intent, and it names another proxy")
@@ -180,10 +180,10 @@ func TestMCPConfigTargetsProxy_RejectsDifferentRecordedProxyWithNoMappings(t *te
 func TestMCPConfigTargetsProxy_UnanimousMappingsOutrankStaleReference(t *testing.T) {
 	newProxyUUID, staleRefUUID := uuid.New(), uuid.New()
 	configUUID := uuid.New()
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID:        configUUID,
 		MCPProxyRef: mcpProxyRef(configUUID, staleRefUUID),
-		EnvMCPMappings: []models.EnvAgentMCPMapping{
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{
 			{EnvironmentUUID: uuid.New(), MCPProxyUUID: newProxyUUID},
 			{EnvironmentUUID: uuid.New(), MCPProxyUUID: newProxyUUID},
 		},
@@ -199,9 +199,9 @@ func TestMCPConfigTargetsProxy_UnanimousMappingsOutrankStaleReference(t *testing
 // the mapping rows, and is claimed only when they unanimously name this proxy.
 func TestMCPConfigTargetsProxy_FallsBackToUnanimousMappings(t *testing.T) {
 	proxyUUID := uuid.New()
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID: uuid.New(),
-		EnvMCPMappings: []models.EnvAgentMCPMapping{
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{
 			{EnvironmentUUID: uuid.New(), MCPProxyUUID: proxyUUID},
 			{EnvironmentUUID: uuid.New(), MCPProxyUUID: proxyUUID},
 		},
@@ -214,9 +214,9 @@ func TestMCPConfigTargetsProxy_FallsBackToUnanimousMappings(t *testing.T) {
 // either proxy would be as likely wrong as right.
 func TestMCPConfigTargetsProxy_RejectsDivergentMappings(t *testing.T) {
 	proxyUUID, otherProxyUUID := uuid.New(), uuid.New()
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID: uuid.New(),
-		EnvMCPMappings: []models.EnvAgentMCPMapping{
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{
 			{EnvironmentUUID: uuid.New(), MCPProxyUUID: proxyUUID},
 			{EnvironmentUUID: uuid.New(), MCPProxyUUID: otherProxyUUID},
 		},
@@ -228,7 +228,7 @@ func TestMCPConfigTargetsProxy_RejectsDivergentMappings(t *testing.T) {
 // With neither a recorded proxy nor a mapping row, nothing links the configuration to any
 // proxy — this reconcile has no business claiming it.
 func TestMCPConfigTargetsProxy_RejectsUnlinkedConfig(t *testing.T) {
-	config := &models.AgentConfiguration{UUID: uuid.New()}
+	config := &gwmodels.AgentConfiguration{UUID: uuid.New()}
 
 	require.False(t, mcpConfigTargetsProxy(config, uuid.New()))
 }
@@ -237,9 +237,9 @@ func TestMCPConfigTargetsProxy_RejectsUnlinkedConfig(t *testing.T) {
 // column records.
 func TestSoleMCPProxyUUID_RecordsUnanimousProxy(t *testing.T) {
 	proxyUUID := uuid.New()
-	proxy := &models.MCPProxy{UUID: proxyUUID}
+	proxy := &gwmodels.MCPProxy{UUID: proxyUUID}
 
-	got := soleMCPProxyUUID(map[string]*models.MCPProxy{"dev": proxy, "prod": proxy})
+	got := soleMCPProxyUUID(map[string]*gwmodels.MCPProxy{"dev": proxy, "prod": proxy})
 
 	require.NotNil(t, got)
 	require.Equal(t, proxyUUID, *got)
@@ -248,7 +248,7 @@ func TestSoleMCPProxyUUID_RecordsUnanimousProxy(t *testing.T) {
 // Divergent environments express no single environment-agnostic proxy, so no reference row is
 // written rather than recording one of them.
 func TestSoleMCPProxyUUID_NilWhenEnvironmentsDisagree(t *testing.T) {
-	got := soleMCPProxyUUID(map[string]*models.MCPProxy{
+	got := soleMCPProxyUUID(map[string]*gwmodels.MCPProxy{
 		"dev":  {UUID: uuid.New()},
 		"prod": {UUID: uuid.New()},
 	})
@@ -271,11 +271,11 @@ func TestMCPProxiesBoundToEnvironment_SelectsOnlyProxiesServingTheEnvironment(t 
 
 	svc := &agentConfigurationService{
 		mcpProxyRepo: &gwrepomocks.MCPProxyRepositoryMock{
-			ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+			ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 				if f.Offset > 0 {
-					return []*models.MCPProxy{}, 0, nil
+					return []*gwmodels.MCPProxy{}, 0, nil
 				}
-				return []*models.MCPProxy{serving, notServing}, 0, nil
+				return []*gwmodels.MCPProxy{serving, notServing}, 0, nil
 			},
 		},
 	}
@@ -292,7 +292,7 @@ func TestMCPProxiesBoundToEnvironment_SelectsOnlyProxiesServingTheEnvironment(t 
 // exactly the kind of silent partial pass this fix exists to remove.
 func TestMCPProxiesBoundToEnvironment_PagesUntilExhausted(t *testing.T) {
 	targetEnv := uuid.New()
-	firstPage := make([]*models.MCPProxy, 0, mcpProxyScanPageSize)
+	firstPage := make([]*gwmodels.MCPProxy, 0, mcpProxyScanPageSize)
 	for i := 0; i < mcpProxyScanPageSize; i++ {
 		firstPage = append(firstPage, mcpProxyServing(uuid.New(), targetEnv))
 	}
@@ -301,12 +301,12 @@ func TestMCPProxiesBoundToEnvironment_PagesUntilExhausted(t *testing.T) {
 	pagesRequested := 0
 	svc := &agentConfigurationService{
 		mcpProxyRepo: &gwrepomocks.MCPProxyRepositoryMock{
-			ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+			ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 				pagesRequested++
 				if f.Offset == 0 {
 					return firstPage, 0, nil
 				}
-				return []*models.MCPProxy{onSecondPage}, 0, nil
+				return []*gwmodels.MCPProxy{onSecondPage}, 0, nil
 			},
 		},
 	}
@@ -328,19 +328,19 @@ func TestMCPConfigUUIDsForProxy_FindsConfigReferencedOnlyByColumn(t *testing.T) 
 
 	svc := &agentConfigurationService{
 		agentConfigRepo: &gwrepomocks.AgentConfigurationRepositoryMock{
-			ListMCPConfigsByProxyFunc: func(_ context.Context, _ string, gotProxy uuid.UUID) ([]models.AgentConfiguration, error) {
+			ListMCPConfigsByProxyFunc: func(_ context.Context, _ string, gotProxy uuid.UUID) ([]gwmodels.AgentConfiguration, error) {
 				require.Equal(t, proxyUUID, gotProxy)
-				return []models.AgentConfiguration{{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, proxyUUID)}}, nil
+				return []gwmodels.AgentConfiguration{{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, proxyUUID)}}, nil
 			},
 		},
 		envMCPMappingRepo: &gwrepomocks.EnvAgentMCPMappingRepositoryMock{
-			ListByMCPProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
-				return []models.EnvAgentMCPMapping{}, nil // no mapping anywhere — the whole point of this case
+			ListByMCPProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
+				return []gwmodels.EnvAgentMCPMapping{}, nil // no mapping anywhere — the whole point of this case
 			},
 		},
 	}
 
-	got, err := svc.mcpConfigUUIDsForProxy(context.Background(), "acme", &models.MCPProxy{UUID: proxyUUID})
+	got, err := svc.mcpConfigUUIDsForProxy(context.Background(), "acme", &gwmodels.MCPProxy{UUID: proxyUUID})
 
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{configUUID}, got)
@@ -355,18 +355,18 @@ func TestMCPConfigUUIDsForProxy_FindsConfigReferencedOnlyByMappingRow(t *testing
 
 	svc := &agentConfigurationService{
 		agentConfigRepo: &gwrepomocks.AgentConfigurationRepositoryMock{
-			ListMCPConfigsByProxyFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]models.AgentConfiguration, error) {
-				return []models.AgentConfiguration{}, nil // no proxy reference row, so the reference query cannot see it
+			ListMCPConfigsByProxyFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]gwmodels.AgentConfiguration, error) {
+				return []gwmodels.AgentConfiguration{}, nil // no proxy reference row, so the reference query cannot see it
 			},
 		},
 		envMCPMappingRepo: &gwrepomocks.EnvAgentMCPMappingRepositoryMock{
-			ListByMCPProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
-				return []models.EnvAgentMCPMapping{{ConfigUUID: legacyConfigUUID, MCPProxyUUID: proxyUUID}}, nil
+			ListByMCPProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
+				return []gwmodels.EnvAgentMCPMapping{{ConfigUUID: legacyConfigUUID, MCPProxyUUID: proxyUUID}}, nil
 			},
 		},
 	}
 
-	got, err := svc.mcpConfigUUIDsForProxy(context.Background(), "acme", &models.MCPProxy{UUID: proxyUUID})
+	got, err := svc.mcpConfigUUIDsForProxy(context.Background(), "acme", &gwmodels.MCPProxy{UUID: proxyUUID})
 
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{legacyConfigUUID}, got)
@@ -382,14 +382,14 @@ func TestMCPConfigUUIDsForProxy_DedupesConfigFoundOnBothSides(t *testing.T) {
 
 	svc := &agentConfigurationService{
 		agentConfigRepo: &gwrepomocks.AgentConfigurationRepositoryMock{
-			ListMCPConfigsByProxyFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]models.AgentConfiguration, error) {
-				return []models.AgentConfiguration{{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, proxyUUID)}}, nil
+			ListMCPConfigsByProxyFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]gwmodels.AgentConfiguration, error) {
+				return []gwmodels.AgentConfiguration{{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, proxyUUID)}}, nil
 			},
 		},
 		envMCPMappingRepo: &gwrepomocks.EnvAgentMCPMappingRepositoryMock{
-			ListByMCPProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+			ListByMCPProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
 				// Two environments of the same configuration, as a bound connection has.
-				return []models.EnvAgentMCPMapping{
+				return []gwmodels.EnvAgentMCPMapping{
 					{ConfigUUID: configUUID, MCPProxyUUID: proxyUUID, EnvironmentUUID: uuid.New()},
 					{ConfigUUID: configUUID, MCPProxyUUID: proxyUUID, EnvironmentUUID: uuid.New()},
 				}, nil
@@ -397,7 +397,7 @@ func TestMCPConfigUUIDsForProxy_DedupesConfigFoundOnBothSides(t *testing.T) {
 		},
 	}
 
-	got, err := svc.mcpConfigUUIDsForProxy(context.Background(), "acme", &models.MCPProxy{UUID: proxyUUID})
+	got, err := svc.mcpConfigUUIDsForProxy(context.Background(), "acme", &gwmodels.MCPProxy{UUID: proxyUUID})
 
 	require.NoError(t, err)
 	require.Len(t, got, 1, "a configuration on both sides must be visited exactly once")
@@ -413,12 +413,12 @@ func TestMCPEnvsNeedingActivation_DoesNotResurrectRemovedEnvironment(t *testing.
 	configUUID, proxyUUID := uuid.New(), uuid.New()
 	devEnv, unsetEnv := uuid.New(), uuid.New()
 
-	mappings := []models.EnvAgentMCPMapping{
+	mappings := []gwmodels.EnvAgentMCPMapping{
 		{ConfigUUID: configUUID, EnvironmentUUID: devEnv, MCPProxyUUID: proxyUUID},
 	}
 	// The unset is recorded explicitly — that is what distinguishes it from an environment
 	// that was simply never configured.
-	exclusions := []models.AgentMCPConfigEnvExclusion{{ConfigUUID: configUUID, EnvironmentUUID: unsetEnv}}
+	exclusions := []gwmodels.AgentMCPConfigEnvExclusion{{ConfigUUID: configUUID, EnvironmentUUID: unsetEnv}}
 
 	got := mcpEnvsNeedingActivation(mappings, exclusions, mcpProxyServing(proxyUUID, devEnv, unsetEnv))
 
@@ -442,10 +442,10 @@ func TestMCPEnvsNeedingActivation_EmptyScopeRecordsMeanEveryServedEnvironment(t 
 func TestConfigMCPProxyUUID_MatchesTargetsProxyPrecedence(t *testing.T) {
 	newProxyUUID, staleRefUUID := uuid.New(), uuid.New()
 	configUUID := uuid.New()
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID:        configUUID,
 		MCPProxyRef: mcpProxyRef(configUUID, staleRefUUID),
-		EnvMCPMappings: []models.EnvAgentMCPMapping{
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{
 			{EnvironmentUUID: uuid.New(), MCPProxyUUID: newProxyUUID},
 			{EnvironmentUUID: uuid.New(), MCPProxyUUID: newProxyUUID},
 		},
@@ -462,11 +462,11 @@ func TestConfigMCPProxyUUID_MatchesTargetsProxyPrecedence(t *testing.T) {
 func TestConfigMCPProxyUUID_FallsBackToReferenceThenNothing(t *testing.T) {
 	proxyUUID, configUUID := uuid.New(), uuid.New()
 
-	got, ok := configMCPProxyUUID(&models.AgentConfiguration{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, proxyUUID)})
+	got, ok := configMCPProxyUUID(&gwmodels.AgentConfiguration{UUID: configUUID, MCPProxyRef: mcpProxyRef(configUUID, proxyUUID)})
 	require.True(t, ok)
 	require.Equal(t, proxyUUID, got)
 
-	got, ok = configMCPProxyUUID(&models.AgentConfiguration{UUID: configUUID})
+	got, ok = configMCPProxyUUID(&gwmodels.AgentConfiguration{UUID: configUUID})
 	require.False(t, ok)
 	require.Equal(t, uuid.Nil, got)
 }
@@ -476,7 +476,7 @@ func TestConfigMCPProxyUUID_FallsBackToReferenceThenNothing(t *testing.T) {
 func TestMCPScopeExclusions_UpdateExcludesDroppedBoundEnvironment(t *testing.T) {
 	configUUID := uuid.New()
 	devEnv, prodEnv := uuid.New(), uuid.New()
-	bound := []models.EnvAgentMCPMapping{
+	bound := []gwmodels.EnvAgentMCPMapping{
 		{ConfigUUID: configUUID, EnvironmentUUID: devEnv},
 		{ConfigUUID: configUUID, EnvironmentUUID: prodEnv},
 	}
@@ -495,7 +495,7 @@ func TestMCPScopeExclusions_UpdateKeepsConfiguredButUnboundEnvironments(t *testi
 	devEnv := uuid.New() // only dev is bound; stage and prod are var-rows-only and absent from GET
 
 	got := mcpScopeExclusions(
-		[]models.EnvAgentMCPMapping{{ConfigUUID: configUUID, EnvironmentUUID: devEnv}},
+		[]gwmodels.EnvAgentMCPMapping{{ConfigUUID: configUUID, EnvironmentUUID: devEnv}},
 		nil, map[uuid.UUID]struct{}{devEnv: {}},
 	)
 
@@ -531,19 +531,19 @@ func TestMCPScopeExclusions_EnvironmentsAddedLaterAreNotExcluded(t *testing.T) {
 // the connection's reference, and the reconcile then bound the dissenting environment to
 // whichever proxy the existing mapping rows named — overriding an explicit choice.
 func TestRequireSingleMCPProxy_RejectsMixedProxies(t *testing.T) {
-	p1 := &models.MCPProxy{UUID: uuid.New(), Configuration: models.MCPProxyConfig{Name: "kb-dev"}}
-	p2 := &models.MCPProxy{UUID: uuid.New(), Configuration: models.MCPProxyConfig{Name: "kb-prod"}}
+	p1 := &gwmodels.MCPProxy{UUID: uuid.New(), Configuration: gwmodels.MCPProxyConfig{Name: "kb-dev"}}
+	p2 := &gwmodels.MCPProxy{UUID: uuid.New(), Configuration: gwmodels.MCPProxyConfig{Name: "kb-prod"}}
 
-	err := requireSingleMCPProxy(map[string]*models.MCPProxy{"dev": p1, "prod": p2})
+	err := requireSingleMCPProxy(map[string]*gwmodels.MCPProxy{"dev": p1, "prod": p2})
 
 	require.ErrorIs(t, err, utils.ErrInvalidInput, "must surface as a 400, not a 500")
 }
 
 func TestRequireSingleMCPProxy_AcceptsOneProxyEverywhere(t *testing.T) {
-	p1 := &models.MCPProxy{UUID: uuid.New()}
+	p1 := &gwmodels.MCPProxy{UUID: uuid.New()}
 
-	require.NoError(t, requireSingleMCPProxy(map[string]*models.MCPProxy{"dev": p1, "stage": p1, "prod": p1}))
-	require.NoError(t, requireSingleMCPProxy(map[string]*models.MCPProxy{"dev": p1}))
+	require.NoError(t, requireSingleMCPProxy(map[string]*gwmodels.MCPProxy{"dev": p1, "stage": p1, "prod": p1}))
+	require.NoError(t, requireSingleMCPProxy(map[string]*gwmodels.MCPProxy{"dev": p1}))
 	require.NoError(t, requireSingleMCPProxy(nil))
 }
 
@@ -553,7 +553,7 @@ func TestRequireSingleMCPProxy_AcceptsOneProxyEverywhere(t *testing.T) {
 func TestBoundMCPScope_UnrecordedConnectionKeepsVarRowRule(t *testing.T) {
 	configUUID := uuid.New()
 	devEnv, stageEnv, prodEnv := uuid.New(), uuid.New(), uuid.New()
-	legacy := &models.AgentConfiguration{UUID: configUUID, EnvVariables: mcpVarRows(configUUID, devEnv)}
+	legacy := &gwmodels.AgentConfiguration{UUID: configUUID, EnvVariables: mcpVarRows(configUUID, devEnv)}
 	pipeline := mcpPipelineEnvs{envs: map[uuid.UUID]struct{}{devEnv: {}, stageEnv: {}, prodEnv: {}}, restrict: true}
 
 	got := boundMCPScope([]uuid.UUID{stageEnv, prodEnv}, legacy, pipeline)
@@ -566,10 +566,10 @@ func TestBoundMCPScope_UnrecordedConnectionKeepsVarRowRule(t *testing.T) {
 func TestBoundMCPScope_RecordedConnectionUsesPipeline(t *testing.T) {
 	configUUID := uuid.New()
 	devEnv, stageEnv := uuid.New(), uuid.New()
-	recorded := &models.AgentConfiguration{
+	recorded := &gwmodels.AgentConfiguration{
 		UUID:         configUUID,
 		EnvVariables: mcpVarRows(configUUID, devEnv),
-		MCPScope:     &models.AgentMCPConfigScope{ConfigUUID: configUUID},
+		MCPScope:     &gwmodels.AgentMCPConfigScope{ConfigUUID: configUUID},
 	}
 	pipeline := mcpPipelineEnvs{envs: map[uuid.UUID]struct{}{devEnv: {}, stageEnv: {}}, restrict: true}
 
@@ -585,9 +585,9 @@ func TestBoundMCPScope_RecordedConnectionUsesPipeline(t *testing.T) {
 func TestRecordScope_LegacyUpdateExcludesPipelineEnvsWithoutVarRows(t *testing.T) {
 	configUUID := uuid.New()
 	devEnv, stageEnv, prodEnv := uuid.New(), uuid.New(), uuid.New()
-	legacy := &models.AgentConfiguration{
+	legacy := &gwmodels.AgentConfiguration{
 		UUID:           configUUID,
-		EnvMCPMappings: []models.EnvAgentMCPMapping{{ConfigUUID: configUUID, EnvironmentUUID: devEnv}},
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{{ConfigUUID: configUUID, EnvironmentUUID: devEnv}},
 		EnvVariables:   mcpVarRows(configUUID, devEnv),
 	}
 	pipeline := map[uuid.UUID]struct{}{devEnv: {}, stageEnv: {}, prodEnv: {}}
@@ -604,9 +604,9 @@ func TestRecordScope_LegacyUpdateExcludesPipelineEnvsWithoutVarRows(t *testing.T
 func TestRecordScope_LegacyUpdateKeepsConfiguredButUnboundEnvs(t *testing.T) {
 	configUUID := uuid.New()
 	devEnv, stageEnv, prodEnv := uuid.New(), uuid.New(), uuid.New()
-	legacy := &models.AgentConfiguration{
+	legacy := &gwmodels.AgentConfiguration{
 		UUID:           configUUID,
-		EnvMCPMappings: []models.EnvAgentMCPMapping{{ConfigUUID: configUUID, EnvironmentUUID: devEnv}},
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{{ConfigUUID: configUUID, EnvironmentUUID: devEnv}},
 		EnvVariables:   mcpVarRows(configUUID, devEnv, stageEnv),
 	}
 	pipeline := map[uuid.UUID]struct{}{devEnv: {}, stageEnv: {}, prodEnv: {}}

@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -84,9 +84,9 @@ func TestRouteOf(t *testing.T) {
 func TestClash(t *testing.T) {
 	gw := "gw.example.com"
 	self, other := uuid.New(), uuid.New()
-	deployed := func(rows ...models.GatewayDeploymentContent) []models.GatewayDeploymentContent { return rows }
-	row := func(id uuid.UUID, c []byte) models.GatewayDeploymentContent {
-		return models.GatewayDeploymentContent{ArtifactRef: models.ArtifactRef{ArtifactUUID: id}, Content: c}
+	deployed := func(rows ...gwmodels.GatewayDeploymentContent) []gwmodels.GatewayDeploymentContent { return rows }
+	row := func(id uuid.UUID, c []byte) gwmodels.GatewayDeploymentContent {
+		return gwmodels.GatewayDeploymentContent{ArtifactRef: gwmodels.ArtifactRef{ArtifactUUID: id}, Content: c}
 	}
 
 	t.Run("equal, nested and containing clash", func(t *testing.T) {
@@ -137,21 +137,21 @@ func clashRepo(otherContext string) (*gwrepomocks.DeploymentRepositoryMock, *int
 	deployID := uuid.New()
 	starts := 0
 	repo := &gwrepomocks.DeploymentRepositoryMock{
-		ListForGatewaySyncFunc: func(context.Context, string, string) ([]models.GatewaySyncRow, error) {
-			return []models.GatewaySyncRow{{
-				ArtifactRef: models.ArtifactRef{ArtifactUUID: other}, DeploymentID: deployID.String(),
-				State: models.GatewaySyncStateDeployed,
+		ListForGatewaySyncFunc: func(context.Context, string, string) ([]gwmodels.GatewaySyncRow, error) {
+			return []gwmodels.GatewaySyncRow{{
+				ArtifactRef: gwmodels.ArtifactRef{ArtifactUUID: other}, DeploymentID: deployID.String(),
+				State: gwmodels.GatewaySyncStateDeployed,
 			}}, nil
 		},
-		ListContentForGatewayFunc: func(_ context.Context, _, _ string, ids []uuid.UUID) ([]models.GatewayDeploymentContent, error) {
+		ListContentForGatewayFunc: func(_ context.Context, _, _ string, ids []uuid.UUID) ([]gwmodels.GatewayDeploymentContent, error) {
 			if len(ids) == 1 && ids[0] == deployID {
-				return []models.GatewayDeploymentContent{{
-					ArtifactRef: models.ArtifactRef{ArtifactUUID: other}, DeploymentID: deployID, Content: content(otherContext, ""),
+				return []gwmodels.GatewayDeploymentContent{{
+					ArtifactRef: gwmodels.ArtifactRef{ArtifactUUID: other}, DeploymentID: deployID, Content: content(otherContext, ""),
 				}}, nil
 			}
 			return nil, nil
 		},
-		StartDeployFunc: func(_ context.Context, _ *gorm.DB, _ models.Placement, d *models.Deployment) error {
+		StartDeployFunc: func(_ context.Context, _ *gorm.DB, _ gwmodels.Placement, d *gwmodels.Deployment) error {
 			starts++
 			now := time.Now()
 			d.DeploymentID, d.UpdatedAt = uuid.New(), &now
@@ -168,7 +168,7 @@ type renderingKind struct {
 	context string
 }
 
-func (k renderingKind) Render(context.Context, models.ArtifactRef) (Rendered, error) {
+func (k renderingKind) Render(context.Context, gwmodels.ArtifactRef) (Rendered, error) {
 	return Rendered{Name: "r", Content: content(k.context, "")}, nil
 }
 
@@ -179,8 +179,8 @@ func (g *lockingGateways) AcquireGatewayLock(_ *gorm.DB, id string) error {
 	return nil
 }
 
-func (g *lockingGateways) GetByUUID(id string) (*models.Gateway, error) {
-	return &models.Gateway{UUID: uuid.MustParse(id), Vhost: "gw.example.com"}, nil
+func (g *lockingGateways) GetByUUID(id string) (*gwmodels.Gateway, error) {
+	return &gwmodels.Gateway{UUID: uuid.MustParse(id), Vhost: "gw.example.com"}, nil
 }
 
 type noopHub struct{ eventhub.EventHub }
@@ -191,7 +191,7 @@ func TestDeployRefusesAnOverlappingContext(t *testing.T) {
 	repo, starts := clashRepo("/p1")
 	gateways := &lockingGateways{}
 	core := NewCore(nil, repo, noopHub{}, Kinds{renderingKind{context: "/p1/weather"}}, Config{}, discardLogger()).WithGateways(gateways)
-	p := models.Placement{ArtifactRef: models.ArtifactRef{OUID: "ou", ArtifactUUID: uuid.New(), Kind: models.KindMCPMapping}, GatewayUUID: uuid.New()}
+	p := gwmodels.Placement{ArtifactRef: gwmodels.ArtifactRef{OUID: "ou", ArtifactUUID: uuid.New(), Kind: gwmodels.KindMCPMapping}, GatewayUUID: uuid.New()}
 
 	_, err := core.Deploy(context.Background(), &gorm.DB{}, p)
 
@@ -205,7 +205,7 @@ func TestDeployRefusesAnOverlappingContext(t *testing.T) {
 func TestDeployAllowsASiblingContext(t *testing.T) {
 	repo, starts := clashRepo("/p1/weather-v2")
 	core := NewCore(nil, repo, noopHub{}, Kinds{renderingKind{context: "/p1/weather"}}, Config{}, discardLogger()).WithGateways(&lockingGateways{})
-	p := models.Placement{ArtifactRef: models.ArtifactRef{OUID: "ou", ArtifactUUID: uuid.New(), Kind: models.KindMCPMapping}, GatewayUUID: uuid.New()}
+	p := gwmodels.Placement{ArtifactRef: gwmodels.ArtifactRef{OUID: "ou", ArtifactUUID: uuid.New(), Kind: gwmodels.KindMCPMapping}, GatewayUUID: uuid.New()}
 
 	_, err := core.Deploy(context.Background(), &gorm.DB{}, p)
 

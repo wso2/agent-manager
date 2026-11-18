@@ -23,7 +23,7 @@ import (
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
@@ -31,10 +31,10 @@ import (
 // GetByHandle both resolve to provider/err, matching what generateLLMProxyDeploymentYAML's
 // provider resolution needs. Using the generated mock (instead of a hand-written one)
 // means it always implements the full LLMProviderRepository interface as it grows.
-func providerRepoMock(provider *models.LLMProvider, err error) *gwrepomocks.LLMProviderRepositoryMock {
+func providerRepoMock(provider *gwmodels.LLMProvider, err error) *gwrepomocks.LLMProviderRepositoryMock {
 	return &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc:   func(_, _ string) (*models.LLMProvider, error) { return provider, err },
-		GetByHandleFunc: func(_, _ string) (*models.LLMProvider, error) { return provider, err },
+		GetByUUIDFunc:   func(_, _ string) (*gwmodels.LLMProvider, error) { return provider, err },
+		GetByHandleFunc: func(_, _ string) (*gwmodels.LLMProvider, error) { return provider, err },
 	}
 }
 
@@ -43,9 +43,9 @@ func TestGenerateLLMProxyDeploymentYAML_Basic(t *testing.T) {
 	providerUUID := uuid.New().String()
 	providerHandle := "openai-provider"
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: providerHandle,
 		},
 	}
@@ -54,9 +54,9 @@ func TestGenerateLLMProxyDeploymentYAML_Basic(t *testing.T) {
 		providerRepo: providerRepoMock(mockProvider, nil),
 	}
 
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		Handle: "test-proxy",
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     "Test Proxy",
 			Version:  "1.0.0",
 			Provider: providerUUID,
@@ -101,9 +101,9 @@ func TestGenerateLLMProxyDeploymentYAML_Basic(t *testing.T) {
 func TestGenerateLLMProxyDeploymentYAML_WithResilience(t *testing.T) {
 	providerUUID := uuid.New().String()
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
 	}
@@ -114,13 +114,13 @@ func TestGenerateLLMProxyDeploymentYAML_WithResilience(t *testing.T) {
 
 	timeout := "15s"
 	idleTimeout := "20s"
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		Handle: "test-proxy",
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     "Test Proxy",
 			Version:  "1.0.0",
 			Provider: providerUUID,
-			Resilience: &models.Resilience{
+			Resilience: &gwmodels.Resilience{
 				Timeout:     &timeout,
 				IdleTimeout: &idleTimeout,
 			},
@@ -153,9 +153,9 @@ func TestGenerateLLMProxyDeploymentYAML_WithResilience(t *testing.T) {
 func TestGenerateLLMProxyDeploymentYAML_NoResilienceOmitsField(t *testing.T) {
 	providerUUID := uuid.New().String()
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
 	}
@@ -164,9 +164,9 @@ func TestGenerateLLMProxyDeploymentYAML_NoResilienceOmitsField(t *testing.T) {
 		providerRepo: providerRepoMock(mockProvider, nil),
 	}
 
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		Handle: "test-proxy",
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     "Test Proxy",
 			Version:  "1.0.0",
 			Provider: providerUUID,
@@ -194,9 +194,9 @@ func TestGenerateLLMProxyDeploymentYAML_WithContext(t *testing.T) {
 	context := "/custom-context"
 	vhost := "api.example.com"
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "provider-handle",
 		},
 	}
@@ -205,9 +205,9 @@ func TestGenerateLLMProxyDeploymentYAML_WithContext(t *testing.T) {
 		providerRepo: providerRepoMock(mockProvider, nil),
 	}
 
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		Handle: "test-proxy",
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     "Test Proxy",
 			Version:  "1.0.0",
 			Provider: providerUUID,
@@ -238,9 +238,9 @@ func TestGenerateLLMProxyDeploymentYAML_WithContext(t *testing.T) {
 func TestGenerateLLMProxyDeploymentYAML_WithSecurityAPIKey(t *testing.T) {
 	providerUUID := uuid.New().String()
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "provider-handle",
 		},
 	}
@@ -250,15 +250,15 @@ func TestGenerateLLMProxyDeploymentYAML_WithSecurityAPIKey(t *testing.T) {
 	}
 
 	enabled := true
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		Handle: "test-proxy",
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     "Test Proxy",
 			Version:  "1.0.0",
 			Provider: providerUUID,
-			Security: &models.SecurityConfig{
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &enabled,
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: &enabled,
 					Key:     "x-api-key",
 					In:      "header",
@@ -312,9 +312,9 @@ func TestGenerateLLMProxyDeploymentYAML_WithSecurityAPIKey(t *testing.T) {
 func TestGenerateLLMProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 	providerUUID := uuid.New().String()
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "provider-handle",
 		},
 	}
@@ -325,15 +325,15 @@ func TestGenerateLLMProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		security    *models.SecurityConfig
+		security    *gwmodels.SecurityConfig
 		expectError bool
 		errorMsg    string
 	}{
 		{
 			name: "empty API key",
-			security: &models.SecurityConfig{
+			security: &gwmodels.SecurityConfig{
 				Enabled: boolPtr(true),
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: boolPtr(true),
 					Key:     "",
 					In:      "header",
@@ -344,9 +344,9 @@ func TestGenerateLLMProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 		},
 		{
 			name: "invalid in parameter",
-			security: &models.SecurityConfig{
+			security: &gwmodels.SecurityConfig{
 				Enabled: boolPtr(true),
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: boolPtr(true),
 					Key:     "x-api-key",
 					In:      "body",
@@ -357,9 +357,9 @@ func TestGenerateLLMProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 		},
 		{
 			name: "valid header",
-			security: &models.SecurityConfig{
+			security: &gwmodels.SecurityConfig{
 				Enabled: boolPtr(true),
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: boolPtr(true),
 					Key:     "x-api-key",
 					In:      "header",
@@ -369,9 +369,9 @@ func TestGenerateLLMProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 		},
 		{
 			name: "valid query",
-			security: &models.SecurityConfig{
+			security: &gwmodels.SecurityConfig{
 				Enabled: boolPtr(true),
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: boolPtr(true),
 					Key:     "apiKey",
 					In:      "query",
@@ -383,9 +383,9 @@ func TestGenerateLLMProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			proxy := &models.LLMProxy{
+			proxy := &gwmodels.LLMProxy{
 				Handle: "test-proxy",
-				Configuration: models.LLMProxyConfig{
+				Configuration: gwmodels.LLMProxyConfig{
 					Name:     "Test Proxy",
 					Version:  "1.0.0",
 					Provider: providerUUID,
@@ -414,9 +414,9 @@ func TestGenerateLLMProxyDeploymentYAML_SecurityValidation(t *testing.T) {
 func TestGenerateLLMProxyDeploymentYAML_WithPolicies(t *testing.T) {
 	providerUUID := uuid.New().String()
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "provider-handle",
 		},
 	}
@@ -425,17 +425,17 @@ func TestGenerateLLMProxyDeploymentYAML_WithPolicies(t *testing.T) {
 		providerRepo: providerRepoMock(mockProvider, nil),
 	}
 
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		Handle: "test-proxy",
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     "Test Proxy",
 			Version:  "1.0.0",
 			Provider: providerUUID,
-			Policies: []models.LLMPolicy{
+			Policies: []gwmodels.LLMPolicy{
 				{
 					Name:    "rate-limit",
 					Version: "1.2.3", // Should be normalized to v1
-					Paths: []models.LLMPolicyPath{
+					Paths: []gwmodels.LLMPolicyPath{
 						{
 							Path:    "/api/*",
 							Methods: []string{"GET", "POST"},
@@ -448,7 +448,7 @@ func TestGenerateLLMProxyDeploymentYAML_WithPolicies(t *testing.T) {
 				{
 					Name:    "custom-policy",
 					Version: "v2.0.0", // Should be normalized to v2
-					Paths: []models.LLMPolicyPath{
+					Paths: []gwmodels.LLMPolicyPath{
 						{
 							Path:    "/*",
 							Methods: []string{"*"},
@@ -499,9 +499,9 @@ func TestGenerateLLMProxyDeploymentYAML_WithPolicies(t *testing.T) {
 func TestGenerateLLMProxyDeploymentYAML_WithUpstreamAuth(t *testing.T) {
 	providerUUID := uuid.New().String()
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "provider-handle",
 		},
 	}
@@ -514,13 +514,13 @@ func TestGenerateLLMProxyDeploymentYAML_WithUpstreamAuth(t *testing.T) {
 	header := "Authorization"
 	value := "Bearer token123"
 
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		Handle: "test-proxy",
-		Configuration: models.LLMProxyConfig{
+		Configuration: gwmodels.LLMProxyConfig{
 			Name:     "Test Proxy",
 			Version:  "1.0.0",
 			Provider: providerUUID,
-			UpstreamAuth: &models.UpstreamAuth{
+			UpstreamAuth: &gwmodels.UpstreamAuth{
 				Type:   &authType,
 				Header: &header,
 				Value:  &value,
@@ -556,9 +556,9 @@ func TestGenerateLLMProxyDeploymentYAML_WithUpstreamAuth(t *testing.T) {
 func TestGenerateLLMProxyDeploymentYAML_ValidationErrors(t *testing.T) {
 	providerUUID := uuid.New().String()
 
-	mockProvider := &models.LLMProvider{
+	mockProvider := &gwmodels.LLMProvider{
 		UUID: uuid.MustParse(providerUUID),
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "provider-handle",
 		},
 	}
@@ -566,7 +566,7 @@ func TestGenerateLLMProxyDeploymentYAML_ValidationErrors(t *testing.T) {
 	tests := []struct {
 		name        string
 		service     *LLMProxyDeploymentService
-		proxy       *models.LLMProxy
+		proxy       *gwmodels.LLMProxy
 		expectError bool
 		errorMsg    string
 	}{
@@ -584,9 +584,9 @@ func TestGenerateLLMProxyDeploymentYAML_ValidationErrors(t *testing.T) {
 			service: &LLMProxyDeploymentService{
 				providerRepo: providerRepoMock(mockProvider, nil),
 			},
-			proxy: &models.LLMProxy{
+			proxy: &gwmodels.LLMProxy{
 				Handle: "test-proxy",
-				Configuration: models.LLMProxyConfig{
+				Configuration: gwmodels.LLMProxyConfig{
 					Name:     "Test Proxy",
 					Version:  "1.0.0",
 					Provider: "",
@@ -599,9 +599,9 @@ func TestGenerateLLMProxyDeploymentYAML_ValidationErrors(t *testing.T) {
 			service: &LLMProxyDeploymentService{
 				providerRepo: providerRepoMock(nil, nil),
 			},
-			proxy: &models.LLMProxy{
+			proxy: &gwmodels.LLMProxy{
 				Handle: "test-proxy",
-				Configuration: models.LLMProxyConfig{
+				Configuration: gwmodels.LLMProxyConfig{
 					Name:     "Test Proxy",
 					Version:  "1.0.0",
 					Provider: providerUUID,
@@ -614,9 +614,9 @@ func TestGenerateLLMProxyDeploymentYAML_ValidationErrors(t *testing.T) {
 			service: &LLMProxyDeploymentService{
 				providerRepo: providerRepoMock(nil, errors.New("db error")),
 			},
-			proxy: &models.LLMProxy{
+			proxy: &gwmodels.LLMProxy{
 				Handle: "test-proxy",
-				Configuration: models.LLMProxyConfig{
+				Configuration: gwmodels.LLMProxyConfig{
 					Name:     "Test Proxy",
 					Version:  "1.0.0",
 					Provider: providerUUID,

@@ -22,8 +22,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // TestConfigUpdateRecordNamesTheConfigWithoutARename is the regression for a
@@ -38,10 +38,10 @@ func TestConfigUpdateRecordNamesTheConfigWithoutARename(t *testing.T) {
 
 	svc := &agentConfigurationService{logger: discardLogger()}
 	configUUID := uuid.New()
-	existing := &models.AgentConfiguration{UUID: configUUID, Name: "production-llm"}
+	existing := &gwmodels.AgentConfiguration{UUID: configUUID, Name: "production-llm"}
 
 	svc.recordConfigUpdate(ctx, configUUID, "ou-1", "proj", "agent",
-		existing, models.UpdateAgentModelConfigRequest{Description: "new description"})
+		existing, gwmodels.UpdateAgentModelConfigRequest{Description: "new description"})
 
 	flush()
 
@@ -62,10 +62,10 @@ func TestConfigUpdateRecordPrefersTheNewNameOnRename(t *testing.T) {
 
 	svc := &agentConfigurationService{logger: discardLogger()}
 	configUUID := uuid.New()
-	existing := &models.AgentConfiguration{UUID: configUUID, Name: "old-name"}
+	existing := &gwmodels.AgentConfiguration{UUID: configUUID, Name: "old-name"}
 
 	svc.recordConfigUpdate(ctx, configUUID, "ou-1", "proj", "agent",
-		existing, models.UpdateAgentModelConfigRequest{Name: "new-name"})
+		existing, gwmodels.UpdateAgentModelConfigRequest{Name: "new-name"})
 
 	flush()
 
@@ -83,14 +83,14 @@ func TestConfigUpdateRecordListsEveryChangedField(t *testing.T) {
 
 	svc := &agentConfigurationService{logger: discardLogger()}
 	configUUID := uuid.New()
-	existing := &models.AgentConfiguration{UUID: configUUID, Name: "cfg"}
+	existing := &gwmodels.AgentConfiguration{UUID: configUUID, Name: "cfg"}
 
 	svc.recordConfigUpdate(ctx, configUUID, "ou-1", "proj", "agent", existing,
-		models.UpdateAgentModelConfigRequest{
+		gwmodels.UpdateAgentModelConfigRequest{
 			Name:                 "cfg2",
 			Description:          "d",
-			EnvMappings:          map[string]models.EnvModelConfigRequest{},
-			EnvironmentVariables: []models.EnvironmentVariableConfig{{}},
+			EnvMappings:          map[string]gwmodels.EnvModelConfigRequest{},
+			EnvironmentVariables: []gwmodels.EnvironmentVariableConfig{{}},
 		})
 
 	flush()
@@ -111,7 +111,7 @@ func TestConfigUpdateRecordSurvivesAMissingExistingConfig(t *testing.T) {
 	svc := &agentConfigurationService{logger: discardLogger()}
 	require.NotPanics(t, func() {
 		svc.recordConfigUpdate(ctx, uuid.New(), "ou-1", "proj", "agent",
-			nil, models.UpdateAgentModelConfigRequest{Description: "d"})
+			nil, gwmodels.UpdateAgentModelConfigRequest{Description: "d"})
 	})
 
 	flush()

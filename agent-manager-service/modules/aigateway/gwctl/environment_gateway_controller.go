@@ -22,7 +22,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -67,7 +67,7 @@ func (c *EnvironmentGatewayController) GetEnvironmentGateways(w http.ResponseWri
 }
 
 // convertToSpecGatewayResponse converts internal gateway response to spec response
-func convertToSpecGatewayResponse(gw *models.GatewayResponse) gwspec.GatewayResponse {
+func convertToSpecGatewayResponse(gw *gwmodels.GatewayResponse) gwspec.GatewayResponse {
 	response := gwspec.GatewayResponse{
 		Uuid:        gw.UUID,
 		Name:        gw.Name,

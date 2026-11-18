@@ -23,13 +23,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // proxyWithEndpoints builds a source proxy whose endpoints are each bound to one
 // environment, so resolveMCPEndpointForEnv has a deterministic graph to walk.
-func proxyWithEndpoints(endpoints ...models.MCPProxyEndpoint) *models.MCPProxy {
-	return &models.MCPProxy{UUID: uuid.New(), Endpoints: endpoints}
+func proxyWithEndpoints(endpoints ...gwmodels.MCPProxyEndpoint) *gwmodels.MCPProxy {
+	return &gwmodels.MCPProxy{UUID: uuid.New(), Endpoints: endpoints}
 }
 
 func TestResolveMCPEndpointForEnv_ReturnsBoundEndpoint(t *testing.T) {
@@ -39,20 +39,20 @@ func TestResolveMCPEndpointForEnv_ReturnsBoundEndpoint(t *testing.T) {
 	upstreamA := "https://a.example.com/mcp"
 
 	proxy := proxyWithEndpoints(
-		models.MCPProxyEndpoint{
+		gwmodels.MCPProxyEndpoint{
 			UUID:   uuid.New(),
 			Handle: "primary",
-			Configuration: models.MCPEndpointConfig{
-				Upstream: &models.UpstreamEndpoint{URL: upstreamA},
+			Configuration: gwmodels.MCPEndpointConfig{
+				Upstream: &gwmodels.UpstreamEndpoint{URL: upstreamA},
 			},
-			Environments: []models.MCPProxyEndpointEnvironment{
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: envA, ArtifactUUID: artifactA},
 			},
 		},
-		models.MCPProxyEndpoint{
+		gwmodels.MCPProxyEndpoint{
 			UUID:   uuid.New(),
 			Handle: "secondary",
-			Environments: []models.MCPProxyEndpointEnvironment{
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: envB, ArtifactUUID: uuid.New()},
 			},
 		},
@@ -69,9 +69,9 @@ func TestResolveMCPEndpointForEnv_ReturnsBoundEndpoint(t *testing.T) {
 
 func TestResolveMCPEndpointForEnv_NoMatchReturnsNil(t *testing.T) {
 	proxy := proxyWithEndpoints(
-		models.MCPProxyEndpoint{
+		gwmodels.MCPProxyEndpoint{
 			Handle: "primary",
-			Environments: []models.MCPProxyEndpointEnvironment{
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: uuid.New(), ArtifactUUID: uuid.New()},
 			},
 		},
@@ -86,8 +86,8 @@ func TestResolveMCPEndpointForEnv_NilProxyOrEmptyEnv(t *testing.T) {
 	assert.Nil(t, endpoint)
 	assert.Nil(t, ee)
 
-	proxy := proxyWithEndpoints(models.MCPProxyEndpoint{
-		Environments: []models.MCPProxyEndpointEnvironment{{EnvironmentUUID: uuid.New()}},
+	proxy := proxyWithEndpoints(gwmodels.MCPProxyEndpoint{
+		Environments: []gwmodels.MCPProxyEndpointEnvironment{{EnvironmentUUID: uuid.New()}},
 	})
 	endpoint, ee = resolveMCPEndpointForEnv(proxy, "  ")
 	assert.Nil(t, endpoint)
@@ -97,8 +97,8 @@ func TestResolveMCPEndpointForEnv_NilProxyOrEmptyEnv(t *testing.T) {
 func TestMCPProxyEnvArtifactUUID_FromEndpointBinding(t *testing.T) {
 	env := uuid.New()
 	artifact := uuid.New()
-	proxy := proxyWithEndpoints(models.MCPProxyEndpoint{
-		Environments: []models.MCPProxyEndpointEnvironment{
+	proxy := proxyWithEndpoints(gwmodels.MCPProxyEndpoint{
+		Environments: []gwmodels.MCPProxyEndpointEnvironment{
 			{EnvironmentUUID: env, ArtifactUUID: artifact},
 		},
 	})
@@ -108,9 +108,9 @@ func TestMCPProxyEnvArtifactUUID_FromEndpointBinding(t *testing.T) {
 
 func TestMCPProxySecurityForEnv_FromEndpointBinding(t *testing.T) {
 	env := uuid.New()
-	proxy := proxyWithEndpoints(models.MCPProxyEndpoint{
-		Configuration: models.MCPEndpointConfig{Security: identityEnabledSecurity()},
-		Environments: []models.MCPProxyEndpointEnvironment{
+	proxy := proxyWithEndpoints(gwmodels.MCPProxyEndpoint{
+		Configuration: gwmodels.MCPEndpointConfig{Security: identityEnabledSecurity()},
+		Environments: []gwmodels.MCPProxyEndpointEnvironment{
 			{EnvironmentUUID: env, ArtifactUUID: uuid.New()},
 		},
 	})
@@ -128,32 +128,32 @@ func TestBuildAgentMCPConfigProxy_FlattensBoundEndpoint(t *testing.T) {
 	upstream := "https://tools.example.com/mcp"
 	ctxPath := "/shared"
 
-	source := &models.MCPProxy{
+	source := &gwmodels.MCPProxy{
 		UUID:   uuid.New(),
-		Status: models.StatusCreated,
-		Configuration: models.MCPProxyConfig{
+		Status: gwmodels.StatusCreated,
+		Configuration: gwmodels.MCPProxyConfig{
 			Version: "v1.0",
 			Context: &ctxPath,
 		},
-		Endpoints: []models.MCPProxyEndpoint{
+		Endpoints: []gwmodels.MCPProxyEndpoint{
 			{
 				Handle: "primary",
-				Configuration: models.MCPEndpointConfig{
-					Upstream: &models.UpstreamEndpoint{URL: upstream},
+				Configuration: gwmodels.MCPEndpointConfig{
+					Upstream: &gwmodels.UpstreamEndpoint{URL: upstream},
 				},
-				Environments: []models.MCPProxyEndpointEnvironment{
+				Environments: []gwmodels.MCPProxyEndpointEnvironment{
 					{EnvironmentUUID: env, ArtifactUUID: uuid.New()},
 				},
 			},
 		},
 	}
-	mapping := &models.EnvAgentMCPMapping{
+	mapping := &gwmodels.EnvAgentMCPMapping{
 		EnvironmentUUID: env,
 		MCPProxyUUID:    source.UUID,
 		ArtifactUUID:    mappingArtifact,
 	}
 
-	out := buildAgentMCPConfigProxy(&models.AgentConfiguration{}, mapping, source, "dev", "org", "handle")
+	out := buildAgentMCPConfigProxy(&gwmodels.AgentConfiguration{}, mapping, source, "dev", "org", "handle")
 	require.NotNil(t, out.Configuration.Upstream.Main)
 	assert.Equal(t, upstream, out.Configuration.Upstream.Main.URL)
 	assert.Equal(t, mappingArtifact, out.UUID)
@@ -161,12 +161,12 @@ func TestBuildAgentMCPConfigProxy_FlattensBoundEndpoint(t *testing.T) {
 }
 
 func TestBuildAgentMCPConfigProxy_NoEndpointLeavesUpstreamEmpty(t *testing.T) {
-	source := &models.MCPProxy{UUID: uuid.New(), Configuration: models.MCPProxyConfig{Version: "v1.0"}}
-	mapping := &models.EnvAgentMCPMapping{
+	source := &gwmodels.MCPProxy{UUID: uuid.New(), Configuration: gwmodels.MCPProxyConfig{Version: "v1.0"}}
+	mapping := &gwmodels.EnvAgentMCPMapping{
 		EnvironmentUUID: uuid.New(),
 		MCPProxyUUID:    source.UUID,
 		ArtifactUUID:    uuid.New(),
 	}
-	out := buildAgentMCPConfigProxy(&models.AgentConfiguration{}, mapping, source, "dev", "org", "handle")
+	out := buildAgentMCPConfigProxy(&gwmodels.AgentConfiguration{}, mapping, source, "dev", "org", "handle")
 	assert.Nil(t, out.Configuration.Upstream.Main)
 }

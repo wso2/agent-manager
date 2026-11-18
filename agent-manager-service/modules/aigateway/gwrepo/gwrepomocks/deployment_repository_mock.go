@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -20,25 +20,25 @@ import (
 //
 //		// make and configure a mocked gwrepo.DeploymentRepository
 //		mockedDeploymentRepository := &DeploymentRepositoryMock{
-//			AbandonRenderFunc: func(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender) (bool, error) {
+//			AbandonRenderFunc: func(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender) (bool, error) {
 //				panic("mock out the AbandonRender method")
 //			},
-//			ApplyAckFunc: func(ctx context.Context, gatewayID string, ack models.DeploymentAck, afterLive gwrepo.AfterLiveFunc) (bool, error) {
+//			ApplyAckFunc: func(ctx context.Context, gatewayID string, ack gwmodels.DeploymentAck, afterLive gwrepo.AfterLiveFunc) (bool, error) {
 //				panic("mock out the ApplyAck method")
 //			},
-//			BeginUndeployFunc: func(ctx context.Context, tx *gorm.DB, placement models.Placement) (bool, error) {
+//			BeginUndeployFunc: func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement) (bool, error) {
 //				panic("mock out the BeginUndeploy method")
 //			},
-//			ClaimDueRendersFunc: func(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]models.ClaimedRender, error) {
+//			ClaimDueRendersFunc: func(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]gwmodels.ClaimedRender, error) {
 //				panic("mock out the ClaimDueRenders method")
 //			},
-//			ClaimDueRendersOfFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, now time.Time, lease time.Duration) ([]models.ClaimedRender, error) {
+//			ClaimDueRendersOfFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, now time.Time, lease time.Duration) ([]gwmodels.ClaimedRender, error) {
 //				panic("mock out the ClaimDueRendersOf method")
 //			},
-//			CompleteRenderFunc: func(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender, deployment *models.Deployment) error {
+//			CompleteRenderFunc: func(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender, deployment *gwmodels.Deployment) error {
 //				panic("mock out the CompleteRender method")
 //			},
-//			CreateWithLimitEnforcementFunc: func(deployment *models.Deployment, hardLimit int) error {
+//			CreateWithLimitEnforcementFunc: func(deployment *gwmodels.Deployment, hardLimit int) error {
 //				panic("mock out the CreateWithLimitEnforcement method")
 //			},
 //			DeleteFunc: func(deploymentID string, artifactUUID string, orgUUID string) error {
@@ -50,34 +50,34 @@ import (
 //			FailStaleTransitionalFunc: func(ctx context.Context, olderThan time.Time) (int64, error) {
 //				panic("mock out the FailStaleTransitional method")
 //			},
-//			GetDeploymentsWithStateFunc: func(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error) {
+//			GetDeploymentsWithStateFunc: func(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*gwmodels.Deployment, error) {
 //				panic("mock out the GetDeploymentsWithState method")
 //			},
-//			GetPullableFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
+//			GetPullableFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*gwmodels.Deployment, error) {
 //				panic("mock out the GetPullable method")
 //			},
-//			GetStatusRecordFunc: func(ctx context.Context, placement models.Placement) (*models.DeploymentStatusRecord, error) {
+//			GetStatusRecordFunc: func(ctx context.Context, placement gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error) {
 //				panic("mock out the GetStatusRecord method")
 //			},
-//			GetWithContentFunc: func(deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error) {
+//			GetWithContentFunc: func(deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error) {
 //				panic("mock out the GetWithContent method")
 //			},
-//			GetWithStateFunc: func(deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error) {
+//			GetWithStateFunc: func(deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error) {
 //				panic("mock out the GetWithState method")
 //			},
-//			GetWithStateCtxFunc: func(ctx context.Context, deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error) {
+//			GetWithStateCtxFunc: func(ctx context.Context, deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error) {
 //				panic("mock out the GetWithStateCtx method")
 //			},
-//			InsertPendingFunc: func(ctx context.Context, tx *gorm.DB, placement models.Placement, reason string) (bool, error) {
+//			InsertPendingFunc: func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, reason string) (bool, error) {
 //				panic("mock out the InsertPending method")
 //			},
-//			ListContentForGatewayFunc: func(ctx context.Context, ouID string, gatewayID string, deploymentIDs []uuid.UUID) ([]models.GatewayDeploymentContent, error) {
+//			ListContentForGatewayFunc: func(ctx context.Context, ouID string, gatewayID string, deploymentIDs []uuid.UUID) ([]gwmodels.GatewayDeploymentContent, error) {
 //				panic("mock out the ListContentForGateway method")
 //			},
-//			ListDeployedForDriftFunc: func(ctx context.Context, kind string, afterKey string, limit int) ([]models.Placement, error) {
+//			ListDeployedForDriftFunc: func(ctx context.Context, kind string, afterKey string, limit int) ([]gwmodels.Placement, error) {
 //				panic("mock out the ListDeployedForDrift method")
 //			},
-//			ListForGatewaySyncFunc: func(ctx context.Context, ouID string, gatewayID string) ([]models.GatewaySyncRow, error) {
+//			ListForGatewaySyncFunc: func(ctx context.Context, ouID string, gatewayID string) ([]gwmodels.GatewaySyncRow, error) {
 //				panic("mock out the ListForGatewaySync method")
 //			},
 //			LockEnvironmentMappingFunc: func(ctx context.Context, tx *gorm.DB, gatewayUUID uuid.UUID, environmentUUID uuid.UUID) (bool, error) {
@@ -92,19 +92,19 @@ import (
 //			QueueRenderFunc: func(ctx context.Context, tx *gorm.DB, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, reason string, scope gwrepo.QueueScope) (int64, error) {
 //				panic("mock out the QueueRender method")
 //			},
-//			RecordRenderOutcomeFunc: func(ctx context.Context, claim models.ClaimedRender, outcome gwrepo.RenderOutcome) error {
+//			RecordRenderOutcomeFunc: func(ctx context.Context, claim gwmodels.ClaimedRender, outcome gwrepo.RenderOutcome) error {
 //				panic("mock out the RecordRenderOutcome method")
 //			},
 //			SentGatewaysFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]string, error) {
 //				panic("mock out the SentGateways method")
 //			},
-//			StartDeployFunc: func(ctx context.Context, tx *gorm.DB, placement models.Placement, deployment *models.Deployment) error {
+//			StartDeployFunc: func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, deployment *gwmodels.Deployment) error {
 //				panic("mock out the StartDeploy method")
 //			},
-//			StartRestoreFunc: func(ctx context.Context, tx *gorm.DB, placement models.Placement, deploymentID uuid.UUID) error {
+//			StartRestoreFunc: func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, deploymentID uuid.UUID) error {
 //				panic("mock out the StartRestore method")
 //			},
-//			StatusRecordsFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+//			StatusRecordsFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 //				panic("mock out the StatusRecords method")
 //			},
 //			WithTxFunc: func(tx *gorm.DB) gwrepo.DeploymentRepository {
@@ -118,25 +118,25 @@ import (
 //	}
 type DeploymentRepositoryMock struct {
 	// AbandonRenderFunc mocks the AbandonRender method.
-	AbandonRenderFunc func(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender) (bool, error)
+	AbandonRenderFunc func(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender) (bool, error)
 
 	// ApplyAckFunc mocks the ApplyAck method.
-	ApplyAckFunc func(ctx context.Context, gatewayID string, ack models.DeploymentAck, afterLive gwrepo.AfterLiveFunc) (bool, error)
+	ApplyAckFunc func(ctx context.Context, gatewayID string, ack gwmodels.DeploymentAck, afterLive gwrepo.AfterLiveFunc) (bool, error)
 
 	// BeginUndeployFunc mocks the BeginUndeploy method.
-	BeginUndeployFunc func(ctx context.Context, tx *gorm.DB, placement models.Placement) (bool, error)
+	BeginUndeployFunc func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement) (bool, error)
 
 	// ClaimDueRendersFunc mocks the ClaimDueRenders method.
-	ClaimDueRendersFunc func(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]models.ClaimedRender, error)
+	ClaimDueRendersFunc func(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]gwmodels.ClaimedRender, error)
 
 	// ClaimDueRendersOfFunc mocks the ClaimDueRendersOf method.
-	ClaimDueRendersOfFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, now time.Time, lease time.Duration) ([]models.ClaimedRender, error)
+	ClaimDueRendersOfFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, now time.Time, lease time.Duration) ([]gwmodels.ClaimedRender, error)
 
 	// CompleteRenderFunc mocks the CompleteRender method.
-	CompleteRenderFunc func(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender, deployment *models.Deployment) error
+	CompleteRenderFunc func(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender, deployment *gwmodels.Deployment) error
 
 	// CreateWithLimitEnforcementFunc mocks the CreateWithLimitEnforcement method.
-	CreateWithLimitEnforcementFunc func(deployment *models.Deployment, hardLimit int) error
+	CreateWithLimitEnforcementFunc func(deployment *gwmodels.Deployment, hardLimit int) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(deploymentID string, artifactUUID string, orgUUID string) error
@@ -148,34 +148,34 @@ type DeploymentRepositoryMock struct {
 	FailStaleTransitionalFunc func(ctx context.Context, olderThan time.Time) (int64, error)
 
 	// GetDeploymentsWithStateFunc mocks the GetDeploymentsWithState method.
-	GetDeploymentsWithStateFunc func(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error)
+	GetDeploymentsWithStateFunc func(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*gwmodels.Deployment, error)
 
 	// GetPullableFunc mocks the GetPullable method.
-	GetPullableFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error)
+	GetPullableFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*gwmodels.Deployment, error)
 
 	// GetStatusRecordFunc mocks the GetStatusRecord method.
-	GetStatusRecordFunc func(ctx context.Context, placement models.Placement) (*models.DeploymentStatusRecord, error)
+	GetStatusRecordFunc func(ctx context.Context, placement gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error)
 
 	// GetWithContentFunc mocks the GetWithContent method.
-	GetWithContentFunc func(deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error)
+	GetWithContentFunc func(deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error)
 
 	// GetWithStateFunc mocks the GetWithState method.
-	GetWithStateFunc func(deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error)
+	GetWithStateFunc func(deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error)
 
 	// GetWithStateCtxFunc mocks the GetWithStateCtx method.
-	GetWithStateCtxFunc func(ctx context.Context, deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error)
+	GetWithStateCtxFunc func(ctx context.Context, deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error)
 
 	// InsertPendingFunc mocks the InsertPending method.
-	InsertPendingFunc func(ctx context.Context, tx *gorm.DB, placement models.Placement, reason string) (bool, error)
+	InsertPendingFunc func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, reason string) (bool, error)
 
 	// ListContentForGatewayFunc mocks the ListContentForGateway method.
-	ListContentForGatewayFunc func(ctx context.Context, ouID string, gatewayID string, deploymentIDs []uuid.UUID) ([]models.GatewayDeploymentContent, error)
+	ListContentForGatewayFunc func(ctx context.Context, ouID string, gatewayID string, deploymentIDs []uuid.UUID) ([]gwmodels.GatewayDeploymentContent, error)
 
 	// ListDeployedForDriftFunc mocks the ListDeployedForDrift method.
-	ListDeployedForDriftFunc func(ctx context.Context, kind string, afterKey string, limit int) ([]models.Placement, error)
+	ListDeployedForDriftFunc func(ctx context.Context, kind string, afterKey string, limit int) ([]gwmodels.Placement, error)
 
 	// ListForGatewaySyncFunc mocks the ListForGatewaySync method.
-	ListForGatewaySyncFunc func(ctx context.Context, ouID string, gatewayID string) ([]models.GatewaySyncRow, error)
+	ListForGatewaySyncFunc func(ctx context.Context, ouID string, gatewayID string) ([]gwmodels.GatewaySyncRow, error)
 
 	// LockEnvironmentMappingFunc mocks the LockEnvironmentMapping method.
 	LockEnvironmentMappingFunc func(ctx context.Context, tx *gorm.DB, gatewayUUID uuid.UUID, environmentUUID uuid.UUID) (bool, error)
@@ -190,19 +190,19 @@ type DeploymentRepositoryMock struct {
 	QueueRenderFunc func(ctx context.Context, tx *gorm.DB, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, reason string, scope gwrepo.QueueScope) (int64, error)
 
 	// RecordRenderOutcomeFunc mocks the RecordRenderOutcome method.
-	RecordRenderOutcomeFunc func(ctx context.Context, claim models.ClaimedRender, outcome gwrepo.RenderOutcome) error
+	RecordRenderOutcomeFunc func(ctx context.Context, claim gwmodels.ClaimedRender, outcome gwrepo.RenderOutcome) error
 
 	// SentGatewaysFunc mocks the SentGateways method.
 	SentGatewaysFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]string, error)
 
 	// StartDeployFunc mocks the StartDeploy method.
-	StartDeployFunc func(ctx context.Context, tx *gorm.DB, placement models.Placement, deployment *models.Deployment) error
+	StartDeployFunc func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, deployment *gwmodels.Deployment) error
 
 	// StartRestoreFunc mocks the StartRestore method.
-	StartRestoreFunc func(ctx context.Context, tx *gorm.DB, placement models.Placement, deploymentID uuid.UUID) error
+	StartRestoreFunc func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, deploymentID uuid.UUID) error
 
 	// StatusRecordsFunc mocks the StatusRecords method.
-	StatusRecordsFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]models.DeploymentStatusRecord, error)
+	StatusRecordsFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error)
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(tx *gorm.DB) gwrepo.DeploymentRepository
@@ -216,7 +216,7 @@ type DeploymentRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Claim is the claim argument value.
-			Claim models.ClaimedRender
+			Claim gwmodels.ClaimedRender
 		}
 		// ApplyAck holds details about calls to the ApplyAck method.
 		ApplyAck []struct {
@@ -225,7 +225,7 @@ type DeploymentRepositoryMock struct {
 			// GatewayID is the gatewayID argument value.
 			GatewayID string
 			// Ack is the ack argument value.
-			Ack models.DeploymentAck
+			Ack gwmodels.DeploymentAck
 			// AfterLive is the afterLive argument value.
 			AfterLive gwrepo.AfterLiveFunc
 		}
@@ -236,7 +236,7 @@ type DeploymentRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Placement is the placement argument value.
-			Placement models.Placement
+			Placement gwmodels.Placement
 		}
 		// ClaimDueRenders holds details about calls to the ClaimDueRenders method.
 		ClaimDueRenders []struct {
@@ -271,14 +271,14 @@ type DeploymentRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Claim is the claim argument value.
-			Claim models.ClaimedRender
+			Claim gwmodels.ClaimedRender
 			// Deployment is the deployment argument value.
-			Deployment *models.Deployment
+			Deployment *gwmodels.Deployment
 		}
 		// CreateWithLimitEnforcement holds details about calls to the CreateWithLimitEnforcement method.
 		CreateWithLimitEnforcement []struct {
 			// Deployment is the deployment argument value.
-			Deployment *models.Deployment
+			Deployment *gwmodels.Deployment
 			// HardLimit is the hardLimit argument value.
 			HardLimit int
 		}
@@ -336,7 +336,7 @@ type DeploymentRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Placement is the placement argument value.
-			Placement models.Placement
+			Placement gwmodels.Placement
 		}
 		// GetWithContent holds details about calls to the GetWithContent method.
 		GetWithContent []struct {
@@ -374,7 +374,7 @@ type DeploymentRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Placement is the placement argument value.
-			Placement models.Placement
+			Placement gwmodels.Placement
 			// Reason is the reason argument value.
 			Reason string
 		}
@@ -462,7 +462,7 @@ type DeploymentRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Claim is the claim argument value.
-			Claim models.ClaimedRender
+			Claim gwmodels.ClaimedRender
 			// Outcome is the outcome argument value.
 			Outcome gwrepo.RenderOutcome
 		}
@@ -482,9 +482,9 @@ type DeploymentRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Placement is the placement argument value.
-			Placement models.Placement
+			Placement gwmodels.Placement
 			// Deployment is the deployment argument value.
-			Deployment *models.Deployment
+			Deployment *gwmodels.Deployment
 		}
 		// StartRestore holds details about calls to the StartRestore method.
 		StartRestore []struct {
@@ -493,7 +493,7 @@ type DeploymentRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Placement is the placement argument value.
-			Placement models.Placement
+			Placement gwmodels.Placement
 			// DeploymentID is the deploymentID argument value.
 			DeploymentID uuid.UUID
 		}
@@ -545,14 +545,14 @@ type DeploymentRepositoryMock struct {
 }
 
 // AbandonRender calls AbandonRenderFunc.
-func (mock *DeploymentRepositoryMock) AbandonRender(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender) (bool, error) {
+func (mock *DeploymentRepositoryMock) AbandonRender(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender) (bool, error) {
 	if mock.AbandonRenderFunc == nil {
 		panic("DeploymentRepositoryMock.AbandonRenderFunc: method is nil but DeploymentRepository.AbandonRender was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
 		Tx    *gorm.DB
-		Claim models.ClaimedRender
+		Claim gwmodels.ClaimedRender
 	}{
 		Ctx:   ctx,
 		Tx:    tx,
@@ -571,12 +571,12 @@ func (mock *DeploymentRepositoryMock) AbandonRender(ctx context.Context, tx *gor
 func (mock *DeploymentRepositoryMock) AbandonRenderCalls() []struct {
 	Ctx   context.Context
 	Tx    *gorm.DB
-	Claim models.ClaimedRender
+	Claim gwmodels.ClaimedRender
 } {
 	var calls []struct {
 		Ctx   context.Context
 		Tx    *gorm.DB
-		Claim models.ClaimedRender
+		Claim gwmodels.ClaimedRender
 	}
 	mock.lockAbandonRender.RLock()
 	calls = mock.calls.AbandonRender
@@ -585,14 +585,14 @@ func (mock *DeploymentRepositoryMock) AbandonRenderCalls() []struct {
 }
 
 // ApplyAck calls ApplyAckFunc.
-func (mock *DeploymentRepositoryMock) ApplyAck(ctx context.Context, gatewayID string, ack models.DeploymentAck, afterLive gwrepo.AfterLiveFunc) (bool, error) {
+func (mock *DeploymentRepositoryMock) ApplyAck(ctx context.Context, gatewayID string, ack gwmodels.DeploymentAck, afterLive gwrepo.AfterLiveFunc) (bool, error) {
 	if mock.ApplyAckFunc == nil {
 		panic("DeploymentRepositoryMock.ApplyAckFunc: method is nil but DeploymentRepository.ApplyAck was just called")
 	}
 	callInfo := struct {
 		Ctx       context.Context
 		GatewayID string
-		Ack       models.DeploymentAck
+		Ack       gwmodels.DeploymentAck
 		AfterLive gwrepo.AfterLiveFunc
 	}{
 		Ctx:       ctx,
@@ -613,13 +613,13 @@ func (mock *DeploymentRepositoryMock) ApplyAck(ctx context.Context, gatewayID st
 func (mock *DeploymentRepositoryMock) ApplyAckCalls() []struct {
 	Ctx       context.Context
 	GatewayID string
-	Ack       models.DeploymentAck
+	Ack       gwmodels.DeploymentAck
 	AfterLive gwrepo.AfterLiveFunc
 } {
 	var calls []struct {
 		Ctx       context.Context
 		GatewayID string
-		Ack       models.DeploymentAck
+		Ack       gwmodels.DeploymentAck
 		AfterLive gwrepo.AfterLiveFunc
 	}
 	mock.lockApplyAck.RLock()
@@ -629,14 +629,14 @@ func (mock *DeploymentRepositoryMock) ApplyAckCalls() []struct {
 }
 
 // BeginUndeploy calls BeginUndeployFunc.
-func (mock *DeploymentRepositoryMock) BeginUndeploy(ctx context.Context, tx *gorm.DB, placement models.Placement) (bool, error) {
+func (mock *DeploymentRepositoryMock) BeginUndeploy(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement) (bool, error) {
 	if mock.BeginUndeployFunc == nil {
 		panic("DeploymentRepositoryMock.BeginUndeployFunc: method is nil but DeploymentRepository.BeginUndeploy was just called")
 	}
 	callInfo := struct {
 		Ctx       context.Context
 		Tx        *gorm.DB
-		Placement models.Placement
+		Placement gwmodels.Placement
 	}{
 		Ctx:       ctx,
 		Tx:        tx,
@@ -655,12 +655,12 @@ func (mock *DeploymentRepositoryMock) BeginUndeploy(ctx context.Context, tx *gor
 func (mock *DeploymentRepositoryMock) BeginUndeployCalls() []struct {
 	Ctx       context.Context
 	Tx        *gorm.DB
-	Placement models.Placement
+	Placement gwmodels.Placement
 } {
 	var calls []struct {
 		Ctx       context.Context
 		Tx        *gorm.DB
-		Placement models.Placement
+		Placement gwmodels.Placement
 	}
 	mock.lockBeginUndeploy.RLock()
 	calls = mock.calls.BeginUndeploy
@@ -669,7 +669,7 @@ func (mock *DeploymentRepositoryMock) BeginUndeployCalls() []struct {
 }
 
 // ClaimDueRenders calls ClaimDueRendersFunc.
-func (mock *DeploymentRepositoryMock) ClaimDueRenders(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]models.ClaimedRender, error) {
+func (mock *DeploymentRepositoryMock) ClaimDueRenders(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]gwmodels.ClaimedRender, error) {
 	if mock.ClaimDueRendersFunc == nil {
 		panic("DeploymentRepositoryMock.ClaimDueRendersFunc: method is nil but DeploymentRepository.ClaimDueRenders was just called")
 	}
@@ -713,7 +713,7 @@ func (mock *DeploymentRepositoryMock) ClaimDueRendersCalls() []struct {
 }
 
 // ClaimDueRendersOf calls ClaimDueRendersOfFunc.
-func (mock *DeploymentRepositoryMock) ClaimDueRendersOf(ctx context.Context, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, now time.Time, lease time.Duration) ([]models.ClaimedRender, error) {
+func (mock *DeploymentRepositoryMock) ClaimDueRendersOf(ctx context.Context, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, now time.Time, lease time.Duration) ([]gwmodels.ClaimedRender, error) {
 	if mock.ClaimDueRendersOfFunc == nil {
 		panic("DeploymentRepositoryMock.ClaimDueRendersOfFunc: method is nil but DeploymentRepository.ClaimDueRendersOf was just called")
 	}
@@ -765,15 +765,15 @@ func (mock *DeploymentRepositoryMock) ClaimDueRendersOfCalls() []struct {
 }
 
 // CompleteRender calls CompleteRenderFunc.
-func (mock *DeploymentRepositoryMock) CompleteRender(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender, deployment *models.Deployment) error {
+func (mock *DeploymentRepositoryMock) CompleteRender(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender, deployment *gwmodels.Deployment) error {
 	if mock.CompleteRenderFunc == nil {
 		panic("DeploymentRepositoryMock.CompleteRenderFunc: method is nil but DeploymentRepository.CompleteRender was just called")
 	}
 	callInfo := struct {
 		Ctx        context.Context
 		Tx         *gorm.DB
-		Claim      models.ClaimedRender
-		Deployment *models.Deployment
+		Claim      gwmodels.ClaimedRender
+		Deployment *gwmodels.Deployment
 	}{
 		Ctx:        ctx,
 		Tx:         tx,
@@ -793,14 +793,14 @@ func (mock *DeploymentRepositoryMock) CompleteRender(ctx context.Context, tx *go
 func (mock *DeploymentRepositoryMock) CompleteRenderCalls() []struct {
 	Ctx        context.Context
 	Tx         *gorm.DB
-	Claim      models.ClaimedRender
-	Deployment *models.Deployment
+	Claim      gwmodels.ClaimedRender
+	Deployment *gwmodels.Deployment
 } {
 	var calls []struct {
 		Ctx        context.Context
 		Tx         *gorm.DB
-		Claim      models.ClaimedRender
-		Deployment *models.Deployment
+		Claim      gwmodels.ClaimedRender
+		Deployment *gwmodels.Deployment
 	}
 	mock.lockCompleteRender.RLock()
 	calls = mock.calls.CompleteRender
@@ -809,12 +809,12 @@ func (mock *DeploymentRepositoryMock) CompleteRenderCalls() []struct {
 }
 
 // CreateWithLimitEnforcement calls CreateWithLimitEnforcementFunc.
-func (mock *DeploymentRepositoryMock) CreateWithLimitEnforcement(deployment *models.Deployment, hardLimit int) error {
+func (mock *DeploymentRepositoryMock) CreateWithLimitEnforcement(deployment *gwmodels.Deployment, hardLimit int) error {
 	if mock.CreateWithLimitEnforcementFunc == nil {
 		panic("DeploymentRepositoryMock.CreateWithLimitEnforcementFunc: method is nil but DeploymentRepository.CreateWithLimitEnforcement was just called")
 	}
 	callInfo := struct {
-		Deployment *models.Deployment
+		Deployment *gwmodels.Deployment
 		HardLimit  int
 	}{
 		Deployment: deployment,
@@ -831,11 +831,11 @@ func (mock *DeploymentRepositoryMock) CreateWithLimitEnforcement(deployment *mod
 //
 //	len(mockedDeploymentRepository.CreateWithLimitEnforcementCalls())
 func (mock *DeploymentRepositoryMock) CreateWithLimitEnforcementCalls() []struct {
-	Deployment *models.Deployment
+	Deployment *gwmodels.Deployment
 	HardLimit  int
 } {
 	var calls []struct {
-		Deployment *models.Deployment
+		Deployment *gwmodels.Deployment
 		HardLimit  int
 	}
 	mock.lockCreateWithLimitEnforcement.RLock()
@@ -961,7 +961,7 @@ func (mock *DeploymentRepositoryMock) FailStaleTransitionalCalls() []struct {
 }
 
 // GetDeploymentsWithState calls GetDeploymentsWithStateFunc.
-func (mock *DeploymentRepositoryMock) GetDeploymentsWithState(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*models.Deployment, error) {
+func (mock *DeploymentRepositoryMock) GetDeploymentsWithState(artifactUUID string, orgUUID string, gatewayID *string, status *string, maxPerAPIGW int) ([]*gwmodels.Deployment, error) {
 	if mock.GetDeploymentsWithStateFunc == nil {
 		panic("DeploymentRepositoryMock.GetDeploymentsWithStateFunc: method is nil but DeploymentRepository.GetDeploymentsWithState was just called")
 	}
@@ -1009,7 +1009,7 @@ func (mock *DeploymentRepositoryMock) GetDeploymentsWithStateCalls() []struct {
 }
 
 // GetPullable calls GetPullableFunc.
-func (mock *DeploymentRepositoryMock) GetPullable(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
+func (mock *DeploymentRepositoryMock) GetPullable(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*gwmodels.Deployment, error) {
 	if mock.GetPullableFunc == nil {
 		panic("DeploymentRepositoryMock.GetPullableFunc: method is nil but DeploymentRepository.GetPullable was just called")
 	}
@@ -1053,13 +1053,13 @@ func (mock *DeploymentRepositoryMock) GetPullableCalls() []struct {
 }
 
 // GetStatusRecord calls GetStatusRecordFunc.
-func (mock *DeploymentRepositoryMock) GetStatusRecord(ctx context.Context, placement models.Placement) (*models.DeploymentStatusRecord, error) {
+func (mock *DeploymentRepositoryMock) GetStatusRecord(ctx context.Context, placement gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error) {
 	if mock.GetStatusRecordFunc == nil {
 		panic("DeploymentRepositoryMock.GetStatusRecordFunc: method is nil but DeploymentRepository.GetStatusRecord was just called")
 	}
 	callInfo := struct {
 		Ctx       context.Context
-		Placement models.Placement
+		Placement gwmodels.Placement
 	}{
 		Ctx:       ctx,
 		Placement: placement,
@@ -1076,11 +1076,11 @@ func (mock *DeploymentRepositoryMock) GetStatusRecord(ctx context.Context, place
 //	len(mockedDeploymentRepository.GetStatusRecordCalls())
 func (mock *DeploymentRepositoryMock) GetStatusRecordCalls() []struct {
 	Ctx       context.Context
-	Placement models.Placement
+	Placement gwmodels.Placement
 } {
 	var calls []struct {
 		Ctx       context.Context
-		Placement models.Placement
+		Placement gwmodels.Placement
 	}
 	mock.lockGetStatusRecord.RLock()
 	calls = mock.calls.GetStatusRecord
@@ -1089,7 +1089,7 @@ func (mock *DeploymentRepositoryMock) GetStatusRecordCalls() []struct {
 }
 
 // GetWithContent calls GetWithContentFunc.
-func (mock *DeploymentRepositoryMock) GetWithContent(deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error) {
+func (mock *DeploymentRepositoryMock) GetWithContent(deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error) {
 	if mock.GetWithContentFunc == nil {
 		panic("DeploymentRepositoryMock.GetWithContentFunc: method is nil but DeploymentRepository.GetWithContent was just called")
 	}
@@ -1129,7 +1129,7 @@ func (mock *DeploymentRepositoryMock) GetWithContentCalls() []struct {
 }
 
 // GetWithState calls GetWithStateFunc.
-func (mock *DeploymentRepositoryMock) GetWithState(deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error) {
+func (mock *DeploymentRepositoryMock) GetWithState(deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error) {
 	if mock.GetWithStateFunc == nil {
 		panic("DeploymentRepositoryMock.GetWithStateFunc: method is nil but DeploymentRepository.GetWithState was just called")
 	}
@@ -1169,7 +1169,7 @@ func (mock *DeploymentRepositoryMock) GetWithStateCalls() []struct {
 }
 
 // GetWithStateCtx calls GetWithStateCtxFunc.
-func (mock *DeploymentRepositoryMock) GetWithStateCtx(ctx context.Context, deploymentID string, artifactUUID string, orgUUID string) (*models.Deployment, error) {
+func (mock *DeploymentRepositoryMock) GetWithStateCtx(ctx context.Context, deploymentID string, artifactUUID string, orgUUID string) (*gwmodels.Deployment, error) {
 	if mock.GetWithStateCtxFunc == nil {
 		panic("DeploymentRepositoryMock.GetWithStateCtxFunc: method is nil but DeploymentRepository.GetWithStateCtx was just called")
 	}
@@ -1213,14 +1213,14 @@ func (mock *DeploymentRepositoryMock) GetWithStateCtxCalls() []struct {
 }
 
 // InsertPending calls InsertPendingFunc.
-func (mock *DeploymentRepositoryMock) InsertPending(ctx context.Context, tx *gorm.DB, placement models.Placement, reason string) (bool, error) {
+func (mock *DeploymentRepositoryMock) InsertPending(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, reason string) (bool, error) {
 	if mock.InsertPendingFunc == nil {
 		panic("DeploymentRepositoryMock.InsertPendingFunc: method is nil but DeploymentRepository.InsertPending was just called")
 	}
 	callInfo := struct {
 		Ctx       context.Context
 		Tx        *gorm.DB
-		Placement models.Placement
+		Placement gwmodels.Placement
 		Reason    string
 	}{
 		Ctx:       ctx,
@@ -1241,13 +1241,13 @@ func (mock *DeploymentRepositoryMock) InsertPending(ctx context.Context, tx *gor
 func (mock *DeploymentRepositoryMock) InsertPendingCalls() []struct {
 	Ctx       context.Context
 	Tx        *gorm.DB
-	Placement models.Placement
+	Placement gwmodels.Placement
 	Reason    string
 } {
 	var calls []struct {
 		Ctx       context.Context
 		Tx        *gorm.DB
-		Placement models.Placement
+		Placement gwmodels.Placement
 		Reason    string
 	}
 	mock.lockInsertPending.RLock()
@@ -1257,7 +1257,7 @@ func (mock *DeploymentRepositoryMock) InsertPendingCalls() []struct {
 }
 
 // ListContentForGateway calls ListContentForGatewayFunc.
-func (mock *DeploymentRepositoryMock) ListContentForGateway(ctx context.Context, ouID string, gatewayID string, deploymentIDs []uuid.UUID) ([]models.GatewayDeploymentContent, error) {
+func (mock *DeploymentRepositoryMock) ListContentForGateway(ctx context.Context, ouID string, gatewayID string, deploymentIDs []uuid.UUID) ([]gwmodels.GatewayDeploymentContent, error) {
 	if mock.ListContentForGatewayFunc == nil {
 		panic("DeploymentRepositoryMock.ListContentForGatewayFunc: method is nil but DeploymentRepository.ListContentForGateway was just called")
 	}
@@ -1301,7 +1301,7 @@ func (mock *DeploymentRepositoryMock) ListContentForGatewayCalls() []struct {
 }
 
 // ListDeployedForDrift calls ListDeployedForDriftFunc.
-func (mock *DeploymentRepositoryMock) ListDeployedForDrift(ctx context.Context, kind string, afterKey string, limit int) ([]models.Placement, error) {
+func (mock *DeploymentRepositoryMock) ListDeployedForDrift(ctx context.Context, kind string, afterKey string, limit int) ([]gwmodels.Placement, error) {
 	if mock.ListDeployedForDriftFunc == nil {
 		panic("DeploymentRepositoryMock.ListDeployedForDriftFunc: method is nil but DeploymentRepository.ListDeployedForDrift was just called")
 	}
@@ -1345,7 +1345,7 @@ func (mock *DeploymentRepositoryMock) ListDeployedForDriftCalls() []struct {
 }
 
 // ListForGatewaySync calls ListForGatewaySyncFunc.
-func (mock *DeploymentRepositoryMock) ListForGatewaySync(ctx context.Context, ouID string, gatewayID string) ([]models.GatewaySyncRow, error) {
+func (mock *DeploymentRepositoryMock) ListForGatewaySync(ctx context.Context, ouID string, gatewayID string) ([]gwmodels.GatewaySyncRow, error) {
 	if mock.ListForGatewaySyncFunc == nil {
 		panic("DeploymentRepositoryMock.ListForGatewaySyncFunc: method is nil but DeploymentRepository.ListForGatewaySync was just called")
 	}
@@ -1569,13 +1569,13 @@ func (mock *DeploymentRepositoryMock) QueueRenderCalls() []struct {
 }
 
 // RecordRenderOutcome calls RecordRenderOutcomeFunc.
-func (mock *DeploymentRepositoryMock) RecordRenderOutcome(ctx context.Context, claim models.ClaimedRender, outcome gwrepo.RenderOutcome) error {
+func (mock *DeploymentRepositoryMock) RecordRenderOutcome(ctx context.Context, claim gwmodels.ClaimedRender, outcome gwrepo.RenderOutcome) error {
 	if mock.RecordRenderOutcomeFunc == nil {
 		panic("DeploymentRepositoryMock.RecordRenderOutcomeFunc: method is nil but DeploymentRepository.RecordRenderOutcome was just called")
 	}
 	callInfo := struct {
 		Ctx     context.Context
-		Claim   models.ClaimedRender
+		Claim   gwmodels.ClaimedRender
 		Outcome gwrepo.RenderOutcome
 	}{
 		Ctx:     ctx,
@@ -1594,12 +1594,12 @@ func (mock *DeploymentRepositoryMock) RecordRenderOutcome(ctx context.Context, c
 //	len(mockedDeploymentRepository.RecordRenderOutcomeCalls())
 func (mock *DeploymentRepositoryMock) RecordRenderOutcomeCalls() []struct {
 	Ctx     context.Context
-	Claim   models.ClaimedRender
+	Claim   gwmodels.ClaimedRender
 	Outcome gwrepo.RenderOutcome
 } {
 	var calls []struct {
 		Ctx     context.Context
-		Claim   models.ClaimedRender
+		Claim   gwmodels.ClaimedRender
 		Outcome gwrepo.RenderOutcome
 	}
 	mock.lockRecordRenderOutcome.RLock()
@@ -1649,15 +1649,15 @@ func (mock *DeploymentRepositoryMock) SentGatewaysCalls() []struct {
 }
 
 // StartDeploy calls StartDeployFunc.
-func (mock *DeploymentRepositoryMock) StartDeploy(ctx context.Context, tx *gorm.DB, placement models.Placement, deployment *models.Deployment) error {
+func (mock *DeploymentRepositoryMock) StartDeploy(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, deployment *gwmodels.Deployment) error {
 	if mock.StartDeployFunc == nil {
 		panic("DeploymentRepositoryMock.StartDeployFunc: method is nil but DeploymentRepository.StartDeploy was just called")
 	}
 	callInfo := struct {
 		Ctx        context.Context
 		Tx         *gorm.DB
-		Placement  models.Placement
-		Deployment *models.Deployment
+		Placement  gwmodels.Placement
+		Deployment *gwmodels.Deployment
 	}{
 		Ctx:        ctx,
 		Tx:         tx,
@@ -1677,14 +1677,14 @@ func (mock *DeploymentRepositoryMock) StartDeploy(ctx context.Context, tx *gorm.
 func (mock *DeploymentRepositoryMock) StartDeployCalls() []struct {
 	Ctx        context.Context
 	Tx         *gorm.DB
-	Placement  models.Placement
-	Deployment *models.Deployment
+	Placement  gwmodels.Placement
+	Deployment *gwmodels.Deployment
 } {
 	var calls []struct {
 		Ctx        context.Context
 		Tx         *gorm.DB
-		Placement  models.Placement
-		Deployment *models.Deployment
+		Placement  gwmodels.Placement
+		Deployment *gwmodels.Deployment
 	}
 	mock.lockStartDeploy.RLock()
 	calls = mock.calls.StartDeploy
@@ -1693,14 +1693,14 @@ func (mock *DeploymentRepositoryMock) StartDeployCalls() []struct {
 }
 
 // StartRestore calls StartRestoreFunc.
-func (mock *DeploymentRepositoryMock) StartRestore(ctx context.Context, tx *gorm.DB, placement models.Placement, deploymentID uuid.UUID) error {
+func (mock *DeploymentRepositoryMock) StartRestore(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, deploymentID uuid.UUID) error {
 	if mock.StartRestoreFunc == nil {
 		panic("DeploymentRepositoryMock.StartRestoreFunc: method is nil but DeploymentRepository.StartRestore was just called")
 	}
 	callInfo := struct {
 		Ctx          context.Context
 		Tx           *gorm.DB
-		Placement    models.Placement
+		Placement    gwmodels.Placement
 		DeploymentID uuid.UUID
 	}{
 		Ctx:          ctx,
@@ -1721,13 +1721,13 @@ func (mock *DeploymentRepositoryMock) StartRestore(ctx context.Context, tx *gorm
 func (mock *DeploymentRepositoryMock) StartRestoreCalls() []struct {
 	Ctx          context.Context
 	Tx           *gorm.DB
-	Placement    models.Placement
+	Placement    gwmodels.Placement
 	DeploymentID uuid.UUID
 } {
 	var calls []struct {
 		Ctx          context.Context
 		Tx           *gorm.DB
-		Placement    models.Placement
+		Placement    gwmodels.Placement
 		DeploymentID uuid.UUID
 	}
 	mock.lockStartRestore.RLock()
@@ -1737,7 +1737,7 @@ func (mock *DeploymentRepositoryMock) StartRestoreCalls() []struct {
 }
 
 // StatusRecords calls StatusRecordsFunc.
-func (mock *DeploymentRepositoryMock) StatusRecords(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+func (mock *DeploymentRepositoryMock) StatusRecords(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 	if mock.StatusRecordsFunc == nil {
 		panic("DeploymentRepositoryMock.StatusRecordsFunc: method is nil but DeploymentRepository.StatusRecords was just called")
 	}

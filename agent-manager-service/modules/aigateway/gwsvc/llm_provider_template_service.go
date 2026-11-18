@@ -23,7 +23,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -46,7 +46,7 @@ func NewLLMProviderTemplateService(
 }
 
 // Create creates a new LLM provider template
-func (s *LLMProviderTemplateService) Create(ouID, createdBy string, template *models.LLMProviderTemplate) (*models.LLMProviderTemplate, error) {
+func (s *LLMProviderTemplateService) Create(ouID, createdBy string, template *gwmodels.LLMProviderTemplate) (*gwmodels.LLMProviderTemplate, error) {
 	if template == nil {
 		return nil, utils.ErrInvalidInput
 	}
@@ -106,7 +106,7 @@ func (s *LLMProviderTemplateService) Create(ouID, createdBy string, template *mo
 }
 
 // List lists all LLM provider templates for an organization (built-in + user-defined)
-func (s *LLMProviderTemplateService) List(ouID string, limit, offset int) ([]*models.LLMProviderTemplate, int, error) {
+func (s *LLMProviderTemplateService) List(ouID string, limit, offset int) ([]*gwmodels.LLMProviderTemplate, int, error) {
 	// Get built-in templates from in-memory store
 	builtInTemplates := s.templateStore.List()
 
@@ -125,7 +125,7 @@ func (s *LLMProviderTemplateService) List(ouID string, limit, offset int) ([]*mo
 
 	// Merge built-in and user templates
 	// Built-in templates first, then user templates
-	allTemplates := make([]*models.LLMProviderTemplate, 0, len(builtInTemplates)+len(userTemplates))
+	allTemplates := make([]*gwmodels.LLMProviderTemplate, 0, len(builtInTemplates)+len(userTemplates))
 	allTemplates = append(allTemplates, builtInTemplates...)
 	allTemplates = append(allTemplates, userTemplates...)
 
@@ -140,7 +140,7 @@ func (s *LLMProviderTemplateService) List(ouID string, limit, offset int) ([]*mo
 }
 
 // Get retrieves an LLM provider template by ID (checks built-in first, then user templates)
-func (s *LLMProviderTemplateService) Get(ouID, templateID string) (*models.LLMProviderTemplate, error) {
+func (s *LLMProviderTemplateService) Get(ouID, templateID string) (*gwmodels.LLMProviderTemplate, error) {
 	if templateID == "" {
 		return nil, utils.ErrInvalidInput
 	}
@@ -173,7 +173,7 @@ func (s *LLMProviderTemplateService) Get(ouID, templateID string) (*models.LLMPr
 }
 
 // Update updates an existing LLM provider template
-func (s *LLMProviderTemplateService) Update(ouID, templateID string, updates *models.LLMProviderTemplate) (*models.LLMProviderTemplate, error) {
+func (s *LLMProviderTemplateService) Update(ouID, templateID string, updates *gwmodels.LLMProviderTemplate) (*gwmodels.LLMProviderTemplate, error) {
 	if templateID == "" || updates == nil {
 		return nil, utils.ErrInvalidInput
 	}
@@ -253,7 +253,7 @@ func (s *LLMProviderTemplateService) Delete(ouID, templateID string) error {
 }
 
 // serializeConfiguration serializes the template configuration fields into the Configuration JSON field
-func (s *LLMProviderTemplateService) serializeConfiguration(template *models.LLMProviderTemplate) error {
+func (s *LLMProviderTemplateService) serializeConfiguration(template *gwmodels.LLMProviderTemplate) error {
 	config := map[string]interface{}{}
 
 	if template.Metadata != nil {
@@ -288,19 +288,19 @@ func (s *LLMProviderTemplateService) serializeConfiguration(template *models.LLM
 }
 
 // deserializeConfiguration deserializes the Configuration JSON field into the template configuration fields
-func (s *LLMProviderTemplateService) deserializeConfiguration(template *models.LLMProviderTemplate) error {
+func (s *LLMProviderTemplateService) deserializeConfiguration(template *gwmodels.LLMProviderTemplate) error {
 	if template.Configuration == "" {
 		return nil
 	}
 
 	var config struct {
-		Metadata         *models.LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-		PromptTokens     *models.ExtractionIdentifier        `json:"promptTokens,omitempty"`
-		CompletionTokens *models.ExtractionIdentifier        `json:"completionTokens,omitempty"`
-		TotalTokens      *models.ExtractionIdentifier        `json:"totalTokens,omitempty"`
-		RemainingTokens  *models.ExtractionIdentifier        `json:"remainingTokens,omitempty"`
-		RequestModel     *models.ExtractionIdentifier        `json:"requestModel,omitempty"`
-		ResponseModel    *models.ExtractionIdentifier        `json:"responseModel,omitempty"`
+		Metadata         *gwmodels.LLMProviderTemplateMetadata `json:"metadata,omitempty"`
+		PromptTokens     *gwmodels.ExtractionIdentifier        `json:"promptTokens,omitempty"`
+		CompletionTokens *gwmodels.ExtractionIdentifier        `json:"completionTokens,omitempty"`
+		TotalTokens      *gwmodels.ExtractionIdentifier        `json:"totalTokens,omitempty"`
+		RemainingTokens  *gwmodels.ExtractionIdentifier        `json:"remainingTokens,omitempty"`
+		RequestModel     *gwmodels.ExtractionIdentifier        `json:"requestModel,omitempty"`
+		ResponseModel    *gwmodels.ExtractionIdentifier        `json:"responseModel,omitempty"`
 	}
 
 	if err := json.Unmarshal([]byte(template.Configuration), &config); err != nil {

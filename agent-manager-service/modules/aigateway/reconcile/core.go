@@ -29,8 +29,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -53,9 +53,9 @@ type Kinds []Kind
 // has no suitable gateway and nothing was written. Nudge means a render is owed to the worker: call Worker.Nudge
 // after the caller's transaction commits.
 type Applied struct {
-	Placement    models.Placement
+	Placement    gwmodels.Placement
 	DeploymentID uuid.UUID
-	Deployment   *models.Deployment
+	Deployment   *gwmodels.Deployment
 	NoGateway    bool
 	Nudge        bool
 }
@@ -124,7 +124,7 @@ func (c *Core) kindOf(name string) (Kind, error) {
 
 // GatewayArtifact is the kind and id the gateway knows the artifact by; ok is false for a kind no reconciler is
 // registered for. The gateway sync routes name artifacts with it.
-func (c *Core) GatewayArtifact(ref models.ArtifactRef) (kindName, artifactID string, ok bool) {
+func (c *Core) GatewayArtifact(ref gwmodels.ArtifactRef) (kindName, artifactID string, ok bool) {
 	kind, found := c.byArtifact[ref.Kind]
 	if !found {
 		return "", "", false
@@ -133,7 +133,7 @@ func (c *Core) GatewayArtifact(ref models.ArtifactRef) (kindName, artifactID str
 }
 
 // Deploy deploys an artifact on the gateway a request named.
-func (c *Core) Deploy(ctx context.Context, tx *gorm.DB, p models.Placement) (*Applied, error) {
+func (c *Core) Deploy(ctx context.Context, tx *gorm.DB, p gwmodels.Placement) (*Applied, error) {
 	kind, err := c.kindOf(p.Kind)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func (c *Core) DeployRecord(ctx context.Context, tx *gorm.DB, kind EnvironmentKi
 		}
 		return &Applied{NoGateway: true}, nil
 	}
-	return c.deployTo(ctx, tx, kind, models.Placement{ArtifactRef: record.ArtifactRef, GatewayUUID: gateway})
+	return c.deployTo(ctx, tx, kind, gwmodels.Placement{ArtifactRef: record.ArtifactRef, GatewayUUID: gateway})
 }
 
 // target is the gateway the record goes to, read in tx, so Targets reads a save's own writes. The gateway's mapping
@@ -208,7 +208,7 @@ func (c *Core) ServesEnvironment(ctx context.Context, tx *gorm.DB, env, gateway 
 
 // deployTo renders an inline kind in tx and sends it, or leaves the render to the worker. A render whose context
 // clashes with another artifact's on the gateway is refused (utils.ErrContextInUse) with nothing written.
-func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p models.Placement) (*Applied, error) {
+func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p gwmodels.Placement) (*Applied, error) {
 	if err := c.lockGateway(tx, p.GatewayUUID); err != nil {
 		return nil, err
 	}
@@ -225,7 +225,7 @@ func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p models.Pl
 	if err := c.checkContext(ctx, tx, p, rendered.Content); err != nil {
 		return nil, err
 	}
-	deployment := &models.Deployment{Name: rendered.Name, Content: rendered.Content}
+	deployment := &gwmodels.Deployment{Name: rendered.Name, Content: rendered.Content}
 	if err := c.repo.StartDeploy(ctx, tx, p, deployment); err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p models.Pl
 }
 
 // owe leaves the render to the worker: a new PENDING row, or the queue due on the existing one.
-func (c *Core) owe(ctx context.Context, tx *gorm.DB, p models.Placement, reason string) (*Applied, error) {
+func (c *Core) owe(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, reason string) (*Applied, error) {
 	inserted, err := c.repo.InsertPending(ctx, tx, p, reason)
 	if err != nil {
 		return nil, err
@@ -251,7 +251,7 @@ func (c *Core) owe(ctx context.Context, tx *gorm.DB, p models.Placement, reason 
 }
 
 // Undeploy undeploys the artifact from the gateway. A row never sent to the gateway needs no event.
-func (c *Core) Undeploy(ctx context.Context, tx *gorm.DB, p models.Placement) error {
+func (c *Core) Undeploy(ctx context.Context, tx *gorm.DB, p gwmodels.Placement) error {
 	kind, err := c.kindOf(p.Kind)
 	if err != nil {
 		return err
@@ -266,7 +266,7 @@ func (c *Core) Undeploy(ctx context.Context, tx *gorm.DB, p models.Placement) er
 // Restore points the gateway back at an earlier deployment of the artifact. It clears the render queue, so a
 // waiting redeploy can't overwrite it. An earlier deployment whose context now clashes on the gateway is refused
 // (utils.ErrContextInUse).
-func (c *Core) Restore(ctx context.Context, tx *gorm.DB, p models.Placement, deploymentID uuid.UUID) error {
+func (c *Core) Restore(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, deploymentID uuid.UUID) error {
 	kind, err := c.kindOf(p.Kind)
 	if err != nil {
 		return err
@@ -336,7 +336,7 @@ func MergeDeleteEvents(all ...DeleteEvents) DeleteEvents {
 // gateway it was ever sent and every active gateway of its org: an artifact whose rows an older release deleted is
 // still dropped everywhere, and a delete is a no-op on a gateway that never held it. The caller deletes, then
 // publishes them last in the same transaction, in gateway order.
-func (c *Core) PrepareDelete(ctx context.Context, tx *gorm.DB, ref models.ArtifactRef) (DeleteEvents, error) {
+func (c *Core) PrepareDelete(ctx context.Context, tx *gorm.DB, ref gwmodels.ArtifactRef) (DeleteEvents, error) {
 	kind, err := c.kindOf(ref.Kind)
 	if err != nil {
 		return DeleteEvents{}, err
@@ -401,20 +401,20 @@ func (c *Core) Nudge() {
 }
 
 // Status is what the user is shown for the artifact on the gateway; ErrNotPlaced when it has no row there.
-func (c *Core) Status(ctx context.Context, p models.Placement) (models.UserStatus, error) {
+func (c *Core) Status(ctx context.Context, p gwmodels.Placement) (gwmodels.UserStatus, error) {
 	row, err := c.repo.GetStatusRecord(ctx, p)
 	if err != nil {
-		return models.UserStatus{}, err
+		return gwmodels.UserStatus{}, err
 	}
 	if row == nil {
-		return models.UserStatus{}, ErrNotPlaced
+		return gwmodels.UserStatus{}, ErrNotPlaced
 	}
-	return models.UserStatusOf(*row), nil
+	return gwmodels.UserStatusOf(*row), nil
 }
 
 // AfterLive is the ack handler's hook: it runs the kind's AfterLiveHook, if it has one, when a row goes DEPLOYED.
 func (c *Core) AfterLive() gwrepo.AfterLiveFunc {
-	return func(ctx context.Context, tx *gorm.DB, p models.Placement, deploymentID uuid.UUID) error {
+	return func(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, deploymentID uuid.UUID) error {
 		hook, ok := c.byArtifact[p.Kind].(AfterLiveHook)
 		if !ok {
 			return nil
@@ -426,7 +426,7 @@ func (c *Core) AfterLive() gwrepo.AfterLiveFunc {
 // renderClaim renders a claimed row outside any transaction and writes back what came of it. A write-back the
 // claim no longer holds the token for is dropped: a newer request, restore or undeploy owns the row. A failed render
 // is recorded on the row and then returned as a RenderFailedError.
-func (c *Core) renderClaim(ctx context.Context, claim models.ClaimedRender) error {
+func (c *Core) renderClaim(ctx context.Context, claim gwmodels.ClaimedRender) error {
 	log := c.logger.With("artifactUUID", claim.ArtifactUUID, "kind", claim.Kind, "gatewayUUID", claim.GatewayUUID)
 	kind, ok := c.byArtifact[claim.Kind]
 	if !ok {
@@ -470,7 +470,7 @@ func (c *Core) superseded(log *slog.Logger, err error) error {
 
 // writeBack sends a claimed render, unless its context clashes on the gateway: that is returned, with nothing
 // written, for renderClaim to record as a given-up render.
-func (c *Core) writeBack(ctx context.Context, kind Kind, claim models.ClaimedRender, rendered Rendered) error {
+func (c *Core) writeBack(ctx context.Context, kind Kind, claim gwmodels.ClaimedRender, rendered Rendered) error {
 	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := c.lockGateway(tx, claim.GatewayUUID); err != nil {
 			return err
@@ -478,7 +478,7 @@ func (c *Core) writeBack(ctx context.Context, kind Kind, claim models.ClaimedRen
 		if err := c.checkContext(ctx, tx, claim.Placement, rendered.Content); err != nil {
 			return err
 		}
-		deployment := &models.Deployment{Name: rendered.Name, Content: rendered.Content}
+		deployment := &gwmodels.Deployment{Name: rendered.Name, Content: rendered.Content}
 		if err := c.repo.CompleteRender(ctx, tx, claim, deployment); err != nil {
 			return err
 		}
@@ -486,7 +486,7 @@ func (c *Core) writeBack(ctx context.Context, kind Kind, claim models.ClaimedRen
 	})
 }
 
-func (c *Core) abandon(ctx context.Context, kind Kind, claim models.ClaimedRender) error {
+func (c *Core) abandon(ctx context.Context, kind Kind, claim gwmodels.ClaimedRender) error {
 	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		sendEvent, err := c.repo.AbandonRender(ctx, tx, claim)
 		if err != nil || !sendEvent {
@@ -496,14 +496,14 @@ func (c *Core) abandon(ctx context.Context, kind Kind, claim models.ClaimedRende
 	})
 }
 
-func (c *Core) publishDeploy(ctx context.Context, tx *gorm.DB, kind Kind, p models.Placement, deployment *models.Deployment) error {
+func (c *Core) publishDeploy(ctx context.Context, tx *gorm.DB, kind Kind, p gwmodels.Placement, deployment *gwmodels.Deployment) error {
 	return c.publish(ctx, tx, p.GatewayUUID, kind.DeployEvent(EventRef{
 		Placement: p, DeploymentID: deployment.DeploymentID.String(), DeploymentName: deployment.Name,
 		PerformedAt: *deployment.UpdatedAt, Tx: tx,
 	}))
 }
 
-func (c *Core) publishUndeploy(ctx context.Context, tx *gorm.DB, kind Kind, p models.Placement) error {
+func (c *Core) publishUndeploy(ctx context.Context, tx *gorm.DB, kind Kind, p gwmodels.Placement) error {
 	performedAt, err := c.performedAt(ctx, tx, p)
 	if err != nil {
 		return err
@@ -512,7 +512,7 @@ func (c *Core) publishUndeploy(ctx context.Context, tx *gorm.DB, kind Kind, p mo
 }
 
 // performedAt reads back the transition the caller just started in tx, for its event.
-func (c *Core) performedAt(ctx context.Context, tx *gorm.DB, p models.Placement) (time.Time, error) {
+func (c *Core) performedAt(ctx context.Context, tx *gorm.DB, p gwmodels.Placement) (time.Time, error) {
 	row, err := c.repo.WithTx(tx).GetStatusRecord(ctx, p)
 	if err != nil {
 		return time.Time{}, err

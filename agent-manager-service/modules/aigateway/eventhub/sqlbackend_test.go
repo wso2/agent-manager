@@ -34,6 +34,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // newTestBackend returns a backend with prepared statements and no background loops; tests poll by hand.
@@ -55,7 +56,7 @@ func newTestGateway(t *testing.T, backend *SQLBackend) string {
 // unregisteredGateway is a fresh gateway the backend has not seen yet.
 func unregisteredGateway(t *testing.T) string {
 	t.Helper()
-	return dbtest.Gateway(t, db.GetDB(), dbtest.Org(t, db.GetDB()), "ingress").UUID.String()
+	return gwtest.Gateway(t, db.GetDB(), dbtest.Org(t, db.GetDB()), "ingress").UUID.String()
 }
 
 func testEvent(entityID string) Event {

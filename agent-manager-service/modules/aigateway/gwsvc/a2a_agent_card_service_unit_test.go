@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
@@ -79,7 +80,7 @@ func cardServiceWithHooks(
 		},
 	}
 	repo := &gwrepomocks.A2AAgentCardRepositoryMock{
-		EnqueueFunc:           func(context.Context, *models.A2AAgentCard) error { return nil },
+		EnqueueFunc:           func(context.Context, *gwmodels.A2AAgentCard) error { return nil },
 		RequeueFunc:           func(context.Context, string, string, string, string) error { return nil },
 		DeleteForAgentEnvFunc: func(context.Context, string, string, string, string) error { return nil },
 	}
@@ -88,8 +89,8 @@ func cardServiceWithHooks(
 
 func TestGetA2AAgentCardReturnsTheStoredRow(t *testing.T) {
 	svc, repo, oc := cardServiceFor("internal", "a2a-agent")
-	stored := &models.A2AAgentCard{Status: models.A2AAgentCardStatusFetched, Card: json.RawMessage(validTestCard)}
-	repo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+	stored := &gwmodels.A2AAgentCard{Status: gwmodels.A2AAgentCardStatusFetched, Card: json.RawMessage(validTestCard)}
+	repo.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return stored, nil
 	}
 	oc.GetEnvironmentFunc = nil // a stored row proves the environment
@@ -103,7 +104,7 @@ func TestGetA2AAgentCardReturnsTheStoredRow(t *testing.T) {
 // No row means no fetch is queued, so a synthetic pending would be polled forever.
 func TestGetA2AAgentCardIsNotFoundForAPlatformAgentWithNoRow(t *testing.T) {
 	svc, repo, _ := cardServiceFor("internal", "a2a-agent")
-	repo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+	repo.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
 
@@ -114,7 +115,7 @@ func TestGetA2AAgentCardIsNotFoundForAPlatformAgentWithNoRow(t *testing.T) {
 
 func TestGetA2AAgentCardIsNotFoundForAnExternalAgentWithNoSource(t *testing.T) {
 	svc, repo, _ := cardServiceFor("external", "a2a-agent")
-	repo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+	repo.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
@@ -123,7 +124,7 @@ func TestGetA2AAgentCardIsNotFoundForAnExternalAgentWithNoSource(t *testing.T) {
 
 func TestGetA2AAgentCardIsNotFoundForANonA2AAgent(t *testing.T) {
 	svc, repo, _ := cardServiceFor("internal", "chat-api")
-	repo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+	repo.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
@@ -132,7 +133,7 @@ func TestGetA2AAgentCardIsNotFoundForANonA2AAgent(t *testing.T) {
 
 func TestGetA2AAgentCardDoesNotMaskRealErrors(t *testing.T) {
 	svc, repo, _ := cardServiceFor("internal", "a2a-agent")
-	repo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+	repo.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return nil, assert.AnError
 	}
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
@@ -142,7 +143,7 @@ func TestGetA2AAgentCardDoesNotMaskRealErrors(t *testing.T) {
 
 func TestGetA2AAgentCardMapsAMissingAgent(t *testing.T) {
 	svc, repo, oc := cardServiceFor("internal", "a2a-agent")
-	repo.GetFunc = func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
+	repo.GetFunc = func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
 	oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {

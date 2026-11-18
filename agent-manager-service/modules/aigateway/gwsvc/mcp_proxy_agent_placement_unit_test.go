@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -35,11 +35,11 @@ import (
 // self-hosted egress gateway, and the agents using it the test sets. The agent-type lookup answers
 // from agentIsExternal; an agent missing from it is unknown to OpenChoreo.
 type agentPlacementFixture struct {
-	proxy           *models.MCPProxy
-	managed         *models.Gateway
-	selfHosted      *models.Gateway
-	mappings        []models.EnvAgentMCPMapping
-	configs         []models.AgentConfiguration
+	proxy           *gwmodels.MCPProxy
+	managed         *gwmodels.Gateway
+	selfHosted      *gwmodels.Gateway
+	mappings        []gwmodels.EnvAgentMCPMapping
+	configs         []gwmodels.AgentConfiguration
 	agentIsExternal map[string]bool
 	lookups         []string
 	svc             *MCPProxyService
@@ -48,24 +48,24 @@ type agentPlacementFixture struct {
 func newAgentPlacementFixture(t *testing.T) *agentPlacementFixture {
 	t.Helper()
 	f := &agentPlacementFixture{
-		proxy:           &models.MCPProxy{UUID: uuid.New(), Handle: "weather"},
-		managed:         newGateway(t, models.GatewayRoleBoth, true),
+		proxy:           &gwmodels.MCPProxy{UUID: uuid.New(), Handle: "weather"},
+		managed:         newGateway(t, gwmodels.GatewayRoleBoth, true),
 		selfHosted:      selfHostedGateway(t),
 		agentIsExternal: map[string]bool{},
 	}
 	f.svc = &MCPProxyService{
-		gatewayRepo: gatewayFixtureRepo(t, testMCPEnvUUID, []*models.Gateway{f.managed, f.selfHosted}),
+		gatewayRepo: gatewayFixtureRepo(t, testMCPEnvUUID, []*gwmodels.Gateway{f.managed, f.selfHosted}),
 		repo: &gwrepomocks.MCPProxyRepositoryMock{
-			GetByHandleFunc: func(context.Context, string, string) (*models.MCPProxy, error) { return f.proxy, nil },
+			GetByHandleFunc: func(context.Context, string, string) (*gwmodels.MCPProxy, error) { return f.proxy, nil },
 		},
 		envMCPMappingRepo: &gwrepomocks.EnvAgentMCPMappingRepositoryMock{
-			ListByMCPProxyFunc: func(_ context.Context, proxyUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+			ListByMCPProxyFunc: func(_ context.Context, proxyUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
 				assert.Equal(t, f.proxy.UUID, proxyUUID)
 				return f.mappings, nil
 			},
 		},
 		agentConfigRepo: &gwrepomocks.AgentConfigurationRepositoryMock{
-			ListMCPConfigsByProxyFunc: func(_ context.Context, _ string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error) {
+			ListMCPConfigsByProxyFunc: func(_ context.Context, _ string, proxyUUID uuid.UUID) ([]gwmodels.AgentConfiguration, error) {
 				assert.Equal(t, f.proxy.UUID, proxyUUID)
 				return f.configs, nil
 			},
@@ -85,24 +85,24 @@ func newAgentPlacementFixture(t *testing.T) *agentPlacementFixture {
 }
 
 // agentUses records an MCP configuration of agentName that references the proxy.
-func (f *agentPlacementFixture) agentUses(agentName string) models.AgentConfiguration {
-	config := models.AgentConfiguration{UUID: uuid.New(), OUID: "org1", ProjectName: "default", AgentID: agentName}
+func (f *agentPlacementFixture) agentUses(agentName string) gwmodels.AgentConfiguration {
+	config := gwmodels.AgentConfiguration{UUID: uuid.New(), OUID: "org1", ProjectName: "default", AgentID: agentName}
 	f.configs = append(f.configs, config)
 	return config
 }
 
-func (f *agentPlacementFixture) internalAgentUses(agentName string) models.AgentConfiguration {
+func (f *agentPlacementFixture) internalAgentUses(agentName string) gwmodels.AgentConfiguration {
 	f.agentIsExternal[agentName] = false
 	return f.agentUses(agentName)
 }
 
-func (f *agentPlacementFixture) externalAgentUses(agentName string) models.AgentConfiguration {
+func (f *agentPlacementFixture) externalAgentUses(agentName string) gwmodels.AgentConfiguration {
 	f.agentIsExternal[agentName] = true
 	return f.agentUses(agentName)
 }
 
-func (f *agentPlacementFixture) bind(config models.AgentConfiguration, envUUID string) {
-	f.mappings = append(f.mappings, models.EnvAgentMCPMapping{
+func (f *agentPlacementFixture) bind(config gwmodels.AgentConfiguration, envUUID string) {
+	f.mappings = append(f.mappings, gwmodels.EnvAgentMCPMapping{
 		ConfigUUID: config.UUID, EnvironmentUUID: uuid.MustParse(envUUID), MCPProxyUUID: f.proxy.UUID, ArtifactUUID: uuid.New(),
 	})
 }
@@ -117,13 +117,13 @@ func (f *agentPlacementFixture) agentReferences() {
 
 func (f *agentPlacementFixture) place(gatewayID string, existing map[string]uuid.UUID) error {
 	_, err := f.svc.validateMCPEndpointPlacement(context.Background(), "org1", f.proxy.UUID,
-		[]models.MCPProxyEndpointDTO{endpointBoundToGateway(gatewayID)}, existing)
+		[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(gatewayID)}, existing)
 	return err
 }
 
 func (f *agentPlacementFixture) update(gatewayID string) error {
-	_, err := f.svc.Update(context.Background(), "org1", f.proxy.Handle, &models.MCPProxyDTO{
-		Name: "Weather", Version: "v1.0", Endpoints: []models.MCPProxyEndpointDTO{endpointBoundToGateway(gatewayID)},
+	_, err := f.svc.Update(context.Background(), "org1", f.proxy.Handle, &gwmodels.MCPProxyDTO{
+		Name: "Weather", Version: "v1.0", Endpoints: []gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(gatewayID)},
 	})
 	return err
 }
@@ -194,7 +194,7 @@ func TestValidateMCPEndpointPlacement_AgentReferences(t *testing.T) {
 		f.svc.envMCPMappingRepo = nil
 		f.svc.agentConfigRepo = nil
 		_, err := f.svc.validateMCPEndpointPlacement(context.Background(), "org1", uuid.Nil,
-			[]models.MCPProxyEndpointDTO{endpointBoundToGateway(f.selfHosted.UUID.String())}, nil)
+			[]gwmodels.MCPProxyEndpointDTO{endpointBoundToGateway(f.selfHosted.UUID.String())}, nil)
 		require.NoError(t, err)
 	})
 }
@@ -252,7 +252,7 @@ func TestMCPProxySelfHostedPlacement_UnmatchedMappingRowCountsAsInternal(t *test
 	t.Run("in its environment", func(t *testing.T) {
 		f := newAgentPlacementFixture(t)
 		f.externalAgentUses("support-bot")
-		f.bind(models.AgentConfiguration{UUID: uuid.New()}, testMCPEnvUUID)
+		f.bind(gwmodels.AgentConfiguration{UUID: uuid.New()}, testMCPEnvUUID)
 
 		err := f.place(f.selfHosted.UUID.String(), nil)
 
@@ -263,7 +263,7 @@ func TestMCPProxySelfHostedPlacement_UnmatchedMappingRowCountsAsInternal(t *test
 	t.Run("not in another environment", func(t *testing.T) {
 		f := newAgentPlacementFixture(t)
 		f.externalAgentUses("support-bot")
-		f.bind(models.AgentConfiguration{UUID: uuid.New()}, otherEnvUUID)
+		f.bind(gwmodels.AgentConfiguration{UUID: uuid.New()}, otherEnvUUID)
 
 		require.NoError(t, f.place(f.selfHosted.UUID.String(), nil))
 	})

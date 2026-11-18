@@ -27,8 +27,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -333,12 +333,12 @@ func (c *gatewayInternalController) GetAPI(w http.ResponseWriter, r *http.Reques
 
 // GetLLMProviderAPIKeys handles GET /api/internal/v1/llm-providers/api-keys
 func (c *gatewayInternalController) GetLLMProviderAPIKeys(w http.ResponseWriter, r *http.Request) {
-	c.getAPIKeysByKinds(w, r, models.KindLLMProvider)
+	c.getAPIKeysByKinds(w, r, gwmodels.KindLLMProvider)
 }
 
 // GetLLMProxyAPIKeys handles GET /api/internal/v1/llm-proxies/api-keys
 func (c *gatewayInternalController) GetLLMProxyAPIKeys(w http.ResponseWriter, r *http.Request) {
-	c.getAPIKeysByKinds(w, r, models.KindLLMProxy, models.KindMCPProxy, models.KindMCPMapping)
+	c.getAPIKeysByKinds(w, r, gwmodels.KindLLMProxy, gwmodels.KindMCPProxy, gwmodels.KindMCPMapping)
 }
 
 // GetAPIKeys handles GET /api/internal/v1/apis/api-keys
@@ -366,9 +366,9 @@ func (c *gatewayInternalController) getAgentAPIKeys(w http.ResponseWriter, r *ht
 	for _, m := range mappings {
 		envUUIDs = append(envUUIDs, m.EnvironmentUUID.String())
 	}
-	keys, err := c.apiKeyRepo.ListByArtifactKindAndEnvs(identity.OUID, models.AgentArtifactKinds, envUUIDs)
+	keys, err := c.apiKeyRepo.ListByArtifactKindAndEnvs(identity.OUID, gwmodels.AgentArtifactKinds, envUUIDs)
 	if err != nil {
-		log.Error("Failed to list API keys", "kinds", models.AgentArtifactKinds, "error", err)
+		log.Error("Failed to list API keys", "kinds", gwmodels.AgentArtifactKinds, "error", err)
 		http.Error(w, "Failed to list API keys", http.StatusInternalServerError)
 		return
 	}
@@ -398,7 +398,7 @@ func (c *gatewayInternalController) getAPIKeysByKinds(w http.ResponseWriter, r *
 		return
 	}
 
-	keys := make([]models.StoredAPIKey, 0)
+	keys := make([]gwmodels.StoredAPIKey, 0)
 	for _, kind := range kinds {
 		kindKeys, err := c.apiKeyRepo.ListByArtifactKind(identity.OUID, kind)
 		if err != nil {
@@ -411,7 +411,7 @@ func (c *gatewayInternalController) getAPIKeysByKinds(w http.ResponseWriter, r *
 	writeAPIKeys(w, keys)
 }
 
-func writeAPIKeys(w http.ResponseWriter, keys []models.StoredAPIKey) {
+func writeAPIKeys(w http.ResponseWriter, keys []gwmodels.StoredAPIKey) {
 	result := make([]controlPlaneAPIKeyResponse, 0, len(keys))
 	for _, k := range keys {
 		resp := controlPlaneAPIKeyResponse{
@@ -450,13 +450,13 @@ func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, 
 // Mappings lists the API key UUIDs bound to the application so the gateway can
 // rebuild application→API-key bindings on reconnect without a separate request.
 type gatewayApplicationResponse struct {
-	ApplicationID   string                            `json:"applicationId"`
-	ApplicationUUID string                            `json:"applicationUuid"`
-	ApplicationName string                            `json:"applicationName"`
-	ApplicationType string                            `json:"applicationType"`
-	Mappings        []models.ApplicationAPIKeyMapping `json:"mappings"`
-	CreatedAt       time.Time                         `json:"createdAt"`
-	UpdatedAt       time.Time                         `json:"updatedAt"`
+	ApplicationID   string                              `json:"applicationId"`
+	ApplicationUUID string                              `json:"applicationUuid"`
+	ApplicationName string                              `json:"applicationName"`
+	ApplicationType string                              `json:"applicationType"`
+	Mappings        []gwmodels.ApplicationAPIKeyMapping `json:"mappings"`
+	CreatedAt       time.Time                           `json:"createdAt"`
+	UpdatedAt       time.Time                           `json:"updatedAt"`
 }
 
 // GetApplications handles GET /api/internal/v1/applications
@@ -486,9 +486,9 @@ func (c *gatewayInternalController) GetApplications(w http.ResponseWriter, r *ht
 			http.Error(w, "Failed to list application key bindings", http.StatusInternalServerError)
 			return
 		}
-		mappings := make([]models.ApplicationAPIKeyMapping, 0, len(keys))
+		mappings := make([]gwmodels.ApplicationAPIKeyMapping, 0, len(keys))
 		for _, k := range keys {
-			mappings = append(mappings, models.ApplicationAPIKeyMapping{APIKeyUUID: k.UUID.String()})
+			mappings = append(mappings, gwmodels.ApplicationAPIKeyMapping{APIKeyUUID: k.UUID.String()})
 		}
 		result = append(result, gatewayApplicationResponse{
 			ApplicationID:   app.Handle,

@@ -21,7 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 func TestPlacementPolicy_ZeroValueIsPlatformAgent(t *testing.T) {
@@ -37,8 +37,8 @@ func TestPlacementPolicy_ProviderHostingAndAPIKeyPurpose(t *testing.T) {
 		isExternal bool
 		allowsSelf bool
 	}{
-		{"platform agent", platformAgentPolicy, managedOnly, models.APIKeyPurposeConsoleManaged, false, false},
-		{"external agent", externalAgentPolicy, managedFirst, models.APIKeyPurposeUserManaged, true, true},
+		{"platform agent", platformAgentPolicy, managedOnly, gwmodels.APIKeyPurposeConsoleManaged, false, false},
+		{"external agent", externalAgentPolicy, managedFirst, gwmodels.APIKeyPurposeUserManaged, true, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -52,15 +52,15 @@ func TestPlacementPolicy_ProviderHostingAndAPIKeyPurpose(t *testing.T) {
 
 func TestPlacementPolicy_RefusedBy(t *testing.T) {
 	enabled := true
-	identityOn := &models.SecurityConfig{Enabled: &enabled, Identity: &models.IdentitySecurity{Enabled: &enabled}}
-	managed := &models.Gateway{Hosting: models.GatewayHostingManaged}
-	selfHosted := &models.Gateway{Hosting: models.GatewayHostingSelfHosted}
+	identityOn := &gwmodels.SecurityConfig{Enabled: &enabled, Identity: &gwmodels.IdentitySecurity{Enabled: &enabled}}
+	managed := &gwmodels.Gateway{Hosting: gwmodels.GatewayHostingManaged}
+	selfHosted := &gwmodels.Gateway{Hosting: gwmodels.GatewayHostingSelfHosted}
 
 	cases := []struct {
 		name     string
 		policy   placementPolicy
-		gateway  *models.Gateway
-		security *models.SecurityConfig
+		gateway  *gwmodels.Gateway
+		security *gwmodels.SecurityConfig
 		want     hostingRule
 	}{
 		{"platform agent, managed, no identity", platformAgentPolicy, managed, nil, 0},
@@ -84,7 +84,7 @@ func TestPlacementPolicy_RefusedBy(t *testing.T) {
 
 func TestPlacementPolicy_NilGatewayIsNeverRefused(t *testing.T) {
 	enabled := true
-	identityOn := &models.SecurityConfig{Enabled: &enabled, Identity: &models.IdentitySecurity{Enabled: &enabled}}
+	identityOn := &gwmodels.SecurityConfig{Enabled: &enabled, Identity: &gwmodels.IdentitySecurity{Enabled: &enabled}}
 	for _, p := range []placementPolicy{platformAgentPolicy, externalAgentPolicy} {
 		assert.Zero(t, p.refusedBy(nil, identityOn))
 	}

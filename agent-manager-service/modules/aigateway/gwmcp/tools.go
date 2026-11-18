@@ -27,9 +27,9 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -37,29 +37,29 @@ import (
 
 // The gateway's toolsets, as its MCP tools call them.
 type DeploymentToolsetHandler interface {
-	GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
+	GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*gwmodels.DeploymentResponse, error)
 }
 
 type LLMProviderToolsetHandler interface {
-	ListLLMProviders(ctx context.Context, ouID string, limit int, offset int) ([]*models.LLMProvider, int, error)
-	ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*models.LLMPolicyAvailabilityResponse, error)
+	ListLLMProviders(ctx context.Context, ouID string, limit int, offset int) ([]*gwmodels.LLMProvider, int, error)
+	ListLLMGuardrails(ctx context.Context, ouID string, providerID string) (*gwmodels.LLMPolicyAvailabilityResponse, error)
 	// AddLLMProviderToCatalog puts a provider back in the catalog.
-	AddLLMProviderToCatalog(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, error)
+	AddLLMProviderToCatalog(ctx context.Context, ouID string, providerID string) (*gwmodels.LLMProvider, error)
 	// GatewayEnvironmentIDs returns the UUIDs of the environments each gateway serves.
 	GatewayEnvironmentIDs(ctx context.Context, gatewayIDs []string) (map[string][]string, error)
-	GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error)
+	GetLLMProvider(ctx context.Context, ouID string, providerID string) (*gwmodels.LLMProvider, []*gwmodels.Deployment, error)
 	// UpdateLLMProviderGuardrails reads the provider once, saves change(its guardrails) and redeploys it. An
 	// error from change is returned as is, and nothing is saved.
-	UpdateLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, change func([]models.LLMPolicy) ([]models.LLMPolicy, error)) (*models.LLMProvider, []models.GatewayDeploymentResult, error)
+	UpdateLLMProviderGuardrails(ctx context.Context, ouID string, providerID string, change func([]gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error)) (*gwmodels.LLMProvider, []gwmodels.GatewayDeploymentResult, error)
 }
 
 type MCPProxyToolsetHandler interface {
-	ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*models.MCPProxyListResponse, error)
-	GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error)
+	ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*gwmodels.MCPProxyListResponse, error)
+	GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*gwmodels.MCPProxyDTO, error)
 }
 
 type AgentConfigToolsetHandler interface {
-	CreateAgentConfig(ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error)
+	CreateAgentConfig(ctx context.Context, ouID string, projectName string, agentName string, req gwmodels.CreateAgentModelConfigRequest) (*gwmodels.AgentModelConfigResponse, error)
 	// ProviderEnvironments lists the environments where the agent can use the LLM provider.
 	ProviderEnvironments(ctx context.Context, ouID string, projectName string, agentName string, providerHandle string) ([]string, error)
 	// RevokeConfigAPIKeys revokes the API keys of an external agent's configuration in one environment.

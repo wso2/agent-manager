@@ -30,7 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -38,15 +38,15 @@ import (
 // proxyServiceStub stands in for the proxy service; the hooks are nil, so calling one would panic.
 type proxyServiceStub struct {
 	gwsvc.A2AProxyHooks
-	GetFunc func(ctx context.Context, ouID, projectName, agentName, envName string) (*models.A2AProxyStatus, error)
-	SetFunc func(ctx context.Context, ouID, projectName, agentName, envName string, auth *models.A2AProxyAuthUpdate) error
+	GetFunc func(ctx context.Context, ouID, projectName, agentName, envName string) (*gwmodels.A2AProxyStatus, error)
+	SetFunc func(ctx context.Context, ouID, projectName, agentName, envName string, auth *gwmodels.A2AProxyAuthUpdate) error
 }
 
-func (s *proxyServiceStub) GetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string) (*models.A2AProxyStatus, error) {
+func (s *proxyServiceStub) GetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string) (*gwmodels.A2AProxyStatus, error) {
 	return s.GetFunc(ctx, ouID, projectName, agentName, envName)
 }
 
-func (s *proxyServiceStub) SetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string, auth *models.A2AProxyAuthUpdate) error {
+func (s *proxyServiceStub) SetA2AProxy(ctx context.Context, ouID, projectName, agentName, envName string, auth *gwmodels.A2AProxyAuthUpdate) error {
 	return s.SetFunc(ctx, ouID, projectName, agentName, envName, auth)
 }
 
@@ -70,9 +70,9 @@ func agentEnvRequest(method, resource, body string) *http.Request {
 
 // The response has no field the secret could leak through.
 func TestGetA2AProxyReturnsTheHeaderButNoSecret(t *testing.T) {
-	stub := &proxyServiceStub{GetFunc: func(context.Context, string, string, string, string) (*models.A2AProxyStatus, error) {
-		return &models.A2AProxyStatus{
-			Status: models.DeploymentStatusFailed, StatusReason: "DEPLOYMENT_TIMEOUT", UpstreamAuthHeader: "X-Key",
+	stub := &proxyServiceStub{GetFunc: func(context.Context, string, string, string, string) (*gwmodels.A2AProxyStatus, error) {
+		return &gwmodels.A2AProxyStatus{
+			Status: gwmodels.DeploymentStatusFailed, StatusReason: "DEPLOYMENT_TIMEOUT", UpstreamAuthHeader: "X-Key",
 			GatewayURL: "https://agents.example.com/weather",
 		}, nil
 	}}
@@ -93,16 +93,16 @@ func TestSetA2AProxyKeepsTheThreeAuthCasesApart(t *testing.T) {
 	v := "v"
 	cases := map[string]struct {
 		body string
-		want *models.A2AProxyAuthUpdate
+		want *gwmodels.A2AProxyAuthUpdate
 	}{
 		"no upstreamAuth clears it":       {`{}`, nil},
-		"a header alone keeps the secret": {`{"upstreamAuth":{"header":"X-Key"}}`, &models.A2AProxyAuthUpdate{Header: "X-Key"}},
-		"a value replaces it":             {`{"upstreamAuth":{"header":"X-Key","value":"v"}}`, &models.A2AProxyAuthUpdate{Header: "X-Key", Value: &v}},
+		"a header alone keeps the secret": {`{"upstreamAuth":{"header":"X-Key"}}`, &gwmodels.A2AProxyAuthUpdate{Header: "X-Key"}},
+		"a value replaces it":             {`{"upstreamAuth":{"header":"X-Key","value":"v"}}`, &gwmodels.A2AProxyAuthUpdate{Header: "X-Key", Value: &v}},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			var got *models.A2AProxyAuthUpdate
-			stub := &proxyServiceStub{SetFunc: func(_ context.Context, _, _, _, _ string, auth *models.A2AProxyAuthUpdate) error {
+			var got *gwmodels.A2AProxyAuthUpdate
+			stub := &proxyServiceStub{SetFunc: func(_ context.Context, _, _, _, _ string, auth *gwmodels.A2AProxyAuthUpdate) error {
 				got = auth
 				return nil
 			}}
@@ -127,7 +127,7 @@ func TestA2AProxyErrorsMapToStatusCodes(t *testing.T) {
 		audit.ErrRecorderUnavailable:            http.StatusServiceUnavailable,
 	} {
 		t.Run(sentinel.Error(), func(t *testing.T) {
-			stub := &proxyServiceStub{SetFunc: func(context.Context, string, string, string, string, *models.A2AProxyAuthUpdate) error {
+			stub := &proxyServiceStub{SetFunc: func(context.Context, string, string, string, string, *gwmodels.A2AProxyAuthUpdate) error {
 				return fmt.Errorf("wrapped: %w", sentinel)
 			}}
 			rec := httptest.NewRecorder()

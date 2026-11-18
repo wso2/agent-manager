@@ -28,9 +28,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -42,13 +42,13 @@ type unmapCase struct {
 	core     *reconcile.Core
 	env      uuid.UUID
 	gateway  uuid.UUID
-	artifact models.ArtifactRef
+	artifact gwmodels.ArtifactRef
 }
 
 func a2aUnmapCase(t *testing.T) unmapCase {
 	f := newA2AFixture(t)
 	artifact, key := f.platformAgent(t)
-	require.NoError(t, f.publisher.exposure.Expose(context.Background(), nil, key, artifact.ArtifactUUID, models.AgentExposureProtocolA2A))
+	require.NoError(t, f.publisher.exposure.Expose(context.Background(), nil, key, artifact.ArtifactUUID, gwmodels.AgentExposureProtocolA2A))
 	return unmapCase{sync: f.sync, core: f.core, env: f.env, gateway: f.gateway, artifact: artifact}
 }
 
@@ -56,7 +56,7 @@ func mcpUnmapCase(t *testing.T) unmapCase {
 	f := newMCPFixture(t)
 	return unmapCase{
 		sync: f.sync, core: f.svc.core, env: f.env, gateway: f.mapGateway(t, f.env),
-		artifact: models.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: f.artifact, Kind: models.KindMCPMapping},
+		artifact: gwmodels.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: f.artifact, Kind: gwmodels.KindMCPMapping},
 	}
 }
 
@@ -67,7 +67,7 @@ func agentLLMProxyUnmapCase(t *testing.T) unmapCase {
 	f.mapToAgent(t, proxy, env)
 	return unmapCase{
 		sync: f.sync, core: f.proxies.core, env: env, gateway: f.mapGateway(t, env),
-		artifact: models.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: proxy.UUID, Kind: models.KindLLMProxy, Handle: proxy.Handle},
+		artifact: gwmodels.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: proxy.UUID, Kind: gwmodels.KindLLMProxy, Handle: proxy.Handle},
 	}
 }
 
@@ -77,7 +77,7 @@ func (c unmapCase) unmap(t *testing.T, env uuid.UUID) error {
 	return svc.RemoveGatewayFromEnvironment(context.Background(), c.gateway.String(), env.String())
 }
 
-func (c unmapCase) setRow(t *testing.T, status, desired models.DeploymentStatus) {
+func (c unmapCase) setRow(t *testing.T, status, desired gwmodels.DeploymentStatus) {
 	t.Helper()
 	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifact_gateway_status SET status = ?, status_desired = ?, next_attempt_at = NULL
 		WHERE artifact_id = ? AND gateway_id = ?`, status, desired, c.artifact.ArtifactUUID, c.gateway).Error)
@@ -91,7 +91,7 @@ func (c unmapCase) queueRedeploy(t *testing.T) {
 
 func (c unmapCase) mapTo(t *testing.T, env uuid.UUID) {
 	t.Helper()
-	dbtest.MapGateway(t, db.GetDB(), c.sync.ouID, c.gateway, env)
+	gwtest.MapGateway(t, db.GetDB(), c.sync.ouID, c.gateway, env)
 }
 
 func (c unmapCase) mapped(t *testing.T, env uuid.UUID) bool {
@@ -117,19 +117,19 @@ func TestUnmappingAGatewayThatServesTheEnvironment(t *testing.T) {
 			c := kind.setup(t)
 			c.sync.deploy(t, c.artifact, c.gateway)
 
-			for _, status := range []models.DeploymentStatus{
-				models.DeploymentStatusPending, models.DeploymentStatusDeploying,
-				models.DeploymentStatusDeployed, models.DeploymentStatusFailed,
+			for _, status := range []gwmodels.DeploymentStatus{
+				gwmodels.DeploymentStatusPending, gwmodels.DeploymentStatusDeploying,
+				gwmodels.DeploymentStatusDeployed, gwmodels.DeploymentStatusFailed,
 			} {
-				c.setRow(t, status, models.DeploymentStatusDeployed)
+				c.setRow(t, status, gwmodels.DeploymentStatusDeployed)
 				require.ErrorIs(t, c.unmap(t, c.env), utils.ErrGatewayServesEnvironment, "a %s row blocks", status)
 				assert.True(t, c.mapped(t, c.env), "the mapping stays after a refused unmap")
 			}
 
-			c.setRow(t, models.DeploymentStatusUndeployed, models.DeploymentStatusUndeployed)
+			c.setRow(t, gwmodels.DeploymentStatusUndeployed, gwmodels.DeploymentStatusUndeployed)
 			c.queueRedeploy(t)
 			require.ErrorIs(t, c.unmap(t, c.env), utils.ErrGatewayServesEnvironment, "a redeploy owed on an undeployed row blocks")
-			c.setRow(t, models.DeploymentStatusFailed, models.DeploymentStatusUndeployed)
+			c.setRow(t, gwmodels.DeploymentStatusFailed, gwmodels.DeploymentStatusUndeployed)
 			c.queueRedeploy(t)
 			require.ErrorIs(t, c.unmap(t, c.env), utils.ErrGatewayServesEnvironment, "a redeploy owed on a failed undeploy blocks")
 
@@ -138,10 +138,10 @@ func TestUnmappingAGatewayThatServesTheEnvironment(t *testing.T) {
 			require.NoError(t, c.unmap(t, other), "a record in another environment doesn't block")
 			assert.False(t, c.mapped(t, other))
 
-			c.setRow(t, models.DeploymentStatusFailed, models.DeploymentStatusUndeployed)
+			c.setRow(t, gwmodels.DeploymentStatusFailed, gwmodels.DeploymentStatusUndeployed)
 			require.NoError(t, c.unmap(t, c.env), "a row being undeployed doesn't block")
 			c.mapTo(t, c.env)
-			c.setRow(t, models.DeploymentStatusUndeployed, models.DeploymentStatusUndeployed)
+			c.setRow(t, gwmodels.DeploymentStatusUndeployed, gwmodels.DeploymentStatusUndeployed)
 			require.NoError(t, c.unmap(t, c.env), "an undeployed row doesn't block")
 			assert.False(t, c.mapped(t, c.env))
 		})
@@ -155,8 +155,8 @@ func TestUnmappingAGatewayWithOnlyGatewayAddressedDeployments(t *testing.T) {
 	env := uuid.New()
 	gateway := f.mapGateway(t, env)
 	proxy := f.newProxy(t)
-	f.sync.deploy(t, f.sync.seedArtifact(t, f.sync.ouID, models.KindLLMProvider), gateway)
-	f.sync.deploy(t, models.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: proxy.UUID, Kind: models.KindLLMProxy}, gateway)
+	f.sync.deploy(t, f.sync.seedArtifact(t, f.sync.ouID, gwmodels.KindLLMProvider), gateway)
+	f.sync.deploy(t, gwmodels.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: proxy.UUID, Kind: gwmodels.KindLLMProxy}, gateway)
 	c := unmapCase{sync: f.sync, core: f.proxies.core, env: env, gateway: gateway}
 
 	require.NoError(t, c.unmap(t, env))

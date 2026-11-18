@@ -24,6 +24,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
@@ -35,16 +36,16 @@ var ErrAgentConfigNotFound = errors.New("agent config not found")
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/agent_gateway_settings_repository_mock.go . AgentConfigRepository:AgentConfigRepositoryMock
 type AgentConfigRepository interface {
 	// Upsert creates or updates an agent config for a specific environment
-	Upsert(ctx context.Context, config *models.AgentConfig) error
+	Upsert(ctx context.Context, config *gwmodels.AgentConfig) error
 
 	// CreateIfAbsent inserts the config unless the environment already has one, which it leaves untouched.
-	CreateIfAbsent(ctx context.Context, config *models.AgentConfig) error
+	CreateIfAbsent(ctx context.Context, config *gwmodels.AgentConfig) error
 
 	// WithTx returns the repository bound to tx.
 	WithTx(tx *gorm.DB) AgentConfigRepository
 
 	// Get retrieves agent config for a specific agent and environment
-	Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.AgentConfig, error)
+	Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*gwmodels.AgentConfig, error)
 
 	// DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 	DeleteAllByAgent(ctx context.Context, ouID, projectName, agentName string) error
@@ -71,7 +72,7 @@ var agentConfigColumns = []string{
 }
 
 // prepare resolves the config's ids and stamps it. The required JSON lists are never NULL: a nil list is empty.
-func (r *AgentConfigRepo) prepare(db *gorm.DB, config *models.AgentConfig) error {
+func (r *AgentConfigRepo) prepare(db *gorm.DB, config *gwmodels.AgentConfig) error {
 	if err := config.Resolve(db); err != nil {
 		return err
 	}
@@ -91,13 +92,13 @@ func (r *AgentConfigRepo) prepare(db *gorm.DB, config *models.AgentConfig) error
 }
 
 // Upsert creates or updates an agent config for a specific environment
-func (r *AgentConfigRepo) Upsert(ctx context.Context, config *models.AgentConfig) error {
+func (r *AgentConfigRepo) Upsert(ctx context.Context, config *gwmodels.AgentConfig) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := r.prepare(tx, config); err != nil {
 			return err
 		}
 		_, err := dbx.Upsert(tx, config, func(tx *gorm.DB) error {
-			return tx.Model(&models.AgentConfig{}).
+			return tx.Model(&gwmodels.AgentConfig{}).
 				Where("agent_id = ? AND environment_id = ?", *config.AgentUUID, config.EnvironmentUUID).
 				Select(agentConfigColumns).Updates(config).Error
 		})
@@ -106,7 +107,7 @@ func (r *AgentConfigRepo) Upsert(ctx context.Context, config *models.AgentConfig
 }
 
 // CreateIfAbsent inserts the config unless the environment already has one.
-func (r *AgentConfigRepo) CreateIfAbsent(ctx context.Context, config *models.AgentConfig) error {
+func (r *AgentConfigRepo) CreateIfAbsent(ctx context.Context, config *gwmodels.AgentConfig) error {
 	db := r.db.WithContext(ctx)
 	if err := r.prepare(db, config); err != nil {
 		return err
@@ -121,8 +122,8 @@ func (r *AgentConfigRepo) WithTx(tx *gorm.DB) AgentConfigRepository {
 }
 
 // Get retrieves agent config for a specific agent and environment
-func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.AgentConfig, error) {
-	var config models.AgentConfig
+func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*gwmodels.AgentConfig, error) {
+	var config gwmodels.AgentConfig
 	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	err := r.db.WithContext(ctx).Where(cond, args...).Take(&config).Error
 	if err != nil {
@@ -137,12 +138,12 @@ func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName,
 // DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 func (r *AgentConfigRepo) DeleteAllByAgent(ctx context.Context, ouID, projectName, agentName string) error {
 	cond, args := repositories.AgentCond(r.db, ouID, projectName, agentName)
-	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.AgentConfig{}).Error
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&gwmodels.AgentConfig{}).Error
 }
 
 // DeleteForEnvironment removes every agent's config for a deleted environment.
 func (r *AgentConfigRepo) DeleteForEnvironment(ctx context.Context, ouID, environmentName string) error {
 	return r.db.WithContext(ctx).
 		Where("org_id = ? AND environment_id IN (?)", ouID, models.EnvironmentIDQuery(r.db, ouID, environmentName)).
-		Delete(&models.AgentConfig{}).Error
+		Delete(&gwmodels.AgentConfig{}).Error
 }

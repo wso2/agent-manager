@@ -26,6 +26,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -95,11 +96,11 @@ func (p *A2APublisher) ShouldPublish(
 // refresh re-renders them.
 func (p *A2APublisher) SaveAndRepublish(
 	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
-	artifact func(tx *gorm.DB) (*models.Artifact, error), save func(tx *gorm.DB) error,
+	artifact func(tx *gorm.DB) (*gwmodels.Artifact, error), save func(tx *gorm.DB) error,
 ) error {
 	external := isExternalProvisioned(agent)
 	var publish bool
-	var republished models.ArtifactRef
+	var republished gwmodels.ArtifactRef
 	err := p.tx(ctx, func(tx *gorm.DB) error {
 		if external {
 			if err := lockA2AProxyEnv(ctx, p.proxies(tx), key); err != nil {
@@ -140,8 +141,8 @@ func (p *A2APublisher) SaveAndRepublish(
 	return nil
 }
 
-func (p *A2APublisher) publish(ctx context.Context, tx *gorm.DB, key agentExposureKey, artifact models.ArtifactRef) error {
-	return p.exposure.Publish(ctx, tx, p.kind, key, artifact, models.AgentExposureProtocolA2A)
+func (p *A2APublisher) publish(ctx context.Context, tx *gorm.DB, key agentExposureKey, artifact gwmodels.ArtifactRef) error {
+	return p.exposure.Publish(ctx, tx, p.kind, key, artifact, gwmodels.AgentExposureProtocolA2A)
 }
 
 // DropAgentArtifact deletes one of a deleted agent's per-environment artifacts with its exposure, proxy and card
@@ -149,7 +150,7 @@ func (p *A2APublisher) publish(ctx context.Context, tx *gorm.DB, key agentExposu
 // gateway as an A2A Agent, gets no events; isA2AAgent is false also when the agent could not be read, and rows the
 // artifact was sent with then stand in for it.
 func (p *A2APublisher) DropAgentArtifact(
-	ctx context.Context, tx *gorm.DB, key agentExposureKey, artifact models.ArtifactRef, isA2AAgent bool,
+	ctx context.Context, tx *gorm.DB, key agentExposureKey, artifact gwmodels.ArtifactRef, isA2AAgent bool,
 ) error {
 	err := p.exposure.exposures(tx).DeleteForAgentEnv(ctx, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID)
 	if err != nil {
@@ -210,7 +211,7 @@ func (p *A2APublisher) TeardownEnvironment(ctx context.Context, ouID string, env
 			errs = append(errs, fmt.Errorf("agent %s: unknown exposure protocol %q", exposure.AgentName, exposure.Protocol))
 			continue
 		}
-		artifact := models.ArtifactRef{OUID: ouID, ArtifactUUID: exposure.ArtifactUUID, Kind: shape.ArtifactKind}
+		artifact := gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: exposure.ArtifactUUID, Kind: shape.ArtifactKind}
 		if err := p.exposure.dropArtifact(ctx, artifact); err != nil {
 			errs = append(errs, fmt.Errorf("agent %s: %w", exposure.AgentName, err))
 			continue
@@ -277,7 +278,7 @@ func (p *A2APublisher) dropAgentsArtifacts(
 ) error {
 	var errs []error
 	for _, agent := range agents {
-		artifact, err := agentEnvAPIArtifact(p.artifactRepo, ouID, agent.projectName, agent.agentName, envUUID.String(), models.AgentArtifactKinds...)
+		artifact, err := agentEnvAPIArtifact(p.artifactRepo, ouID, agent.projectName, agent.agentName, envUUID.String(), gwmodels.AgentArtifactKinds...)
 		if errors.Is(err, utils.ErrArtifactNotFound) {
 			continue
 		}
@@ -288,7 +289,7 @@ func (p *A2APublisher) dropAgentsArtifacts(
 		if _, ok := dropped[artifact.UUID]; ok {
 			continue
 		}
-		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: artifact.UUID, Kind: artifact.Kind, Handle: artifact.Handle}
+		ref := gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: artifact.UUID, Kind: artifact.Kind, Handle: artifact.Handle}
 		if err := p.exposure.dropArtifact(ctx, ref); err != nil {
 			errs = append(errs, fmt.Errorf("failed to delete agent artifact %s: %w", artifact.Handle, err))
 			continue
@@ -314,7 +315,7 @@ func lockA2AProxyEnv(ctx context.Context, proxies gwrepo.A2AProxyRepository, key
 }
 
 // lockedA2AProxy takes the environment's transition lock and reads its proxy row under it; nil while direct.
-func lockedA2AProxy(ctx context.Context, proxies gwrepo.A2AProxyRepository, key agentExposureKey) (*models.A2AProxy, error) {
+func lockedA2AProxy(ctx context.Context, proxies gwrepo.A2AProxyRepository, key agentExposureKey) (*gwmodels.A2AProxy, error) {
 	if err := lockA2AProxyEnv(ctx, proxies, key); err != nil {
 		return nil, err
 	}

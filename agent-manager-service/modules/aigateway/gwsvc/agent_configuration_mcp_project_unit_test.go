@@ -25,14 +25,15 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-func projectScopedProxy(projectUUID, projectName string) *models.MCPProxy {
-	return &models.MCPProxy{
-		Artifact:    &models.Artifact{InCatalog: false},
+func projectScopedProxy(projectUUID, projectName string) *gwmodels.MCPProxy {
+	return &gwmodels.MCPProxy{
+		Artifact:    &gwmodels.Artifact{InCatalog: false},
 		ProjectUUID: &projectUUID,
 		ProjectName: &projectName,
 	}
@@ -40,10 +41,10 @@ func projectScopedProxy(projectUUID, projectName string) *models.MCPProxy {
 
 func TestMCPProxyBindableFromProject(t *testing.T) {
 	t.Run("org proxy in catalog", func(t *testing.T) {
-		require.NoError(t, mcpProxyBindableFromProject(&models.MCPProxy{Artifact: &models.Artifact{InCatalog: true}}, "p-1"))
+		require.NoError(t, mcpProxyBindableFromProject(&gwmodels.MCPProxy{Artifact: &gwmodels.Artifact{InCatalog: true}}, "p-1"))
 	})
 	t.Run("org proxy not in catalog", func(t *testing.T) {
-		err := mcpProxyBindableFromProject(&models.MCPProxy{Artifact: &models.Artifact{InCatalog: false}}, "p-1")
+		err := mcpProxyBindableFromProject(&gwmodels.MCPProxy{Artifact: &gwmodels.Artifact{InCatalog: false}}, "p-1")
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
 	t.Run("project proxy of the same project, not in catalog", func(t *testing.T) {
@@ -58,14 +59,14 @@ func TestMCPProxyBindableFromProject(t *testing.T) {
 func TestValidateMCPProxiesInCatalog_ProjectScope(t *testing.T) {
 	s := &agentConfigurationService{
 		mcpProxyRepo: &gwrepomocks.MCPProxyRepositoryMock{
-			GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
+			GetByHandleFunc: func(_ context.Context, handle, _ string) (*gwmodels.MCPProxy, error) {
 				switch handle {
 				case "weather":
 					return projectScopedProxy("p-1", "p1"), nil
 				case "other":
 					return projectScopedProxy("p-2", "p2"), nil
 				case "org":
-					return &models.MCPProxy{Artifact: &models.Artifact{InCatalog: true}}, nil
+					return &gwmodels.MCPProxy{Artifact: &gwmodels.Artifact{InCatalog: true}}, nil
 				}
 				return nil, gorm.ErrRecordNotFound
 			},
@@ -85,26 +86,26 @@ func TestValidateMCPProxiesInCatalog_ProjectScope(t *testing.T) {
 
 // agentMCPURL is the URL an agent bound to proxy gets injected, built the way every
 // injection path builds it: from the deployed proxy buildAgentMCPConfigProxy derives.
-func agentMCPURL(source *models.MCPProxy) string {
+func agentMCPURL(source *gwmodels.MCPProxy) string {
 	envUUID := uuid.New()
-	mapping := &models.EnvAgentMCPMapping{EnvironmentUUID: envUUID, ArtifactUUID: uuid.New(), MCPProxy: source}
-	deployed := buildAgentMCPConfigProxy(&models.AgentConfiguration{}, mapping, source, "dev", "org1", "h")
-	return buildMCPProxyURL(&models.Gateway{Vhost: "gw.example.com"}, deployed.Configuration)
+	mapping := &gwmodels.EnvAgentMCPMapping{EnvironmentUUID: envUUID, ArtifactUUID: uuid.New(), MCPProxy: source}
+	deployed := buildAgentMCPConfigProxy(&gwmodels.AgentConfiguration{}, mapping, source, "dev", "org1", "h")
+	return buildMCPProxyURL(&gwmodels.Gateway{Vhost: "gw.example.com"}, deployed.Configuration)
 }
 
 func TestAgentMCPURL_ProjectProxyIncludesProjectPrefix(t *testing.T) {
 	ctxPath := "/weather"
 	proxy := projectScopedProxy("p-1", "p1")
-	proxy.Configuration = models.MCPProxyConfig{Name: "weather", Context: &ctxPath}
+	proxy.Configuration = gwmodels.MCPProxyConfig{Name: "weather", Context: &ctxPath}
 	require.Equal(t, "https://gw.example.com/p1/weather/mcp", agentMCPURL(proxy))
 	require.Equal(t, "/weather", *proxy.Configuration.Context, "the stored proxy is not mutated")
 }
 
 func TestAgentMCPURL_OrgProxyUnchanged(t *testing.T) {
 	ctxPath := "/weather"
-	proxy := &models.MCPProxy{
-		Artifact:      &models.Artifact{InCatalog: true},
-		Configuration: models.MCPProxyConfig{Name: "weather", Context: &ctxPath},
+	proxy := &gwmodels.MCPProxy{
+		Artifact:      &gwmodels.Artifact{InCatalog: true},
+		Configuration: gwmodels.MCPProxyConfig{Name: "weather", Context: &ctxPath},
 	}
 	require.Equal(t, "https://gw.example.com/weather/mcp", agentMCPURL(proxy))
 }

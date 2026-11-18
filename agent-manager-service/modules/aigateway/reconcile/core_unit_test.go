@@ -25,25 +25,25 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // stubKind deploys MCP proxies and their mappings, which the gateway knows as one kind.
 type stubKind struct{}
 
 func (stubKind) Name() string { return "Mcp" }
-func (stubKind) Render(context.Context, models.ArtifactRef) (Rendered, error) {
+func (stubKind) Render(context.Context, gwmodels.ArtifactRef) (Rendered, error) {
 	return Rendered{}, nil
 }
 
-func (stubKind) GatewayArtifactID(ref models.ArtifactRef) string { return ref.ArtifactUUID.String() }
-func (stubKind) DeployEvent(EventRef) eventhub.Event             { return eventhub.Event{} }
-func (stubKind) UndeployEvent(EventRef) eventhub.Event           { return eventhub.Event{} }
-func (stubKind) DeleteEvent(models.ArtifactRef) eventhub.Event   { return eventhub.Event{} }
-func (stubKind) RendersInline() bool                             { return true }
+func (stubKind) GatewayArtifactID(ref gwmodels.ArtifactRef) string { return ref.ArtifactUUID.String() }
+func (stubKind) DeployEvent(EventRef) eventhub.Event               { return eventhub.Event{} }
+func (stubKind) UndeployEvent(EventRef) eventhub.Event             { return eventhub.Event{} }
+func (stubKind) DeleteEvent(gwmodels.ArtifactRef) eventhub.Event   { return eventhub.Event{} }
+func (stubKind) RendersInline() bool                               { return true }
 func (stubKind) ArtifactKinds() []string {
-	return []string{models.KindMCPProxy, models.KindMCPMapping}
+	return []string{gwmodels.KindMCPProxy, gwmodels.KindMCPMapping}
 }
 
 func newUnitCore(kinds ...Kind) *Core {
@@ -52,14 +52,14 @@ func newUnitCore(kinds ...Kind) *Core {
 
 func TestGatewayArtifactAsksTheKind(t *testing.T) {
 	core := newUnitCore(stubKind{})
-	ref := models.ArtifactRef{ArtifactUUID: uuid.New(), Kind: models.KindMCPMapping, Handle: "h"}
+	ref := gwmodels.ArtifactRef{ArtifactUUID: uuid.New(), Kind: gwmodels.KindMCPMapping, Handle: "h"}
 
 	kind, id, ok := core.GatewayArtifact(ref)
 
 	assert.True(t, ok)
 	assert.Equal(t, "Mcp", kind)
 	assert.Equal(t, ref.ArtifactUUID.String(), id)
-	_, _, ok = core.GatewayArtifact(models.ArtifactRef{Kind: "RestApi"})
+	_, _, ok = core.GatewayArtifact(gwmodels.ArtifactRef{Kind: "RestApi"})
 	assert.False(t, ok)
 }
 
@@ -70,7 +70,7 @@ func TestAKindIsRegisteredOnce(t *testing.T) {
 func TestAfterLiveSkipsKindsWithNoHook(t *testing.T) {
 	core := newUnitCore(stubKind{})
 
-	err := core.AfterLive()(context.Background(), nil, models.Placement{ArtifactRef: models.ArtifactRef{Kind: models.KindMCPProxy}}, uuid.New())
+	err := core.AfterLive()(context.Background(), nil, gwmodels.Placement{ArtifactRef: gwmodels.ArtifactRef{Kind: gwmodels.KindMCPProxy}}, uuid.New())
 
 	assert.NoError(t, err)
 }

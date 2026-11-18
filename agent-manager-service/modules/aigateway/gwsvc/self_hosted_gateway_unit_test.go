@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -60,16 +60,16 @@ func TestSelfHostedVhost(t *testing.T) {
 	}
 }
 
-func registerRepo(created **models.Gateway, nameTaken bool) *gwrepomocks.GatewayRepositoryMock {
-	existing := &models.Gateway{UUID: uuid.New()}
+func registerRepo(created **gwmodels.Gateway, nameTaken bool) *gwrepomocks.GatewayRepositoryMock {
+	existing := &gwmodels.Gateway{UUID: uuid.New()}
 	repo := mappingRepo(nil, 0)
-	repo.GetByNameAndOrgIDFunc = func(string, string) (*models.Gateway, error) {
+	repo.GetByNameAndOrgIDFunc = func(string, string) (*gwmodels.Gateway, error) {
 		if nameTaken {
 			return existing, nil
 		}
 		return nil, utils.ErrGatewayNotFound
 	}
-	repo.CreateTxFunc = func(_ *gorm.DB, gw *models.Gateway) error {
+	repo.CreateTxFunc = func(_ *gorm.DB, gw *gwmodels.Gateway) error {
 		*created = gw
 		return nil
 	}
@@ -87,10 +87,10 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 
 	for _, functionalityType := range []string{"", "ai"} {
 		t.Run("accepts "+functionalityType, func(t *testing.T) {
-			var created *models.Gateway
+			var created *gwmodels.Gateway
 			var mapped []string
 			repo := registerRepo(&created, false)
-			repo.CreateEnvironmentMappingTxFunc = func(_ *gorm.DB, m *models.GatewayEnvironmentMapping) error {
+			repo.CreateEnvironmentMappingTxFunc = func(_ *gorm.DB, m *gwmodels.GatewayEnvironmentMapping) error {
 				mapped = append(mapped, m.EnvironmentUUID.String())
 				return nil
 			}
@@ -100,8 +100,8 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, created)
-			require.Equal(t, models.GatewayHostingSelfHosted, created.Hosting)
-			require.Equal(t, models.GatewayRoleEgress, created.GatewayFunctionalityType)
+			require.Equal(t, gwmodels.GatewayHostingSelfHosted, created.Hosting)
+			require.Equal(t, gwmodels.GatewayRoleEgress, created.GatewayFunctionalityType)
 			require.Equal(t, "https://edge.example.com", created.Vhost)
 			require.Equal(t, "edge-one", created.Name, "the handle is stored as given, trimmed, with no environment prefix")
 			require.Equal(t, []string{env}, mapped)
@@ -110,7 +110,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 	}
 
 	t.Run("regular is refused", func(t *testing.T) {
-		var created *models.Gateway
+		var created *gwmodels.Gateway
 		svc := NewPlatformGatewayService(registerRepo(&created, false), nil)
 
 		_, err := svc.RegisterSelfHostedGateway("org", input("regular"))
@@ -121,7 +121,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 
 	t.Run("a missing or invalid handle is refused", func(t *testing.T) {
 		for _, handle := range []string{"", "  ", "Edge One", "-edge", "edge-", "ab", strings.Repeat("a", 65)} {
-			var created *models.Gateway
+			var created *gwmodels.Gateway
 			svc := NewPlatformGatewayService(registerRepo(&created, false), nil)
 			in := input("ai")
 			in.Handle = handle
@@ -134,7 +134,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 	})
 
 	t.Run("a taken handle is a conflict", func(t *testing.T) {
-		var created *models.Gateway
+		var created *gwmodels.Gateway
 		svc := NewPlatformGatewayService(registerRepo(&created, true), nil)
 
 		_, err := svc.RegisterSelfHostedGateway("org", input("ai"))
@@ -151,7 +151,7 @@ func TestListSelfHostedGatewaysFiltersByHostingAndOrg(t *testing.T) {
 			counted = f
 			return 0, nil
 		},
-		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			listed = f
 			return nil, nil
 		},
@@ -162,32 +162,32 @@ func TestListSelfHostedGatewaysFiltersByHostingAndOrg(t *testing.T) {
 
 	require.NoError(t, err)
 	for _, f := range []gwrepo.GatewayFilterOptions{counted, listed} {
-		require.Equal(t, models.GatewayHostingSelfHosted, f.Hosting)
+		require.Equal(t, gwmodels.GatewayHostingSelfHosted, f.Hosting)
 		require.Equal(t, "org-1", f.OrganizationID)
 	}
 	require.Equal(t, 10, listed.Limit)
 	require.Equal(t, 5, listed.Offset)
 }
 
-func storedGateway(hosting, ouID string) *models.Gateway {
-	return &models.Gateway{UUID: uuid.New(), OUID: ouID, Name: "gw-one", Hosting: hosting}
+func storedGateway(hosting, ouID string) *gwmodels.Gateway {
+	return &gwmodels.Gateway{UUID: uuid.New(), OUID: ouID, Name: "gw-one", Hosting: hosting}
 }
 
 func TestRequireSelfHosted(t *testing.T) {
 	tests := []struct {
 		name    string
-		stored  *models.Gateway
+		stored  *gwmodels.Gateway
 		wantErr bool
 	}{
-		{name: "self-hosted", stored: storedGateway(models.GatewayHostingSelfHosted, "org")},
-		{name: "managed", stored: storedGateway(models.GatewayHostingManaged, "org"), wantErr: true},
-		{name: "other org", stored: storedGateway(models.GatewayHostingSelfHosted, "other"), wantErr: true},
+		{name: "self-hosted", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "org")},
+		{name: "managed", stored: storedGateway(gwmodels.GatewayHostingManaged, "org"), wantErr: true},
+		{name: "other org", stored: storedGateway(gwmodels.GatewayHostingSelfHosted, "other"), wantErr: true},
 		{name: "missing", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &gwrepomocks.GatewayRepositoryMock{
-				GetByUUIDFunc: func(string) (*models.Gateway, error) {
+				GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) {
 					if tt.stored == nil {
 						return nil, utils.ErrGatewayNotFound
 					}
@@ -209,9 +209,9 @@ func TestRequireSelfHosted(t *testing.T) {
 }
 
 func TestRemoveGatewayFromEnvironment_SelfHostedRefused(t *testing.T) {
-	gw := storedGateway(models.GatewayHostingSelfHosted, "org")
+	gw := storedGateway(gwmodels.GatewayHostingSelfHosted, "org")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gw, nil },
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		// TransactionFunc left nil: any repository mutation panics.
 	}
 	svc := NewPlatformGatewayService(repo, nil)
@@ -224,7 +224,7 @@ func TestRemoveGatewayFromEnvironment_SelfHostedRefused(t *testing.T) {
 // panickingApplier fails the test by panicking on any call.
 type panickingApplier struct{}
 
-func (panickingApplier) ApplyIdentityProvider(context.Context, string, string, models.GatewayIdentityProvider) error {
+func (panickingApplier) ApplyIdentityProvider(context.Context, string, string, gwmodels.GatewayIdentityProvider) error {
 	panic("applier called for a self-hosted gateway")
 }
 
@@ -233,9 +233,9 @@ func (panickingApplier) DeleteIdentityProvider(context.Context, string, string, 
 }
 
 func TestIdentityProvider_SelfHostedIsNotFound(t *testing.T) {
-	gw := storedGateway(models.GatewayHostingSelfHosted, "org")
+	gw := storedGateway(gwmodels.GatewayHostingSelfHosted, "org")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(string, string) (*models.Gateway, error) { return gw, nil },
+		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return gw, nil },
 		// Every other func left nil: a repository mutation panics.
 	}
 	svc := NewPlatformGatewayService(repo, panickingApplier{})

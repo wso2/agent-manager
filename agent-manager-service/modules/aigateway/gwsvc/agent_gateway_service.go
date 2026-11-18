@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -115,7 +116,7 @@ func (s *AgentGatewayService) requireEnvTier(ctx context.Context, ouID, envName 
 // default. An explicitly requested value outside [MinResilienceTimeoutSeconds,
 // MaxResilienceTimeoutSeconds] is rejected rather than silently discarded — unlike
 // an omitted (nil) request, which falls through to the existing/default value.
-func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, requested *int32, withDefaults bool) (int32, error) {
+func resolveResilienceTimeoutSeconds(existingConfig *gwmodels.AgentConfig, requested *int32, withDefaults bool) (int32, error) {
 	resolved := int32(0)
 	if withDefaults {
 		resolved = constants.DefaultResilienceTimeoutSeconds
@@ -149,14 +150,14 @@ func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, request
 func (s *AgentGatewayService) createLLMConfig(
 	ctx context.Context, ouID, projectName, agentName, firstEnv, configName string, mc gwspec.ModelConfigRequest,
 ) (string, error) {
-	cfg := models.EnvProviderConfiguration{}
+	cfg := gwmodels.EnvProviderConfiguration{}
 	if mc.Configuration != nil {
 		cfg = convertConfiguration(*mc.Configuration)
 	}
-	resp, err := s.agentConfigurationService.Create(ctx, ouID, projectName, agentName, models.CreateAgentModelConfigRequest{
+	resp, err := s.agentConfigurationService.Create(ctx, ouID, projectName, agentName, gwmodels.CreateAgentModelConfigRequest{
 		Name: configName,
 		Type: "llm",
-		EnvMappings: map[string]models.EnvModelConfigRequest{
+		EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 			firstEnv: {ProviderName: mc.ProviderName, Configuration: cfg},
 		},
 		EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
@@ -178,14 +179,14 @@ func (s *AgentGatewayService) createLLMConfig(
 func (s *AgentGatewayService) createMCPConfig(
 	ctx context.Context, ouID, projectName, agentName string, pipelineEnvs []string, configName string, mc gwspec.MCPConfigRequest,
 ) (string, error) {
-	envMappings := make(map[string]models.EnvModelConfigRequest, len(pipelineEnvs))
+	envMappings := make(map[string]gwmodels.EnvModelConfigRequest, len(pipelineEnvs))
 	for _, envName := range pipelineEnvs {
 		// createMCPConfig reads the MCP proxy handle from ProviderName.
-		envMappings[envName] = models.EnvModelConfigRequest{ProviderName: mc.ProxyName}
+		envMappings[envName] = gwmodels.EnvModelConfigRequest{ProviderName: mc.ProxyName}
 	}
-	resp, err := s.agentConfigurationService.Create(ctx, ouID, projectName, agentName, models.CreateAgentModelConfigRequest{
+	resp, err := s.agentConfigurationService.Create(ctx, ouID, projectName, agentName, gwmodels.CreateAgentModelConfigRequest{
 		Name:                 configName,
-		Type:                 models.AgentConfigTypeMCP,
+		Type:                 gwmodels.AgentConfigTypeMCP,
 		EnvMappings:          envMappings,
 		EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
 		// Every pipeline environment is configured at once, so one misconfigured higher
@@ -200,33 +201,33 @@ func (s *AgentGatewayService) createMCPConfig(
 
 // convertConfiguration maps a generated provider configuration to the model type,
 // preserving guardrail policies. Replaces the per-env conversion that convertEnvMappings did.
-func convertConfiguration(cfg gwspec.EnvProviderConfiguration) models.EnvProviderConfiguration {
-	policies := make([]models.LLMPolicy, 0, len(cfg.Policies))
+func convertConfiguration(cfg gwspec.EnvProviderConfiguration) gwmodels.EnvProviderConfiguration {
+	policies := make([]gwmodels.LLMPolicy, 0, len(cfg.Policies))
 	for _, p := range cfg.Policies {
-		paths := make([]models.LLMPolicyPath, 0, len(p.Paths))
+		paths := make([]gwmodels.LLMPolicyPath, 0, len(p.Paths))
 		for _, pp := range p.Paths {
-			paths = append(paths, models.LLMPolicyPath{
+			paths = append(paths, gwmodels.LLMPolicyPath{
 				Path:    pp.Path,
 				Methods: pp.Methods,
 				Params:  pp.Params,
 			})
 		}
-		policies = append(policies, models.LLMPolicy{
+		policies = append(policies, gwmodels.LLMPolicy{
 			Name:    p.Name,
 			Version: p.Version,
 			Paths:   paths,
 		})
 	}
-	return models.EnvProviderConfiguration{
+	return gwmodels.EnvProviderConfiguration{
 		Policies:   policies,
 		Resilience: resilienceOf(cfg.Resilience),
 	}
 }
 
-func convertEnvVars(specVars []gwspec.EnvironmentVariableConfig) []models.EnvironmentVariableConfig {
-	result := make([]models.EnvironmentVariableConfig, 0, len(specVars))
+func convertEnvVars(specVars []gwspec.EnvironmentVariableConfig) []gwmodels.EnvironmentVariableConfig {
+	result := make([]gwmodels.EnvironmentVariableConfig, 0, len(specVars))
 	for _, v := range specVars {
-		result = append(result, models.EnvironmentVariableConfig{Name: v.Name, Key: v.Key})
+		result = append(result, gwmodels.EnvironmentVariableConfig{Name: v.Name, Key: v.Key})
 	}
 	return result
 }
@@ -250,7 +251,7 @@ func (s *AgentGatewayService) deleteAgentAPIArtifact(ctx context.Context, ouID, 
 func (s *AgentGatewayService) cleanUpAgentAPIArtifacts(ctx context.Context, ouID, projectName, agentName string, isA2AAgent bool) error {
 	// Listed by handle, not by pipeline: routing can put an artifact in any org environment.
 	prefix := agentAPIArtifactHandlePrefix(projectName, agentName)
-	artifacts, err := s.artifactRepo.ListByHandlePrefix(ctx, models.AgentArtifactKinds, prefix, ouID)
+	artifacts, err := s.artifactRepo.ListByHandlePrefix(ctx, gwmodels.AgentArtifactKinds, prefix, ouID)
 	if err != nil {
 		return fmt.Errorf("failed to list agent API artifacts for cleanup: %w", err)
 	}
@@ -282,7 +283,7 @@ func (s *AgentGatewayService) cleanUpAgentAPIArtifacts(ctx context.Context, ouID
 // dropAgentArtifact deletes one per-environment agent artifact, with the agent's A2A rows in its environment, writing
 // its delete events in the same transaction. An artifact whose handle names no environment UUID goes alone.
 func (s *AgentGatewayService) dropAgentArtifact(
-	ctx context.Context, key agentExposureKey, envID string, artifact *models.Artifact, isA2AAgent bool,
+	ctx context.Context, key agentExposureKey, envID string, artifact *gwmodels.Artifact, isA2AAgent bool,
 ) error {
 	if s.a2aPublisher == nil {
 		return s.artifactRepo.Delete(s.db, artifact.UUID.String())
@@ -349,8 +350,8 @@ type resolvedCORSConfig struct {
 }
 
 // agentConfigFromAPIConfig is the environment's config row carrying api; callers set the remaining fields.
-func agentConfigFromAPIConfig(ouID, projectName, agentName, envName string, api resolvedCORSConfig) *models.AgentConfig {
-	return &models.AgentConfig{
+func agentConfigFromAPIConfig(ouID, projectName, agentName, envName string, api resolvedCORSConfig) *gwmodels.AgentConfig {
+	return &gwmodels.AgentConfig{
 		OUID:                  ouID,
 		ProjectName:           projectName,
 		AgentName:             agentName,
@@ -371,7 +372,7 @@ func agentConfigFromAPIConfig(ouID, projectName, agentName, envName string, api 
 }
 
 // resolveTracingConfig resolves instrumentation config: request > DB > default (true if withDefaults, else false).
-func resolveTracingConfig(existingConfig *models.AgentConfig, enableAutoInstrumentation *bool, withDefaults bool) resolvedTracingConfig {
+func resolveTracingConfig(existingConfig *gwmodels.AgentConfig, enableAutoInstrumentation *bool, withDefaults bool) resolvedTracingConfig {
 	resolved := resolvedTracingConfig{EnableAutoInstrumentation: withDefaults}
 	if existingConfig != nil {
 		resolved.EnableAutoInstrumentation = existingConfig.EnableAutoInstrumentation
@@ -383,7 +384,7 @@ func resolveTracingConfig(existingConfig *models.AgentConfig, enableAutoInstrume
 }
 
 // resolveAPIConfig resolves CORS, API key, and OAuth security config: request > DB > env-var defaults (only if withDefaults).
-func resolveAPIConfig(existingConfig *models.AgentConfig, enableApiKeySecurity *bool, corsConfig *gwspec.CORSConfig, enableOAuthSecurity *bool, oauthConfig *gwspec.OAuthConfig, withDefaults bool) resolvedCORSConfig {
+func resolveAPIConfig(existingConfig *gwmodels.AgentConfig, enableApiKeySecurity *bool, corsConfig *gwspec.CORSConfig, enableOAuthSecurity *bool, oauthConfig *gwspec.OAuthConfig, withDefaults bool) resolvedCORSConfig {
 	var resolved resolvedCORSConfig
 	if withDefaults {
 		defaultCORS := config.GetAgentWorkloadConfig().CORS
@@ -591,7 +592,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	}
 
 	// Resolve final settings: precedence is request → existing DB
-	var existingConfig *models.AgentConfig
+	var existingConfig *gwmodels.AgentConfig
 	switch cfg, getErr := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, req.EnvironmentName); {
 	case errors.Is(getErr, gwrepo.ErrAgentConfigNotFound):
 		// No existing config for this env — request values / defaults apply.
@@ -652,7 +653,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 // GetAgentDeployments reports where an external agent is reached: one entry
 // for the organization's default environment, carrying its gateway URL and
 // deployment status when the gateway serves the agent.
-func (s *AgentGatewayService) GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error) {
+func (s *AgentGatewayService) GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*gwmodels.DeploymentResponse, error) {
 	agent, err := s.platform.GetAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
@@ -661,16 +662,16 @@ func (s *AgentGatewayService) GetAgentDeployments(ctx context.Context, ouID stri
 	if err != nil {
 		return nil, err
 	}
-	deployment := &models.DeploymentResponse{
+	deployment := &gwmodels.DeploymentResponse{
 		AgentName:              agentName,
 		ProjectName:            projectName,
 		Status:                 deploymentStatusActive,
 		Environment:            env.Name,
 		EnvironmentDisplayName: env.DisplayName,
 		EnvironmentUUID:        env.UUID,
-		Endpoints:              []models.Endpoint{},
+		Endpoints:              []gwmodels.Endpoint{},
 	}
-	deployments := []*models.DeploymentResponse{deployment}
+	deployments := []*gwmodels.DeploymentResponse{deployment}
 	if s.exposesAgent(agent) {
 		s.resolveGatewayDeployments(ctx, agent, ouID, projectName, agentName, deployments)
 	}
@@ -681,7 +682,7 @@ func (s *AgentGatewayService) GetAgentDeployments(ctx context.Context, ouID stri
 // the agent's gateway URL, and the gateway deployment's status. Best-effort: an environment whose gateway deployment
 // can't be read keeps its direct URLs and shows no gateway status.
 func (s *AgentGatewayService) resolveGatewayDeployments(
-	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName string, deployments []*models.DeploymentResponse,
+	ctx context.Context, agent *models.AgentResponse, ouID, projectName, agentName string, deployments []*gwmodels.DeploymentResponse,
 ) {
 	for _, deployment := range deployments {
 		if deployment == nil || deployment.EnvironmentUUID == "" || deployment.Status == deploymentStatusNotDeployed {
@@ -738,12 +739,12 @@ func (s *AgentGatewayService) exposesAgent(agent *models.AgentResponse) bool {
 // not serve.
 func (s *AgentGatewayService) agentEnvArtifactFunc(
 	agent *models.AgentResponse, ouID, projectName, agentName, envUUID string,
-) func(tx *gorm.DB) (*models.Artifact, error) {
+) func(tx *gorm.DB) (*gwmodels.Artifact, error) {
 	shape, ok := agentGatewayShapeOf(agent)
 	if !ok {
 		return nil
 	}
-	return func(tx *gorm.DB) (*models.Artifact, error) {
+	return func(tx *gorm.DB) (*gwmodels.Artifact, error) {
 		artifact, err := ensureExposedAgentEnvAPIArtifact(tx, s.artifactRepo, ouID, projectName, agentName, envUUID, shape)
 		if err != nil {
 			return nil, fmt.Errorf("failed to ensure the agent's API artifact for environment %s: %w", envUUID, err)
@@ -756,7 +757,7 @@ func (s *AgentGatewayService) agentEnvArtifactFunc(
 // neither lands without the other; the agent republishes as SaveAndRepublish describes.
 func (s *AgentGatewayService) saveDeploySettings(
 	ctx context.Context, agent *models.AgentResponse, key agentExposureKey,
-	artifact func(tx *gorm.DB) (*models.Artifact, error), cfg *models.AgentConfig,
+	artifact func(tx *gorm.DB) (*gwmodels.Artifact, error), cfg *gwmodels.AgentConfig,
 ) error {
 	save := func(tx *gorm.DB) error { return s.agentConfigRepo.WithTx(tx).Upsert(ctx, cfg) }
 	return s.a2aPublisher.SaveAndRepublish(ctx, agent, key, artifact, save)
@@ -802,9 +803,9 @@ func (s *AgentGatewayService) agentExposureKeyFor(
 }
 
 // resilienceOf converts the resilience of an agent-create model config.
-func resilienceOf(r *gwspec.Resilience) *models.Resilience {
+func resilienceOf(r *gwspec.Resilience) *gwmodels.Resilience {
 	if r == nil {
 		return nil
 	}
-	return &models.Resilience{Timeout: r.Timeout, IdleTimeout: r.IdleTimeout}
+	return &gwmodels.Resilience{Timeout: r.Timeout, IdleTimeout: r.IdleTimeout}
 }

@@ -28,15 +28,15 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // renameVarRows builds one environment's url + apikey rows under the pre-rename names.
-func renameVarRows(configUUID, envUUID uuid.UUID, secretRef string) []models.AgentEnvConfigVariable {
-	return []models.AgentEnvConfigVariable{
+func renameVarRows(configUUID, envUUID uuid.UUID, secretRef string) []gwmodels.AgentEnvConfigVariable {
+	return []gwmodels.AgentEnvConfigVariable{
 		{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "url", VariableName: "GITHUB_MCP_URL"},
 		{ConfigUUID: configUUID, EnvironmentUUID: envUUID, VariableKey: "apikey", VariableName: "GITHUB_MCP_API_KEY", SecretReference: secretRef},
 	}
@@ -94,7 +94,7 @@ func TestUpdateMCPConfigEnvironmentVariableNames_RejectsOtherConfigOwnership(t *
 			readErr := errors.New("ownership read failed")
 			locked := false
 			repo := &gwrepomocks.AgentEnvConfigVariableRepositoryMock{
-				LockAndListByAgentFunc: func(_ context.Context, _ *gorm.DB, org, project, agent string) ([]models.AgentEnvConfigVariable, error) {
+				LockAndListByAgentFunc: func(_ context.Context, _ *gorm.DB, org, project, agent string) ([]gwmodels.AgentEnvConfigVariable, error) {
 					require.Equal(t, []string{f.ouID, "project", "agent"}, []string{org, project, agent})
 					locked = true
 					if scenario == "ownership read fails" {
@@ -104,9 +104,9 @@ func TestUpdateMCPConfigEnvironmentVariableNames_RejectsOtherConfigOwnership(t *
 					if scenario == "own names allowed" {
 						owner = configID
 					}
-					return []models.AgentEnvConfigVariable{{ConfigUUID: owner, VariableName: "GITHUB_URL"}}, nil
+					return []gwmodels.AgentEnvConfigVariable{{ConfigUUID: owner, VariableName: "GITHUB_URL"}}, nil
 				},
-				ListByConfigForUpdateFunc: func(context.Context, *gorm.DB, uuid.UUID) ([]models.AgentEnvConfigVariable, error) {
+				ListByConfigForUpdateFunc: func(context.Context, *gorm.DB, uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
 					require.True(t, locked, "agent ownership lock must precede row locks")
 					return renameVarRows(configID, f.envUUID, "secret"), nil
 				},
@@ -121,7 +121,7 @@ func TestUpdateMCPConfigEnvironmentVariableNames_RejectsOtherConfigOwnership(t *
 			if scenario == "own names allowed" {
 				policy = externalAgentPolicy
 			}
-			err = svc.updateMCPConfigEnvironmentVariableNames(context.Background(), &models.AgentConfiguration{UUID: configID, Name: "github"}, f.ouID, "project", "agent", nil, policy, "default", []models.EnvironmentVariableConfig{{Key: "url", Name: "GITHUB_URL"}})
+			err = svc.updateMCPConfigEnvironmentVariableNames(context.Background(), &gwmodels.AgentConfiguration{UUID: configID, Name: "github"}, f.ouID, "project", "agent", nil, policy, "default", []gwmodels.EnvironmentVariableConfig{{Key: "url", Name: "GITHUB_URL"}})
 			switch scenario {
 			case "collision":
 				require.ErrorIs(t, err, utils.ErrInvalidInput)

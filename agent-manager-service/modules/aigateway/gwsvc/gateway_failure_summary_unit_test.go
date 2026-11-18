@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -227,7 +227,7 @@ func TestGatewayFailureSummary_PropagatesDetailError(t *testing.T) {
 		},
 		ListFailedGatewaysAllOrgsFunc: func(
 			_ context.Context, _ gwrepo.GatewayFailureWindow, _ int,
-		) ([]*models.Gateway, error) {
+		) ([]*gwmodels.Gateway, error) {
 			return nil, sentinel
 		},
 	}
@@ -256,11 +256,11 @@ func TestGatewayFailureSummary_IncludeDetails(t *testing.T) {
 		},
 		ListFailedGatewaysAllOrgsFunc: func(
 			_ context.Context, _ gwrepo.GatewayFailureWindow, limit int,
-		) ([]*models.Gateway, error) {
+		) ([]*gwmodels.Gateway, error) {
 			// One over the cap, so a full page is distinguishable from a page
 			// that ends exactly at it.
 			assert.Equal(t, maxFailedGatewayDetailRows+1, limit)
-			return []*models.Gateway{
+			return []*gwmodels.Gateway{
 				{UUID: id, Name: "prod-ingress", OUID: "ou-abc", UpdatedAt: lastUpdated},
 			}, nil
 		},
@@ -283,9 +283,9 @@ func TestGatewayFailureSummary_IncludeDetails(t *testing.T) {
 // limit+1. A capped list must say so: without Truncated the response reads as
 // the complete set of failures, and Failed would silently disagree with it.
 func TestGatewayFailureSummary_TruncatesDetails(t *testing.T) {
-	overflowing := make([]*models.Gateway, 0, maxFailedGatewayDetailRows+1)
+	overflowing := make([]*gwmodels.Gateway, 0, maxFailedGatewayDetailRows+1)
 	for i := 0; i <= maxFailedGatewayDetailRows; i++ {
-		overflowing = append(overflowing, &models.Gateway{
+		overflowing = append(overflowing, &gwmodels.Gateway{
 			UUID: uuid.New(), Name: fmt.Sprintf("gw-%d", i), OUID: "ou-abc", UpdatedAt: time.Now(),
 		})
 	}
@@ -300,7 +300,7 @@ func TestGatewayFailureSummary_TruncatesDetails(t *testing.T) {
 		},
 		ListFailedGatewaysAllOrgsFunc: func(
 			_ context.Context, _ gwrepo.GatewayFailureWindow, _ int,
-		) ([]*models.Gateway, error) {
+		) ([]*gwmodels.Gateway, error) {
 			return overflowing, nil
 		},
 	}
@@ -412,8 +412,8 @@ func TestGatewayFailureSummary_VerdictIsPresentWithDetails(t *testing.T) {
 		},
 		ListFailedGatewaysAllOrgsFunc: func(
 			_ context.Context, _ gwrepo.GatewayFailureWindow, _ int,
-		) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				{UUID: uuid.New(), Name: "gw-down", OUID: "ou-abc", UpdatedAt: time.Now().Add(-time.Hour)},
 			}, nil
 		},

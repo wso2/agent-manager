@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -47,19 +48,19 @@ func selfHostedRequest(method, body, gatewayID string) *http.Request {
 }
 
 func TestUpdateSelfHostedGateway_ChangesOnlyEditableFields(t *testing.T) {
-	gateway := &models.Gateway{
+	gateway := &gwmodels.Gateway{
 		UUID: uuid.New(), OUID: "ou-1", Name: "dev-edge", DisplayName: "Edge", Vhost: "https://edge.example.com",
-		Hosting: models.GatewayHostingSelfHosted, GatewayFunctionalityType: models.GatewayRoleEgress,
+		Hosting: gwmodels.GatewayHostingSelfHosted, GatewayFunctionalityType: gwmodels.GatewayRoleEgress,
 	}
-	var saved *models.Gateway
+	var saved *gwmodels.Gateway
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
-		UpdateGatewayFunc: func(gw *models.Gateway) error {
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gateway, nil },
+		UpdateGatewayFunc: func(gw *gwmodels.Gateway) error {
 			saved = gw
 			return nil
 		},
-		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) {
-			return []models.GatewayEnvironmentMapping{}, nil
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+			return []gwmodels.GatewayEnvironmentMapping{}, nil
 		},
 	}
 	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), nil, nil)
@@ -76,14 +77,14 @@ func TestUpdateSelfHostedGateway_ChangesOnlyEditableFields(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"site": "berlin"}, saved.Properties)
 	assert.Equal(t, "dev-edge", saved.Name)
 	assert.Equal(t, "https://edge.example.com", saved.Vhost)
-	assert.Equal(t, models.GatewayHostingSelfHosted, saved.Hosting)
+	assert.Equal(t, gwmodels.GatewayHostingSelfHosted, saved.Hosting)
 }
 
 func TestSelfHostedGatewayRoutes_ANameIsNotFound(t *testing.T) {
-	gateway := &models.Gateway{UUID: uuid.New(), OUID: "ou-1", Name: "dev-edge", Hosting: models.GatewayHostingSelfHosted}
+	gateway := &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", Name: "dev-edge", Hosting: gwmodels.GatewayHostingSelfHosted}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc:     func(string, string) (*models.Gateway, error) { return gateway, nil },
-		GetByUUIDFunc:             func(string) (*models.Gateway, error) { return gateway, nil },
+		GetByNameAndOrgIDFunc:     func(string, string) (*gwmodels.Gateway, error) { return gateway, nil },
+		GetByUUIDFunc:             func(string) (*gwmodels.Gateway, error) { return gateway, nil },
 		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
 		DeleteFunc:                func(string, string) error { return nil },
 	}
@@ -100,9 +101,9 @@ func TestSelfHostedGatewayRoutes_ANameIsNotFound(t *testing.T) {
 }
 
 func TestSelfHostedGatewayRoutes_ManagedGatewayIsNotFound(t *testing.T) {
-	managed := &models.Gateway{UUID: uuid.New(), OUID: "ou-1", Name: "dev-managed", Hosting: models.GatewayHostingManaged}
+	managed := &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", Name: "dev-managed", Hosting: gwmodels.GatewayHostingManaged}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) { return managed, nil },
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return managed, nil },
 	}
 	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), nil, nil)
 	w := httptest.NewRecorder()
@@ -134,15 +135,15 @@ func (r *capturingRecorder) Close(context.Context) error { return nil }
 // request's spelling of them.
 func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc:                 func(string, string) (*models.Gateway, error) { return nil, utils.ErrGatewayNotFound },
+		GetByNameAndOrgIDFunc:                 func(string, string) (*gwmodels.Gateway, error) { return nil, utils.ErrGatewayNotFound },
 		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
-		CreateTxFunc:                          func(*gorm.DB, *models.Gateway) error { return nil },
+		CreateTxFunc:                          func(*gorm.DB, *gwmodels.Gateway) error { return nil },
 		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
 		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
 		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
 		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 0, nil },
-		CreateEnvironmentMappingTxFunc:        func(*gorm.DB, *models.GatewayEnvironmentMapping) error { return nil },
-		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		CreateEnvironmentMappingTxFunc:        func(*gorm.DB, *gwmodels.GatewayEnvironmentMapping) error { return nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) { return nil, nil },
 	}
 	envs := &repomocks.PlatformRepositoryMock{
 		ListEnvironmentsFunc: func(context.Context, string) ([]*models.EnvironmentResponse, error) {

@@ -27,7 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 func TestAgentVariableOwnership_SerializesAndReadsCommittedNames(t *testing.T) {
@@ -37,7 +37,7 @@ func TestAgentVariableOwnership_SerializesAndReadsCommittedNames(t *testing.T) {
 	ou := newOrg(t)
 	_, proxyID := seedLLMProxy(t, ou)
 	configID, envID := mapLLMProxyToAgent(t, ou, proxyID)
-	require.NoError(t, database.Create(&models.AgentEnvConfigVariable{
+	require.NoError(t, database.Create(&gwmodels.AgentEnvConfigVariable{
 		ConfigUUID: configID, EnvironmentUUID: envID, VariableKey: "url", OrgID: ou, VariableName: "OLD_URL",
 		CreatedAt: time.Now().UTC(),
 	}).Error)
@@ -55,7 +55,7 @@ func TestAgentVariableOwnership_SerializesAndReadsCommittedNames(t *testing.T) {
 	require.Equal(t, "OLD_URL", rows[0].VariableName)
 
 	type outcome struct {
-		rows []models.AgentEnvConfigVariable
+		rows []gwmodels.AgentEnvConfigVariable
 		err  error
 	}
 	done := make(chan outcome, 1)
@@ -75,7 +75,7 @@ func TestAgentVariableOwnership_SerializesAndReadsCommittedNames(t *testing.T) {
 		t.Fatalf("a competing rename must wait for the owner transaction, got %v", got)
 	case <-time.After(300 * time.Millisecond):
 	}
-	require.NoError(t, first.Model(&models.AgentEnvConfigVariable{}).Where("config_id = ?", configID).
+	require.NoError(t, first.Model(&gwmodels.AgentEnvConfigVariable{}).Where("config_id = ?", configID).
 		Update("variable_name", "CLAIMED_URL").Error)
 	require.NoError(t, first.Commit().Error)
 	select {

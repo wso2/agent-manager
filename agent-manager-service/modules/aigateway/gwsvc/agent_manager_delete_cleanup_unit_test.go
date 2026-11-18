@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
@@ -35,13 +35,13 @@ import (
 type stubAgentConfigurationService struct {
 	AgentConfigurationService
 
-	ListFunc                   func(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*models.AgentModelConfigListResponse, error)
+	ListFunc                   func(ctx context.Context, ouID, projectName, agentName string, limit, offset int) (*gwmodels.AgentModelConfigListResponse, error)
 	DeleteForAgentDeletionFunc func(ctx context.Context, configUUID uuid.UUID, ouID, projectName, agentName string, isExternalAgent bool) error
 }
 
 func (s *stubAgentConfigurationService) List(
 	ctx context.Context, ouID, projectName, agentName string, limit, offset int,
-) (*models.AgentModelConfigListResponse, error) {
+) (*gwmodels.AgentModelConfigListResponse, error) {
 	return s.ListFunc(ctx, ouID, projectName, agentName, limit, offset)
 }
 
@@ -55,8 +55,8 @@ func (s *stubAgentConfigurationService) DeleteForAgentDeletion(
 // report no applications, so the cleanup's final step is a no-op.
 func newAIAppServiceForCleanup() *AIApplicationService {
 	appRepo := &gwrepomocks.AIApplicationRepositoryMock{
-		ListByAgentFunc: func(_ context.Context, _, _, _ string) ([]models.AIApplication, error) {
-			return []models.AIApplication{}, nil
+		ListByAgentFunc: func(_ context.Context, _, _, _ string) ([]gwmodels.AIApplication, error) {
+			return []gwmodels.AIApplication{}, nil
 		},
 		DeleteByAgentFunc: func(_ context.Context, _, _, _ string) error { return nil },
 	}
@@ -78,13 +78,13 @@ func TestRevokeAgentConfigurations(t *testing.T) {
 		}
 	}
 
-	listOf := func(uuids ...string) func(context.Context, string, string, string, int, int) (*models.AgentModelConfigListResponse, error) {
-		items := make([]models.AgentModelConfigListItem, len(uuids))
+	listOf := func(uuids ...string) func(context.Context, string, string, string, int, int) (*gwmodels.AgentModelConfigListResponse, error) {
+		items := make([]gwmodels.AgentModelConfigListItem, len(uuids))
 		for i, u := range uuids {
-			items[i] = models.AgentModelConfigListItem{UUID: u, Name: "cfg-" + u, Type: "llm"}
+			items[i] = gwmodels.AgentModelConfigListItem{UUID: u, Name: "cfg-" + u, Type: "llm"}
 		}
-		return func(_ context.Context, _, _, _ string, _, _ int) (*models.AgentModelConfigListResponse, error) {
-			return &models.AgentModelConfigListResponse{Configs: items, Pagination: models.PaginationInfo{Count: len(items)}}, nil
+		return func(_ context.Context, _, _, _ string, _, _ int) (*gwmodels.AgentModelConfigListResponse, error) {
+			return &gwmodels.AgentModelConfigListResponse{Configs: items, Pagination: gwmodels.PaginationInfo{Count: len(items)}}, nil
 		}
 	}
 
@@ -132,7 +132,7 @@ func TestRevokeAgentConfigurations(t *testing.T) {
 
 	t.Run("reports a list failure", func(t *testing.T) {
 		cfgSvc := &stubAgentConfigurationService{
-			ListFunc: func(_ context.Context, _, _, _ string, _, _ int) (*models.AgentModelConfigListResponse, error) {
+			ListFunc: func(_ context.Context, _, _, _ string, _, _ int) (*gwmodels.AgentModelConfigListResponse, error) {
 				return nil, errors.New("db unavailable")
 			},
 		}

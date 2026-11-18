@@ -27,14 +27,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-func syncRow(kind, handle, state, deploymentID string, deployedAt time.Time) models.GatewaySyncRow {
-	return models.GatewaySyncRow{
-		ArtifactRef:  models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: kind, Handle: handle},
+func syncRow(kind, handle, state, deploymentID string, deployedAt time.Time) gwmodels.GatewaySyncRow {
+	return gwmodels.GatewaySyncRow{
+		ArtifactRef:  gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: kind, Handle: handle},
 		DeploymentID: deploymentID,
 		State:        state,
 		DeployedAt:   deployedAt,
@@ -42,18 +42,18 @@ func syncRow(kind, handle, state, deploymentID string, deployedAt time.Time) mod
 }
 
 func TestListGatewayDeploymentsNamesEachArtifactAsTheGatewayStoresIt(t *testing.T) {
-	deployedAt := models.NewPerformedAt(time.Now())
-	provider := syncRow(models.KindLLMProvider, "provider-handle", models.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
-	proxy := syncRow(models.KindLLMProxy, "proxy-handle", models.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
-	mapping := syncRow(models.KindMCPMapping, "mapping", models.GatewaySyncStateUndeployed, "", deployedAt)
-	mcpProxy := syncRow(models.KindMCPProxy, "mcp", models.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
-	agent := syncRow(models.KindAgent, "p/a/env", models.GatewaySyncStateUndeployed, "", deployedAt)
-	restAPI := syncRow(models.KindWebSubAPI, "api", models.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
+	deployedAt := gwmodels.NewPerformedAt(time.Now())
+	provider := syncRow(gwmodels.KindLLMProvider, "provider-handle", gwmodels.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
+	proxy := syncRow(gwmodels.KindLLMProxy, "proxy-handle", gwmodels.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
+	mapping := syncRow(gwmodels.KindMCPMapping, "mapping", gwmodels.GatewaySyncStateUndeployed, "", deployedAt)
+	mcpProxy := syncRow(gwmodels.KindMCPProxy, "mcp", gwmodels.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
+	agent := syncRow(gwmodels.KindAgent, "p/a/env", gwmodels.GatewaySyncStateUndeployed, "", deployedAt)
+	restAPI := syncRow(gwmodels.KindWebSubAPI, "api", gwmodels.GatewaySyncStateDeployed, uuid.NewString(), deployedAt)
 	repo := &gwrepomocks.DeploymentRepositoryMock{
-		ListForGatewaySyncFunc: func(_ context.Context, ouID, gatewayID string) ([]models.GatewaySyncRow, error) {
+		ListForGatewaySyncFunc: func(_ context.Context, ouID, gatewayID string) ([]gwmodels.GatewaySyncRow, error) {
 			assert.Equal(t, "ou-1", ouID)
 			assert.Equal(t, "gw-1", gatewayID)
-			return []models.GatewaySyncRow{provider, proxy, mapping, mcpProxy, agent, restAPI}, nil
+			return []gwmodels.GatewaySyncRow{provider, proxy, mapping, mcpProxy, agent, restAPI}, nil
 		},
 	}
 	svc := newGatewayInternalServiceWithDeployments(repo)
@@ -62,7 +62,7 @@ func TestListGatewayDeploymentsNamesEachArtifactAsTheGatewayStoresIt(t *testing.
 	require.NoError(t, err)
 
 	want := []struct {
-		row        models.GatewaySyncRow
+		row        gwmodels.GatewaySyncRow
 		kind, id   string
 		deployment string
 	}{
@@ -93,16 +93,16 @@ func TestListGatewayDeploymentsNamesEachArtifactAsTheGatewayStoresIt(t *testing.
 // stubGatewayArtifacts names every artifact as kind Stub under its handle.
 type stubGatewayArtifacts struct{}
 
-func (stubGatewayArtifacts) GatewayArtifact(ref models.ArtifactRef) (string, string, bool) {
+func (stubGatewayArtifacts) GatewayArtifact(ref gwmodels.ArtifactRef) (string, string, bool) {
 	return "Stub", ref.Handle, true
 }
 
 // The sync routes name an artifact as its kind does.
 func TestGatewaySyncRoutesAskTheKinds(t *testing.T) {
-	row := syncRow(models.KindWebSubAPI, "the-handle", models.GatewaySyncStateDeployed, uuid.NewString(), time.Now())
+	row := syncRow(gwmodels.KindWebSubAPI, "the-handle", gwmodels.GatewaySyncStateDeployed, uuid.NewString(), time.Now())
 	repo := &gwrepomocks.DeploymentRepositoryMock{
-		ListForGatewaySyncFunc: func(context.Context, string, string) ([]models.GatewaySyncRow, error) {
-			return []models.GatewaySyncRow{row}, nil
+		ListForGatewaySyncFunc: func(context.Context, string, string) ([]gwmodels.GatewaySyncRow, error) {
+			return []gwmodels.GatewaySyncRow{row}, nil
 		},
 	}
 	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, nil, stubGatewayArtifacts{})
@@ -116,7 +116,7 @@ func TestGatewaySyncRoutesAskTheKinds(t *testing.T) {
 }
 
 func TestSyncEtagChangesWithTheDeploymentAndItsTime(t *testing.T) {
-	at := models.NewPerformedAt(time.Now())
+	at := gwmodels.NewPerformedAt(time.Now())
 	base := syncEtag("artifact", "deployment", at)
 	assert.NotEqual(t, base, syncEtag("artifact", "other", at))
 	assert.NotEqual(t, base, syncEtag("artifact", "", at))
@@ -130,33 +130,33 @@ func TestFetchDeploymentBatch(t *testing.T) {
 	require.NoError(t, err)
 	secretRef := base64.StdEncoding.EncodeToString(ciphertext)
 
-	provider := models.GatewayDeploymentContent{
-		ArtifactRef:  models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindLLMProvider, Handle: "provider"},
+	provider := gwmodels.GatewayDeploymentContent{
+		ArtifactRef:  gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindLLMProvider, Handle: "provider"},
 		DeploymentID: uuid.New(),
 		Content:      []byte("spec:\n  upstream:\n    auth:\n      header: X-Key\n      secretRef: " + secretRef + "\n"),
 	}
-	proxy := models.GatewayDeploymentContent{
-		ArtifactRef:  models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindLLMProxy, Handle: "proxy-handle"},
+	proxy := gwmodels.GatewayDeploymentContent{
+		ArtifactRef:  gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindLLMProxy, Handle: "proxy-handle"},
 		DeploymentID: uuid.New(),
 		Content:      []byte("spec:\n  provider:\n    auth:\n      secretRef: not-decryptable\n"),
 	}
-	mcp := models.GatewayDeploymentContent{
-		ArtifactRef:  models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindMCPMapping, Handle: "mcp"},
+	mcp := gwmodels.GatewayDeploymentContent{
+		ArtifactRef:  gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindMCPMapping, Handle: "mcp"},
 		DeploymentID: uuid.New(),
 		Content:      []byte("spec:\n  policies:\n  - params:\n      secretRef: " + secretRef + "\n"),
 	}
-	restAPI := models.GatewayDeploymentContent{
-		ArtifactRef:  models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindWebSubAPI},
+	restAPI := gwmodels.GatewayDeploymentContent{
+		ArtifactRef:  gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindWebSubAPI},
 		DeploymentID: uuid.New(),
 		Content:      []byte("kind: RestApi\n"),
 	}
 	repo := &gwrepomocks.DeploymentRepositoryMock{
-		ListContentForGatewayFunc: func(_ context.Context, ouID, gatewayID string, ids []uuid.UUID) ([]models.GatewayDeploymentContent, error) {
+		ListContentForGatewayFunc: func(_ context.Context, ouID, gatewayID string, ids []uuid.UUID) ([]gwmodels.GatewayDeploymentContent, error) {
 			assert.Equal(t, "ou-1", ouID)
 			assert.Equal(t, "gw-1", gatewayID)
 			assert.Equal(t, []uuid.UUID{provider.DeploymentID, proxy.DeploymentID, mcp.DeploymentID, restAPI.DeploymentID}, ids,
 				"ids that aren't deployment ids are skipped, including the empty id of an undeployed entry")
-			return []models.GatewayDeploymentContent{provider, proxy, mcp, restAPI}, nil
+			return []gwmodels.GatewayDeploymentContent{provider, proxy, mcp, restAPI}, nil
 		},
 	}
 	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
@@ -188,18 +188,18 @@ func TestFetchDeploymentBatchWithNoDeploymentIDs(t *testing.T) {
 }
 
 func TestCheckArtifactsExist(t *testing.T) {
-	provider := models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindLLMProvider, Handle: "provider"}
-	proxy := models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindLLMProxy, Handle: "proxy-handle"}
+	provider := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindLLMProvider, Handle: "provider"}
+	proxy := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindLLMProxy, Handle: "proxy-handle"}
 	missing := uuid.New()
 	artifacts := &gwrepomocks.ArtifactRepositoryMock{
-		ListExistingFunc: func(_ context.Context, ouID string, uuids []uuid.UUID, handles []string) ([]models.ArtifactRef, error) {
+		ListExistingFunc: func(_ context.Context, ouID string, uuids []uuid.UUID, handles []string) ([]gwmodels.ArtifactRef, error) {
 			assert.Equal(t, "ou-1", ouID)
 			assert.Equal(t, []uuid.UUID{provider.ArtifactUUID, provider.ArtifactUUID, missing}, uuids)
 			assert.Equal(t, []string{
 				strings.ToUpper(provider.ArtifactUUID.String()), provider.ArtifactUUID.String(), "proxy-handle",
 				missing.String(), "gone-handle",
 			}, handles, "any id may be an LLM proxy handle")
-			return []models.ArtifactRef{provider, proxy}, nil
+			return []gwmodels.ArtifactRef{provider, proxy}, nil
 		},
 	}
 	svc := NewGatewayInternalAPIService(nil, nil, nil, artifacts, nil, nil, nil, gatewayKinds())
@@ -210,7 +210,7 @@ func TestCheckArtifactsExist(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, []models.ArtifactExistence{
+	assert.Equal(t, []gwmodels.ArtifactExistence{
 		{ArtifactID: strings.ToUpper(provider.ArtifactUUID.String()), Exists: true},
 		{ArtifactID: provider.ArtifactUUID.String(), Exists: true},
 		{ArtifactID: "proxy-handle", Exists: true},

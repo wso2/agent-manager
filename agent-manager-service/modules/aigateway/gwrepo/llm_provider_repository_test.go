@@ -26,7 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
@@ -44,11 +44,11 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 			gdb := db.GetDB()
 			repo := NewLLMProviderRepo(gdb)
 			orgUUID := newOrg(t)
-			create := func(handle, name, version string) *models.LLMProvider {
-				provider := &models.LLMProvider{
+			create := func(handle, name, version string) *gwmodels.LLMProvider {
+				provider := &gwmodels.LLMProvider{
 					Description:    "original description",
 					TemplateHandle: "openai",
-					Configuration: models.LLMProviderConfig{
+					Configuration: gwmodels.LLMProviderConfig{
 						Name: name, Handle: handle, Version: version, Template: "openai",
 					},
 					Status: "CREATED",
@@ -58,10 +58,10 @@ func TestLLMProviderRepo_Update_NameAndVersion(t *testing.T) {
 			}
 			create("provider-a", "Provider A", tt.otherVersion)
 			provider := create("provider-b", "Provider B", "v1.0")
-			updates := &models.LLMProvider{
+			updates := &gwmodels.LLMProvider{
 				Description:    "updated description",
 				TemplateHandle: "openai",
-				Configuration: models.LLMProviderConfig{
+				Configuration: gwmodels.LLMProviderConfig{
 					Name: tt.updateName, Handle: "provider-b", Version: "v2.0", Template: "openai",
 				},
 			}
@@ -106,9 +106,9 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	repo := NewLLMProviderRepo(gdb)
 	orgUUID := newOrg(t)
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:     "Original Name",
 			Handle:   "rename-sync-test-provider",
 			Version:  "v1.0",
@@ -119,8 +119,8 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	require.NoError(t, repo.Create(gdb, provider, provider.Configuration.Handle,
 		provider.Configuration.Name, provider.Configuration.Version, orgUUID))
 
-	updates := &models.LLMProvider{
-		Configuration: models.LLMProviderConfig{
+	updates := &gwmodels.LLMProvider{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:     "Renamed Provider",
 			Handle:   provider.Configuration.Handle,
 			Version:  provider.Configuration.Version,
@@ -129,7 +129,7 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	}
 	require.NoError(t, repo.Update(context.Background(), updates, provider.UUID.String(), orgUUID))
 
-	var artifact models.Artifact
+	var artifact gwmodels.Artifact
 	require.NoError(t, gdb.First(&artifact, "id = ?", provider.UUID).Error)
 	require.Equal(t, "Renamed Provider", artifact.Name,
 		"Update must sync the new name into mod_ai_gateway_artifacts.name — that's what every read path serves as the provider's display name")
@@ -145,9 +145,9 @@ func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.
 	repo := NewLLMProviderRepo(gdb)
 	orgUUID := newOrg(t)
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:     "Keep This Name",
 			Handle:   "rename-sync-test-provider-2",
 			Version:  "v1.0",
@@ -158,9 +158,9 @@ func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.
 	require.NoError(t, repo.Create(gdb, provider, provider.Configuration.Handle,
 		provider.Configuration.Name, provider.Configuration.Version, orgUUID))
 
-	updates := &models.LLMProvider{
+	updates := &gwmodels.LLMProvider{
 		Description: "updated description only",
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Handle:   provider.Configuration.Handle,
 			Version:  provider.Configuration.Version,
 			Template: provider.Configuration.Template,
@@ -168,7 +168,7 @@ func TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged(t *testing.
 	}
 	require.NoError(t, repo.Update(context.Background(), updates, provider.UUID.String(), orgUUID))
 
-	var artifact models.Artifact
+	var artifact gwmodels.Artifact
 	require.NoError(t, gdb.First(&artifact, "id = ?", provider.UUID).Error)
 	require.Equal(t, "Keep This Name", artifact.Name)
 }

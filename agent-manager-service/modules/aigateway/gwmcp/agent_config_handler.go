@@ -22,7 +22,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 )
 
@@ -36,7 +36,7 @@ func NewAgentConfigHandler(configSvc gwsvc.AgentConfigurationService) *AgentConf
 
 // CreateAgentConfig records the token subject as the creator, as the REST
 // controller does, so configs made over MCP are attributed to the caller.
-func (h *AgentConfigHandler) CreateAgentConfig(ctx context.Context, ouID string, projectName string, agentName string, req models.CreateAgentModelConfigRequest) (*models.AgentModelConfigResponse, error) {
+func (h *AgentConfigHandler) CreateAgentConfig(ctx context.Context, ouID string, projectName string, agentName string, req gwmodels.CreateAgentModelConfigRequest) (*gwmodels.AgentModelConfigResponse, error) {
 	createdBy := jwtassertion.CallerSubject(ctx)
 	if createdBy == "" {
 		createdBy = "system"
@@ -53,7 +53,7 @@ func (h *AgentConfigHandler) RevokeConfigAPIKeys(ctx context.Context, ouID, proj
 		return fmt.Errorf("invalid configuration id %q: %w", configID, err)
 	}
 	list, revoke := h.configSvc.ListLLMConfigAPIKeys, h.configSvc.RevokeLLMConfigAPIKey
-	if configType == models.AgentConfigTypeMCP {
+	if configType == gwmodels.AgentConfigTypeMCP {
 		list, revoke = h.configSvc.ListMCPConfigAPIKeys, h.configSvc.RevokeMCPConfigAPIKey
 	}
 	keys, err := list(ctx, ouID, projectName, agentName, id, envName)

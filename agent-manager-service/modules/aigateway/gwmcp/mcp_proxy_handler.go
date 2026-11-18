@@ -18,7 +18,7 @@ package gwmcp
 import (
 	"context"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 )
 
@@ -30,10 +30,10 @@ func NewMCPProxyHandler(proxySvc *gwsvc.MCPProxyService) *MCPProxyHandler {
 	return &MCPProxyHandler{proxySvc: proxySvc}
 }
 
-func (h *MCPProxyHandler) ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*models.MCPProxyListResponse, error) {
+func (h *MCPProxyHandler) ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*gwmodels.MCPProxyListResponse, error) {
 	return h.proxySvc.List(ctx, ouID, nil, limit, offset)
 }
 
-func (h *MCPProxyHandler) GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error) {
+func (h *MCPProxyHandler) GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*gwmodels.MCPProxyDTO, error) {
 	return h.proxySvc.Get(ctx, ouID, proxyID)
 }

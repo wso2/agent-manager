@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +24,7 @@ import (
 //			CountFunc: func(orgUUID string) (int, error) {
 //				panic("mock out the Count method")
 //			},
-//			CreateFunc: func(tx *gorm.DB, p *models.LLMProvider, handle string, name string, version string, orgUUID string) error {
+//			CreateFunc: func(tx *gorm.DB, p *gwmodels.LLMProvider, handle string, name string, version string, orgUUID string) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(providerID string, orgUUID string) error {
@@ -39,10 +39,10 @@ import (
 //			ExistsFunc: func(providerID string, orgUUID string) (bool, error) {
 //				panic("mock out the Exists method")
 //			},
-//			GetByHandleFunc: func(handle string, orgUUID string) (*models.LLMProvider, error) {
+//			GetByHandleFunc: func(handle string, orgUUID string) (*gwmodels.LLMProvider, error) {
 //				panic("mock out the GetByHandle method")
 //			},
-//			GetByUUIDFunc: func(providerID string, orgUUID string) (*models.LLMProvider, error) {
+//			GetByUUIDFunc: func(providerID string, orgUUID string) (*gwmodels.LLMProvider, error) {
 //				panic("mock out the GetByUUID method")
 //			},
 //			HasAssociatedProxiesFunc: func(ctx context.Context, providerUUID uuid.UUID) (bool, error) {
@@ -51,13 +51,13 @@ import (
 //			IsDeletingForUpdateFunc: func(ctx context.Context, tx *gorm.DB, providerUUID uuid.UUID) (bool, error) {
 //				panic("mock out the IsDeletingForUpdate method")
 //			},
-//			ListFunc: func(orgUUID string, limit int, offset int) ([]*models.LLMProvider, error) {
+//			ListFunc: func(orgUUID string, limit int, offset int) ([]*gwmodels.LLMProvider, error) {
 //				panic("mock out the List method")
 //			},
 //			MarkDeletingFunc: func(providerUUID uuid.UUID) (bool, error) {
 //				panic("mock out the MarkDeleting method")
 //			},
-//			UpdateFunc: func(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error {
+//			UpdateFunc: func(ctx context.Context, p *gwmodels.LLMProvider, providerID string, orgUUID string) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -74,7 +74,7 @@ type LLMProviderRepositoryMock struct {
 	CountFunc func(orgUUID string) (int, error)
 
 	// CreateFunc mocks the Create method.
-	CreateFunc func(tx *gorm.DB, p *models.LLMProvider, handle string, name string, version string, orgUUID string) error
+	CreateFunc func(tx *gorm.DB, p *gwmodels.LLMProvider, handle string, name string, version string, orgUUID string) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(providerID string, orgUUID string) error
@@ -89,10 +89,10 @@ type LLMProviderRepositoryMock struct {
 	ExistsFunc func(providerID string, orgUUID string) (bool, error)
 
 	// GetByHandleFunc mocks the GetByHandle method.
-	GetByHandleFunc func(handle string, orgUUID string) (*models.LLMProvider, error)
+	GetByHandleFunc func(handle string, orgUUID string) (*gwmodels.LLMProvider, error)
 
 	// GetByUUIDFunc mocks the GetByUUID method.
-	GetByUUIDFunc func(providerID string, orgUUID string) (*models.LLMProvider, error)
+	GetByUUIDFunc func(providerID string, orgUUID string) (*gwmodels.LLMProvider, error)
 
 	// HasAssociatedProxiesFunc mocks the HasAssociatedProxies method.
 	HasAssociatedProxiesFunc func(ctx context.Context, providerUUID uuid.UUID) (bool, error)
@@ -101,13 +101,13 @@ type LLMProviderRepositoryMock struct {
 	IsDeletingForUpdateFunc func(ctx context.Context, tx *gorm.DB, providerUUID uuid.UUID) (bool, error)
 
 	// ListFunc mocks the List method.
-	ListFunc func(orgUUID string, limit int, offset int) ([]*models.LLMProvider, error)
+	ListFunc func(orgUUID string, limit int, offset int) ([]*gwmodels.LLMProvider, error)
 
 	// MarkDeletingFunc mocks the MarkDeleting method.
 	MarkDeletingFunc func(providerUUID uuid.UUID) (bool, error)
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error
+	UpdateFunc func(ctx context.Context, p *gwmodels.LLMProvider, providerID string, orgUUID string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -126,7 +126,7 @@ type LLMProviderRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// P is the p argument value.
-			P *models.LLMProvider
+			P *gwmodels.LLMProvider
 			// Handle is the handle argument value.
 			Handle string
 			// Name is the name argument value.
@@ -219,7 +219,7 @@ type LLMProviderRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// P is the p argument value.
-			P *models.LLMProvider
+			P *gwmodels.LLMProvider
 			// ProviderID is the providerID argument value.
 			ProviderID string
 			// OrgUUID is the orgUUID argument value.
@@ -307,13 +307,13 @@ func (mock *LLMProviderRepositoryMock) CountCalls() []struct {
 }
 
 // Create calls CreateFunc.
-func (mock *LLMProviderRepositoryMock) Create(tx *gorm.DB, p *models.LLMProvider, handle string, name string, version string, orgUUID string) error {
+func (mock *LLMProviderRepositoryMock) Create(tx *gorm.DB, p *gwmodels.LLMProvider, handle string, name string, version string, orgUUID string) error {
 	if mock.CreateFunc == nil {
 		panic("LLMProviderRepositoryMock.CreateFunc: method is nil but LLMProviderRepository.Create was just called")
 	}
 	callInfo := struct {
 		Tx      *gorm.DB
-		P       *models.LLMProvider
+		P       *gwmodels.LLMProvider
 		Handle  string
 		Name    string
 		Version string
@@ -338,7 +338,7 @@ func (mock *LLMProviderRepositoryMock) Create(tx *gorm.DB, p *models.LLMProvider
 //	len(mockedLLMProviderRepository.CreateCalls())
 func (mock *LLMProviderRepositoryMock) CreateCalls() []struct {
 	Tx      *gorm.DB
-	P       *models.LLMProvider
+	P       *gwmodels.LLMProvider
 	Handle  string
 	Name    string
 	Version string
@@ -346,7 +346,7 @@ func (mock *LLMProviderRepositoryMock) CreateCalls() []struct {
 } {
 	var calls []struct {
 		Tx      *gorm.DB
-		P       *models.LLMProvider
+		P       *gwmodels.LLMProvider
 		Handle  string
 		Name    string
 		Version string
@@ -515,7 +515,7 @@ func (mock *LLMProviderRepositoryMock) ExistsCalls() []struct {
 }
 
 // GetByHandle calls GetByHandleFunc.
-func (mock *LLMProviderRepositoryMock) GetByHandle(handle string, orgUUID string) (*models.LLMProvider, error) {
+func (mock *LLMProviderRepositoryMock) GetByHandle(handle string, orgUUID string) (*gwmodels.LLMProvider, error) {
 	if mock.GetByHandleFunc == nil {
 		panic("LLMProviderRepositoryMock.GetByHandleFunc: method is nil but LLMProviderRepository.GetByHandle was just called")
 	}
@@ -551,7 +551,7 @@ func (mock *LLMProviderRepositoryMock) GetByHandleCalls() []struct {
 }
 
 // GetByUUID calls GetByUUIDFunc.
-func (mock *LLMProviderRepositoryMock) GetByUUID(providerID string, orgUUID string) (*models.LLMProvider, error) {
+func (mock *LLMProviderRepositoryMock) GetByUUID(providerID string, orgUUID string) (*gwmodels.LLMProvider, error) {
 	if mock.GetByUUIDFunc == nil {
 		panic("LLMProviderRepositoryMock.GetByUUIDFunc: method is nil but LLMProviderRepository.GetByUUID was just called")
 	}
@@ -663,7 +663,7 @@ func (mock *LLMProviderRepositoryMock) IsDeletingForUpdateCalls() []struct {
 }
 
 // List calls ListFunc.
-func (mock *LLMProviderRepositoryMock) List(orgUUID string, limit int, offset int) ([]*models.LLMProvider, error) {
+func (mock *LLMProviderRepositoryMock) List(orgUUID string, limit int, offset int) ([]*gwmodels.LLMProvider, error) {
 	if mock.ListFunc == nil {
 		panic("LLMProviderRepositoryMock.ListFunc: method is nil but LLMProviderRepository.List was just called")
 	}
@@ -735,13 +735,13 @@ func (mock *LLMProviderRepositoryMock) MarkDeletingCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *LLMProviderRepositoryMock) Update(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error {
+func (mock *LLMProviderRepositoryMock) Update(ctx context.Context, p *gwmodels.LLMProvider, providerID string, orgUUID string) error {
 	if mock.UpdateFunc == nil {
 		panic("LLMProviderRepositoryMock.UpdateFunc: method is nil but LLMProviderRepository.Update was just called")
 	}
 	callInfo := struct {
 		Ctx        context.Context
-		P          *models.LLMProvider
+		P          *gwmodels.LLMProvider
 		ProviderID string
 		OrgUUID    string
 	}{
@@ -762,13 +762,13 @@ func (mock *LLMProviderRepositoryMock) Update(ctx context.Context, p *models.LLM
 //	len(mockedLLMProviderRepository.UpdateCalls())
 func (mock *LLMProviderRepositoryMock) UpdateCalls() []struct {
 	Ctx        context.Context
-	P          *models.LLMProvider
+	P          *gwmodels.LLMProvider
 	ProviderID string
 	OrgUUID    string
 } {
 	var calls []struct {
 		Ctx        context.Context
-		P          *models.LLMProvider
+		P          *gwmodels.LLMProvider
 		ProviderID string
 		OrgUUID    string
 	}

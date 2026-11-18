@@ -31,7 +31,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -49,7 +49,7 @@ var queueEpochs atomic.Int64
 
 func renderQueue() DeploymentRepository { return NewDeploymentRepo(db.GetDB()) }
 
-func insertPending(t *testing.T, p models.Placement, reason string) bool {
+func insertPending(t *testing.T, p gwmodels.Placement, reason string) bool {
 	t.Helper()
 	var inserted bool
 	require.NoError(t, db.GetDB().Transaction(func(tx *gorm.DB) error {
@@ -60,7 +60,7 @@ func insertPending(t *testing.T, p models.Placement, reason string) bool {
 	return inserted
 }
 
-func dueAt(t *testing.T, p models.Placement, at time.Time) {
+func dueAt(t *testing.T, p gwmodels.Placement, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.GetDB().Exec(
 		`UPDATE mod_ai_gateway_artifact_gateway_status SET next_attempt_at = ? WHERE artifact_id = ? AND org_id = ? AND gateway_id = ?`,
@@ -69,7 +69,7 @@ func dueAt(t *testing.T, p models.Placement, at time.Time) {
 }
 
 // claimOne claims at now and expects exactly p.
-func claimOne(t *testing.T, p models.Placement, now time.Time) models.ClaimedRender {
+func claimOne(t *testing.T, p gwmodels.Placement, now time.Time) gwmodels.ClaimedRender {
 	t.Helper()
 	claims, err := renderQueue().ClaimDueRenders(context.Background(), now, testLease, 10)
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func claimOne(t *testing.T, p models.Placement, now time.Time) models.ClaimedRen
 	return claims[0]
 }
 
-func completeRender(claim models.ClaimedRender) (*models.Deployment, error) {
+func completeRender(claim gwmodels.ClaimedRender) (*gwmodels.Deployment, error) {
 	deployment := newDeployment(claim.Placement)
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
 		return renderQueue().CompleteRender(context.Background(), tx, claim, deployment)
@@ -86,7 +86,7 @@ func completeRender(claim models.ClaimedRender) (*models.Deployment, error) {
 	return deployment, err
 }
 
-func queue(t *testing.T, p models.Placement, gateways []uuid.UUID, scope QueueScope) int64 {
+func queue(t *testing.T, p gwmodels.Placement, gateways []uuid.UUID, scope QueueScope) int64 {
 	t.Helper()
 	n, err := renderQueue().QueueRender(context.Background(), nil, p.OUID, p.ArtifactUUID, gateways, "inputs changed", scope)
 	require.NoError(t, err)
@@ -95,14 +95,14 @@ func queue(t *testing.T, p models.Placement, gateways []uuid.UUID, scope QueueSc
 
 func TestInsertPending(t *testing.T) {
 	t.Run("writes a PENDING row, due now", func(t *testing.T) {
-		p := seedPlacement(t, models.KindLLMProxy)
+		p := seedPlacement(t, gwmodels.KindLLMProxy)
 		before := time.Now().Add(-time.Second)
 
 		assert.True(t, insertPending(t, p, "placed"))
 
 		row := statusRow(t, p)
-		assert.Equal(t, models.DeploymentStatusPending, row.Status)
-		assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
+		assert.Equal(t, gwmodels.DeploymentStatusPending, row.Status)
+		assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.StatusDesired)
 		assert.Nil(t, row.DeploymentID)
 		require.NotNil(t, row.NextAttemptAt)
 		assert.WithinRange(t, *row.NextAttemptAt, before, time.Now().Add(time.Second))
@@ -111,7 +111,7 @@ func TestInsertPending(t *testing.T) {
 		assert.False(t, row.PerformedAt.IsZero())
 	})
 	t.Run("never touches an existing row", func(t *testing.T) {
-		p := seedPlacement(t, models.KindLLMProxy)
+		p := seedPlacement(t, gwmodels.KindLLMProxy)
 		deployment := startDeploy(t, p)
 		before := statusRow(t, p)
 
@@ -122,13 +122,13 @@ func TestInsertPending(t *testing.T) {
 		assert.Equal(t, deployment.DeploymentID, *row.DeploymentID)
 	})
 	t.Run("an UNDEPLOYED row counts as a row, so an undeploy sticks", func(t *testing.T) {
-		p := seedPlacement(t, models.KindLLMProxy)
+		p := seedPlacement(t, gwmodels.KindLLMProxy)
 		require.True(t, insertPending(t, p, "placed"))
 		_, err := beginUndeploy(t, p)
 		require.NoError(t, err)
 
 		assert.False(t, insertPending(t, p, "placed"))
-		assert.Equal(t, models.DeploymentStatusUndeployed, statusRow(t, p).Status)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeployed, statusRow(t, p).Status)
 	})
 }
 
@@ -136,7 +136,7 @@ func TestInsertPending(t *testing.T) {
 // undeploy that lands after the insert undeploys it.
 func TestInsertPendingRacingBeginUndeploy(t *testing.T) {
 	for range 10 {
-		p := seedPlacement(t, models.KindLLMProxy)
+		p := seedPlacement(t, gwmodels.KindLLMProxy)
 		var wg sync.WaitGroup
 		var undeployErr error
 		wg.Go(func() { insertPending(t, p, "placed") })
@@ -144,16 +144,16 @@ func TestInsertPendingRacingBeginUndeploy(t *testing.T) {
 		wg.Wait()
 
 		var rows int64
-		require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
+		require.NoError(t, db.GetDB().Model(&gwmodels.DeploymentStatusRecord{}).
 			Where("artifact_id = ? AND org_id = ?", p.ArtifactUUID, p.OUID).Count(&rows).Error)
 		assert.Equal(t, int64(1), rows)
 		row := statusRow(t, p)
 		if undeployErr == nil {
-			assert.Equal(t, models.DeploymentStatusUndeployed, row.Status, "the undeploy saw the PENDING row")
+			assert.Equal(t, gwmodels.DeploymentStatusUndeployed, row.Status, "the undeploy saw the PENDING row")
 			assertQueueClear(t, row)
 		} else {
 			assert.ErrorIs(t, undeployErr, utils.ErrDeploymentNotActive)
-			assert.Equal(t, models.DeploymentStatusPending, row.Status,
+			assert.Equal(t, gwmodels.DeploymentStatusPending, row.Status,
 				"the undeploy ran first; the render's record re-check undeploys this row")
 		}
 	}
@@ -161,11 +161,11 @@ func TestInsertPendingRacingBeginUndeploy(t *testing.T) {
 
 func TestQueueRender(t *testing.T) {
 	t.Run("placed scope skips rows heading for UNDEPLOYED and leaves the status alone", func(t *testing.T) {
-		placed := seedPlacement(t, models.KindLLMProvider)
+		placed := seedPlacement(t, gwmodels.KindLLMProvider)
 		deployment := startDeploy(t, placed)
-		applyAck(t, placed, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
+		applyAck(t, placed, deployAck(deployment.DeploymentID, gwmodels.DeploymentAckStatusSuccess, ""), nil)
 		undeployed := placed
-		undeployed.GatewayUUID = newGateway(t, undeployed.OUID, models.GatewayRoleEgress)
+		undeployed.GatewayUUID = newGateway(t, undeployed.OUID, gwmodels.GatewayRoleEgress)
 		startDeploy(t, undeployed)
 		_, err := beginUndeploy(t, undeployed)
 		require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestQueueRender(t *testing.T) {
 		assert.Equal(t, int64(1), queue(t, placed, nil, QueueScopePlaced))
 
 		row := statusRow(t, placed)
-		assert.Equal(t, models.DeploymentStatusDeployed, row.Status, "the gateway still serves the old version")
+		assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.Status, "the gateway still serves the old version")
 		assert.Equal(t, deployment.DeploymentID, *row.DeploymentID)
 		require.NotNil(t, row.NextAttemptAt)
 		assert.Zero(t, row.AttemptCount)
@@ -183,7 +183,7 @@ func TestQueueRender(t *testing.T) {
 		assert.Nil(t, statusRow(t, undeployed).NextAttemptAt)
 	})
 	t.Run("any scope re-queues an UNDEPLOYED row", func(t *testing.T) {
-		p := seedPlacement(t, models.KindLLMProvider)
+		p := seedPlacement(t, gwmodels.KindLLMProvider)
 		startDeploy(t, p)
 		_, err := beginUndeploy(t, p)
 		require.NoError(t, err)
@@ -191,13 +191,13 @@ func TestQueueRender(t *testing.T) {
 		assert.Equal(t, int64(1), queue(t, p, nil, QueueScopeAny))
 
 		row := statusRow(t, p)
-		assert.Equal(t, models.DeploymentStatusUndeploying, row.Status)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeploying, row.Status)
 		assert.NotNil(t, row.NextAttemptAt)
 	})
 	t.Run("gateways limit the rows", func(t *testing.T) {
-		p := seedPlacement(t, models.KindLLMProvider)
+		p := seedPlacement(t, gwmodels.KindLLMProvider)
 		other := p
-		other.GatewayUUID = newGateway(t, other.OUID, models.GatewayRoleEgress)
+		other.GatewayUUID = newGateway(t, other.OUID, gwmodels.GatewayRoleEgress)
 		startDeploy(t, p)
 		startDeploy(t, other)
 
@@ -209,16 +209,16 @@ func TestQueueRender(t *testing.T) {
 
 func TestClaimDueRenders(t *testing.T) {
 	epoch := queueEpoch()
-	p := seedPlacement(t, models.KindLLMProxy)
+	p := seedPlacement(t, gwmodels.KindLLMProxy)
 	require.True(t, insertPending(t, p, "placed"))
 	dueAt(t, p, epoch)
-	notDue := seedPlacement(t, models.KindLLMProxy)
+	notDue := seedPlacement(t, gwmodels.KindLLMProxy)
 	require.True(t, insertPending(t, notDue, "placed"))
 	dueAt(t, notDue, epoch.Add(time.Hour))
 
 	claim := claimOne(t, p, epoch)
 
-	assert.Equal(t, models.KindLLMProxy, claim.Kind)
+	assert.Equal(t, gwmodels.KindLLMProxy, claim.Kind)
 	assert.Equal(t, p.Handle, claim.Handle)
 	assert.Zero(t, claim.AttemptCount)
 	assert.True(t, claim.Token.Equal(epoch.Add(testLease)), "the token is the leased next_attempt_at")
@@ -232,13 +232,13 @@ func TestClaimDueRenders(t *testing.T) {
 // A replica killed between render and write-back commits nothing; once the lease runs out the row is claimed again.
 func TestClaimDueRendersAfterAnAbandonedClaim(t *testing.T) {
 	epoch := queueEpoch()
-	p := seedPlacement(t, models.KindLLMProxy)
+	p := seedPlacement(t, gwmodels.KindLLMProxy)
 	require.True(t, insertPending(t, p, "placed"))
 	dueAt(t, p, epoch)
 	first := claimOne(t, p, epoch)
 
 	row := statusRow(t, p)
-	assert.Equal(t, models.DeploymentStatusPending, row.Status, "nothing is half-committed")
+	assert.Equal(t, gwmodels.DeploymentStatusPending, row.Status, "nothing is half-committed")
 	assert.Nil(t, row.DeploymentID)
 
 	second := claimOne(t, p, epoch.Add(testLease+time.Second))
@@ -252,16 +252,16 @@ func TestClaimDueRendersAfterAnAbandonedClaim(t *testing.T) {
 
 func TestClaimDueRendersSkipsRowsAnotherClaimerHolds(t *testing.T) {
 	epoch := queueEpoch()
-	var placements []models.Placement
+	var placements []gwmodels.Placement
 	for range 6 {
-		p := seedPlacement(t, models.KindLLMProxy)
+		p := seedPlacement(t, gwmodels.KindLLMProxy)
 		require.True(t, insertPending(t, p, "placed"))
 		dueAt(t, p, epoch)
 		placements = append(placements, p)
 	}
 
 	var mu sync.Mutex
-	claimed := map[models.Placement]int{}
+	claimed := map[gwmodels.Placement]int{}
 	var wg sync.WaitGroup
 	for range 3 {
 		wg.Go(func() {
@@ -282,13 +282,13 @@ func TestClaimDueRendersSkipsRowsAnotherClaimerHolds(t *testing.T) {
 }
 
 func TestClaimDueRendersOf(t *testing.T) {
-	p := seedPlacement(t, models.KindLLMProvider)
+	p := seedPlacement(t, gwmodels.KindLLMProvider)
 	other := p
-	other.GatewayUUID = newGateway(t, other.OUID, models.GatewayRoleEgress)
+	other.GatewayUUID = newGateway(t, other.OUID, gwmodels.GatewayRoleEgress)
 	startDeploy(t, p)
 	startDeploy(t, other)
 	queue(t, p, nil, QueueScopePlaced)
-	unrelated := seedPlacement(t, models.KindLLMProvider)
+	unrelated := seedPlacement(t, gwmodels.KindLLMProvider)
 	require.True(t, insertPending(t, unrelated, "placed"))
 
 	claims, err := renderQueue().ClaimDueRendersOf(context.Background(), p.OUID, p.ArtifactUUID,
@@ -305,9 +305,9 @@ func TestClaimDueRendersOf(t *testing.T) {
 
 // The claim token: only a request, a restore or an undeploy supersedes a render. An ack doesn't.
 func TestCompleteRender(t *testing.T) {
-	deployedAndQueued := func(t *testing.T) (models.Placement, *models.Deployment, models.ClaimedRender) {
+	deployedAndQueued := func(t *testing.T) (gwmodels.Placement, *gwmodels.Deployment, gwmodels.ClaimedRender) {
 		epoch := queueEpoch()
-		p := seedPlacement(t, models.KindLLMProvider)
+		p := seedPlacement(t, gwmodels.KindLLMProvider)
 		first := startDeploy(t, p)
 		queue(t, p, nil, QueueScopePlaced)
 		dueAt(t, p, epoch)
@@ -321,7 +321,7 @@ func TestCompleteRender(t *testing.T) {
 		require.NoError(t, err)
 
 		row := statusRow(t, p)
-		assert.Equal(t, models.DeploymentStatusDeploying, row.Status)
+		assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
 		assert.Equal(t, deployment.DeploymentID, *row.DeploymentID)
 		assertQueueClear(t, row)
 		require.NotNil(t, deployment.UpdatedAt)
@@ -329,7 +329,7 @@ func TestCompleteRender(t *testing.T) {
 	})
 	t.Run("an ack mid-render doesn't supersede it", func(t *testing.T) {
 		p, first, claim := deployedAndQueued(t)
-		require.True(t, applyAck(t, p, deployAck(first.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil))
+		require.True(t, applyAck(t, p, deployAck(first.DeploymentID, gwmodels.DeploymentAckStatusSuccess, ""), nil))
 
 		deployment, err := completeRender(claim)
 		require.NoError(t, err)
@@ -359,21 +359,21 @@ func TestCompleteRender(t *testing.T) {
 
 		_, err = completeRender(claim)
 		assert.ErrorIs(t, err, ErrRenderSuperseded)
-		assert.Equal(t, models.DeploymentStatusUndeploying, statusRow(t, p).Status)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeploying, statusRow(t, p).Status)
 	})
 }
 
 func TestRecordRenderOutcome(t *testing.T) {
-	claimed := func(t *testing.T) (models.Placement, models.ClaimedRender, time.Time) {
+	claimed := func(t *testing.T) (gwmodels.Placement, gwmodels.ClaimedRender, time.Time) {
 		epoch := queueEpoch()
-		p := seedPlacement(t, models.KindAgent)
+		p := seedPlacement(t, gwmodels.KindAgent)
 		require.True(t, insertPending(t, p, "placed"))
 		require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifact_gateway_status SET attempt_count = 2
 			WHERE artifact_id = ? AND gateway_id = ?`, p.ArtifactUUID, p.GatewayUUID).Error)
 		dueAt(t, p, epoch)
 		return p, claimOne(t, p, epoch), epoch
 	}
-	record := func(claim models.ClaimedRender, outcome RenderOutcome) error {
+	record := func(claim gwmodels.ClaimedRender, outcome RenderOutcome) error {
 		return renderQueue().RecordRenderOutcome(context.Background(), claim, outcome)
 	}
 
@@ -387,7 +387,7 @@ func TestRecordRenderOutcome(t *testing.T) {
 		assert.True(t, row.NextAttemptAt.Equal(next))
 		assert.Equal(t, 2, row.AttemptCount)
 		assert.Equal(t, "waiting for the endpoint", row.RenderReason)
-		assert.Equal(t, models.DeploymentStatusPending, row.Status)
+		assert.Equal(t, gwmodels.DeploymentStatusPending, row.Status)
 
 		again := claimOne(t, p, next)
 		assert.InDelta(t, 10*time.Second, again.LastDelay, float64(time.Second),
@@ -412,7 +412,7 @@ func TestRecordRenderOutcome(t *testing.T) {
 		row := statusRow(t, p)
 		assert.Nil(t, row.NextAttemptAt)
 		assert.Equal(t, "invalid policy", row.RenderReason)
-		assert.Equal(t, models.UserStatus{Status: models.DeploymentStatusFailed, Reason: "invalid policy"}, models.UserStatusOf(row))
+		assert.Equal(t, gwmodels.UserStatus{Status: gwmodels.DeploymentStatusFailed, Reason: "invalid policy"}, gwmodels.UserStatusOf(row))
 	})
 	t.Run("a superseded claim records nothing", func(t *testing.T) {
 		p, claim, _ := claimed(t)
@@ -425,7 +425,7 @@ func TestRecordRenderOutcome(t *testing.T) {
 }
 
 func TestAbandonRender(t *testing.T) {
-	abandon := func(claim models.ClaimedRender) (bool, error) {
+	abandon := func(claim gwmodels.ClaimedRender) (bool, error) {
 		var sendEvent bool
 		err := db.GetDB().Transaction(func(tx *gorm.DB) error {
 			var err error
@@ -437,7 +437,7 @@ func TestAbandonRender(t *testing.T) {
 
 	t.Run("a PENDING row goes UNDEPLOYED with no event", func(t *testing.T) {
 		epoch := queueEpoch()
-		p := seedPlacement(t, models.KindAgent)
+		p := seedPlacement(t, gwmodels.KindAgent)
 		require.True(t, insertPending(t, p, "placed"))
 		dueAt(t, p, epoch)
 
@@ -445,14 +445,14 @@ func TestAbandonRender(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, sendEvent)
 		row := statusRow(t, p)
-		assert.Equal(t, models.DeploymentStatusUndeployed, row.Status)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeployed, row.Status)
 		assert.Nil(t, row.DeploymentID)
 		assertQueueClear(t, row)
 		assert.False(t, insertPending(t, p, "placed"), "the next placement pass doesn't re-place it")
 	})
 	t.Run("a placed row starts undeploying, with an event", func(t *testing.T) {
 		epoch := queueEpoch()
-		p := seedPlacement(t, models.KindAgent)
+		p := seedPlacement(t, gwmodels.KindAgent)
 		startDeploy(t, p)
 		queue(t, p, nil, QueueScopePlaced)
 		dueAt(t, p, epoch)
@@ -460,11 +460,11 @@ func TestAbandonRender(t *testing.T) {
 		sendEvent, err := abandon(claimOne(t, p, epoch))
 		require.NoError(t, err)
 		assert.True(t, sendEvent)
-		assert.Equal(t, models.DeploymentStatusUndeploying, statusRow(t, p).Status)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeploying, statusRow(t, p).Status)
 	})
 	t.Run("a row already heading for UNDEPLOYED only loses its queue", func(t *testing.T) {
 		epoch := queueEpoch()
-		p := seedPlacement(t, models.KindAgent)
+		p := seedPlacement(t, gwmodels.KindAgent)
 		startDeploy(t, p)
 		_, err := beginUndeploy(t, p)
 		require.NoError(t, err)
@@ -475,12 +475,12 @@ func TestAbandonRender(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, sendEvent)
 		row := statusRow(t, p)
-		assert.Equal(t, models.DeploymentStatusUndeploying, row.Status)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeploying, row.Status)
 		assertQueueClear(t, row)
 	})
 	t.Run("a superseded claim changes nothing", func(t *testing.T) {
 		epoch := queueEpoch()
-		p := seedPlacement(t, models.KindAgent)
+		p := seedPlacement(t, gwmodels.KindAgent)
 		require.True(t, insertPending(t, p, "placed"))
 		dueAt(t, p, epoch)
 		claim := claimOne(t, p, epoch)
@@ -488,32 +488,32 @@ func TestAbandonRender(t *testing.T) {
 
 		_, err := abandon(claim)
 		assert.ErrorIs(t, err, ErrRenderSuperseded)
-		assert.Equal(t, models.DeploymentStatusPending, statusRow(t, p).Status)
+		assert.Equal(t, gwmodels.DeploymentStatusPending, statusRow(t, p).Status)
 	})
 }
 
 func TestListDeployedForDrift(t *testing.T) {
 	ouID := testOU(t)
-	gateway := newGateway(t, ouID, models.GatewayRoleEgress)
-	exposed := func(t *testing.T, kind string, protocol models.AgentExposureProtocol) models.Placement {
+	gateway := newGateway(t, ouID, gwmodels.GatewayRoleEgress)
+	exposed := func(t *testing.T, kind string, protocol gwmodels.AgentExposureProtocol) gwmodels.Placement {
 		exposure := newTestExposure(t, ouID, "agent-"+uuid.NewString()[:8], uuid.New())
 		exposure.Protocol = protocol
 		require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifacts SET kind = ? WHERE id = ?`, kind, exposure.ArtifactUUID).Error)
 		require.NoError(t, NewPlatformAgentExposureRepository(db.GetDB()).Upsert(context.Background(), exposure))
-		return models.Placement{
-			ArtifactRef: models.ArtifactRef{
+		return gwmodels.Placement{
+			ArtifactRef: gwmodels.ArtifactRef{
 				OUID: ouID, ArtifactUUID: exposure.ArtifactUUID, Kind: kind,
 				Handle: "checkout/" + exposure.AgentName + "/" + exposure.EnvironmentUUID.String(),
 			},
 			GatewayUUID: gateway,
 		}
 	}
-	live := func(t *testing.T, p models.Placement) {
+	live := func(t *testing.T, p gwmodels.Placement) {
 		deployment := startDeploy(t, p)
-		require.True(t, applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil))
+		require.True(t, applyAck(t, p, deployAck(deployment.DeploymentID, gwmodels.DeploymentAckStatusSuccess, ""), nil))
 	}
-	listed := func(t *testing.T, kind string) []models.Placement {
-		var placements []models.Placement
+	listed := func(t *testing.T, kind string) []gwmodels.Placement {
+		var placements []gwmodels.Placement
 		afterKey := ""
 		for {
 			page, err := renderQueue().ListDeployedForDrift(context.Background(), kind, afterKey, 2)
@@ -530,38 +530,38 @@ func TestListDeployedForDrift(t *testing.T) {
 		}
 	}
 
-	var platform []models.Placement
+	var platform []gwmodels.Placement
 	for range 3 {
-		p := exposed(t, models.KindAgent, models.AgentExposureProtocolA2A)
+		p := exposed(t, gwmodels.KindAgent, gwmodels.AgentExposureProtocolA2A)
 		live(t, p)
 		platform = append(platform, p)
 	}
-	rest := exposed(t, models.KindRestAPI, models.AgentExposureProtocolREST)
+	rest := exposed(t, gwmodels.KindRestAPI, gwmodels.AgentExposureProtocolREST)
 	live(t, rest)
-	deploying := exposed(t, models.KindAgent, models.AgentExposureProtocolA2A)
+	deploying := exposed(t, gwmodels.KindAgent, gwmodels.AgentExposureProtocolA2A)
 	startDeploy(t, deploying)
-	external := seedArtifactOn(t, models.Placement{GatewayUUID: gateway}, ouID, models.KindAgent)
+	external := seedArtifactOn(t, gwmodels.Placement{GatewayUUID: gateway}, ouID, gwmodels.KindAgent)
 	live(t, external)
-	queued := exposed(t, models.KindAgent, models.AgentExposureProtocolA2A)
+	queued := exposed(t, gwmodels.KindAgent, gwmodels.AgentExposureProtocolA2A)
 	live(t, queued)
 	queue(t, queued, nil, QueueScopePlaced)
 
-	assert.ElementsMatch(t, platform, listed(t, models.KindAgent),
+	assert.ElementsMatch(t, platform, listed(t, gwmodels.KindAgent),
 		"only DEPLOYED platform rows with no render owed; external agents have no exposure")
-	assert.Equal(t, []models.Placement{rest}, listed(t, models.KindRestAPI))
+	assert.Equal(t, []gwmodels.Placement{rest}, listed(t, gwmodels.KindRestAPI))
 }
 
 func TestGatewayDeleteRemovesItsStatusRows(t *testing.T) {
-	p := seedPlacement(t, models.KindLLMProxy)
+	p := seedPlacement(t, gwmodels.KindLLMProxy)
 	require.True(t, insertPending(t, p, "placed"))
-	undeployed := seedArtifactOn(t, p, p.OUID, models.KindLLMProxy)
+	undeployed := seedArtifactOn(t, p, p.OUID, gwmodels.KindLLMProxy)
 	require.True(t, insertPending(t, undeployed, "placed"))
 	_, err := beginUndeploy(t, undeployed)
 	require.NoError(t, err)
 
 	require.NoError(t, NewGatewayRepo(db.GetDB()).Delete(p.GatewayUUID.String(), p.OUID))
 
-	var kept []models.DeploymentStatusRecord
+	var kept []gwmodels.DeploymentStatusRecord
 	require.NoError(t, db.GetDB().Where("gateway_id = ?", p.GatewayUUID).Find(&kept).Error)
 	assert.Empty(t, kept, "the gateway is deleted outright, and its status rows with it, the user's undeploy too")
 }
@@ -570,13 +570,13 @@ func TestGatewayDeleteRemovesItsStatusRows(t *testing.T) {
 // row, or an UNDEPLOYED row re-queued. Its delete takes every status row with it, so nothing is left to render for
 // the deleted gateway.
 func TestGatewayDeleteLeavesNothingToRender(t *testing.T) {
-	pending := seedPlacement(t, models.KindLLMProxy)
+	pending := seedPlacement(t, gwmodels.KindLLMProxy)
 	require.True(t, insertPending(t, pending, "placed"))
-	owed := seedArtifactOn(t, pending, pending.OUID, models.KindLLMProxy)
+	owed := seedArtifactOn(t, pending, pending.OUID, gwmodels.KindLLMProxy)
 	startDeploy(t, owed)
 	_, err := beginUndeploy(t, owed)
 	require.NoError(t, err)
-	applyAck(t, owed, undeployAck(owed.ArtifactUUID.String(), models.DeploymentAckStatusSuccess), nil)
+	applyAck(t, owed, undeployAck(owed.ArtifactUUID.String(), gwmodels.DeploymentAckStatusSuccess), nil)
 	queue(t, owed, nil, QueueScopeAny)
 	has, err := NewGatewayRepo(db.GetDB()).HasGatewayDeployments(pending.GatewayUUID.String(), pending.OUID)
 	require.NoError(t, err)
@@ -584,14 +584,14 @@ func TestGatewayDeleteLeavesNothingToRender(t *testing.T) {
 
 	require.NoError(t, NewGatewayRepo(db.GetDB()).Delete(pending.GatewayUUID.String(), pending.OUID))
 
-	for _, p := range []models.Placement{pending, owed} {
+	for _, p := range []gwmodels.Placement{pending, owed} {
 		claims, err := renderQueue().ClaimDueRendersOf(context.Background(), p.OUID, p.ArtifactUUID, nil,
 			time.Now().Add(time.Hour), testLease)
 		require.NoError(t, err)
 		assert.Empty(t, claims, "nothing is owed to the deleted gateway")
 	}
 	var rows int64
-	require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
+	require.NoError(t, db.GetDB().Model(&gwmodels.DeploymentStatusRecord{}).
 		Where("gateway_id = ?", pending.GatewayUUID).Count(&rows).Error)
 	assert.Zero(t, rows)
 }

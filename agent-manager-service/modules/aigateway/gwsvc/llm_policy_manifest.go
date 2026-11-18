@@ -28,7 +28,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
@@ -65,12 +65,12 @@ func intersectActiveGatewayLLMPolicies(gatewayRepo gwrepo.GatewayRepository, org
 // listCatalogGateways is the gateways whose reported policies make up an org-wide policy catalog: the active managed
 // ones. A self-hosted gateway runs whatever bundle its operator installed; one older bundle would narrow the catalog
 // for the whole org.
-func listCatalogGateways(gatewayRepo gwrepo.GatewayRepository, orgUUID string) ([]*models.Gateway, error) {
+func listCatalogGateways(gatewayRepo gwrepo.GatewayRepository, orgUUID string) ([]*gwmodels.Gateway, error) {
 	active := true
 	gateways, err := gatewayRepo.ListWithFilters(gwrepo.GatewayFilterOptions{
 		OrganizationID: orgUUID,
 		Status:         &active,
-		Hosting:        models.GatewayHostingManaged,
+		Hosting:        gwmodels.GatewayHostingManaged,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list active gateways: %w", err)
@@ -93,7 +93,7 @@ func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo gwrepo
 		return nil, fmt.Errorf("failed to list deployed gateways for provider: %w", err)
 	}
 
-	gateways := make([]*models.Gateway, 0, len(gatewayUUIDs))
+	gateways := make([]*gwmodels.Gateway, 0, len(gatewayUUIDs))
 	for _, gatewayUUID := range gatewayUUIDs {
 		gateway, err := gatewayRepo.GetByUUID(gatewayUUID)
 		if err != nil {
@@ -125,7 +125,7 @@ func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo gwrepo
 // own metadata, so a previously-applied policy doesn't disappear from the catalog mid-rollout.
 // A gateway that has not reported a manifest yet (see gatewayManifest) is left out of the
 // intersection rather than emptying it; if none has reported, nothing is available.
-func intersectLLMPolicies(gateways []*models.Gateway) map[string]llmPolicyManifestItem {
+func intersectLLMPolicies(gateways []*gwmodels.Gateway) map[string]llmPolicyManifestItem {
 	var perGatewayPolicies []map[string]llmPolicyManifestItem
 	// byName collects every (gateway, version) sighting per policy name, used for the
 	// backward-compatible fallback when strict intersection yields nothing for that name.

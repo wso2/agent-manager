@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -140,7 +140,7 @@ func (s *a2aCardReconcilerService) RunOnce(ctx context.Context) {
 }
 
 // fetchOne fetches one row's card and records the outcome.
-func (s *a2aCardReconcilerService) fetchOne(ctx context.Context, row models.A2AAgentCard) {
+func (s *a2aCardReconcilerService) fetchOne(ctx context.Context, row gwmodels.A2AAgentCard) {
 	attemptCtx, ctx, cancel := a2aAttemptContexts(ctx, s.attemptTimeout)
 	defer cancel()
 	fetched, err := s.attemptFetch(attemptCtx, row)
@@ -186,7 +186,7 @@ func isUnstorableTextError(err error) bool {
 // the component's UUID no longer matches the one recorded on the card. A card with no recorded UUID, or a failed
 // lookup, is treated as not replaced. It costs one lookup, so fetchOne asks only once the fetch has decided to
 // store or drop the card.
-func (s *a2aCardReconcilerService) agentReplaced(ctx context.Context, row models.A2AAgentCard) bool {
+func (s *a2aCardReconcilerService) agentReplaced(ctx context.Context, row gwmodels.A2AAgentCard) bool {
 	if row.AgentUUID == nil {
 		return false
 	}
@@ -201,7 +201,7 @@ func (s *a2aCardReconcilerService) agentReplaced(ctx context.Context, row models
 }
 
 // dropReplacedCard removes the card of a replaced agent; a row re-queued meanwhile is kept.
-func (s *a2aCardReconcilerService) dropReplacedCard(ctx context.Context, row models.A2AAgentCard) {
+func (s *a2aCardReconcilerService) dropReplacedCard(ctx context.Context, row gwmodels.A2AAgentCard) {
 	err := s.cardRepo.DeleteIfUnchanged(ctx, row)
 	switch {
 	case errors.Is(err, gwrepo.ErrA2AAgentCardSuperseded):
@@ -216,7 +216,7 @@ func (s *a2aCardReconcilerService) dropReplacedCard(ctx context.Context, row mod
 }
 
 // dropUndeployedCard removes the row as undeploy would; a row re-queued meanwhile is kept.
-func (s *a2aCardReconcilerService) dropUndeployedCard(ctx context.Context, row models.A2AAgentCard) {
+func (s *a2aCardReconcilerService) dropUndeployedCard(ctx context.Context, row gwmodels.A2AAgentCard) {
 	err := s.cardRepo.DeleteIfUnchanged(ctx, row)
 	switch {
 	case errors.Is(err, gwrepo.ErrA2AAgentCardSuperseded):
@@ -237,11 +237,11 @@ type a2aCardFetch struct {
 	body        json.RawMessage
 }
 
-func (s *a2aCardReconcilerService) attemptFetch(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
+func (s *a2aCardReconcilerService) attemptFetch(ctx context.Context, row gwmodels.A2AAgentCard) (a2aCardFetch, error) {
 	switch row.Source {
-	case models.A2AAgentCardSourceExternal:
+	case gwmodels.A2AAgentCardSourceExternal:
 		return s.fetchExternalCard(ctx, row)
-	case models.A2AAgentCardSourcePlatform:
+	case gwmodels.A2AAgentCardSourcePlatform:
 		return s.fetchPlatformCard(ctx, row)
 	default:
 		return a2aCardFetch{}, fmt.Errorf("unknown agent card source %q", row.Source)
@@ -249,7 +249,7 @@ func (s *a2aCardReconcilerService) attemptFetch(ctx context.Context, row models.
 }
 
 // fetchExternalCard fetches through the gateway while the environment is proxied, since only the gateway's copy advertises gateway URLs; otherwise from the registered URL, SSRF-guarded.
-func (s *a2aCardReconcilerService) fetchExternalCard(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
+func (s *a2aCardReconcilerService) fetchExternalCard(ctx context.Context, row gwmodels.A2AAgentCard) (a2aCardFetch, error) {
 	_, err := s.proxyRepo.GetByEnvUUID(ctx, row.OUID, row.ProjectName, row.AgentName, row.EnvironmentUUID)
 	switch {
 	case errors.Is(err, gwrepo.ErrA2AProxyNotFound):
@@ -260,13 +260,13 @@ func (s *a2aCardReconcilerService) fetchExternalCard(ctx context.Context, row mo
 	return s.fetchCardThroughGateway(ctx, row)
 }
 
-func (s *a2aCardReconcilerService) fetchRegisteredCard(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
+func (s *a2aCardReconcilerService) fetchRegisteredCard(ctx context.Context, row gwmodels.A2AAgentCard) (a2aCardFetch, error) {
 	body, err := s.fetcher.FetchOrigin(ctx, row.SourceURL, nil)
 	return a2aCardFetch{url: row.SourceURL, body: body}, err
 }
 
 // fetchCardThroughGateway uses the plain client: the URL is platform-derived and resolves to loopback in local setups.
-func (s *a2aCardReconcilerService) fetchCardThroughGateway(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
+func (s *a2aCardReconcilerService) fetchCardThroughGateway(ctx context.Context, row gwmodels.A2AAgentCard) (a2aCardFetch, error) {
 	gateway, err := resolveIngressGateway(s.gatewayRepo, row.OUID, row.EnvironmentUUID)
 	if err != nil {
 		return a2aCardFetch{}, err
@@ -280,12 +280,12 @@ func (s *a2aCardReconcilerService) fetchCardThroughGateway(ctx context.Context, 
 }
 
 // fetchPlatformCard waits out a rollout first, since until it finishes the old release can still answer.
-func (s *a2aCardReconcilerService) fetchPlatformCard(ctx context.Context, row models.A2AAgentCard) (a2aCardFetch, error) {
+func (s *a2aCardReconcilerService) fetchPlatformCard(ctx context.Context, row gwmodels.A2AAgentCard) (a2aCardFetch, error) {
 	// Only platform-hosted agents serve a platform card, and there is no agent runtime.
 	return a2aCardFetch{}, errA2ACardNotDeployed
 }
 
-func (s *a2aCardReconcilerService) recordAttemptFailure(ctx context.Context, row models.A2AAgentCard, releaseName string, cause error) {
+func (s *a2aCardReconcilerService) recordAttemptFailure(ctx context.Context, row gwmodels.A2AAgentCard, releaseName string, cause error) {
 	lastErr := userFacingA2AError(cause, a2aCardInternalError)
 	warnIfInternalA2AError(s.logger, lastErr, a2aCardInternalError, cause, "A2A agent card fetch failed internally",
 		"agentName", row.AgentName, "environment", row.EnvironmentName)
@@ -304,7 +304,7 @@ func (s *a2aCardReconcilerService) recordAttemptFailure(ctx context.Context, row
 }
 
 // markAttemptFailed charges one attempt, failing the row once the budget is spent.
-func (s *a2aCardReconcilerService) markAttemptFailed(ctx context.Context, row models.A2AAgentCard, cause error, lastErr, releaseName string) error {
+func (s *a2aCardReconcilerService) markAttemptFailed(ctx context.Context, row gwmodels.A2AAgentCard, cause error, lastErr, releaseName string) error {
 	if row.AttemptCount+1 >= a2aCardAttemptBudget {
 		s.logger.Warn("A2A agent card could not be fetched within the attempt budget",
 			"agentName", row.AgentName, "environment", row.EnvironmentName, "error", a2aLogError(cause))
@@ -316,7 +316,7 @@ func (s *a2aCardReconcilerService) markAttemptFailed(ctx context.Context, row mo
 	return s.cardRepo.MarkAttemptFailed(ctx, row, lastErr, releaseName, time.Now().Add(a2aCardRetryIn(row.AttemptCount)))
 }
 
-func (s *a2aCardReconcilerService) logSuperseded(row models.A2AAgentCard) {
+func (s *a2aCardReconcilerService) logSuperseded(row gwmodels.A2AAgentCard) {
 	s.logger.Info("A2A agent card was re-enqueued during the attempt; leaving it for the next tick",
 		"agentName", row.AgentName, "environment", row.EnvironmentName)
 }

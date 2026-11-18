@@ -34,7 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -144,16 +144,16 @@ func cpController(t *testing.T, rs stubRSIdentifierResolver) AgentIdentityContro
 		},
 	}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(_ context.Context, handle, _ string) (*models.MCPProxy, error) {
+		GetByHandleFunc: func(_ context.Context, handle, _ string) (*gwmodels.MCPProxy, error) {
 			if handle == "gh-proxy" || handle == "jira-proxy" {
-				return &models.MCPProxy{UUID: uuid.New(), Handle: handle}, nil
+				return &gwmodels.MCPProxy{UUID: uuid.New(), Handle: handle}, nil
 			}
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
+		GetFunc: func(_ context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
 		},
 	}
 	return NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, rs)

@@ -6,7 +6,7 @@ package gwrepomocks
 import (
 	"sync"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // LLMProviderTemplateRepositoryMock is a mock implementation of gwrepo.LLMProviderTemplateRepository.
@@ -18,7 +18,7 @@ import (
 //			CountFunc: func(orgUUID string) (int, error) {
 //				panic("mock out the Count method")
 //			},
-//			CreateFunc: func(t *models.LLMProviderTemplate) error {
+//			CreateFunc: func(t *gwmodels.LLMProviderTemplate) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(templateID string, orgUUID string) error {
@@ -27,16 +27,16 @@ import (
 //			ExistsFunc: func(templateID string, orgUUID string) (bool, error) {
 //				panic("mock out the Exists method")
 //			},
-//			GetByHandleFunc: func(templateHandle string, orgUUID string) (*models.LLMProviderTemplate, error) {
+//			GetByHandleFunc: func(templateHandle string, orgUUID string) (*gwmodels.LLMProviderTemplate, error) {
 //				panic("mock out the GetByHandle method")
 //			},
-//			GetByUUIDFunc: func(uuid string, orgUUID string) (*models.LLMProviderTemplate, error) {
+//			GetByUUIDFunc: func(uuid string, orgUUID string) (*gwmodels.LLMProviderTemplate, error) {
 //				panic("mock out the GetByUUID method")
 //			},
-//			ListFunc: func(orgUUID string, limit int, offset int) ([]*models.LLMProviderTemplate, error) {
+//			ListFunc: func(orgUUID string, limit int, offset int) ([]*gwmodels.LLMProviderTemplate, error) {
 //				panic("mock out the List method")
 //			},
-//			UpdateFunc: func(t *models.LLMProviderTemplate) error {
+//			UpdateFunc: func(t *gwmodels.LLMProviderTemplate) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -50,7 +50,7 @@ type LLMProviderTemplateRepositoryMock struct {
 	CountFunc func(orgUUID string) (int, error)
 
 	// CreateFunc mocks the Create method.
-	CreateFunc func(t *models.LLMProviderTemplate) error
+	CreateFunc func(t *gwmodels.LLMProviderTemplate) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(templateID string, orgUUID string) error
@@ -59,16 +59,16 @@ type LLMProviderTemplateRepositoryMock struct {
 	ExistsFunc func(templateID string, orgUUID string) (bool, error)
 
 	// GetByHandleFunc mocks the GetByHandle method.
-	GetByHandleFunc func(templateHandle string, orgUUID string) (*models.LLMProviderTemplate, error)
+	GetByHandleFunc func(templateHandle string, orgUUID string) (*gwmodels.LLMProviderTemplate, error)
 
 	// GetByUUIDFunc mocks the GetByUUID method.
-	GetByUUIDFunc func(uuid string, orgUUID string) (*models.LLMProviderTemplate, error)
+	GetByUUIDFunc func(uuid string, orgUUID string) (*gwmodels.LLMProviderTemplate, error)
 
 	// ListFunc mocks the List method.
-	ListFunc func(orgUUID string, limit int, offset int) ([]*models.LLMProviderTemplate, error)
+	ListFunc func(orgUUID string, limit int, offset int) ([]*gwmodels.LLMProviderTemplate, error)
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(t *models.LLMProviderTemplate) error
+	UpdateFunc func(t *gwmodels.LLMProviderTemplate) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -80,7 +80,7 @@ type LLMProviderTemplateRepositoryMock struct {
 		// Create holds details about calls to the Create method.
 		Create []struct {
 			// T is the t argument value.
-			T *models.LLMProviderTemplate
+			T *gwmodels.LLMProviderTemplate
 		}
 		// Delete holds details about calls to the Delete method.
 		Delete []struct {
@@ -122,7 +122,7 @@ type LLMProviderTemplateRepositoryMock struct {
 		// Update holds details about calls to the Update method.
 		Update []struct {
 			// T is the t argument value.
-			T *models.LLMProviderTemplate
+			T *gwmodels.LLMProviderTemplate
 		}
 	}
 	lockCount       sync.RWMutex
@@ -168,12 +168,12 @@ func (mock *LLMProviderTemplateRepositoryMock) CountCalls() []struct {
 }
 
 // Create calls CreateFunc.
-func (mock *LLMProviderTemplateRepositoryMock) Create(t *models.LLMProviderTemplate) error {
+func (mock *LLMProviderTemplateRepositoryMock) Create(t *gwmodels.LLMProviderTemplate) error {
 	if mock.CreateFunc == nil {
 		panic("LLMProviderTemplateRepositoryMock.CreateFunc: method is nil but LLMProviderTemplateRepository.Create was just called")
 	}
 	callInfo := struct {
-		T *models.LLMProviderTemplate
+		T *gwmodels.LLMProviderTemplate
 	}{
 		T: t,
 	}
@@ -188,10 +188,10 @@ func (mock *LLMProviderTemplateRepositoryMock) Create(t *models.LLMProviderTempl
 //
 //	len(mockedLLMProviderTemplateRepository.CreateCalls())
 func (mock *LLMProviderTemplateRepositoryMock) CreateCalls() []struct {
-	T *models.LLMProviderTemplate
+	T *gwmodels.LLMProviderTemplate
 } {
 	var calls []struct {
-		T *models.LLMProviderTemplate
+		T *gwmodels.LLMProviderTemplate
 	}
 	mock.lockCreate.RLock()
 	calls = mock.calls.Create
@@ -272,7 +272,7 @@ func (mock *LLMProviderTemplateRepositoryMock) ExistsCalls() []struct {
 }
 
 // GetByHandle calls GetByHandleFunc.
-func (mock *LLMProviderTemplateRepositoryMock) GetByHandle(templateHandle string, orgUUID string) (*models.LLMProviderTemplate, error) {
+func (mock *LLMProviderTemplateRepositoryMock) GetByHandle(templateHandle string, orgUUID string) (*gwmodels.LLMProviderTemplate, error) {
 	if mock.GetByHandleFunc == nil {
 		panic("LLMProviderTemplateRepositoryMock.GetByHandleFunc: method is nil but LLMProviderTemplateRepository.GetByHandle was just called")
 	}
@@ -308,7 +308,7 @@ func (mock *LLMProviderTemplateRepositoryMock) GetByHandleCalls() []struct {
 }
 
 // GetByUUID calls GetByUUIDFunc.
-func (mock *LLMProviderTemplateRepositoryMock) GetByUUID(uuid string, orgUUID string) (*models.LLMProviderTemplate, error) {
+func (mock *LLMProviderTemplateRepositoryMock) GetByUUID(uuid string, orgUUID string) (*gwmodels.LLMProviderTemplate, error) {
 	if mock.GetByUUIDFunc == nil {
 		panic("LLMProviderTemplateRepositoryMock.GetByUUIDFunc: method is nil but LLMProviderTemplateRepository.GetByUUID was just called")
 	}
@@ -344,7 +344,7 @@ func (mock *LLMProviderTemplateRepositoryMock) GetByUUIDCalls() []struct {
 }
 
 // List calls ListFunc.
-func (mock *LLMProviderTemplateRepositoryMock) List(orgUUID string, limit int, offset int) ([]*models.LLMProviderTemplate, error) {
+func (mock *LLMProviderTemplateRepositoryMock) List(orgUUID string, limit int, offset int) ([]*gwmodels.LLMProviderTemplate, error) {
 	if mock.ListFunc == nil {
 		panic("LLMProviderTemplateRepositoryMock.ListFunc: method is nil but LLMProviderTemplateRepository.List was just called")
 	}
@@ -384,12 +384,12 @@ func (mock *LLMProviderTemplateRepositoryMock) ListCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *LLMProviderTemplateRepositoryMock) Update(t *models.LLMProviderTemplate) error {
+func (mock *LLMProviderTemplateRepositoryMock) Update(t *gwmodels.LLMProviderTemplate) error {
 	if mock.UpdateFunc == nil {
 		panic("LLMProviderTemplateRepositoryMock.UpdateFunc: method is nil but LLMProviderTemplateRepository.Update was just called")
 	}
 	callInfo := struct {
-		T *models.LLMProviderTemplate
+		T *gwmodels.LLMProviderTemplate
 	}{
 		T: t,
 	}
@@ -404,10 +404,10 @@ func (mock *LLMProviderTemplateRepositoryMock) Update(t *models.LLMProviderTempl
 //
 //	len(mockedLLMProviderTemplateRepository.UpdateCalls())
 func (mock *LLMProviderTemplateRepositoryMock) UpdateCalls() []struct {
-	T *models.LLMProviderTemplate
+	T *gwmodels.LLMProviderTemplate
 } {
 	var calls []struct {
-		T *models.LLMProviderTemplate
+		T *gwmodels.LLMProviderTemplate
 	}
 	mock.lockUpdate.RLock()
 	calls = mock.calls.Update

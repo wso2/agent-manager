@@ -23,7 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -62,10 +62,10 @@ func GetOrDefaultProxyConfig(cfg *gwspec.LLMProxyConfig) gwspec.LLMProxyConfig {
 
 // ---- LLM Provider Template Conversions ----
 
-// ConvertSpecToModelLLMProviderTemplate converts gwspec.CreateLLMProviderTemplateRequest to models.LLMProviderTemplate
+// ConvertSpecToModelLLMProviderTemplate converts gwspec.CreateLLMProviderTemplateRequest to gwmodels.LLMProviderTemplate
 // Note: The service layer handles Configuration field (JSON marshaling)
-func ConvertSpecToModelLLMProviderTemplate(req *gwspec.CreateLLMProviderTemplateRequest, ouID string) *models.LLMProviderTemplate {
-	template := &models.LLMProviderTemplate{
+func ConvertSpecToModelLLMProviderTemplate(req *gwspec.CreateLLMProviderTemplateRequest, ouID string) *gwmodels.LLMProviderTemplate {
+	template := &gwmodels.LLMProviderTemplate{
 		UUID:        uuid.New(),
 		OUID:        ouID,
 		Handle:      req.Id, // ID is the handle
@@ -99,8 +99,8 @@ func ConvertSpecToModelLLMProviderTemplate(req *gwspec.CreateLLMProviderTemplate
 	return template
 }
 
-// ConvertModelToSpecLLMProviderTemplateResponse converts models.LLMProviderTemplate to gwspec.LLMProviderTemplateResponse
-func ConvertModelToSpecLLMProviderTemplateResponse(model *models.LLMProviderTemplate) gwspec.LLMProviderTemplateResponse {
+// ConvertModelToSpecLLMProviderTemplateResponse converts gwmodels.LLMProviderTemplate to gwspec.LLMProviderTemplateResponse
+func ConvertModelToSpecLLMProviderTemplateResponse(model *gwmodels.LLMProviderTemplate) gwspec.LLMProviderTemplateResponse {
 	resp := &gwspec.LLMProviderTemplateResponse{
 		Uuid:        model.UUID.String(),
 		Id:          model.Handle,
@@ -138,18 +138,18 @@ func ConvertModelToSpecLLMProviderTemplateResponse(model *models.LLMProviderTemp
 }
 
 // ConvertSpecToModelExtractionIdentifier converts spec to model ExtractionIdentifier
-func ConvertSpecToModelExtractionIdentifier(ei *gwspec.ExtractionIdentifier) *models.ExtractionIdentifier {
+func ConvertSpecToModelExtractionIdentifier(ei *gwspec.ExtractionIdentifier) *gwmodels.ExtractionIdentifier {
 	if ei == nil {
 		return nil
 	}
-	return &models.ExtractionIdentifier{
+	return &gwmodels.ExtractionIdentifier{
 		Location:   ei.Location,
 		Identifier: ei.Identifier,
 	}
 }
 
 // ConvertModelToSpecExtractionIdentifier converts model to spec ExtractionIdentifier
-func ConvertModelToSpecExtractionIdentifier(ei *models.ExtractionIdentifier) *gwspec.ExtractionIdentifier {
+func ConvertModelToSpecExtractionIdentifier(ei *gwmodels.ExtractionIdentifier) *gwspec.ExtractionIdentifier {
 	if ei == nil {
 		return nil
 	}
@@ -160,17 +160,17 @@ func ConvertModelToSpecExtractionIdentifier(ei *models.ExtractionIdentifier) *gw
 }
 
 // ConvertSpecToModelLLMProviderTemplateMetadata converts spec to model LLMProviderTemplateMetadata
-func ConvertSpecToModelLLMProviderTemplateMetadata(meta *gwspec.LLMProviderTemplateMetadata) *models.LLMProviderTemplateMetadata {
+func ConvertSpecToModelLLMProviderTemplateMetadata(meta *gwspec.LLMProviderTemplateMetadata) *gwmodels.LLMProviderTemplateMetadata {
 	if meta == nil {
 		return nil
 	}
-	metadata := &models.LLMProviderTemplateMetadata{
+	metadata := &gwmodels.LLMProviderTemplateMetadata{
 		EndpointURL:    ptrToString(meta.EndpointUrl),
 		LogoURL:        ptrToString(meta.LogoUrl),
 		OpenapiSpecURL: ptrToString(meta.OpenapiSpecUrl),
 	}
 	if meta.Auth != nil {
-		metadata.Auth = &models.LLMProviderTemplateAuth{
+		metadata.Auth = &gwmodels.LLMProviderTemplateAuth{
 			Type:        ptrToString(meta.Auth.Type),
 			Header:      ptrToString(meta.Auth.Header),
 			ValuePrefix: ptrToString(meta.Auth.ValuePrefix),
@@ -180,7 +180,7 @@ func ConvertSpecToModelLLMProviderTemplateMetadata(meta *gwspec.LLMProviderTempl
 }
 
 // ConvertModelToSpecLLMProviderTemplateMetadata converts model to spec LLMProviderTemplateMetadata
-func ConvertModelToSpecLLMProviderTemplateMetadata(meta *models.LLMProviderTemplateMetadata) *gwspec.LLMProviderTemplateMetadata {
+func ConvertModelToSpecLLMProviderTemplateMetadata(meta *gwmodels.LLMProviderTemplateMetadata) *gwspec.LLMProviderTemplateMetadata {
 	if meta == nil {
 		return nil
 	}
@@ -201,9 +201,9 @@ func ConvertModelToSpecLLMProviderTemplateMetadata(meta *models.LLMProviderTempl
 
 // ---- LLM Provider Conversions ----
 
-// ConvertSpecToModelLLMProvider converts gwspec.CreateLLMProviderRequest to models.LLMProvider
-func ConvertSpecToModelLLMProvider(req *gwspec.CreateLLMProviderRequest, orgName string) *models.LLMProvider {
-	provider := &models.LLMProvider{
+// ConvertSpecToModelLLMProvider converts gwspec.CreateLLMProviderRequest to gwmodels.LLMProvider
+func ConvertSpecToModelLLMProvider(req *gwspec.CreateLLMProviderRequest, orgName string) *gwmodels.LLMProvider {
+	provider := &gwmodels.LLMProvider{
 		UUID:           uuid.New(),
 		TemplateHandle: req.Template,
 		Description:    ptrToString(req.Description),
@@ -213,7 +213,7 @@ func ConvertSpecToModelLLMProvider(req *gwspec.CreateLLMProviderRequest, orgName
 
 	// Convert model providers if present
 	if len(req.ModelProviders) > 0 {
-		provider.ModelProviders = make([]models.LLMModelProvider, len(req.ModelProviders))
+		provider.ModelProviders = make([]gwmodels.LLMModelProvider, len(req.ModelProviders))
 		for i, mp := range req.ModelProviders {
 			provider.ModelProviders[i] = ConvertSpecToModelLLMModelProvider(mp)
 		}
@@ -222,8 +222,8 @@ func ConvertSpecToModelLLMProvider(req *gwspec.CreateLLMProviderRequest, orgName
 	return provider
 }
 
-// ConvertModelToSpecLLMProviderResponse converts models.LLMProvider to gwspec.LLMProviderResponse
-func ConvertModelToSpecLLMProviderListItemResponse(model *models.LLMProvider) gwspec.LLMProviderListItem {
+// ConvertModelToSpecLLMProviderResponse converts gwmodels.LLMProvider to gwspec.LLMProviderResponse
+func ConvertModelToSpecLLMProviderListItemResponse(model *gwmodels.LLMProvider) gwspec.LLMProviderListItem {
 	resp := &gwspec.LLMProviderListItem{
 		Uuid:      model.UUID.String(),
 		Id:        model.Artifact.Handle,
@@ -238,8 +238,8 @@ func ConvertModelToSpecLLMProviderListItemResponse(model *models.LLMProvider) gw
 	return *resp
 }
 
-// ConvertModelToSpecLLMProviderResponse converts models.LLMProvider to gwspec.LLMProviderResponse
-func ConvertModelToSpecLLMProviderResponse(model *models.LLMProvider) gwspec.LLMProviderResponse {
+// ConvertModelToSpecLLMProviderResponse converts gwmodels.LLMProvider to gwspec.LLMProviderResponse
+func ConvertModelToSpecLLMProviderResponse(model *gwmodels.LLMProvider) gwspec.LLMProviderResponse {
 	var upstream gwspec.UpstreamConfig
 	if model.Configuration.Upstream != nil {
 		upstream = ConvertModelToSpecUpstreamConfig(*model.Configuration.Upstream)
@@ -295,10 +295,10 @@ func ConvertModelToSpecLLMProviderResponse(model *models.LLMProvider) gwspec.LLM
 
 // ConvertSpecToModelLLMProviderConfigFromRequest converts spec request to model configuration
 // This is used for the new flat structure where all fields are at the top level
-func ConvertSpecToModelLLMProviderConfigFromRequest(req *gwspec.CreateLLMProviderRequest) models.LLMProviderConfig {
+func ConvertSpecToModelLLMProviderConfigFromRequest(req *gwspec.CreateLLMProviderRequest) gwmodels.LLMProviderConfig {
 	upstream := ConvertSpecToModelUpstreamConfig(req.Upstream)
 
-	modelConfig := models.LLMProviderConfig{
+	modelConfig := gwmodels.LLMProviderConfig{
 		Name:       req.Name,
 		Handle:     req.Id,
 		Version:    req.Version,
@@ -318,7 +318,7 @@ func ConvertSpecToModelLLMProviderConfigFromRequest(req *gwspec.CreateLLMProvide
 		modelConfig.RateLimiting = &rl
 	}
 	if len(req.Policies) > 0 {
-		modelConfig.Policies = make([]models.LLMPolicy, len(req.Policies))
+		modelConfig.Policies = make([]gwmodels.LLMPolicy, len(req.Policies))
 		for i, p := range req.Policies {
 			modelConfig.Policies[i] = ConvertSpecToModelLLMPolicy(p)
 		}
@@ -333,8 +333,8 @@ func ConvertSpecToModelLLMProviderConfigFromRequest(req *gwspec.CreateLLMProvide
 
 // ---- LLM Proxy Conversions ----
 
-// ConvertSpecToModelLLMProxy converts gwspec.CreateLLMProxyRequest to models.LLMProxy
-func ConvertSpecToModelLLMProxy(req *gwspec.CreateLLMProxyRequest, projectID string) (*models.LLMProxy, error) {
+// ConvertSpecToModelLLMProxy converts gwspec.CreateLLMProxyRequest to gwmodels.LLMProxy
+func ConvertSpecToModelLLMProxy(req *gwspec.CreateLLMProxyRequest, projectID string) (*gwmodels.LLMProxy, error) {
 	projectUUID, err := uuid.Parse(projectID)
 	if err != nil {
 		return nil, fmt.Errorf("invalid project UUID: %w", err)
@@ -345,7 +345,7 @@ func ConvertSpecToModelLLMProxy(req *gwspec.CreateLLMProxyRequest, projectID str
 		return nil, fmt.Errorf("invalid provider UUID: %w", err)
 	}
 
-	proxy := &models.LLMProxy{
+	proxy := &gwmodels.LLMProxy{
 		UUID:          uuid.New(),
 		ProjectUUID:   projectUUID,
 		ProviderUUID:  providerUUID,
@@ -357,8 +357,8 @@ func ConvertSpecToModelLLMProxy(req *gwspec.CreateLLMProxyRequest, projectID str
 	return proxy, nil
 }
 
-// ConvertModelToSpecLLMProxyResponse converts models.LLMProxy to gwspec.LLMProxyResponse
-func ConvertModelToSpecLLMProxyResponse(model *models.LLMProxy) gwspec.LLMProxyResponse {
+// ConvertModelToSpecLLMProxyResponse converts gwmodels.LLMProxy to gwspec.LLMProxyResponse
+func ConvertModelToSpecLLMProxyResponse(model *gwmodels.LLMProxy) gwspec.LLMProxyResponse {
 	resp := &gwspec.LLMProxyResponse{
 		Uuid:          model.UUID.String(),
 		ProjectId:     model.ProjectUUID.String(),
@@ -374,8 +374,8 @@ func ConvertModelToSpecLLMProxyResponse(model *models.LLMProxy) gwspec.LLMProxyR
 }
 
 // ConvertSpecToModelLLMProxyConfig converts spec proxy config to model proxy config
-func ConvertSpecToModelLLMProxyConfig(config gwspec.LLMProxyConfig) models.LLMProxyConfig {
-	modelConfig := models.LLMProxyConfig{
+func ConvertSpecToModelLLMProxyConfig(config gwspec.LLMProxyConfig) gwmodels.LLMProxyConfig {
+	modelConfig := gwmodels.LLMProxyConfig{
 		Name:       ptrToString(config.Name),
 		Version:    ptrToString(config.Version),
 		Context:    config.Context,
@@ -388,7 +388,7 @@ func ConvertSpecToModelLLMProxyConfig(config gwspec.LLMProxyConfig) models.LLMPr
 	// in the preserveUpstreamAuthCredential function during updates
 
 	if len(config.Policies) > 0 {
-		modelConfig.Policies = make([]models.LLMPolicy, len(config.Policies))
+		modelConfig.Policies = make([]gwmodels.LLMPolicy, len(config.Policies))
 		for i, p := range config.Policies {
 			modelConfig.Policies[i] = ConvertSpecToModelLLMPolicy(p)
 		}
@@ -402,7 +402,7 @@ func ConvertSpecToModelLLMProxyConfig(config gwspec.LLMProxyConfig) models.LLMPr
 }
 
 // ConvertModelToSpecLLMProxyConfig converts model proxy config to spec proxy config
-func ConvertModelToSpecLLMProxyConfig(config models.LLMProxyConfig) gwspec.LLMProxyConfig {
+func ConvertModelToSpecLLMProxyConfig(config gwmodels.LLMProxyConfig) gwspec.LLMProxyConfig {
 	specConfig := gwspec.LLMProxyConfig{
 		Name:       stringToPtr(config.Name),
 		Version:    stringToPtr(config.Version),
@@ -432,16 +432,16 @@ func ConvertModelToSpecLLMProxyConfig(config models.LLMProxyConfig) gwspec.LLMPr
 // ---- Nested Type Conversions ----
 
 // ConvertSpecToModelLLMModelProvider converts spec to model LLMModelProvider
-func ConvertSpecToModelLLMModelProvider(specProvider gwspec.LLMModelProvider) models.LLMModelProvider {
-	provider := models.LLMModelProvider{
+func ConvertSpecToModelLLMModelProvider(specProvider gwspec.LLMModelProvider) gwmodels.LLMModelProvider {
+	provider := gwmodels.LLMModelProvider{
 		ID:   specProvider.Id,
 		Name: ptrToString(specProvider.Name),
 	}
 
 	if len(specProvider.Models) > 0 {
-		provider.Models = make([]models.LLMModel, len(specProvider.Models))
+		provider.Models = make([]gwmodels.LLMModel, len(specProvider.Models))
 		for i, m := range specProvider.Models {
-			provider.Models[i] = models.LLMModel{
+			provider.Models[i] = gwmodels.LLMModel{
 				ID:          m.Id,
 				Name:        ptrToString(m.Name),
 				Description: ptrToString(m.Description),
@@ -453,7 +453,7 @@ func ConvertSpecToModelLLMModelProvider(specProvider gwspec.LLMModelProvider) mo
 }
 
 // ConvertModelToSpecLLMModelProvider converts model to spec LLMModelProvider
-func ConvertModelToSpecLLMModelProvider(model models.LLMModelProvider) gwspec.LLMModelProvider {
+func ConvertModelToSpecLLMModelProvider(model gwmodels.LLMModelProvider) gwspec.LLMModelProvider {
 	provider := gwspec.LLMModelProvider{
 		Id:   model.ID,
 		Name: stringToPtr(model.Name),
@@ -474,18 +474,18 @@ func ConvertModelToSpecLLMModelProvider(model models.LLMModelProvider) gwspec.LL
 }
 
 // ConvertSpecToModelResilience converts spec Resilience to model Resilience.
-func ConvertSpecToModelResilience(r *gwspec.Resilience) *models.Resilience {
+func ConvertSpecToModelResilience(r *gwspec.Resilience) *gwmodels.Resilience {
 	if r == nil {
 		return nil
 	}
-	return &models.Resilience{
+	return &gwmodels.Resilience{
 		Timeout:     r.Timeout,
 		IdleTimeout: r.IdleTimeout,
 	}
 }
 
 // ConvertModelToSpecResilience converts model Resilience to spec Resilience.
-func ConvertModelToSpecResilience(r *models.Resilience) *gwspec.Resilience {
+func ConvertModelToSpecResilience(r *gwmodels.Resilience) *gwspec.Resilience {
 	if r == nil {
 		return nil
 	}
@@ -510,16 +510,16 @@ func nonRedactedPtr(v *string) *string {
 	return v
 }
 
-func ConvertSpecToModelUpstreamConfig(config gwspec.UpstreamConfig) models.UpstreamConfig {
-	modelConfig := models.UpstreamConfig{}
+func ConvertSpecToModelUpstreamConfig(config gwspec.UpstreamConfig) gwmodels.UpstreamConfig {
+	modelConfig := gwmodels.UpstreamConfig{}
 
 	if config.Main != nil {
-		main := models.UpstreamEndpoint{
+		main := gwmodels.UpstreamEndpoint{
 			URL: config.Main.GetUrl(),
 			Ref: ptrToString(config.Main.Ref),
 		}
 		if config.Main.Auth != nil {
-			main.Auth = &models.UpstreamAuth{
+			main.Auth = &gwmodels.UpstreamAuth{
 				Type:   &config.Main.Auth.Type,
 				Value:  nonRedactedPtr(config.Main.Auth.Value),
 				Header: config.Main.Auth.Header,
@@ -529,12 +529,12 @@ func ConvertSpecToModelUpstreamConfig(config gwspec.UpstreamConfig) models.Upstr
 	}
 
 	if config.Sandbox != nil {
-		sandbox := models.UpstreamEndpoint{
+		sandbox := gwmodels.UpstreamEndpoint{
 			URL: config.Sandbox.GetUrl(),
 			Ref: ptrToString(config.Sandbox.Ref),
 		}
 		if config.Sandbox.Auth != nil {
-			sandbox.Auth = &models.UpstreamAuth{
+			sandbox.Auth = &gwmodels.UpstreamAuth{
 				Type:   &config.Sandbox.Auth.Type,
 				Value:  nonRedactedPtr(config.Sandbox.Auth.Value),
 				Header: config.Sandbox.Auth.Header,
@@ -547,7 +547,7 @@ func ConvertSpecToModelUpstreamConfig(config gwspec.UpstreamConfig) models.Upstr
 }
 
 // ConvertModelToSpecUpstreamConfig converts model to spec UpstreamConfig
-func ConvertModelToSpecUpstreamConfig(config models.UpstreamConfig) gwspec.UpstreamConfig {
+func ConvertModelToSpecUpstreamConfig(config gwmodels.UpstreamConfig) gwspec.UpstreamConfig {
 	specConfig := gwspec.UpstreamConfig{}
 
 	if config.Main != nil {
@@ -579,7 +579,7 @@ func ConvertModelToSpecUpstreamConfig(config models.UpstreamConfig) gwspec.Upstr
 // the credential with a fixed mask. Both endpoints share it: the sandbox branch used
 // to read its header from config.Main.Auth, which panics for a provider that has a
 // sandbox credential and no main one.
-func maskedSpecUpstreamAuth(auth *models.UpstreamAuth) *gwspec.UpstreamAuth {
+func maskedSpecUpstreamAuth(auth *gwmodels.UpstreamAuth) *gwspec.UpstreamAuth {
 	masked := redactedMarker
 	return &gwspec.UpstreamAuth{
 		Type:   utils.StrPointerAsStr(auth.Type, ""),
@@ -589,15 +589,15 @@ func maskedSpecUpstreamAuth(auth *models.UpstreamAuth) *gwspec.UpstreamAuth {
 }
 
 // ConvertSpecToModelLLMAccessControl converts spec to model LLMAccessControl
-func ConvertSpecToModelLLMAccessControl(ac gwspec.LLMAccessControl) models.LLMAccessControl {
-	modelAC := models.LLMAccessControl{
+func ConvertSpecToModelLLMAccessControl(ac gwspec.LLMAccessControl) gwmodels.LLMAccessControl {
+	modelAC := gwmodels.LLMAccessControl{
 		Mode: ac.Mode,
 	}
 
 	if len(ac.Exceptions) > 0 {
-		modelAC.Exceptions = make([]models.RouteException, len(ac.Exceptions))
+		modelAC.Exceptions = make([]gwmodels.RouteException, len(ac.Exceptions))
 		for i, e := range ac.Exceptions {
-			modelAC.Exceptions[i] = models.RouteException{
+			modelAC.Exceptions[i] = gwmodels.RouteException{
 				Path:    e.Path,
 				Methods: e.Methods,
 			}
@@ -608,7 +608,7 @@ func ConvertSpecToModelLLMAccessControl(ac gwspec.LLMAccessControl) models.LLMAc
 }
 
 // ConvertModelToSpecLLMAccessControl converts model to spec LLMAccessControl
-func ConvertModelToSpecLLMAccessControl(ac models.LLMAccessControl) gwspec.LLMAccessControl {
+func ConvertModelToSpecLLMAccessControl(ac gwmodels.LLMAccessControl) gwspec.LLMAccessControl {
 	specAC := gwspec.LLMAccessControl{
 		Mode: ac.Mode,
 	}
@@ -627,8 +627,8 @@ func ConvertModelToSpecLLMAccessControl(ac models.LLMAccessControl) gwspec.LLMAc
 }
 
 // ConvertSpecToModelLLMRateLimitingConfig converts spec to model LLMRateLimitingConfig
-func ConvertSpecToModelLLMRateLimitingConfig(rl gwspec.LLMRateLimitingConfig) models.LLMRateLimitingConfig {
-	modelRL := models.LLMRateLimitingConfig{}
+func ConvertSpecToModelLLMRateLimitingConfig(rl gwspec.LLMRateLimitingConfig) gwmodels.LLMRateLimitingConfig {
+	modelRL := gwmodels.LLMRateLimitingConfig{}
 
 	if rl.ProviderLevel != nil {
 		providerLevel := ConvertSpecToModelRateLimitingScopeConfig(*rl.ProviderLevel)
@@ -643,7 +643,7 @@ func ConvertSpecToModelLLMRateLimitingConfig(rl gwspec.LLMRateLimitingConfig) mo
 }
 
 // ConvertModelToSpecLLMRateLimitingConfig converts model to spec LLMRateLimitingConfig
-func ConvertModelToSpecLLMRateLimitingConfig(rl models.LLMRateLimitingConfig) gwspec.LLMRateLimitingConfig {
+func ConvertModelToSpecLLMRateLimitingConfig(rl gwmodels.LLMRateLimitingConfig) gwspec.LLMRateLimitingConfig {
 	specRL := gwspec.LLMRateLimitingConfig{}
 
 	if rl.ProviderLevel != nil {
@@ -659,21 +659,21 @@ func ConvertModelToSpecLLMRateLimitingConfig(rl models.LLMRateLimitingConfig) gw
 }
 
 // ConvertSpecToModelRateLimitingScopeConfig converts spec to model RateLimitingScopeConfig
-func ConvertSpecToModelRateLimitingScopeConfig(scope gwspec.RateLimitingScopeConfig) models.RateLimitingScopeConfig {
-	modelScope := models.RateLimitingScopeConfig{}
+func ConvertSpecToModelRateLimitingScopeConfig(scope gwspec.RateLimitingScopeConfig) gwmodels.RateLimitingScopeConfig {
+	modelScope := gwmodels.RateLimitingScopeConfig{}
 
 	if scope.Global != nil {
 		global := ConvertSpecToModelRateLimitingLimitConfig(*scope.Global)
 		modelScope.Global = &global
 	}
 	if scope.ResourceWise != nil {
-		resourceWise := models.ResourceWiseRateLimitingConfig{
+		resourceWise := gwmodels.ResourceWiseRateLimitingConfig{
 			Default: ConvertSpecToModelRateLimitingLimitConfig(scope.ResourceWise.Default),
 		}
 		if len(scope.ResourceWise.Resources) > 0 {
-			resourceWise.Resources = make([]models.RateLimitingResourceLimit, len(scope.ResourceWise.Resources))
+			resourceWise.Resources = make([]gwmodels.RateLimitingResourceLimit, len(scope.ResourceWise.Resources))
 			for i, r := range scope.ResourceWise.Resources {
-				resourceWise.Resources[i] = models.RateLimitingResourceLimit{
+				resourceWise.Resources[i] = gwmodels.RateLimitingResourceLimit{
 					Resource: r.Resource,
 					Limit:    ConvertSpecToModelRateLimitingLimitConfig(r.Limit),
 				}
@@ -686,7 +686,7 @@ func ConvertSpecToModelRateLimitingScopeConfig(scope gwspec.RateLimitingScopeCon
 }
 
 // ConvertModelToSpecRateLimitingScopeConfig converts model to spec RateLimitingScopeConfig
-func ConvertModelToSpecRateLimitingScopeConfig(scope models.RateLimitingScopeConfig) gwspec.RateLimitingScopeConfig {
+func ConvertModelToSpecRateLimitingScopeConfig(scope gwmodels.RateLimitingScopeConfig) gwspec.RateLimitingScopeConfig {
 	specScope := gwspec.RateLimitingScopeConfig{}
 
 	if scope.Global != nil {
@@ -713,34 +713,34 @@ func ConvertModelToSpecRateLimitingScopeConfig(scope models.RateLimitingScopeCon
 }
 
 // ConvertSpecToModelRateLimitingLimitConfig converts spec to model RateLimitingLimitConfig
-func ConvertSpecToModelRateLimitingLimitConfig(limit gwspec.RateLimitingLimitConfig) models.RateLimitingLimitConfig {
-	modelLimit := models.RateLimitingLimitConfig{}
+func ConvertSpecToModelRateLimitingLimitConfig(limit gwspec.RateLimitingLimitConfig) gwmodels.RateLimitingLimitConfig {
+	modelLimit := gwmodels.RateLimitingLimitConfig{}
 
 	if limit.Request != nil {
-		modelLimit.Request = &models.RequestRateLimit{
+		modelLimit.Request = &gwmodels.RequestRateLimit{
 			Enabled: limit.Request.Enabled,
 			Count:   int(limit.Request.Count),
-			Reset: models.RateLimitResetWindow{
+			Reset: gwmodels.RateLimitResetWindow{
 				Duration: int(limit.Request.Reset.Duration),
 				Unit:     limit.Request.Reset.Unit,
 			},
 		}
 	}
 	if limit.Token != nil {
-		modelLimit.Token = &models.TokenRateLimit{
+		modelLimit.Token = &gwmodels.TokenRateLimit{
 			Enabled: limit.Token.Enabled,
 			Count:   int(limit.Token.Count),
-			Reset: models.RateLimitResetWindow{
+			Reset: gwmodels.RateLimitResetWindow{
 				Duration: int(limit.Token.Reset.Duration),
 				Unit:     limit.Token.Reset.Unit,
 			},
 		}
 	}
 	if limit.Cost != nil {
-		modelLimit.Cost = &models.CostRateLimit{
+		modelLimit.Cost = &gwmodels.CostRateLimit{
 			Enabled: limit.Cost.Enabled,
 			Amount:  limit.Cost.Amount,
-			Reset: models.RateLimitResetWindow{
+			Reset: gwmodels.RateLimitResetWindow{
 				Duration: int(limit.Cost.Reset.Duration),
 				Unit:     limit.Cost.Reset.Unit,
 			},
@@ -751,7 +751,7 @@ func ConvertSpecToModelRateLimitingLimitConfig(limit gwspec.RateLimitingLimitCon
 }
 
 // ConvertModelToSpecRateLimitingLimitConfig converts model to spec RateLimitingLimitConfig
-func ConvertModelToSpecRateLimitingLimitConfig(limit models.RateLimitingLimitConfig) gwspec.RateLimitingLimitConfig {
+func ConvertModelToSpecRateLimitingLimitConfig(limit gwmodels.RateLimitingLimitConfig) gwspec.RateLimitingLimitConfig {
 	specLimit := gwspec.RateLimitingLimitConfig{}
 
 	if limit.Request != nil {
@@ -789,16 +789,16 @@ func ConvertModelToSpecRateLimitingLimitConfig(limit models.RateLimitingLimitCon
 }
 
 // ConvertSpecToModelLLMPolicy converts spec to model LLMPolicy
-func ConvertSpecToModelLLMPolicy(policy gwspec.LLMPolicy) models.LLMPolicy {
-	modelPolicy := models.LLMPolicy{
+func ConvertSpecToModelLLMPolicy(policy gwspec.LLMPolicy) gwmodels.LLMPolicy {
+	modelPolicy := gwmodels.LLMPolicy{
 		Name:    policy.Name,
 		Version: policy.Version,
 	}
 
 	if len(policy.Paths) > 0 {
-		modelPolicy.Paths = make([]models.LLMPolicyPath, len(policy.Paths))
+		modelPolicy.Paths = make([]gwmodels.LLMPolicyPath, len(policy.Paths))
 		for i, p := range policy.Paths {
-			modelPolicy.Paths[i] = models.LLMPolicyPath{
+			modelPolicy.Paths[i] = gwmodels.LLMPolicyPath{
 				Path:    p.Path,
 				Methods: p.Methods,
 				Params:  p.Params,
@@ -810,7 +810,7 @@ func ConvertSpecToModelLLMPolicy(policy gwspec.LLMPolicy) models.LLMPolicy {
 }
 
 // ConvertModelToSpecLLMPolicy converts model to spec LLMPolicy
-func ConvertModelToSpecLLMPolicy(policy models.LLMPolicy) gwspec.LLMPolicy {
+func ConvertModelToSpecLLMPolicy(policy gwmodels.LLMPolicy) gwspec.LLMPolicy {
 	specPolicy := gwspec.LLMPolicy{
 		Name:    policy.Name,
 		Version: policy.Version,
@@ -831,13 +831,13 @@ func ConvertModelToSpecLLMPolicy(policy models.LLMPolicy) gwspec.LLMPolicy {
 }
 
 // ConvertSpecToModelSecurityConfig converts spec to model SecurityConfig
-func ConvertSpecToModelSecurityConfig(sec gwspec.SecurityConfig) models.SecurityConfig {
-	modelSec := models.SecurityConfig{
+func ConvertSpecToModelSecurityConfig(sec gwspec.SecurityConfig) gwmodels.SecurityConfig {
+	modelSec := gwmodels.SecurityConfig{
 		Enabled: sec.Enabled,
 	}
 
 	if sec.ApiKey != nil {
-		modelSec.APIKey = &models.APIKeySecurity{
+		modelSec.APIKey = &gwmodels.APIKeySecurity{
 			Enabled: sec.ApiKey.Enabled,
 			In:      ptrToString(sec.ApiKey.In),
 			Key:     ptrToString(sec.ApiKey.Key),
@@ -848,7 +848,7 @@ func ConvertSpecToModelSecurityConfig(sec gwspec.SecurityConfig) models.Security
 }
 
 // ConvertModelToSpecSecurityConfig converts model to spec SecurityConfig
-func ConvertModelToSpecSecurityConfig(sec models.SecurityConfig) gwspec.SecurityConfig {
+func ConvertModelToSpecSecurityConfig(sec gwmodels.SecurityConfig) gwspec.SecurityConfig {
 	specSec := gwspec.SecurityConfig{
 		Enabled: sec.Enabled,
 	}
@@ -867,7 +867,7 @@ func ConvertModelToSpecSecurityConfig(sec models.SecurityConfig) gwspec.Security
 // ConvertModelToSpecLLMDeploymentResponse is an LLM provider's or proxy's deployment as the API shows it: the status
 // a user is shown for it on its gateway, where the transition is heading and why. An ARCHIVED deployment has no
 // status row, so it has neither.
-func ConvertModelToSpecLLMDeploymentResponse(d *models.Deployment) gwspec.LLMDeploymentResponse {
+func ConvertModelToSpecLLMDeploymentResponse(d *gwmodels.Deployment) gwspec.LLMDeploymentResponse {
 	shown := d.UserStatus()
 	resp := gwspec.LLMDeploymentResponse{
 		DeploymentId: d.DeploymentID.String(),
@@ -886,7 +886,7 @@ func ConvertModelToSpecLLMDeploymentResponse(d *models.Deployment) gwspec.LLMDep
 		base := d.BaseDeploymentID.String()
 		resp.BaseDeploymentId = &base
 	}
-	if shown.Status != models.DeploymentStatusArchived {
+	if shown.Status != gwmodels.DeploymentStatusArchived {
 		desired := string(*d.StatusDesired)
 		resp.StatusDesired = &desired
 	}
@@ -897,7 +897,7 @@ func ConvertModelToSpecLLMDeploymentResponse(d *models.Deployment) gwspec.LLMDep
 }
 
 // ConvertModelToSpecLLMDeploymentResponses converts a deployments list.
-func ConvertModelToSpecLLMDeploymentResponses(deployments []*models.Deployment) []gwspec.LLMDeploymentResponse {
+func ConvertModelToSpecLLMDeploymentResponses(deployments []*gwmodels.Deployment) []gwspec.LLMDeploymentResponse {
 	resp := make([]gwspec.LLMDeploymentResponse, 0, len(deployments))
 	for _, d := range deployments {
 		resp = append(resp, ConvertModelToSpecLLMDeploymentResponse(d))
@@ -905,7 +905,7 @@ func ConvertModelToSpecLLMDeploymentResponses(deployments []*models.Deployment) 
 	return resp
 }
 
-func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentResponse) map[string]gwspec.DeploymentDetailsResponse {
+func ConvertToDeploymentDetailsResponse(deploymentDetails []*gwmodels.DeploymentResponse) map[string]gwspec.DeploymentDetailsResponse {
 	result := make(map[string]gwspec.DeploymentDetailsResponse)
 
 	if len(deploymentDetails) == 0 {
@@ -946,7 +946,7 @@ func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentRe
 
 // PopulateAgentConfiguration fills the per-environment tracing, CORS and endpoint-authentication
 // fields of resp from the agent's gateway settings row. No-op when cfg is nil (none stored yet).
-func PopulateAgentConfiguration(resp *gwspec.AgentConfigurationResponse, cfg *models.AgentConfig) {
+func PopulateAgentConfiguration(resp *gwspec.AgentConfigurationResponse, cfg *gwmodels.AgentConfig) {
 	if resp == nil || cfg == nil {
 		return
 	}

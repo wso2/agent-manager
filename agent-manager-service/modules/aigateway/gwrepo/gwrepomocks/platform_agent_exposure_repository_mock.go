@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -28,19 +28,19 @@ import (
 //			DeleteForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
 //				panic("mock out the DeleteForEnvironment method")
 //			},
-//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
+//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 //				panic("mock out the Get method")
 //			},
-//			GetByArtifactFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
+//			GetByArtifactFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 //				panic("mock out the GetByArtifact method")
 //			},
 //			ListEnvironmentUUIDsFunc: func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error) {
 //				panic("mock out the ListEnvironmentUUIDs method")
 //			},
-//			ListForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.PlatformAgentExposure, error) {
+//			ListForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.PlatformAgentExposure, error) {
 //				panic("mock out the ListForEnvironment method")
 //			},
-//			UpsertFunc: func(ctx context.Context, exposure *models.PlatformAgentExposure) error {
+//			UpsertFunc: func(ctx context.Context, exposure *gwmodels.PlatformAgentExposure) error {
 //				panic("mock out the Upsert method")
 //			},
 //			WithTxFunc: func(tx *gorm.DB) gwrepo.PlatformAgentExposureRepository {
@@ -63,19 +63,19 @@ type PlatformAgentExposureRepositoryMock struct {
 	DeleteForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error
 
 	// GetFunc mocks the Get method.
-	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.PlatformAgentExposure, error)
+	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error)
 
 	// GetByArtifactFunc mocks the GetByArtifact method.
-	GetByArtifactFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.PlatformAgentExposure, error)
+	GetByArtifactFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error)
 
 	// ListEnvironmentUUIDsFunc mocks the ListEnvironmentUUIDs method.
 	ListEnvironmentUUIDsFunc func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error)
 
 	// ListForEnvironmentFunc mocks the ListForEnvironment method.
-	ListForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.PlatformAgentExposure, error)
+	ListForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.PlatformAgentExposure, error)
 
 	// UpsertFunc mocks the Upsert method.
-	UpsertFunc func(ctx context.Context, exposure *models.PlatformAgentExposure) error
+	UpsertFunc func(ctx context.Context, exposure *gwmodels.PlatformAgentExposure) error
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(tx *gorm.DB) gwrepo.PlatformAgentExposureRepository
@@ -160,7 +160,7 @@ type PlatformAgentExposureRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Exposure is the exposure argument value.
-			Exposure *models.PlatformAgentExposure
+			Exposure *gwmodels.PlatformAgentExposure
 		}
 		// WithTx holds details about calls to the WithTx method.
 		WithTx []struct {
@@ -312,7 +312,7 @@ func (mock *PlatformAgentExposureRepositoryMock) DeleteForEnvironmentCalls() []s
 }
 
 // Get calls GetFunc.
-func (mock *PlatformAgentExposureRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
+func (mock *PlatformAgentExposureRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 	if mock.GetFunc == nil {
 		panic("PlatformAgentExposureRepositoryMock.GetFunc: method is nil but PlatformAgentExposureRepository.Get was just called")
 	}
@@ -360,7 +360,7 @@ func (mock *PlatformAgentExposureRepositoryMock) GetCalls() []struct {
 }
 
 // GetByArtifact calls GetByArtifactFunc.
-func (mock *PlatformAgentExposureRepositoryMock) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
+func (mock *PlatformAgentExposureRepositoryMock) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 	if mock.GetByArtifactFunc == nil {
 		panic("PlatformAgentExposureRepositoryMock.GetByArtifactFunc: method is nil but PlatformAgentExposureRepository.GetByArtifact was just called")
 	}
@@ -440,7 +440,7 @@ func (mock *PlatformAgentExposureRepositoryMock) ListEnvironmentUUIDsCalls() []s
 }
 
 // ListForEnvironment calls ListForEnvironmentFunc.
-func (mock *PlatformAgentExposureRepositoryMock) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.PlatformAgentExposure, error) {
+func (mock *PlatformAgentExposureRepositoryMock) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.PlatformAgentExposure, error) {
 	if mock.ListForEnvironmentFunc == nil {
 		panic("PlatformAgentExposureRepositoryMock.ListForEnvironmentFunc: method is nil but PlatformAgentExposureRepository.ListForEnvironment was just called")
 	}
@@ -480,13 +480,13 @@ func (mock *PlatformAgentExposureRepositoryMock) ListForEnvironmentCalls() []str
 }
 
 // Upsert calls UpsertFunc.
-func (mock *PlatformAgentExposureRepositoryMock) Upsert(ctx context.Context, exposure *models.PlatformAgentExposure) error {
+func (mock *PlatformAgentExposureRepositoryMock) Upsert(ctx context.Context, exposure *gwmodels.PlatformAgentExposure) error {
 	if mock.UpsertFunc == nil {
 		panic("PlatformAgentExposureRepositoryMock.UpsertFunc: method is nil but PlatformAgentExposureRepository.Upsert was just called")
 	}
 	callInfo := struct {
 		Ctx      context.Context
-		Exposure *models.PlatformAgentExposure
+		Exposure *gwmodels.PlatformAgentExposure
 	}{
 		Ctx:      ctx,
 		Exposure: exposure,
@@ -503,11 +503,11 @@ func (mock *PlatformAgentExposureRepositoryMock) Upsert(ctx context.Context, exp
 //	len(mockedPlatformAgentExposureRepository.UpsertCalls())
 func (mock *PlatformAgentExposureRepositoryMock) UpsertCalls() []struct {
 	Ctx      context.Context
-	Exposure *models.PlatformAgentExposure
+	Exposure *gwmodels.PlatformAgentExposure
 } {
 	var calls []struct {
 		Ctx      context.Context
-		Exposure *models.PlatformAgentExposure
+		Exposure *gwmodels.PlatformAgentExposure
 	}
 	mock.lockUpsert.RLock()
 	calls = mock.calls.Upsert

@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
@@ -39,16 +40,16 @@ type PlatformAgentExposureRepository interface {
 	WithTx(tx *gorm.DB) PlatformAgentExposureRepository
 
 	// Upsert records the agent-environment pair, replacing a same-named row from a deleted environment.
-	Upsert(ctx context.Context, exposure *models.PlatformAgentExposure) error
+	Upsert(ctx context.Context, exposure *gwmodels.PlatformAgentExposure) error
 
 	// Get returns ErrPlatformAgentExposureNotFound when no row exists.
-	Get(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.PlatformAgentExposure, error)
+	Get(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error)
 
 	// GetByArtifact returns the exposure of the per-environment agent artifact, or ErrPlatformAgentExposureNotFound.
-	GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.PlatformAgentExposure, error)
+	GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error)
 
 	// ListForEnvironment returns every agent's row in one environment.
-	ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.PlatformAgentExposure, error)
+	ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.PlatformAgentExposure, error)
 
 	// ListEnvironmentUUIDs returns the distinct environment UUIDs with rows recorded under environmentName.
 	ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error)
@@ -76,9 +77,9 @@ func (r *platformAgentExposureRepository) WithTx(tx *gorm.DB) PlatformAgentExpos
 	return &platformAgentExposureRepository{db: tx}
 }
 
-func (r *platformAgentExposureRepository) Upsert(ctx context.Context, exposure *models.PlatformAgentExposure) error {
+func (r *platformAgentExposureRepository) Upsert(ctx context.Context, exposure *gwmodels.PlatformAgentExposure) error {
 	if exposure.Protocol == "" {
-		exposure.Protocol = models.AgentExposureProtocolA2A
+		exposure.Protocol = gwmodels.AgentExposureProtocolA2A
 	}
 	now := dbx.Now()
 	exposure.UpdatedAt = now
@@ -97,7 +98,7 @@ func (r *platformAgentExposureRepository) Upsert(ctx context.Context, exposure *
 			exposure.AgentUUID = &id
 		}
 		_, err := dbx.Upsert(tx, exposure, func(tx *gorm.DB) error {
-			return tx.Model(&models.PlatformAgentExposure{}).
+			return tx.Model(&gwmodels.PlatformAgentExposure{}).
 				Where("agent_id = ? AND environment_id = ?", *exposure.AgentUUID, exposure.EnvironmentUUID).
 				Updates(map[string]any{"artifact_id": exposure.ArtifactUUID, "protocol": exposure.Protocol, "updated_at": now}).Error
 		})
@@ -105,17 +106,17 @@ func (r *platformAgentExposureRepository) Upsert(ctx context.Context, exposure *
 	})
 }
 
-func (r *platformAgentExposureRepository) Get(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
+func (r *platformAgentExposureRepository) Get(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 	cond, args := agentEnvIDCond(r.db, ouID, projectName, agentName, environmentUUID)
 	return r.first(ctx, cond, args...)
 }
 
-func (r *platformAgentExposureRepository) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
+func (r *platformAgentExposureRepository) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 	return r.first(ctx, "org_id = ? AND artifact_id = ?", ouID, artifactUUID)
 }
 
-func (r *platformAgentExposureRepository) first(ctx context.Context, query string, args ...interface{}) (*models.PlatformAgentExposure, error) {
-	var row models.PlatformAgentExposure
+func (r *platformAgentExposureRepository) first(ctx context.Context, query string, args ...interface{}) (*gwmodels.PlatformAgentExposure, error) {
+	var row gwmodels.PlatformAgentExposure
 	err := r.db.WithContext(ctx).Where(query, args...).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrPlatformAgentExposureNotFound
@@ -126,24 +127,24 @@ func (r *platformAgentExposureRepository) first(ctx context.Context, query strin
 	return &row, nil
 }
 
-func (r *platformAgentExposureRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.PlatformAgentExposure, error) {
-	return listForEnvironment[models.PlatformAgentExposure](ctx, r.db, models.PlatformAgentExposure{}.TableName(), ouID, environmentUUID)
+func (r *platformAgentExposureRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.PlatformAgentExposure, error) {
+	return listForEnvironment[gwmodels.PlatformAgentExposure](ctx, r.db, gwmodels.PlatformAgentExposure{}.TableName(), ouID, environmentUUID)
 }
 
 func (r *platformAgentExposureRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {
-	return listEnvironmentUUIDs[models.PlatformAgentExposure](ctx, r.db, ouID, environmentName)
+	return listEnvironmentUUIDs[gwmodels.PlatformAgentExposure](ctx, r.db, ouID, environmentName)
 }
 
 func (r *platformAgentExposureRepository) DeleteForAgentEnv(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error {
 	cond, args := agentEnvIDCond(r.db, ouID, projectName, agentName, environmentUUID)
-	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.PlatformAgentExposure{}).Error
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&gwmodels.PlatformAgentExposure{}).Error
 }
 
 func (r *platformAgentExposureRepository) DeleteForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
-	return deleteForEnvironment[models.PlatformAgentExposure](ctx, r.db, ouID, environmentUUID)
+	return deleteForEnvironment[gwmodels.PlatformAgentExposure](ctx, r.db, ouID, environmentUUID)
 }
 
 func (r *platformAgentExposureRepository) DeleteForAgent(ctx context.Context, ouID, projectName, agentName string) error {
 	cond, args := repositories.AgentCond(r.db, ouID, projectName, agentName)
-	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.PlatformAgentExposure{}).Error
+	return r.db.WithContext(ctx).Where(cond, args...).Delete(&gwmodels.PlatformAgentExposure{}).Error
 }

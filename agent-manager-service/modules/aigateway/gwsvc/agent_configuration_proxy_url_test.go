@@ -21,13 +21,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 func TestBuildPublicProxyURLUsesVhost(t *testing.T) {
 	// RuntimeURL present but must be ignored: this is the address handed to callers
 	// outside the cluster — external agents and MCP's resource identifier.
-	gateway := &models.Gateway{
+	gateway := &gwmodels.Gateway{
 		Vhost:      "https://dev-acme.gateway.example.com",
 		RuntimeURL: "http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893",
 	}
@@ -40,53 +40,53 @@ func TestBuildMCPProxyURLUsesGatewayVhost(t *testing.T) {
 	// MCP keeps the public vhost even with a RuntimeURL registered: this URL doubles as
 	// the OAuth resource identifier (MCPResourceServerIdentifier), so an in-cluster
 	// address here would put an unroutable audience in every AgentID token.
-	gateway := &models.Gateway{
+	gateway := &gwmodels.Gateway{
 		Vhost:      "https://gateway.example.com",
 		RuntimeURL: "http://runtime.acme-dev:22893",
 	}
 	ctxPath := "/github"
-	require.Equal(t, "https://gateway.example.com/github/mcp", buildMCPProxyURL(gateway, models.MCPProxyConfig{Context: &ctxPath}))
-	require.Equal(t, "https://gateway.example.com/mcp", buildMCPProxyURL(gateway, models.MCPProxyConfig{}))
+	require.Equal(t, "https://gateway.example.com/github/mcp", buildMCPProxyURL(gateway, gwmodels.MCPProxyConfig{Context: &ctxPath}))
+	require.Equal(t, "https://gateway.example.com/mcp", buildMCPProxyURL(gateway, gwmodels.MCPProxyConfig{}))
 }
 
 func TestBuildMCPProxyURLPrefersProxyVhostOverride(t *testing.T) {
 	// The deployment spec forwards the proxy's own vhost to the gateway, so the
 	// override — not the gateway default — is where the proxy is actually served.
-	gateway := &models.Gateway{Vhost: "https://gateway.example.com"}
+	gateway := &gwmodels.Gateway{Vhost: "https://gateway.example.com"}
 	vhost := "mcp.example.com"
 	ctxPath := "/github"
 	require.Equal(t, "https://mcp.example.com/github/mcp",
-		buildMCPProxyURL(gateway, models.MCPProxyConfig{Vhost: &vhost, Context: &ctxPath}))
+		buildMCPProxyURL(gateway, gwmodels.MCPProxyConfig{Vhost: &vhost, Context: &ctxPath}))
 	full := "http://mcp.example.com"
 	require.Equal(t, "http://mcp.example.com/mcp",
-		buildMCPProxyURL(gateway, models.MCPProxyConfig{Vhost: &full}))
+		buildMCPProxyURL(gateway, gwmodels.MCPProxyConfig{Vhost: &full}))
 	empty := "  "
 	require.Equal(t, "https://gateway.example.com/mcp",
-		buildMCPProxyURL(gateway, models.MCPProxyConfig{Vhost: &empty}))
+		buildMCPProxyURL(gateway, gwmodels.MCPProxyConfig{Vhost: &empty}))
 }
 
 func TestBuildPublicProxyURLDefaultsBareVhostToHTTPS(t *testing.T) {
 	// Gateways registered with a scheme-less vhost must still yield absolute URLs.
-	gateway := &models.Gateway{Vhost: "gw.example.com"}
+	gateway := &gwmodels.Gateway{Vhost: "gw.example.com"}
 	contextPath := "/llm/proxy"
 	require.Equal(t, "https://gw.example.com/llm/proxy", buildPublicProxyURL(gateway, &contextPath))
 	require.Equal(t, "https://gw.example.com", buildPublicProxyURL(gateway, nil))
 }
 
 func TestBuildMCPProxyURLDefaultsBareGatewayVhostToHTTPS(t *testing.T) {
-	gateway := &models.Gateway{Vhost: "gw.example.com"}
+	gateway := &gwmodels.Gateway{Vhost: "gw.example.com"}
 	ctxPath := "/github"
-	require.Equal(t, "https://gw.example.com/github/mcp", buildMCPProxyURL(gateway, models.MCPProxyConfig{Context: &ctxPath}))
-	require.Equal(t, "https://gw.example.com/mcp", buildMCPProxyURL(gateway, models.MCPProxyConfig{}))
+	require.Equal(t, "https://gw.example.com/github/mcp", buildMCPProxyURL(gateway, gwmodels.MCPProxyConfig{Context: &ctxPath}))
+	require.Equal(t, "https://gw.example.com/mcp", buildMCPProxyURL(gateway, gwmodels.MCPProxyConfig{}))
 }
 
 func TestResourceIdentifierUnchangedByVhostScheme(t *testing.T) {
 	// The RS identifier is the absolute proxy URL and must be identical whether the
 	// gateway registered a bare or an https:// vhost.
-	bare := &models.Gateway{Vhost: "gw.example.com"}
-	prefixed := &models.Gateway{Vhost: "https://gw.example.com"}
+	bare := &gwmodels.Gateway{Vhost: "gw.example.com"}
+	prefixed := &gwmodels.Gateway{Vhost: "https://gw.example.com"}
 	ctxPath := "/github"
-	cfg := models.MCPProxyConfig{Context: &ctxPath}
+	cfg := gwmodels.MCPProxyConfig{Context: &ctxPath}
 	require.Equal(t, "https://gw.example.com/github/mcp", buildMCPProxyURL(bare, cfg))
 	require.Equal(t, buildMCPProxyURL(prefixed, cfg), buildMCPProxyURL(bare, cfg))
 }

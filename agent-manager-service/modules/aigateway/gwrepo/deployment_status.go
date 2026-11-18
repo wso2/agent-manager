@@ -28,7 +28,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -39,7 +39,7 @@ const deploymentHardLimit = 25
 const DeploymentTimeoutReason = "DEPLOYMENT_TIMEOUT"
 
 // AfterLiveFunc runs in ApplyAck's transaction when a row moves to DEPLOYED. It must only touch the database.
-type AfterLiveFunc func(ctx context.Context, tx *gorm.DB, placement models.Placement, deploymentID uuid.UUID) error
+type AfterLiveFunc func(ctx context.Context, tx *gorm.DB, placement gwmodels.Placement, deploymentID uuid.UUID) error
 
 // on returns tx, or the repository's own connection when tx is nil, bound to ctx.
 func (r *DeploymentRepo) on(ctx context.Context, tx *gorm.DB) *gorm.DB {
@@ -50,7 +50,7 @@ func (r *DeploymentRepo) on(ctx context.Context, tx *gorm.DB) *gorm.DB {
 }
 
 // StartDeploy records a new deployment of the placement and points its status row at it, DEPLOYING.
-func (r *DeploymentRepo) StartDeploy(ctx context.Context, tx *gorm.DB, p models.Placement, deployment *models.Deployment) error {
+func (r *DeploymentRepo) StartDeploy(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, deployment *gwmodels.Deployment) error {
 	deployment.ArtifactUUID, deployment.OUID, deployment.GatewayUUID = p.ArtifactUUID, p.OUID, p.GatewayUUID
 	if err := r.WithTx(r.on(ctx, tx)).CreateWithLimitEnforcement(deployment, deploymentHardLimit); err != nil {
 		return fmt.Errorf("failed to create deployment: %w", err)
@@ -59,8 +59,8 @@ func (r *DeploymentRepo) StartDeploy(ctx context.Context, tx *gorm.DB, p models.
 	if err != nil {
 		return err
 	}
-	deployment.SetStatusRow(&models.DeploymentStatusRecord{
-		Status: models.DeploymentStatusDeploying, StatusDesired: models.DeploymentStatusDeployed,
+	deployment.SetStatusRow(&gwmodels.DeploymentStatusRecord{
+		Status: gwmodels.DeploymentStatusDeploying, StatusDesired: gwmodels.DeploymentStatusDeployed,
 	})
 	deployment.UpdatedAt = &performedAt
 	return nil
@@ -68,7 +68,7 @@ func (r *DeploymentRepo) StartDeploy(ctx context.Context, tx *gorm.DB, p models.
 
 // StartRestore points the placement's status row at an existing deployment, DEPLOYING. Clearing the queue keeps a
 // waiting redeploy from overwriting the restore.
-func (r *DeploymentRepo) StartRestore(ctx context.Context, tx *gorm.DB, p models.Placement, deploymentID uuid.UUID) error {
+func (r *DeploymentRepo) StartRestore(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, deploymentID uuid.UUID) error {
 	_, err := r.upsertStatus(ctx, tx, p, deploymentID)
 	return err
 }
@@ -77,19 +77,19 @@ func (r *DeploymentRepo) StartRestore(ctx context.Context, tx *gorm.DB, p models
 const statusKey = "artifact_id = ? AND org_id = ? AND gateway_id = ?"
 
 // upsertStatus starts a deploy transition. With BeginUndeploy, it is one of the two writers that reset the queue.
-func (r *DeploymentRepo) upsertStatus(ctx context.Context, tx *gorm.DB, p models.Placement, deploymentID uuid.UUID) (time.Time, error) {
-	performedAt := models.NewPerformedAt(time.Now())
+func (r *DeploymentRepo) upsertStatus(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, deploymentID uuid.UUID) (time.Time, error) {
+	performedAt := gwmodels.NewPerformedAt(time.Now())
 	now := dbx.Now()
-	row := &models.DeploymentStatusRecord{
+	row := &gwmodels.DeploymentStatusRecord{
 		ArtifactUUID: p.ArtifactUUID, OUID: p.OUID, GatewayUUID: p.GatewayUUID, DeploymentID: &deploymentID,
-		Status: models.DeploymentStatusDeploying, StatusDesired: models.DeploymentStatusDeployed,
+		Status: gwmodels.DeploymentStatusDeploying, StatusDesired: gwmodels.DeploymentStatusDeployed,
 		PerformedAt: performedAt, UpdatedAt: now,
 	}
 	_, err := dbx.Upsert(r.on(ctx, tx), row, func(db *gorm.DB) error {
-		return db.Model(&models.DeploymentStatusRecord{}).Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).
+		return db.Model(&gwmodels.DeploymentStatusRecord{}).Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).
 			Updates(map[string]any{
-				"deployment_id": deploymentID, "status": models.DeploymentStatusDeploying,
-				"status_desired": models.DeploymentStatusDeployed, "status_reason": "", "performed_at": performedAt,
+				"deployment_id": deploymentID, "status": gwmodels.DeploymentStatusDeploying,
+				"status_desired": gwmodels.DeploymentStatusDeployed, "status_reason": "", "performed_at": performedAt,
 				"next_attempt_at": nil, "attempt_count": 0, "render_reason": "", "claimed_by": nil, "claimed_until": nil,
 				"updated_at": now,
 			}).Error
@@ -116,7 +116,7 @@ func (r *DeploymentRepo) LockStatusRows(ctx context.Context, tx *gorm.DB, ouID s
 			ArtifactID uuid.UUID
 			GatewayID  uuid.UUID
 		}
-		if err := db.Model(&models.DeploymentStatusRecord{}).Select("artifact_id, gateway_id").
+		if err := db.Model(&gwmodels.DeploymentStatusRecord{}).Select("artifact_id, gateway_id").
 			Where("org_id = ? AND artifact_id IN ?", ouID, chunk).Scan(&part).Error; err != nil {
 			return fmt.Errorf("failed to lock status rows: %w", err)
 		}
@@ -129,7 +129,7 @@ func (r *DeploymentRepo) LockStatusRows(ctx context.Context, tx *gorm.DB, ouID s
 		return keys[i].ArtifactID.String() < keys[j].ArtifactID.String()
 	})
 	for _, k := range keys {
-		if _, err := dbx.LockRows(db, models.DeploymentStatusRecord{}.TableName(), "status",
+		if _, err := dbx.LockRows(db, gwmodels.DeploymentStatusRecord{}.TableName(), "status",
 			"artifact_id = ? AND gateway_id = ?", k.ArtifactID, k.GatewayID); err != nil {
 			return fmt.Errorf("failed to lock status rows: %w", err)
 		}
@@ -150,41 +150,41 @@ func (r *DeploymentRepo) LockEnvironmentMapping(ctx context.Context, tx *gorm.DB
 
 // finishedUndeploy is the condition, and its argument, on status rows of an undeploy the user still wants: UNDEPLOYED
 // with no deploy owed since.
-func finishedUndeploy() (string, models.DeploymentStatus) {
-	return "status = ? AND next_attempt_at IS NULL", models.DeploymentStatusUndeployed
+func finishedUndeploy() (string, gwmodels.DeploymentStatus) {
+	return "status = ? AND next_attempt_at IS NULL", gwmodels.DeploymentStatusUndeployed
 }
 
 // BeginUndeploy starts an undeploy transition. A row never sent to the gateway (PENDING) is undeployed at once and
 // needs no event; any other row heading for DEPLOYED goes UNDEPLOYING and the caller sends the undeploy event. A failed
 // undeploy (FAILED and heading for UNDEPLOYED) is re-sent the same way. A row already heading for UNDEPLOYED with a
 // deploy owed only loses its queue, with no event: the undeploy supersedes the owed deploy.
-func (r *DeploymentRepo) BeginUndeploy(ctx context.Context, tx *gorm.DB, p models.Placement) (bool, error) {
+func (r *DeploymentRepo) BeginUndeploy(ctx context.Context, tx *gorm.DB, p gwmodels.Placement) (bool, error) {
 	db := r.on(ctx, tx)
 	now := dbx.Now()
-	started := db.Model(&models.DeploymentStatusRecord{}).
+	started := db.Model(&gwmodels.DeploymentStatusRecord{}).
 		Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).
 		Where("status_desired = ? OR (status_desired = ? AND status = ?)",
-			models.DeploymentStatusDeployed, models.DeploymentStatusUndeployed, models.DeploymentStatusFailed).
+			gwmodels.DeploymentStatusDeployed, gwmodels.DeploymentStatusUndeployed, gwmodels.DeploymentStatusFailed).
 		Updates(map[string]any{
 			"status": gorm.Expr("CASE WHEN status = ? THEN ? ELSE ? END",
-				models.DeploymentStatusPending, models.DeploymentStatusUndeployed, models.DeploymentStatusUndeploying),
-			"status_desired": models.DeploymentStatusUndeployed, "status_reason": "",
-			"performed_at": models.NewPerformedAt(time.Now()), "next_attempt_at": nil, "attempt_count": 0,
+				gwmodels.DeploymentStatusPending, gwmodels.DeploymentStatusUndeployed, gwmodels.DeploymentStatusUndeploying),
+			"status_desired": gwmodels.DeploymentStatusUndeployed, "status_reason": "",
+			"performed_at": gwmodels.NewPerformedAt(time.Now()), "next_attempt_at": nil, "attempt_count": 0,
 			"render_reason": "", "claimed_by": nil, "claimed_until": nil, "updated_at": now,
 		})
 	if started.Error != nil {
 		return false, fmt.Errorf("failed to begin undeploy: %w", started.Error)
 	}
 	if started.RowsAffected > 0 {
-		var row models.DeploymentStatusRecord
+		var row gwmodels.DeploymentStatusRecord
 		if err := db.Select("status").Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).Take(&row).Error; err != nil {
 			return false, fmt.Errorf("failed to read the undeploy status: %w", err)
 		}
-		return row.Status == models.DeploymentStatusUndeploying, nil
+		return row.Status == gwmodels.DeploymentStatusUndeploying, nil
 	}
-	cancelled := db.Model(&models.DeploymentStatusRecord{}).
+	cancelled := db.Model(&gwmodels.DeploymentStatusRecord{}).
 		Where(statusKey+" AND status_desired = ? AND next_attempt_at IS NOT NULL",
-			p.ArtifactUUID, p.OUID, p.GatewayUUID, models.DeploymentStatusUndeployed).
+			p.ArtifactUUID, p.OUID, p.GatewayUUID, gwmodels.DeploymentStatusUndeployed).
 		Updates(map[string]any{
 			"next_attempt_at": nil, "attempt_count": 0, "render_reason": "", "claimed_by": nil, "claimed_until": nil,
 			"updated_at": now,
@@ -214,7 +214,7 @@ type ackedRow struct {
 // to the artifact on this gateway while its row heads for UNDEPLOYED. afterLive runs in a savepoint when the row
 // moves to DEPLOYED: its error is logged and rolled back, and the ack still commits, because the gateway never
 // re-sends an ack.
-func (r *DeploymentRepo) ApplyAck(ctx context.Context, gatewayID string, ack models.DeploymentAck, afterLive AfterLiveFunc) (bool, error) {
+func (r *DeploymentRepo) ApplyAck(ctx context.Context, gatewayID string, ack gwmodels.DeploymentAck, afterLive AfterLiveFunc) (bool, error) {
 	gatewayUUID, err := uuid.Parse(gatewayID)
 	if err != nil {
 		return false, fmt.Errorf("invalid gateway id %q: %w", gatewayID, err)
@@ -228,7 +228,7 @@ func (r *DeploymentRepo) ApplyAck(ctx context.Context, gatewayID string, ack mod
 		return false, nil
 	}
 	reason := ""
-	if status == models.DeploymentStatusFailed {
+	if status == gwmodels.DeploymentStatusFailed {
 		reason = ack.ErrorCode
 	}
 
@@ -245,7 +245,7 @@ func (r *DeploymentRepo) ApplyAck(ctx context.Context, gatewayID string, ack mod
 			return err
 		}
 		for _, c := range candidates {
-			res := tx.Model(&models.DeploymentStatusRecord{}).
+			res := tx.Model(&gwmodels.DeploymentStatusRecord{}).
 				Where("artifact_id = ? AND gateway_id = ? AND (status <> ? OR status_reason <> ? OR status_reason IS NULL)",
 					c.ArtifactUUID, gatewayUUID, status, reason).
 				Updates(map[string]any{"status": status, "status_reason": reason, "updated_at": dbx.Now()})
@@ -256,7 +256,7 @@ func (r *DeploymentRepo) ApplyAck(ctx context.Context, gatewayID string, ack mod
 				acked = append(acked, c)
 			}
 		}
-		if len(acked) == 0 || status != models.DeploymentStatusDeployed || afterLive == nil {
+		if len(acked) == 0 || status != gwmodels.DeploymentStatusDeployed || afterLive == nil {
 			return nil
 		}
 		return runAfterLive(ctx, tx, gatewayUUID, acked[0], afterLive)
@@ -268,18 +268,18 @@ func (r *DeploymentRepo) ApplyAck(ctx context.Context, gatewayID string, ack mod
 }
 
 // ackedStatus is the status an ack settles its row in.
-func ackedStatus(ack models.DeploymentAck) (models.DeploymentStatus, bool) {
-	if ack.Action != models.DeploymentAckActionDeploy && ack.Action != models.DeploymentAckActionUndeploy {
+func ackedStatus(ack gwmodels.DeploymentAck) (gwmodels.DeploymentStatus, bool) {
+	if ack.Action != gwmodels.DeploymentAckActionDeploy && ack.Action != gwmodels.DeploymentAckActionUndeploy {
 		return "", false
 	}
 	switch ack.Status {
-	case models.DeploymentAckStatusFailed:
-		return models.DeploymentStatusFailed, true
-	case models.DeploymentAckStatusSuccess:
-		if ack.Action == models.DeploymentAckActionDeploy {
-			return models.DeploymentStatusDeployed, true
+	case gwmodels.DeploymentAckStatusFailed:
+		return gwmodels.DeploymentStatusFailed, true
+	case gwmodels.DeploymentAckStatusSuccess:
+		if ack.Action == gwmodels.DeploymentAckActionDeploy {
+			return gwmodels.DeploymentStatusDeployed, true
 		}
-		return models.DeploymentStatusUndeployed, true
+		return gwmodels.DeploymentStatusUndeployed, true
 	default:
 		return "", false
 	}
@@ -287,13 +287,13 @@ func ackedStatus(ack models.DeploymentAck) (models.DeploymentStatus, bool) {
 
 // ackTarget is the SQL condition (over artifact_gateway_status s and artifacts a) selecting the row an ack is for. The
 // gateway names an LLM proxy by its handle, and every other artifact by its UUID.
-func ackTarget(ack models.DeploymentAck) (string, []any, bool) {
-	if ack.Action == models.DeploymentAckActionDeploy {
+func ackTarget(ack gwmodels.DeploymentAck) (string, []any, bool) {
+	if ack.Action == gwmodels.DeploymentAckActionDeploy {
 		deploymentID, err := uuid.Parse(ack.DeploymentID)
 		if err != nil {
 			return "", nil, false
 		}
-		return "s.deployment_id = ? AND s.status_desired = ?", []any{deploymentID, models.DeploymentStatusDeployed}, true
+		return "s.deployment_id = ? AND s.status_desired = ?", []any{deploymentID, gwmodels.DeploymentStatusDeployed}, true
 	}
 	if ack.ArtifactID == "" {
 		return "", nil, false
@@ -301,12 +301,12 @@ func ackTarget(ack models.DeploymentAck) (string, []any, bool) {
 	// A row with no deployment was never sent to the gateway, so no ack can be for it.
 	undeploying := "s.status_desired = ? AND s.deployment_id IS NOT NULL AND "
 	byHandle := "(a.kind = ? AND a.handle = ?)"
-	args := []any{models.DeploymentStatusUndeployed}
+	args := []any{gwmodels.DeploymentStatusUndeployed}
 	if artifactUUID, err := uuid.Parse(ack.ArtifactID); err == nil {
 		return undeploying + "(a.id = ? OR " + byHandle + ")",
-			append(args, artifactUUID, models.KindLLMProxy, ack.ArtifactID), true
+			append(args, artifactUUID, gwmodels.KindLLMProxy, ack.ArtifactID), true
 	}
-	return undeploying + byHandle, append(args, models.KindLLMProxy, ack.ArtifactID), true
+	return undeploying + byHandle, append(args, gwmodels.KindLLMProxy, ack.ArtifactID), true
 }
 
 func runAfterLive(ctx context.Context, tx *gorm.DB, gatewayUUID uuid.UUID, row ackedRow, afterLive AfterLiveFunc) error {
@@ -314,8 +314,8 @@ func runAfterLive(ctx context.Context, tx *gorm.DB, gatewayUUID uuid.UUID, row a
 	if err := tx.SavePoint(savepoint).Error; err != nil {
 		return err
 	}
-	placement := models.Placement{
-		ArtifactRef: models.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: row.Kind, Handle: row.Handle},
+	placement := gwmodels.Placement{
+		ArtifactRef: gwmodels.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: row.Kind, Handle: row.Handle},
 		GatewayUUID: gatewayUUID,
 	}
 	if err := afterLive(ctx, tx, placement, row.DeploymentID); err != nil {
@@ -329,10 +329,10 @@ func runAfterLive(ctx context.Context, tx *gorm.DB, gatewayUUID uuid.UUID, row a
 // FailStaleTransitional fails every DEPLOYING or UNDEPLOYING row whose transition started before olderThan. It is
 // one guarded UPDATE: a row acked meanwhile no longer matches, so several replicas can sweep at once.
 func (r *DeploymentRepo) FailStaleTransitional(ctx context.Context, olderThan time.Time) (int64, error) {
-	result := r.db.WithContext(ctx).Model(&models.DeploymentStatusRecord{}).
+	result := r.db.WithContext(ctx).Model(&gwmodels.DeploymentStatusRecord{}).
 		Where("status IN ? AND performed_at < ?",
-			[]models.DeploymentStatus{models.DeploymentStatusDeploying, models.DeploymentStatusUndeploying}, olderThan.UTC()).
-		Updates(map[string]any{"status": models.DeploymentStatusFailed, "status_reason": DeploymentTimeoutReason, "updated_at": dbx.Now()})
+			[]gwmodels.DeploymentStatus{gwmodels.DeploymentStatusDeploying, gwmodels.DeploymentStatusUndeploying}, olderThan.UTC()).
+		Updates(map[string]any{"status": gwmodels.DeploymentStatusFailed, "status_reason": DeploymentTimeoutReason, "updated_at": dbx.Now()})
 	if result.Error != nil {
 		return 0, fmt.Errorf("failed to time out stale deployments: %w", result.Error)
 	}
@@ -341,15 +341,15 @@ func (r *DeploymentRepo) FailStaleTransitional(ctx context.Context, olderThan ti
 
 // GetPullable returns the deployment the gateway should hold for the artifact: the one its row points at while the
 // row heads for DEPLOYED, whatever its status, because the gateway pulls before it acks. Nil when there is none.
-func (r *DeploymentRepo) GetPullable(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
-	var deployments []models.Deployment
+func (r *DeploymentRepo) GetPullable(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*gwmodels.Deployment, error) {
+	var deployments []gwmodels.Deployment
 	err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_gateway_status s").
 		Select("d.id, d.name, d.artifact_id, d.org_id, d.gateway_id, "+
 			"d.base_deployment_id, d.content, d.metadata, d.created_at, "+
 			"s.status, s.updated_at AS status_updated_at").
 		Joins("INNER JOIN mod_ai_gateway_artifact_deployments d ON d.id = s.deployment_id").
 		Where("s.artifact_id = ? AND s.org_id = ? AND s.gateway_id = ? AND s.status_desired = ?",
-			artifactUUID, ouID, gatewayID, models.DeploymentStatusDeployed).
+			artifactUUID, ouID, gatewayID, gwmodels.DeploymentStatusDeployed).
 		Scan(&deployments).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the pullable deployment: %w", err)
@@ -363,7 +363,7 @@ func (r *DeploymentRepo) GetPullable(ctx context.Context, ouID string, artifactU
 
 // PlacedGateways returns the gateways the artifact is placed on: its row heads for DEPLOYED, in any status.
 func (r *DeploymentRepo) PlacedGateways(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]string, error) {
-	return r.gatewaysWhere(ctx, ouID, artifactUUID, "status_desired = ?", models.DeploymentStatusDeployed)
+	return r.gatewaysWhere(ctx, ouID, artifactUUID, "status_desired = ?", gwmodels.DeploymentStatusDeployed)
 }
 
 // SentGateways returns the gateways the artifact was ever sent, in gateway order: its row names a deployment,
@@ -378,7 +378,7 @@ func (r *DeploymentRepo) DeleteEventGateways(ctx context.Context, ouID string, a
 		return nil, fmt.Errorf("failed to list the gateways to send the delete to: %w", err)
 	}
 	var active []uuid.UUID
-	if err := r.db.WithContext(ctx).Model(&models.Gateway{}).Where("org_id = ? AND is_active = ?", ouID, true).
+	if err := r.db.WithContext(ctx).Model(&gwmodels.Gateway{}).Where("org_id = ? AND is_active = ?", ouID, true).
 		Pluck("id", &active).Error; err != nil {
 		return nil, fmt.Errorf("failed to list the gateways to send the delete to: %w", err)
 	}
@@ -402,7 +402,7 @@ func (r *DeploymentRepo) DeleteEventGateways(ctx context.Context, ouID string, a
 
 func (r *DeploymentRepo) gatewaysWhere(ctx context.Context, ouID string, artifactUUID uuid.UUID, condition string, args ...any) ([]string, error) {
 	var gatewayIDs []uuid.UUID
-	err := r.db.WithContext(ctx).Model(&models.DeploymentStatusRecord{}).
+	err := r.db.WithContext(ctx).Model(&gwmodels.DeploymentStatusRecord{}).
 		Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
 		Where(condition, args...).
 		Order("gateway_id").
@@ -417,8 +417,8 @@ func (r *DeploymentRepo) gatewaysWhere(ctx context.Context, ouID string, artifac
 	return out, nil
 }
 
-func (r *DeploymentRepo) StatusRecords(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]models.DeploymentStatusRecord, error) {
-	var rows []models.DeploymentStatusRecord
+func (r *DeploymentRepo) StatusRecords(ctx context.Context, ouID string, artifactUUID uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
+	var rows []gwmodels.DeploymentStatusRecord
 	err := r.db.WithContext(ctx).
 		Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
 		Order("gateway_id").
@@ -430,8 +430,8 @@ func (r *DeploymentRepo) StatusRecords(ctx context.Context, ouID string, artifac
 }
 
 // GetStatusRecord returns the placement's status row, or nil when there is none.
-func (r *DeploymentRepo) GetStatusRecord(ctx context.Context, p models.Placement) (*models.DeploymentStatusRecord, error) {
-	var row models.DeploymentStatusRecord
+func (r *DeploymentRepo) GetStatusRecord(ctx context.Context, p gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error) {
+	var row gwmodels.DeploymentStatusRecord
 	err := r.db.WithContext(ctx).
 		Where(statusKey, p.ArtifactUUID, p.OUID, p.GatewayUUID).
 		First(&row).Error
@@ -447,20 +447,20 @@ func (r *DeploymentRepo) GetStatusRecord(ctx context.Context, p models.Placement
 
 // syncRow is a status row the gateway has been sent something for, joined to its artifact.
 type syncRow struct {
-	ArtifactUUID  uuid.UUID               `gorm:"column:artifact_id"`
-	OUID          string                  `gorm:"column:org_id"`
-	Kind          string                  `gorm:"column:kind"`
-	Handle        string                  `gorm:"column:handle"`
-	DeploymentID  uuid.UUID               `gorm:"column:deployment_id"`
-	StatusDesired models.DeploymentStatus `gorm:"column:status_desired"`
-	PerformedAt   time.Time               `gorm:"column:performed_at"`
+	ArtifactUUID  uuid.UUID                 `gorm:"column:artifact_id"`
+	OUID          string                    `gorm:"column:org_id"`
+	Kind          string                    `gorm:"column:kind"`
+	Handle        string                    `gorm:"column:handle"`
+	DeploymentID  uuid.UUID                 `gorm:"column:deployment_id"`
+	StatusDesired gwmodels.DeploymentStatus `gorm:"column:status_desired"`
+	PerformedAt   time.Time                 `gorm:"column:performed_at"`
 }
 
 // ListForGatewaySync lists what the gateway should hold, as it stored it: each row it was ever sent something for,
 // in its desired state. A row heading for UNDEPLOYED lists an empty deployment id, because undeploy events carry
 // one and the gateway stores it. DeployedAt is the performedAt the gateway was sent. The gateway orders the
 // fetches itself, so there is no ORDER BY.
-func (r *DeploymentRepo) ListForGatewaySync(ctx context.Context, ouID, gatewayID string) ([]models.GatewaySyncRow, error) {
+func (r *DeploymentRepo) ListForGatewaySync(ctx context.Context, ouID, gatewayID string) ([]gwmodels.GatewaySyncRow, error) {
 	var rows []syncRow
 	err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_gateway_status s").
 		Select("s.artifact_id, s.org_id, a.kind, a.handle, s.deployment_id, s.status_desired, s.performed_at").
@@ -470,15 +470,15 @@ func (r *DeploymentRepo) ListForGatewaySync(ctx context.Context, ouID, gatewayID
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployments for gateway sync: %w", err)
 	}
-	synced := make([]models.GatewaySyncRow, 0, len(rows))
+	synced := make([]gwmodels.GatewaySyncRow, 0, len(rows))
 	for _, row := range rows {
-		entry := models.GatewaySyncRow{
-			ArtifactRef: models.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: row.Kind, Handle: row.Handle},
-			State:       models.GatewaySyncStateUndeployed,
+		entry := gwmodels.GatewaySyncRow{
+			ArtifactRef: gwmodels.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: row.Kind, Handle: row.Handle},
+			State:       gwmodels.GatewaySyncStateUndeployed,
 			DeployedAt:  row.PerformedAt,
 		}
-		if row.StatusDesired == models.DeploymentStatusDeployed {
-			entry.State, entry.DeploymentID = models.GatewaySyncStateDeployed, row.DeploymentID.String()
+		if row.StatusDesired == gwmodels.DeploymentStatusDeployed {
+			entry.State, entry.DeploymentID = gwmodels.GatewaySyncStateDeployed, row.DeploymentID.String()
 		}
 		synced = append(synced, entry)
 	}
@@ -489,7 +489,7 @@ func (r *DeploymentRepo) ListForGatewaySync(ctx context.Context, ouID, gatewayID
 // artifacts. Any other id is left out.
 func (r *DeploymentRepo) ListContentForGateway(
 	ctx context.Context, ouID, gatewayID string, deploymentIDs []uuid.UUID,
-) ([]models.GatewayDeploymentContent, error) {
+) ([]gwmodels.GatewayDeploymentContent, error) {
 	if len(deploymentIDs) == 0 {
 		return nil, nil
 	}
@@ -514,10 +514,10 @@ func (r *DeploymentRepo) ListContentForGateway(
 		}
 		rows = append(rows, part...)
 	}
-	contents := make([]models.GatewayDeploymentContent, 0, len(rows))
+	contents := make([]gwmodels.GatewayDeploymentContent, 0, len(rows))
 	for _, row := range rows {
-		contents = append(contents, models.GatewayDeploymentContent{
-			ArtifactRef:  models.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: row.Kind, Handle: row.Handle},
+		contents = append(contents, gwmodels.GatewayDeploymentContent{
+			ArtifactRef:  gwmodels.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: row.Kind, Handle: row.Handle},
 			DeploymentID: row.DeploymentID,
 			Content:      row.Content,
 		})

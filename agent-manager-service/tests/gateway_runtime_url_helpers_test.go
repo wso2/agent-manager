@@ -29,6 +29,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // runtimeURLTestTx opens a transaction rolled back at test end, so seeded rows never persist for another test.
@@ -43,7 +44,7 @@ func runtimeURLTestTx(t *testing.T) *gorm.DB {
 // seedRuntimeURLGateway creates a gateway named name with no runtime URL and returns its id.
 func seedRuntimeURLGateway(t *testing.T, tx *gorm.DB, name string) uuid.UUID {
 	t.Helper()
-	gw := dbtest.GatewayIn(t, tx, dbtest.Org(t, tx), "both")
+	gw := gwtest.GatewayIn(t, tx, dbtest.Org(t, tx), "both")
 	require.NoError(t, tx.Exec(`UPDATE mod_ai_gateway_gateways SET name = ?, display_name = ?, is_active = ?, runtime_url = NULL WHERE id = ?`,
 		name, name, false, gw.UUID).Error)
 	return gw.UUID

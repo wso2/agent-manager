@@ -23,23 +23,23 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-func mappedTo(env uuid.UUID, gw *models.Gateway) []models.GatewayEnvironmentMapping {
-	return []models.GatewayEnvironmentMapping{{GatewayUUID: gw.UUID, EnvironmentUUID: env}}
+func mappedTo(env uuid.UUID, gw *gwmodels.Gateway) []gwmodels.GatewayEnvironmentMapping {
+	return []gwmodels.GatewayEnvironmentMapping{{GatewayUUID: gw.UUID, EnvironmentUUID: env}}
 }
 
 func TestAssignGatewaySecondEnvironmentRefused(t *testing.T) {
-	for _, role := range []string{models.GatewayRoleBoth, models.GatewayRoleEgress} {
+	for _, role := range []string{gwmodels.GatewayRoleBoth, gwmodels.GatewayRoleEgress} {
 		t.Run(string(role), func(t *testing.T) {
-			gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: role}
+			gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: role}
 			repo := mappingRepo(gw, 0)
-			repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]models.GatewayEnvironmentMapping, error) {
+			repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 				return mappedTo(uuid.New(), gw), nil
 			}
-			repo.CreateEnvironmentMappingTxFunc = func(*gorm.DB, *models.GatewayEnvironmentMapping) error {
+			repo.CreateEnvironmentMappingTxFunc = func(*gorm.DB, *gwmodels.GatewayEnvironmentMapping) error {
 				t.Fatal("a gateway already mapped to another environment must not get a second mapping")
 				return nil
 			}
@@ -54,10 +54,10 @@ func TestAssignGatewaySecondEnvironmentRefused(t *testing.T) {
 
 func TestAssignGatewaySameEnvironmentIdempotent(t *testing.T) {
 	env := uuid.New()
-	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleBoth}
 	repo := mappingRepo(gw, 0)
 	repo.EnvironmentMappingExistsFunc = func(string, string) (bool, error) { return true, nil }
-	repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]models.GatewayEnvironmentMapping, error) {
+	repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 		return mappedTo(env, gw), nil
 	}
 	svc := NewPlatformGatewayService(repo, nil)
@@ -66,7 +66,7 @@ func TestAssignGatewaySameEnvironmentIdempotent(t *testing.T) {
 }
 
 func TestAssignGatewayLocksTheGatewayBeforeReadingItsMappings(t *testing.T) {
-	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleEgress}
 	repo := mappingRepo(gw, 0)
 	locked := false
 	repo.AcquireGatewayLockFunc = func(_ *gorm.DB, gatewayID string) error {
@@ -74,7 +74,7 @@ func TestAssignGatewayLocksTheGatewayBeforeReadingItsMappings(t *testing.T) {
 		locked = true
 		return nil
 	}
-	repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]models.GatewayEnvironmentMapping, error) {
+	repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 		require.True(t, locked, "mappings read before the gateway lock was held")
 		return nil, nil
 	}
@@ -85,16 +85,16 @@ func TestAssignGatewayLocksTheGatewayBeforeReadingItsMappings(t *testing.T) {
 }
 
 func TestRegisterGatewayWithTwoEnvironmentsRefused(t *testing.T) {
-	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleEgress}
 	repo := mappingRepo(gw, 0)
-	repo.CreateTxFunc = func(*gorm.DB, *models.Gateway) error {
+	repo.CreateTxFunc = func(*gorm.DB, *gwmodels.Gateway) error {
 		t.Fatal("no gateway row may be written for a two-environment registration")
 		return nil
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
-		[]string{uuid.NewString(), uuid.NewString()}, models.GatewayHostingManaged)
+		[]string{uuid.NewString(), uuid.NewString()}, gwmodels.GatewayHostingManaged)
 
 	require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
 }

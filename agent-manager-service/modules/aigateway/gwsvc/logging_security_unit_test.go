@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -53,7 +53,7 @@ func TestLLMProxyCreate_InvalidConfigurationLogsFixedKeys(t *testing.T) {
 		t.Run(missing, func(t *testing.T) {
 			buf := captureSecurityLogs(t)
 			// These would overwrite trusted metadata if used as attribute keys.
-			cfg := models.LLMProxyConfig{Name: "level", Version: "msg", Provider: "provider"}
+			cfg := gwmodels.LLMProxyConfig{Name: "level", Version: "msg", Provider: "provider"}
 			switch missing {
 			case "name":
 				cfg.Name = ""
@@ -64,7 +64,7 @@ func TestLLMProxyCreate_InvalidConfigurationLogsFixedKeys(t *testing.T) {
 			}
 			svc := NewLLMProxyService(&gwrepomocks.LLMProxyRepositoryMock{}, &gwrepomocks.LLMProviderRepositoryMock{}, nil)
 			ctx := logger.WithLogger(context.Background(), slog.Default().With("correlation_id", "request-123"))
-			result, err := svc.Create(ctx, "org", "actor", &models.LLMProxy{Configuration: cfg})
+			result, err := svc.Create(ctx, "org", "actor", &gwmodels.LLMProxy{Configuration: cfg})
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
 			require.Nil(t, result)
 			var record map[string]any

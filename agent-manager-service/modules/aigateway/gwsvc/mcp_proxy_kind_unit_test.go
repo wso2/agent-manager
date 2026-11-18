@@ -25,58 +25,58 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
 
 // goldenMCPProxy is an MCP proxy with one endpoint bound to one environment, exercising api-key security, backend
 // auth, a user policy and a scope.
-func goldenMCPProxy() (*models.MCPProxy, []models.MCPProxyScope) {
+func goldenMCPProxy() (*gwmodels.MCPProxy, []gwmodels.MCPProxyScope) {
 	enabled := true
 	ctxPath, vhost := "/weather", "mcp.example.com"
 	authType, authHeader, ref := "api-key", "X-Backend-Key", "mcp-backend-key"
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:    uuid.MustParse("8b3e4c74-2f90-4e3c-9c50-2a7d8b9cadbe"),
 		Handle:  "weather",
 		Version: "v1.0",
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name: "Weather", Version: "v1.0", Context: &ctxPath, Vhost: &vhost, SpecVersion: "2025-06-18",
 		},
-		Endpoints: []models.MCPProxyEndpoint{{
+		Endpoints: []gwmodels.MCPProxyEndpoint{{
 			UUID:   uuid.MustParse("9c4f5d85-3a01-4f4d-8d61-3b8e9cadbecf"),
 			Handle: "primary",
-			Configuration: models.MCPEndpointConfig{
-				Upstream: &models.UpstreamEndpoint{
+			Configuration: gwmodels.MCPEndpointConfig{
+				Upstream: &gwmodels.UpstreamEndpoint{
 					URL:  "https://weather.example.com/mcp",
-					Auth: &models.UpstreamAuth{Type: &authType, Header: &authHeader, SecretRef: &ref},
+					Auth: &gwmodels.UpstreamAuth{Type: &authType, Header: &authHeader, SecretRef: &ref},
 				},
-				Policies: []models.MCPPolicy{{Name: "mcp-rate-limit", Version: "v1.0.0", Params: map[string]any{"limit": 10}}},
-				Security: &models.SecurityConfig{
+				Policies: []gwmodels.MCPPolicy{{Name: "mcp-rate-limit", Version: "v1.0.0", Params: map[string]any{"limit": 10}}},
+				Security: &gwmodels.SecurityConfig{
 					Enabled: &enabled,
-					APIKey:  &models.APIKeySecurity{Enabled: &enabled, Key: "X-API-Key", In: "header"},
+					APIKey:  &gwmodels.APIKeySecurity{Enabled: &enabled, Key: "X-API-Key", In: "header"},
 				},
 			},
-			Environments: []models.MCPProxyEndpointEnvironment{{
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{{
 				EnvironmentUUID: uuid.MustParse("ad506e96-4b12-4a5e-9e72-4c9fadbecfd0"),
 				ArtifactUUID:    uuid.MustParse("be617fa7-5c23-4b6f-8f83-5dafbecfd0e1"),
 			}},
 		}},
 	}
-	scopes := []models.MCPProxyScope{{Action: "read", Tools: []string{"get_forecast"}}}
+	scopes := []gwmodels.MCPProxyScope{{Action: "read", Tools: []string{"get_forecast"}}}
 	return proxy, scopes
 }
 
 func TestMCPProxyKindRendersTodaysYAML(t *testing.T) {
 	proxy, scopes := goldenMCPProxy()
 	endpoint := &proxy.Endpoints[0]
-	kind := &MCPProxyKind{load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
+	kind := &MCPProxyKind{load: func(context.Context, gwmodels.ArtifactRef) (*mcpArtifact, error) {
 		return &mcpArtifact{
 			deployable: buildMCPProxyEnvArtifact(proxy, endpoint, &endpoint.Environments[0]), proxyHandle: proxy.Handle,
 			scopes: scopes,
 		}, nil
 	}}
 
-	rendered, err := kind.Render(context.Background(), models.ArtifactRef{ArtifactUUID: endpoint.Environments[0].ArtifactUUID})
+	rendered, err := kind.Render(context.Background(), gwmodels.ArtifactRef{ArtifactUUID: endpoint.Environments[0].ArtifactUUID})
 
 	require.NoError(t, err)
 	assert.Equal(t, readGolden(t, "mcp_proxy.yaml"), string(rendered.Content))
@@ -85,9 +85,9 @@ func TestMCPProxyKindRendersTodaysYAML(t *testing.T) {
 
 func TestMCPProxyKindEvents(t *testing.T) {
 	kind := &MCPProxyKind{}
-	ref := models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindMCPMapping, Handle: "h"}
-	p := models.Placement{ArtifactRef: ref, GatewayUUID: uuid.New()}
-	at := models.NewPerformedAt(time.Now())
+	ref := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindMCPMapping, Handle: "h"}
+	p := gwmodels.Placement{ArtifactRef: ref, GatewayUUID: uuid.New()}
+	at := gwmodels.NewPerformedAt(time.Now())
 
 	assert.Equal(t, ref.ArtifactUUID.String(), kind.GatewayArtifactID(ref))
 
@@ -111,14 +111,14 @@ func TestMCPProxyKindEvents(t *testing.T) {
 }
 
 // mcpKindTargeting is an MCP kind whose one artifact, in testMCPEnvUUID, was placed on anchor and has upstream.
-func mcpKindTargeting(t *testing.T, anchor string, gateways []*models.Gateway, upstream string) *MCPProxyKind {
+func mcpKindTargeting(t *testing.T, anchor string, gateways []*gwmodels.Gateway, upstream string) *MCPProxyKind {
 	t.Helper()
 	return &MCPProxyKind{
 		gatewayRepo:    gatewayFixtureRepo(t, testMCPEnvUUID, gateways),
 		deploymentRepo: deployedTo(anchor),
-		load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
-			return &mcpArtifact{deployable: &models.MCPProxy{Configuration: models.MCPProxyConfig{
-				Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: upstream}},
+		load: func(context.Context, gwmodels.ArtifactRef) (*mcpArtifact, error) {
+			return &mcpArtifact{deployable: &gwmodels.MCPProxy{Configuration: gwmodels.MCPProxyConfig{
+				Upstream: gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{URL: upstream}},
 			}}}, nil
 		},
 	}
@@ -129,21 +129,21 @@ func mcpKindTargeting(t *testing.T, anchor string, gateways []*models.Gateway, u
 func TestMCPProxyKindTargets_RechecksTheUpstreamForAManagedTarget(t *testing.T) {
 	ctx := context.Background()
 	record := reconcile.Record{
-		ArtifactRef: models.ArtifactRef{OUID: "org1", ArtifactUUID: uuid.New()}, EnvironmentUUID: uuid.MustParse(testMCPEnvUUID),
+		ArtifactRef: gwmodels.ArtifactRef{OUID: "org1", ArtifactUUID: uuid.New()}, EnvironmentUUID: uuid.MustParse(testMCPEnvUUID),
 	}
-	managed := newGateway(t, models.GatewayRoleBoth, true)
+	managed := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	selfHosted := selfHostedGateway(t)
 	goneSelfHosted := uuid.NewString()
 
 	t.Run("private upstream is not placed on the managed fallback", func(t *testing.T) {
-		kind := mcpKindTargeting(t, goneSelfHosted, []*models.Gateway{managed}, privateMCPUpstream)
+		kind := mcpKindTargeting(t, goneSelfHosted, []*gwmodels.Gateway{managed}, privateMCPUpstream)
 		_, ok, err := kind.Targets(ctx, record)
 		require.NoError(t, err)
 		assert.False(t, ok)
 	})
 
 	t.Run("public upstream is placed on the managed fallback", func(t *testing.T) {
-		kind := mcpKindTargeting(t, goneSelfHosted, []*models.Gateway{managed}, "https://93.184.216.34/mcp")
+		kind := mcpKindTargeting(t, goneSelfHosted, []*gwmodels.Gateway{managed}, "https://93.184.216.34/mcp")
 		gateway, ok, err := kind.Targets(ctx, record)
 		require.NoError(t, err)
 		require.True(t, ok)
@@ -151,7 +151,7 @@ func TestMCPProxyKindTargets_RechecksTheUpstreamForAManagedTarget(t *testing.T) 
 	})
 
 	t.Run("private upstream stays on its self-hosted anchor", func(t *testing.T) {
-		kind := mcpKindTargeting(t, selfHosted.UUID.String(), []*models.Gateway{managed, selfHosted}, privateMCPUpstream)
+		kind := mcpKindTargeting(t, selfHosted.UUID.String(), []*gwmodels.Gateway{managed, selfHosted}, privateMCPUpstream)
 		gateway, ok, err := kind.Targets(ctx, record)
 		require.NoError(t, err)
 		require.True(t, ok)

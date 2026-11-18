@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -28,25 +28,25 @@ import (
 //			DeleteForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
 //				panic("mock out the DeleteForEnvironment method")
 //			},
-//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.A2AProxy, error) {
+//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.A2AProxy, error) {
 //				panic("mock out the Get method")
 //			},
-//			GetByArtifactFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error) {
+//			GetByArtifactFunc: func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.A2AProxy, error) {
 //				panic("mock out the GetByArtifact method")
 //			},
-//			GetByEnvUUIDFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error) {
+//			GetByEnvUUIDFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*gwmodels.A2AProxy, error) {
 //				panic("mock out the GetByEnvUUID method")
 //			},
 //			ListEnvironmentUUIDsFunc: func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error) {
 //				panic("mock out the ListEnvironmentUUIDs method")
 //			},
-//			ListForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error) {
+//			ListForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.A2AProxy, error) {
 //				panic("mock out the ListForEnvironment method")
 //			},
 //			LockAgentEnvFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error {
 //				panic("mock out the LockAgentEnv method")
 //			},
-//			UpsertFunc: func(ctx context.Context, proxy *models.A2AProxy) error {
+//			UpsertFunc: func(ctx context.Context, proxy *gwmodels.A2AProxy) error {
 //				panic("mock out the Upsert method")
 //			},
 //			WithTxFunc: func(tx *gorm.DB) gwrepo.A2AProxyRepository {
@@ -69,25 +69,25 @@ type A2AProxyRepositoryMock struct {
 	DeleteForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error
 
 	// GetFunc mocks the Get method.
-	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.A2AProxy, error)
+	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.A2AProxy, error)
 
 	// GetByArtifactFunc mocks the GetByArtifact method.
-	GetByArtifactFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error)
+	GetByArtifactFunc func(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.A2AProxy, error)
 
 	// GetByEnvUUIDFunc mocks the GetByEnvUUID method.
-	GetByEnvUUIDFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error)
+	GetByEnvUUIDFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*gwmodels.A2AProxy, error)
 
 	// ListEnvironmentUUIDsFunc mocks the ListEnvironmentUUIDs method.
 	ListEnvironmentUUIDsFunc func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error)
 
 	// ListForEnvironmentFunc mocks the ListForEnvironment method.
-	ListForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error)
+	ListForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.A2AProxy, error)
 
 	// LockAgentEnvFunc mocks the LockAgentEnv method.
 	LockAgentEnvFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error
 
 	// UpsertFunc mocks the Upsert method.
-	UpsertFunc func(ctx context.Context, proxy *models.A2AProxy) error
+	UpsertFunc func(ctx context.Context, proxy *gwmodels.A2AProxy) error
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(tx *gorm.DB) gwrepo.A2AProxyRepository
@@ -198,7 +198,7 @@ type A2AProxyRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Proxy is the proxy argument value.
-			Proxy *models.A2AProxy
+			Proxy *gwmodels.A2AProxy
 		}
 		// WithTx holds details about calls to the WithTx method.
 		WithTx []struct {
@@ -352,7 +352,7 @@ func (mock *A2AProxyRepositoryMock) DeleteForEnvironmentCalls() []struct {
 }
 
 // Get calls GetFunc.
-func (mock *A2AProxyRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.A2AProxy, error) {
+func (mock *A2AProxyRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.A2AProxy, error) {
 	if mock.GetFunc == nil {
 		panic("A2AProxyRepositoryMock.GetFunc: method is nil but A2AProxyRepository.Get was just called")
 	}
@@ -400,7 +400,7 @@ func (mock *A2AProxyRepositoryMock) GetCalls() []struct {
 }
 
 // GetByArtifact calls GetByArtifactFunc.
-func (mock *A2AProxyRepositoryMock) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error) {
+func (mock *A2AProxyRepositoryMock) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.A2AProxy, error) {
 	if mock.GetByArtifactFunc == nil {
 		panic("A2AProxyRepositoryMock.GetByArtifactFunc: method is nil but A2AProxyRepository.GetByArtifact was just called")
 	}
@@ -440,7 +440,7 @@ func (mock *A2AProxyRepositoryMock) GetByArtifactCalls() []struct {
 }
 
 // GetByEnvUUID calls GetByEnvUUIDFunc.
-func (mock *A2AProxyRepositoryMock) GetByEnvUUID(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error) {
+func (mock *A2AProxyRepositoryMock) GetByEnvUUID(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) (*gwmodels.A2AProxy, error) {
 	if mock.GetByEnvUUIDFunc == nil {
 		panic("A2AProxyRepositoryMock.GetByEnvUUIDFunc: method is nil but A2AProxyRepository.GetByEnvUUID was just called")
 	}
@@ -528,7 +528,7 @@ func (mock *A2AProxyRepositoryMock) ListEnvironmentUUIDsCalls() []struct {
 }
 
 // ListForEnvironment calls ListForEnvironmentFunc.
-func (mock *A2AProxyRepositoryMock) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error) {
+func (mock *A2AProxyRepositoryMock) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.A2AProxy, error) {
 	if mock.ListForEnvironmentFunc == nil {
 		panic("A2AProxyRepositoryMock.ListForEnvironmentFunc: method is nil but A2AProxyRepository.ListForEnvironment was just called")
 	}
@@ -616,13 +616,13 @@ func (mock *A2AProxyRepositoryMock) LockAgentEnvCalls() []struct {
 }
 
 // Upsert calls UpsertFunc.
-func (mock *A2AProxyRepositoryMock) Upsert(ctx context.Context, proxy *models.A2AProxy) error {
+func (mock *A2AProxyRepositoryMock) Upsert(ctx context.Context, proxy *gwmodels.A2AProxy) error {
 	if mock.UpsertFunc == nil {
 		panic("A2AProxyRepositoryMock.UpsertFunc: method is nil but A2AProxyRepository.Upsert was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
-		Proxy *models.A2AProxy
+		Proxy *gwmodels.A2AProxy
 	}{
 		Ctx:   ctx,
 		Proxy: proxy,
@@ -639,11 +639,11 @@ func (mock *A2AProxyRepositoryMock) Upsert(ctx context.Context, proxy *models.A2
 //	len(mockedA2AProxyRepository.UpsertCalls())
 func (mock *A2AProxyRepositoryMock) UpsertCalls() []struct {
 	Ctx   context.Context
-	Proxy *models.A2AProxy
+	Proxy *gwmodels.A2AProxy
 } {
 	var calls []struct {
 		Ctx   context.Context
-		Proxy *models.A2AProxy
+		Proxy *gwmodels.A2AProxy
 	}
 	mock.lockUpsert.RLock()
 	calls = mock.calls.Upsert

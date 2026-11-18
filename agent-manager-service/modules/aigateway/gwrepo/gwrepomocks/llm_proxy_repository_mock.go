@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"gorm.io/gorm"
 )
 
@@ -26,7 +26,7 @@ import (
 //			CountByProviderFunc: func(ouID string, providerUUID string) (int, error) {
 //				panic("mock out the CountByProvider method")
 //			},
-//			CreateFunc: func(ctx context.Context, p *models.LLMProxy, handle string, name string, version string, ouID string) error {
+//			CreateFunc: func(ctx context.Context, p *gwmodels.LLMProxy, handle string, name string, version string, ouID string) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(proxyID string, ouID string) error {
@@ -41,28 +41,28 @@ import (
 //			ExistsFunc: func(proxyID string, ouID string) (bool, error) {
 //				panic("mock out the Exists method")
 //			},
-//			GetByIDFunc: func(proxyID string, ouID string) (*models.LLMProxy, error) {
+//			GetByIDFunc: func(proxyID string, ouID string) (*gwmodels.LLMProxy, error) {
 //				panic("mock out the GetByID method")
 //			},
-//			GetByIDAndProjectFunc: func(proxyID string, ouID string, projectUUID string) (*models.LLMProxy, error) {
+//			GetByIDAndProjectFunc: func(proxyID string, ouID string, projectUUID string) (*gwmodels.LLMProxy, error) {
 //				panic("mock out the GetByIDAndProject method")
 //			},
-//			GetByIDCtxFunc: func(ctx context.Context, proxyID string, ouID string) (*models.LLMProxy, error) {
+//			GetByIDCtxFunc: func(ctx context.Context, proxyID string, ouID string) (*gwmodels.LLMProxy, error) {
 //				panic("mock out the GetByIDCtx method")
 //			},
 //			IsAgentOrMonitorProxyFunc: func(ctx context.Context, proxyHandle string, ouID string) (bool, error) {
 //				panic("mock out the IsAgentOrMonitorProxy method")
 //			},
-//			ListFunc: func(ouID string, limit int, offset int) ([]*models.LLMProxy, error) {
+//			ListFunc: func(ouID string, limit int, offset int) ([]*gwmodels.LLMProxy, error) {
 //				panic("mock out the List method")
 //			},
-//			ListByProjectFunc: func(ouID string, projectUUID string, limit int, offset int) ([]*models.LLMProxy, error) {
+//			ListByProjectFunc: func(ouID string, projectUUID string, limit int, offset int) ([]*gwmodels.LLMProxy, error) {
 //				panic("mock out the ListByProject method")
 //			},
-//			ListByProviderFunc: func(ouID string, providerUUID string, limit int, offset int) ([]*models.LLMProxy, error) {
+//			ListByProviderFunc: func(ouID string, providerUUID string, limit int, offset int) ([]*gwmodels.LLMProxy, error) {
 //				panic("mock out the ListByProvider method")
 //			},
-//			UpdateFunc: func(p *models.LLMProxy, handle string, ouID string) error {
+//			UpdateFunc: func(p *gwmodels.LLMProxy, handle string, ouID string) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -82,7 +82,7 @@ type LLMProxyRepositoryMock struct {
 	CountByProviderFunc func(ouID string, providerUUID string) (int, error)
 
 	// CreateFunc mocks the Create method.
-	CreateFunc func(ctx context.Context, p *models.LLMProxy, handle string, name string, version string, ouID string) error
+	CreateFunc func(ctx context.Context, p *gwmodels.LLMProxy, handle string, name string, version string, ouID string) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(proxyID string, ouID string) error
@@ -97,28 +97,28 @@ type LLMProxyRepositoryMock struct {
 	ExistsFunc func(proxyID string, ouID string) (bool, error)
 
 	// GetByIDFunc mocks the GetByID method.
-	GetByIDFunc func(proxyID string, ouID string) (*models.LLMProxy, error)
+	GetByIDFunc func(proxyID string, ouID string) (*gwmodels.LLMProxy, error)
 
 	// GetByIDAndProjectFunc mocks the GetByIDAndProject method.
-	GetByIDAndProjectFunc func(proxyID string, ouID string, projectUUID string) (*models.LLMProxy, error)
+	GetByIDAndProjectFunc func(proxyID string, ouID string, projectUUID string) (*gwmodels.LLMProxy, error)
 
 	// GetByIDCtxFunc mocks the GetByIDCtx method.
-	GetByIDCtxFunc func(ctx context.Context, proxyID string, ouID string) (*models.LLMProxy, error)
+	GetByIDCtxFunc func(ctx context.Context, proxyID string, ouID string) (*gwmodels.LLMProxy, error)
 
 	// IsAgentOrMonitorProxyFunc mocks the IsAgentOrMonitorProxy method.
 	IsAgentOrMonitorProxyFunc func(ctx context.Context, proxyHandle string, ouID string) (bool, error)
 
 	// ListFunc mocks the List method.
-	ListFunc func(ouID string, limit int, offset int) ([]*models.LLMProxy, error)
+	ListFunc func(ouID string, limit int, offset int) ([]*gwmodels.LLMProxy, error)
 
 	// ListByProjectFunc mocks the ListByProject method.
-	ListByProjectFunc func(ouID string, projectUUID string, limit int, offset int) ([]*models.LLMProxy, error)
+	ListByProjectFunc func(ouID string, projectUUID string, limit int, offset int) ([]*gwmodels.LLMProxy, error)
 
 	// ListByProviderFunc mocks the ListByProvider method.
-	ListByProviderFunc func(ouID string, providerUUID string, limit int, offset int) ([]*models.LLMProxy, error)
+	ListByProviderFunc func(ouID string, providerUUID string, limit int, offset int) ([]*gwmodels.LLMProxy, error)
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(p *models.LLMProxy, handle string, ouID string) error
+	UpdateFunc func(p *gwmodels.LLMProxy, handle string, ouID string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -146,7 +146,7 @@ type LLMProxyRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// P is the p argument value.
-			P *models.LLMProxy
+			P *gwmodels.LLMProxy
 			// Handle is the handle argument value.
 			Handle string
 			// Name is the name argument value.
@@ -262,7 +262,7 @@ type LLMProxyRepositoryMock struct {
 		// Update holds details about calls to the Update method.
 		Update []struct {
 			// P is the p argument value.
-			P *models.LLMProxy
+			P *gwmodels.LLMProxy
 			// Handle is the handle argument value.
 			Handle string
 			// OuID is the ouID argument value.
@@ -392,13 +392,13 @@ func (mock *LLMProxyRepositoryMock) CountByProviderCalls() []struct {
 }
 
 // Create calls CreateFunc.
-func (mock *LLMProxyRepositoryMock) Create(ctx context.Context, p *models.LLMProxy, handle string, name string, version string, ouID string) error {
+func (mock *LLMProxyRepositoryMock) Create(ctx context.Context, p *gwmodels.LLMProxy, handle string, name string, version string, ouID string) error {
 	if mock.CreateFunc == nil {
 		panic("LLMProxyRepositoryMock.CreateFunc: method is nil but LLMProxyRepository.Create was just called")
 	}
 	callInfo := struct {
 		Ctx     context.Context
-		P       *models.LLMProxy
+		P       *gwmodels.LLMProxy
 		Handle  string
 		Name    string
 		Version string
@@ -423,7 +423,7 @@ func (mock *LLMProxyRepositoryMock) Create(ctx context.Context, p *models.LLMPro
 //	len(mockedLLMProxyRepository.CreateCalls())
 func (mock *LLMProxyRepositoryMock) CreateCalls() []struct {
 	Ctx     context.Context
-	P       *models.LLMProxy
+	P       *gwmodels.LLMProxy
 	Handle  string
 	Name    string
 	Version string
@@ -431,7 +431,7 @@ func (mock *LLMProxyRepositoryMock) CreateCalls() []struct {
 } {
 	var calls []struct {
 		Ctx     context.Context
-		P       *models.LLMProxy
+		P       *gwmodels.LLMProxy
 		Handle  string
 		Name    string
 		Version string
@@ -608,7 +608,7 @@ func (mock *LLMProxyRepositoryMock) ExistsCalls() []struct {
 }
 
 // GetByID calls GetByIDFunc.
-func (mock *LLMProxyRepositoryMock) GetByID(proxyID string, ouID string) (*models.LLMProxy, error) {
+func (mock *LLMProxyRepositoryMock) GetByID(proxyID string, ouID string) (*gwmodels.LLMProxy, error) {
 	if mock.GetByIDFunc == nil {
 		panic("LLMProxyRepositoryMock.GetByIDFunc: method is nil but LLMProxyRepository.GetByID was just called")
 	}
@@ -644,7 +644,7 @@ func (mock *LLMProxyRepositoryMock) GetByIDCalls() []struct {
 }
 
 // GetByIDAndProject calls GetByIDAndProjectFunc.
-func (mock *LLMProxyRepositoryMock) GetByIDAndProject(proxyID string, ouID string, projectUUID string) (*models.LLMProxy, error) {
+func (mock *LLMProxyRepositoryMock) GetByIDAndProject(proxyID string, ouID string, projectUUID string) (*gwmodels.LLMProxy, error) {
 	if mock.GetByIDAndProjectFunc == nil {
 		panic("LLMProxyRepositoryMock.GetByIDAndProjectFunc: method is nil but LLMProxyRepository.GetByIDAndProject was just called")
 	}
@@ -684,7 +684,7 @@ func (mock *LLMProxyRepositoryMock) GetByIDAndProjectCalls() []struct {
 }
 
 // GetByIDCtx calls GetByIDCtxFunc.
-func (mock *LLMProxyRepositoryMock) GetByIDCtx(ctx context.Context, proxyID string, ouID string) (*models.LLMProxy, error) {
+func (mock *LLMProxyRepositoryMock) GetByIDCtx(ctx context.Context, proxyID string, ouID string) (*gwmodels.LLMProxy, error) {
 	if mock.GetByIDCtxFunc == nil {
 		panic("LLMProxyRepositoryMock.GetByIDCtxFunc: method is nil but LLMProxyRepository.GetByIDCtx was just called")
 	}
@@ -764,7 +764,7 @@ func (mock *LLMProxyRepositoryMock) IsAgentOrMonitorProxyCalls() []struct {
 }
 
 // List calls ListFunc.
-func (mock *LLMProxyRepositoryMock) List(ouID string, limit int, offset int) ([]*models.LLMProxy, error) {
+func (mock *LLMProxyRepositoryMock) List(ouID string, limit int, offset int) ([]*gwmodels.LLMProxy, error) {
 	if mock.ListFunc == nil {
 		panic("LLMProxyRepositoryMock.ListFunc: method is nil but LLMProxyRepository.List was just called")
 	}
@@ -804,7 +804,7 @@ func (mock *LLMProxyRepositoryMock) ListCalls() []struct {
 }
 
 // ListByProject calls ListByProjectFunc.
-func (mock *LLMProxyRepositoryMock) ListByProject(ouID string, projectUUID string, limit int, offset int) ([]*models.LLMProxy, error) {
+func (mock *LLMProxyRepositoryMock) ListByProject(ouID string, projectUUID string, limit int, offset int) ([]*gwmodels.LLMProxy, error) {
 	if mock.ListByProjectFunc == nil {
 		panic("LLMProxyRepositoryMock.ListByProjectFunc: method is nil but LLMProxyRepository.ListByProject was just called")
 	}
@@ -848,7 +848,7 @@ func (mock *LLMProxyRepositoryMock) ListByProjectCalls() []struct {
 }
 
 // ListByProvider calls ListByProviderFunc.
-func (mock *LLMProxyRepositoryMock) ListByProvider(ouID string, providerUUID string, limit int, offset int) ([]*models.LLMProxy, error) {
+func (mock *LLMProxyRepositoryMock) ListByProvider(ouID string, providerUUID string, limit int, offset int) ([]*gwmodels.LLMProxy, error) {
 	if mock.ListByProviderFunc == nil {
 		panic("LLMProxyRepositoryMock.ListByProviderFunc: method is nil but LLMProxyRepository.ListByProvider was just called")
 	}
@@ -892,12 +892,12 @@ func (mock *LLMProxyRepositoryMock) ListByProviderCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *LLMProxyRepositoryMock) Update(p *models.LLMProxy, handle string, ouID string) error {
+func (mock *LLMProxyRepositoryMock) Update(p *gwmodels.LLMProxy, handle string, ouID string) error {
 	if mock.UpdateFunc == nil {
 		panic("LLMProxyRepositoryMock.UpdateFunc: method is nil but LLMProxyRepository.Update was just called")
 	}
 	callInfo := struct {
-		P      *models.LLMProxy
+		P      *gwmodels.LLMProxy
 		Handle string
 		OuID   string
 	}{
@@ -916,12 +916,12 @@ func (mock *LLMProxyRepositoryMock) Update(p *models.LLMProxy, handle string, ou
 //
 //	len(mockedLLMProxyRepository.UpdateCalls())
 func (mock *LLMProxyRepositoryMock) UpdateCalls() []struct {
-	P      *models.LLMProxy
+	P      *gwmodels.LLMProxy
 	Handle string
 	OuID   string
 } {
 	var calls []struct {
-		P      *models.LLMProxy
+		P      *gwmodels.LLMProxy
 		Handle string
 		OuID   string
 	}

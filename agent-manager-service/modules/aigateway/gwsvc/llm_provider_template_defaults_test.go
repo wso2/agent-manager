@@ -24,19 +24,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // mistralaiLikeTemplate mirrors the shape the built-in templates actually serve, as
 // observed live: an endpoint URL plus an api-key auth block with a "Bearer " prefix.
-func mistralaiLikeTemplate() *models.LLMProviderTemplate {
-	return &models.LLMProviderTemplate{
+func mistralaiLikeTemplate() *gwmodels.LLMProviderTemplate {
+	return &gwmodels.LLMProviderTemplate{
 		Handle: "mistralai",
-		Metadata: &models.LLMProviderTemplateMetadata{
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{
 			EndpointURL: "https://api.mistral.ai",
-			Auth: &models.LLMProviderTemplateAuth{
+			Auth: &gwmodels.LLMProviderTemplateAuth{
 				Type:        "api-key",
 				Header:      "Authorization",
 				ValuePrefix: "Bearer ",
@@ -45,9 +45,9 @@ func mistralaiLikeTemplate() *models.LLMProviderTemplate {
 	}
 }
 
-func providerWithUpstream(upstream *models.UpstreamConfig) *models.LLMProvider {
-	return &models.LLMProvider{
-		Configuration: models.LLMProviderConfig{
+func providerWithUpstream(upstream *gwmodels.UpstreamConfig) *gwmodels.LLMProvider {
+	return &gwmodels.LLMProvider{
+		Configuration: gwmodels.LLMProviderConfig{
 			Handle:   "diag",
 			Name:     "Diag",
 			Version:  "v1.0",
@@ -76,9 +76,9 @@ func TestApplyTemplateUpstreamDefaults_FillsURLAndAuthWhenAbsent(t *testing.T) {
 // Live evidence showed a created provider carrying auth with a type and a value but
 // no header at all, so even a provider with a URL could not authenticate upstream.
 func TestApplyTemplateUpstreamDefaults_FillsHeaderOnCallerSuppliedAuth(t *testing.T) {
-	provider := providerWithUpstream(&models.UpstreamConfig{
-		Main: &models.UpstreamEndpoint{
-			Auth: &models.UpstreamAuth{
+	provider := providerWithUpstream(&gwmodels.UpstreamConfig{
+		Main: &gwmodels.UpstreamEndpoint{
+			Auth: &gwmodels.UpstreamAuth{
 				Type:  strPtr("api-key"),
 				Value: strPtr("sk-caller-key"),
 			},
@@ -95,9 +95,9 @@ func TestApplyTemplateUpstreamDefaults_FillsHeaderOnCallerSuppliedAuth(t *testin
 }
 
 func TestApplyTemplateUpstreamDefaults_DoesNotDoublePrefix(t *testing.T) {
-	provider := providerWithUpstream(&models.UpstreamConfig{
-		Main: &models.UpstreamEndpoint{
-			Auth: &models.UpstreamAuth{Value: strPtr("Bearer sk-already-prefixed")},
+	provider := providerWithUpstream(&gwmodels.UpstreamConfig{
+		Main: &gwmodels.UpstreamEndpoint{
+			Auth: &gwmodels.UpstreamAuth{Value: strPtr("Bearer sk-already-prefixed")},
 		},
 	})
 
@@ -107,10 +107,10 @@ func TestApplyTemplateUpstreamDefaults_DoesNotDoublePrefix(t *testing.T) {
 }
 
 func TestApplyTemplateUpstreamDefaults_CallerValuesWin(t *testing.T) {
-	provider := providerWithUpstream(&models.UpstreamConfig{
-		Main: &models.UpstreamEndpoint{
+	provider := providerWithUpstream(&gwmodels.UpstreamConfig{
+		Main: &gwmodels.UpstreamEndpoint{
 			URL: "https://proxy.internal/mistral",
-			Auth: &models.UpstreamAuth{
+			Auth: &gwmodels.UpstreamAuth{
 				Type:   strPtr("none"),
 				Header: strPtr("X-Custom-Key"),
 			},
@@ -128,8 +128,8 @@ func TestApplyTemplateUpstreamDefaults_CallerValuesWin(t *testing.T) {
 // A URL with no credential used to leave auth omitted entirely; the template's
 // scheme now applies so the provider is at least coherent.
 func TestApplyTemplateUpstreamDefaults_URLOnlyStillGetsTheAuthScheme(t *testing.T) {
-	provider := providerWithUpstream(&models.UpstreamConfig{
-		Main: &models.UpstreamEndpoint{URL: "https://proxy.internal/mistral"},
+	provider := providerWithUpstream(&gwmodels.UpstreamConfig{
+		Main: &gwmodels.UpstreamEndpoint{URL: "https://proxy.internal/mistral"},
 	})
 
 	applyTemplateUpstreamDefaults(provider, mistralaiLikeTemplate())
@@ -144,7 +144,7 @@ func TestApplyTemplateUpstreamDefaults_URLOnlyStillGetsTheAuthScheme(t *testing.
 func TestApplyTemplateUpstreamDefaults_TemplateWithoutMetadataChangesNothing(t *testing.T) {
 	provider := providerWithUpstream(nil)
 
-	applyTemplateUpstreamDefaults(provider, &models.LLMProviderTemplate{Handle: "bare"})
+	applyTemplateUpstreamDefaults(provider, &gwmodels.LLMProviderTemplate{Handle: "bare"})
 
 	assert.Nil(t, provider.Configuration.Upstream)
 }
@@ -164,7 +164,7 @@ func TestValidateProviderVersion(t *testing.T) {
 // serviceWithTemplateRepo builds a service whose built-in store is empty, so
 // resolveTemplate always falls through to the org-template repository.
 func serviceWithTemplateRepo(
-	getByHandle func(handle, ouID string) (*models.LLMProviderTemplate, error),
+	getByHandle func(handle, ouID string) (*gwmodels.LLMProviderTemplate, error),
 ) *LLMProviderService {
 	return &LLMProviderService{
 		templateStore: NewLLMTemplateStore(),
@@ -176,7 +176,7 @@ func serviceWithTemplateRepo(
 
 func TestResolveTemplate_PrefersBuiltIn(t *testing.T) {
 	store := NewLLMTemplateStore()
-	store.Load([]*models.LLMProviderTemplate{mistralaiLikeTemplate()})
+	store.Load([]*gwmodels.LLMProviderTemplate{mistralaiLikeTemplate()})
 	// templateRepo left nil: a built-in hit must not reach the database.
 	svc := &LLMProviderService{templateStore: store}
 
@@ -187,11 +187,11 @@ func TestResolveTemplate_PrefersBuiltIn(t *testing.T) {
 }
 
 func TestResolveTemplate_FallsBackToOrgTemplate(t *testing.T) {
-	custom := &models.LLMProviderTemplate{
+	custom := &gwmodels.LLMProviderTemplate{
 		Handle:   "inhouse",
-		Metadata: &models.LLMProviderTemplateMetadata{EndpointURL: "https://llm.internal"},
+		Metadata: &gwmodels.LLMProviderTemplateMetadata{EndpointURL: "https://llm.internal"},
 	}
-	svc := serviceWithTemplateRepo(func(handle, ouID string) (*models.LLMProviderTemplate, error) {
+	svc := serviceWithTemplateRepo(func(handle, ouID string) (*gwmodels.LLMProviderTemplate, error) {
 		assert.Equal(t, "inhouse", handle)
 		assert.Equal(t, "ou-acme", ouID)
 		return custom, nil
@@ -204,7 +204,7 @@ func TestResolveTemplate_FallsBackToOrgTemplate(t *testing.T) {
 }
 
 func TestResolveTemplate_UnknownHandleIsTemplateNotFound(t *testing.T) {
-	svc := serviceWithTemplateRepo(func(_, _ string) (*models.LLMProviderTemplate, error) {
+	svc := serviceWithTemplateRepo(func(_, _ string) (*gwmodels.LLMProviderTemplate, error) {
 		return nil, gorm.ErrRecordNotFound
 	})
 
@@ -215,7 +215,7 @@ func TestResolveTemplate_UnknownHandleIsTemplateNotFound(t *testing.T) {
 
 func TestResolveTemplate_RepositoryErrorIsNotMaskedAsNotFound(t *testing.T) {
 	boom := errors.New("connection refused")
-	svc := serviceWithTemplateRepo(func(_, _ string) (*models.LLMProviderTemplate, error) {
+	svc := serviceWithTemplateRepo(func(_, _ string) (*gwmodels.LLMProviderTemplate, error) {
 		return nil, boom
 	})
 
@@ -232,15 +232,15 @@ func TestResolveTemplate_RepositoryErrorIsNotMaskedAsNotFound(t *testing.T) {
 // so the defaults must be copied in.
 func TestApplyTemplateUpstreamDefaults_LeavesTheSharedStoreTemplateIntact(t *testing.T) {
 	store := NewLLMTemplateStore()
-	store.Load([]*models.LLMProviderTemplate{mistralaiLikeTemplate()})
+	store.Load([]*gwmodels.LLMProviderTemplate{mistralaiLikeTemplate()})
 	svc := &LLMProviderService{templateStore: store}
 
 	resolved, err := svc.resolveTemplate("mistralai", "ou-acme")
 	require.NoError(t, err)
 
-	provider := providerWithUpstream(&models.UpstreamConfig{
-		Main: &models.UpstreamEndpoint{
-			Auth: &models.UpstreamAuth{Value: strPtr("sk-caller-key")},
+	provider := providerWithUpstream(&gwmodels.UpstreamConfig{
+		Main: &gwmodels.UpstreamEndpoint{
+			Auth: &gwmodels.UpstreamAuth{Value: strPtr("sk-caller-key")},
 		},
 	})
 	applyTemplateUpstreamDefaults(provider, resolved)

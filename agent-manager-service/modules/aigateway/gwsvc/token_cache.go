@@ -24,14 +24,14 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // TokenCacheEntry represents a cached token with its gateway and verification data
 type TokenCacheEntry struct {
 	GatewayUUID uuid.UUID
-	Gateway     *models.PlatformGateway // Cache full gateway to avoid second DB lookup
-	TokenHash   string                  // Stored hash for verification
+	Gateway     *gwmodels.PlatformGateway // Cache full gateway to avoid second DB lookup
+	TokenHash   string                    // Stored hash for verification
 	Salt        string
 	CachedAt    time.Time
 }
@@ -150,7 +150,7 @@ func (c *TokenCache) Get(tokenPrefix string) (*TokenCacheEntry, bool) {
 }
 
 // Set adds or updates a token entry in the cache using prefix as key
-func (c *TokenCache) Set(tokenPrefix string, gatewayUUID uuid.UUID, gateway *models.PlatformGateway, tokenHash string, salt string) {
+func (c *TokenCache) Set(tokenPrefix string, gatewayUUID uuid.UUID, gateway *gwmodels.PlatformGateway, tokenHash string, salt string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 

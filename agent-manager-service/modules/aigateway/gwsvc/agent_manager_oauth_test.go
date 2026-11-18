@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -125,7 +126,7 @@ func TestResolveAPIConfig_OAuthFromRequest(t *testing.T) {
 }
 
 func TestResolveAPIConfig_OAuthFromDB(t *testing.T) {
-	existing := &models.AgentConfig{
+	existing := &gwmodels.AgentConfig{
 		EnableApiKeySecurity:  false,
 		EnableOAuthSecurity:   true,
 		OAuthIssuers:          []string{"DBKeyManager"},

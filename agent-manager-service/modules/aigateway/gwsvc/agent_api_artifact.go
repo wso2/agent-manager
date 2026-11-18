@@ -22,7 +22,7 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"gorm.io/gorm"
@@ -40,7 +40,7 @@ func agentAPIArtifactHandlePrefix(projectName, agentName string) string {
 // in kinds, is utils.ErrArtifactNotFound.
 func agentEnvAPIArtifact(
 	artifactRepo gwrepo.ArtifactRepository, ouID, projectName, agentName, environmentID string, kinds ...string,
-) (*models.Artifact, error) {
+) (*gwmodels.Artifact, error) {
 	artifact, err := artifactRepo.GetByHandle(agentEnvAPIArtifactHandle(projectName, agentName, environmentID), ouID)
 	if err != nil {
 		return nil, err
@@ -57,7 +57,7 @@ func ensureAgentEnvAPIArtifact(
 	db *gorm.DB,
 	artifactRepo gwrepo.ArtifactRepository,
 	ouID, projectName, agentName, environmentID, kind string,
-) (*models.Artifact, error) {
+) (*gwmodels.Artifact, error) {
 	artifactRepo = artifactRepo.WithTx(db)
 	handle := agentEnvAPIArtifactHandle(projectName, agentName, environmentID)
 	artifact, err := artifactRepo.GetByHandle(handle, ouID)
@@ -69,7 +69,7 @@ func ensureAgentEnvAPIArtifact(
 	}
 
 	artifactUUID := uuid.Must(uuid.NewV7())
-	artifact = &models.Artifact{
+	artifact = &gwmodels.Artifact{
 		UUID:    artifactUUID,
 		Handle:  handle,
 		Name:    fmt.Sprintf("%s-%s-api-%s", agentName, environmentID, artifactUUID.String()[:8]),
@@ -98,11 +98,11 @@ func ensureExposedAgentEnvAPIArtifact(
 	artifactRepo gwrepo.ArtifactRepository,
 	ouID, projectName, agentName, environmentID string,
 	shape agentGatewayShape,
-) (*models.Artifact, error) {
+) (*gwmodels.Artifact, error) {
 	return ensureAgentEnvAPIArtifact(db, artifactRepo, ouID, projectName, agentName, environmentID, shape.ArtifactKind)
 }
 
-func requireArtifactKind(artifact *models.Artifact, kind string) (*models.Artifact, error) {
+func requireArtifactKind(artifact *gwmodels.Artifact, kind string) (*gwmodels.Artifact, error) {
 	if artifact.Kind != kind {
 		return nil, fmt.Errorf("agent API artifact handle %q exists with kind %q, not %q", artifact.Handle, artifact.Kind, kind)
 	}

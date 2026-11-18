@@ -27,7 +27,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -35,12 +35,12 @@ import (
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/llm_provider_repository_mock.go . LLMProviderRepository:LLMProviderRepositoryMock
 type LLMProviderRepository interface {
-	Create(tx *gorm.DB, p *models.LLMProvider, handle, name, version string, orgUUID string) error
-	GetByUUID(providerID, orgUUID string) (*models.LLMProvider, error)
-	GetByHandle(handle, orgUUID string) (*models.LLMProvider, error)
-	List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error)
+	Create(tx *gorm.DB, p *gwmodels.LLMProvider, handle, name, version string, orgUUID string) error
+	GetByUUID(providerID, orgUUID string) (*gwmodels.LLMProvider, error)
+	GetByHandle(handle, orgUUID string) (*gwmodels.LLMProvider, error)
+	List(orgUUID string, limit, offset int) ([]*gwmodels.LLMProvider, error)
 	Count(orgUUID string) (int, error)
-	Update(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error
+	Update(ctx context.Context, p *gwmodels.LLMProvider, providerID string, orgUUID string) error
 	Delete(providerID, orgUUID string) error
 	DeleteCtx(ctx context.Context, providerID, orgUUID string) error
 	DeleteTx(ctx context.Context, tx *gorm.DB, providerID, orgUUID string) error
@@ -70,7 +70,7 @@ func NewLLMProviderRepo(db *gorm.DB) LLMProviderRepository {
 }
 
 // Create inserts a new LLM provider
-func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, name, version string, orgUUID string) error {
+func (r *LLMProviderRepo) Create(tx *gorm.DB, p *gwmodels.LLMProvider, handle, name, version string, orgUUID string) error {
 	slog.Info("LLMProviderRepo.Create: starting", "handle", handle, "name", name, "version", version, "orgUUID", orgUUID)
 
 	// Generate UUID if not set
@@ -80,18 +80,18 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 	}
 	p.OrgID = orgUUID
 	if p.Status == "" {
-		p.Status = models.StatusCreated
+		p.Status = gwmodels.StatusCreated
 	}
 	now := dbx.Now()
 
 	// Insert into artifacts table first
-	slog.Info("LLMProviderRepo.Create: creating artifact", "handle", handle, "uuid", p.UUID, "kind", models.KindLLMProvider)
-	if err := r.artifactRepo.Create(tx, &models.Artifact{
+	slog.Info("LLMProviderRepo.Create: creating artifact", "handle", handle, "uuid", p.UUID, "kind", gwmodels.KindLLMProvider)
+	if err := r.artifactRepo.Create(tx, &gwmodels.Artifact{
 		UUID:      p.UUID,
 		Handle:    handle,
 		Name:      name,
 		Version:   version,
-		Kind:      models.KindLLMProvider,
+		Kind:      gwmodels.KindLLMProvider,
 		OUID:      orgUUID,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -113,14 +113,14 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 }
 
 // GetByID retrieves an LLM provider by ID (handle)
-func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProvider, error) {
+func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*gwmodels.LLMProvider, error) {
 	slog.Info("LLMProviderRepo.GetByID: starting", "providerID", providerID, "orgUUID", orgUUID)
 
-	var provider models.LLMProvider
+	var provider gwmodels.LLMProvider
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
-		Where("a.id = ? AND a.org_id = ? AND a.kind = ?", providerID, orgUUID, models.KindLLMProvider).
+		Where("a.id = ? AND a.org_id = ? AND a.kind = ?", providerID, orgUUID, gwmodels.KindLLMProvider).
 		First(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -141,14 +141,14 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 }
 
 // GetByHandle retrieves an LLM provider by artifact handle
-func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvider, error) {
+func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*gwmodels.LLMProvider, error) {
 	slog.Info("LLMProviderRepo.GetByHandle: starting", "handle", handle, "orgUUID", orgUUID)
 
-	var provider models.LLMProvider
+	var provider gwmodels.LLMProvider
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
-		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindLLMProvider).
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, gwmodels.KindLLMProvider).
 		First(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -168,14 +168,14 @@ func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvid
 }
 
 // List retrieves LLM providers with pagination
-func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLMProvider, error) {
+func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*gwmodels.LLMProvider, error) {
 	slog.Info("LLMProviderRepo.List: starting", "orgUUID", orgUUID, "limit", limit, "offset", offset)
 
-	var providers []*models.LLMProvider
+	var providers []*gwmodels.LLMProvider
 	err := r.db.
 		Preload("Artifact").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
-		Where("a.org_id = ? AND a.kind = ?", orgUUID, models.KindLLMProvider).
+		Where("a.org_id = ? AND a.kind = ?", orgUUID, gwmodels.KindLLMProvider).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -198,11 +198,11 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 
 // Count counts LLM providers for an organization
 func (r *LLMProviderRepo) Count(orgUUID string) (int, error) {
-	return r.artifactRepo.CountByKindAndOrg(models.KindLLMProvider, orgUUID)
+	return r.artifactRepo.CountByKindAndOrg(gwmodels.KindLLMProvider, orgUUID)
 }
 
 // Update modifies an existing LLM provider
-func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, providerID string, orgUUID string) error {
+func (r *LLMProviderRepo) Update(ctx context.Context, p *gwmodels.LLMProvider, providerID string, orgUUID string) error {
 	slog.Info("LLMProviderRepo.Update: starting", "providerID", providerID, "orgUUID", orgUUID)
 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -215,7 +215,7 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 
 		// Update llm_providers table
 		slog.Info("LLMProviderRepo.Update: updating provider fields", "handle", providerID)
-		result := tx.Model(&models.LLMProvider{}).
+		result := tx.Model(&gwmodels.LLMProvider{}).
 			Where("id = ?", providerID).
 			Updates(map[string]any{
 				"description":     p.Description,
@@ -238,7 +238,7 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 		// Update both together so the constraint checks the requested pair.
 		if p.Configuration.Name != "" || p.Configuration.Version != "" {
 			slog.Info("LLMProviderRepo.Update: updating artifact name and version", "handle", providerID)
-			if err := r.artifactRepo.Update(tx.WithContext(ctx), &models.Artifact{
+			if err := r.artifactRepo.Update(tx.WithContext(ctx), &gwmodels.Artifact{
 				UUID:    parsedUUID,
 				OUID:    orgUUID,
 				Name:    p.Configuration.Name,
@@ -274,7 +274,7 @@ func (r *LLMProviderRepo) IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, 
 		}
 		return false, err
 	}
-	var provider models.LLMProvider
+	var provider gwmodels.LLMProvider
 	err := tx.WithContext(ctx).
 		Select("status").
 		Where("id = ?", providerUUID).
@@ -286,7 +286,7 @@ func (r *LLMProviderRepo) IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, 
 		slog.Error("LLMProviderRepo.IsDeletingForUpdate: failed to lock provider row", "providerUUID", providerUUID, "error", err)
 		return false, err
 	}
-	return provider.Status == models.LLMProviderStatusDeleting, nil
+	return provider.Status == gwmodels.LLMProviderStatusDeleting, nil
 }
 
 // MarkDeleting atomically flags the provider as having a delete in progress, so a
@@ -295,9 +295,9 @@ func (r *LLMProviderRepo) IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, 
 // marked deleting, letting the caller reject the second concurrent Delete as a conflict
 // instead of undeploying twice.
 func (r *LLMProviderRepo) MarkDeleting(providerUUID uuid.UUID) (bool, error) {
-	result := r.db.Model(&models.LLMProvider{}).
-		Where("id = ? AND status != ?", providerUUID, models.LLMProviderStatusDeleting).
-		Update("status", models.LLMProviderStatusDeleting)
+	result := r.db.Model(&gwmodels.LLMProvider{}).
+		Where("id = ? AND status != ?", providerUUID, gwmodels.LLMProviderStatusDeleting).
+		Update("status", gwmodels.LLMProviderStatusDeleting)
 	if result.Error != nil {
 		slog.Error("LLMProviderRepo.MarkDeleting: failed to mark provider deleting", "providerUUID", providerUUID, "error", result.Error)
 		return false, result.Error
@@ -309,9 +309,9 @@ func (r *LLMProviderRepo) MarkDeleting(providerUUID uuid.UUID) (bool, error) {
 // attempt bails out before removing the provider row, so the provider becomes
 // available again for new proxies.
 func (r *LLMProviderRepo) ClearDeleting(providerUUID uuid.UUID) error {
-	if err := r.db.Model(&models.LLMProvider{}).
-		Where("id = ? AND status = ?", providerUUID, models.LLMProviderStatusDeleting).
-		Update("status", models.StatusCreated).Error; err != nil {
+	if err := r.db.Model(&gwmodels.LLMProvider{}).
+		Where("id = ? AND status = ?", providerUUID, gwmodels.LLMProviderStatusDeleting).
+		Update("status", gwmodels.StatusCreated).Error; err != nil {
 		slog.Error("LLMProviderRepo.ClearDeleting: failed to clear deleting flag", "providerUUID", providerUUID, "error", err)
 		return err
 	}
@@ -355,7 +355,7 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 	}
 	result := tx.Table("mod_ai_gateway_artifacts").
 		Select("id").
-		Where("id = ? AND org_id = ? AND kind = ?", providerUUID, orgUUID, models.KindLLMProvider).
+		Where("id = ? AND org_id = ? AND kind = ?", providerUUID, orgUUID, gwmodels.KindLLMProvider).
 		Take(&artifact)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -369,7 +369,7 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 	slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
 
 	slog.Info("LLMProviderRepo.Delete: deleting from mod_ai_gateway_llm_providers table", "providerID", providerID, "uuid", providerUUID)
-	if err := tx.Where("id = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
+	if err := tx.Where("id = ?", providerUUID).Delete(&gwmodels.LLMProvider{}).Error; err != nil {
 		if dberr.IsForeignKeyViolation(err) {
 			slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "error", err)
 			return utils.ErrLLMProviderHasProxies
@@ -393,7 +393,7 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 func (r *LLMProviderRepo) Exists(providerID, orgUUID string) (bool, error) {
 	slog.Info("LLMProviderRepo.Exists: checking", "providerID", providerID, "orgUUID", orgUUID)
 
-	exists, err := r.artifactRepo.Exists(models.KindLLMProvider, providerID, orgUUID)
+	exists, err := r.artifactRepo.Exists(gwmodels.KindLLMProvider, providerID, orgUUID)
 	if err != nil {
 		slog.Error("LLMProviderRepo.Exists: check failed", "providerID", providerID, "orgUUID", orgUUID, "error", err)
 		return false, err

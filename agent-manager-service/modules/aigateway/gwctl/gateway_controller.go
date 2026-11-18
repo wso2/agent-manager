@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -285,7 +286,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		functionalityType,
 		properties,
 		req.EnvironmentIds,
-		models.GatewayHostingManaged,
+		gwmodels.GatewayHostingManaged,
 	)
 	audit.Record(
 		ctx, gwaudit.GatewayCreate,
@@ -868,9 +869,9 @@ func (c *gatewayController) getGatewayEnvironmentsFromDB(ctx context.Context, ou
 
 // getGatewayEnvironmentMappingsBulk retrieves environment mappings for multiple gateways in bulk
 // This avoids N+1 DB queries when listing gateways
-func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Context, gatewayIDs []string) map[string][]models.GatewayEnvironmentMapping {
+func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Context, gatewayIDs []string) map[string][]gwmodels.GatewayEnvironmentMapping {
 	if len(gatewayIDs) == 0 {
-		return make(map[string][]models.GatewayEnvironmentMapping)
+		return make(map[string][]gwmodels.GatewayEnvironmentMapping)
 	}
 
 	log := logger.GetLogger(ctx)
@@ -879,7 +880,7 @@ func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Contex
 	allMappings, err := c.gatewayService.GetGatewayEnvironmentMappingsBulk(gatewayIDs)
 	if err != nil {
 		log.Warn("getGatewayEnvironmentMappingsBulk: failed to get environment mappings", "error", err)
-		return make(map[string][]models.GatewayEnvironmentMapping)
+		return make(map[string][]gwmodels.GatewayEnvironmentMapping)
 	}
 
 	return allMappings
@@ -888,7 +889,7 @@ func (c *gatewayController) getGatewayEnvironmentMappingsBulk(ctx context.Contex
 // matchGatewayEnvironments matches gateway environment mappings with environment details
 // This function is used by both single-gateway and bulk-gateway queries
 func (c *gatewayController) matchGatewayEnvironments(
-	mappings []models.GatewayEnvironmentMapping,
+	mappings []gwmodels.GatewayEnvironmentMapping,
 	ocEnvironments []*models.EnvironmentResponse,
 	ouID string,
 ) []models.GatewayEnvironmentResponse {

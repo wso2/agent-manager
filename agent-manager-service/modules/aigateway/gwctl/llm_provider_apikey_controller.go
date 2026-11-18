@@ -23,7 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -109,7 +109,7 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 		return
 	}
 
-	req := &models.CreateAPIKeyRequest{
+	req := &gwmodels.CreateAPIKeyRequest{
 		Name:        name,
 		DisplayName: displayName,
 		ExpiresAt:   specReq.ExpiresAt,
@@ -192,7 +192,7 @@ func (c *llmProviderAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *htt
 	// Body is optional for rotation; ignore decode errors on empty body
 	_ = json.NewDecoder(r.Body).Decode(&specReq)
 
-	req := &models.RotateAPIKeyRequest{
+	req := &gwmodels.RotateAPIKeyRequest{
 		DisplayName: specReq.DisplayName,
 		ExpiresAt:   specReq.ExpiresAt,
 	}

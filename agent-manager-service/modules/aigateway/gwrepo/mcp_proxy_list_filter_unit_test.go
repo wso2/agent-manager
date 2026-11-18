@@ -25,7 +25,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // dryRunDB builds statements without a database connection.
@@ -39,8 +39,8 @@ func dryRunDB(t *testing.T) *gorm.DB {
 
 func listSQL(t *testing.T, f MCPProxyListFilter) (string, []interface{}) {
 	t.Helper()
-	var out []*models.MCPProxy
-	stmt := f.apply(dryRunDB(t).Model(&models.MCPProxy{}).
+	var out []*gwmodels.MCPProxy
+	stmt := f.apply(dryRunDB(t).Model(&gwmodels.MCPProxy{}).
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id"), "org-1").Find(&out).Statement
 	return stmt.SQL.String(), stmt.Vars
 }

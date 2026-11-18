@@ -28,6 +28,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -39,8 +40,8 @@ import (
 type llmPlacementFixture struct {
 	svc         *agentConfigurationService
 	envs        map[string]*models.EnvironmentResponse
-	providers   map[string]*models.LLMProvider
-	placedOn    map[uuid.UUID]*models.Gateway
+	providers   map[string]*gwmodels.LLMProvider
+	placedOn    map[uuid.UUID]*gwmodels.Gateway
 	gatewayRepo *gwrepomocks.GatewayRepositoryMock
 }
 
@@ -50,15 +51,15 @@ func newLLMPlacementFixture(t *testing.T, envNames ...string) *llmPlacementFixtu
 	t.Helper()
 	f := &llmPlacementFixture{
 		envs:      map[string]*models.EnvironmentResponse{},
-		providers: map[string]*models.LLMProvider{},
-		placedOn:  map[uuid.UUID]*models.Gateway{},
+		providers: map[string]*gwmodels.LLMProvider{},
+		placedOn:  map[uuid.UUID]*gwmodels.Gateway{},
 	}
 	for _, name := range envNames {
 		f.envs[name] = &models.EnvironmentResponse{UUID: uuid.NewString(), Name: name}
 	}
 	f.gatewayRepo = &gwrepomocks.GatewayRepositoryMock{
 		EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
-		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 			for _, gw := range f.placedOn {
 				if gw.UUID.String() == id {
 					return gw, nil
@@ -76,7 +77,7 @@ func newLLMPlacementFixture(t *testing.T, envNames ...string) *llmPlacementFixtu
 		},
 	}
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByHandleFunc: func(handle, _ string) (*models.LLMProvider, error) {
+		GetByHandleFunc: func(handle, _ string) (*gwmodels.LLMProvider, error) {
 			if p, ok := f.providers[handle]; ok {
 				return p, nil
 			}
@@ -102,11 +103,11 @@ func newLLMPlacementFixture(t *testing.T, envNames ...string) *llmPlacementFixtu
 }
 
 // provider adds a catalog provider placed on a managed or self-hosted gateway, or on none.
-func (f *llmPlacementFixture) provider(handle, hosting string) *models.LLMProvider {
-	p := &models.LLMProvider{UUID: uuid.New(), InCatalog: true}
+func (f *llmPlacementFixture) provider(handle, hosting string) *gwmodels.LLMProvider {
+	p := &gwmodels.LLMProvider{UUID: uuid.New(), InCatalog: true}
 	f.providers[handle] = p
 	if hosting != "" {
-		f.placedOn[p.UUID] = &models.Gateway{UUID: uuid.New(), Hosting: hosting}
+		f.placedOn[p.UUID] = &gwmodels.Gateway{UUID: uuid.New(), Hosting: hosting}
 	}
 	return p
 }
@@ -115,17 +116,17 @@ func (f *llmPlacementFixture) env(name string) uuid.UUID { return uuid.MustParse
 
 func TestLLMConfig_AcceptsManagedProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
-	p := f.provider("managed-p", models.GatewayHostingManaged)
+	p := f.provider("managed-p", gwmodels.GatewayHostingManaged)
 
 	require.NoError(t, platformAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev")))
 }
 
 func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
-	selfHosted := f.provider("self-p", models.GatewayHostingSelfHosted)
+	selfHosted := f.provider("self-p", gwmodels.GatewayHostingSelfHosted)
 	unplaced := f.provider("unplaced-p", "")
 
-	for name, p := range map[string]*models.LLMProvider{"self-hosted only": selfHosted, "not deployed": unplaced} {
+	for name, p := range map[string]*gwmodels.LLMProvider{"self-hosted only": selfHosted, "not deployed": unplaced} {
 		t.Run(name, func(t *testing.T) {
 			err := platformAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"))
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -136,7 +137,7 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		_, err := f.svc.createLLMConfig(context.Background(), llmPlacementOU, "proj", "agent",
-			models.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]models.EnvModelConfigRequest{
+			gwmodels.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 				"dev": {ProviderName: "self-p"},
 			}}, "user", platformAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -149,15 +150,15 @@ func TestLLMConfig_RefusesSelfHostedOnlyProvider(t *testing.T) {
 func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 	newFixture := func(t *testing.T) *llmPlacementFixture {
 		f := newLLMPlacementFixture(t, "ok", "bad")
-		f.provider("managed-p", models.GatewayHostingManaged)
-		f.provider("self-p", models.GatewayHostingSelfHosted)
+		f.provider("managed-p", gwmodels.GatewayHostingManaged)
+		f.provider("self-p", gwmodels.GatewayHostingSelfHosted)
 		return f
 	}
 
 	t.Run("create", func(t *testing.T) {
 		f := newFixture(t)
 		_, err := f.svc.createLLMConfig(context.Background(), llmPlacementOU, "proj", "agent",
-			models.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]models.EnvModelConfigRequest{
+			gwmodels.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 				"ok": {ProviderName: "managed-p"}, "bad": {ProviderName: "self-p"},
 			}}, "user", platformAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -169,11 +170,11 @@ func TestLLMConfig_RefusalAppliesNothing(t *testing.T) {
 // the provider was later placed on a self-hosted gateway.
 func TestRequireManagedProviderPlacements_SkipsUnchangedProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
-	p := f.provider("self-p", models.GatewayHostingSelfHosted)
-	existing := map[string]*models.EnvAgentModelMapping{
-		"dev": {LLMProxy: &models.LLMProxy{Configuration: models.LLMProxyConfig{Provider: p.UUID.String()}}},
+	p := f.provider("self-p", gwmodels.GatewayHostingSelfHosted)
+	existing := map[string]*gwmodels.EnvAgentModelMapping{
+		"dev": {LLMProxy: &gwmodels.LLMProxy{Configuration: gwmodels.LLMProxyConfig{Provider: p.UUID.String()}}},
 	}
-	requested := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "self-p"}}
+	requested := map[string]gwmodels.EnvModelConfigRequest{"dev": {ProviderName: "self-p"}}
 
 	require.NoError(t, f.svc.requireProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, existing, platformAgentPolicy))
 	require.Error(t, f.svc.requireProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, platformAgentPolicy))
@@ -181,15 +182,15 @@ func TestRequireManagedProviderPlacements_SkipsUnchangedProvider(t *testing.T) {
 
 func TestResolveGatewayForProvider_PrefersManagedAnchor(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
-	selfHosted := &models.Gateway{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Hosting: models.GatewayHostingSelfHosted}
-	managed := &models.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002")}
+	selfHosted := &gwmodels.Gateway{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Hosting: gwmodels.GatewayHostingSelfHosted}
+	managed := &gwmodels.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002")}
 	providerUUID := uuid.New()
 	f.svc.llmProxyDeploymentService = &LLMProxyDeploymentService{deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
 		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 			return []string{selfHosted.UUID.String(), managed.UUID.String()}, nil
 		},
 	}}
-	f.gatewayRepo.GetByUUIDFunc = func(id string) (*models.Gateway, error) {
+	f.gatewayRepo.GetByUUIDFunc = func(id string) (*gwmodels.Gateway, error) {
 		if id == managed.UUID.String() {
 			return managed, nil
 		}
@@ -204,19 +205,19 @@ func TestResolveGatewayForProvider_PrefersManagedAnchor(t *testing.T) {
 
 // selfHostedOnlyProviderAnchor places the provider on a self-hosted gateway only, in an environment that also
 // has a managed egress gateway, and returns that managed gateway.
-func selfHostedOnlyProviderAnchor(f *llmPlacementFixture) (*LLMProxyDeploymentService, *models.Gateway) {
-	selfHosted := &models.Gateway{
-		UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth, Hosting: models.GatewayHostingSelfHosted,
+func selfHostedOnlyProviderAnchor(f *llmPlacementFixture) (*LLMProxyDeploymentService, *gwmodels.Gateway) {
+	selfHosted := &gwmodels.Gateway{
+		UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleBoth, Hosting: gwmodels.GatewayHostingSelfHosted,
 	}
-	managed := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth}
-	f.gatewayRepo.GetByUUIDFunc = func(id string) (*models.Gateway, error) {
+	managed := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleBoth}
+	f.gatewayRepo.GetByUUIDFunc = func(id string) (*gwmodels.Gateway, error) {
 		if id == managed.UUID.String() {
 			return managed, nil
 		}
 		return selfHosted, nil
 	}
-	f.gatewayRepo.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-		return []*models.Gateway{selfHosted, managed}, nil
+	f.gatewayRepo.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+		return []*gwmodels.Gateway{selfHosted, managed}, nil
 	}
 	return &LLMProxyDeploymentService{deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
 		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
@@ -252,8 +253,8 @@ func externalAgentComponent() *repomocks.PlatformRepositoryMock {
 // in an environment that also has a managed egress gateway.
 func TestLLMConfig_ExternalAgentBindsToSelfHostedOnlyProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
-	p := f.provider("self-p", models.GatewayHostingSelfHosted)
-	requested := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "self-p"}}
+	p := f.provider("self-p", gwmodels.GatewayHostingSelfHosted)
+	requested := map[string]gwmodels.EnvModelConfigRequest{"dev": {ProviderName: "self-p"}}
 
 	require.NoError(t, f.svc.requireProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, externalAgentPolicy))
 
@@ -269,14 +270,14 @@ func TestLLMConfig_ExternalAgentBindsToSelfHostedOnlyProvider(t *testing.T) {
 // managed one, whatever order the placements come in.
 func TestLLMConfig_ExternalAgentPrefersManagedInMixedEnv(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
-	selfHosted := &models.Gateway{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Hosting: models.GatewayHostingSelfHosted}
-	managed := &models.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002")}
+	selfHosted := &gwmodels.Gateway{UUID: uuid.MustParse("00000000-0000-0000-0000-000000000001"), Hosting: gwmodels.GatewayHostingSelfHosted}
+	managed := &gwmodels.Gateway{UUID: uuid.MustParse("ffffffff-0000-0000-0000-000000000002")}
 	f.svc.llmProxyDeploymentService = &LLMProxyDeploymentService{deploymentRepo: &gwrepomocks.DeploymentRepositoryMock{
 		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) {
 			return []string{selfHosted.UUID.String(), managed.UUID.String()}, nil
 		},
 	}}
-	f.gatewayRepo.GetByUUIDFunc = func(id string) (*models.Gateway, error) {
+	f.gatewayRepo.GetByUUIDFunc = func(id string) (*gwmodels.Gateway, error) {
 		if id == managed.UUID.String() {
 			return managed, nil
 		}
@@ -292,13 +293,13 @@ func TestLLMConfig_ExternalAgentPrefersManagedInMixedEnv(t *testing.T) {
 func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
 	unplaced := f.provider("unplaced-p", "")
-	elsewhere := f.provider("elsewhere-p", models.GatewayHostingSelfHosted)
+	elsewhere := f.provider("elsewhere-p", gwmodels.GatewayHostingSelfHosted)
 	f.gatewayRepo.EnvironmentMappingExistsFunc = func(gatewayID, _ string) (bool, error) {
 		return gatewayID != f.placedOn[elsewhere.UUID].UUID.String(), nil
 	}
 	notInEnv := "not deployed to a gateway in this environment; " + deployProviderHint
 
-	for name, p := range map[string]*models.LLMProvider{"not deployed": unplaced, "deployed to another environment": elsewhere} {
+	for name, p := range map[string]*gwmodels.LLMProvider{"not deployed": unplaced, "deployed to another environment": elsewhere} {
 		t.Run(name, func(t *testing.T) {
 			err := externalAgentPolicy.requireProvider(context.Background(), f.svc.llmProxyDeploymentService, f.svc.gatewayRepo, llmPlacementOU, p.UUID, f.env("dev"))
 			require.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -309,7 +310,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 
 	t.Run("create", func(t *testing.T) {
 		_, err := f.svc.createLLMConfig(context.Background(), llmPlacementOU, "proj", "agent",
-			models.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]models.EnvModelConfigRequest{
+			gwmodels.CreateAgentModelConfigRequest{Name: "cfg", Type: "llm", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 				"dev": {ProviderName: "unplaced-p"},
 			}}, "user", externalAgentPolicy)
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -317,14 +318,14 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 	})
 
 	t.Run("update", func(t *testing.T) {
-		managed := f.provider("managed-p", models.GatewayHostingManaged)
+		managed := f.provider("managed-p", gwmodels.GatewayHostingManaged)
 		f.svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
-			GetByUUIDFunc: func(_ context.Context, id uuid.UUID, ouID string) (*models.AgentConfiguration, error) {
-				return &models.AgentConfiguration{
+			GetByUUIDFunc: func(_ context.Context, id uuid.UUID, ouID string) (*gwmodels.AgentConfiguration, error) {
+				return &gwmodels.AgentConfiguration{
 					UUID: id, OUID: ouID, ProjectName: "proj", AgentID: "agent", Name: "cfg",
-					EnvMappings: []models.EnvAgentModelMapping{{
+					EnvMappings: []gwmodels.EnvAgentModelMapping{{
 						EnvironmentUUID: f.env("dev"),
-						LLMProxy:        &models.LLMProxy{Configuration: models.LLMProxyConfig{Provider: managed.UUID.String()}},
+						LLMProxy:        &gwmodels.LLMProxy{Configuration: gwmodels.LLMProxyConfig{Provider: managed.UUID.String()}},
 					}},
 				}, nil
 			},
@@ -332,7 +333,7 @@ func TestLLMConfig_ExternalAgentRefusedWhenProviderNotInEnv(t *testing.T) {
 		f.svc.ocClient = externalAgentComponent()
 
 		_, err := f.svc.Update(context.Background(), uuid.New(), llmPlacementOU, "proj", "agent",
-			models.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]models.EnvModelConfigRequest{
+			gwmodels.UpdateAgentModelConfigRequest{Name: "renamed", EnvMappings: map[string]gwmodels.EnvModelConfigRequest{
 				"dev": {ProviderName: "unplaced-p"},
 			}})
 		require.ErrorIs(t, err, utils.ErrInvalidInput)
@@ -349,11 +350,11 @@ var errReachedProxyWrite = errors.New("reached the proxy write")
 func TestLLMConfig_ExternalAgentNewEnvOnSelfHostedProvider(t *testing.T) {
 	newFixture := func(t *testing.T) *llmPlacementFixture {
 		f := newLLMPlacementFixture(t, "dev")
-		p := f.provider("self-p", models.GatewayHostingSelfHosted)
+		p := f.provider("self-p", gwmodels.GatewayHostingSelfHosted)
 		selfHosted := f.placedOn[p.UUID]
-		selfHosted.GatewayFunctionalityType = models.GatewayRoleBoth
-		f.gatewayRepo.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{selfHosted}, nil
+		selfHosted.GatewayFunctionalityType = gwmodels.GatewayRoleBoth
+		f.gatewayRepo.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{selfHosted}, nil
 		}
 		f.svc.logger = slog.Default()
 		f.svc.ocClient = &repomocks.PlatformRepositoryMock{
@@ -362,14 +363,14 @@ func TestLLMConfig_ExternalAgentNewEnvOnSelfHostedProvider(t *testing.T) {
 			},
 		}
 		f.svc.llmProxyService = &LLMProxyService{providerRepo: &gwrepomocks.LLMProviderRepositoryMock{
-			GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) { return nil, errReachedProxyWrite },
+			GetByUUIDFunc: func(string, string) (*gwmodels.LLMProvider, error) { return nil, errReachedProxyWrite },
 		}}
 		return f
 	}
 	processNewEnv := func(f *llmPlacementFixture, policy placementPolicy) error {
-		config := &models.AgentConfiguration{UUID: uuid.New(), OUID: llmPlacementOU, ProjectName: "proj", AgentID: "agent", Name: "cfg"}
+		config := &gwmodels.AgentConfiguration{UUID: uuid.New(), OUID: llmPlacementOU, ProjectName: "proj", AgentID: "agent", Name: "cfg"}
 		_, _, err := f.svc.processNewEnv(context.Background(), config.UUID, config, f.envs["dev"], f.env("dev"), "dev",
-			models.EnvModelConfigRequest{ProviderName: "self-p"}, llmPlacementOU, nil, policy, "")
+			gwmodels.EnvModelConfigRequest{ProviderName: "self-p"}, llmPlacementOU, nil, policy, "")
 		return err
 	}
 
@@ -384,24 +385,24 @@ func TestLLMConfig_ExternalAgentNewEnvOnSelfHostedProvider(t *testing.T) {
 // Redeploying an external agent's proxy after a config change keeps it on its self-hosted gateway; an internal
 // agent's proxy there is refused as before.
 func TestLLMConfig_ExternalAgentProxyUpdateOnSelfHostedPlacement(t *testing.T) {
-	newFixture := func(t *testing.T) (*llmPlacementFixture, *models.EnvAgentModelMapping) {
+	newFixture := func(t *testing.T) (*llmPlacementFixture, *gwmodels.EnvAgentModelMapping) {
 		f := newLLMPlacementFixture(t, "dev")
-		f.provider("self-p", models.GatewayHostingSelfHosted)
-		proxy := &models.LLMProxy{UUID: uuid.New(), Handle: "cfg-proxy"}
-		f.placedOn[proxy.UUID] = &models.Gateway{UUID: uuid.New(), Hosting: models.GatewayHostingSelfHosted}
+		f.provider("self-p", gwmodels.GatewayHostingSelfHosted)
+		proxy := &gwmodels.LLMProxy{UUID: uuid.New(), Handle: "cfg-proxy"}
+		f.placedOn[proxy.UUID] = &gwmodels.Gateway{UUID: uuid.New(), Hosting: gwmodels.GatewayHostingSelfHosted}
 		f.svc.llmProxyDeploymentService.proxyRepo = &gwrepomocks.LLMProxyRepositoryMock{
-			GetByIDFunc: func(string, string) (*models.LLMProxy, error) { return proxy, nil },
+			GetByIDFunc: func(string, string) (*gwmodels.LLMProxy, error) { return proxy, nil },
 		}
 		f.svc.logger = slog.Default()
 		f.svc.llmProxyService = &LLMProxyService{proxyRepo: &gwrepomocks.LLMProxyRepositoryMock{
-			GetByIDFunc: func(string, string) (*models.LLMProxy, error) { return nil, errReachedProxyWrite },
+			GetByIDFunc: func(string, string) (*gwmodels.LLMProxy, error) { return nil, errReachedProxyWrite },
 		}}
-		return f, &models.EnvAgentModelMapping{EnvironmentUUID: f.env("dev"), LLMProxy: proxy}
+		return f, &gwmodels.EnvAgentModelMapping{EnvironmentUUID: f.env("dev"), LLMProxy: proxy}
 	}
-	processEnvProxyUpdate := func(f *llmPlacementFixture, mapping *models.EnvAgentModelMapping, policy placementPolicy) error {
-		config := &models.AgentConfiguration{UUID: uuid.New(), OUID: llmPlacementOU, ProjectName: "proj", AgentID: "agent", Name: "cfg"}
+	processEnvProxyUpdate := func(f *llmPlacementFixture, mapping *gwmodels.EnvAgentModelMapping, policy placementPolicy) error {
+		config := &gwmodels.AgentConfiguration{UUID: uuid.New(), OUID: llmPlacementOU, ProjectName: "proj", AgentID: "agent", Name: "cfg"}
 		_, err := f.svc.processEnvProxyUpdate(context.Background(), config, f.envs["dev"], f.env("dev"), "dev",
-			models.EnvModelConfigRequest{ProviderName: "self-p"}, mapping, llmPlacementOU, policy)
+			gwmodels.EnvModelConfigRequest{ProviderName: "self-p"}, mapping, llmPlacementOU, policy)
 		return err
 	}
 
@@ -420,18 +421,18 @@ func TestLLMConfig_ExternalAgentProxyUpdateOnSelfHostedPlacement(t *testing.T) {
 func TestExternalAgentLLMURL_AddsSchemeToBareVhost(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
 	contextPath := "/llm/proxy"
-	proxy := &models.LLMProxy{UUID: uuid.New(), Handle: "cfg-proxy", Configuration: models.LLMProxyConfig{Context: &contextPath}}
-	f.placedOn[proxy.UUID] = &models.Gateway{UUID: uuid.New(), Vhost: "gw.example.com", Hosting: models.GatewayHostingSelfHosted}
+	proxy := &gwmodels.LLMProxy{UUID: uuid.New(), Handle: "cfg-proxy", Configuration: gwmodels.LLMProxyConfig{Context: &contextPath}}
+	f.placedOn[proxy.UUID] = &gwmodels.Gateway{UUID: uuid.New(), Vhost: "gw.example.com", Hosting: gwmodels.GatewayHostingSelfHosted}
 	f.svc.llmProxyDeploymentService.proxyRepo = &gwrepomocks.LLMProxyRepositoryMock{
-		GetByIDFunc: func(string, string) (*models.LLMProxy, error) { return proxy, nil },
+		GetByIDFunc: func(string, string) (*gwmodels.LLMProxy, error) { return proxy, nil },
 	}
 	f.svc.llmProviderRepo = &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(string, string) (*models.LLMProvider, error) { return nil, gorm.ErrRecordNotFound },
+		GetByUUIDFunc: func(string, string) (*gwmodels.LLMProvider, error) { return nil, gorm.ErrRecordNotFound },
 	}
 	f.svc.logger = slog.Default()
-	config := &models.AgentConfiguration{
+	config := &gwmodels.AgentConfiguration{
 		UUID: uuid.New(), OUID: llmPlacementOU, ProjectName: "proj", AgentID: "agent", Name: "cfg",
-		EnvMappings: []models.EnvAgentModelMapping{{EnvironmentUUID: f.env("dev"), LLMProxy: proxy}},
+		EnvMappings: []gwmodels.EnvAgentModelMapping{{EnvironmentUUID: f.env("dev"), LLMProxy: proxy}},
 	}
 
 	resp, err := f.svc.buildConfigResponse(context.Background(), config, externalAgentPolicy)
@@ -455,7 +456,7 @@ func (f *llmPlacementFixture) agent(provisioning string) {
 func TestProviderEnvironments_OnlyEnvironmentsTheProviderIsPlacedIn(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev", "prod")
 	f.agent(string(utils.InternalAgent))
-	f.provider("dev-only", models.GatewayHostingManaged)
+	f.provider("dev-only", gwmodels.GatewayHostingManaged)
 	devUUID := f.envs["dev"].UUID
 	f.gatewayRepo.EnvironmentMappingExistsFunc = func(_ string, envUUID string) (bool, error) { return envUUID == devUUID, nil }
 
@@ -463,14 +464,14 @@ func TestProviderEnvironments_OnlyEnvironmentsTheProviderIsPlacedIn(t *testing.T
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"dev"}, got)
-	requested := map[string]models.EnvModelConfigRequest{"dev": {ProviderName: "dev-only"}}
+	requested := map[string]gwmodels.EnvModelConfigRequest{"dev": {ProviderName: "dev-only"}}
 	require.NoError(t, f.svc.requireProviderPlacements(context.Background(), llmPlacementOU, requested, f.envs, nil, platformAgentPolicy))
 }
 
 // The agent's kind decides which placements count, as it does in Create.
 func TestProviderEnvironments_FollowsTheAgentsPlacementPolicy(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev", "prod")
-	f.provider("self-p", models.GatewayHostingSelfHosted)
+	f.provider("self-p", gwmodels.GatewayHostingSelfHosted)
 
 	f.agent(string(utils.InternalAgent))
 	got, err := f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "self-p")

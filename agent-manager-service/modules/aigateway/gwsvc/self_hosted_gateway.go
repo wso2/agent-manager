@@ -22,7 +22,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
@@ -52,19 +52,19 @@ func (s *PlatformGatewayService) RegisterSelfHostedGateway(ouID string, in SelfH
 		return nil, err
 	}
 	return s.RegisterGateway(ouID, in.Handle, in.DisplayName, in.Description, vhost, "", in.IsCritical,
-		models.GatewayRoleEgress, in.Properties, []string{in.Environment}, models.GatewayHostingSelfHosted)
+		gwmodels.GatewayRoleEgress, in.Properties, []string{in.Environment}, gwmodels.GatewayHostingSelfHosted)
 }
 
 // ListSelfHostedGateways lists the organization's self-hosted gateways.
 func (s *PlatformGatewayService) ListSelfHostedGateways(ouID string, limit, offset int) (*GatewayListResponse, error) {
-	return s.ListGateways(&ouID, &GatewayListFilters{Hosting: models.GatewayHostingSelfHosted}, limit, offset)
+	return s.ListGateways(&ouID, &GatewayListFilters{Hosting: gwmodels.GatewayHostingSelfHosted}, limit, offset)
 }
 
 // RequireSelfHosted returns the gateway when it belongs to the organization and is
 // self-hosted. The self-hosted routes address a gateway by UUID only, so a name is not found
 // without a lookup. A missing, other-organization or managed gateway is reported as not found,
 // so a self-hosted route never reveals or touches a managed gateway.
-func (s *PlatformGatewayService) RequireSelfHosted(gatewayID, ouID string) (*models.Gateway, error) {
+func (s *PlatformGatewayService) RequireSelfHosted(gatewayID, ouID string) (*gwmodels.Gateway, error) {
 	if _, err := uuid.Parse(gatewayID); err != nil {
 		return nil, utils.ErrGatewayNotFound
 	}

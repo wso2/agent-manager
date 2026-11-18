@@ -32,33 +32,33 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
-func newTestProxy(t *testing.T, agentName string) *models.A2AProxy {
+func newTestProxy(t *testing.T, agentName string) *gwmodels.A2AProxy {
 	t.Helper()
 	return newTestProxyIn(t, "Development", agentName)
 }
 
 // newTestProxyIn is newTestProxy in the environment named env.
-func newTestProxyIn(t *testing.T, env, agentName string) *models.A2AProxy {
+func newTestProxyIn(t *testing.T, env, agentName string) *gwmodels.A2AProxy {
 	t.Helper()
 	ou := testOrg(t)
 	ensureAgent(t, ou, "checkout", agentName)
 	envID := envOf(t, ou, env)
-	return &models.A2AProxy{
+	return &gwmodels.A2AProxy{
 		OUID:               ou,
 		ProjectName:        "checkout",
 		AgentName:          agentName,
 		EnvironmentName:    env,
 		EnvironmentUUID:    envID,
-		ArtifactUUID:       newArtifact(t, ou, models.KindAgent, "checkout/"+agentName+"/"+envID.String()),
+		ArtifactUUID:       newArtifact(t, ou, gwmodels.KindAgent, "checkout/"+agentName+"/"+envID.String()),
 		UpstreamAuthHeader: "X-Upstream-Key",
 		UpstreamAuthSecret: "c2VjcmV0",
 	}
 }
 
-func cleanupProxy(t *testing.T, repo A2AProxyRepository, proxy *models.A2AProxy) {
+func cleanupProxy(t *testing.T, repo A2AProxyRepository, proxy *gwmodels.A2AProxy) {
 	t.Helper()
 	t.Cleanup(func() {
 		_ = repo.DeleteForAgent(context.Background(), proxy.OUID, proxy.ProjectName, proxy.AgentName)

@@ -27,18 +27,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
 // newGateway builds a fully populated Gateway fixture with the given functionality
 // role and active status. Every field is set explicitly (exhaustruct covers models.*).
-func newGateway(t *testing.T, role string, active bool) *models.Gateway {
+func newGateway(t *testing.T, role string, active bool) *gwmodels.Gateway {
 	t.Helper()
 	id := uuid.New()
 	now := time.Now()
-	return &models.Gateway{
+	return &gwmodels.Gateway{
 		UUID:        id,
 		OUID:        "org",
 		Name:        "gateway-" + id.String(),
@@ -60,15 +60,15 @@ func newGateway(t *testing.T, role string, active bool) *models.Gateway {
 // gatewayFixtureRepo returns a GatewayRepositoryMock whose ListWithFilters actually
 // applies EnvironmentID and FunctionalityTypeIn the way the real SQL does. Returning the
 // fixture verbatim would make every no-fallback assertion pass vacuously.
-func gatewayFixtureRepo(t *testing.T, envUUID string, gateways []*models.Gateway) *gwrepomocks.GatewayRepositoryMock {
+func gatewayFixtureRepo(t *testing.T, envUUID string, gateways []*gwmodels.Gateway) *gwrepomocks.GatewayRepositoryMock {
 	t.Helper()
-	byUUID := map[string]*models.Gateway{}
+	byUUID := map[string]*gwmodels.Gateway{}
 	for _, gw := range gateways {
 		byUUID[gw.UUID.String()] = gw
 	}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			out := []*models.Gateway{}
+		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			out := []*gwmodels.Gateway{}
 			for _, gw := range gateways {
 				if f.EnvironmentID != nil && *f.EnvironmentID != envUUID {
 					continue
@@ -89,7 +89,7 @@ func gatewayFixtureRepo(t *testing.T, envUUID string, gateways []*models.Gateway
 			}
 			return out, nil
 		},
-		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 			gw, ok := byUUID[id]
 			if !ok {
 				return nil, gorm.ErrRecordNotFound
@@ -107,29 +107,29 @@ func gatewayFixtureRepo(t *testing.T, envUUID string, gateways []*models.Gateway
 
 func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 	env := uuid.New()
-	both := newGateway(t, models.GatewayRoleBoth, true)
-	egress := newGateway(t, models.GatewayRoleEgress, true)
-	ingress := newGateway(t, models.GatewayRoleIngress, true)
-	inactiveEgress := newGateway(t, models.GatewayRoleEgress, false)
-	selfHosted := newGateway(t, models.GatewayRoleEgress, true)
-	selfHosted.Hosting = models.GatewayHostingSelfHosted
+	both := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	egress := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	ingress := newGateway(t, gwmodels.GatewayRoleIngress, true)
+	inactiveEgress := newGateway(t, gwmodels.GatewayRoleEgress, false)
+	selfHosted := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	selfHosted.Hosting = gwmodels.GatewayHostingSelfHosted
 
 	t.Run("managed both plus self-hosted, none named, picks managed", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, selfHosted})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, selfHosted})
 		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.NoError(t, err)
 		require.Equal(t, both.UUID, got.UUID)
 	})
 
 	t.Run("only self-hosted, none named, has no egress target and says to name one", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{selfHosted})
 		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.ErrorIs(t, err, errNoEgressGatewayForEnvironment)
 		require.ErrorIs(t, err, errOnlySelfHostedEgress)
 	})
 
 	t.Run("naming a self-hosted gateway selects it", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, selfHosted})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, selfHosted})
 		id := selfHosted.UUID.String()
 		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, &id)
 		require.NoError(t, err)
@@ -137,13 +137,13 @@ func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 	})
 
 	t.Run("two managed plus self-hosted stays ambiguous", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress, selfHosted})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress, selfHosted})
 		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 
 	t.Run("exactly one egress-capable is inferred", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{ingress, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{ingress, egress})
 		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.NoError(t, err)
 		require.Equal(t, egress.UUID, got.UUID)
@@ -152,26 +152,26 @@ func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 	t.Run("an inactive egress gateway is still a candidate", func(t *testing.T) {
 		// is_active is WebSocket liveness and flaps; delivery is durable through the
 		// event hub, so selection must not depend on it.
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{ingress, inactiveEgress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{ingress, inactiveEgress})
 		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.NoError(t, err)
 		require.Equal(t, inactiveEgress.UUID, got.UUID)
 	})
 
 	t.Run("two egress-capable and none named is ambiguous", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress})
 		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 
 	t.Run("ambiguity fires regardless of is_active", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, inactiveEgress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, inactiveEgress})
 		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 
 	t.Run("ingress-only environment has no egress target", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{ingress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{ingress})
 		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, nil)
 		require.ErrorIs(t, err, errNoEgressGatewayForEnvironment)
 	})
@@ -183,7 +183,7 @@ func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 	})
 
 	t.Run("naming a valid candidate selects it", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress})
 		id := egress.UUID.String()
 		got, err := resolveEgressGatewayForEnvironment(repo, "org", env, &id)
 		require.NoError(t, err)
@@ -191,7 +191,7 @@ func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 	})
 
 	t.Run("naming an ingress-only gateway is invalid", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{ingress, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{ingress, egress})
 		id := ingress.UUID.String()
 		_, err := resolveEgressGatewayForEnvironment(repo, "org", env, &id)
 		require.ErrorIs(t, err, errInvalidEgressGateway)
@@ -200,24 +200,24 @@ func TestResolveEgressGatewayForEnvironment(t *testing.T) {
 
 func TestResolveEgressGatewayForArtifact(t *testing.T) {
 	env := uuid.New()
-	both := newGateway(t, models.GatewayRoleBoth, true)
-	egress := newGateway(t, models.GatewayRoleEgress, true)
+	both := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	egress := newGateway(t, gwmodels.GatewayRoleEgress, true)
 
 	t.Run("anchors to the existing deployment in a two-egress environment", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress})
 		got, err := resolveEgressGatewayForArtifact(repo, "org", env, []string{both.UUID.String()}, nil)
 		require.NoError(t, err)
 		require.Equal(t, both.UUID, got.UUID)
 	})
 
 	t.Run("falls through to inference only when the artifact has no deployment", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress})
 		_, err := resolveEgressGatewayForArtifact(repo, "org", env, nil, nil)
 		require.ErrorIs(t, err, errAmbiguousEgressGateway)
 	})
 
 	t.Run("naming the artifact's current gateway is a no-op, not an error", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress})
 		id := both.UUID.String()
 		got, err := resolveEgressGatewayForArtifact(repo, "org", env, []string{id}, &id)
 		require.NoError(t, err)
@@ -225,7 +225,7 @@ func TestResolveEgressGatewayForArtifact(t *testing.T) {
 	})
 
 	t.Run("naming a different gateway than the existing deployment is placement-fixed", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress})
 		other := egress.UUID.String()
 		_, err := resolveEgressGatewayForArtifact(repo, "org", env, []string{both.UUID.String()}, &other)
 		require.ErrorIs(t, err, errPlacementFixed)
@@ -237,7 +237,7 @@ func TestResolveEgressGatewayForArtifact(t *testing.T) {
 	errLookupFailed := errors.New("connection refused")
 
 	t.Run("a failed mapping lookup never degrades into environment-only selection", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress})
 		repo.EnvironmentMappingExistsFunc = func(string, string) (bool, error) {
 			return false, errLookupFailed
 		}
@@ -247,8 +247,8 @@ func TestResolveEgressGatewayForArtifact(t *testing.T) {
 	})
 
 	t.Run("a failed anchor load never degrades into environment-only selection", func(t *testing.T) {
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{both, egress})
-		repo.GetByUUIDFunc = func(string) (*models.Gateway, error) {
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{both, egress})
+		repo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
 			return nil, errLookupFailed
 		}
 		other := egress.UUID.String()
@@ -260,7 +260,7 @@ func TestResolveEgressGatewayForArtifact(t *testing.T) {
 		// Distinguishes an absent anchor from a failed lookup: the deployment row is stale
 		// (gateway soft-deleted, so GetByUUID reports not-found) and selection must proceed.
 		deleted := uuid.New().String()
-		repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{egress})
+		repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{egress})
 		repo.EnvironmentMappingExistsFunc = func(gatewayID, environmentID string) (bool, error) {
 			return gatewayID == deleted && environmentID == env.String(), nil
 		}
@@ -273,15 +273,15 @@ func TestResolveEgressGatewayForArtifact(t *testing.T) {
 // gatewayRepoWithEnvMappings extends gatewayFixtureRepo with
 // GetEnvironmentMappingsByGatewayIDFunc, keyed by gateway UUID string.
 func gatewayRepoWithEnvMappings(
-	t *testing.T, gateways []*models.Gateway, envMappings map[string][]uuid.UUID,
+	t *testing.T, gateways []*gwmodels.Gateway, envMappings map[string][]uuid.UUID,
 ) *gwrepomocks.GatewayRepositoryMock {
 	t.Helper()
 	repo := gatewayFixtureRepo(t, "", gateways)
-	repo.GetEnvironmentMappingsByGatewayIDFunc = func(gatewayID string) ([]models.GatewayEnvironmentMapping, error) {
+	repo.GetEnvironmentMappingsByGatewayIDFunc = func(gatewayID string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 		envs := envMappings[gatewayID]
-		out := make([]models.GatewayEnvironmentMapping, 0, len(envs))
+		out := make([]gwmodels.GatewayEnvironmentMapping, 0, len(envs))
 		for _, envUUID := range envs {
-			out = append(out, models.GatewayEnvironmentMapping{
+			out = append(out, gwmodels.GatewayEnvironmentMapping{
 				GatewayUUID:     uuid.MustParse(gatewayID),
 				EnvironmentUUID: envUUID,
 			})
@@ -296,22 +296,22 @@ func TestValidateEgressPlacement(t *testing.T) {
 	envB := uuid.New()
 
 	t.Run("ingress-only gateway is rejected regardless of existing deployments", func(t *testing.T) {
-		ingress := newGateway(t, models.GatewayRoleIngress, true)
-		repo := gatewayRepoWithEnvMappings(t, []*models.Gateway{ingress}, nil)
+		ingress := newGateway(t, gwmodels.GatewayRoleIngress, true)
+		repo := gatewayRepoWithEnvMappings(t, []*gwmodels.Gateway{ingress}, nil)
 		err := validateEgressPlacement(repo, ingress, nil)
 		require.ErrorIs(t, err, errInvalidEgressGateway)
 	})
 
 	t.Run("no existing deployments short-circuits without consulting env mappings", func(t *testing.T) {
-		egress := newGateway(t, models.GatewayRoleEgress, true)
-		repo := gatewayRepoWithEnvMappings(t, []*models.Gateway{egress}, nil)
+		egress := newGateway(t, gwmodels.GatewayRoleEgress, true)
+		repo := gatewayRepoWithEnvMappings(t, []*gwmodels.Gateway{egress}, nil)
 		err := validateEgressPlacement(repo, egress, nil)
 		require.NoError(t, err)
 	})
 
 	t.Run("idempotent redeploy to the same gateway passes", func(t *testing.T) {
-		egress := newGateway(t, models.GatewayRoleEgress, true)
-		repo := gatewayRepoWithEnvMappings(t, []*models.Gateway{egress}, map[string][]uuid.UUID{
+		egress := newGateway(t, gwmodels.GatewayRoleEgress, true)
+		repo := gatewayRepoWithEnvMappings(t, []*gwmodels.Gateway{egress}, map[string][]uuid.UUID{
 			egress.UUID.String(): {envA},
 		})
 		err := validateEgressPlacement(repo, egress, []string{egress.UUID.String()})
@@ -319,9 +319,9 @@ func TestValidateEgressPlacement(t *testing.T) {
 	})
 
 	t.Run("same-environment clash with a different gateway is placement-fixed", func(t *testing.T) {
-		target := newGateway(t, models.GatewayRoleEgress, true)
-		existing := newGateway(t, models.GatewayRoleEgress, true)
-		repo := gatewayRepoWithEnvMappings(t, []*models.Gateway{target, existing}, map[string][]uuid.UUID{
+		target := newGateway(t, gwmodels.GatewayRoleEgress, true)
+		existing := newGateway(t, gwmodels.GatewayRoleEgress, true)
+		repo := gatewayRepoWithEnvMappings(t, []*gwmodels.Gateway{target, existing}, map[string][]uuid.UUID{
 			target.UUID.String():   {envA},
 			existing.UUID.String(): {envA},
 		})
@@ -330,9 +330,9 @@ func TestValidateEgressPlacement(t *testing.T) {
 	})
 
 	t.Run("disjoint-environment second deployment passes", func(t *testing.T) {
-		target := newGateway(t, models.GatewayRoleEgress, true)
-		existing := newGateway(t, models.GatewayRoleEgress, true)
-		repo := gatewayRepoWithEnvMappings(t, []*models.Gateway{target, existing}, map[string][]uuid.UUID{
+		target := newGateway(t, gwmodels.GatewayRoleEgress, true)
+		existing := newGateway(t, gwmodels.GatewayRoleEgress, true)
+		repo := gatewayRepoWithEnvMappings(t, []*gwmodels.Gateway{target, existing}, map[string][]uuid.UUID{
 			target.UUID.String():   {envB},
 			existing.UUID.String(): {envA},
 		})
@@ -343,16 +343,16 @@ func TestValidateEgressPlacement(t *testing.T) {
 
 func TestPlacedAnchor(t *testing.T) {
 	env := uuid.New()
-	selfHosted := func() *models.Gateway {
-		gw := newGateway(t, models.GatewayRoleBoth, true)
-		gw.Hosting = models.GatewayHostingSelfHosted
+	selfHosted := func() *gwmodels.Gateway {
+		gw := newGateway(t, gwmodels.GatewayRoleBoth, true)
+		gw.Hosting = gwmodels.GatewayHostingSelfHosted
 		return gw
 	}
 	s1, s2 := selfHosted(), selfHosted()
-	m1 := newGateway(t, models.GatewayRoleBoth, true)
-	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{s1, m1, s2})
+	m1 := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{s1, m1, s2})
 	deleted := uuid.NewString()
-	ids := func(gws ...*models.Gateway) []string {
+	ids := func(gws ...*gwmodels.Gateway) []string {
 		out := []string{deleted}
 		for _, gw := range gws {
 			out = append(out, gw.UUID.String())
@@ -398,10 +398,10 @@ func TestPlacedAnchor(t *testing.T) {
 // self-hosted placement must not be swapped for another gateway it isn't on.
 func TestOwnGateway_PlatformAgentRefusesSelfHostedPlacement(t *testing.T) {
 	env := uuid.New()
-	selfHosted := newGateway(t, models.GatewayRoleEgress, true)
-	selfHosted.Hosting = models.GatewayHostingSelfHosted
-	managed := newGateway(t, models.GatewayRoleEgress, true)
-	repo := gatewayFixtureRepo(t, env.String(), []*models.Gateway{selfHosted, managed})
+	selfHosted := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	selfHosted.Hosting = gwmodels.GatewayHostingSelfHosted
+	managed := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	repo := gatewayFixtureRepo(t, env.String(), []*gwmodels.Gateway{selfHosted, managed})
 
 	t.Run("placed on a self-hosted gateway", func(t *testing.T) {
 		got, err := platformAgentPolicy.ownGateway(repo, "org", env, []string{selfHosted.UUID.String()})

@@ -26,30 +26,30 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 type llmProviderTemplateConfig struct {
-	Metadata         *models.LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-	PromptTokens     *models.ExtractionIdentifier        `json:"promptTokens,omitempty"`
-	CompletionTokens *models.ExtractionIdentifier        `json:"completionTokens,omitempty"`
-	TotalTokens      *models.ExtractionIdentifier        `json:"totalTokens,omitempty"`
-	RemainingTokens  *models.ExtractionIdentifier        `json:"remainingTokens,omitempty"`
-	RequestModel     *models.ExtractionIdentifier        `json:"requestModel,omitempty"`
-	ResponseModel    *models.ExtractionIdentifier        `json:"responseModel,omitempty"`
+	Metadata         *gwmodels.LLMProviderTemplateMetadata `json:"metadata,omitempty"`
+	PromptTokens     *gwmodels.ExtractionIdentifier        `json:"promptTokens,omitempty"`
+	CompletionTokens *gwmodels.ExtractionIdentifier        `json:"completionTokens,omitempty"`
+	TotalTokens      *gwmodels.ExtractionIdentifier        `json:"totalTokens,omitempty"`
+	RemainingTokens  *gwmodels.ExtractionIdentifier        `json:"remainingTokens,omitempty"`
+	RequestModel     *gwmodels.ExtractionIdentifier        `json:"requestModel,omitempty"`
+	ResponseModel    *gwmodels.ExtractionIdentifier        `json:"responseModel,omitempty"`
 }
 
 // LLMProviderTemplateRepository defines the interface for LLM provider template persistence
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/llm_provider_template_repository_mock.go . LLMProviderTemplateRepository:LLMProviderTemplateRepositoryMock
 type LLMProviderTemplateRepository interface {
-	Create(t *models.LLMProviderTemplate) error
-	GetByHandle(templateHandle, orgUUID string) (*models.LLMProviderTemplate, error)
-	GetByUUID(uuid, orgUUID string) (*models.LLMProviderTemplate, error)
-	List(orgUUID string, limit, offset int) ([]*models.LLMProviderTemplate, error)
+	Create(t *gwmodels.LLMProviderTemplate) error
+	GetByHandle(templateHandle, orgUUID string) (*gwmodels.LLMProviderTemplate, error)
+	GetByUUID(uuid, orgUUID string) (*gwmodels.LLMProviderTemplate, error)
+	List(orgUUID string, limit, offset int) ([]*gwmodels.LLMProviderTemplate, error)
 	Count(orgUUID string) (int, error)
-	Update(t *models.LLMProviderTemplate) error
+	Update(t *gwmodels.LLMProviderTemplate) error
 	Delete(templateID, orgUUID string) error
 	Exists(templateID, orgUUID string) (bool, error)
 }
@@ -65,7 +65,7 @@ func NewLLMProviderTemplateRepo(db *gorm.DB) LLMProviderTemplateRepository {
 }
 
 // unmarshalConfig unmarshals the Configuration JSON into the template's parsed fields
-func unmarshalConfig(template *models.LLMProviderTemplate) error {
+func unmarshalConfig(template *gwmodels.LLMProviderTemplate) error {
 	if template.Configuration == "" {
 		return nil
 	}
@@ -87,7 +87,7 @@ func unmarshalConfig(template *models.LLMProviderTemplate) error {
 }
 
 // Create inserts a new LLM provider template
-func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
+func (r *LLMProviderTemplateRepo) Create(t *gwmodels.LLMProviderTemplate) error {
 	if t.UUID == uuid.Nil {
 		t.UUID = uuid.Must(uuid.NewV7())
 	}
@@ -118,8 +118,8 @@ func (r *LLMProviderTemplateRepo) Create(t *models.LLMProviderTemplate) error {
 }
 
 // GetByID retrieves an LLM provider template by ID (handle)
-func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*models.LLMProviderTemplate, error) {
-	var template models.LLMProviderTemplate
+func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*gwmodels.LLMProviderTemplate, error) {
+	var template gwmodels.LLMProviderTemplate
 	err := r.db.Where("handle = ? AND org_id = ?", templateHandle, orgUUID).
 		First(&template).Error
 	if err != nil {
@@ -137,8 +137,8 @@ func (r *LLMProviderTemplateRepo) GetByHandle(templateHandle, orgUUID string) (*
 }
 
 // GetByUUID retrieves an LLM provider template by UUID
-func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*models.LLMProviderTemplate, error) {
-	var template models.LLMProviderTemplate
+func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*gwmodels.LLMProviderTemplate, error) {
+	var template gwmodels.LLMProviderTemplate
 	err := r.db.Where("id = ? AND org_id = ?", uuid, orgUUID).
 		First(&template).Error
 	if err != nil {
@@ -156,8 +156,8 @@ func (r *LLMProviderTemplateRepo) GetByUUID(uuid, orgUUID string) (*models.LLMPr
 }
 
 // List retrieves LLM provider templates with pagination
-func (r *LLMProviderTemplateRepo) List(orgUUID string, limit, offset int) ([]*models.LLMProviderTemplate, error) {
-	var templates []*models.LLMProviderTemplate
+func (r *LLMProviderTemplateRepo) List(orgUUID string, limit, offset int) ([]*gwmodels.LLMProviderTemplate, error) {
+	var templates []*gwmodels.LLMProviderTemplate
 	err := r.db.Where("org_id = ?", orgUUID).
 		Order("created_at DESC").
 		Limit(limit).
@@ -180,14 +180,14 @@ func (r *LLMProviderTemplateRepo) List(orgUUID string, limit, offset int) ([]*mo
 // Count counts LLM provider templates for an organization
 func (r *LLMProviderTemplateRepo) Count(orgUUID string) (int, error) {
 	var count int64
-	err := r.db.Model(&models.LLMProviderTemplate{}).
+	err := r.db.Model(&gwmodels.LLMProviderTemplate{}).
 		Where("org_id = ?", orgUUID).
 		Count(&count).Error
 	return int(count), err
 }
 
 // Update modifies an existing LLM provider template
-func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
+func (r *LLMProviderTemplateRepo) Update(t *gwmodels.LLMProviderTemplate) error {
 	t.UpdatedAt = time.Now()
 
 	// Marshal configuration from parsed fields
@@ -205,7 +205,7 @@ func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
 	}
 	t.Configuration = string(configJSON)
 
-	result := r.db.Model(&models.LLMProviderTemplate{}).
+	result := r.db.Model(&gwmodels.LLMProviderTemplate{}).
 		Where("handle = ? AND org_id = ?", t.Handle, t.OUID).
 		Updates(map[string]interface{}{
 			"name":          t.Name,
@@ -226,7 +226,7 @@ func (r *LLMProviderTemplateRepo) Update(t *models.LLMProviderTemplate) error {
 // Delete removes an LLM provider template
 func (r *LLMProviderTemplateRepo) Delete(templateID, orgUUID string) error {
 	result := r.db.Where("handle = ? AND org_id = ?", templateID, orgUUID).
-		Delete(&models.LLMProviderTemplate{})
+		Delete(&gwmodels.LLMProviderTemplate{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -239,7 +239,7 @@ func (r *LLMProviderTemplateRepo) Delete(templateID, orgUUID string) error {
 // Exists checks if an LLM provider template exists
 func (r *LLMProviderTemplateRepo) Exists(templateID, orgUUID string) (bool, error) {
 	var count int64
-	err := r.db.Model(&models.LLMProviderTemplate{}).
+	err := r.db.Model(&gwmodels.LLMProviderTemplate{}).
 		Where("handle = ? AND org_id = ?", templateID, orgUUID).
 		Count(&count).Error
 	if err != nil {

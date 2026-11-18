@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
@@ -84,16 +85,16 @@ type apiKeyServiceFixture struct {
 	svc          *AgentAPIKeyService
 	artifactRepo *gwrepomocks.ArtifactRepositoryMock
 	apiKeyRepo   *gwrepomocks.APIKeyRepositoryMock
-	upsertedKeys *[]*models.StoredAPIKey
+	upsertedKeys *[]*gwmodels.StoredAPIKey
 	lookedUpName *string
 	connChecker  *stubConnChecker
-	gateway      *models.Gateway
+	gateway      *gwmodels.Gateway
 }
 
 // newAPIKeyServiceFixture wires an AgentAPIKeyService whose artifact/env/gateway
 // resolution succeeds, with GetByArtifactAndName returning the provided existing
 // key (or record-not-found when nil) and Upsert recording stored keys.
-func newAPIKeyServiceFixture(t *testing.T, existing *models.StoredAPIKey) *apiKeyServiceFixture {
+func newAPIKeyServiceFixture(t *testing.T, existing *gwmodels.StoredAPIKey) *apiKeyServiceFixture {
 	t.Helper()
 
 	artifactUUID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
@@ -106,26 +107,26 @@ func newAPIKeyServiceFixture(t *testing.T, existing *models.StoredAPIKey) *apiKe
 		},
 	}
 	artifactRepo := &gwrepomocks.ArtifactRepositoryMock{
-		GetByHandleFunc: func(_ string, _ string) (*models.Artifact, error) {
-			return &models.Artifact{UUID: artifactUUID, Kind: models.KindAgent}, nil
+		GetByHandleFunc: func(_ string, _ string) (*gwmodels.Artifact, error) {
+			return &gwmodels.Artifact{UUID: artifactUUID, Kind: gwmodels.KindAgent}, nil
 		},
 	}
 	artifactRepo.WithTxFunc = func(*gorm.DB) gwrepo.ArtifactRepository { return artifactRepo }
-	gateway := newGateway(t, models.GatewayRoleIngress, true)
+	gateway := newGateway(t, gwmodels.GatewayRoleIngress, true)
 	gateway.UUID = gatewayUUID
-	gatewayRepo := gatewayFixtureRepo(t, envUUID, []*models.Gateway{gateway})
+	gatewayRepo := gatewayFixtureRepo(t, envUUID, []*gwmodels.Gateway{gateway})
 
-	upserted := &[]*models.StoredAPIKey{}
+	upserted := &[]*gwmodels.StoredAPIKey{}
 	lookedUp := new(string)
 	apiKeyRepo := &gwrepomocks.APIKeyRepositoryMock{
-		GetByArtifactAndNameFunc: func(_ string, name string) (*models.StoredAPIKey, error) {
+		GetByArtifactAndNameFunc: func(_ string, name string) (*gwmodels.StoredAPIKey, error) {
 			*lookedUp = name
 			if existing == nil {
 				return nil, gorm.ErrRecordNotFound
 			}
 			return existing, nil
 		},
-		UpsertFunc: func(key *models.StoredAPIKey) error {
+		UpsertFunc: func(key *gwmodels.StoredAPIKey) error {
 			*upserted = append(*upserted, key)
 			return nil
 		},
@@ -148,7 +149,7 @@ func newAPIKeyServiceFixture(t *testing.T, existing *models.StoredAPIKey) *apiKe
 // plus the first 12 hex chars of the SHA-256 of the JWT subject.
 func expectedTestKeyName(userSub string) string {
 	h := sha256.Sum256([]byte(userSub))
-	return models.APIKeyTestKeyPrefix + hex.EncodeToString(h[:])[:12]
+	return gwmodels.APIKeyTestKeyPrefix + hex.EncodeToString(h[:])[:12]
 }
 
 func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
@@ -169,8 +170,8 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 		require.Len(t, *fx.upsertedKeys, 1)
 		stored := (*fx.upsertedKeys)[0]
 		assert.Equal(t, want, stored.Name)
-		assert.Equal(t, models.APIKeyPurposeTest, stored.Purpose)
-		assert.True(t, strings.HasPrefix(stored.Name, models.APIKeyTestKeyPrefix))
+		assert.Equal(t, gwmodels.APIKeyPurposeTest, stored.Purpose)
+		assert.True(t, strings.HasPrefix(stored.Name, gwmodels.APIKeyTestKeyPrefix))
 	})
 
 	t.Run("different users get distinct key rows", func(t *testing.T) {
@@ -187,10 +188,10 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 
 	t.Run("reissue for the same user rotates the same row", func(t *testing.T) {
 		keyName := expectedTestKeyName("user-a-sub")
-		existing := &models.StoredAPIKey{
+		existing := &gwmodels.StoredAPIKey{
 			UUID:    uuid.Must(uuid.NewV7()),
 			Name:    keyName,
-			Purpose: models.APIKeyPurposeTest,
+			Purpose: gwmodels.APIKeyPurposeTest,
 		}
 		fx := newAPIKeyServiceFixture(t, existing)
 
@@ -236,10 +237,10 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 	})
 
 	t.Run("rejects reissue when the existing row is not a test key", func(t *testing.T) {
-		existing := &models.StoredAPIKey{
+		existing := &gwmodels.StoredAPIKey{
 			UUID:    uuid.Must(uuid.NewV7()),
 			Name:    expectedTestKeyName("user-a-sub"),
-			Purpose: models.APIKeyPurposeUserManaged,
+			Purpose: gwmodels.APIKeyPurposeUserManaged,
 		}
 		fx := newAPIKeyServiceFixture(t, existing)
 
@@ -251,11 +252,11 @@ func TestAgentAPIKeyService_IssueTestAPIKey_PerUser(t *testing.T) {
 
 func TestAgentAPIKeyCreateOnRestApiArtifact(t *testing.T) {
 	fx := newAPIKeyServiceFixture(t, nil)
-	fx.artifactRepo.GetByHandleFunc = func(string, string) (*models.Artifact, error) {
-		return &models.Artifact{UUID: uuid.New(), Kind: models.KindRestAPI}, nil
+	fx.artifactRepo.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) {
+		return &gwmodels.Artifact{UUID: uuid.New(), Kind: gwmodels.KindRestAPI}, nil
 	}
 
-	resp, err := fx.svc.CreateAPIKey(auditableCtx(t), "default", "default", "restagent", "dev", &models.CreateAPIKeyRequest{Name: "ci-key"})
+	resp, err := fx.svc.CreateAPIKey(auditableCtx(t), "default", "default", "restagent", "dev", &gwmodels.CreateAPIKeyRequest{Name: "ci-key"})
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, resp.APIKey)
@@ -267,7 +268,7 @@ func TestAgentAPIKeyCreateAnnotatesEvent(t *testing.T) {
 	ctx, notes := events.WithAnnotations(auditableCtx(t))
 
 	_, err := fx.svc.CreateAPIKey(ctx, "default", "default", "customeragent",
-		"dada1090-0ddb-457a-a116-7f03d3cd0c4c", &models.CreateAPIKeyRequest{Name: "ci-key"})
+		"dada1090-0ddb-457a-a116-7f03d3cd0c4c", &gwmodels.CreateAPIKeyRequest{Name: "ci-key"})
 
 	require.NoError(t, err)
 	assert.Equal(t, "dev", notes.Environment(), "an environment given by UUID is reported by name")
@@ -277,30 +278,30 @@ func TestAgentAPIKeyCreateAnnotatesEvent(t *testing.T) {
 func TestAgentAPIKeyListOnRestApiArtifact(t *testing.T) {
 	fx := newAPIKeyServiceFixture(t, nil)
 	artifactUUID := uuid.New()
-	fx.artifactRepo.GetByHandleFunc = func(string, string) (*models.Artifact, error) {
-		return &models.Artifact{UUID: artifactUUID, Kind: models.KindRestAPI}, nil
+	fx.artifactRepo.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) {
+		return &gwmodels.Artifact{UUID: artifactUUID, Kind: gwmodels.KindRestAPI}, nil
 	}
-	mine := models.StoredAPIKey{UUID: uuid.New(), ArtifactUUID: artifactUUID, Name: "mine"}
-	fx.apiKeyRepo.ListPermanentByArtifactKindsFunc = func(_ string, kinds []string) ([]models.StoredAPIKey, error) {
-		assert.Equal(t, models.AgentArtifactKinds, kinds)
-		return []models.StoredAPIKey{mine, {UUID: uuid.New(), ArtifactUUID: uuid.New(), Name: "other agent's"}}, nil
+	mine := gwmodels.StoredAPIKey{UUID: uuid.New(), ArtifactUUID: artifactUUID, Name: "mine"}
+	fx.apiKeyRepo.ListPermanentByArtifactKindsFunc = func(_ string, kinds []string) ([]gwmodels.StoredAPIKey, error) {
+		assert.Equal(t, gwmodels.AgentArtifactKinds, kinds)
+		return []gwmodels.StoredAPIKey{mine, {UUID: uuid.New(), ArtifactUUID: uuid.New(), Name: "other agent's"}}, nil
 	}
 
 	keys, err := fx.svc.ListAPIKeys(context.Background(), "default", "default", "restagent", "dev")
 
 	require.NoError(t, err)
-	assert.Equal(t, []models.StoredAPIKey{mine}, keys)
+	assert.Equal(t, []gwmodels.StoredAPIKey{mine}, keys)
 }
 
 func TestResolveEnvGateways_IngressOnly(t *testing.T) {
 	env := uuid.New().String()
-	ingress := newGateway(t, models.GatewayRoleIngress, true)
-	both := newGateway(t, models.GatewayRoleBoth, true)
-	egress := newGateway(t, models.GatewayRoleEgress, true)
-	inactiveIngress := newGateway(t, models.GatewayRoleIngress, false)
+	ingress := newGateway(t, gwmodels.GatewayRoleIngress, true)
+	both := newGateway(t, gwmodels.GatewayRoleBoth, true)
+	egress := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	inactiveIngress := newGateway(t, gwmodels.GatewayRoleIngress, false)
 
 	t.Run("returns ingress-capable only", func(t *testing.T) {
-		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*models.Gateway{ingress, egress})}
+		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*gwmodels.Gateway{ingress, egress})}
 		got, err := svc.resolveEnvGateways(env)
 		require.NoError(t, err)
 		require.Len(t, got, 1)
@@ -308,7 +309,7 @@ func TestResolveEnvGateways_IngressOnly(t *testing.T) {
 	})
 
 	t.Run("both counts as ingress-capable", func(t *testing.T) {
-		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*models.Gateway{both, egress})}
+		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*gwmodels.Gateway{both, egress})}
 		got, err := svc.resolveEnvGateways(env)
 		require.NoError(t, err)
 		require.Len(t, got, 1)
@@ -317,14 +318,14 @@ func TestResolveEnvGateways_IngressOnly(t *testing.T) {
 	t.Run("inactive ingress gateways still receive keys", func(t *testing.T) {
 		// Keys are distributed regardless of is_active today; filtering on WebSocket
 		// liveness would intermittently starve a live gateway of keys.
-		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*models.Gateway{inactiveIngress})}
+		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*gwmodels.Gateway{inactiveIngress})}
 		got, err := svc.resolveEnvGateways(env)
 		require.NoError(t, err)
 		require.Len(t, got, 1)
 	})
 
 	t.Run("egress-only environment yields ErrGatewayNotFound", func(t *testing.T) {
-		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*models.Gateway{egress})}
+		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*gwmodels.Gateway{egress})}
 		_, err := svc.resolveEnvGateways(env)
 		require.ErrorIs(t, err, utils.ErrGatewayNotFound)
 	})
@@ -334,20 +335,20 @@ func TestResolveEnvGateways_IngressOnly(t *testing.T) {
 // gateways are egress-only (chk_gateways_self_hosted_egress), so the ingress role filter excludes them.
 func TestResolveEnvGateways_IngressRolesOnly(t *testing.T) {
 	env := uuid.New().String()
-	managed := newGateway(t, models.GatewayRoleIngress, true)
+	managed := newGateway(t, gwmodels.GatewayRoleIngress, true)
 	var got gwrepo.GatewayFilterOptions
 	svc := &AgentAPIKeyService{gatewayRepo: &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			got = f
-			return []*models.Gateway{managed}, nil
+			return []*gwmodels.Gateway{managed}, nil
 		},
 	}}
 
 	gateways, err := svc.resolveEnvGateways(env)
 
 	require.NoError(t, err)
-	assert.Equal(t, []*models.Gateway{managed}, gateways)
-	assert.Equal(t, models.IngressGatewayRoles, got.FunctionalityTypeIn)
+	assert.Equal(t, []*gwmodels.Gateway{managed}, gateways)
+	assert.Equal(t, gwmodels.IngressGatewayRoles, got.FunctionalityTypeIn)
 }
 
 func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
@@ -357,7 +358,7 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 		fx := newAPIKeyServiceFixture(t, nil)
 
 		_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
-			&models.CreateAPIKeyRequest{Name: models.APIKeyTestKeyPrefix + "deadbeef0123"})
+			&gwmodels.CreateAPIKeyRequest{Name: gwmodels.APIKeyTestKeyPrefix + "deadbeef0123"})
 
 		assert.ErrorIs(t, err, utils.ErrBadRequest)
 	})
@@ -368,7 +369,7 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 		fx.gateway.IsActive = false
 
 		resp, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
-			&models.CreateAPIKeyRequest{Name: "my-key"})
+			&gwmodels.CreateAPIKeyRequest{Name: "my-key"})
 
 		require.NoError(t, err)
 		require.NotNil(t, resp.GatewayConnected)
@@ -381,7 +382,7 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 		fx.gateway.IsActive = true
 
 		resp, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
-			&models.CreateAPIKeyRequest{Name: "my-key"})
+			&gwmodels.CreateAPIKeyRequest{Name: "my-key"})
 
 		require.NoError(t, err)
 		require.NotNil(t, resp.GatewayConnected)
@@ -392,7 +393,7 @@ func TestAgentAPIKeyService_CreateAPIKey_ReservedTestKeyPrefix(t *testing.T) {
 func TestAgentAPIKeyService_CreateAPIKey_MinNameLength(t *testing.T) {
 	const org, proj, agent, env = "default", "default", "customeragent", "dev"
 
-	rejected := map[string]*models.CreateAPIKeyRequest{
+	rejected := map[string]*gwmodels.CreateAPIKeyRequest{
 		"explicit name":                     {Name: "ab"},
 		"name derived from display name":    {DisplayName: "ab"},
 		"display name that sanitizes short": {DisplayName: "a!!"},
@@ -412,7 +413,7 @@ func TestAgentAPIKeyService_CreateAPIKey_MinNameLength(t *testing.T) {
 		fx := newAPIKeyServiceFixture(t, nil)
 
 		_, err := fx.svc.CreateAPIKey(auditableCtx(t), org, proj, agent, env,
-			&models.CreateAPIKeyRequest{DisplayName: "abc"})
+			&gwmodels.CreateAPIKeyRequest{DisplayName: "abc"})
 
 		require.NoError(t, err)
 		require.Len(t, *fx.upsertedKeys, 1)

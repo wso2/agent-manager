@@ -32,9 +32,10 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -42,7 +43,7 @@ import (
 // proxyFixture is an org with a provider and the LLM proxy services over the real repositories.
 type proxyFixture struct {
 	*providerFixture
-	provider *models.LLMProvider
+	provider *gwmodels.LLMProvider
 	kind     *LLMProxyKind
 	worker   *reconcile.Worker
 	proxies  *LLMProxyDeploymentService
@@ -69,11 +70,11 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 func (f *proxyFixture) mapGateway(t *testing.T, env uuid.UUID) uuid.UUID {
 	t.Helper()
 	gateway := f.sync.seedGateway(t, f.sync.ouID)
-	dbtest.MapGateway(t, db.GetDB(), f.sync.ouID, gateway, env)
+	gwtest.MapGateway(t, db.GetDB(), f.sync.ouID, gateway, env)
 	return gateway
 }
 
-func (f *proxyFixture) newProxy(t *testing.T) *models.LLMProxy {
+func (f *proxyFixture) newProxy(t *testing.T) *gwmodels.LLMProxy {
 	t.Helper()
 	proxy := goldenProxy()
 	proxy.UUID = uuid.Nil
@@ -87,16 +88,16 @@ func (f *proxyFixture) newProxy(t *testing.T) *models.LLMProxy {
 }
 
 // mapToAgent saves the agent-config record that says proxy should be deployed in env.
-func (f *proxyFixture) mapToAgent(t *testing.T, proxy *models.LLMProxy, env uuid.UUID) {
+func (f *proxyFixture) mapToAgent(t *testing.T, proxy *gwmodels.LLMProxy, env uuid.UUID) {
 	t.Helper()
 	agent := dbtest.EnsureAgent(t, db.GetDB(), f.sync.ouID, "p", "a-"+uuid.NewString()[:8])
-	dbtest.LLMConfig(t, db.GetDB(), f.sync.ouID, agent, env, proxy.UUID)
+	gwtest.LLMConfig(t, db.GetDB(), f.sync.ouID, agent, env, proxy.UUID)
 }
 
-func (f *proxyFixture) row(t *testing.T, proxy *models.LLMProxy, gateway uuid.UUID) *models.DeploymentStatusRecord {
+func (f *proxyFixture) row(t *testing.T, proxy *gwmodels.LLMProxy, gateway uuid.UUID) *gwmodels.DeploymentStatusRecord {
 	t.Helper()
-	row, err := f.sync.repo.GetStatusRecord(context.Background(), models.Placement{
-		ArtifactRef: models.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: proxy.UUID}, GatewayUUID: gateway,
+	row, err := f.sync.repo.GetStatusRecord(context.Background(), gwmodels.Placement{
+		ArtifactRef: gwmodels.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: proxy.UUID}, GatewayUUID: gateway,
 	})
 	require.NoError(t, err)
 	return row
@@ -119,10 +120,10 @@ func TestAgentConfigProxyUndeployedOnOneGatewayKeepsTheOther(t *testing.T) {
 		deployedA.DeploymentID.String(), gatewayA.String(), f.sync.ouID)
 	require.NoError(t, err)
 
-	assert.Equal(t, models.DeploymentStatusUndeploying, f.row(t, proxy, gatewayA).Status)
-	assert.Equal(t, models.DeploymentStatusDeploying, f.row(t, proxy, gatewayB).Status)
+	assert.Equal(t, gwmodels.DeploymentStatusUndeploying, f.row(t, proxy, gatewayA).Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, f.row(t, proxy, gatewayB).Status)
 	require.NoError(t, f.worker.PlaceEnv(context.Background(), f.sync.ouID, envA))
-	assert.Equal(t, models.DeploymentStatusUndeployed, f.row(t, proxy, gatewayA).StatusDesired,
+	assert.Equal(t, gwmodels.DeploymentStatusUndeployed, f.row(t, proxy, gatewayA).StatusDesired,
 		"the placement pass doesn't re-place an undeployed proxy whose record remains")
 }
 
@@ -143,7 +144,7 @@ func TestAgentConfigProxyWithAnInvalidSecurityConfigCommitsNothing(t *testing.T)
 	})
 	t.Run("without a gateway", func(t *testing.T) {
 		record := reconcile.Record{
-			ArtifactRef:     models.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: proxy.UUID, Kind: models.KindLLMProxy, Handle: proxy.Handle},
+			ArtifactRef:     gwmodels.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: proxy.UUID, Kind: gwmodels.KindLLMProxy, Handle: proxy.Handle},
 			EnvironmentUUID: uuid.New(),
 		}
 		err := NewTxRunner(db.GetDB())(context.Background(), func(tx *gorm.DB) error {
@@ -175,8 +176,8 @@ func TestRedeployEverywhereRendersOnlyPlacedRows(t *testing.T) {
 
 	rowA := f.row(t, proxy, gatewayA)
 	assert.NotEqual(t, deployedA.DeploymentID, *rowA.DeploymentID, "the placed row re-rendered")
-	assert.Equal(t, models.DeploymentStatusDeploying, rowA.Status)
-	assert.Equal(t, models.DeploymentStatusUndeploying, f.row(t, proxy, gatewayB).Status, "an undeployed row stays")
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, rowA.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusUndeploying, f.row(t, proxy, gatewayB).Status, "an undeployed row stays")
 	assert.Equal(t, otherDeployed.DeploymentID, *f.row(t, other, gatewayA).DeploymentID, "another proxy is untouched")
 }
 
@@ -191,14 +192,14 @@ func TestUndeployEverywhereUndeploysEveryPlacedRow(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.proxies.DeployForEnvironment(context.Background(), proxy, f.sync.ouID, envB, gatewayB)
 	require.NoError(t, err)
-	require.Equal(t, models.DeploymentStatusDeploying, f.row(t, proxy, gatewayA).Status)
+	require.Equal(t, gwmodels.DeploymentStatusDeploying, f.row(t, proxy, gatewayA).Status)
 
 	require.NoError(t, f.proxies.UndeployEverywhere(context.Background(), proxy.Handle, f.sync.ouID))
 
 	for _, gateway := range []uuid.UUID{gatewayA, gatewayB} {
 		row := f.row(t, proxy, gateway)
-		assert.Equal(t, models.DeploymentStatusUndeploying, row.Status)
-		assert.Equal(t, models.DeploymentStatusUndeployed, row.StatusDesired)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeploying, row.Status)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeployed, row.StatusDesired)
 	}
 	assert.ErrorIs(t, f.proxies.UndeployEverywhere(context.Background(), "no-such-proxy", f.sync.ouID),
 		utils.ErrLLMProxyNotFound)
@@ -216,7 +217,7 @@ func TestPlacementPassPlacesAnAgentConfigProxy(t *testing.T) {
 
 	row := f.row(t, proxy, gateway)
 	require.NotNil(t, row)
-	assert.Equal(t, models.DeploymentStatusDeploying, row.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
 }
 
 // Deleting the deployment an undeployed agent-config proxy's row points at keeps the row, detached from it, so the
@@ -233,8 +234,8 @@ func TestDeletingAnUndeployedAgentConfigProxyDeploymentKeepsItUndeployed(t *test
 	_, err = f.proxies.UndeployLLMProxyDeployment(ctx, proxy.Handle, deployed.DeploymentID.String(), gateway.String(),
 		f.sync.ouID)
 	require.NoError(t, err)
-	applied, err := f.sync.repo.ApplyAck(ctx, gateway.String(), models.DeploymentAck{
-		ArtifactID: proxy.Handle, Action: models.DeploymentAckActionUndeploy, Status: models.DeploymentAckStatusSuccess,
+	applied, err := f.sync.repo.ApplyAck(ctx, gateway.String(), gwmodels.DeploymentAck{
+		ArtifactID: proxy.Handle, Action: gwmodels.DeploymentAckActionUndeploy, Status: gwmodels.DeploymentAckStatusSuccess,
 	}, nil)
 	require.NoError(t, err)
 	require.True(t, applied)
@@ -245,8 +246,8 @@ func TestDeletingAnUndeployedAgentConfigProxyDeploymentKeepsItUndeployed(t *test
 
 	row := f.row(t, proxy, gateway)
 	require.NotNil(t, row, "the undeployed row is kept")
-	assert.Equal(t, models.DeploymentStatusUndeployed, row.Status)
-	assert.Equal(t, models.DeploymentStatusUndeployed, row.StatusDesired)
+	assert.Equal(t, gwmodels.DeploymentStatusUndeployed, row.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusUndeployed, row.StatusDesired)
 	assert.Nil(t, row.DeploymentID)
 	assert.Nil(t, row.NextAttemptAt)
 	assert.Len(t, f.hub.published, published, "nothing is re-placed")
@@ -268,7 +269,7 @@ func TestAgentConfigProxyUpdateAfterAPublicUndeploySaves(t *testing.T) {
 
 	gormDB := db.GetDB()
 	mappings := gwrepo.NewEnvAgentModelMappingRepository(gormDB)
-	var mapping models.EnvAgentModelMapping
+	var mapping gwmodels.EnvAgentModelMapping
 	require.NoError(t, gormDB.Preload("LLMProxy").Where("llm_proxy_id = ?", proxy.UUID).First(&mapping).Error)
 	mapping.LLMProxy.Handle = proxy.Handle
 	svc := &agentConfigurationService{
@@ -280,14 +281,14 @@ func TestAgentConfigProxyUpdateAfterAPublicUndeploySaves(t *testing.T) {
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}
-	config := &models.AgentConfiguration{OUID: f.sync.ouID, AgentID: "a"}
-	request := models.EnvModelConfigRequest{ProviderName: f.provider.Configuration.Handle}
+	config := &gwmodels.AgentConfiguration{OUID: f.sync.ouID, AgentID: "a"}
+	request := gwmodels.EnvModelConfigRequest{ProviderName: f.provider.Configuration.Handle}
 
 	rollback, err := svc.processEnvProxyUpdate(context.Background(), config, nil, env, "dev", request, &mapping, f.sync.ouID, platformAgentPolicy)
 
 	require.NoError(t, err)
 	assert.Equal(t, uuid.Nil, rollback.deploymentID)
-	assert.Equal(t, models.DeploymentStatusUndeployed, f.row(t, proxy, gateway).StatusDesired, "nothing is re-placed")
+	assert.Equal(t, gwmodels.DeploymentStatusUndeployed, f.row(t, proxy, gateway).StatusDesired, "nothing is re-placed")
 }
 
 // A public deploy is refused on a second gateway of an environment the artifact is already placed in, before the
@@ -299,21 +300,21 @@ func TestPublicDeployRefusesASecondGatewayOfAPlacedEnvironment(t *testing.T) {
 
 	t.Run("LLM proxy", func(t *testing.T) {
 		proxy := f.newProxy(t)
-		_, err := f.proxies.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{GatewayID: first.String()}, f.sync.ouID)
+		_, err := f.proxies.DeployLLMProxy(proxy.Handle, &gwmodels.DeployAPIRequest{GatewayID: first.String()}, f.sync.ouID)
 		require.NoError(t, err)
-		require.Equal(t, models.DeploymentStatusDeploying, f.row(t, proxy, first).Status)
+		require.Equal(t, gwmodels.DeploymentStatusDeploying, f.row(t, proxy, first).Status)
 
-		_, err = f.proxies.DeployLLMProxy(proxy.Handle, &models.DeployAPIRequest{GatewayID: second.String()}, f.sync.ouID)
+		_, err = f.proxies.DeployLLMProxy(proxy.Handle, &gwmodels.DeployAPIRequest{GatewayID: second.String()}, f.sync.ouID)
 
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
 	t.Run("LLM provider", func(t *testing.T) {
 		_, err := f.deployment.DeployLLMProvider(f.provider.UUID.String(),
-			&models.DeployAPIRequest{GatewayID: first.String()}, f.sync.ouID)
+			&gwmodels.DeployAPIRequest{GatewayID: first.String()}, f.sync.ouID)
 		require.NoError(t, err)
 
 		_, err = f.deployment.DeployLLMProvider(f.provider.UUID.String(),
-			&models.DeployAPIRequest{GatewayID: second.String()}, f.sync.ouID)
+			&gwmodels.DeployAPIRequest{GatewayID: second.String()}, f.sync.ouID)
 
 		assert.ErrorIs(t, err, utils.ErrInvalidInput)
 	})
@@ -344,7 +345,7 @@ func TestLLMProxyEventReadsTheVhostInTheDeployingTransaction(t *testing.T) {
 // scenarioBRollback deploys a proxy, then changes its description and redeploys, as a Scenario-B update does. It
 // returns the service to roll back with, the proxy as it was before the change, and the old and new deployments.
 func scenarioBRollback(t *testing.T, f *proxyFixture) (
-	svc *agentConfigurationService, proxy, prior *models.LLMProxy, gateway uuid.UUID, old, next *models.Deployment,
+	svc *agentConfigurationService, proxy, prior *gwmodels.LLMProxy, gateway uuid.UUID, old, next *gwmodels.Deployment,
 ) {
 	t.Helper()
 	ctx := context.Background()
@@ -384,11 +385,11 @@ func scenarioBRollback(t *testing.T, f *proxyFixture) (
 func deploymentExists(t *testing.T, id uuid.UUID) bool {
 	t.Helper()
 	var count int64
-	require.NoError(t, db.GetDB().Model(&models.Deployment{}).Where("id = ?", id).Count(&count).Error)
+	require.NoError(t, db.GetDB().Model(&gwmodels.Deployment{}).Where("id = ?", id).Count(&count).Error)
 	return count == 1
 }
 
-func proxyEventsSince(f *proxyFixture, before int, proxy *models.LLMProxy) []eventhub.Event {
+func proxyEventsSince(f *proxyFixture, before int, proxy *gwmodels.LLMProxy) []eventhub.Event {
 	var events []eventhub.Event
 	for _, evt := range f.hub.published[before:] {
 		if evt.EntityID == proxy.Handle {
@@ -416,8 +417,8 @@ func TestScenarioBRollbackRestoresTheOldDeploymentWithoutUndeploying(t *testing.
 	assert.Contains(t, events[0].EventData, old.DeploymentID.String())
 	row := f.row(t, proxy, gateway)
 	assert.Equal(t, old.DeploymentID, *row.DeploymentID)
-	assert.Equal(t, models.DeploymentStatusDeploying, row.Status)
-	assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.StatusDesired)
 	assert.False(t, deploymentExists(t, next.DeploymentID))
 	stored, err := gwrepo.NewLLMProxyRepo(db.GetDB()).GetByID(proxy.Handle, f.sync.ouID)
 	require.NoError(t, err)
@@ -452,7 +453,7 @@ func TestScenarioBRollbackOfAnUnchangedDeploymentLeavesItLive(t *testing.T) {
 	assert.Empty(t, proxyEventsSince(f, before, proxy))
 	row := f.row(t, proxy, gateway)
 	assert.Equal(t, old.DeploymentID, *row.DeploymentID)
-	assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.StatusDesired)
 	assert.True(t, deploymentExists(t, old.DeploymentID))
 }
 
@@ -470,7 +471,7 @@ func TestScenarioBRollbackWhoseRestoreFailsKeepsTheNewDeployment(t *testing.T) {
 	assert.Empty(t, proxyEventsSince(f, before, proxy))
 	row := f.row(t, proxy, gateway)
 	assert.Equal(t, next.DeploymentID, *row.DeploymentID)
-	assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.StatusDesired)
 	assert.True(t, deploymentExists(t, next.DeploymentID))
 }
 
@@ -490,7 +491,7 @@ func TestScenarioBRollbackAfterTheOldDeploymentIsBackStillDeletesTheNewOne(t *te
 	assert.Empty(t, proxyEventsSince(f, before, proxy))
 	row := f.row(t, proxy, gateway)
 	assert.Equal(t, old.DeploymentID, *row.DeploymentID)
-	assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.StatusDesired)
 	assert.False(t, deploymentExists(t, next.DeploymentID))
 }
 
@@ -507,7 +508,7 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 
 	gormDB := db.GetDB()
 	mappings := gwrepo.NewEnvAgentModelMappingRepository(gormDB)
-	var mapping models.EnvAgentModelMapping
+	var mapping gwmodels.EnvAgentModelMapping
 	require.NoError(t, gormDB.Preload("LLMProxy").Where("llm_proxy_id = ?", proxy.UUID).Take(&mapping).Error)
 	mapping.LLMProxy.Handle = proxy.Handle
 	refusePolicyWrites(t, gormDB)
@@ -520,8 +521,8 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 		llmProxyDeploymentService: f.proxies,
 		logger:                    slog.New(slog.DiscardHandler),
 	}
-	config := &models.AgentConfiguration{OUID: f.sync.ouID, AgentID: "a"}
-	request := models.EnvModelConfigRequest{ProviderName: f.provider.Configuration.Handle}
+	config := &gwmodels.AgentConfiguration{OUID: f.sync.ouID, AgentID: "a"}
+	request := gwmodels.EnvModelConfigRequest{ProviderName: f.provider.Configuration.Handle}
 
 	rollback, err := svc.processEnvProxyUpdate(context.Background(), config, nil, env, "dev", request, &mapping, f.sync.ouID, platformAgentPolicy)
 
@@ -540,7 +541,7 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 	assert.Contains(t, events[0].EventData, old.DeploymentID.String())
 	row := f.row(t, proxy, gateway)
 	assert.Equal(t, old.DeploymentID, *row.DeploymentID)
-	assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.StatusDesired)
 	assert.False(t, deploymentExists(t, rollback.supersededDeploymentID))
 }
 
@@ -549,7 +550,7 @@ func refusePolicyWrites(t *testing.T, gormDB *gorm.DB) {
 	t.Helper()
 	name := "refuse_policy_write_" + uuid.NewString()[:8]
 	require.NoError(t, gormDB.Callback().Update().Before("gorm:update").Register(name, func(tx *gorm.DB) {
-		if tx.Statement.Table == (models.EnvAgentModelMapping{}).TableName() {
+		if tx.Statement.Table == (gwmodels.EnvAgentModelMapping{}).TableName() {
 			_ = tx.AddError(errors.New("policy write refused"))
 		}
 	}))

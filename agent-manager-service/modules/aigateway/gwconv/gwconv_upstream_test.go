@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 func upstreamStrPtr(s string) *string { return &s }
@@ -30,11 +30,11 @@ func upstreamStrPtr(s string) *string { return &s }
 // The sandbox branch used to read its header from config.Main.Auth, so a provider
 // with a sandbox credential and no main auth panicked on every read.
 func TestConvertModelToSpecUpstream_SandboxAuthWithoutMainAuth(t *testing.T) {
-	converted := ConvertModelToSpecUpstreamConfig(models.UpstreamConfig{
-		Main: &models.UpstreamEndpoint{URL: "https://api.example"},
-		Sandbox: &models.UpstreamEndpoint{
+	converted := ConvertModelToSpecUpstreamConfig(gwmodels.UpstreamConfig{
+		Main: &gwmodels.UpstreamEndpoint{URL: "https://api.example"},
+		Sandbox: &gwmodels.UpstreamEndpoint{
 			URL: "https://sandbox.example",
-			Auth: &models.UpstreamAuth{
+			Auth: &gwmodels.UpstreamAuth{
 				Type:   upstreamStrPtr("api-key"),
 				Header: upstreamStrPtr("X-Sandbox-Key"),
 				Value:  upstreamStrPtr("sk-sandbox-secret"),
@@ -54,10 +54,10 @@ func TestConvertModelToSpecUpstream_SandboxAuthWithoutMainAuth(t *testing.T) {
 // Type is a *string on the model and a plain string on the wire, so a decoded
 // request that omitted it used to panic on the way back out.
 func TestConvertModelToSpecUpstream_AuthWithoutType(t *testing.T) {
-	converted := ConvertModelToSpecUpstreamConfig(models.UpstreamConfig{
-		Main: &models.UpstreamEndpoint{
+	converted := ConvertModelToSpecUpstreamConfig(gwmodels.UpstreamConfig{
+		Main: &gwmodels.UpstreamEndpoint{
 			URL:  "https://api.example",
-			Auth: &models.UpstreamAuth{Value: upstreamStrPtr("sk-secret")},
+			Auth: &gwmodels.UpstreamAuth{Value: upstreamStrPtr("sk-secret")},
 		},
 	})
 
@@ -67,14 +67,14 @@ func TestConvertModelToSpecUpstream_AuthWithoutType(t *testing.T) {
 }
 
 func TestConvertModelToSpecUpstream_MasksBothEndpoints(t *testing.T) {
-	converted := ConvertModelToSpecUpstreamConfig(models.UpstreamConfig{
-		Main: &models.UpstreamEndpoint{
+	converted := ConvertModelToSpecUpstreamConfig(gwmodels.UpstreamConfig{
+		Main: &gwmodels.UpstreamEndpoint{
 			URL:  "https://api.example",
-			Auth: &models.UpstreamAuth{Type: upstreamStrPtr("api-key"), Value: upstreamStrPtr("sk-main")},
+			Auth: &gwmodels.UpstreamAuth{Type: upstreamStrPtr("api-key"), Value: upstreamStrPtr("sk-main")},
 		},
-		Sandbox: &models.UpstreamEndpoint{
+		Sandbox: &gwmodels.UpstreamEndpoint{
 			URL:  "https://sandbox.example",
-			Auth: &models.UpstreamAuth{Type: upstreamStrPtr("api-key"), Value: upstreamStrPtr("sk-sandbox")},
+			Auth: &gwmodels.UpstreamAuth{Type: upstreamStrPtr("api-key"), Value: upstreamStrPtr("sk-sandbox")},
 		},
 	})
 

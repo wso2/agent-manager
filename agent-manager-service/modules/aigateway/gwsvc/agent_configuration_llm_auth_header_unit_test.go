@@ -23,7 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -31,19 +31,19 @@ import (
 // llmProviderWith builds the nested LLMProvider literal every test in this file needs,
 // varying only in handle and security block. One shape to update when SecurityConfig
 // changes, rather than a builder closure re-declared per test.
-func llmProviderWith(handle string, security *models.SecurityConfig) *models.LLMProvider {
-	return &models.LLMProvider{
-		Configuration: models.LLMProviderConfig{Handle: handle, Security: security},
+func llmProviderWith(handle string, security *gwmodels.SecurityConfig) *gwmodels.LLMProvider {
+	return &gwmodels.LLMProvider{
+		Configuration: gwmodels.LLMProviderConfig{Handle: handle, Security: security},
 	}
 }
 
 // enabledAPIKeySecurity is a security block with api-key auth explicitly turned on —
 // the shape the console's security tab persists.
-func enabledAPIKeySecurity(key, in string) *models.SecurityConfig {
+func enabledAPIKeySecurity(key, in string) *gwmodels.SecurityConfig {
 	enabled := true
-	return &models.SecurityConfig{
+	return &gwmodels.SecurityConfig{
 		Enabled: &enabled,
-		APIKey:  &models.APIKeySecurity{Enabled: &enabled, Key: key, In: in},
+		APIKey:  &gwmodels.APIKeySecurity{Enabled: &enabled, Key: key, In: in},
 	}
 }
 
@@ -56,12 +56,12 @@ func enabledAPIKeySecurity(key, in string) *models.SecurityConfig {
 func TestLLMProxyAPIKeySecurity(t *testing.T) {
 	trueVal := true
 	falseVal := false
-	proxyWith := func(key, in string, enabled *bool) *models.LLMProxy {
-		return &models.LLMProxy{
-			Configuration: models.LLMProxyConfig{
-				Security: &models.SecurityConfig{
+	proxyWith := func(key, in string, enabled *bool) *gwmodels.LLMProxy {
+		return &gwmodels.LLMProxy{
+			Configuration: gwmodels.LLMProxyConfig{
+				Security: &gwmodels.SecurityConfig{
 					Enabled: &trueVal,
-					APIKey:  &models.APIKeySecurity{Enabled: enabled, Key: key, In: in},
+					APIKey:  &gwmodels.APIKeySecurity{Enabled: enabled, Key: key, In: in},
 				},
 			},
 		}
@@ -69,7 +69,7 @@ func TestLLMProxyAPIKeySecurity(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		proxy    *models.LLMProxy
+		proxy    *gwmodels.LLMProxy
 		wantName string
 		wantIn   string
 	}{
@@ -97,7 +97,7 @@ func TestLLMProxyAPIKeySecurity(t *testing.T) {
 		{
 			name:     "falls back when the stored header is blank",
 			proxy:    proxyWith("   ", "header", &trueVal),
-			wantName: models.DefaultLLMProxyAPIKeyHeader,
+			wantName: gwmodels.DefaultLLMProxyAPIKeyHeader,
 			wantIn:   "header",
 		},
 		{
@@ -112,7 +112,7 @@ func TestLLMProxyAPIKeySecurity(t *testing.T) {
 		{
 			name:     "falls back to the header default when the query key is blank",
 			proxy:    proxyWith("", "query", &trueVal),
-			wantName: models.DefaultLLMProxyAPIKeyHeader,
+			wantName: gwmodels.DefaultLLMProxyAPIKeyHeader,
 			wantIn:   "query",
 		},
 		{
@@ -139,11 +139,11 @@ func TestLLMProxyAPIKeySecurity(t *testing.T) {
 		},
 		{
 			name: "reports nothing when the proxy's security block is turned off",
-			proxy: &models.LLMProxy{
-				Configuration: models.LLMProxyConfig{
-					Security: &models.SecurityConfig{
+			proxy: &gwmodels.LLMProxy{
+				Configuration: gwmodels.LLMProxyConfig{
+					Security: &gwmodels.SecurityConfig{
 						Enabled: &falseVal,
-						APIKey:  &models.APIKeySecurity{Enabled: &trueVal, Key: "X-Custom-Key", In: "header"},
+						APIKey:  &gwmodels.APIKeySecurity{Enabled: &trueVal, Key: "X-Custom-Key", In: "header"},
 					},
 				},
 			},
@@ -152,13 +152,13 @@ func TestLLMProxyAPIKeySecurity(t *testing.T) {
 		},
 		{
 			name:     "reports nothing when no api key security is configured",
-			proxy:    &models.LLMProxy{Configuration: models.LLMProxyConfig{Security: &models.SecurityConfig{}}},
+			proxy:    &gwmodels.LLMProxy{Configuration: gwmodels.LLMProxyConfig{Security: &gwmodels.SecurityConfig{}}},
 			wantName: "",
 			wantIn:   "",
 		},
 		{
 			name:     "reports nothing when the proxy has no security block",
-			proxy:    &models.LLMProxy{},
+			proxy:    &gwmodels.LLMProxy{},
 			wantName: "",
 			wantIn:   "",
 		},
@@ -186,62 +186,62 @@ func TestLLMProxyAPIKeySecurity(t *testing.T) {
 // a proxy still reporting "header"/the default name after its provider was switched
 // to query — ProvisionProxy and the resync path both went through this function).
 func TestProviderProxyAPIKeySecurity(t *testing.T) {
-	providerWithAPIKey := func(apiKey *models.APIKeySecurity) *models.LLMProvider {
-		return llmProviderWith("", &models.SecurityConfig{APIKey: apiKey})
+	providerWithAPIKey := func(apiKey *gwmodels.APIKeySecurity) *gwmodels.LLMProvider {
+		return llmProviderWith("", &gwmodels.SecurityConfig{APIKey: apiKey})
 	}
 
 	tests := []struct {
 		name     string
-		provider *models.LLMProvider
+		provider *gwmodels.LLMProvider
 		wantName string
 		wantIn   string
 	}{
 		{
 			name:     "follows the header configured on the provider",
-			provider: providerWithAPIKey(&models.APIKeySecurity{Key: "x-api-key", In: "header"}),
+			provider: providerWithAPIKey(&gwmodels.APIKeySecurity{Key: "x-api-key", In: "header"}),
 			wantName: "x-api-key",
 			wantIn:   "header",
 		},
 		{
 			name:     "treats an unset location as a header",
-			provider: providerWithAPIKey(&models.APIKeySecurity{Key: "x-api-key"}),
+			provider: providerWithAPIKey(&gwmodels.APIKeySecurity{Key: "x-api-key"}),
 			wantName: "x-api-key",
 			wantIn:   "header",
 		},
 		{
 			name:     "follows the provider's real name and location when it reads its key from the query",
-			provider: providerWithAPIKey(&models.APIKeySecurity{Key: "apikey", In: "query"}),
+			provider: providerWithAPIKey(&gwmodels.APIKeySecurity{Key: "apikey", In: "query"}),
 			wantName: "apikey",
 			wantIn:   "query",
 		},
 		{
 			name:     "falls back to the header default when the query key is blank",
-			provider: providerWithAPIKey(&models.APIKeySecurity{Key: "  ", In: "query"}),
-			wantName: models.DefaultLLMProxyAPIKeyHeader,
+			provider: providerWithAPIKey(&gwmodels.APIKeySecurity{Key: "  ", In: "query"}),
+			wantName: gwmodels.DefaultLLMProxyAPIKeyHeader,
 			wantIn:   "query",
 		},
 		{
 			name:     "falls back when the provider names no header",
-			provider: providerWithAPIKey(&models.APIKeySecurity{Key: "  "}),
-			wantName: models.DefaultLLMProxyAPIKeyHeader,
+			provider: providerWithAPIKey(&gwmodels.APIKeySecurity{Key: "  "}),
+			wantName: gwmodels.DefaultLLMProxyAPIKeyHeader,
 			wantIn:   "header",
 		},
 		{
 			name:     "falls back when the provider has no api key security",
 			provider: providerWithAPIKey(nil),
-			wantName: models.DefaultLLMProxyAPIKeyHeader,
+			wantName: gwmodels.DefaultLLMProxyAPIKeyHeader,
 			wantIn:   "header",
 		},
 		{
 			name:     "falls back for a provider with no security block",
-			provider: &models.LLMProvider{},
-			wantName: models.DefaultLLMProxyAPIKeyHeader,
+			provider: &gwmodels.LLMProvider{},
+			wantName: gwmodels.DefaultLLMProxyAPIKeyHeader,
 			wantIn:   "header",
 		},
 		{
 			name:     "falls back for a nil provider",
 			provider: nil,
-			wantName: models.DefaultLLMProxyAPIKeyHeader,
+			wantName: gwmodels.DefaultLLMProxyAPIKeyHeader,
 			wantIn:   "header",
 		},
 	}
@@ -270,31 +270,31 @@ func TestProxyAuthHeadersStale(t *testing.T) {
 	// alongside the header name; a block with a name but nothing to send is what
 	// "needs provisioning" looks like, so the fixtures must not conflate the two.
 	secretRef := "encrypted-provider-key"
-	proxy := func(ingress, ingressIn string, upstream *string) *models.LLMProxy {
-		config := models.LLMProxyConfig{}
+	proxy := func(ingress, ingressIn string, upstream *string) *gwmodels.LLMProxy {
+		config := gwmodels.LLMProxyConfig{}
 		if ingress != "" {
 			config.Security = enabledAPIKeySecurity(ingress, ingressIn)
 		}
 		if upstream != nil {
-			config.UpstreamAuth = &models.UpstreamAuth{Header: upstream, SecretRef: &secretRef}
+			config.UpstreamAuth = &gwmodels.UpstreamAuth{Header: upstream, SecretRef: &secretRef}
 		}
-		return &models.LLMProxy{Configuration: config}
+		return &gwmodels.LLMProxy{Configuration: config}
 	}
 	header := func(s string) *string { return &s }
 	// The ingress target as the sync builds it: what the provider now implies.
-	target := func(name, in string) *models.SecurityConfig { return enabledAPIKeySecurity(name, in) }
-	noCredential := func() *models.SecurityConfig {
+	target := func(name, in string) *gwmodels.SecurityConfig { return enabledAPIKeySecurity(name, in) }
+	noCredential := func() *gwmodels.SecurityConfig {
 		disabled := false
-		return &models.SecurityConfig{
+		return &gwmodels.SecurityConfig{
 			Enabled: &disabled,
-			APIKey:  &models.APIKeySecurity{Enabled: &disabled, Key: models.DefaultLLMProxyAPIKeyHeader, In: "header"},
+			APIKey:  &gwmodels.APIKeySecurity{Enabled: &disabled, Key: gwmodels.DefaultLLMProxyAPIKeyHeader, In: "header"},
 		}
 	}
 
 	tests := []struct {
 		name                      string
-		proxy                     *models.LLMProxy
-		ingress                   *models.SecurityConfig
+		proxy                     *gwmodels.LLMProxy
+		ingress                   *gwmodels.SecurityConfig
 		upstream                  string
 		wantIngress, wantUpstream bool
 	}{
@@ -333,7 +333,7 @@ func TestProxyAuthHeadersStale(t *testing.T) {
 			// The reverse: auth turned back on must reach proxies provisioned while it
 			// was off, or agents are handed a key the gateway never checks.
 			name:    "provider turned api-key auth on",
-			proxy:   &models.LLMProxy{Configuration: models.LLMProxyConfig{Security: noCredential()}},
+			proxy:   &gwmodels.LLMProxy{Configuration: gwmodels.LLMProxyConfig{Security: noCredential()}},
 			ingress: target("x-api-key", "header"), upstream: "",
 			wantIngress: true,
 		},
@@ -393,16 +393,16 @@ func TestProxyAuthHeadersStale(t *testing.T) {
 // reverse has to stop the proxy forwarding a credential nothing asks for any more.
 func TestProxyUpstreamAuthAction(t *testing.T) {
 	secretRef := "encrypted"
-	withUpstream := func(header *string, secret *string) *models.LLMProxy {
-		return &models.LLMProxy{Configuration: models.LLMProxyConfig{
-			UpstreamAuth: &models.UpstreamAuth{Header: header, SecretRef: secret},
+	withUpstream := func(header *string, secret *string) *gwmodels.LLMProxy {
+		return &gwmodels.LLMProxy{Configuration: gwmodels.LLMProxyConfig{
+			UpstreamAuth: &gwmodels.UpstreamAuth{Header: header, SecretRef: secret},
 		}}
 	}
 	name := func(s string) *string { return &s }
 
 	tests := []struct {
 		name           string
-		proxy          *models.LLMProxy
+		proxy          *gwmodels.LLMProxy
 		upstreamHeader string
 		want           upstreamAuthAction
 	}{
@@ -420,7 +420,7 @@ func TestProxyUpstreamAuthAction(t *testing.T) {
 			// CRIT: provisioned while the provider was unsecured, so there is no
 			// credential to rename — one has to be minted or the hop stays anonymous.
 			name:  "provider gained api-key auth after the proxy existed",
-			proxy: &models.LLMProxy{}, upstreamHeader: "API-Key",
+			proxy: &gwmodels.LLMProxy{}, upstreamHeader: "API-Key",
 			want: upstreamAuthProvision,
 		},
 		{
@@ -435,7 +435,7 @@ func TestProxyUpstreamAuthAction(t *testing.T) {
 		},
 		{
 			name:  "unsecured provider, proxy never had upstream auth",
-			proxy: &models.LLMProxy{}, upstreamHeader: "",
+			proxy: &gwmodels.LLMProxy{}, upstreamHeader: "",
 			want: upstreamAuthUnchanged,
 		},
 	}
@@ -454,14 +454,14 @@ func TestProxyUpstreamAuthAction(t *testing.T) {
 func TestProxyIngressStale_PendingRolloutIsNotConverged(t *testing.T) {
 	target := enabledAPIKeySecurity("x-api-key", "header")
 
-	converged := &models.LLMProxy{Configuration: models.LLMProxyConfig{
+	converged := &gwmodels.LLMProxy{Configuration: gwmodels.LLMProxyConfig{
 		Security: enabledAPIKeySecurity("x-api-key", "header"),
 	}}
 	require.False(t, proxyIngressStale(converged, target),
 		"a fully rolled out proxy must not be redeployed again")
 
 	// Same stored config, but a gateway was left behind.
-	pending := &models.LLMProxy{Configuration: models.LLMProxyConfig{
+	pending := &gwmodels.LLMProxy{Configuration: gwmodels.LLMProxyConfig{
 		Security:                   enabledAPIKeySecurity("x-api-key", "header"),
 		AuthRolloutPendingGateways: []string{"gateway-b"},
 	}}
@@ -478,16 +478,16 @@ func TestNewProxyIngressSecurityFollowsProvider(t *testing.T) {
 
 	secured := newProxyIngressSecurity(llmProviderWith("acme", enabledAPIKeySecurity("x-api-key", "header")))
 	require.True(t, secured.RequiresAPIKey(), "a secured provider must yield a proxy requiring a credential")
-	name, in := secured.APIKeyNameAndLocation(models.DefaultLLMProxyAPIKeyHeader)
+	name, in := secured.APIKeyNameAndLocation(gwmodels.DefaultLLMProxyAPIKeyHeader)
 	require.Equal(t, "x-api-key", name)
 	require.Equal(t, "header", in)
 
-	unsecured := newProxyIngressSecurity(llmProviderWith("acme", &models.SecurityConfig{
+	unsecured := newProxyIngressSecurity(llmProviderWith("acme", &gwmodels.SecurityConfig{
 		Enabled: &disabled,
-		APIKey:  &models.APIKeySecurity{Enabled: &disabled, Key: "x-api-key", In: "header"},
+		APIKey:  &gwmodels.APIKeySecurity{Enabled: &disabled, Key: "x-api-key", In: "header"},
 	}))
 	require.False(t, unsecured.RequiresAPIKey(), "auth set to None must not yield a proxy demanding a key")
-	keptName, keptIn := unsecured.APIKeyNameAndLocation(models.DefaultLLMProxyAPIKeyHeader)
+	keptName, keptIn := unsecured.APIKeyNameAndLocation(gwmodels.DefaultLLMProxyAPIKeyHeader)
 	require.Equal(t, "x-api-key", keptName, "the configured name is kept for when auth is re-enabled")
 	require.Equal(t, "header", keptIn)
 
@@ -499,13 +499,13 @@ func TestNewProxyIngressSecurityFollowsProvider(t *testing.T) {
 // config is what a later config response reads back, so the two cannot drift.
 func TestLLMProxyProvisionedHeaderMatchesReportedHeader(t *testing.T) {
 	enabled := true
-	provisioned := &models.LLMProxy{
-		Configuration: models.LLMProxyConfig{
-			Security: &models.SecurityConfig{
+	provisioned := &gwmodels.LLMProxy{
+		Configuration: gwmodels.LLMProxyConfig{
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &enabled,
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: &enabled,
-					Key:     models.DefaultLLMProxyAPIKeyHeader,
+					Key:     gwmodels.DefaultLLMProxyAPIKeyHeader,
 					In:      "header",
 				},
 			},
@@ -513,7 +513,7 @@ func TestLLMProxyProvisionedHeaderMatchesReportedHeader(t *testing.T) {
 	}
 
 	gotName, gotIn := llmProxyAPIKeySecurity(provisioned)
-	require.Equal(t, models.DefaultLLMProxyAPIKeyHeader, gotName)
+	require.Equal(t, gwmodels.DefaultLLMProxyAPIKeyHeader, gotName)
 	require.Equal(t, "header", gotIn)
 }
 
@@ -522,17 +522,17 @@ func TestLLMProxyProvisionedHeaderMatchesReportedHeader(t *testing.T) {
 // description, policy) that left security untouched, and never on a pre-existing
 // mismatch that predates this feature but wasn't part of the current edit.
 func TestProviderAuthHeadersChanged(t *testing.T) {
-	providerWith := func(key string) *models.LLMProvider {
-		return &models.LLMProvider{
-			Configuration: models.LLMProviderConfig{
-				Security: &models.SecurityConfig{APIKey: &models.APIKeySecurity{Key: key, In: "header"}},
+	providerWith := func(key string) *gwmodels.LLMProvider {
+		return &gwmodels.LLMProvider{
+			Configuration: gwmodels.LLMProviderConfig{
+				Security: &gwmodels.SecurityConfig{APIKey: &gwmodels.APIKeySecurity{Key: key, In: "header"}},
 			},
 		}
 	}
 
 	tests := []struct {
 		name              string
-		existing, updated *models.LLMProvider
+		existing, updated *gwmodels.LLMProvider
 		want              bool
 	}{
 		{
@@ -551,8 +551,8 @@ func TestProviderAuthHeadersChanged(t *testing.T) {
 			// Both provider configs mirror the default when unset, so this is not a
 			// change even though neither names a header explicitly.
 			name:     "both fall back to the same default",
-			existing: &models.LLMProvider{},
-			updated:  &models.LLMProvider{},
+			existing: &gwmodels.LLMProvider{},
+			updated:  &gwmodels.LLMProvider{},
 			want:     false,
 		},
 		{
@@ -573,14 +573,14 @@ func TestProviderAuthHeadersChanged(t *testing.T) {
 			// that silently collapsed query locations to the same header default —
 			// so switching a provider to query-based auth never triggered a resync.
 			name: "same name, location changed from header to query",
-			existing: &models.LLMProvider{
-				Configuration: models.LLMProviderConfig{
-					Security: &models.SecurityConfig{APIKey: &models.APIKeySecurity{Key: "apikey", In: "header"}},
+			existing: &gwmodels.LLMProvider{
+				Configuration: gwmodels.LLMProviderConfig{
+					Security: &gwmodels.SecurityConfig{APIKey: &gwmodels.APIKeySecurity{Key: "apikey", In: "header"}},
 				},
 			},
-			updated: &models.LLMProvider{
-				Configuration: models.LLMProviderConfig{
-					Security: &models.SecurityConfig{APIKey: &models.APIKeySecurity{Key: "apikey", In: "query"}},
+			updated: &gwmodels.LLMProvider{
+				Configuration: gwmodels.LLMProviderConfig{
+					Security: &gwmodels.SecurityConfig{APIKey: &gwmodels.APIKeySecurity{Key: "apikey", In: "query"}},
 				},
 			},
 			want: true,
@@ -601,28 +601,28 @@ func TestProviderAuthHeadersChanged(t *testing.T) {
 // can leave proxies on a stale header instead of converging on what's actually stored.
 func TestSyncDependentProxyAuthHeaders_RefetchesCurrentProvider(t *testing.T) {
 	providerUUID := uuid.New()
-	staleSnapshot := &models.LLMProvider{
+	staleSnapshot := &gwmodels.LLMProvider{
 		UUID: providerUUID,
-		Configuration: models.LLMProviderConfig{
-			Security: &models.SecurityConfig{APIKey: &models.APIKeySecurity{Key: "B-Header", In: "header"}},
+		Configuration: gwmodels.LLMProviderConfig{
+			Security: &gwmodels.SecurityConfig{APIKey: &gwmodels.APIKeySecurity{Key: "B-Header", In: "header"}},
 		},
 	}
-	currentInDB := &models.LLMProvider{
+	currentInDB := &gwmodels.LLMProvider{
 		UUID: providerUUID,
-		Configuration: models.LLMProviderConfig{
-			Security: &models.SecurityConfig{APIKey: &models.APIKeySecurity{Key: "C-Header", In: "header"}},
+		Configuration: gwmodels.LLMProviderConfig{
+			Security: &gwmodels.SecurityConfig{APIKey: &gwmodels.APIKeySecurity{Key: "C-Header", In: "header"}},
 		},
 	}
 
 	var gotProviderID, gotOuID string
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(providerID, ouID string) (*models.LLMProvider, error) {
+		GetByUUIDFunc: func(providerID, ouID string) (*gwmodels.LLMProvider, error) {
 			gotProviderID, gotOuID = providerID, ouID
 			return currentInDB, nil
 		},
 	}
 	proxyRepo := &gwrepomocks.LLMProxyRepositoryMock{
-		ListByProviderFunc: func(ouID, providerUUID string, limit, offset int) ([]*models.LLMProxy, error) {
+		ListByProviderFunc: func(ouID, providerUUID string, limit, offset int) ([]*gwmodels.LLMProxy, error) {
 			return nil, nil
 		},
 	}
@@ -646,7 +646,7 @@ func TestSyncDependentProxyAuthHeaders_RefetchesCurrentProvider(t *testing.T) {
 func TestProviderUpstreamAPIKeyHeader(t *testing.T) {
 	enabled := true
 	disabled := false
-	providerWith := func(key string, apiKeyEnabled *bool) *models.LLMProvider {
+	providerWith := func(key string, apiKeyEnabled *bool) *gwmodels.LLMProvider {
 		sec := enabledAPIKeySecurity(key, "header")
 		sec.APIKey.Enabled = apiKeyEnabled
 		return llmProviderWith("", sec)
@@ -654,7 +654,7 @@ func TestProviderUpstreamAPIKeyHeader(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		provider *models.LLMProvider
+		provider *gwmodels.LLMProvider
 		want     string
 	}{
 		{
@@ -667,7 +667,7 @@ func TestProviderUpstreamAPIKeyHeader(t *testing.T) {
 			// own gateway, so the forwarded header must be that same default.
 			name:     "unnamed key on a secured provider resolves the deployed default",
 			provider: providerWith("", &enabled),
-			want:     models.DefaultLLMProxyAPIKeyHeader,
+			want:     gwmodels.DefaultLLMProxyAPIKeyHeader,
 		},
 		{
 			name:     "unnamed key without api-key auth names nothing",
@@ -676,7 +676,7 @@ func TestProviderUpstreamAPIKeyHeader(t *testing.T) {
 		},
 		{
 			name:     "provider without security names nothing",
-			provider: &models.LLMProvider{},
+			provider: &gwmodels.LLMProvider{},
 			want:     "",
 		},
 		{
@@ -693,11 +693,11 @@ func TestProviderUpstreamAPIKeyHeader(t *testing.T) {
 	}
 }
 
-// models.UpstreamAuth can only name a header, so a provider that reads its key from the
+// gwmodels.UpstreamAuth can only name a header, so a provider that reads its key from the
 // query string cannot be fronted by a proxy that authenticates to it. Provisioning has
 // to refuse rather than hand back a proxy whose every upstream call is rejected.
 func TestProviderUpstreamAPIKeyAuthRejectsQueryLocation(t *testing.T) {
-	providerIn := func(in string) *models.LLMProvider {
+	providerIn := func(in string) *gwmodels.LLMProvider {
 		return llmProviderWith("acme-openai", enabledAPIKeySecurity("apikey", in))
 	}
 
@@ -715,13 +715,13 @@ func TestProviderUpstreamAPIKeyAuthRejectsQueryLocation(t *testing.T) {
 // proxies that reject every request. The edit is refused rather than stored, since the
 // resulting 401s say nothing about the cause.
 func TestValidateProxyAPIKeyLocation(t *testing.T) {
-	providerIn := func(in string) *models.LLMProvider {
+	providerIn := func(in string) *gwmodels.LLMProvider {
 		return llmProviderWith("", enabledAPIKeySecurity("API-Key", in))
 	}
 
 	tests := []struct {
 		name     string
-		provider *models.LLMProvider
+		provider *gwmodels.LLMProvider
 		wantErr  bool
 	}{
 		{name: "header is supported", provider: providerIn("header"), wantErr: false},
@@ -731,10 +731,10 @@ func TestValidateProxyAPIKeyLocation(t *testing.T) {
 		{name: "any other location is refused", provider: providerIn("cookie"), wantErr: true},
 		{
 			name:     "no api key block is nothing to validate",
-			provider: &models.LLMProvider{Configuration: models.LLMProviderConfig{Security: &models.SecurityConfig{}}},
+			provider: &gwmodels.LLMProvider{Configuration: gwmodels.LLMProviderConfig{Security: &gwmodels.SecurityConfig{}}},
 			wantErr:  false,
 		},
-		{name: "no security block is nothing to validate", provider: &models.LLMProvider{}, wantErr: false},
+		{name: "no security block is nothing to validate", provider: &gwmodels.LLMProvider{}, wantErr: false},
 		{name: "nil provider is nothing to validate", provider: nil, wantErr: false},
 	}
 

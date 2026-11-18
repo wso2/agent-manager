@@ -30,20 +30,21 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // newTestExposure is an exposure of a fresh per-environment agent artifact, removed with it at cleanup.
-func newTestExposure(t *testing.T, ouID, agentName string, envUUID uuid.UUID) *models.PlatformAgentExposure {
+func newTestExposure(t *testing.T, ouID, agentName string, envUUID uuid.UUID) *gwmodels.PlatformAgentExposure {
 	t.Helper()
 	gdb := db.GetDB()
 	ensureAgent(t, ouID, "checkout", agentName)
 	envWithID(t, ouID, envUUID, "Development")
 	artifactUUID := uuid.New()
-	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
+	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: "checkout/" + agentName + "/" + envUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
-		Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
+		Version: "v1.0", Kind: gwmodels.KindAgent, OUID: ouID,
 	}))
-	return &models.PlatformAgentExposure{
+	return &gwmodels.PlatformAgentExposure{
 		OUID:            ouID,
 		ProjectName:     "checkout",
 		AgentName:       agentName,
@@ -55,9 +56,9 @@ func newTestExposure(t *testing.T, ouID, agentName string, envUUID uuid.UUID) *m
 
 func testOU(t *testing.T) string { t.Helper(); return newOrg(t) }
 
-func exposureRowsFor(t *testing.T, ouID, agentName string) []models.PlatformAgentExposure {
+func exposureRowsFor(t *testing.T, ouID, agentName string) []gwmodels.PlatformAgentExposure {
 	t.Helper()
-	var rows []models.PlatformAgentExposure
+	var rows []gwmodels.PlatformAgentExposure
 	gdb := db.GetDB()
 	require.NoError(t, gdb.Where("org_id = ? AND agent_id IN (?)", ouID, models.AgentIDQuery(gdb, ouID, "checkout", agentName)).
 		Find(&rows).Error)
@@ -73,12 +74,12 @@ func TestPlatformAgentExposureUpsertKeepsOneRowPerPair(t *testing.T) {
 
 	again := *exposure
 	again.ID = uuid.Nil
-	again.Protocol = models.AgentExposureProtocolREST
+	again.Protocol = gwmodels.AgentExposureProtocolREST
 	require.NoError(t, repo.Upsert(ctx, &again))
 
 	rows := exposureRowsFor(t, exposure.OUID, exposure.AgentName)
 	require.Len(t, rows, 1)
-	assert.Equal(t, models.AgentExposureProtocolREST, rows[0].Protocol, "an upsert rewrites the pair's row")
+	assert.Equal(t, gwmodels.AgentExposureProtocolREST, rows[0].Protocol, "an upsert rewrites the pair's row")
 }
 
 func TestPlatformAgentExposureGetIsByEnvironmentUUID(t *testing.T) {
@@ -135,7 +136,7 @@ func TestPlatformAgentExposureListsAndDeletesByEnvironment(t *testing.T) {
 	prod.EnvironmentName = "Production"
 	neighbour := newTestExposure(t, ouID, "env-other", prodUUID)
 	neighbour.EnvironmentName = "Production"
-	for _, exposure := range []*models.PlatformAgentExposure{dev, prod, neighbour} {
+	for _, exposure := range []*gwmodels.PlatformAgentExposure{dev, prod, neighbour} {
 		require.NoError(t, repo.Upsert(ctx, exposure))
 	}
 
@@ -167,7 +168,7 @@ func TestPlatformAgentExposureDeleteForAgent(t *testing.T) {
 	repo := NewPlatformAgentExposureRepository(db.GetDB())
 	ctx := context.Background()
 	ouID := testOU(t)
-	for _, exposure := range []*models.PlatformAgentExposure{
+	for _, exposure := range []*gwmodels.PlatformAgentExposure{
 		newTestExposure(t, ouID, "deleted", uuid.New()),
 		newTestExposure(t, ouID, "deleted", uuid.New()),
 		newTestExposure(t, ouID, "kept", uuid.New()),

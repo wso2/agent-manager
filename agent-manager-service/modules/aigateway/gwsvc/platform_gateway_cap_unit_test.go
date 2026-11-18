@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -36,12 +36,12 @@ func TestNormalizeGatewayRole(t *testing.T) {
 		wantErr   bool
 		wantErrIs error
 	}{
-		{name: "canonical ingress", input: "INGRESS", want: models.GatewayRoleIngress},
-		{name: "canonical egress", input: "EGRESS", want: models.GatewayRoleEgress},
-		{name: "canonical both", input: "BOTH", want: models.GatewayRoleBoth},
-		{name: "lowercase accepted", input: "both", want: models.GatewayRoleBoth},
-		{name: "alias REGULAR maps to both", input: "REGULAR", want: models.GatewayRoleBoth},
-		{name: "alias AI maps to egress", input: "AI", want: models.GatewayRoleEgress},
+		{name: "canonical ingress", input: "INGRESS", want: gwmodels.GatewayRoleIngress},
+		{name: "canonical egress", input: "EGRESS", want: gwmodels.GatewayRoleEgress},
+		{name: "canonical both", input: "BOTH", want: gwmodels.GatewayRoleBoth},
+		{name: "lowercase accepted", input: "both", want: gwmodels.GatewayRoleBoth},
+		{name: "alias REGULAR maps to both", input: "REGULAR", want: gwmodels.GatewayRoleBoth},
+		{name: "alias AI maps to egress", input: "AI", want: gwmodels.GatewayRoleEgress},
 		{name: "event is rejected", input: "EVENT", wantErr: true, wantErrIs: utils.ErrBadRequest},
 		{name: "empty is rejected", input: "", wantErr: true, wantErrIs: utils.ErrBadRequest},
 		{name: "unknown is rejected", input: "sideways", wantErr: true, wantErrIs: utils.ErrBadRequest},
@@ -65,12 +65,12 @@ func TestNormalizeGatewayRole(t *testing.T) {
 // A second ingress-capable gateway in one environment is rejected.
 func TestAssignGatewayToEnvironment_SecondIngressRejected(t *testing.T) {
 	envID := uuid.New().String()
-	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleBoth}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:                         func(string) (*models.Gateway, error) { return gw, nil },
+		GetByUUIDFunc:                         func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
 		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
-		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) { return nil, nil },
 		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
 		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
 		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 1, nil },
@@ -87,20 +87,20 @@ func TestAssignGatewayToEnvironment_SecondIngressRejected(t *testing.T) {
 // matters as much as asserting the ingress rejection.
 func TestAssignGatewayToEnvironment_SecondEgressAllowed(t *testing.T) {
 	envID := uuid.New().String()
-	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleEgress}
 	created := false
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:                         func(string) (*models.Gateway, error) { return gw, nil },
+		GetByUUIDFunc:                         func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
 		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
-		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) { return nil, nil },
 		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
 		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
 		CountIngressCapableInEnvironmentFunc: func(*gorm.DB, string) (int64, error) {
 			t.Fatal("egress gateways must not be counted against the ingress cap")
 			return 0, nil
 		},
-		CreateEnvironmentMappingTxFunc: func(*gorm.DB, *models.GatewayEnvironmentMapping) error {
+		CreateEnvironmentMappingTxFunc: func(*gorm.DB, *gwmodels.GatewayEnvironmentMapping) error {
 			created = true
 			return nil
 		},
@@ -114,11 +114,11 @@ func TestAssignGatewayToEnvironment_SecondEgressAllowed(t *testing.T) {
 // Re-assigning an already-mapped gateway stays idempotent and never counts itself.
 func TestAssignGatewayToEnvironment_IdempotentWhenAlreadyMapped(t *testing.T) {
 	envID := uuid.New().String()
-	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleBoth}
 	lockAcquired := false
 	existsChecked := false
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gw, nil },
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error {
 			return fn(nil)
 		},
@@ -137,7 +137,7 @@ func TestAssignGatewayToEnvironment_IdempotentWhenAlreadyMapped(t *testing.T) {
 			t.Fatal("an already-mapped gateway must not be counted against the ingress cap")
 			return 0, nil
 		},
-		CreateEnvironmentMappingTxFunc: func(*gorm.DB, *models.GatewayEnvironmentMapping) error {
+		CreateEnvironmentMappingTxFunc: func(*gorm.DB, *gwmodels.GatewayEnvironmentMapping) error {
 			t.Fatal("an already-mapped gateway must not be re-inserted")
 			return nil
 		},
@@ -152,7 +152,7 @@ func TestAssignGatewayToEnvironment_IdempotentWhenAlreadyMapped(t *testing.T) {
 func TestRegisterGateway_CapRejectionRollsBackGatewayRow(t *testing.T) {
 	var createdInTx bool
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(string, string) (*models.Gateway, error) {
+		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) {
 			return nil, utils.ErrGatewayNotFound
 		},
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error {
@@ -163,12 +163,12 @@ func TestRegisterGateway_CapRejectionRollsBackGatewayRow(t *testing.T) {
 			}
 			return nil
 		},
-		CreateTxFunc: func(*gorm.DB, *models.Gateway) error { createdInTx = true; return nil },
-		GetByUUIDFunc: func(string) (*models.Gateway, error) {
-			return &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleBoth}, nil
+		CreateTxFunc: func(*gorm.DB, *gwmodels.Gateway) error { createdInTx = true; return nil },
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) {
+			return &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleBoth}, nil
 		},
 		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
-		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) { return nil, nil },
 		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
 		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
 		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 1, nil },
@@ -176,7 +176,7 @@ func TestRegisterGateway_CapRejectionRollsBackGatewayRow(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, nil)
 
 	_, err := svc.RegisterGateway("org", "gw1", "GW", "", "http://x", "", false, "BOTH", nil,
-		[]string{uuid.New().String()}, models.GatewayHostingManaged)
+		[]string{uuid.New().String()}, gwmodels.GatewayHostingManaged)
 
 	require.ErrorIs(t, err, utils.ErrGatewayIngressCapExceeded)
 	require.False(t, createdInTx, "gateway row must not survive a cap rejection")

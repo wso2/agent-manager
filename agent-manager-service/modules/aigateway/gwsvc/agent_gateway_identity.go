@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // hashSuffixedName is "<prefix>-<16 hex>": the sanitized prefixSource cut to proxyNamePrefixMaxLen,
@@ -48,6 +48,6 @@ func agentGatewayContext(agentName string) string {
 }
 
 // agentGatewayURL is where gateway serves the agent: its public vhost plus the agent's context path.
-func agentGatewayURL(gateway *models.Gateway, agentName string) string {
+func agentGatewayURL(gateway *gwmodels.Gateway, agentName string) string {
 	return strings.TrimRight(buildPublicProxyURL(gateway, nil), "/") + agentGatewayContext(agentName)
 }

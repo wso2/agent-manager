@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -51,8 +51,8 @@ func TestLLMProviderService_ListAvailableLLMPolicies_NilGatewayRepoReturnsEmpty(
 
 func TestLLMProviderService_ListAvailableLLMPolicies_SurfacesFullDefinitions(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				gatewayWithLLMPolicyManifest(map[string]interface{}{
 					"name":        "word-count-guardrail",
 					"version":     "v1.0.0",
@@ -84,8 +84,8 @@ func TestLLMProviderService_ListAvailableLLMPolicies_SurfacesFullDefinitions(t *
 
 func TestLLMProviderService_ListAvailableLLMPolicies_IntersectsAcrossActiveGateways(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{
+		ListWithFiltersFunc: func(_ gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{
 				gatewayWithLLMPolicyManifest(
 					map[string]interface{}{"name": "shared-guardrail", "version": "v1"},
 					map[string]interface{}{"name": "only-on-first-gateway", "version": "v1"},
@@ -107,10 +107,10 @@ func TestLLMProviderService_ListAvailableLLMPolicies_IntersectsAcrossActiveGatew
 
 func TestLLMProviderService_ListAvailableLLMPolicies_ScopesToProviderDeployment(t *testing.T) {
 	providerUUID := uuid.New()
-	provider := &models.LLMProvider{UUID: providerUUID}
+	provider := &gwmodels.LLMProvider{UUID: providerUUID}
 
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(_ string, _ string) (*models.LLMProvider, error) {
+		GetByUUIDFunc: func(_ string, _ string) (*gwmodels.LLMProvider, error) {
 			return provider, nil
 		},
 	}
@@ -121,7 +121,7 @@ func TestLLMProviderService_ListAvailableLLMPolicies_ScopesToProviderDeployment(
 		},
 	}
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
 			gw := gatewayWithLLMPolicyManifest(
 				map[string]interface{}{"name": "deployed-policy", "version": "v1"},
 			)
@@ -140,7 +140,7 @@ func TestLLMProviderService_ListAvailableLLMPolicies_ScopesToProviderDeployment(
 
 func TestLLMProviderService_ListAvailableLLMPolicies_UnknownProviderReturnsNotFound(t *testing.T) {
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(_ string, _ string) (*models.LLMProvider, error) {
+		GetByUUIDFunc: func(_ string, _ string) (*gwmodels.LLMProvider, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -161,16 +161,16 @@ func TestLLMProviderService_ListAvailableLLMPolicies_UnknownProviderReturnsNotFo
 // -----------------------------------------------------------------------------
 
 func TestLLMProviderService_CreateAndDeploy_RejectsIngressOnlyGateway(t *testing.T) {
-	ingress := newGateway(t, models.GatewayRoleIngress, true)
+	ingress := newGateway(t, gwmodels.GatewayRoleIngress, true)
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 			require.Equal(t, ingress.UUID.String(), id)
 			return ingress, nil
 		},
 	}
 	createCalled := false
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		CreateFunc: func(_ *gorm.DB, _ *models.LLMProvider, _, _, _, _ string) error {
+		CreateFunc: func(_ *gorm.DB, _ *gwmodels.LLMProvider, _, _, _, _ string) error {
 			createCalled = true
 			return nil
 		},
@@ -178,7 +178,7 @@ func TestLLMProviderService_CreateAndDeploy_RejectsIngressOnlyGateway(t *testing
 	svc := &LLMProviderService{gatewayRepo: repo, providerRepo: providerRepo}
 
 	_, err := svc.CreateAndDeploy(context.Background(), "org", "creator",
-		&models.LLMProvider{}, []string{ingress.UUID.String()}, nil)
+		&gwmodels.LLMProvider{}, []string{ingress.UUID.String()}, nil)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, utils.ErrInvalidInput), "expected error to wrap utils.ErrInvalidInput, got: %v", err)
@@ -189,17 +189,17 @@ func TestLLMProviderService_CreateAndDeploy_TreatsForeignOrgGatewayAsNotFound(t 
 	// GetByUUID is not org-scoped, so a caller naming another org's gateway UUID gets a
 	// real row back. It must be treated exactly like not-found — no placement validation,
 	// no echoing the foreign gateway's name in any error.
-	foreign := newGateway(t, models.GatewayRoleIngress, true)
+	foreign := newGateway(t, gwmodels.GatewayRoleIngress, true)
 	foreign.OUID = "other-org"
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 			require.Equal(t, foreign.UUID.String(), id)
 			return foreign, nil
 		},
 	}
 	createCalled := false
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		CreateFunc: func(_ *gorm.DB, _ *models.LLMProvider, _, _, _, _ string) error {
+		CreateFunc: func(_ *gorm.DB, _ *gwmodels.LLMProvider, _, _, _, _ string) error {
 			createCalled = true
 			return nil
 		},
@@ -207,7 +207,7 @@ func TestLLMProviderService_CreateAndDeploy_TreatsForeignOrgGatewayAsNotFound(t 
 	svc := &LLMProviderService{gatewayRepo: repo, providerRepo: providerRepo}
 
 	_, err := svc.CreateAndDeploy(context.Background(), "org", "creator",
-		&models.LLMProvider{}, []string{foreign.UUID.String()}, nil)
+		&gwmodels.LLMProvider{}, []string{foreign.UUID.String()}, nil)
 
 	require.Error(t, err, "sole requested gateway is invalid, so the request must fail")
 	assert.NotContains(t, err.Error(), foreign.Name, "foreign gateway name must not leak into the error")
@@ -220,10 +220,10 @@ func TestLLMProviderService_CreateAndDeploy_RejectsSameEnvironmentClashWithinReq
 	// request immediately. The same-environment-clash branch of validateEgressPlacement
 	// itself (one gateway succeeding, the next rejected as placement-fixed) is covered
 	// directly by TestValidateEgressPlacement in gateway_roles_unit_test.go.
-	first := newGateway(t, models.GatewayRoleIngress, true)
-	second := newGateway(t, models.GatewayRoleIngress, true)
+	first := newGateway(t, gwmodels.GatewayRoleIngress, true)
+	second := newGateway(t, gwmodels.GatewayRoleIngress, true)
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 			switch id {
 			case first.UUID.String():
 				return first, nil
@@ -236,7 +236,7 @@ func TestLLMProviderService_CreateAndDeploy_RejectsSameEnvironmentClashWithinReq
 	}
 	createCalled := false
 	providerRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		CreateFunc: func(_ *gorm.DB, _ *models.LLMProvider, _, _, _, _ string) error {
+		CreateFunc: func(_ *gorm.DB, _ *gwmodels.LLMProvider, _, _, _, _ string) error {
 			createCalled = true
 			return nil
 		},
@@ -244,7 +244,7 @@ func TestLLMProviderService_CreateAndDeploy_RejectsSameEnvironmentClashWithinReq
 	svc := &LLMProviderService{gatewayRepo: repo, providerRepo: providerRepo}
 
 	_, err := svc.CreateAndDeploy(context.Background(), "org", "creator",
-		&models.LLMProvider{}, []string{first.UUID.String(), second.UUID.String()}, nil)
+		&gwmodels.LLMProvider{}, []string{first.UUID.String(), second.UUID.String()}, nil)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, utils.ErrInvalidInput), "expected error to wrap utils.ErrInvalidInput, got: %v", err)
@@ -262,19 +262,19 @@ func TestLLMProviderService_CreateAndDeploy_RejectsSameEnvironmentClashWithinReq
 
 func TestLLMProviderService_UpdateAndSync_RejectsPlacementInvalidGatewayWithoutUndeployingExisting(t *testing.T) {
 	gatewayA := uuid.New()
-	gatewayB := newGateway(t, models.GatewayRoleIngress, true) // fails the role check
+	gatewayB := newGateway(t, gwmodels.GatewayRoleIngress, true) // fails the role check
 	providerUUID := uuid.New()
 
 	outerProviderRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(id, _ string) (*models.LLMProvider, error) {
-			return &models.LLMProvider{UUID: uuid.MustParse(id)}, nil
+		GetByUUIDFunc: func(id, _ string) (*gwmodels.LLMProvider, error) {
+			return &gwmodels.LLMProvider{UUID: uuid.MustParse(id)}, nil
 		},
-		UpdateFunc: func(_ context.Context, _ *models.LLMProvider, _, _ string) error {
+		UpdateFunc: func(_ context.Context, _ *gwmodels.LLMProvider, _, _ string) error {
 			return nil
 		},
 	}
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 			require.Equal(t, gatewayB.UUID.String(), id)
 			return gatewayB, nil
 		},
@@ -289,7 +289,7 @@ func TestLLMProviderService_UpdateAndSync_RejectsPlacementInvalidGatewayWithoutU
 	// short-circuits before that loop runs, i.e. gateway A is never touched.
 	undeployPathReached := false
 	deploymentProviderRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(_, _ string) (*models.LLMProvider, error) {
+		GetByUUIDFunc: func(_, _ string) (*gwmodels.LLMProvider, error) {
 			undeployPathReached = true
 			return nil, errors.New("deploy/undeploy path should not be reached")
 		},
@@ -302,7 +302,7 @@ func TestLLMProviderService_UpdateAndSync_RejectsPlacementInvalidGatewayWithoutU
 	svc := &LLMProviderService{providerRepo: outerProviderRepo, gatewayRepo: gatewayRepo}
 
 	_, err := svc.UpdateAndSync(context.Background(), providerUUID.String(), "org",
-		&models.LLMProvider{}, []string{gatewayB.UUID.String()}, deploymentSvc)
+		&gwmodels.LLMProvider{}, []string{gatewayB.UUID.String()}, deploymentSvc)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, utils.ErrInvalidInput), "expected error to wrap utils.ErrInvalidInput, got: %v", err)
@@ -317,10 +317,10 @@ func TestLLMProviderService_UpdateAndSync_AllRedeploysFailedAfterSave(t *testing
 
 	updated := false
 	outerProviderRepo := &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc: func(id, _ string) (*models.LLMProvider, error) {
-			return &models.LLMProvider{UUID: uuid.MustParse(id)}, nil
+		GetByUUIDFunc: func(id, _ string) (*gwmodels.LLMProvider, error) {
+			return &gwmodels.LLMProvider{UUID: uuid.MustParse(id)}, nil
 		},
-		UpdateFunc: func(_ context.Context, _ *models.LLMProvider, _, _ string) error {
+		UpdateFunc: func(_ context.Context, _ *gwmodels.LLMProvider, _, _ string) error {
 			updated = true
 			return nil
 		},
@@ -333,13 +333,13 @@ func TestLLMProviderService_UpdateAndSync_AllRedeploysFailedAfterSave(t *testing
 	deploymentSvc := &LLMProviderDeploymentService{
 		deploymentRepo: deploymentRepo,
 		gatewayRepo: &gwrepomocks.GatewayRepositoryMock{
-			GetByUUIDFunc: func(string) (*models.Gateway, error) { return nil, errors.New("gateway unreachable") },
+			GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return nil, errors.New("gateway unreachable") },
 		},
 	}
 	svc := &LLMProviderService{providerRepo: outerProviderRepo, gatewayRepo: &gwrepomocks.GatewayRepositoryMock{}}
 
 	_, err := svc.UpdateAndSync(context.Background(), providerUUID.String(), "org",
-		&models.LLMProvider{}, []string{gatewayA.String()}, deploymentSvc)
+		&gwmodels.LLMProvider{}, []string{gatewayA.String()}, deploymentSvc)
 
 	require.ErrorIs(t, err, ErrAllGatewayDeploymentsFailed)
 	assert.True(t, updated, "the provider is saved before the redeploys run")

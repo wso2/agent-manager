@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -31,10 +31,10 @@ import (
 // fakeLLMProviderRepo implements LLMProviderRepository for unit tests; only GetByHandle is used.
 type fakeLLMProviderRepo struct {
 	gwrepo.LLMProviderRepository
-	byHandle map[string]*models.LLMProvider
+	byHandle map[string]*gwmodels.LLMProvider
 }
 
-func (f *fakeLLMProviderRepo) GetByHandle(handle, _ string) (*models.LLMProvider, error) {
+func (f *fakeLLMProviderRepo) GetByHandle(handle, _ string) (*gwmodels.LLMProvider, error) {
 	if p, ok := f.byHandle[handle]; ok {
 		return p, nil
 	}
@@ -43,7 +43,7 @@ func (f *fakeLLMProviderRepo) GetByHandle(handle, _ string) (*models.LLMProvider
 
 func TestValidateProvidersInCatalog(t *testing.T) {
 	s := &agentConfigurationService{
-		llmProviderRepo: &fakeLLMProviderRepo{byHandle: map[string]*models.LLMProvider{
+		llmProviderRepo: &fakeLLMProviderRepo{byHandle: map[string]*gwmodels.LLMProvider{
 			"good":   {InCatalog: true},
 			"notcat": {InCatalog: false},
 		}},

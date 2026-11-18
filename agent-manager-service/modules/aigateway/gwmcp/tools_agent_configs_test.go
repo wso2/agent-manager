@@ -27,8 +27,8 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -96,7 +96,7 @@ func mappedEnvs(t *testing.T, m *MockToolsetHandler) []string {
 	if len(calls) != 1 {
 		t.Fatalf("CreateAgentConfig called %d times, want 1", len(calls))
 	}
-	req := calls[0].([]interface{})[3].(models.CreateAgentModelConfigRequest)
+	req := calls[0].([]interface{})[3].(gwmodels.CreateAgentModelConfigRequest)
 	envs := make([]string, 0, len(req.EnvMappings))
 	for env := range req.EnvMappings {
 		envs = append(envs, env)
@@ -484,7 +484,7 @@ func TestAttachRevokesTheWithheldKeyOfAnExternalAgent(t *testing.T) {
 		for _, call := range mock.calls["RevokeConfigAPIKeys"] {
 			args := call.([]interface{})
 			// ouID, project, agent, config type, config id, environment
-			if args[3] != models.AgentConfigTypeLLM || args[4] != "config-uuid" {
+			if args[3] != gwmodels.AgentConfigTypeLLM || args[4] != "config-uuid" {
 				t.Errorf("revoked the wrong config: %v", args)
 			}
 			revoked = append(revoked, args[5].(string))

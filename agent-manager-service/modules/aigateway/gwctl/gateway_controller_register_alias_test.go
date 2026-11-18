@@ -27,7 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -37,24 +37,24 @@ import (
 // gateway and keeps it in created.
 type registerHarness struct {
 	ctrl    GatewayController
-	created *models.Gateway
+	created *gwmodels.Gateway
 }
 
 func newRegisterHarness() *registerHarness {
 	h := &registerHarness{}
 	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(_ string, _ string) (*models.Gateway, error) {
+		GetByNameAndOrgIDFunc: func(_ string, _ string) (*gwmodels.Gateway, error) {
 			return nil, utils.ErrGatewayNotFound
 		},
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error {
 			return fn(nil)
 		},
-		CreateTxFunc: func(_ *gorm.DB, gateway *models.Gateway) error {
+		CreateTxFunc: func(_ *gorm.DB, gateway *gwmodels.Gateway) error {
 			h.created = gateway
 			return nil
 		},
-		GetEnvironmentMappingsByGatewayIDFunc: func(_ string) ([]models.GatewayEnvironmentMapping, error) {
-			return []models.GatewayEnvironmentMapping{}, nil
+		GetEnvironmentMappingsByGatewayIDFunc: func(_ string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+			return []gwmodels.GatewayEnvironmentMapping{}, nil
 		},
 	}
 	h.ctrl = NewGatewayController(gwsvc.NewPlatformGatewayService(gatewayRepo, nil), nil, nil)
@@ -75,9 +75,9 @@ func TestRegisterGateway_DeprecatedAliasesDecodeAndNormalize(t *testing.T) {
 		wantRole     string
 		wantHTTPCode int
 	}{
-		{name: "REGULAR aliases to both", gatewayType: "REGULAR", wantRole: models.GatewayRoleBoth, wantHTTPCode: http.StatusCreated},
-		{name: "AI aliases to egress", gatewayType: "AI", wantRole: models.GatewayRoleEgress, wantHTTPCode: http.StatusCreated},
-		{name: "canonical INGRESS still works", gatewayType: "INGRESS", wantRole: models.GatewayRoleIngress, wantHTTPCode: http.StatusCreated},
+		{name: "REGULAR aliases to both", gatewayType: "REGULAR", wantRole: gwmodels.GatewayRoleBoth, wantHTTPCode: http.StatusCreated},
+		{name: "AI aliases to egress", gatewayType: "AI", wantRole: gwmodels.GatewayRoleEgress, wantHTTPCode: http.StatusCreated},
+		{name: "canonical INGRESS still works", gatewayType: "INGRESS", wantRole: gwmodels.GatewayRoleIngress, wantHTTPCode: http.StatusCreated},
 	}
 
 	for _, tt := range tests {

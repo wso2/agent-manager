@@ -23,7 +23,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -44,9 +44,9 @@ func clearGatewayManifestCache(t *testing.T) {
 func TestSaveGatewayPolicyManifestCachesWithoutWritingRow(t *testing.T) {
 	clearGatewayManifestCache(t)
 
-	gateway := newGateway(t, models.GatewayRoleBoth, true)
+	gateway := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(gatewayID string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(gatewayID string) (*gwmodels.Gateway, error) {
 			require.Equal(t, gateway.UUID.String(), gatewayID)
 			return gateway, nil
 		},
@@ -71,8 +71,8 @@ func TestGatewayManifestIsPerGateway(t *testing.T) {
 	clearGatewayManifestCache(t)
 	ctx := context.Background()
 
-	pusher := newGateway(t, models.GatewayRoleEgress, true)
-	other := newGateway(t, models.GatewayRoleEgress, true)
+	pusher := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	other := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	other.Manifest = policyManifest("row-policy", "v1")
 
 	require.NoError(t, gatewayManifestCache.Set(ctx, pusher.UUID.String(), policyManifest("pushed-policy", "v1")))
@@ -88,7 +88,7 @@ func TestGatewayManifestUnknownUntilReported(t *testing.T) {
 	clearGatewayManifestCache(t)
 	ctx := context.Background()
 
-	silent := newGateway(t, models.GatewayRoleEgress, true)
+	silent := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	_, known := gatewayManifest(silent)
 	require.False(t, known)
 
@@ -100,7 +100,7 @@ func TestGatewayManifestUnknownUntilReported(t *testing.T) {
 	require.NoError(t, gatewayManifestCache.Set(ctx, silent.UUID.String(), emptyPush))
 	requireKnownManifest(t, emptyPush, silent)
 
-	legacyRow := newGateway(t, models.GatewayRoleEgress, true)
+	legacyRow := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	legacyRow.Manifest = policyManifest("row-policy", "v1")
 	requireKnownManifest(t, legacyRow.Manifest, legacyRow)
 
@@ -115,10 +115,10 @@ func TestGatewayManifestPushDoesNotLeakAcrossOrgs(t *testing.T) {
 	clearGatewayManifestCache(t)
 	ctx := context.Background()
 
-	foreign := newGateway(t, models.GatewayRoleEgress, true)
+	foreign := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	foreign.OUID = "org-a"
-	foreign.Hosting = models.GatewayHostingSelfHosted
-	ours := newGateway(t, models.GatewayRoleEgress, true)
+	foreign.Hosting = gwmodels.GatewayHostingSelfHosted
+	ours := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	ours.OUID = "org-b"
 
 	require.NoError(t, gatewayManifestCache.Set(ctx, ours.UUID.String(), policyManifest("word-count-guardrail", "v1")))
@@ -126,9 +126,9 @@ func TestGatewayManifestPushDoesNotLeakAcrossOrgs(t *testing.T) {
 		policyManifest("mcp-auth", "v1", "mcp-authz", "v1", "injected-policy", "v1")))
 
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(opts gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(opts gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			require.Equal(t, "org-b", opts.OrganizationID)
-			return []*models.Gateway{ours}, nil
+			return []*gwmodels.Gateway{ours}, nil
 		},
 	}
 
@@ -157,7 +157,7 @@ func TestSaveGatewayPolicyManifestUnknownGateway(t *testing.T) {
 
 	const unknownID = "11111111-1111-1111-1111-111111111111"
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) {
 			//nolint:nilnil // GetByUUID reports "no such gateway" as (nil, nil).
 			return nil, nil
 		},
@@ -178,13 +178,13 @@ func TestDeleteGatewayDropsItsCachedManifest(t *testing.T) {
 	clearGatewayManifestCache(t)
 	ctx := context.Background()
 
-	gateway := newGateway(t, models.GatewayRoleEgress, true)
-	survivor := newGateway(t, models.GatewayRoleEgress, true)
+	gateway := newGateway(t, gwmodels.GatewayRoleEgress, true)
+	survivor := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	require.NoError(t, gatewayManifestCache.Set(ctx, gateway.UUID.String(), policyManifest("a", "v1")))
 	require.NoError(t, gatewayManifestCache.Set(ctx, survivor.UUID.String(), policyManifest("b", "v1")))
 
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:             func(string) (*models.Gateway, error) { return gateway, nil },
+		GetByUUIDFunc:             func(string) (*gwmodels.Gateway, error) { return gateway, nil },
 		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
 		DeleteFunc:                func(string, string) error { return nil },
 	}
@@ -205,7 +205,7 @@ func TestDeleteGatewayDropsItsCachedManifest(t *testing.T) {
 func TestGatewayManifestFallsBackToRow(t *testing.T) {
 	clearGatewayManifestCache(t)
 
-	gateway := newGateway(t, models.GatewayRoleBoth, true)
+	gateway := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	gateway.Manifest = map[string]interface{}{"policies": []interface{}{}}
 
 	requireKnownManifest(t, gateway.Manifest, gateway)
@@ -249,7 +249,7 @@ func TestGatewayManifest_CacheReadErrorFallsBackToRow(t *testing.T) {
 	clearGatewayManifestCache(t)
 	gatewayManifestCache = &failingManifestCacheBackend{}
 
-	gateway := newGateway(t, models.GatewayRoleBoth, true)
+	gateway := newGateway(t, gwmodels.GatewayRoleBoth, true)
 	gateway.Manifest = map[string]interface{}{"policies": []interface{}{}}
 
 	requireKnownManifest(t, gateway.Manifest, gateway)
@@ -261,9 +261,9 @@ func TestDeleteGatewaySucceedsWhenManifestCacheFails(t *testing.T) {
 	clearGatewayManifestCache(t)
 	gatewayManifestCache = &failingManifestCacheBackend{}
 
-	gateway := newGateway(t, models.GatewayRoleEgress, true)
+	gateway := newGateway(t, gwmodels.GatewayRoleEgress, true)
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:             func(string) (*models.Gateway, error) { return gateway, nil },
+		GetByUUIDFunc:             func(string) (*gwmodels.Gateway, error) { return gateway, nil },
 		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
 		DeleteFunc:                func(string, string) error { return nil },
 	}
@@ -272,7 +272,7 @@ func TestDeleteGatewaySucceedsWhenManifestCacheFails(t *testing.T) {
 }
 
 // requireKnownManifest asserts gatewayManifest reports want as the gateway's known manifest.
-func requireKnownManifest(t *testing.T, want map[string]interface{}, gateway *models.Gateway) {
+func requireKnownManifest(t *testing.T, want map[string]interface{}, gateway *gwmodels.Gateway) {
 	t.Helper()
 	manifest, known := gatewayManifest(gateway)
 	require.True(t, known)

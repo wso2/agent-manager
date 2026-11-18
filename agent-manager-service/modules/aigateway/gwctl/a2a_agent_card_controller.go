@@ -25,7 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -123,7 +123,7 @@ func writeAgentCardError(w http.ResponseWriter, r *http.Request, err error, fall
 	}
 }
 
-func toAgentCardResponse(card *models.A2AAgentCard) (*gwspec.AgentCardResponse, error) {
+func toAgentCardResponse(card *gwmodels.A2AAgentCard) (*gwspec.AgentCardResponse, error) {
 	resp := gwspec.NewAgentCardResponse(string(card.Source), string(card.Status), card.SourceURL, card.LastError)
 	if len(card.Card) > 0 {
 		dec := json.NewDecoder(bytes.NewReader(card.Card))

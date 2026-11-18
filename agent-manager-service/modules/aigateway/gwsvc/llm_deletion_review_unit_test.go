@@ -27,8 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -36,8 +36,8 @@ import (
 )
 
 func TestProxyDelete_RejectsWrongProjectBeforeCleanup(t *testing.T) {
-	proxy := &models.LLMProxy{UUID: uuid.New(), ProjectUUID: uuid.New()}
-	repo := &gwrepomocks.LLMProxyRepositoryMock{GetByIDCtxFunc: func(context.Context, string, string) (*models.LLMProxy, error) { return proxy, nil }}
+	proxy := &gwmodels.LLMProxy{UUID: uuid.New(), ProjectUUID: uuid.New()}
+	repo := &gwrepomocks.LLMProxyRepositoryMock{GetByIDCtxFunc: func(context.Context, string, string) (*gwmodels.LLMProxy, error) { return proxy, nil }}
 	svc := NewLLMProxyService(repo, nil, nil)
 	err := svc.DeleteInProject(context.Background(), "proxy", "org", uuid.NewString(), &LLMProxyDeploymentService{})
 	require.ErrorIs(t, err, utils.ErrLLMProxyNotFound)
@@ -47,7 +47,7 @@ func TestProxyDelete_RejectsWrongProjectBeforeCleanup(t *testing.T) {
 func TestProxyDelete_PropagatesLookupErrors(t *testing.T) {
 	for _, cause := range []error{errors.New("database unavailable"), context.Canceled, gorm.ErrRecordNotFound} {
 		t.Run(cause.Error(), func(t *testing.T) {
-			repo := &gwrepomocks.LLMProxyRepositoryMock{GetByIDCtxFunc: func(context.Context, string, string) (*models.LLMProxy, error) { return nil, cause }}
+			repo := &gwrepomocks.LLMProxyRepositoryMock{GetByIDCtxFunc: func(context.Context, string, string) (*gwmodels.LLMProxy, error) { return nil, cause }}
 			svc := NewLLMProxyService(repo, nil, nil)
 			err := svc.Delete(context.Background(), "proxy", "org", nil)
 			if errors.Is(cause, gorm.ErrRecordNotFound) {
@@ -64,10 +64,10 @@ func TestProxyDelete_PropagatesLookupErrors(t *testing.T) {
 // A proxy's delete events are built before its status rows cascade away and written in the deleting transaction,
 // which deletes only within the proxy's project.
 func TestProxyDeleteSendsItsDeleteEventsInTheDeletingTransaction(t *testing.T) {
-	proxy := &models.LLMProxy{UUID: uuid.New(), ProjectUUID: uuid.New()}
+	proxy := &gwmodels.LLMProxy{UUID: uuid.New(), ProjectUUID: uuid.New()}
 	gateway := uuid.NewString()
 	repo := &gwrepomocks.LLMProxyRepositoryMock{
-		GetByIDCtxFunc: func(context.Context, string, string) (*models.LLMProxy, error) { return proxy, nil },
+		GetByIDCtxFunc: func(context.Context, string, string) (*gwmodels.LLMProxy, error) { return proxy, nil },
 		DeleteInProjectTxFunc: func(_ context.Context, tx *gorm.DB, id, org, project string) error {
 			assert.Same(t, txSentinel, tx)
 			assert.Equal(t, "proxy", id)

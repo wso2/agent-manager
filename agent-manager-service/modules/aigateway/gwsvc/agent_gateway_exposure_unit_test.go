@@ -28,6 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -38,9 +39,9 @@ import (
 // transaction-bound mocks stay apart: an exposure or artifact write outside the exposure transaction panics or fails.
 type gatewayExposureHarness struct {
 	*publisherMocks
-	gateway *models.Gateway
+	gateway *gwmodels.Gateway
 	// pending are the PENDING rows the core inserted, all in the exposure transaction.
-	pending   []models.Placement
+	pending   []gwmodels.Placement
 	exposure  *AgentExposurePublisher
 	a2a       *A2APublisher
 	txConfigs *gwrepomocks.AgentConfigRepositoryMock
@@ -51,28 +52,28 @@ func newGatewayExposureHarness(t *testing.T) *gatewayExposureHarness {
 	m := newPublisherMocks(t)
 	h := &gatewayExposureHarness{
 		publisherMocks: m,
-		gateway: &models.Gateway{
-			UUID: uuid.New(), Vhost: "https://agents.example.com", GatewayFunctionalityType: models.GatewayRoleIngress,
+		gateway: &gwmodels.Gateway{
+			UUID: uuid.New(), Vhost: "https://agents.example.com", GatewayFunctionalityType: gwmodels.GatewayRoleIngress,
 		},
-		txConfigs: &gwrepomocks.AgentConfigRepositoryMock{UpsertFunc: func(context.Context, *models.AgentConfig) error { return nil }},
+		txConfigs: &gwrepomocks.AgentConfigRepositoryMock{UpsertFunc: func(context.Context, *gwmodels.AgentConfig) error { return nil }},
 	}
-	m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+	m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 		if h.gateway == nil {
 			return nil, nil
 		}
-		return []*models.Gateway{h.gateway}, nil
+		return []*gwmodels.Gateway{h.gateway}, nil
 	}
 	m.artifacts.WithTxFunc = func(tx *gorm.DB) gwrepo.ArtifactRepository {
 		assert.Same(t, txSentinel, tx, "the artifact is ensured in the exposure transaction")
 		return m.artifacts
 	}
 	m.deployments.LockEnvironmentMappingFunc = mappedEverywhere
-	m.deployments.InsertPendingFunc = func(_ context.Context, tx *gorm.DB, p models.Placement, _ string) (bool, error) {
+	m.deployments.InsertPendingFunc = func(_ context.Context, tx *gorm.DB, p gwmodels.Placement, _ string) (bool, error) {
 		assert.Same(t, txSentinel, tx, "the PENDING row is written in the exposure transaction")
 		h.pending = append(h.pending, p)
 		return true, nil
 	}
-	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return nil }
+	m.txExposures.UpsertFunc = func(context.Context, *gwmodels.PlatformAgentExposure) error { return nil }
 	m.exposures.GetFunc = exposedAgent
 	exposures := NewPlatformAgentExposures(m.exposures, m.gateways, nil)
 	a2aKind := &A2AAgentKind{exposures: exposures, proxyRepo: m.proxies, cardRepo: m.envCards, deploymentRepo: m.deployments, logger: testLogger()}
@@ -101,22 +102,22 @@ func (h *gatewayExposureHarness) wire(t *testing.T, s *AgentGatewayService) {
 }
 
 // existingArtifact makes the agent's per-environment artifact a row of kind.
-func (h *gatewayExposureHarness) existingArtifact(kind string) *models.Artifact {
-	artifact := &models.Artifact{UUID: uuid.New(), OUID: "acme", Handle: "proj1/my-agent/env", Kind: kind}
-	h.artifacts.GetByHandleFunc = func(string, string) (*models.Artifact, error) { return artifact, nil }
+func (h *gatewayExposureHarness) existingArtifact(kind string) *gwmodels.Artifact {
+	artifact := &gwmodels.Artifact{UUID: uuid.New(), OUID: "acme", Handle: "proj1/my-agent/env", Kind: kind}
+	h.artifacts.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) { return artifact, nil }
 	return artifact
 }
 
 // placedRows makes the artifact's rows the given ones.
-func (h *gatewayExposureHarness) placedRows(rows ...models.DeploymentStatusRecord) {
-	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+func (h *gatewayExposureHarness) placedRows(rows ...gwmodels.DeploymentStatusRecord) {
+	h.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 		return rows, nil
 	}
 }
 
-func (h *gatewayExposureHarness) deployedRow() models.DeploymentStatusRecord {
-	return models.DeploymentStatusRecord{
-		GatewayUUID: h.gateway.UUID, Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed,
+func (h *gatewayExposureHarness) deployedRow() gwmodels.DeploymentStatusRecord {
+	return gwmodels.DeploymentStatusRecord{
+		GatewayUUID: h.gateway.UUID, Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed,
 	}
 }
 
@@ -137,9 +138,9 @@ func TestDeploymentResponseCarriesStatusReason(t *testing.T) {
 	s := &AgentGatewayService{platform: defaultEnvPlatform(uuid.New()), logger: testLogger()}
 	h := newGatewayExposureHarness(t)
 	h.wire(t, s)
-	h.existingArtifact(models.KindAgent)
-	h.placedRows(models.DeploymentStatusRecord{
-		GatewayUUID: h.gateway.UUID, Status: models.DeploymentStatusPending, StatusDesired: models.DeploymentStatusUndeployed,
+	h.existingArtifact(gwmodels.KindAgent)
+	h.placedRows(gwmodels.DeploymentStatusRecord{
+		GatewayUUID: h.gateway.UUID, Status: gwmodels.DeploymentStatusPending, StatusDesired: gwmodels.DeploymentStatusUndeployed,
 		NextAttemptAt: &soon, RenderReason: waitingForEndpoint,
 	})
 
@@ -149,7 +150,7 @@ func TestDeploymentResponseCarriesStatusReason(t *testing.T) {
 
 	deployment := response[models.DefaultEnvironmentName]
 	require.NotNil(t, deployment.GatewayStatus)
-	assert.Equal(t, string(models.DeploymentStatusDeploying), *deployment.GatewayStatus)
+	assert.Equal(t, string(gwmodels.DeploymentStatusDeploying), *deployment.GatewayStatus)
 	require.NotNil(t, deployment.GatewayStatusReason)
 	assert.Equal(t, waitingForEndpoint, *deployment.GatewayStatusReason)
 }
@@ -159,9 +160,9 @@ func TestDeploymentResponseFallsBackWhenGatewayUnreadable(t *testing.T) {
 	s := &AgentGatewayService{platform: defaultEnvPlatform(uuid.New()), logger: testLogger()}
 	h := newGatewayExposureHarness(t)
 	h.wire(t, s)
-	h.existingArtifact(models.KindAgent)
+	h.existingArtifact(gwmodels.KindAgent)
 	h.placedRows(h.deployedRow())
-	h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+	h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 		return nil, assert.AnError
 	}
 
@@ -178,9 +179,9 @@ func TestDeploymentResponseOmitsGatewayStatusWithoutExposure(t *testing.T) {
 	s := &AgentGatewayService{platform: defaultEnvPlatform(uuid.New()), logger: testLogger()}
 	h := newGatewayExposureHarness(t)
 	h.wire(t, s)
-	h.existingArtifact(models.KindAgent)
+	h.existingArtifact(gwmodels.KindAgent)
 	h.placedRows()
-	h.exposures.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.PlatformAgentExposure, error) {
+	h.exposures.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 		return nil, gwrepo.ErrPlatformAgentExposureNotFound
 	}
 

@@ -23,6 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // AIApplicationRepository defines the interface for AI application persistence.
@@ -32,14 +33,14 @@ type AIApplicationRepository interface {
 	// Create inserts an AIApplication row. Uses ON CONFLICT DO NOTHING so it is safe to
 	// call idempotently on retry. Returns (true, nil) when a new row was inserted, or
 	// (false, nil) when the conflict path fired (caller must re-fetch with GetByAgentEnv).
-	Create(ctx context.Context, tx *gorm.DB, app *models.AIApplication) (bool, error)
+	Create(ctx context.Context, tx *gorm.DB, app *gwmodels.AIApplication) (bool, error)
 	// GetByAgentEnv returns the AIApplication for the given org/project/agent/environment.
 	// Returns gorm.ErrRecordNotFound when no row exists.
-	GetByAgentEnv(ctx context.Context, ouID, projectName, agentID, envName string) (*models.AIApplication, error)
+	GetByAgentEnv(ctx context.Context, ouID, projectName, agentID, envName string) (*gwmodels.AIApplication, error)
 	// ListByOrg returns all AIApplication rows for the given organisation.
-	ListByOrg(ctx context.Context, ouID string) ([]models.AIApplication, error)
+	ListByOrg(ctx context.Context, ouID string) ([]gwmodels.AIApplication, error)
 	// ListByAgent returns all AIApplication rows for the given org+project+agent across all environments.
-	ListByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AIApplication, error)
+	ListByAgent(ctx context.Context, ouID, projectName, agentID string) ([]gwmodels.AIApplication, error)
 	// DeleteByAgent removes all AIApplication rows for the given org+project+agent across all environments.
 	// Used during agent deletion after all per-config resources are cleaned up.
 	DeleteByAgent(ctx context.Context, ouID, projectName, agentID string) error
@@ -59,7 +60,7 @@ func NewAIApplicationRepository(db *gorm.DB) *AIApplicationRepo {
 
 // Create inserts an AIApplication, ignoring conflicts on (ou_id, project_name, agent_id, environment_name).
 // Returns (true, nil) when a new row was inserted; (false, nil) when ON CONFLICT DO NOTHING fired.
-func (r *AIApplicationRepo) Create(ctx context.Context, tx *gorm.DB, app *models.AIApplication) (bool, error) {
+func (r *AIApplicationRepo) Create(ctx context.Context, tx *gorm.DB, app *gwmodels.AIApplication) (bool, error) {
 	db := tx
 	if db == nil {
 		db = r.db
@@ -68,8 +69,8 @@ func (r *AIApplicationRepo) Create(ctx context.Context, tx *gorm.DB, app *models
 }
 
 // GetByAgentEnv fetches the AIApplication for a specific agent+environment in an org.
-func (r *AIApplicationRepo) GetByAgentEnv(ctx context.Context, ouID, projectName, agentID, envName string) (*models.AIApplication, error) {
-	var app models.AIApplication
+func (r *AIApplicationRepo) GetByAgentEnv(ctx context.Context, ouID, projectName, agentID, envName string) (*gwmodels.AIApplication, error) {
+	var app gwmodels.AIApplication
 	err := r.db.WithContext(ctx).
 		Where(appCond(r.db, ouID, projectName, agentID, envName)).
 		Take(&app).Error
@@ -80,8 +81,8 @@ func (r *AIApplicationRepo) GetByAgentEnv(ctx context.Context, ouID, projectName
 }
 
 // ListByOrg returns all AIApplication rows for an organisation.
-func (r *AIApplicationRepo) ListByOrg(ctx context.Context, ouID string) ([]models.AIApplication, error) {
-	var apps []models.AIApplication
+func (r *AIApplicationRepo) ListByOrg(ctx context.Context, ouID string) ([]gwmodels.AIApplication, error) {
+	var apps []gwmodels.AIApplication
 	err := r.db.WithContext(ctx).
 		Where("org_id = ?", ouID).
 		Find(&apps).Error
@@ -89,8 +90,8 @@ func (r *AIApplicationRepo) ListByOrg(ctx context.Context, ouID string) ([]model
 }
 
 // ListByAgent returns all AIApplication rows for the given org+project+agent across all environments.
-func (r *AIApplicationRepo) ListByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AIApplication, error) {
-	var apps []models.AIApplication
+func (r *AIApplicationRepo) ListByAgent(ctx context.Context, ouID, projectName, agentID string) ([]gwmodels.AIApplication, error) {
+	var apps []gwmodels.AIApplication
 	err := r.db.WithContext(ctx).
 		Where(appCond(r.db, ouID, projectName, agentID, "")).
 		Find(&apps).Error
@@ -101,7 +102,7 @@ func (r *AIApplicationRepo) ListByAgent(ctx context.Context, ouID, projectName, 
 func (r *AIApplicationRepo) DeleteByAgent(ctx context.Context, ouID, projectName, agentID string) error {
 	return r.db.WithContext(ctx).
 		Where(appCond(r.db, ouID, projectName, agentID, "")).
-		Delete(&models.AIApplication{}).Error
+		Delete(&gwmodels.AIApplication{}).Error
 }
 
 // DeleteByAgentEnv removes the AIApplication row for the given agent+environment. No-op if absent.
@@ -112,7 +113,7 @@ func (r *AIApplicationRepo) DeleteByAgentEnv(ctx context.Context, tx *gorm.DB, o
 	}
 	return db.WithContext(ctx).
 		Where(appCond(r.db, ouID, projectName, agentID, envName)).
-		Delete(&models.AIApplication{}).Error
+		Delete(&gwmodels.AIApplication{}).Error
 }
 
 // appCond matches the named agent's applications, in the named environment unless envName is empty.

@@ -19,13 +19,13 @@ package gwsvc
 import (
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // mcpGatewayContext is the context the gateway serves the proxy at. A project proxy's context is
 // relative to its project, so the gateway serves it at /<project><context>; an org proxy's context is
 // served as is. projectName falls back to the proxy's own project when empty.
-func mcpGatewayContext(proxy *models.MCPProxy, projectName string) string {
+func mcpGatewayContext(proxy *gwmodels.MCPProxy, projectName string) string {
 	context := ""
 	if proxy.Configuration.Context != nil {
 		context = strings.TrimSpace(*proxy.Configuration.Context)

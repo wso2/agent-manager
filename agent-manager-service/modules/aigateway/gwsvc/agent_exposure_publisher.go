@@ -26,7 +26,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -96,9 +96,9 @@ func NewAgentExposurePublisher(
 // Expose records that a platform agent is exposed in the environment; a non-nil tx makes it part of the caller's
 // transaction.
 func (p *AgentExposurePublisher) Expose(
-	ctx context.Context, tx *gorm.DB, key agentExposureKey, artifactUUID uuid.UUID, protocol models.AgentExposureProtocol,
+	ctx context.Context, tx *gorm.DB, key agentExposureKey, artifactUUID uuid.UUID, protocol gwmodels.AgentExposureProtocol,
 ) error {
-	exposure := &models.PlatformAgentExposure{
+	exposure := &gwmodels.PlatformAgentExposure{
 		OUID:            key.OUID,
 		ProjectName:     key.ProjectName,
 		AgentName:       key.AgentName,
@@ -118,8 +118,8 @@ func (p *AgentExposurePublisher) Expose(
 // in tx. A row already there, whatever its status, is made due now: an agent deploy or promote is when its endpoint
 // is about to appear. The caller nudges the worker after commit.
 func (p *AgentExposurePublisher) Publish(
-	ctx context.Context, tx *gorm.DB, kind reconcile.EnvironmentKind, key agentExposureKey, artifact models.ArtifactRef,
-	protocol models.AgentExposureProtocol,
+	ctx context.Context, tx *gorm.DB, kind reconcile.EnvironmentKind, key agentExposureKey, artifact gwmodels.ArtifactRef,
+	protocol gwmodels.AgentExposureProtocol,
 ) error {
 	if err := p.Expose(ctx, tx, key, artifact.ArtifactUUID, protocol); err != nil {
 		return err
@@ -129,7 +129,7 @@ func (p *AgentExposurePublisher) Publish(
 
 // DeployRecord queues the render of the agent's artifact in the environment, in tx.
 func (p *AgentExposurePublisher) DeployRecord(
-	ctx context.Context, tx *gorm.DB, kind reconcile.EnvironmentKind, envUUID uuid.UUID, artifact models.ArtifactRef,
+	ctx context.Context, tx *gorm.DB, kind reconcile.EnvironmentKind, envUUID uuid.UUID, artifact gwmodels.ArtifactRef,
 ) error {
 	_, err := p.core.DeployRecord(ctx, tx, kind, reconcile.Record{ArtifactRef: artifact, EnvironmentUUID: envUUID})
 	if err != nil {
@@ -139,7 +139,7 @@ func (p *AgentExposurePublisher) DeployRecord(
 }
 
 // MarkStale re-renders the agent's artifact wherever it is placed, because an input outside it changed.
-func (p *AgentExposurePublisher) MarkStale(ctx context.Context, artifact models.ArtifactRef, reason string) error {
+func (p *AgentExposurePublisher) MarkStale(ctx context.Context, artifact gwmodels.ArtifactRef, reason string) error {
 	return p.core.MarkStale(ctx, artifact.Kind, artifact.OUID, artifact.ArtifactUUID, nil, reason)
 }
 
@@ -160,10 +160,10 @@ func (p *AgentExposurePublisher) GatewayURL(ouID string, envUUID uuid.UUID, agen
 // ShownStatus is what the user is shown for the agent's deployment in the environment: its artifact's row on the
 // ingress gateway. With no row, an environment without a gateway is UNDEPLOYED with noGatewayReason, and one with a
 // gateway is still owed its deploy by the placement pass.
-func (p *AgentExposurePublisher) ShownStatus(ctx context.Context, key agentExposureKey, hasGateway bool) (models.UserStatus, error) {
+func (p *AgentExposurePublisher) ShownStatus(ctx context.Context, key agentExposureKey, hasGateway bool) (gwmodels.UserStatus, error) {
 	rows, err := p.statusRecords(ctx, key)
 	if err != nil {
-		return models.UserStatus{}, err
+		return gwmodels.UserStatus{}, err
 	}
 	return shownStatus(rows, hasGateway), nil
 }
@@ -177,7 +177,7 @@ type AgentURL struct {
 	Direct bool
 	// Status is what the user is shown for the agent's gateway deployment; nil while the agent has no exposure in
 	// the environment, since the gateway is not involved.
-	Status *models.UserStatus
+	Status *gwmodels.UserStatus
 }
 
 // For is the URL to show: the gateway's, else directURL while direct, else "".
@@ -236,9 +236,9 @@ func (p *AgentExposurePublisher) isExposed(ctx context.Context, key agentExposur
 	}
 }
 
-func (p *AgentExposurePublisher) statusRecords(ctx context.Context, key agentExposureKey) ([]models.DeploymentStatusRecord, error) {
+func (p *AgentExposurePublisher) statusRecords(ctx context.Context, key agentExposureKey) ([]gwmodels.DeploymentStatusRecord, error) {
 	artifact, err := agentEnvAPIArtifact(
-		p.artifactRepo, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID.String(), models.AgentArtifactKinds...,
+		p.artifactRepo, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentUUID.String(), gwmodels.AgentArtifactKinds...,
 	)
 	switch {
 	case err == nil:
@@ -251,26 +251,26 @@ func (p *AgentExposurePublisher) statusRecords(ctx context.Context, key agentExp
 }
 
 // isPlacedOn is reconcile.PlacedCondition applied to the artifact's rows.
-func isPlacedOn(rows []models.DeploymentStatusRecord, gateway uuid.UUID) bool {
-	return slices.ContainsFunc(rows, func(row models.DeploymentStatusRecord) bool {
+func isPlacedOn(rows []gwmodels.DeploymentStatusRecord, gateway uuid.UUID) bool {
+	return slices.ContainsFunc(rows, func(row gwmodels.DeploymentStatusRecord) bool {
 		return row.GatewayUUID == gateway &&
-			(row.StatusDesired == models.DeploymentStatusDeployed || row.NextAttemptAt != nil)
+			(row.StatusDesired == gwmodels.DeploymentStatusDeployed || row.NextAttemptAt != nil)
 	})
 }
 
-func shownStatus(rows []models.DeploymentStatusRecord, hasGateway bool) models.UserStatus {
-	if row := models.ShownStatusRecord(rows); row != nil {
-		return models.UserStatusOf(*row)
+func shownStatus(rows []gwmodels.DeploymentStatusRecord, hasGateway bool) gwmodels.UserStatus {
+	if row := gwmodels.ShownStatusRecord(rows); row != nil {
+		return gwmodels.UserStatusOf(*row)
 	}
 	if !hasGateway {
-		return models.UserStatus{Status: models.DeploymentStatusUndeployed, Reason: noGatewayReason}
+		return gwmodels.UserStatus{Status: gwmodels.DeploymentStatusUndeployed, Reason: noGatewayReason}
 	}
-	return models.UserStatus{Status: models.DeploymentStatusDeploying, Reason: notPlacedReason}
+	return gwmodels.UserStatus{Status: gwmodels.DeploymentStatusDeploying, Reason: notPlacedReason}
 }
 
 // TeardownEnv undeploys one environment's artifact from every gateway it is placed on and drops its exposure, in tx.
 // The artifact and its API keys stay for a later redeploy. The undeploy events are written in tx.
-func (p *AgentExposurePublisher) TeardownEnv(ctx context.Context, tx *gorm.DB, key agentExposureKey, artifact models.ArtifactRef) error {
+func (p *AgentExposurePublisher) TeardownEnv(ctx context.Context, tx *gorm.DB, key agentExposureKey, artifact gwmodels.ArtifactRef) error {
 	if artifact.ArtifactUUID != uuid.Nil {
 		gateways, err := p.deploymentRepo.WithTx(tx).PlacedGateways(ctx, key.OUID, artifact.ArtifactUUID)
 		if err != nil {
@@ -278,7 +278,7 @@ func (p *AgentExposurePublisher) TeardownEnv(ctx context.Context, tx *gorm.DB, k
 		}
 		slices.Sort(gateways)
 		for _, gateway := range gateways {
-			placement := models.Placement{ArtifactRef: artifact, GatewayUUID: uuid.MustParse(gateway)}
+			placement := gwmodels.Placement{ArtifactRef: artifact, GatewayUUID: uuid.MustParse(gateway)}
 			if err := p.core.Undeploy(ctx, tx, placement); err != nil {
 				return fmt.Errorf("failed to undeploy the agent: %w", err)
 			}
@@ -293,7 +293,7 @@ func (p *AgentExposurePublisher) TeardownEnv(ctx context.Context, tx *gorm.DB, k
 
 // DropArtifact deletes the agent's per-environment artifact (its exposure, deployments and API keys cascade) and
 // writes its delete events to every gateway it was sent, in tx.
-func (p *AgentExposurePublisher) DropArtifact(ctx context.Context, tx *gorm.DB, artifact models.ArtifactRef) error {
+func (p *AgentExposurePublisher) DropArtifact(ctx context.Context, tx *gorm.DB, artifact gwmodels.ArtifactRef) error {
 	events, err := p.core.PrepareDelete(ctx, tx, artifact)
 	if err != nil {
 		return err
@@ -304,11 +304,11 @@ func (p *AgentExposurePublisher) DropArtifact(ctx context.Context, tx *gorm.DB, 
 	return events.Publish(ctx, tx)
 }
 
-func (p *AgentExposurePublisher) dropArtifact(ctx context.Context, artifact models.ArtifactRef) error {
+func (p *AgentExposurePublisher) dropArtifact(ctx context.Context, artifact gwmodels.ArtifactRef) error {
 	return p.tx(ctx, func(tx *gorm.DB) error { return p.DropArtifact(ctx, tx, artifact) })
 }
 
-func (p *AgentExposurePublisher) deleteArtifact(tx *gorm.DB, artifact models.ArtifactRef) error {
+func (p *AgentExposurePublisher) deleteArtifact(tx *gorm.DB, artifact gwmodels.ArtifactRef) error {
 	err := p.artifactRepo.Delete(tx, artifact.ArtifactUUID.String())
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("failed to delete the agent's API artifact: %w", err)

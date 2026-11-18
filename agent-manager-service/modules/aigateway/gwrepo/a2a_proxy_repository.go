@@ -25,6 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
@@ -43,15 +44,15 @@ type A2AProxyRepository interface {
 	LockAgentEnv(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error
 
 	// Get looks the row up by the environment name in the URL path.
-	Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.A2AProxy, error)
+	Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*gwmodels.A2AProxy, error)
 	// GetByEnvUUID looks the row up by environment UUID.
-	GetByEnvUUID(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error)
+	GetByEnvUUID(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*gwmodels.A2AProxy, error)
 	// GetByArtifact returns the proxy of the agent's per-environment artifact, joined on its handle
 	// project/agent/<environment UUID>.
-	GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error)
+	GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.A2AProxy, error)
 
 	// Upsert writes the row, replacing a same-named row from a deleted environment.
-	Upsert(ctx context.Context, proxy *models.A2AProxy) error
+	Upsert(ctx context.Context, proxy *gwmodels.A2AProxy) error
 
 	// Delete returns ErrA2AProxyNotFound when the environment was not proxied.
 	Delete(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) error
@@ -62,7 +63,7 @@ type A2AProxyRepository interface {
 	// ListEnvironmentUUIDs returns the distinct environment UUIDs with rows recorded under environmentName.
 	ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error)
 	// ListForEnvironment returns every agent's proxy in the environment, ordered by project and agent name.
-	ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error)
+	ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.A2AProxy, error)
 }
 
 type a2aProxyRepository struct {
@@ -84,12 +85,12 @@ func (r *a2aProxyRepository) LockAgentEnv(ctx context.Context, ouID, projectName
 	return err
 }
 
-func (r *a2aProxyRepository) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.A2AProxy, error) {
+func (r *a2aProxyRepository) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*gwmodels.A2AProxy, error) {
 	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	return r.first(ctx, cond, args...)
 }
 
-func (r *a2aProxyRepository) GetByEnvUUID(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*models.A2AProxy, error) {
+func (r *a2aProxyRepository) GetByEnvUUID(ctx context.Context, ouID, projectName, agentName string, environmentUUID uuid.UUID) (*gwmodels.A2AProxy, error) {
 	cond, args := agentEnvIDCond(r.db, ouID, projectName, agentName, environmentUUID)
 	return r.first(ctx, cond, args...)
 }
@@ -97,13 +98,13 @@ func (r *a2aProxyRepository) GetByEnvUUID(ctx context.Context, ouID, projectName
 // A2AProxyArtifactJoin joins a2a_proxies p to the agent's per-environment artifact a.
 const A2AProxyArtifactJoin = `JOIN mod_ai_gateway_artifacts a ON a.id = p.artifact_id`
 
-func (r *a2aProxyRepository) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error) {
+func (r *a2aProxyRepository) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.A2AProxy, error) {
 	return r.first(ctx, "org_id = ? AND artifact_id = ?", ouID, artifactUUID)
 }
 
 // first reads one proxy with its upstream secret.
-func (r *a2aProxyRepository) first(ctx context.Context, query string, args ...interface{}) (*models.A2AProxy, error) {
-	var row models.A2AProxy
+func (r *a2aProxyRepository) first(ctx context.Context, query string, args ...interface{}) (*gwmodels.A2AProxy, error) {
+	var row gwmodels.A2AProxy
 	db := r.db.WithContext(ctx)
 	err := db.Where(query, args...).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -121,7 +122,7 @@ func (r *a2aProxyRepository) first(ctx context.Context, query string, args ...in
 // a2aProxySecretOwner is the owner_kind of an A2A proxy's upstream credential.
 const a2aProxySecretOwner = "a2a_proxy"
 
-func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy) error {
+func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *gwmodels.A2AProxy) error {
 	now := dbx.Now()
 	proxy.UpdatedAt = now
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -132,7 +133,7 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy)
 			}
 			proxy.AgentUUID = &id
 		}
-		var existing []models.A2AProxy
+		var existing []gwmodels.A2AProxy
 		if err := tx.Where("agent_id = ? AND environment_id = ?", *proxy.AgentUUID, proxy.EnvironmentUUID).
 			Find(&existing).Error; err != nil {
 			return err
@@ -156,7 +157,7 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy)
 			return err
 		}
 		// Clearing the reference first lets an emptied credential's secret go.
-		if err := tx.Model(&models.A2AProxy{}).Where("id = ?", proxy.ID).Updates(map[string]any{
+		if err := tx.Model(&gwmodels.A2AProxy{}).Where("id = ?", proxy.ID).Updates(map[string]any{
 			"artifact_id": proxy.ArtifactUUID, "upstream_auth_header": proxy.UpstreamAuthHeader,
 			"upstream_auth_secret_id": secretID, "updated_at": now,
 		}).Error; err != nil {
@@ -171,7 +172,7 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy)
 }
 
 // secretIfHeader is the credential to store: none without a header to send it in.
-func secretIfHeader(proxy *models.A2AProxy) string {
+func secretIfHeader(proxy *gwmodels.A2AProxy) string {
 	if proxy.UpstreamAuthHeader == "" {
 		return ""
 	}
@@ -180,13 +181,13 @@ func secretIfHeader(proxy *models.A2AProxy) string {
 
 // deleteProxies removes the proxies matching cond and their secrets, and reports how many it removed.
 func (r *a2aProxyRepository) deleteProxies(ctx context.Context, cond string, args ...any) (int, error) {
-	var rows []models.A2AProxy
+	var rows []gwmodels.A2AProxy
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Select("id, upstream_auth_secret_id").Where(cond, args...).Find(&rows).Error; err != nil {
 			return err
 		}
 		for _, row := range rows {
-			if err := tx.Where("id = ?", row.ID).Delete(&models.A2AProxy{}).Error; err != nil {
+			if err := tx.Where("id = ?", row.ID).Delete(&gwmodels.A2AProxy{}).Error; err != nil {
 				return err
 			}
 			if err := repositories.DeleteSecret(tx, row.UpstreamAuthSecretID); err != nil {
@@ -221,8 +222,8 @@ func (r *a2aProxyRepository) DeleteForEnvironment(ctx context.Context, ouID stri
 	return err
 }
 
-func (r *a2aProxyRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AProxy, error) {
-	rows, err := listForEnvironment[models.A2AProxy](ctx, r.db, models.A2AProxy{}.TableName(), ouID, environmentUUID)
+func (r *a2aProxyRepository) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.A2AProxy, error) {
+	rows, err := listForEnvironment[gwmodels.A2AProxy](ctx, r.db, gwmodels.A2AProxy{}.TableName(), ouID, environmentUUID)
 	if err != nil {
 		return nil, err
 	}
@@ -235,5 +236,5 @@ func (r *a2aProxyRepository) ListForEnvironment(ctx context.Context, ouID string
 }
 
 func (r *a2aProxyRepository) ListEnvironmentUUIDs(ctx context.Context, ouID, environmentName string) ([]uuid.UUID, error) {
-	return listEnvironmentUUIDs[models.A2AProxy](ctx, r.db, ouID, environmentName)
+	return listEnvironmentUUIDs[gwmodels.A2AProxy](ctx, r.db, ouID, environmentName)
 }

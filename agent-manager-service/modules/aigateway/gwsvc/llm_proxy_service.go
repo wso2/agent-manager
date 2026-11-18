@@ -27,7 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -53,7 +53,7 @@ func NewLLMProxyService(
 }
 
 // Create creates a new LLM proxy
-func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, proxy *models.LLMProxy) (*models.LLMProxy, error) {
+func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, proxy *gwmodels.LLMProxy) (*gwmodels.LLMProxy, error) {
 	if proxy == nil {
 		return nil, utils.ErrInvalidInput
 	}
@@ -145,8 +145,8 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 }
 
 // List lists all LLM proxies for an organization
-func (s *LLMProxyService) List(ouID string, projectID *string, limit, offset int) ([]*models.LLMProxy, int, error) {
-	var proxies []*models.LLMProxy
+func (s *LLMProxyService) List(ouID string, projectID *string, limit, offset int) ([]*gwmodels.LLMProxy, int, error) {
+	var proxies []*gwmodels.LLMProxy
 	var totalCount int
 	var err error
 
@@ -176,7 +176,7 @@ func (s *LLMProxyService) List(ouID string, projectID *string, limit, offset int
 }
 
 // Get retrieves an LLM proxy by ID
-func (s *LLMProxyService) Get(proxyID, ouID string) (*models.LLMProxy, error) {
+func (s *LLMProxyService) Get(proxyID, ouID string) (*gwmodels.LLMProxy, error) {
 	if proxyID == "" {
 		return nil, utils.ErrInvalidInput
 	}
@@ -196,7 +196,7 @@ func (s *LLMProxyService) Get(proxyID, ouID string) (*models.LLMProxy, error) {
 }
 
 // Update updates an existing LLM proxy
-func (s *LLMProxyService) Update(proxyID, ouID string, updates *models.LLMProxy) (*models.LLMProxy, error) {
+func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProxy) (*gwmodels.LLMProxy, error) {
 	if proxyID == "" || updates == nil {
 		return nil, utils.ErrInvalidInput
 	}
@@ -279,7 +279,7 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *models.LLMProxy)
 }
 
 // preserveUpstreamAuthCredential preserves existing upstream auth credentials when not provided in update
-func preserveUpstreamAuthCredential(existing, updated *models.UpstreamAuth) *models.UpstreamAuth {
+func preserveUpstreamAuthCredential(existing, updated *gwmodels.UpstreamAuth) *gwmodels.UpstreamAuth {
 	if updated == nil {
 		return existing
 	}
@@ -363,7 +363,7 @@ func proxyDeleteError(err error) error {
 }
 
 // ListByProvider lists all proxies for a specific provider
-func (s *LLMProxyService) ListByProvider(ouID, providerID string, limit, offset int) ([]*models.LLMProxy, int, error) {
+func (s *LLMProxyService) ListByProvider(ouID, providerID string, limit, offset int) ([]*gwmodels.LLMProxy, int, error) {
 	if providerID == "" {
 		return nil, 0, utils.ErrInvalidInput
 	}

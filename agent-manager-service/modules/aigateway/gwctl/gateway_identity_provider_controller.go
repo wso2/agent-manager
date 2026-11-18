@@ -26,15 +26,15 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // toSpecIdentityProvider maps a mirror row to the API representation.
-func toSpecIdentityProvider(p models.GatewayIdentityProvider) gwspec.IdentityProvider {
+func toSpecIdentityProvider(p gwmodels.GatewayIdentityProvider) gwspec.IdentityProvider {
 	issuer := p.Issuer
 	jwksURI := p.JWKSUri
 	skip := p.JWKSSkipTLSVerify

@@ -30,7 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -40,13 +40,13 @@ var errRollback = errors.New("roll back the test transaction")
 
 // lostInsertRace commits an artifact for a fresh handle and returns a repo whose first lookup
 // misses it, as when a concurrent first enable inserts between the lookup and the insert.
-func lostInsertRace(t *testing.T) (ouID, envID string, winner *models.Artifact, racing gwrepo.ArtifactRepository) {
+func lostInsertRace(t *testing.T) (ouID, envID string, winner *gwmodels.Artifact, racing gwrepo.ArtifactRepository) {
 	t.Helper()
 	artifacts := gwrepo.NewArtifactRepo(db.GetDB())
 	ouID, envID = dbtest.Org(t, db.GetDB()), uuid.New().String()
-	winner = &models.Artifact{
+	winner = &gwmodels.Artifact{
 		UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("checkout", "weather", envID),
-		Name: "weather-winner-" + envID[:8], Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
+		Name: "weather-winner-" + envID[:8], Version: "v1.0", Kind: gwmodels.KindAgent, OUID: ouID,
 	}
 	require.NoError(t, artifacts.Create(db.GetDB(), winner))
 	t.Cleanup(func() { _ = artifacts.Delete(db.GetDB(), winner.UUID.String()) })
@@ -54,7 +54,7 @@ func lostInsertRace(t *testing.T) (ouID, envID string, winner *models.Artifact, 
 	lookups := 0
 	reads := artifacts
 	mock := &gwrepomocks.ArtifactRepositoryMock{
-		GetByHandleFunc: func(handle, ouID string) (*models.Artifact, error) {
+		GetByHandleFunc: func(handle, ouID string) (*gwmodels.Artifact, error) {
 			lookups++
 			if lookups == 1 {
 				return nil, utils.ErrArtifactNotFound
@@ -76,9 +76,9 @@ func TestEnsureAgentEnvAPIArtifactReadsThroughTheCallersTransaction(t *testing.T
 	ouID, envID := dbtest.Org(t, db.GetDB()), uuid.New().String()
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
-		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindAgent)
+		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, gwmodels.KindAgent)
 		require.NoError(t, err)
-		again, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindAgent)
+		again, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, gwmodels.KindAgent)
 		require.NoError(t, err)
 		assert.Equal(t, created.UUID, again.UUID)
 		return errRollback
@@ -90,7 +90,7 @@ func TestEnsureAgentEnvAPIArtifactSurvivesLosingTheInsertRaceInsideATransaction(
 	ouID, envID, winner, racing := lostInsertRace(t)
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
-		got, err := ensureAgentEnvAPIArtifact(tx, racing, ouID, "checkout", "weather", envID, models.KindAgent)
+		got, err := ensureAgentEnvAPIArtifact(tx, racing, ouID, "checkout", "weather", envID, gwmodels.KindAgent)
 		require.NoError(t, err)
 		assert.Equal(t, winner.UUID, got.UUID)
 		require.NoError(t, tx.Exec("SELECT 1").Error, "the caller's transaction is still usable")
@@ -102,7 +102,7 @@ func TestEnsureAgentEnvAPIArtifactSurvivesLosingTheInsertRaceInsideATransaction(
 func TestEnsureAgentEnvAPIArtifactReturnsTheWinnerOutsideATransaction(t *testing.T) {
 	ouID, envID, winner, racing := lostInsertRace(t)
 
-	got, err := ensureAgentEnvAPIArtifact(db.GetDB(), racing, ouID, "checkout", "weather", envID, models.KindAgent)
+	got, err := ensureAgentEnvAPIArtifact(db.GetDB(), racing, ouID, "checkout", "weather", envID, gwmodels.KindAgent)
 
 	require.NoError(t, err)
 	assert.Equal(t, winner.UUID, got.UUID)
@@ -113,11 +113,11 @@ func TestEnsureAgentEnvAPIArtifactCreatesKind(t *testing.T) {
 	ouID, envID := dbtest.Org(t, db.GetDB()), uuid.New().String()
 
 	err := db.GetDB().Transaction(func(tx *gorm.DB) error {
-		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindRestAPI)
+		created, err := ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, gwmodels.KindRestAPI)
 		require.NoError(t, err)
-		assert.Equal(t, models.KindRestAPI, created.Kind)
+		assert.Equal(t, gwmodels.KindRestAPI, created.Kind)
 
-		_, err = ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, models.KindAgent)
+		_, err = ensureAgentEnvAPIArtifact(tx, artifacts, ouID, "checkout", "weather", envID, gwmodels.KindAgent)
 		assert.Error(t, err, "an existing artifact of another kind is not switched")
 		return errRollback
 	})
@@ -127,7 +127,7 @@ func TestEnsureAgentEnvAPIArtifactCreatesKind(t *testing.T) {
 func TestEnsureAgentEnvAPIArtifactRefusesTheWinnerOfAnotherKindInTheInsertRace(t *testing.T) {
 	ouID, envID, _, racing := lostInsertRace(t)
 
-	_, err := ensureAgentEnvAPIArtifact(db.GetDB(), racing, ouID, "checkout", "weather", envID, models.KindRestAPI)
+	_, err := ensureAgentEnvAPIArtifact(db.GetDB(), racing, ouID, "checkout", "weather", envID, gwmodels.KindRestAPI)
 
 	assert.Error(t, err)
 }
@@ -136,9 +136,9 @@ func TestEnsureAgentEnvAPIArtifactRefusesTheWinnerOfAnotherKindInTheInsertRace(t
 func TestListByHandlePrefixFindsOnlyThatAgentsArtifacts(t *testing.T) {
 	artifacts := gwrepo.NewArtifactRepo(db.GetDB())
 	ouID := dbtest.Org(t, db.GetDB())
-	create := func(agentName, kind string) *models.Artifact {
+	create := func(agentName, kind string) *gwmodels.Artifact {
 		envID := uuid.New().String()
-		a := &models.Artifact{
+		a := &gwmodels.Artifact{
 			UUID: uuid.New(), Handle: agentEnvAPIArtifactHandle("checkout", agentName, envID),
 			Name: agentName + "-" + envID[:8], Version: "v1.0", Kind: kind, OUID: ouID,
 		}
@@ -146,12 +146,12 @@ func TestListByHandlePrefixFindsOnlyThatAgentsArtifacts(t *testing.T) {
 		t.Cleanup(func() { _ = artifacts.Delete(db.GetDB(), a.UUID.String()) })
 		return a
 	}
-	dev, qa := create("we_ther", models.KindAgent), create("we_ther", models.KindRestAPI)
-	create("we_ther", models.KindWebSubAPI)
-	create("we_ther-2", models.KindAgent)
-	create("weather", models.KindAgent)
+	dev, qa := create("we_ther", gwmodels.KindAgent), create("we_ther", gwmodels.KindRestAPI)
+	create("we_ther", gwmodels.KindWebSubAPI)
+	create("we_ther-2", gwmodels.KindAgent)
+	create("weather", gwmodels.KindAgent)
 
-	got, err := artifacts.ListByHandlePrefix(context.Background(), models.AgentArtifactKinds, agentAPIArtifactHandlePrefix("checkout", "we_ther"), ouID)
+	got, err := artifacts.ListByHandlePrefix(context.Background(), gwmodels.AgentArtifactKinds, agentAPIArtifactHandlePrefix("checkout", "we_ther"), ouID)
 
 	require.NoError(t, err)
 	gotUUIDs := make([]uuid.UUID, 0, len(got))

@@ -23,7 +23,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
@@ -31,7 +31,7 @@ import (
 // writes new events: the hub generates the event id, so a repeated ack is not deduplicated.
 func replayAgentKeys(
 	ctx context.Context, tx *gorm.DB, keys gwrepo.APIKeyRepository, events *GatewayEventsService,
-	p models.Placement, now time.Time,
+	p gwmodels.Placement, now time.Time,
 ) error {
 	active, err := keys.ListActiveByArtifactTx(ctx, tx, p.ArtifactUUID, now)
 	if err != nil {
@@ -45,8 +45,8 @@ func replayAgentKeys(
 	return nil
 }
 
-func apiKeyCreatedEventOf(k models.StoredAPIKey) *models.APIKeyCreatedEvent {
-	event := &models.APIKeyCreatedEvent{
+func apiKeyCreatedEventOf(k gwmodels.StoredAPIKey) *gwmodels.APIKeyCreatedEvent {
+	event := &gwmodels.APIKeyCreatedEvent{
 		UUID:         k.UUID.String(),
 		APIID:        k.ArtifactUUID.String(),
 		Name:         k.Name,

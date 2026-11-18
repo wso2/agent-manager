@@ -27,7 +27,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -88,19 +88,19 @@ type LLMProxyDeploymentSpec struct {
 	Context     string                     `yaml:"context,omitempty" json:"context,omitempty"`
 	VHost       string                     `yaml:"vhost,omitempty" json:"vhost,omitempty"`
 	Provider    LLMProxyDeploymentProvider `yaml:"provider" json:"provider"`
-	Resilience  *models.Resilience         `yaml:"resilience,omitempty" json:"resilience,omitempty"`
-	Policies    []models.LLMPolicy         `yaml:"policies,omitempty" json:"policies,omitempty"`
-	Security    *models.SecurityConfig     `yaml:"security,omitempty" json:"security,omitempty"`
+	Resilience  *gwmodels.Resilience       `yaml:"resilience,omitempty" json:"resilience,omitempty"`
+	Policies    []gwmodels.LLMPolicy       `yaml:"policies,omitempty" json:"policies,omitempty"`
+	Security    *gwmodels.SecurityConfig   `yaml:"security,omitempty" json:"security,omitempty"`
 }
 
 // LLMProxyDeploymentProvider represents the provider configuration in the spec
 type LLMProxyDeploymentProvider struct {
-	ID   string               `yaml:"id" json:"id"`
-	Auth *models.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
+	ID   string                 `yaml:"id" json:"id"`
+	Auth *gwmodels.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
 }
 
 // DeployLLMProxy deploys an LLM proxy to a gateway
-func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *models.DeployAPIRequest, ouID string) (*models.Deployment, error) {
+func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *gwmodels.DeployAPIRequest, ouID string) (*gwmodels.Deployment, error) {
 	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: starting", "proxyID", proxyID, "ouID", ouID,
 		"base", req.Base, "gatewayID", req.GatewayID)
 
@@ -176,8 +176,8 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *models.D
 // on gateway, the environment's egress gateway the caller resolved. A render error is returned before anything is
 // written.
 func (s *LLMProxyDeploymentService) DeployForEnvironment(
-	ctx context.Context, proxy *models.LLMProxy, ouID string, envUUID, gateway uuid.UUID,
-) (*models.Deployment, error) {
+	ctx context.Context, proxy *gwmodels.LLMProxy, ouID string, envUUID, gateway uuid.UUID,
+) (*gwmodels.Deployment, error) {
 	record := reconcile.Record{
 		ArtifactRef:      proxyPlacement(proxy, proxy.Handle, ouID, gateway).ArtifactRef,
 		EnvironmentUUID:  envUUID,
@@ -200,8 +200,8 @@ func (s *LLMProxyDeploymentService) DeployForEnvironment(
 
 // CurrentDeployment is the proxy's deployment the gateway is to serve; nil when none is.
 func (s *LLMProxyDeploymentService) CurrentDeployment(
-	ctx context.Context, proxy *models.LLMProxy, ouID string, gateway uuid.UUID,
-) (*models.Deployment, error) {
+	ctx context.Context, proxy *gwmodels.LLMProxy, ouID string, gateway uuid.UUID,
+) (*gwmodels.Deployment, error) {
 	return s.deploymentRepo.GetPullable(ctx, ouID, proxy.UUID, gateway.String())
 }
 
@@ -210,13 +210,13 @@ func (s *LLMProxyDeploymentService) CurrentDeployment(
 // reconcile.RenderFailedError, with the redeploy left to the worker. The new deployment is nil when the proxy isn't
 // placed on gateway.
 func (s *LLMProxyDeploymentService) Redeploy(
-	ctx context.Context, proxy *models.LLMProxy, ouID string, gateway uuid.UUID, reason string,
-) (*models.Deployment, error) {
+	ctx context.Context, proxy *gwmodels.LLMProxy, ouID string, gateway uuid.UUID, reason string,
+) (*gwmodels.Deployment, error) {
 	ref := proxyPlacement(proxy, proxy.Handle, ouID, gateway).ArtifactRef
 	if _, err := s.kind.Render(ctx, ref); err != nil {
 		return nil, err
 	}
-	if err := s.core.MarkStale(ctx, models.KindLLMProxy, ouID, proxy.UUID, []uuid.UUID{gateway}, reason); err != nil {
+	if err := s.core.MarkStale(ctx, gwmodels.KindLLMProxy, ouID, proxy.UUID, []uuid.UUID{gateway}, reason); err != nil {
 		return nil, err
 	}
 	return s.CurrentDeployment(ctx, proxy, ouID, gateway)
@@ -226,19 +226,19 @@ func (s *LLMProxyDeploymentService) Redeploy(
 // are returned joined: a render failure is a reconcile.RenderFailedError, a DB write-back failure a plain error. A
 // gateway that fails keeps what it was last sent and stays owed, and the worker retries it unless the render
 // failed permanently.
-func (s *LLMProxyDeploymentService) RedeployEverywhere(ctx context.Context, proxy *models.LLMProxy, ouID, reason string) error {
-	return s.core.MarkStale(ctx, models.KindLLMProxy, ouID, proxy.UUID, nil, reason)
+func (s *LLMProxyDeploymentService) RedeployEverywhere(ctx context.Context, proxy *gwmodels.LLMProxy, ouID, reason string) error {
+	return s.core.MarkStale(ctx, gwmodels.KindLLMProxy, ouID, proxy.UUID, nil, reason)
 }
 
 // proxyPlacement is the proxy's artifact on the gateway. handle is what the gateway stores the proxy under.
-func proxyPlacement(proxy *models.LLMProxy, handle, ouID string, gatewayUUID uuid.UUID) models.Placement {
-	return models.Placement{
-		ArtifactRef: models.ArtifactRef{OUID: ouID, ArtifactUUID: proxy.UUID, Kind: models.KindLLMProxy, Handle: handle},
+func proxyPlacement(proxy *gwmodels.LLMProxy, handle, ouID string, gatewayUUID uuid.UUID) gwmodels.Placement {
+	return gwmodels.Placement{
+		ArtifactRef: gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: proxy.UUID, Kind: gwmodels.KindLLMProxy, Handle: handle},
 		GatewayUUID: gatewayUUID,
 	}
 }
 
-func proxyVhost(proxy *models.LLMProxy) string {
+func proxyVhost(proxy *gwmodels.LLMProxy) string {
 	if proxy.Configuration.Vhost == nil {
 		return ""
 	}
@@ -246,7 +246,7 @@ func proxyVhost(proxy *models.LLMProxy) string {
 }
 
 // UndeployLLMProxyDeployment undeploys a deployment
-func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(ctx context.Context, proxyID, deploymentID, gatewayID, ouID string) (*models.Deployment, error) {
+func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(ctx context.Context, proxyID, deploymentID, gatewayID, ouID string) (*gwmodels.Deployment, error) {
 	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: starting", "proxyID", proxyID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID, "ouID", ouID)
 
@@ -282,7 +282,7 @@ func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(ctx context.Conte
 			"deploymentID", deploymentID, "expectedGatewayID", gatewayID, "actualGatewayID", deployment.GatewayUUID.String())
 		return nil, utils.ErrGatewayIDMismatch
 	}
-	if deployment.Status == nil || *deployment.Status == models.DeploymentStatusArchived {
+	if deployment.Status == nil || *deployment.Status == gwmodels.DeploymentStatusArchived {
 		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not current", "proxyID", proxyID,
 			"deploymentID", deploymentID, "status", deployment.Status)
 		return nil, utils.ErrDeploymentNotActive
@@ -307,7 +307,7 @@ func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(ctx context.Conte
 }
 
 // RestoreLLMProxyDeployment restores a previous deployment
-func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, ouID string) (*models.Deployment, error) {
+func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymentID, gatewayID, ouID string) (*gwmodels.Deployment, error) {
 	// Get proxy
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
@@ -402,7 +402,7 @@ func (s *LLMProxyDeploymentService) RequireUserManaged(ctx context.Context, prox
 }
 
 // proxyByID is the proxy with the id or handle; utils.ErrLLMProxyNotFound when there is none.
-func (s *LLMProxyDeploymentService) proxyByID(proxyID, ouID string) (*models.LLMProxy, error) {
+func (s *LLMProxyDeploymentService) proxyByID(proxyID, ouID string) (*gwmodels.LLMProxy, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && proxy == nil) {
 		return nil, utils.ErrLLMProxyNotFound
@@ -414,7 +414,7 @@ func (s *LLMProxyDeploymentService) proxyByID(proxyID, ouID string) (*models.LLM
 }
 
 // GetLLMProxyDeployments retrieves all deployments for a proxy
-func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, ouID string, gatewayID *string, status *string) ([]*models.Deployment, error) {
+func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, ouID string, gatewayID *string, status *string) ([]*gwmodels.Deployment, error) {
 	// Get proxy
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
@@ -427,7 +427,7 @@ func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, ouID string,
 		return nil, utils.ErrLLMProxyNotFound
 	}
 
-	if status != nil && !models.IsDeploymentStatusFilter(*status) {
+	if status != nil && !gwmodels.IsDeploymentStatusFilter(*status) {
 		return nil, utils.ErrInvalidDeploymentStatus
 	}
 
@@ -441,7 +441,7 @@ func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, ouID string,
 }
 
 // GetLLMProxyDeployment retrieves a specific deployment
-func (s *LLMProxyDeploymentService) GetLLMProxyDeployment(proxyID, deploymentID, ouID string) (*models.Deployment, error) {
+func (s *LLMProxyDeploymentService) GetLLMProxyDeployment(proxyID, deploymentID, ouID string) (*gwmodels.Deployment, error) {
 	// Get proxy
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
@@ -503,7 +503,7 @@ func (s *LLMProxyDeploymentService) DeleteLLMProxyDeployment(proxyID, deployment
 }
 
 // generateLLMProxyDeploymentYAML generates deployment YAML for an LLM proxy
-func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *models.LLMProxy, ouID string) (string, error) {
+func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *gwmodels.LLMProxy, ouID string) (string, error) {
 	if proxy == nil {
 		return "", errors.New("proxy is required")
 	}
@@ -520,7 +520,7 @@ func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *models
 }
 
 // renderLLMProxy is the proxy's gateway configuration; provider is the one it fronts.
-func renderLLMProxy(proxy *models.LLMProxy, provider *models.LLMProvider) (string, error) {
+func renderLLMProxy(proxy *gwmodels.LLMProxy, provider *gwmodels.LLMProvider) (string, error) {
 	if provider == nil {
 		return "", utils.ErrLLMProviderNotFound
 	}
@@ -537,7 +537,7 @@ func renderLLMProxy(proxy *models.LLMProxy, provider *models.LLMProvider) (strin
 	}
 
 	// Initialize policies slice
-	policies := make([]models.LLMPolicy, 0, len(proxy.Configuration.Policies))
+	policies := make([]gwmodels.LLMPolicy, 0, len(proxy.Configuration.Policies))
 
 	// Transform security config to policy if enabled
 	security := proxy.Configuration.Security
@@ -554,7 +554,7 @@ func renderLLMProxy(proxy *models.LLMProxy, provider *models.LLMProvider) (strin
 			}
 
 			// Add API key auth as a policy
-			addOrAppendPolicyPath(&policies, apiKeyAuthPolicyName, apiKeyAuthPolicyVersion, models.LLMPolicyPath{
+			addOrAppendPolicyPath(&policies, apiKeyAuthPolicyName, apiKeyAuthPolicyVersion, gwmodels.LLMPolicyPath{
 				Path:    "/*",
 				Methods: []string{"*"},
 				Params: map[string]interface{}{
@@ -568,16 +568,16 @@ func renderLLMProxy(proxy *models.LLMProxy, provider *models.LLMProvider) (strin
 	// Process and normalize policies
 	for _, p := range proxy.Configuration.Policies {
 		// Deep copy paths
-		paths := make([]models.LLMPolicyPath, 0, len(p.Paths))
+		paths := make([]gwmodels.LLMPolicyPath, 0, len(p.Paths))
 		for _, pp := range p.Paths {
-			paths = append(paths, models.LLMPolicyPath{
+			paths = append(paths, gwmodels.LLMPolicyPath{
 				Path:    pp.Path,
 				Methods: pp.Methods,
 				Params:  pp.Params,
 			})
 		}
 		// Add policy with normalized version
-		policies = append(policies, models.LLMPolicy{
+		policies = append(policies, gwmodels.LLMPolicy{
 			Name:    p.Name,
 			Version: normalizePolicyVersionToMajor(p.Version),
 			Paths:   paths,

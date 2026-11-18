@@ -24,24 +24,24 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // EnvAgentMCPMappingRepository defines data access for per-environment MCP mappings.
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/env_agent_mcp_mapping_repository_mock.go . EnvAgentMCPMappingRepository:EnvAgentMCPMappingRepositoryMock
 type EnvAgentMCPMappingRepository interface {
-	Create(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping, proxyMapping *models.MCPProxyMapping, handle, name, version, ouID string) error
-	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error)
+	Create(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping, proxyMapping *gwmodels.MCPProxyMapping, handle, name, version, ouID string) error
+	ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error)
 	// ListByMCPProxy returns every mapping that derives from the given source proxy.
 	// Used by the redeploy-on-update cascade so agent-scoped artifacts pick up new
 	// upstream/auth/policies on their respective gateways.
-	ListByMCPProxy(ctx context.Context, mcpProxyUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error)
+	ListByMCPProxy(ctx context.Context, mcpProxyUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error)
 	// ListByEnvironment returns every mapping deployed into the given environment,
 	// across all agent configs. Used by the environment-deletion cascade to tear down
 	// all agent-scoped MCP artifacts for a disappearing environment.
-	ListByEnvironment(ctx context.Context, envUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error)
-	Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping) error
+	ListByEnvironment(ctx context.Context, envUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error)
+	Update(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping) error
 	Delete(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error
 	DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
 }
@@ -59,7 +59,7 @@ func NewEnvAgentMCPMappingRepository(db *gorm.DB) EnvAgentMCPMappingRepository {
 	}
 }
 
-func (r *envAgentMCPMappingRepository) Create(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping, proxyMapping *models.MCPProxyMapping, handle, name, version, ouID string) error {
+func (r *envAgentMCPMappingRepository) Create(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping, proxyMapping *gwmodels.MCPProxyMapping, handle, name, version, ouID string) error {
 	if mapping.ArtifactUUID == uuid.Nil {
 		mapping.ArtifactUUID = uuid.Must(uuid.NewV7())
 	}
@@ -77,15 +77,15 @@ func (r *envAgentMCPMappingRepository) Create(ctx context.Context, tx *gorm.DB, 
 		proxyMapping.SourceMCPProxyUUID = mapping.MCPProxyUUID
 	}
 	if proxyMapping.Status == "" {
-		proxyMapping.Status = models.StatusCreated
+		proxyMapping.Status = gwmodels.StatusCreated
 	}
 	now := dbx.Now()
-	if err := r.artifactRepo.Create(tx, &models.Artifact{
+	if err := r.artifactRepo.Create(tx, &gwmodels.Artifact{
 		UUID:      mapping.ArtifactUUID,
 		Handle:    handle,
 		Name:      name,
 		Version:   version,
-		Kind:      models.KindMCPMapping,
+		Kind:      gwmodels.KindMCPMapping,
 		OUID:      ouID,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -98,8 +98,8 @@ func (r *envAgentMCPMappingRepository) Create(ctx context.Context, tx *gorm.DB, 
 	return tx.WithContext(ctx).Create(mapping).Error
 }
 
-func (r *envAgentMCPMappingRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
-	var mappings []models.EnvAgentMCPMapping
+func (r *envAgentMCPMappingRepository) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
+	var mappings []gwmodels.EnvAgentMCPMapping
 	err := r.db.WithContext(ctx).
 		Preload("Artifact").
 		Preload("MCPProxy").
@@ -115,8 +115,8 @@ func (r *envAgentMCPMappingRepository) ListByConfig(ctx context.Context, configU
 	return mappings, err
 }
 
-func (r *envAgentMCPMappingRepository) ListByMCPProxy(ctx context.Context, mcpProxyUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
-	var mappings []models.EnvAgentMCPMapping
+func (r *envAgentMCPMappingRepository) ListByMCPProxy(ctx context.Context, mcpProxyUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
+	var mappings []gwmodels.EnvAgentMCPMapping
 	err := r.db.WithContext(ctx).
 		Preload("Artifact").
 		Preload("MCPProxy").
@@ -132,8 +132,8 @@ func (r *envAgentMCPMappingRepository) ListByMCPProxy(ctx context.Context, mcpPr
 	return mappings, err
 }
 
-func (r *envAgentMCPMappingRepository) ListByEnvironment(ctx context.Context, envUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
-	var mappings []models.EnvAgentMCPMapping
+func (r *envAgentMCPMappingRepository) ListByEnvironment(ctx context.Context, envUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
+	var mappings []gwmodels.EnvAgentMCPMapping
 	err := r.db.WithContext(ctx).
 		Preload("Artifact").
 		Preload("MCPProxy").
@@ -149,17 +149,17 @@ func (r *envAgentMCPMappingRepository) ListByEnvironment(ctx context.Context, en
 	return mappings, err
 }
 
-func (r *envAgentMCPMappingRepository) Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping) error {
+func (r *envAgentMCPMappingRepository) Update(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping) error {
 	return tx.WithContext(ctx).Save(mapping).Error
 }
 
 func (r *envAgentMCPMappingRepository) Delete(ctx context.Context, tx *gorm.DB, configUUID, envUUID uuid.UUID) error {
 	return tx.WithContext(ctx).Where("config_id = ? AND environment_id = ? AND excluded = ?", configUUID, envUUID, false).
-		Delete(&models.EnvAgentMCPMapping{}).Error
+		Delete(&gwmodels.EnvAgentMCPMapping{}).Error
 }
 
 func (r *envAgentMCPMappingRepository) DeleteByConfig(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
 		Where("config_id = ? AND excluded = ?", configUUID, false).
-		Delete(&models.EnvAgentMCPMapping{}).Error
+		Delete(&gwmodels.EnvAgentMCPMapping{}).Error
 }

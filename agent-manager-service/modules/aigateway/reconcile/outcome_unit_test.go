@@ -24,14 +24,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
 var claimedAt = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
 
-func claimAfter(attempts int, lastDelay time.Duration) models.ClaimedRender {
-	return models.ClaimedRender{AttemptCount: attempts, ClaimedAt: claimedAt, LastDelay: lastDelay}
+func claimAfter(attempts int, lastDelay time.Duration) gwmodels.ClaimedRender {
+	return gwmodels.ClaimedRender{AttemptCount: attempts, ClaimedAt: claimedAt, LastDelay: lastDelay}
 }
 
 // Waiting for an input never spends the budget, and backs off by doubling from 5 s up to the 5 min cap.

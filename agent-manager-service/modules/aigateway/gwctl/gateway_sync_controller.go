@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -42,11 +42,11 @@ const maxSyncBodyBytes = 1 << 20
 const tarGzipMediaType = "application/x-tar+gzip"
 
 type controlPlaneDeploymentsResponse struct {
-	Deployments []models.ControlPlaneDeployment `json:"deployments"`
+	Deployments []gwmodels.ControlPlaneDeployment `json:"deployments"`
 }
 
 type artifactsExistResponse struct {
-	Artifacts []models.ArtifactExistence `json:"artifacts"`
+	Artifacts []gwmodels.ArtifactExistence `json:"artifacts"`
 }
 
 // syncIDsRequest is the body of fetch-batch ({deploymentIds}) and of artifacts/exists ({artifactIds}).

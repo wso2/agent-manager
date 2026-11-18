@@ -27,7 +27,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -48,7 +48,7 @@ type GatewayInternalAPIService struct {
 // GatewayArtifacts names an artifact as the gateway knows it: the kind, and the id it stores it under; ok is false
 // for a kind AMS doesn't deploy to gateways (reconcile.Core, which asks the registered kinds).
 type GatewayArtifacts interface {
-	GatewayArtifact(ref models.ArtifactRef) (kind, artifactID string, ok bool)
+	GatewayArtifact(ref gwmodels.ArtifactRef) (kind, artifactID string, ok bool)
 }
 
 // GatewayDeploymentResponse represents the response for gateway deployment
@@ -98,11 +98,11 @@ func (s *GatewayInternalAPIService) GetActiveMCPProxyDeploymentByGateway(ctx con
 // GetActiveAgentDeploymentByGateway retrieves the currently deployed A2A Agent
 // artifact for the given UUID on this gateway.
 //
-// The UUID is the per-environment models.KindAgent artifact row, which is also
+// The UUID is the per-environment gwmodels.KindAgent artifact row, which is also
 // what the agent's API keys are bound to — so the gateway resolves the Agent
 // and its keys through the same identity.
 func (s *GatewayInternalAPIService) GetActiveAgentDeploymentByGateway(ctx context.Context, agentID, ouID, gatewayID string) (map[string]string, error) {
-	return s.getActiveArtifactDeploymentByGateway(ctx, agentID, ouID, gatewayID, models.KindAgent, utils.ErrAgentArtifactNotFound)
+	return s.getActiveArtifactDeploymentByGateway(ctx, agentID, ouID, gatewayID, gwmodels.KindAgent, utils.ErrAgentArtifactNotFound)
 }
 
 // getActiveArtifactDeploymentByGateway returns the artifact's deployed YAML with secrets resolved, or notFound.
@@ -133,7 +133,7 @@ func (s *GatewayInternalAPIService) getActiveArtifactDeploymentByGateway(
 
 // GetActiveRestAPIDeploymentByGateway returns the deployed RestApi YAML of a REST agent's per-environment artifact.
 func (s *GatewayInternalAPIService) GetActiveRestAPIDeploymentByGateway(ctx context.Context, apiID, ouID, gatewayID string) (map[string]string, error) {
-	return s.getActiveArtifactDeploymentByGateway(ctx, apiID, ouID, gatewayID, models.KindRestAPI, utils.ErrAPINotFound)
+	return s.getActiveArtifactDeploymentByGateway(ctx, apiID, ouID, gatewayID, gwmodels.KindRestAPI, utils.ErrAPINotFound)
 }
 
 // GetActiveLLMProviderDeploymentByGateway retrieves the currently deployed LLM provider artifact
@@ -157,7 +157,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(ctx 
 	providerYaml := string(deployment.Content)
 
 	// Resolve secret references in the YAML
-	resolvedYaml, err := s.resolveSecretsFor(ctx, models.KindLLMProvider, providerYaml)
+	resolvedYaml, err := s.resolveSecretsFor(ctx, gwmodels.KindLLMProvider, providerYaml)
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in provider YAML",
 			"providerID", providerID, "error", err)
@@ -194,7 +194,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 	proxyYaml := string(deployment.Content)
 
 	// Resolve secret references in the YAML
-	resolvedYaml, err := s.resolveSecretsFor(ctx, models.KindLLMProxy, proxyYaml)
+	resolvedYaml, err := s.resolveSecretsFor(ctx, gwmodels.KindLLMProxy, proxyYaml)
 	if err != nil {
 		slog.Error("GatewayInternalAPIService: failed to resolve secrets in proxy YAML",
 			"proxyID", proxyID, "error", err)

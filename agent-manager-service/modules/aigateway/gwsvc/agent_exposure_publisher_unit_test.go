@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -38,14 +38,14 @@ func (m *publisherMocks) exposurePublisher() *AgentExposurePublisher {
 
 func TestAgentExposurePublisherExposeJoinsTheCallersTransaction(t *testing.T) {
 	m := newPublisherMocks(t)
-	m.txExposures.UpsertFunc = func(context.Context, *models.PlatformAgentExposure) error { return nil }
+	m.txExposures.UpsertFunc = func(context.Context, *gwmodels.PlatformAgentExposure) error { return nil }
 	artifactUUID := uuid.New()
 
-	require.NoError(t, m.exposurePublisher().Expose(context.Background(), txSentinel, testA2AKey(), artifactUUID, models.AgentExposureProtocolA2A))
+	require.NoError(t, m.exposurePublisher().Expose(context.Background(), txSentinel, testA2AKey(), artifactUUID, gwmodels.AgentExposureProtocolA2A))
 
 	exposed := m.txExposures.UpsertCalls()
 	require.Len(t, exposed, 1)
-	assert.Equal(t, models.AgentExposureProtocolA2A, exposed[0].Exposure.Protocol)
+	assert.Equal(t, gwmodels.AgentExposureProtocolA2A, exposed[0].Exposure.Protocol)
 	assert.Equal(t, artifactUUID, exposed[0].Exposure.ArtifactUUID)
 	assert.Equal(t, testA2AKey().EnvironmentUUID, exposed[0].Exposure.EnvironmentUUID)
 	assert.Equal(t, "dev", exposed[0].Exposure.EnvironmentName)
@@ -60,16 +60,16 @@ func TestAgentExposurePublisherTeardownEnvUndeploysThePlacedRows(t *testing.T) {
 		return []string{gateway.String()}, nil
 	}
 	m.txDeployments.WithTxFunc = func(*gorm.DB) gwrepo.DeploymentRepository { return m.txDeployments }
-	m.txDeployments.GetStatusRecordFunc = func(context.Context, models.Placement) (*models.DeploymentStatusRecord, error) {
-		return &models.DeploymentStatusRecord{PerformedAt: models.NewPerformedAt(time.Now())}, nil
+	m.txDeployments.GetStatusRecordFunc = func(context.Context, gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error) {
+		return &gwmodels.DeploymentStatusRecord{PerformedAt: gwmodels.NewPerformedAt(time.Now())}, nil
 	}
-	m.deployments.BeginUndeployFunc = func(_ context.Context, tx *gorm.DB, p models.Placement) (bool, error) {
+	m.deployments.BeginUndeployFunc = func(_ context.Context, tx *gorm.DB, p gwmodels.Placement) (bool, error) {
 		assert.Same(t, txSentinel, tx)
 		assert.Equal(t, gateway, p.GatewayUUID)
 		return true, nil
 	}
 	m.txExposures.DeleteForAgentEnvFunc = func(context.Context, string, string, string, uuid.UUID) error { return nil }
-	artifact := models.ArtifactRef{OUID: "org-1", ArtifactUUID: uuid.New(), Kind: models.KindAgent}
+	artifact := gwmodels.ArtifactRef{OUID: "org-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindAgent}
 
 	require.NoError(t, m.exposurePublisher().TeardownEnv(context.Background(), txSentinel, testA2AKey(), artifact))
 
@@ -83,7 +83,7 @@ func TestAgentExposurePublisherTeardownEnvUndeploysThePlacedRows(t *testing.T) {
 // handled as an A2A Agent.
 func TestAgentExposurePublisherUsesArtifactKind(t *testing.T) {
 	m := newPublisherMocks(t)
-	artifact := models.ArtifactRef{OUID: "org-1", ArtifactUUID: uuid.New(), Kind: "UnregisteredKind"}
+	artifact := gwmodels.ArtifactRef{OUID: "org-1", ArtifactUUID: uuid.New(), Kind: "UnregisteredKind"}
 
 	staleErr := m.exposurePublisher().MarkStale(context.Background(), artifact, "an input changed")
 	dropErr := m.exposurePublisher().DropArtifact(context.Background(), txSentinel, artifact)
@@ -110,39 +110,39 @@ func TestAgentURLFor(t *testing.T) {
 }
 
 func TestAgentExposurePublisherResolveURL(t *testing.T) {
-	gateway := &models.Gateway{UUID: uuid.New(), Vhost: "gw.example.com"}
+	gateway := &gwmodels.Gateway{UUID: uuid.New(), Vhost: "gw.example.com"}
 	soon := time.Now()
 	cases := []struct {
 		name        string
-		gateways    []*models.Gateway
-		rows        []models.DeploymentStatusRecord
+		gateways    []*gwmodels.Gateway
+		rows        []gwmodels.DeploymentStatusRecord
 		wantGateway bool
 		wantDirect  bool
-		wantStatus  models.DeploymentStatus
+		wantStatus  gwmodels.DeploymentStatus
 	}{
-		{"no ingress gateway", nil, nil, false, false, models.DeploymentStatusUndeployed},
-		{"gateway, nothing placed", []*models.Gateway{gateway}, nil, false, false, models.DeploymentStatusDeploying},
-		{"deployed row on the gateway", []*models.Gateway{gateway}, []models.DeploymentStatusRecord{
-			{GatewayUUID: gateway.UUID, Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed},
-		}, true, false, models.DeploymentStatusDeployed},
-		{"deploy owed on the gateway", []*models.Gateway{gateway}, []models.DeploymentStatusRecord{
-			{GatewayUUID: gateway.UUID, Status: models.DeploymentStatusPending, StatusDesired: models.DeploymentStatusUndeployed, NextAttemptAt: &soon},
-		}, true, false, models.DeploymentStatusDeploying},
-		{"undeployed row, nothing owed", []*models.Gateway{gateway}, []models.DeploymentStatusRecord{
-			{GatewayUUID: gateway.UUID, Status: models.DeploymentStatusUndeployed, StatusDesired: models.DeploymentStatusUndeployed},
-		}, false, false, models.DeploymentStatusUndeployed},
-		{"deployed row on another gateway", []*models.Gateway{gateway}, []models.DeploymentStatusRecord{
-			{GatewayUUID: uuid.New(), Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed},
-		}, false, false, models.DeploymentStatusDeployed},
+		{"no ingress gateway", nil, nil, false, false, gwmodels.DeploymentStatusUndeployed},
+		{"gateway, nothing placed", []*gwmodels.Gateway{gateway}, nil, false, false, gwmodels.DeploymentStatusDeploying},
+		{"deployed row on the gateway", []*gwmodels.Gateway{gateway}, []gwmodels.DeploymentStatusRecord{
+			{GatewayUUID: gateway.UUID, Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed},
+		}, true, false, gwmodels.DeploymentStatusDeployed},
+		{"deploy owed on the gateway", []*gwmodels.Gateway{gateway}, []gwmodels.DeploymentStatusRecord{
+			{GatewayUUID: gateway.UUID, Status: gwmodels.DeploymentStatusPending, StatusDesired: gwmodels.DeploymentStatusUndeployed, NextAttemptAt: &soon},
+		}, true, false, gwmodels.DeploymentStatusDeploying},
+		{"undeployed row, nothing owed", []*gwmodels.Gateway{gateway}, []gwmodels.DeploymentStatusRecord{
+			{GatewayUUID: gateway.UUID, Status: gwmodels.DeploymentStatusUndeployed, StatusDesired: gwmodels.DeploymentStatusUndeployed},
+		}, false, false, gwmodels.DeploymentStatusUndeployed},
+		{"deployed row on another gateway", []*gwmodels.Gateway{gateway}, []gwmodels.DeploymentStatusRecord{
+			{GatewayUUID: uuid.New(), Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed},
+		}, false, false, gwmodels.DeploymentStatusDeployed},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			m := newPublisherMocks(t)
-			m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) { return c.gateways, nil }
-			m.artifacts.GetByHandleFunc = func(string, string) (*models.Artifact, error) {
-				return &models.Artifact{UUID: uuid.New(), Kind: models.KindAgent}, nil
+			m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) { return c.gateways, nil }
+			m.artifacts.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) {
+				return &gwmodels.Artifact{UUID: uuid.New(), Kind: gwmodels.KindAgent}, nil
 			}
-			m.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+			m.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 				return c.rows, nil
 			}
 			m.exposures.GetFunc = exposedAgent
@@ -160,10 +160,10 @@ func TestAgentExposurePublisherResolveURL(t *testing.T) {
 
 func TestAgentExposurePublisherResolveURLWithoutAnArtifactIsOwedItsDeploy(t *testing.T) {
 	m := newPublisherMocks(t)
-	m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-		return []*models.Gateway{{UUID: uuid.New()}}, nil
+	m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+		return []*gwmodels.Gateway{{UUID: uuid.New()}}, nil
 	}
-	m.artifacts.GetByHandleFunc = func(string, string) (*models.Artifact, error) { return nil, utils.ErrArtifactNotFound }
+	m.artifacts.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) { return nil, utils.ErrArtifactNotFound }
 	m.exposures.GetFunc = exposedAgent
 
 	url, err := m.exposurePublisher().ResolveURL(context.Background(), testA2AKey())
@@ -178,16 +178,16 @@ func TestAgentExposurePublisherResolveURLWithoutAnArtifactIsOwedItsDeploy(t *tes
 // has no gateway status: the gateway is not involved.
 func TestAgentExposurePublisherResolveURLWithoutAnExposureHasNoStatus(t *testing.T) {
 	m := newPublisherMocks(t)
-	m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-		return []*models.Gateway{{UUID: uuid.New()}}, nil
+	m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+		return []*gwmodels.Gateway{{UUID: uuid.New()}}, nil
 	}
-	m.artifacts.GetByHandleFunc = func(string, string) (*models.Artifact, error) {
-		return &models.Artifact{UUID: uuid.New(), Kind: models.KindAgent}, nil
+	m.artifacts.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) {
+		return &gwmodels.Artifact{UUID: uuid.New(), Kind: gwmodels.KindAgent}, nil
 	}
-	m.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]models.DeploymentStatusRecord, error) {
+	m.deployments.StatusRecordsFunc = func(context.Context, string, uuid.UUID) ([]gwmodels.DeploymentStatusRecord, error) {
 		return nil, nil
 	}
-	m.exposures.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*models.PlatformAgentExposure, error) {
+	m.exposures.GetFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 		return nil, gwrepo.ErrPlatformAgentExposureNotFound
 	}
 
@@ -198,6 +198,6 @@ func TestAgentExposurePublisherResolveURLWithoutAnExposureHasNoStatus(t *testing
 	assert.Nil(t, url.Status)
 }
 
-func exposedAgent(context.Context, string, string, string, uuid.UUID) (*models.PlatformAgentExposure, error) {
-	return &models.PlatformAgentExposure{}, nil
+func exposedAgent(context.Context, string, string, string, uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
+	return &gwmodels.PlatformAgentExposure{}, nil
 }

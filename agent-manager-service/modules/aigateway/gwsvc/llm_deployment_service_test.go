@@ -21,7 +21,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // Test helper functions
@@ -33,7 +33,7 @@ func boolPtr(b bool) *bool {
 	return &b
 }
 
-func findPolicy(policies []models.LLMPolicy, name, version string) *models.LLMPolicy {
+func findPolicy(policies []gwmodels.LLMPolicy, name, version string) *gwmodels.LLMPolicy {
 	for _, p := range policies {
 		if p.Name == name && p.Version == version {
 			return &p
@@ -114,8 +114,8 @@ func TestNormalizePolicyVersionToMajor(t *testing.T) {
 // TestAddOrAppendPolicyPath tests the addOrAppendPolicyPath helper function
 func TestAddOrAppendPolicyPath(t *testing.T) {
 	t.Run("adds new policy when not exists", func(t *testing.T) {
-		policies := []models.LLMPolicy{}
-		path := models.LLMPolicyPath{
+		policies := []gwmodels.LLMPolicy{}
+		path := gwmodels.LLMPolicyPath{
 			Path:    "/*",
 			Methods: []string{"*"},
 			Params:  map[string]interface{}{"key": "value"},
@@ -138,17 +138,17 @@ func TestAddOrAppendPolicyPath(t *testing.T) {
 	})
 
 	t.Run("appends path to existing policy", func(t *testing.T) {
-		policies := []models.LLMPolicy{
+		policies := []gwmodels.LLMPolicy{
 			{
 				Name:    "test-policy",
 				Version: "v0",
-				Paths: []models.LLMPolicyPath{
+				Paths: []gwmodels.LLMPolicyPath{
 					{Path: "/first", Methods: []string{"GET"}},
 				},
 			},
 		}
 
-		newPath := models.LLMPolicyPath{
+		newPath := gwmodels.LLMPolicyPath{
 			Path:    "/second",
 			Methods: []string{"POST"},
 		}
@@ -164,18 +164,18 @@ func TestAddOrAppendPolicyPath(t *testing.T) {
 	})
 
 	t.Run("prevents duplicate paths", func(t *testing.T) {
-		policies := []models.LLMPolicy{
+		policies := []gwmodels.LLMPolicy{
 			{
 				Name:    "test-policy",
 				Version: "v0",
-				Paths: []models.LLMPolicyPath{
+				Paths: []gwmodels.LLMPolicyPath{
 					{Path: "/*", Methods: []string{"*"}},
 				},
 			},
 		}
 
 		// Use identical path configuration to test duplicate prevention
-		duplicatePath := models.LLMPolicyPath{
+		duplicatePath := gwmodels.LLMPolicyPath{
 			Path:    "/*",
 			Methods: []string{"*"}, // Same methods as existing path
 		}
@@ -191,18 +191,18 @@ func TestAddOrAppendPolicyPath(t *testing.T) {
 	})
 
 	t.Run("allows same path with different methods", func(t *testing.T) {
-		policies := []models.LLMPolicy{
+		policies := []gwmodels.LLMPolicy{
 			{
 				Name:    "test-policy",
 				Version: "v0",
-				Paths: []models.LLMPolicyPath{
+				Paths: []gwmodels.LLMPolicyPath{
 					{Path: "/*", Methods: []string{"*"}},
 				},
 			},
 		}
 
 		// Different methods - should be allowed as a separate path entry
-		differentMethodPath := models.LLMPolicyPath{
+		differentMethodPath := gwmodels.LLMPolicyPath{
 			Path:    "/*",
 			Methods: []string{"GET"}, // Different methods than existing path
 		}
@@ -247,17 +247,17 @@ func TestIsBoolTrue(t *testing.T) {
 func TestGenerateLLMProviderDeploymentYAML_BasicProvider(t *testing.T) {
 	service := &LLMProviderDeploymentService{}
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:    "OpenAI Provider",
 			Version: "v1.0",
 			Context: strPtr("/"),
-			Upstream: &models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{
+			Upstream: &gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{
 					URL: "https://api.openai.com",
 				},
 			},
@@ -318,19 +318,19 @@ func TestGenerateLLMProviderDeploymentYAML_WithResilience(t *testing.T) {
 	timeout := "15s"
 	idleTimeout := "20s"
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:    "OpenAI Provider",
 			Version: "v1.0",
 			Context: strPtr("/"),
-			Upstream: &models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{URL: "https://api.openai.com"},
+			Upstream: &gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{URL: "https://api.openai.com"},
 			},
-			Resilience: &models.Resilience{
+			Resilience: &gwmodels.Resilience{
 				Timeout:     &timeout,
 				IdleTimeout: &idleTimeout,
 			},
@@ -367,23 +367,23 @@ func TestGenerateLLMProviderDeploymentYAML_WithSecurityAPIKey(t *testing.T) {
 	service := &LLMProviderDeploymentService{}
 	trueValue := true
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:    "OpenAI Provider",
 			Version: "v1.0",
 			Context: strPtr("/"),
-			Upstream: &models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{
+			Upstream: &gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{
 					URL: "https://api.openai.com",
 				},
 			},
-			Security: &models.SecurityConfig{
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &trueValue,
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: &trueValue,
 					Key:     "X-API-Key",
 					In:      "header",
@@ -442,27 +442,27 @@ func TestGenerateLLMProviderDeploymentYAML_WithSecurityAPIKey(t *testing.T) {
 func TestGenerateLLMProviderDeploymentYAML_WithGlobalTokenRateLimit(t *testing.T) {
 	service := &LLMProviderDeploymentService{}
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:    "OpenAI Provider",
 			Version: "v1.0",
 			Context: strPtr("/"),
-			Upstream: &models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{
+			Upstream: &gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{
 					URL: "https://api.openai.com",
 				},
 			},
-			RateLimiting: &models.LLMRateLimitingConfig{
-				ProviderLevel: &models.RateLimitingScopeConfig{
-					Global: &models.RateLimitingLimitConfig{
-						Token: &models.TokenRateLimit{
+			RateLimiting: &gwmodels.LLMRateLimitingConfig{
+				ProviderLevel: &gwmodels.RateLimitingScopeConfig{
+					Global: &gwmodels.RateLimitingLimitConfig{
+						Token: &gwmodels.TokenRateLimit{
 							Enabled: true,
 							Count:   10000,
-							Reset: models.RateLimitResetWindow{
+							Reset: gwmodels.RateLimitResetWindow{
 								Duration: 1,
 								Unit:     "hour",
 							},
@@ -517,41 +517,41 @@ func TestGenerateLLMProviderDeploymentYAML_WithGlobalTokenRateLimit(t *testing.T
 func TestGenerateLLMProviderDeploymentYAML_WithResourceWiseRateLimit(t *testing.T) {
 	service := &LLMProviderDeploymentService{}
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:    "OpenAI Provider",
 			Version: "v1.0",
 			Context: strPtr("/"),
-			Upstream: &models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{
+			Upstream: &gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{
 					URL: "https://api.openai.com",
 				},
 			},
-			RateLimiting: &models.LLMRateLimitingConfig{
-				ProviderLevel: &models.RateLimitingScopeConfig{
-					ResourceWise: &models.ResourceWiseRateLimitingConfig{
-						Default: models.RateLimitingLimitConfig{
-							Request: &models.RequestRateLimit{
+			RateLimiting: &gwmodels.LLMRateLimitingConfig{
+				ProviderLevel: &gwmodels.RateLimitingScopeConfig{
+					ResourceWise: &gwmodels.ResourceWiseRateLimitingConfig{
+						Default: gwmodels.RateLimitingLimitConfig{
+							Request: &gwmodels.RequestRateLimit{
 								Enabled: true,
 								Count:   100,
-								Reset: models.RateLimitResetWindow{
+								Reset: gwmodels.RateLimitResetWindow{
 									Duration: 1,
 									Unit:     "minute",
 								},
 							},
 						},
-						Resources: []models.RateLimitingResourceLimit{
+						Resources: []gwmodels.RateLimitingResourceLimit{
 							{
 								Resource: "/chat/completions",
-								Limit: models.RateLimitingLimitConfig{
-									Request: &models.RequestRateLimit{
+								Limit: gwmodels.RateLimitingLimitConfig{
+									Request: &gwmodels.RequestRateLimit{
 										Enabled: true,
 										Count:   50,
-										Reset: models.RateLimitResetWindow{
+										Reset: gwmodels.RateLimitResetWindow{
 											Duration: 1,
 											Unit:     "minute",
 										},
@@ -587,8 +587,8 @@ func TestGenerateLLMProviderDeploymentYAML_WithResourceWiseRateLimit(t *testing.
 	}
 
 	// Find default path
-	var defaultPath *models.LLMPolicyPath
-	var resourcePath *models.LLMPolicyPath
+	var defaultPath *gwmodels.LLMPolicyPath
+	var resourcePath *gwmodels.LLMPolicyPath
 	for i := range policy.Paths {
 		switch policy.Paths[i].Path {
 		case "/*":
@@ -611,33 +611,33 @@ func TestGenerateLLMProviderDeploymentYAML_WithUserDefinedPolicies(t *testing.T)
 	service := &LLMProviderDeploymentService{}
 	trueValue := true
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:    "OpenAI Provider",
 			Version: "v1.0",
 			Context: strPtr("/"),
-			Upstream: &models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{
+			Upstream: &gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{
 					URL: "https://api.openai.com",
 				},
 			},
-			Security: &models.SecurityConfig{
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &trueValue,
-				APIKey: &models.APIKeySecurity{
+				APIKey: &gwmodels.APIKeySecurity{
 					Enabled: &trueValue,
 					Key:     "X-API-Key",
 					In:      "header",
 				},
 			},
-			Policies: []models.LLMPolicy{
+			Policies: []gwmodels.LLMPolicy{
 				{
 					Name:    "custom-guardrail",
 					Version: "1.2.3", // Should be normalized to v1
-					Paths: []models.LLMPolicyPath{
+					Paths: []gwmodels.LLMPolicyPath{
 						{
 							Path:    "/*",
 							Methods: []string{"POST"},
@@ -693,11 +693,11 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 	})
 
 	t.Run("missing template handle", func(t *testing.T) {
-		provider := &models.LLMProvider{
+		provider := &gwmodels.LLMProvider{
 			TemplateHandle: "",
-			Configuration: models.LLMProviderConfig{
-				Upstream: &models.UpstreamConfig{
-					Main: &models.UpstreamEndpoint{URL: "https://api.openai.com"},
+			Configuration: gwmodels.LLMProviderConfig{
+				Upstream: &gwmodels.UpstreamConfig{
+					Main: &gwmodels.UpstreamEndpoint{URL: "https://api.openai.com"},
 				},
 			},
 		}
@@ -708,9 +708,9 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 	})
 
 	t.Run("nil upstream", func(t *testing.T) {
-		provider := &models.LLMProvider{
+		provider := &gwmodels.LLMProvider{
 			TemplateHandle: "openai",
-			Configuration: models.LLMProviderConfig{
+			Configuration: gwmodels.LLMProviderConfig{
 				Upstream: nil,
 			},
 		}
@@ -721,10 +721,10 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 	})
 
 	t.Run("nil upstream main", func(t *testing.T) {
-		provider := &models.LLMProvider{
+		provider := &gwmodels.LLMProvider{
 			TemplateHandle: "openai",
-			Configuration: models.LLMProviderConfig{
-				Upstream: &models.UpstreamConfig{
+			Configuration: gwmodels.LLMProviderConfig{
+				Upstream: &gwmodels.UpstreamConfig{
 					Main: nil,
 				},
 			},
@@ -736,14 +736,14 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 	})
 
 	t.Run("missing url and ref", func(t *testing.T) {
-		provider := &models.LLMProvider{
+		provider := &gwmodels.LLMProvider{
 			TemplateHandle: "openai",
-			Artifact: &models.Artifact{
+			Artifact: &gwmodels.Artifact{
 				Handle: "test",
 			},
-			Configuration: models.LLMProviderConfig{
-				Upstream: &models.UpstreamConfig{
-					Main: &models.UpstreamEndpoint{
+			Configuration: gwmodels.LLMProviderConfig{
+				Upstream: &gwmodels.UpstreamConfig{
+					Main: &gwmodels.UpstreamEndpoint{
 						URL: "",
 						Ref: "",
 					},
@@ -758,18 +758,18 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 
 	t.Run("empty api key falls back to the provider's default header", func(t *testing.T) {
 		trueValue := true
-		provider := &models.LLMProvider{
+		provider := &gwmodels.LLMProvider{
 			TemplateHandle: "openai",
-			Artifact: &models.Artifact{
+			Artifact: &gwmodels.Artifact{
 				Handle: "test",
 			},
-			Configuration: models.LLMProviderConfig{
-				Upstream: &models.UpstreamConfig{
-					Main: &models.UpstreamEndpoint{URL: "https://api.openai.com"},
+			Configuration: gwmodels.LLMProviderConfig{
+				Upstream: &gwmodels.UpstreamConfig{
+					Main: &gwmodels.UpstreamEndpoint{URL: "https://api.openai.com"},
 				},
-				Security: &models.SecurityConfig{
+				Security: &gwmodels.SecurityConfig{
 					Enabled: &trueValue,
-					APIKey: &models.APIKeySecurity{
+					APIKey: &gwmodels.APIKeySecurity{
 						Enabled: &trueValue,
 						Key:     "",
 						In:      "header",
@@ -786,25 +786,25 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 		if err := yaml.Unmarshal([]byte(yamlStr), &out); err != nil {
 			t.Fatalf("failed to unmarshal generated yaml: %v", err)
 		}
-		if len(out.Spec.Policies) != 1 || out.Spec.Policies[0].Paths[0].Params["key"] != models.DefaultLLMProxyAPIKeyHeader {
-			t.Fatalf("expected params.key to default to %q, got: %#v", models.DefaultLLMProxyAPIKeyHeader, out.Spec.Policies)
+		if len(out.Spec.Policies) != 1 || out.Spec.Policies[0].Paths[0].Params["key"] != gwmodels.DefaultLLMProxyAPIKeyHeader {
+			t.Fatalf("expected params.key to default to %q, got: %#v", gwmodels.DefaultLLMProxyAPIKeyHeader, out.Spec.Policies)
 		}
 	})
 
 	t.Run("invalid api key security - invalid in", func(t *testing.T) {
 		trueValue := true
-		provider := &models.LLMProvider{
+		provider := &gwmodels.LLMProvider{
 			TemplateHandle: "openai",
-			Artifact: &models.Artifact{
+			Artifact: &gwmodels.Artifact{
 				Handle: "test",
 			},
-			Configuration: models.LLMProviderConfig{
-				Upstream: &models.UpstreamConfig{
-					Main: &models.UpstreamEndpoint{URL: "https://api.openai.com"},
+			Configuration: gwmodels.LLMProviderConfig{
+				Upstream: &gwmodels.UpstreamConfig{
+					Main: &gwmodels.UpstreamEndpoint{URL: "https://api.openai.com"},
 				},
-				Security: &models.SecurityConfig{
+				Security: &gwmodels.SecurityConfig{
 					Enabled: &trueValue,
-					APIKey: &models.APIKeySecurity{
+					APIKey: &gwmodels.APIKeySecurity{
 						Enabled: &trueValue,
 						Key:     "X-API-Key",
 						In:      "invalid",
@@ -819,22 +819,22 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 	})
 
 	t.Run("invalid rate limit duration", func(t *testing.T) {
-		provider := &models.LLMProvider{
+		provider := &gwmodels.LLMProvider{
 			TemplateHandle: "openai",
-			Artifact: &models.Artifact{
+			Artifact: &gwmodels.Artifact{
 				Handle: "test",
 			},
-			Configuration: models.LLMProviderConfig{
-				Upstream: &models.UpstreamConfig{
-					Main: &models.UpstreamEndpoint{URL: "https://api.openai.com"},
+			Configuration: gwmodels.LLMProviderConfig{
+				Upstream: &gwmodels.UpstreamConfig{
+					Main: &gwmodels.UpstreamEndpoint{URL: "https://api.openai.com"},
 				},
-				RateLimiting: &models.LLMRateLimitingConfig{
-					ProviderLevel: &models.RateLimitingScopeConfig{
-						Global: &models.RateLimitingLimitConfig{
-							Token: &models.TokenRateLimit{
+				RateLimiting: &gwmodels.LLMRateLimitingConfig{
+					ProviderLevel: &gwmodels.RateLimitingScopeConfig{
+						Global: &gwmodels.RateLimitingLimitConfig{
+							Token: &gwmodels.TokenRateLimit{
 								Enabled: true,
 								Count:   1000,
-								Reset: models.RateLimitResetWindow{
+								Reset: gwmodels.RateLimitResetWindow{
 									Duration: -1,
 									Unit:     "hour",
 								},
@@ -855,21 +855,21 @@ func TestGenerateLLMProviderDeploymentYAML_ValidationErrors(t *testing.T) {
 func TestGenerateLLMProviderDeploymentYAML_InvalidAccessControlMode(t *testing.T) {
 	service := &LLMProviderDeploymentService{}
 
-	provider := &models.LLMProvider{
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Artifact: &models.Artifact{
+		Artifact: &gwmodels.Artifact{
 			Handle: "openai-provider",
 		},
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name:    "OpenAI Provider",
 			Version: "v1.0",
 			Context: strPtr("/"),
-			Upstream: &models.UpstreamConfig{
-				Main: &models.UpstreamEndpoint{
+			Upstream: &gwmodels.UpstreamConfig{
+				Main: &gwmodels.UpstreamEndpoint{
 					URL: "https://api.openai.com",
 				},
 			},
-			AccessControl: &models.LLMAccessControl{
+			AccessControl: &gwmodels.LLMAccessControl{
 				Mode: "custom_mode", // Invalid mode
 			},
 		},

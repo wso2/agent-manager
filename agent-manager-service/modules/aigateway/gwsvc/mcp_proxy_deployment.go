@@ -28,7 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
@@ -72,14 +72,14 @@ type MCPProxyDeploymentYAML struct {
 
 // MCPProxyDeploymentSpec represents the deployment spec section.
 type MCPProxyDeploymentSpec struct {
-	DisplayName  string             `yaml:"displayName" json:"displayName"`
-	Version      string             `yaml:"version" json:"version"`
-	Context      string             `yaml:"context" json:"context"`
-	Vhost        *string            `yaml:"vhost" json:"vhost"`
-	Upstream     MCPProxyUpstream   `yaml:"upstream" json:"upstream"`
-	Resilience   *models.Resilience `yaml:"resilience,omitempty" json:"resilience,omitempty"`
-	SpecVersions []string           `yaml:"specVersions,omitempty" json:"specVersions,omitempty"`
-	Policies     []models.MCPPolicy `yaml:"policies,omitempty" json:"policies,omitempty"`
+	DisplayName  string               `yaml:"displayName" json:"displayName"`
+	Version      string               `yaml:"version" json:"version"`
+	Context      string               `yaml:"context" json:"context"`
+	Vhost        *string              `yaml:"vhost" json:"vhost"`
+	Upstream     MCPProxyUpstream     `yaml:"upstream" json:"upstream"`
+	Resilience   *gwmodels.Resilience `yaml:"resilience,omitempty" json:"resilience,omitempty"`
+	SpecVersions []string             `yaml:"specVersions,omitempty" json:"specVersions,omitempty"`
+	Policies     []gwmodels.MCPPolicy `yaml:"policies,omitempty" json:"policies,omitempty"`
 }
 
 // MCPProxyUpstream represents the flat upstream shape expected by the gateway.
@@ -91,11 +91,11 @@ type MCPProxyUpstream struct {
 // deployMCPArtifact deploys one (endpoint, environment) artifact, saved in its binding in tx, on gateway, or, with
 // no gateway, only validates it by rendering.
 func (s *MCPProxyService) deployMCPArtifact(
-	ctx context.Context, tx *gorm.DB, artifact *models.MCPProxy, ouID string, env uuid.UUID, gateway *uuid.UUID,
+	ctx context.Context, tx *gorm.DB, artifact *gwmodels.MCPProxy, ouID string, env uuid.UUID, gateway *uuid.UUID,
 ) error {
 	record := reconcile.Record{
-		ArtifactRef: models.ArtifactRef{
-			OUID: ouID, ArtifactUUID: artifact.UUID, Kind: models.KindMCPMapping, Handle: artifact.Handle,
+		ArtifactRef: gwmodels.ArtifactRef{
+			OUID: ouID, ArtifactUUID: artifact.UUID, Kind: gwmodels.KindMCPMapping, Handle: artifact.Handle,
 		},
 		EnvironmentUUID:  env,
 		RequestedGateway: gateway,
@@ -123,7 +123,7 @@ func mcpProxyEnvArtifactHandle(proxyHandle, endpointHandle, envID string) string
 // A project proxy is served at its project-prefixed context (mcpGatewayContext) under the
 // display name "<project> <name>"; an org proxy's context and display name (its handle) are
 // unchanged.
-func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxyEndpoint, ee *models.MCPProxyEndpointEnvironment) *models.MCPProxy {
+func buildMCPProxyEnvArtifact(source *gwmodels.MCPProxy, endpoint *gwmodels.MCPProxyEndpoint, ee *gwmodels.MCPProxyEndpointEnvironment) *gwmodels.MCPProxy {
 	proxyHandle := source.Handle
 	if source.Artifact != nil && source.Artifact.Handle != "" {
 		proxyHandle = source.Artifact.Handle
@@ -139,7 +139,7 @@ func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxy
 	}
 
 	cfg := endpoint.Configuration
-	var upstream models.UpstreamConfig
+	var upstream gwmodels.UpstreamConfig
 	if cfg.Upstream != nil {
 		endpointCopy := *cfg.Upstream
 		upstream.Main = &endpointCopy
@@ -148,22 +148,22 @@ func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxy
 	contextPath := source.Configuration.Context
 	// The gateway display name only; the artifacts row keeps the handle as its name, which keeps
 	// uq_artifact_name_version_ou_id apart from the proxy's own row and its other environments.
-	var displayArtifact *models.Artifact
+	var displayArtifact *gwmodels.Artifact
 	if source.ProjectUUID != nil {
 		gatewayContext := mcpGatewayContext(source, "")
 		contextPath = &gatewayContext
-		displayArtifact = &models.Artifact{
-			UUID: ee.ArtifactUUID, Handle: handle, Version: version, Kind: models.KindMCPMapping,
-			Name: models.MCPProxyGatewayDisplayName(source.ProjectName, source.Configuration.Name),
+		displayArtifact = &gwmodels.Artifact{
+			UUID: ee.ArtifactUUID, Handle: handle, Version: version, Kind: gwmodels.KindMCPMapping,
+			Name: gwmodels.MCPProxyGatewayDisplayName(source.ProjectName, source.Configuration.Name),
 		}
 	}
 
-	return &models.MCPProxy{
+	return &gwmodels.MCPProxy{
 		UUID:        ee.ArtifactUUID,
 		Description: source.Description,
 		Status:      source.Status,
 		Artifact:    displayArtifact,
-		Configuration: models.MCPProxyConfig{
+		Configuration: gwmodels.MCPProxyConfig{
 			Name:         handle,
 			Version:      version,
 			Context:      contextPath,
@@ -188,12 +188,12 @@ func buildMCPProxyEnvArtifact(source *models.MCPProxy, endpoint *models.MCPProxy
 // deployment can be recorded. The row is keyed by its stable UUID (deployProxy.UUID == the binding's ArtifactUUID),
 // not its handle: a preserved artifact whose environment remapped to a different endpoint carries a new handle but
 // the same UUID.
-func (s *MCPProxyService) ensureMCPProxyEnvArtifactRow(tx *gorm.DB, deployProxy *models.MCPProxy, ouID string) error {
+func (s *MCPProxyService) ensureMCPProxyEnvArtifactRow(tx *gorm.DB, deployProxy *gwmodels.MCPProxy, ouID string) error {
 	if s.artifactRepo == nil {
 		return nil
 	}
 	var existing int64
-	if err := tx.Model(&models.Artifact{}).Where("id = ? AND org_id = ?", deployProxy.UUID, ouID).
+	if err := tx.Model(&gwmodels.Artifact{}).Where("id = ? AND org_id = ?", deployProxy.UUID, ouID).
 		Count(&existing).Error; err != nil {
 		return fmt.Errorf("failed to check MCP proxy environment artifact: %w", err)
 	}
@@ -201,12 +201,12 @@ func (s *MCPProxyService) ensureMCPProxyEnvArtifactRow(tx *gorm.DB, deployProxy 
 		return nil
 	}
 	now := time.Now()
-	return s.artifactRepo.Create(tx, &models.Artifact{
+	return s.artifactRepo.Create(tx, &gwmodels.Artifact{
 		UUID:      deployProxy.UUID,
 		Handle:    deployProxy.Handle,
 		Name:      deployProxy.Name,
 		Version:   deployProxy.Version,
-		Kind:      models.KindMCPMapping,
+		Kind:      gwmodels.KindMCPMapping,
 		OUID:      ouID,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -216,7 +216,7 @@ func (s *MCPProxyService) ensureMCPProxyEnvArtifactRow(tx *gorm.DB, deployProxy 
 // mcpEnvDeploy is one (endpoint, environment) artifact of a save and the gateway it deploys on; nil when the
 // environment has none.
 type mcpEnvDeploy struct {
-	artifact *models.MCPProxy
+	artifact *gwmodels.MCPProxy
 	env      uuid.UUID
 	gateway  *uuid.UUID
 	label    string
@@ -226,7 +226,7 @@ type mcpEnvDeploy struct {
 // binding of the proxy saved in tx, in tx. Any error is returned for the caller to abort the save: a render or
 // placement error is the client's (4xx). With no gateway in an environment the artifact is only validated; mapping a
 // gateway places it. Gateways are deployed in gateway order, the order their event locks are taken in.
-func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, ouID string) error {
+func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, tx *gorm.DB, proxy *gwmodels.MCPProxy, ouID string) error {
 	var deploys []mcpEnvDeploy
 	for i := range proxy.Endpoints {
 		endpoint := &proxy.Endpoints[i]
@@ -303,7 +303,7 @@ func (s *MCPProxyService) lockMCPStatusRows(ctx context.Context, tx *gorm.DB, de
 // placement's status, so a second egress gateway in the environment never re-homes it, or the request's explicit
 // gateway, validated here. Nil when the environment has no gateway. It reads through the save's transaction tx.
 func (s *MCPProxyService) mcpEnvGateway(
-	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, ee *models.MCPProxyEndpointEnvironment, ouID string,
+	ctx context.Context, tx *gorm.DB, proxy *gwmodels.MCPProxy, ee *gwmodels.MCPProxyEndpointEnvironment, ouID string,
 ) (*uuid.UUID, error) {
 	var placed []string
 	if s.deploymentRepo != nil {
@@ -336,7 +336,7 @@ func gatewayOrderKey(gateway *uuid.UUID) string {
 // RedeployMCPProxy re-renders the proxy's artifacts wherever they are placed, because an input outside the proxy
 // changed (its scopes). Inline: the gateways get the new policies before the request returns. Every artifact is
 // rendered first, so a configuration that doesn't render is returned before any redeploy is queued.
-func (s *MCPProxyService) RedeployMCPProxy(ctx context.Context, proxy *models.MCPProxy, ouID string) error {
+func (s *MCPProxyService) RedeployMCPProxy(ctx context.Context, proxy *gwmodels.MCPProxy, ouID string) error {
 	artifacts := mcpProxyArtifacts(proxy, ouID)
 	for _, artifact := range artifacts {
 		if _, err := s.kind.Render(ctx, artifact); err != nil && !errors.Is(err, reconcile.ErrRecordGone) {
@@ -352,14 +352,14 @@ func (s *MCPProxyService) RedeployMCPProxy(ctx context.Context, proxy *models.MC
 }
 
 // mcpProxyArtifacts are the proxy's per-(endpoint, environment) gateway artifacts.
-func mcpProxyArtifacts(proxy *models.MCPProxy, ouID string) []models.ArtifactRef {
-	var artifacts []models.ArtifactRef
+func mcpProxyArtifacts(proxy *gwmodels.MCPProxy, ouID string) []gwmodels.ArtifactRef {
+	var artifacts []gwmodels.ArtifactRef
 	for _, endpoint := range proxy.Endpoints {
 		for _, ee := range endpoint.Environments {
 			if ee.ArtifactUUID == uuid.Nil {
 				continue
 			}
-			artifacts = append(artifacts, models.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: models.KindMCPMapping})
+			artifacts = append(artifacts, gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: ee.ArtifactUUID, Kind: gwmodels.KindMCPMapping})
 		}
 	}
 	return artifacts
@@ -374,7 +374,7 @@ func (s *MCPProxyService) deleteMCPProxyEnvironmentArtifacts(ctx context.Context
 		if artifactUUID == uuid.Nil {
 			continue
 		}
-		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: models.KindMCPMapping}
+		ref := gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: gwmodels.KindMCPMapping}
 		if err := s.tx(ctx, func(tx *gorm.DB) error {
 			events, err := s.core.PrepareDelete(ctx, tx, ref)
 			if err != nil {
@@ -394,15 +394,15 @@ func (s *MCPProxyService) deleteMCPProxyEnvironmentArtifacts(ctx context.Context
 // deleteMCPArtifactRows deletes a per-environment gateway artifact with its deployments and status rows, in tx.
 func deleteMCPArtifactRows(tx *gorm.DB, artifactUUID uuid.UUID, ouID string) error {
 	if err := tx.Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
-		Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
+		Delete(&gwmodels.DeploymentStatusRecord{}).Error; err != nil {
 		return err
 	}
 	if err := tx.Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID).
-		Delete(&models.Deployment{}).Error; err != nil {
+		Delete(&gwmodels.Deployment{}).Error; err != nil {
 		return err
 	}
 	var inOrg int64
-	if err := tx.Model(&models.Artifact{}).Where("id = ? AND org_id = ?", artifactUUID, ouID).Count(&inOrg).Error; err != nil {
+	if err := tx.Model(&gwmodels.Artifact{}).Where("id = ? AND org_id = ?", artifactUUID, ouID).Count(&inOrg).Error; err != nil {
 		return err
 	}
 	if inOrg == 0 {
@@ -417,7 +417,7 @@ func (s *MCPProxyService) prepareMCPArtifactDeletes(
 ) ([]reconcile.DeleteEvents, error) {
 	events := make([]reconcile.DeleteEvents, 0, len(artifactUUIDs))
 	for _, artifactUUID := range artifactUUIDs {
-		ref := models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: models.KindMCPMapping}
+		ref := gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: gwmodels.KindMCPMapping}
 		artifactEvents, err := s.core.PrepareDelete(ctx, tx, ref)
 		if err != nil {
 			return nil, err
@@ -427,13 +427,13 @@ func (s *MCPProxyService) prepareMCPArtifactDeletes(
 	return events, nil
 }
 
-func (s *MCPProxyService) generateMCPProxyDeploymentYAML(proxy *models.MCPProxy, proxyHandle string, scopes []models.MCPProxyScope) (string, error) {
+func (s *MCPProxyService) generateMCPProxyDeploymentYAML(proxy *gwmodels.MCPProxy, proxyHandle string, scopes []gwmodels.MCPProxyScope) (string, error) {
 	return renderMCPProxy(proxy, proxyHandle, scopes)
 }
 
 // renderMCPProxy is one (endpoint, environment) artifact's gateway configuration; proxyHandle is the source proxy's
 // handle the scope policies are prefixed with.
-func renderMCPProxy(proxy *models.MCPProxy, proxyHandle string, scopes []models.MCPProxyScope) (string, error) {
+func renderMCPProxy(proxy *gwmodels.MCPProxy, proxyHandle string, scopes []gwmodels.MCPProxyScope) (string, error) {
 	deployment, err := buildMCPProxyDeploymentYAML(proxy, proxyHandle, scopes)
 	if err != nil {
 		return "", err
@@ -445,7 +445,7 @@ func renderMCPProxy(proxy *models.MCPProxy, proxyHandle string, scopes []models.
 	return string(yamlBytes), nil
 }
 
-func buildMCPProxyDeploymentYAML(proxy *models.MCPProxy, proxyHandle string, scopes []models.MCPProxyScope) (*MCPProxyDeploymentYAML, error) {
+func buildMCPProxyDeploymentYAML(proxy *gwmodels.MCPProxy, proxyHandle string, scopes []gwmodels.MCPProxyScope) (*MCPProxyDeploymentYAML, error) {
 	contextValue := "/"
 	if proxy.Configuration.Context != nil && strings.TrimSpace(*proxy.Configuration.Context) != "" {
 		contextValue = *proxy.Configuration.Context
@@ -460,7 +460,7 @@ func buildMCPProxyDeploymentYAML(proxy *models.MCPProxy, proxyHandle string, sco
 	}
 
 	upstream := MCPProxyUpstream{}
-	var upstreamAuth *models.UpstreamAuth
+	var upstreamAuth *gwmodels.UpstreamAuth
 	if proxy.Configuration.Upstream.Main != nil {
 		upstream.URL = strings.TrimSpace(proxy.Configuration.Upstream.Main.URL)
 		upstream.Ref = strings.TrimSpace(proxy.Configuration.Upstream.Main.Ref)
@@ -511,7 +511,7 @@ func buildMCPProxyDeploymentYAML(proxy *models.MCPProxy, proxyHandle string, sco
 	}, nil
 }
 
-func appendMCPBackendAuthPolicy(policies []models.MCPPolicy, auth *models.UpstreamAuth) []models.MCPPolicy {
+func appendMCPBackendAuthPolicy(policies []gwmodels.MCPPolicy, auth *gwmodels.UpstreamAuth) []gwmodels.MCPPolicy {
 	if auth == nil || auth.Header == nil || strings.TrimSpace(*auth.Header) == "" {
 		return policies
 	}
@@ -527,9 +527,9 @@ func appendMCPBackendAuthPolicy(policies []models.MCPPolicy, auth *models.Upstre
 		return policies
 	}
 
-	out := make([]models.MCPPolicy, 0, len(policies)+1)
+	out := make([]gwmodels.MCPPolicy, 0, len(policies)+1)
 	out = append(out, policies...)
-	out = append(out, models.MCPPolicy{
+	out = append(out, gwmodels.MCPPolicy{
 		Name:        mcpBackendAuthPolicyName,
 		Version:     mcpBackendAuthPolicyVersion,
 		DisplayName: mcpBackendAuthPolicyDisplayName,
@@ -542,7 +542,7 @@ func appendMCPBackendAuthPolicy(policies []models.MCPPolicy, auth *models.Upstre
 	return out
 }
 
-func appendMCPAPIKeyAuthPolicy(policies []models.MCPPolicy, security *models.SecurityConfig) ([]models.MCPPolicy, error) {
+func appendMCPAPIKeyAuthPolicy(policies []gwmodels.MCPPolicy, security *gwmodels.SecurityConfig) ([]gwmodels.MCPPolicy, error) {
 	if security == nil || !isBoolTrue(security.Enabled) {
 		return policies, nil
 	}
@@ -560,9 +560,9 @@ func appendMCPAPIKeyAuthPolicy(policies []models.MCPPolicy, security *models.Sec
 		return nil, fmt.Errorf("invalid api key security configuration: in must be 'header' or 'query', got %q", security.APIKey.In)
 	}
 
-	out := make([]models.MCPPolicy, 0, len(policies)+1)
+	out := make([]gwmodels.MCPPolicy, 0, len(policies)+1)
 	out = append(out, policies...)
-	out = append(out, models.MCPPolicy{
+	out = append(out, gwmodels.MCPPolicy{
 		Name:    apiKeyAuthPolicyName,
 		Version: apiKeyAuthPolicyVersion,
 		Params: map[string]interface{}{
@@ -582,7 +582,7 @@ func appendMCPAPIKeyAuthPolicy(policies []models.MCPPolicy, security *models.Sec
 // it before delegating to jwt-auth (wso2/gateway-controllers commit 7045133,
 // mcp-auth v1.1.1). Tools with no covering scope get no mcp-authz rule — gateway
 // default-permit means authenticated-only.
-func appendMCPIdentityAuthPolicies(policies []models.MCPPolicy, security *models.SecurityConfig, proxyHandle string, scopes []models.MCPProxyScope) []models.MCPPolicy {
+func appendMCPIdentityAuthPolicies(policies []gwmodels.MCPPolicy, security *gwmodels.SecurityConfig, proxyHandle string, scopes []gwmodels.MCPProxyScope) []gwmodels.MCPPolicy {
 	if !mcpIdentityEnabled(security) {
 		return policies
 	}
@@ -630,11 +630,11 @@ func appendMCPIdentityAuthPolicies(policies []models.MCPPolicy, security *models
 		authParams["requiredScopes"] = union
 	}
 
-	out := make([]models.MCPPolicy, 0, len(policies)+2)
+	out := make([]gwmodels.MCPPolicy, 0, len(policies)+2)
 	out = append(out, policies...)
-	out = append(out, models.MCPPolicy{Name: mcpAuthPolicyName, Version: mcpAuthPolicyVersion, Params: authParams})
+	out = append(out, gwmodels.MCPPolicy{Name: mcpAuthPolicyName, Version: mcpAuthPolicyVersion, Params: authParams})
 	if len(toolRules) > 0 {
-		out = append(out, models.MCPPolicy{Name: mcpAuthzPolicyName, Version: mcpAuthzPolicyVersion, Params: map[string]interface{}{"tools": toolRules}})
+		out = append(out, gwmodels.MCPPolicy{Name: mcpAuthzPolicyName, Version: mcpAuthzPolicyVersion, Params: map[string]interface{}{"tools": toolRules}})
 	}
 	return out
 }
@@ -642,19 +642,19 @@ func appendMCPIdentityAuthPolicies(policies []models.MCPPolicy, security *models
 // mcpIdentityEnabled reports whether identity security is enabled for the given
 // endpoint security config. Shared by gateway emission and Thunder scope
 // cleanup so the identity gate can't drift between the two.
-func mcpIdentityEnabled(security *models.SecurityConfig) bool {
+func mcpIdentityEnabled(security *gwmodels.SecurityConfig) bool {
 	return security != nil && isBoolTrue(security.Enabled) &&
 		security.Identity != nil && isBoolTrue(security.Identity.Enabled)
 }
 
-func normalizeMCPPoliciesForDeployment(policies []models.MCPPolicy) []models.MCPPolicy {
+func normalizeMCPPoliciesForDeployment(policies []gwmodels.MCPPolicy) []gwmodels.MCPPolicy {
 	if len(policies) == 0 {
 		return nil
 	}
 
-	out := make([]models.MCPPolicy, 0, len(policies))
+	out := make([]gwmodels.MCPPolicy, 0, len(policies))
 	for _, policy := range policies {
-		out = append(out, models.MCPPolicy{
+		out = append(out, gwmodels.MCPPolicy{
 			Name:               policy.Name,
 			Version:            normalizePolicyVersionToMajor(policy.Version),
 			DisplayName:        policy.DisplayName,
@@ -665,12 +665,12 @@ func normalizeMCPPoliciesForDeployment(policies []models.MCPPolicy) []models.MCP
 	return out
 }
 
-func mergeMCPPoliciesForDeployment(policies []models.MCPPolicy) []models.MCPPolicy {
+func mergeMCPPoliciesForDeployment(policies []gwmodels.MCPPolicy) []gwmodels.MCPPolicy {
 	if len(policies) < 2 {
 		return policies
 	}
 
-	out := make([]models.MCPPolicy, 0, len(policies))
+	out := make([]gwmodels.MCPPolicy, 0, len(policies))
 	policyIndexes := map[string]int{}
 	for _, policy := range policies {
 		key := mcpPolicyIdentityKey(policy)
@@ -691,7 +691,7 @@ func mergeMCPPoliciesForDeployment(policies []models.MCPPolicy) []models.MCPPoli
 	return out
 }
 
-func mcpPolicyIdentityKey(policy models.MCPPolicy) string {
+func mcpPolicyIdentityKey(policy gwmodels.MCPPolicy) string {
 	return strings.TrimSpace(policy.Name) + "\x00" + strings.TrimSpace(policy.Version)
 }
 
@@ -702,7 +702,7 @@ func mcpPolicyMergeStrategyFor(policyName string) mcpPolicyMergeStrategy {
 	return mcpPolicyMergeStrategyOverride
 }
 
-func mergeMCPPolicyForDeployment(base, next models.MCPPolicy) models.MCPPolicy {
+func mergeMCPPolicyForDeployment(base, next gwmodels.MCPPolicy) gwmodels.MCPPolicy {
 	merged := next
 	merged.Params = mergeMCPPolicyParams(base.Params, next.Params)
 	return merged

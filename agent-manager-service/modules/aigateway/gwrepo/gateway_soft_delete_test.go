@@ -28,7 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // Delete removes the gateway outright, and with it what only it used: its token stops authenticating, its archived
@@ -37,40 +37,40 @@ func TestGatewayDeleteRemovesTheGatewayAndWhatOnlyItUsed(t *testing.T) {
 	gdb := db.GetDB()
 	repo := NewGatewayRepo(gdb)
 	ouID := newOrg(t)
-	gatewayID, artifactUUID := newGateway(t, ouID, models.GatewayRoleIngress), uuid.New()
+	gatewayID, artifactUUID := newGateway(t, ouID, gwmodels.GatewayRoleIngress), uuid.New()
 	envID := dbtest.Environment(t, gdb, ouID)
-	var gw models.Gateway
+	var gw gwmodels.Gateway
 	require.NoError(t, gdb.Where("id = ?", gatewayID).Take(&gw).Error)
 
-	require.NoError(t, gdb.Create(&models.GatewayToken{
+	require.NoError(t, gdb.Create(&gwmodels.GatewayToken{
 		UUID: uuid.New(), OrgID: uuid.MustParse(ouID), GatewayUUID: gatewayID, TokenPrefix: gatewayID.String()[:8],
 		TokenHash: "hash", Salt: "salt", Status: "active", CreatedAt: time.Now().UTC(),
 	}).Error)
-	require.NoError(t, repo.UpsertIdentityProvider(&models.GatewayIdentityProvider{
+	require.NoError(t, repo.UpsertIdentityProvider(&gwmodels.GatewayIdentityProvider{
 		UUID: uuid.New(), GatewayUUID: gatewayID, Name: "customer-idp", Issuer: "https://idp.example",
-		JWKSUri: "https://idp.example/jwks", Type: models.IdentityProviderTypeCustom,
+		JWKSUri: "https://idp.example/jwks", Type: gwmodels.IdentityProviderTypeCustom,
 	}))
 
 	// Archived history only: DeleteGateway refuses a gateway with status rows.
-	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
+	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: "proj/agent/" + artifactUUID.String(), Name: "agent-" + artifactUUID.String()[:8],
-		Version: "v1.0", Kind: models.KindAgent, OUID: ouID,
+		Version: "v1.0", Kind: gwmodels.KindAgent, OUID: ouID,
 	}))
 	deployments := NewDeploymentRepo(gdb)
-	deployed := models.DeploymentStatusDeployed
-	require.NoError(t, deployments.CreateWithLimitEnforcement(&models.Deployment{
+	deployed := gwmodels.DeploymentStatusDeployed
+	require.NoError(t, deployments.CreateWithLimitEnforcement(&gwmodels.Deployment{
 		Name: "agent-deployment", ArtifactUUID: artifactUUID, OUID: ouID, GatewayUUID: gatewayID,
 		Content: []byte("kind: Agent\n"), Status: &deployed,
 	}, 10))
 	require.NoError(t, gdb.Where(statusRowWhere, artifactUUID, ouID, gatewayID).
-		Delete(&models.DeploymentStatusRecord{}).Error)
+		Delete(&gwmodels.DeploymentStatusRecord{}).Error)
 
 	require.NoError(t, repo.Delete(gatewayID.String(), ouID))
 
 	var gateways, tokens int64
-	require.NoError(t, gdb.Model(&models.Gateway{}).Where("id = ?", gatewayID).Count(&gateways).Error)
+	require.NoError(t, gdb.Model(&gwmodels.Gateway{}).Where("id = ?", gatewayID).Count(&gateways).Error)
 	assert.Zero(t, gateways, "the gateway row is removed")
-	require.NoError(t, gdb.Model(&models.GatewayToken{}).Where("gateway_id = ?", gatewayID).Count(&tokens).Error)
+	require.NoError(t, gdb.Model(&gwmodels.GatewayToken{}).Where("gateway_id = ?", gatewayID).Count(&tokens).Error)
 	assert.Zero(t, tokens, "a deleted gateway's token must no longer authenticate")
 
 	history, err := deployments.GetDeploymentsWithState(artifactUUID.String(), ouID, nil, nil, 10)

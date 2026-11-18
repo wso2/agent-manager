@@ -28,13 +28,14 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // Defaults for a newly proxied environment must never overwrite a saved config.
 func TestAgentConfigCreateIfAbsentKeepsAnExistingRow(t *testing.T) {
 	repo := NewAgentConfigRepo(db.GetDB())
 	ctx := context.Background()
-	saved := &models.AgentConfig{
+	saved := &gwmodels.AgentConfig{
 		OUID: testOrg(t), ProjectName: "checkout",
 		AgentName: "cfg-" + uuid.New().String()[:8], EnvironmentName: "Development",
 		EnableApiKeySecurity: false, CORSEnabled: false,
@@ -58,7 +59,7 @@ func TestAgentConfigCreateIfAbsentKeepsAnExistingRow(t *testing.T) {
 func TestAgentConfigCreateIfAbsentInsertsDefaults(t *testing.T) {
 	repo := NewAgentConfigRepo(db.GetDB())
 	ctx := context.Background()
-	cfg := &models.AgentConfig{
+	cfg := &gwmodels.AgentConfig{
 		OUID: testOrg(t), ProjectName: "checkout",
 		AgentName: "cfg-new-" + uuid.New().String()[:8], EnvironmentName: "Development",
 		EnableApiKeySecurity: true, CORSEnabled: true, CORSAllowOrigins: []string{"*"},
@@ -82,8 +83,8 @@ func TestAgentConfigDeleteForEnvironmentDropsEveryAgentsConfig(t *testing.T) {
 	agentA, agentB := "cfg-a-"+uuid.New().String()[:8], "cfg-b-"+uuid.New().String()[:8]
 	seedAgent(t, ouID, "checkout", agentA, "dev", "prod")
 	seedAgent(t, ouID, "checkout", agentB)
-	newConfig := func(agent, env string) *models.AgentConfig {
-		return &models.AgentConfig{
+	newConfig := func(agent, env string) *gwmodels.AgentConfig {
+		return &gwmodels.AgentConfig{
 			OUID: ouID, ProjectName: "checkout", AgentName: agent, EnvironmentName: env,
 			OAuthHeaderName: models.DefaultOAuthHeaderName, OAuthAuthHeaderPrefix: models.DefaultOAuthAuthHeaderPrefix,
 		}

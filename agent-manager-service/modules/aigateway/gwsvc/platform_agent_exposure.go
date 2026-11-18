@@ -22,7 +22,7 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -53,8 +53,8 @@ func NewPlatformAgentExposures(
 // exposure is the artifact's exposure, read in tx when non-nil. ErrPlatformAgentExposureNotFound passes through
 // unwrapped: each kind decides what an artifact without one means.
 func (e *PlatformAgentExposures) exposure(
-	ctx context.Context, tx *gorm.DB, artifact models.ArtifactRef,
-) (*models.PlatformAgentExposure, error) {
+	ctx context.Context, tx *gorm.DB, artifact gwmodels.ArtifactRef,
+) (*gwmodels.PlatformAgentExposure, error) {
 	repo := e.exposureRepo
 	if tx != nil {
 		repo = repo.WithTx(tx)
@@ -70,7 +70,7 @@ func (e *PlatformAgentExposures) exposure(
 }
 
 // serviceURL is the endpoint the agent's release binding serves; the render waits while there is none.
-func (e *PlatformAgentExposures) serviceURL(ctx context.Context, exposure *models.PlatformAgentExposure) (string, error) {
+func (e *PlatformAgentExposures) serviceURL(ctx context.Context, exposure *gwmodels.PlatformAgentExposure) (string, error) {
 	// Platform-hosted agents need an agent runtime, which is not available.
 	return "", fmt.Errorf("%w: agent %s has no hosted endpoint", utils.ErrNotImplemented, exposure.AgentName)
 }
@@ -86,10 +86,10 @@ func (e *PlatformAgentExposures) target(ctx context.Context, record reconcile.Re
 
 // unplacedExposureArm selects the protocol's exposures whose artifact has no row yet, in environments with an
 // ingress gateway, as one UNION arm of pageUnplacedRecords.
-func unplacedExposureArm(protocol models.AgentExposureProtocol, ouID string, env *uuid.UUID) (string, []any) {
+func unplacedExposureArm(protocol gwmodels.AgentExposureProtocol, ouID string, env *uuid.UUID) (string, []any) {
 	condition, args := reconcile.UnplacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "e.environment_id",
-	}, models.IngressGatewayRoles, ouID, env)
+	}, gwmodels.IngressGatewayRoles, ouID, env)
 	arm := `SELECT a.org_id, a.id AS artifact_id, a.handle, a.kind, e.environment_id
 			FROM mod_ai_gateway_agent_exposures e JOIN mod_ai_gateway_artifacts a ON a.id = e.artifact_id
 			WHERE e.protocol = ? AND ` + condition
@@ -98,7 +98,7 @@ func unplacedExposureArm(protocol models.AgentExposureProtocol, ouID string, env
 
 // placedExposureArm selects the protocol's exposures in env whose artifact is placed on gateway, as one UNION arm
 // of a kind's PlacedOn query.
-func placedExposureArm(protocol models.AgentExposureProtocol, env, gateway uuid.UUID) (string, []any) {
+func placedExposureArm(protocol gwmodels.AgentExposureProtocol, env, gateway uuid.UUID) (string, []any) {
 	condition, args := reconcile.PlacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "e.environment_id",
 	}, env, gateway)

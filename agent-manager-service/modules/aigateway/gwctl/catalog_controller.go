@@ -25,7 +25,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -108,9 +108,9 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	switch hosting := r.URL.Query().Get("gatewayHosting"); hosting {
 	case "":
 	case string(gwspec.GATEWAYHOSTING_MANAGED):
-		gatewayHosting = models.GatewayHostingManaged
+		gatewayHosting = gwmodels.GatewayHostingManaged
 	case string(gwspec.GATEWAYHOSTING_SELF_HOSTED):
-		gatewayHosting = models.GatewayHostingSelfHosted
+		gatewayHosting = gwmodels.GatewayHostingSelfHosted
 	default:
 		log.Error("ListCatalog: invalid gatewayHosting parameter", "gatewayHosting", hosting)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid gatewayHosting parameter. Must be one of: %s, %s",
@@ -119,9 +119,9 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// For llmProvider kind, use the enhanced service method with filters
-	if kind == models.CatalogKindLLMProvider {
+	if kind == gwmodels.CatalogKindLLMProvider {
 		// Build filter struct
-		filters := &models.CatalogListFilters{
+		filters := &gwmodels.CatalogListFilters{
 			OrganizationName: ouID,
 			Kind:             kind,
 			Name:             name,
@@ -157,7 +157,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
-func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, offset int32) *gwspec.CatalogListResponse {
+func convertToCatalogListResponse(entries []gwmodels.CatalogEntry, total, limit, offset int32) *gwspec.CatalogListResponse {
 	specEntries := make([]gwspec.CatalogListResponseEntriesInner, len(entries))
 	for i, entry := range entries {
 		catalogEntry := gwspec.CatalogEntry{
@@ -180,7 +180,7 @@ func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, o
 	}
 }
 
-func convertToLLMProviderCatalogResponse(entries []models.CatalogLLMProviderEntry, total, limit, offset int32) any {
+func convertToLLMProviderCatalogResponse(entries []gwmodels.CatalogLLMProviderEntry, total, limit, offset int32) any {
 	// Convert to comprehensive LLM provider entries
 	specEntries := make([]gwspec.CatalogLLMProviderEntry, len(entries))
 	for i, entry := range entries {
@@ -243,7 +243,7 @@ func convertToLLMProviderCatalogResponse(entries []models.CatalogLLMProviderEntr
 	}
 }
 
-func convertModelProviders(providers []models.LLMModelProvider) []gwspec.LLMModelProvider {
+func convertModelProviders(providers []gwmodels.LLMModelProvider) []gwspec.LLMModelProvider {
 	result := make([]gwspec.LLMModelProvider, len(providers))
 	for i, p := range providers {
 		result[i] = gwspec.LLMModelProvider{
@@ -267,7 +267,7 @@ func convertModelProviders(providers []models.LLMModelProvider) []gwspec.LLMMode
 	return result
 }
 
-func convertSecuritySummary(security *models.SecuritySummary) *gwspec.SecuritySummary {
+func convertSecuritySummary(security *gwmodels.SecuritySummary) *gwspec.SecuritySummary {
 	return &gwspec.SecuritySummary{
 		Enabled:       security.Enabled,
 		ApiKeyEnabled: security.APIKeyEnabled,
@@ -275,7 +275,7 @@ func convertSecuritySummary(security *models.SecuritySummary) *gwspec.SecuritySu
 	}
 }
 
-func convertRateLimitingSummary(rateLimiting *models.RateLimitingSummary) *gwspec.RateLimitingSummary {
+func convertRateLimitingSummary(rateLimiting *gwmodels.RateLimitingSummary) *gwspec.RateLimitingSummary {
 	result := &gwspec.RateLimitingSummary{}
 
 	if rateLimiting.ProviderLevel != nil {
@@ -307,7 +307,7 @@ func interfaceToFloat32(v interface{}) float32 {
 	return 0
 }
 
-func convertRateLimitingScope(scope *models.RateLimitingScope) *gwspec.RateLimitingScope {
+func convertRateLimitingScope(scope *gwmodels.RateLimitingScope) *gwspec.RateLimitingScope {
 	result := &gwspec.RateLimitingScope{
 		GlobalEnabled:       &scope.GlobalEnabled,
 		ResourceWiseEnabled: &scope.ResourceWiseEnabled,
@@ -353,15 +353,15 @@ func isValidCatalogKind(kind string) bool {
 
 func validCatalogKinds() []string {
 	return []string{
-		models.CatalogKindLLMProvider,
-		models.CatalogKindAgent,
-		models.CatalogKindMCP,
-		models.CatalogKindMCPProxy,
-		models.CatalogKindMCPMapping,
+		gwmodels.CatalogKindLLMProvider,
+		gwmodels.CatalogKindAgent,
+		gwmodels.CatalogKindMCP,
+		gwmodels.CatalogKindMCPProxy,
+		gwmodels.CatalogKindMCPMapping,
 	}
 }
 
-func convertDeploymentSummaries(deployments []models.DeploymentSummary) []gwspec.DeploymentSummary {
+func convertDeploymentSummaries(deployments []gwmodels.DeploymentSummary) []gwspec.DeploymentSummary {
 	result := make([]gwspec.DeploymentSummary, len(deployments))
 	for i, d := range deployments {
 		result[i] = gwspec.DeploymentSummary{

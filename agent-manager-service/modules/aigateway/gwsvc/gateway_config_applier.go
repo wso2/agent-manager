@@ -19,7 +19,7 @@ package gwsvc
 import (
 	"context"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // GatewayConfigApplier patches the gateway runtime configuration (the source of
@@ -42,7 +42,7 @@ import (
 // re-validate and only ever receives custom providers.
 type GatewayConfigApplier interface {
 	// ApplyIdentityProvider upserts the identity provider in the gateway config.
-	ApplyIdentityProvider(ctx context.Context, gatewayID, ouID string, idp models.GatewayIdentityProvider) error
+	ApplyIdentityProvider(ctx context.Context, gatewayID, ouID string, idp gwmodels.GatewayIdentityProvider) error
 	// DeleteIdentityProvider removes the identity provider from the gateway config.
 	DeleteIdentityProvider(ctx context.Context, gatewayID, ouID, name string) error
 }

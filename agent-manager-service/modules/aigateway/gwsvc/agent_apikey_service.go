@@ -28,8 +28,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -56,16 +56,16 @@ const legacyTestKeyName = "console-test"
 // and avoids storing raw user identifiers as key names.
 func testKeyName(userSub string) string {
 	h := sha256.Sum256([]byte(userSub))
-	return models.APIKeyTestKeyPrefix + hex.EncodeToString(h[:])[:12]
+	return gwmodels.APIKeyTestKeyPrefix + hex.EncodeToString(h[:])[:12]
 }
 
 // AgentAPIKeyServiceInterface defines the contract for agent API key operations
 type AgentAPIKeyServiceInterface interface {
-	CreateAPIKey(ctx context.Context, ouID, projectName, agentName, envID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
+	CreateAPIKey(ctx context.Context, ouID, projectName, agentName, envID string, req *gwmodels.CreateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error)
 	RevokeAPIKey(ctx context.Context, ouID, projectName, agentName, envID, keyName string) error
-	RotateAPIKey(ctx context.Context, ouID, projectName, agentName, envID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error)
-	ListAPIKeys(ctx context.Context, ouID, projectName, agentName, envID string) ([]models.StoredAPIKey, error)
-	IssueTestAPIKey(ctx context.Context, ouID, projectName, agentName, envID, userSub string) (*models.IssueTestAPIKeyResponse, error)
+	RotateAPIKey(ctx context.Context, ouID, projectName, agentName, envID, keyName string, req *gwmodels.RotateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error)
+	ListAPIKeys(ctx context.Context, ouID, projectName, agentName, envID string) ([]gwmodels.StoredAPIKey, error)
+	IssueTestAPIKey(ctx context.Context, ouID, projectName, agentName, envID, userSub string) (*gwmodels.IssueTestAPIKeyResponse, error)
 }
 
 // AgentAPIKeyService handles API key management for agents
@@ -118,7 +118,7 @@ func NewAgentAPIKeyService(
 // is_active can go stale as true if a holding pod dies without running its
 // disconnect path. OR keeps the accurate answer in the common case and can only
 // turn a false negative into a true, never the reverse.
-func (s *AgentAPIKeyService) gatewaysConnected(gateways []*models.Gateway) *bool {
+func (s *AgentAPIKeyService) gatewaysConnected(gateways []*gwmodels.Gateway) *bool {
 	connected := true
 	for _, gw := range gateways {
 		if len(s.connChecker.GetConnections(gw.UUID.String())) == 0 && !gw.IsActive {
@@ -129,7 +129,7 @@ func (s *AgentAPIKeyService) gatewaysConnected(gateways []*models.Gateway) *bool
 	return &connected
 }
 
-func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, projectName, agentName, envID string) (*models.Artifact, string, error) {
+func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, projectName, agentName, envID string) (*gwmodels.Artifact, string, error) {
 	environment, err := s.ocClient.GetEnvironment(ctx, ouID, envID)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get environment: %w", err)
@@ -137,7 +137,7 @@ func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, 
 	// envID may be a name or a UUID; events always carry the name.
 	events.SetEnvironment(ctx, environment.Name)
 
-	artifact, err := agentEnvAPIArtifact(s.artifactRepo, ouID, projectName, agentName, environment.UUID, models.AgentArtifactKinds...)
+	artifact, err := agentEnvAPIArtifact(s.artifactRepo, ouID, projectName, agentName, environment.UUID, gwmodels.AgentArtifactKinds...)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get agent API artifact: %w", err)
 	}
@@ -150,10 +150,10 @@ func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, 
 // No Status filter. Keys are distributed regardless of is_active today, and is_active
 // tracks WebSocket connectivity, which flaps — filtering on it would intermittently
 // starve a live gateway of keys. The role filter is the only change.
-func (s *AgentAPIKeyService) resolveEnvGateways(envUUID string) ([]*models.Gateway, error) {
+func (s *AgentAPIKeyService) resolveEnvGateways(envUUID string) ([]*gwmodels.Gateway, error) {
 	gateways, err := s.gatewayRepo.ListWithFilters(gwrepo.GatewayFilterOptions{
 		EnvironmentID:       &envUUID,
-		FunctionalityTypeIn: models.IngressGatewayRoles,
+		FunctionalityTypeIn: gwmodels.IngressGatewayRoles,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list ingress gateways for environment %s: %w", envUUID, err)
@@ -168,10 +168,10 @@ func (s *AgentAPIKeyService) resolveEnvGateways(envUUID string) ([]*models.Gatew
 func (s *AgentAPIKeyService) CreateAPIKey(
 	ctx context.Context,
 	ouID, projectName, agentName, envID string,
-	req *models.CreateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
-	if req != nil && (strings.HasPrefix(req.Name, models.APIKeyTestKeyPrefix) || req.Name == legacyTestKeyName) {
-		return nil, fmt.Errorf("%w: names starting with %q are reserved for console test keys", utils.ErrBadRequest, models.APIKeyTestKeyPrefix)
+	req *gwmodels.CreateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
+	if req != nil && (strings.HasPrefix(req.Name, gwmodels.APIKeyTestKeyPrefix) || req.Name == legacyTestKeyName) {
+		return nil, fmt.Errorf("%w: names starting with %q are reserved for console test keys", utils.ErrBadRequest, gwmodels.APIKeyTestKeyPrefix)
 	}
 	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
@@ -213,7 +213,7 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 
 // keyNameOf returns the requested key name, tolerating a nil request so the
 // audit path cannot panic on input the caller has not validated yet.
-func keyNameOf(req *models.CreateAPIKeyRequest) string {
+func keyNameOf(req *gwmodels.CreateAPIKeyRequest) string {
 	if req == nil {
 		return ""
 	}
@@ -258,8 +258,8 @@ func (s *AgentAPIKeyService) RevokeAPIKey(
 func (s *AgentAPIKeyService) RotateAPIKey(
 	ctx context.Context,
 	ouID, projectName, agentName, envID, keyName string,
-	req *models.RotateAPIKeyRequest,
-) (*models.CreateAPIKeyResponse, error) {
+	req *gwmodels.RotateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
 	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
@@ -295,16 +295,16 @@ func (s *AgentAPIKeyService) RotateAPIKey(
 func (s *AgentAPIKeyService) ListAPIKeys(
 	ctx context.Context,
 	ouID, projectName, agentName, envID string,
-) ([]models.StoredAPIKey, error) {
+) ([]gwmodels.StoredAPIKey, error) {
 	artifact, _, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
 	}
-	all, err := s.apiKeyRepo.ListPermanentByArtifactKinds(ouID, models.AgentArtifactKinds)
+	all, err := s.apiKeyRepo.ListPermanentByArtifactKinds(ouID, gwmodels.AgentArtifactKinds)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list API keys: %w", err)
 	}
-	var result []models.StoredAPIKey
+	var result []gwmodels.StoredAPIKey
 	for _, k := range all {
 		if k.ArtifactUUID == artifact.UUID {
 			result = append(result, k)
@@ -320,7 +320,7 @@ func (s *AgentAPIKeyService) ListAPIKeys(
 func (s *AgentAPIKeyService) IssueTestAPIKey(
 	ctx context.Context,
 	ouID, projectName, agentName, envID, userSub string,
-) (*models.IssueTestAPIKeyResponse, error) {
+) (*gwmodels.IssueTestAPIKeyResponse, error) {
 	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
 	if err != nil {
 		return nil, err
@@ -340,23 +340,23 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 	}
 
 	log := logger.GetLogger(ctx)
-	var resp *models.CreateAPIKeyResponse
+	var resp *gwmodels.CreateAPIKeyResponse
 	if existing != nil {
-		if existing.Purpose != models.APIKeyPurposeTest {
+		if existing.Purpose != gwmodels.APIKeyPurposeTest {
 			return nil, fmt.Errorf("%w: %q is reserved for console test keys", utils.ErrBadRequest, keyName)
 		}
 		// Same DB row, new hash + expiry; purpose is preserved (Upsert.DoUpdates excludes it).
 		resp, err = s.broadcaster.broadcastRotateToGateways(gateways, ouID, artifactUUID, artifactUUID, keyName,
-			&models.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
+			&gwmodels.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
 		if err == nil {
 			log.Info("IssueTestAPIKey: rotated", "keyName", keyName, "org", ouID, "agent", agentName, "env", envID, "expiresAt", expiresAt)
 		}
 	} else {
 		resp, err = s.broadcaster.broadcastCreateToGateways(gateways, ouID, artifactUUID, artifactUUID,
-			&models.CreateAPIKeyRequest{
+			&gwmodels.CreateAPIKeyRequest{
 				Name:        keyName,
 				DisplayName: "Console Try-It",
-				Purpose:     models.APIKeyPurposeTest,
+				Purpose:     gwmodels.APIKeyPurposeTest,
 				ExpiresAt:   &expiresAt,
 			})
 		if err == nil {
@@ -384,7 +384,7 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 		return nil, err
 	}
 
-	return &models.IssueTestAPIKeyResponse{
+	return &gwmodels.IssueTestAPIKeyResponse{
 		Status:           resp.Status,
 		Message:          resp.Message,
 		KeyID:            resp.KeyID,

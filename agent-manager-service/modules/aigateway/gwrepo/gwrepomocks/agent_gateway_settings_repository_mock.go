@@ -7,7 +7,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -18,7 +18,7 @@ import (
 //
 //		// make and configure a mocked gwrepo.AgentConfigRepository
 //		mockedAgentConfigRepository := &AgentConfigRepositoryMock{
-//			CreateIfAbsentFunc: func(ctx context.Context, config *models.AgentConfig) error {
+//			CreateIfAbsentFunc: func(ctx context.Context, config *gwmodels.AgentConfig) error {
 //				panic("mock out the CreateIfAbsent method")
 //			},
 //			DeleteAllByAgentFunc: func(ctx context.Context, ouID string, projectName string, agentName string) error {
@@ -27,10 +27,10 @@ import (
 //			DeleteForEnvironmentFunc: func(ctx context.Context, ouID string, environmentName string) error {
 //				panic("mock out the DeleteForEnvironment method")
 //			},
-//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentConfig, error) {
+//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.AgentConfig, error) {
 //				panic("mock out the Get method")
 //			},
-//			UpsertFunc: func(ctx context.Context, config *models.AgentConfig) error {
+//			UpsertFunc: func(ctx context.Context, config *gwmodels.AgentConfig) error {
 //				panic("mock out the Upsert method")
 //			},
 //			WithTxFunc: func(tx *gorm.DB) gwrepo.AgentConfigRepository {
@@ -44,7 +44,7 @@ import (
 //	}
 type AgentConfigRepositoryMock struct {
 	// CreateIfAbsentFunc mocks the CreateIfAbsent method.
-	CreateIfAbsentFunc func(ctx context.Context, config *models.AgentConfig) error
+	CreateIfAbsentFunc func(ctx context.Context, config *gwmodels.AgentConfig) error
 
 	// DeleteAllByAgentFunc mocks the DeleteAllByAgent method.
 	DeleteAllByAgentFunc func(ctx context.Context, ouID string, projectName string, agentName string) error
@@ -53,10 +53,10 @@ type AgentConfigRepositoryMock struct {
 	DeleteForEnvironmentFunc func(ctx context.Context, ouID string, environmentName string) error
 
 	// GetFunc mocks the Get method.
-	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentConfig, error)
+	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.AgentConfig, error)
 
 	// UpsertFunc mocks the Upsert method.
-	UpsertFunc func(ctx context.Context, config *models.AgentConfig) error
+	UpsertFunc func(ctx context.Context, config *gwmodels.AgentConfig) error
 
 	// WithTxFunc mocks the WithTx method.
 	WithTxFunc func(tx *gorm.DB) gwrepo.AgentConfigRepository
@@ -68,7 +68,7 @@ type AgentConfigRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Config is the config argument value.
-			Config *models.AgentConfig
+			Config *gwmodels.AgentConfig
 		}
 		// DeleteAllByAgent holds details about calls to the DeleteAllByAgent method.
 		DeleteAllByAgent []struct {
@@ -108,7 +108,7 @@ type AgentConfigRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Config is the config argument value.
-			Config *models.AgentConfig
+			Config *gwmodels.AgentConfig
 		}
 		// WithTx holds details about calls to the WithTx method.
 		WithTx []struct {
@@ -125,13 +125,13 @@ type AgentConfigRepositoryMock struct {
 }
 
 // CreateIfAbsent calls CreateIfAbsentFunc.
-func (mock *AgentConfigRepositoryMock) CreateIfAbsent(ctx context.Context, config *models.AgentConfig) error {
+func (mock *AgentConfigRepositoryMock) CreateIfAbsent(ctx context.Context, config *gwmodels.AgentConfig) error {
 	if mock.CreateIfAbsentFunc == nil {
 		panic("AgentConfigRepositoryMock.CreateIfAbsentFunc: method is nil but AgentConfigRepository.CreateIfAbsent was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
-		Config *models.AgentConfig
+		Config *gwmodels.AgentConfig
 	}{
 		Ctx:    ctx,
 		Config: config,
@@ -148,11 +148,11 @@ func (mock *AgentConfigRepositoryMock) CreateIfAbsent(ctx context.Context, confi
 //	len(mockedAgentConfigRepository.CreateIfAbsentCalls())
 func (mock *AgentConfigRepositoryMock) CreateIfAbsentCalls() []struct {
 	Ctx    context.Context
-	Config *models.AgentConfig
+	Config *gwmodels.AgentConfig
 } {
 	var calls []struct {
 		Ctx    context.Context
-		Config *models.AgentConfig
+		Config *gwmodels.AgentConfig
 	}
 	mock.lockCreateIfAbsent.RLock()
 	calls = mock.calls.CreateIfAbsent
@@ -245,7 +245,7 @@ func (mock *AgentConfigRepositoryMock) DeleteForEnvironmentCalls() []struct {
 }
 
 // Get calls GetFunc.
-func (mock *AgentConfigRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentConfig, error) {
+func (mock *AgentConfigRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.AgentConfig, error) {
 	if mock.GetFunc == nil {
 		panic("AgentConfigRepositoryMock.GetFunc: method is nil but AgentConfigRepository.Get was just called")
 	}
@@ -293,13 +293,13 @@ func (mock *AgentConfigRepositoryMock) GetCalls() []struct {
 }
 
 // Upsert calls UpsertFunc.
-func (mock *AgentConfigRepositoryMock) Upsert(ctx context.Context, config *models.AgentConfig) error {
+func (mock *AgentConfigRepositoryMock) Upsert(ctx context.Context, config *gwmodels.AgentConfig) error {
 	if mock.UpsertFunc == nil {
 		panic("AgentConfigRepositoryMock.UpsertFunc: method is nil but AgentConfigRepository.Upsert was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
-		Config *models.AgentConfig
+		Config *gwmodels.AgentConfig
 	}{
 		Ctx:    ctx,
 		Config: config,
@@ -316,11 +316,11 @@ func (mock *AgentConfigRepositoryMock) Upsert(ctx context.Context, config *model
 //	len(mockedAgentConfigRepository.UpsertCalls())
 func (mock *AgentConfigRepositoryMock) UpsertCalls() []struct {
 	Ctx    context.Context
-	Config *models.AgentConfig
+	Config *gwmodels.AgentConfig
 } {
 	var calls []struct {
 		Ctx    context.Context
-		Config *models.AgentConfig
+		Config *gwmodels.AgentConfig
 	}
 	mock.lockUpsert.RLock()
 	calls = mock.calls.Upsert

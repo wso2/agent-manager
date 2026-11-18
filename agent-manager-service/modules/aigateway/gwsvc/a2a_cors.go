@@ -21,7 +21,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -45,14 +45,14 @@ func withA2AVersionHeader(cfg resolvedCORSConfig) resolvedCORSConfig {
 
 // resolveCardCORSOverride picks the card CORS override to persist: the
 // request's when it carries one (inherit clearing it), otherwise the stored one.
-func resolveCardCORSOverride(existing *models.AgentConfig, req *gwspec.AgentCardCORSConfig) *models.CardCORS {
+func resolveCardCORSOverride(existing *gwmodels.AgentConfig, req *gwspec.AgentCardCORSConfig) *gwmodels.CardCORS {
 	if req == nil {
 		return existing.CardCORSOverride()
 	}
 	if req.GetInherit() {
 		return nil
 	}
-	return &models.CardCORS{
+	return &gwmodels.CardCORS{
 		Enabled:          req.GetEnabled(),
 		AllowOrigins:     req.AllowOrigin,
 		AllowHeaders:     req.AllowHeaders,
@@ -63,7 +63,7 @@ func resolveCardCORSOverride(existing *models.AgentConfig, req *gwspec.AgentCard
 // validateCardCORS checks the request shape first (agentCardCorsConfig is
 // A2A-only, and enabled is required unless inheriting), then the resolved
 // override (an enabled card needs origins, and cannot pair credentials with "*").
-func validateCardCORS(isA2A bool, req *gwspec.AgentCardCORSConfig, override *models.CardCORS) error {
+func validateCardCORS(isA2A bool, req *gwspec.AgentCardCORSConfig, override *gwmodels.CardCORS) error {
 	if req != nil && !isA2A {
 		return fmt.Errorf("%w: agentCardCorsConfig applies only to A2A agents", utils.ErrInvalidInput)
 	}
@@ -85,11 +85,11 @@ func validateCardCORS(isA2A bool, req *gwspec.AgentCardCORSConfig, override *mod
 // buildCardPolicies is the public card route's policy list. An enabled card
 // with no origins (an inherited card whose agent stores none) publishes
 // nothing rather than a CORS policy that matches no one.
-func buildCardPolicies(card models.CardCORS) []map[string]interface{} {
+func buildCardPolicies(card gwmodels.CardCORS) []map[string]interface{} {
 	if !card.Enabled || len(card.AllowOrigins) == 0 {
 		return nil
 	}
 	return []map[string]interface{}{
-		corsPolicy(card.AllowOrigins, models.CardCORSMethods, card.AllowHeaders, card.AllowCredentials),
+		corsPolicy(card.AllowOrigins, gwmodels.CardCORSMethods, card.AllowHeaders, card.AllowCredentials),
 	}
 }

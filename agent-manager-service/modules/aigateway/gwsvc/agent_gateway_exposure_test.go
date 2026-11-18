@@ -25,11 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
-func (f *a2aFixture) storedArtifact(t *testing.T, artifact models.ArtifactRef) *models.Artifact {
+func (f *a2aFixture) storedArtifact(t *testing.T, artifact gwmodels.ArtifactRef) *gwmodels.Artifact {
 	t.Helper()
 	stored, err := gwrepo.NewArtifactRepo(db.GetDB()).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
 	require.NoError(t, err)
@@ -47,6 +47,6 @@ func TestEnsureExposedArtifactKeepsAnAgentRow(t *testing.T) {
 			f.env.String(), a2aAgentShape)
 		require.NoError(t, err)
 		assert.Equal(t, a2a.ArtifactUUID, got.UUID)
-		assert.Equal(t, models.KindAgent, f.storedArtifact(t, a2a).Kind)
+		assert.Equal(t, gwmodels.KindAgent, f.storedArtifact(t, a2a).Kind)
 	})
 }

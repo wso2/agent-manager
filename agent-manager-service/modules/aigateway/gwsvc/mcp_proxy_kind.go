@@ -27,8 +27,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -38,17 +38,17 @@ import (
 // mcpArtifact is what one (endpoint, environment) artifact of an MCP proxy renders from.
 type mcpArtifact struct {
 	// deployable is the endpoint's config flattened for the environment (buildMCPProxyEnvArtifact).
-	deployable  *models.MCPProxy
+	deployable  *gwmodels.MCPProxy
 	proxyHandle string
-	scopes      []models.MCPProxyScope
+	scopes      []gwmodels.MCPProxyScope
 	// projectScoped: a project proxy's binding, whose upstream AMS resolved itself.
 	projectScoped bool
 }
 
 // newMCPArtifact is what the binding ee of endpoint renders from.
 func newMCPArtifact(
-	proxy *models.MCPProxy, endpoint *models.MCPProxyEndpoint, ee *models.MCPProxyEndpointEnvironment,
-	scopes []models.MCPProxyScope,
+	proxy *gwmodels.MCPProxy, endpoint *gwmodels.MCPProxyEndpoint, ee *gwmodels.MCPProxyEndpointEnvironment,
+	scopes []gwmodels.MCPProxyScope,
 ) *mcpArtifact {
 	return &mcpArtifact{
 		deployable:    buildMCPProxyEnvArtifact(proxy, endpoint, ee),
@@ -64,7 +64,7 @@ func newMCPArtifact(
 type MCPProxyKind struct {
 	gatewayRepo    gwrepo.GatewayRepository
 	deploymentRepo gwrepo.DeploymentRepository
-	load           func(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error)
+	load           func(ctx context.Context, artifact gwmodels.ArtifactRef) (*mcpArtifact, error)
 }
 
 // NewMCPProxyKind reads MCP proxies through the request's transaction when there is one.
@@ -73,9 +73,9 @@ func NewMCPProxyKind(gatewayRepo gwrepo.GatewayRepository, deploymentRepo gwrepo
 }
 
 // loadMCPArtifact finds the artifact's (endpoint, environment) binding; gorm.ErrRecordNotFound when it is gone.
-func loadMCPArtifact(ctx context.Context, artifact models.ArtifactRef) (*mcpArtifact, error) {
+func loadMCPArtifact(ctx context.Context, artifact gwmodels.ArtifactRef) (*mcpArtifact, error) {
 	tx := db.DB(ctx)
-	var binding models.MCPProxyEndpointEnvironment
+	var binding gwmodels.MCPProxyEndpointEnvironment
 	if err := tx.Where("artifact_id = ?", artifact.ArtifactUUID).Take(&binding).Error; err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func loadMCPArtifact(ctx context.Context, artifact models.ArtifactRef) (*mcpArti
 }
 
 // mcpSourceHandle is the proxy's own handle, which its scope policies are prefixed with.
-func mcpSourceHandle(proxy *models.MCPProxy) string {
+func mcpSourceHandle(proxy *gwmodels.MCPProxy) string {
 	if proxy.Artifact != nil && proxy.Artifact.Handle != "" {
 		return proxy.Artifact.Handle
 	}
@@ -110,14 +110,14 @@ func (k *MCPProxyKind) RendersInline() bool { return true }
 
 // ArtifactKinds: a proxy's per-(endpoint, environment) artifacts are McpProxyMapping rows; McpProxy is the proxy.
 func (k *MCPProxyKind) ArtifactKinds() []string {
-	return []string{models.KindMCPProxy, models.KindMCPMapping}
+	return []string{gwmodels.KindMCPProxy, gwmodels.KindMCPMapping}
 }
 
-func (k *MCPProxyKind) GatewayArtifactID(artifact models.ArtifactRef) string {
+func (k *MCPProxyKind) GatewayArtifactID(artifact gwmodels.ArtifactRef) string {
 	return artifact.ArtifactUUID.String()
 }
 
-func (k *MCPProxyKind) Render(ctx context.Context, artifact models.ArtifactRef) (reconcile.Rendered, error) {
+func (k *MCPProxyKind) Render(ctx context.Context, artifact gwmodels.ArtifactRef) (reconcile.Rendered, error) {
 	a, err := k.load(ctx, artifact)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return reconcile.Rendered{}, reconcile.ErrRecordGone
@@ -142,7 +142,7 @@ func (k *MCPProxyKind) DescribeRenderError(err error) string {
 }
 
 func (k *MCPProxyKind) DeployEvent(ref reconcile.EventRef) eventhub.Event {
-	payload := &models.MCPProxyDeploymentEvent{
+	payload := &gwmodels.MCPProxyDeploymentEvent{
 		ProxyID: ref.ArtifactUUID.String(), DeploymentID: ref.DeploymentID, PerformedAt: ref.PerformedAt,
 	}
 	return eventhub.NewGatewayEvent("mcpproxy.deployed", "CREATE", payload.ProxyID, payload)
@@ -150,12 +150,12 @@ func (k *MCPProxyKind) DeployEvent(ref reconcile.EventRef) eventhub.Event {
 
 // UndeployEvent is sent only when the core undeploys a row whose binding went away before it rendered.
 func (k *MCPProxyKind) UndeployEvent(ref reconcile.EventRef) eventhub.Event {
-	payload := &models.MCPProxyUndeploymentEvent{ProxyID: ref.ArtifactUUID.String(), PerformedAt: ref.PerformedAt}
+	payload := &gwmodels.MCPProxyUndeploymentEvent{ProxyID: ref.ArtifactUUID.String(), PerformedAt: ref.PerformedAt}
 	return eventhub.NewGatewayEvent("mcpproxy.undeployed", "DELETE", payload.ProxyID, payload)
 }
 
-func (k *MCPProxyKind) DeleteEvent(artifact models.ArtifactRef) eventhub.Event {
-	payload := &models.MCPProxyDeletionEvent{ProxyID: artifact.ArtifactUUID.String()}
+func (k *MCPProxyKind) DeleteEvent(artifact gwmodels.ArtifactRef) eventhub.Event {
+	payload := &gwmodels.MCPProxyDeletionEvent{ProxyID: artifact.ArtifactUUID.String()}
 	return eventhub.NewGatewayEvent("mcpproxy.deleted", "DELETE", payload.ProxyID, payload)
 }
 
@@ -166,7 +166,7 @@ func (k *MCPProxyKind) UnplacedRecords(
 ) ([]reconcile.Record, error) {
 	condition, args := reconcile.UnplacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "b.environment_id",
-	}, models.EgressGatewayRoles, ouID, env)
+	}, gwmodels.EgressGatewayRoles, ouID, env)
 	var rows []struct {
 		OUID            string    `gorm:"column:org_id"`
 		ArtifactUUID    uuid.UUID `gorm:"column:artifact_id"`
@@ -188,7 +188,7 @@ func (k *MCPProxyKind) UnplacedRecords(
 	records := make([]reconcile.Record, 0, len(rows))
 	for _, r := range rows {
 		records = append(records, reconcile.Record{
-			ArtifactRef:     models.ArtifactRef{OUID: r.OUID, ArtifactUUID: r.ArtifactUUID, Kind: r.Kind, Handle: r.Handle},
+			ArtifactRef:     gwmodels.ArtifactRef{OUID: r.OUID, ArtifactUUID: r.ArtifactUUID, Kind: r.Kind, Handle: r.Handle},
 			EnvironmentUUID: r.EnvironmentUUID,
 			Key:             r.ArtifactUUID.String(),
 		})
@@ -257,7 +257,7 @@ func (k *MCPProxyKind) isProjectScoped(ctx context.Context, record reconcile.Rec
 // upstreamIsPublic re-runs the private-address check on the artifact's upstreams for a managed target. An
 // artifact that is gone passes: Render reports it. A project proxy's binding passes too: its upstream is the
 // in-cluster address AMS resolved from the project's own release binding, never a caller-supplied URL.
-func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Record, gateway *models.Gateway) (bool, error) {
+func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Record, gateway *gwmodels.Gateway) (bool, error) {
 	a, err := k.load(ctx, record.ArtifactRef)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return true, nil
@@ -269,7 +269,7 @@ func (k *MCPProxyKind) upstreamIsPublic(ctx context.Context, record reconcile.Re
 		return true, nil
 	}
 	upstream := a.deployable.Configuration.Upstream
-	for _, endpoint := range []*models.UpstreamEndpoint{upstream.Main, upstream.Sandbox} {
+	for _, endpoint := range []*gwmodels.UpstreamEndpoint{upstream.Main, upstream.Sandbox} {
 		if endpoint == nil {
 			continue
 		}

@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -39,21 +40,21 @@ import (
 )
 
 // externalPendingCard is a pending card fetched from the agent's own origin: platform rows can no longer be fetched.
-func externalPendingCard() models.A2AAgentCard {
-	row := pendingCard(models.A2AAgentCardSourceExternal)
+func externalPendingCard() gwmodels.A2AAgentCard {
+	row := pendingCard(gwmodels.A2AAgentCardSourceExternal)
 	row.SourceURL = "https://agent.example/.well-known/agent-card.json"
 	return row
 }
 
-func pendingCard(source models.A2AAgentCardSource) models.A2AAgentCard {
-	return models.A2AAgentCard{
+func pendingCard(source gwmodels.A2AAgentCardSource) gwmodels.A2AAgentCard {
+	return gwmodels.A2AAgentCard{
 		ID:              uuid.New(),
 		OUID:            "org-1",
 		ProjectName:     "checkout",
 		AgentName:       "trip-planner",
 		EnvironmentName: "dev",
 		Source:          source,
-		Status:          models.A2AAgentCardStatusPending,
+		Status:          gwmodels.A2AAgentCardStatusPending,
 		UpdatedAt:       time.Date(2026, 10, 7, 10, 0, 0, 0, time.UTC),
 	}
 }
@@ -71,11 +72,13 @@ type cardReconcilerHarness struct {
 // ingress gateway serves at vhost (empty: no gateway is mapped).
 func newCardReconcilerHarness(vhost string) *cardReconcilerHarness {
 	repo := &gwrepomocks.A2AAgentCardRepositoryMock{
-		MarkFetchedFunc: func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error { return nil },
-		MarkAttemptFailedFunc: func(context.Context, models.A2AAgentCard, string, string, time.Time) error {
+		MarkFetchedFunc: func(context.Context, gwmodels.A2AAgentCard, json.RawMessage, string, string, string) error {
 			return nil
 		},
-		MarkFailedFunc: func(context.Context, models.A2AAgentCard, string, string) error { return nil },
+		MarkAttemptFailedFunc: func(context.Context, gwmodels.A2AAgentCard, string, string, time.Time) error {
+			return nil
+		},
+		MarkFailedFunc: func(context.Context, gwmodels.A2AAgentCard, string, string) error { return nil },
 	}
 	fetcher := &fakeA2ACardFetcher{
 		FetchFunc: func(context.Context, string, bool) (json.RawMessage, error) {
@@ -84,16 +87,16 @@ func newCardReconcilerHarness(vhost string) *cardReconcilerHarness {
 	}
 	oc := &repomocks.PlatformRepositoryMock{}
 	proxies := &gwrepomocks.A2AProxyRepositoryMock{
-		GetByEnvUUIDFunc: func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		GetByEnvUUIDFunc: func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 			return nil, gwrepo.ErrA2AProxyNotFound
 		},
 	}
 	gateways := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			if vhost == "" {
 				return nil, nil
 			}
-			return []*models.Gateway{{UUID: uuid.New(), Vhost: vhost}}, nil
+			return []*gwmodels.Gateway{{UUID: uuid.New(), Vhost: vhost}}, nil
 		},
 	}
 	return &cardReconcilerHarness{
@@ -104,7 +107,7 @@ func newCardReconcilerHarness(vhost string) *cardReconcilerHarness {
 
 func TestCardReconcilerFetchesAnExternalCardGuarded(t *testing.T) {
 	h := newCardReconcilerHarness("")
-	row := pendingCard(models.A2AAgentCardSourceExternal)
+	row := pendingCard(gwmodels.A2AAgentCardSourceExternal)
 	row.SourceURL = "https://agent.example/.well-known/agent-card.json"
 
 	h.svc.fetchOne(context.Background(), row)
@@ -139,10 +142,10 @@ func TestCardReconcilerDropsAReplacedAgentsUndeployedCardAsReplaced(t *testing.T
 	h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 		return nil, utils.ErrNotFound
 	}
-	h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error { return nil }
+	h.repo.DeleteIfUnchangedFunc = func(context.Context, gwmodels.A2AAgentCard) error { return nil }
 	var logs strings.Builder
 	h.svc.logger = slog.New(slog.NewTextHandler(&logs, nil))
-	row := pendingCard(models.A2AAgentCardSourcePlatform)
+	row := pendingCard(gwmodels.A2AAgentCardSourcePlatform)
 	agentUUID := uuid.New()
 	row.AgentUUID = &agentUUID
 
@@ -181,7 +184,7 @@ func TestCardReconcilerGivesUpPastTheBudget(t *testing.T) {
 
 func TestCardReconcilerTreatsSupersededAsBenign(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+	h.repo.MarkFetchedFunc = func(context.Context, gwmodels.A2AAgentCard, json.RawMessage, string, string, string) error {
 		return gwrepo.ErrA2AAgentCardSuperseded
 	}
 
@@ -193,9 +196,9 @@ func TestCardReconcilerTreatsSupersededAsBenign(t *testing.T) {
 
 func TestCardReconcilerRunOnceDrainsTheDueBatch(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.ClaimDueFunc = func(_ context.Context, _ time.Time, limit int) ([]models.A2AAgentCard, error) {
+	h.repo.ClaimDueFunc = func(_ context.Context, _ time.Time, limit int) ([]gwmodels.A2AAgentCard, error) {
 		assert.Equal(t, a2aCardBatch, limit)
-		return []models.A2AAgentCard{externalPendingCard(), externalPendingCard()}, nil
+		return []gwmodels.A2AAgentCard{externalPendingCard(), externalPendingCard()}, nil
 	}
 
 	h.svc.RunOnce(context.Background())
@@ -219,7 +222,7 @@ func TestA2ACardHashIgnoresKeyOrderAndWhitespace(t *testing.T) {
 // A card the store rejects (e.g. JSONB refusing \u0000) must charge an attempt, not loop pending.
 func TestCardReconcilerChargesAnAttemptWhenTheCardCannotBeStored(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+	h.repo.MarkFetchedFunc = func(context.Context, gwmodels.A2AAgentCard, json.RawMessage, string, string, string) error {
 		return errors.New("ERROR: unsupported Unicode escape sequence (SQLSTATE 22P05)")
 	}
 
@@ -232,7 +235,7 @@ func TestCardReconcilerChargesAnAttemptWhenTheCardCannotBeStored(t *testing.T) {
 
 func TestCardReconcilerFailsTheRowWhenTheLastCardCannotBeStored(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+	h.repo.MarkFetchedFunc = func(context.Context, gwmodels.A2AAgentCard, json.RawMessage, string, string, string) error {
 		return errors.New("SQLSTATE 22003")
 	}
 	row := externalPendingCard()
@@ -254,7 +257,7 @@ func TestCardReconcilerReportsAnUnstorableCard(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			h := newCardReconcilerHarness("http://gw.example/a")
-			h.repo.MarkFetchedFunc = func(context.Context, models.A2AAgentCard, json.RawMessage, string, string, string) error {
+			h.repo.MarkFetchedFunc = func(context.Context, gwmodels.A2AAgentCard, json.RawMessage, string, string, string) error {
 				return fmt.Errorf("wrap: %w", &pgconn.PgError{Code: tt.code, Message: "unsupported Unicode escape sequence"})
 			}
 
@@ -303,7 +306,7 @@ func TestCardReconcilerFallsBackWhenTheErrorCannotBeRecorded(t *testing.T) {
 	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
 		return nil, errors.New("HTTP 503")
 	}
-	h.repo.MarkAttemptFailedFunc = func(_ context.Context, _ models.A2AAgentCard, lastErr, _ string, _ time.Time) error {
+	h.repo.MarkAttemptFailedFunc = func(_ context.Context, _ gwmodels.A2AAgentCard, lastErr, _ string, _ time.Time) error {
 		if lastErr == a2aCardUnrecordableError {
 			return nil
 		}
@@ -322,7 +325,7 @@ func TestCardReconcilerDoesNotRetryTheRecordWhenSuperseded(t *testing.T) {
 	h.fetcher.FetchFunc = func(context.Context, string, bool) (json.RawMessage, error) {
 		return nil, errors.New("HTTP 503")
 	}
-	h.repo.MarkAttemptFailedFunc = func(context.Context, models.A2AAgentCard, string, string, time.Time) error {
+	h.repo.MarkAttemptFailedFunc = func(context.Context, gwmodels.A2AAgentCard, string, string, time.Time) error {
 		return gwrepo.ErrA2AAgentCardSuperseded
 	}
 
@@ -368,8 +371,8 @@ func TestCardReconcilerStopsTheBatchBeforeTheLeaseEnds(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
 	fetchBlocksUntilCancelled(h)
 	h.svc.batchBudget = 20 * time.Millisecond
-	h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]models.A2AAgentCard, error) {
-		rows := make([]models.A2AAgentCard, a2aWorkerConcurrency+2)
+	h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]gwmodels.A2AAgentCard, error) {
+		rows := make([]gwmodels.A2AAgentCard, a2aWorkerConcurrency+2)
 		for i := range rows {
 			rows[i] = externalPendingCard()
 		}
@@ -393,8 +396,8 @@ func TestCardReconcilerFetchesRowsConcurrently(t *testing.T) {
 		<-release
 		return json.RawMessage(validTestCard), nil
 	}
-	h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]models.A2AAgentCard, error) {
-		rows := make([]models.A2AAgentCard, a2aWorkerConcurrency)
+	h.repo.ClaimDueFunc = func(context.Context, time.Time, int) ([]gwmodels.A2AAgentCard, error) {
+		rows := make([]gwmodels.A2AAgentCard, a2aWorkerConcurrency)
 		for i := range rows {
 			rows[i] = externalPendingCard()
 		}
@@ -423,8 +426,8 @@ func TestCardReconcilerBatchFitsInsideTheClaimLease(t *testing.T) {
 // An undeployed agent's platform row goes away, as undeploy itself removes it.
 func TestCardReconcilerDropsTheRowOfAnUndeployedAgent(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error { return nil }
-	row := pendingCard(models.A2AAgentCardSourcePlatform)
+	h.repo.DeleteIfUnchangedFunc = func(context.Context, gwmodels.A2AAgentCard) error { return nil }
+	row := pendingCard(gwmodels.A2AAgentCardSourcePlatform)
 
 	h.svc.fetchOne(context.Background(), row)
 
@@ -439,11 +442,11 @@ func TestCardReconcilerDropsTheRowOfAnUndeployedAgent(t *testing.T) {
 // A row re-queued meanwhile belongs to a newer deploy or refresh.
 func TestCardReconcilerKeepsAnUndeployedRowReenqueuedMeanwhile(t *testing.T) {
 	h := newCardReconcilerHarness("http://gw.example/a")
-	h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error {
+	h.repo.DeleteIfUnchangedFunc = func(context.Context, gwmodels.A2AAgentCard) error {
 		return gwrepo.ErrA2AAgentCardSuperseded
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourcePlatform))
+	h.svc.fetchOne(context.Background(), pendingCard(gwmodels.A2AAgentCardSourcePlatform))
 
 	assert.Empty(t, h.repo.MarkAttemptFailedCalls())
 	assert.Empty(t, h.repo.MarkFailedCalls())
@@ -453,16 +456,16 @@ func TestCardReconcilerKeepsAnUndeployedRowReenqueuedMeanwhile(t *testing.T) {
 func TestCardReconcilerFetchesAProxiedCardThroughTheGateway(t *testing.T) {
 	h := newCardReconcilerHarness("")
 	var lookedUp uuid.UUID
-	h.proxies.GetByEnvUUIDFunc = func(_ context.Context, _, _, _ string, envUUID uuid.UUID) (*models.A2AProxy, error) {
+	h.proxies.GetByEnvUUIDFunc = func(_ context.Context, _, _, _ string, envUUID uuid.UUID) (*gwmodels.A2AProxy, error) {
 		lookedUp = envUUID
-		return &models.A2AProxy{}, nil
+		return &gwmodels.A2AProxy{}, nil
 	}
 	var asked gwrepo.GatewayFilterOptions
-	h.gateways.ListWithFiltersFunc = func(opts gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+	h.gateways.ListWithFiltersFunc = func(opts gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 		asked = opts
-		return []*models.Gateway{{UUID: uuid.New(), Vhost: "https://gw.example/"}}, nil
+		return []*gwmodels.Gateway{{UUID: uuid.New(), Vhost: "https://gw.example/"}}, nil
 	}
-	row := pendingCard(models.A2AAgentCardSourceExternal)
+	row := pendingCard(gwmodels.A2AAgentCardSourceExternal)
 	row.EnvironmentUUID = uuid.New()
 	row.SourceURL = "https://agent.example/.well-known/agent-card.json"
 
@@ -474,7 +477,7 @@ func TestCardReconcilerFetchesAProxiedCardThroughTheGateway(t *testing.T) {
 	assert.Equal(t, row.EnvironmentUUID, lookedUp)
 	require.NotNil(t, asked.EnvironmentID)
 	assert.Equal(t, row.EnvironmentUUID.String(), *asked.EnvironmentID)
-	assert.Equal(t, models.IngressGatewayRoles, asked.FunctionalityTypeIn)
+	assert.Equal(t, gwmodels.IngressGatewayRoles, asked.FunctionalityTypeIn)
 	require.Len(t, h.repo.MarkFetchedCalls(), 1)
 }
 
@@ -483,14 +486,14 @@ func TestCardReconcilerGatewayCardURLFollowsTheAgentContext(t *testing.T) {
 	for _, vhost := range []string{"gw.example", "https://gw.example", "https://gw.example/"} {
 		t.Run(vhost, func(t *testing.T) {
 			h := newCardReconcilerHarness("")
-			h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-				return &models.A2AProxy{}, nil
+			h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
+				return &gwmodels.A2AProxy{}, nil
 			}
-			h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-				return []*models.Gateway{{UUID: uuid.New(), Vhost: vhost}}, nil
+			h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+				return []*gwmodels.Gateway{{UUID: uuid.New(), Vhost: vhost}}, nil
 			}
 
-			h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourceExternal))
+			h.svc.fetchOne(context.Background(), pendingCard(gwmodels.A2AAgentCardSourceExternal))
 
 			require.Len(t, h.fetcher.calls, 1)
 			assert.Equal(t, "https://gw.example/trip-planner/.well-known/agent-card.json", h.fetcher.calls[0].URL)
@@ -500,10 +503,10 @@ func TestCardReconcilerGatewayCardURLFollowsTheAgentContext(t *testing.T) {
 
 func TestCardReconcilerRetriesWhenTheProxyLookupFails(t *testing.T) {
 	h := newCardReconcilerHarness("")
-	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 		return nil, assert.AnError
 	}
-	row := pendingCard(models.A2AAgentCardSourceExternal)
+	row := pendingCard(gwmodels.A2AAgentCardSourceExternal)
 	row.SourceURL = "https://agent.example/.well-known/agent-card.json"
 
 	h.svc.fetchOne(context.Background(), row)
@@ -514,14 +517,14 @@ func TestCardReconcilerRetriesWhenTheProxyLookupFails(t *testing.T) {
 
 func TestCardReconcilerRetriesUntilTheIngressGatewayIsMapped(t *testing.T) {
 	h := newCardReconcilerHarness("")
-	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
-		return &models.A2AProxy{}, nil
+	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
+		return &gwmodels.A2AProxy{}, nil
 	}
-	h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-		return []*models.Gateway{}, nil
+	h.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+		return []*gwmodels.Gateway{}, nil
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourceExternal))
+	h.svc.fetchOne(context.Background(), pendingCard(gwmodels.A2AAgentCardSourceExternal))
 
 	failed := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, failed, 1)
@@ -530,11 +533,11 @@ func TestCardReconcilerRetriesUntilTheIngressGatewayIsMapped(t *testing.T) {
 
 func TestCardReconcilerHidesInternalErrorsFromLastError(t *testing.T) {
 	h := newCardReconcilerHarness("")
-	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+	h.proxies.GetByEnvUUIDFunc = func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 		return nil, errors.New("failed to connect to `user=ams database=amdb`: SQLSTATE 28P01")
 	}
 
-	h.svc.fetchOne(context.Background(), pendingCard(models.A2AAgentCardSourceExternal))
+	h.svc.fetchOne(context.Background(), pendingCard(gwmodels.A2AAgentCardSourceExternal))
 
 	retries := h.repo.MarkAttemptFailedCalls()
 	require.Len(t, retries, 1)
@@ -568,7 +571,7 @@ func TestCardReconcilerDropsTheCardOfAReplacedAgent(t *testing.T) {
 			h.ocClient.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) {
 				return tc.component()
 			}
-			h.repo.DeleteIfUnchangedFunc = func(context.Context, models.A2AAgentCard) error { return nil }
+			h.repo.DeleteIfUnchangedFunc = func(context.Context, gwmodels.A2AAgentCard) error { return nil }
 			row := externalPendingCard()
 			row.AgentUUID = tc.agentUUID
 

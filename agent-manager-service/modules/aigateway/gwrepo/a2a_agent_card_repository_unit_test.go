@@ -21,15 +21,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // The due-scan and the API both filter on these exact strings.
 func TestA2AAgentCardTableAndEnums(t *testing.T) {
-	assert.Equal(t, "mod_ai_gateway_agent_cards", models.A2AAgentCard{}.TableName())
-	assert.Equal(t, models.A2AAgentCardStatus("pending"), models.A2AAgentCardStatusPending)
-	assert.Equal(t, models.A2AAgentCardStatus("fetched"), models.A2AAgentCardStatusFetched)
-	assert.Equal(t, models.A2AAgentCardStatus("failed"), models.A2AAgentCardStatusFailed)
-	assert.Equal(t, models.A2AAgentCardSource("platform"), models.A2AAgentCardSourcePlatform)
-	assert.Equal(t, models.A2AAgentCardSource("external"), models.A2AAgentCardSourceExternal)
+	assert.Equal(t, "mod_ai_gateway_agent_cards", gwmodels.A2AAgentCard{}.TableName())
+	assert.Equal(t, gwmodels.A2AAgentCardStatus("pending"), gwmodels.A2AAgentCardStatusPending)
+	assert.Equal(t, gwmodels.A2AAgentCardStatus("fetched"), gwmodels.A2AAgentCardStatusFetched)
+	assert.Equal(t, gwmodels.A2AAgentCardStatus("failed"), gwmodels.A2AAgentCardStatusFailed)
+	assert.Equal(t, gwmodels.A2AAgentCardSource("platform"), gwmodels.A2AAgentCardSourcePlatform)
+	assert.Equal(t, gwmodels.A2AAgentCardSource("external"), gwmodels.A2AAgentCardSourceExternal)
 }

@@ -27,6 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -41,9 +42,9 @@ func (servingGuard) ServesEnvironment(context.Context, *gorm.DB, uuid.UUID, uuid
 }
 
 func TestRemoveGatewayFromEnvironment_ServedEnvironmentIsAConflict(t *testing.T) {
-	gateway := &models.Gateway{UUID: uuid.New()}
+	gateway := &gwmodels.Gateway{UUID: uuid.New()}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:                func(string) (*models.Gateway, error) { return gateway, nil },
+		GetByUUIDFunc:                func(string) (*gwmodels.Gateway, error) { return gateway, nil },
 		TransactionFunc:              func(fn func(tx *gorm.DB) error) error { return fn(nil) },
 		DeleteEnvironmentMappingFunc: func(string, string) error { return nil },
 	}
@@ -73,9 +74,9 @@ func TestRemoveGatewayFromEnvironment_ServedEnvironmentIsAConflict(t *testing.T)
 }
 
 func TestRemoveGatewayFromEnvironment_SelfHostedIsAConflict(t *testing.T) {
-	gateway := &models.Gateway{UUID: uuid.New(), Hosting: models.GatewayHostingSelfHosted}
+	gateway := &gwmodels.Gateway{UUID: uuid.New(), Hosting: gwmodels.GatewayHostingSelfHosted}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gateway, nil },
 		// TransactionFunc left nil: the refusal must come before any mutation.
 	}
 	ocClient := &repomocks.PlatformRepositoryMock{

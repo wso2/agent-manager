@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -42,7 +43,7 @@ const a2aCardHostNotPublicMsg = "url host must be publicly reachable"
 
 // A2AAgentCardService reads and manages stored A2A agent cards.
 type A2AAgentCardService interface {
-	GetA2AAgentCard(ctx context.Context, ouID, projectName, agentName, envName string) (*models.A2AAgentCard, error)
+	GetA2AAgentCard(ctx context.Context, ouID, projectName, agentName, envName string) (*gwmodels.A2AAgentCard, error)
 	RefreshA2AAgentCard(ctx context.Context, ouID, projectName, agentName, envName string) error
 	SetA2ACardSource(ctx context.Context, ouID, projectName, agentName, envName, sourceURL string) error
 	DeleteA2ACardSource(ctx context.Context, ouID, projectName, agentName, envName string) error
@@ -67,7 +68,7 @@ func NewA2AAgentCardService(
 
 func (s *a2aAgentCardService) GetA2AAgentCard(
 	ctx context.Context, ouID, projectName, agentName, envName string,
-) (*models.A2AAgentCard, error) {
+) (*gwmodels.A2AAgentCard, error) {
 	// Rows exist only for live A2A agents, so the platform store is asked only on a miss.
 	row, err := s.cardRepo.Get(ctx, ouID, projectName, agentName, envName)
 	if err == nil {
@@ -171,13 +172,13 @@ func (s *a2aAgentCardService) enqueuePlatform(
 	if err != nil {
 		return fmt.Errorf("invalid UUID for environment %s: %w", env.Name, err)
 	}
-	card := &models.A2AAgentCard{
+	card := &gwmodels.A2AAgentCard{
 		OUID:            ouID,
 		ProjectName:     projectName,
 		AgentName:       agent.Name,
 		EnvironmentName: env.Name,
 		EnvironmentUUID: envUUID,
-		Source:          models.A2AAgentCardSourcePlatform,
+		Source:          gwmodels.A2AAgentCardSourcePlatform,
 	}
 	if err := s.cardRepo.Enqueue(ctx, card); err != nil {
 		return fmt.Errorf("failed to queue agent card fetch: %w", err)

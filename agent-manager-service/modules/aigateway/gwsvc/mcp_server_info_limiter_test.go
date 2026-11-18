@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -75,7 +75,7 @@ func TestFetchServerInfo_RefusedWhenUserOverLimit(t *testing.T) {
 	})
 
 	url := "https://example.com/mcp"
-	_, err := (&MCPProxyService{}).FetchServerInfo(context.Background(), orgUUID, userID, &models.MCPServerInfoFetchRequest{URL: &url})
+	_, err := (&MCPProxyService{}).FetchServerInfo(context.Background(), orgUUID, userID, &gwmodels.MCPServerInfoFetchRequest{URL: &url})
 	assert.ErrorIs(t, err, utils.ErrTooManyRequests)
 }
 

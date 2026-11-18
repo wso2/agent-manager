@@ -19,24 +19,24 @@ package gwsvc
 import (
 	"sync"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // LLMTemplateStore provides thread-safe in-memory storage for built-in LLM provider templates
 type LLMTemplateStore struct {
-	templates map[string]*models.LLMProviderTemplate // key: handle
+	templates map[string]*gwmodels.LLMProviderTemplate // key: handle
 	mu        sync.RWMutex
 }
 
 // NewLLMTemplateStore creates a new in-memory template store
 func NewLLMTemplateStore() *LLMTemplateStore {
 	return &LLMTemplateStore{
-		templates: make(map[string]*models.LLMProviderTemplate),
+		templates: make(map[string]*gwmodels.LLMProviderTemplate),
 	}
 }
 
 // Load loads templates into the store (typically called at startup)
-func (s *LLMTemplateStore) Load(templates []*models.LLMProviderTemplate) {
+func (s *LLMTemplateStore) Load(templates []*gwmodels.LLMProviderTemplate) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for _, t := range templates {
@@ -48,7 +48,7 @@ func (s *LLMTemplateStore) Load(templates []*models.LLMProviderTemplate) {
 
 // Get retrieves a template by handle (returns nil if not found)
 // Returns a deep copy to prevent mutation of shared in-memory templates
-func (s *LLMTemplateStore) Get(handle string) *models.LLMProviderTemplate {
+func (s *LLMTemplateStore) Get(handle string) *gwmodels.LLMProviderTemplate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	template := s.templates[handle]
@@ -61,10 +61,10 @@ func (s *LLMTemplateStore) Get(handle string) *models.LLMProviderTemplate {
 
 // List returns all templates in the store
 // Returns deep copies to prevent mutation of shared in-memory templates
-func (s *LLMTemplateStore) List() []*models.LLMProviderTemplate {
+func (s *LLMTemplateStore) List() []*gwmodels.LLMProviderTemplate {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	result := make([]*models.LLMProviderTemplate, 0, len(s.templates))
+	result := make([]*gwmodels.LLMProviderTemplate, 0, len(s.templates))
 	for _, t := range s.templates {
 		// Create a deep copy of the template to prevent external mutations
 		copy := s.copyTemplate(t)
@@ -92,7 +92,7 @@ func (s *LLMTemplateStore) Count() int {
 // Note: This assumes the template's nested fields (Metadata, ExtractionIdentifier, etc.)
 // are value types or are not modified after creation. For truly deep copy of nested
 // pointers, additional copying would be needed.
-func (s *LLMTemplateStore) copyTemplate(t *models.LLMProviderTemplate) *models.LLMProviderTemplate {
+func (s *LLMTemplateStore) copyTemplate(t *gwmodels.LLMProviderTemplate) *gwmodels.LLMProviderTemplate {
 	if t == nil {
 		return nil
 	}

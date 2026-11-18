@@ -30,15 +30,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const gatewayTestOUID = "ou-acme"
 
-func gatewayFixture(name string) *models.Gateway {
-	return &models.Gateway{
+func gatewayFixture(name string) *gwmodels.Gateway {
+	return &gwmodels.Gateway{
 		UUID:        uuid.New(),
 		Name:        name,
 		DisplayName: name,
@@ -48,23 +48,23 @@ func gatewayFixture(name string) *models.Gateway {
 }
 
 func TestGatewayIsManaged(t *testing.T) {
-	assert.True(t, (&models.Gateway{Hosting: ""}).IsManaged())
-	assert.True(t, (&models.Gateway{Hosting: models.GatewayHostingManaged}).IsManaged())
-	assert.False(t, (&models.Gateway{Hosting: models.GatewayHostingSelfHosted}).IsManaged())
+	assert.True(t, (&gwmodels.Gateway{Hosting: ""}).IsManaged())
+	assert.True(t, (&gwmodels.Gateway{Hosting: gwmodels.GatewayHostingManaged}).IsManaged())
+	assert.False(t, (&gwmodels.Gateway{Hosting: gwmodels.GatewayHostingSelfHosted}).IsManaged())
 }
 
 func TestGetGateway_EmitsHosting(t *testing.T) {
 	cases := map[string]string{
-		models.GatewayHostingSelfHosted: "SELF_HOSTED",
-		models.GatewayHostingManaged:    "MANAGED",
-		"":                              "MANAGED",
+		gwmodels.GatewayHostingSelfHosted: "SELF_HOSTED",
+		gwmodels.GatewayHostingManaged:    "MANAGED",
+		"":                                "MANAGED",
 	}
 	for stored, wire := range cases {
 		t.Run("stored="+stored, func(t *testing.T) {
 			gateway := gatewayFixture("edge")
 			gateway.Hosting = stored
 			repo := &gwrepomocks.GatewayRepositoryMock{
-				GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
+				GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gateway, nil },
 			}
 			svc := NewPlatformGatewayService(repo, nil)
 
@@ -82,7 +82,7 @@ func TestGetGateway_EmitsHosting(t *testing.T) {
 func TestGetGateway_ResolvesByName(t *testing.T) {
 	gateway := gatewayFixture("edge")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(name, ouID string) (*models.Gateway, error) {
+		GetByNameAndOrgIDFunc: func(name, ouID string) (*gwmodels.Gateway, error) {
 			assert.Equal(t, "edge", name)
 			assert.Equal(t, gatewayTestOUID, ouID)
 			return gateway, nil
@@ -101,7 +101,7 @@ func TestGetGateway_ResolvesByName(t *testing.T) {
 func TestGetGateway_ResolvesByUUID(t *testing.T) {
 	gateway := gatewayFixture("edge")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(gatewayID string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(gatewayID string) (*gwmodels.Gateway, error) {
 			assert.Equal(t, gateway.UUID.String(), gatewayID)
 			return gateway, nil
 		},
@@ -117,7 +117,7 @@ func TestGetGateway_ResolvesByUUID(t *testing.T) {
 
 func TestGetGateway_UnknownNameIsNotFound(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(_, _ string) (*models.Gateway, error) {
+		GetByNameAndOrgIDFunc: func(_, _ string) (*gwmodels.Gateway, error) {
 			return nil, utils.ErrGatewayNotFound
 		},
 	}
@@ -130,7 +130,7 @@ func TestGetGateway_UnknownNameIsNotFound(t *testing.T) {
 
 func TestGetGateway_UnknownUUIDIsNotFound(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -145,7 +145,7 @@ func TestGetGateway_UnknownUUIDIsNotFound(t *testing.T) {
 // matched no case in handleGatewayErrors and surfaced as a 500 instead of a 404.
 func TestGetGateway_UnknownNameFromGormIsNotFound(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(_, _ string) (*models.Gateway, error) {
+		GetByNameAndOrgIDFunc: func(_, _ string) (*gwmodels.Gateway, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
@@ -159,7 +159,7 @@ func TestGetGateway_UnknownNameFromGormIsNotFound(t *testing.T) {
 // A nil gateway with no error reached GetGateway's OUID check and panicked.
 func TestGetGateway_NilGatewayWithoutErrorIsNotFound(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(_, _ string) (*models.Gateway, error) {
+		GetByNameAndOrgIDFunc: func(_, _ string) (*gwmodels.Gateway, error) {
 			return nil, nil //nolint:nilnil // the shape under test
 		},
 	}
@@ -174,7 +174,7 @@ func TestGetGateway_NilGatewayWithoutErrorIsNotFound(t *testing.T) {
 func TestGetGateway_RepositoryErrorIsNotMaskedAsNotFound(t *testing.T) {
 	boom := errors.New("connection refused")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
 			return nil, boom
 		},
 	}
@@ -191,7 +191,7 @@ func TestGetGateway_OtherOrgGatewayIsNotFound(t *testing.T) {
 	gateway := gatewayFixture("edge")
 	gateway.OUID = "ou-other"
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
 			return gateway, nil
 		},
 	}
@@ -218,7 +218,7 @@ func TestVerifyToken_RepeatedFakeKey_DoesNotHitDBTwice(t *testing.T) {
 	fakeToken := fakeButValidShapedToken()
 	dbCalls := 0
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetActiveTokenByPrefixFunc: func(_ context.Context, _ string) (*models.GatewayToken, error) {
+		GetActiveTokenByPrefixFunc: func(_ context.Context, _ string) (*gwmodels.GatewayToken, error) {
 			dbCalls++
 			return nil, gorm.ErrRecordNotFound
 		},
@@ -243,7 +243,7 @@ func TestVerifyToken_ConcurrentRequestsForSameMissingPrefix_SingleDBCall(t *test
 	var dbCalls atomic.Int32
 	release := make(chan struct{})
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetActiveTokenByPrefixFunc: func(_ context.Context, _ string) (*models.GatewayToken, error) {
+		GetActiveTokenByPrefixFunc: func(_ context.Context, _ string) (*gwmodels.GatewayToken, error) {
 			dbCalls.Add(1)
 			<-release // hold every call open until all goroutines have started
 			return nil, gorm.ErrRecordNotFound
@@ -280,7 +280,7 @@ func TestVerifyToken_PropagatesContextToRepository(t *testing.T) {
 	fakeToken := fakeButValidShapedToken()
 	var receivedCtx context.Context
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetActiveTokenByPrefixFunc: func(ctx context.Context, _ string) (*models.GatewayToken, error) {
+		GetActiveTokenByPrefixFunc: func(ctx context.Context, _ string) (*gwmodels.GatewayToken, error) {
 			receivedCtx = ctx
 			return nil, gorm.ErrRecordNotFound
 		},
@@ -300,7 +300,7 @@ func TestVerifyToken_PropagatesContextToRepository(t *testing.T) {
 func TestRotateToken_ThirdTokenIsLimitError(t *testing.T) {
 	gateway := gatewayFixture("edge")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:         func(string) (*models.Gateway, error) { return gateway, nil },
+		GetByUUIDFunc:         func(string) (*gwmodels.Gateway, error) { return gateway, nil },
 		CountActiveTokensFunc: func(string) (int, error) { return 2, nil },
 	}
 	svc := NewPlatformGatewayService(repo, nil)
@@ -313,8 +313,8 @@ func TestRotateToken_ThirdTokenIsLimitError(t *testing.T) {
 func TestRevokeToken_UnknownIsNotFound(t *testing.T) {
 	gateway := gatewayFixture("edge")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:      func(string) (*models.Gateway, error) { return gateway, nil },
-		GetTokenByUUIDFunc: func(string) (*models.GatewayToken, error) { return nil, gorm.ErrRecordNotFound },
+		GetByUUIDFunc:      func(string) (*gwmodels.Gateway, error) { return gateway, nil },
+		GetTokenByUUIDFunc: func(string) (*gwmodels.GatewayToken, error) { return nil, gorm.ErrRecordNotFound },
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 
@@ -326,9 +326,9 @@ func TestRevokeToken_UnknownIsNotFound(t *testing.T) {
 func TestRevokeToken_OtherGatewaysTokenIsNotFound(t *testing.T) {
 	gateway := gatewayFixture("edge")
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gateway, nil },
-		GetTokenByUUIDFunc: func(string) (*models.GatewayToken, error) {
-			return &models.GatewayToken{UUID: uuid.New(), GatewayUUID: uuid.New()}, nil
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gateway, nil },
+		GetTokenByUUIDFunc: func(string) (*gwmodels.GatewayToken, error) {
+			return &gwmodels.GatewayToken{UUID: uuid.New(), GatewayUUID: uuid.New()}, nil
 		},
 	}
 	svc := NewPlatformGatewayService(repo, nil)
@@ -349,16 +349,16 @@ func TestValidateGatewayInput_IsInvalidInput(t *testing.T) {
 	assert.Equal(t, "Gateway name must be 3 to 64 characters", ve.Message)
 }
 
-func updateRepo(gw *models.Gateway) *gwrepomocks.GatewayRepositoryMock {
+func updateRepo(gw *gwmodels.Gateway) *gwrepomocks.GatewayRepositoryMock {
 	return &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc:     func(string) (*models.Gateway, error) { return gw, nil },
-		UpdateGatewayFunc: func(*models.Gateway) error { return nil },
+		GetByUUIDFunc:     func(string) (*gwmodels.Gateway, error) { return gw, nil },
+		UpdateGatewayFunc: func(*gwmodels.Gateway) error { return nil },
 	}
 }
 
 func TestUpdateGateway_RejectsRuntimeURLOnSelfHostedGateway(t *testing.T) {
 	gw := gatewayFixture("dev-edge")
-	gw.Hosting = models.GatewayHostingSelfHosted
+	gw.Hosting = gwmodels.GatewayHostingSelfHosted
 	repo := updateRepo(gw)
 	svc := NewPlatformGatewayService(repo, nil)
 	runtimeURL := "http://gw.ns.svc:8080"
@@ -384,7 +384,7 @@ func TestUpdateGateway_RejectsInvalidDisplayName(t *testing.T) {
 
 func TestUpdateGateway_AllowsEmptyRuntimeURLOnSelfHostedGateway(t *testing.T) {
 	gw := gatewayFixture("dev-edge")
-	gw.Hosting = models.GatewayHostingSelfHosted
+	gw.Hosting = gwmodels.GatewayHostingSelfHosted
 	repo := updateRepo(gw)
 	svc := NewPlatformGatewayService(repo, nil)
 	runtimeURL := ""
@@ -398,7 +398,7 @@ func TestUpdateGateway_AllowsEmptyRuntimeURLOnSelfHostedGateway(t *testing.T) {
 
 func TestUpdateGateway_ManagedRuntimeURLUnchanged(t *testing.T) {
 	gw := gatewayFixture("dev-managed")
-	gw.Hosting = models.GatewayHostingManaged
+	gw.Hosting = gwmodels.GatewayHostingManaged
 	repo := updateRepo(gw)
 	svc := NewPlatformGatewayService(repo, nil)
 	runtimeURL := " http://gw.ns.svc:8080 "
@@ -412,7 +412,7 @@ func TestUpdateGateway_ManagedRuntimeURLUnchanged(t *testing.T) {
 
 func TestAssignGatewayToEnvironment_RefusesSelfHostedToAnotherEnvironment(t *testing.T) {
 	gw := gatewayFixture("dev-edge")
-	gw.Hosting = models.GatewayHostingSelfHosted
+	gw.Hosting = gwmodels.GatewayHostingSelfHosted
 	repo := mappingRepo(gw, 0)
 	svc := NewPlatformGatewayService(repo, nil)
 
@@ -424,12 +424,12 @@ func TestAssignGatewayToEnvironment_RefusesSelfHostedToAnotherEnvironment(t *tes
 
 func TestAssignGatewayToEnvironment_SelfHostedSameEnvironmentIsNoop(t *testing.T) {
 	gw := gatewayFixture("dev-edge")
-	gw.Hosting = models.GatewayHostingSelfHosted
+	gw.Hosting = gwmodels.GatewayHostingSelfHosted
 	env := uuid.New()
 	repo := mappingRepo(gw, 0)
 	repo.EnvironmentMappingExistsFunc = func(_, envID string) (bool, error) { return envID == env.String(), nil }
-	repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]models.GatewayEnvironmentMapping, error) {
-		return []models.GatewayEnvironmentMapping{{GatewayUUID: gw.UUID, EnvironmentUUID: env}}, nil
+	repo.GetEnvironmentMappingsByGatewayIDFunc = func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+		return []gwmodels.GatewayEnvironmentMapping{{GatewayUUID: gw.UUID, EnvironmentUUID: env}}, nil
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 

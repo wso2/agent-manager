@@ -106,12 +106,6 @@ func seedAgent(t *testing.T, ou, project, agent string, envs ...string) {
 	}
 }
 
-// newGateway creates an active gateway with role in the organization, mapped to its default environment.
-func newGateway(t *testing.T, ou, role string) uuid.UUID {
-	t.Helper()
-	return dbtest.Gateway(t, db.GetDB(), ou, role).UUID
-}
-
 // statusRowWhere selects one placement's status row.
 const statusRowWhere = "artifact_id = ? AND org_id = ? AND gateway_id = ?"
 

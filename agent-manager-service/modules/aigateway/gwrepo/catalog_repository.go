@@ -27,7 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // CatalogRepository defines the interface for catalog data access
@@ -35,11 +35,11 @@ import (
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/catalog_repository_mock.go . CatalogRepository:CatalogRepositoryMock
 type CatalogRepository interface {
 	// ListByKind lists catalog entries filtered by kind with pagination
-	ListByKind(orgUUID, kind string, limit, offset int) ([]models.CatalogEntry, int64, error)
+	ListByKind(orgUUID, kind string, limit, offset int) ([]gwmodels.CatalogEntry, int64, error)
 	// ListAll lists all catalog entries with pagination
-	ListAll(orgUUID string, limit, offset int) ([]models.CatalogEntry, int64, error)
+	ListAll(orgUUID string, limit, offset int) ([]gwmodels.CatalogEntry, int64, error)
 	// ListLLMProviders lists comprehensive LLM provider catalog entries with dynamic filtering
-	ListLLMProviders(filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error)
+	ListLLMProviders(filters *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error)
 }
 
 // CatalogRepo implements CatalogRepository using GORM
@@ -58,14 +58,14 @@ func (r *CatalogRepo) GetDB() *gorm.DB {
 }
 
 // ListByKind lists catalog entries filtered by kind with pagination
-func (r *CatalogRepo) ListByKind(orgUUID, kind string, limit, offset int) ([]models.CatalogEntry, int64, error) {
-	var entries []models.CatalogEntry
+func (r *CatalogRepo) ListByKind(orgUUID, kind string, limit, offset int) ([]gwmodels.CatalogEntry, int64, error) {
+	var entries []gwmodels.CatalogEntry
 	var total int64
 
 	// Execute count and fetch within a read-only transaction for consistency
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		// Count total matching records
-		if err := tx.Model(&models.CatalogEntry{}).
+		if err := tx.Model(&gwmodels.CatalogEntry{}).
 			Where("org_id = ? AND kind = ? AND in_catalog = ?", orgUUID, kind, true).
 			Count(&total).Error; err != nil {
 			return err
@@ -91,14 +91,14 @@ func (r *CatalogRepo) ListByKind(orgUUID, kind string, limit, offset int) ([]mod
 }
 
 // ListAll lists all catalog entries with pagination
-func (r *CatalogRepo) ListAll(orgUUID string, limit, offset int) ([]models.CatalogEntry, int64, error) {
-	var entries []models.CatalogEntry
+func (r *CatalogRepo) ListAll(orgUUID string, limit, offset int) ([]gwmodels.CatalogEntry, int64, error) {
+	var entries []gwmodels.CatalogEntry
 	var total int64
 
 	// Execute count and fetch within a read-only transaction for consistency
 	err := r.db.Transaction(func(tx *gorm.DB) error {
 		// Count total matching records
-		if err := tx.Model(&models.CatalogEntry{}).
+		if err := tx.Model(&gwmodels.CatalogEntry{}).
 			Where("org_id = ? AND in_catalog = ?", orgUUID, true).
 			Count(&total).Error; err != nil {
 			return err
@@ -125,7 +125,7 @@ func (r *CatalogRepo) ListAll(orgUUID string, limit, offset int) ([]models.Catal
 
 // ListLLMProviders lists comprehensive LLM provider catalog entries with dynamic filtering
 // Uses a single optimized query joining llm_providers, artifacts, and deployment_status tables
-func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
+func (r *CatalogRepo) ListLLMProviders(filters *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error) {
 	if filters == nil {
 		return nil, 0, fmt.Errorf("filters cannot be nil")
 	}
@@ -137,10 +137,10 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 	var total int64
 
 	// Build base query with common joins and conditions
-	baseQuery := r.db.Model(&models.LLMProvider{}).
+	baseQuery := r.db.Model(&gwmodels.LLMProvider{}).
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
 		Where("a.org_id = ? AND a.kind = ? AND a.in_catalog = ?",
-			filters.OrganizationName, models.KindLLMProvider, true)
+			filters.OrganizationName, gwmodels.KindLLMProvider, true)
 
 	// Apply environment filter if provided: providers live (acked DEPLOYED) on a gateway of the environment
 	if filters.HasEnvironmentFilter() {
@@ -149,7 +149,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 			Joins("JOIN mod_ai_gateway_gateways g ON ds.gateway_id = g.id").
 			Joins("JOIN mod_ai_gateway_gateway_environments gem ON ds.gateway_id = gem.gateway_id").
 			Where("gem.environment_id = ? AND ds.status = ?",
-				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
+				filters.EnvironmentUUID, gwmodels.DeploymentStatusDeployed).
 			Distinct()
 		if filters.GatewayHosting != "" {
 			baseQuery = baseQuery.Where("g.hosting = ?", filters.GatewayHosting)
@@ -178,7 +178,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 		Table("mod_ai_gateway_llm_providers").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
 		Where("a.org_id = ? AND a.kind = ? AND a.in_catalog = ?",
-			filters.OrganizationName, models.KindLLMProvider, true)
+			filters.OrganizationName, gwmodels.KindLLMProvider, true)
 
 	if filters.HasEnvironmentFilter() {
 		query = query.
@@ -186,7 +186,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 			Joins("JOIN mod_ai_gateway_gateways g ON ds.gateway_id = g.id").
 			Joins("JOIN mod_ai_gateway_gateway_environments gem ON ds.gateway_id = gem.gateway_id").
 			Where("gem.environment_id = ? AND ds.status = ?",
-				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
+				filters.EnvironmentUUID, gwmodels.DeploymentStatusDeployed).
 			Distinct()
 		if filters.GatewayHosting != "" {
 			query = query.Where("g.hosting = ?", filters.GatewayHosting)
@@ -228,7 +228,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 	}
 
 	// Convert to entries with FULL configuration data
-	entries := make([]models.CatalogLLMProviderEntry, 0, len(rows))
+	entries := make([]gwmodels.CatalogLLMProviderEntry, 0, len(rows))
 	for _, row := range rows {
 		providerUUID, err := uuid.Parse(row.UUID)
 		if err != nil {
@@ -240,7 +240,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 				row.UUID, row.Handle, err)
 		}
 
-		entry := models.CatalogLLMProviderEntry{
+		entry := gwmodels.CatalogLLMProviderEntry{
 			UUID:        providerUUID,
 			Handle:      row.Handle,
 			Name:        row.Name,
@@ -256,7 +256,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 
 		// Parse FULL configuration JSON and populate ALL fields
 		if row.Configuration != "" {
-			var config models.LLMProviderConfig
+			var config gwmodels.LLMProviderConfig
 			if err := json.Unmarshal([]byte(row.Configuration), &config); err == nil {
 				// Basic configuration
 				entry.Template = config.Template
@@ -267,7 +267,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 				if config.Security != nil {
 					enabled := config.Security.Enabled != nil && *config.Security.Enabled
 					apiKeyEnabled := config.Security.APIKey != nil && config.Security.APIKey.Enabled != nil && *config.Security.APIKey.Enabled
-					entry.Security = &models.SecuritySummary{
+					entry.Security = &gwmodels.SecuritySummary{
 						Enabled:       &enabled,
 						APIKeyEnabled: &apiKeyEnabled,
 					}
@@ -279,7 +279,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 
 				// Rate limiting summary
 				if config.RateLimiting != nil {
-					entry.RateLimiting = &models.RateLimitingSummary{}
+					entry.RateLimiting = &gwmodels.RateLimitingSummary{}
 
 					if config.RateLimiting.ProviderLevel != nil {
 						entry.RateLimiting.ProviderLevel = extractRateLimitingScopeFromConfig(config.RateLimiting.ProviderLevel)
@@ -303,7 +303,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 
 		// Parse model list JSON
 		if row.ModelList != "" {
-			var modelProviders []models.LLMModelProvider
+			var modelProviders []gwmodels.LLMModelProvider
 			if err := json.Unmarshal([]byte(row.ModelList), &modelProviders); err == nil {
 				entry.ModelProviders = modelProviders
 			}
@@ -328,7 +328,7 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 
 // populateDeploymentsInBatch fetches deployment data for all providers in a single query: the live deployments
 // (ds.status = DEPLOYED), with the status a user is shown (UserStatusOf).
-func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProviderEntry, orgUUID string) error {
+func (r *CatalogRepo) populateDeploymentsInBatch(entries []gwmodels.CatalogLLMProviderEntry, orgUUID string) error {
 	// Extract all provider UUIDs
 	providerUUIDs := make([]string, len(entries))
 	for i, entry := range entries {
@@ -344,8 +344,8 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 		GatewayVHost        string
 		EnvironmentUUID     *string
 		DeploymentUpdatedAt *time.Time
-		Status              models.DeploymentStatus
-		StatusDesired       models.DeploymentStatus
+		Status              gwmodels.DeploymentStatus
+		StatusDesired       gwmodels.DeploymentStatus
 		StatusReason        string
 		NextAttemptAt       *time.Time
 		RenderReason        string
@@ -368,7 +368,7 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 		`).
 		Joins("JOIN mod_ai_gateway_gateways g ON ds.gateway_id = g.id").
 		Joins("LEFT JOIN mod_ai_gateway_gateway_environments gem ON ds.gateway_id = gem.gateway_id").
-		Where("ds.org_id = ? AND ds.status = ?", orgUUID, models.DeploymentStatusDeployed)
+		Where("ds.org_id = ? AND ds.status = ?", orgUUID, gwmodels.DeploymentStatusDeployed)
 
 	for _, chunk := range dbx.Chunks(providerUUIDs) {
 		var part []DeploymentRow
@@ -393,11 +393,11 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 		deploymentRows, ok := deploymentMap[providerUUIDStr]
 
 		if !ok || len(deploymentRows) == 0 {
-			entries[i].Deployments = []models.DeploymentSummary{}
+			entries[i].Deployments = []gwmodels.DeploymentSummary{}
 			continue
 		}
 
-		deployments := make([]models.DeploymentSummary, 0, len(deploymentRows))
+		deployments := make([]gwmodels.DeploymentSummary, 0, len(deploymentRows))
 		for _, row := range deploymentRows {
 			gatewayUUID, err := uuid.Parse(row.GatewayUUID)
 			if err != nil {
@@ -410,10 +410,10 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 				continue
 			}
 
-			deployment := models.DeploymentSummary{
+			deployment := gwmodels.DeploymentSummary{
 				GatewayID:   gatewayUUID,
 				GatewayName: row.GatewayName,
-				Status: models.UserStatusOf(models.DeploymentStatusRecord{
+				Status: gwmodels.UserStatusOf(gwmodels.DeploymentStatusRecord{
 					Status: row.Status, StatusDesired: row.StatusDesired, StatusReason: row.StatusReason,
 					NextAttemptAt: row.NextAttemptAt, RenderReason: row.RenderReason,
 				}).Status,
@@ -442,8 +442,8 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 }
 
 // extractRateLimitingScopeFromConfig extracts rate limiting scope summary from configuration
-func extractRateLimitingScopeFromConfig(scopeConfig *models.RateLimitingScopeConfig) *models.RateLimitingScope {
-	scope := &models.RateLimitingScope{
+func extractRateLimitingScopeFromConfig(scopeConfig *gwmodels.RateLimitingScopeConfig) *gwmodels.RateLimitingScope {
+	scope := &gwmodels.RateLimitingScope{
 		GlobalEnabled:       scopeConfig.Global != nil,
 		ResourceWiseEnabled: scopeConfig.ResourceWise != nil,
 	}
@@ -451,21 +451,21 @@ func extractRateLimitingScopeFromConfig(scopeConfig *models.RateLimitingScopeCon
 	// Extract global limits if present, preserving each limit's own reset window
 	if scopeConfig.Global != nil {
 		if scopeConfig.Global.Request != nil && scopeConfig.Global.Request.Enabled {
-			scope.Request = &models.RateLimitEntry{
+			scope.Request = &gwmodels.RateLimitEntry{
 				Limit:         int32(scopeConfig.Global.Request.Count),
 				ResetDuration: int32(scopeConfig.Global.Request.Reset.Duration),
 				ResetUnit:     scopeConfig.Global.Request.Reset.Unit,
 			}
 		}
 		if scopeConfig.Global.Token != nil && scopeConfig.Global.Token.Enabled {
-			scope.Token = &models.RateLimitEntry{
+			scope.Token = &gwmodels.RateLimitEntry{
 				Limit:         int32(scopeConfig.Global.Token.Count),
 				ResetDuration: int32(scopeConfig.Global.Token.Reset.Duration),
 				ResetUnit:     scopeConfig.Global.Token.Reset.Unit,
 			}
 		}
 		if scopeConfig.Global.Cost != nil && scopeConfig.Global.Cost.Enabled {
-			scope.Cost = &models.RateLimitEntry{
+			scope.Cost = &gwmodels.RateLimitEntry{
 				Limit:         scopeConfig.Global.Cost.Amount,
 				ResetDuration: int32(scopeConfig.Global.Cost.Reset.Duration),
 				ResetUnit:     scopeConfig.Global.Cost.Reset.Unit,

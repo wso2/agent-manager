@@ -16,7 +16,7 @@
 
 package gwsvc
 
-import "github.com/wso2/agent-manager/agent-manager-service/models"
+import "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 
 // Operation is one method and path a RestApi serves.
 type Operation struct {
@@ -40,7 +40,7 @@ type RestAPIDeploymentSpec struct {
 	Upstream    RestAPIUpstream          `yaml:"upstream" json:"upstream"`
 	Policies    []map[string]interface{} `yaml:"policies" json:"policies"`
 	Operations  []Operation              `yaml:"operations" json:"operations"`
-	Resilience  *models.Resilience       `yaml:"resilience,omitempty" json:"resilience,omitempty"`
+	Resilience  *gwmodels.Resilience     `yaml:"resilience,omitempty" json:"resilience,omitempty"`
 }
 
 // RestAPIUpstream is the address the gateway dials.

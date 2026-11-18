@@ -24,8 +24,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // GatewayEventsService handles broadcasting events to connected gateways.
@@ -63,25 +63,25 @@ func (s *GatewayEventsService) publish(gatewayID string, eventType string, actio
 
 // API key events use a unique ID per event — they are not deduplicated on replay
 // because the gateway bulk-syncs API keys on reconnect via the catalog endpoint.
-func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID string, event *models.APIKeyCreatedEvent) error {
+func (s *GatewayEventsService) BroadcastAPIKeyCreatedEvent(gatewayID string, event *gwmodels.APIKeyCreatedEvent) error {
 	return s.broadcastEvent(gatewayID, "apikey.created", "PROVISION", event.UUID, event)
 }
 
 // PublishAPIKeyCreatedTx writes the event in the caller's transaction, so it is delivered only if that commits.
-func (s *GatewayEventsService) PublishAPIKeyCreatedTx(ctx context.Context, tx *gorm.DB, gatewayID string, e *models.APIKeyCreatedEvent) error {
+func (s *GatewayEventsService) PublishAPIKeyCreatedTx(ctx context.Context, tx *gorm.DB, gatewayID string, e *gwmodels.APIKeyCreatedEvent) error {
 	return s.publish(gatewayID, "apikey.created", "PROVISION", e.UUID, e, func(evt eventhub.Event) error {
 		return s.hub.PublishEventTx(ctx, tx, gatewayID, evt)
 	})
 }
 
-func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID string, event *models.APIKeyRevokedEvent) error {
+func (s *GatewayEventsService) BroadcastAPIKeyRevokedEvent(gatewayID string, event *gwmodels.APIKeyRevokedEvent) error {
 	return s.broadcastEvent(gatewayID, "apikey.revoked", "REVOKE", uuid.New().String(), event)
 }
 
-func (s *GatewayEventsService) BroadcastAPIKeyUpdatedEvent(gatewayID string, event *models.APIKeyUpdatedEvent) error {
+func (s *GatewayEventsService) BroadcastAPIKeyUpdatedEvent(gatewayID string, event *gwmodels.APIKeyUpdatedEvent) error {
 	return s.broadcastEvent(gatewayID, "apikey.updated", "UPDATE", uuid.New().String(), event)
 }
 
-func (s *GatewayEventsService) BroadcastApplicationUpdatedEvent(gatewayID string, event *models.ApplicationUpdatedEvent) error {
+func (s *GatewayEventsService) BroadcastApplicationUpdatedEvent(gatewayID string, event *gwmodels.ApplicationUpdatedEvent) error {
 	return s.broadcastEvent(gatewayID, "application.updated", "UPDATE", event.ApplicationUUID, event)
 }

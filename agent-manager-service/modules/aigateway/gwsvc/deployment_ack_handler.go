@@ -21,7 +21,7 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
@@ -43,7 +43,7 @@ func NewDeploymentAckHandler(deploymentRepo gwrepo.DeploymentRepository, afterLi
 // HandleMessage parses a raw WebSocket message and processes it if it's a known event type.
 // Returns true if the message was handled, false if it was unrecognized.
 func (h *DeploymentAckHandler) HandleMessage(gatewayID string, data []byte) bool {
-	var msg models.GatewayMessage
+	var msg gwmodels.GatewayMessage
 	if err := json.Unmarshal(data, &msg); err != nil {
 		slog.Warn("DeploymentAckHandler: failed to parse gateway message", "gatewayID", gatewayID, "error", err)
 		return false
@@ -60,7 +60,7 @@ func (h *DeploymentAckHandler) HandleMessage(gatewayID string, data []byte) bool
 }
 
 func (h *DeploymentAckHandler) handleDeploymentAck(gatewayID string, payload json.RawMessage) {
-	var ack models.DeploymentAck
+	var ack gwmodels.DeploymentAck
 	if err := json.Unmarshal(payload, &ack); err != nil {
 		slog.Error("DeploymentAckHandler: failed to parse deployment ack payload", "gatewayID", gatewayID, "error", err)
 		return

@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
@@ -88,65 +89,65 @@ func (c *auditCapture) semanticEvent(action audit.Action) (audit.Event, bool) {
 type selfHostedFixture struct {
 	mux        *http.ServeMux
 	audits     *auditCapture
-	managed    *models.Gateway
-	selfHosted *models.Gateway
-	token      *models.GatewayToken
+	managed    *gwmodels.Gateway
+	selfHosted *gwmodels.Gateway
+	token      *gwmodels.GatewayToken
 	mutations  []string
 }
 
 func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 	t.Helper()
 	f := &selfHostedFixture{audits: &auditCapture{}}
-	f.managed = &models.Gateway{UUID: uuid.New(), OUID: selfHostedTestOU, Name: "dev-managed", Hosting: models.GatewayHostingManaged}
-	f.selfHosted = &models.Gateway{UUID: uuid.New(), OUID: selfHostedTestOU, Name: "dev-edge", Hosting: models.GatewayHostingSelfHosted}
-	f.token = &models.GatewayToken{UUID: uuid.New(), GatewayUUID: f.selfHosted.UUID, Status: "active"}
-	byUUID := map[string]*models.Gateway{f.managed.UUID.String(): f.managed, f.selfHosted.UUID.String(): f.selfHosted}
+	f.managed = &gwmodels.Gateway{UUID: uuid.New(), OUID: selfHostedTestOU, Name: "dev-managed", Hosting: gwmodels.GatewayHostingManaged}
+	f.selfHosted = &gwmodels.Gateway{UUID: uuid.New(), OUID: selfHostedTestOU, Name: "dev-edge", Hosting: gwmodels.GatewayHostingSelfHosted}
+	f.token = &gwmodels.GatewayToken{UUID: uuid.New(), GatewayUUID: f.selfHosted.UUID, Status: "active"}
+	byUUID := map[string]*gwmodels.Gateway{f.managed.UUID.String(): f.managed, f.selfHosted.UUID.String(): f.selfHosted}
 	mutated := func(op string) { f.mutations = append(f.mutations, op) }
 
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 			if gw, ok := byUUID[id]; ok {
 				return gw, nil
 			}
 			return nil, utils.ErrGatewayNotFound
 		},
-		GetByNameAndOrgIDFunc: func(string, string) (*models.Gateway, error) { return nil, utils.ErrGatewayNotFound },
-		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) {
-			return []models.GatewayEnvironmentMapping{}, nil
+		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return nil, utils.ErrGatewayNotFound },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+			return []gwmodels.GatewayEnvironmentMapping{}, nil
 		},
-		GetEnvironmentMappingsByGatewayIDsFunc: func([]string) (map[string][]models.GatewayEnvironmentMapping, error) {
-			return map[string][]models.GatewayEnvironmentMapping{}, nil
+		GetEnvironmentMappingsByGatewayIDsFunc: func([]string) (map[string][]gwmodels.GatewayEnvironmentMapping, error) {
+			return map[string][]gwmodels.GatewayEnvironmentMapping{}, nil
 		},
 		CountWithFiltersFunc: func(gwrepo.GatewayFilterOptions) (int64, error) { return 1, nil },
-		ListWithFiltersFunc: func(opts gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			require.Equal(t, models.GatewayHostingSelfHosted, opts.Hosting)
-			return []*models.Gateway{f.selfHosted}, nil
+		ListWithFiltersFunc: func(opts gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			require.Equal(t, gwmodels.GatewayHostingSelfHosted, opts.Hosting)
+			return []*gwmodels.Gateway{f.selfHosted}, nil
 		},
-		GetActiveTokensByGatewayUUIDFunc: func(string) ([]*models.GatewayToken, error) {
-			return []*models.GatewayToken{f.token}, nil
+		GetActiveTokensByGatewayUUIDFunc: func(string) ([]*gwmodels.GatewayToken, error) {
+			return []*gwmodels.GatewayToken{f.token}, nil
 		},
-		GetTokenByUUIDFunc:        func(string) (*models.GatewayToken, error) { return f.token, nil },
+		GetTokenByUUIDFunc:        func(string) (*gwmodels.GatewayToken, error) { return f.token, nil },
 		CountActiveTokensFunc:     func(string) (int, error) { return 0, nil },
 		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error {
 			mutated("transaction")
 			return fn(nil)
 		},
-		CreateTxFunc: func(_ *gorm.DB, gw *models.Gateway) error {
+		CreateTxFunc: func(_ *gorm.DB, gw *gwmodels.Gateway) error {
 			mutated("create")
 			byUUID[gw.UUID.String()] = gw
 			return nil
 		},
-		UpdateGatewayFunc: func(*models.Gateway) error { mutated("update"); return nil },
+		UpdateGatewayFunc: func(*gwmodels.Gateway) error { mutated("update"); return nil },
 		DeleteFunc:        func(string, string) error { mutated("delete"); return nil },
-		CreateTokenFunc:   func(*models.GatewayToken) error { mutated("create-token"); return nil },
+		CreateTokenFunc:   func(*gwmodels.GatewayToken) error { mutated("create-token"); return nil },
 		RevokeTokenFunc:   func(string) error { mutated("revoke-token"); return nil },
 	}
 	repo.WithTxFunc = func(*gorm.DB) gwrepo.GatewayRepository { return repo }
 	repo.AcquireGatewayLockFunc = func(*gorm.DB, string) error { return nil }
 	repo.AcquireEnvironmentLockFunc = func(*gorm.DB, string) error { return nil }
 	repo.EnvironmentMappingExistsFunc = func(string, string) (bool, error) { return false, nil }
-	repo.CreateEnvironmentMappingTxFunc = func(*gorm.DB, *models.GatewayEnvironmentMapping) error {
+	repo.CreateEnvironmentMappingTxFunc = func(*gorm.DB, *gwmodels.GatewayEnvironmentMapping) error {
 		mutated("map-environment")
 		return nil
 	}

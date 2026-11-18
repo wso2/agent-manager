@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
@@ -52,13 +52,13 @@ func newProviderFixture(t *testing.T) *providerFixture {
 	providerRepo := gwrepo.NewLLMProviderRepo(gormDB)
 	f.deployment = NewLLMProviderDeploymentService(NewTxRunner(gormDB), f.sync.repo, providerRepo, nil, gateways, nil, core)
 	templates := NewLLMTemplateStore()
-	templates.Load([]*models.LLMProviderTemplate{{Handle: "openai"}})
+	templates.Load([]*gwmodels.LLMProviderTemplate{{Handle: "openai"}})
 	f.providers = NewLLMProviderService(gormDB, providerRepo, gwrepo.NewLLMProviderTemplateRepo(gormDB),
 		templates, nil, nil, make([]byte, 32), gateways, f.sync.repo, nil, nil)
 	return f
 }
 
-func (f *providerFixture) newProvider(t *testing.T) *models.LLMProvider {
+func (f *providerFixture) newProvider(t *testing.T) *gwmodels.LLMProvider {
 	t.Helper()
 	provider := goldenProvider()
 	provider.UUID = uuid.Nil
@@ -87,14 +87,14 @@ func TestCreateAndDeployCommitsTheProviderWithItsDeployment(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got.Deployments, 1)
 	assert.True(t, got.Deployments[0].Success)
-	p := models.Placement{
-		ArtifactRef: models.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: got.Provider.UUID, Kind: models.KindLLMProvider},
+	p := gwmodels.Placement{
+		ArtifactRef: gwmodels.ArtifactRef{OUID: f.sync.ouID, ArtifactUUID: got.Provider.UUID, Kind: gwmodels.KindLLMProvider},
 		GatewayUUID: f.sync.gateway,
 	}
 	row, err := f.sync.repo.GetStatusRecord(context.Background(), p)
 	require.NoError(t, err)
 	require.NotNil(t, row)
-	assert.Equal(t, models.DeploymentStatusDeploying, row.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
 	pulled, err := f.sync.repo.GetPullable(context.Background(), f.sync.ouID, got.Provider.UUID, f.sync.gateway.String())
 	require.NoError(t, err)
 	assert.Contains(t, string(pulled.Content), "name: "+provider.Configuration.Handle)

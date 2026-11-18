@@ -27,7 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -78,11 +78,11 @@ func TestActiveArtifactDeploymentByGatewayReturnsYamlKeyedByID(t *testing.T) {
 	for _, tt := range activeDeploymentLookups {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &gwrepomocks.DeploymentRepositoryMock{
-				GetPullableFunc: func(_ context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
+				GetPullableFunc: func(_ context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*gwmodels.Deployment, error) {
 					assert.Equal(t, testArtifactID, artifactUUID.String())
 					assert.Equal(t, "gw-1", gatewayID)
 					assert.Equal(t, "ou-1", ouID)
-					return &models.Deployment{Content: []byte("kind: Agent\n")}, nil
+					return &gwmodels.Deployment{Content: []byte("kind: Agent\n")}, nil
 				},
 			}
 			got, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
@@ -96,7 +96,7 @@ func TestActiveArtifactDeploymentByGatewayNotDeployed(t *testing.T) {
 	for _, tt := range activeDeploymentLookups {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &gwrepomocks.DeploymentRepositoryMock{
-				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*models.Deployment, error) {
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*gwmodels.Deployment, error) {
 					return nil, nil //nolint:nilnil // the repository reports "no current deployment" this way
 				},
 			}
@@ -125,7 +125,7 @@ func TestActiveArtifactDeploymentByGatewayRepoErrorIsNotNotFound(t *testing.T) {
 	for _, tt := range activeDeploymentLookups {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &gwrepomocks.DeploymentRepositoryMock{
-				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*models.Deployment, error) {
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*gwmodels.Deployment, error) {
 					return nil, repoErr
 				},
 			}
@@ -147,8 +147,8 @@ func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
 	stored, err := generateA2AAgentDeploymentYAML(in)
 	require.NoError(t, err)
 	repo := &gwrepomocks.DeploymentRepositoryMock{
-		GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*models.Deployment, error) {
-			return &models.Deployment{Content: []byte(stored)}, nil
+		GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*gwmodels.Deployment, error) {
+			return &gwmodels.Deployment{Content: []byte(stored)}, nil
 		},
 	}
 	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, key, gatewayKinds())
@@ -173,8 +173,8 @@ func TestActiveArtifactDeploymentByGatewayUnparseableYaml(t *testing.T) {
 	for _, tt := range activeDeploymentLookups {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &gwrepomocks.DeploymentRepositoryMock{
-				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*models.Deployment, error) {
-					return &models.Deployment{Content: []byte("key: [unclosed")}, nil
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*gwmodels.Deployment, error) {
+					return &gwmodels.Deployment{Content: []byte("key: [unclosed")}, nil
 				},
 			}
 			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")

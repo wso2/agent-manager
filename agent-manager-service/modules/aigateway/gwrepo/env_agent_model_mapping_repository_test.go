@@ -26,7 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // TestEnvAgentModelMappingRepo_BackfillsLLMProxyHandle guards against a
@@ -46,10 +46,10 @@ func TestEnvAgentModelMappingRepo_BackfillsLLMProxyHandle(t *testing.T) {
 	const proxyName = "backfill-handle-proxy-name"
 	ou := newOrg(t)
 	_, proxyUUID := seedLLMProxy(t, ou)
-	require.NoError(t, gdb.Model(&models.LLMProxy{}).Where("id = ?", proxyUUID).
+	require.NoError(t, gdb.Model(&gwmodels.LLMProxy{}).Where("id = ?", proxyUUID).
 		Update("configuration", dbx.JSON(map[string]string{"name": proxyName})).Error)
 	configUUID, envUUID := mapLLMProxyToAgent(t, ou, proxyUUID)
-	config := &models.AgentConfiguration{UUID: configUUID}
+	config := &gwmodels.AgentConfiguration{UUID: configUUID}
 
 	repo := NewEnvAgentModelMappingRepository(gdb)
 

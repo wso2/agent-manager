@@ -34,8 +34,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
@@ -65,7 +67,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	}
 	gormDB := db.GetDB()
 	dbtest.EnvironmentNamed(t, gormDB, f.sync.ouID, f.env, "dev")
-	f.gateway = dbtest.GatewayIn(t, gormDB, f.sync.ouID, models.GatewayRoleIngress, f.env).UUID
+	f.gateway = gwtest.GatewayIn(t, gormDB, f.sync.ouID, gwmodels.GatewayRoleIngress, f.env).UUID
 	f.external.UUID = dbtest.EnsureAgent(t, gormDB, f.sync.ouID, f.external.ProjectName, f.external.Name).String()
 	oc := &repomocks.PlatformRepositoryMock{
 		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
@@ -81,8 +83,8 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 		},
 	}
 	configs := &gwrepomocks.AgentConfigRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
-			return &models.AgentConfig{}, nil
+		GetFunc: func(context.Context, string, string, string, string) (*gwmodels.AgentConfig, error) {
+			return &gwmodels.AgentConfig{}, nil
 		},
 	}
 	f.events = NewGatewayEventsService(f.hub)
@@ -117,29 +119,29 @@ func (f *a2aFixture) registerCard(t *testing.T) {
 }
 
 // proxy proxies the external agent's environment and returns its artifact.
-func (f *a2aFixture) proxy(t *testing.T) models.ArtifactRef {
+func (f *a2aFixture) proxy(t *testing.T) gwmodels.ArtifactRef {
 	t.Helper()
 	require.NoError(t, f.proxies.SetA2AProxy(tierGrantedCtx(t), f.sync.ouID, "proj", f.external.Name, "dev", nil))
 	return f.externalArtifact(t)
 }
 
-func (f *a2aFixture) externalArtifact(t *testing.T) models.ArtifactRef {
+func (f *a2aFixture) externalArtifact(t *testing.T) gwmodels.ArtifactRef {
 	t.Helper()
 	artifact, err := agentEnvAPIArtifact(gwrepo.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj", f.external.Name,
-		f.env.String(), models.KindAgent)
+		f.env.String(), gwmodels.KindAgent)
 	require.NoError(t, err)
 	return agentArtifactRef(artifact)
 }
 
-func (f *a2aFixture) render(t *testing.T, artifact models.ArtifactRef) {
+func (f *a2aFixture) render(t *testing.T, artifact gwmodels.ArtifactRef) {
 	t.Helper()
 	require.NoError(t, f.worker.RunOnceFor(context.Background(), artifact.OUID, artifact.ArtifactUUID))
 }
 
-func (f *a2aFixture) ack(t *testing.T, artifact models.ArtifactRef, action string) {
+func (f *a2aFixture) ack(t *testing.T, artifact gwmodels.ArtifactRef, action string) {
 	t.Helper()
 	row := f.row(t, artifact)
-	ack := models.DeploymentAck{
+	ack := gwmodels.DeploymentAck{
 		ArtifactID: artifact.ArtifactUUID.String(), Action: action, Status: "success",
 		PerformedAt: row.PerformedAt,
 	}
@@ -152,9 +154,9 @@ func (f *a2aFixture) ack(t *testing.T, artifact models.ArtifactRef, action strin
 }
 
 // seedAPIKey stores a key of the artifact; a nil expiry never expires.
-func (f *a2aFixture) seedAPIKey(t *testing.T, artifact models.ArtifactRef, name, status string, expiresAt *time.Time) models.StoredAPIKey {
+func (f *a2aFixture) seedAPIKey(t *testing.T, artifact gwmodels.ArtifactRef, name, status string, expiresAt *time.Time) gwmodels.StoredAPIKey {
 	t.Helper()
-	stored := models.StoredAPIKey{
+	stored := gwmodels.StoredAPIKey{
 		UUID: uuid.New(), Name: name, DisplayName: name, ArtifactUUID: artifact.ArtifactUUID, OUID: f.sync.ouID,
 		APIKeyHash: "hash-" + name, MaskedAPIKey: "****" + name, Status: status,
 		CreatedAt: time.Now(), UpdatedAt: time.Now(), ExpiresAt: expiresAt,
@@ -177,11 +179,11 @@ func (f *a2aFixture) replayedKeyNames(t *testing.T) []string {
 }
 
 // platformAgent is a platform agent's per-environment artifact and its publication key.
-func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, agentExposureKey) {
+func (f *a2aFixture) platformAgent(t *testing.T) (gwmodels.ArtifactRef, agentExposureKey) {
 	t.Helper()
 	name := "agent-" + uuid.NewString()[:8]
 	artifact, err := ensureAgentEnvAPIArtifact(db.GetDB(), gwrepo.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
-		name, f.env.String(), models.KindAgent)
+		name, f.env.String(), gwmodels.KindAgent)
 	require.NoError(t, err)
 	agentUUID := dbtest.EnsureAgent(t, db.GetDB(), f.sync.ouID, "proj", name)
 	return agentArtifactRef(artifact), agentExposureKey{
@@ -190,9 +192,9 @@ func (f *a2aFixture) platformAgent(t *testing.T) (models.ArtifactRef, agentExpos
 	}
 }
 
-func (f *a2aFixture) row(t *testing.T, artifact models.ArtifactRef) *models.DeploymentStatusRecord {
+func (f *a2aFixture) row(t *testing.T, artifact gwmodels.ArtifactRef) *gwmodels.DeploymentStatusRecord {
 	t.Helper()
-	row, err := f.sync.repo.GetStatusRecord(context.Background(), models.Placement{ArtifactRef: artifact, GatewayUUID: f.gateway})
+	row, err := f.sync.repo.GetStatusRecord(context.Background(), gwmodels.Placement{ArtifactRef: artifact, GatewayUUID: f.gateway})
 	require.NoError(t, err)
 	return row
 }
@@ -225,24 +227,24 @@ func TestExternalAgentProxiedAgainDeploysItsUndeployedRow(t *testing.T) {
 	artifact := f.proxy(t)
 	f.render(t, artifact)
 	first := f.row(t, artifact)
-	require.Equal(t, models.DeploymentStatusDeploying, first.Status)
+	require.Equal(t, gwmodels.DeploymentStatusDeploying, first.Status)
 	f.ack(t, artifact, "deploy")
 
 	require.NoError(t, f.proxies.DeleteA2AProxy(tierGrantedCtx(t), f.sync.ouID, "proj", f.external.Name, "dev"))
-	require.Equal(t, models.DeploymentStatusUndeploying, f.row(t, artifact).Status)
+	require.Equal(t, gwmodels.DeploymentStatusUndeploying, f.row(t, artifact).Status)
 	f.ack(t, artifact, "undeploy")
-	require.Equal(t, models.DeploymentStatusUndeployed, f.row(t, artifact).Status)
+	require.Equal(t, gwmodels.DeploymentStatusUndeployed, f.row(t, artifact).Status)
 
 	f.proxy(t)
 	owed := f.row(t, artifact)
-	assert.Equal(t, models.DeploymentStatusUndeployed, owed.Status, "set proxy owes the deploy; the worker does it")
+	assert.Equal(t, gwmodels.DeploymentStatusUndeployed, owed.Status, "set proxy owes the deploy; the worker does it")
 	require.NotNil(t, owed.NextAttemptAt, "the undeployed row is re-queued")
 
 	f.render(t, artifact)
 
 	row := f.row(t, artifact)
-	assert.Equal(t, models.DeploymentStatusDeploying, row.Status)
-	assert.Equal(t, models.DeploymentStatusDeployed, row.StatusDesired)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, row.StatusDesired)
 	assert.NotEqual(t, *first.DeploymentID, *row.DeploymentID)
 	last := f.hub.published[len(f.hub.published)-1]
 	assert.Equal(t, "agent.deployed", string(last.EventType))
@@ -271,7 +273,7 @@ func TestRemovingAProxiedEnvironmentsCardURLUndeploysAndDeletesTheProxyTogether(
 	assert.NoError(t, err, "the proxy stays")
 	_, err = cards.Get(context.Background(), f.sync.ouID, "proj", f.external.Name, "dev")
 	assert.NoError(t, err, "the card stays")
-	assert.Equal(t, models.DeploymentStatusDeployed, f.row(t, artifact).StatusDesired)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, f.row(t, artifact).StatusDesired)
 
 	f.hub.fail = nil
 	require.NoError(t, f.proxies.RemoveCardSource(tierGrantedCtx(t), f.external, f.sync.ouID, "proj", f.envResponse()))
@@ -279,7 +281,7 @@ func TestRemovingAProxiedEnvironmentsCardURLUndeploysAndDeletesTheProxyTogether(
 	_, err = proxies.GetByEnvUUID(context.Background(), f.sync.ouID, "proj", f.external.Name, f.env)
 	assert.ErrorIs(t, err, gwrepo.ErrA2AProxyNotFound)
 	row := f.row(t, artifact)
-	assert.Equal(t, models.DeploymentStatusUndeploying, row.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusUndeploying, row.Status)
 	last := f.hub.published[len(f.hub.published)-1]
 	assert.Equal(t, "agent.undeployed", string(last.EventType))
 }
@@ -289,9 +291,9 @@ func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 	f := newA2AFixture(t)
 	f.registerCard(t)
 	created, err := ensureAgentEnvAPIArtifact(db.GetDB(), gwrepo.NewArtifactRepo(db.GetDB()), f.sync.ouID, "proj",
-		f.external.Name, f.env.String(), models.KindAgent)
+		f.external.Name, f.env.String(), gwmodels.KindAgent)
 	require.NoError(t, err)
-	require.NoError(t, gwrepo.NewA2AProxyRepository(db.GetDB()).Upsert(context.Background(), &models.A2AProxy{
+	require.NoError(t, gwrepo.NewA2AProxyRepository(db.GetDB()).Upsert(context.Background(), &gwmodels.A2AProxy{
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: f.external.Name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 		ArtifactUUID: created.UUID,
 	}))
@@ -302,7 +304,7 @@ func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 
 	row := f.row(t, artifact)
 	require.NotNil(t, row)
-	assert.Equal(t, models.DeploymentStatusDeploying, row.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
 }
 
 // #2184: an external agent created with no subtype is placed and deployed through its proxy.
@@ -316,7 +318,7 @@ func TestAnExternalAgentWithNoSubtypeIsPlacedThroughItsProxy(t *testing.T) {
 
 	row := f.row(t, artifact)
 	require.NotNil(t, row)
-	assert.Equal(t, models.DeploymentStatusDeploying, row.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
 	pulled, err := f.sync.repo.GetPullable(context.Background(), f.sync.ouID, artifact.ArtifactUUID, f.gateway.String())
 	require.NoError(t, err)
 	assert.Contains(t, string(pulled.Content), "url: https://agent.example/team", "fronts the card's origin")
@@ -327,7 +329,7 @@ func TestAnExternalAgentWithNoSubtypeIsPlacedThroughItsProxy(t *testing.T) {
 func TestGetA2AProxyFollowsTheDeployment(t *testing.T) {
 	f := newA2AFixture(t)
 	f.registerCard(t)
-	status := func() *models.A2AProxyStatus {
+	status := func() *gwmodels.A2AProxyStatus {
 		t.Helper()
 		got, err := f.proxies.GetA2AProxy(tierOnlyCtx(), f.sync.ouID, "proj", f.external.Name, "dev")
 		require.NoError(t, err)
@@ -335,14 +337,14 @@ func TestGetA2AProxyFollowsTheDeployment(t *testing.T) {
 	}
 
 	artifact := f.proxy(t)
-	assert.Equal(t, models.DeploymentStatusDeploying, status().Status, "the deploy is owed to the worker")
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, status().Status, "the deploy is owed to the worker")
 
 	f.render(t, artifact)
-	assert.Equal(t, models.DeploymentStatusDeploying, status().Status, "sent, not acked")
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, status().Status, "sent, not acked")
 
 	f.ack(t, artifact, "deploy")
 	got := status()
-	assert.Equal(t, models.DeploymentStatusDeployed, got.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, got.Status)
 	assert.Empty(t, got.StatusReason)
 	assert.NotEmpty(t, got.GatewayURL)
 }

@@ -27,7 +27,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -43,7 +43,7 @@ type apiKeyBroadcaster struct {
 // broadcastCreate generates an API key, persists it, and broadcasts to all gateways for the org.
 // apiID is the identifier sent to the gateway (UUID for providers, handle for proxies).
 // artifactUUID is the DB UUID for persistence (always a valid UUID).
-func (b *apiKeyBroadcaster) broadcastCreate(ctx context.Context, orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+func (b *apiKeyBroadcaster) broadcastCreate(ctx context.Context, orgID, apiID, artifactUUID string, req *gwmodels.CreateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error) {
 	gateways, err := b.gatewayRepo.GetByOrganizationID(ctx, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gateways: %w", err)
@@ -55,7 +55,7 @@ func (b *apiKeyBroadcaster) broadcastCreate(ctx context.Context, orgID, apiID, a
 }
 
 // broadcastCreateToGateways generates an API key, persists it, and broadcasts to the given gateways only.
-func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID string, req *models.CreateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*gwmodels.Gateway, orgID, apiID, artifactUUID string, req *gwmodels.CreateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
@@ -67,9 +67,9 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}
 	}
-	if utf8.RuneCountInString(keyName) < models.MinAPIKeyNameLength {
+	if utf8.RuneCountInString(keyName) < gwmodels.MinAPIKeyNameLength {
 		return nil, fmt.Errorf("%w: API key name %q must be at least %d characters",
-			utils.ErrBadRequest, keyName, models.MinAPIKeyNameLength)
+			utils.ErrBadRequest, keyName, gwmodels.MinAPIKeyNameLength)
 	}
 
 	apiKey, err := utils.GenerateAPIKey()
@@ -84,7 +84,7 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 
 	purpose := req.Purpose
 	if purpose == 0 {
-		purpose = models.APIKeyPurposeUserManaged
+		purpose = gwmodels.APIKeyPurposeUserManaged
 	}
 
 	keyUUID := uuid.Must(uuid.NewV7())
@@ -110,7 +110,7 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 
 	// Persist API key for bulk-sync
 	if b.apiKeyRepo != nil {
-		storedKey := &models.StoredAPIKey{
+		storedKey := &gwmodels.StoredAPIKey{
 			UUID:         keyUUID,
 			Name:         keyName,
 			DisplayName:  displayName,
@@ -129,7 +129,7 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 		}
 	}
 
-	event := &models.APIKeyCreatedEvent{
+	event := &gwmodels.APIKeyCreatedEvent{
 		UUID:         keyUUID.String(),
 		APIID:        apiID,
 		Name:         keyName,
@@ -148,7 +148,7 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*models.Gateway
 		}
 	}
 
-	return &models.CreateAPIKeyResponse{
+	return &gwmodels.CreateAPIKeyResponse{
 		Status:  "success",
 		Message: fmt.Sprintf("API key created and broadcasted to %d gateway(s)", len(gateways)),
 		KeyID:   keyName,
@@ -168,7 +168,7 @@ func (b *apiKeyBroadcaster) broadcastRevoke(ctx context.Context, orgID, apiID, a
 }
 
 // broadcastRevokeToGateways removes a key from the store and broadcasts revocation to the given gateways only.
-func (b *apiKeyBroadcaster) broadcastRevokeToGateways(ctx context.Context, gateways []*models.Gateway, apiID, artifactUUID, keyName string) error {
+func (b *apiKeyBroadcaster) broadcastRevokeToGateways(ctx context.Context, gateways []*gwmodels.Gateway, apiID, artifactUUID, keyName string) error {
 	// Remove from persistent store
 	if b.apiKeyRepo != nil {
 		if err := b.apiKeyRepo.Delete(artifactUUID, keyName); err != nil {
@@ -176,7 +176,7 @@ func (b *apiKeyBroadcaster) broadcastRevokeToGateways(ctx context.Context, gatew
 		}
 	}
 
-	event := &models.APIKeyRevokedEvent{
+	event := &gwmodels.APIKeyRevokedEvent{
 		APIID:   apiID,
 		KeyName: keyName,
 	}
@@ -216,7 +216,7 @@ func (b *apiKeyBroadcaster) broadcastRevokeUserManaged(ctx context.Context, orgI
 
 	var errs []error
 	for _, k := range stored {
-		if k.Purpose != models.APIKeyPurposeUserManaged {
+		if k.Purpose != gwmodels.APIKeyPurposeUserManaged {
 			continue
 		}
 		if err := b.broadcastRevokeToGateways(ctx, gateways, apiID, artifactUUID, k.Name); err != nil {
@@ -230,15 +230,15 @@ func (b *apiKeyBroadcaster) broadcastRevokeUserManaged(ctx context.Context, orgI
 }
 
 // isAPIKeyAuthEnabled reports whether API key authentication is enabled in a security
-// config. Delegates to models.SecurityConfig.RequiresAPIKey so this package agrees with
+// config. Delegates to gwmodels.SecurityConfig.RequiresAPIKey so this package agrees with
 // the deployment translators on what "enabled" means: an absent security.enabled used to
 // count as enabled here while emitting no gateway policy, so a proxy could be described
 // as needing a credential the gateway never asked for.
-func isAPIKeyAuthEnabled(sec *models.SecurityConfig) bool {
+func isAPIKeyAuthEnabled(sec *gwmodels.SecurityConfig) bool {
 	return sec.RequiresAPIKey()
 }
 
-func (b *apiKeyBroadcaster) broadcastRotate(ctx context.Context, orgID, apiID, artifactUUID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+func (b *apiKeyBroadcaster) broadcastRotate(ctx context.Context, orgID, apiID, artifactUUID, keyName string, req *gwmodels.RotateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error) {
 	gateways, err := b.gatewayRepo.GetByOrganizationID(ctx, orgID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get gateways: %w", err)
@@ -250,7 +250,7 @@ func (b *apiKeyBroadcaster) broadcastRotate(ctx context.Context, orgID, apiID, a
 }
 
 // broadcastRotateToGateways generates a new key value, updates the store, and broadcasts to the given gateways only.
-func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway, orgID, apiID, artifactUUID, keyName string, req *models.RotateAPIKeyRequest) (*models.CreateAPIKeyResponse, error) {
+func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*gwmodels.Gateway, orgID, apiID, artifactUUID, keyName string, req *gwmodels.RotateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error) {
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
@@ -279,7 +279,7 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 
 	// Update key in persistent store
 	if b.apiKeyRepo != nil {
-		storedKey := &models.StoredAPIKey{
+		storedKey := &gwmodels.StoredAPIKey{
 			UUID:         uuid.Must(uuid.NewV7()),
 			Name:         keyName,
 			ArtifactUUID: parsedArtifactUUID,
@@ -296,7 +296,7 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 		}
 	}
 
-	event := &models.APIKeyUpdatedEvent{
+	event := &gwmodels.APIKeyUpdatedEvent{
 		APIID:        apiID,
 		KeyName:      keyName,
 		ApiKeyHashes: hashAPIKeyToJSON(newAPIKey),
@@ -316,7 +316,7 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*models.Gateway
 		}
 	}
 
-	return &models.CreateAPIKeyResponse{
+	return &gwmodels.CreateAPIKeyResponse{
 		Status:  "success",
 		Message: fmt.Sprintf("API key rotated and broadcasted to %d gateway(s)", len(gateways)),
 		KeyID:   keyName,

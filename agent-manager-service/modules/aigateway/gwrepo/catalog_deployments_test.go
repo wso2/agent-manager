@@ -28,18 +28,18 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // seedCatalogProvider writes a catalog-listed provider and an environment its gateway is mapped to, and returns the
 // provider's placement on the gateway.
-func seedCatalogProvider(t *testing.T) (models.Placement, uuid.UUID) {
+func seedCatalogProvider(t *testing.T) (gwmodels.Placement, uuid.UUID) {
 	t.Helper()
 	gdb := db.GetDB()
-	p := seedPlacement(t, models.KindLLMProvider)
-	provider := &models.LLMProvider{
+	p := seedPlacement(t, gwmodels.KindLLMProvider)
+	provider := &gwmodels.LLMProvider{
 		TemplateHandle: "openai",
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name: "Catalog " + p.Handle, Handle: p.Handle + "-provider", Version: "v1.0", Template: "openai",
 		},
 		Status: "CREATED",
@@ -52,9 +52,9 @@ func seedCatalogProvider(t *testing.T) (models.Placement, uuid.UUID) {
 	return p, env
 }
 
-func listCatalogProviders(t *testing.T, ouID string, env *uuid.UUID) []models.CatalogLLMProviderEntry {
+func listCatalogProviders(t *testing.T, ouID string, env *uuid.UUID) []gwmodels.CatalogLLMProviderEntry {
 	t.Helper()
-	filters := &models.CatalogListFilters{OrganizationName: ouID, Limit: 10}
+	filters := &gwmodels.CatalogListFilters{OrganizationName: ouID, Limit: 10}
 	if env != nil {
 		filters.EnvironmentUUID = env.String()
 	}
@@ -74,11 +74,11 @@ func TestCatalogListsADeployOnceItIsLive(t *testing.T) {
 	assert.Empty(t, entries[0].Deployments)
 	assert.Empty(t, listCatalogProviders(t, p.OUID, &env), "not live in the environment yet")
 
-	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
+	applyAck(t, p, deployAck(deployment.DeploymentID, gwmodels.DeploymentAckStatusSuccess, ""), nil)
 
 	entries = listCatalogProviders(t, p.OUID, nil)
 	require.Len(t, entries[0].Deployments, 1)
-	assert.Equal(t, models.DeploymentStatusDeployed, entries[0].Deployments[0].Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeployed, entries[0].Deployments[0].Status)
 	assert.Equal(t, p.GatewayUUID, entries[0].Deployments[0].GatewayID)
 	assert.Len(t, listCatalogProviders(t, p.OUID, &env), 1)
 }
@@ -87,28 +87,28 @@ func TestCatalogListsADeployOnceItIsLive(t *testing.T) {
 func TestCatalogKeepsALiveDeploymentWhileARedeployIsQueued(t *testing.T) {
 	p, _ := seedCatalogProvider(t)
 	deployment := startDeploy(t, p)
-	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
+	applyAck(t, p, deployAck(deployment.DeploymentID, gwmodels.DeploymentAckStatusSuccess, ""), nil)
 	_, err := NewDeploymentRepo(db.GetDB()).QueueRender(context.Background(), nil, p.OUID, p.ArtifactUUID, nil,
 		"inputs changed", QueueScopePlaced)
 	require.NoError(t, err)
 
 	entries := listCatalogProviders(t, p.OUID, nil)
 	require.Len(t, entries[0].Deployments, 1)
-	assert.Equal(t, models.DeploymentStatusDeploying, entries[0].Deployments[0].Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, entries[0].Deployments[0].Status)
 }
 
 // A failed deploy and an undeployed provider aren't listed anywhere.
 func TestCatalogOmitsFailedAndUndeployed(t *testing.T) {
 	p, _ := seedCatalogProvider(t)
 	deployment := startDeploy(t, p)
-	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusFailed, "E"), nil)
+	applyAck(t, p, deployAck(deployment.DeploymentID, gwmodels.DeploymentAckStatusFailed, "E"), nil)
 
 	entries := listCatalogProviders(t, p.OUID, nil)
 	assert.Empty(t, entries[0].Deployments)
 
 	_, err := beginUndeploy(t, p)
 	require.NoError(t, err)
-	applyAck(t, p, undeployAck(p.ArtifactUUID.String(), models.DeploymentAckStatusSuccess), nil)
+	applyAck(t, p, undeployAck(p.ArtifactUUID.String(), gwmodels.DeploymentAckStatusSuccess), nil)
 
 	entries = listCatalogProviders(t, p.OUID, nil)
 	assert.Empty(t, entries[0].Deployments)
@@ -118,21 +118,21 @@ func TestCatalogOmitsFailedAndUndeployed(t *testing.T) {
 func TestCatalogEnvironmentFilterByGatewayHosting(t *testing.T) {
 	p, env := seedCatalogProvider(t)
 	deployment := startDeploy(t, p)
-	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
-	list := func(hosting string) []models.CatalogLLMProviderEntry {
-		entries, _, err := NewCatalogRepo(db.GetDB()).ListLLMProviders(&models.CatalogListFilters{
+	applyAck(t, p, deployAck(deployment.DeploymentID, gwmodels.DeploymentAckStatusSuccess, ""), nil)
+	list := func(hosting string) []gwmodels.CatalogLLMProviderEntry {
+		entries, _, err := NewCatalogRepo(db.GetDB()).ListLLMProviders(&gwmodels.CatalogListFilters{
 			OrganizationName: p.OUID, EnvironmentUUID: env.String(), GatewayHosting: hosting, Limit: 10,
 		})
 		require.NoError(t, err)
 		return entries
 	}
 
-	assert.Len(t, list(models.GatewayHostingManaged), 1, "seeded gateways are managed by default")
-	assert.Empty(t, list(models.GatewayHostingSelfHosted))
+	assert.Len(t, list(gwmodels.GatewayHostingManaged), 1, "seeded gateways are managed by default")
+	assert.Empty(t, list(gwmodels.GatewayHostingSelfHosted))
 
 	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_gateways SET hosting = ? WHERE id = ?`,
-		models.GatewayHostingSelfHosted, p.GatewayUUID).Error)
-	assert.Empty(t, list(models.GatewayHostingManaged))
-	assert.Len(t, list(models.GatewayHostingSelfHosted), 1)
+		gwmodels.GatewayHostingSelfHosted, p.GatewayUUID).Error)
+	assert.Empty(t, list(gwmodels.GatewayHostingManaged))
+	assert.Len(t, list(gwmodels.GatewayHostingSelfHosted), 1)
 	assert.Len(t, list(""), 1, "no hosting filter keeps every gateway")
 }

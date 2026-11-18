@@ -25,7 +25,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -33,21 +33,21 @@ import (
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/llm_proxy_repository_mock.go . LLMProxyRepository:LLMProxyRepositoryMock
 type LLMProxyRepository interface {
-	Create(ctx context.Context, p *models.LLMProxy, handle, name, version string, ouID string) error
-	GetByID(proxyID, ouID string) (*models.LLMProxy, error)
+	Create(ctx context.Context, p *gwmodels.LLMProxy, handle, name, version string, ouID string) error
+	GetByID(proxyID, ouID string) (*gwmodels.LLMProxy, error)
 	// GetByIDCtx is GetByID with context propagation, for call paths (e.g.
 	// UndeployLLMProxyDeployment) that need cancellation to reach the query.
 	// GetByID itself is left as-is to avoid forcing ctx onto its many other
 	// existing callers.
-	GetByIDCtx(ctx context.Context, proxyID, ouID string) (*models.LLMProxy, error)
-	GetByIDAndProject(proxyID, ouID, projectUUID string) (*models.LLMProxy, error)
-	List(ouID string, limit, offset int) ([]*models.LLMProxy, error)
-	ListByProject(ouID, projectUUID string, limit, offset int) ([]*models.LLMProxy, error)
-	ListByProvider(ouID, providerUUID string, limit, offset int) ([]*models.LLMProxy, error)
+	GetByIDCtx(ctx context.Context, proxyID, ouID string) (*gwmodels.LLMProxy, error)
+	GetByIDAndProject(proxyID, ouID, projectUUID string) (*gwmodels.LLMProxy, error)
+	List(ouID string, limit, offset int) ([]*gwmodels.LLMProxy, error)
+	ListByProject(ouID, projectUUID string, limit, offset int) ([]*gwmodels.LLMProxy, error)
+	ListByProvider(ouID, providerUUID string, limit, offset int) ([]*gwmodels.LLMProxy, error)
 	Count(ouID string) (int, error)
 	CountByProject(ouID, projectUUID string) (int, error)
 	CountByProvider(ouID, providerUUID string) (int, error)
-	Update(p *models.LLMProxy, handle string, ouID string) error
+	Update(p *gwmodels.LLMProxy, handle string, ouID string) error
 	Delete(proxyID, ouID string) error
 	DeleteInProject(ctx context.Context, proxyID, ouID, projectUUID string) error
 	DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxyID, ouID, projectUUID string) error
@@ -74,7 +74,7 @@ func NewLLMProxyRepo(db *gorm.DB) LLMProxyRepository {
 
 // proxyWithArtifact is a helper struct for joining LLM proxies with artifact data
 type proxyWithArtifact struct {
-	models.LLMProxy
+	gwmodels.LLMProxy
 	ArtifactOrgName   string    `gorm:"column:artifact_org_name"`
 	ArtifactHandle    string    `gorm:"column:artifact_handle"`
 	ArtifactName      string    `gorm:"column:artifact_name"`
@@ -84,7 +84,7 @@ type proxyWithArtifact struct {
 }
 
 // populateProxyArtifactFields populates the artifact-derived fields in an LLMProxy
-func populateProxyArtifactFields(proxy *models.LLMProxy, result proxyWithArtifact) {
+func populateProxyArtifactFields(proxy *gwmodels.LLMProxy, result proxyWithArtifact) {
 	proxy.OrganizationName = result.ArtifactOrgName
 	proxy.ID = result.ArtifactHandle
 	proxy.Name = result.ArtifactName
@@ -95,8 +95,8 @@ func populateProxyArtifactFields(proxy *models.LLMProxy, result proxyWithArtifac
 }
 
 // convertProxyResults converts proxyWithArtifact results to LLMProxy slice
-func convertProxyResults(results []proxyWithArtifact) []*models.LLMProxy {
-	proxies := make([]*models.LLMProxy, len(results))
+func convertProxyResults(results []proxyWithArtifact) []*gwmodels.LLMProxy {
+	proxies := make([]*gwmodels.LLMProxy, len(results))
 	for i, result := range results {
 		proxy := result.LLMProxy
 		populateProxyArtifactFields(&proxy, result)
@@ -112,7 +112,7 @@ func (r *LLMProxyRepo) getProxyUUIDByHandle(tx *gorm.DB, handle string, ouID str
 	}
 	result := tx.Table("mod_ai_gateway_artifacts").
 		Select("id").
-		Where("handle = ? AND org_id = ? AND kind = ?", handle, ouID, models.KindLLMProxy).
+		Where("handle = ? AND org_id = ? AND kind = ?", handle, ouID, gwmodels.KindLLMProxy).
 		Scan(&artifact)
 	if result.Error != nil {
 		return uuid.Nil, result.Error
@@ -130,7 +130,7 @@ func (r *LLMProxyRepo) getProxyUUIDByHandle(tx *gorm.DB, handle string, ouID str
 // this insert is rejected) or starts after this transaction commits (and is then
 // caught by Delete's own HasAssociatedProxies check). There is no interleaving
 // where the proxy is inserted without either side observing the other.
-func (r *LLMProxyRepo) Create(ctx context.Context, p *models.LLMProxy, handle, name, version string, ouID string) error {
+func (r *LLMProxyRepo) Create(ctx context.Context, p *gwmodels.LLMProxy, handle, name, version string, ouID string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		deleting, err := r.providerRepo.IsDeletingForUpdate(ctx, tx, p.ProviderUUID)
 		if err != nil {
@@ -145,17 +145,17 @@ func (r *LLMProxyRepo) Create(ctx context.Context, p *models.LLMProxy, handle, n
 		}
 		p.OrgID = ouID
 		if p.Status == "" {
-			p.Status = models.StatusCreated
+			p.Status = gwmodels.StatusCreated
 		}
 		now := dbx.Now()
 
 		// Insert into artifacts table first
-		if err := r.artifactRepo.Create(tx, &models.Artifact{
+		if err := r.artifactRepo.Create(tx, &gwmodels.Artifact{
 			UUID:      p.UUID,
 			Handle:    handle,
 			Name:      name,
 			Version:   version,
-			Kind:      models.KindLLMProxy,
+			Kind:      gwmodels.KindLLMProxy,
 			OUID:      ouID,
 			CreatedAt: now,
 			UpdatedAt: now,
@@ -169,19 +169,19 @@ func (r *LLMProxyRepo) Create(ctx context.Context, p *models.LLMProxy, handle, n
 }
 
 // GetByID retrieves an LLM proxy by ID (handle)
-func (r *LLMProxyRepo) GetByID(proxyID, ouID string) (*models.LLMProxy, error) {
+func (r *LLMProxyRepo) GetByID(proxyID, ouID string) (*gwmodels.LLMProxy, error) {
 	return r.GetByIDCtx(context.Background(), proxyID, ouID)
 }
 
 // GetByIDCtx is GetByID with context propagation — see the interface doc comment.
-func (r *LLMProxyRepo) GetByIDCtx(ctx context.Context, proxyID, ouID string) (*models.LLMProxy, error) {
+func (r *LLMProxyRepo) GetByIDCtx(ctx context.Context, proxyID, ouID string) (*gwmodels.LLMProxy, error) {
 	var result proxyWithArtifact
 
 	err := r.db.WithContext(ctx).
 		Table("mod_ai_gateway_llm_proxies").
 		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
-		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", proxyID, ouID, models.KindLLMProxy).
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", proxyID, ouID, gwmodels.KindLLMProxy).
 		Take(&result).Error
 	if err != nil {
 		return nil, err
@@ -200,14 +200,14 @@ func (r *LLMProxyRepo) GetByIDCtx(ctx context.Context, proxyID, ouID string) (*m
 // GetByIDAndProject retrieves an LLM proxy by ID (handle) scoped to a specific
 // project. The proxy is only returned when it belongs to the given org AND
 // project, so a proxy owned by a different project is treated as not found.
-func (r *LLMProxyRepo) GetByIDAndProject(proxyID, ouID, projectUUID string) (*models.LLMProxy, error) {
+func (r *LLMProxyRepo) GetByIDAndProject(proxyID, ouID, projectUUID string) (*gwmodels.LLMProxy, error) {
 	var result proxyWithArtifact
 
 	err := r.db.
 		Table("mod_ai_gateway_llm_proxies").
 		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
-		Where("a.handle = ? AND a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", proxyID, ouID, projectUUID, models.KindLLMProxy).
+		Where("a.handle = ? AND a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", proxyID, ouID, projectUUID, gwmodels.KindLLMProxy).
 		Take(&result).Error
 	if err != nil {
 		return nil, err
@@ -224,13 +224,13 @@ func (r *LLMProxyRepo) GetByIDAndProject(proxyID, ouID, projectUUID string) (*mo
 }
 
 // List retrieves LLM proxies with pagination
-func (r *LLMProxyRepo) List(ouID string, limit, offset int) ([]*models.LLMProxy, error) {
+func (r *LLMProxyRepo) List(ouID string, limit, offset int) ([]*gwmodels.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
 		Table("mod_ai_gateway_llm_proxies").
 		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
-		Where("a.org_id = ? AND a.kind = ?", ouID, models.KindLLMProxy).
+		Where("a.org_id = ? AND a.kind = ?", ouID, gwmodels.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -243,13 +243,13 @@ func (r *LLMProxyRepo) List(ouID string, limit, offset int) ([]*models.LLMProxy,
 }
 
 // ListByProject retrieves LLM proxies for a specific project with pagination
-func (r *LLMProxyRepo) ListByProject(ouID, projectUUID string, limit, offset int) ([]*models.LLMProxy, error) {
+func (r *LLMProxyRepo) ListByProject(ouID, projectUUID string, limit, offset int) ([]*gwmodels.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
 		Table("mod_ai_gateway_llm_proxies").
 		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
-		Where("a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", ouID, projectUUID, models.KindLLMProxy).
+		Where("a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", ouID, projectUUID, gwmodels.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -262,13 +262,13 @@ func (r *LLMProxyRepo) ListByProject(ouID, projectUUID string, limit, offset int
 }
 
 // ListByProvider retrieves LLM proxies for a specific provider with pagination
-func (r *LLMProxyRepo) ListByProvider(ouID, providerUUID string, limit, offset int) ([]*models.LLMProxy, error) {
+func (r *LLMProxyRepo) ListByProvider(ouID, providerUUID string, limit, offset int) ([]*gwmodels.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
 		Table("mod_ai_gateway_llm_proxies").
 		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
 		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
-		Where("a.org_id = ? AND mod_ai_gateway_llm_proxies.provider_id = ? AND a.kind = ?", ouID, providerUUID, models.KindLLMProxy).
+		Where("a.org_id = ? AND mod_ai_gateway_llm_proxies.provider_id = ? AND a.kind = ?", ouID, providerUUID, gwmodels.KindLLMProxy).
 		// uuid breaks ties on created_at: proxies provisioned together share a
 		// timestamp, and without a unique second key offset paging can repeat one
 		// row and skip another — a skipped proxy is one left permanently stale by
@@ -286,7 +286,7 @@ func (r *LLMProxyRepo) ListByProvider(ouID, providerUUID string, limit, offset i
 
 // Count counts LLM proxies for an organization
 func (r *LLMProxyRepo) Count(ouID string) (int, error) {
-	return r.artifactRepo.CountByKindAndOrg(models.KindLLMProxy, ouID)
+	return r.artifactRepo.CountByKindAndOrg(gwmodels.KindLLMProxy, ouID)
 }
 
 // CountByProject counts LLM proxies for a specific project
@@ -294,7 +294,7 @@ func (r *LLMProxyRepo) CountByProject(ouID, projectUUID string) (int, error) {
 	var count int64
 	err := r.db.Table("mod_ai_gateway_artifacts a").
 		Joins("JOIN mod_ai_gateway_llm_proxies p ON a.id = p.id").
-		Where("a.org_id = ? AND p.project_id = ? AND a.kind = ?", ouID, projectUUID, models.KindLLMProxy).
+		Where("a.org_id = ? AND p.project_id = ? AND a.kind = ?", ouID, projectUUID, gwmodels.KindLLMProxy).
 		Count(&count).Error
 	return int(count), err
 }
@@ -304,13 +304,13 @@ func (r *LLMProxyRepo) CountByProvider(ouID, providerUUID string) (int, error) {
 	var count int64
 	err := r.db.Table("mod_ai_gateway_artifacts a").
 		Joins("JOIN mod_ai_gateway_llm_proxies p ON a.id = p.id").
-		Where("a.org_id = ? AND p.provider_id = ? AND a.kind = ?", ouID, providerUUID, models.KindLLMProxy).
+		Where("a.org_id = ? AND p.provider_id = ? AND a.kind = ?", ouID, providerUUID, gwmodels.KindLLMProxy).
 		Count(&count).Error
 	return int(count), err
 }
 
 // Update modifies an existing LLM proxy
-func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, ouID string) error {
+func (r *LLMProxyRepo) Update(p *gwmodels.LLMProxy, handle string, ouID string) error {
 	return r.db.Transaction(func(tx *gorm.DB) error {
 		// Get the proxy UUID from handle
 		proxyUUID, err := r.getProxyUUIDByHandle(tx, handle, ouID)
@@ -319,7 +319,7 @@ func (r *LLMProxyRepo) Update(p *models.LLMProxy, handle string, ouID string) er
 		}
 
 		// Update llm_proxies table
-		updateResult := tx.Model(&models.LLMProxy{}).
+		updateResult := tx.Model(&gwmodels.LLMProxy{}).
 			Where("id = ?", proxyUUID).
 			Updates(map[string]any{
 				"description":   p.Description,
@@ -347,7 +347,7 @@ func (r *LLMProxyRepo) Delete(proxyID, ouID string) error {
 		}
 
 		// Delete from llm_proxies first
-		if err := tx.Where("id = ?", proxyUUID).Delete(&models.LLMProxy{}).Error; err != nil {
+		if err := tx.Where("id = ?", proxyUUID).Delete(&gwmodels.LLMProxy{}).Error; err != nil {
 			return err
 		}
 
@@ -358,7 +358,7 @@ func (r *LLMProxyRepo) Delete(proxyID, ouID string) error {
 
 // Exists checks if an LLM proxy exists
 func (r *LLMProxyRepo) Exists(proxyID, ouID string) (bool, error) {
-	return r.artifactRepo.Exists(models.KindLLMProxy, proxyID, ouID)
+	return r.artifactRepo.Exists(gwmodels.KindLLMProxy, proxyID, ouID)
 }
 
 // IsAgentOrMonitorProxy reports whether an agent LLM configuration references the proxy. Evaluation monitors are
@@ -367,7 +367,7 @@ func (r *LLMProxyRepo) IsAgentOrMonitorProxy(ctx context.Context, proxyHandle, o
 	var n int64
 	err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifacts a").
 		Joins("JOIN mod_ai_gateway_agent_model_config_llm m ON m.llm_proxy_id = a.id").
-		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", proxyHandle, ouID, models.KindLLMProxy).
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", proxyHandle, ouID, gwmodels.KindLLMProxy).
 		Count(&n).Error
 	if err != nil {
 		return false, fmt.Errorf("check whether LLM proxy %q is an agent or monitor proxy: %w", proxyHandle, err)
@@ -383,19 +383,19 @@ func (r *LLMProxyRepo) DeleteInProject(ctx context.Context, proxyID, ouID, proje
 // DeleteInProjectTx is DeleteInProject in the caller's transaction.
 func (r *LLMProxyRepo) DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxyID, ouID, projectUUID string) error {
 	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var proxy models.LLMProxy
+		var proxy gwmodels.LLMProxy
 		err := tx.Table("mod_ai_gateway_llm_proxies").Select("mod_ai_gateway_llm_proxies.*").
 			Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
-			Where("a.handle = ? AND a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", proxyID, ouID, projectUUID, models.KindLLMProxy).
+			Where("a.handle = ? AND a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", proxyID, ouID, projectUUID, gwmodels.KindLLMProxy).
 			Take(&proxy).Error
 		if err != nil {
 			return fmt.Errorf("resolve proxy for deletion: %w", err)
 		}
 		// A configuration's mapping to the proxy goes with it.
-		if err := tx.Where("llm_proxy_id = ?", proxy.UUID).Delete(&models.EnvAgentModelMapping{}).Error; err != nil {
+		if err := tx.Where("llm_proxy_id = ?", proxy.UUID).Delete(&gwmodels.EnvAgentModelMapping{}).Error; err != nil {
 			return fmt.Errorf("delete proxy mappings: %w", err)
 		}
-		result := tx.Where("id = ? AND project_id = ?", proxy.UUID, projectUUID).Delete(&models.LLMProxy{})
+		result := tx.Where("id = ? AND project_id = ?", proxy.UUID, projectUUID).Delete(&gwmodels.LLMProxy{})
 		if result.Error != nil {
 			return fmt.Errorf("delete proxy: %w", result.Error)
 		}

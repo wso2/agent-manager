@@ -29,7 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
@@ -97,12 +97,12 @@ func TestDrainWithinLeaseStartsNoRowOnceTheLeaseIsSpent(t *testing.T) {
 // gateways are egress-only (chk_gateways_self_hosted_egress), so the ingress role filter excludes them.
 func TestFindIngressGateway_IngressRolesOnly(t *testing.T) {
 	env := uuid.New()
-	managed := newGateway(t, models.GatewayRoleIngress, true)
+	managed := newGateway(t, gwmodels.GatewayRoleIngress, true)
 	var got gwrepo.GatewayFilterOptions
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			got = f
-			return []*models.Gateway{managed}, nil
+			return []*gwmodels.Gateway{managed}, nil
 		},
 	}
 
@@ -110,5 +110,5 @@ func TestFindIngressGateway_IngressRolesOnly(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, managed, gateway)
-	assert.Equal(t, models.IngressGatewayRoles, got.FunctionalityTypeIn)
+	assert.Equal(t, gwmodels.IngressGatewayRoles, got.FunctionalityTypeIn)
 }

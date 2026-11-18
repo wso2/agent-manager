@@ -25,6 +25,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"gorm.io/gorm"
@@ -47,7 +48,7 @@ type mcpActivationInputs struct {
 // the environments disagree (or none were requested). It is what the
 // agent_mcp_config_proxy row stores: the environment-agnostic proxy reference, recorded only when the
 // request actually expresses one.
-func soleMCPProxyUUID(proxiesByEnv map[string]*models.MCPProxy) *uuid.UUID {
+func soleMCPProxyUUID(proxiesByEnv map[string]*gwmodels.MCPProxy) *uuid.UUID {
 	var sole *uuid.UUID
 	for _, proxy := range proxiesByEnv {
 		if proxy == nil {
@@ -72,9 +73,9 @@ func soleMCPProxyUUID(proxiesByEnv map[string]*models.MCPProxy) *uuid.UUID {
 // --env prod --proxy P2` on a dev:P1 connection could end up bound to P1 in prod once P1
 // gained a prod endpoint, silently overriding the explicit choice. A different proxy per
 // environment is a second connection, not a second value on this one.
-func requireSingleMCPProxy(proxiesByEnv map[string]*models.MCPProxy) error {
+func requireSingleMCPProxy(proxiesByEnv map[string]*gwmodels.MCPProxy) error {
 	var firstEnv string
-	var first *models.MCPProxy
+	var first *gwmodels.MCPProxy
 	for envName, proxy := range proxiesByEnv {
 		if proxy == nil {
 			continue
@@ -93,7 +94,7 @@ func requireSingleMCPProxy(proxiesByEnv map[string]*models.MCPProxy) error {
 }
 
 // mcpProxyHandle names a proxy for an error message, preferring its handle.
-func mcpProxyHandle(proxy *models.MCPProxy) string {
+func mcpProxyHandle(proxy *gwmodels.MCPProxy) string {
 	if proxy.Artifact != nil && proxy.Artifact.Handle != "" {
 		return proxy.Artifact.Handle
 	}
@@ -108,7 +109,7 @@ func mcpProxyHandle(proxy *models.MCPProxy) string {
 // one proxy, so there is no environment-agnostic answer to record and readers fall back to
 // the mapping rows.
 func (s *agentConfigurationService) setConfigMCPProxy(
-	ctx context.Context, config *models.AgentConfiguration, proxyUUID *uuid.UUID,
+	ctx context.Context, config *gwmodels.AgentConfiguration, proxyUUID *uuid.UUID,
 ) error {
 	if samePtrUUID(configMCPProxyRef(config), proxyUUID) {
 		return nil
@@ -127,9 +128,9 @@ func (s *agentConfigurationService) setConfigMCPProxy(
 	if proxyUUID == nil {
 		config.MCPProxyRef = nil
 	} else {
-		config.MCPProxyRef = &models.AgentMCPConfigProxy{
+		config.MCPProxyRef = &gwmodels.AgentMCPConfigProxy{
 			ConfigUUID:   config.UUID,
-			TypeID:       models.AgentConfigTypeIDMCP,
+			TypeID:       gwmodels.AgentConfigTypeIDMCP,
 			MCPProxyUUID: *proxyUUID,
 		}
 	}
@@ -139,7 +140,7 @@ func (s *agentConfigurationService) setConfigMCPProxy(
 // configMCPProxyRef returns the proxy a configuration references, or nil when it records
 // none — either because it is not an MCP configuration or because its environments name
 // different proxies.
-func configMCPProxyRef(config *models.AgentConfiguration) *uuid.UUID {
+func configMCPProxyRef(config *gwmodels.AgentConfiguration) *uuid.UUID {
 	if config == nil || config.MCPProxyRef == nil {
 		return nil
 	}
@@ -169,9 +170,9 @@ func samePtrUUID(a, b *uuid.UUID) bool {
 // The caller still restricts the result to the project's deployment pipeline — this
 // function only knows what the proxy serves, not where the agent deploys.
 func mcpEnvsNeedingActivation(
-	mappings []models.EnvAgentMCPMapping,
-	exclusions []models.AgentMCPConfigEnvExclusion,
-	proxy *models.MCPProxy,
+	mappings []gwmodels.EnvAgentMCPMapping,
+	exclusions []gwmodels.AgentMCPConfigEnvExclusion,
+	proxy *gwmodels.MCPProxy,
 ) []uuid.UUID {
 	skip := make(map[uuid.UUID]struct{}, len(mappings)+len(exclusions))
 	for i := range mappings {
@@ -202,7 +203,7 @@ func mcpEnvsNeedingActivation(
 // envsWithVarRows is the environment set a connection has env var rows in — its scope
 // under the pre-exclusion rule, still used when there is no deployment pipeline to bound
 // candidates by.
-func envsWithVarRows(vars []models.AgentEnvConfigVariable) map[uuid.UUID]struct{} {
+func envsWithVarRows(vars []gwmodels.AgentEnvConfigVariable) map[uuid.UUID]struct{} {
 	envs := make(map[uuid.UUID]struct{}, len(vars))
 	for i := range vars {
 		envs[vars[i].EnvironmentUUID] = struct{}{}
@@ -213,7 +214,7 @@ func envsWithVarRows(vars []models.AgentEnvConfigVariable) map[uuid.UUID]struct{
 // envsOutsideVarRows returns the environments of envs the connection has no env var rows
 // in. For a connection still under the var-row rule those are exactly the environments it is
 // out of scope for, so they become exclusion candidates when its scope is first recorded.
-func envsOutsideVarRows(envs map[uuid.UUID]struct{}, vars []models.AgentEnvConfigVariable) map[uuid.UUID]struct{} {
+func envsOutsideVarRows(envs map[uuid.UUID]struct{}, vars []gwmodels.AgentEnvConfigVariable) map[uuid.UUID]struct{} {
 	configured := envsWithVarRows(vars)
 	outside := make(map[uuid.UUID]struct{}, len(envs))
 	for envUUID := range envs {
@@ -245,7 +246,7 @@ func envsOutsideVarRows(envs map[uuid.UUID]struct{}, vars []models.AgentEnvConfi
 // An environment that joins the pipeline later was never omitted by any request, so it stays
 // in scope — the case a connection attached before its environments existed depends on.
 func mcpScopeExclusions(
-	boundMappings []models.EnvAgentMCPMapping, pipeline, requested map[uuid.UUID]struct{},
+	boundMappings []gwmodels.EnvAgentMCPMapping, pipeline, requested map[uuid.UUID]struct{},
 ) []uuid.UUID {
 	candidates := make(map[uuid.UUID]struct{}, len(boundMappings)+len(pipeline))
 	for i := range boundMappings {
@@ -282,8 +283,8 @@ const (
 // new connection has no bound environments, so it is simply recorded with no exclusions —
 // the same as one attached before its pipeline grew.
 func (s *agentConfigurationService) recordMCPRequestScope(
-	ctx context.Context, kind mcpScopeRequest, snapshot *models.AgentConfiguration, ouID, projectName string,
-	envMap map[string]*models.EnvironmentResponse, reqEnvs map[string]models.EnvModelConfigRequest,
+	ctx context.Context, kind mcpScopeRequest, snapshot *gwmodels.AgentConfiguration, ouID, projectName string,
+	envMap map[string]*models.EnvironmentResponse, reqEnvs map[string]gwmodels.EnvModelConfigRequest,
 ) error {
 	requested := make(map[uuid.UUID]struct{}, len(reqEnvs))
 	include := make([]uuid.UUID, 0, len(reqEnvs))
@@ -340,7 +341,7 @@ func (s *agentConfigurationService) recordMCPRequestScope(
 // there left the configuration unreachable from either side — the new proxy's reconcile
 // disowned it on the reference, and the old proxy's found none of its own environments
 // unmapped — with nothing but a manual re-save to break the tie.
-func mcpConfigTargetsProxy(config *models.AgentConfiguration, proxyUUID uuid.UUID) bool {
+func mcpConfigTargetsProxy(config *gwmodels.AgentConfiguration, proxyUUID uuid.UUID) bool {
 	if mapped, unanimous := soleMappingProxyUUID(config.EnvMCPMappings); unanimous {
 		return mapped == proxyUUID
 	}
@@ -474,7 +475,7 @@ func (s *agentConfigurationService) ReconcileMCPBindingsForEnvironment(ctx conte
 // first, the recorded reference only when they don't agree. If the two disagreed, a stale
 // reference would load the old proxy here, the gate would reject it, and the promotion
 // self-heal would silently bind nothing.
-func configMCPProxyUUID(config *models.AgentConfiguration) (uuid.UUID, bool) {
+func configMCPProxyUUID(config *gwmodels.AgentConfiguration) (uuid.UUID, bool) {
 	if mapped, unanimous := soleMappingProxyUUID(config.EnvMCPMappings); unanimous {
 		return mapped, true
 	}
@@ -486,7 +487,7 @@ func configMCPProxyUUID(config *models.AgentConfiguration) (uuid.UUID, bool) {
 
 // soleMappingProxyUUID returns the proxy every existing mapping names, and false when they
 // disagree or there are none.
-func soleMappingProxyUUID(mappings []models.EnvAgentMCPMapping) (uuid.UUID, bool) {
+func soleMappingProxyUUID(mappings []gwmodels.EnvAgentMCPMapping) (uuid.UUID, bool) {
 	if len(mappings) == 0 {
 		return uuid.Nil, false
 	}
@@ -503,8 +504,8 @@ func soleMappingProxyUUID(mappings []models.EnvAgentMCPMapping) (uuid.UUID, bool
 // endpoint bound to envUUID.
 func (s *agentConfigurationService) mcpProxiesBoundToEnvironment(
 	ctx context.Context, ouID string, envUUID uuid.UUID,
-) ([]*models.MCPProxy, error) {
-	var bound []*models.MCPProxy
+) ([]*gwmodels.MCPProxy, error) {
+	var bound []*gwmodels.MCPProxy
 	for offset := 0; ; offset += mcpProxyScanPageSize {
 		page, _, err := s.mcpProxyRepo.List(ctx, ouID, gwrepo.MCPProxyListFilter{AllProjects: true, Limit: mcpProxyScanPageSize, Offset: offset})
 		if err != nil {
@@ -528,7 +529,7 @@ const mcpProxyScanPageSize = 100
 // reconcileProxyBindings backfills every configuration referencing proxy. When only is
 // non-nil, candidates are restricted to those environments.
 func (s *agentConfigurationService) reconcileProxyBindings(
-	ctx context.Context, scope *mcpReconcileScope, proxy *models.MCPProxy, only map[uuid.UUID]struct{},
+	ctx context.Context, scope *mcpReconcileScope, proxy *gwmodels.MCPProxy, only map[uuid.UUID]struct{},
 ) error {
 	configUUIDs, err := s.mcpConfigUUIDsForProxy(ctx, scope.ouID, proxy)
 	if err != nil {
@@ -553,7 +554,7 @@ func (s *agentConfigurationService) reconcileProxyBindings(
 // The reference is what reaches a connection with no mapping in ANY environment, which the
 // mapping-row query by construction cannot see.
 func (s *agentConfigurationService) mcpConfigUUIDsForProxy(
-	ctx context.Context, ouID string, proxy *models.MCPProxy,
+	ctx context.Context, ouID string, proxy *gwmodels.MCPProxy,
 ) ([]uuid.UUID, error) {
 	seen := make(map[uuid.UUID]struct{})
 	var configUUIDs []uuid.UUID
@@ -610,7 +611,7 @@ func (s *agentConfigurationService) mcpEnvironmentIndex(ctx context.Context, ouI
 // lookup and the per-environment gateway resolution are all reached only once there is an
 // unmapped environment to act on.
 func (s *agentConfigurationService) reconcileConfigMCPBindings(
-	ctx context.Context, scope *mcpReconcileScope, proxy *models.MCPProxy, configUUID uuid.UUID,
+	ctx context.Context, scope *mcpReconcileScope, proxy *gwmodels.MCPProxy, configUUID uuid.UUID,
 	only map[uuid.UUID]struct{},
 ) error {
 	// Preloads the config's MCP mappings and env var rows, which is all the candidate scan
@@ -622,7 +623,7 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 		}
 		return fmt.Errorf("failed to load agent configuration %s: %w", configUUID, err)
 	}
-	if config.TypeID != models.AgentConfigTypeIDMCP || !mcpConfigTargetsProxy(config, proxy.UUID) {
+	if config.TypeID != gwmodels.AgentConfigTypeIDMCP || !mcpConfigTargetsProxy(config, proxy.UUID) {
 		return nil
 	}
 
@@ -715,7 +716,7 @@ func (s *agentConfigurationService) reconcileConfigMCPBindings(
 // empty exclusion set means "unknown", not "everywhere". It keeps the rule it was created
 // under — in scope only where it has env var rows — so an upgrade cannot widen a deliberately
 // narrow connection into stage or production. Its next create or update records the scope.
-func boundMCPScope(candidates []uuid.UUID, config *models.AgentConfiguration, pipeline mcpPipelineEnvs) []uuid.UUID {
+func boundMCPScope(candidates []uuid.UUID, config *gwmodels.AgentConfiguration, pipeline mcpPipelineEnvs) []uuid.UUID {
 	if pipeline.restrict {
 		candidates = retainEnvs(candidates, pipeline.envs)
 	} else {
@@ -740,7 +741,7 @@ func retainEnvs(envUUIDs []uuid.UUID, keep map[uuid.UUID]struct{}) []uuid.UUID {
 // mcpEnvTarget is an environment an MCP proxy can back a binding in, and the gateway it is on there.
 type mcpEnvTarget struct {
 	envUUID uuid.UUID
-	gateway *models.Gateway
+	gateway *gwmodels.Gateway
 }
 
 // deployableMCPEnvs narrows candidates to the environments proxy can actually back a
@@ -750,7 +751,7 @@ type mcpEnvTarget struct {
 // to do", which is how this class of breakage reached users: the binding never appeared,
 // the logs said nothing, and the agent failed at promotion instead.
 func (s *agentConfigurationService) deployableMCPEnvs(
-	ctx context.Context, proxy *models.MCPProxy, ouID string, candidates []uuid.UUID,
+	ctx context.Context, proxy *gwmodels.MCPProxy, ouID string, candidates []uuid.UUID,
 ) []mcpEnvTarget {
 	targets := make([]mcpEnvTarget, 0, len(candidates))
 	for _, envUUID := range candidates {
@@ -773,7 +774,7 @@ func (s *agentConfigurationService) deployableMCPEnvs(
 // admitMCPBackfillTargets is the environments among targets the agent may bind in, managed gateways first, logging
 // each one the policy refuses.
 func (s *agentConfigurationService) admitMCPBackfillTargets(
-	proxy *models.MCPProxy, ouID string, policy placementPolicy, targets []mcpEnvTarget,
+	proxy *gwmodels.MCPProxy, ouID string, policy placementPolicy, targets []mcpEnvTarget,
 ) []uuid.UUID {
 	bindable := make([]uuid.UUID, 0, len(targets))
 	for _, t := range targets {
@@ -801,7 +802,7 @@ func (s *agentConfigurationService) admitMCPBackfillTargets(
 }
 
 func (s *agentConfigurationService) mcpActivationInputsForConfig(
-	ctx context.Context, ouID string, config *models.AgentConfiguration,
+	ctx context.Context, ouID string, config *gwmodels.AgentConfiguration,
 ) (mcpActivationInputs, error) {
 	// Rebuilt from the names already persisted for the config, so a backfill reuses the exact
 	// variable names the agent was promoted with (including user overrides) rather than
@@ -845,8 +846,8 @@ func (s *agentConfigurationService) agentDeploymentShape(ctx context.Context, ou
 // pointing at no secret, so the secret reference is written explicitly afterwards.
 func (s *agentConfigurationService) activateMCPMappingForEnv(
 	ctx context.Context,
-	config *models.AgentConfiguration,
-	sourceProxy *models.MCPProxy,
+	config *gwmodels.AgentConfiguration,
+	sourceProxy *gwmodels.MCPProxy,
 	envUUID uuid.UUID,
 	envName, ouID string,
 	inputs mcpActivationInputs,
@@ -861,7 +862,7 @@ func (s *agentConfigurationService) activateMCPMappingForEnv(
 	envVarsCreatedHere := len(existingVars) == 0
 
 	handle := mcpMappingProxyName(config.ProjectName, config.AgentID, config.Name, envName)
-	mapping := &models.EnvAgentMCPMapping{
+	mapping := &gwmodels.EnvAgentMCPMapping{
 		ConfigUUID:      config.UUID,
 		EnvironmentUUID: envUUID,
 		MCPProxyUUID:    sourceProxy.UUID,

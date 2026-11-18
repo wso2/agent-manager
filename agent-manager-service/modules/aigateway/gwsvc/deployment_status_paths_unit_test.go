@@ -29,8 +29,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -40,9 +40,9 @@ import (
 // statusPathFixture is one artifact on one egress gateway, with a deployment repository that records the
 // transition starters and answers GetStatusRecord with row.
 type statusPathFixture struct {
-	gateway    *models.Gateway
-	deployment *models.Deployment
-	row        models.DeploymentStatusRecord
+	gateway    *gwmodels.Gateway
+	deployment *gwmodels.Deployment
+	row        gwmodels.DeploymentStatusRecord
 	repo       *gwrepomocks.DeploymentRepositoryMock
 	hub        *recordingEventHub
 }
@@ -50,44 +50,44 @@ type statusPathFixture struct {
 func newStatusPathFixture(t *testing.T, artifactUUID uuid.UUID) *statusPathFixture {
 	t.Helper()
 	f := &statusPathFixture{
-		gateway: &models.Gateway{UUID: uuid.New(), OUID: "ou-1", GatewayFunctionalityType: models.GatewayRoleEgress},
+		gateway: &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", GatewayFunctionalityType: gwmodels.GatewayRoleEgress},
 		hub:     &recordingEventHub{},
 	}
-	f.deployment = &models.Deployment{
+	f.deployment = &gwmodels.Deployment{
 		DeploymentID: uuid.New(), ArtifactUUID: artifactUUID, OUID: "ou-1", GatewayUUID: f.gateway.UUID,
 		Content: []byte("kind: test\n"),
 	}
-	f.row = models.DeploymentStatusRecord{PerformedAt: models.NewPerformedAt(time.Now())}
+	f.row = gwmodels.DeploymentStatusRecord{PerformedAt: gwmodels.NewPerformedAt(time.Now())}
 	f.repo = &gwrepomocks.DeploymentRepositoryMock{
 		PlacedGatewaysFunc: func(context.Context, string, uuid.UUID) ([]string, error) { return nil, nil },
-		GetWithContentFunc: func(string, string, string) (*models.Deployment, error) {
+		GetWithContentFunc: func(string, string, string) (*gwmodels.Deployment, error) {
 			return f.deployment, nil
 		},
-		GetWithStateFunc: func(string, string, string) (*models.Deployment, error) { return f.deployment, nil },
-		GetWithStateCtxFunc: func(context.Context, string, string, string) (*models.Deployment, error) {
+		GetWithStateFunc: func(string, string, string) (*gwmodels.Deployment, error) { return f.deployment, nil },
+		GetWithStateCtxFunc: func(context.Context, string, string, string) (*gwmodels.Deployment, error) {
 			return f.deployment, nil
 		},
-		StartDeployFunc: func(_ context.Context, tx *gorm.DB, _ models.Placement, d *models.Deployment) error {
+		StartDeployFunc: func(_ context.Context, tx *gorm.DB, _ gwmodels.Placement, d *gwmodels.Deployment) error {
 			assert.Same(t, txSentinel, tx)
-			deploying := models.DeploymentStatusDeploying
+			deploying := gwmodels.DeploymentStatusDeploying
 			d.Status, d.UpdatedAt = &deploying, &f.row.PerformedAt
 			return nil
 		},
-		StartRestoreFunc: func(_ context.Context, tx *gorm.DB, _ models.Placement, _ uuid.UUID) error {
+		StartRestoreFunc: func(_ context.Context, tx *gorm.DB, _ gwmodels.Placement, _ uuid.UUID) error {
 			assert.Same(t, txSentinel, tx)
-			f.row.Status = models.DeploymentStatusDeploying
+			f.row.Status = gwmodels.DeploymentStatusDeploying
 			return nil
 		},
-		BeginUndeployFunc: func(_ context.Context, tx *gorm.DB, _ models.Placement) (bool, error) {
+		BeginUndeployFunc: func(_ context.Context, tx *gorm.DB, _ gwmodels.Placement) (bool, error) {
 			assert.Same(t, txSentinel, tx)
-			sendEvent := f.row.Status != models.DeploymentStatusPending
-			f.row.Status = models.DeploymentStatusUndeploying
+			sendEvent := f.row.Status != gwmodels.DeploymentStatusPending
+			f.row.Status = gwmodels.DeploymentStatusUndeploying
 			if !sendEvent {
-				f.row.Status = models.DeploymentStatusUndeployed
+				f.row.Status = gwmodels.DeploymentStatusUndeployed
 			}
 			return sendEvent, nil
 		},
-		GetStatusRecordFunc: func(context.Context, models.Placement) (*models.DeploymentStatusRecord, error) {
+		GetStatusRecordFunc: func(context.Context, gwmodels.Placement) (*gwmodels.DeploymentStatusRecord, error) {
 			row := f.row
 			return &row, nil
 		},
@@ -101,7 +101,7 @@ func newStatusPathFixture(t *testing.T, artifactUUID uuid.UUID) *statusPathFixtu
 
 func (f *statusPathFixture) gatewayRepo() *gwrepomocks.GatewayRepositoryMock {
 	return &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) { return f.gateway, nil },
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return f.gateway, nil },
 	}
 }
 
@@ -123,47 +123,47 @@ func (f *statusPathFixture) core(kinds ...reconcile.Kind) *reconcile.Core {
 }
 
 // providerKindOf renders provider whatever artifact it is asked for.
-func providerKindOf(provider *models.LLMProvider) *LLMProviderKind {
-	return &LLMProviderKind{load: func(context.Context, models.ArtifactRef) (*models.LLMProvider, error) {
+func providerKindOf(provider *gwmodels.LLMProvider) *LLMProviderKind {
+	return &LLMProviderKind{load: func(context.Context, gwmodels.ArtifactRef) (*gwmodels.LLMProvider, error) {
 		return provider, nil
 	}}
 }
 
 // renderableProvider is the least a provider needs to render.
-func renderableProvider() *models.LLMProvider {
-	return &models.LLMProvider{
+func renderableProvider() *gwmodels.LLMProvider {
+	return &gwmodels.LLMProvider{
 		UUID:           uuid.New(),
 		TemplateHandle: "openai",
-		Artifact:       &models.Artifact{Handle: "provider-handle"},
-		Configuration: models.LLMProviderConfig{
+		Artifact:       &gwmodels.Artifact{Handle: "provider-handle"},
+		Configuration: gwmodels.LLMProviderConfig{
 			Handle: "provider-handle", Name: "Provider", Version: "v1.0",
-			Upstream: &models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: "https://api.openai.com/v1"}},
+			Upstream: &gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{URL: "https://api.openai.com/v1"}},
 		},
 	}
 }
 
-func (f *statusPathFixture) providerService(provider *models.LLMProvider) *LLMProviderDeploymentService {
+func (f *statusPathFixture) providerService(provider *gwmodels.LLMProvider) *LLMProviderDeploymentService {
 	return NewLLMProviderDeploymentService(sentinelTx, f.repo, &gwrepomocks.LLMProviderRepositoryMock{
-		GetByUUIDFunc:   func(string, string) (*models.LLMProvider, error) { return provider, nil },
-		GetByHandleFunc: func(string, string) (*models.LLMProvider, error) { return provider, nil },
+		GetByUUIDFunc:   func(string, string) (*gwmodels.LLMProvider, error) { return provider, nil },
+		GetByHandleFunc: func(string, string) (*gwmodels.LLMProvider, error) { return provider, nil },
 	}, nil, f.gatewayRepo(), NewGatewayEventsService(f.hub), f.core(providerKindOf(provider)))
 }
 
 // proxyKindOf renders proxy, fronting a renderable provider, whatever artifact it is asked for.
-func proxyKindOf(proxy *models.LLMProxy) *LLMProxyKind {
+func proxyKindOf(proxy *gwmodels.LLMProxy) *LLMProxyKind {
 	return &LLMProxyKind{
-		load: func(context.Context, models.ArtifactRef) (*models.LLMProxy, *models.LLMProvider, error) {
+		load: func(context.Context, gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error) {
 			return proxy, renderableProvider(), nil
 		},
-		vhostOf: func(*gorm.DB, models.ArtifactRef) string { return proxyVhost(proxy) },
+		vhostOf: func(*gorm.DB, gwmodels.ArtifactRef) string { return proxyVhost(proxy) },
 	}
 }
 
-func (f *statusPathFixture) proxyService(proxy *models.LLMProxy) *LLMProxyDeploymentService {
+func (f *statusPathFixture) proxyService(proxy *gwmodels.LLMProxy) *LLMProxyDeploymentService {
 	kind := proxyKindOf(proxy)
 	return NewLLMProxyDeploymentService(sentinelTx, f.repo, &gwrepomocks.LLMProxyRepositoryMock{
-		GetByIDFunc:    func(string, string) (*models.LLMProxy, error) { return proxy, nil },
-		GetByIDCtxFunc: func(context.Context, string, string) (*models.LLMProxy, error) { return proxy, nil },
+		GetByIDFunc:    func(string, string) (*gwmodels.LLMProxy, error) { return proxy, nil },
+		GetByIDCtxFunc: func(context.Context, string, string) (*gwmodels.LLMProxy, error) { return proxy, nil },
 	}, nil, f.gatewayRepo(), NewGatewayEventsService(f.hub), f.core(kind), kind)
 }
 
@@ -179,12 +179,12 @@ func TestDeployLLMProviderStartsDeployingAndSendsTheUUID(t *testing.T) {
 	provider := renderableProvider()
 	f := newStatusPathFixture(t, provider.UUID)
 
-	got, err := f.providerService(provider).DeployLLMProvider("provider-handle", &models.DeployAPIRequest{
+	got, err := f.providerService(provider).DeployLLMProvider("provider-handle", &gwmodels.DeployAPIRequest{
 		Name: "ignored", Metadata: map[string]any{"ignored": true}, GatewayID: f.gateway.UUID.String(),
 	}, "ou-1")
 
 	require.NoError(t, err)
-	assert.Equal(t, models.DeploymentStatusDeploying, *got.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, *got.Status)
 	assert.Regexp(t, `^provider-handle-[0-9a-f]{8}$`, got.Name, "the kind names the deployment")
 	assert.Nil(t, got.Metadata)
 	want, err := renderLLMProvider(provider)
@@ -205,7 +205,7 @@ func TestDeployLLMProviderAcceptsOnlyTheCurrentBase(t *testing.T) {
 	for _, base := range []string{"", "current"} {
 		provider := renderableProvider()
 		f := newStatusPathFixture(t, provider.UUID)
-		_, err := f.providerService(provider).DeployLLMProvider("provider-handle", &models.DeployAPIRequest{
+		_, err := f.providerService(provider).DeployLLMProvider("provider-handle", &gwmodels.DeployAPIRequest{
 			Base: base, GatewayID: f.gateway.UUID.String(),
 		}, "ou-1")
 		assert.NoError(t, err, "base %q", base)
@@ -213,7 +213,7 @@ func TestDeployLLMProviderAcceptsOnlyTheCurrentBase(t *testing.T) {
 	for _, base := range []string{uuid.NewString(), "not-a-uuid"} {
 		provider := renderableProvider()
 		f := newStatusPathFixture(t, provider.UUID)
-		_, err := f.providerService(provider).DeployLLMProvider("provider-handle", &models.DeployAPIRequest{
+		_, err := f.providerService(provider).DeployLLMProvider("provider-handle", &gwmodels.DeployAPIRequest{
 			Base: base, GatewayID: f.gateway.UUID.String(),
 		}, "ou-1")
 		assert.ErrorIs(t, err, utils.ErrDeploymentBaseNotCurrent, "base %q", base)
@@ -224,7 +224,7 @@ func TestDeployLLMProviderAcceptsOnlyTheCurrentBase(t *testing.T) {
 func TestRestoreOfAnUnknownDeploymentIsNotFound(t *testing.T) {
 	provider := renderableProvider()
 	f := newStatusPathFixture(t, provider.UUID)
-	f.repo.GetWithContentFunc = func(string, string, string) (*models.Deployment, error) {
+	f.repo.GetWithContentFunc = func(string, string, string) (*gwmodels.Deployment, error) {
 		return nil, utils.ErrDeploymentNotFound
 	}
 	svc := f.providerService(provider)
@@ -237,9 +237,9 @@ func TestRestoreOfAnUnknownDeploymentIsNotFound(t *testing.T) {
 }
 
 func TestUndeployLLMProviderSendsAnEmptyDeploymentID(t *testing.T) {
-	provider := &models.LLMProvider{UUID: uuid.New()}
+	provider := &gwmodels.LLMProvider{UUID: uuid.New()}
 	f := newStatusPathFixture(t, provider.UUID)
-	deploying := models.DeploymentStatusDeploying
+	deploying := gwmodels.DeploymentStatusDeploying
 	f.deployment.Status = &deploying
 	f.row.Status = deploying
 
@@ -247,7 +247,7 @@ func TestUndeployLLMProviderSendsAnEmptyDeploymentID(t *testing.T) {
 		f.deployment.DeploymentID.String(), f.gateway.UUID.String(), "ou-1")
 
 	require.NoError(t, err)
-	assert.Equal(t, models.DeploymentStatusUndeploying, *got.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusUndeploying, *got.Status)
 	event, payload := f.payload(t)
 	assert.Equal(t, eventhub.EventType("llmprovider.undeployed"), event.EventType)
 	assert.Equal(t, provider.UUID.String(), payload["providerId"])
@@ -257,9 +257,9 @@ func TestUndeployLLMProviderSendsAnEmptyDeploymentID(t *testing.T) {
 }
 
 func TestUndeployOfAnArchivedDeploymentIsNotActive(t *testing.T) {
-	provider := &models.LLMProvider{UUID: uuid.New()}
+	provider := &gwmodels.LLMProvider{UUID: uuid.New()}
 	f := newStatusPathFixture(t, provider.UUID)
-	archived := models.DeploymentStatusArchived
+	archived := gwmodels.DeploymentStatusArchived
 	f.deployment.Status = &archived
 
 	_, err := f.providerService(provider).UndeployLLMProviderDeployment("provider-handle",
@@ -270,15 +270,15 @@ func TestUndeployOfAnArchivedDeploymentIsNotActive(t *testing.T) {
 }
 
 func TestRestoreLLMProviderSendsTheUUID(t *testing.T) {
-	provider := &models.LLMProvider{UUID: uuid.New()}
+	provider := &gwmodels.LLMProvider{UUID: uuid.New()}
 	f := newStatusPathFixture(t, provider.UUID)
-	f.row.Status = models.DeploymentStatusFailed
+	f.row.Status = gwmodels.DeploymentStatusFailed
 
 	got, err := f.providerService(provider).RestoreLLMProviderDeployment("provider-handle",
 		f.deployment.DeploymentID.String(), f.gateway.UUID.String(), "ou-1")
 
 	require.NoError(t, err)
-	assert.Equal(t, models.DeploymentStatusDeploying, *got.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, *got.Status)
 	require.Len(t, f.repo.StartRestoreCalls(), 1)
 	assert.Equal(t, f.deployment.DeploymentID, f.repo.StartRestoreCalls()[0].DeploymentID)
 	event, payload := f.payload(t)
@@ -292,7 +292,7 @@ func TestRestoreLLMProviderSendsTheUUID(t *testing.T) {
 // addressed by a non-canonical id still sends the canonical one.
 func TestRestoreSendsTheCanonicalDeploymentID(t *testing.T) {
 	t.Run("LLM provider", func(t *testing.T) {
-		provider := &models.LLMProvider{UUID: uuid.New()}
+		provider := &gwmodels.LLMProvider{UUID: uuid.New()}
 		f := newStatusPathFixture(t, provider.UUID)
 
 		_, err := f.providerService(provider).RestoreLLMProviderDeployment("provider-handle",
@@ -303,7 +303,7 @@ func TestRestoreSendsTheCanonicalDeploymentID(t *testing.T) {
 		assert.Equal(t, f.deployment.DeploymentID.String(), payload["deploymentId"])
 	})
 	t.Run("LLM proxy", func(t *testing.T) {
-		proxy := &models.LLMProxy{UUID: uuid.New()}
+		proxy := &gwmodels.LLMProxy{UUID: uuid.New()}
 		f := newStatusPathFixture(t, proxy.UUID)
 
 		_, err := f.proxyService(proxy).RestoreLLMProxyDeployment("proxy-handle",
@@ -316,15 +316,15 @@ func TestRestoreSendsTheCanonicalDeploymentID(t *testing.T) {
 }
 
 func TestDeployLLMProxyStartsDeployingAndSendsTheHandle(t *testing.T) {
-	proxy := &models.LLMProxy{UUID: uuid.New()}
+	proxy := &gwmodels.LLMProxy{UUID: uuid.New()}
 	f := newStatusPathFixture(t, proxy.UUID)
 
-	got, err := f.proxyService(proxy).DeployLLMProxy("proxy-handle", &models.DeployAPIRequest{
+	got, err := f.proxyService(proxy).DeployLLMProxy("proxy-handle", &gwmodels.DeployAPIRequest{
 		Base: "current", GatewayID: f.gateway.UUID.String(),
 	}, "ou-1")
 
 	require.NoError(t, err)
-	assert.Equal(t, models.DeploymentStatusDeploying, *got.Status)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, *got.Status)
 	event, payload := f.payload(t)
 	assert.Equal(t, eventhub.EventType("llmproxy.deployed"), event.EventType)
 	assert.Equal(t, "proxy-handle", payload["proxyId"])
@@ -333,9 +333,9 @@ func TestDeployLLMProxyStartsDeployingAndSendsTheHandle(t *testing.T) {
 
 func TestUndeployLLMProxy(t *testing.T) {
 	t.Run("sends an empty deployment id", func(t *testing.T) {
-		proxy := &models.LLMProxy{UUID: uuid.New()}
+		proxy := &gwmodels.LLMProxy{UUID: uuid.New()}
 		f := newStatusPathFixture(t, proxy.UUID)
-		deployed := models.DeploymentStatusDeployed
+		deployed := gwmodels.DeploymentStatusDeployed
 		f.deployment.Status = &deployed
 		f.row.Status = deployed
 
@@ -351,9 +351,9 @@ func TestUndeployLLMProxy(t *testing.T) {
 		assertPerformedAt(t, f.row.PerformedAt, payload)
 	})
 	t.Run("a row never sent to the gateway sends nothing", func(t *testing.T) {
-		proxy := &models.LLMProxy{UUID: uuid.New()}
+		proxy := &gwmodels.LLMProxy{UUID: uuid.New()}
 		f := newStatusPathFixture(t, proxy.UUID)
-		pending := models.DeploymentStatusPending
+		pending := gwmodels.DeploymentStatusPending
 		f.deployment.Status = &pending
 		f.row.Status = pending
 
@@ -361,7 +361,7 @@ func TestUndeployLLMProxy(t *testing.T) {
 			f.deployment.DeploymentID.String(), f.gateway.UUID.String(), "ou-1")
 
 		require.NoError(t, err)
-		assert.Equal(t, models.DeploymentStatusUndeployed, *got.Status)
+		assert.Equal(t, gwmodels.DeploymentStatusUndeployed, *got.Status)
 		assert.Empty(t, f.hub.published)
 	})
 }
@@ -370,34 +370,34 @@ func TestUndeployLLMProxy(t *testing.T) {
 // and orphan the artifact on the gateway. Only undeployed and archived deployments can be.
 func TestDeleteRefusesThePlacedOrHeldDeployment(t *testing.T) {
 	type rowShape struct {
-		status, desired models.DeploymentStatus
+		status, desired gwmodels.DeploymentStatus
 		owed            bool
 		archived        bool
 	}
 	placed := map[string]rowShape{
-		"deploying":       {status: models.DeploymentStatusDeploying, desired: models.DeploymentStatusDeployed},
-		"deployed":        {status: models.DeploymentStatusDeployed, desired: models.DeploymentStatusDeployed},
-		"failed deploy":   {status: models.DeploymentStatusFailed, desired: models.DeploymentStatusDeployed},
-		"undeploying":     {status: models.DeploymentStatusUndeploying, desired: models.DeploymentStatusUndeployed},
-		"failed undeploy": {status: models.DeploymentStatusFailed, desired: models.DeploymentStatusUndeployed},
+		"deploying":       {status: gwmodels.DeploymentStatusDeploying, desired: gwmodels.DeploymentStatusDeployed},
+		"deployed":        {status: gwmodels.DeploymentStatusDeployed, desired: gwmodels.DeploymentStatusDeployed},
+		"failed deploy":   {status: gwmodels.DeploymentStatusFailed, desired: gwmodels.DeploymentStatusDeployed},
+		"undeploying":     {status: gwmodels.DeploymentStatusUndeploying, desired: gwmodels.DeploymentStatusUndeployed},
+		"failed undeploy": {status: gwmodels.DeploymentStatusFailed, desired: gwmodels.DeploymentStatusUndeployed},
 		"undeployed, heading for DEPLOYED": {
-			status: models.DeploymentStatusUndeployed, desired: models.DeploymentStatusDeployed,
+			status: gwmodels.DeploymentStatusUndeployed, desired: gwmodels.DeploymentStatusDeployed,
 		},
 		"undeployed, a deploy owed": {
-			status: models.DeploymentStatusUndeployed, desired: models.DeploymentStatusUndeployed, owed: true,
+			status: gwmodels.DeploymentStatusUndeployed, desired: gwmodels.DeploymentStatusUndeployed, owed: true,
 		},
 	}
 	notPlaced := map[string]rowShape{
-		"undeployed": {status: models.DeploymentStatusUndeployed, desired: models.DeploymentStatusUndeployed},
+		"undeployed": {status: gwmodels.DeploymentStatusUndeployed, desired: gwmodels.DeploymentStatusUndeployed},
 		"archived":   {archived: true},
 	}
 	withRow := func(f *statusPathFixture, shape rowShape) {
 		if shape.archived {
-			archived := models.DeploymentStatusArchived
+			archived := gwmodels.DeploymentStatusArchived
 			f.deployment.Status = &archived
 			return
 		}
-		row := &models.DeploymentStatusRecord{Status: shape.status, StatusDesired: shape.desired}
+		row := &gwmodels.DeploymentStatusRecord{Status: shape.status, StatusDesired: shape.desired}
 		if shape.owed {
 			due := time.Now()
 			row.NextAttemptAt = &due
@@ -405,13 +405,13 @@ func TestDeleteRefusesThePlacedOrHeldDeployment(t *testing.T) {
 		f.deployment.SetStatusRow(row)
 	}
 	deleteBoth := func(t *testing.T, shape rowShape) (deletes int, providerErr, proxyErr error) {
-		provider := &models.LLMProvider{UUID: uuid.New()}
+		provider := &gwmodels.LLMProvider{UUID: uuid.New()}
 		f := newStatusPathFixture(t, provider.UUID)
 		withRow(f, shape)
 		f.repo.DeleteFunc = func(string, string, string) error { return nil }
 		providerErr = f.providerService(provider).DeleteLLMProviderDeployment("provider-handle",
 			f.deployment.DeploymentID.String(), "ou-1")
-		proxyErr = f.proxyService(&models.LLMProxy{UUID: provider.UUID}).DeleteLLMProxyDeployment("proxy-handle",
+		proxyErr = f.proxyService(&gwmodels.LLMProxy{UUID: provider.UUID}).DeleteLLMProxyDeployment("proxy-handle",
 			f.deployment.DeploymentID.String(), "ou-1")
 		return len(f.repo.DeleteCalls()), providerErr, proxyErr
 	}
@@ -439,18 +439,18 @@ func TestDeleteRefusesThePlacedOrHeldDeployment(t *testing.T) {
 func TestRestoreOfTheCurrentDeployment(t *testing.T) {
 	due := time.Now()
 	for name, tc := range map[string]struct {
-		row     models.DeploymentStatusRecord
+		row     gwmodels.DeploymentStatusRecord
 		refused bool
 	}{
-		"deploying":               {models.DeploymentStatusRecord{Status: models.DeploymentStatusDeploying}, true},
-		"deployed":                {models.DeploymentStatusRecord{Status: models.DeploymentStatusDeployed}, true},
-		"deployed, redeploy owed": {models.DeploymentStatusRecord{Status: models.DeploymentStatusDeployed, NextAttemptAt: &due}, false},
-		"failed":                  {models.DeploymentStatusRecord{Status: models.DeploymentStatusFailed}, false},
-		"undeploying":             {models.DeploymentStatusRecord{Status: models.DeploymentStatusUndeploying}, false},
-		"undeployed":              {models.DeploymentStatusRecord{Status: models.DeploymentStatusUndeployed}, false},
+		"deploying":               {gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusDeploying}, true},
+		"deployed":                {gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusDeployed}, true},
+		"deployed, redeploy owed": {gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusDeployed, NextAttemptAt: &due}, false},
+		"failed":                  {gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusFailed}, false},
+		"undeploying":             {gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusUndeploying}, false},
+		"undeployed":              {gwmodels.DeploymentStatusRecord{Status: gwmodels.DeploymentStatusUndeployed}, false},
 	} {
 		t.Run(name, func(t *testing.T) {
-			provider := &models.LLMProvider{UUID: uuid.New()}
+			provider := &gwmodels.LLMProvider{UUID: uuid.New()}
 			f := newStatusPathFixture(t, provider.UUID)
 			f.row = tc.row
 			f.row.DeploymentID = &f.deployment.DeploymentID

@@ -23,7 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -92,11 +92,11 @@ func (c *a2aProxyController) RefreshA2AProxy(w http.ResponseWriter, r *http.Requ
 }
 
 // toA2AProxyAuthUpdate keeps the request's three cases apart: no auth, a header alone, a header and a value.
-func toA2AProxyAuthUpdate(auth *gwspec.A2AProxyUpstreamAuth) *models.A2AProxyAuthUpdate {
+func toA2AProxyAuthUpdate(auth *gwspec.A2AProxyUpstreamAuth) *gwmodels.A2AProxyAuthUpdate {
 	if auth == nil {
 		return nil
 	}
-	return &models.A2AProxyAuthUpdate{Header: auth.Header, Value: auth.Value}
+	return &gwmodels.A2AProxyAuthUpdate{Header: auth.Header, Value: auth.Value}
 }
 
 // writeA2AProxyError maps the proxy sentinels, then defers to handleCommonErrors (which owns the

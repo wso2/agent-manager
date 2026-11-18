@@ -31,6 +31,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // Rows hang off an organization, project, agent and environment, which the tables reference by id. These helpers
@@ -102,7 +104,7 @@ func ensureAgent(t *testing.T, ou, project, agent string) uuid.UUID {
 func newArtifact(t *testing.T, ou, kind, handle string) uuid.UUID {
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	a := models.Artifact{
+	a := gwmodels.Artifact{
 		UUID: uuid.Must(uuid.NewV7()), Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ou,
 		CreatedAt: now, UpdatedAt: now,
 	}
@@ -122,7 +124,7 @@ func seedAgent(t *testing.T, ou, project, agent string, envs ...string) {
 // newGateway creates an active gateway with role in the organization, mapped to its default environment.
 func newGateway(t *testing.T, ou, role string) uuid.UUID {
 	t.Helper()
-	return dbtest.Gateway(t, db.GetDB(), ou, role).UUID
+	return gwtest.Gateway(t, db.GetDB(), ou, role).UUID
 }
 
 // statusRowWhere selects one placement's status row.
@@ -152,16 +154,16 @@ func envWithID(t *testing.T, ou string, id uuid.UUID, name string) {
 func seedLLMProxy(t *testing.T, ou string) (string, uuid.UUID) {
 	t.Helper()
 	gdb := db.GetDB()
-	providerID := newArtifact(t, ou, models.KindLLMProvider, "provider-"+uuid.NewString()[:8])
-	require.NoError(t, gdb.Create(&models.LLMProvider{
+	providerID := newArtifact(t, ou, gwmodels.KindLLMProvider, "provider-"+uuid.NewString()[:8])
+	require.NoError(t, gdb.Create(&gwmodels.LLMProvider{
 		UUID: providerID, OrgID: ou, TemplateHandle: "openai", Status: "CREATED",
 	}).Error)
 	ensureAgent(t, ou, "checkout", "proxy-owner")
 	var project models.Project
 	require.NoError(t, gdb.Where("org_id = ? AND name = ?", ou, "checkout").Take(&project).Error)
 	handle := "proxy-" + uuid.NewString()[:8]
-	proxyID := newArtifact(t, ou, models.KindLLMProxy, handle)
-	require.NoError(t, gdb.Create(&models.LLMProxy{
+	proxyID := newArtifact(t, ou, gwmodels.KindLLMProxy, handle)
+	require.NoError(t, gdb.Create(&gwmodels.LLMProxy{
 		UUID: proxyID, OrgID: ou, ProjectUUID: project.ID, ProviderUUID: providerID, Status: "deployed",
 	}).Error)
 	return handle, proxyID
@@ -174,13 +176,13 @@ func mapLLMProxyToAgent(t *testing.T, ou string, proxyID uuid.UUID) (uuid.UUID, 
 	gdb := db.GetDB()
 	agentID := ensureAgent(t, ou, "checkout", "proxy-owner")
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	cfg := models.AgentConfiguration{
+	cfg := gwmodels.AgentConfiguration{
 		UUID: uuid.Must(uuid.NewV7()), Name: "cfg-" + uuid.NewString()[:8], OUID: ou, AgentUUID: agentID, Type: "llm",
 		CreatedAt: now, UpdatedAt: now,
 	}
 	require.NoError(t, gdb.Omit(clause.Associations).Create(&cfg).Error)
 	envID := dbtest.Environment(t, gdb, ou)
-	require.NoError(t, gdb.Omit(clause.Associations).Create(&models.EnvAgentModelMapping{
+	require.NoError(t, gdb.Omit(clause.Associations).Create(&gwmodels.EnvAgentModelMapping{
 		ConfigUUID: cfg.UUID, EnvironmentUUID: envID, OrgID: ou, LLMProxyUUID: proxyID, CreatedAt: now,
 	}).Error)
 	return cfg.UUID, envID

@@ -30,8 +30,9 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 // syncFixture is an org with one gateway, and the gateway internal service over the real repositories.
@@ -53,23 +54,23 @@ func newSyncFixture(t *testing.T) *syncFixture {
 
 func (f *syncFixture) seedGateway(t *testing.T, ouID string) uuid.UUID {
 	t.Helper()
-	return dbtest.GatewayIn(t, db.GetDB(), ouID, models.GatewayRoleEgress).UUID
+	return gwtest.GatewayIn(t, db.GetDB(), ouID, gwmodels.GatewayRoleEgress).UUID
 }
 
-func (f *syncFixture) seedArtifact(t *testing.T, ouID, kind string) models.ArtifactRef {
+func (f *syncFixture) seedArtifact(t *testing.T, ouID, kind string) gwmodels.ArtifactRef {
 	t.Helper()
 	artifactUUID := uuid.New()
 	handle := "sync-" + artifactUUID.String()[:8]
-	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB()).Create(db.GetDB(), &models.Artifact{
+	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB()).Create(db.GetDB(), &gwmodels.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
-	return models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle}
+	return gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle}
 }
 
-func (f *syncFixture) deploy(t *testing.T, ref models.ArtifactRef, gateway uuid.UUID) (models.Placement, *models.Deployment) {
+func (f *syncFixture) deploy(t *testing.T, ref gwmodels.ArtifactRef, gateway uuid.UUID) (gwmodels.Placement, *gwmodels.Deployment) {
 	t.Helper()
-	p := models.Placement{ArtifactRef: ref, GatewayUUID: gateway}
-	deployment := &models.Deployment{Name: "d", Content: []byte("spec:\n  name: " + ref.Handle + "\n")}
+	p := gwmodels.Placement{ArtifactRef: ref, GatewayUUID: gateway}
+	deployment := &gwmodels.Deployment{Name: "d", Content: []byte("spec:\n  name: " + ref.Handle + "\n")}
 	require.NoError(t, db.GetDB().Transaction(func(tx *gorm.DB) error {
 		return f.repo.StartDeploy(context.Background(), tx, p, deployment)
 	}))
@@ -104,25 +105,25 @@ func TestListGatewayDeploymentsOverTheDatabase(t *testing.T) {
 	f := newSyncFixture(t)
 	ctx := context.Background()
 
-	proxy := f.seedArtifact(t, f.ouID, models.KindLLMProxy)
+	proxy := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProxy)
 	proxyPlacement, proxyDeployment := f.deploy(t, proxy, f.gateway)
-	_, err := f.repo.ApplyAck(ctx, f.gateway.String(), models.DeploymentAck{
-		DeploymentID: proxyDeployment.DeploymentID.String(), Action: models.DeploymentAckActionDeploy,
-		Status: models.DeploymentAckStatusSuccess,
+	_, err := f.repo.ApplyAck(ctx, f.gateway.String(), gwmodels.DeploymentAck{
+		DeploymentID: proxyDeployment.DeploymentID.String(), Action: gwmodels.DeploymentAckActionDeploy,
+		Status: gwmodels.DeploymentAckStatusSuccess,
 	}, nil)
 	require.NoError(t, err)
 
-	provider := f.seedArtifact(t, f.ouID, models.KindLLMProvider)
+	provider := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProvider)
 	providerPlacement, _ := f.deploy(t, provider, f.gateway)
 	require.NoError(t, db.GetDB().Transaction(func(tx *gorm.DB) error {
 		_, err := f.repo.BeginUndeploy(ctx, tx, providerPlacement)
 		return err
 	}))
 	// Old enough for the sweeper, which this read must not stand in for.
-	var rows []models.DeploymentStatusRecord
+	var rows []gwmodels.DeploymentStatusRecord
 	require.NoError(t, db.GetDB().Where("gateway_id = ?", f.gateway).Find(&rows).Error)
 	for _, row := range rows {
-		require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
+		require.NoError(t, db.GetDB().Model(&gwmodels.DeploymentStatusRecord{}).
 			Where("artifact_id = ? AND gateway_id = ?", row.ArtifactUUID, row.GatewayUUID).
 			Update("performed_at", row.PerformedAt.Add(-time.Hour)).Error)
 	}
@@ -135,30 +136,30 @@ func TestListGatewayDeploymentsOverTheDatabase(t *testing.T) {
 
 	assert.Equal(t, before, f.snapshot(t), "GET /deployments writes nothing")
 	require.Len(t, got, 2)
-	byKind := map[string]models.ControlPlaneDeployment{}
+	byKind := map[string]gwmodels.ControlPlaneDeployment{}
 	for _, d := range got {
 		byKind[d.Kind] = d
 	}
-	proxyEntry := byKind[models.KindLLMProxy]
+	proxyEntry := byKind[gwmodels.KindLLMProxy]
 	assert.Equal(t, proxy.Handle, proxyEntry.ArtifactID, "the gateway stores an LLM proxy under its handle")
 	assert.Equal(t, proxyDeployment.DeploymentID.String(), proxyEntry.DeploymentID)
-	assert.Equal(t, models.GatewaySyncStateDeployed, proxyEntry.State)
+	assert.Equal(t, gwmodels.GatewaySyncStateDeployed, proxyEntry.State)
 	row, err := f.repo.GetStatusRecord(ctx, proxyPlacement)
 	require.NoError(t, err)
 	assert.True(t, row.PerformedAt.Equal(proxyEntry.DeployedAt))
 
-	providerEntry := byKind[models.KindLLMProvider]
+	providerEntry := byKind[gwmodels.KindLLMProvider]
 	assert.Equal(t, provider.ArtifactUUID.String(), providerEntry.ArtifactID)
-	assert.Equal(t, models.GatewaySyncStateUndeployed, providerEntry.State)
+	assert.Equal(t, gwmodels.GatewaySyncStateUndeployed, providerEntry.State)
 	assert.Empty(t, providerEntry.DeploymentID)
 }
 
 func TestFetchDeploymentBatchOverTheDatabase(t *testing.T) {
 	f := newSyncFixture(t)
-	proxy := f.seedArtifact(t, f.ouID, models.KindLLMProxy)
+	proxy := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProxy)
 	_, deployment := f.deploy(t, proxy, f.gateway)
 	otherGateway := f.seedGateway(t, f.ouID)
-	_, elsewhere := f.deploy(t, f.seedArtifact(t, f.ouID, models.KindLLMProvider), otherGateway)
+	_, elsewhere := f.deploy(t, f.seedArtifact(t, f.ouID, gwmodels.KindLLMProvider), otherGateway)
 
 	got, err := f.svc.FetchDeploymentBatch(context.Background(), f.ouID, f.gateway.String(),
 		[]string{deployment.DeploymentID.String(), elsewhere.DeploymentID.String(), ""})
@@ -167,7 +168,7 @@ func TestFetchDeploymentBatchOverTheDatabase(t *testing.T) {
 	require.Len(t, got, 1, "another gateway's deployment is skipped, not an error")
 	assert.Equal(t, deployment.DeploymentID.String(), got[0].DeploymentID)
 	assert.Equal(t, proxy.Handle, got[0].ArtifactID)
-	assert.Equal(t, models.KindLLMProxy, got[0].Kind)
+	assert.Equal(t, gwmodels.KindLLMProxy, got[0].Kind)
 	assert.Equal(t, deployment.Content, got[0].Content)
 }
 
@@ -175,17 +176,17 @@ func TestCheckArtifactsExistOverTheDatabase(t *testing.T) {
 	f := newSyncFixture(t)
 	ctx := context.Background()
 
-	noStatusRow := f.seedArtifact(t, f.ouID, models.KindLLMProvider)
-	onAnotherGateway := f.seedArtifact(t, f.ouID, models.KindMCPMapping)
+	noStatusRow := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProvider)
+	onAnotherGateway := f.seedArtifact(t, f.ouID, gwmodels.KindMCPMapping)
 	f.deploy(t, onAnotherGateway, f.seedGateway(t, f.ouID))
-	proxy := f.seedArtifact(t, f.ouID, models.KindLLMProxy)
-	deleted := f.seedArtifact(t, f.ouID, models.KindLLMProvider)
+	proxy := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProxy)
+	deleted := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProvider)
 	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB()).Delete(db.GetDB(), deleted.ArtifactUUID.String()))
-	deletedProxy := f.seedArtifact(t, f.ouID, models.KindLLMProxy)
+	deletedProxy := f.seedArtifact(t, f.ouID, gwmodels.KindLLMProxy)
 	require.NoError(t, gwrepo.NewArtifactRepo(db.GetDB()).Delete(db.GetDB(), deletedProxy.ArtifactUUID.String()))
 	otherOrgID := dbtest.Org(t, db.GetDB())
-	otherOrg := f.seedArtifact(t, otherOrgID, models.KindLLMProvider)
-	otherOrgProxy := f.seedArtifact(t, otherOrgID, models.KindLLMProxy)
+	otherOrg := f.seedArtifact(t, otherOrgID, gwmodels.KindLLMProvider)
+	otherOrgProxy := f.seedArtifact(t, otherOrgID, gwmodels.KindLLMProxy)
 	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifacts SET handle = ? WHERE id = ?`,
 		deletedProxy.Handle, otherOrgProxy.ArtifactUUID).Error, "another org's proxy holds the deleted proxy's handle")
 
@@ -195,7 +196,7 @@ func TestCheckArtifactsExistOverTheDatabase(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, []models.ArtifactExistence{
+	assert.Equal(t, []gwmodels.ArtifactExistence{
 		{ArtifactID: noStatusRow.ArtifactUUID.String(), Exists: true},
 		{ArtifactID: onAnotherGateway.ArtifactUUID.String(), Exists: true},
 		{ArtifactID: proxy.Handle, Exists: true},

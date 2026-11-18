@@ -22,12 +22,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 type fakeApplier struct{}
 
-func (fakeApplier) ApplyIdentityProvider(context.Context, string, string, models.GatewayIdentityProvider) error {
+func (fakeApplier) ApplyIdentityProvider(context.Context, string, string, gwmodels.GatewayIdentityProvider) error {
 	return nil
 }
 

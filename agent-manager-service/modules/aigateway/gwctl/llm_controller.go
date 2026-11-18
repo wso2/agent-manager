@@ -26,8 +26,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -366,7 +366,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 		"providerVersion", provider.Configuration.Version,
 		"templateHandle", provider.TemplateHandle)
 
-	var created *models.LLMProvider
+	var created *gwmodels.LLMProvider
 
 	// Check if gateways list is present and not empty
 	if len(req.Gateways) > 0 {
@@ -530,8 +530,8 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 // provider and its proxies requiring no credential. Restored on the model because the
 // request carries spec types. For slices, nil means omitted; an empty list still clears.
 func preserveOmittedProviderFields(
-	provider *models.LLMProvider,
-	existing *models.LLMProvider,
+	provider *gwmodels.LLMProvider,
+	existing *gwmodels.LLMProvider,
 	req *gwspec.UpdateLLMProviderRequest,
 ) {
 	if provider == nil || existing == nil || req == nil {
@@ -667,7 +667,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("UpdateLLMProvider: calling service layer", "ouID", ouID, "providerID", providerID)
 
-	var updated *models.LLMProvider
+	var updated *gwmodels.LLMProvider
 
 	// Check if gateways list is present (not nil), if so use UpdateAndSync
 	if req.Gateways != nil {

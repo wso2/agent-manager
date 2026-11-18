@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -21,7 +21,7 @@ import (
 //
 //		// make and configure a mocked gwrepo.A2AAgentCardRepository
 //		mockedA2AAgentCardRepository := &A2AAgentCardRepositoryMock{
-//			ClaimDueFunc: func(ctx context.Context, now time.Time, limit int) ([]models.A2AAgentCard, error) {
+//			ClaimDueFunc: func(ctx context.Context, now time.Time, limit int) ([]gwmodels.A2AAgentCard, error) {
 //				panic("mock out the ClaimDue method")
 //			},
 //			ClearCardFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error {
@@ -39,37 +39,37 @@ import (
 //			DeleteForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error {
 //				panic("mock out the DeleteForEnvironment method")
 //			},
-//			DeleteIfUnchangedFunc: func(ctx context.Context, read models.A2AAgentCard) error {
+//			DeleteIfUnchangedFunc: func(ctx context.Context, read gwmodels.A2AAgentCard) error {
 //				panic("mock out the DeleteIfUnchanged method")
 //			},
 //			DeletePlatformForAgentEnvFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) error {
 //				panic("mock out the DeletePlatformForAgentEnv method")
 //			},
-//			EnqueueFunc: func(ctx context.Context, card *models.A2AAgentCard) error {
+//			EnqueueFunc: func(ctx context.Context, card *gwmodels.A2AAgentCard) error {
 //				panic("mock out the Enqueue method")
 //			},
 //			FailParkedFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID, lastErr string) error {
 //				panic("mock out the FailParked method")
 //			},
-//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.A2AAgentCard, error) {
+//			GetFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.A2AAgentCard, error) {
 //				panic("mock out the Get method")
 //			},
 //			ListEnvironmentUUIDsFunc: func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error) {
 //				panic("mock out the ListEnvironmentUUIDs method")
 //			},
-//			ListForAgentFunc: func(ctx context.Context, ouID string, projectName string, agentName string) ([]models.A2AAgentCard, error) {
+//			ListForAgentFunc: func(ctx context.Context, ouID string, projectName string, agentName string) ([]gwmodels.A2AAgentCard, error) {
 //				panic("mock out the ListForAgent method")
 //			},
-//			ListForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AAgentCard, error) {
+//			ListForEnvironmentFunc: func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.A2AAgentCard, error) {
 //				panic("mock out the ListForEnvironment method")
 //			},
-//			MarkAttemptFailedFunc: func(ctx context.Context, read models.A2AAgentCard, lastErr string, releaseName string, nextAttemptAt time.Time) error {
+//			MarkAttemptFailedFunc: func(ctx context.Context, read gwmodels.A2AAgentCard, lastErr string, releaseName string, nextAttemptAt time.Time) error {
 //				panic("mock out the MarkAttemptFailed method")
 //			},
-//			MarkFailedFunc: func(ctx context.Context, read models.A2AAgentCard, lastErr string, releaseName string) error {
+//			MarkFailedFunc: func(ctx context.Context, read gwmodels.A2AAgentCard, lastErr string, releaseName string) error {
 //				panic("mock out the MarkFailed method")
 //			},
-//			MarkFetchedFunc: func(ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash string, fetchedURL string, releaseName string) error {
+//			MarkFetchedFunc: func(ctx context.Context, read gwmodels.A2AAgentCard, card json.RawMessage, cardHash string, fetchedURL string, releaseName string) error {
 //				panic("mock out the MarkFetched method")
 //			},
 //			RequeueFunc: func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) error {
@@ -86,7 +86,7 @@ import (
 //	}
 type A2AAgentCardRepositoryMock struct {
 	// ClaimDueFunc mocks the ClaimDue method.
-	ClaimDueFunc func(ctx context.Context, now time.Time, limit int) ([]models.A2AAgentCard, error)
+	ClaimDueFunc func(ctx context.Context, now time.Time, limit int) ([]gwmodels.A2AAgentCard, error)
 
 	// ClearCardFunc mocks the ClearCard method.
 	ClearCardFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID) error
@@ -104,37 +104,37 @@ type A2AAgentCardRepositoryMock struct {
 	DeleteForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) error
 
 	// DeleteIfUnchangedFunc mocks the DeleteIfUnchanged method.
-	DeleteIfUnchangedFunc func(ctx context.Context, read models.A2AAgentCard) error
+	DeleteIfUnchangedFunc func(ctx context.Context, read gwmodels.A2AAgentCard) error
 
 	// DeletePlatformForAgentEnvFunc mocks the DeletePlatformForAgentEnv method.
 	DeletePlatformForAgentEnvFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) error
 
 	// EnqueueFunc mocks the Enqueue method.
-	EnqueueFunc func(ctx context.Context, card *models.A2AAgentCard) error
+	EnqueueFunc func(ctx context.Context, card *gwmodels.A2AAgentCard) error
 
 	// FailParkedFunc mocks the FailParked method.
 	FailParkedFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentUUID uuid.UUID, lastErr string) error
 
 	// GetFunc mocks the Get method.
-	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.A2AAgentCard, error)
+	GetFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.A2AAgentCard, error)
 
 	// ListEnvironmentUUIDsFunc mocks the ListEnvironmentUUIDs method.
 	ListEnvironmentUUIDsFunc func(ctx context.Context, ouID string, environmentName string) ([]uuid.UUID, error)
 
 	// ListForAgentFunc mocks the ListForAgent method.
-	ListForAgentFunc func(ctx context.Context, ouID string, projectName string, agentName string) ([]models.A2AAgentCard, error)
+	ListForAgentFunc func(ctx context.Context, ouID string, projectName string, agentName string) ([]gwmodels.A2AAgentCard, error)
 
 	// ListForEnvironmentFunc mocks the ListForEnvironment method.
-	ListForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AAgentCard, error)
+	ListForEnvironmentFunc func(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.A2AAgentCard, error)
 
 	// MarkAttemptFailedFunc mocks the MarkAttemptFailed method.
-	MarkAttemptFailedFunc func(ctx context.Context, read models.A2AAgentCard, lastErr string, releaseName string, nextAttemptAt time.Time) error
+	MarkAttemptFailedFunc func(ctx context.Context, read gwmodels.A2AAgentCard, lastErr string, releaseName string, nextAttemptAt time.Time) error
 
 	// MarkFailedFunc mocks the MarkFailed method.
-	MarkFailedFunc func(ctx context.Context, read models.A2AAgentCard, lastErr string, releaseName string) error
+	MarkFailedFunc func(ctx context.Context, read gwmodels.A2AAgentCard, lastErr string, releaseName string) error
 
 	// MarkFetchedFunc mocks the MarkFetched method.
-	MarkFetchedFunc func(ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash string, fetchedURL string, releaseName string) error
+	MarkFetchedFunc func(ctx context.Context, read gwmodels.A2AAgentCard, card json.RawMessage, cardHash string, fetchedURL string, releaseName string) error
 
 	// RequeueFunc mocks the Requeue method.
 	RequeueFunc func(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) error
@@ -217,7 +217,7 @@ type A2AAgentCardRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Read is the read argument value.
-			Read models.A2AAgentCard
+			Read gwmodels.A2AAgentCard
 		}
 		// DeletePlatformForAgentEnv holds details about calls to the DeletePlatformForAgentEnv method.
 		DeletePlatformForAgentEnv []struct {
@@ -237,7 +237,7 @@ type A2AAgentCardRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Card is the card argument value.
-			Card *models.A2AAgentCard
+			Card *gwmodels.A2AAgentCard
 		}
 		// FailParked holds details about calls to the FailParked method.
 		FailParked []struct {
@@ -301,7 +301,7 @@ type A2AAgentCardRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Read is the read argument value.
-			Read models.A2AAgentCard
+			Read gwmodels.A2AAgentCard
 			// LastErr is the lastErr argument value.
 			LastErr string
 			// ReleaseName is the releaseName argument value.
@@ -314,7 +314,7 @@ type A2AAgentCardRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Read is the read argument value.
-			Read models.A2AAgentCard
+			Read gwmodels.A2AAgentCard
 			// LastErr is the lastErr argument value.
 			LastErr string
 			// ReleaseName is the releaseName argument value.
@@ -325,7 +325,7 @@ type A2AAgentCardRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Read is the read argument value.
-			Read models.A2AAgentCard
+			Read gwmodels.A2AAgentCard
 			// Card is the card argument value.
 			Card json.RawMessage
 			// CardHash is the cardHash argument value.
@@ -376,7 +376,7 @@ type A2AAgentCardRepositoryMock struct {
 }
 
 // ClaimDue calls ClaimDueFunc.
-func (mock *A2AAgentCardRepositoryMock) ClaimDue(ctx context.Context, now time.Time, limit int) ([]models.A2AAgentCard, error) {
+func (mock *A2AAgentCardRepositoryMock) ClaimDue(ctx context.Context, now time.Time, limit int) ([]gwmodels.A2AAgentCard, error) {
 	if mock.ClaimDueFunc == nil {
 		panic("A2AAgentCardRepositoryMock.ClaimDueFunc: method is nil but A2AAgentCardRepository.ClaimDue was just called")
 	}
@@ -644,13 +644,13 @@ func (mock *A2AAgentCardRepositoryMock) DeleteForEnvironmentCalls() []struct {
 }
 
 // DeleteIfUnchanged calls DeleteIfUnchangedFunc.
-func (mock *A2AAgentCardRepositoryMock) DeleteIfUnchanged(ctx context.Context, read models.A2AAgentCard) error {
+func (mock *A2AAgentCardRepositoryMock) DeleteIfUnchanged(ctx context.Context, read gwmodels.A2AAgentCard) error {
 	if mock.DeleteIfUnchangedFunc == nil {
 		panic("A2AAgentCardRepositoryMock.DeleteIfUnchangedFunc: method is nil but A2AAgentCardRepository.DeleteIfUnchanged was just called")
 	}
 	callInfo := struct {
 		Ctx  context.Context
-		Read models.A2AAgentCard
+		Read gwmodels.A2AAgentCard
 	}{
 		Ctx:  ctx,
 		Read: read,
@@ -667,11 +667,11 @@ func (mock *A2AAgentCardRepositoryMock) DeleteIfUnchanged(ctx context.Context, r
 //	len(mockedA2AAgentCardRepository.DeleteIfUnchangedCalls())
 func (mock *A2AAgentCardRepositoryMock) DeleteIfUnchangedCalls() []struct {
 	Ctx  context.Context
-	Read models.A2AAgentCard
+	Read gwmodels.A2AAgentCard
 } {
 	var calls []struct {
 		Ctx  context.Context
-		Read models.A2AAgentCard
+		Read gwmodels.A2AAgentCard
 	}
 	mock.lockDeleteIfUnchanged.RLock()
 	calls = mock.calls.DeleteIfUnchanged
@@ -728,13 +728,13 @@ func (mock *A2AAgentCardRepositoryMock) DeletePlatformForAgentEnvCalls() []struc
 }
 
 // Enqueue calls EnqueueFunc.
-func (mock *A2AAgentCardRepositoryMock) Enqueue(ctx context.Context, card *models.A2AAgentCard) error {
+func (mock *A2AAgentCardRepositoryMock) Enqueue(ctx context.Context, card *gwmodels.A2AAgentCard) error {
 	if mock.EnqueueFunc == nil {
 		panic("A2AAgentCardRepositoryMock.EnqueueFunc: method is nil but A2AAgentCardRepository.Enqueue was just called")
 	}
 	callInfo := struct {
 		Ctx  context.Context
-		Card *models.A2AAgentCard
+		Card *gwmodels.A2AAgentCard
 	}{
 		Ctx:  ctx,
 		Card: card,
@@ -751,11 +751,11 @@ func (mock *A2AAgentCardRepositoryMock) Enqueue(ctx context.Context, card *model
 //	len(mockedA2AAgentCardRepository.EnqueueCalls())
 func (mock *A2AAgentCardRepositoryMock) EnqueueCalls() []struct {
 	Ctx  context.Context
-	Card *models.A2AAgentCard
+	Card *gwmodels.A2AAgentCard
 } {
 	var calls []struct {
 		Ctx  context.Context
-		Card *models.A2AAgentCard
+		Card *gwmodels.A2AAgentCard
 	}
 	mock.lockEnqueue.RLock()
 	calls = mock.calls.Enqueue
@@ -816,7 +816,7 @@ func (mock *A2AAgentCardRepositoryMock) FailParkedCalls() []struct {
 }
 
 // Get calls GetFunc.
-func (mock *A2AAgentCardRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.A2AAgentCard, error) {
+func (mock *A2AAgentCardRepositoryMock) Get(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*gwmodels.A2AAgentCard, error) {
 	if mock.GetFunc == nil {
 		panic("A2AAgentCardRepositoryMock.GetFunc: method is nil but A2AAgentCardRepository.Get was just called")
 	}
@@ -904,7 +904,7 @@ func (mock *A2AAgentCardRepositoryMock) ListEnvironmentUUIDsCalls() []struct {
 }
 
 // ListForAgent calls ListForAgentFunc.
-func (mock *A2AAgentCardRepositoryMock) ListForAgent(ctx context.Context, ouID string, projectName string, agentName string) ([]models.A2AAgentCard, error) {
+func (mock *A2AAgentCardRepositoryMock) ListForAgent(ctx context.Context, ouID string, projectName string, agentName string) ([]gwmodels.A2AAgentCard, error) {
 	if mock.ListForAgentFunc == nil {
 		panic("A2AAgentCardRepositoryMock.ListForAgentFunc: method is nil but A2AAgentCardRepository.ListForAgent was just called")
 	}
@@ -948,7 +948,7 @@ func (mock *A2AAgentCardRepositoryMock) ListForAgentCalls() []struct {
 }
 
 // ListForEnvironment calls ListForEnvironmentFunc.
-func (mock *A2AAgentCardRepositoryMock) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]models.A2AAgentCard, error) {
+func (mock *A2AAgentCardRepositoryMock) ListForEnvironment(ctx context.Context, ouID string, environmentUUID uuid.UUID) ([]gwmodels.A2AAgentCard, error) {
 	if mock.ListForEnvironmentFunc == nil {
 		panic("A2AAgentCardRepositoryMock.ListForEnvironmentFunc: method is nil but A2AAgentCardRepository.ListForEnvironment was just called")
 	}
@@ -988,13 +988,13 @@ func (mock *A2AAgentCardRepositoryMock) ListForEnvironmentCalls() []struct {
 }
 
 // MarkAttemptFailed calls MarkAttemptFailedFunc.
-func (mock *A2AAgentCardRepositoryMock) MarkAttemptFailed(ctx context.Context, read models.A2AAgentCard, lastErr string, releaseName string, nextAttemptAt time.Time) error {
+func (mock *A2AAgentCardRepositoryMock) MarkAttemptFailed(ctx context.Context, read gwmodels.A2AAgentCard, lastErr string, releaseName string, nextAttemptAt time.Time) error {
 	if mock.MarkAttemptFailedFunc == nil {
 		panic("A2AAgentCardRepositoryMock.MarkAttemptFailedFunc: method is nil but A2AAgentCardRepository.MarkAttemptFailed was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
-		Read          models.A2AAgentCard
+		Read          gwmodels.A2AAgentCard
 		LastErr       string
 		ReleaseName   string
 		NextAttemptAt time.Time
@@ -1017,14 +1017,14 @@ func (mock *A2AAgentCardRepositoryMock) MarkAttemptFailed(ctx context.Context, r
 //	len(mockedA2AAgentCardRepository.MarkAttemptFailedCalls())
 func (mock *A2AAgentCardRepositoryMock) MarkAttemptFailedCalls() []struct {
 	Ctx           context.Context
-	Read          models.A2AAgentCard
+	Read          gwmodels.A2AAgentCard
 	LastErr       string
 	ReleaseName   string
 	NextAttemptAt time.Time
 } {
 	var calls []struct {
 		Ctx           context.Context
-		Read          models.A2AAgentCard
+		Read          gwmodels.A2AAgentCard
 		LastErr       string
 		ReleaseName   string
 		NextAttemptAt time.Time
@@ -1036,13 +1036,13 @@ func (mock *A2AAgentCardRepositoryMock) MarkAttemptFailedCalls() []struct {
 }
 
 // MarkFailed calls MarkFailedFunc.
-func (mock *A2AAgentCardRepositoryMock) MarkFailed(ctx context.Context, read models.A2AAgentCard, lastErr string, releaseName string) error {
+func (mock *A2AAgentCardRepositoryMock) MarkFailed(ctx context.Context, read gwmodels.A2AAgentCard, lastErr string, releaseName string) error {
 	if mock.MarkFailedFunc == nil {
 		panic("A2AAgentCardRepositoryMock.MarkFailedFunc: method is nil but A2AAgentCardRepository.MarkFailed was just called")
 	}
 	callInfo := struct {
 		Ctx         context.Context
-		Read        models.A2AAgentCard
+		Read        gwmodels.A2AAgentCard
 		LastErr     string
 		ReleaseName string
 	}{
@@ -1063,13 +1063,13 @@ func (mock *A2AAgentCardRepositoryMock) MarkFailed(ctx context.Context, read mod
 //	len(mockedA2AAgentCardRepository.MarkFailedCalls())
 func (mock *A2AAgentCardRepositoryMock) MarkFailedCalls() []struct {
 	Ctx         context.Context
-	Read        models.A2AAgentCard
+	Read        gwmodels.A2AAgentCard
 	LastErr     string
 	ReleaseName string
 } {
 	var calls []struct {
 		Ctx         context.Context
-		Read        models.A2AAgentCard
+		Read        gwmodels.A2AAgentCard
 		LastErr     string
 		ReleaseName string
 	}
@@ -1080,13 +1080,13 @@ func (mock *A2AAgentCardRepositoryMock) MarkFailedCalls() []struct {
 }
 
 // MarkFetched calls MarkFetchedFunc.
-func (mock *A2AAgentCardRepositoryMock) MarkFetched(ctx context.Context, read models.A2AAgentCard, card json.RawMessage, cardHash string, fetchedURL string, releaseName string) error {
+func (mock *A2AAgentCardRepositoryMock) MarkFetched(ctx context.Context, read gwmodels.A2AAgentCard, card json.RawMessage, cardHash string, fetchedURL string, releaseName string) error {
 	if mock.MarkFetchedFunc == nil {
 		panic("A2AAgentCardRepositoryMock.MarkFetchedFunc: method is nil but A2AAgentCardRepository.MarkFetched was just called")
 	}
 	callInfo := struct {
 		Ctx         context.Context
-		Read        models.A2AAgentCard
+		Read        gwmodels.A2AAgentCard
 		Card        json.RawMessage
 		CardHash    string
 		FetchedURL  string
@@ -1111,7 +1111,7 @@ func (mock *A2AAgentCardRepositoryMock) MarkFetched(ctx context.Context, read mo
 //	len(mockedA2AAgentCardRepository.MarkFetchedCalls())
 func (mock *A2AAgentCardRepositoryMock) MarkFetchedCalls() []struct {
 	Ctx         context.Context
-	Read        models.A2AAgentCard
+	Read        gwmodels.A2AAgentCard
 	Card        json.RawMessage
 	CardHash    string
 	FetchedURL  string
@@ -1119,7 +1119,7 @@ func (mock *A2AAgentCardRepositoryMock) MarkFetchedCalls() []struct {
 } {
 	var calls []struct {
 		Ctx         context.Context
-		Read        models.A2AAgentCard
+		Read        gwmodels.A2AAgentCard
 		Card        json.RawMessage
 		CardHash    string
 		FetchedURL  string

@@ -31,7 +31,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -40,20 +40,20 @@ import (
 // MCPProxyScopeService manages per-proxy MCP scopes: validation, CRUD, and
 // (in later tasks) Thunder cleanup + re-emit.
 type MCPProxyScopeService interface {
-	List(ctx context.Context, ouID, proxyHandle string) (*models.MCPProxyScopesResult, error)
-	Create(ctx context.Context, ouID, orgName, proxyHandle string, in models.MCPProxyScopeInput) (*models.MCPProxyScopeResult, error)
-	Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in models.MCPProxyScopeUpdateInput) (*models.MCPProxyScopeResult, error)
+	List(ctx context.Context, ouID, proxyHandle string) (*gwmodels.MCPProxyScopesResult, error)
+	Create(ctx context.Context, ouID, orgName, proxyHandle string, in gwmodels.MCPProxyScopeInput) (*gwmodels.MCPProxyScopeResult, error)
+	Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in gwmodels.MCPProxyScopeUpdateInput) (*gwmodels.MCPProxyScopeResult, error)
 	Delete(ctx context.Context, ouID, orgName, proxyHandle, action string) error
-	ListEnvironmentScopes(ctx context.Context, ouID, envName string) ([]models.EnvironmentScopeEntry, error)
+	ListEnvironmentScopes(ctx context.Context, ouID, envName string) ([]gwmodels.EnvironmentScopeEntry, error)
 }
 
 // MCPProxyRedeployer is the narrow MCPProxyService surface scope mutations
 // need: gateway re-emission and resource-server ensure after a DB write.
 type MCPProxyRedeployer interface {
-	RedeployMCPProxy(ctx context.Context, proxy *models.MCPProxy, ouID string) error
+	RedeployMCPProxy(ctx context.Context, proxy *gwmodels.MCPProxy, ouID string) error
 	// EnsureResourceServersForProxy registers proxy's resource server and
 	// actions in every identity-secured, deployed environment.
-	EnsureResourceServersForProxy(ctx context.Context, ouID string, proxy *models.MCPProxy, actions []string)
+	EnsureResourceServersForProxy(ctx context.Context, ouID string, proxy *gwmodels.MCPProxy, actions []string)
 }
 
 type mcpProxyScopeService struct {
@@ -90,15 +90,15 @@ func NewMCPProxyScopeService(
 var mcpScopeActionRe = regexp.MustCompile(`^[A-Za-z0-9._\-]{1,100}$`)
 
 // proxyHandleOf returns the proxy's artifact handle, the authoritative source
-// (models.MCPProxy.Handle is a gorm:"-" transient that repos never populate).
-func proxyHandleOf(proxy *models.MCPProxy) string {
+// (gwmodels.MCPProxy.Handle is a gorm:"-" transient that repos never populate).
+func proxyHandleOf(proxy *gwmodels.MCPProxy) string {
 	if proxy.Artifact != nil && proxy.Artifact.Handle != "" {
 		return proxy.Artifact.Handle
 	}
 	return proxy.Handle
 }
 
-func (s *mcpProxyScopeService) resolveProxy(ctx context.Context, ouID, proxyHandle string) (*models.MCPProxy, error) {
+func (s *mcpProxyScopeService) resolveProxy(ctx context.Context, ouID, proxyHandle string) (*gwmodels.MCPProxy, error) {
 	proxy, err := s.proxyRepo.GetByHandle(ctx, proxyHandle, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -111,7 +111,7 @@ func (s *mcpProxyScopeService) resolveProxy(ctx context.Context, ouID, proxyHand
 
 // resolveOrgOwnedProxy is resolveProxy for mutations: a project-scoped proxy is managed
 // only through the project routes, so it yields utils.ErrMCPProxyProjectOwned.
-func (s *mcpProxyScopeService) resolveOrgOwnedProxy(ctx context.Context, ouID, proxyHandle string) (*models.MCPProxy, error) {
+func (s *mcpProxyScopeService) resolveOrgOwnedProxy(ctx context.Context, ouID, proxyHandle string) (*gwmodels.MCPProxy, error) {
 	proxy, err := s.resolveProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return nil, err
@@ -125,7 +125,7 @@ func (s *mcpProxyScopeService) resolveOrgOwnedProxy(ctx context.Context, ouID, p
 // proxyToolUnion collects every discovered tool name across the proxy's
 // endpoints. An empty map means "no capabilities stored" — validation is then
 // permissive (strict-when-known policy).
-func proxyToolUnion(proxy *models.MCPProxy) map[string]struct{} {
+func proxyToolUnion(proxy *gwmodels.MCPProxy) map[string]struct{} {
 	union := map[string]struct{}{}
 	for i := range proxy.Endpoints {
 		caps := proxy.Endpoints[i].Configuration.Capabilities
@@ -171,7 +171,7 @@ func validateScopeTools(tools []string, union map[string]struct{}) ([]string, er
 	return out, nil
 }
 
-func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyHandle string, in models.MCPProxyScopeInput) (*models.MCPProxyScopeResult, error) {
+func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyHandle string, in gwmodels.MCPProxyScopeInput) (*gwmodels.MCPProxyScopeResult, error) {
 	_ = orgName // unused: env-Thunder calls below are resolved by ouID, not orgName
 
 	if !mcpScopeActionRe.MatchString(in.Action) {
@@ -195,7 +195,7 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 		return nil, err
 	}
 
-	scope := &models.MCPProxyScope{
+	scope := &gwmodels.MCPProxyScope{
 		MCPProxyUUID: proxy.UUID,
 		Action:       in.Action,
 		Description:  in.Description,
@@ -217,13 +217,13 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 		return nil, fmt.Errorf("scope created but gateway re-emission failed (retry by redeploying the proxy): %w", err)
 	}
 
-	return &models.MCPProxyScopeResult{
+	return &gwmodels.MCPProxyScopeResult{
 		ProxyHandle: proxyHandleOf(proxy),
 		Scope:       *scope,
 	}, nil
 }
 
-func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in models.MCPProxyScopeUpdateInput) (*models.MCPProxyScopeResult, error) {
+func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in gwmodels.MCPProxyScopeUpdateInput) (*gwmodels.MCPProxyScopeResult, error) {
 	_ = orgName // unused: env-Thunder calls below are resolved by ouID, not orgName
 
 	proxy, err := s.resolveOrgOwnedProxy(ctx, ouID, proxyHandle)
@@ -264,7 +264,7 @@ func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyH
 		return nil, fmt.Errorf("scope updated but gateway re-emission failed (retry by redeploying the proxy): %w", err)
 	}
 
-	return &models.MCPProxyScopeResult{
+	return &gwmodels.MCPProxyScopeResult{
 		ProxyHandle: proxyHandleOf(proxy),
 		Scope:       *existing,
 	}, nil
@@ -295,7 +295,7 @@ func (s *mcpProxyScopeService) Delete(ctx context.Context, ouID, orgName, proxyH
 
 // ensureResourceServerEverywhere loads proxy's current scopes and delegates
 // to MCPProxyService.EnsureResourceServersForProxy.
-func (s *mcpProxyScopeService) ensureResourceServerEverywhere(ctx context.Context, ouID string, proxy *models.MCPProxy) {
+func (s *mcpProxyScopeService) ensureResourceServerEverywhere(ctx context.Context, ouID string, proxy *gwmodels.MCPProxy) {
 	hasIdentityEndpoint := false
 	for i := range proxy.Endpoints {
 		if mcpIdentityEnabled(proxy.Endpoints[i].Configuration.Security) {
@@ -326,7 +326,7 @@ func (s *mcpProxyScopeService) ensureResourceServerEverywhere(ctx context.Contex
 // a proxy's resource server regardless of that flag (agent_identity_controller.go
 // resolveScopeGroups performs no such check), so cleanup must attempt the same
 // unconditionally or it leaks the resource server whenever security was disabled.
-func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID string, proxy *models.MCPProxy, action string) {
+func (s *mcpProxyScopeService) cleanupDeletedScope(ctx context.Context, ouID string, proxy *gwmodels.MCPProxy, action string) {
 	handle := proxyHandleOf(proxy)
 	scopeStr := handle + ":" + action
 
@@ -391,7 +391,7 @@ func sweepRolePermission(ctx context.Context, logger *slog.Logger, client thunde
 	}
 }
 
-func (s *mcpProxyScopeService) List(ctx context.Context, ouID, proxyHandle string) (*models.MCPProxyScopesResult, error) {
+func (s *mcpProxyScopeService) List(ctx context.Context, ouID, proxyHandle string) (*gwmodels.MCPProxyScopesResult, error) {
 	proxy, err := s.resolveProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return nil, err
@@ -402,20 +402,20 @@ func (s *mcpProxyScopeService) List(ctx context.Context, ouID, proxyHandle strin
 		return nil, fmt.Errorf("failed to list mcp proxy scopes: %w", err)
 	}
 
-	return &models.MCPProxyScopesResult{
+	return &gwmodels.MCPProxyScopesResult{
 		ProxyHandle: proxyHandleOf(proxy),
 		Scopes:      scopes,
 	}, nil
 }
 
-func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, envName string) ([]models.EnvironmentScopeEntry, error) {
+func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, envName string) ([]gwmodels.EnvironmentScopeEntry, error) {
 	envUUID, err := environmentUUIDByName(ctx, s.infraManager, ouID, envName)
 	if err != nil {
 		return nil, err
 	}
 
 	const pageSize = 100
-	proxyByUUID := map[uuid.UUID]*models.MCPProxy{}
+	proxyByUUID := map[uuid.UUID]*gwmodels.MCPProxy{}
 	var ordered []uuid.UUID
 	for offset := 0; ; offset += pageSize {
 		proxies, _, err := s.proxyRepo.List(ctx, ouID, gwrepo.MCPProxyListFilter{Limit: pageSize, Offset: offset})
@@ -449,7 +449,7 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 	}
 
 	if len(ordered) == 0 {
-		return []models.EnvironmentScopeEntry{}, nil
+		return []gwmodels.EnvironmentScopeEntry{}, nil
 	}
 
 	scopes, err := s.scopeRepo.ListByProxyUUIDs(ctx, ordered)
@@ -457,14 +457,14 @@ func (s *mcpProxyScopeService) ListEnvironmentScopes(ctx context.Context, ouID, 
 		return nil, fmt.Errorf("failed to list mcp proxy scopes: %w", err)
 	}
 
-	entries := make([]models.EnvironmentScopeEntry, 0, len(scopes))
+	entries := make([]gwmodels.EnvironmentScopeEntry, 0, len(scopes))
 	for _, sc := range scopes {
 		proxy, ok := proxyByUUID[sc.MCPProxyUUID]
 		if !ok {
 			continue
 		}
 		handle := proxyHandleOf(proxy)
-		entries = append(entries, models.EnvironmentScopeEntry{
+		entries = append(entries, gwmodels.EnvironmentScopeEntry{
 			Scope:        sc.ScopeString(handle),
 			Description:  sc.Description,
 			MCPProxyID:   handle,

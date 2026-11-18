@@ -38,6 +38,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -136,7 +137,7 @@ type GatewayResponse struct {
 }
 
 // gatewayHostingWire is the gateway's hosting as the API emits it: uppercase, like roles.
-func gatewayHostingWire(gw *models.Gateway) string {
+func gatewayHostingWire(gw *gwmodels.Gateway) string {
 	if gw.IsManaged() {
 		return string(gwspec.GATEWAYHOSTING_MANAGED)
 	}
@@ -144,7 +145,7 @@ func gatewayHostingWire(gw *models.Gateway) string {
 }
 
 // toGatewayResponse maps a stored gateway to its DTO; the one-time token is never part of it.
-func toGatewayResponse(gw *models.Gateway) *GatewayResponse {
+func toGatewayResponse(gw *gwmodels.Gateway) *GatewayResponse {
 	return &GatewayResponse{
 		ID:                gw.UUID.String(),
 		OrganizationID:    gw.OUID,
@@ -275,7 +276,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 		properties = make(map[string]interface{})
 	}
 
-	gateway := &models.Gateway{
+	gateway := &gwmodels.Gateway{
 		UUID:                     gatewayUUID,
 		OUID:                     ouID,
 		Name:                     name,
@@ -397,7 +398,7 @@ func (s *PlatformGatewayService) ListGateways(ouID *string, filters *GatewayList
 // resolveGateway looks the identifier up as a UUID, falling back to a name lookup
 // within the org. A non-UUID identifier used to be rejected with a bare error that
 // matched no case in handleGatewayErrors and surfaced as HTTP 500.
-func (s *PlatformGatewayService) resolveGateway(identifier, ouID string) (*models.Gateway, error) {
+func (s *PlatformGatewayService) resolveGateway(identifier, ouID string) (*gwmodels.Gateway, error) {
 	if _, err := uuid.Parse(identifier); err != nil {
 		return normalizeGatewayLookup(s.gatewayRepo.GetByNameAndOrgID(identifier, ouID))
 	}
@@ -410,7 +411,7 @@ func (s *PlatformGatewayService) resolveGateway(identifier, ouID string) (*model
 // resolveGateway need this: a raw repository error matches no case in
 // handleGatewayErrors and surfaces as a 500, and a nil gateway returned without an
 // error is dereferenced by GetGateway.
-func normalizeGatewayLookup(gateway *models.Gateway, err error) (*models.Gateway, error) {
+func normalizeGatewayLookup(gateway *gwmodels.Gateway, err error) (*gwmodels.Gateway, error) {
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, utils.ErrGatewayNotFound) {
 			return nil, utils.ErrGatewayNotFound
@@ -570,7 +571,7 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, ouID string) error {
 // all — any caller can submit an arbitrary UUID-shaped prefix — so a request
 // that can't be cancelled turns into an amplification primitive: enough
 // concurrent fake keys pin one DB connection each for the full query duration.
-func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken string) (*models.PlatformGateway, error) {
+func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken string) (*gwmodels.PlatformGateway, error) {
 	start := time.Now()
 	defer func() {
 		slog.Debug("token verification completed", "duration_ms", time.Since(start).Milliseconds())
@@ -628,7 +629,7 @@ func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken str
 	// repository call, with the result (or error) shared to every waiter.
 	// Different prefixes are unaffected and still proceed fully concurrently.
 	type verifyResult struct {
-		gateway *models.PlatformGateway
+		gateway *gwmodels.PlatformGateway
 	}
 	v, err, _ := s.verifyTokenSfg.Do(tokenPrefix, func() (interface{}, error) {
 		// Re-check under the per-prefix key: another request for this exact
@@ -729,7 +730,7 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 
 	// 6. Create new GatewayToken model with prefix for fast lookup
 	tokenID := uuid.New()
-	gatewayToken := &models.GatewayToken{
+	gatewayToken := &gwmodels.GatewayToken{
 		UUID:        tokenID,
 		GatewayUUID: uuid.MustParse(gatewayID),
 		TokenPrefix: tokenPrefix, // UUID prefix for indexed lookup
@@ -849,7 +850,7 @@ func (s *PlatformGatewayService) GetGatewayStatus(ctx context.Context, ouID stri
 		return nil, errors.New("organization name is required")
 	}
 
-	var gateways []*models.Gateway
+	var gateways []*gwmodels.Gateway
 	var err error
 
 	// If gatewayId is provided, get specific gateway
@@ -865,7 +866,7 @@ func (s *PlatformGatewayService) GetGatewayStatus(ctx context.Context, ouID stri
 		if gateway.OUID != ouID {
 			return nil, utils.ErrGatewayNotFound
 		}
-		gateways = []*models.Gateway{gateway}
+		gateways = []*gwmodels.Gateway{gateway}
 	} else {
 		// Get all gateways for organization
 		gateways, err = s.gatewayRepo.GetByOrganizationID(ctx, ouID)
@@ -927,7 +928,7 @@ func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID strin
 	return gw.UUID.String(), nil
 }
 
-func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*models.Gateway, error) {
+func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*gwmodels.Gateway, error) {
 	if gw, err := s.gatewayRepo.GetByNameAndOrgID(gatewayID, ouID); err == nil {
 		return gw, nil
 	}
@@ -949,7 +950,7 @@ func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*mo
 // apply fails the mirror is left untouched. System providers are bootstrapped into the
 // gateway out of band, so only custom providers are applied here. Open-source builds
 // (nil applier) write the mirror only and rely on manage-identity-provider.sh.
-func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*models.GatewayIdentityProvider, error) {
+func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*gwmodels.GatewayIdentityProvider, error) {
 	if name == models.ReservedIdentityProviderName {
 		return nil, utils.ErrInvalidInput
 	}
@@ -961,12 +962,12 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 	if err != nil {
 		return nil, utils.ErrGatewayNotFound
 	}
-	providerType := models.IdentityProviderTypeCustom
+	providerType := gwmodels.IdentityProviderTypeCustom
 	if models.IsSystemIdentityProvider(name) {
-		providerType = models.IdentityProviderTypeSystem
+		providerType = gwmodels.IdentityProviderTypeSystem
 	}
 	now := time.Now()
-	provider := &models.GatewayIdentityProvider{
+	provider := &gwmodels.GatewayIdentityProvider{
 		UUID:              uuid.New(),
 		GatewayUUID:       gwUUID,
 		Name:              name,
@@ -981,7 +982,7 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 	// Patch the gateway runtime config first so a failed apply never leaves a mirror
 	// row the gateway does not honor.
 	applied := false
-	if s.gatewayApplier != nil && providerType == models.IdentityProviderTypeCustom {
+	if s.gatewayApplier != nil && providerType == gwmodels.IdentityProviderTypeCustom {
 		if err := s.gatewayApplier.ApplyIdentityProvider(ctx, gatewayID, ouID, *provider); err != nil {
 			return nil, err
 		}
@@ -1031,7 +1032,7 @@ func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gat
 }
 
 // ListIdentityProvidersByGateway lists the identity providers mirrored for a gateway.
-func (s *PlatformGatewayService) ListIdentityProvidersByGateway(gatewayID, ouID string) ([]models.GatewayIdentityProvider, error) {
+func (s *PlatformGatewayService) ListIdentityProvidersByGateway(gatewayID, ouID string) ([]gwmodels.GatewayIdentityProvider, error) {
 	gwUUIDStr, err := s.resolveGatewayUUID(gatewayID, ouID)
 	if err != nil {
 		return nil, err
@@ -1041,7 +1042,7 @@ func (s *PlatformGatewayService) ListIdentityProvidersByGateway(gatewayID, ouID 
 
 // ListIdentityProvidersByEnvironment lists the identity providers available in an
 // environment (union over the environment's gateways).
-func (s *PlatformGatewayService) ListIdentityProvidersByEnvironment(environmentID string) ([]models.GatewayIdentityProvider, error) {
+func (s *PlatformGatewayService) ListIdentityProvidersByEnvironment(environmentID string) ([]gwmodels.GatewayIdentityProvider, error) {
 	return s.gatewayRepo.ListIdentityProvidersByEnvironment(environmentID)
 }
 
@@ -1081,7 +1082,7 @@ func (s *PlatformGatewayService) AssignGatewayToEnvironment(gatewayID, environme
 
 // refuseSelfHostedNewEnvironment refuses to map a self-hosted gateway to an environment it is not already mapped
 // to. Registration maps it through assignGatewayToEnvironmentTx, so the check lives only on the public route.
-func (s *PlatformGatewayService) refuseSelfHostedNewEnvironment(gateway *models.Gateway, environmentID string) error {
+func (s *PlatformGatewayService) refuseSelfHostedNewEnvironment(gateway *gwmodels.Gateway, environmentID string) error {
 	envUUID, err := uuid.Parse(environmentID)
 	if err != nil {
 		return fmt.Errorf("%w: invalid environment UUID %q", utils.ErrBadRequest, environmentID)
@@ -1107,7 +1108,7 @@ func (s *PlatformGatewayService) refuseSelfHostedNewEnvironment(gateway *models.
 // Egress-capable gateways are never counted against the ingress cap: egress is uncapped.
 // Every role is still refused a second environment.
 func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
-	tx *gorm.DB, gateway *models.Gateway, environmentID string,
+	tx *gorm.DB, gateway *gwmodels.Gateway, environmentID string,
 ) error {
 	envUUID, err := uuid.Parse(environmentID)
 	if err != nil {
@@ -1153,7 +1154,7 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 		}
 	}
 
-	mapping := &models.GatewayEnvironmentMapping{
+	mapping := &gwmodels.GatewayEnvironmentMapping{
 		GatewayUUID:     gateway.UUID,
 		EnvironmentUUID: envUUID,
 	}
@@ -1222,7 +1223,7 @@ func (s *PlatformGatewayService) refuseWhileServing(ctx context.Context, tx *gor
 }
 
 // GetGatewayEnvironmentMappings retrieves all environment mappings for a gateway
-func (s *PlatformGatewayService) GetGatewayEnvironmentMappings(gatewayID string) ([]models.GatewayEnvironmentMapping, error) {
+func (s *PlatformGatewayService) GetGatewayEnvironmentMappings(gatewayID string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 	// Validate UUID
 	if _, err := uuid.Parse(gatewayID); err != nil {
 		return nil, fmt.Errorf("invalid gateway UUID: %w", err)
@@ -1238,7 +1239,7 @@ func (s *PlatformGatewayService) GetGatewayEnvironmentMappings(gatewayID string)
 
 // GetGatewayEnvironmentMappingsBulk retrieves environment mappings for multiple gateways in bulk
 // This avoids N+1 queries when fetching environments for a list of gateways
-func (s *PlatformGatewayService) GetGatewayEnvironmentMappingsBulk(gatewayIDs []string) (map[string][]models.GatewayEnvironmentMapping, error) {
+func (s *PlatformGatewayService) GetGatewayEnvironmentMappingsBulk(gatewayIDs []string) (map[string][]gwmodels.GatewayEnvironmentMapping, error) {
 	// Validate UUIDs
 	for _, id := range gatewayIDs {
 		if _, err := uuid.Parse(id); err != nil {
@@ -1424,12 +1425,12 @@ func normalizeGatewayRole(functionalityType string) (string, error) {
 	switch strings.ToLower(strings.TrimSpace(functionalityType)) {
 	case "":
 		return "", fmt.Errorf("%w: gateway functionality type is required", utils.ErrBadRequest)
-	case models.GatewayRoleIngress:
-		return models.GatewayRoleIngress, nil
-	case models.GatewayRoleEgress, "ai":
-		return models.GatewayRoleEgress, nil
-	case models.GatewayRoleBoth, "regular":
-		return models.GatewayRoleBoth, nil
+	case gwmodels.GatewayRoleIngress:
+		return gwmodels.GatewayRoleIngress, nil
+	case gwmodels.GatewayRoleEgress, "ai":
+		return gwmodels.GatewayRoleEgress, nil
+	case gwmodels.GatewayRoleBoth, "regular":
+		return gwmodels.GatewayRoleBoth, nil
 	default:
 		return "", fmt.Errorf("%w: gateway type must be one of: INGRESS, EGRESS, BOTH", utils.ErrBadRequest)
 	}

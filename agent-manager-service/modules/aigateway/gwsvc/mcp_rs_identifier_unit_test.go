@@ -27,15 +27,16 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // mcpIdentitySecurity builds an identity(OAuth2)-enabled SecurityConfig,
 // mirroring identityEnabledEndpoint's shape in mcp_proxy_scope_service_unit_test.go.
-func mcpIdentitySecurity() *models.SecurityConfig {
+func mcpIdentitySecurity() *gwmodels.SecurityConfig {
 	on := true
-	return &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}}
+	return &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}
 }
 
 func TestMCPResourceServerIdentifier_DerivesPublicURI(t *testing.T) {
@@ -43,12 +44,12 @@ func TestMCPResourceServerIdentifier_DerivesPublicURI(t *testing.T) {
 	gwUUID := uuid.New()
 	artifactUUID := uuid.New()
 	ctxPath := "/github"
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:          uuid.New(),
 		Handle:        "gh-proxy",
-		Configuration: models.MCPProxyConfig{Context: &ctxPath},
-		Endpoints: []models.MCPProxyEndpoint{{
-			Environments: []models.MCPProxyEndpointEnvironment{{
+		Configuration: gwmodels.MCPProxyConfig{Context: &ctxPath},
+		Endpoints: []gwmodels.MCPProxyEndpoint{{
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{{
 				EnvironmentUUID: envUUID,
 				ArtifactUUID:    artifactUUID,
 			}},
@@ -68,8 +69,8 @@ func TestMCPResourceServerIdentifier_DerivesPublicURI(t *testing.T) {
 			EnvironmentMappingExistsFunc: func(gatewayID, environmentID string) (bool, error) {
 				return gatewayID == gwUUID.String() && environmentID == envUUID.String(), nil
 			},
-			GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-				return &models.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
+			GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
+				return &gwmodels.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
 			},
 		},
 		logger: discardLogger(),
@@ -86,7 +87,7 @@ func TestMCPResourceServerIdentifier_DerivesPublicURI(t *testing.T) {
 }
 
 func TestMCPResourceServerIdentifier_NotDeployedToEnvironment(t *testing.T) {
-	proxy := &models.MCPProxy{UUID: uuid.New(), Handle: "gh-proxy"}
+	proxy := &gwmodels.MCPProxy{UUID: uuid.New(), Handle: "gh-proxy"}
 	svc := &MCPProxyService{logger: discardLogger()}
 
 	_, err := svc.MCPResourceServerIdentifier(context.Background(), "ou-1", uuid.New(), proxy)
@@ -116,20 +117,20 @@ func TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvir
 	envA, envB := uuid.New(), uuid.New()
 	gwUUID := uuid.New()
 	ctxPath := "/deepwiki"
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:          uuid.New(),
-		Artifact:      &models.Artifact{Handle: "deepwiki"},
-		Configuration: models.MCPProxyConfig{Context: &ctxPath},
-		Endpoints: []models.MCPProxyEndpoint{
+		Artifact:      &gwmodels.Artifact{Handle: "deepwiki"},
+		Configuration: gwmodels.MCPProxyConfig{Context: &ctxPath},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
 			{
-				Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
-				Environments: []models.MCPProxyEndpointEnvironment{
+				Configuration: gwmodels.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+				Environments: []gwmodels.MCPProxyEndpointEnvironment{
 					{EnvironmentUUID: envA, ArtifactUUID: uuid.New()},
 				},
 			},
 			{
 				// No security configured at all (API-key or unsecured) — must be skipped.
-				Environments: []models.MCPProxyEndpointEnvironment{
+				Environments: []gwmodels.MCPProxyEndpointEnvironment{
 					{EnvironmentUUID: envB, ArtifactUUID: uuid.New()},
 				},
 			},
@@ -152,8 +153,8 @@ func TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvir
 		},
 		gatewayRepo: &gwrepomocks.GatewayRepositoryMock{
 			EnvironmentMappingExistsFunc: func(_, _ string) (bool, error) { return true, nil },
-			GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-				return &models.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
+			GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
+				return &gwmodels.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
 			},
 		},
 		resolver: &clientmocks.EnvThunderResolverMock{
@@ -185,12 +186,12 @@ func TestEnsureResourceServersForProxy_RegistersOnlyIdentitySecuredDeployedEnvir
 // panic if it were).
 func TestEnsureResourceServersForProxy_SkipsUndeployedEnvironment(t *testing.T) {
 	envA := uuid.New()
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:     uuid.New(),
-		Artifact: &models.Artifact{Handle: "deepwiki"},
-		Endpoints: []models.MCPProxyEndpoint{{
-			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
-			Environments: []models.MCPProxyEndpointEnvironment{
+		Artifact: &gwmodels.Artifact{Handle: "deepwiki"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{{
+			Configuration: gwmodels.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: envA, ArtifactUUID: uuid.Nil},
 			},
 		}},
@@ -213,10 +214,10 @@ func TestEnsureResourceServersForProxy_SkipsUndeployedEnvironment(t *testing.T) 
 // cheap early exit: a proxy with no identity-secured endpoint anywhere must
 // never touch the infra manager or env-Thunder for this.
 func TestEnsureResourceServersForProxy_SkipsWhenNoIdentityEndpoint(t *testing.T) {
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:      uuid.New(),
-		Artifact:  &models.Artifact{Handle: "deepwiki"},
-		Endpoints: []models.MCPProxyEndpoint{{}},
+		Artifact:  &gwmodels.Artifact{Handle: "deepwiki"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{{}},
 	}
 	svc := &MCPProxyService{logger: discardLogger()}
 	// infraManager/resolver deliberately left nil: reaching either would panic.
@@ -234,13 +235,13 @@ func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
 	envA := uuid.New()
 	gwUUID := uuid.New()
 	ctxPath := "/deepwiki"
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:          uuid.New(),
-		Artifact:      &models.Artifact{Handle: "deepwiki"},
-		Configuration: models.MCPProxyConfig{Context: &ctxPath},
-		Endpoints: []models.MCPProxyEndpoint{{
-			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
-			Environments: []models.MCPProxyEndpointEnvironment{
+		Artifact:      &gwmodels.Artifact{Handle: "deepwiki"},
+		Configuration: gwmodels.MCPProxyConfig{Context: &ctxPath},
+		Endpoints: []gwmodels.MCPProxyEndpoint{{
+			Configuration: gwmodels.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: envA, ArtifactUUID: uuid.New()},
 			},
 		}},
@@ -256,8 +257,8 @@ func TestEnsureResourceServersForProxy_SurvivesResolverError(t *testing.T) {
 		},
 		gatewayRepo: &gwrepomocks.GatewayRepositoryMock{
 			EnvironmentMappingExistsFunc: func(_, _ string) (bool, error) { return true, nil },
-			GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
-				return &models.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
+			GetByUUIDFunc: func(_ string) (*gwmodels.Gateway, error) {
+				return &gwmodels.Gateway{UUID: gwUUID, Vhost: "https://gw.example.com"}, nil
 			},
 		},
 		resolver: &clientmocks.EnvThunderResolverMock{
@@ -288,12 +289,12 @@ func TestCPManagedMCPResourceServersUseEachSelectedEnvironmentPublicURL(t *testi
 	artifactA, artifactB := uuid.New(), uuid.New()
 	gatewayA, gatewayB := uuid.New(), uuid.New()
 	ctxPath := "/deepwiki"
-	proxy := &models.MCPProxy{
-		Artifact:      &models.Artifact{Handle: "deepwiki"},
-		Configuration: models.MCPProxyConfig{Context: &ctxPath},
-		Endpoints: []models.MCPProxyEndpoint{{
-			Configuration: models.MCPEndpointConfig{Security: mcpIdentitySecurity()},
-			Environments: []models.MCPProxyEndpointEnvironment{
+	proxy := &gwmodels.MCPProxy{
+		Artifact:      &gwmodels.Artifact{Handle: "deepwiki"},
+		Configuration: gwmodels.MCPProxyConfig{Context: &ctxPath},
+		Endpoints: []gwmodels.MCPProxyEndpoint{{
+			Configuration: gwmodels.MCPEndpointConfig{Security: mcpIdentitySecurity()},
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: envA, ArtifactUUID: artifactA},
 				{EnvironmentUUID: envB, ArtifactUUID: artifactB},
 			},
@@ -319,8 +320,8 @@ func TestCPManagedMCPResourceServersUseEachSelectedEnvironmentPublicURL(t *testi
 		},
 		gatewayRepo: &gwrepomocks.GatewayRepositoryMock{
 			EnvironmentMappingExistsFunc: func(_, _ string) (bool, error) { return true, nil },
-			GetByUUIDFunc: func(id string) (*models.Gateway, error) {
-				byGateway := map[string]*models.Gateway{
+			GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
+				byGateway := map[string]*gwmodels.Gateway{
 					gatewayA.String(): {UUID: gatewayA, Vhost: "https://a.example.com"},
 					gatewayB.String(): {UUID: gatewayB, Vhost: "https://b.example.com"},
 				}

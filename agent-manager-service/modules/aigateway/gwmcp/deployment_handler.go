@@ -19,12 +19,12 @@ package gwmcp
 import (
 	"context"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // AgentDeployments reports where an agent is served.
 type AgentDeployments interface {
-	GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error)
+	GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*gwmodels.DeploymentResponse, error)
 }
 
 type DeploymentHandler struct {
@@ -35,6 +35,6 @@ func NewDeploymentHandler(agentSvc AgentDeployments) *DeploymentHandler {
 	return &DeploymentHandler{agentSvc: agentSvc}
 }
 
-func (h *DeploymentHandler) GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*models.DeploymentResponse, error) {
+func (h *DeploymentHandler) GetAgentDeployments(ctx context.Context, ouID string, projectName string, agentName string) ([]*gwmodels.DeploymentResponse, error) {
 	return h.agentSvc.GetAgentDeployments(ctx, ouID, projectName, agentName)
 }

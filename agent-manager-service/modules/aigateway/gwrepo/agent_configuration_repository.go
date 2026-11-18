@@ -24,6 +24,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -32,10 +33,10 @@ import (
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/agent_configuration_repository_mock.go . AgentConfigurationRepository:AgentConfigurationRepositoryMock
 type AgentConfigurationRepository interface {
 	// Create creates a new agent configuration (use within transaction)
-	Create(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error
+	Create(ctx context.Context, tx *gorm.DB, config *gwmodels.AgentConfiguration) error
 
 	// GetByUUID retrieves configuration by UUID
-	GetByUUID(ctx context.Context, configUUID uuid.UUID, ouID string) (*models.AgentConfiguration, error)
+	GetByUUID(ctx context.Context, configUUID uuid.UUID, ouID string) (*gwmodels.AgentConfiguration, error)
 
 	// GetByAgentID retrieves configuration by agent ID. An agent can have
 	// several configuration rows of the same type (e.g. one per bound MCP
@@ -43,7 +44,7 @@ type AgentConfigurationRepository interface {
 	// ARBITRARY single row when more than one exists; callers that need
 	// every row of a given type must use ListMCPConfigsByAgent (MCP) or
 	// ListByAgentAndType instead.
-	GetByAgentID(ctx context.Context, agentID, ouID string) (*models.AgentConfiguration, error)
+	GetByAgentID(ctx context.Context, agentID, ouID string) (*gwmodels.AgentConfiguration, error)
 
 	// ListMCPConfigsByAgent returns every MCP-type AgentConfiguration row for
 	// one agent, each fully preloaded with its EnvMCPMappings (and their
@@ -53,7 +54,7 @@ type AgentConfigurationRepository interface {
 	// Callers that need the full set of MCP proxies an agent is bound to
 	// (e.g. resolving the union of every proxy's scopes) must use this
 	// instead of GetByAgentID, which only ever returns one arbitrary row.
-	ListMCPConfigsByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AgentConfiguration, error)
+	ListMCPConfigsByAgent(ctx context.Context, ouID, projectName, agentID string) ([]gwmodels.AgentConfiguration, error)
 
 	// ListMCPConfigsByProxy returns every MCP-type AgentConfiguration row in the
 	// organization whose agent_mcp_config_proxy reference names proxyUUID, preloaded with
@@ -63,7 +64,7 @@ type AgentConfigurationRepository interface {
 	// keys off the configuration's proxy reference rather than its mapping rows: a
 	// connection with no mapping in some (or any) environment is exactly the one a
 	// reconcile needs to find, and a mapping-row join cannot see it.
-	ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error)
+	ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]gwmodels.AgentConfiguration, error)
 
 	// SetMCPProxyRef records the environment-agnostic MCP proxy a configuration
 	// references, inserting or re-pointing its agent_mcp_config_proxy row.
@@ -79,25 +80,25 @@ type AgentConfigurationRepository interface {
 	SetMCPEnvScope(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, exclude, include []uuid.UUID) error
 
 	// List retrieves configurations with pagination
-	List(ctx context.Context, ouID string, limit, offset int) ([]models.AgentConfiguration, error)
+	List(ctx context.Context, ouID string, limit, offset int) ([]gwmodels.AgentConfiguration, error)
 
 	// Count counts total configurations
 	Count(ctx context.Context, ouID string) (int64, error)
 
 	// ListByAgent retrieves configurations scoped to a specific agent with pagination
-	ListByAgent(ctx context.Context, ouID, projectName, agentName string, limit, offset int) ([]models.AgentConfiguration, error)
+	ListByAgent(ctx context.Context, ouID, projectName, agentName string, limit, offset int) ([]gwmodels.AgentConfiguration, error)
 
 	// CountByAgent counts total configurations for a specific agent
 	CountByAgent(ctx context.Context, ouID, projectName, agentName string) (int64, error)
 
 	// ListByAgentAndType retrieves configurations scoped to a specific agent and config type with pagination
-	ListByAgentAndType(ctx context.Context, ouID, projectName, agentName string, typeID uint, limit, offset int) ([]models.AgentConfiguration, error)
+	ListByAgentAndType(ctx context.Context, ouID, projectName, agentName string, typeID uint, limit, offset int) ([]gwmodels.AgentConfiguration, error)
 
 	// CountByAgentAndType counts configurations scoped to a specific agent and config type
 	CountByAgentAndType(ctx context.Context, ouID, projectName, agentName string, typeID uint) (int64, error)
 
 	// Update updates an existing configuration (use within transaction)
-	Update(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error
+	Update(ctx context.Context, tx *gorm.DB, config *gwmodels.AgentConfiguration) error
 
 	// Delete deletes a configuration by UUID (use within transaction)
 	Delete(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, ouID string) error
@@ -115,7 +116,7 @@ func NewAgentConfigurationRepository(db *gorm.DB) AgentConfigurationRepository {
 	return &agentConfigurationRepository{db: db}
 }
 
-func (r *agentConfigurationRepository) Create(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error {
+func (r *agentConfigurationRepository) Create(ctx context.Context, tx *gorm.DB, config *gwmodels.AgentConfiguration) error {
 	if config.UUID == uuid.Nil {
 		config.UUID = uuid.Must(uuid.NewV7())
 	}
@@ -158,8 +159,8 @@ func withRelations(q *gorm.DB, envVariables bool) *gorm.DB {
 
 // GetByUUID loads one configuration with its LLM and MCP mappings. MCP mappings carry their
 // proxy's endpoint → environment bindings, which per-environment gateway resolution reads.
-func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID uuid.UUID, ouID string) (*models.AgentConfiguration, error) {
-	var config models.AgentConfiguration
+func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID uuid.UUID, ouID string) (*gwmodels.AgentConfiguration, error) {
+	var config gwmodels.AgentConfiguration
 	err := withRelations(r.db.WithContext(ctx), true).
 		Where("id = ? AND org_id = ?", configUUID, ouID).
 		First(&config).Error
@@ -171,8 +172,8 @@ func (r *agentConfigurationRepository) GetByUUID(ctx context.Context, configUUID
 
 // GetByAgentID loads an agent's configuration with the same relations as GetByUUID. agentID is the agent's name,
 // which is unique in its organization.
-func (r *agentConfigurationRepository) GetByAgentID(ctx context.Context, agentID, ouID string) (*models.AgentConfiguration, error) {
-	var config models.AgentConfiguration
+func (r *agentConfigurationRepository) GetByAgentID(ctx context.Context, agentID, ouID string) (*gwmodels.AgentConfiguration, error) {
+	var config gwmodels.AgentConfiguration
 	err := withRelations(r.db.WithContext(ctx), true).
 		Where("org_id = ? AND agent_id IN (?)", ouID,
 			r.db.Session(&gorm.Session{NewDB: true}).Table("agents").Select("id").Where("org_id = ? AND name = ?", ouID, agentID)).
@@ -191,22 +192,22 @@ func (r *agentConfigurationRepository) byAgent(q *gorm.DB, ouID, projectName, ag
 
 // ListMCPConfigsByAgent lists an agent's MCP configurations with their mappings, proxies and
 // the proxies' endpoint → environment bindings.
-func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AgentConfiguration, error) {
-	var configs []models.AgentConfiguration
+func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context, ouID, projectName, agentID string) ([]gwmodels.AgentConfiguration, error) {
+	var configs []gwmodels.AgentConfiguration
 	err := r.byAgent(withRelations(r.db.WithContext(ctx), false), ouID, projectName, agentID).
-		Where("mod_ai_gateway_agent_model_configs.type = ?", models.AgentConfigTypeMCP).
+		Where("mod_ai_gateway_agent_model_configs.type = ?", gwmodels.AgentConfigTypeMCP).
 		Find(&configs).Error
 	return configs, err
 }
 
 // ListMCPConfigsByProxy lists the MCP configurations bound to the given proxy, with the same
 // relations as ListMCPConfigsByAgent plus their env var rows.
-func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error) {
-	var configs []models.AgentConfiguration
+func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]gwmodels.AgentConfiguration, error) {
+	var configs []gwmodels.AgentConfiguration
 	err := withRelations(r.db.WithContext(ctx), true).
 		Joins("JOIN mod_ai_gateway_agent_model_config_mcp p ON p.config_id = mod_ai_gateway_agent_model_configs.id").
 		Where("mod_ai_gateway_agent_model_configs.org_id = ? AND mod_ai_gateway_agent_model_configs.type = ? AND p.mcp_proxy_id = ?",
-			ouID, models.AgentConfigTypeMCP, proxyUUID).
+			ouID, gwmodels.AgentConfigTypeMCP, proxyUUID).
 		Find(&configs).Error
 	return configs, err
 }
@@ -216,9 +217,9 @@ func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context
 // and a write path recording a new one take the same path.
 func (r *agentConfigurationRepository) SetMCPProxyRef(ctx context.Context, tx *gorm.DB, configUUID, proxyUUID uuid.UUID) error {
 	now := dbx.Now()
-	ref := models.AgentMCPConfigProxy{ConfigUUID: configUUID, MCPProxyUUID: proxyUUID, CreatedAt: now, UpdatedAt: now}
+	ref := gwmodels.AgentMCPConfigProxy{ConfigUUID: configUUID, MCPProxyUUID: proxyUUID, CreatedAt: now, UpdatedAt: now}
 	_, err := dbx.Upsert(tx.WithContext(ctx), &ref, func(db *gorm.DB) error {
-		return db.Model(&models.AgentMCPConfigProxy{}).Where("config_id = ?", configUUID).
+		return db.Model(&gwmodels.AgentMCPConfigProxy{}).Where("config_id = ?", configUUID).
 			Updates(map[string]any{"mcp_proxy_id": proxyUUID, "updated_at": now}).Error
 	})
 	return err
@@ -230,14 +231,14 @@ func (r *agentConfigurationRepository) SetMCPProxyRef(ctx context.Context, tx *g
 // re-marking a marked connection are all no-ops.
 func (r *agentConfigurationRepository) SetMCPEnvScope(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, exclude, include []uuid.UUID) error {
 	db := tx.WithContext(ctx)
-	if err := db.Model(&models.AgentMCPConfigProxy{}).
+	if err := db.Model(&gwmodels.AgentMCPConfigProxy{}).
 		Where("config_id = ? AND scope_recorded_at IS NULL", configUUID).
 		Update("scope_recorded_at", dbx.Now()).Error; err != nil {
 		return err
 	}
 	if len(include) > 0 {
 		if err := db.Where("config_id = ? AND environment_id IN ? AND excluded = ?", configUUID, include, true).
-			Delete(&models.AgentMCPConfigEnvExclusion{}).Error; err != nil {
+			Delete(&gwmodels.AgentMCPConfigEnvExclusion{}).Error; err != nil {
 			return err
 		}
 	}
@@ -249,7 +250,7 @@ func (r *agentConfigurationRepository) SetMCPEnvScope(ctx context.Context, tx *g
 		if _, included := keep[envUUID]; included {
 			continue
 		}
-		if _, err := dbx.InsertIfAbsent(db, &models.AgentMCPConfigEnvExclusion{
+		if _, err := dbx.InsertIfAbsent(db, &gwmodels.AgentMCPConfigEnvExclusion{
 			ConfigUUID: configUUID, EnvironmentUUID: envUUID,
 		}); err != nil {
 			return err
@@ -263,7 +264,7 @@ func (r *agentConfigurationRepository) SetMCPEnvScope(ctx context.Context, tx *g
 func (r *agentConfigurationRepository) ClearMCPProxyRef(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 	return tx.WithContext(ctx).
 		Where("config_id = ?", configUUID).
-		Delete(&models.AgentMCPConfigProxy{}).Error
+		Delete(&gwmodels.AgentMCPConfigProxy{}).Error
 }
 
 // backfillLLMProxyHandles populates the Handle field of each preloaded LLM proxy
@@ -273,7 +274,7 @@ func (r *agentConfigurationRepository) ClearMCPProxyRef(ctx context.Context, tx 
 // construction (LLMProxyService.Create sets handle := Configuration.Name), so this
 // lets every consumer read mapping.LLMProxy.Handle directly instead of treating
 // Configuration.Name as a stand-in for the handle.
-func backfillLLMProxyHandles(config *models.AgentConfiguration) {
+func backfillLLMProxyHandles(config *gwmodels.AgentConfiguration) {
 	if config == nil {
 		return
 	}
@@ -284,7 +285,7 @@ func backfillLLMProxyHandles(config *models.AgentConfiguration) {
 // backfillLLMProxyHandlesInMappings is the shared implementation used by any
 // repository that preloads EnvAgentModelMapping.LLMProxy directly (see
 // backfillLLMProxyHandles for why this backfill is needed).
-func backfillLLMProxyHandlesInMappings(mappings []models.EnvAgentModelMapping) {
+func backfillLLMProxyHandlesInMappings(mappings []gwmodels.EnvAgentModelMapping) {
 	for i := range mappings {
 		proxy := mappings[i].LLMProxy
 		if proxy != nil && proxy.Handle == "" {
@@ -293,8 +294,8 @@ func backfillLLMProxyHandlesInMappings(mappings []models.EnvAgentModelMapping) {
 	}
 }
 
-func (r *agentConfigurationRepository) List(ctx context.Context, ouID string, limit, offset int) ([]models.AgentConfiguration, error) {
-	var configs []models.AgentConfiguration
+func (r *agentConfigurationRepository) List(ctx context.Context, ouID string, limit, offset int) ([]gwmodels.AgentConfiguration, error) {
+	var configs []gwmodels.AgentConfiguration
 	err := r.db.WithContext(ctx).
 		Where("org_id = ?", ouID).
 		Order("created_at DESC, id").
@@ -307,14 +308,14 @@ func (r *agentConfigurationRepository) List(ctx context.Context, ouID string, li
 func (r *agentConfigurationRepository) Count(ctx context.Context, ouID string) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
-		Model(&models.AgentConfiguration{}).
+		Model(&gwmodels.AgentConfiguration{}).
 		Where("org_id = ?", ouID).
 		Count(&count).Error
 	return count, err
 }
 
-func (r *agentConfigurationRepository) ListByAgent(ctx context.Context, ouID, projectName, agentName string, limit, offset int) ([]models.AgentConfiguration, error) {
-	var configs []models.AgentConfiguration
+func (r *agentConfigurationRepository) ListByAgent(ctx context.Context, ouID, projectName, agentName string, limit, offset int) ([]gwmodels.AgentConfiguration, error) {
+	var configs []gwmodels.AgentConfiguration
 	err := r.byAgent(r.db.WithContext(ctx), ouID, projectName, agentName).
 		Order("created_at DESC, id").
 		Limit(limit).
@@ -325,17 +326,17 @@ func (r *agentConfigurationRepository) ListByAgent(ctx context.Context, ouID, pr
 
 func (r *agentConfigurationRepository) CountByAgent(ctx context.Context, ouID, projectName, agentName string) (int64, error) {
 	var count int64
-	err := r.byAgent(r.db.WithContext(ctx).Model(&models.AgentConfiguration{}), ouID, projectName, agentName).
+	err := r.byAgent(r.db.WithContext(ctx).Model(&gwmodels.AgentConfiguration{}), ouID, projectName, agentName).
 		Count(&count).Error
 	return count, err
 }
 
 func (r *agentConfigurationRepository) ListByAgentAndType(
 	ctx context.Context, ouID, projectName, agentName string, typeID uint, limit, offset int,
-) ([]models.AgentConfiguration, error) {
-	var configs []models.AgentConfiguration
+) ([]gwmodels.AgentConfiguration, error) {
+	var configs []gwmodels.AgentConfiguration
 	err := r.byAgent(r.db.WithContext(ctx), ouID, projectName, agentName).
-		Where("type = ?", models.AgentConfigTypeFromID(typeID)).
+		Where("type = ?", gwmodels.AgentConfigTypeFromID(typeID)).
 		Order("created_at DESC, id").
 		Limit(limit).
 		Offset(offset).
@@ -347,13 +348,13 @@ func (r *agentConfigurationRepository) CountByAgentAndType(
 	ctx context.Context, ouID, projectName, agentName string, typeID uint,
 ) (int64, error) {
 	var count int64
-	err := r.byAgent(r.db.WithContext(ctx).Model(&models.AgentConfiguration{}), ouID, projectName, agentName).
-		Where("type = ?", models.AgentConfigTypeFromID(typeID)).
+	err := r.byAgent(r.db.WithContext(ctx).Model(&gwmodels.AgentConfiguration{}), ouID, projectName, agentName).
+		Where("type = ?", gwmodels.AgentConfigTypeFromID(typeID)).
 		Count(&count).Error
 	return count, err
 }
 
-func (r *agentConfigurationRepository) Update(ctx context.Context, tx *gorm.DB, config *models.AgentConfiguration) error {
+func (r *agentConfigurationRepository) Update(ctx context.Context, tx *gorm.DB, config *gwmodels.AgentConfiguration) error {
 	config.UpdatedAt = dbx.Now()
 	return tx.WithContext(ctx).
 		Omit("EnvMappings", "EnvMCPMappings", "EnvVariables", "MCPProxyRef", "MCPEnvExclusions", "MCPScope").
@@ -363,13 +364,13 @@ func (r *agentConfigurationRepository) Update(ctx context.Context, tx *gorm.DB, 
 func (r *agentConfigurationRepository) Delete(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, ouID string) error {
 	return tx.WithContext(ctx).
 		Where("id = ? AND org_id = ?", configUUID, ouID).
-		Delete(&models.AgentConfiguration{}).Error
+		Delete(&gwmodels.AgentConfiguration{}).Error
 }
 
 func (r *agentConfigurationRepository) Exists(ctx context.Context, configUUID uuid.UUID, ouID string) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
-		Model(&models.AgentConfiguration{}).
+		Model(&gwmodels.AgentConfiguration{}).
 		Where("id = ? AND org_id = ?", configUUID, ouID).
 		Count(&count).Error
 	return count > 0, err

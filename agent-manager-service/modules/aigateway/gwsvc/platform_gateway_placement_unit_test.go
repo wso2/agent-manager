@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -59,23 +59,23 @@ func (p recordingPlacer) placed(t *testing.T, n int) []placedEnv {
 	return got
 }
 
-func mappingRepo(gw *models.Gateway, ingressInEnv int64) *gwrepomocks.GatewayRepositoryMock {
+func mappingRepo(gw *gwmodels.Gateway, ingressInEnv int64) *gwrepomocks.GatewayRepositoryMock {
 	return &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc:                 func(string, string) (*models.Gateway, error) { return nil, utils.ErrGatewayNotFound },
-		GetByUUIDFunc:                         func(string) (*models.Gateway, error) { return gw, nil },
+		GetByNameAndOrgIDFunc:                 func(string, string) (*gwmodels.Gateway, error) { return nil, utils.ErrGatewayNotFound },
+		GetByUUIDFunc:                         func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
-		CreateTxFunc:                          func(*gorm.DB, *models.Gateway) error { return nil },
+		CreateTxFunc:                          func(*gorm.DB, *gwmodels.Gateway) error { return nil },
 		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
 		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
 		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
-		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) { return nil, nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) { return nil, nil },
 		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return ingressInEnv, nil },
-		CreateEnvironmentMappingTxFunc:        func(*gorm.DB, *models.GatewayEnvironmentMapping) error { return nil },
+		CreateEnvironmentMappingTxFunc:        func(*gorm.DB, *gwmodels.GatewayEnvironmentMapping) error { return nil },
 	}
 }
 
 func TestAssignGatewayToEnvironmentPlacesTheEnvironment(t *testing.T) {
-	gw := &models.Gateway{UUID: uuid.New(), OUID: "ou-1", GatewayFunctionalityType: models.GatewayRoleBoth}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", GatewayFunctionalityType: gwmodels.GatewayRoleBoth}
 	env := uuid.New()
 	placer := make(recordingPlacer, 1)
 	svc := NewPlatformGatewayService(mappingRepo(gw, 0), nil).WithEnvironmentPlacer(placer)
@@ -86,7 +86,7 @@ func TestAssignGatewayToEnvironmentPlacesTheEnvironment(t *testing.T) {
 }
 
 func TestAssignGatewayToEnvironmentPlacesNothingWhenTheMappingFails(t *testing.T) {
-	gw := &models.Gateway{UUID: uuid.New(), OUID: "ou-1", GatewayFunctionalityType: models.GatewayRoleBoth}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", GatewayFunctionalityType: gwmodels.GatewayRoleBoth}
 	placer := make(recordingPlacer, 1)
 	svc := NewPlatformGatewayService(mappingRepo(gw, 1), nil).WithEnvironmentPlacer(placer)
 
@@ -100,13 +100,13 @@ func TestAssignGatewayToEnvironmentPlacesNothingWhenTheMappingFails(t *testing.T
 }
 
 func TestRegisterGatewayPlacesItsEnvironment(t *testing.T) {
-	gw := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleEgress}
+	gw := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleEgress}
 	env := uuid.New()
 	placer := make(recordingPlacer, 1)
 	svc := NewPlatformGatewayService(mappingRepo(gw, 0), nil).WithEnvironmentPlacer(placer)
 
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
-		[]string{env.String(), env.String()}, models.GatewayHostingManaged)
+		[]string{env.String(), env.String()}, gwmodels.GatewayHostingManaged)
 	require.NoError(t, err)
 
 	assert.Equal(t, []placedEnv{{ouID: "ou-1", env: env}}, placer.placed(t, 1))
@@ -114,27 +114,27 @@ func TestRegisterGatewayPlacesItsEnvironment(t *testing.T) {
 
 func TestSelfHostedGatewayDoesNotChangeManagedPlacement(t *testing.T) {
 	env := uuid.New()
-	managed := &models.Gateway{
-		UUID: uuid.New(), Name: "managed", GatewayFunctionalityType: models.GatewayRoleBoth,
-		Hosting: models.GatewayHostingManaged,
+	managed := &gwmodels.Gateway{
+		UUID: uuid.New(), Name: "managed", GatewayFunctionalityType: gwmodels.GatewayRoleBoth,
+		Hosting: gwmodels.GatewayHostingManaged,
 	}
-	selfHosted := &models.Gateway{
-		UUID: uuid.New(), Name: "self-hosted", GatewayFunctionalityType: models.GatewayRoleEgress,
-		Hosting: models.GatewayHostingSelfHosted,
+	selfHosted := &gwmodels.Gateway{
+		UUID: uuid.New(), Name: "self-hosted", GatewayFunctionalityType: gwmodels.GatewayRoleEgress,
+		Hosting: gwmodels.GatewayHostingSelfHosted,
 	}
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
-			return []*models.Gateway{managed, selfHosted}, nil
+		ListWithFiltersFunc: func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return []*gwmodels.Gateway{managed, selfHosted}, nil
 		},
 		EnvironmentMappingExistsFunc: func(string, string) (bool, error) { return true, nil },
-		GetByUUIDFunc: func(id string) (*models.Gateway, error) {
+		GetByUUIDFunc: func(id string) (*gwmodels.Gateway, error) {
 			if id == selfHosted.UUID.String() {
 				return selfHosted, nil
 			}
 			return managed, nil
 		},
-		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]models.GatewayEnvironmentMapping, error) {
-			return []models.GatewayEnvironmentMapping{{EnvironmentUUID: env}}, nil
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+			return []gwmodels.GatewayEnvironmentMapping{{EnvironmentUUID: env}}, nil
 		},
 	}
 
@@ -168,7 +168,7 @@ func TestSelfHostedGatewayDoesNotChangeManagedPlacement(t *testing.T) {
 	})
 
 	record := reconcile.Record{
-		ArtifactRef:     models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New()},
+		ArtifactRef:     gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New()},
 		EnvironmentUUID: env,
 	}
 	unplaced := &gwrepomocks.DeploymentRepositoryMock{
@@ -179,7 +179,7 @@ func TestSelfHostedGatewayDoesNotChangeManagedPlacement(t *testing.T) {
 		proxy := goldenProxy()
 		kind := &LLMProxyKind{
 			gatewayRepo: repo, deploymentRepo: unplaced,
-			load: func(context.Context, models.ArtifactRef) (*models.LLMProxy, *models.LLMProvider, error) {
+			load: func(context.Context, gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error) {
 				return proxy, goldenProvider(), nil
 			},
 		}
@@ -192,9 +192,9 @@ func TestSelfHostedGatewayDoesNotChangeManagedPlacement(t *testing.T) {
 	})
 
 	t.Run("an unplaced MCP proxy targets the managed gateway", func(t *testing.T) {
-		kind := &MCPProxyKind{gatewayRepo: repo, deploymentRepo: unplaced, load: func(context.Context, models.ArtifactRef) (*mcpArtifact, error) {
-			return &mcpArtifact{deployable: &models.MCPProxy{Configuration: models.MCPProxyConfig{
-				Upstream: models.UpstreamConfig{Main: &models.UpstreamEndpoint{URL: "https://93.184.216.34/mcp"}},
+		kind := &MCPProxyKind{gatewayRepo: repo, deploymentRepo: unplaced, load: func(context.Context, gwmodels.ArtifactRef) (*mcpArtifact, error) {
+			return &mcpArtifact{deployable: &gwmodels.MCPProxy{Configuration: gwmodels.MCPProxyConfig{
+				Upstream: gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{URL: "https://93.184.216.34/mcp"}},
 			}}}, nil
 		}}
 

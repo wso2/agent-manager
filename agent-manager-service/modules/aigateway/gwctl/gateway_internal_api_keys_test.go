@@ -35,34 +35,35 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 )
 
 func TestGetAPIKeysServesBothAgentKinds(t *testing.T) {
 	gdb := db.GetDB()
 	ouID := dbtest.Org(t, db.GetDB())
 	envID, otherEnvID := uuid.New(), uuid.New()
-	gatewayID := dbtest.GatewayIn(t, gdb, ouID, models.GatewayRoleBoth, envID).UUID
+	gatewayID := gwtest.GatewayIn(t, gdb, ouID, gwmodels.GatewayRoleBoth, envID).UUID
 	dbtest.EnvironmentWithID(t, gdb, ouID, otherEnvID)
 
 	seedKey := func(kind string, env uuid.UUID) uuid.UUID {
-		artifact := &models.Artifact{
+		artifact := &gwmodels.Artifact{
 			UUID: uuid.New(), Handle: "proj/" + kind + "/" + env.String(), Name: kind + "-" + uuid.NewString()[:8],
 			Version: "v1.0", Kind: kind, OUID: ouID,
 		}
 		require.NoError(t, gwrepo.NewArtifactRepo(gdb).Create(gdb, artifact))
-		require.NoError(t, gdb.Create(&models.StoredAPIKey{
+		require.NoError(t, gdb.Create(&gwmodels.StoredAPIKey{
 			UUID: uuid.New(), Name: "key", ArtifactUUID: artifact.UUID, OUID: ouID, APIKeyHash: "hash",
-			Status: "active", Purpose: models.APIKeyPurposeUserManaged,
+			Status: "active", Purpose: gwmodels.APIKeyPurposeUserManaged,
 		}).Error)
 		return artifact.UUID
 	}
-	agentArtifact := seedKey(models.KindAgent, envID)
-	restArtifact := seedKey(models.KindRestAPI, envID)
-	seedKey(models.KindAgent, otherEnvID)
-	seedKey(models.KindRestAPI, otherEnvID)
+	agentArtifact := seedKey(gwmodels.KindAgent, envID)
+	restArtifact := seedKey(gwmodels.KindRestAPI, envID)
+	seedKey(gwmodels.KindAgent, otherEnvID)
+	seedKey(gwmodels.KindRestAPI, otherEnvID)
 
 	controller := &gatewayInternalController{
 		gatewayService: gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(gdb), nil),
@@ -94,18 +95,18 @@ func newPullFixture(t *testing.T) pullFixture {
 	t.Helper()
 	gdb := db.GetDB()
 	ouID := dbtest.Org(t, db.GetDB())
-	gatewayID, artifactID := dbtest.GatewayIn(t, gdb, ouID, models.GatewayRoleBoth).UUID, uuid.New()
+	gatewayID, artifactID := gwtest.GatewayIn(t, gdb, ouID, gwmodels.GatewayRoleBoth).UUID, uuid.New()
 	handle := "handle-" + artifactID.String()[:8]
-	require.NoError(t, gwrepo.NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
-		UUID: artifactID, Handle: handle, Name: handle, Version: "v1.0", Kind: models.KindRestAPI, OUID: ouID,
+	require.NoError(t, gwrepo.NewArtifactRepo(gdb).Create(gdb, &gwmodels.Artifact{
+		UUID: artifactID, Handle: handle, Name: handle, Version: "v1.0", Kind: gwmodels.KindRestAPI, OUID: ouID,
 	}))
-	placement := models.Placement{
-		ArtifactRef: models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactID, Kind: models.KindRestAPI, Handle: handle},
+	placement := gwmodels.Placement{
+		ArtifactRef: gwmodels.ArtifactRef{OUID: ouID, ArtifactUUID: artifactID, Kind: gwmodels.KindRestAPI, Handle: handle},
 		GatewayUUID: gatewayID,
 	}
 	deploymentRepo := gwrepo.NewDeploymentRepo(gdb)
 	require.NoError(t, gdb.Transaction(func(tx *gorm.DB) error {
-		return deploymentRepo.StartDeploy(context.Background(), tx, placement, &models.Deployment{
+		return deploymentRepo.StartDeploy(context.Background(), tx, placement, &gwmodels.Deployment{
 			Name: "deployment", ArtifactUUID: artifactID, OUID: ouID, GatewayUUID: gatewayID, Content: []byte(restAPIYAML),
 		})
 	}))

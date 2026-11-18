@@ -26,14 +26,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
 func recordingAckRepo() *gwrepomocks.DeploymentRepositoryMock {
 	return &gwrepomocks.DeploymentRepositoryMock{
-		ApplyAckFunc: func(context.Context, string, models.DeploymentAck, gwrepo.AfterLiveFunc) (bool, error) {
+		ApplyAckFunc: func(context.Context, string, gwmodels.DeploymentAck, gwrepo.AfterLiveFunc) (bool, error) {
 			return true, nil
 		},
 	}
@@ -51,9 +51,9 @@ func TestDeploymentAckHandlerRecordsAgentAcksUnderEitherResourceType(t *testing.
 			calls := repo.ApplyAckCalls()
 			require.Len(t, calls, 1)
 			assert.Equal(t, "gw-1", calls[0].GatewayID)
-			assert.Equal(t, models.DeploymentAck{
+			assert.Equal(t, gwmodels.DeploymentAck{
 				DeploymentID: "d-1", ArtifactID: "a-1", ResourceType: resourceType,
-				Action: models.DeploymentAckActionDeploy, Status: models.DeploymentAckStatusSuccess,
+				Action: gwmodels.DeploymentAckActionDeploy, Status: gwmodels.DeploymentAckStatusSuccess,
 			}, calls[0].Ack)
 		})
 	}
@@ -73,7 +73,7 @@ func TestDeploymentAckHandlerAppliesAnUndeployAckWithNoDeploymentID(t *testing.T
 			require.Len(t, calls, 1)
 			assert.Empty(t, calls[0].Ack.DeploymentID)
 			assert.Equal(t, "a-1", calls[0].Ack.ArtifactID)
-			assert.Equal(t, models.DeploymentAckActionUndeploy, calls[0].Ack.Action)
+			assert.Equal(t, gwmodels.DeploymentAckActionUndeploy, calls[0].Ack.Action)
 		})
 	}
 }
@@ -99,7 +99,7 @@ func TestAckAcceptsAPIResourceType(t *testing.T) {
 func TestDeploymentAckHandlerPassesItsAfterLiveHook(t *testing.T) {
 	repo := recordingAckRepo()
 	called := false
-	afterLive := func(context.Context, *gorm.DB, models.Placement, uuid.UUID) error {
+	afterLive := func(context.Context, *gorm.DB, gwmodels.Placement, uuid.UUID) error {
 		called = true
 		return nil
 	}
@@ -111,6 +111,6 @@ func TestDeploymentAckHandlerPassesItsAfterLiveHook(t *testing.T) {
 	calls := repo.ApplyAckCalls()
 	require.Len(t, calls, 1)
 	require.NotNil(t, calls[0].AfterLive)
-	require.NoError(t, calls[0].AfterLive(context.Background(), nil, models.Placement{}, uuid.Nil))
+	require.NoError(t, calls[0].AfterLive(context.Background(), nil, gwmodels.Placement{}, uuid.Nil))
 	assert.True(t, called)
 }

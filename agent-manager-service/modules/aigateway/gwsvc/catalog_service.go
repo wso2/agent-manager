@@ -23,7 +23,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
@@ -100,8 +100,8 @@ func (c *envMappingCache) set(ouID string, mapping map[string]string) {
 
 // CatalogService defines the interface for catalog operations
 type CatalogService interface {
-	ListCatalog(ctx context.Context, ouID string, kind string, limit, offset int) ([]models.CatalogEntry, int64, error)
-	ListLLMProviders(ctx context.Context, filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error)
+	ListCatalog(ctx context.Context, ouID string, kind string, limit, offset int) ([]gwmodels.CatalogEntry, int64, error)
+	ListLLMProviders(ctx context.Context, filters *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error)
 }
 
 type catalogService struct {
@@ -124,7 +124,7 @@ func NewCatalogService(
 }
 
 // ListCatalog retrieves catalog entries filtered by kind and organization
-func (s *catalogService) ListCatalog(ctx context.Context, ouID string, kind string, limit, offset int) ([]models.CatalogEntry, int64, error) {
+func (s *catalogService) ListCatalog(ctx context.Context, ouID string, kind string, limit, offset int) ([]gwmodels.CatalogEntry, int64, error) {
 	if ouID == "" {
 		return nil, 0, fmt.Errorf("ouID must not be empty")
 	}
@@ -134,7 +134,7 @@ func (s *catalogService) ListCatalog(ctx context.Context, ouID string, kind stri
 		"limit", limit,
 		"offset", offset)
 
-	var entries []models.CatalogEntry
+	var entries []gwmodels.CatalogEntry
 	var total int64
 	var err error
 
@@ -163,7 +163,7 @@ func (s *catalogService) ListCatalog(ctx context.Context, ouID string, kind stri
 }
 
 // ListLLMProviders retrieves comprehensive LLM provider catalog entries with deployment details
-func (s *catalogService) ListLLMProviders(ctx context.Context, filters *models.CatalogListFilters) ([]models.CatalogLLMProviderEntry, int64, error) {
+func (s *catalogService) ListLLMProviders(ctx context.Context, filters *gwmodels.CatalogListFilters) ([]gwmodels.CatalogLLMProviderEntry, int64, error) {
 	// Handle nil filters
 	if filters == nil {
 		s.logger.Error("Filters cannot be nil")

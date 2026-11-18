@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +18,7 @@ import (
 //
 //		// make and configure a mocked gwrepo.EnvAgentMCPMappingRepository
 //		mockedEnvAgentMCPMappingRepository := &EnvAgentMCPMappingRepositoryMock{
-//			CreateFunc: func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping, proxyMapping *models.MCPProxyMapping, handle string, name string, version string, ouID string) error {
+//			CreateFunc: func(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping, proxyMapping *gwmodels.MCPProxyMapping, handle string, name string, version string, ouID string) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error {
@@ -27,16 +27,16 @@ import (
 //			DeleteByConfigFunc: func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error {
 //				panic("mock out the DeleteByConfig method")
 //			},
-//			ListByConfigFunc: func(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+//			ListByConfigFunc: func(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
 //				panic("mock out the ListByConfig method")
 //			},
-//			ListByEnvironmentFunc: func(ctx context.Context, envUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+//			ListByEnvironmentFunc: func(ctx context.Context, envUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
 //				panic("mock out the ListByEnvironment method")
 //			},
-//			ListByMCPProxyFunc: func(ctx context.Context, mcpProxyUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+//			ListByMCPProxyFunc: func(ctx context.Context, mcpProxyUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
 //				panic("mock out the ListByMCPProxy method")
 //			},
-//			UpdateFunc: func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping) error {
+//			UpdateFunc: func(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -47,7 +47,7 @@ import (
 //	}
 type EnvAgentMCPMappingRepositoryMock struct {
 	// CreateFunc mocks the Create method.
-	CreateFunc func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping, proxyMapping *models.MCPProxyMapping, handle string, name string, version string, ouID string) error
+	CreateFunc func(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping, proxyMapping *gwmodels.MCPProxyMapping, handle string, name string, version string, ouID string) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID, envUUID uuid.UUID) error
@@ -56,16 +56,16 @@ type EnvAgentMCPMappingRepositoryMock struct {
 	DeleteByConfigFunc func(ctx context.Context, tx *gorm.DB, configUUID uuid.UUID) error
 
 	// ListByConfigFunc mocks the ListByConfig method.
-	ListByConfigFunc func(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error)
+	ListByConfigFunc func(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error)
 
 	// ListByEnvironmentFunc mocks the ListByEnvironment method.
-	ListByEnvironmentFunc func(ctx context.Context, envUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error)
+	ListByEnvironmentFunc func(ctx context.Context, envUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error)
 
 	// ListByMCPProxyFunc mocks the ListByMCPProxy method.
-	ListByMCPProxyFunc func(ctx context.Context, mcpProxyUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error)
+	ListByMCPProxyFunc func(ctx context.Context, mcpProxyUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error)
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping) error
+	UpdateFunc func(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -76,9 +76,9 @@ type EnvAgentMCPMappingRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Mapping is the mapping argument value.
-			Mapping *models.EnvAgentMCPMapping
+			Mapping *gwmodels.EnvAgentMCPMapping
 			// ProxyMapping is the proxyMapping argument value.
-			ProxyMapping *models.MCPProxyMapping
+			ProxyMapping *gwmodels.MCPProxyMapping
 			// Handle is the handle argument value.
 			Handle string
 			// Name is the name argument value.
@@ -136,7 +136,7 @@ type EnvAgentMCPMappingRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Mapping is the mapping argument value.
-			Mapping *models.EnvAgentMCPMapping
+			Mapping *gwmodels.EnvAgentMCPMapping
 		}
 	}
 	lockCreate            sync.RWMutex
@@ -149,15 +149,15 @@ type EnvAgentMCPMappingRepositoryMock struct {
 }
 
 // Create calls CreateFunc.
-func (mock *EnvAgentMCPMappingRepositoryMock) Create(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping, proxyMapping *models.MCPProxyMapping, handle string, name string, version string, ouID string) error {
+func (mock *EnvAgentMCPMappingRepositoryMock) Create(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping, proxyMapping *gwmodels.MCPProxyMapping, handle string, name string, version string, ouID string) error {
 	if mock.CreateFunc == nil {
 		panic("EnvAgentMCPMappingRepositoryMock.CreateFunc: method is nil but EnvAgentMCPMappingRepository.Create was just called")
 	}
 	callInfo := struct {
 		Ctx          context.Context
 		Tx           *gorm.DB
-		Mapping      *models.EnvAgentMCPMapping
-		ProxyMapping *models.MCPProxyMapping
+		Mapping      *gwmodels.EnvAgentMCPMapping
+		ProxyMapping *gwmodels.MCPProxyMapping
 		Handle       string
 		Name         string
 		Version      string
@@ -185,8 +185,8 @@ func (mock *EnvAgentMCPMappingRepositoryMock) Create(ctx context.Context, tx *go
 func (mock *EnvAgentMCPMappingRepositoryMock) CreateCalls() []struct {
 	Ctx          context.Context
 	Tx           *gorm.DB
-	Mapping      *models.EnvAgentMCPMapping
-	ProxyMapping *models.MCPProxyMapping
+	Mapping      *gwmodels.EnvAgentMCPMapping
+	ProxyMapping *gwmodels.MCPProxyMapping
 	Handle       string
 	Name         string
 	Version      string
@@ -195,8 +195,8 @@ func (mock *EnvAgentMCPMappingRepositoryMock) CreateCalls() []struct {
 	var calls []struct {
 		Ctx          context.Context
 		Tx           *gorm.DB
-		Mapping      *models.EnvAgentMCPMapping
-		ProxyMapping *models.MCPProxyMapping
+		Mapping      *gwmodels.EnvAgentMCPMapping
+		ProxyMapping *gwmodels.MCPProxyMapping
 		Handle       string
 		Name         string
 		Version      string
@@ -293,7 +293,7 @@ func (mock *EnvAgentMCPMappingRepositoryMock) DeleteByConfigCalls() []struct {
 }
 
 // ListByConfig calls ListByConfigFunc.
-func (mock *EnvAgentMCPMappingRepositoryMock) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+func (mock *EnvAgentMCPMappingRepositoryMock) ListByConfig(ctx context.Context, configUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
 	if mock.ListByConfigFunc == nil {
 		panic("EnvAgentMCPMappingRepositoryMock.ListByConfigFunc: method is nil but EnvAgentMCPMappingRepository.ListByConfig was just called")
 	}
@@ -329,7 +329,7 @@ func (mock *EnvAgentMCPMappingRepositoryMock) ListByConfigCalls() []struct {
 }
 
 // ListByEnvironment calls ListByEnvironmentFunc.
-func (mock *EnvAgentMCPMappingRepositoryMock) ListByEnvironment(ctx context.Context, envUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+func (mock *EnvAgentMCPMappingRepositoryMock) ListByEnvironment(ctx context.Context, envUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
 	if mock.ListByEnvironmentFunc == nil {
 		panic("EnvAgentMCPMappingRepositoryMock.ListByEnvironmentFunc: method is nil but EnvAgentMCPMappingRepository.ListByEnvironment was just called")
 	}
@@ -365,7 +365,7 @@ func (mock *EnvAgentMCPMappingRepositoryMock) ListByEnvironmentCalls() []struct 
 }
 
 // ListByMCPProxy calls ListByMCPProxyFunc.
-func (mock *EnvAgentMCPMappingRepositoryMock) ListByMCPProxy(ctx context.Context, mcpProxyUUID uuid.UUID) ([]models.EnvAgentMCPMapping, error) {
+func (mock *EnvAgentMCPMappingRepositoryMock) ListByMCPProxy(ctx context.Context, mcpProxyUUID uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) {
 	if mock.ListByMCPProxyFunc == nil {
 		panic("EnvAgentMCPMappingRepositoryMock.ListByMCPProxyFunc: method is nil but EnvAgentMCPMappingRepository.ListByMCPProxy was just called")
 	}
@@ -401,14 +401,14 @@ func (mock *EnvAgentMCPMappingRepositoryMock) ListByMCPProxyCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *EnvAgentMCPMappingRepositoryMock) Update(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentMCPMapping) error {
+func (mock *EnvAgentMCPMappingRepositoryMock) Update(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentMCPMapping) error {
 	if mock.UpdateFunc == nil {
 		panic("EnvAgentMCPMappingRepositoryMock.UpdateFunc: method is nil but EnvAgentMCPMappingRepository.Update was just called")
 	}
 	callInfo := struct {
 		Ctx     context.Context
 		Tx      *gorm.DB
-		Mapping *models.EnvAgentMCPMapping
+		Mapping *gwmodels.EnvAgentMCPMapping
 	}{
 		Ctx:     ctx,
 		Tx:      tx,
@@ -427,12 +427,12 @@ func (mock *EnvAgentMCPMappingRepositoryMock) Update(ctx context.Context, tx *go
 func (mock *EnvAgentMCPMappingRepositoryMock) UpdateCalls() []struct {
 	Ctx     context.Context
 	Tx      *gorm.DB
-	Mapping *models.EnvAgentMCPMapping
+	Mapping *gwmodels.EnvAgentMCPMapping
 } {
 	var calls []struct {
 		Ctx     context.Context
 		Tx      *gorm.DB
-		Mapping *models.EnvAgentMCPMapping
+		Mapping *gwmodels.EnvAgentMCPMapping
 	}
 	mock.lockUpdate.RLock()
 	calls = mock.calls.Update

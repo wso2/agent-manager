@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -56,8 +56,8 @@ func TestWithA2AVersionHeaderDoesNotAliasInput(t *testing.T) {
 }
 
 func TestResolveCardCORSOverride(t *testing.T) {
-	stored := &models.AgentConfig{}
-	stored.SetCardCORSOverride(&models.CardCORS{Enabled: true, AllowOrigins: []string{"https://s.example"}})
+	stored := &gwmodels.AgentConfig{}
+	stored.SetCardCORSOverride(&gwmodels.CardCORS{Enabled: true, AllowOrigins: []string{"https://s.example"}})
 
 	t.Run("absent request keeps stored", func(t *testing.T) {
 		got := resolveCardCORSOverride(stored, nil)
@@ -77,14 +77,14 @@ func TestResolveCardCORSOverride(t *testing.T) {
 			AllowHeaders:     []string{"Content-Type"},
 			AllowCredentials: gwspec.PtrBool(false),
 		})
-		assert.Equal(t, &models.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowHeaders: []string{"Content-Type"}}, got)
+		assert.Equal(t, &gwmodels.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowHeaders: []string{"Content-Type"}}, got)
 	})
 }
 
 func TestValidateCardCORS(t *testing.T) {
-	enabledNoOrigins := &models.CardCORS{Enabled: true}
-	wildcardCreds := &models.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowCredentials: true}
-	ok := &models.CardCORS{Enabled: true, AllowOrigins: []string{"*"}}
+	enabledNoOrigins := &gwmodels.CardCORS{Enabled: true}
+	wildcardCreds := &gwmodels.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowCredentials: true}
+	ok := &gwmodels.CardCORS{Enabled: true, AllowOrigins: []string{"*"}}
 	req := &gwspec.AgentCardCORSConfig{Enabled: gwspec.PtrBool(true)}
 
 	assert.ErrorIs(t, validateCardCORS(false, req, ok), utils.ErrInvalidInput, "non-A2A agents cannot set it")
@@ -94,5 +94,5 @@ func TestValidateCardCORS(t *testing.T) {
 	assert.ErrorIs(t, validateCardCORS(true, req, enabledNoOrigins), utils.ErrInvalidInput)
 	assert.ErrorIs(t, validateCardCORS(true, req, wildcardCreds), utils.ErrInvalidInput)
 	assert.NoError(t, validateCardCORS(true, req, ok))
-	assert.NoError(t, validateCardCORS(true, nil, &models.CardCORS{Enabled: false}), "a disabled card needs no origins")
+	assert.NoError(t, validateCardCORS(true, nil, &gwmodels.CardCORS{Enabled: false}), "a disabled card needs no origins")
 }

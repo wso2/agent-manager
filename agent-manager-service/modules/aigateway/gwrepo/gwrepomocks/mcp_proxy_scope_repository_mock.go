@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // MCPProxyScopeRepositoryMock is a mock implementation of gwrepo.MCPProxyScopeRepository.
@@ -17,22 +17,22 @@ import (
 //
 //		// make and configure a mocked gwrepo.MCPProxyScopeRepository
 //		mockedMCPProxyScopeRepository := &MCPProxyScopeRepositoryMock{
-//			CreateFunc: func(ctx context.Context, scope *models.MCPProxyScope) error {
+//			CreateFunc: func(ctx context.Context, scope *gwmodels.MCPProxyScope) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(ctx context.Context, proxyUUID uuid.UUID, action string) error {
 //				panic("mock out the Delete method")
 //			},
-//			GetFunc: func(ctx context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
+//			GetFunc: func(ctx context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
 //				panic("mock out the Get method")
 //			},
-//			ListByProxyFunc: func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyScope, error) {
+//			ListByProxyFunc: func(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
 //				panic("mock out the ListByProxy method")
 //			},
-//			ListByProxyUUIDsFunc: func(ctx context.Context, proxyUUIDs []uuid.UUID) ([]models.MCPProxyScope, error) {
+//			ListByProxyUUIDsFunc: func(ctx context.Context, proxyUUIDs []uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
 //				panic("mock out the ListByProxyUUIDs method")
 //			},
-//			UpdateFunc: func(ctx context.Context, scope *models.MCPProxyScope) error {
+//			UpdateFunc: func(ctx context.Context, scope *gwmodels.MCPProxyScope) error {
 //				panic("mock out the Update method")
 //			},
 //		}
@@ -43,22 +43,22 @@ import (
 //	}
 type MCPProxyScopeRepositoryMock struct {
 	// CreateFunc mocks the Create method.
-	CreateFunc func(ctx context.Context, scope *models.MCPProxyScope) error
+	CreateFunc func(ctx context.Context, scope *gwmodels.MCPProxyScope) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(ctx context.Context, proxyUUID uuid.UUID, action string) error
 
 	// GetFunc mocks the Get method.
-	GetFunc func(ctx context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error)
+	GetFunc func(ctx context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error)
 
 	// ListByProxyFunc mocks the ListByProxy method.
-	ListByProxyFunc func(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyScope, error)
+	ListByProxyFunc func(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyScope, error)
 
 	// ListByProxyUUIDsFunc mocks the ListByProxyUUIDs method.
-	ListByProxyUUIDsFunc func(ctx context.Context, proxyUUIDs []uuid.UUID) ([]models.MCPProxyScope, error)
+	ListByProxyUUIDsFunc func(ctx context.Context, proxyUUIDs []uuid.UUID) ([]gwmodels.MCPProxyScope, error)
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(ctx context.Context, scope *models.MCPProxyScope) error
+	UpdateFunc func(ctx context.Context, scope *gwmodels.MCPProxyScope) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -67,7 +67,7 @@ type MCPProxyScopeRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Scope is the scope argument value.
-			Scope *models.MCPProxyScope
+			Scope *gwmodels.MCPProxyScope
 		}
 		// Delete holds details about calls to the Delete method.
 		Delete []struct {
@@ -106,7 +106,7 @@ type MCPProxyScopeRepositoryMock struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// Scope is the scope argument value.
-			Scope *models.MCPProxyScope
+			Scope *gwmodels.MCPProxyScope
 		}
 	}
 	lockCreate           sync.RWMutex
@@ -118,13 +118,13 @@ type MCPProxyScopeRepositoryMock struct {
 }
 
 // Create calls CreateFunc.
-func (mock *MCPProxyScopeRepositoryMock) Create(ctx context.Context, scope *models.MCPProxyScope) error {
+func (mock *MCPProxyScopeRepositoryMock) Create(ctx context.Context, scope *gwmodels.MCPProxyScope) error {
 	if mock.CreateFunc == nil {
 		panic("MCPProxyScopeRepositoryMock.CreateFunc: method is nil but MCPProxyScopeRepository.Create was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
-		Scope *models.MCPProxyScope
+		Scope *gwmodels.MCPProxyScope
 	}{
 		Ctx:   ctx,
 		Scope: scope,
@@ -141,11 +141,11 @@ func (mock *MCPProxyScopeRepositoryMock) Create(ctx context.Context, scope *mode
 //	len(mockedMCPProxyScopeRepository.CreateCalls())
 func (mock *MCPProxyScopeRepositoryMock) CreateCalls() []struct {
 	Ctx   context.Context
-	Scope *models.MCPProxyScope
+	Scope *gwmodels.MCPProxyScope
 } {
 	var calls []struct {
 		Ctx   context.Context
-		Scope *models.MCPProxyScope
+		Scope *gwmodels.MCPProxyScope
 	}
 	mock.lockCreate.RLock()
 	calls = mock.calls.Create
@@ -194,7 +194,7 @@ func (mock *MCPProxyScopeRepositoryMock) DeleteCalls() []struct {
 }
 
 // Get calls GetFunc.
-func (mock *MCPProxyScopeRepositoryMock) Get(ctx context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
+func (mock *MCPProxyScopeRepositoryMock) Get(ctx context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
 	if mock.GetFunc == nil {
 		panic("MCPProxyScopeRepositoryMock.GetFunc: method is nil but MCPProxyScopeRepository.Get was just called")
 	}
@@ -234,7 +234,7 @@ func (mock *MCPProxyScopeRepositoryMock) GetCalls() []struct {
 }
 
 // ListByProxy calls ListByProxyFunc.
-func (mock *MCPProxyScopeRepositoryMock) ListByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]models.MCPProxyScope, error) {
+func (mock *MCPProxyScopeRepositoryMock) ListByProxy(ctx context.Context, proxyUUID uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
 	if mock.ListByProxyFunc == nil {
 		panic("MCPProxyScopeRepositoryMock.ListByProxyFunc: method is nil but MCPProxyScopeRepository.ListByProxy was just called")
 	}
@@ -270,7 +270,7 @@ func (mock *MCPProxyScopeRepositoryMock) ListByProxyCalls() []struct {
 }
 
 // ListByProxyUUIDs calls ListByProxyUUIDsFunc.
-func (mock *MCPProxyScopeRepositoryMock) ListByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]models.MCPProxyScope, error) {
+func (mock *MCPProxyScopeRepositoryMock) ListByProxyUUIDs(ctx context.Context, proxyUUIDs []uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
 	if mock.ListByProxyUUIDsFunc == nil {
 		panic("MCPProxyScopeRepositoryMock.ListByProxyUUIDsFunc: method is nil but MCPProxyScopeRepository.ListByProxyUUIDs was just called")
 	}
@@ -306,13 +306,13 @@ func (mock *MCPProxyScopeRepositoryMock) ListByProxyUUIDsCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *MCPProxyScopeRepositoryMock) Update(ctx context.Context, scope *models.MCPProxyScope) error {
+func (mock *MCPProxyScopeRepositoryMock) Update(ctx context.Context, scope *gwmodels.MCPProxyScope) error {
 	if mock.UpdateFunc == nil {
 		panic("MCPProxyScopeRepositoryMock.UpdateFunc: method is nil but MCPProxyScopeRepository.Update was just called")
 	}
 	callInfo := struct {
 		Ctx   context.Context
-		Scope *models.MCPProxyScope
+		Scope *gwmodels.MCPProxyScope
 	}{
 		Ctx:   ctx,
 		Scope: scope,
@@ -329,11 +329,11 @@ func (mock *MCPProxyScopeRepositoryMock) Update(ctx context.Context, scope *mode
 //	len(mockedMCPProxyScopeRepository.UpdateCalls())
 func (mock *MCPProxyScopeRepositoryMock) UpdateCalls() []struct {
 	Ctx   context.Context
-	Scope *models.MCPProxyScope
+	Scope *gwmodels.MCPProxyScope
 } {
 	var calls []struct {
 		Ctx   context.Context
-		Scope *models.MCPProxyScope
+		Scope *gwmodels.MCPProxyScope
 	}
 	mock.lockUpdate.RLock()
 	calls = mock.calls.Update

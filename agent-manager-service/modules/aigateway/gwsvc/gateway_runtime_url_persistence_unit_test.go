@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -34,13 +34,13 @@ const testRuntimeURL = "http://api-platform-acme-dev-gw-gateway-gateway-runtime.
 // so these tests pin that the write paths persist exactly what validation approved.
 
 func TestRegisterGateway_PersistsTrimmedRuntimeURL(t *testing.T) {
-	var created *models.Gateway
+	var created *gwmodels.Gateway
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc: func(string, string) (*models.Gateway, error) {
+		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) {
 			return nil, utils.ErrGatewayNotFound
 		},
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error { return fn(nil) },
-		CreateTxFunc: func(_ *gorm.DB, gw *models.Gateway) error {
+		CreateTxFunc: func(_ *gorm.DB, gw *gwmodels.Gateway) error {
 			created = gw
 			return nil
 		},
@@ -48,7 +48,7 @@ func TestRegisterGateway_PersistsTrimmedRuntimeURL(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, nil)
 
 	resp, err := svc.RegisterGateway("org", "gw1", "GW", "", "https://ext.example.com",
-		"  "+testRuntimeURL+"  ", false, "BOTH", nil, nil, models.GatewayHostingManaged)
+		"  "+testRuntimeURL+"  ", false, "BOTH", nil, nil, gwmodels.GatewayHostingManaged)
 
 	require.NoError(t, err)
 	require.NotNil(t, created)
@@ -62,7 +62,7 @@ func TestRegisterGateway_InvalidRuntimeURLRejectedBeforeAnyWrite(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, nil)
 
 	_, err := svc.RegisterGateway("org", "gw1", "GW", "", "https://ext.example.com",
-		"http://exfil.dev:53", false, "BOTH", nil, nil, models.GatewayHostingManaged)
+		"http://exfil.dev:53", false, "BOTH", nil, nil, gwmodels.GatewayHostingManaged)
 
 	require.ErrorIs(t, err, utils.ErrBadRequest)
 	require.Empty(t, repo.GetByNameAndOrgIDCalls())
@@ -73,13 +73,13 @@ func TestRegisterGateway_InvalidRuntimeURLRejectedBeforeAnyWrite(t *testing.T) {
 // its ID, and a pointer to whatever gateway the service hands back to UpdateGateway.
 func updateRuntimeURLRepo(
 	t *testing.T, stored string,
-) (repo *gwrepomocks.GatewayRepositoryMock, gatewayID string, updated **models.Gateway) {
+) (repo *gwrepomocks.GatewayRepositoryMock, gatewayID string, updated **gwmodels.Gateway) {
 	t.Helper()
-	gw := &models.Gateway{UUID: uuid.New(), OUID: "org", RuntimeURL: stored}
-	updated = new(*models.Gateway)
+	gw := &gwmodels.Gateway{UUID: uuid.New(), OUID: "org", RuntimeURL: stored}
+	updated = new(*gwmodels.Gateway)
 	repo = &gwrepomocks.GatewayRepositoryMock{
-		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gw, nil },
-		UpdateGatewayFunc: func(g *models.Gateway) error {
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gw, nil },
+		UpdateGatewayFunc: func(g *gwmodels.Gateway) error {
 			*updated = g
 			return nil
 		},

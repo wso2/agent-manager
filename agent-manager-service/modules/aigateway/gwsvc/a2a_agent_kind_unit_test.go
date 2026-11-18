@@ -28,7 +28,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
@@ -40,9 +40,9 @@ import (
 
 // goldenA2AConfig is an A2A agent's environment config with every part of the Agent render: API-key security,
 // agent CORS and its own card CORS.
-func goldenA2AConfig() *models.AgentConfig {
+func goldenA2AConfig() *gwmodels.AgentConfig {
 	cardCORS, cardCredentials := true, false
-	return &models.AgentConfig{
+	return &gwmodels.AgentConfig{
 		OUID: "ou-golden", ProjectName: "checkout", AgentName: "trip-planner", EnvironmentName: "dev",
 		EnableApiKeySecurity: true,
 		CORSEnabled:          true,
@@ -67,8 +67,8 @@ const (
 )
 
 // goldenA2AProxy is the external agent's proxy, with an upstream credential.
-func goldenA2AProxy() *models.A2AProxy {
-	return &models.A2AProxy{
+func goldenA2AProxy() *gwmodels.A2AProxy {
+	return &gwmodels.A2AProxy{
 		OUID: "ou-golden", ProjectName: "checkout", AgentName: "trip-planner", EnvironmentName: "dev",
 		EnvironmentUUID: goldenA2AEnvUUID, UpstreamAuthHeader: "X-Origin-Key",
 		UpstreamAuthSecret: "VcsBaZXo9TyzcVjkEME432aIVqbceeyGcIdue/YLzutNtkkJoVTThPU=", // gitleaks:allow
@@ -77,45 +77,45 @@ func goldenA2AProxy() *models.A2AProxy {
 
 // goldenA2AKind renders the golden agent: as a platform agent through its exposure when proxy is nil, else as an
 // external agent through proxy.
-func goldenA2AKind(t *testing.T, proxy *models.A2AProxy, fetcher A2ACardFetcher) *A2AAgentKind {
+func goldenA2AKind(t *testing.T, proxy *gwmodels.A2AProxy, fetcher A2ACardFetcher) *A2AAgentKind {
 	t.Helper()
 	cfg := goldenA2AConfig()
 	exposures := &gwrepomocks.PlatformAgentExposureRepositoryMock{
-		GetByArtifactFunc: func(_ context.Context, ouID string, artifactUUID uuid.UUID) (*models.PlatformAgentExposure, error) {
+		GetByArtifactFunc: func(_ context.Context, ouID string, artifactUUID uuid.UUID) (*gwmodels.PlatformAgentExposure, error) {
 			if proxy != nil {
 				return nil, gwrepo.ErrPlatformAgentExposureNotFound
 			}
-			return &models.PlatformAgentExposure{
+			return &gwmodels.PlatformAgentExposure{
 				OUID: ouID, ProjectName: cfg.ProjectName, AgentName: cfg.AgentName, EnvironmentName: cfg.EnvironmentName,
-				EnvironmentUUID: goldenA2AEnvUUID, ArtifactUUID: artifactUUID, Protocol: models.AgentExposureProtocolA2A,
+				EnvironmentUUID: goldenA2AEnvUUID, ArtifactUUID: artifactUUID, Protocol: gwmodels.AgentExposureProtocolA2A,
 			}, nil
 		},
 	}
 	proxies := &gwrepomocks.A2AProxyRepositoryMock{
-		GetByArtifactFunc: func(context.Context, string, uuid.UUID) (*models.A2AProxy, error) { return proxy, nil },
+		GetByArtifactFunc: func(context.Context, string, uuid.UUID) (*gwmodels.A2AProxy, error) { return proxy, nil },
 		LockAgentEnvFunc:  func(context.Context, string, string, string, uuid.UUID) error { return nil },
-		GetByEnvUUIDFunc: func(context.Context, string, string, string, uuid.UUID) (*models.A2AProxy, error) {
+		GetByEnvUUIDFunc: func(context.Context, string, string, string, uuid.UUID) (*gwmodels.A2AProxy, error) {
 			return proxy, nil
 		},
 	}
 	proxies.WithTxFunc = func(*gorm.DB) gwrepo.A2AProxyRepository { return proxies }
 	cards := &gwrepomocks.A2AAgentCardRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.A2AAgentCard, error) {
-			return &models.A2AAgentCard{SourceURL: goldenA2ACardURL}, nil
+		GetFunc: func(context.Context, string, string, string, string) (*gwmodels.A2AAgentCard, error) {
+			return &gwmodels.A2AAgentCard{SourceURL: goldenA2ACardURL}, nil
 		},
 	}
 	cards.WithTxFunc = func(*gorm.DB) gwrepo.A2AAgentCardRepository { return cards }
 	configs := &gwrepomocks.AgentConfigRepositoryMock{
-		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) { return cfg, nil },
+		GetFunc: func(context.Context, string, string, string, string) (*gwmodels.AgentConfig, error) { return cfg, nil },
 	}
 	oc := &repomocks.PlatformRepositoryMock{}
 	return NewA2AAgentKind(sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
 		bytes.Repeat([]byte{7}, 32), testLogger())
 }
 
-func goldenA2AArtifact() models.ArtifactRef {
-	return models.ArtifactRef{
-		OUID: "ou-golden", ArtifactUUID: uuid.New(), Kind: models.KindAgent,
+func goldenA2AArtifact() gwmodels.ArtifactRef {
+	return gwmodels.ArtifactRef{
+		OUID: "ou-golden", ArtifactUUID: uuid.New(), Kind: gwmodels.KindAgent,
 		Handle: agentEnvAPIArtifactHandle("checkout", "trip-planner", goldenA2AEnvUUID.String()),
 	}
 }
@@ -141,12 +141,12 @@ func TestA2AAgentKindRendersTodaysYAMLForAnExternalAgent(t *testing.T) {
 // the pool (the pool mock answers no reads).
 func TestA2AAgentKindTargetsReadThroughTheSavesTransaction(t *testing.T) {
 	env := uuid.New()
-	ingress := &models.Gateway{UUID: uuid.New(), GatewayFunctionalityType: models.GatewayRoleIngress}
+	ingress := &gwmodels.Gateway{UUID: uuid.New(), GatewayFunctionalityType: gwmodels.GatewayRoleIngress}
 	txGateways := &gwrepomocks.GatewayRepositoryMock{
-		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
+		ListWithFiltersFunc: func(f gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 			require.NotNil(t, f.EnvironmentID)
 			assert.Equal(t, env.String(), *f.EnvironmentID)
-			return []*models.Gateway{ingress}, nil
+			return []*gwmodels.Gateway{ingress}, nil
 		},
 	}
 	pool := &gwrepomocks.GatewayRepositoryMock{WithTxFunc: func(tx *gorm.DB) gwrepo.GatewayRepository {
@@ -156,7 +156,7 @@ func TestA2AAgentKindTargetsReadThroughTheSavesTransaction(t *testing.T) {
 	kind := NewA2AAgentKind(nil, NewPlatformAgentExposures(nil, pool, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, testLogger())
 
 	gateway, ok, err := kind.Targets(db.CtxWithTx(context.Background(), txSentinel), reconcile.Record{
-		ArtifactRef:     models.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: models.KindAgent},
+		ArtifactRef:     gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindAgent},
 		EnvironmentUUID: env,
 	})
 

@@ -26,7 +26,7 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
@@ -229,13 +229,13 @@ func (w *Worker) place(ctx context.Context, ouID string, env *uuid.UUID) error {
 // placeRecord places one record on its gateway and renders it at once. A record whose environment has no
 // suitable gateway is left until one is mapped.
 func (w *Worker) placeRecord(ctx context.Context, kind EnvironmentKind, record Record) error {
-	var placed *models.Placement
+	var placed *gwmodels.Placement
 	err := w.core.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		gateway, ok, err := w.core.target(ctx, tx, kind, record)
 		if err != nil || !ok {
 			return err
 		}
-		p := models.Placement{ArtifactRef: record.ArtifactRef, GatewayUUID: gateway}
+		p := gwmodels.Placement{ArtifactRef: record.ArtifactRef, GatewayUUID: gateway}
 		inserted, err := w.core.repo.InsertPending(ctx, tx, p, placedReason)
 		if inserted {
 			placed = &p

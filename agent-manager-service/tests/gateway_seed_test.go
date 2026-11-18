@@ -28,6 +28,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 )
 
@@ -40,7 +42,7 @@ func seedIngressGatewayForDefaultEnvironment(t *testing.T, ouID string) uuid.UUI
 	ensureOrgRow(t, ouID)
 	env := uuid.MustParse(apitestutils.DefaultEnvironmentUUID)
 	dbtest.EnvironmentNamed(t, gdb, ouID, env, "default-"+env.String()[:8])
-	return dbtest.GatewayIn(t, gdb, ouID, models.GatewayRoleIngress, env).UUID
+	return gwtest.GatewayIn(t, gdb, ouID, gwmodels.GatewayRoleIngress, env).UUID
 }
 
 // ensureOrgRow makes sure the organization the mocked tokens name exists.

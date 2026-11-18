@@ -24,58 +24,58 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // An LLM deployment shows the derived status with where its transition is heading and why, not the raw row.
 func TestConvertModelToSpecLLMDeploymentResponse(t *testing.T) {
 	due := time.Now()
-	withRow := func(row models.DeploymentStatusRecord) *models.Deployment {
-		d := &models.Deployment{
+	withRow := func(row gwmodels.DeploymentStatusRecord) *gwmodels.Deployment {
+		d := &gwmodels.Deployment{
 			DeploymentID: uuid.New(), Name: "p-1a2b3c4d", ArtifactUUID: uuid.New(),
 			GatewayUUID: uuid.New(), CreatedAt: due,
 		}
 		d.SetStatusRow(&row)
 		return d
 	}
-	archived := models.DeploymentStatusArchived
+	archived := gwmodels.DeploymentStatusArchived
 	for name, tc := range map[string]struct {
-		deployment           *models.Deployment
+		deployment           *gwmodels.Deployment
 		status, desired, why string
 	}{
-		"deploying": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusDeploying, StatusDesired: models.DeploymentStatusDeployed,
+		"deploying": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusDeploying, StatusDesired: gwmodels.DeploymentStatusDeployed,
 		}), "DEPLOYING", "DEPLOYED", ""},
-		"deployed": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed,
+		"deployed": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed,
 		}), "DEPLOYED", "DEPLOYED", ""},
-		"deployed with a redeploy owed": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed,
+		"deployed with a redeploy owed": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed,
 			NextAttemptAt: &due, RenderReason: "the provider changed",
 		}), "DEPLOYING", "DEPLOYED", "the provider changed"},
-		"deployed with the redeploy given up": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusDeployed, StatusDesired: models.DeploymentStatusDeployed,
+		"deployed with the redeploy given up": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusDeployed, StatusDesired: gwmodels.DeploymentStatusDeployed,
 			RenderReason: "invalid security config",
 		}), "DEPLOYED", "DEPLOYED", "invalid security config"},
-		"failed deploy": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusFailed, StatusDesired: models.DeploymentStatusDeployed,
+		"failed deploy": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusFailed, StatusDesired: gwmodels.DeploymentStatusDeployed,
 			StatusReason: "GATEWAY_PROCESSING_ERROR",
 		}), "FAILED", "DEPLOYED", "GATEWAY_PROCESSING_ERROR"},
-		"timed out deploy": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusFailed, StatusDesired: models.DeploymentStatusDeployed,
+		"timed out deploy": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusFailed, StatusDesired: gwmodels.DeploymentStatusDeployed,
 			StatusReason: "DEPLOYMENT_TIMEOUT",
 		}), "FAILED", "DEPLOYED", "DEPLOYMENT_TIMEOUT"},
-		"failed undeploy": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusFailed, StatusDesired: models.DeploymentStatusUndeployed,
+		"failed undeploy": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusFailed, StatusDesired: gwmodels.DeploymentStatusUndeployed,
 			StatusReason: "GATEWAY_PROCESSING_ERROR",
 		}), "FAILED", "UNDEPLOYED", "GATEWAY_PROCESSING_ERROR"},
-		"undeploying": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusUndeploying, StatusDesired: models.DeploymentStatusUndeployed,
+		"undeploying": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusUndeploying, StatusDesired: gwmodels.DeploymentStatusUndeployed,
 		}), "UNDEPLOYING", "UNDEPLOYED", ""},
-		"undeployed": {withRow(models.DeploymentStatusRecord{
-			Status: models.DeploymentStatusUndeployed, StatusDesired: models.DeploymentStatusUndeployed,
+		"undeployed": {withRow(gwmodels.DeploymentStatusRecord{
+			Status: gwmodels.DeploymentStatusUndeployed, StatusDesired: gwmodels.DeploymentStatusUndeployed,
 		}), "UNDEPLOYED", "UNDEPLOYED", ""},
-		"archived": {&models.Deployment{DeploymentID: uuid.New(), Status: &archived}, "ARCHIVED", "", ""},
+		"archived": {&gwmodels.Deployment{DeploymentID: uuid.New(), Status: &archived}, "ARCHIVED", "", ""},
 	} {
 		t.Run(name, func(t *testing.T) {
 			got := ConvertModelToSpecLLMDeploymentResponse(tc.deployment)

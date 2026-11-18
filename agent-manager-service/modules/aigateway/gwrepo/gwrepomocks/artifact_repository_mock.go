@@ -8,7 +8,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"gorm.io/gorm"
 )
@@ -22,7 +22,7 @@ import (
 //			CountByKindAndOrgFunc: func(kind string, orgUUID string) (int, error) {
 //				panic("mock out the CountByKindAndOrg method")
 //			},
-//			CreateFunc: func(tx *gorm.DB, artifact *models.Artifact) error {
+//			CreateFunc: func(tx *gorm.DB, artifact *gwmodels.Artifact) error {
 //				panic("mock out the Create method")
 //			},
 //			DeleteFunc: func(tx *gorm.DB, uuid string) error {
@@ -31,19 +31,19 @@ import (
 //			ExistsFunc: func(kind string, handle string, orgUUID string) (bool, error) {
 //				panic("mock out the Exists method")
 //			},
-//			GetByHandleFunc: func(handle string, orgUUID string) (*models.Artifact, error) {
+//			GetByHandleFunc: func(handle string, orgUUID string) (*gwmodels.Artifact, error) {
 //				panic("mock out the GetByHandle method")
 //			},
-//			GetByUUIDFunc: func(artifactUUID string, orgUUID string) (*models.Artifact, error) {
+//			GetByUUIDFunc: func(artifactUUID string, orgUUID string) (*gwmodels.Artifact, error) {
 //				panic("mock out the GetByUUID method")
 //			},
-//			ListByHandlePrefixFunc: func(ctx context.Context, kinds []string, handlePrefix string, orgUUID string) ([]*models.Artifact, error) {
+//			ListByHandlePrefixFunc: func(ctx context.Context, kinds []string, handlePrefix string, orgUUID string) ([]*gwmodels.Artifact, error) {
 //				panic("mock out the ListByHandlePrefix method")
 //			},
-//			ListExistingFunc: func(ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string) ([]models.ArtifactRef, error) {
+//			ListExistingFunc: func(ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string) ([]gwmodels.ArtifactRef, error) {
 //				panic("mock out the ListExisting method")
 //			},
-//			UpdateFunc: func(tx *gorm.DB, artifact *models.Artifact) error {
+//			UpdateFunc: func(tx *gorm.DB, artifact *gwmodels.Artifact) error {
 //				panic("mock out the Update method")
 //			},
 //			UpdateCatalogStatusFunc: func(tx *gorm.DB, uuidMoqParam string, organizationUUID string, inCatalog bool) error {
@@ -63,7 +63,7 @@ type ArtifactRepositoryMock struct {
 	CountByKindAndOrgFunc func(kind string, orgUUID string) (int, error)
 
 	// CreateFunc mocks the Create method.
-	CreateFunc func(tx *gorm.DB, artifact *models.Artifact) error
+	CreateFunc func(tx *gorm.DB, artifact *gwmodels.Artifact) error
 
 	// DeleteFunc mocks the Delete method.
 	DeleteFunc func(tx *gorm.DB, uuid string) error
@@ -72,19 +72,19 @@ type ArtifactRepositoryMock struct {
 	ExistsFunc func(kind string, handle string, orgUUID string) (bool, error)
 
 	// GetByHandleFunc mocks the GetByHandle method.
-	GetByHandleFunc func(handle string, orgUUID string) (*models.Artifact, error)
+	GetByHandleFunc func(handle string, orgUUID string) (*gwmodels.Artifact, error)
 
 	// GetByUUIDFunc mocks the GetByUUID method.
-	GetByUUIDFunc func(artifactUUID string, orgUUID string) (*models.Artifact, error)
+	GetByUUIDFunc func(artifactUUID string, orgUUID string) (*gwmodels.Artifact, error)
 
 	// ListByHandlePrefixFunc mocks the ListByHandlePrefix method.
-	ListByHandlePrefixFunc func(ctx context.Context, kinds []string, handlePrefix string, orgUUID string) ([]*models.Artifact, error)
+	ListByHandlePrefixFunc func(ctx context.Context, kinds []string, handlePrefix string, orgUUID string) ([]*gwmodels.Artifact, error)
 
 	// ListExistingFunc mocks the ListExisting method.
-	ListExistingFunc func(ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string) ([]models.ArtifactRef, error)
+	ListExistingFunc func(ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string) ([]gwmodels.ArtifactRef, error)
 
 	// UpdateFunc mocks the Update method.
-	UpdateFunc func(tx *gorm.DB, artifact *models.Artifact) error
+	UpdateFunc func(tx *gorm.DB, artifact *gwmodels.Artifact) error
 
 	// UpdateCatalogStatusFunc mocks the UpdateCatalogStatus method.
 	UpdateCatalogStatusFunc func(tx *gorm.DB, uuidMoqParam string, organizationUUID string, inCatalog bool) error
@@ -106,7 +106,7 @@ type ArtifactRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Artifact is the artifact argument value.
-			Artifact *models.Artifact
+			Artifact *gwmodels.Artifact
 		}
 		// Delete holds details about calls to the Delete method.
 		Delete []struct {
@@ -165,7 +165,7 @@ type ArtifactRepositoryMock struct {
 			// Tx is the tx argument value.
 			Tx *gorm.DB
 			// Artifact is the artifact argument value.
-			Artifact *models.Artifact
+			Artifact *gwmodels.Artifact
 		}
 		// UpdateCatalogStatus holds details about calls to the UpdateCatalogStatus method.
 		UpdateCatalogStatus []struct {
@@ -234,13 +234,13 @@ func (mock *ArtifactRepositoryMock) CountByKindAndOrgCalls() []struct {
 }
 
 // Create calls CreateFunc.
-func (mock *ArtifactRepositoryMock) Create(tx *gorm.DB, artifact *models.Artifact) error {
+func (mock *ArtifactRepositoryMock) Create(tx *gorm.DB, artifact *gwmodels.Artifact) error {
 	if mock.CreateFunc == nil {
 		panic("ArtifactRepositoryMock.CreateFunc: method is nil but ArtifactRepository.Create was just called")
 	}
 	callInfo := struct {
 		Tx       *gorm.DB
-		Artifact *models.Artifact
+		Artifact *gwmodels.Artifact
 	}{
 		Tx:       tx,
 		Artifact: artifact,
@@ -257,11 +257,11 @@ func (mock *ArtifactRepositoryMock) Create(tx *gorm.DB, artifact *models.Artifac
 //	len(mockedArtifactRepository.CreateCalls())
 func (mock *ArtifactRepositoryMock) CreateCalls() []struct {
 	Tx       *gorm.DB
-	Artifact *models.Artifact
+	Artifact *gwmodels.Artifact
 } {
 	var calls []struct {
 		Tx       *gorm.DB
-		Artifact *models.Artifact
+		Artifact *gwmodels.Artifact
 	}
 	mock.lockCreate.RLock()
 	calls = mock.calls.Create
@@ -346,7 +346,7 @@ func (mock *ArtifactRepositoryMock) ExistsCalls() []struct {
 }
 
 // GetByHandle calls GetByHandleFunc.
-func (mock *ArtifactRepositoryMock) GetByHandle(handle string, orgUUID string) (*models.Artifact, error) {
+func (mock *ArtifactRepositoryMock) GetByHandle(handle string, orgUUID string) (*gwmodels.Artifact, error) {
 	if mock.GetByHandleFunc == nil {
 		panic("ArtifactRepositoryMock.GetByHandleFunc: method is nil but ArtifactRepository.GetByHandle was just called")
 	}
@@ -382,7 +382,7 @@ func (mock *ArtifactRepositoryMock) GetByHandleCalls() []struct {
 }
 
 // GetByUUID calls GetByUUIDFunc.
-func (mock *ArtifactRepositoryMock) GetByUUID(artifactUUID string, orgUUID string) (*models.Artifact, error) {
+func (mock *ArtifactRepositoryMock) GetByUUID(artifactUUID string, orgUUID string) (*gwmodels.Artifact, error) {
 	if mock.GetByUUIDFunc == nil {
 		panic("ArtifactRepositoryMock.GetByUUIDFunc: method is nil but ArtifactRepository.GetByUUID was just called")
 	}
@@ -418,7 +418,7 @@ func (mock *ArtifactRepositoryMock) GetByUUIDCalls() []struct {
 }
 
 // ListByHandlePrefix calls ListByHandlePrefixFunc.
-func (mock *ArtifactRepositoryMock) ListByHandlePrefix(ctx context.Context, kinds []string, handlePrefix string, orgUUID string) ([]*models.Artifact, error) {
+func (mock *ArtifactRepositoryMock) ListByHandlePrefix(ctx context.Context, kinds []string, handlePrefix string, orgUUID string) ([]*gwmodels.Artifact, error) {
 	if mock.ListByHandlePrefixFunc == nil {
 		panic("ArtifactRepositoryMock.ListByHandlePrefixFunc: method is nil but ArtifactRepository.ListByHandlePrefix was just called")
 	}
@@ -462,7 +462,7 @@ func (mock *ArtifactRepositoryMock) ListByHandlePrefixCalls() []struct {
 }
 
 // ListExisting calls ListExistingFunc.
-func (mock *ArtifactRepositoryMock) ListExisting(ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string) ([]models.ArtifactRef, error) {
+func (mock *ArtifactRepositoryMock) ListExisting(ctx context.Context, ouID string, uuids []uuid.UUID, llmProxyHandles []string) ([]gwmodels.ArtifactRef, error) {
 	if mock.ListExistingFunc == nil {
 		panic("ArtifactRepositoryMock.ListExistingFunc: method is nil but ArtifactRepository.ListExisting was just called")
 	}
@@ -506,13 +506,13 @@ func (mock *ArtifactRepositoryMock) ListExistingCalls() []struct {
 }
 
 // Update calls UpdateFunc.
-func (mock *ArtifactRepositoryMock) Update(tx *gorm.DB, artifact *models.Artifact) error {
+func (mock *ArtifactRepositoryMock) Update(tx *gorm.DB, artifact *gwmodels.Artifact) error {
 	if mock.UpdateFunc == nil {
 		panic("ArtifactRepositoryMock.UpdateFunc: method is nil but ArtifactRepository.Update was just called")
 	}
 	callInfo := struct {
 		Tx       *gorm.DB
-		Artifact *models.Artifact
+		Artifact *gwmodels.Artifact
 	}{
 		Tx:       tx,
 		Artifact: artifact,
@@ -529,11 +529,11 @@ func (mock *ArtifactRepositoryMock) Update(tx *gorm.DB, artifact *models.Artifac
 //	len(mockedArtifactRepository.UpdateCalls())
 func (mock *ArtifactRepositoryMock) UpdateCalls() []struct {
 	Tx       *gorm.DB
-	Artifact *models.Artifact
+	Artifact *gwmodels.Artifact
 } {
 	var calls []struct {
 		Tx       *gorm.DB
-		Artifact *models.Artifact
+		Artifact *gwmodels.Artifact
 	}
 	mock.lockUpdate.RLock()
 	calls = mock.calls.Update

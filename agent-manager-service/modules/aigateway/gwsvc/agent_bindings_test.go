@@ -32,8 +32,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
@@ -50,10 +50,10 @@ type bindingConfigs struct {
 
 func newBindingConfigs() *bindingConfigs {
 	b := &bindingConfigs{configs: map[string]string{}}
-	b.ListFunc = func(context.Context, string, string, string, int, int) (*models.AgentModelConfigListResponse, error) {
-		resp := &models.AgentModelConfigListResponse{}
+	b.ListFunc = func(context.Context, string, string, string, int, int) (*gwmodels.AgentModelConfigListResponse, error) {
+		resp := &gwmodels.AgentModelConfigListResponse{}
 		for name, id := range b.configs {
-			resp.Configs = append(resp.Configs, models.AgentModelConfigListItem{UUID: id, Name: name})
+			resp.Configs = append(resp.Configs, gwmodels.AgentModelConfigListItem{UUID: id, Name: name})
 		}
 		resp.Pagination.Count = len(resp.Configs)
 		return resp, nil
@@ -74,14 +74,14 @@ func (b *bindingConfigs) forget(id string) {
 	}
 }
 
-func (b *bindingConfigs) Create(_ context.Context, _, _, _ string, req models.CreateAgentModelConfigRequest, _ string) (*models.AgentModelConfigResponse, error) {
+func (b *bindingConfigs) Create(_ context.Context, _, _, _ string, req gwmodels.CreateAgentModelConfigRequest, _ string) (*gwmodels.AgentModelConfigResponse, error) {
 	if b.fail != nil {
 		return nil, b.fail
 	}
 	b.created++
 	id := uuid.NewString()
 	b.configs[req.Name] = id
-	return &models.AgentModelConfigResponse{UUID: id}, nil
+	return &gwmodels.AgentModelConfigResponse{UUID: id}, nil
 }
 
 func (b *bindingConfigs) Delete(_ context.Context, id uuid.UUID, _, _, _ string) error {
@@ -121,7 +121,7 @@ func bindingsService(db *gorm.DB, configs *bindingConfigs) *AgentGatewayService 
 		agentConfigurationService: configs,
 		aiApplicationService:      newAIAppServiceForCleanup(),
 		artifactRepo: &gwrepomocks.ArtifactRepositoryMock{
-			ListByHandlePrefixFunc: func(context.Context, []string, string, string) ([]*models.Artifact, error) { return nil, nil },
+			ListByHandlePrefixFunc: func(context.Context, []string, string, string) ([]*gwmodels.Artifact, error) { return nil, nil },
 		},
 		logger: discardLogger(),
 	}

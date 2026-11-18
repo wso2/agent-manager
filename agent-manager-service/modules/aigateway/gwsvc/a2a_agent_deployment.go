@@ -22,7 +22,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 const (
@@ -81,8 +81,8 @@ type A2AAgentDeploymentSpec struct {
 
 // A2AUpstream is the address the gateway dials, plus a proxied origin's credential.
 type A2AUpstream struct {
-	URL  string               `yaml:"url" json:"url"`
-	Auth *models.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
+	URL  string                 `yaml:"url" json:"url"`
+	Auth *gwmodels.UpstreamAuth `yaml:"auth,omitempty" json:"auth,omitempty"`
 }
 
 // A2AConfig carries the protocol version, the per-operation configuration and,
@@ -139,7 +139,7 @@ type A2AAgentDeploymentInput struct {
 	// Transports are a proxied external agent's derived routes; nil keeps M1's /rpc and /rest.
 	Transports []A2ATransport
 	// UpstreamAuth is a proxied origin's credential, as a secretRef the internal API decrypts.
-	UpstreamAuth *models.UpstreamAuth
+	UpstreamAuth *gwmodels.UpstreamAuth
 }
 
 // generateA2AAgentDeploymentYAML renders the Agent resource as YAML.

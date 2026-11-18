@@ -19,7 +19,7 @@ package gwsvc
 import (
 	"fmt"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
@@ -27,11 +27,11 @@ import (
 // Seeding is idempotent: existing templates are not overwritten
 type LLMTemplateSeeder struct {
 	templateRepo gwrepo.LLMProviderTemplateRepository
-	templates    []*models.LLMProviderTemplate
+	templates    []*gwmodels.LLMProviderTemplate
 }
 
 // NewLLMTemplateSeeder creates a new LLM template seeder
-func NewLLMTemplateSeeder(templateRepo gwrepo.LLMProviderTemplateRepository, templates []*models.LLMProviderTemplate) *LLMTemplateSeeder {
+func NewLLMTemplateSeeder(templateRepo gwrepo.LLMProviderTemplateRepository, templates []*gwmodels.LLMProviderTemplate) *LLMTemplateSeeder {
 	return &LLMTemplateSeeder{
 		templateRepo: templateRepo,
 		templates:    templates,
@@ -39,7 +39,7 @@ func NewLLMTemplateSeeder(templateRepo gwrepo.LLMProviderTemplateRepository, tem
 }
 
 // SetTemplates sets the templates to seed
-func (s *LLMTemplateSeeder) SetTemplates(templates []*models.LLMProviderTemplate) {
+func (s *LLMTemplateSeeder) SetTemplates(templates []*gwmodels.LLMProviderTemplate) {
 	if s != nil {
 		s.templates = templates
 	}
@@ -67,7 +67,7 @@ func (s *LLMTemplateSeeder) SeedForOrg(ouID string) error {
 		return fmt.Errorf("failed to list existing templates: %w", err)
 	}
 
-	existingByHandle := make(map[string]*models.LLMProviderTemplate, len(existing))
+	existingByHandle := make(map[string]*gwmodels.LLMProviderTemplate, len(existing))
 	for _, t := range existing {
 		if t == nil {
 			continue
@@ -112,7 +112,7 @@ func (s *LLMTemplateSeeder) SeedForOrg(ouID string) error {
 		}
 
 		// Create new template
-		toCreate := &models.LLMProviderTemplate{
+		toCreate := &gwmodels.LLMProviderTemplate{
 			OUID:             ouID,
 			Handle:           tpl.Handle,
 			Name:             tpl.Name,

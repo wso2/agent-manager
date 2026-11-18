@@ -29,17 +29,17 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // createMCPProxyForTest inserts a proxy through the repository and removes it afterwards.
 func createMCPProxyForTest(t *testing.T, repo MCPProxyRepository, ou, handle string,
-	projectUUID, projectName *string, src *models.MCPProxySource,
-) *models.MCPProxy {
+	projectUUID, projectName *string, src *gwmodels.MCPProxySource,
+) *gwmodels.MCPProxy {
 	t.Helper()
 	ctx := context.Background()
-	proxy := &models.MCPProxy{Configuration: models.MCPProxyConfig{Name: handle, Version: "v1", Source: src}}
+	proxy := &gwmodels.MCPProxy{Configuration: gwmodels.MCPProxyConfig{Name: handle, Version: "v1", Source: src}}
 	require.NoError(t, db.GetDB().Transaction(func(tx *gorm.DB) error {
 		return repo.Create(ctx, tx, proxy, handle, handle, "v1", ou, projectUUID, projectName)
 	}))
@@ -47,7 +47,7 @@ func createMCPProxyForTest(t *testing.T, repo MCPProxyRepository, ou, handle str
 	return proxy
 }
 
-func handles(proxies []*models.MCPProxy) []string {
+func handles(proxies []*gwmodels.MCPProxy) []string {
 	out := make([]string, 0, len(proxies))
 	for _, p := range proxies {
 		out = append(out, p.Artifact.Handle)
@@ -85,8 +85,8 @@ func TestListFilters(t *testing.T) {
 	ou := newOrg(t)
 	n1, n2 := "one", "two"
 	p1, p2 := dbtest.Project(t, db.GetDB(), ou, n1).String(), dbtest.Project(t, db.GetDB(), ou, n2).String()
-	srcA := &models.MCPProxySource{ComponentName: "comp-a", EndpointName: "ep-1"}
-	srcB := &models.MCPProxySource{ComponentName: "comp-a", EndpointName: "ep-2"}
+	srcA := &gwmodels.MCPProxySource{ComponentName: "comp-a", EndpointName: "ep-1"}
+	srcB := &gwmodels.MCPProxySource{ComponentName: "comp-a", EndpointName: "ep-2"}
 
 	createMCPProxyForTest(t, repo, ou, "org-a", nil, nil, nil)
 	createMCPProxyForTest(t, repo, ou, "p1-a", &p1, &n1, srcA)

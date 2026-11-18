@@ -21,25 +21,25 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
 
-func storedProvider() *models.LLMProvider {
+func storedProvider() *gwmodels.LLMProvider {
 	enabled := true
-	return &models.LLMProvider{
+	return &gwmodels.LLMProvider{
 		OpenAPISpec: "openapi: 3.0.0",
 		ModelList:   `[{"name":"gpt-4o-mini"}]`,
-		Configuration: models.LLMProviderConfig{
+		Configuration: gwmodels.LLMProviderConfig{
 			Name: "acme-openai",
-			Security: &models.SecurityConfig{
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &enabled,
-				APIKey:  &models.APIKeySecurity{Enabled: &enabled, Key: "x-api-key", In: "header"},
+				APIKey:  &gwmodels.APIKeySecurity{Enabled: &enabled, Key: "x-api-key", In: "header"},
 			},
-			AccessControl: &models.LLMAccessControl{},
-			RateLimiting:  &models.LLMRateLimitingConfig{},
-			Policies:      []models.LLMPolicy{{Name: "guardrail-pii"}},
-			Resilience:    &models.Resilience{},
+			AccessControl: &gwmodels.LLMAccessControl{},
+			RateLimiting:  &gwmodels.LLMRateLimitingConfig{},
+			Policies:      []gwmodels.LLMPolicy{{Name: "guardrail-pii"}},
+			Resilience:    &gwmodels.Resilience{},
 		},
 	}
 }
@@ -55,7 +55,7 @@ func TestPreserveOmittedProviderFields_PartialUpdateKeepsStoredValues(t *testing
 	req := &gwspec.UpdateLLMProviderRequest{Description: &description}
 
 	// What conversion produces from that request: the omitted fields are all empty.
-	provider := &models.LLMProvider{Configuration: models.LLMProviderConfig{Name: "acme-openai"}}
+	provider := &gwmodels.LLMProvider{Configuration: gwmodels.LLMProviderConfig{Name: "acme-openai"}}
 
 	preserveOmittedProviderFields(provider, existing, req)
 
@@ -81,11 +81,11 @@ func TestPreserveOmittedProviderFields_SuppliedValuesWin(t *testing.T) {
 	}
 
 	// Conversion already wrote the request's security onto the model.
-	provider := &models.LLMProvider{
-		Configuration: models.LLMProviderConfig{
-			Security: &models.SecurityConfig{
+	provider := &gwmodels.LLMProvider{
+		Configuration: gwmodels.LLMProviderConfig{
+			Security: &gwmodels.SecurityConfig{
 				Enabled: &disabled,
-				APIKey:  &models.APIKeySecurity{Enabled: &disabled},
+				APIKey:  &gwmodels.APIKeySecurity{Enabled: &disabled},
 			},
 		},
 	}
@@ -104,8 +104,8 @@ func TestPreserveOmittedProviderFields_EmptySliceClears(t *testing.T) {
 	existing := storedProvider()
 	req := &gwspec.UpdateLLMProviderRequest{Policies: []gwspec.LLMPolicy{}}
 
-	provider := &models.LLMProvider{
-		Configuration: models.LLMProviderConfig{Policies: []models.LLMPolicy{}},
+	provider := &gwmodels.LLMProvider{
+		Configuration: gwmodels.LLMProviderConfig{Policies: []gwmodels.LLMPolicy{}},
 	}
 
 	preserveOmittedProviderFields(provider, existing, req)

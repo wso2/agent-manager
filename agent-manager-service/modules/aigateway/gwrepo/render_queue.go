@@ -28,7 +28,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
 // ErrRenderSuperseded is a render write-back whose claim token the row no longer holds: a newer request, a restore
@@ -67,12 +67,12 @@ type RenderOutcome struct {
 
 // InsertPending places an artifact on a gateway that has no row for it: PENDING, due now. An existing row, an
 // UNDEPLOYED one included, is never touched, so a user's undeploy sticks.
-func (r *DeploymentRepo) InsertPending(ctx context.Context, tx *gorm.DB, p models.Placement, reason string) (bool, error) {
+func (r *DeploymentRepo) InsertPending(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, reason string) (bool, error) {
 	now := dbx.Now()
-	inserted, err := dbx.InsertIfAbsent(r.on(ctx, tx), &models.DeploymentStatusRecord{
+	inserted, err := dbx.InsertIfAbsent(r.on(ctx, tx), &gwmodels.DeploymentStatusRecord{
 		ArtifactUUID: p.ArtifactUUID, OUID: p.OUID, GatewayUUID: p.GatewayUUID,
-		Status: models.DeploymentStatusPending, StatusDesired: models.DeploymentStatusDeployed,
-		PerformedAt: models.NewPerformedAt(now), NextAttemptAt: &now, RenderReason: reason, UpdatedAt: now,
+		Status: gwmodels.DeploymentStatusPending, StatusDesired: gwmodels.DeploymentStatusDeployed,
+		PerformedAt: gwmodels.NewPerformedAt(now), NextAttemptAt: &now, RenderReason: reason, UpdatedAt: now,
 	})
 	if err != nil {
 		return false, fmt.Errorf("failed to place artifact on gateway: %w", err)
@@ -85,13 +85,13 @@ func (r *DeploymentRepo) InsertPending(ctx context.Context, tx *gorm.DB, p model
 func (r *DeploymentRepo) QueueRender(
 	ctx context.Context, tx *gorm.DB, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, reason string, scope QueueScope,
 ) (int64, error) {
-	query := r.on(ctx, tx).Model(&models.DeploymentStatusRecord{}).
+	query := r.on(ctx, tx).Model(&gwmodels.DeploymentStatusRecord{}).
 		Where("artifact_id = ? AND org_id = ?", artifactUUID, ouID)
 	if len(gateways) > 0 {
 		query = query.Where("gateway_id IN ?", gateways)
 	}
 	if scope == QueueScopePlaced {
-		query = query.Where("status_desired = ?", models.DeploymentStatusDeployed)
+		query = query.Where("status_desired = ?", gwmodels.DeploymentStatusDeployed)
 	}
 	now := dbx.Now()
 	result := query.Updates(map[string]any{
@@ -105,7 +105,7 @@ func (r *DeploymentRepo) QueueRender(
 
 // ClaimDueRenders leases up to limit rows due at now, pushing each one's next_attempt_at to now + lease. That value
 // is the claim token. Rows another claimer took first are skipped.
-func (r *DeploymentRepo) ClaimDueRenders(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]models.ClaimedRender, error) {
+func (r *DeploymentRepo) ClaimDueRenders(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]gwmodels.ClaimedRender, error) {
 	return r.claimRenders(ctx, now, lease, "", nil, limit)
 }
 
@@ -113,7 +113,7 @@ func (r *DeploymentRepo) ClaimDueRenders(ctx context.Context, now time.Time, lea
 // by the request that queued it.
 func (r *DeploymentRepo) ClaimDueRendersOf(
 	ctx context.Context, ouID string, artifactUUID uuid.UUID, gateways []uuid.UUID, now time.Time, lease time.Duration,
-) ([]models.ClaimedRender, error) {
+) ([]gwmodels.ClaimedRender, error) {
 	condition, args := "artifact_id = ? AND org_id = ?", []any{artifactUUID, ouID}
 	if len(gateways) > 0 {
 		condition, args = condition+" AND gateway_id IN ?", append(args, gateways)
@@ -129,23 +129,23 @@ const maxRowsPerArtifact = 1000
 // (updated_at, which RecordRenderOutcome sets to the attempt's time) to when it fell due.
 func (r *DeploymentRepo) claimRenders(
 	ctx context.Context, now time.Time, lease time.Duration, condition string, args []any, limit int,
-) ([]models.ClaimedRender, error) {
+) ([]gwmodels.ClaimedRender, error) {
 	now = now.UTC().Truncate(time.Microsecond)
 	token := now.Add(lease)
 	db := r.db.WithContext(ctx)
 
-	query := db.Model(&models.DeploymentStatusRecord{}).Where("next_attempt_at <= ?", now)
+	query := db.Model(&gwmodels.DeploymentStatusRecord{}).Where("next_attempt_at <= ?", now)
 	if condition != "" {
 		query = query.Where(condition, args...)
 	}
-	var due []models.DeploymentStatusRecord
+	var due []gwmodels.DeploymentStatusRecord
 	if err := query.Order("next_attempt_at").Limit(limit).Find(&due).Error; err != nil {
 		return nil, fmt.Errorf("failed to claim due renders: %w", err)
 	}
 
-	claims := make([]models.ClaimedRender, 0, len(due))
+	claims := make([]gwmodels.ClaimedRender, 0, len(due))
 	for _, row := range due {
-		res := db.Model(&models.DeploymentStatusRecord{}).
+		res := db.Model(&gwmodels.DeploymentStatusRecord{}).
 			Where(statusKey+" AND next_attempt_at <= ?", row.ArtifactUUID, row.OUID, row.GatewayUUID, now).
 			Update("next_attempt_at", token)
 		if res.Error != nil {
@@ -154,7 +154,7 @@ func (r *DeploymentRepo) claimRenders(
 		if res.RowsAffected == 0 {
 			continue
 		}
-		var artifact models.Artifact
+		var artifact gwmodels.Artifact
 		if err := db.Select("kind, handle").Where("id = ?", row.ArtifactUUID).Take(&artifact).Error; err != nil {
 			return nil, fmt.Errorf("failed to read claimed render's artifact: %w", err)
 		}
@@ -162,9 +162,9 @@ func (r *DeploymentRepo) claimRenders(
 		if row.NextAttemptAt != nil && row.NextAttemptAt.After(row.UpdatedAt) {
 			lastDelay = row.NextAttemptAt.Sub(row.UpdatedAt).Truncate(time.Millisecond)
 		}
-		claims = append(claims, models.ClaimedRender{
-			Placement: models.Placement{
-				ArtifactRef: models.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: artifact.Kind, Handle: artifact.Handle},
+		claims = append(claims, gwmodels.ClaimedRender{
+			Placement: gwmodels.Placement{
+				ArtifactRef: gwmodels.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: artifact.Kind, Handle: artifact.Handle},
 				GatewayUUID: row.GatewayUUID,
 			},
 			Token:        token,
@@ -177,8 +177,8 @@ func (r *DeploymentRepo) claimRenders(
 }
 
 // lockClaim locks the claimed row in tx while it still holds the claim's token.
-func (r *DeploymentRepo) lockClaim(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender) error {
-	held, err := dbx.LockRows(r.on(ctx, tx), models.DeploymentStatusRecord{}.TableName(), "status",
+func (r *DeploymentRepo) lockClaim(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender) error {
+	held, err := dbx.LockRows(r.on(ctx, tx), gwmodels.DeploymentStatusRecord{}.TableName(), "status",
 		statusKey+" AND next_attempt_at = ?", claim.ArtifactUUID, claim.OUID, claim.GatewayUUID, claim.Token.UTC())
 	if err != nil {
 		return fmt.Errorf("failed to lock claimed render: %w", err)
@@ -190,7 +190,7 @@ func (r *DeploymentRepo) lockClaim(ctx context.Context, tx *gorm.DB, claim model
 }
 
 // CompleteRender writes the rendered deployment as StartDeploy does, while the row still holds the claim's token.
-func (r *DeploymentRepo) CompleteRender(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender, deployment *models.Deployment) error {
+func (r *DeploymentRepo) CompleteRender(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender, deployment *gwmodels.Deployment) error {
 	if err := r.lockClaim(ctx, tx, claim); err != nil {
 		return err
 	}
@@ -198,7 +198,7 @@ func (r *DeploymentRepo) CompleteRender(ctx context.Context, tx *gorm.DB, claim 
 }
 
 // RecordRenderOutcome records an attempt that wrote no deployment, while the row still holds the claim's token.
-func (r *DeploymentRepo) RecordRenderOutcome(ctx context.Context, claim models.ClaimedRender, outcome RenderOutcome) error {
+func (r *DeploymentRepo) RecordRenderOutcome(ctx context.Context, claim gwmodels.ClaimedRender, outcome RenderOutcome) error {
 	updates := map[string]any{"render_reason": outcome.Reason, "updated_at": claim.ClaimedAt.UTC()}
 	switch outcome.Outcome {
 	case RenderWaiting:
@@ -209,7 +209,7 @@ func (r *DeploymentRepo) RecordRenderOutcome(ctx context.Context, claim models.C
 	case RenderGiveUp:
 		updates["next_attempt_at"] = nil
 	}
-	result := r.db.WithContext(ctx).Model(&models.DeploymentStatusRecord{}).
+	result := r.db.WithContext(ctx).Model(&gwmodels.DeploymentStatusRecord{}).
 		Where(statusKey+" AND next_attempt_at = ?", claim.ArtifactUUID, claim.OUID, claim.GatewayUUID, claim.Token.UTC()).
 		Updates(updates)
 	if result.Error != nil {
@@ -223,7 +223,7 @@ func (r *DeploymentRepo) RecordRenderOutcome(ctx context.Context, claim models.C
 
 // AbandonRender undeploys a claimed row whose per-environment record is gone, as BeginUndeploy does, while the row
 // still holds the claim's token. BeginUndeploy documents how a row owed a deploy while UNDEPLOYED is handled.
-func (r *DeploymentRepo) AbandonRender(ctx context.Context, tx *gorm.DB, claim models.ClaimedRender) (bool, error) {
+func (r *DeploymentRepo) AbandonRender(ctx context.Context, tx *gorm.DB, claim gwmodels.ClaimedRender) (bool, error) {
 	if err := r.lockClaim(ctx, tx, claim); err != nil {
 		return false, err
 	}
@@ -231,21 +231,21 @@ func (r *DeploymentRepo) AbandonRender(ctx context.Context, tx *gorm.DB, claim m
 }
 
 // DriftKey is a placement's position in ListDeployedForDrift's order: pass the last one listed as afterKey.
-func DriftKey(p models.Placement) string {
+func DriftKey(p gwmodels.Placement) string {
 	return p.ArtifactUUID.String() + "/" + p.GatewayUUID.String()
 }
 
 // ListDeployedForDrift pages through the DEPLOYED rows of an artifact kind with no render owed, after afterKey
 // (DriftKey) in key order. Agent rows are only platform-hosted agents: drift is a moved release binding, which
 // external agents don't have.
-func (r *DeploymentRepo) ListDeployedForDrift(ctx context.Context, kind string, afterKey string, limit int) ([]models.Placement, error) {
+func (r *DeploymentRepo) ListDeployedForDrift(ctx context.Context, kind string, afterKey string, limit int) ([]gwmodels.Placement, error) {
 	query := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_gateway_status s").
 		Select("s.artifact_id, s.org_id, s.gateway_id, a.kind, a.handle").
 		Joins("INNER JOIN mod_ai_gateway_artifacts a ON a.id = s.artifact_id")
-	if slices.Contains(models.AgentArtifactKinds, kind) {
+	if slices.Contains(gwmodels.AgentArtifactKinds, kind) {
 		query = query.Joins("INNER JOIN mod_ai_gateway_agent_exposures e ON e.artifact_id = s.artifact_id")
 	}
-	query = query.Where("a.kind = ? AND s.status = ? AND s.next_attempt_at IS NULL", kind, models.DeploymentStatusDeployed)
+	query = query.Where("a.kind = ? AND s.status = ? AND s.next_attempt_at IS NULL", kind, gwmodels.DeploymentStatusDeployed)
 	if artifact, gateway, ok := strings.Cut(afterKey, "/"); ok {
 		query = dbx.After(query, []string{"s.artifact_id", "s.gateway_id"}, []any{artifact, gateway})
 	}
@@ -260,10 +260,10 @@ func (r *DeploymentRepo) ListDeployedForDrift(ctx context.Context, kind string, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list deployed rows for drift: %w", err)
 	}
-	placements := make([]models.Placement, 0, len(rows))
+	placements := make([]gwmodels.Placement, 0, len(rows))
 	for _, row := range rows {
-		placements = append(placements, models.Placement{
-			ArtifactRef: models.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: row.Kind, Handle: row.Handle},
+		placements = append(placements, gwmodels.Placement{
+			ArtifactRef: gwmodels.ArtifactRef{OUID: row.OUID, ArtifactUUID: row.ArtifactUUID, Kind: row.Kind, Handle: row.Handle},
 			GatewayUUID: row.GatewayUUID,
 		})
 	}

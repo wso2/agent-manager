@@ -26,7 +26,7 @@ import (
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -34,7 +34,7 @@ import (
 // Gateways is what the core reads and locks gateways through: the gateway repository.
 type Gateways interface {
 	AcquireGatewayLock(tx *gorm.DB, gatewayID string) error
-	GetByUUID(gatewayID string) (*models.Gateway, error)
+	GetByUUID(gatewayID string) (*gwmodels.Gateway, error)
 }
 
 // WithGateways makes the core refuse a deploy whose context clashes with another artifact's on its gateway. A core
@@ -113,7 +113,7 @@ func normalizeVhost(v string) string {
 // Clash returns the route among deployed, the deployments a gateway holds, that next overlaps, skipping self's
 // own. An artifact already deployed there at next is grandfathered: first deployed wins, so a re-render at an
 // unchanged route never fails over an overlap that was already there.
-func Clash(self uuid.UUID, next Route, deployed []models.GatewayDeploymentContent, gatewayVhost string) (Route, bool) {
+func Clash(self uuid.UUID, next Route, deployed []gwmodels.GatewayDeploymentContent, gatewayVhost string) (Route, bool) {
 	if next.Context == "" {
 		return Route{}, false
 	}
@@ -137,7 +137,7 @@ func Clash(self uuid.UUID, next Route, deployed []models.GatewayDeploymentConten
 // artifact's there. It reads what the gateway is told to hold, its desired-deployed deployments, so an artifact
 // placed but never sent is not seen. The caller holds the gateway lock for the check to be decisive.
 func CheckContext(
-	ctx context.Context, deployments gwrepo.DeploymentRepository, ouID string, gateway *models.Gateway,
+	ctx context.Context, deployments gwrepo.DeploymentRepository, ouID string, gateway *gwmodels.Gateway,
 	self uuid.UUID, next Route,
 ) error {
 	if next.Context == "" {
@@ -149,7 +149,7 @@ func CheckContext(
 	}
 	ids := make([]uuid.UUID, 0, len(rows))
 	for _, row := range rows {
-		if row.State != models.GatewaySyncStateDeployed {
+		if row.State != gwmodels.GatewaySyncStateDeployed {
 			continue
 		}
 		if id, err := uuid.Parse(row.DeploymentID); err == nil {
@@ -171,13 +171,13 @@ func CheckContext(
 
 // checkContext refuses, permanently, content whose route clashes on the placement's gateway. The caller has taken
 // the gateway's lock in tx (lockGateway).
-func (c *Core) checkContext(ctx context.Context, tx *gorm.DB, p models.Placement, content []byte) error {
+func (c *Core) checkContext(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, content []byte) error {
 	if c.gateways == nil {
 		return nil
 	}
 	gateway, err := c.gateways.GetByUUID(p.GatewayUUID.String())
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		gateway, err = &models.Gateway{UUID: p.GatewayUUID}, nil
+		gateway, err = &gwmodels.Gateway{UUID: p.GatewayUUID}, nil
 	}
 	if err != nil {
 		return fmt.Errorf("failed to read gateway %s: %w", p.GatewayUUID, err)

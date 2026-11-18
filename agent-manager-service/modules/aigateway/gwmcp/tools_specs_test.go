@@ -22,7 +22,7 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
@@ -76,7 +76,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 			},
 			expectedMethod: "UpdateLLMProviderGuardrails",
 			validateCall: func(t *testing.T, args []interface{}) {
-				got, ok := args[2].([]models.LLMPolicy)
+				got, ok := args[2].([]gwmodels.LLMPolicy)
 				if !ok {
 					t.Fatalf("guardrails: got %T", args[2])
 				}
@@ -100,7 +100,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 			testArgs:            map[string]any{"provider_id": testProviderID, "name": testGuardrailName},
 			expectedMethod:      "UpdateLLMProviderGuardrails",
 			validateCall: func(t *testing.T, args []interface{}) {
-				if got, ok := args[2].([]models.LLMPolicy); !ok || len(got) != 0 {
+				if got, ok := args[2].([]gwmodels.LLMPolicy); !ok || len(got) != 0 {
 					t.Fatalf("guardrails after removal: got %v", args[2])
 				}
 			},
@@ -196,11 +196,11 @@ func agentConfigToolSpecs() []toolTestSpec {
 				if args[1] != testProjectName || args[2] != testAgentName {
 					t.Errorf("project/agent: got %v/%v", args[1], args[2])
 				}
-				req, ok := args[3].(models.CreateAgentModelConfigRequest)
+				req, ok := args[3].(gwmodels.CreateAgentModelConfigRequest)
 				if !ok {
 					t.Fatalf("request: got %T", args[3])
 				}
-				if req.Type != models.AgentConfigTypeLLM || req.Name != testProviderID {
+				if req.Type != gwmodels.AgentConfigTypeLLM || req.Name != testProviderID {
 					t.Errorf("type/name: got %q/%q", req.Type, req.Name)
 				}
 				m, ok := req.EnvMappings[testEnvName]
@@ -228,11 +228,11 @@ func agentConfigToolSpecs() []toolTestSpec {
 			},
 			expectedMethod: "CreateAgentConfig",
 			validateCall: func(t *testing.T, args []interface{}) {
-				req, ok := args[3].(models.CreateAgentModelConfigRequest)
+				req, ok := args[3].(gwmodels.CreateAgentModelConfigRequest)
 				if !ok {
 					t.Fatalf("request: got %T", args[3])
 				}
-				if req.Type != models.AgentConfigTypeMCP || req.EnvMappings[testEnvName].ProviderName != testProxyID {
+				if req.Type != gwmodels.AgentConfigTypeMCP || req.EnvMappings[testEnvName].ProviderName != testProxyID {
 					t.Errorf("mcp config: got %+v", req)
 				}
 			},
@@ -350,13 +350,13 @@ const (
 	credentialUpstreamURL = "https://user:" + urlSecret + "@upstream.example.com/v1?api-version=1&api-key=" + urlSecret
 )
 
-func (m credentialURLMock) GetLLMProvider(ctx context.Context, ouID string, providerID string) (*models.LLMProvider, []*models.Deployment, error) {
+func (m credentialURLMock) GetLLMProvider(ctx context.Context, ouID string, providerID string) (*gwmodels.LLMProvider, []*gwmodels.Deployment, error) {
 	p, d, err := m.MockToolsetHandler.GetLLMProvider(ctx, ouID, providerID)
 	p.Configuration.Upstream.Main.URL = credentialUpstreamURL
 	return p, d, err
 }
 
-func (m credentialURLMock) GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error) {
+func (m credentialURLMock) GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*gwmodels.MCPProxyDTO, error) {
 	p, err := m.MockToolsetHandler.GetMCPProxy(ctx, ouID, proxyID)
 	for i := range p.Endpoints {
 		p.Endpoints[i].Upstream.Main.URL = credentialUpstreamURL

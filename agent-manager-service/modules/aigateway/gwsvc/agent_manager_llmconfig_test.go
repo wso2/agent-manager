@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
 
@@ -31,14 +31,14 @@ import (
 // satisfies the rest (and panics if any other method is called).
 type spyConfigService struct {
 	AgentConfigurationService
-	lastReq models.CreateAgentModelConfigRequest
+	lastReq gwmodels.CreateAgentModelConfigRequest
 }
 
 func (s *spyConfigService) Create(_ context.Context, _, _, _ string,
-	req models.CreateAgentModelConfigRequest, _ string,
-) (*models.AgentModelConfigResponse, error) {
+	req gwmodels.CreateAgentModelConfigRequest, _ string,
+) (*gwmodels.AgentModelConfigResponse, error) {
 	s.lastReq = req
-	return &models.AgentModelConfigResponse{UUID: "cfg"}, nil
+	return &gwmodels.AgentModelConfigResponse{UUID: "cfg"}, nil
 }
 
 // LLM providers are deliberately configured in the entry environment only: createLLMConfig

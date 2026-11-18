@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -52,35 +53,35 @@ func (s stubInfraManager) ListOrgEnvironments(ctx context.Context, ouID string) 
 
 // scopeTestProxy builds an endpoint-era proxy: capabilities live on the endpoint's
 // MCPEndpointConfig (migration 032), not on the parent proxy config.
-func scopeTestProxy(handle string, tools ...string) *models.MCPProxy {
-	endpoint := models.MCPProxyEndpoint{UUID: uuid.New(), Handle: "primary"}
+func scopeTestProxy(handle string, tools ...string) *gwmodels.MCPProxy {
+	endpoint := gwmodels.MCPProxyEndpoint{UUID: uuid.New(), Handle: "primary"}
 	if len(tools) > 0 {
 		toolMaps := make([]map[string]interface{}, 0, len(tools))
 		for _, tl := range tools {
 			toolMaps = append(toolMaps, map[string]interface{}{"name": tl})
 		}
-		endpoint.Configuration = models.MCPEndpointConfig{
-			Capabilities: &models.MCPProxyCapabilities{Tools: &toolMaps},
+		endpoint.Configuration = gwmodels.MCPEndpointConfig{
+			Capabilities: &gwmodels.MCPProxyCapabilities{Tools: &toolMaps},
 		}
 	}
-	return &models.MCPProxy{
+	return &gwmodels.MCPProxy{
 		UUID:      uuid.New(),
-		Artifact:  &models.Artifact{Handle: handle},
-		Endpoints: []models.MCPProxyEndpoint{endpoint},
+		Artifact:  &gwmodels.Artifact{Handle: handle},
+		Endpoints: []gwmodels.MCPProxyEndpoint{endpoint},
 	}
 }
 
-func newScopeSvcForTest(scopeRepo gwrepo.MCPProxyScopeRepository, proxy *models.MCPProxy) MCPProxyScopeService {
+func newScopeSvcForTest(scopeRepo gwrepo.MCPProxyScopeRepository, proxy *gwmodels.MCPProxy) MCPProxyScopeService {
 	// Tests that focus on the create path don't all set GetFunc; provide a
 	// default "not found" so the duplicate-check path can run.
 	if mock, ok := scopeRepo.(*gwrepomocks.MCPProxyScopeRepositoryMock); ok && mock.GetFunc == nil {
-		mock.GetFunc = func(_ context.Context, _ uuid.UUID, _ string) (*models.MCPProxyScope, error) {
+		mock.GetFunc = func(_ context.Context, _ uuid.UUID, _ string) (*gwmodels.MCPProxyScope, error) {
 			return nil, gorm.ErrRecordNotFound
 		}
 	}
 
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*models.MCPProxy, error) {
+		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*gwmodels.MCPProxy, error) {
 			if proxy != nil && proxy.Artifact.Handle == handle {
 				return proxy, nil
 			}
@@ -92,14 +93,14 @@ func newScopeSvcForTest(scopeRepo gwrepo.MCPProxyScopeRepository, proxy *models.
 
 // newScopeSvcForTestWithRedeployer is newScopeSvcForTest with an injectable
 // MCPProxyRedeployer, for tests asserting on re-emission behavior.
-func newScopeSvcForTestWithRedeployer(scopeRepo gwrepo.MCPProxyScopeRepository, proxy *models.MCPProxy, redeployer MCPProxyRedeployer) MCPProxyScopeService {
+func newScopeSvcForTestWithRedeployer(scopeRepo gwrepo.MCPProxyScopeRepository, proxy *gwmodels.MCPProxy, redeployer MCPProxyRedeployer) MCPProxyScopeService {
 	if mock, ok := scopeRepo.(*gwrepomocks.MCPProxyScopeRepositoryMock); ok && mock.GetFunc == nil {
-		mock.GetFunc = func(_ context.Context, _ uuid.UUID, _ string) (*models.MCPProxyScope, error) {
+		mock.GetFunc = func(_ context.Context, _ uuid.UUID, _ string) (*gwmodels.MCPProxyScope, error) {
 			return nil, gorm.ErrRecordNotFound
 		}
 	}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*models.MCPProxy, error) {
+		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*gwmodels.MCPProxy, error) {
 			if proxy != nil && proxy.Artifact.Handle == handle {
 				return proxy, nil
 			}
@@ -113,21 +114,21 @@ func newScopeSvcForTestWithRedeployer(scopeRepo gwrepo.MCPProxyScopeRepository, 
 // exercise re-emission behavior directly.
 type noopRedeployer struct{}
 
-func (noopRedeployer) RedeployMCPProxy(context.Context, *models.MCPProxy, string) error { return nil }
+func (noopRedeployer) RedeployMCPProxy(context.Context, *gwmodels.MCPProxy, string) error { return nil }
 
-func (noopRedeployer) EnsureResourceServersForProxy(context.Context, string, *models.MCPProxy, []string) {
+func (noopRedeployer) EnsureResourceServersForProxy(context.Context, string, *gwmodels.MCPProxy, []string) {
 }
 
 // redeployCall records one RedeployMCPProxy invocation for assertions.
 type redeployCall struct {
-	proxy *models.MCPProxy
+	proxy *gwmodels.MCPProxy
 	ouID  string
 }
 
 // ensureRSCall records one EnsureResourceServersForProxy invocation for assertions.
 type ensureRSCall struct {
 	ouID    string
-	proxy   *models.MCPProxy
+	proxy   *gwmodels.MCPProxy
 	actions []string
 }
 
@@ -144,12 +145,12 @@ type recordingRedeployer struct {
 	ensureCalls []ensureRSCall
 }
 
-func (r *recordingRedeployer) RedeployMCPProxy(_ context.Context, proxy *models.MCPProxy, ouID string) error {
+func (r *recordingRedeployer) RedeployMCPProxy(_ context.Context, proxy *gwmodels.MCPProxy, ouID string) error {
 	r.calls = append(r.calls, redeployCall{proxy: proxy, ouID: ouID})
 	return r.err
 }
 
-func (r *recordingRedeployer) EnsureResourceServersForProxy(_ context.Context, ouID string, proxy *models.MCPProxy, actions []string) {
+func (r *recordingRedeployer) EnsureResourceServersForProxy(_ context.Context, ouID string, proxy *gwmodels.MCPProxy, actions []string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.ensureCalls = append(r.ensureCalls, ensureRSCall{ouID: ouID, proxy: proxy, actions: actions})
@@ -166,7 +167,7 @@ func TestMCPProxyScopeCreate_ValidatesAction(t *testing.T) {
 	svc := newScopeSvcForTest(&gwrepomocks.MCPProxyScopeRepositoryMock{}, scopeTestProxy("gh-proxy", "list_repos"))
 	for _, action := range []string{"", "has space", "with:colon", "with/slash", strings.Repeat("a", 101)} {
 		_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-			models.MCPProxyScopeInput{Action: action, Tools: []string{"list_repos"}})
+			gwmodels.MCPProxyScopeInput{Action: action, Tools: []string{"list_repos"}})
 		assert.ErrorIs(t, err, utils.ErrInvalidInput, "action %q", action)
 	}
 }
@@ -174,19 +175,19 @@ func TestMCPProxyScopeCreate_ValidatesAction(t *testing.T) {
 func TestMCPProxyScopeCreate_StrictToolValidationWhenCapabilitiesKnown(t *testing.T) {
 	svc := newScopeSvcForTest(&gwrepomocks.MCPProxyScopeRepositoryMock{}, scopeTestProxy("gh-proxy", "list_repos", "get_repo"))
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-		models.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos", "not_a_tool"}})
+		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos", "not_a_tool"}})
 	assert.ErrorIs(t, err, utils.ErrInvalidInput)
 	assert.Contains(t, err.Error(), "not_a_tool")
 }
 
 func TestMCPProxyScopeCreate_PermissiveWhenNoCapabilitiesStored(t *testing.T) {
-	var created *models.MCPProxyScope
+	var created *gwmodels.MCPProxyScope
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		CreateFunc: func(ctx context.Context, s *models.MCPProxyScope) error { created = s; return nil },
+		CreateFunc: func(ctx context.Context, s *gwmodels.MCPProxyScope) error { created = s; return nil },
 	}
 	svc := newScopeSvcForTest(scopeRepo, scopeTestProxy("gh-proxy")) // zero tools stored
 	res, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-		models.MCPProxyScopeInput{Action: "read", Tools: []string{"anything_goes"}})
+		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"anything_goes"}})
 	assert.NoError(t, err)
 	assert.Equal(t, "gh-proxy", res.ProxyHandle)
 	assert.Equal(t, []string{"anything_goes"}, created.Tools)
@@ -194,20 +195,20 @@ func TestMCPProxyScopeCreate_PermissiveWhenNoCapabilitiesStored(t *testing.T) {
 
 func TestMCPProxyScopeCreate_DuplicateActionConflicts(t *testing.T) {
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(ctx context.Context, proxyUUID uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{Action: action}, nil // already exists
+		GetFunc: func(ctx context.Context, proxyUUID uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{Action: action}, nil // already exists
 		},
 	}
 	svc := newScopeSvcForTest(scopeRepo, scopeTestProxy("gh-proxy", "list_repos"))
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-		models.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos"}})
+		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos"}})
 	assert.ErrorIs(t, err, utils.ErrConflict)
 }
 
 func TestMCPProxyScopeCreate_UnknownProxy404(t *testing.T) {
 	svc := newScopeSvcForTest(&gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "ghost",
-		models.MCPProxyScopeInput{Action: "read", Tools: []string{"t"}})
+		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"t"}})
 	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
 }
 
@@ -223,13 +224,13 @@ func TestMCPProxyScopeDelete_MissingIsNotFound(t *testing.T) {
 func TestMCPProxyScopeCreate_TriggersReEmit(t *testing.T) {
 	proxy := scopeTestProxy("gh-proxy", "list_repos")
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		CreateFunc: func(ctx context.Context, s *models.MCPProxyScope) error { return nil },
+		CreateFunc: func(ctx context.Context, s *gwmodels.MCPProxyScope) error { return nil },
 	}
 	redeployer := &recordingRedeployer{}
 	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
 
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-		models.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos"}})
+		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos"}})
 
 	assert.NoError(t, err)
 	if assert.Len(t, redeployer.calls, 1) {
@@ -241,13 +242,13 @@ func TestMCPProxyScopeCreate_TriggersReEmit(t *testing.T) {
 func TestMCPProxyScopeCreate_ReEmitFailureIsReturned(t *testing.T) {
 	proxy := scopeTestProxy("gh-proxy", "list_repos")
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		CreateFunc: func(ctx context.Context, s *models.MCPProxyScope) error { return nil },
+		CreateFunc: func(ctx context.Context, s *gwmodels.MCPProxyScope) error { return nil },
 	}
 	redeployer := &recordingRedeployer{err: errors.New("deploy boom")}
 	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
 
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-		models.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos"}})
+		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"list_repos"}})
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "deploy boom")
@@ -256,17 +257,17 @@ func TestMCPProxyScopeCreate_ReEmitFailureIsReturned(t *testing.T) {
 func TestMCPProxyScopeUpdate_TriggersReEmit(t *testing.T) {
 	proxy := scopeTestProxy("gh-proxy", "list_repos")
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{Action: action, Tools: []string{"list_repos"}}, nil
+		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{Action: action, Tools: []string{"list_repos"}}, nil
 		},
-		UpdateFunc: func(ctx context.Context, s *models.MCPProxyScope) error { return nil },
+		UpdateFunc: func(ctx context.Context, s *gwmodels.MCPProxyScope) error { return nil },
 	}
 	redeployer := &recordingRedeployer{}
 	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
 
 	desc := "updated"
 	_, err := svc.Update(context.Background(), "org-uuid", "org", "gh-proxy", "read",
-		models.MCPProxyScopeUpdateInput{Description: &desc})
+		gwmodels.MCPProxyScopeUpdateInput{Description: &desc})
 
 	assert.NoError(t, err)
 	assert.Len(t, redeployer.calls, 1)
@@ -274,18 +275,18 @@ func TestMCPProxyScopeUpdate_TriggersReEmit(t *testing.T) {
 
 // identityEnabledEndpoint builds an endpoint with identity security enabled or
 // disabled, bound to one environment.
-func identityEnabledEndpoint(handle string, envUUID, artifactUUID uuid.UUID, enabled bool) models.MCPProxyEndpoint {
-	ep := models.MCPProxyEndpoint{
+func identityEnabledEndpoint(handle string, envUUID, artifactUUID uuid.UUID, enabled bool) gwmodels.MCPProxyEndpoint {
+	ep := gwmodels.MCPProxyEndpoint{
 		UUID:   uuid.New(),
 		Handle: handle,
-		Environments: []models.MCPProxyEndpointEnvironment{
+		Environments: []gwmodels.MCPProxyEndpointEnvironment{
 			{EnvironmentUUID: envUUID, ArtifactUUID: artifactUUID},
 		},
 	}
 	if enabled {
 		on := true
-		ep.Configuration = models.MCPEndpointConfig{
-			Security: &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}},
+		ep.Configuration = gwmodels.MCPEndpointConfig{
+			Security: &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}},
 		}
 	}
 	return ep
@@ -293,10 +294,10 @@ func identityEnabledEndpoint(handle string, envUUID, artifactUUID uuid.UUID, ena
 
 func TestMCPProxyScopeDelete_CleansThunderBestEffort(t *testing.T) {
 	envA, envB := uuid.New(), uuid.New()
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:     uuid.New(),
-		Artifact: &models.Artifact{Handle: "gh-proxy"},
-		Endpoints: []models.MCPProxyEndpoint{
+		Artifact: &gwmodels.Artifact{Handle: "gh-proxy"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
 			identityEnabledEndpoint("a", envA, uuid.New(), true),
 			identityEnabledEndpoint("b", envB, uuid.New(), false),
 		},
@@ -305,7 +306,7 @@ func TestMCPProxyScopeDelete_CleansThunderBestEffort(t *testing.T) {
 		DeleteFunc: func(ctx context.Context, proxyUUID uuid.UUID, action string) error { return nil },
 	}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*models.MCPProxy, error) { return proxy, nil },
+		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*gwmodels.MCPProxy, error) { return proxy, nil },
 	}
 	infra := stubInfraManager{listOrgEnvs: func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
 		return []*models.EnvironmentResponse{
@@ -369,10 +370,10 @@ func TestMCPProxyScopeDelete_CleansThunderBestEffort(t *testing.T) {
 
 func TestMCPProxyScopeDelete_BestEffortSurvivesResolverError(t *testing.T) {
 	envA := uuid.New()
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:     uuid.New(),
-		Artifact: &models.Artifact{Handle: "gh-proxy"},
-		Endpoints: []models.MCPProxyEndpoint{
+		Artifact: &gwmodels.Artifact{Handle: "gh-proxy"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
 			identityEnabledEndpoint("a", envA, uuid.New(), true),
 		},
 	}
@@ -380,7 +381,7 @@ func TestMCPProxyScopeDelete_BestEffortSurvivesResolverError(t *testing.T) {
 		DeleteFunc: func(ctx context.Context, proxyUUID uuid.UUID, action string) error { return nil },
 	}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*models.MCPProxy, error) { return proxy, nil },
+		GetByHandleFunc: func(ctx context.Context, handle, orgUUID string) (*gwmodels.MCPProxy, error) { return proxy, nil },
 	}
 	infra := stubInfraManager{listOrgEnvs: func(ctx context.Context, ouID string) ([]*models.EnvironmentResponse, error) {
 		return []*models.EnvironmentResponse{{Name: "env-a", UUID: envA.String()}}, nil
@@ -402,48 +403,48 @@ func TestMCPProxyScopeDelete_BestEffortSurvivesResolverError(t *testing.T) {
 func TestListEnvironmentScopes_IncludesUndeployedIdentityProxies(t *testing.T) {
 	envUUID := uuid.MustParse("3fa85f64-5717-4562-b3fc-2c963f66afa6")
 	on := true
-	identityEndpoint := func(artifact uuid.UUID, enabled bool) models.MCPProxyEndpoint {
-		ep := models.MCPProxyEndpoint{
+	identityEndpoint := func(artifact uuid.UUID, enabled bool) gwmodels.MCPProxyEndpoint {
+		ep := gwmodels.MCPProxyEndpoint{
 			UUID:   uuid.New(),
 			Handle: "primary",
-			Environments: []models.MCPProxyEndpointEnvironment{
+			Environments: []gwmodels.MCPProxyEndpointEnvironment{
 				{EnvironmentUUID: envUUID, ArtifactUUID: artifact},
 			},
 		}
 		if enabled {
-			ep.Configuration = models.MCPEndpointConfig{
-				Security: &models.SecurityConfig{Enabled: &on, Identity: &models.IdentitySecurity{Enabled: &on}},
+			ep.Configuration = gwmodels.MCPEndpointConfig{
+				Security: &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}},
 			}
 		}
 		return ep
 	}
 	// deployed and undeployed are both identity-enabled; deployment state must no
 	// longer affect the catalog. off has identity disabled and must be excluded.
-	deployed := &models.MCPProxy{
-		UUID: uuid.New(), Artifact: &models.Artifact{Handle: "gh-proxy", Name: "GitHub"},
-		Endpoints: []models.MCPProxyEndpoint{identityEndpoint(uuid.New(), true)},
+	deployed := &gwmodels.MCPProxy{
+		UUID: uuid.New(), Artifact: &gwmodels.Artifact{Handle: "gh-proxy", Name: "GitHub"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{identityEndpoint(uuid.New(), true)},
 	}
-	off := &models.MCPProxy{
-		UUID: uuid.New(), Artifact: &models.Artifact{Handle: "plain", Name: "Plain"},
-		Endpoints: []models.MCPProxyEndpoint{identityEndpoint(uuid.New(), false)},
+	off := &gwmodels.MCPProxy{
+		UUID: uuid.New(), Artifact: &gwmodels.Artifact{Handle: "plain", Name: "Plain"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{identityEndpoint(uuid.New(), false)},
 	}
-	undeployed := &models.MCPProxy{
-		UUID: uuid.New(), Artifact: &models.Artifact{Handle: "idle", Name: "Idle"},
-		Endpoints: []models.MCPProxyEndpoint{identityEndpoint(uuid.New(), true)},
+	undeployed := &gwmodels.MCPProxy{
+		UUID: uuid.New(), Artifact: &gwmodels.Artifact{Handle: "idle", Name: "Idle"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{identityEndpoint(uuid.New(), true)},
 	}
 
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{
-		ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+		ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 			if f.Offset > 0 {
 				return nil, 0, nil
 			}
-			return []*models.MCPProxy{deployed, off, undeployed}, 0, nil
+			return []*gwmodels.MCPProxy{deployed, off, undeployed}, 0, nil
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		ListByProxyUUIDsFunc: func(ctx context.Context, ids []uuid.UUID) ([]models.MCPProxyScope, error) {
+		ListByProxyUUIDsFunc: func(ctx context.Context, ids []uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
 			assert.ElementsMatch(t, []uuid.UUID{deployed.UUID, undeployed.UUID}, ids)
-			return []models.MCPProxyScope{
+			return []gwmodels.MCPProxyScope{
 				{MCPProxyUUID: deployed.UUID, Action: "read", Description: "d"},
 				{MCPProxyUUID: undeployed.UUID, Action: "read", Description: "d"},
 			}, nil
@@ -455,7 +456,7 @@ func TestListEnvironmentScopes_IncludesUndeployedIdentityProxies(t *testing.T) {
 	svc := NewMCPProxyScopeService(scopeRepo, proxyRepo, infra, nil, nil, slog.Default())
 	entries, err := svc.ListEnvironmentScopes(context.Background(), "org-uuid", "dev")
 	assert.NoError(t, err)
-	assert.Equal(t, []models.EnvironmentScopeEntry{
+	assert.Equal(t, []gwmodels.EnvironmentScopeEntry{
 		{Scope: "gh-proxy:read", Description: "d", MCPProxyID: "gh-proxy", MCPProxyName: "GitHub"},
 		{Scope: "idle:read", Description: "d", MCPProxyID: "idle", MCPProxyName: "Idle"},
 	}, entries)
@@ -467,18 +468,18 @@ func TestListEnvironmentScopes_IncludesUndeployedIdentityProxies(t *testing.T) {
 // than being rejected — see validateScopeTools.
 func TestMCPProxyScopeUpdate_ClearingAllToolsIsAllowed(t *testing.T) {
 	proxy := scopeTestProxy("gh-proxy", "list_repos")
-	var updated *models.MCPProxyScope
+	var updated *gwmodels.MCPProxyScope
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{Action: action, Tools: []string{"list_repos"}}, nil
+		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{Action: action, Tools: []string{"list_repos"}}, nil
 		},
-		UpdateFunc: func(_ context.Context, s *models.MCPProxyScope) error { updated = s; return nil },
+		UpdateFunc: func(_ context.Context, s *gwmodels.MCPProxyScope) error { updated = s; return nil },
 	}
 	redeployer := &recordingRedeployer{}
 	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
 
 	res, err := svc.Update(context.Background(), "org-uuid", "org", "gh-proxy", "read",
-		models.MCPProxyScopeUpdateInput{Tools: []string{}})
+		gwmodels.MCPProxyScopeUpdateInput{Tools: []string{}})
 
 	assert.NoError(t, err)
 	// Empty, not nil: the jsonb column must hold [] rather than null.
@@ -488,21 +489,21 @@ func TestMCPProxyScopeUpdate_ClearingAllToolsIsAllowed(t *testing.T) {
 	assert.Len(t, redeployer.calls, 1, "clearing tools must still re-emit the gateway policies")
 }
 
-// nil Tools means "leave unchanged" (models.MCPProxyScopeUpdateInput), so a
+// nil Tools means "leave unchanged" (gwmodels.MCPProxyScopeUpdateInput), so a
 // description-only PUT must not clear the tool list now that empty is legal.
 func TestMCPProxyScopeUpdate_OmittedToolsLeavesToolsUnchanged(t *testing.T) {
-	var updated *models.MCPProxyScope
+	var updated *gwmodels.MCPProxyScope
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{Action: action, Tools: []string{"list_repos"}}, nil
+		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{Action: action, Tools: []string{"list_repos"}}, nil
 		},
-		UpdateFunc: func(_ context.Context, s *models.MCPProxyScope) error { updated = s; return nil },
+		UpdateFunc: func(_ context.Context, s *gwmodels.MCPProxyScope) error { updated = s; return nil },
 	}
 	svc := newScopeSvcForTest(scopeRepo, scopeTestProxy("gh-proxy", "list_repos"))
 
 	desc := "updated"
 	_, err := svc.Update(context.Background(), "org-uuid", "org", "gh-proxy", "read",
-		models.MCPProxyScopeUpdateInput{Description: &desc})
+		gwmodels.MCPProxyScopeUpdateInput{Description: &desc})
 
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"list_repos"}, updated.Tools)
@@ -510,14 +511,14 @@ func TestMCPProxyScopeUpdate_OmittedToolsLeavesToolsUnchanged(t *testing.T) {
 
 // A scope can be declared before any tool is wired to it.
 func TestMCPProxyScopeCreate_AllowsScopeWithNoTools(t *testing.T) {
-	var created *models.MCPProxyScope
+	var created *gwmodels.MCPProxyScope
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		CreateFunc: func(_ context.Context, s *models.MCPProxyScope) error { created = s; return nil },
+		CreateFunc: func(_ context.Context, s *gwmodels.MCPProxyScope) error { created = s; return nil },
 	}
 	svc := newScopeSvcForTest(scopeRepo, scopeTestProxy("gh-proxy", "list_repos"))
 
 	res, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-		models.MCPProxyScopeInput{Action: "read"})
+		gwmodels.MCPProxyScopeInput{Action: "read"})
 
 	assert.NoError(t, err)
 	assert.NotNil(t, created.Tools)
@@ -532,27 +533,27 @@ func TestMCPProxyScopeCreate_AllowsScopeWithNoTools(t *testing.T) {
 // identity/deployment gating is MCPProxyService's own concern, tested at that
 // level (see mcp_rs_identifier_test.go).
 func TestMCPProxyScopeCreate_DelegatesResourceServerEnsureWithFullActionSet(t *testing.T) {
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:     uuid.New(),
-		Artifact: &models.Artifact{Handle: "gh-proxy"},
-		Endpoints: []models.MCPProxyEndpoint{
+		Artifact: &gwmodels.Artifact{Handle: "gh-proxy"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
 			identityEnabledEndpoint("a", uuid.New(), uuid.New(), true),
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, _ uuid.UUID, _ string) (*models.MCPProxyScope, error) {
+		GetFunc: func(_ context.Context, _ uuid.UUID, _ string) (*gwmodels.MCPProxyScope, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
-		CreateFunc: func(_ context.Context, s *models.MCPProxyScope) error { return nil },
-		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyScope, error) {
-			return []models.MCPProxyScope{{Action: "list_repos"}, {Action: "read"}}, nil
+		CreateFunc: func(_ context.Context, s *gwmodels.MCPProxyScope) error { return nil },
+		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
+			return []gwmodels.MCPProxyScope{{Action: "list_repos"}, {Action: "read"}}, nil
 		},
 	}
 	redeployer := &recordingRedeployer{}
 	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
 
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-		models.MCPProxyScopeInput{Action: "read"})
+		gwmodels.MCPProxyScopeInput{Action: "read"})
 
 	assert.NoError(t, err)
 	// The ensure call runs on a detached goroutine (see mcpProxyScopeService.Create),
@@ -572,18 +573,18 @@ func TestMCPProxyScopeCreate_DelegatesResourceServerEnsureWithFullActionSet(t *t
 // committed).
 func TestMCPProxyScopeCreate_EnsureListFailureDoesNotFailSave(t *testing.T) {
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, _ uuid.UUID, _ string) (*models.MCPProxyScope, error) {
+		GetFunc: func(_ context.Context, _ uuid.UUID, _ string) (*gwmodels.MCPProxyScope, error) {
 			return nil, gorm.ErrRecordNotFound
 		},
-		CreateFunc: func(_ context.Context, s *models.MCPProxyScope) error { return nil },
-		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyScope, error) {
+		CreateFunc: func(_ context.Context, s *gwmodels.MCPProxyScope) error { return nil },
+		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
 			return nil, errors.New("db unavailable")
 		},
 	}
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:     uuid.New(),
-		Artifact: &models.Artifact{Handle: "gh-proxy"},
-		Endpoints: []models.MCPProxyEndpoint{
+		Artifact: &gwmodels.Artifact{Handle: "gh-proxy"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
 			identityEnabledEndpoint("a", uuid.New(), uuid.New(), true),
 		},
 	}
@@ -591,7 +592,7 @@ func TestMCPProxyScopeCreate_EnsureListFailureDoesNotFailSave(t *testing.T) {
 	svc := newScopeSvcForTestWithRedeployer(scopeRepo, proxy, redeployer)
 
 	res, err := svc.Create(context.Background(), "org-uuid", "org", "gh-proxy",
-		models.MCPProxyScopeInput{Action: "read"})
+		gwmodels.MCPProxyScopeInput{Action: "read"})
 
 	assert.NoError(t, err, "a scope-list failure for the ensure call must not fail the scope save")
 	assert.Equal(t, "read", res.Scope.Action)
@@ -605,20 +606,20 @@ func TestMCPProxyScopeCreate_EnsureListFailureDoesNotFailSave(t *testing.T) {
 // proxy's environment binding was only just created — see
 // MCPProxyService.EnsureResourceServersForProxy's doc comment).
 func TestMCPProxyScopeUpdate_DelegatesResourceServerEnsure(t *testing.T) {
-	proxy := &models.MCPProxy{
+	proxy := &gwmodels.MCPProxy{
 		UUID:     uuid.New(),
-		Artifact: &models.Artifact{Handle: "gh-proxy"},
-		Endpoints: []models.MCPProxyEndpoint{
+		Artifact: &gwmodels.Artifact{Handle: "gh-proxy"},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
 			identityEnabledEndpoint("a", uuid.New(), uuid.New(), true),
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{
-		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*models.MCPProxyScope, error) {
-			return &models.MCPProxyScope{Action: action}, nil
+		GetFunc: func(_ context.Context, _ uuid.UUID, action string) (*gwmodels.MCPProxyScope, error) {
+			return &gwmodels.MCPProxyScope{Action: action}, nil
 		},
-		UpdateFunc: func(_ context.Context, _ *models.MCPProxyScope) error { return nil },
-		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]models.MCPProxyScope, error) {
-			return []models.MCPProxyScope{{Action: "read"}}, nil
+		UpdateFunc: func(_ context.Context, _ *gwmodels.MCPProxyScope) error { return nil },
+		ListByProxyFunc: func(_ context.Context, _ uuid.UUID) ([]gwmodels.MCPProxyScope, error) {
+			return []gwmodels.MCPProxyScope{{Action: "read"}}, nil
 		},
 	}
 	redeployer := &recordingRedeployer{}
@@ -626,7 +627,7 @@ func TestMCPProxyScopeUpdate_DelegatesResourceServerEnsure(t *testing.T) {
 
 	desc := "updated"
 	_, err := svc.Update(context.Background(), "org-uuid", "org", "gh-proxy", "read",
-		models.MCPProxyScopeUpdateInput{Description: &desc})
+		gwmodels.MCPProxyScopeUpdateInput{Description: &desc})
 
 	assert.NoError(t, err)
 	require.Eventually(t, func() bool { return len(redeployer.ensureCallsSnapshot()) == 1 },
