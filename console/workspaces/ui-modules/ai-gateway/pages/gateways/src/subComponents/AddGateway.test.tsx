@@ -16,8 +16,15 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  Link,
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
 import { AddGateway } from "./AddGateway";
 import { forgetNewGatewayToken, newGatewayToken } from "./newGatewayToken";
 import { deriveGatewayName } from "../form/schema";
@@ -157,6 +164,39 @@ describe("AddGateway environment", () => {
 
     await waitFor(() => expect(hoisted.createGateway).toHaveBeenCalledTimes(1));
     expect(hoisted.createGateway.mock.calls[0][0].body).not.toHaveProperty("environment");
+  });
+});
+
+describe("AddGateway leaving mid-submit", () => {
+  it("keeps the token but does not pull the user back to setup", async () => {
+    let finishToken: (value: { token: string }) => void = () => {};
+    hoisted.createToken.mockReturnValue(
+      new Promise((resolve) => {
+        finishToken = resolve;
+      }),
+    );
+    forgetNewGatewayToken("gw-1");
+    render(
+      <MemoryRouter initialEntries={["/org/acme/gateways/add"]}>
+        <Link to="/somewhere">leave</Link>
+        <Routes>
+          <Route path="/org/:orgId/gateways/add" element={<AddGateway />} />
+          <Route path="/org/:orgId/gateways/setup/:gatewayId" element={<div>setup page</div>} />
+          <Route path="/somewhere" element={<div>elsewhere</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    type(displayNameField(), "Edge One");
+    type(screen.getByPlaceholderText("https://gateway.example.com"), "https://edge.example.com");
+    fireEvent.click(screen.getByRole("button", { name: "Create gateway" }));
+    await waitFor(() => expect(hoisted.createToken).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("leave"));
+    await act(async () => finishToken({ token: "late" }));
+
+    expect(screen.getByText("elsewhere")).toBeInTheDocument();
+    expect(screen.queryByText("setup page")).not.toBeInTheDocument();
+    expect(newGatewayToken("gw-1")).toBe("late");
   });
 });
 

@@ -151,7 +151,14 @@ export function SelfHostedSetupSteps({
   const { mutateAsync: revokeToken } = useRevokeSelfHostedGatewayToken();
   // Polls until the gateway connects; shares its cache with the page around the steps,
   // so that page sees the connection too.
-  const { data: gateway } = useGetGateway(params, { pollUntilActive: true });
+  const {
+    data: gateway,
+    error: statusError,
+    isFetching: checkingStatus,
+    refetch: recheckStatus,
+  } = useGetGateway(params, { pollUntilActive: true });
+  // Polling stops when the gateway has never loaded, so offer a manual retry.
+  const statusFailed = Boolean(statusError) && !gateway;
   const connected = isGatewayActive(gateway);
   useEffect(() => {
     if (connected) onConnected?.();
@@ -247,9 +254,25 @@ export function SelfHostedSetupSteps({
           <CommandField display={docker.start} copyLabel="start command" />
         </Step>
         <Step number={5} title="Wait for the gateway to connect">
-          {connected ? (
-            <Alert severity="success">The gateway is connected and active.</Alert>
-          ) : (
+          {connected && <Alert severity="success">The gateway is connected and active.</Alert>}
+          {!connected && statusFailed && (
+            <Alert
+              severity="warning"
+              action={
+                <Button
+                  color="inherit"
+                  size="small"
+                  disabled={checkingStatus}
+                  onClick={() => void recheckStatus()}
+                >
+                  Try again
+                </Button>
+              }
+            >
+              Couldn&apos;t check whether the gateway has connected.
+            </Alert>
+          )}
+          {!connected && !statusFailed && (
             <Stack direction="row" spacing={1.5} alignItems="center" role="status">
               <CircularProgress size={16} />
               <StepText>

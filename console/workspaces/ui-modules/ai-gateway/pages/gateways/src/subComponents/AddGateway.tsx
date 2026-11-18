@@ -15,22 +15,20 @@
  * under the License.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
   Button,
   Form,
-  FormControl,
-  FormLabel,
   Grid,
   Stack,
-  TextField,
   Typography,
 } from "@wso2/oxygen-ui";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import {
   PageLayout,
+  TextInput,
   useFormValidation,
   useReturnTo,
 } from "@agent-management-platform/views";
@@ -77,6 +75,14 @@ export function AddGateway() {
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // The submit outlives the page if the user leaves while a request is pending.
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   const { mutateAsync: createGateway, isPending: creating } = useCreateSelfHostedGateway();
   const { mutateAsync: createToken, isPending: minting } = useCreateSelfHostedGatewayToken();
   const isPending = creating || minting;
@@ -131,12 +137,15 @@ export function AddGateway() {
 
     const state: SetupGatewayState = {};
     try {
-      const { token } = await createToken({ orgName: orgId, gatewayId: gateway.uuid });
-      keepNewGatewayToken(gateway.uuid, token);
+      const { token, tokenId } = await createToken({ orgName: orgId, gatewayId: gateway.uuid });
+      keepNewGatewayToken(gateway.uuid, token, tokenId);
     } catch (err) {
       state.tokenFailed = true;
       state.tokenError = getErrorMessage(err) || undefined;
     }
+    // The user left while the token was being created: keep the token for the setup
+    // page, but do not pull them back from where they went.
+    if (!mounted.current) return;
     // Replace: the gateway now exists, so Back must not return to this form.
     allowNavigation(() =>
       navigate(
@@ -161,66 +170,57 @@ export function AddGateway() {
           <Grid container>
             <Grid size={{ xs: 12, md: 8, xl: 6 }}>
               <Form.Stack spacing={2}>
-                <FormControl fullWidth error={Boolean(errors.displayName)}>
-                  <FormLabel required>Display Name</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: GATEWAY_DISPLAY_NAME_MAX_LENGTH, "aria-label": "Display Name" } }}
-                    fullWidth
-                    size="small"
-                    value={values.displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g., Production Gateway"
-                    error={Boolean(errors.displayName)}
-                    helperText={errors.displayName}
-                    disabled={isPending}
-                  />
-                </FormControl>
-                <FormControl fullWidth error={Boolean(errors.name)}>
-                  <FormLabel required>Name</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { maxLength: GATEWAY_NAME_MAX_LENGTH, "aria-label": "Name" } }}
-                    fullWidth
-                    size="small"
-                    value={values.name}
-                    onChange={(e) => setField("name", e.target.value)}
-                    placeholder="e.g., production-gateway"
-                    error={Boolean(errors.name)}
-                    helperText={
-                      errors.name ??
-                      "The resource name used by the API. Unique in the organization; it can't be changed later."
-                    }
-                    disabled={isPending}
-                  />
-                </FormControl>
-                <FormControl fullWidth error={Boolean(errors.publicUrl)}>
-                  <FormLabel required>Public URL</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { "aria-label": "Public URL" } }}
-                    fullWidth
-                    size="small"
-                    value={values.publicUrl}
-                    onChange={(e) => setField("publicUrl", e.target.value)}
-                    placeholder="https://gateway.example.com"
-                    error={Boolean(errors.publicUrl)}
-                    helperText={
-                      errors.publicUrl ?? "The address clients use to reach this gateway."
-                    }
-                    disabled={isPending}
-                  />
-                </FormControl>
-                <FormControl fullWidth>
-                  <FormLabel>Description</FormLabel>
-                  <TextField
-                    slotProps={{ htmlInput: { "aria-label": "Description" } }}
-                    fullWidth
-                    size="small"
-                    multiline
-                    minRows={2}
-                    value={values.description}
-                    onChange={(e) => setField("description", e.target.value)}
-                    disabled={isPending}
-                  />
-                </FormControl>
+                <TextInput
+                  label="Display Name"
+                  maxLength={GATEWAY_DISPLAY_NAME_MAX_LENGTH}
+                  hideCharacterCount={values.displayName.length < GATEWAY_DISPLAY_NAME_MAX_LENGTH}
+                  fullWidth
+                  size="small"
+                  value={values.displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="e.g., Production Gateway"
+                  error={Boolean(errors.displayName)}
+                  helperText={errors.displayName}
+                  disabled={isPending}
+                />
+                <TextInput
+                  label="Name"
+                  maxLength={GATEWAY_NAME_MAX_LENGTH}
+                  hideCharacterCount={values.name.length < GATEWAY_NAME_MAX_LENGTH}
+                  fullWidth
+                  size="small"
+                  value={values.name}
+                  onChange={(e) => setField("name", e.target.value)}
+                  placeholder="e.g., production-gateway"
+                  error={Boolean(errors.name)}
+                  helperText={
+                    errors.name ??
+                    "The resource name used by the API. Unique in the organization; it can't be changed later."
+                  }
+                  disabled={isPending}
+                />
+                <TextInput
+                  label="Public URL"
+                  fullWidth
+                  size="small"
+                  value={values.publicUrl}
+                  onChange={(e) => setField("publicUrl", e.target.value)}
+                  placeholder="https://gateway.example.com"
+                  error={Boolean(errors.publicUrl)}
+                  helperText={errors.publicUrl ?? "The address clients use to reach this gateway."}
+                  disabled={isPending}
+                />
+                <TextInput
+                  label="Description (optional)"
+                  fullWidth
+                  size="small"
+                  multiline
+                  minRows={2}
+                  value={values.description}
+                  onChange={(e) => setField("description", e.target.value)}
+                  placeholder="e.g., Gateway for the production data center"
+                  disabled={isPending}
+                />
               </Form.Stack>
             </Grid>
           </Grid>

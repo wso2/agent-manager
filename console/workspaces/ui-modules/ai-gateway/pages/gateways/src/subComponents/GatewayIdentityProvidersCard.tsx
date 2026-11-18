@@ -191,7 +191,7 @@ export function GatewayIdentityProvidersCard({
             title="No identity providers configured"
             description={
               !acceptsCustomIssuers
-                ? "This gateway accepts tokens only from its built-in issuers."
+                ? "No identity providers are recorded for this gateway. Issuer changes can't be applied to it from here."
                 : canAdd
                   ? "Add an identity provider (token issuer) so agents on this gateway can authenticate callers with OAuth."
                   : "No custom token issuers have been added to this gateway."

@@ -160,7 +160,9 @@ export const ViewGateway: React.FC = () => {
           </Alert>
         ) : null}
 
-        {gateway && !error && (
+        {/* Stays mounted when a refetch fails: the alert above reports it, and the
+            setup steps keep polling. */}
+        {gateway && (
           <Stack spacing={3}>
             {isSelfHosted && (
               <>
