@@ -36,6 +36,7 @@ All configuration is environment variables. Only the LLM credential is required.
 | `AGENT_VERSION` | `dev` | Echoed in `/health` and chat responses |
 | `USE_LLM_PROVIDER` | `false` | Route through an Agent Manager LLM Service Provider |
 | `LLM_PROVIDER_URL` / `LLM_PROVIDER_KEY` | — | Injected by Agent Manager; required when `USE_LLM_PROVIDER=true` |
+| `LLM_MODEL` | `gpt-4o-mini` | Model name sent with every request. Set it to a model the provider's LLM serves, such as `gemini-flash-latest` for a provider pointed at Gemini's OpenAI-compatible endpoint. The model must support tool calls |
 | `USE_MCP` | `false` | Load tools from an MCP proxy in addition to the in-process ones |
 | `GITHUB_MCP_URL` / `GITHUB_MCP_API_KEY` | — | Injected by Agent Manager when the `GitHub` MCP proxy is attached (set these names under **Environment Variable Names** when attaching; the console defaults to `GITHUB_URL` / `GITHUB_API_KEY`); required when `USE_MCP=true` |
 | `MCP_OAUTH` | `false` | Authenticate to the MCP proxy with the agent's AgentID (OAuth 2.0 bearer token) instead of an API key. Use when the proxy's **Security** tab is set to **OAuth**; `GITHUB_MCP_API_KEY` is then not needed |
