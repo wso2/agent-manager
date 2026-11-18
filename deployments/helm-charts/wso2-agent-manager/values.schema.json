@@ -1194,6 +1194,20 @@
               "title": "gatewayManifestCache",
               "type": "object"
             },
+            "policyHub": {
+              "additionalProperties": false,
+              "description": "Public WSO2 policy hub the policy catalog reads.",
+              "properties": {
+                "baseUrl": {
+                  "description": "Hub policies endpoint. Empty disables the hub.",
+                  "title": "baseUrl",
+                  "type": "string"
+                }
+              },
+              "required": [],
+              "title": "policyHub",
+              "type": "object"
+            },
             "perAgentResourceLimits": {
               "additionalProperties": false,
               "description": "Agent resource limits \u2014 operator-configured upper bounds enforced on PUT /resource-configs",

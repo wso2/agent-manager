@@ -216,6 +216,10 @@ func loadEnvs() {
 	config.GatewayPublicVhostFallback = r.readOptionalBool("GATEWAY_PUBLIC_VHOST_FALLBACK", false)
 	config.EvalJobsUsePublicGatewayURL = r.readOptionalBool("EVAL_JOBS_USE_PUBLIC_GATEWAY_URL", false)
 
+	config.PolicyHub = PolicyHubConfig{
+		BaseURL: r.readOptionalString("POLICY_HUB_BASE_URL", "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies"),
+	}
+
 	// Gateway manifest cache backend. "memory" (default) is process-local and only
 	// safe for a single replica; HA deployments must set this to "redis" so every
 	// replica reads and writes the same per-gateway cached manifests.

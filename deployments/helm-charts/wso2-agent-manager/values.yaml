@@ -441,6 +441,10 @@ agentManagerService:
         # checkov:skip=CKV_SECRET_6:Kubernetes Secret data key
         existingSecretKey: "gateway-manifest-cache-redis-password"
 
+    # Public WSO2 policy hub the policy catalog reads. Set baseUrl to "" to disable.
+    policyHub:
+      baseUrl: "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies"
+
     # Agent resource limits — operator-configured upper bounds enforced on PUT /resource-configs
     perAgentResourceLimits:
       maxReplicas: 10
