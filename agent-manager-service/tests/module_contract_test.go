@@ -226,6 +226,21 @@ func TestModuleContract(t *testing.T) {
 
 		code, _ = w.call(t, w.limited, http.MethodGet, "/m/testmod/tags", nil)
 		assert.Equal(t, http.StatusForbidden, code)
+		// A route can need several permissions, any of several, or the
+		// platform-admin organization.
+		for _, c := range []struct {
+			method, path  string
+			full, limited int
+		}{
+			{http.MethodPost, "/m/testmod/widgets/w1/stamp", http.StatusOK, http.StatusForbidden},
+			{http.MethodGet, "/m/testmod/either", http.StatusOK, http.StatusForbidden},
+			{http.MethodGet, "/m/testmod/platform/widgets", http.StatusForbidden, http.StatusForbidden},
+		} {
+			code, body = w.call(t, w.full, c.method, c.path, nil)
+			assert.Equal(t, c.full, code, "%s %s: %s", c.method, c.path, body)
+			code, _ = w.call(t, w.limited, c.method, c.path, nil)
+			assert.Equal(t, c.limited, code, "%s %s without the module's permissions", c.method, c.path)
+		}
 		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/nosuch", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		// Module APIs live at the root, with no alias under the core's prefix,

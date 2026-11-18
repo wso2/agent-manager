@@ -430,6 +430,21 @@ func TestRegistrationsThatFailActivationG1(t *testing.T) {
 		"internal-at write without an audit action": func(rt modkit.Runtime) {
 			rt.HandleInternalAt(http.MethodPost, "/api/internal/v1/x", ok)
 		},
+		"also-requires an unknown permission": func(rt modkit.Runtime) {
+			rt.Handle(http.MethodPost, "/x", "p", ok, modkit.AlsoRequires("nope"))
+		},
+		"any-permission beside a permission": func(rt modkit.Runtime) {
+			rt.Handle(http.MethodGet, "/x", "p", ok, modkit.AnyPermission("p"))
+		},
+		"any-permission write without an audit action": func(rt modkit.Runtime) {
+			rt.Handle(http.MethodPost, "/x", "", ok, modkit.AnyPermission("p"))
+		},
+		"platform-admin on an org path": func(rt modkit.Runtime) {
+			rt.Handle(http.MethodGet, "/orgs/{orgName}/x", "p", ok, modkit.PlatformAdmin())
+		},
+		"platform-admin on a workload route": func(rt modkit.Runtime) {
+			rt.HandleInternal(http.MethodGet, "/x", "s", ok, modkit.PlatformAdmin())
+		},
 	}
 	for name, register := range cases {
 		t.Run(name, func(t *testing.T) {

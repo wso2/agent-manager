@@ -56,6 +56,13 @@ type Route struct {
 	Event            string
 	EventScope       string
 	EventWithoutData bool
+
+	// AlsoRequires are permissions needed besides Permission; AnyOf, on a
+	// route without one, admits a caller holding any of them. PlatformAdmin
+	// admits only the platform-admin organization.
+	AlsoRequires  []rbac.Permission
+	AnyOf         []rbac.Permission
+	PlatformAdmin bool
 }
 
 // Pattern is the route's net/http pattern: /m/<module><path> on the API port,

@@ -110,6 +110,9 @@ func modulePolicy(r modhost.Route) middleware.ModuleRoutePolicy {
 		Event:            r.Event,
 		EventScope:       events.Scope(r.EventScope),
 		EventWithoutData: r.EventWithoutData,
+		AlsoRequires:     r.AlsoRequires,
+		AnyOf:            r.AnyOf,
+		PlatformAdmin:    r.PlatformAdmin,
 	}
 }
 

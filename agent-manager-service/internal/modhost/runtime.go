@@ -143,6 +143,28 @@ func (r *runtime) options(rt *Route, opts []modkit.RouteOption) error {
 		}
 		rt.Event, rt.EventScope, rt.EventWithoutData = o.Event, e.Scope, o.EventWithoutData
 	}
+	if (len(o.AlsoRequires) > 0 || len(o.AnyPermission) > 0 || o.PlatformAdmin) && (rt.Scope != "" || rt.At != "") {
+		return errors.New("AlsoRequires, AnyPermission and PlatformAdmin apply to public routes only")
+	}
+	for _, list := range []struct {
+		names []string
+		into  *[]rbac.Permission
+	}{{o.AlsoRequires, &rt.AlsoRequires}, {o.AnyPermission, &rt.AnyOf}} {
+		for _, n := range list.names {
+			full, err := r.h.permission(r.name, n)
+			if err != nil {
+				return err
+			}
+			*list.into = append(*list.into, full)
+		}
+	}
+	if len(rt.AnyOf) > 0 && (rt.Permission != "" || len(rt.AlsoRequires) > 0) {
+		return errors.New("AnyPermission is for a route registered with no permission")
+	}
+	if o.PlatformAdmin && strings.Contains(rt.Path, "{orgName}") {
+		return errors.New("a PlatformAdmin route reads across organizations and must not name one")
+	}
+	rt.PlatformAdmin = o.PlatformAdmin
 	return nil
 }
 
@@ -165,15 +187,17 @@ func (r *runtime) Handle(method, path, perm string, h http.HandlerFunc, opts ...
 			r.fail(fmt.Errorf("Handle %s %s: %w", method, path, err))
 			return
 		}
-	} else if method != http.MethodGet {
-		// Every state-changing route names a permission, as in the core: it
-		// is what the route's audit action is named after.
-		r.fail(fmt.Errorf("Handle %s %s: a %s route needs a permission", method, path, method))
-		return
 	}
 	route := Route{Module: r.name, Method: method, Path: path, Permission: full, Handler: h}
 	if err := r.options(&route, opts); err != nil {
 		r.fail(fmt.Errorf("Handle %s %s: %w", method, path, err))
+		return
+	}
+	if full == "" && method != http.MethodGet && (len(route.AnyOf) == 0 || route.AuditAction == "") {
+		// Every state-changing route names a permission, as in the core: it
+		// is what the route's audit action is named after. One that takes any
+		// of several names its action with modkit.Audit.
+		r.fail(fmt.Errorf("Handle %s %s: a %s route needs a permission (or AnyPermission with modkit.Audit)", method, path, method))
 		return
 	}
 	r.mu.Lock()

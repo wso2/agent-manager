@@ -47,6 +47,14 @@ type RouteOptions struct {
 	// EventWithoutData leaves the response body out of the event, for routes
 	// whose response carries a secret.
 	EventWithoutData bool
+	// AlsoRequires are permissions a caller needs besides the route's own.
+	AlsoRequires []string
+	// AnyPermission lets in a caller holding any of these permissions, on a
+	// route registered with no permission of its own.
+	AnyPermission []string
+	// PlatformAdmin admits only callers from the platform-admin
+	// organization, for a route that reads across organizations.
+	PlatformAdmin bool
 }
 
 // Audit names the audit action a route or tool is recorded under, when its
@@ -78,6 +86,26 @@ func EmitsWithoutData(event string) RouteOption {
 		o.Event = event
 		o.EventWithoutData = true
 	}
+}
+
+// AlsoRequires makes a route need perms besides its own permission, all of
+// them, such as an environment tier on top of the capability. Names are
+// resolved as the route's permission is.
+func AlsoRequires(perms ...string) RouteOption {
+	return func(o *RouteOptions) { o.AlsoRequires = append(o.AlsoRequires, perms...) }
+}
+
+// AnyPermission lets a caller holding any one of perms use a route registered
+// with no permission of its own.
+func AnyPermission(perms ...string) RouteOption {
+	return func(o *RouteOptions) { o.AnyPermission = append(o.AnyPermission, perms...) }
+}
+
+// PlatformAdmin restricts a public route to callers from the platform-admin
+// organization, for a route that reads across every organization. Its path
+// must not name an organization.
+func PlatformAdmin() RouteOption {
+	return func(o *RouteOptions) { o.PlatformAdmin = true }
 }
 
 // Options applies opts.

@@ -524,6 +524,12 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Handle(http.MethodPost, "/widgets/{name}/archive", "widget-write", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"name": r.PathValue("name"), "state": "archived"})
 	}, modkit.Audit("widget-archive"), modkit.Emits(WidgetArchived))
+	// Routes that need more than one permission, any of several, or the
+	// platform-admin organization.
+	ok := func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, http.StatusOK, map[string]string{}) }
+	rt.Handle(http.MethodPost, "/widgets/{name}/stamp", "widget-read", ok, modkit.AlsoRequires("widget-write"))
+	rt.Handle(http.MethodGet, "/either", "", ok, modkit.AnyPermission("widget-read", "widget-write"))
+	rt.Handle(http.MethodGet, "/platform/widgets", "widget-read", ok, modkit.PlatformAdmin())
 
 	rt.Handle(http.MethodPut, "/secrets/{name}", "widget-write", func(w http.ResponseWriter, r *http.Request) {
 		var body struct {

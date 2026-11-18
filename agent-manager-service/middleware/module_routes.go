@@ -34,6 +34,12 @@ type ModuleRoutePolicy struct {
 	Event            string
 	EventScope       events.Scope
 	EventWithoutData bool
+	// AlsoRequires are needed besides the route's permission; AnyOf admits a
+	// caller holding any of them instead. PlatformAdmin admits only the
+	// platform-admin organization.
+	AlsoRequires  []rbac.Permission
+	AnyOf         []rbac.Permission
+	PlatformAdmin bool
 }
 
 // HandleModuleRoute registers a module's route with the same middleware as a
@@ -44,9 +50,32 @@ type ModuleRoutePolicy struct {
 func (rr *RouteRegistrar) HandleModuleRoute(pattern string, perm rbac.Permission, policy ModuleRoutePolicy, handler http.HandlerFunc) {
 	var perms []rbac.Permission
 	var authz func(http.HandlerFunc) http.HandlerFunc
-	if perm != "" {
+	switch {
+	case len(policy.AnyOf) > 0:
+		perms = policy.AnyOf
+		authz = RequireAnyPermission(perms...)
+	case perm != "" && len(policy.AlsoRequires) > 0:
+		perms = append([]rbac.Permission{perm}, policy.AlsoRequires...)
+		authz = RequireAllPermissions(perms...)
+	case perm != "":
 		perms = []rbac.Permission{perm}
 		authz = RequirePermission(perm)
+	}
+	if policy.PlatformAdmin {
+		if strings.Contains(pattern, orgNamePlaceholder) {
+			panic("middleware: a platform-admin route must not be org-scoped: " + pattern)
+		}
+		inner := authz
+		authz = func(next http.HandlerFunc) http.HandlerFunc {
+			if inner != nil {
+				next = inner(next)
+			}
+			return RequirePlatformAdminOU()(next)
+		}
+	}
+	if policy.Audit.Action == "" && perm != "" {
+		// The route's own permission names it, whatever else it requires.
+		policy.Audit.Action = audit.Action(perm)
 	}
 	params := extractPathParams(pattern)
 	meta := audit.NewRouteMetaWithPolicy(pattern, params, perms, rr.surface, policy.Audit)

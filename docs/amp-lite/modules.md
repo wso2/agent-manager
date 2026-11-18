@@ -179,6 +179,9 @@ rt.Handle(http.MethodGet, "/secrets/{name}", "widget-read", read, modkit.Audit("
 - `modkit.Audit(action)` records the route under one of the manifest's `AuditActions` (or another of its permissions) instead of its permission, for a permission that gates several operations (create, rotate and revoke). On a read it also records the read, for reads that disclose credentials or security settings; other reads are not recorded. Every route that changes state is recorded either way.
 - `modkit.AuditCoalesce(window)` records the route at most once per caller per window, for routes a machine polls.
 - `modkit.Emits(event)` raises a webhook event of the manifest's (one with a `Scope`) after a 2xx response, with the response body as its data; `modkit.EmitsWithoutData(event)` leaves the body out, for responses that carry a secret.
+- `modkit.AlsoRequires(perms...)` makes the route need these permissions too, all of them (an environment tier on top of the capability); the route's own permission still names its audit action.
+- `modkit.AnyPermission(perms...)` lets in a caller holding any one of them, on a route registered with no permission of its own; a route that changes state also names its action with `modkit.Audit`.
+- `modkit.PlatformAdmin()` admits only callers from the platform-admin organization, for a route that reads across every organization. Its path must not name an organization.
 
 A route naming an action or event its manifest doesn't declare keeps the module from activating.
 
