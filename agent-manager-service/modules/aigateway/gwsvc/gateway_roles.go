@@ -23,11 +23,12 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"gorm.io/gorm"
 )
 
 // Gateway placement errors.
@@ -269,7 +270,7 @@ func pageUnplacedRecords(
 func placementReposIn(
 	ctx context.Context, deployments gwrepo.DeploymentRepository, gateways gwrepo.GatewayRepository,
 ) (gwrepo.DeploymentRepository, gwrepo.GatewayRepository) {
-	tx := db.TxFrom(ctx)
+	tx := gwtx.From(ctx)
 	if tx == nil {
 		return deployments, gateways
 	}
@@ -278,7 +279,7 @@ func placementReposIn(
 
 // gatewaysIn is gateways bound to the transaction ctx carries, if any.
 func gatewaysIn(ctx context.Context, gateways gwrepo.GatewayRepository) gwrepo.GatewayRepository {
-	if tx := db.TxFrom(ctx); tx != nil {
+	if tx := gwtx.From(ctx); tx != nil {
 		return gateways.WithTx(tx)
 	}
 	return gateways

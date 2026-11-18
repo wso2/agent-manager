@@ -26,10 +26,10 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
@@ -43,13 +43,14 @@ func renderedDeployment(handle string, content []byte) reconcile.Rendered {
 
 // LLMProviderKind deploys LLM providers. Gateways store a provider under its UUID.
 type LLMProviderKind struct {
+	db   *gorm.DB
 	load func(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProvider, error)
 }
 
 // NewLLMProviderKind reads providers through the request's transaction when there is one.
-func NewLLMProviderKind() *LLMProviderKind {
-	return &LLMProviderKind{load: func(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProvider, error) {
-		return gwrepo.NewLLMProviderRepo(db.DB(ctx)).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
+func NewLLMProviderKind(db *gorm.DB) *LLMProviderKind {
+	return &LLMProviderKind{db: db, load: func(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProvider, error) {
+		return gwrepo.NewLLMProviderRepo(gwtx.Or(ctx, db)).GetByUUID(artifact.ArtifactUUID.String(), artifact.OUID)
 	}}
 }
 

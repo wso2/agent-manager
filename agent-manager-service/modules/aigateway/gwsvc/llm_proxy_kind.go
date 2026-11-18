@@ -25,10 +25,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -39,6 +39,7 @@ import (
 // public route names, or to its environment's egress gateway from an agent's model configuration
 // (env_agent_model_mapping) or a monitor (monitor_llm_mapping).
 type LLMProxyKind struct {
+	db             *gorm.DB
 	gatewayRepo    gwrepo.GatewayRepository
 	deploymentRepo gwrepo.DeploymentRepository
 	load           func(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error)
@@ -46,14 +47,16 @@ type LLMProxyKind struct {
 }
 
 // NewLLMProxyKind reads proxies and their providers through the request's transaction when there is one.
-func NewLLMProxyKind(gatewayRepo gwrepo.GatewayRepository, deploymentRepo gwrepo.DeploymentRepository) *LLMProxyKind {
+func NewLLMProxyKind(db *gorm.DB, gatewayRepo gwrepo.GatewayRepository, deploymentRepo gwrepo.DeploymentRepository) *LLMProxyKind {
 	return &LLMProxyKind{
-		gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, load: loadLLMProxy, vhostOf: proxyEventVhost,
+		db: db, gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, vhostOf: proxyEventVhost,
+		load: func(ctx context.Context, a gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error) {
+			return loadLLMProxy(ctx, gwtx.Or(ctx, db), a)
+		},
 	}
 }
 
-func loadLLMProxy(ctx context.Context, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error) {
-	tx := db.DB(ctx)
+func loadLLMProxy(ctx context.Context, tx *gorm.DB, artifact gwmodels.ArtifactRef) (*gwmodels.LLMProxy, *gwmodels.LLMProvider, error) {
 	proxy, err := gwrepo.NewLLMProxyRepo(tx).GetByIDCtx(ctx, artifact.Handle, artifact.OUID)
 	if err != nil {
 		return nil, nil, err
@@ -151,7 +154,7 @@ func (k *LLMProxyKind) UnplacedRecords(
 	agents, agentArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "m.environment_id",
 	}, gwmodels.EgressGatewayRoles, ouID, env)
-	q := db.DB(ctx).Table("mod_ai_gateway_agent_model_config_llm m").
+	q := gwtx.Or(ctx, k.db).Table("mod_ai_gateway_agent_model_config_llm m").
 		Select("a.org_id, a.id AS artifact_id, a.handle, m.environment_id").
 		Joins("JOIN mod_ai_gateway_artifacts a ON a.id = m.llm_proxy_id").
 		Where(agents, agentArgs...)

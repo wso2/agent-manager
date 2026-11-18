@@ -55,8 +55,8 @@ func newProxyFixture(t *testing.T) *proxyFixture {
 	f := &proxyFixture{providerFixture: newProviderFixture(t)}
 	gormDB := db.GetDB()
 	gateways := gwrepo.NewGatewayRepo(gormDB)
-	f.kind = NewLLMProxyKind(gateways, f.sync.repo)
-	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(), f.kind},
+	f.kind = NewLLMProxyKind(gormDB, gateways, f.sync.repo)
+	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(gormDB), f.kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(core, slog.New(slog.DiscardHandler))
 	f.proxies = NewLLMProxyDeploymentService(NewTxRunner(gormDB), f.sync.repo, gwrepo.NewLLMProxyRepo(gormDB),

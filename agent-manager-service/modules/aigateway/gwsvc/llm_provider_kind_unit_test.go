@@ -103,7 +103,7 @@ func TestLLMProviderKindRendersTodaysYAML(t *testing.T) {
 }
 
 func TestLLMProviderKindEvents(t *testing.T) {
-	kind := NewLLMProviderKind()
+	kind := NewLLMProviderKind(nil)
 	ref := gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindLLMProvider, Handle: "acme-openai"}
 	p := gwmodels.Placement{ArtifactRef: ref, GatewayUUID: uuid.New()}
 	at := gwmodels.NewPerformedAt(time.Now())

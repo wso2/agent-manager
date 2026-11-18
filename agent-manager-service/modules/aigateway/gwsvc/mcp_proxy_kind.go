@@ -25,10 +25,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
@@ -63,19 +63,24 @@ func newMCPArtifact(
 // mcp_proxy_endpoint_environments and placed on the environment's egress gateway. MCP proxies are never
 // undeployed, only deleted. Gateways store each artifact under its UUID.
 type MCPProxyKind struct {
+	db             *gorm.DB
 	gatewayRepo    gwrepo.GatewayRepository
 	deploymentRepo gwrepo.DeploymentRepository
 	load           func(ctx context.Context, artifact gwmodels.ArtifactRef) (*mcpArtifact, error)
 }
 
 // NewMCPProxyKind reads MCP proxies through the request's transaction when there is one.
-func NewMCPProxyKind(gatewayRepo gwrepo.GatewayRepository, deploymentRepo gwrepo.DeploymentRepository) *MCPProxyKind {
-	return &MCPProxyKind{gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo, load: loadMCPArtifact}
+func NewMCPProxyKind(db *gorm.DB, gatewayRepo gwrepo.GatewayRepository, deploymentRepo gwrepo.DeploymentRepository) *MCPProxyKind {
+	return &MCPProxyKind{
+		db: db, gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo,
+		load: func(ctx context.Context, a gwmodels.ArtifactRef) (*mcpArtifact, error) {
+			return loadMCPArtifact(ctx, gwtx.Or(ctx, db), a)
+		},
+	}
 }
 
 // loadMCPArtifact finds the artifact's (endpoint, environment) binding; gorm.ErrRecordNotFound when it is gone.
-func loadMCPArtifact(ctx context.Context, artifact gwmodels.ArtifactRef) (*mcpArtifact, error) {
-	tx := db.DB(ctx)
+func loadMCPArtifact(ctx context.Context, tx *gorm.DB, artifact gwmodels.ArtifactRef) (*mcpArtifact, error) {
 	var binding gwmodels.MCPProxyEndpointEnvironment
 	if err := tx.Where("artifact_id = ?", artifact.ArtifactUUID).Take(&binding).Error; err != nil {
 		return nil, err
@@ -175,7 +180,7 @@ func (k *MCPProxyKind) UnplacedRecords(
 		Handle          string    `gorm:"column:handle"`
 		EnvironmentUUID uuid.UUID `gorm:"column:environment_id"`
 	}
-	q := db.DB(ctx).Table("mod_ai_gateway_mcp_proxy_endpoint_environments b").
+	q := gwtx.Or(ctx, k.db).Table("mod_ai_gateway_mcp_proxy_endpoint_environments b").
 		Select("a.org_id, a.id AS artifact_id, a.kind, a.handle, b.environment_id").
 		Joins("JOIN mod_ai_gateway_artifacts a ON a.id = b.artifact_id").
 		Where(condition, args...)

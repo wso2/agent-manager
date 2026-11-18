@@ -28,10 +28,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -153,7 +153,7 @@ func (c *Core) DeployRecord(ctx context.Context, tx *gorm.DB, kind EnvironmentKi
 	}
 	if !ok {
 		if kind.RendersInline() {
-			if _, err := kind.Render(db.CtxWithTx(ctx, tx), record.ArtifactRef); err != nil && !errors.Is(err, ErrInputNotReady) {
+			if _, err := kind.Render(gwtx.With(ctx, tx), record.ArtifactRef); err != nil && !errors.Is(err, ErrInputNotReady) {
 				return nil, fmt.Errorf("failed to render %s: %w", record.Kind, err)
 			}
 		}
@@ -168,7 +168,7 @@ func (c *Core) DeployRecord(ctx context.Context, tx *gorm.DB, kind EnvironmentKi
 func (c *Core) target(ctx context.Context, tx *gorm.DB, kind EnvironmentKind, record Record) (uuid.UUID, bool, error) {
 	gateway := record.RequestedGateway
 	if gateway == nil {
-		targeted, ok, err := kind.Targets(db.CtxWithTx(ctx, tx), record)
+		targeted, ok, err := kind.Targets(gwtx.With(ctx, tx), record)
 		if err != nil {
 			return uuid.Nil, false, fmt.Errorf("failed to find the gateway for %s: %w", record.Kind, err)
 		}
@@ -215,7 +215,7 @@ func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p gwmodels.
 	if !kind.RendersInline() {
 		return c.owe(ctx, tx, p, "")
 	}
-	rendered, err := kind.Render(db.CtxWithTx(ctx, tx), p.ArtifactRef)
+	rendered, err := kind.Render(gwtx.With(ctx, tx), p.ArtifactRef)
 	if errors.Is(err, ErrInputNotReady) {
 		return c.owe(ctx, tx, p, renderReason(kind, err))
 	}

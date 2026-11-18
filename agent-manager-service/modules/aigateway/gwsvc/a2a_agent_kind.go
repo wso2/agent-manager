@@ -24,15 +24,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 // a2aAgentEnv is the agent and environment a per-environment Agent artifact exposes.
@@ -45,6 +46,7 @@ type a2aAgentEnv struct {
 // platform_agent_exposures, an external agent in a2a_proxies (joined to its artifact on the handle). Its Render
 // reads the platform store, or fetches the external origin's card, so only the worker renders it.
 type A2AAgentKind struct {
+	db              *gorm.DB
 	tx              TxRunner
 	exposures       *PlatformAgentExposures
 	proxyRepo       gwrepo.A2AProxyRepository
@@ -61,6 +63,7 @@ type A2AAgentKind struct {
 
 // NewA2AAgentKind builds the A2A agent kind.
 func NewA2AAgentKind(
+	db *gorm.DB,
 	tx TxRunner,
 	exposures *PlatformAgentExposures,
 	proxyRepo gwrepo.A2AProxyRepository,
@@ -75,6 +78,7 @@ func NewA2AAgentKind(
 	logger *slog.Logger,
 ) *A2AAgentKind {
 	return &A2AAgentKind{
+		db: db,
 		tx: tx, exposures: exposures, proxyRepo: proxyRepo, cardRepo: cardRepo,
 		deploymentRepo: deploymentRepo, agentConfigRepo: agentConfigRepo, ocClient: ocClient, fetcher: fetcher,
 		apiKeyRepo: apiKeyRepo, events: events, encryptionKey: encryptionKey, logger: logger,
@@ -290,7 +294,7 @@ func (k *A2AAgentKind) UnplacedRecords(
 			SELECT a.org_id, a.id AS artifact_id, a.handle, a.kind, p.environment_id
 			FROM mod_ai_gateway_a2a_proxies p ` + gwrepo.A2AProxyArtifactJoin + `
 			WHERE ` + proxied
-	records, err := pageUnplacedRecords(ctx, db.DB(ctx), arms, append(exposedArgs, proxiedArgs...), afterKey, limit)
+	records, err := pageUnplacedRecords(ctx, gwtx.Or(ctx, k.db), arms, append(exposedArgs, proxiedArgs...), afterKey, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list unplaced A2A agents: %w", err)
 	}

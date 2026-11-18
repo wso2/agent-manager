@@ -38,9 +38,9 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	if err != nil {
 		return nil, err
 	}
-	llmProviderKind := gwsvc.NewLLMProviderKind()
-	llmProxyKind := gwsvc.NewLLMProxyKind(gatewayRepository, deploymentRepository)
-	mcpProxyKind := gwsvc.NewMCPProxyKind(gatewayRepository, deploymentRepository)
+	llmProviderKind := gwsvc.NewLLMProviderKind(db)
+	llmProxyKind := gwsvc.NewLLMProxyKind(db, gatewayRepository, deploymentRepository)
+	mcpProxyKind := gwsvc.NewMCPProxyKind(db, gatewayRepository, deploymentRepository)
 	txRunner := ProvideTxRunner(db)
 	platformAgentExposureRepository := ProvidePlatformAgentExposureRepository(db)
 	platformRepository := core.PlatformRepository
@@ -52,7 +52,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	apiKeyRepository := ProvideAPIKeyRepository(db)
 	gatewayEventsService := gwsvc.NewGatewayEventsService(eventHub)
 	v := core.EncryptionKey
-	a2AAgentKind := gwsvc.NewA2AAgentKind(txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, platformRepository, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
+	a2AAgentKind := gwsvc.NewA2AAgentKind(db, txRunner, platformAgentExposures, a2AProxyRepository, a2AAgentCardRepository, deploymentRepository, agentConfigRepository, platformRepository, a2ACardFetcher, apiKeyRepository, gatewayEventsService, v, logger)
 	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind)
 	config := core.Config
 	reconcileCore := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, config, logger)

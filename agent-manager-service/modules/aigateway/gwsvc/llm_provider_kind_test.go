@@ -46,7 +46,7 @@ func newProviderFixture(t *testing.T) *providerFixture {
 	t.Helper()
 	f := &providerFixture{sync: newSyncFixture(t), hub: &recordingEventHub{}}
 	gormDB := db.GetDB()
-	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind()}, reconcile.Config{},
+	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{NewLLMProviderKind(gormDB)}, reconcile.Config{},
 		slog.New(slog.DiscardHandler))
 	gateways := gwrepo.NewGatewayRepo(gormDB)
 	providerRepo := gwrepo.NewLLMProviderRepo(gormDB)

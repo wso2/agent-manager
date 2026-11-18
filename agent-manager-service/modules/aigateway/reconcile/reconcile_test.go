@@ -41,6 +41,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 )
 
 // Fake kinds. fakeKind is gateway-addressed; fakeEnvKind adds per-environment records kept in
@@ -152,7 +153,7 @@ func newFakeEnvKind(inline bool) *fakeEnvKind {
 	k := &fakeEnvKind{fakeKind: newFakeKind(fakeEnvKindName, inline), roles: gwmodels.EgressGatewayRoles}
 	// Render re-checks the record, as every environment-addressed kind must.
 	k.render = func(ctx context.Context, ref gwmodels.ArtifactRef) (Rendered, error) {
-		if !fakeRecordExistsIn(db.DB(ctx), ref.ArtifactUUID) {
+		if !fakeRecordExistsIn(gwtx.Or(ctx, db.GetDB()), ref.ArtifactUUID) {
 			return Rendered{}, ErrRecordGone
 		}
 		return Rendered{Name: "fake", Content: []byte("kind: " + ref.Kind + "\n")}, nil

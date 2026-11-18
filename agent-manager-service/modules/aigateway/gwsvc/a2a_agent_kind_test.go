@@ -94,7 +94,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	proxies := gwrepo.NewA2AProxyRepository(gormDB)
 	cards := gwrepo.NewA2AAgentCardRepository(gormDB)
 	gateways := gwrepo.NewGatewayRepo(gormDB)
-	kind := NewA2AAgentKind(tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, nil, testLogger())
+	kind := NewA2AAgentKind(gormDB, tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, nil, testLogger())
 	f.core = reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(f.core, slog.New(slog.DiscardHandler))

@@ -27,10 +27,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
@@ -109,7 +109,7 @@ func goldenA2AKind(t *testing.T, proxy *gwmodels.A2AProxy, fetcher A2ACardFetche
 		GetFunc: func(context.Context, string, string, string, string) (*gwmodels.AgentConfig, error) { return cfg, nil },
 	}
 	oc := &repomocks.PlatformRepositoryMock{}
-	return NewA2AAgentKind(sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
+	return NewA2AAgentKind(nil, sentinelTx, NewPlatformAgentExposures(exposures, nil, oc), proxies, cards, nil, configs, oc, fetcher, nil, nil,
 		bytes.Repeat([]byte{7}, 32), testLogger())
 }
 
@@ -153,9 +153,9 @@ func TestA2AAgentKindTargetsReadThroughTheSavesTransaction(t *testing.T) {
 		assert.Same(t, txSentinel, tx)
 		return txGateways
 	}}
-	kind := NewA2AAgentKind(nil, NewPlatformAgentExposures(nil, pool, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, testLogger())
+	kind := NewA2AAgentKind(nil, nil, NewPlatformAgentExposures(nil, pool, nil), nil, nil, nil, nil, nil, nil, nil, nil, nil, testLogger())
 
-	gateway, ok, err := kind.Targets(db.CtxWithTx(context.Background(), txSentinel), reconcile.Record{
+	gateway, ok, err := kind.Targets(gwtx.With(context.Background(), txSentinel), reconcile.Record{
 		ArtifactRef:     gwmodels.ArtifactRef{OUID: "ou-1", ArtifactUUID: uuid.New(), Kind: gwmodels.KindAgent},
 		EnvironmentUUID: env,
 	})
