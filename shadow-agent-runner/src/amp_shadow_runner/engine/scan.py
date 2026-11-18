@@ -55,18 +55,24 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
     walked = walk(root, read_ci=read_ci)
     skipped = walked.skipped
     manifests: dict[str, frozenset[str]] = {}
+    unread: set[str] = set()
     files: list[FileMatches] = []
     scanned = parse_errors = 0
     for file in walked.files:
-        is_python = file.kind == FileKind.SOURCE and file.language == Language.PYTHON
-        if not is_python and not (file.kind == FileKind.MANIFEST and is_python_manifest(file.path)):
+        if file.kind == FileKind.MANIFEST:
+            if not is_python_manifest(file.path):
+                unread.add(file.path)  # Not read; it still marks a service folder.
+                continue
+        elif file.kind != FileKind.SOURCE or file.language != Language.PYTHON:
             continue
         try:
             data = file.absolute.read_bytes()
         except OSError:
             skipped += 1
+            if file.kind == FileKind.MANIFEST:
+                unread.add(file.path)
             continue
-        if not is_python:
+        if file.kind == FileKind.MANIFEST:
             manifests[file.path] = python_packages(file.path, data)
             continue
         tree = parse(Language.PYTHON, data)
@@ -80,5 +86,7 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
             matches = match_python(file.path, tree, data, imports)
             if matches:
                 files.append(FileMatches(file.path, file.tag, imports, matches))
-    findings = classify(files, repository=repository, dependencies=Dependencies(manifests), rules=PYTHON)
+    findings = classify(
+        files, repository=repository, dependencies=Dependencies(manifests, frozenset(unread)), rules=PYTHON
+    )
     return ScanResult(findings, scanned, skipped, parse_errors)

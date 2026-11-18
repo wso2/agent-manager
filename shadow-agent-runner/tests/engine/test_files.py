@@ -16,7 +16,9 @@
 
 """amp_shadow_runner.engine.files: which files a scan reads, what is pruned, skipped and tagged."""
 
+import contextlib
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -288,3 +290,31 @@ def test_deep_tree_is_walked(tmp_path: Path) -> None:
     _write(deep, "agent.py")
     (found,) = walk(tmp_path).files
     assert found.path.endswith("/agent.py") and found.path.count("/") == 60
+
+
+class _Renamed:
+    """A directory entry reported under another name, as Python reports undecodable bytes in a file name."""
+
+    def __init__(self, entry: os.DirEntry[str], name: str) -> None:
+        self._entry = entry
+        self.name = name
+        self.path = entry.path
+
+    def __getattr__(self, attribute: str) -> object:
+        return getattr(self._entry, attribute)
+
+
+def test_non_utf8_names_are_skipped_and_never_reported(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # macOS refuses such names, so the walker is shown surrogate-escaped names for real files instead.
+    _write(tmp_path, "agent.py", "bad.py", "baddir/inner.py")
+    real = os.scandir
+
+    @contextlib.contextmanager
+    def scandir(path: str) -> Iterator[list[object]]:
+        with real(path) as it:
+            yield [_Renamed(e, e.name.replace("bad", "bad\udcff")) if "bad" in e.name else e for e in it]
+
+    monkeypatch.setattr(os, "scandir", scandir)
+    result = walk(tmp_path)
+    assert _paths(result) == ["agent.py"]
+    assert result.skipped_by_reason == {SkipReason.UNREADABLE: 2}

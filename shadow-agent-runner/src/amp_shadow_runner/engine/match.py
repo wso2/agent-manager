@@ -22,14 +22,22 @@ gives one ``Match``, even when fallback imports make it resolve to several symbo
 
 A match's name is, in order: a short string literal passed as ``name=``; the variable the call is assigned
 to (``support = Agent(...)``, or the attribute in ``self.support = Agent(...)``); the class name for a
-subclass; else ``<framework>-agent@<line>``.
+subclass; the nearest enclosing function (``def researcher(self): return Agent(...)``, the CrewAI
+template); else ``<framework>-agent``. No name holds a line number, so adding code above an agent never
+renames it.
+
+``Match.qualified`` places the name in its scope: the enclosing classes and functions, then the name
+(``support.agent``, ``Bot.__init__.agent``, just ``agent`` at module level). A name taken from the
+enclosing function is that function's own path (``Crew.researcher``).
 
 Only these facts are read from the arguments: ``model`` when ``model=`` or ``llm=`` is a short string
-literal, and the names of the plain identifiers listed in ``tools=[...]``. Prompts, instructions, tool
-schemas and every other argument are never read.
+literal that looks like a model name (no ``://``, ``@`` or whitespace), and the names of the plain
+identifiers listed in ``tools=[...]``. Prompts, instructions, tool schemas and every other argument are
+never read; a signature's ``requires`` keyword is only checked for a literal ``False`` or ``None``.
 
-An agent passed into another as ``absorbs`` says (``AgentExecutor(agent=create_react_agent(...))``, or a
-variable assigned in the same file) is the same agent, so only the outer one is reported.
+An agent passed into another as its ``absorbs`` argument is the same agent, so only the outer one is
+reported: a matched call written inline (``AgentExecutor(agent=create_react_agent(...))``), or the nearest
+earlier assignment, in the same scope, of the variable or attribute passed (``agent`` or ``self.agent``).
 """
 
 from collections.abc import Iterator
@@ -48,6 +56,7 @@ MAX_TOOLS = 50
 
 _CALL_SHAPES = (Shape.CALL, Shape.FACTORY)
 _CLASS_SHAPES = (Shape.SUBCLASS,)
+_SCOPES = frozenset({"function_definition", "class_definition"})
 
 
 @dataclass(frozen=True)
@@ -59,6 +68,8 @@ class Match:
     line: int
     """1-based line of the call or class definition."""
     name: str
+    qualified: str
+    """The enclosing classes and functions and the name, joined with dots (see the module docstring)."""
     model: str | None = None
     tools: tuple[str, ...] = ()
 
@@ -71,8 +82,10 @@ class Match:
 class _Found:
     node: tree_sitter.Node
     match: Match
-    variable: str | None
-    """The plain variable the call is assigned to, if any."""
+    scope: int
+    """The id of the nearest enclosing function, class or module node."""
+    variable: str | None = None
+    """The variable or attribute chain (``agent``, ``self.agent``) the call is assigned to, if any."""
 
 
 def match_python(
@@ -103,20 +116,51 @@ def _walk(root: tree_sitter.Node) -> Iterator[tree_sitter.Node]:
         stack.extend(reversed(node.children))
 
 
+def _scopes(node: tree_sitter.Node) -> list[tree_sitter.Node]:
+    """The functions and classes enclosing ``node`` (not ``node`` itself), outermost first."""
+    scopes: list[tree_sitter.Node] = []
+    parent = node.parent
+    while parent is not None:
+        if parent.type in _SCOPES:
+            scopes.append(parent)
+        parent = parent.parent
+    return scopes[::-1]
+
+
+def _scope_id(node: tree_sitter.Node) -> int:
+    """The id of the nearest function, class or module node enclosing ``node``."""
+    parent = node.parent
+    while parent is not None:
+        if parent.type in _SCOPES or parent.parent is None:
+            return parent.id
+        parent = parent.parent
+    return node.id
+
+
 def _absorbed(found: list[_Found], reader: "_Reader") -> set[int]:
-    """The ids of matched nodes that another match takes in through its ``absorbs`` keyword."""
+    """The ids of matched nodes that another match takes in through its ``absorbs`` argument."""
     by_node = {f.node.id for f in found}
-    by_variable = {f.variable: f.node.id for f in found if f.variable is not None}
     absorbed: set[int] = set()
     for f in found:
-        keyword = f.match.signature.absorbs
-        value = reader.keyword(f.node, keyword) if keyword is not None else None
+        sig = f.match.signature
+        if sig.absorbs is None:
+            continue
+        value = reader.keyword(f.node, sig.absorbs)
+        if value is None and sig.absorbs_position is not None:
+            value = reader.positional(f.node, sig.absorbs_position)
         if value is None:
             continue
         if value.id in by_node:
             absorbed.add(value.id)
-        elif value.type == "identifier" and (target := by_variable.get(reader.text(value))) is not None:
-            absorbed.add(target)
+            continue
+        key = reader.reference_part(value)
+        earlier = [
+            g
+            for g in found
+            if key is not None and g.variable == key and g.scope == f.scope and g.node.start_byte < f.node.start_byte
+        ]
+        if earlier:
+            absorbed.add(max(earlier, key=lambda g: g.node.start_byte).node.id)
     return absorbed
 
 
@@ -159,15 +203,34 @@ class _Reader:
                 return sig
         return None
 
+    def scope_names(self, scopes: list[tree_sitter.Node]) -> list[str]:
+        names = (s.child_by_field_name("name") for s in scopes)
+        return [self.text(n) if n is not None else "_" for n in names]
+
     def call(self, node: tree_sitter.Node, path: str, imports: ImportTable, rules: RuleSet) -> _Found | None:
         sig = self.find(self.reference(node.child_by_field_name("function")), imports, rules, _CALL_SHAPES)
         if sig is None:
             return None
-        line = node.start_point[0] + 1
-        name = self.literal(self.keyword(node, "name")) or self.assigned_to(node) or f"{sig.framework}-agent@{line}"
-        model = self.literal(self.keyword(node, "model")) or self.literal(self.keyword(node, "llm"))
-        match = Match(sig, path, line, name, model, self.tool_names(self.keyword(node, "tools")))
-        return _Found(node, match, self.assigned_to(node, attribute=False))
+        if sig.requires is not None:
+            required = self.keyword(node, sig.requires)
+            if required is None or required.type in ("false", "none"):
+                return None
+        scopes = _scopes(node)
+        path_names = self.scope_names(scopes)
+        name = self.literal(self.keyword(node, "name")) or self.assigned_to(node)
+        if name is not None:
+            qualified = ".".join([*path_names, name])
+        else:
+            functions = [i for i, s in enumerate(scopes) if s.type == "function_definition"]
+            if functions:
+                name, qualified = path_names[functions[-1]], ".".join(path_names[: functions[-1] + 1])
+            else:
+                name = f"{sig.framework}-agent"
+                qualified = ".".join([*path_names, name])
+        model = self.model(self.keyword(node, "model")) or self.model(self.keyword(node, "llm"))
+        tools = self.tool_names(self.keyword(node, "tools"))
+        match = Match(sig, path, node.start_point[0] + 1, name, qualified, model, tools)
+        return _Found(node, match, _scope_id(node), self.assigned_target(node))
 
     def subclass(self, node: tree_sitter.Node, path: str, imports: ImportTable, rules: RuleSet) -> _Found | None:
         name_node, bases = node.child_by_field_name("name"), node.child_by_field_name("superclasses")
@@ -178,7 +241,9 @@ class _Reader:
                 continue
             sig = self.find(self.reference(base), imports, rules, _CLASS_SHAPES)
             if sig is not None:
-                return _Found(node, Match(sig, path, node.start_point[0] + 1, self.text(name_node)), None)
+                name = self.text(name_node)
+                qualified = ".".join([*self.scope_names(_scopes(node)), name])
+                return _Found(node, Match(sig, path, node.start_point[0] + 1, name, qualified), _scope_id(node))
         return None
 
     def keyword(self, call: tree_sitter.Node, name: str) -> tree_sitter.Node | None:
@@ -193,16 +258,32 @@ class _Reader:
                     return argument.child_by_field_name("value")
         return None
 
-    def assigned_to(self, call: tree_sitter.Node, *, attribute: bool = True) -> str | None:
-        """The name ``call`` is assigned to: ``x = call`` gives ``x``, and (with ``attribute``) ``self.x = call``
-        gives ``x`` too."""
+    def positional(self, call: tree_sitter.Node, index: int) -> tree_sitter.Node | None:
+        """The positional argument at ``index`` in a call, or None."""
+        arguments = call.child_by_field_name("arguments")
+        if arguments is None or arguments.type != "argument_list":
+            return None
+        values = [a for a in arguments.named_children if a.type not in ("keyword_argument", "comment")]
+        return values[index] if index < len(values) else None
+
+    def assigned_target(self, call: tree_sitter.Node) -> str | None:
+        """What ``call`` is assigned to, as written: ``x`` or an attribute chain such as ``self.x``."""
         parent = call.parent
         if parent is None or parent.type != "assignment" or parent.child_by_field_name("right") != call:
             return None
-        left = parent.child_by_field_name("left")
-        if attribute and left is not None and left.type == "attribute":
-            left = left.child_by_field_name("attribute")
-        return self.text(left) if left is not None and left.type == "identifier" else None
+        return self.reference_part(parent.child_by_field_name("left"))
+
+    def assigned_to(self, call: tree_sitter.Node) -> str | None:
+        """The name ``call`` is assigned to: ``x = call`` and ``self.x = call`` both give ``x``."""
+        target = self.assigned_target(call)
+        return None if target is None else target.rsplit(".", 1)[-1]
+
+    def model(self, node: tree_sitter.Node | None) -> str | None:
+        """A model name from a string literal; None for a URL, an address or anything with whitespace."""
+        value = self.literal(node)
+        if value is None or "://" in value or "@" in value or any(c.isspace() for c in value):
+            return None
+        return value
 
     def literal(self, node: tree_sitter.Node | None) -> str | None:
         """The value of a short, single-line, plain string literal, or None for anything else."""

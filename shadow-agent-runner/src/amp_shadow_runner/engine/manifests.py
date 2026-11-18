@@ -21,6 +21,9 @@ Only package names are read, never versions, URLs or anything else. Supported: `
 dependencies and dependency groups, and Poetry dependencies and groups), ``Pipfile`` and ``setup.cfg``. A
 manifest that cannot be read or parsed declares nothing. Names are compared normalised (PEP 503: case,
 ``-``, ``_`` and ``.`` do not matter).
+
+``service_folder`` places a file in the service it belongs to: the folder of the nearest manifest of any
+kind (``package.json`` and ``*.csproj`` too) at or above it.
 """
 
 import configparser
@@ -124,22 +127,42 @@ def _setup_cfg(text: str) -> list[str]:
     return list(_requirement_names(line for value in values for line in value.splitlines()))
 
 
+def service_folder(path: str, manifests: Iterable[str]) -> str | None:
+    """The folder of the nearest manifest at or above the file at ``path``: ``.`` for the repository root,
+    or None when no manifest is above it. In a monorepo it tells which service a file belongs to."""
+    folders = PurePosixPath(path).parents
+    above = [PurePosixPath(m).parent for m in manifests if PurePosixPath(m).parent in folders]
+    return str(max(above, key=lambda f: len(f.parts))) if above else None
+
+
 @dataclass(frozen=True)
 class Dependencies:
-    """The packages each Python manifest of a repository declares, by manifest path."""
+    """The packages each manifest of a repository declares, by manifest path."""
 
     manifests: Mapping[str, frozenset[str]]
+    """The manifests that were read."""
+    unread: frozenset[str] = frozenset()
+    """Manifests not read (another language's, or unreadable): they still mark a service folder."""
+
+    @property
+    def paths(self) -> tuple[str, ...]:
+        """Every manifest path, read or not."""
+        return (*self.manifests, *sorted(self.unread))
 
     def declaring(self, packages: Iterable[str], path: str) -> str | None:
         """The manifest that declares one of ``packages`` for the file at ``path``, or None.
 
-        The nearest such manifest in a folder above the file wins; otherwise the first by path, since a
-        repository may declare its dependencies away from its code.
+        When a read manifest is in a folder above the file, only the nearest such folder's manifests count:
+        the file belongs to that project. Only a file with no manifest above it falls back to the first
+        declaring manifest by path, since a repository may declare its dependencies away from its code.
         """
         wanted = {normalise(p) for p in packages}
-        declaring = sorted(m for m, declared in self.manifests.items() if declared & wanted)
-        if not declaring:
-            return None
         folders = PurePosixPath(path).parents
-        above = [m for m in declaring if PurePosixPath(m).parent in folders]
-        return max(above, key=lambda m: len(PurePosixPath(m).parts)) if above else declaring[0]
+        above = [m for m in self.manifests if PurePosixPath(m).parent in folders]
+        if above:
+            depth = max(len(PurePosixPath(m).parent.parts) for m in above)
+            candidates = [m for m in above if len(PurePosixPath(m).parent.parts) == depth]
+        else:
+            candidates = list(self.manifests)
+        declaring = sorted(m for m in candidates if self.manifests[m] & wanted)
+        return declaring[0] if declaring else None

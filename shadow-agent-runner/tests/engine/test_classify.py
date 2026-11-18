@@ -96,29 +96,69 @@ def test_external_ids_are_unique_and_deterministic() -> None:
     assert ids == [
         "support-bot:a.py:x",
         "support-bot:b.py:x",
-        "support-bot:b.py:x@3",
-        "support-bot:b.py:crewai-agent@4",
-        "support-bot:b.py:crewai-agent@4@4",
+        "support-bot:b.py:x@2",
+        "support-bot:b.py:crewai-agent",
+        "support-bot:b.py:crewai-agent@2",
     ]
     assert [f.external_id for f in _classify(*reversed(files))] == ids
 
 
-def test_external_id_repeat_after_line_suffix() -> None:
-    files = (
-        _file("a.py", "from crewai import Agent\nx = Agent()\nx = Agent()\n"),
-        _file("a.py", "from crewai import Agent\nx = Agent()\nx = Agent()\n"),
-    )
-    assert [f.external_id for f in _classify(*files)] == [
+def test_a_repeat_skips_a_number_already_taken() -> None:
+    source = "from crewai import Agent\nAgent(name='x@2')\nx = Agent()\nx = Agent()\n"
+    assert [f.external_id for f in _classify(_file("a.py", source))] == [
+        "support-bot:a.py:x@2",
         "support-bot:a.py:x",
         "support-bot:a.py:x@3",
-        "support-bot:a.py:x@2",
-        "support-bot:a.py:x@3.2",
     ]
+
+
+ORIGINAL = (
+    "from crewai import Agent\n"
+    "def support():\n    agent = Agent(role='s')\n    return agent\n"
+    "def billing():\n    agent = Agent(role='b')\n    Agent(role='b2')\n    Agent(role='b3')\n"
+    "class Bot:\n    def __init__(self):\n        self.agent = Agent(role='bot')\n"
+)
+EDITED = (
+    "from crewai import Agent\nimport os\n\n"
+    "def triage():\n    agent = Agent(role='t')\n    Agent(role='t2')\n    return agent\n\n"
+    "def support():\n    # A comment and a blank line above the agent.\n\n    agent = Agent(role='s')\n    return agent\n"
+    "def billing():\n    agent = Agent(role='b')\n    Agent(role='b2')\n    Agent(role='b3')\n"
+    "class Bot:\n    def __init__(self):\n        self.agent = Agent(role='bot')\n"
+)
+
+
+def test_ids_do_not_change_when_code_is_added_elsewhere() -> None:
+    before = [f.external_id for f in _classify(_file("app.py", ORIGINAL))]
+    after = [f.external_id for f in _classify(_file("app.py", EDITED))]
+    assert before == [
+        "support-bot:app.py:support.agent",
+        "support-bot:app.py:billing.agent",
+        "support-bot:app.py:billing",
+        "support-bot:app.py:billing@2",
+        "support-bot:app.py:Bot.__init__.agent",
+    ]
+    assert after == ["support-bot:app.py:triage.agent", "support-bot:app.py:triage", *before]
+
+
+def test_same_variable_in_different_functions() -> None:
+    source = "from crewai import Agent\ndef a():\n    agent = Agent()\ndef b():\n    agent = Agent()\n"
+    findings = _classify(_file("app.py", source))
+    assert [(f.name, f.external_id) for f in findings] == [
+        ("agent", "support-bot:app.py:a.agent"),
+        ("agent", "support-bot:app.py:b.agent"),
+    ]
+
+
+def test_example_code_is_labelled() -> None:
+    (finding,) = _classify(_file("examples/demo.py", "from crewai import Agent\nx = Agent()\n", tag="example"))
+    assert finding.tag == "example"
+    assert finding.attributes == {"framework": "crewai", "labels": {"codeArea": "example"}}
 
 
 def test_tag_is_kept() -> None:
     (finding,) = _classify(_file("tests/test_a.py", "from crewai import Agent\nx = Agent()\n", tag="test"))
     assert finding.tag == "test"
+    assert "labels" not in finding.attributes
 
 
 def test_long_name_is_cut() -> None:
@@ -142,6 +182,7 @@ def test_scan_tree(tmp_path: Path) -> None:
             "src/broken.py": "from strands import Agent\nbot = Agent()\ndef broken(:\n",
             "src/plain.py": "print('no imports')\n",
             "src/local.py": "class Agent:\n    pass\nx = Agent()\n",
+            "examples/package.json": "{}\n",
             "examples/demo.py": "from smolagents import CodeAgent\ndemo = CodeAgent(tools=[], model=m)\n",
             "web/index.ts": "import { Agent } from '@mastra/core';\n",
             "node_modules/x/a.py": "from crewai import Agent\nx = Agent()\n",
@@ -156,6 +197,7 @@ def test_scan_tree(tmp_path: Path) -> None:
     ]
     crew = result.findings[2]
     assert [e.code for e in crew.evidence] == ["d1_agent_dependency", "d2_agent_import"]
+    assert [f.service_folder for f in result.findings] == ["examples", ".", "."]
     assert (result.files_scanned, result.files_skipped, result.parse_errors) == (5, 1, 1)
 
 

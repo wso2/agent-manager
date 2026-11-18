@@ -72,21 +72,18 @@ SIGNATURE_CASES = [
     ("from strands.agent.agent import Agent\nx = Agent()", "strands"),
     ("from google.adk.agents import Agent\nx = Agent(name='x', model='gemini-2.0-flash')", "google-adk"),
     ("from google.adk.agents import LlmAgent\nx = LlmAgent(name='x')", "google-adk"),
-    ("from google.adk.agents import SequentialAgent\nx = SequentialAgent(name='x', sub_agents=[a])", "google-adk"),
-    ("from google.adk.agents import ParallelAgent\nx = ParallelAgent(name='x', sub_agents=[a])", "google-adk"),
-    ("from google.adk.agents import LoopAgent\nx = LoopAgent(name='x', sub_agents=[a])", "google-adk"),
     ("from google.adk.agents.llm_agent import LlmAgent\nx = LlmAgent(name='x')", "google-adk"),
     ("from google.adk import Agent\nx = Agent(name='x')", "google-adk"),
     ("from google.adk.agents import BaseAgent\nclass x(BaseAgent):\n    pass", "google-adk"),
     ("import autogen\nx = autogen.AssistantAgent('assistant', llm_config=c)", "autogen"),
-    ("from autogen import ConversableAgent\nx = ConversableAgent('c')", "autogen"),
+    ("from autogen import ConversableAgent\nx = ConversableAgent('c', llm_config={'model': 'gpt-4o'})", "autogen"),
+    ("from autogen import ConversableAgent\nx = ConversableAgent('c', llm_config=llm_config)", "autogen"),
     ("from autogen.agentchat import AssistantAgent\nx = AssistantAgent('a')", "autogen"),
     ("from autogen_agentchat.agents import AssistantAgent\nx = AssistantAgent('a', model_client=m)", "autogen"),
     ("from llama_index.core.agent import ReActAgent\nx = ReActAgent.from_tools(tools, llm=llm)", "llama-index"),
     ("from llama_index.core.agent import ReActAgent\nx = ReActAgent(tools=tools)", "llama-index"),
     ("from llama_index.core.agent.workflow import FunctionAgent\nx = FunctionAgent(tools=t)", "llama-index"),
     ("from llama_index.core.agent.workflow import ReActAgent\nx = ReActAgent(tools=t)", "llama-index"),
-    ("from llama_index.core.agent.workflow import AgentWorkflow\nx = AgentWorkflow(agents=[a])", "llama-index"),
     (
         "from llama_index.core.agent.workflow import AgentWorkflow\nx = AgentWorkflow.from_tools_or_functions(t)",
         "llama-index",
@@ -137,6 +134,18 @@ def test_resolves_through_imports(source: str) -> None:
         "from crewai import Agent\ndef f(a: Agent) -> Agent:\n    return a",
         # A base class that proves an agent only when derived from is not one when called.
         "from google.adk.agents import BaseAgent\nx = BaseAgent(name='b')",
+        # Orchestrators: their sub-agents are found on their own.
+        "from google.adk.agents import SequentialAgent\nx = SequentialAgent(name='s', sub_agents=[a])",
+        "from google.adk.agents import ParallelAgent\nx = ParallelAgent(name='p', sub_agents=[a])",
+        "from google.adk.agents import LoopAgent\nx = LoopAgent(name='l', sub_agents=[a])",
+        "from llama_index.core.agent.workflow import AgentWorkflow\nx = AgentWorkflow(agents=[a, b])",
+        "from llama_index.core.agent import AgentWorkflow\nx = AgentWorkflow(agents=[a, b])",
+        "from llama_index.core.agent.workflow import AgentWorkflow\nclass W(AgentWorkflow):\n    pass",
+        # AutoGen ConversableAgent without a model: a human proxy, or no llm_config at all.
+        "from autogen import ConversableAgent\nhuman = ConversableAgent('human', llm_config=False, human_input_mode='ALWAYS')",
+        "from autogen import ConversableAgent\nx = ConversableAgent('x', llm_config=None)",
+        "from autogen import ConversableAgent\nx = ConversableAgent('x')",
+        "from autogen import ConversableAgent\nclass X(ConversableAgent):\n    pass",
         # A subscripted value is not a dotted name.
         "import crewai\nx = agents[0].Agent()",
     ],
@@ -146,7 +155,7 @@ def test_no_match(source: str) -> None:
 
 
 def test_subclass_is_named_after_its_class() -> None:
-    source = "from autogen import ConversableAgent\n\nclass Planner(ConversableAgent, metaclass=M):\n    pass\n"
+    source = "from autogen import AssistantAgent\n\nclass Planner(AssistantAgent, metaclass=M):\n    pass\n"
     assert _found(source) == [("autogen", 3, "Planner")]
 
 
@@ -165,9 +174,9 @@ NAME_CASES = [
     ("support = Agent(name='Support Bot')", "Support Bot"),
     ('support = Agent(name="  padded  ")', "padded"),
     ("Agent(name='Support')", "Support"),
-    ("agents = [Agent(role='r')]", "strands-agent@2"),
-    ("Agent()", "strands-agent@2"),
-    ("a, b = Agent(), Agent()", "strands-agent@2"),
+    ("agents = [Agent(role='r')]", "strands-agent"),
+    ("Agent()", "strands-agent"),
+    ("a, b = Agent(), Agent()", "strands-agent"),
     ("support = Agent(name=NAME)", "support"),
     ("support = Agent(name=f'{x}-bot')", "support"),
     ("support = Agent(name=b'bot')", "support"),
@@ -195,6 +204,10 @@ def test_name(line: str, name: str) -> None:
         ("tools=[search, lookup, search]", None, ("search", "lookup")),
         ("tools=[search, Tool(name='x'), mod.fn, 'str']", None, ("search",)),
         ("tools=TOOLS", None, ()),
+        ("model='http://localhost:11434/llama3'", None, ()),
+        ("model='user@example.com'", None, ()),
+        ("model='gpt 4o'", None, ()),
+        ("model='openai:gpt-4o'", "openai:gpt-4o", ()),
         ("instruction='You are a support agent', tools=[]", None, ()),
     ],
 )
@@ -220,6 +233,102 @@ def test_executor_absorbs_the_agent_it_runs() -> None:
     assert _found(source) == [("langchain", 3, "executor"), ("langchain", 4, "inline"), ("langchain", 5, "other")]
 
 
+def test_absorbs_the_nearest_earlier_assignment_in_the_same_scope() -> None:
+    source = (
+        "from langchain.agents import AgentExecutor, create_react_agent\n"
+        "def build():\n"
+        "    agent = create_react_agent(llm, tools, first)\n"
+        "    agent = create_react_agent(llm, tools, second)\n"
+        "    executor = AgentExecutor(agent=agent, tools=tools)\n"
+        "    agent = create_react_agent(llm, tools, later)\n"
+        "    return executor\n"
+        "def other():\n"
+        "    agent = create_react_agent(llm, tools, prompt)\n"
+    )
+    assert _found(source) == [
+        ("langchain", 3, "agent"),
+        ("langchain", 5, "executor"),
+        ("langchain", 6, "agent"),
+        ("langchain", 9, "agent"),
+    ]
+
+
+def test_absorbs_an_attribute_by_its_chain() -> None:
+    source = (
+        "from langchain.agents import AgentExecutor, create_react_agent\n"
+        "class Bot:\n"
+        "    def __init__(self):\n"
+        "        agent = create_react_agent(llm, tools, local)\n"
+        "        self.agent = create_react_agent(llm, tools, prompt)\n"
+        "        self.executor = AgentExecutor(agent=self.agent, tools=tools)\n"
+    )
+    assert _found(source) == [("langchain", 4, "agent"), ("langchain", 6, "executor")]
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        "AgentExecutor.from_agent_and_tools(agent, tools)",
+        "AgentExecutor.from_agent_and_tools(agent, tools=tools)",
+        "AgentExecutor.from_agent_and_tools(agent=agent, tools=tools)",
+    ],
+)
+def test_factory_absorbs_its_first_positional_argument(call: str) -> None:
+    source = (
+        "from langchain.agents import AgentExecutor, create_react_agent\n"
+        f"agent = create_react_agent(llm, tools, prompt)\nexecutor = {call}\n"
+    )
+    assert _found(source) == [("langchain", 3, "executor")]
+
+
+def test_constructor_does_not_absorb_a_positional_argument() -> None:
+    source = (
+        "from langchain.agents import AgentExecutor, create_react_agent\n"
+        "agent = create_react_agent(llm, tools, prompt)\nexecutor = AgentExecutor(agent)\n"
+    )
+    assert _found(source) == [("langchain", 2, "agent"), ("langchain", 3, "executor")]
+
+
+QUALIFIED_CASES = [
+    ("agent = Agent()", ("agent", "agent")),
+    ("def support():\n    agent = Agent()", ("agent", "support.agent")),
+    ("class Bot:\n    def __init__(self):\n        self.agent = Agent()", ("agent", "Bot.__init__.agent")),
+    ("def build():\n    return Agent(name='Support')", ("Support", "build.Support")),
+    ("def researcher():\n    return Agent()", ("researcher", "researcher")),
+    ("def team():\n    return [Agent(), 1]", ("team", "team")),
+    ("class Crew:\n    def writer(self):\n        Agent()", ("writer", "Crew.writer")),
+    ("def outer():\n    class Inner:\n        x = [Agent()]", ("outer", "outer")),
+    ("class Holder:\n    items = [Agent()]", ("strands-agent", "Holder.strands-agent")),
+    ("Agent()", ("strands-agent", "strands-agent")),
+    ("def f():\n    class Mine(Agent):\n        pass", ("Mine", "f.Mine")),
+]
+
+
+@pytest.mark.parametrize(("code", "expected"), QUALIFIED_CASES)
+def test_name_and_qualified_name(code: str, expected: tuple[str, str]) -> None:
+    (match,) = _matches(f"from strands import Agent\n{code}\n")
+    assert (match.name, match.qualified) == expected
+
+
+def test_crewai_project_template() -> None:
+    source = (
+        "from crewai import Agent, Crew, Task\n"
+        "from crewai.project import CrewBase, agent, crew\n\n"
+        "@CrewBase\n"
+        "class ResearchCrew:\n"
+        "    @agent\n"
+        "    def researcher(self) -> Agent:\n"
+        "        return Agent(config=self.agents_config['researcher'], verbose=True)\n\n"
+        "    @agent\n"
+        "    def reporting_analyst(self) -> Agent:\n"
+        "        return Agent(config=self.agents_config['reporting_analyst'])\n"
+    )
+    assert [(m.name, m.qualified, m.line) for m in _matches(source)] == [
+        ("researcher", "ResearchCrew.researcher", 8),
+        ("reporting_analyst", "ResearchCrew.reporting_analyst", 12),
+    ]
+
+
 def test_every_match_in_source_order() -> None:
     source = (
         "from crewai import Agent\nfrom crewai import Agent as A\n"
@@ -228,8 +337,8 @@ def test_every_match_in_source_order() -> None:
     assert _found(source) == [
         ("crewai", 3, "researcher"),
         ("crewai", 4, "writer"),
-        ("crewai", 5, "crewai-agent@5"),
-        ("crewai", 5, "crewai-agent@5"),
+        ("crewai", 5, "crewai-agent"),
+        ("crewai", 5, "crewai-agent"),
     ]
 
 

@@ -33,7 +33,8 @@ entry points, since .NET build output is not committed.
 
 Only what the scan would have read counts as skipped: links (to files or
 folders), other non-regular entries with a name a rule matches, files over
-the cap, and folders that cannot be listed. Files no rule matches, and
+the cap, folders that cannot be listed, and any file or folder whose name is
+not valid UTF-8 (its path could not be reported; the folder is not entered). Files no rule matches, and
 everything in a pruned folder, are ignored, not skipped.
 """
 
@@ -109,7 +110,7 @@ class SkipReason(StrEnum):
     NOT_REGULAR = "not_regular"
     """A link (never followed), device, FIFO or socket."""
     UNREADABLE = "unreadable"
-    """A folder that could not be listed, or a file that could not be stat'ed."""
+    """A folder that could not be listed, a file that could not be stat'ed, or a name that is not UTF-8."""
 
 
 @dataclass(frozen=True)
@@ -160,6 +161,9 @@ def walk(root: Path, *, read_ci: bool = False, max_file_bytes: int = DEFAULT_MAX
             skipped[SkipReason.UNREADABLE] += 1
             continue
         for entry in entries:
+            if not _utf8(entry.name):
+                skipped[SkipReason.UNREADABLE] += 1  # Its path could not be reported or published.
+                continue
             parts = (*folder, entry.name)
             try:
                 if entry.is_symlink():
@@ -180,6 +184,15 @@ def walk(root: Path, *, read_ci: bool = False, max_file_bytes: int = DEFAULT_MAX
                 skipped[SkipReason.UNREADABLE] += 1
     kept.sort(key=lambda f: f.path)
     return WalkResult(tuple(kept), dict(skipped))
+
+
+def _utf8(name: str) -> bool:
+    """Whether a name from the file system is valid UTF-8 (Python keeps invalid bytes as lone surrogates)."""
+    try:
+        name.encode("utf-8")
+    except UnicodeEncodeError:
+        return False
+    return True
 
 
 def _pruned(name: str) -> bool:

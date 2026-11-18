@@ -20,8 +20,14 @@ Each symbol is listed at the paths code imports it from: the public path, and th
 code commonly imports that instead. Old and new paths are both listed, since ``ImportTable`` keeps every
 fallback import. Conditional rules (a plain LangGraph ``StateGraph``, OpenAI Agents) come later.
 
-Left out on purpose: classes that do not need a model (AutoGen ``UserProxyAgent`` and ``CodeExecutorAgent``),
-and the LangChain ``create_*_agent`` functions other than the common ones.
+Left out on purpose:
+
+- classes that do not need a model: AutoGen ``UserProxyAgent`` and ``CodeExecutorAgent``, and AutoGen
+  ``ConversableAgent`` unless it is constructed with an ``llm_config`` (a human proxy has none or ``False``);
+- orchestrators whose sub-agents are found on their own: ADK ``SequentialAgent``, ``ParallelAgent`` and
+  ``LoopAgent``, and the LlamaIndex ``AgentWorkflow`` constructor. ``AgentWorkflow.from_tools_or_functions``
+  stays: it builds its own agent from the tools and an LLM;
+- the LangChain ``create_*_agent`` functions other than the common ones.
 """
 
 from amp_shadow_runner.engine.signatures import (
@@ -30,6 +36,8 @@ from amp_shadow_runner.engine.signatures import (
     agent_class,
     agent_classes,
     base_classes,
+    classmethod_factories,
+    conditional_class,
     factories,
 )
 
@@ -91,31 +99,28 @@ PYTHON = RuleSet(
         *agent_classes("strands", "strands.agent.agent", "Agent"),
         # Google ADK. ``Agent`` is ``LlmAgent``; a custom agent derives from ``BaseAgent``.
         *agent_classes("google-adk", "google.adk", "Agent"),
-        *agent_classes(
-            "google-adk", "google.adk.agents", "Agent", "LlmAgent", "SequentialAgent", "ParallelAgent", "LoopAgent"
-        ),
+        *agent_classes("google-adk", "google.adk.agents", "Agent", "LlmAgent"),
         *agent_classes("google-adk", "google.adk.agents.llm_agent", "Agent", "LlmAgent"),
-        *agent_classes("google-adk", "google.adk.agents.sequential_agent", "SequentialAgent"),
-        *agent_classes("google-adk", "google.adk.agents.parallel_agent", "ParallelAgent"),
-        *agent_classes("google-adk", "google.adk.agents.loop_agent", "LoopAgent"),
         *base_classes("google-adk", "google.adk.agents", "BaseAgent"),
         *base_classes("google-adk", "google.adk.agents.base_agent", "BaseAgent"),
         # AutoGen 0.2 (pyautogen, ag2) and AgentChat 0.4+.
-        *agent_classes("autogen", "autogen", "AssistantAgent", "ConversableAgent"),
-        *agent_classes("autogen", "autogen.agentchat", "AssistantAgent", "ConversableAgent"),
+        *agent_classes("autogen", "autogen", "AssistantAgent"),
+        *agent_classes("autogen", "autogen.agentchat", "AssistantAgent"),
         *agent_classes("autogen", "autogen.agentchat.assistant_agent", "AssistantAgent"),
-        *agent_classes("autogen", "autogen.agentchat.conversable_agent", "ConversableAgent"),
+        *conditional_class("autogen", "autogen", "ConversableAgent", requires="llm_config"),
+        *conditional_class("autogen", "autogen.agentchat", "ConversableAgent", requires="llm_config"),
+        *conditional_class("autogen", "autogen.agentchat.conversable_agent", "ConversableAgent", requires="llm_config"),
         *agent_classes("autogen", "autogen_agentchat.agents", "AssistantAgent"),
         # LlamaIndex: the workflow agents (0.12+, exported from llama_index.core.agent since 0.13), the
         # earlier ReActAgent and FunctionCallingAgent, and the legacy OpenAIAgent.
         *agent_class("llama-index", "llama_index.core.agent", "ReActAgent", factories=("from_tools",)),
         *agent_class("llama-index", "llama_index.core.agent", "FunctionCallingAgent", factories=("from_tools",)),
         *agent_classes("llama-index", "llama_index.core.agent", "FunctionAgent"),
-        *agent_class("llama-index", "llama_index.core.agent", "AgentWorkflow", factories=("from_tools_or_functions",)),
+        *classmethod_factories("llama-index", "llama_index.core.agent", "AgentWorkflow", "from_tools_or_functions"),
         *agent_class("llama-index", "llama_index.core.agent.react", "ReActAgent", factories=("from_tools",)),
         *agent_classes("llama-index", "llama_index.core.agent.workflow", "FunctionAgent", "ReActAgent", "CodeActAgent"),
-        *agent_class(
-            "llama-index", "llama_index.core.agent.workflow", "AgentWorkflow", factories=("from_tools_or_functions",)
+        *classmethod_factories(
+            "llama-index", "llama_index.core.agent.workflow", "AgentWorkflow", "from_tools_or_functions"
         ),
         *agent_class("llama-index", "llama_index.agent.openai", "OpenAIAgent", factories=("from_tools",)),
         *agent_class("llama-index", "llama_index.agent", "OpenAIAgent", factories=("from_tools",)),

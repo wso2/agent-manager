@@ -66,19 +66,40 @@ class Signature:
     absorbs: str | None = None
     """A keyword argument that passes in an agent this one runs, as ``AgentExecutor(agent=...)`` does. That
     agent is the same agent, so it is not reported on its own."""
+    absorbs_position: int | None = None
+    """The positional argument (0-based) that may pass that agent instead of the keyword."""
+    requires: str | None = None
+    """A keyword argument the call must pass, with a value other than a literal ``False`` or ``None``, to
+    prove an agent (AutoGen ``ConversableAgent`` needs ``llm_config``). Only for ``CALL`` signatures."""
 
 
 def agent_class(
     framework: str, module: str, name: str, *, factories: Iterable[str] = (), absorbs: str | None = None
 ) -> tuple[Signature, ...]:
     """Signatures for an agent class: constructed (``CALL``), derived from (``SUBCLASS``), and built by each
-    classmethod in ``factories`` (``FACTORY``)."""
+    classmethod in ``factories`` (``FACTORY``). With ``absorbs``, a factory may also take that agent as its
+    first positional argument (``AgentExecutor.from_agent_and_tools(agent, tools)``)."""
     symbol = Symbol(module, name)
+    position = None if absorbs is None else 0
     return (
         Signature(framework, symbol, Shape.CALL, absorbs),
         Signature(framework, symbol, Shape.SUBCLASS),
-        *(Signature(framework, Symbol(f"{module}.{name}", method), Shape.FACTORY, absorbs) for method in factories),
+        *(
+            Signature(framework, Symbol(f"{module}.{name}", method), Shape.FACTORY, absorbs, position)
+            for method in factories
+        ),
     )
+
+
+def classmethod_factories(framework: str, module: str, name: str, *methods: str) -> tuple[Signature, ...]:
+    """Signatures for classmethods that build an agent, on a class that is not an agent itself."""
+    return tuple(Signature(framework, Symbol(f"{module}.{name}", m), Shape.FACTORY) for m in methods)
+
+
+def conditional_class(framework: str, module: str, name: str, *, requires: str) -> tuple[Signature, ...]:
+    """A class that proves an agent only when constructed with the keyword ``requires`` (see
+    ``Signature.requires``). Deriving from it proves nothing, since the keyword cannot be seen there."""
+    return (Signature(framework, Symbol(module, name), Shape.CALL, requires=requires),)
 
 
 def agent_classes(framework: str, module: str, *names: str) -> tuple[Signature, ...]:
@@ -145,5 +166,7 @@ __all__ = [
     "agent_class",
     "agent_classes",
     "base_classes",
+    "classmethod_factories",
+    "conditional_class",
     "factories",
 ]

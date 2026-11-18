@@ -35,7 +35,7 @@ import pytest
 import amp_shadow_runner
 import amp_shadow_runner.engine as engine
 from amp_shadow_runner.engine.files import FileKind, walk
-from amp_shadow_runner.engine.imports import extract_imports
+from amp_shadow_runner.engine.imports import Symbol, extract_imports
 from amp_shadow_runner.engine.languages import parse
 from amp_shadow_runner.engine.scan import scan_tree
 
@@ -180,9 +180,8 @@ def test_walk_and_parse_never_touch_network(tmp_path: Path) -> None:
             source = f.absolute.read_bytes()
             tree = parse(f.language, source)
             assert tree is not None
-            # Compared by field, in case an engine module was imported afresh.
-            symbols = extract_imports(f.language, tree, source).resolve("openai")
-            assert [(s.module, s.name) for s in symbols] == [("openai", None)]
+            # Plain equality is safe: the fresh-import test above puts the original engine modules back.
+            assert extract_imports(f.language, tree, source).resolve("openai") == (Symbol("openai", None),)
 
 
 @pytest.mark.usefixtures("no_network")

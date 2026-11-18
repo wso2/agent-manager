@@ -26,13 +26,13 @@ Evidence codes here carry no provider prefix: the publish step adds ``github.`` 
 - ``d1_agent_dependency``: a dependency manifest that declares the framework's package (see
   ``Dependencies.declaring``), with ``observed.declared`` true.
 
-Findings in test or example code (``RepoFile.tag``) are still returned, with their tag. They are not
-published: the report lists them as skipped, test or example code, since samples and test doubles are not
-running agents.
+Findings in test code (``RepoFile.tag`` ``test``) are still returned, with their tag, but are never
+published: the report lists them apart, since test doubles are not running agents. Findings in example code
+(tag ``example``) are published like any other, with the attribute ``labels: {"codeArea": "example"}``.
 
-``external_id`` is ``<repository>:<path>:<name>``. When that repeats in one scan, the later finding (by
-path, then line) gets ``@<line>`` appended, and a number after that if it still repeats, so the same code
-always gives the same ids.
+``external_id`` is ``<repository>:<path>:<qualified name>`` (see ``Match.qualified``), so it holds no line
+number and code added elsewhere never changes it. Only a real repeat of the same qualified name (two
+unnamed agents in one scope) gets ``@2``, ``@3`` and so on, numbered in source order.
 """
 
 from collections.abc import Mapping, Sequence
@@ -41,7 +41,7 @@ from enum import StrEnum
 
 from amp_shadow_runner.engine.files import Tag
 from amp_shadow_runner.engine.imports import ImportTable
-from amp_shadow_runner.engine.manifests import Dependencies
+from amp_shadow_runner.engine.manifests import Dependencies, service_folder
 from amp_shadow_runner.engine.match import Match
 from amp_shadow_runner.engine.signatures import Framework, RuleSet
 
@@ -85,10 +85,13 @@ class Finding:
     framework: str
     verdict: Verdict
     tag: Tag | None
-    """``test`` or ``example`` for a finding in such code, which is reported but not published."""
+    """``test`` or ``example`` for a finding in such code. Test findings are reported but never published."""
     attributes: Mapping[str, object]
-    """Attributes to publish: ``framework``, and ``model`` and ``tools`` when the code states them."""
+    """Attributes to publish: ``framework``; ``model`` and ``tools`` when the code states them; and
+    ``labels`` ``{"codeArea": "example"}`` for example code."""
     evidence: tuple[Evidence, ...]
+    service_folder: str | None = None
+    """The folder of the nearest manifest above the file (``.`` for the root), reported, not published."""
 
 
 @dataclass(frozen=True)
@@ -106,18 +109,19 @@ def classify(
 ) -> tuple[Finding, ...]:
     """The findings for every match of one repository, ordered by path and then line."""
     findings: list[Finding] = []
-    taken: set[str] = set()
+    counts: dict[str, int] = {}
+    used: set[str] = set()
     for file in sorted(files, key=lambda f: f.path):
         for match in sorted(file.matches, key=lambda m: m.line):
             framework = rules.framework(match.framework)
-            name = match.name.strip()[:MAX_NAME_CHARS] or f"{framework.id}-agent@{match.line}"
+            name = match.name.strip()[:MAX_NAME_CHARS] or f"{framework.id}-agent"
             evidence = [Evidence(D2_AGENT_IMPORT, file.path, {"imports": _import_count(file.imports, framework)})]
             manifest = dependencies.declaring(framework.packages, file.path)
             if manifest is not None:
                 evidence.insert(0, Evidence(D1_AGENT_DEPENDENCY, manifest, {"declared": True}))
             findings.append(
                 Finding(
-                    external_id=_unique(f"{repository}:{file.path}:{name}", match.line, taken),
+                    external_id=_unique(f"{repository}:{file.path}:{match.qualified}", counts, used),
                     name=name,
                     repository=repository,
                     path=file.path,
@@ -125,8 +129,9 @@ def classify(
                     framework=framework.id,
                     verdict=Verdict.PROVEN,
                     tag=file.tag,
-                    attributes=_attributes(match),
+                    attributes=_attributes(match, file.tag),
                     evidence=tuple(evidence),
+                    service_folder=service_folder(file.path, dependencies.paths),
                 )
             )
     return tuple(findings)
@@ -144,22 +149,24 @@ def _import_count(imports: ImportTable, framework: Framework) -> int:
     return count
 
 
-def _attributes(match: Match) -> dict[str, object]:
+def _attributes(match: Match, tag: Tag | None) -> dict[str, object]:
     attributes: dict[str, object] = {"framework": match.framework}
     if match.model is not None:
         attributes["model"] = match.model
     if match.tools:
         attributes["tools"] = [{"type": "function", "name": name} for name in match.tools]
+    if tag == "example":
+        attributes["labels"] = {"codeArea": "example"}
     return attributes
 
 
-def _unique(external_id: str, line: int, taken: set[str]) -> str:
+def _unique(external_id: str, counts: dict[str, int], used: set[str]) -> str:
+    """``external_id``, or for its n-th use ``external_id@n`` (or the next free number)."""
+    n = counts.get(external_id, 1)
     candidate = external_id
-    if candidate in taken:
-        candidate = f"{external_id}@{line}"
-        n = 2
-        while candidate in taken:
-            candidate = f"{external_id}@{line}.{n}"
-            n += 1
-    taken.add(candidate)
+    while candidate in used:
+        n += 1
+        candidate = f"{external_id}@{n}"
+    counts[external_id] = n
+    used.add(candidate)
     return candidate

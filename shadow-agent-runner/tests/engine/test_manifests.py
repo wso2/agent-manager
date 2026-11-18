@@ -18,7 +18,13 @@
 
 import pytest
 
-from amp_shadow_runner.engine.manifests import Dependencies, is_python_manifest, normalise, python_packages
+from amp_shadow_runner.engine.manifests import (
+    Dependencies,
+    is_python_manifest,
+    normalise,
+    python_packages,
+    service_folder,
+)
 
 
 @pytest.mark.parametrize(
@@ -94,12 +100,59 @@ DEPENDENCIES = Dependencies(
     ("packages", "path", "manifest"),
     [
         (["crewai"], "services/a/src/agent.py", "services/a/pyproject.toml"),
-        (["crewai"], "services/b/agent.py", "requirements.txt"),
         (["CrewAI"], "agent.py", "requirements.txt"),
-        (["strands-agents"], "agent.py", "services/a/pyproject.toml"),
-        (["langchain", "langchain-classic"], "services/a/agent.py", "services/b/requirements.txt"),
+        # Only the nearest manifest folder above the file counts, even when it does not declare the package.
+        (["crewai"], "services/b/agent.py", None),
+        (["strands-agents"], "agent.py", None),
+        (["langchain", "langchain-classic"], "services/a/agent.py", None),
         (["smolagents"], "agent.py", None),
     ],
 )
 def test_declaring(packages: list[str], path: str, manifest: str | None) -> None:
     assert DEPENDENCIES.declaring(packages, path) == manifest
+
+
+def test_declaring_falls_back_only_with_no_manifest_above() -> None:
+    dependencies = Dependencies(
+        {"services/b/requirements.txt": frozenset({"crewai"}), "services/a/pyproject.toml": frozenset({"crewai"})},
+        unread=frozenset({"tools/package.json"}),
+    )
+    # tools/ has only an unread manifest, so no read manifest is above the file: the first by path wins.
+    assert dependencies.declaring(["crewai"], "tools/agent.py") == "services/a/pyproject.toml"
+    assert dependencies.paths == ("services/b/requirements.txt", "services/a/pyproject.toml", "tools/package.json")
+
+
+def test_declaring_reads_every_manifest_in_the_nearest_folder() -> None:
+    dependencies = Dependencies(
+        {
+            "svc/pyproject.toml": frozenset({"httpx"}),
+            "svc/requirements.txt": frozenset({"crewai"}),
+            "requirements.txt": frozenset({"crewai"}),
+        }
+    )
+    assert dependencies.declaring(["crewai"], "svc/app/agent.py") == "svc/requirements.txt"
+
+
+SERVICE_MANIFESTS = (
+    "package.json",
+    "services/api/pyproject.toml",
+    "services/api/requirements.txt",
+    "services/web/package.json",
+    "services/api-v2/Api.csproj",
+)
+
+
+@pytest.mark.parametrize(
+    ("path", "manifests", "folder"),
+    [
+        ("services/api/src/agent.py", SERVICE_MANIFESTS, "services/api"),
+        ("services/api/agent.py", SERVICE_MANIFESTS, "services/api"),
+        ("services/api-v2/Agent.cs", SERVICE_MANIFESTS, "services/api-v2"),
+        ("services/apiary/agent.py", SERVICE_MANIFESTS, "."),
+        ("agent.py", SERVICE_MANIFESTS, "."),
+        ("services/api/agent.py", (), None),
+        ("tools/agent.py", ("services/api/pyproject.toml",), None),
+    ],
+)
+def test_service_folder(path: str, manifests: tuple[str, ...], folder: str | None) -> None:
+    assert service_folder(path, manifests) == folder
