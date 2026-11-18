@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Manager handles the lifecycle of gateway WebSocket connections.
@@ -133,12 +134,12 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 		if m.hub != nil && old.eventSub != nil {
 			if err := m.hub.Unsubscribe(gatewayID, old.eventSub); err != nil {
 				slog.Error("Failed to unsubscribe evicted connection from EventHub",
-					"gatewayID", gatewayID, "connectionID", old.ConnectionID, "error", err)
+					"gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", old.ConnectionID, "error", utils.SanitizeForLog(err.Error()))
 			}
 		}
 		_ = old.Close(1000, "superseded by new connection")
 		slog.Info("Evicted superseded connection",
-			"gatewayID", gatewayID, "connectionID", old.ConnectionID)
+			"gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", old.ConnectionID)
 	}
 
 	m.wg.Add(1)
@@ -149,7 +150,7 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 		ch, err := m.hub.Subscribe(gatewayID)
 		if err != nil {
 			slog.Error("Failed to subscribe to EventHub for gateway",
-				"gatewayID", gatewayID, "connectionID", connectionID, "error", err)
+				"gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", utils.SanitizeForLog(connectionID), "error", utils.SanitizeForLog(err.Error()))
 			m.Unregister(gatewayID, connectionID)
 			return nil, fmt.Errorf("failed to subscribe to EventHub for gateway %s: %w", gatewayID, err)
 		}
@@ -160,11 +161,11 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 
 	if len(evicted) > 0 {
 		slog.Info("Gateway reconnected",
-			"evictedConnections", len(evicted), "gatewayID", gatewayID, "connectionID", connectionID,
+			"evictedConnections", len(evicted), "gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", utils.SanitizeForLog(connectionID),
 			"totalConnections", m.GetConnectionCount())
 	} else {
 		slog.Info("Gateway connected",
-			"gatewayID", gatewayID, "connectionID", connectionID, "totalConnections", m.GetConnectionCount())
+			"gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", utils.SanitizeForLog(connectionID), "totalConnections", m.GetConnectionCount())
 	}
 
 	return conn, nil
@@ -192,15 +193,15 @@ func (m *Manager) forwardEvents(conn *Connection, ch <-chan eventhub.Event) {
 			}
 			if err := conn.Send(payload); err != nil {
 				slog.Error("Failed to forward EventHub event to gateway",
-					"gatewayID", conn.GatewayID,
-					"connectionID", conn.ConnectionID,
+					"gatewayID", utils.SanitizeForLog(conn.GatewayID),
+					"connectionID", utils.SanitizeForLog(conn.ConnectionID),
 					"event_type", string(evt.EventType),
-					"error", err)
+					"error", utils.SanitizeForLog(err.Error()))
 				conn.DeliveryStats.IncrementFailed(fmt.Sprintf("forward error: %v", err))
 			} else {
 				slog.Debug("Forwarded event to gateway WebSocket",
-					"gatewayID", conn.GatewayID,
-					"connectionID", conn.ConnectionID,
+					"gatewayID", utils.SanitizeForLog(conn.GatewayID),
+					"connectionID", utils.SanitizeForLog(conn.ConnectionID),
 					"event_type", string(evt.EventType),
 					"event_id", evt.EventID)
 				conn.DeliveryStats.IncrementTotalSent()
@@ -256,7 +257,7 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 	if m.hub != nil && removed.eventSub != nil {
 		if err := m.hub.Unsubscribe(gatewayID, removed.eventSub); err != nil {
 			slog.Error("Failed to unsubscribe from EventHub",
-				"gatewayID", gatewayID, "connectionID", connectionID, "error", err)
+				"gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", utils.SanitizeForLog(connectionID), "error", utils.SanitizeForLog(err.Error()))
 		}
 	}
 
@@ -267,11 +268,11 @@ func (m *Manager) Unregister(gatewayID, connectionID string) {
 	// reach production logs.
 	if err := removed.Close(1000, "normal closure"); err != nil {
 		slog.Warn("Connection close returned error",
-			"gatewayID", gatewayID, "connectionID", connectionID, "error", err)
+			"gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", utils.SanitizeForLog(connectionID), "error", utils.SanitizeForLog(err.Error()))
 	}
 
 	slog.Info("Gateway disconnected",
-		"gatewayID", gatewayID, "connectionID", connectionID, "totalConnections", m.GetConnectionCount())
+		"gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", utils.SanitizeForLog(connectionID), "totalConnections", m.GetConnectionCount())
 }
 
 // GetConnections retrieves all connections for a specific gateway ID.
@@ -329,7 +330,7 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 
 			if time.Since(conn.GetLastHeartbeat()) > m.heartbeatTimeout {
 				slog.Warn("Heartbeat timeout detected",
-					"gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID,
+					"gatewayID", utils.SanitizeForLog(conn.GatewayID), "connectionID", utils.SanitizeForLog(conn.ConnectionID),
 					"lastHeartbeat", conn.GetLastHeartbeat())
 				m.Unregister(conn.GatewayID, conn.ConnectionID)
 				return
@@ -337,7 +338,7 @@ func (m *Manager) monitorHeartbeat(conn *Connection) {
 
 			if err := conn.SendPing(); err != nil {
 				slog.Error("Failed to send ping",
-					"gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "error", err)
+					"gatewayID", utils.SanitizeForLog(conn.GatewayID), "connectionID", utils.SanitizeForLog(conn.ConnectionID), "error", utils.SanitizeForLog(err.Error()))
 				m.Unregister(conn.GatewayID, conn.ConnectionID)
 				return
 			}
@@ -358,7 +359,7 @@ func (m *Manager) Shutdown() {
 		for _, conn := range conns {
 			if err := conn.Close(1000, "server shutdown"); err != nil {
 				slog.Warn("Connection close returned error during shutdown",
-					"gatewayID", gatewayID, "connectionID", conn.ConnectionID, "error", err)
+					"gatewayID", utils.SanitizeForLog(gatewayID), "connectionID", utils.SanitizeForLog(conn.ConnectionID), "error", utils.SanitizeForLog(err.Error()))
 			}
 		}
 		return true

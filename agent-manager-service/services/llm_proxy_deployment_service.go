@@ -101,53 +101,53 @@ type LLMProxyDeploymentProvider struct {
 
 // DeployLLMProxy deploys an LLM proxy to a gateway
 func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *models.DeployAPIRequest, ouID string) (*models.Deployment, error) {
-	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: starting", "proxyID", proxyID, "ouID", ouID,
-		"base", req.Base, "gatewayID", req.GatewayID)
+	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: starting", "proxyID", utils.SanitizeForLog(proxyID), "ouID", utils.SanitizeForLog(ouID),
+		"base", utils.SanitizeForLog(req.Base), "gatewayID", utils.SanitizeForLog(req.GatewayID))
 
 	if err := validateDeployBase(req.Base); err != nil {
 		return nil, err
 	}
 	if req.GatewayID == "" {
-		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: gateway ID is required", "proxyID", proxyID)
+		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: gateway ID is required", "proxyID", utils.SanitizeForLog(proxyID))
 		return nil, utils.ErrDeploymentGatewayIDRequired
 	}
 
 	// Parse UUIDs
 	gatewayUUID, err := uuid.Parse(req.GatewayID)
 	if err != nil {
-		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: invalid gateway UUID", "proxyID", proxyID, "gatewayID", req.GatewayID, "error", err)
+		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: invalid gateway UUID", "proxyID", utils.SanitizeForLog(proxyID), "gatewayID", utils.SanitizeForLog(req.GatewayID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("invalid gateway UUID: %w", err)
 	}
 
 	// Validate gateway exists
-	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: validating gateway", "proxyID", proxyID, "gatewayID", req.GatewayID)
+	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: validating gateway", "proxyID", utils.SanitizeForLog(proxyID), "gatewayID", utils.SanitizeForLog(req.GatewayID))
 	gateway, err := s.gatewayRepo.GetByUUID(req.GatewayID)
 	if err != nil {
-		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: failed to get gateway", "proxyID", proxyID, "gatewayID", req.GatewayID, "error", err)
+		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: failed to get gateway", "proxyID", utils.SanitizeForLog(proxyID), "gatewayID", utils.SanitizeForLog(req.GatewayID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
 	}
 	if gateway == nil || gateway.OUID != ouID {
-		slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: gateway not found or org mismatch", "proxyID", proxyID, "gatewayID", req.GatewayID, "ouID", ouID)
+		slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: gateway not found or org mismatch", "proxyID", utils.SanitizeForLog(proxyID), "gatewayID", utils.SanitizeForLog(req.GatewayID), "ouID", utils.SanitizeForLog(ouID))
 		return nil, utils.ErrGatewayNotFound
 	}
 
 	// Get LLM proxy
-	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: getting proxy", "proxyID", proxyID, "ouID", ouID)
+	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: getting proxy", "proxyID", utils.SanitizeForLog(proxyID), "ouID", utils.SanitizeForLog(ouID))
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: proxy not found", "proxyID", proxyID, "ouID", ouID)
+			slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: proxy not found", "proxyID", utils.SanitizeForLog(proxyID), "ouID", utils.SanitizeForLog(ouID))
 			return nil, utils.ErrLLMProxyNotFound
 		}
-		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: failed to get proxy", "proxyID", proxyID, "ouID", ouID, "error", err)
+		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: failed to get proxy", "proxyID", utils.SanitizeForLog(proxyID), "ouID", utils.SanitizeForLog(ouID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
-		slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: proxy not found", "proxyID", proxyID, "ouID", ouID)
+		slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: proxy not found", "proxyID", utils.SanitizeForLog(proxyID), "ouID", utils.SanitizeForLog(ouID))
 		return nil, utils.ErrLLMProxyNotFound
 	}
 
-	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: proxy retrieved", "proxyID", proxyID, "proxyUUID", proxy.UUID)
+	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: proxy retrieved", "proxyID", utils.SanitizeForLog(proxyID), "proxyUUID", proxy.UUID)
 
 	ctx := context.Background()
 	existing, err := s.deploymentRepo.PlacedGateways(ctx, ouID, proxy.UUID)
@@ -164,11 +164,11 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *models.D
 		return err
 	})
 	if err != nil {
-		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: failed to deploy", "proxyID", proxyID, "error", err)
+		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: failed to deploy", "proxyID", utils.SanitizeForLog(proxyID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
 
-	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: deployment started", "proxyID", proxyID, "deploymentID", applied.DeploymentID)
+	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: deployment started", "proxyID", utils.SanitizeForLog(proxyID), "deploymentID", applied.DeploymentID)
 	return applied.Deployment, nil
 }
 
@@ -247,62 +247,62 @@ func proxyVhost(proxy *models.LLMProxy) string {
 
 // UndeployLLMProxyDeployment undeploys a deployment
 func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(ctx context.Context, proxyID, deploymentID, gatewayID, ouID string) (*models.Deployment, error) {
-	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: starting", "proxyID", proxyID,
-		"deploymentID", deploymentID, "gatewayID", gatewayID, "ouID", ouID)
+	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: starting", "proxyID", utils.SanitizeForLog(proxyID),
+		"deploymentID", utils.SanitizeForLog(deploymentID), "gatewayID", utils.SanitizeForLog(gatewayID), "ouID", utils.SanitizeForLog(ouID))
 
 	// Get proxy
-	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: getting proxy", "proxyID", proxyID, "ouID", ouID)
+	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: getting proxy", "proxyID", utils.SanitizeForLog(proxyID), "ouID", utils.SanitizeForLog(ouID))
 	proxy, err := s.proxyRepo.GetByIDCtx(ctx, proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: proxy not found", "proxyID", proxyID)
+			slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: proxy not found", "proxyID", utils.SanitizeForLog(proxyID))
 			return nil, utils.ErrLLMProxyNotFound
 		}
-		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: failed to get proxy", "proxyID", proxyID, "error", err)
+		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: failed to get proxy", "proxyID", utils.SanitizeForLog(proxyID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
-		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: proxy not found", "proxyID", proxyID)
+		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: proxy not found", "proxyID", utils.SanitizeForLog(proxyID))
 		return nil, utils.ErrLLMProxyNotFound
 	}
 
 	// Get deployment
-	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: getting deployment", "proxyID", proxyID, "deploymentID", deploymentID)
+	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: getting deployment", "proxyID", utils.SanitizeForLog(proxyID), "deploymentID", utils.SanitizeForLog(deploymentID))
 	deployment, err := s.deploymentRepo.GetWithStateCtx(ctx, deploymentID, proxy.UUID.String(), ouID)
 	if err != nil {
-		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: failed to get deployment", "proxyID", proxyID, "deploymentID", deploymentID, "error", err)
+		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: failed to get deployment", "proxyID", utils.SanitizeForLog(proxyID), "deploymentID", utils.SanitizeForLog(deploymentID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not found", "proxyID", proxyID, "deploymentID", deploymentID)
+		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not found", "proxyID", utils.SanitizeForLog(proxyID), "deploymentID", utils.SanitizeForLog(deploymentID))
 		return nil, utils.ErrDeploymentNotFound
 	}
 	if deployment.GatewayUUID.String() != gatewayID {
-		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: gateway ID mismatch", "proxyID", proxyID,
-			"deploymentID", deploymentID, "expectedGatewayID", gatewayID, "actualGatewayID", deployment.GatewayUUID.String())
+		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: gateway ID mismatch", "proxyID", utils.SanitizeForLog(proxyID),
+			"deploymentID", utils.SanitizeForLog(deploymentID), "expectedGatewayID", utils.SanitizeForLog(gatewayID), "actualGatewayID", deployment.GatewayUUID.String())
 		return nil, utils.ErrGatewayIDMismatch
 	}
 	if deployment.Status == nil || *deployment.Status == models.DeploymentStatusArchived {
-		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not current", "proxyID", proxyID,
-			"deploymentID", deploymentID, "status", deployment.Status)
+		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not current", "proxyID", utils.SanitizeForLog(proxyID),
+			"deploymentID", utils.SanitizeForLog(deploymentID), "status", deployment.Status)
 		return nil, utils.ErrDeploymentNotActive
 	}
 
 	placement := proxyPlacement(proxy, proxyID, ouID, deployment.GatewayUUID)
 	row, err := undeployAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement)
 	if errors.Is(err, utils.ErrDeploymentNotActive) {
-		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not active", "proxyID", proxyID,
-			"deploymentID", deploymentID, "status", deployment.Status)
+		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not active", "proxyID", utils.SanitizeForLog(proxyID),
+			"deploymentID", utils.SanitizeForLog(deploymentID), "status", deployment.Status)
 		return nil, err
 	}
 	if err != nil {
-		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: failed to undeploy", "proxyID", proxyID, "deploymentID", deploymentID, "error", err)
+		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: failed to undeploy", "proxyID", utils.SanitizeForLog(proxyID), "deploymentID", utils.SanitizeForLog(deploymentID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to undeploy: %w", err)
 	}
 
 	deployment.SetStatusRow(row)
 	deployment.UpdatedAt = &row.PerformedAt
-	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: undeploy started", "proxyID", proxyID, "deploymentID", deploymentID)
+	slog.Info("LLMProxyDeploymentService.UndeployLLMProxyDeployment: undeploy started", "proxyID", utils.SanitizeForLog(proxyID), "deploymentID", utils.SanitizeForLog(deploymentID))
 	return deployment, nil
 }
 

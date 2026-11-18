@@ -17,7 +17,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -42,21 +44,8 @@ func main() {
 
 	cfg := config.GetConfig()
 	if *healthcheckFlag {
-		host := cfg.ServerHost
-		switch host {
-		case "", "0.0.0.0":
-			host = "127.0.0.1"
-		case "::":
-			host = "::1"
-		}
-		client := &http.Client{Timeout: 4 * time.Second}
-		response, err := client.Get("http://" + net.JoinHostPort(host, strconv.Itoa(cfg.ServerPort)) + "/healthz")
-		if err != nil {
+		if err := checkHealth(context.Background(), cfg.ServerHost, cfg.ServerPort); err != nil {
 			log.Fatal(err)
-		}
-		_ = response.Body.Close()
-		if response.StatusCode != http.StatusOK {
-			log.Fatalf("health check returned %s", response.Status)
 		}
 		return
 	}
@@ -82,4 +71,40 @@ func main() {
 		WaitForMigrations:        *waitForMigrationsFlag,
 		AgentThunderProvisioning: agentThunderProvisioning,
 	})
+}
+
+// checkHealth probes only the local service. Plain HTTP is intentional: the
+// process serves HTTP behind the ingress, and this request never leaves loopback.
+func checkHealth(ctx context.Context, host string, port int) error {
+	switch host {
+	case "", "0.0.0.0", "localhost":
+		host = "127.0.0.1"
+	case "::":
+		host = "::1"
+	}
+	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+		return fmt.Errorf("health check requires a loopback or wildcard server host")
+	}
+	client := &http.Client{
+		Timeout:   4 * time.Second,
+		Transport: &http.Transport{Proxy: nil},
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return fmt.Errorf("health check redirects are disabled")
+		},
+	}
+	defer client.CloseIdleConnections()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		"http://"+net.JoinHostPort(host, strconv.Itoa(port))+"/healthz", nil)
+	if err != nil {
+		return fmt.Errorf("build health check: %w", err)
+	}
+	response, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("health check: %w", err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("health check returned status %d", response.StatusCode)
+	}
+	return nil
 }

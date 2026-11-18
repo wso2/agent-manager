@@ -345,10 +345,10 @@ func JWTAuthMiddlewareWithResourceMetadataResolver(
 				// logged only the error, which left credential stuffing against
 				// the API undetectable.
 				slog.Error("JWT validation failed",
-					"error", err,
+					"error", utils.SanitizeForLog(err.Error()),
 					"reason", classifyAuthFailure(err),
 					"path", utils.SanitizeForLog(r.URL.Path),
-					"clientIp", utils.ClientIP(r))
+					"clientIp", utils.SanitizeForLog(utils.ClientIP(r)))
 				notifyAuthFailure(r, classifyAuthFailure(err))
 				w.Header().Set("WWW-Authenticate", buildBearerChallenge(metadataURL, "invalid_token"))
 				utils.WriteErrorResponse(w, http.StatusUnauthorized, "invalid jwt")
