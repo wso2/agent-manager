@@ -3192,12 +3192,6 @@ type CreateMonitorRequest struct {
 // CreateMonitorRequestType Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
 type CreateMonitorRequestType string
 
-// CreateOrganizationRequest defines model for CreateOrganizationRequest.
-type CreateOrganizationRequest struct {
-	// Name Name of the organization
-	Name string `json:"name"`
-}
-
 // CreateProjectRequest defines model for CreateProjectRequest.
 type CreateProjectRequest struct {
 	DeploymentPipeline *string `json:"deploymentPipeline,omitempty"`
@@ -3936,6 +3930,14 @@ type ExtractionIdentifier struct {
 // ExtractionIdentifierLocation Where to find the token information
 type ExtractionIdentifierLocation string
 
+// FailedGatewayDetail defines model for FailedGatewayDetail.
+type FailedGatewayDetail struct {
+	Id             string    `json:"id"`
+	LastUpdatedAt  time.Time `json:"lastUpdatedAt"`
+	Name           string    `json:"name"`
+	OrganizationId string    `json:"organizationId"`
+}
+
 // FileMount defines model for FileMount.
 type FileMount struct {
 	// IsSensitive If true, value is stored in KV and synced via ExternalSecret
@@ -4004,6 +4006,25 @@ type GatewayEnvironmentResponse struct {
 
 // GatewayEnvironmentResponseIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
 type GatewayEnvironmentResponseIsolationTier string
+
+// GatewayFailureSummaryResponse defines model for GatewayFailureSummaryResponse.
+type GatewayFailureSummaryResponse struct {
+	// Abandoned Gateways silent for longer than maxAgeSeconds, left out of the percentage
+	Abandoned                  int64                  `json:"abandoned"`
+	Considered                 int64                  `json:"considered"`
+	EvaluatedAt                time.Time              `json:"evaluatedAt"`
+	Failed                     int64                  `json:"failed"`
+	FailedGateways             *[]FailedGatewayDetail `json:"failedGateways,omitempty"`
+	FailurePercentage          float32                `json:"failurePercentage"`
+	FailurePercentageThreshold float32                `json:"failurePercentageThreshold"`
+
+	// Healthy The verdict; branch on this rather than on the status code
+	Healthy                   bool  `json:"healthy"`
+	MaxAgeSeconds             int   `json:"maxAgeSeconds"`
+	StalenessThresholdSeconds int   `json:"stalenessThresholdSeconds"`
+	Total                     int64 `json:"total"`
+	Truncated                 *bool `json:"truncated,omitempty"`
+}
 
 // GatewayHosting Who runs the gateway runtime.
 // - MANAGED: the platform provisions and runs it.
@@ -4113,6 +4134,25 @@ type GatewaySpec struct {
 // - PROVISIONING: Gateway is being set up
 // - ERROR: Gateway has encountered an error
 type GatewayStatus string
+
+// GatewayStatusEntry defines model for GatewayStatusEntry.
+type GatewayStatusEntry struct {
+	Id         string `json:"id"`
+	IsActive   bool   `json:"isActive"`
+	IsCritical bool   `json:"isCritical"`
+	Name       string `json:"name"`
+}
+
+// GatewayStatusListResponse defines model for GatewayStatusListResponse.
+type GatewayStatusListResponse struct {
+	Count      int                  `json:"count"`
+	List       []GatewayStatusEntry `json:"list"`
+	Pagination struct {
+		Limit  int `json:"limit"`
+		Offset int `json:"offset"`
+		Total  int `json:"total"`
+	} `json:"pagination"`
+}
 
 // GatewayTokenInfo defines model for GatewayTokenInfo.
 type GatewayTokenInfo struct {
@@ -4239,6 +4279,11 @@ type GroupListResponse struct {
 
 	// Total Total number of groups
 	Total int `json:"total"`
+}
+
+// GroupMembersRequest defines model for GroupMembersRequest.
+type GroupMembersRequest struct {
+	UserIds []string `json:"userIds"`
 }
 
 // GroupResponse defines model for GroupResponse.
@@ -4378,6 +4423,11 @@ type IdentityProviderListResponse struct {
 	List []IdentityProvider `json:"list"`
 }
 
+// IdentityRolesResponse defines model for IdentityRolesResponse.
+type IdentityRolesResponse struct {
+	Roles []RoleResponse `json:"roles"`
+}
+
 // IdentitySecurity Agent Identity security — callers present a JWT issued by the environment's IdP. v1 pins the issuer to the ThunderKeyManager key manager.
 type IdentitySecurity struct {
 	// Enabled Whether Agent Identity security is enabled
@@ -4404,6 +4454,17 @@ type InputInterfaceSchema struct {
 
 	// Path Path to OpenAPI schema file
 	Path *string `json:"path,omitempty"`
+}
+
+// InviteUserRequest defines model for InviteUserRequest.
+type InviteUserRequest struct {
+	Email string `json:"email"`
+}
+
+// InviteUserResponse defines model for InviteUserResponse.
+type InviteUserResponse struct {
+	// InviteLink Sign-up link for the invitee
+	InviteLink string `json:"inviteLink"`
 }
 
 // IssueTestAPIKeyResponse defines model for IssueTestAPIKeyResponse.
@@ -5636,6 +5697,20 @@ type PaginationInfo struct {
 	Offset int `json:"offset"`
 }
 
+// PermissionCatalogEntry defines model for PermissionCatalogEntry.
+type PermissionCatalogEntry struct {
+	ActionName       *string `json:"actionName,omitempty"`
+	Name             string  `json:"name"`
+	ResourceName     *string `json:"resourceName,omitempty"`
+	ResourceServerId string  `json:"resourceServerId"`
+}
+
+// PermissionCatalogResponse defines model for PermissionCatalogResponse.
+type PermissionCatalogResponse struct {
+	Permissions      []PermissionCatalogEntry `json:"permissions"`
+	ResourceServerId string                   `json:"resourceServerId"`
+}
+
 // ProjectListItem defines model for ProjectListItem.
 type ProjectListItem struct {
 	// CreatedAt Timestamp when the project was created
@@ -6080,6 +6155,18 @@ type ResourceWiseRateLimitingConfig struct {
 	Resources []RateLimitingResourceLimit `json:"resources"`
 }
 
+// RoleAssigneesRequest At least one user or group ID is required.
+type RoleAssigneesRequest struct {
+	GroupIds *[]string `json:"groupIds,omitempty"`
+	UserIds  *[]string `json:"userIds,omitempty"`
+}
+
+// RoleAssignmentsResponse defines model for RoleAssignmentsResponse.
+type RoleAssignmentsResponse struct {
+	Groups *[]GroupResponse `json:"groups,omitempty"`
+	Users  *[]UserResponse  `json:"users,omitempty"`
+}
+
 // RoleListResponse defines model for RoleListResponse.
 type RoleListResponse struct {
 	// Limit Maximum results returned
@@ -6091,6 +6178,14 @@ type RoleListResponse struct {
 
 	// Total Total number of roles
 	Total int `json:"total"`
+}
+
+// RolePermissionsRequest defines model for RolePermissionsRequest.
+type RolePermissionsRequest struct {
+	Permissions []string `json:"permissions"`
+
+	// ResourceServerId Resource server the permissions belong to (resourceServerId of GET .../identities/permissions)
+	ResourceServerId string `json:"resourceServerId"`
 }
 
 // RoleResponse defines model for RoleResponse.
@@ -6272,6 +6367,22 @@ type StoredAPIKey struct {
 type TargetEnvironmentRef struct {
 	// Name Name of the target environment
 	Name string `json:"name"`
+}
+
+// ThunderInstanceListResponse defines model for ThunderInstanceListResponse.
+type ThunderInstanceListResponse struct {
+	ThunderInstances []ThunderInstanceResponse `json:"thunderInstances"`
+}
+
+// ThunderInstanceResponse defines model for ThunderInstanceResponse.
+type ThunderInstanceResponse struct {
+	DisplayName  string `json:"displayName"`
+	EnvName      string `json:"envName"`
+	IsProduction bool   `json:"isProduction"`
+	IssuerUrl    string `json:"issuerUrl"`
+	JwksUrl      string `json:"jwksUrl"`
+	Namespace    string `json:"namespace"`
+	TokenUrl     string `json:"tokenUrl"`
 }
 
 // ThunderSystemClientRequest The env-Thunder system-client OAuth2 credential to store for an environment.
@@ -6882,6 +6993,11 @@ type UpstreamEndpoint struct {
 	Url *string `json:"url,omitempty"`
 }
 
+// UserGroupsResponse defines model for UserGroupsResponse.
+type UserGroupsResponse struct {
+	Groups []GroupResponse `json:"groups"`
+}
+
 // UserListResponse defines model for UserListResponse.
 type UserListResponse struct {
 	// Limit Maximum results returned
@@ -6901,7 +7017,7 @@ type UserResponse struct {
 	Attributes *map[string]interface{} `json:"attributes,omitempty"`
 
 	// Display User display name/username
-	Display string `json:"display"`
+	Display *string `json:"display,omitempty"`
 
 	// Id User ID
 	Id string `json:"id"`
@@ -7070,6 +7186,12 @@ type ListGatewaysParams struct {
 // ListGatewaysParamsStatus defines parameters for ListGateways.
 type ListGatewaysParamsStatus string
 
+// GetGatewayStatusParams defines parameters for GetGatewayStatus.
+type GetGatewayStatusParams struct {
+	// GatewayId Only this gateway
+	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
+}
+
 // ListGitSecretsParams defines parameters for ListGitSecrets.
 type ListGitSecretsParams struct {
 	// Limit Maximum number of results to return
@@ -7085,6 +7207,15 @@ type ListGroupsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 
 	// Limit Maximum number of results to return
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// GetGroupMembersParams defines parameters for GetGroupMembers.
+type GetGroupMembersParams struct {
+	// Offset Number of members to skip
+	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
+
+	// Limit Maximum number of members to return (1-100; other values fall back to 20)
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
@@ -7552,8 +7683,11 @@ type CheckThunderUrlAvailabilityParams struct {
 	Handle string `form:"handle" json:"handle"`
 }
 
-// CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
-type CreateOrganizationJSONRequestBody = CreateOrganizationRequest
+// GetPlatformGatewayFailureSummaryParams defines parameters for GetPlatformGatewayFailureSummary.
+type GetPlatformGatewayFailureSummaryParams struct {
+	// IncludeDetails List the failed gateways and always answer 200
+	IncludeDetails *bool `form:"includeDetails,omitempty" json:"includeDetails,omitempty"`
+}
 
 // UpdateAgentKindJSONRequestBody defines body for UpdateAgentKind for application/json ContentType.
 type UpdateAgentKindJSONRequestBody = UpdateAgentKindRequest
@@ -7642,14 +7776,35 @@ type CreateGroupJSONRequestBody = CreateGroupRequest
 // UpdateGroupJSONRequestBody defines body for UpdateGroup for application/json ContentType.
 type UpdateGroupJSONRequestBody = UpdateGroupRequest
 
+// AddGroupMembersJSONRequestBody defines body for AddGroupMembers for application/json ContentType.
+type AddGroupMembersJSONRequestBody = GroupMembersRequest
+
+// RemoveGroupMembersJSONRequestBody defines body for RemoveGroupMembers for application/json ContentType.
+type RemoveGroupMembersJSONRequestBody = GroupMembersRequest
+
 // CreateRoleJSONRequestBody defines body for CreateRole for application/json ContentType.
 type CreateRoleJSONRequestBody = CreateRoleRequest
 
 // UpdateRoleJSONRequestBody defines body for UpdateRole for application/json ContentType.
 type UpdateRoleJSONRequestBody = UpdateRoleRequest
 
+// AddRoleAssigneesJSONRequestBody defines body for AddRoleAssignees for application/json ContentType.
+type AddRoleAssigneesJSONRequestBody = RoleAssigneesRequest
+
+// RemoveRoleAssigneesJSONRequestBody defines body for RemoveRoleAssignees for application/json ContentType.
+type RemoveRoleAssigneesJSONRequestBody = RoleAssigneesRequest
+
+// AddRolePermissionsJSONRequestBody defines body for AddRolePermissions for application/json ContentType.
+type AddRolePermissionsJSONRequestBody = RolePermissionsRequest
+
+// RemoveRolePermissionsJSONRequestBody defines body for RemoveRolePermissions for application/json ContentType.
+type RemoveRolePermissionsJSONRequestBody = RolePermissionsRequest
+
 // CreateUserJSONRequestBody defines body for CreateUser for application/json ContentType.
 type CreateUserJSONRequestBody = CreateUserRequest
+
+// InviteUserJSONRequestBody defines body for InviteUser for application/json ContentType.
+type InviteUserJSONRequestBody = InviteUserRequest
 
 // UpdateUserJSONRequestBody defines body for UpdateUser for application/json ContentType.
 type UpdateUserJSONRequestBody = UpdateUserRequest

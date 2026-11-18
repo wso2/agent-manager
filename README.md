@@ -57,6 +57,7 @@ This builds the images and starts the stack; the console and the API are at http
 
 - [User guide](docs/user-guide.md): install a release, register agents and see their traces
 - [Developer guide](docs/developer-guide.md): run from source, change the code and run the tests
+- API reference: a running server serves its REST API reference at http://localhost:9000/api/docs, and the OpenAPI document behind it at `/api/v1/openapi.yaml` (or `.json`). Both list only what that server serves, so `amp-core` shows no AI Gateway operations. The full spec is [agent-manager-service/docs/api_v1_openapi.yaml](agent-manager-service/docs/api_v1_openapi.yaml).
 
 For the released Agent Manager, which runs on OpenChoreo, see the [Quick Start Guide](https://wso2.com/agent-platform/docs/latest/get-started/quick-start/).
 

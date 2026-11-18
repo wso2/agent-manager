@@ -6,7 +6,8 @@
 # amp is the full stack (`make up`), amp-core the core binary without the AI
 # Gateway (`make up-core`). The checks cover sign-in, the core API, which
 # routes each distribution serves, a trace sent end to end, the console the API
-# serves and the UI manifest. --no-console skips the console files, for an
+# serves, the UI manifest, and the API spec and reference page, which list only
+# the modules that are active. --no-console skips the console files, for an
 # image built with CONSOLE=none.
 #
 # Settings come from the environment, else from .env next to the compose
@@ -182,6 +183,21 @@ CORE_PAGES=ai-gateway/external-agent,ai-observability/traces
 GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity
 check ui-manifest-pages "$(pick "$CORE_PAGES,$GW_PAGES" "$CORE_PAGES")" "$(jq -r '.pages | join(",")' "$BODY")"
 check ui-manifest-modules "$(pick core,gateway core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
+
+# --- API catalog: the spec and reference of what this server serves ---------------------------
+check openapi-json 200 "$(code "$API/api/v1/openapi.json")"
+check openapi-modules "$(pick core,gateway,legacy core)" "$(jq -r '.info["x-amp-modules"] | join(",")' "$BODY")"
+check openapi-core-paths yes "$(jq -r 'if .paths["/orgs/{orgName}/projects"] then "yes" else "no" end' "$BODY")"
+check openapi-gateway-paths "$(pick yes no)" \
+  "$(jq -r 'if any(.paths[][] | objects; ."x-amp-module" == "gateway") then "yes" else "no" end' "$BODY")"
+check openapi-no-501-routes 0 "$(jq '[.paths[][] | objects | select(."x-amp-not-served")] | length' "$BODY")"
+check openapi-yaml 200 "$(code "$API/api/v1/openapi.yaml")"
+check openapi-yaml-is-spec yes "$(has '^openapi: 3.0.3')"
+check api-docs 200 "$(code "$API/api/docs")"
+check api-docs-viewer yes "$(has '<redoc ')"
+VIEWER=$(grep -o 'docs/redoc-[^"]*\.js' "$BODY" | head -1)
+check api-docs-script 200 "$(code --compressed "$API/api/$VIEWER")"
+check api-docs-unknown-file-404 404 "$(code "$API/api/docs/nosuch.js")"
 
 echo "== $DIST: $pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]

@@ -148,6 +148,15 @@ rt.Handle(http.MethodGet, "/tags", "widget-read", func(w http.ResponseWriter, r 
 - `rt.IssueToken(ctx, modkit.TokenRequest{Subject, OrgID, Scopes, TTL, Claims})`: a short-lived token (15 minutes by default, at most an hour), signed with the core's key, audience `amp-module:<name>`. The public API refuses it.
 - `rt.IssueCredential(ctx, modkit.CredentialRequest{...})`: an id and secret (only a hash is stored in `workload_credentials`) that a workload exchanges for a token at `POST /api/internal/v1/workload-tokens`. `rt.RevokeCredential` revokes one.
 
+### Describing your API
+
+A running server serves its REST API description at `/api/v1/openapi.yaml` and `/api/v1/openapi.json`, cut down to the core and the modules active at that moment, and renders it at `/api/docs`. Describe your routes so they appear there exactly while your module is active:
+
+1. Routes you mount with `rt.Handle`: implement the optional `modkit.APIDescriber`. `OpenAPI()` returns an OpenAPI 3.0 fragment in YAML with `paths` relative to the module (`/tags` for `/api/v1/m/<name>/tags`) and the `components` they reference; embed it from a file next to your module, as `tests/modules/testmod/openapi.yaml` does. The server merges it under `/m/<name>` and sets `x-amp-module: <name>` on each operation. Prefix your component names with the module's name: a fragment whose paths or components clash with what is already there is left out whole, with a warning in the log. Don't put these routes in the core spec; `api/openapi_catalog_invariant_test.go` rejects paths under `/m/` there. Check the fragment in your module's integration test, the way `TestModuleContract` checks testmod's.
+2. Routes of a built-in module registered through `builtin.Parts` (the gateway's and legacy's): add an operation to `agent-manager-service/docs/api_v1_openapi.yaml` with `x-amp-module: <name>`, and `x-amp-not-served: true` if it answers 501. Keep the existing `tags` for grouping; the extension is what the server filters on. Run `make spec` in `agent-manager-service` and `make amctl-gen-client` at the repository root, and commit what they regenerate: a new or changed operation changes the service's types and the CLI's client, while the `x-amp-*` extensions alone change neither. `api/openapi_catalog_invariant_test.go`, run by `make test-unit`, fails when a route has no operation, an operation has no route, `x-amp-module` names a module other than the one whose package registers the route, or `x-amp-not-served` doesn't match a 501 handler. A new built-in route package goes in its `routePackages` and `routeModuleOfPackage`.
+
+The spec endpoints and `/api/docs` need no token, because a client reads the spec before it has one, to learn how to authenticate. They are not secret-free in every sense: the served spec reveals which modules this install has active (`info.x-amp-modules` and the operations present) and the shape of every operation it serves, including the platform-administrator routes under `/platform/`. That is acceptable because it is shape only, no data or settings, and it is the same for every install with the same modules: the full spec is already public in this repository, and every operation still enforces its own authorization. Routes on the internal server (`HandleInternal`) are not part of the public spec. Splitting the core spec into one file per module is not done yet; because every operation already names its module, and modules can already bring their own fragment, the built-in modules' operations can later move into fragments of their own without changing what the server serves.
+
 ### Hooks
 
 Hooks run synchronously inside the core's create, update or delete of an agent or environment:
@@ -208,6 +217,7 @@ type Proxy interface {
 ### Optional interfaces
 
 - `modkit.Installer`: `OnInstall(ctx, rt)` runs once when the module is installed, to catch up with core state that existed before it (agents created earlier, for example). If it fails, the module stays installed and the error is reported.
+- `modkit.APIDescriber`: `OpenAPI() []byte` returns the OpenAPI fragment describing the module's `rt.Handle` routes (see [Describing your API](#describing-your-api)).
 - `modkit.HealthReporter`: `Health(ctx, rt) map[string]any` is part of the contract, but nothing calls it yet.
 
 ## Connecting to the core
@@ -243,7 +253,7 @@ To run it on `modkit.Runtime` alone, the core needs:
 
 - **Unit tests** for the module's own logic, with no database. The host's lifecycle (install, enable, disable, dependency resolution, reconcile) is covered in `internal/modhost`; you don't need to repeat it.
 - **Integration tests** in the style of `tests/module_contract_test.go` (`TestModuleContract`): build a host with `modhost.NewWith(db, driver, log, []modkit.Module{...})` so the test binary stands in for a distribution, then check what your module changes over the real API: routes 404 before install and after disable, permissions 403 and 200, hooks refusing and writing, events delivered after commit, capabilities found. Run them on both databases: `make test-integration` uses SQLite, and `DB_DRIVER=postgres make test-integration` uses the server in `.env.test`.
-- **Invariant tests** in `api/` walk every route and permission, modules included: every route is authorized (`route_authz_invariant_test.go`), every mutating route is audited (`audit_coverage_test.go`), and every permission has one owner and reaches roles and ThunderID (`permission_owner_invariant_test.go`). They run in `make test-unit`; `make security-test-static` at the repository root runs the authorization ones alone.
+- **Invariant tests** in `api/` walk every route and permission, modules included: every route is authorized (`route_authz_invariant_test.go`), every mutating route is audited (`audit_coverage_test.go`), and every permission has one owner and reaches roles and ThunderID (`permission_owner_invariant_test.go`), and the OpenAPI spec matches the routes and names their modules (`openapi_catalog_invariant_test.go`). They run in `make test-unit`; `make security-test-static` at the repository root runs the authorization ones alone.
 - **Smoke tests** against a running stack: `make up` then `make smoke`, and `make up-core` then `make smoke-core` (`deployments/standalone/scripts/smoke.sh amp|amp-core`). Run both whenever a change touches the line between the core and a module.
 
 ## Console UI

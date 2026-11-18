@@ -62,6 +62,8 @@ var authzBearingRegistrars = map[string]bool{
 }
 
 type routeRegistration struct {
+	// module owns the package the route is registered in.
+	module      string
 	function    string
 	registrar   string
 	pattern     string
@@ -108,6 +110,11 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +
 		"so MCP clients can discover how to authenticate.",
 	{"registerConfigRoutes", "Handle", "/api/v1/config"}: "public console/CLI discovery endpoint; exposes only the observer public URL.",
+	{"registerAPICatalogRoutes", "Handle", "/api/v1/openapi.yaml"}: "the API's OpenAPI spec, the public shape of the API with no data " +
+		"or settings in it; a client reads it before it has a token.",
+	{"registerAPICatalogRoutes", "Handle", "/api/v1/openapi.json"}: "the same spec as JSON.",
+	{"registerAPICatalogRoutes", "Handle", "GET /api/docs"}:        "the HTML API reference page that renders the public spec above.",
+	{"registerAPICatalogRoutes", "Handle", "GET /api/docs/{file}"}: "the reference page's embedded viewer script and its licence texts.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/"}: "the console's static files and config.js (public settings only); paths under " +
 		"/api/, /auth/ and /mcp are refused there, so it never answers for an API route.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/api/v1/"}:                  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
@@ -493,6 +500,7 @@ func forEachRouteRegistration(t *testing.T, fn func(routeRegistration)) {
 					}
 
 					route := routeRegistration{
+						module:    routeModuleOfPackage[dir],
 						function:  funcDecl.Name.Name,
 						registrar: sel.Sel.Name,
 					}

@@ -1,0 +1,42 @@
+# The routes testmod mounts with Runtime.Handle, relative to /api/v1/m/testmod.
+paths:
+  /whoami:
+    get:
+      summary: Who the caller is, as the module sees it
+      operationId: testmodWhoami
+      responses:
+        "200":
+          description: The caller's organization and what the module may do for it
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TestmodWhoami"
+  /tags:
+    get:
+      summary: List the tags of the organization's agents
+      operationId: testmodListTags
+      responses:
+        "200":
+          description: One entry per agent tag
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    agent:
+                      type: string
+                    tag:
+                      type: string
+        "403":
+          description: The caller lacks testmod:widget-read
+components:
+  schemas:
+    TestmodWhoami:
+      type: object
+      properties:
+        orgId:
+          type: string
+        canWrite:
+          type: boolean

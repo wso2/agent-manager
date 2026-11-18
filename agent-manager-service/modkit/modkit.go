@@ -165,6 +165,18 @@ type Installer interface {
 	OnInstall(ctx context.Context, rt Runtime) error
 }
 
+// APIDescriber is implemented by modules that describe the routes they mount
+// with Runtime.Handle. OpenAPI returns an OpenAPI 3.0 fragment in YAML (JSON
+// is YAML too): `paths` relative to the module ("/tags" for the route mounted
+// at /api/v1/m/<name>/tags) and the `components` they reference. While the
+// module is active, GET /api/v1/openapi.{yaml,json} serves its paths under
+// /m/<name> with x-amp-module: <name>. Component names must not clash with
+// the core spec's or another module's; prefix them with the module's name.
+// A fragment that does not fit is left out whole, with a warning.
+type APIDescriber interface {
+	OpenAPI() []byte
+}
+
 // HealthReporter is implemented by modules that report their own health.
 type HealthReporter interface {
 	Health(ctx context.Context, rt Runtime) map[string]any

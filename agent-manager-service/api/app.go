@@ -102,6 +102,14 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	// Register service-configuration discovery endpoint at root level (no authentication required)
 	registerConfigRoutes(mux)
 
+	// The API's spec, cut to the active modules, and its reference page (no
+	// authentication required).
+	var active ActiveModules
+	if m, ok := modules.(ActiveModules); ok {
+		active = m
+	}
+	registerAPICatalogRoutes(mux, active)
+
 	// Register MCP at root level, with the core's tools and those the
 	// built-in features add.
 	//

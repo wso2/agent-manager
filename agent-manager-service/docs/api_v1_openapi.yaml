@@ -9,6 +9,7 @@ security:
 paths:
   /config:
     get:
+      x-amp-module: core
       security: []
       summary: Get service configuration
       description: Returns service URLs that CLI clients need for direct backend access.
@@ -24,6 +25,7 @@ paths:
                 $ref: "#/components/schemas/ConfigResponse"
   /ui-manifest:
     get:
+      x-amp-module: core
       summary: Get the console UI manifest
       description: |
         Lists the console UI of the core and of every active module: the pages
@@ -47,8 +49,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /openapi.yaml:
+    get:
+      x-amp-module: core
+      security: []
+      summary: Get the API spec as YAML
+      description: |
+        The OpenAPI document of this server: the core's operations and those of
+        the modules active now, without the operations this version does not
+        serve. `info.x-amp-modules` lists the modules it covers, and each
+        operation names its module in `x-amp-module`. /api/docs renders it.
+      operationId: getOpenAPISpecYAML
+      tags:
+        - Config
+      responses:
+        "200":
+          description: The OpenAPI document
+          content:
+            application/yaml:
+              schema:
+                type: object
+        "500":
+          description: The document could not be rendered
+  /openapi.json:
+    get:
+      x-amp-module: core
+      security: []
+      summary: Get the API spec as JSON
+      description: |
+        The OpenAPI document of this server: the core's operations and those of
+        the modules active now, without the operations this version does not
+        serve. `info.x-amp-modules` lists the modules it covers, and each
+        operation names its module in `x-amp-module`. /api/docs renders it.
+      operationId: getOpenAPISpecJSON
+      tags:
+        - Config
+      responses:
+        "200":
+          description: The OpenAPI document
+          content:
+            application/json:
+              schema:
+                type: object
+        "500":
+          description: The document could not be rendered
   /orgs:
     get:
+      x-amp-module: core
       summary: List all organizations
       operationId: listOrganizations
       parameters:
@@ -88,37 +135,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
-    post:
-      summary: Create a new organization
-      operationId: createOrganization
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/CreateOrganizationRequest"
-      responses:
-        "202":
-          description: Organization creation initiated successfully
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/OrganizationResponse"
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
 
   /orgs/{orgName}:
     get:
+      x-amp-module: core
       summary: Get organization details
       operationId: getOrganization
       parameters:
@@ -149,6 +169,8 @@ paths:
 
   /orgs/{orgName}/deployment-pipelines:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List all deployment pipelines in an organization
       operationId: listDeploymentPipelines
       parameters:
@@ -202,6 +224,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Create a deployment pipeline for an organization
       operationId: createDeploymentPipeline
       parameters:
@@ -246,6 +270,7 @@ paths:
 
   /orgs/{orgName}/projects:
     post:
+      x-amp-module: core
       summary: Create a new project
       operationId: createProject
       parameters:
@@ -292,6 +317,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     get:
+      x-amp-module: core
       summary: List all projects in an organization
       operationId: listProjects
       parameters:
@@ -345,6 +371,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}:
     get:
+      x-amp-module: core
       summary: Get project details
       operationId: getProject
       parameters:
@@ -378,6 +405,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       summary: Update project
       operationId: updateProject
       parameters:
@@ -423,6 +451,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       summary: Delete a project
       operationId: deleteProject
       parameters:
@@ -454,6 +483,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents:
     post:
+      x-amp-module: core
       summary: Create a new agent
       operationId: createAgent
       parameters:
@@ -506,6 +536,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
+      x-amp-module: core
       summary: List all agents in a project of an organization
       operationId: listAgents
       parameters:
@@ -573,6 +604,7 @@ paths:
 
   /orgs/{orgName}/agents:
     get:
+      x-amp-module: core
       summary: List all agents in an organization
       description: >-
         Returns a lightweight, unpaginated list of every agent in the
@@ -608,6 +640,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}:
     get:
+      x-amp-module: core
       summary: Get agent details
       operationId: getAgent
       parameters:
@@ -646,6 +679,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       summary: Update agent basic information
       operationId: updateAgent
       parameters:
@@ -696,6 +730,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       summary: Delete agent
       operationId: deleteAgent
       parameters:
@@ -732,6 +767,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters:
     put:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Update agent build parameters
       description: >-
         Saves the agent's build parameters. They take effect with the next build.
@@ -790,6 +827,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get agent resource configurations
       operationId: getAgentResourceConfigs
       parameters:
@@ -836,6 +875,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     put:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Update agent resource configurations
       operationId: updateAgentResourceConfigs
       parameters:
@@ -896,6 +937,7 @@ paths:
 
   /orgs/{orgName}/utils/generate-name:
     post:
+      x-amp-module: core
       summary: Get name by display name
       description: Retrieve name using display name for a specific resource
       operationId: getNameByDisplayName
@@ -934,6 +976,7 @@ paths:
 
   /telemetry/console-actions:
     post:
+      x-amp-module: core
       tags:
         - Telemetry
       summary: Report a batch of console user actions
@@ -997,6 +1040,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Build an agent
       operationId: buildAgent
       parameters:
@@ -1055,6 +1100,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get Builds of an Agent
       operationId: getAgentBuilds
       parameters:
@@ -1119,6 +1166,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds/{buildName}:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get build details
       operationId: getBuild
       parameters:
@@ -1165,6 +1214,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Publish agent as an Agent Kind version
       description: |
         Publishes a specific completed build of an agent as a versioned Agent Kind.
@@ -1235,6 +1286,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Deploy an agent
       operationId: deployAgent
       parameters:
@@ -1302,6 +1355,7 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     get:
+      x-amp-module: gateway
       summary: List agent deployments with detailed information
       description: Retrieves detailed deployment information for a specific agent across all environments
       operationId: listAgentDeployments
@@ -1346,6 +1400,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Request agent deployment state transition
       description: |
         Requests a deployment state transition for an agent in a specific environment.
@@ -1405,6 +1461,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Promote an agent between environments
       description: |
         Promotes an agent from a source environment to a target environment by
@@ -1480,6 +1538,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings:
     put:
+      x-amp-module: gateway
       summary: Update agent deploy settings for an environment
       description: |
         Updates per-environment deploy settings (CORS, API key security, auto
@@ -1537,6 +1596,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/endpoints:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get agent endpoints for a specific environment
       description: Retrieves endpoint configurations for an agent in a specific environment
       operationId: getAgentEndpoints
@@ -1589,6 +1650,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations:
     get:
+      x-amp-module: core
       summary: Get agent configurations for a specific environment
       description: Retrieves configuration settings for an agent in a specific environment
       operationId: getAgentConfigurations
@@ -1637,6 +1699,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Replace agent configurations (env vars / file mounts) for an environment
       description: |
         Replaces the env vars and file mounts on the agent's release binding for
@@ -1700,6 +1764,36 @@ paths:
   # GATEWAY ENVIRONMENT ENDPOINTS
   # ============================================
 
+  /orgs/{orgName}/thunder-instances:
+    get:
+      x-amp-module: core
+      summary: List the identity provider of each environment
+      description: |
+        Lists, per environment, the OAuth2 identity provider agents use to mint and validate tokens.
+      operationId: listThunderInstances
+      tags:
+        - Environments
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Issuer, token and JWKS URLs of each environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ThunderInstanceListResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/environments:
     parameters:
       - name: orgName
@@ -1713,6 +1807,7 @@ paths:
           maxLength: 64
 
     get:
+      x-amp-module: core
       tags:
         - Environments
       summary: List all environments
@@ -1763,6 +1858,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Create a new environment
@@ -1831,6 +1928,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: core
       tags:
         - Environments
       summary: Get environment details
@@ -1869,6 +1967,8 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Update environment
@@ -1918,6 +2018,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     delete:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Delete environment
@@ -1976,6 +2078,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - Environments
       summary: Get environment gateways
@@ -2041,6 +2144,8 @@ paths:
           type: string
 
     put:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Store an environment's env-Thunder system-client credential
@@ -2098,6 +2203,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     delete:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Delete an environment's env-Thunder system-client credential
@@ -2151,6 +2258,8 @@ paths:
           type: string
 
     get:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Get an environment's env-Thunder URL handle
@@ -2196,6 +2305,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     put:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Register an environment's env-Thunder URL
@@ -2285,6 +2396,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     delete:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Remove an environment's env-Thunder URL
@@ -2339,6 +2452,8 @@ paths:
           type: string
 
     get:
+      x-amp-module: core
+      x-amp-not-served: true
       tags:
         - Environments
       summary: Check whether an env-Thunder URL handle is available
@@ -2407,6 +2522,7 @@ paths:
           maxLength: 64
 
     get:
+      x-amp-module: gateway
       tags:
         - Gateways
       summary: List all gateways
@@ -2482,6 +2598,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
+      x-amp-module: gateway
       tags:
         - Gateways
       summary: Register a new gateway
@@ -2547,6 +2664,98 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/gateways/status:
+    get:
+      x-amp-module: gateway
+      summary: Get the status of gateways
+      operationId: getGatewayStatus
+      tags:
+        - Gateways
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: gatewayId
+          in: query
+          required: false
+          description: Only this gateway
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Lightweight status of the organization's gateways
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayStatusListResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Gateway not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /platform/gateways/failure-summary:
+    get:
+      x-amp-module: gateway
+      summary: Summarize gateway failures across organizations
+      description: |
+        Reports how many gateways across all organizations have stopped reporting.
+        Platform administrators only (a token from PLATFORM_ADMIN_OU_ID). Without
+        includeDetails the status is 503 when the failure percentage is over the
+        threshold, so a probe can alert on it; read `healthy` in the body either way.
+      operationId: getPlatformGatewayFailureSummary
+      tags:
+        - Gateways
+      parameters:
+        - name: includeDetails
+          in: query
+          required: false
+          description: List the failed gateways and always answer 200
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: The fleet is healthy, or includeDetails was set
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayFailureSummaryResponse"
+        "403":
+          description: The caller is not a platform administrator
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: The fleet is over the failure threshold (only without includeDetails)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayFailureSummaryResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/gateways/{gatewayID}:
     parameters:
       - name: orgName
@@ -2566,6 +2775,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - Gateways
       summary: Get gateway details
@@ -2607,6 +2817,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
+      x-amp-module: gateway
       tags:
         - Gateways
       summary: Update gateway
@@ -2665,6 +2876,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - Gateways
       summary: Deregister gateway
@@ -2725,6 +2937,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - Gateway-Environment Mappings
       summary: Get gateway environments
@@ -2795,6 +3008,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - Gateway-Environment Mappings
       summary: Assign gateway to environment
@@ -2846,6 +3060,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - Gateway-Environment Mappings
       summary: Remove gateway from environment
@@ -2911,6 +3126,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - Health
       summary: Check gateway health
@@ -2974,6 +3190,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - Gateway Tokens
       summary: List gateway tokens
@@ -3006,6 +3223,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
+      x-amp-module: gateway
       tags:
         - Gateway Tokens
       summary: Rotate gateway token
@@ -3094,6 +3312,7 @@ paths:
           type: string
 
     delete:
+      x-amp-module: gateway
       tags:
         - Gateway Tokens
       summary: Revoke gateway token
@@ -3151,6 +3370,7 @@ paths:
           maxLength: 64
 
     get:
+      x-amp-module: gateway
       tags:
         - Self-Hosted Gateways
       summary: List self-hosted gateways
@@ -3195,6 +3415,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
+      x-amp-module: gateway
       tags:
         - Self-Hosted Gateways
       summary: Register a self-hosted gateway
@@ -3270,6 +3491,7 @@ paths:
           format: uuid
 
     get:
+      x-amp-module: gateway
       tags:
         - Self-Hosted Gateways
       summary: Get a self-hosted gateway
@@ -3302,6 +3524,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
+      x-amp-module: gateway
       tags:
         - Self-Hosted Gateways
       summary: Update a self-hosted gateway
@@ -3348,6 +3571,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - Self-Hosted Gateways
       summary: Delete a self-hosted gateway
@@ -3401,6 +3625,7 @@ paths:
           format: uuid
 
     get:
+      x-amp-module: gateway
       tags:
         - Self-Hosted Gateways
       summary: List self-hosted gateway tokens
@@ -3433,6 +3658,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
+      x-amp-module: gateway
       tags:
         - Self-Hosted Gateways
       summary: Generate a self-hosted gateway registration token
@@ -3498,6 +3724,7 @@ paths:
           type: string
 
     delete:
+      x-amp-module: gateway
       tags:
         - Self-Hosted Gateways
       summary: Revoke a self-hosted gateway token
@@ -3540,6 +3767,7 @@ paths:
           maxLength: 64
 
     get:
+      x-amp-module: gateway
       tags:
         - Gateway Identity Providers
       summary: List all identity providers in an organization
@@ -3583,6 +3811,7 @@ paths:
           maxLength: 64
 
     get:
+      x-amp-module: gateway
       tags:
         - Gateway Identity Providers
       summary: Discover OIDC issuer metadata from a URL
@@ -3646,6 +3875,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - Gateway Identity Providers
       summary: List gateway identity providers
@@ -3708,6 +3938,7 @@ paths:
           type: string
 
     put:
+      x-amp-module: gateway
       tags:
         - Gateway Identity Providers
       summary: Upsert a gateway identity provider
@@ -3765,6 +3996,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - Gateway Identity Providers
       summary: Delete a gateway identity provider
@@ -3825,6 +4057,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - Gateway Identity Providers
       summary: List identity providers available in an environment
@@ -3862,6 +4095,8 @@ paths:
 
   /orgs/{orgName}/data-planes:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List all data planes in an organization
       description: Retrieves all data planes available in the specified organization
       operationId: listDataPlanes
@@ -3895,6 +4130,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/projects/{projName}/deployment-pipeline:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get deployment pipeline for a project
       description: Retrieves the deployment pipeline configuration for the specified project within an organization
       operationId: getDeploymentPipeline
@@ -3935,6 +4172,8 @@ paths:
 
   /orgs/{orgName}/deployment-pipelines/{pipelineName}:
     put:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Update a deployment pipeline
       description: Updates the named deployment pipeline's display name, description, and promotion paths.
       operationId: updateDeploymentPipeline
@@ -3985,6 +4224,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     delete:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Delete a deployment pipeline
       description: Deletes the named deployment pipeline.
       operationId: deleteDeploymentPipeline
@@ -4021,6 +4262,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/token:
     post:
+      x-amp-module: core
       summary: Generate authentication token for an agent
       description: |
         Generates a signed JWT token for an external agent to authenticate API requests.
@@ -4085,6 +4327,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/tracing-token/regenerate:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Regenerate the tracing API key for a deployed agent
       description: |
         Rotates the tracing (OTel exporter) API key for an internal agent in a specific environment.
@@ -4169,6 +4413,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: core
       tags:
         - Agent Identity
       summary: List an agent's AgentID bindings
@@ -4216,6 +4461,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
+      x-amp-module: core
       tags:
         - Agent Identity
       summary: Provision an AgentID for a missing environment
@@ -4276,6 +4522,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
+      x-amp-module: core
       tags:
         - Agent Identity
       summary: Regenerate an agent's AgentID secret
@@ -4331,6 +4578,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: core
       tags:
         - Agent Identity
       summary: Revoke an agent's AgentID secret
@@ -4382,6 +4630,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry:
     post:
+      x-amp-module: core
       tags:
         - Agent Identity
       summary: Retry a failed AgentID provisioning attempt
@@ -4481,6 +4730,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: core
       tags:
         - Agent Identity
       summary: List the roles assigned to an agent's AgentID in one environment
@@ -4552,6 +4802,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: core
       tags:
         - Agent Identity
       summary: List the groups an agent's AgentID belongs to in one environment
@@ -4602,6 +4853,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs:
     post:
+      x-amp-module: gateway
       summary: Create agent model configuration
       description: Creates a new model configuration for an agent with environment-specific mappings
       operationId: createAgentModelConfig
@@ -4668,6 +4920,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     get:
+      x-amp-module: gateway
       summary: List agent model configurations
       description: Lists all model configurations for an agent with pagination
       operationId: listAgentModelConfigs
@@ -4723,6 +4976,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}:
     get:
+      x-amp-module: gateway
       summary: Get agent model configuration
       description: Retrieves a specific model configuration by ID
       operationId: getAgentModelConfig
@@ -4778,6 +5032,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: gateway
       summary: Update agent model configuration
       description: Updates an existing model configuration
       operationId: updateAgentModelConfig
@@ -4839,6 +5094,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: gateway
       summary: Delete agent model configuration
       description: Deletes a model configuration
       operationId: deleteAgentModelConfig
@@ -4892,6 +5148,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs:
     post:
+      x-amp-module: gateway
       summary: Create agent MCP configuration
       description: Creates a new MCP configuration for an agent with environment-specific MCP proxy mappings
       operationId: createAgentMCPConfig
@@ -4958,6 +5215,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     get:
+      x-amp-module: gateway
       summary: List agent MCP configurations
       description: Lists all MCP configurations for an agent with pagination
       operationId: listAgentMCPConfigs
@@ -5013,6 +5271,7 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/mcp-configs/{configId}:
     get:
+      x-amp-module: gateway
       summary: Get agent MCP configuration
       description: Retrieves a specific MCP configuration by ID
       operationId: getAgentMCPConfig
@@ -5068,6 +5327,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: gateway
       summary: Update agent MCP configuration
       description: Updates an existing MCP configuration
       operationId: updateAgentMCPConfig
@@ -5129,6 +5389,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: gateway
       summary: Delete agent MCP configuration
       description: Deletes an MCP configuration
       operationId: deleteAgentMCPConfig
@@ -5214,6 +5475,7 @@ paths:
           type: string
         description: Environment name
     get:
+      x-amp-module: gateway
       tags:
         - MCP API Keys
       summary: List API keys for an external agent's MCP configuration
@@ -5239,6 +5501,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: gateway
       tags:
         - MCP API Keys
       summary: Generate an API key for an external agent's MCP configuration
@@ -5328,6 +5591,7 @@ paths:
           type: string
         description: API key name/identifier
     put:
+      x-amp-module: gateway
       tags:
         - MCP API Keys
       summary: Regenerate an external agent's MCP configuration API key
@@ -5371,6 +5635,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: gateway
       tags:
         - MCP API Keys
       summary: Delete an external agent's MCP configuration API key
@@ -5432,6 +5697,7 @@ paths:
           type: string
         description: Environment name
     get:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: List API keys for an external agent's model configuration
@@ -5457,6 +5723,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Generate an API key for an external agent's model configuration
@@ -5546,6 +5813,7 @@ paths:
           type: string
         description: API key name/identifier
     put:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Regenerate an external agent's model configuration API key
@@ -5589,6 +5857,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Delete an external agent's model configuration API key
@@ -5621,6 +5890,7 @@ paths:
       - url: /
         description: Served from root path (not /api/v1)
     get:
+      x-amp-module: core
       summary: Get JSON Web Key Set (JWKS)
       description: |
         Returns the public keys used to verify JWT signatures.
@@ -5659,6 +5929,7 @@ paths:
           maxLength: 64
 
     get:
+      x-amp-module: gateway
       tags:
         - Catalog
       summary: List catalog resources
@@ -5764,6 +6035,8 @@ paths:
           maxLength: 64
 
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List branches for a repository
       description: |
         Returns a list of branches for the specified public repository.
@@ -5840,6 +6113,8 @@ paths:
           maxLength: 64
 
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List commits for a repository
       description: |
         Returns a list of commits for the specified repository.
@@ -5919,6 +6194,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Provider Templates
       summary: Create a new LLM provider template
@@ -5963,6 +6239,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Provider Templates
       summary: List all LLM provider templates
@@ -6028,6 +6305,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Provider Templates
       summary: Get LLM provider template details
@@ -6066,6 +6344,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
+      x-amp-module: gateway
       tags:
         - LLM Provider Templates
       summary: Update LLM provider template
@@ -6110,6 +6389,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - LLM Provider Templates
       summary: Delete LLM provider template
@@ -6157,6 +6437,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: List available LLM guardrail policies
@@ -6206,6 +6487,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: Create a new LLM provider
@@ -6250,6 +6532,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: List all LLM providers
@@ -6315,6 +6598,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: Get LLM provider details
@@ -6353,6 +6637,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: Update LLM provider
@@ -6403,6 +6688,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: Delete LLM provider
@@ -6471,6 +6757,7 @@ paths:
           type: string
 
     put:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: Update LLM provider catalog status
@@ -6537,6 +6824,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: List LLM proxies by provider
@@ -6608,6 +6896,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Providers
       summary: List consumers of an LLM provider
@@ -6668,6 +6957,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Proxies
       summary: Create a new LLM proxy
@@ -6718,6 +7008,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Proxies
       summary: List all LLM proxies in a project
@@ -6795,6 +7086,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Proxies
       summary: Get LLM proxy details
@@ -6833,6 +7125,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
+      x-amp-module: gateway
       tags:
         - LLM Proxies
       summary: Update LLM proxy
@@ -6877,6 +7170,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - LLM Proxies
       summary: Delete LLM proxy
@@ -6924,6 +7218,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - MCP Proxies
       summary: Fetch MCP server information
@@ -6977,6 +7272,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - MCP Proxies
       summary: List available MCP policies
@@ -7012,6 +7308,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - MCP Proxies
       summary: Create an MCP proxy
@@ -7056,6 +7353,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
+      x-amp-module: gateway
       tags:
         - MCP Proxies
       summary: List MCP proxies
@@ -7135,6 +7433,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - MCP Proxies
       summary: Get MCP proxy details
@@ -7176,6 +7475,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     put:
+      x-amp-module: gateway
       tags:
         - MCP Proxies
       summary: Update MCP proxy
@@ -7226,6 +7526,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - MCP Proxies
       summary: Delete MCP proxy
@@ -7303,6 +7604,8 @@ paths:
           format: uuid
 
     get:
+      x-amp-module: gateway
+      x-amp-not-served: true
       tags:
         - Project MCP Proxies
       summary: List the project's MCP proxies
@@ -7414,6 +7717,8 @@ paths:
           format: uuid
 
     put:
+      x-amp-module: gateway
+      x-amp-not-served: true
       tags:
         - Project MCP Proxies
       summary: Create or update a project MCP proxy (idempotent)
@@ -7498,6 +7803,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     get:
+      x-amp-module: gateway
+      x-amp-not-served: true
       tags:
         - Project MCP Proxies
       summary: Get a project MCP proxy with its environment bindings
@@ -7540,6 +7847,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     delete:
+      x-amp-module: gateway
+      x-amp-not-served: true
       tags:
         - Project MCP Proxies
       summary: Delete a project MCP proxy
@@ -7633,6 +7942,8 @@ paths:
           format: uuid
 
     put:
+      x-amp-module: gateway
+      x-amp-not-served: true
       tags:
         - Project MCP Proxy Environments
       summary: Bind (or re-bind) the proxy to an environment and deploy it
@@ -7721,6 +8032,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     get:
+      x-amp-module: gateway
+      x-amp-not-served: true
       tags:
         - Project MCP Proxy Environments
       summary: Get the proxy's binding in one environment
@@ -7763,6 +8076,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
 
     delete:
+      x-amp-module: gateway
+      x-amp-not-served: true
       tags:
         - Project MCP Proxy Environments
       summary: Undeploy the proxy from an environment and drop the binding
@@ -7811,6 +8126,7 @@ paths:
 
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes:
     get:
+      x-amp-module: gateway
       summary: List MCP proxy scopes
       description: Lists the proxy's scopes. Each scope is an action on the resource server this proxy is; the token scope string is "<proxy-handle>:<action>".
       operationId: listMCPProxyScopes
@@ -7836,6 +8152,7 @@ paths:
         "404":
           description: MCP proxy not found
     post:
+      x-amp-module: gateway
       summary: Create MCP proxy scope
       operationId: createMCPProxyScope
       tags: [MCPProxyScopes]
@@ -7871,6 +8188,7 @@ paths:
           description: A scope with this action already exists on the proxy
   /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}:
     put:
+      x-amp-module: gateway
       summary: Update MCP proxy scope
       description: Updates description and/or tools. The action itself is immutable (rename = delete + create).
       operationId: updateMCPProxyScope
@@ -7907,6 +8225,7 @@ paths:
         "404":
           description: MCP proxy or scope not found
     delete:
+      x-amp-module: gateway
       summary: Delete MCP proxy scope
       description: Deletes the scope. Best-effort removal of the corresponding Thunder action and role permissions, then gateway re-emission; tools the scope covered become authenticated-only unless another scope covers them.
       operationId: deleteMCPProxyScope
@@ -7953,6 +8272,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Deploy an LLM provider
@@ -8006,6 +8326,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Get LLM provider deployments
@@ -8081,6 +8402,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Undeploy an LLM provider deployment
@@ -8162,6 +8484,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Restore an LLM provider deployment
@@ -8242,6 +8565,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Get LLM provider deployment details
@@ -8280,6 +8604,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Delete LLM provider deployment
@@ -8341,6 +8666,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: List API keys for an LLM provider
@@ -8373,6 +8699,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Create an API key for an LLM provider
@@ -8444,6 +8771,7 @@ paths:
           type: string
 
     put:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Rotate an LLM provider API key
@@ -8494,6 +8822,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Revoke an LLM provider API key
@@ -8549,6 +8878,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Deploy an LLM proxy
@@ -8602,6 +8932,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Get LLM proxy deployments
@@ -8683,6 +9014,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Undeploy an LLM proxy deployment
@@ -8770,6 +9102,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Restore an LLM proxy deployment
@@ -8856,6 +9189,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Get LLM proxy deployment details
@@ -8894,6 +9228,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - LLM Deployments
       summary: Delete LLM proxy deployment
@@ -8957,6 +9292,7 @@ paths:
           type: string
 
     get:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: List API keys for an LLM proxy
@@ -8989,6 +9325,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     post:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Create an API key for an LLM proxy
@@ -9066,6 +9403,7 @@ paths:
           type: string
 
     put:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Rotate an LLM proxy API key
@@ -9116,6 +9454,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - LLM API Keys
       summary: Revoke an LLM proxy API key
@@ -9177,6 +9516,7 @@ paths:
           type: string
 
     post:
+      x-amp-module: gateway
       tags:
         - Agent API Keys
       summary: Create an API key for an agent
@@ -9227,6 +9567,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     get:
+      x-amp-module: gateway
       tags:
         - Agent API Keys
       summary: List API keys for an agent
@@ -9284,6 +9625,7 @@ paths:
         schema:
           type: string
     post:
+      x-amp-module: gateway
       tags:
         - Agent API Keys
       summary: Issue or rotate the short-lived test API key for the agent's Try-It flow.
@@ -9359,6 +9701,7 @@ paths:
           type: string
 
     put:
+      x-amp-module: gateway
       tags:
         - Agent API Keys
       summary: Rotate an agent API key
@@ -9409,6 +9752,7 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
     delete:
+      x-amp-module: gateway
       tags:
         - Agent API Keys
       summary: Revoke an agent API key
@@ -9469,6 +9813,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: gateway
       tags:
         - Agent Card
       summary: Get an A2A agent's stored agent card for an environment
@@ -9503,6 +9848,7 @@ paths:
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/refresh:
     parameters: *agentCardPathParams
     post:
+      x-amp-module: gateway
       tags:
         - Agent Card
       summary: Re-fetch an A2A agent's card
@@ -9539,6 +9885,7 @@ paths:
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source:
     parameters: *agentCardPathParams
     put:
+      x-amp-module: gateway
       tags:
         - Agent Card
       summary: Register an external agent's card URL for an environment
@@ -9589,6 +9936,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: gateway
       tags:
         - Agent Card
       summary: Remove an external agent's card source for an environment
@@ -9631,6 +9979,7 @@ paths:
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy:
     parameters: *agentCardPathParams
     get:
+      x-amp-module: gateway
       tags:
         - A2A Proxy
       summary: Get how an external agent is routed through the environment's gateway
@@ -9664,6 +10013,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: gateway
       tags:
         - A2A Proxy
       summary: Route an external agent through the environment's gateway, or change its upstream auth
@@ -9720,6 +10070,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: gateway
       tags:
         - A2A Proxy
       summary: Stop routing an external agent through the environment's gateway
@@ -9764,6 +10115,7 @@ paths:
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy/refresh:
     parameters: *agentCardPathParams
     post:
+      x-amp-module: gateway
       tags:
         - A2A Proxy
       summary: Re-derive a proxied agent's routes from its card and republish it
@@ -9798,6 +10150,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List all evaluation monitors for an agent
       description: Returns a list of all evaluation monitors for a specific agent
       operationId: listMonitors
@@ -9846,6 +10200,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Create a new evaluation monitor
       description: |
         Creates a new evaluation monitor for continuous or one-time evaluation of agent traces.
@@ -9904,6 +10260,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get monitor details
       description: Retrieves detailed information about a specific evaluation monitor
       operationId: getMonitor
@@ -9952,6 +10310,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     patch:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Update monitor configuration
       description: Updates the configuration of an existing evaluation monitor
       operationId: updateMonitor
@@ -10012,6 +10372,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Delete a monitor
       description: Deletes an evaluation monitor and all associated runs
       operationId: deleteMonitor
@@ -10058,6 +10420,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Stop a monitor
       description: Stops a future monitor by unscheduling it. The monitor will no longer execute on schedule but can be started again later.
       operationId: stopMonitor
@@ -10120,6 +10484,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Start a monitor
       description: Starts a stopped future monitor by scheduling it to run immediately. The scheduler will pick it up within 60 seconds.
       operationId: startMonitor
@@ -10182,6 +10548,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List monitor runs
       description: Returns a list of all execution runs for a specific monitor
       operationId: listMonitorRuns
@@ -10256,6 +10624,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Rerun a monitor with same parameters
       description: Creates a new workflow execution with the same time parameters as an existing run
       operationId: rerunMonitor
@@ -10318,6 +10688,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get monitor run logs
       description: Retrieves execution logs for a specific monitor run
       operationId: getMonitorRunLogs
@@ -10374,6 +10746,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get evaluation scores for a monitor within a time range
       description: Returns aggregated and individual evaluation scores for a monitor within a specified time window
       operationId: getMonitorScores
@@ -10453,6 +10827,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/scores:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get per-run aggregated scores
       description: Returns aggregated evaluation scores for a specific monitor run
       operationId: getMonitorRunScores
@@ -10512,6 +10888,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/timeseries:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get time-series evaluation scores
       description: Returns time-bucketed evaluation scores for a specific evaluator
       operationId: getMonitorScoresTimeSeries
@@ -10584,6 +10962,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/scores/breakdown:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get evaluation scores grouped by span label
       description: Returns evaluation scores aggregated per span label (agent name or model) for a given level
       operationId: getGroupedScores
@@ -10657,6 +11037,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/scores:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get aggregated evaluation scores per trace within a time range
       description: Returns a single aggregated score per trace for an agent within a time window
       operationId: getAgentTraceScores
@@ -10737,6 +11119,8 @@ paths:
 
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/traces/{traceId}/scores:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get evaluation scores for a trace across all monitors
       description: Returns all evaluation scores for a specific trace across all monitors in the agent
       operationId: getTraceScores
@@ -10789,6 +11173,7 @@ paths:
 
   /orgs/{orgName}/evaluators:
     get:
+      x-amp-module: legacy
       summary: List all evaluators
       description: Returns a list of all available evaluators for an organization
       operationId: listEvaluators
@@ -10815,6 +11200,8 @@ paths:
 
   /orgs/{orgName}/evaluators/custom:
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Create a custom evaluator
       description: Creates a new custom evaluator (code or llm_judge type) for the organization
       operationId: createCustomEvaluator
@@ -10861,6 +11248,8 @@ paths:
 
   /orgs/{orgName}/evaluators/custom/{identifier}:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get a custom evaluator
       description: Retrieves a custom evaluator by its identifier
       operationId: getCustomEvaluator
@@ -10902,6 +11291,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Update a custom evaluator
       description: Updates an existing custom evaluator
       operationId: updateCustomEvaluator
@@ -10955,6 +11346,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Delete a custom evaluator
       description: Soft-deletes a custom evaluator
       operationId: deleteCustomEvaluator
@@ -11000,6 +11393,7 @@ paths:
 
   /orgs/{orgName}/evaluators/{evaluatorId}:
     get:
+      x-amp-module: legacy
       summary: Get evaluator details
       description: Retrieves detailed information about a specific evaluator
       operationId: getEvaluator
@@ -11038,6 +11432,8 @@ paths:
 
   /orgs/{orgName}/agent-kinds:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List Agent Kinds
       description: Returns a paginated list of all Agent Kinds published in the organization's catalog.
       operationId: listAgentKinds
@@ -11103,6 +11499,8 @@ paths:
           $ref: "#/components/responses/NotImplemented"
   /orgs/{orgName}/agent-kinds/{kindName}:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get an Agent Kind
       operationId: getAgentKind
       tags:
@@ -11138,6 +11536,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     put:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Update an Agent Kind
       description: Update display name or description of an Agent Kind.
       operationId: updateAgentKind
@@ -11182,6 +11582,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     delete:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Delete an Agent Kind
       description: Deletes an Agent Kind and all its versions from the catalog. Fails with 409 if any agents are currently instantiated from this kind.
       operationId: deleteAgentKind
@@ -11224,6 +11626,8 @@ paths:
 
   /orgs/{orgName}/agent-kinds/{kindName}/versions:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List versions of an Agent Kind
       operationId: listAgentKindVersions
       tags:
@@ -11259,6 +11663,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Add a version to an Agent Kind
       description: Publishes a new version of an existing Agent Kind using a specific build from an agent.
       operationId: addAgentKindVersion
@@ -11317,6 +11723,8 @@ paths:
 
   /orgs/{orgName}/agent-kinds/{kindName}/versions/{versionTag}:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Get a specific Agent Kind version
       operationId: getAgentKindVersion
       tags:
@@ -11359,6 +11767,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     delete:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Delete an Agent Kind version
       operationId: deleteAgentKindVersion
       tags:
@@ -11399,6 +11809,8 @@ paths:
 
   /orgs/{orgName}/git-secrets:
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: List git secrets
       description: Lists all git secrets for an organization (credentials are not returned)
       operationId: listGitSecrets
@@ -11444,6 +11856,8 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
     post:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Create a git secret
       description: Creates a new git secret for authenticating with git repositories
       operationId: createGitSecret
@@ -11492,6 +11906,8 @@ paths:
 
   /orgs/{orgName}/git-secrets/{secretName}:
     delete:
+      x-amp-module: legacy
+      x-amp-not-served: true
       summary: Delete a git secret
       description: Deletes a git secret
       operationId: deleteGitSecret
@@ -11533,6 +11949,7 @@ paths:
 
   /orgs/{orgName}/identities/users:
     get:
+      x-amp-module: core
       summary: List users in an organization
       operationId: listUsers
       tags:
@@ -11587,6 +12004,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: core
       summary: Create a new user
       operationId: createUser
       tags:
@@ -11632,6 +12050,7 @@ paths:
 
   /orgs/{orgName}/identities/users/{userId}:
     get:
+      x-amp-module: core
       summary: Get user details
       operationId: getUser
       tags:
@@ -11675,6 +12094,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       summary: Update user
       operationId: updateUser
       tags:
@@ -11730,6 +12150,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       summary: Delete user
       operationId: deleteUser
       tags:
@@ -11771,6 +12192,7 @@ paths:
 
   /orgs/{orgName}/identities/users/{userId}/profile:
     get:
+      x-amp-module: core
       summary: Get authenticated user's own profile information
       description: Retrieves the profile information of the authenticated user. Users can only retrieve their own profile (self-service endpoint).
       operationId: getUserProfile
@@ -11815,6 +12237,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       summary: Update authenticated user's own profile and credentials
       description: Allows users to update their own profile information and credentials. Users can only update their own profile (self-service endpoint).
       operationId: updateUserProfile
@@ -11873,6 +12296,7 @@ paths:
 
   /orgs/{orgName}/identities/groups:
     get:
+      x-amp-module: core
       summary: List groups in an organization
       operationId: listGroups
       tags:
@@ -11927,6 +12351,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: core
       summary: Create a new group
       operationId: createGroup
       tags:
@@ -11972,6 +12397,7 @@ paths:
 
   /orgs/{orgName}/identities/groups/{groupId}:
     get:
+      x-amp-module: core
       summary: Get group details
       operationId: getGroup
       tags:
@@ -12015,6 +12441,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       summary: Update group
       operationId: updateGroup
       tags:
@@ -12070,6 +12497,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       summary: Delete group
       operationId: deleteGroup
       tags:
@@ -12111,6 +12539,7 @@ paths:
 
   /orgs/{orgName}/identities/roles:
     get:
+      x-amp-module: core
       summary: List roles in an organization
       operationId: listRoles
       tags:
@@ -12165,6 +12594,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: core
       summary: Create a new role
       operationId: createRole
       tags:
@@ -12210,6 +12640,7 @@ paths:
 
   /orgs/{orgName}/identities/roles/{roleId}:
     get:
+      x-amp-module: core
       summary: Get role details
       operationId: getRole
       tags:
@@ -12253,6 +12684,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       summary: Update role
       operationId: updateRole
       tags:
@@ -12308,6 +12740,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       summary: Delete role
       operationId: deleteRole
       tags:
@@ -12353,11 +12786,681 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/identities/users/invite:
+    post:
+      x-amp-module: core
+      summary: Invite a user
+      description: |
+        Creates a sign-up invitation for an email address and returns the invitation link. The link grants access to the organization, so treat it as a secret.
+      operationId: inviteUser
+      tags:
+        - Identity - Users
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InviteUserRequest"
+      responses:
+        "200":
+          description: Invitation created; share the link with the invitee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteUserResponse"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/users/{userId}/groups:
+    get:
+      x-amp-module: core
+      summary: List the groups of a user
+      operationId: getUserGroups
+      tags:
+        - Identity - Users
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Groups the user belongs to
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserGroupsResponse"
+        "403":
+          description: Forbidden - missing org context or user does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/users/{userId}/roles:
+    get:
+      x-amp-module: core
+      summary: List the roles of a user
+      operationId: getUserRoles
+      tags:
+        - Identity - Users
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: userId
+          in: path
+          required: true
+          description: User ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Roles assigned to the user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityRolesResponse"
+        "403":
+          description: Forbidden - missing org context or user does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/groups/{groupId}/members:
+    get:
+      x-amp-module: core
+      summary: List the members of a group
+      operationId: getGroupMembers
+      tags:
+        - Identity - Groups
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID
+          schema:
+            type: string
+        - name: offset
+          in: query
+          required: false
+          description: Number of members to skip
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of members to return (1-100; other values fall back to 20)
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Members of the group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserListResponse"
+        "403":
+          description: Forbidden - missing org context or group does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/groups/{groupId}/members/add:
+    post:
+      x-amp-module: core
+      summary: Add users to a group
+      operationId: addGroupMembers
+      tags:
+        - Identity - Groups
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMembersRequest"
+      responses:
+        "200":
+          description: Members added
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request or empty userIds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or group does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/groups/{groupId}/members/remove:
+    post:
+      x-amp-module: core
+      summary: Remove users from a group
+      operationId: removeGroupMembers
+      tags:
+        - Identity - Groups
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GroupMembersRequest"
+      responses:
+        "200":
+          description: Members removed
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request or empty userIds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or group does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/groups/{groupId}/roles:
+    get:
+      x-amp-module: core
+      summary: List the roles of a group
+      operationId: getGroupRoles
+      tags:
+        - Identity - Groups
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: groupId
+          in: path
+          required: true
+          description: Group ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Roles assigned to the group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IdentityRolesResponse"
+        "403":
+          description: Forbidden - missing org context or group does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/assignments:
+    get:
+      x-amp-module: core
+      summary: List the users and groups a role is assigned to
+      operationId: getRoleAssignments
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Users and groups holding the role
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoleAssignmentsResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/assignees/add:
+    post:
+      x-amp-module: core
+      summary: Assign a role to users and groups
+      operationId: addRoleAssignees
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleAssigneesRequest"
+      responses:
+        "200":
+          description: Role assigned
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request, or neither userIds nor groupIds given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/assignees/remove:
+    post:
+      x-amp-module: core
+      summary: Unassign a role from users and groups
+      operationId: removeRoleAssignees
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleAssigneesRequest"
+      responses:
+        "200":
+          description: Role unassigned
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request, or neither userIds nor groupIds given
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/permissions/add:
+    post:
+      x-amp-module: core
+      summary: Grant permissions to a role
+      operationId: addRolePermissions
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RolePermissionsRequest"
+      responses:
+        "200":
+          description: Permissions granted
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/roles/{roleId}/permissions/remove:
+    post:
+      x-amp-module: core
+      summary: Revoke permissions from a role
+      operationId: removeRolePermissions
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+        - name: roleId
+          in: path
+          required: true
+          description: Role ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RolePermissionsRequest"
+      responses:
+        "200":
+          description: Permissions revoked
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Forbidden - missing org context or role does not belong to organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Role not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /orgs/{orgName}/identities/permissions:
+    get:
+      x-amp-module: core
+      summary: List the permissions a role can grant
+      operationId: listIdentityPermissions
+      tags:
+        - Identity - Roles
+      parameters:
+        - name: orgName
+          in: path
+          required: true
+          description: Organization name
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The permissions of the Agent Manager resource server in the identity provider, with display names
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PermissionCatalogResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/environments/{envName}/agent-identities/groups:
     parameters:
       - $ref: "#/components/parameters/AgentIdentityOrgName"
       - $ref: "#/components/parameters/AgentIdentityEnvName"
     get:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: List agent identity groups
@@ -12386,6 +13489,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Create an agent identity group
@@ -12428,6 +13532,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityGroupID"
     get:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Get an agent identity group
@@ -12452,6 +13557,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Update an agent identity group
@@ -12482,6 +13588,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Delete an agent identity group
@@ -12508,6 +13615,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityGroupID"
     get:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: List agent identity group members
@@ -12535,6 +13643,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityGroupID"
     post:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Add agent identity group members
@@ -12571,6 +13680,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityGroupID"
     post:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Remove agent identity group members
@@ -12607,6 +13717,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityGroupID"
     get:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: List roles assigned to an agent identity group
@@ -12630,6 +13741,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityOrgName"
       - $ref: "#/components/parameters/AgentIdentityEnvName"
     get:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: List agent identity roles
@@ -12651,6 +13763,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Create an agent identity role
@@ -12694,6 +13807,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityRoleID"
     get:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Get an agent identity role
@@ -12718,6 +13832,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Update an agent identity role
@@ -12761,6 +13876,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Delete an agent identity role
@@ -12787,6 +13903,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityRoleID"
     get:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: List agent identity role assignments
@@ -12812,6 +13929,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityRoleID"
     post:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Add agent identity role assignees
@@ -12848,6 +13966,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityEnvName"
       - $ref: "#/components/parameters/AgentIdentityRoleID"
     post:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: Remove agent identity role assignees
@@ -12883,6 +14002,7 @@ paths:
       - $ref: "#/components/parameters/AgentIdentityOrgName"
       - $ref: "#/components/parameters/AgentIdentityEnvName"
     get:
+      x-amp-module: gateway
       tags:
         - Agent Identity
       summary: List agent identity bindings for the environment
@@ -12904,6 +14024,7 @@ paths:
 
   /orgs/{orgName}/environments/{envName}/agent-identities/scopes:
     get:
+      x-amp-module: gateway
       summary: List grantable agent-identity scopes for an environment
       description: Aggregates scopes from MCP proxies that target this environment with identity security enabled. Read-only; powers role building.
       operationId: listAgentIdentityScopes
@@ -12938,6 +14059,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the event types subscriptions can name
@@ -12976,6 +14098,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the kinds of event destination and the services each delivers to
@@ -13000,6 +14123,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the organization's event destinations
@@ -13022,6 +14146,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: core
       tags:
         - Events
       summary: Add an event destination
@@ -13078,6 +14203,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: Get an event destination
@@ -13096,6 +14222,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       tags:
         - Events
       summary: Update an event destination
@@ -13135,6 +14262,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       tags:
         - Events
       summary: Delete an event destination
@@ -13172,6 +14300,7 @@ paths:
         schema:
           type: string
     post:
+      x-amp-module: core
       tags:
         - Events
       summary: Rotate an event destination's signing secret
@@ -13217,6 +14346,7 @@ paths:
         schema:
           type: string
     post:
+      x-amp-module: core
       tags:
         - Events
       summary: Send a test event to an event destination
@@ -13246,6 +14376,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the organization's event subscriptions
@@ -13266,6 +14397,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: core
       tags:
         - Events
       summary: Create an organization event subscription
@@ -13311,6 +14443,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: Get an event subscription
@@ -13329,6 +14462,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       tags:
         - Events
       summary: Update an event subscription
@@ -13359,6 +14493,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       tags:
         - Events
       summary: Delete an event subscription
@@ -13382,6 +14517,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the organization's event deliveries
@@ -13452,6 +14588,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the event destinations the project's subscriptions can use
@@ -13481,6 +14618,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the project's event subscriptions
@@ -13503,6 +14641,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: core
       tags:
         - Events
       summary: Create a project event subscription
@@ -13560,6 +14699,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: Get an event subscription
@@ -13578,6 +14718,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       tags:
         - Events
       summary: Update an event subscription
@@ -13608,6 +14749,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       tags:
         - Events
       summary: Delete an event subscription
@@ -13637,6 +14779,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the project's event deliveries
@@ -13713,6 +14856,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the event destinations the agent's subscriptions can use
@@ -13748,6 +14892,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the agent's event subscriptions
@@ -13770,6 +14915,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     post:
+      x-amp-module: core
       tags:
         - Events
       summary: Create an agent event subscription
@@ -13833,6 +14979,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: Get an event subscription
@@ -13851,6 +14998,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: core
       tags:
         - Events
       summary: Update an event subscription
@@ -13881,6 +15029,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: core
       tags:
         - Events
       summary: Delete an event subscription
@@ -13916,6 +15065,7 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: core
       tags:
         - Events
       summary: List the agent's event deliveries
@@ -13998,6 +15148,8 @@ paths:
         schema:
           type: string
     get:
+      x-amp-module: legacy
+      x-amp-not-served: true
       tags:
         - Monitor Alerting
       summary: Get shared monitor alert settings
@@ -14016,6 +15168,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     put:
+      x-amp-module: legacy
+      x-amp-not-served: true
       tags:
         - Monitor Alerting
       summary: Configure shared monitor alerts to organization destinations
@@ -14046,6 +15200,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
     delete:
+      x-amp-module: legacy
+      x-amp-not-served: true
       tags:
         - Monitor Alerting
       summary: Disable monitor alerting
@@ -14598,15 +15754,6 @@ components:
             control plane when the key was rotated. When false, the new key has
             been stored but will only become usable once the gateway
             reconnects and syncs.
-
-    CreateOrganizationRequest:
-      type: object
-      required:
-        - name
-      properties:
-        name:
-          type: string
-          description: Name of the organization
 
     CreateProjectRequest:
       type: object
@@ -22186,11 +23333,276 @@ components:
           nullable: true
 
     # Identity Management Schemas
+    InviteUserRequest:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          example: "jane@example.com"
+
+    InviteUserResponse:
+      type: object
+      required:
+        - inviteLink
+      properties:
+        inviteLink:
+          type: string
+          description: Sign-up link for the invitee
+
+    UserGroupsResponse:
+      type: object
+      required:
+        - groups
+      properties:
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupResponse"
+
+    IdentityRolesResponse:
+      type: object
+      required:
+        - roles
+      properties:
+        roles:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoleResponse"
+
+    GroupMembersRequest:
+      type: object
+      required:
+        - userIds
+      properties:
+        userIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+
+    RoleAssigneesRequest:
+      type: object
+      description: At least one user or group ID is required.
+      properties:
+        userIds:
+          type: array
+          items:
+            type: string
+        groupIds:
+          type: array
+          items:
+            type: string
+
+    RoleAssignmentsResponse:
+      type: object
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserResponse"
+        groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/GroupResponse"
+
+    RolePermissionsRequest:
+      type: object
+      required:
+        - resourceServerId
+        - permissions
+      properties:
+        resourceServerId:
+          type: string
+          description: Resource server the permissions belong to (resourceServerId of GET .../identities/permissions)
+        permissions:
+          type: array
+          items:
+            type: string
+          example: ["project:create"]
+
+    PermissionCatalogEntry:
+      type: object
+      required:
+        - name
+        - resourceServerId
+      properties:
+        name:
+          type: string
+          example: "project:create"
+        resourceServerId:
+          type: string
+        actionName:
+          type: string
+          example: "Create"
+        resourceName:
+          type: string
+          example: "Project"
+
+    PermissionCatalogResponse:
+      type: object
+      required:
+        - permissions
+        - resourceServerId
+      properties:
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/PermissionCatalogEntry"
+        resourceServerId:
+          type: string
+
+    ThunderInstanceResponse:
+      type: object
+      required:
+        - envName
+        - displayName
+        - isProduction
+        - issuerUrl
+        - tokenUrl
+        - jwksUrl
+        - namespace
+      properties:
+        envName:
+          type: string
+        displayName:
+          type: string
+        isProduction:
+          type: boolean
+        issuerUrl:
+          type: string
+        tokenUrl:
+          type: string
+        jwksUrl:
+          type: string
+        namespace:
+          type: string
+
+    ThunderInstanceListResponse:
+      type: object
+      required:
+        - thunderInstances
+      properties:
+        thunderInstances:
+          type: array
+          items:
+            $ref: "#/components/schemas/ThunderInstanceResponse"
+
+    GatewayStatusEntry:
+      type: object
+      required:
+        - id
+        - name
+        - isActive
+        - isCritical
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        isActive:
+          type: boolean
+        isCritical:
+          type: boolean
+
+    GatewayStatusListResponse:
+      type: object
+      required:
+        - count
+        - list
+        - pagination
+      properties:
+        count:
+          type: integer
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/GatewayStatusEntry"
+        pagination:
+          type: object
+          required:
+            - total
+            - offset
+            - limit
+          properties:
+            total:
+              type: integer
+            offset:
+              type: integer
+            limit:
+              type: integer
+
+    FailedGatewayDetail:
+      type: object
+      required:
+        - id
+        - name
+        - organizationId
+        - lastUpdatedAt
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        organizationId:
+          type: string
+        lastUpdatedAt:
+          type: string
+          format: date-time
+
+    GatewayFailureSummaryResponse:
+      type: object
+      required:
+        - total
+        - abandoned
+        - considered
+        - failed
+        - failurePercentage
+        - healthy
+        - failurePercentageThreshold
+        - stalenessThresholdSeconds
+        - maxAgeSeconds
+        - evaluatedAt
+      properties:
+        total:
+          type: integer
+          format: int64
+        abandoned:
+          type: integer
+          format: int64
+          description: Gateways silent for longer than maxAgeSeconds, left out of the percentage
+        considered:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+        failurePercentage:
+          type: number
+        healthy:
+          type: boolean
+          description: The verdict; branch on this rather than on the status code
+        failurePercentageThreshold:
+          type: number
+        stalenessThresholdSeconds:
+          type: integer
+        maxAgeSeconds:
+          type: integer
+        evaluatedAt:
+          type: string
+          format: date-time
+        failedGateways:
+          type: array
+          items:
+            $ref: "#/components/schemas/FailedGatewayDetail"
+        truncated:
+          type: boolean
+
     UserResponse:
       type: object
       required:
         - id
-        - display
       properties:
         id:
           type: string

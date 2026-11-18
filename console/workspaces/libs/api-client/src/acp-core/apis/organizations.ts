@@ -20,7 +20,6 @@ import { httpGET, httpPOST, SERVICE_BASE } from "../../shared/utils";
 import type {
   OrganizationListResponse,
   OrganizationResponse,
-  CreateOrganizationRequest,
   ListOrganizationsQuery,
   GetOrganizationPathParams,
   ResourceNameRequest,
@@ -46,16 +45,6 @@ export async function listOrganizations(
     token,
   });
 
-  if (!res.ok) throw await res.json();
-  return res.json();
-}
-
-export async function createOrganization(
-  body: CreateOrganizationRequest,
-  getToken?: () => Promise<string>
-): Promise<OrganizationResponse> {
-  const token = getToken ? await getToken() : undefined;
-  const res = await httpPOST(`${SERVICE_BASE}/orgs`, body, { token });
   if (!res.ok) throw await res.json();
   return res.json();
 }

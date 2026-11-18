@@ -389,3 +389,23 @@ func (h *Host) UI() []ModuleUI {
 	}
 	return out
 }
+
+// API returns, from one snapshot of the active set, the active modules in
+// activation order and the OpenAPI fragments those that describe their routes
+// (modkit.APIDescriber) return, by module name. Reading both from the same
+// view means a module enabled in between can never appear without its
+// fragment. Each view asks its modules for their fragments once.
+func (h *Host) API() (active []string, fragments map[string][]byte) {
+	v := h.current()
+	v.apiOnce.Do(func() {
+		v.apiFragments = map[string][]byte{}
+		for _, name := range v.active {
+			if d, ok := h.mods[name].(modkit.APIDescriber); ok {
+				if frag := d.OpenAPI(); len(frag) > 0 {
+					v.apiFragments[name] = frag
+				}
+			}
+		}
+	})
+	return append([]string(nil), v.active...), v.apiFragments
+}

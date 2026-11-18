@@ -22,7 +22,7 @@ type UserResponse struct {
 	// User ID
 	Id string `json:"id"`
 	// User display name/username
-	Display string `json:"display"`
+	Display *string `json:"display,omitempty"`
 	// Organization unit ID
 	OuId *string `json:"ouId,omitempty"`
 	// User custom attributes (values can be any type)
@@ -33,10 +33,9 @@ type UserResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewUserResponse(id string, display string) *UserResponse {
+func NewUserResponse(id string) *UserResponse {
 	this := UserResponse{}
 	this.Id = id
-	this.Display = display
 	return &this
 }
 
@@ -72,28 +71,36 @@ func (o *UserResponse) SetId(v string) {
 	o.Id = v
 }
 
-// GetDisplay returns the Display field value
+// GetDisplay returns the Display field value if set, zero value otherwise.
 func (o *UserResponse) GetDisplay() string {
-	if o == nil {
+	if o == nil || IsNil(o.Display) {
 		var ret string
 		return ret
 	}
-
-	return o.Display
+	return *o.Display
 }
 
-// GetDisplayOk returns a tuple with the Display field value
+// GetDisplayOk returns a tuple with the Display field value if set, nil otherwise
 // and a boolean to check if the value has been set.
 func (o *UserResponse) GetDisplayOk() (*string, bool) {
-	if o == nil {
+	if o == nil || IsNil(o.Display) {
 		return nil, false
 	}
-	return &o.Display, true
+	return o.Display, true
 }
 
-// SetDisplay sets field value
+// HasDisplay returns a boolean if a field has been set.
+func (o *UserResponse) HasDisplay() bool {
+	if o != nil && !IsNil(o.Display) {
+		return true
+	}
+
+	return false
+}
+
+// SetDisplay gets a reference to the given string and assigns it to the Display field.
 func (o *UserResponse) SetDisplay(v string) {
-	o.Display = v
+	o.Display = &v
 }
 
 // GetOuId returns the OuId field value if set, zero value otherwise.
@@ -171,7 +178,9 @@ func (o UserResponse) MarshalJSON() ([]byte, error) {
 func (o UserResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["id"] = o.Id
-	toSerialize["display"] = o.Display
+	if !IsNil(o.Display) {
+		toSerialize["display"] = o.Display
+	}
 	if !IsNil(o.OuId) {
 		toSerialize["ouId"] = o.OuId
 	}
