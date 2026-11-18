@@ -16,28 +16,34 @@
  * under the License.
  */
 
-import { useMemo, useState } from "react";
-import { Skeleton, Stack, Typography } from "@wso2/oxygen-ui";
+import { useMemo } from "react";
+import { Skeleton, Stack } from "@wso2/oxygen-ui";
 import { Bot } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { useListAgentRegistry } from "@agent-management-platform/api-client";
 import { ResourceListShell } from "@agent-management-platform/shared-component";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import {
-  EMPTY_FILTERS,
+  type AgentRegistryFilters,
   buildFilterOptions,
   filterAgents,
-  isFiltered,
-  type AgentRegistryFilters,
+  filtersFromSearchParams,
+  filtersToSearchParams,
 } from "./agentRegistryFilters";
-import { AgentRegistryFilterBar } from "./subComponents/AgentRegistryFilterBar";
 import { AgentRegistryTable } from "./subComponents/AgentRegistryTable";
+import { AgentRegistryTiles } from "./subComponents/AgentRegistryTiles";
+import {
+  AgentRegistryToolbar,
+  type AgentRegistryView,
+} from "./subComponents/AgentRegistryToolbar";
+import { FilterSelect } from "./subComponents/FilterSelect";
+
+const VIEW_PARAM = "view";
 
 function AgentRegistrySkeleton() {
   return (
     <Stack spacing={2}>
       <Skeleton variant="rounded" width={400} height={40} />
-      <Skeleton variant="rounded" width="100%" height={40} />
       {Array.from({ length: 6 }).map((_, index) => (
         <Skeleton key={index} variant="rounded" width="100%" height={64} />
       ))}
@@ -45,11 +51,31 @@ function AgentRegistrySkeleton() {
   );
 }
 
-/** Org-level registry: every agent in the organization, from every project. */
+/**
+ * Org-level registry: every agent in the organization, from every project.
+ * Filters and the view live in the URL, so a filtered list can be shared as a link.
+ */
 export function AgentRegistry() {
   const { orgId = "" } = useParams<{ orgId: string }>();
   const { data, isLoading, error } = useListAgentRegistry({ orgName: orgId });
-  const [filters, setFilters] = useState<AgentRegistryFilters>(EMPTY_FILTERS);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const filters = useMemo(() => filtersFromSearchParams(searchParams), [searchParams]);
+  const view: AgentRegistryView = searchParams.get(VIEW_PARAM) === "tiles" ? "tiles" : "table";
+
+  // Replace, not push: typing in the search shouldn't fill the back button's history.
+  const setFilters = (next: AgentRegistryFilters) =>
+    setSearchParams((current) => filtersToSearchParams(next, current), { replace: true });
+  const setView = (next: AgentRegistryView) =>
+    setSearchParams(
+      (current) => {
+        const params = new URLSearchParams(current);
+        if (next === "table") params.delete(VIEW_PARAM);
+        else params.set(VIEW_PARAM, next);
+        return params;
+      },
+      { replace: true },
+    );
 
   const agents = useMemo(() => data?.agents ?? [], [data?.agents]);
   const filterOptions = useMemo(() => buildFilterOptions(agents), [agents]);
@@ -60,25 +86,32 @@ export function AgentRegistry() {
       title="Agent registry"
       description="Every agent in the organization, across all projects, with its owner, lifecycle state and where it runs."
       avatar={null}
+      actions={
+        agents.length > 0 && (
+          <FilterSelect
+            allLabel="All environments"
+            ariaLabel="Environment"
+            value={filters.environment}
+            options={filterOptions.environments}
+            onChange={(environment) => setFilters({ ...filters, environment })}
+          />
+        )
+      }
     >
       <ResourceListShell
         resourceName="agent-registry"
         searchValue={filters.search}
         onSearchChange={(search) => setFilters({ ...filters, search })}
         toolbar={
-          <Stack spacing={1}>
-            <AgentRegistryFilterBar
-              filters={filters}
-              options={filterOptions}
-              onChange={setFilters}
-              onClear={() => setFilters(EMPTY_FILTERS)}
-            />
-            {isFiltered(filters) && (
-              <Typography variant="body2" color="text.secondary">
-                Showing {shownAgents.length} of {agents.length} agents
-              </Typography>
-            )}
-          </Stack>
+          <AgentRegistryToolbar
+            filters={filters}
+            options={filterOptions}
+            onChange={setFilters}
+            view={view}
+            onViewChange={setView}
+            shownCount={shownAgents.length}
+            totalCount={agents.length}
+          />
         }
         error={error}
         isLoading={isLoading}
@@ -96,7 +129,11 @@ export function AgentRegistry() {
           description: "No agents match the search and filters. Change or clear the filters.",
         }}
       >
-        <AgentRegistryTable orgId={orgId} agents={shownAgents} />
+        {view === "tiles" ? (
+          <AgentRegistryTiles orgId={orgId} agents={shownAgents} />
+        ) : (
+          <AgentRegistryTable orgId={orgId} agents={shownAgents} />
+        )}
       </ResourceListShell>
     </PageLayout>
   );

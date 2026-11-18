@@ -30,11 +30,17 @@ const LIFECYCLE_COLORS: Record<
   retired: "default",
 };
 
-export function LifecycleChip({ state }: { state: AgentRegistryLifecycleState }) {
+export interface LifecycleChipProps {
+  state: AgentRegistryLifecycleState;
+  /** Filled where there are no column headers (tiles), to tell it apart from environment chips. */
+  variant?: "outlined" | "filled";
+}
+
+export function LifecycleChip({ state, variant = "outlined" }: LifecycleChipProps) {
   return (
     <Chip
       size="small"
-      variant="outlined"
+      variant={variant}
       color={LIFECYCLE_COLORS[state]}
       label={LIFECYCLE_LABELS[state]}
     />
