@@ -346,13 +346,21 @@ func (r *thunderRenderer) moduleResources() []moduleResource {
 		if mf.Builtin || len(mf.Permissions) == 0 {
 			continue
 		}
-		res := moduleResource{Name: mf.Name, Handle: mf.Name, Parent: rbac.ResourceServer, Description: "Permissions of the " + mf.Name + " module"}
+		name := mf.DisplayName
+		if name == "" {
+			name = mf.Name
+		}
+		res := moduleResource{Name: name, Handle: mf.Name, Parent: rbac.ResourceServer, Description: "Permissions of the " + name + " module"}
 		for _, p := range mf.Permissions {
 			desc := p.Description
 			if desc == "" {
 				desc = p.Name
 			}
-			res.Actions = append(res.Actions, moduleAction{Name: p.Name, Handle: p.Name, Description: desc})
+			action := p.DisplayName
+			if action == "" {
+				action = p.Name
+			}
+			res.Actions = append(res.Actions, moduleAction{Name: action, Handle: p.Name, Description: desc})
 		}
 		out = append(out, res)
 	}
