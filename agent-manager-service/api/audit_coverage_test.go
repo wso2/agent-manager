@@ -24,8 +24,14 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwctl"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwwire"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy/evaluators"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -43,30 +49,31 @@ var controllerConstructors = []any{
 	controllers.NewInfraResourceController,
 	controllers.NewAgentTokenController,
 	controllers.NewEnvironmentController,
-	controllers.NewGatewayController,
-	controllers.NewLLMController,
-	controllers.NewLLMDeploymentController,
-	controllers.NewLLMProviderAPIKeyController,
-	controllers.NewLLMProxyAPIKeyController,
-	controllers.NewAgentAPIKeyController,
-	controllers.NewA2AAgentCardController,
-	controllers.NewA2AProxyController,
-	controllers.NewLLMProxyDeploymentController,
-	controllers.NewMCPProxyController,
-	controllers.NewMonitorController,
-	controllers.NewMonitorScoresController,
-	controllers.NewMonitorScoresPublisherController,
-	controllers.NewEvaluatorController,
-	controllers.NewCatalogController,
-	controllers.NewAgentConfigurationController,
 	controllers.NewIdentityController,
-	controllers.NewMCPProxyScopeController,
-	controllers.NewAgentIdentityController,
 	controllers.NewEventsController,
-	controllers.NewMonitorAlertController,
-	// Registered on the internal server rather than by registerAPIRoutes, but
-	// still needed here: its routes go through a registrar too.
-	controllers.NewGatewayInternalController,
+}
+
+// gatewayControllerConstructors is every controller constructor the gateway
+// module's routes reach, the internal ones included.
+var gatewayControllerConstructors = []any{
+	gwctl.NewGatewayController,
+	gwctl.NewLLMController,
+	gwctl.NewLLMDeploymentController,
+	gwctl.NewLLMProviderAPIKeyController,
+	gwctl.NewLLMProxyAPIKeyController,
+	gwctl.NewAgentAPIKeyController,
+	gwctl.NewA2AAgentCardController,
+	gwctl.NewA2AProxyController,
+	gwctl.NewLLMProxyDeploymentController,
+	gwctl.NewMCPProxyController,
+	gwctl.NewCatalogController,
+	gwctl.NewAgentConfigurationController,
+	gwctl.NewMCPProxyScopeController,
+	gwctl.NewAgentIdentityController,
+	gwctl.NewAgentGatewayController,
+	gwctl.NewEnvironmentGatewayController,
+	gwctl.NewGatewayInternalController,
+	gwctl.NewWebSocketController,
 }
 
 // stubAppParams builds an AppParams whose controller fields are non-nil.
@@ -76,9 +83,27 @@ func stubAppParams(t *testing.T) *wiring.AppParams {
 	params := &wiring.AppParams{
 		OUHandleLookup: func(context.Context, string) (string, error) { return "", nil },
 	}
-	target := reflect.ValueOf(params).Elem()
+	fillControllers(t, reflect.ValueOf(params).Elem(), controllerConstructors)
+	return params
+}
 
-	for _, ctor := range controllerConstructors {
+// stubBundles is the built-in modules of the full distribution, with
+// controllers that are never called.
+func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
+	t.Helper()
+	gw := &gwwire.Gateway{}
+	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
+	return builtin.Built{
+		gateway.Parts(gw, params),
+		legacy.Parts(evaluators.NewEvaluatorController(nil)),
+	}
+}
+
+// fillControllers calls each constructor with zero arguments and assigns its
+// result to the target's field of that type.
+func fillControllers(t *testing.T, target reflect.Value, ctors []any) {
+	t.Helper()
+	for _, ctor := range ctors {
 		fn := reflect.ValueOf(ctor)
 		args := make([]reflect.Value, fn.Type().NumIn())
 		for i := range args {
@@ -87,11 +112,10 @@ func stubAppParams(t *testing.T) *wiring.AppParams {
 
 		out := fn.Call(args)[0]
 		if !assignFieldOfType(target, out) {
-			t.Fatalf("no AppParams field accepts %s returned by %s",
-				out.Type(), fn.Type())
+			t.Fatalf("no %s field accepts %s returned by %s",
+				target.Type(), out.Type(), fn.Type())
 		}
 	}
-	return params
 }
 
 // assignFieldOfType assigns value to the first unset struct field of its exact
@@ -116,7 +140,8 @@ func registerAllRoutesForAudit(t *testing.T) *middleware.RouteRegistrar {
 	t.Helper()
 
 	rr := middleware.NewRouteRegistrar(http.NewServeMux(), nil, audit.NewNoopRecorder())
-	registerAPIRoutes(rr, stubAppParams(t))
+	params := stubAppParams(t)
+	registerAPIRoutes(rr, params, stubBundles(t, params))
 	return rr
 }
 
@@ -130,7 +155,8 @@ func registerInternalRoutesForAudit(t *testing.T) *middleware.RouteRegistrar {
 	t.Helper()
 
 	rr := middleware.NewInternalRouteRegistrar(http.NewServeMux(), audit.NewNoopRecorder())
-	RegisterGatewayInternalRoutes(rr, stubAppParams(t).GatewayInternalController)
+	params := stubAppParams(t)
+	stubBundles(t, params).InternalRoutes(rr, http.NewServeMux())
 	return rr
 }
 

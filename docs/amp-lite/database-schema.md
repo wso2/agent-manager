@@ -10,12 +10,13 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 
 ## Decisions that shape the schema
 
-- Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) and evaluation (evaluators, monitors, runs, scores, alerts) are deferred until the modularization design is settled.
+- Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) and evaluation (evaluators, monitors, runs, scores, alerts) are deferred; if they come back, they come as modules with their own tables.
+- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>`. The built-in `gateway` module still uses the tables listed under [Gateway module tables](#gateway-module-tables) with their original names; `amp-core` (no modules) leaves them empty.
 - Multi-tenant. `organizations` is the root.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
 - Console login is file-based to start with: a default username and password belong to a default org; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
 - Thunder ships with Lite and gives every external agent its agent ID. Thunder keeps its own separate database; ours stores only IDs returned by Thunder's API.
-- Gateways belong to an org, with no limit per org. The default org's bundled gateway is running out of the box; users add more (managed or self-hosted).
+- Gateways belong to an org, with no limit per org, and are managed by the gateway module. With `amp`, the default org's bundled gateway is running out of the box; users add more (managed or self-hosted).
 - Secrets live in our database, encrypted. Production can plug in an external vault.
 - Audit log (console actions) and console usage tracking are stored in our database.
 - Traces, runtime logs, build logs and metrics are stored elsewhere.
@@ -65,7 +66,7 @@ Taken with the same lease update as job claims (rule 10). Rows are seeded by mig
 
 ### Queue tables
 
-Every table a worker claims rows from carries `claimed_by` (short text (255), nullable) and `claimed_until` (time, nullable): `agent_identities`, `agent_cards`, `artifact_gateway_status` (the render queue), `event_deliveries` and `event_outbox`.
+Every table a worker claims rows from carries `claimed_by` (short text (255), nullable) and `claimed_until` (time, nullable): `agent_identities`, `agent_cards`, `artifact_gateway_status` (the render queue), `event_deliveries` and `event_outbox`. `module_event_deliveries` uses `claimed_by` with `available_at` as the lease end.
 
 ## Orgs and projects
 
@@ -97,7 +98,7 @@ Unique: (org_id, name); (org_id, id) for child composite keys.
 
 ### Behaviour
 
-- First start seeds the default org (handle from config), its `default` environment, its Thunder org unit, a default project in it, and the configured default gateway with its registration token, attached to the default environment. This runs on every start: it creates the org and its default environment if missing and keeps an existing gateway and token.
+- Every start makes sure the default org exists (`DEFAULT_ORG_HANDLE`, `DEFAULT_ORG_OU_ID`) with its `default` environment; the core does this after the module host boots, so it works with or without modules. With `amp`, the gateway module then seeds the configured default gateway with its registration token, attached to the default environment, and keeps an existing gateway and token.
 - Orgs are never renamed or deleted. Creating an org creates its `default` environment in the same transaction, and its Thunder org unit; if Thunder fails, the org is not saved.
 - Deleting a project is refused while it still has agents, LLM proxies or MCP servers; the conflict names what is left. Its event subscriptions and its entries in event destinations' project lists are removed in the same transaction, before the project row.
 - Dropped from today's API: org `namespace`, project `deploymentPipeline`. There is no pipeline table.
@@ -202,6 +203,8 @@ Index (org_id, owner_kind, owner_id). Owning tables reference a secret by `secre
 
 ## Gateways, LLM, MCP and A2A
 
+Everything in this section is used only by the gateway module (see [Gateway module tables](#gateway-module-tables)).
+
 Common changes to every existing table here: `ou_id` becomes `org_id` (FK); leftover `organization_name` / `org_name` / `project_name` / `agent_name` columns and `deleted_at` go (rows point at the owner's id instead); `environment_name` + `environment_uuid` become one `environment_id` FK. Columns not mentioned keep today's meaning and get the portable types.
 
 ### Gateways
@@ -247,7 +250,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 - `mcp_proxy_scope_tools`: (scope_id, tool_name) PK; replaces the JSON tools list because agent-identity screens look scopes up by tool.
 - `mcp_proxy_endpoints`: kept as today (cascade from the proxy): upstream, capabilities, security and policies per endpoint. Upstream auth moves into `secrets` (`upstream_secret_id`). Unique (mcp_proxy_id, id) for the child key below. Lite creates one endpoint per proxy.
 - `mcp_proxy_endpoint_environments`: PK (endpoint_id, environment_id), mcp_proxy_id, artifact_id (not null, unique, no action), status. One FK (mcp_proxy_id, endpoint_id) → mcp_proxy_endpoints(mcp_proxy_id, id) cascade, so there is one cascade path; deleting the proxy deletes these artifacts in the service. Unique (mcp_proxy_id, environment_id) keeps "one endpoint per environment per proxy". Lite has one row: the single endpoint in the default environment.
-- Project MCP proxies (expose a hosted agent's MCP endpoint) are deferred until the modularization design is settled.
+- Project MCP proxies (expose a hosted agent's MCP endpoint) are deferred.
 
 ### A2A
 
@@ -349,6 +352,68 @@ Today usage events go to Moesif (`middleware/growthanalytics`): server-side feat
 - Retention: a cleanup job, like the audit log.
 - Collection can be switched off in config. Moesif stays an optional extra sink.
 - Store and export only: the console never shows usage, so there are no summary tables. An admin-only `GET /orgs/{org}/usage-events/export` streams a time range as NDJSON (one event per line), oldest first, keyset paging on (occurred_at, id). Analysis happens outside the product.
+
+## Modules
+
+Modules are compiled into the binary (`cmd/amp` links them, `cmd/amp-core` links none) and installed, enabled and disabled at runtime. The module host keeps their state in core tables. Each module brings its own migrations under `modules/<name>/schema/`, rendered per database like the core's; every table it creates must be named `mod_<module>_<table>`, and core tables may not start with `mod_`.
+
+### modules
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| name | short text (63) | no | PK. Module name. |
+| version | short text (64) | no | Version that was installed. |
+| state | short text (16) | no | CHECK `active`, `disabled` or `uninstalled`. |
+| created_at, updated_at | time | no | |
+
+Built-in modules (`gateway`, `legacy`) are always `active` and can't be disabled. A compiled-in module with no row is available but not installed.
+
+### module_generation
+
+One row (`id = 1`, CHECK). Every install, enable, disable or uninstall bumps `value` in the same transaction; each replica polls it and reloads its set of active modules when it changes. Module migrations lock this row so that only one instance migrates at a time.
+
+### module_migrations
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| module | short text (63) | no | PK part 1 |
+| version | short text (255) | no | PK part 2. Migration file name, e.g. `001_widgets`. |
+| checksum | short text (64) | no | sha256 of the statements. An applied migration that was edited is refused. |
+| applied_at | time | no | |
+
+Module migrations run after the core's, module by module in name order. Startup is refused while any compiled-in module has pending migrations.
+
+### module_events and module_event_deliveries
+
+Events for modules: core events (`agent.created`, `agent.deleted`, `environment.created`) that a module subscribes to, and events modules publish. They are kept apart from `event_outbox`, which feeds external destinations.
+
+- `module_events`: id, org_id (FK → organizations, cascade), type (short text (128)), source (core or a module name), subject (nullable), data JSON, created_at. Written in the same transaction as the change it describes.
+- `module_event_deliveries`: PK (event_id, module), event_id FK → module_events cascade. One row per subscribing module, until that module has handled it. attempts, available_at, claimed_by, last_error, failed_at. A failed delivery is retried with backoff; after the last attempt `failed_at` is set and the row is kept. Index (available_at).
+- Events and deliveries are deleted after a retention period (7 days by default); uninstalling a module deletes its deliveries.
+
+### workload_credentials
+
+Credentials a module's workloads exchange for short-lived workload tokens (`POST /workload-tokens`).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK |
+| module | short text (63) | no | Indexed. |
+| org_id | ID | yes | FK → organizations, cascade. |
+| subject | short text (255) | no | |
+| scopes | short text (1024) | no | |
+| token_ttl_seconds | whole number | no | |
+| secret_hash | short text (64) | no | sha256 of the secret; the secret itself is returned once. |
+| created_at | time | no | |
+| revoked_at | time | yes | |
+
+### Gateway module tables
+
+The gateway module is built in to `amp`. It reads and writes these tables, which still carry their original names (no `mod_gateway_` prefix) and live in the core migrations for now: `gateways`, `gateway_environments`, `environment_default_gateways`, `gateway_tokens`, `gateway_identity_providers`, `gateway_event_states`, `gateway_events`, `artifacts`, `artifact_deployments`, `artifact_gateway_status`, `llm_provider_templates`, `llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`, `mcp_proxy_scopes`, `mcp_proxy_scope_tools`, `mcp_proxy_endpoints`, `mcp_proxy_endpoint_environments`, `agent_model_configs`, `agent_model_config_llm`, `agent_model_config_mcp`, `agent_model_config_mcp_envs`, `agent_model_config_vars`, `ai_applications`, `api_keys`, `agent_exposures`, `agent_cards` and `a2a_proxies`. It also uses the `gateway.drift_scan` lock.
+
+`agent_gateway_settings` is still written by the core's agent service and read by the gateway. With `amp-core` all of these tables stay empty. If an `amp-core` install finds rows in `gateways` or `agent_model_configs` at startup, it logs one warning: deleting agents will not revoke their LLM or MCP proxy credentials.
+
+The `legacy` module has no tables.
 
 ## Known differences from the code
 

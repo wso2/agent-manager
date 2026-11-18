@@ -1,7 +1,7 @@
 # Development overlay: `make dev-up` layers this on docker-compose.yml.
 # The API runs from the source tree under air (rebuilds on save, migrates on
-# start), and the console runs on the host with `make console` (vite on :3000)
-# instead of the nginx image.
+# start), built without the console, and the console runs on the host with
+# `make console` (vite on :3000, hot reload) against it.
 
 services:
   amp-api:
@@ -32,5 +32,10 @@ services:
       # air compiles before serving; the first start takes a minute or two.
       start_period: 300s
 
-  amp-console:
-    profiles: ["console-image"]
+  # amp-api above has no release binary, so amp-init gets its own build of
+  # the release image, without the console (it only writes configuration).
+  amp-init:
+    image: amp-init:dev
+    build:
+      context: ../../agent-manager-service
+      args: { CONSOLE: none }

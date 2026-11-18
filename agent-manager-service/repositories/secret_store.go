@@ -26,9 +26,9 @@ import (
 
 // Owning rows keep a secret's id; the value, already encrypted by the caller, lives in the secrets table.
 
-// putSecret stores value for the owner and returns the secret's id: it rewrites the secret current names, or creates
+// PutSecret stores value for the owner and returns the secret's id: it rewrites the secret current names, or creates
 // one. An empty value returns nil; the caller deletes current once nothing refers to it.
-func putSecret(tx *gorm.DB, orgID, ownerKind string, ownerID uuid.UUID, current *uuid.UUID, value string) (*uuid.UUID, error) {
+func PutSecret(tx *gorm.DB, orgID, ownerKind string, ownerID uuid.UUID, current *uuid.UUID, value string) (*uuid.UUID, error) {
 	if value == "" {
 		//nolint:nilnil // no value means no secret: the caller clears its reference
 		return nil, nil
@@ -45,7 +45,7 @@ func putSecret(tx *gorm.DB, orgID, ownerKind string, ownerID uuid.UUID, current 
 		}
 	}
 	secret := models.Secret{
-		ID: newID(), OrgID: orgID, OwnerKind: ownerKind, OwnerID: ownerID, Provider: models.SecretProviderLocal,
+		ID: NewID(), OrgID: orgID, OwnerKind: ownerKind, OwnerID: ownerID, Provider: models.SecretProviderLocal,
 		Ciphertext: []byte(value), Version: 1, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := tx.Create(&secret).Error; err != nil {
@@ -54,8 +54,8 @@ func putSecret(tx *gorm.DB, orgID, ownerKind string, ownerID uuid.UUID, current 
 	return &secret.ID, nil
 }
 
-// getSecret reads a secret's value; a nil id or a missing row is empty.
-func getSecret(tx *gorm.DB, id *uuid.UUID) (string, error) {
+// GetSecret reads a secret's value; a nil id or a missing row is empty.
+func GetSecret(tx *gorm.DB, id *uuid.UUID) (string, error) {
 	if id == nil {
 		return "", nil
 	}
@@ -69,8 +69,8 @@ func getSecret(tx *gorm.DB, id *uuid.UUID) (string, error) {
 	return string(secrets[0].Ciphertext), nil
 }
 
-// deleteSecret removes a secret; nil is a no-op.
-func deleteSecret(tx *gorm.DB, id *uuid.UUID) error {
+// DeleteSecret removes a secret; nil is a no-op.
+func DeleteSecret(tx *gorm.DB, id *uuid.UUID) error {
 	if id == nil {
 		return nil
 	}

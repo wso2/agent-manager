@@ -24,7 +24,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// beginAuditOrFail starts a fail-closed audit attempt and, when the trail
+// BeginAuditOrFail starts a fail-closed audit attempt and, when the trail
 // cannot accept it, writes the refusal response itself.
 //
 // Controllers repeated this block verbatim at every fail-closed site: begin,
@@ -33,7 +33,7 @@ import (
 // or logged and continued, would be a silent hole in the guarantee.
 //
 // Returns false when the caller must stop; the response is already written.
-func beginAuditOrFail(
+func BeginAuditOrFail(
 	w http.ResponseWriter,
 	r *http.Request,
 	operation, failureMessage string,
@@ -50,30 +50,4 @@ func beginAuditOrFail(
 		return nil, false
 	}
 	return attempt, true
-}
-
-// beginConfigAPIKeyAudit records the intent to change an API key belonging to
-// an agent's model or MCP configuration, writing the refusal response itself
-// when the trail cannot accept it.
-//
-// These routes share one permission and one action with every other API-key
-// route, so without the owner details a record cannot say which configuration
-// the key belonged to. The key value is never passed in.
-func beginConfigAPIKeyAudit(
-	w http.ResponseWriter,
-	r *http.Request,
-	operation, failureMessage string,
-	action audit.Action,
-	ownerType, ouID, projName, agentName, envName, configID, keyName string,
-) (*audit.Attempt, bool) {
-	return beginAuditOrFail(
-		w, r, operation, failureMessage, action,
-		audit.Org(ouID),
-		audit.ResourceNamed(audit.ResourceAPIKey, configID, keyName),
-		audit.Project(projName),
-		audit.Environment(envName),
-		audit.Detail("ownerType", ownerType),
-		audit.Detail("ownerName", agentName),
-		audit.Detail("keyName", keyName),
-	)
 }

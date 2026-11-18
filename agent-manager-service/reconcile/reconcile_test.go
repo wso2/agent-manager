@@ -39,7 +39,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
 )
 
 // Fake kinds. fakeKind is gateway-addressed; fakeEnvKind adds per-environment records kept in
@@ -262,7 +262,7 @@ func seedArtifact(t *testing.T, ouID, kind string) models.ArtifactRef {
 	gdb := db.GetDB()
 	artifactUUID := uuid.New()
 	handle := "handle-" + artifactUUID.String()[:8]
-	require.NoError(t, repositories.NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
+	require.NoError(t, gwrepo.NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
 	return models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle}
@@ -317,7 +317,7 @@ func newCore(t *testing.T, kinds ...Kind) *Core {
 	ensureFakeRecordsTable(t)
 	hub, err := eventhub.NewSQLBackend(db.GetDB(), testLogger(), eventhub.DefaultSQLBackendConfig())
 	require.NoError(t, err)
-	return NewCore(db.GetDB(), repositories.NewDeploymentRepo(db.GetDB()), hub, kinds, testConfig(), testLogger())
+	return NewCore(db.GetDB(), gwrepo.NewDeploymentRepo(db.GetDB()), hub, kinds, testConfig(), testLogger())
 }
 
 func newWorker(t *testing.T, kinds ...Kind) (*Core, *Worker) {
@@ -357,7 +357,7 @@ func dueAt(t *testing.T, p models.Placement, at time.Time) {
 
 func statusRow(t *testing.T, p models.Placement) *models.DeploymentStatusRecord {
 	t.Helper()
-	row, err := repositories.NewDeploymentRepo(db.GetDB()).GetStatusRecord(context.Background(), p)
+	row, err := gwrepo.NewDeploymentRepo(db.GetDB()).GetStatusRecord(context.Background(), p)
 	require.NoError(t, err)
 	return row
 }
@@ -403,14 +403,14 @@ func deploy(t *testing.T, core *Core, p models.Placement) *Applied {
 func insertPending(t *testing.T, p models.Placement) {
 	t.Helper()
 	require.NoError(t, inTx(t, func(tx *gorm.DB) error {
-		_, err := repositories.NewDeploymentRepo(db.GetDB()).InsertPending(context.Background(), tx, p, "placed")
+		_, err := gwrepo.NewDeploymentRepo(db.GetDB()).InsertPending(context.Background(), tx, p, "placed")
 		return err
 	}))
 }
 
 func ack(t *testing.T, core *Core, p models.Placement, deploymentID uuid.UUID, status string) bool {
 	t.Helper()
-	applied, err := repositories.NewDeploymentRepo(db.GetDB()).ApplyAck(context.Background(), p.GatewayUUID.String(),
+	applied, err := gwrepo.NewDeploymentRepo(db.GetDB()).ApplyAck(context.Background(), p.GatewayUUID.String(),
 		models.DeploymentAck{DeploymentID: deploymentID.String(), Action: models.DeploymentAckActionDeploy, Status: status},
 		core.AfterLive())
 	require.NoError(t, err)
@@ -503,8 +503,8 @@ func TestClaimToken(t *testing.T) {
 	t.Run("a newer request", func(t *testing.T) {
 		kind, core, p, first := setup(t)
 		during(kind, func() {
-			_, err := repositories.NewDeploymentRepo(db.GetDB()).QueueRender(context.Background(), nil, p.OUID,
-				p.ArtifactUUID, nil, "newer request", repositories.QueueScopeAny)
+			_, err := gwrepo.NewDeploymentRepo(db.GetDB()).QueueRender(context.Background(), nil, p.OUID,
+				p.ArtifactUUID, nil, "newer request", gwrepo.QueueScopeAny)
 			assert.NoError(t, err)
 		})
 
@@ -575,7 +575,7 @@ func TestRestoreOverAWaitingRedeploy(t *testing.T) {
 	row := statusRow(t, p)
 	assert.Equal(t, first, *row.DeploymentID)
 	assert.Nil(t, row.NextAttemptAt)
-	claims, err := repositories.NewDeploymentRepo(db.GetDB()).ClaimDueRendersOf(context.Background(), p.OUID,
+	claims, err := gwrepo.NewDeploymentRepo(db.GetDB()).ClaimDueRendersOf(context.Background(), p.OUID,
 		p.ArtifactUUID, nil, time.Now().Add(time.Hour), testLease)
 	require.NoError(t, err)
 	assert.Empty(t, claims, "nothing is owed after the restore")
@@ -665,7 +665,7 @@ func TestWorkerClaimsAnAbandonedRenderAfterTheLease(t *testing.T) {
 	deploy(t, core, p)
 	now := clockAt(core)
 	dueAt(t, p, now)
-	killed, err := repositories.NewDeploymentRepo(db.GetDB()).ClaimDueRendersOf(context.Background(), p.OUID, p.ArtifactUUID,
+	killed, err := gwrepo.NewDeploymentRepo(db.GetDB()).ClaimDueRendersOf(context.Background(), p.OUID, p.ArtifactUUID,
 		nil, now, testLease)
 	require.NoError(t, err)
 	require.Len(t, killed, 1, "a replica claims the row and dies before writing back")
@@ -891,7 +891,7 @@ func TestUnplacedRecordsExcludeSoftDeletedGateways(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, records, 1)
 
-	require.NoError(t, repositories.NewGatewayRepo(db.GetDB()).Delete(gateway.String(), ouID))
+	require.NoError(t, gwrepo.NewGatewayRepo(db.GetDB()).Delete(gateway.String(), ouID))
 
 	records, err = kind.UnplacedRecords(context.Background(), ouID, &env, "", 10)
 	require.NoError(t, err)
@@ -959,7 +959,7 @@ func TestGatewayDeleteKeepsAUserUndeploy(t *testing.T) {
 			seedRecord(t, nil, ref, env)
 			old := seedGateway(t, ouID, env)
 			p := models.Placement{ArtifactRef: ref, GatewayUUID: old}
-			repo := repositories.NewDeploymentRepo(db.GetDB())
+			repo := gwrepo.NewDeploymentRepo(db.GetDB())
 			if sent {
 				deploy(t, core, p)
 			} else {
@@ -975,7 +975,7 @@ func TestGatewayDeleteKeepsAUserUndeploy(t *testing.T) {
 			}
 			require.Equal(t, models.DeploymentStatusUndeployed, statusRow(t, p).Status)
 
-			require.NoError(t, repositories.NewGatewayRepo(db.GetDB()).Delete(old.String(), ouID))
+			require.NoError(t, gwrepo.NewGatewayRepo(db.GetDB()).Delete(old.String(), ouID))
 			fresh := seedGateway(t, ouID, env)
 			require.NoError(t, worker.PlaceEnv(context.Background(), ouID, env))
 
@@ -1002,11 +1002,11 @@ func TestGatewayDeleteDropsAnUndeployOwedADeploy(t *testing.T) {
 	p := models.Placement{ArtifactRef: ref, GatewayUUID: old}
 	insertPending(t, p)
 	require.NoError(t, inTx(t, func(tx *gorm.DB) error { return core.Undeploy(context.Background(), tx, p) }))
-	_, err := repositories.NewDeploymentRepo(db.GetDB()).QueueRender(context.Background(), nil, ouID, ref.ArtifactUUID, nil, "redeploy", repositories.QueueScopeAny)
+	_, err := gwrepo.NewDeploymentRepo(db.GetDB()).QueueRender(context.Background(), nil, ouID, ref.ArtifactUUID, nil, "redeploy", gwrepo.QueueScopeAny)
 	require.NoError(t, err)
 	require.NotNil(t, statusRow(t, p).NextAttemptAt, "a deploy is owed on the undeployed row")
 
-	require.NoError(t, repositories.NewGatewayRepo(db.GetDB()).Delete(old.String(), ouID))
+	require.NoError(t, gwrepo.NewGatewayRepo(db.GetDB()).Delete(old.String(), ouID))
 	fresh := seedGateway(t, ouID, env)
 	require.NoError(t, worker.PlaceEnv(context.Background(), ouID, env))
 
@@ -1020,7 +1020,7 @@ func TestGatewayDeleteRemovesPendingRows(t *testing.T) {
 	insertPending(t, p)
 	require.NotNil(t, statusRow(t, p))
 
-	require.NoError(t, repositories.NewGatewayRepo(db.GetDB()).Delete(p.GatewayUUID.String(), ouID))
+	require.NoError(t, gwrepo.NewGatewayRepo(db.GetDB()).Delete(p.GatewayUUID.String(), ouID))
 
 	assert.Nil(t, statusRow(t, p))
 }
@@ -1036,7 +1036,7 @@ func TestAfterLive(t *testing.T) {
 		assert.True(t, ack(t, core, p, first, models.DeploymentAckStatusSuccess))
 		assert.False(t, ack(t, core, p, first, models.DeploymentAckStatusSuccess))
 		second := deploy(t, core, p).DeploymentID
-		_, err := repositories.NewDeploymentRepo(db.GetDB()).FailStaleTransitional(context.Background(), time.Now().Add(time.Hour))
+		_, err := gwrepo.NewDeploymentRepo(db.GetDB()).FailStaleTransitional(context.Background(), time.Now().Add(time.Hour))
 		require.NoError(t, err)
 		require.Equal(t, models.DeploymentStatusFailed, statusRow(t, p).Status, "timed out")
 		assert.True(t, ack(t, core, p, second, models.DeploymentAckStatusSuccess), "the late ack lands")
@@ -1123,12 +1123,12 @@ func TestDriftScanHoldsNoTransactionOpen(t *testing.T) {
 	var writeErr error
 	kind.drifted = func(got models.Placement) bool {
 		if got == p {
-			db.GetDB().Raw(`SELECT owner FROM locks WHERE name = ?`, repositories.DriftScanLock).Scan(&owner)
+			db.GetDB().Raw(`SELECT owner FROM locks WHERE name = ?`, gwrepo.DriftScanLock).Scan(&owner)
 			// Another connection can still write while the scan runs: it holds a lease, not a transaction.
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
 			writeErr = db.GetDB().WithContext(ctx).Exec(`UPDATE locks SET name = name WHERE name = ?`,
-				repositories.DriftScanLock).Error
+				gwrepo.DriftScanLock).Error
 		}
 		return false
 	}
@@ -1200,7 +1200,7 @@ func TestMarkStaleReturnsAFailedInlineRender(t *testing.T) {
 
 	var failed *RenderFailedError
 	require.ErrorAs(t, err, &failed)
-	assert.Equal(t, repositories.RenderGiveUp, failed.Outcome)
+	assert.Equal(t, gwrepo.RenderGiveUp, failed.Outcome)
 	assert.ErrorIs(t, err, renderErr)
 	row := statusRow(t, p)
 	assert.Equal(t, first, *row.DeploymentID, "no deployment was written")
@@ -1350,8 +1350,8 @@ func TestUndeployCancelsADeployOwedOnAnUndeployedRow(t *testing.T) {
 	p := seedPlacement(t, fakeGatewayKind)
 	deploy(t, core, p)
 	require.NoError(t, inTx(t, func(tx *gorm.DB) error { return core.Undeploy(context.Background(), tx, p) }))
-	_, err := repositories.NewDeploymentRepo(db.GetDB()).QueueRender(context.Background(), nil, p.OUID, p.ArtifactUUID,
-		nil, "redeploy", repositories.QueueScopeAny)
+	_, err := gwrepo.NewDeploymentRepo(db.GetDB()).QueueRender(context.Background(), nil, p.OUID, p.ArtifactUUID,
+		nil, "redeploy", gwrepo.QueueScopeAny)
 	require.NoError(t, err)
 	eventsBefore := len(eventsFor(t, p.GatewayUUID))
 	rendersBefore := kind.renderCount()
@@ -1359,7 +1359,7 @@ func TestUndeployCancelsADeployOwedOnAnUndeployedRow(t *testing.T) {
 	require.NoError(t, inTx(t, func(tx *gorm.DB) error { return core.Undeploy(context.Background(), tx, p) }))
 	clockAt(core)
 	runOnceFor(t, worker, p)
-	claims, err := repositories.NewDeploymentRepo(db.GetDB()).ClaimDueRendersOf(context.Background(), p.OUID,
+	claims, err := gwrepo.NewDeploymentRepo(db.GetDB()).ClaimDueRendersOf(context.Background(), p.OUID,
 		p.ArtifactUUID, nil, time.Now().Add(time.Hour), testLease)
 	require.NoError(t, err)
 	assert.Empty(t, claims, "nothing is owed after the undeploy")

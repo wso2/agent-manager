@@ -852,3 +852,70 @@ CREATE TABLE locks (
 );
 INSERT INTO locks (name) VALUES ('agent_identity.reconciler');
 INSERT INTO locks (name) VALUES ('gateway.drift_scan');
+
+CREATE TABLE modules (
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    state TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    CONSTRAINT pk_modules PRIMARY KEY (name),
+    CONSTRAINT ck_modules_1 CHECK (state IN ('active', 'disabled', 'uninstalled'))
+);
+
+CREATE TABLE module_generation (
+    id INTEGER NOT NULL,
+    value INTEGER NOT NULL,
+    CONSTRAINT pk_module_generation PRIMARY KEY (id),
+    CONSTRAINT ck_module_generation_1 CHECK (id = 1)
+);
+INSERT INTO module_generation (id, value) VALUES (1, 0);
+
+CREATE TABLE module_migrations (
+    module TEXT NOT NULL,
+    version TEXT NOT NULL,
+    checksum TEXT NOT NULL,
+    applied_at TIMESTAMP NOT NULL,
+    CONSTRAINT pk_module_migrations PRIMARY KEY (module, version)
+);
+
+CREATE TABLE module_events (
+    id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    source TEXT NOT NULL,
+    subject TEXT,
+    data TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    CONSTRAINT pk_module_events PRIMARY KEY (id),
+    CONSTRAINT fk_module_events_org_id FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE,
+    CONSTRAINT ck_module_events_1 CHECK (json_valid(data))
+);
+
+CREATE TABLE module_event_deliveries (
+    event_id TEXT NOT NULL,
+    module TEXT NOT NULL,
+    attempts INTEGER NOT NULL,
+    available_at TIMESTAMP NOT NULL,
+    claimed_by TEXT,
+    last_error TEXT,
+    failed_at TIMESTAMP,
+    CONSTRAINT pk_module_event_deliveries PRIMARY KEY (event_id, module),
+    CONSTRAINT fk_module_event_deliveries_event_id FOREIGN KEY (event_id) REFERENCES module_events (id) ON DELETE CASCADE
+);
+CREATE INDEX idx_module_event_deliveries_available_at ON module_event_deliveries (available_at);
+
+CREATE TABLE workload_credentials (
+    id TEXT NOT NULL,
+    module TEXT NOT NULL,
+    org_id TEXT,
+    subject TEXT NOT NULL,
+    scopes TEXT NOT NULL,
+    token_ttl_seconds INTEGER NOT NULL,
+    secret_hash TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP,
+    CONSTRAINT pk_workload_credentials PRIMARY KEY (id),
+    CONSTRAINT fk_workload_credentials_org_id FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE
+);
+CREATE INDEX idx_workload_credentials_module ON workload_credentials (module);

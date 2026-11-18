@@ -37,7 +37,16 @@ var (
 	agentWorkloadConfig *AgentWorkload
 )
 
+// pendingErrors are the errors of the settings loaded at package init, from
+// the environment alone. The command line loads the configuration file
+// (Load) before anything reads the settings, which replaces them; a process
+// that reads the settings without loading (a test binary) fails on them then.
+var pendingErrors []error
+
 func GetConfig() *Config {
+	if pendingErrors != nil {
+		(&configReader{errors: pendingErrors}).logAndExitIfErrorsFound()
+	}
 	return config
 }
 
@@ -46,10 +55,15 @@ func GetAgentWorkloadConfig() *AgentWorkload {
 }
 
 func init() {
-	loadEnvs()
+	// The configuration file is not known yet (--config is parsed later), so
+	// errors here wait for the first reader; see pendingErrors.
+	loadSettings(false)
 }
 
-func loadEnvs() {
+// loadEnvs reads every setting and exits on an invalid one.
+func loadEnvs() { loadSettings(true) }
+
+func loadSettings(strict bool) {
 	config = &Config{}
 	agentWorkloadConfig = &AgentWorkload{}
 
@@ -60,13 +74,13 @@ func loadEnvs() {
 			panic(err)
 		}
 	}
-
 	r := &configReader{}
 	config.ServerHost = r.readOptionalString("SERVER_HOST", "")
 	config.ServerPort = int(r.readOptionalInt64("SERVER_PORT", 8080))
 	config.AuthHeader = r.readOptionalString("AUTH_HEADER", "Authorization")
 	config.AutoMaxProcsEnabled = r.readOptionalBool("AUTO_MAX_PROCS_ENABLED", true)
 	config.CORSAllowedOrigin = r.readOptionalString("CORS_ALLOWED_ORIGIN", "http://localhost:3000")
+	config.ConsoleEnabled = r.readOptionalBool("CONSOLE_ENABLED", true)
 
 	agentWorkloadConfig.CORS = CORSConfig{
 		AllowOrigin:      r.readOptionalString("AGENT_WORKLOAD_CORS_ALLOWED_ORIGIN", "*"),
@@ -82,7 +96,7 @@ func loadEnvs() {
 	// SQLite is the shipped database; a configured DB_HOST without DB_DRIVER still means PostgreSQL, so an install
 	// that names its server is never silently moved to a new empty file.
 	defaultDriver := DBDriverSQLite
-	if strings.TrimSpace(os.Getenv("DB_HOST")) != "" {
+	if strings.TrimSpace(Value("DB_HOST")) != "" {
 		defaultDriver = DBDriverPostgres
 	}
 	config.Database = DatabaseConfig{
@@ -162,13 +176,17 @@ func loadEnvs() {
 
 	config.InstrumentationURL = r.readOptionalString("INSTRUMENTATION_URL", "http://default-default.gateway.localhost:19080/otel")
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
+	config.DefaultOrg = DefaultOrgConfig{
+		OUID:   strings.TrimSpace(r.readOptionalString("DEFAULT_ORG_OU_ID", "01900000-0000-7000-8000-000000000001")),
+		Handle: r.readOptionalString("DEFAULT_ORG_HANDLE", "default"),
+	}
 	config.DefaultGateway = DefaultGatewayConfig{
 		Name:              strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_NAME", "")),
 		DisplayName:       r.readOptionalString("DEFAULT_GATEWAY_DISPLAY_NAME", "Default AI Gateway"),
 		Vhost:             r.readOptionalString("DEFAULT_GATEWAY_VHOST", ""),
 		FunctionalityType: r.readOptionalString("DEFAULT_GATEWAY_TYPE", "BOTH"),
-		OrgOUID:           r.readOptionalString("DEFAULT_GATEWAY_ORG_OU_ID", "01900000-0000-7000-8000-000000000001"),
-		OrgHandle:         r.readOptionalString("DEFAULT_GATEWAY_ORG_HANDLE", "default"),
+		OrgOUID:           r.readOptionalString("DEFAULT_GATEWAY_ORG_OU_ID", config.DefaultOrg.OUID),
+		OrgHandle:         r.readOptionalString("DEFAULT_GATEWAY_ORG_HANDLE", config.DefaultOrg.Handle),
 		Token:             strings.TrimSpace(r.readOptionalString("DEFAULT_GATEWAY_TOKEN", "")),
 		TokenFile:         r.readOptionalString("DEFAULT_GATEWAY_TOKEN_FILE", ""),
 	}
@@ -497,6 +515,13 @@ func loadEnvs() {
 	validateAgentWorkloadCORSConfig(agentWorkloadConfig, r)
 	validateGatewayManifestCacheConfig(config, r)
 
+	pendingErrors = nil
+	if !strict {
+		if len(r.errors) > 0 {
+			pendingErrors = r.errors
+		}
+		return
+	}
 	r.logAndExitIfErrorsFound()
 
 	slog.Info("configReader: configs loaded")

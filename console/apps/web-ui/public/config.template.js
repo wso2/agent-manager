@@ -106,10 +106,13 @@ window.__RUNTIME_CONFIG__ = {
     externallyManagedGateway: '$FEATURE_FLAG_EXTERNALLY_MANAGED_GATEWAY' === 'true',
     externallyManagedPipeline: '$FEATURE_FLAG_EXTERNALLY_MANAGED_PIPELINE' === 'true',
   },
-  // Which UI modules are on comes from ui-modules.js, next to this file.
+  // Which UI modules are on comes from the server (GET /api/v1/ui-manifest).
   uiModules: {
     // Shows the AI module manager page (a front-end preview for now). Off by default.
     marketplace: '$ENABLE_UI_MARKETPLACE' === 'true',
+    // UI modules or "<module>/<page>" to turn on besides what the server's
+    // UI manifest lists (e.g. "agent-runtime agent-portal").
+    enable: '$UI_MODULES_ENABLE'.split(/[\s,]+/).filter(Boolean),
   },
   maxRequestBodyBytes: '$MAX_REQUEST_BODY_BYTES',
   fileMountMaxFileBytes: '$FILE_MOUNT_MAX_FILE_BYTES',

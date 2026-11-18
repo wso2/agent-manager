@@ -10,7 +10,9 @@ An open control plane for enterprises to register, govern and observe AI agents.
 
 WSO2 Agent Manager provides a platform for enterprise AI agent management. Organizations register the AI agents they run, govern how those agents reach models, tools and other agents, and trace what they do.
 
-This branch is **AMP Lite**, a development preview of Agent Manager without OpenChoreo. Lite connects external agents only: agents run wherever you host them and are registered in AMP, which issues their identities, fronts their traffic through the AI Gateway and collects their traces. Each organization has one internal `default` environment that the console and API never show. Hosted agents (builds and deployments) and evaluations are deferred; their API routes answer `501 Not Implemented`. Lite is not production-ready.
+This branch is **AMP Lite**, a development preview of Agent Manager without OpenChoreo. Lite connects external agents only: agents run wherever you host them and are registered in AMP, which issues their identities, fronts their traffic through the AI Gateway and collects their traces. Each organization has one internal `default` environment that the console and API never show. Hosted agents (builds and deployments) and evaluations are deferred; in `amp` their API routes answer `501 Not Implemented`. Lite is not production-ready.
+
+The API is one binary with a module host. It comes in two distributions built from the same image: `amp` (the core plus the built-in modules, including the AI Gateway) and `amp-core` (organizations, projects, agents, identities and traces, with no modules).
 
 ## Architecture
 
@@ -23,7 +25,7 @@ This branch is **AMP Lite**, a development preview of Agent Manager without Open
 
 - **External Agents** - Register agents hosted anywhere and manage their configuration from one control plane
 - **Agent Identity** - Give every agent its own identity and OAuth client in ThunderID
-- **AI Gateway** - Route agent traffic and LLM, MCP and A2A calls through a gateway with API keys, OAuth, guardrails and rate limits
+- **AI Gateway** - Route agent traffic and LLM, MCP and A2A calls through a gateway with API keys, OAuth, guardrails and rate limits (the built-in `gateway` module of `amp`)
 - **Governance** - Enforce policies and access controls with role-based permissions and an audit log
 - **Tracing** - Capture OpenTelemetry traces per organization, project and agent, and browse them in the console
 - **Auto-Instrumentation** - OpenTelemetry-based instrumentation for AI frameworks with zero code changes
@@ -32,8 +34,8 @@ This branch is **AMP Lite**, a development preview of Agent Manager without Open
 
 | Component | Description |
 |-----------|-------------|
-| **amp-console** ([console](console)) | Web-based management console for the platform |
-| **amp-api** ([agent-manager-service](agent-manager-service)) | Backend API and MCP server powering the control plane |
+| **console** ([console](console)) | Web-based management console, built into and served by amp-api |
+| **amp-api** ([agent-manager-service](agent-manager-service)) | Backend API, MCP server and module host powering the control plane; built as `amp` or `amp-core` |
 | **amp-observer** ([agent-manager-observer](agent-manager-observer)) | API for querying trace data in OpenSearch |
 | **amctl** ([cli](cli)) | Command-line client for the Agent Manager API |
 | **amp-instrumentation** ([libs/amp-instrumentation](libs/amp-instrumentation)) | Python auto-instrumentation package for AI frameworks |
@@ -41,7 +43,7 @@ This branch is **AMP Lite**, a development preview of Agent Manager without Open
 
 ## Deployment
 
-AMP Lite runs on Docker Compose; there is no Kubernetes or Helm. [deployments/standalone](deployments/standalone) holds the stack: ThunderID, the Agent Manager API, console and observer, the AI Gateway (controller and runtime), and OpenSearch with an OpenTelemetry collector for traces. Each release attaches the same files as `wso2-agent-manager-standalone-<version>.tar.gz`, pinned to that release's images.
+AMP Lite runs on Docker Compose; there is no Kubernetes or Helm. [deployments/standalone](deployments/standalone) holds the stack: ThunderID, the Agent Manager API (which also serves the console) and observer, the AI Gateway (controller and runtime), and OpenSearch with an OpenTelemetry collector for traces. Each release attaches the same files as `wso2-agent-manager-standalone-<version>.tar.gz`, pinned to that release's images.
 
 ## Getting Started
 
@@ -51,7 +53,7 @@ Run AMP Lite from this checkout with Docker:
 make up
 ```
 
-This builds the images and starts the stack; the console is at http://localhost:3000 and the API at http://localhost:9000 (sign in as `admin`, password `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`). For development, `make dev-up` runs the API from source with hot reload and the console with Vite. Run `make help` for the rest.
+This builds the images and starts the stack; the console and the API are at http://localhost:9000 (sign in as `admin`, password `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`). `make up-core` starts the `amp-core` distribution instead, without the AI Gateway. For development, `make dev-up` runs the API from source with hot reload and the console with Vite. Run `make help` for the rest.
 
 - [User guide](docs/user-guide.md): install a release, register agents and see their traces
 - [Developer guide](docs/developer-guide.md): run from source, change the code and run the tests

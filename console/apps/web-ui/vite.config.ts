@@ -4,7 +4,7 @@ import { defineConfig, loadEnv, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import { workspaceSourceAliases } from '../../workspace-aliases.mjs'
 
-// Dev-server stand-in for the production image's envsubst step (scripts/40-config-setup.sh):
+// Dev-server stand-in for agent-manager-service, which renders config.js in production:
 // serves config.js from config.template.js, filled from .env.development with the process
 // env on top (e.g. AUTH_MODE=thunder pnpm dev). Unset placeholders become '', as with envsubst.
 function runtimeConfig(): Plugin {

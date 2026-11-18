@@ -1115,6 +1115,9 @@ type ClientInterface interface {
 	ReportConsoleActionsWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	ReportConsoleActions(ctx context.Context, body ReportConsoleActionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetUIManifest request
+	GetUIManifest(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) GetJWKS(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -5595,6 +5598,18 @@ func (c *Client) ReportConsoleActionsWithBody(ctx context.Context, contentType s
 
 func (c *Client) ReportConsoleActions(ctx context.Context, body ReportConsoleActionsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReportConsoleActionsRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetUIManifest(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetUIManifestRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -21639,6 +21654,33 @@ func NewReportConsoleActionsRequestWithBody(server string, contentType string, b
 	return req, nil
 }
 
+// NewGetUIManifestRequest generates requests for GetUIManifest
+func NewGetUIManifestRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/ui-manifest")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -22707,6 +22749,9 @@ type ClientWithResponsesInterface interface {
 	ReportConsoleActionsWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ReportConsoleActionsResp, error)
 
 	ReportConsoleActionsWithResponse(ctx context.Context, body ReportConsoleActionsJSONRequestBody, reqEditors ...RequestEditorFn) (*ReportConsoleActionsResp, error)
+
+	// GetUIManifestWithResponse request
+	GetUIManifestWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetUIManifestResp, error)
 }
 
 type GetJWKSResp struct {
@@ -29685,6 +29730,29 @@ func (r ReportConsoleActionsResp) StatusCode() int {
 	return 0
 }
 
+type GetUIManifestResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *UIManifestResponse
+	JSON401      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetUIManifestResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetUIManifestResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // GetJWKSWithResponse request returning *GetJWKSResp
 func (c *ClientWithResponses) GetJWKSWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetJWKSResp, error) {
 	rsp, err := c.GetJWKS(ctx, reqEditors...)
@@ -32953,6 +33021,15 @@ func (c *ClientWithResponses) ReportConsoleActionsWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseReportConsoleActionsResp(rsp)
+}
+
+// GetUIManifestWithResponse request returning *GetUIManifestResp
+func (c *ClientWithResponses) GetUIManifestWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetUIManifestResp, error) {
+	rsp, err := c.GetUIManifest(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetUIManifestResp(rsp)
 }
 
 // ParseGetJWKSResp parses an HTTP response from a GetJWKSWithResponse call
@@ -46146,6 +46223,39 @@ func ParseReportConsoleActionsResp(rsp *http.Response) (*ReportConsoleActionsRes
 			return nil, err
 		}
 		response.JSON429 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetUIManifestResp parses an HTTP response from a GetUIManifestWithResponse call
+func ParseGetUIManifestResp(rsp *http.Response) (*GetUIManifestResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetUIManifestResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest UIManifestResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
 
 	}
 

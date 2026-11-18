@@ -18,6 +18,7 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -26,8 +27,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -47,6 +50,8 @@ type CreateAgentInput struct {
 	ProvisioningType string
 	Labels           map[string]string
 	CreatedBy        string
+	// Extensions are the request's blocks for module hooks, by module name.
+	Extensions map[string]json.RawMessage
 }
 
 // PlatformRepository stores organizations, projects, the per-org default
@@ -68,8 +73,12 @@ type PlatformRepository interface {
 	CreateAgent(ctx context.Context, ouID, projectName string, in CreateAgentInput) (*models.AgentResponse, error)
 	GetAgent(ctx context.Context, ouID, projectName, agentName string) (*models.AgentResponse, error)
 	// UpdateAgentBasicInfo replaces display name and description; labels, when
-	// non-nil, replace the agent's label set.
-	UpdateAgentBasicInfo(ctx context.Context, ouID, projectName, agentName, displayName, description string, labels *map[string]string) error
+	// non-nil, replace the agent's label set. ext holds the request's blocks
+	// for module hooks.
+	UpdateAgentBasicInfo(ctx context.Context, ouID, projectName, agentName, displayName, description string, labels *map[string]string, ext map[string]json.RawMessage) error
+	// CheckDeleteAgent asks the active modules whether the agent may be
+	// deleted; call it before tearing anything down.
+	CheckDeleteAgent(ctx context.Context, ouID, projectName, agentName string) error
 	DeleteAgent(ctx context.Context, ouID, projectName, agentName string) error
 	ListAgents(ctx context.Context, ouID, projectName string) ([]*models.AgentResponse, error)
 	CountProjectAgents(ctx context.Context, ouID, projectName string) (int, error)
@@ -89,7 +98,7 @@ func NewPlatformRepo(db *gorm.DB) PlatformRepository {
 	return &platformRepo{db: db}
 }
 
-func newID() uuid.UUID { return uuid.Must(uuid.NewV7()) }
+func NewID() uuid.UUID { return uuid.Must(uuid.NewV7()) }
 
 func optional(s string) *string {
 	if s == "" {
@@ -107,7 +116,7 @@ func deref(s *string) string {
 
 // orgByOUID returns the organization for an OU, creating it and its default environment on first use.
 func (r *platformRepo) orgByOUID(ctx context.Context, ouID string) (*models.Organization, error) {
-	return ensureOrg(ctx, r.db, ouID)
+	return EnsureOrg(ctx, r.db, ouID)
 }
 
 func orgResponse(o *models.Organization) *models.OrganizationResponse {
@@ -174,7 +183,7 @@ func (r *platformRepo) CreateProject(ctx context.Context, ouID string, in Create
 	}
 	now := dbx.Now()
 	p := models.Project{
-		ID: newID(), OrgID: org.ID, Name: in.Name, DisplayName: displayName,
+		ID: NewID(), OrgID: org.ID, Name: in.Name, DisplayName: displayName,
 		Description: optional(in.Description), CreatedBy: optional(in.CreatedBy),
 		CreatedAt: now, UpdatedAt: now,
 	}
@@ -329,7 +338,7 @@ func (r *platformRepo) CreateAgent(ctx context.Context, ouID, projectName string
 	}
 	now := dbx.Now()
 	a := models.Agent{
-		ID: newID(), OrgID: org.ID, ProjectID: p.ID, Name: in.Name, DisplayName: displayName,
+		ID: NewID(), OrgID: org.ID, ProjectID: p.ID, Name: in.Name, DisplayName: displayName,
 		Description: optional(in.Description), ProvisioningType: in.ProvisioningType,
 		CreatedBy: optional(in.CreatedBy),
 		CreatedAt: now, UpdatedAt: now,
@@ -342,7 +351,17 @@ func (r *platformRepo) CreateAgent(ctx context.Context, ouID, projectName string
 	for _, k := range keys {
 		a.Labels = append(a.Labels, models.AgentLabel{AgentID: a.ID, OrgID: org.ID, LabelKey: k, LabelValue: optional(in.Labels[k])})
 	}
+	op := coreext.Begin(ctx, modkit.ResourceAgent)
+	if err := op.Check(in.Extensions); err != nil {
+		return nil, err
+	}
+	req := modkit.HookRequest{Resource: modkit.ResourceAgent, Action: modkit.ActionCreate, OrgID: org.ID.String()}
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		submitted := agentObject(p.Name, &a)
+		delete(submitted, "id")
+		if err := op.Run(ctx, tx, modkit.Validate, withObject(req, "", submitted), in.Extensions); err != nil {
+			return err
+		}
 		inserted, err := dbx.InsertIfAbsent(tx, &a, "Labels")
 		if err != nil {
 			return err
@@ -351,9 +370,15 @@ func (r *platformRepo) CreateAgent(ctx context.Context, ouID, projectName string
 			return utils.ErrAgentAlreadyExists
 		}
 		if len(a.Labels) > 0 {
-			return tx.Create(&a.Labels).Error
+			if err := tx.Create(&a.Labels).Error; err != nil {
+				return err
+			}
 		}
-		return nil
+		stored := agentObject(p.Name, &a)
+		if err := op.Run(ctx, tx, modkit.Apply, withObject(req, a.ID.String(), stored), in.Extensions); err != nil {
+			return err
+		}
+		return emit(ctx, op, tx, modkit.EventAgentCreated, org.ID.String(), a.Name, stored)
 	})
 	if err != nil {
 		return nil, err
@@ -369,42 +394,116 @@ func (r *platformRepo) GetAgent(ctx context.Context, ouID, projectName, agentNam
 	return agentResponse(p.Name, a), nil
 }
 
-func (r *platformRepo) UpdateAgentBasicInfo(ctx context.Context, ouID, projectName, agentName, displayName, description string, labels *map[string]string) error {
-	_, _, a, err := r.agent(ctx, ouID, projectName, agentName)
+func (r *platformRepo) UpdateAgentBasicInfo(ctx context.Context, ouID, projectName, agentName, displayName, description string, labels *map[string]string, extensions map[string]json.RawMessage) error {
+	_, p, a, err := r.agent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return err
 	}
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Model(&models.Agent{}).Where("id = ?", a.ID).Updates(map[string]interface{}{
-			"display_name": displayName,
-			"description":  optional(description),
-			"updated_at":   dbx.Now(),
-		}).Error; err != nil {
-			return err
-		}
-		if labels == nil {
-			return nil
-		}
-		if err := tx.Delete(&models.AgentLabel{}, "agent_id = ?", a.ID).Error; err != nil {
-			return err
-		}
-		rows := make([]models.AgentLabel, 0, len(*labels))
+	op := coreext.Begin(ctx, modkit.ResourceAgent)
+	if err := op.Check(extensions); err != nil {
+		return err
+	}
+	req := modkit.HookRequest{Resource: modkit.ResourceAgent, Action: modkit.ActionUpdate, OrgID: a.OrgID.String()}
+	updated := *a
+	updated.DisplayName, updated.Description = displayName, optional(description)
+	if labels != nil {
+		updated.Labels = nil
 		for k, v := range *labels {
-			rows = append(rows, models.AgentLabel{AgentID: a.ID, OrgID: a.OrgID, LabelKey: k, LabelValue: optional(v)})
+			updated.Labels = append(updated.Labels, models.AgentLabel{LabelKey: k, LabelValue: optional(v)})
 		}
-		if len(rows) == 0 {
-			return nil
+	}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		object := agentObject(p.Name, &updated)
+		if err := op.Run(ctx, tx, modkit.Validate, withObject(req, a.ID.String(), object), extensions); err != nil {
+			return err
 		}
-		return tx.Create(&rows).Error
+		if err := writeAgentBasicInfo(tx, a, displayName, description, labels); err != nil {
+			return err
+		}
+		return op.Run(ctx, tx, modkit.Apply, withObject(req, a.ID.String(), object), extensions)
 	})
 }
 
-func (r *platformRepo) DeleteAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	_, _, a, err := r.agent(ctx, ouID, projectName, agentName)
+func writeAgentBasicInfo(tx *gorm.DB, a *models.Agent, displayName, description string, labels *map[string]string) error {
+	if err := tx.Model(&models.Agent{}).Where("id = ?", a.ID).Updates(map[string]interface{}{
+		"display_name": displayName,
+		"description":  optional(description),
+		"updated_at":   dbx.Now(),
+	}).Error; err != nil {
+		return err
+	}
+	if labels == nil {
+		return nil
+	}
+	if err := tx.Delete(&models.AgentLabel{}, "agent_id = ?", a.ID).Error; err != nil {
+		return err
+	}
+	rows := make([]models.AgentLabel, 0, len(*labels))
+	for k, v := range *labels {
+		rows = append(rows, models.AgentLabel{AgentID: a.ID, OrgID: a.OrgID, LabelKey: k, LabelValue: optional(v)})
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+	return tx.Create(&rows).Error
+}
+
+// CheckDeleteAgent asks the active modules whether an agent may be deleted.
+// The core calls it before it tears anything down, so a refusal leaves the
+// agent whole.
+func (r *platformRepo) CheckDeleteAgent(ctx context.Context, ouID, projectName, agentName string) error {
+	_, p, a, err := r.agent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return err
 	}
-	return r.db.WithContext(ctx).Delete(&models.Agent{}, "id = ?", a.ID).Error
+	req := modkit.HookRequest{Action: modkit.ActionDelete, OrgID: a.OrgID.String(), ID: a.ID.String(), Object: agentObject(p.Name, a)}
+	return coreext.Begin(ctx, modkit.ResourceAgent).Run(ctx, nil, modkit.Validate, req, nil)
+}
+
+// DeleteAgent deletes an agent. Modules clean up in their finalize hooks,
+// which cannot refuse, so rolling back a half-created agent always works.
+func (r *platformRepo) DeleteAgent(ctx context.Context, ouID, projectName, agentName string) error {
+	_, p, a, err := r.agent(ctx, ouID, projectName, agentName)
+	if err != nil {
+		return err
+	}
+	op := coreext.Begin(ctx, modkit.ResourceAgent)
+	stored := agentObject(p.Name, a)
+	req := modkit.HookRequest{Action: modkit.ActionDelete, OrgID: a.OrgID.String(), ID: a.ID.String(), Object: stored}
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		_ = op.Run(ctx, tx, modkit.Finalize, req, nil)
+		if err := tx.Delete(&models.Agent{}, "id = ?", a.ID).Error; err != nil {
+			return err
+		}
+		return emit(ctx, op, tx, modkit.EventAgentDeleted, a.OrgID.String(), a.Name, stored)
+	})
+}
+
+// agentObject is an agent as module hooks and events see it.
+func agentObject(projectName string, a *models.Agent) map[string]any {
+	labels := map[string]string{}
+	for _, l := range a.Labels {
+		labels[l.LabelKey] = deref(l.LabelValue)
+	}
+	return map[string]any{
+		"id": a.ID.String(), "orgId": a.OrgID.String(), "projectId": a.ProjectID.String(), "projectName": projectName,
+		"name": a.Name, "displayName": a.DisplayName, "description": deref(a.Description),
+		"provisioning": a.ProvisioningType, "labels": labels,
+	}
+}
+
+func withObject(req modkit.HookRequest, id string, object map[string]any) modkit.HookRequest {
+	req.ID, req.Object = id, object
+	return req
+}
+
+// emit records a core event for module subscribers inside tx.
+func emit(ctx context.Context, op coreext.Operation, tx *gorm.DB, eventType, orgID, subject string, object map[string]any) error {
+	data, err := json.Marshal(object)
+	if err != nil {
+		return err
+	}
+	return op.Emit(ctx, tx, modkit.Event{Type: eventType, OrgID: orgID, Subject: subject, Data: data})
 }
 
 func (r *platformRepo) ListAgents(ctx context.Context, ouID, projectName string) ([]*models.AgentResponse, error) {

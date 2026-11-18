@@ -6,7 +6,7 @@ inputs:
     description: "Service directory name containing Dockerfile"
     required: true
   image-name:
-    description: "Image name to push (e.g., amp-console)"
+    description: "Image name to push (e.g., amp-api)"
     required: true
   registry:
     description: "Container registry URL"

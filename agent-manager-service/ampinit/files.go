@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 )
 
 // owner is a uid:gid the written files are handed to; nil leaves them as created.
@@ -30,7 +32,7 @@ type owner struct{ uid, gid int }
 
 // parseOwner reads "uid:gid" from the environment variable key.
 func parseOwner(key string) (*owner, error) {
-	v := strings.TrimSpace(os.Getenv(key))
+	v := strings.TrimSpace(config.Value(key))
 	if v == "" {
 		return nil, nil //nolint:nilnil // unset means "do not chown"
 	}

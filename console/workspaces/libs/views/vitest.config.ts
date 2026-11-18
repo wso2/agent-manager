@@ -16,4 +16,12 @@
  * under the License.
  */
 
- 
+/// <reference types="vitest" />
+import { defineConfig } from "vite";
+
+export default defineConfig({
+  test: {
+    // The package has no tests yet; `pnpm -r test` should not fail on it.
+    passWithNoTests: true,
+  },
+});

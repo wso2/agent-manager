@@ -14,7 +14,8 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Command schemagen renders db_migrations/schema/lite.yaml into the per-database baseline migrations. Run it from the
+// Command schemagen renders db_migrations/schema/lite.yaml into the per-database baseline migrations, and each
+// module's schema files (modules/<dir>/schema/*.yaml) into that module's per-database migrations. Run it from the
 // module root (`make schema`).
 package main
 
@@ -43,14 +44,64 @@ func run() error {
 		if err != nil {
 			return err
 		}
-		path := schema.BaselinePath(dialect)
-		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		if err := write(schema.BaselinePath(dialect), ddl); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, []byte(ddl), 0o600); err != nil {
-			return err
-		}
-		fmt.Println("wrote", path)
 	}
+	modules, err := schema.ModuleSchemas(".")
+	if err != nil {
+		return err
+	}
+	for _, m := range modules {
+		if err := renderModule(m); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func renderModule(m schema.ModuleSchema) error {
+	name, err := m.Module()
+	if err != nil {
+		return err
+	}
+	migrations, err := schema.RenderModule(name, m.Files)
+	if err != nil {
+		return err
+	}
+	for _, dialect := range schema.Dialects {
+		keep := map[string]bool{}
+		for _, mig := range migrations {
+			path := schema.ModuleMigrationPath(m.Dir, dialect, mig.Version)
+			keep[filepath.Base(path)] = true
+			if err := write(path, mig.SQL[dialect]); err != nil {
+				return err
+			}
+		}
+		// Drop rendered files whose schema file is gone.
+		stale, err := filepath.Glob(filepath.Join(filepath.Dir(schema.ModuleMigrationPath(m.Dir, dialect, "x")), "*.sql"))
+		if err != nil {
+			return err
+		}
+		for _, f := range stale {
+			if !keep[filepath.Base(f)] {
+				if err := os.Remove(f); err != nil {
+					return err
+				}
+				fmt.Println("removed", f)
+			}
+		}
+	}
+	return nil
+}
+
+func write(path, content string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		return err
+	}
+	fmt.Println("wrote", path)
 	return nil
 }

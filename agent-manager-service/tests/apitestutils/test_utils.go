@@ -22,9 +22,13 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
+	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway"
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy" // the legacy routes
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -32,14 +36,23 @@ import (
 func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) http.Handler {
 	// Use wire to initialize the app parameters with test clients
 	db := db.DB(context.Background())
-	// nil gateway applier: tests exercise the open-source mirror-only behavior.
-	appParams, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), db, authMiddleware, testClients, nil)
+	appParams, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), db, authMiddleware, testClients)
 	if err != nil {
 		t.Fatalf("failed to initialize test app params: %v", err)
 	}
+	// The full distribution's features, built on the core as the server
+	// builds them; their workers are not started.
+	bundles, err := builtin.Build(context.Background(), appParams)
+	if err != nil {
+		t.Fatalf("failed to build the built-in features: %v", err)
+	}
+	// No module host runs here, so the core reaches the gateway's
+	// capabilities directly.
+	coreext.Set(coreext.Static(gateway.Capabilities(gateway.Current())))
+	t.Cleanup(func() { coreext.Set(nil) })
 
 	// Create HTTP handler
-	handler := api.MakeHTTPHandler(appParams, nil)
+	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, nil, bundles)
 
 	// Return the handler instance
 	return handler

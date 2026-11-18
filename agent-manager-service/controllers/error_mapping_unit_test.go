@@ -40,7 +40,7 @@ import (
 func TestHandleCommonErrors_ValidationErrorWithSentinel_KeepsItsOwnMessage(t *testing.T) {
 	rr := httptest.NewRecorder()
 
-	handleCommonErrors(rr, utils.NewInvalidInputError(
+	HandleCommonErrors(rr, utils.NewInvalidInputError(
 		"Promotion blocked: the agent identity for \"staging\" is still being provisioned",
 		"retry once provisioning completes",
 	), "Failed to promote agent")
@@ -57,7 +57,7 @@ func TestHandleCommonErrors_ValidationErrorWithSentinel_KeepsItsOwnMessage(t *te
 func TestHandleCommonErrors_AgentIdentityDefaultEnvironmentOnly_Is409(t *testing.T) {
 	rr := httptest.NewRecorder()
 
-	handleCommonErrors(rr, fmt.Errorf("%w: staging", services.ErrProjectAgentIdentityDefaultEnvironmentOnly),
+	HandleCommonErrors(rr, fmt.Errorf("%w: staging", services.ErrProjectAgentIdentityDefaultEnvironmentOnly),
 		"Failed to provision agent identity")
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
@@ -70,7 +70,7 @@ func TestHandleCommonErrors_AgentIdentityDefaultEnvironmentOnly_Is409(t *testing
 func TestHandleCommonErrors_AuditRecorderUnavailable_Is503(t *testing.T) {
 	rr := httptest.NewRecorder()
 
-	handleCommonErrors(rr, fmt.Errorf("wrapped: %w", audit.ErrRecorderUnavailable), "Failed to remove the card source")
+	HandleCommonErrors(rr, fmt.Errorf("wrapped: %w", audit.ErrRecorderUnavailable), "Failed to remove the card source")
 
 	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 	var body spec.ErrorResponse

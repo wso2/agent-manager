@@ -194,7 +194,8 @@ func (s *service) Login(ctx context.Context, username, password string) (string,
 	// returned was never usable. Refusing here leaves no credential in
 	// circulation, which makes this genuinely fail-closed rather than
 	// best-effort. The signed token never reaches the recorder.
-	if err := audit.RecordSync(ctx, audit.ActionAuthLogin,
+	if err := audit.RecordSync(
+		ctx, audit.ActionAuthLogin,
 		audit.Org(s.users.Organization.UUID),
 		audit.ResourceNamed(audit.ResourceUser, matched.Username, matched.Username),
 		audit.Detail("username", matched.Username),
@@ -219,7 +220,8 @@ func (s *service) Login(ctx context.Context, username, password string) (string,
 // outage into a different response for a wrong password.
 func (s *service) recordRefusal(ctx context.Context, username, reason string) {
 	s.logger.Warn("file auth login failed", "reason", reason, "username", username)
-	audit.Record(ctx, audit.ActionAuthLogin,
+	audit.Record(
+		ctx, audit.ActionAuthLogin,
 		audit.Org(s.users.Organization.UUID),
 		audit.ResourceNamed(audit.ResourceUser, username, username),
 		audit.Detail("username", username),
@@ -238,7 +240,7 @@ func (s *service) recordRefusal(ctx context.Context, username, reason string) {
 func ScopesForRoles(roles []string) []string {
 	set := make(map[string]struct{})
 	for _, role := range roles {
-		for _, perm := range rbac.PredefinedRolePermissions[role] {
+		for _, perm := range rbac.RoleGrants(role) {
 			set[perm.Scope()] = struct{}{}
 		}
 	}

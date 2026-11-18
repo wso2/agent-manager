@@ -31,7 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -64,7 +64,7 @@ type Applied struct {
 // the transaction that changes the status row.
 type Core struct {
 	db     *gorm.DB
-	repo   repositories.DeploymentRepository
+	repo   gwrepo.DeploymentRepository
 	hub    eventhub.EventHub
 	cfg    Config
 	logger *slog.Logger
@@ -79,7 +79,7 @@ type Core struct {
 // NewCore registers kinds under the artifact kinds they deploy, which are their names unless they list others: two
 // kinds may share the gateway kind they deploy as, but not an artifact kind.
 func NewCore(
-	db *gorm.DB, repo repositories.DeploymentRepository, hub eventhub.EventHub, kinds Kinds, cfg Config, logger *slog.Logger,
+	db *gorm.DB, repo gwrepo.DeploymentRepository, hub eventhub.EventHub, kinds Kinds, cfg Config, logger *slog.Logger,
 ) *Core {
 	c := &Core{
 		db: db, repo: repo, hub: hub, cfg: cfg, logger: logger,
@@ -243,7 +243,7 @@ func (c *Core) owe(ctx context.Context, tx *gorm.DB, p models.Placement, reason 
 	}
 	if !inserted {
 		if _, err := c.repo.QueueRender(ctx, tx, p.OUID, p.ArtifactUUID, []uuid.UUID{p.GatewayUUID}, reason,
-			repositories.QueueScopeAny); err != nil {
+			gwrepo.QueueScopeAny); err != nil {
 			return nil, err
 		}
 	}
@@ -365,7 +365,7 @@ func (c *Core) MarkStale(ctx context.Context, kind, ouID string, artifactUUID uu
 	if err != nil {
 		return err
 	}
-	queued, err := c.repo.QueueRender(ctx, nil, ouID, artifactUUID, gateways, reason, repositories.QueueScopePlaced)
+	queued, err := c.repo.QueueRender(ctx, nil, ouID, artifactUUID, gateways, reason, gwrepo.QueueScopePlaced)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrQueueFailed, err)
 	}
@@ -413,7 +413,7 @@ func (c *Core) Status(ctx context.Context, p models.Placement) (models.UserStatu
 }
 
 // AfterLive is the ack handler's hook: it runs the kind's AfterLiveHook, if it has one, when a row goes DEPLOYED.
-func (c *Core) AfterLive() repositories.AfterLiveFunc {
+func (c *Core) AfterLive() gwrepo.AfterLiveFunc {
 	return func(ctx context.Context, tx *gorm.DB, p models.Placement, deploymentID uuid.UUID) error {
 		hook, ok := c.byArtifact[p.Kind].(AfterLiveHook)
 		if !ok {
@@ -434,7 +434,7 @@ func (c *Core) renderClaim(ctx context.Context, claim models.ClaimedRender) erro
 		reason := fmt.Sprintf("no reconciler for artifact kind %q", claim.Kind)
 		log.Warn("Leaving an owed render of an unregistered kind for later")
 		return c.superseded(log, c.repo.RecordRenderOutcome(ctx, claim,
-			repositories.RenderOutcome{Outcome: repositories.RenderWaiting, Reason: reason, NextAttemptAt: &next}))
+			gwrepo.RenderOutcome{Outcome: gwrepo.RenderWaiting, Reason: reason, NextAttemptAt: &next}))
 	}
 
 	renderCtx, cancel := context.WithTimeout(ctx, c.cfg.Lease/2)
@@ -461,7 +461,7 @@ func (c *Core) renderClaim(ctx context.Context, claim models.ClaimedRender) erro
 }
 
 func (c *Core) superseded(log *slog.Logger, err error) error {
-	if errors.Is(err, repositories.ErrRenderSuperseded) {
+	if errors.Is(err, gwrepo.ErrRenderSuperseded) {
 		log.Info("Render superseded by a newer request, restore or undeploy; dropping it")
 		return nil
 	}

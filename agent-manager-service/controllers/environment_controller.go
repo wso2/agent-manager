@@ -33,7 +33,6 @@ import (
 type EnvironmentController interface {
 	GetEnvironment(w http.ResponseWriter, r *http.Request)
 	ListEnvironments(w http.ResponseWriter, r *http.Request)
-	GetEnvironmentGateways(w http.ResponseWriter, r *http.Request)
 	ListThunderInstances(w http.ResponseWriter, r *http.Request)
 }
 
@@ -48,7 +47,7 @@ func NewEnvironmentController(environmentService services.EnvironmentService) En
 	}
 }
 
-func handleEnvironmentErrors(w http.ResponseWriter, err error, fallbackMsg string) {
+func HandleEnvironmentErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
@@ -73,7 +72,7 @@ func (c *environmentController) GetEnvironment(w http.ResponseWriter, r *http.Re
 	env, err := c.environmentService.GetEnvironment(ctx, ouID, envID)
 	if err != nil {
 		log.Error("GetEnvironment: failed to get environment", "error", err)
-		handleEnvironmentErrors(w, err, "Failed to get environment")
+		HandleEnvironmentErrors(w, err, "Failed to get environment")
 		return
 	}
 
@@ -115,33 +114,6 @@ func (c *environmentController) ListEnvironments(w http.ResponseWriter, r *http.
 	}
 
 	utils.WriteSuccessResponse(w, http.StatusOK, specEnvs)
-}
-
-func (c *environmentController) GetEnvironmentGateways(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	envID := r.PathValue("envID")
-
-	gatewayList, err := c.environmentService.GetEnvironmentGateways(ctx, ouID, envID)
-	if err != nil {
-		log.Error("GetEnvironmentGateways: failed to get gateways", "error", err)
-		handleEnvironmentErrors(w, err, "Failed to get environment gateways")
-		return
-	}
-
-	// Convert to spec responses
-	specGateways := make([]spec.GatewayResponse, len(gatewayList))
-	for i, gw := range gatewayList {
-		specGateways[i] = convertToSpecGatewayResponse(&gw)
-	}
-
-	response := spec.GetEnvironmentGateways200Response{
-		Gateways: specGateways,
-	}
-
-	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
 // Helper function to get int query param with default value
@@ -218,22 +190,6 @@ func toSpecGatewayListenerSpec(l *models.GatewayListenerSpec) *spec.GatewayListe
 		return nil
 	}
 	return &spec.GatewayListenerSpec{Port: l.Port, Host: l.Host}
-}
-
-// convertToSpecGatewayResponse converts internal gateway response to spec response
-func convertToSpecGatewayResponse(gw *models.GatewayResponse) spec.GatewayResponse {
-	response := spec.GatewayResponse{
-		Uuid:        gw.UUID,
-		Name:        gw.Name,
-		DisplayName: gw.DisplayName,
-		GatewayType: canonicalGatewayType(gw.GatewayType),
-		Hosting:     spec.GatewayHosting(gw.Hosting),
-		Vhost:       gw.VHost,
-		IsCritical:  gw.IsCritical,
-		Status:      spec.GatewayStatus(gw.Status),
-	}
-
-	return response
 }
 
 func (c *environmentController) ListThunderInstances(w http.ResponseWriter, r *http.Request) {

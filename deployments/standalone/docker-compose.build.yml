@@ -2,13 +2,16 @@
 # `make up` and `make dev-up` add this file; the release bundle leaves it out.
 
 services:
+  # One image for the API and the console: the console is built into the
+  # binary from ../../console. amp-init runs the same image, so it is built
+  # once, here.
   amp-api:
-    build: ../../agent-manager-service
-  # Same image as amp-api; built here too so the dev overlay, which swaps
-  # amp-api for a source build, still has it.
+    build:
+      context: ../../agent-manager-service
+      additional_contexts:
+        console-src: ../../console
   amp-init:
-    build: ../../agent-manager-service
+    # Built by amp-api above; never pulled.
+    pull_policy: never
   amp-observer:
     build: ../../agent-manager-observer
-  amp-console:
-    build: ../../console

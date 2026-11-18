@@ -80,8 +80,11 @@ Because the process env wins, a generic variable already exported in your shell
 (`TLS_ENABLED`, `AMP_VERSION`, `API_BASE_URL`, `BASE_PATH`, ...) also changes the dev
 config. If `config.js` shows a value you didn't expect, check `env` first.
 
-Production builds don't use this: the Docker image renders `config.js` from the same
-template when nginx starts.
+Production builds don't use this: the console is embedded in the agent-manager-service
+binary, which renders `config.js` from the same template. There each `$NAME` comes from
+`CONSOLE_<NAME>` (environment, or `console:` in `amp.yaml`), else a default the service
+works out itself (its public URL, ThunderID, `AUTH_MODE`, the scopes of the active
+permissions). Which UI modules are on comes from the API (`GET /api/v1/ui-manifest`).
 
 ## Available Commands
 

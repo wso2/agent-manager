@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
 )
 
 // ErrInputNotReady matches a Render error made by InputNotReady.
@@ -61,7 +61,7 @@ func Permanent(err error) error {
 // queued, waiting or given up, and the gateway keeps what it was last sent. An inline caller is told; the worker
 // isn't, since the outcome is its whole answer.
 type RenderFailedError struct {
-	Outcome repositories.RenderOutcomeKind
+	Outcome gwrepo.RenderOutcomeKind
 	Reason  string
 	Err     error
 }
@@ -81,7 +81,7 @@ func ignoreRenderFailed(err error) error {
 // ignoreWaiting drops a render waiting for an input: the worker retries it, and it never fails a request.
 func ignoreWaiting(err error) error {
 	var failed *RenderFailedError
-	if errors.As(err, &failed) && failed.Outcome == repositories.RenderWaiting {
+	if errors.As(err, &failed) && failed.Outcome == gwrepo.RenderWaiting {
 		return nil
 	}
 	return err

@@ -87,7 +87,7 @@ see a `10.x` version).
 
 Register the agent first:
 
-1. Sign in to the console at <http://localhost:3000> as `admin` (the password is
+1. Sign in to the console at <http://localhost:9000> as `admin` (the password is
    `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
 2. Open the **Default** project, click **Add Agent**, and register an agent
    named `Weather Agent`.

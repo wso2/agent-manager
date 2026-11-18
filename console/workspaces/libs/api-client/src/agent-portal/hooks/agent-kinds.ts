@@ -68,8 +68,8 @@ export const agentKindKeys = {
 };
 
 /**
- * Agent kinds belong to the agent-portal module. Without it (turned off in
- * ui-modules.js, or not installed) every query below stays idle, wherever it
+ * Agent kinds belong to the agent-portal module. Without it (left out by the
+ * server UI manifest, or not installed) every query below stays idle, wherever it
  * is called from: pages outside the module (an agent's overview or build card
  * showing its kind) then make no agent-kind calls and get no data.
  */

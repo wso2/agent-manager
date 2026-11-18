@@ -294,7 +294,7 @@ func loadDestinations(db *gorm.DB, ds []models.EventDestination) error {
 			projects = []string{}
 		}
 		ds[i].Projects = projects
-		secret, err := getSecret(db, ds[i].SecretID)
+		secret, err := GetSecret(db, ds[i].SecretID)
 		if err != nil {
 			return err
 		}
@@ -374,10 +374,10 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 	now := dbx.Now()
 	d.CreatedAt, d.UpdatedAt = now, now
 	if d.ID == uuid.Nil {
-		d.ID = newID()
+		d.ID = NewID()
 	}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := ensureOrg(ctx, tx, d.OUID); err != nil {
+		if _, err := EnsureOrg(ctx, tx, d.OUID); err != nil {
 			return err
 		}
 		if taken, err := nameTaken(tx, d); err != nil || taken {
@@ -386,7 +386,7 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 			}
 			return err
 		}
-		secretID, err := putSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, string(d.SecretEncrypted))
+		secretID, err := PutSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, string(d.SecretEncrypted))
 		if err != nil {
 			return err
 		}
@@ -438,7 +438,7 @@ func (r *eventRepository) UpdateDestination(
 		if !d.UpdatedAt.After(locked.UpdatedAt) {
 			d.UpdatedAt = locked.UpdatedAt.Add(time.Microsecond)
 		}
-		secretID, err := putSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, string(d.SecretEncrypted))
+		secretID, err := PutSecret(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, string(d.SecretEncrypted))
 		if err != nil {
 			return err
 		}
@@ -449,7 +449,7 @@ func (r *eventRepository) UpdateDestination(
 			return err
 		}
 		if secretID == nil {
-			if err := deleteSecret(tx, locked.SecretID); err != nil {
+			if err := DeleteSecret(tx, locked.SecretID); err != nil {
 				return err
 			}
 		}
@@ -484,7 +484,7 @@ func (r *eventRepository) DeleteDestination(ctx context.Context, ouID string, id
 			return res.Error
 		}
 		deleted = res.RowsAffected > 0
-		return deleteSecret(tx, destination.SecretID)
+		return DeleteSecret(tx, destination.SecretID)
 	})
 	if dberr.IsForeignKeyViolation(err) {
 		return false, utils.ErrEventDestinationInUse
@@ -818,7 +818,7 @@ func (r *eventRepository) CreateSubscription(
 		now := dbx.Now()
 		s.CreatedAt, s.UpdatedAt = now, now
 		if s.ID == uuid.Nil {
-			s.ID = newID()
+			s.ID = NewID()
 		}
 		if err := tx.Create(s).Error; err != nil {
 			return err
@@ -955,7 +955,7 @@ func resolveDelivery(tx *gorm.DB, d *models.EventDelivery) error {
 // insertDelivery inserts the delivery and its subscription rows unless it exists, and reports whether it did.
 func insertDelivery(tx *gorm.DB, d *models.EventDelivery) (bool, error) {
 	if d.ID == uuid.Nil {
-		d.ID = newID()
+		d.ID = NewID()
 	}
 	if err := resolveDelivery(tx, d); err != nil {
 		return false, err

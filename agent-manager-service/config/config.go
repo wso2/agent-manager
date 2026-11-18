@@ -43,6 +43,9 @@ type Config struct {
 	// CORSAllowedOrigin is the single allowed origin for CORS; use "*" to allow all
 	CORSAllowedOrigin string
 
+	// ConsoleEnabled serves the embedded console from the API port (CONSOLE_ENABLED).
+	ConsoleEnabled bool
+
 	// OpenTelemetry configuration
 	OTEL OTELConfig
 
@@ -58,6 +61,9 @@ type Config struct {
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+	// DefaultOrg is the organization created at startup, so a fresh install
+	// lists one before anything has been written to it.
+	DefaultOrg DefaultOrgConfig
 	// DefaultGateway is the gateway registered from configuration at startup.
 	DefaultGateway DefaultGatewayConfig
 	// OtelIngest is the trace-ingest API pushed to every gateway.
@@ -638,6 +644,14 @@ type ResourceLimitsConfig struct {
 	MaxCPU string
 	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
 	MaxMemory string
+}
+
+// DefaultOrgConfig names the organization created at startup, with its default environment. An empty
+// OUID turns it off.
+type DefaultOrgConfig struct {
+	// OUID and Handle are the Thunder OU the organization stands for.
+	OUID   string
+	Handle string
 }
 
 // DefaultGatewayConfig registers one gateway at startup, so a bundled gateway connects with no manual

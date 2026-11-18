@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
 )
 
 var claimedAt = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)
@@ -42,7 +42,7 @@ func TestRenderOutcomeWaitingBacksOffToTheCap(t *testing.T) {
 	for range 10 {
 		outcome := renderOutcome(notReady, "waiting for the agent's endpoint", claimAfter(29, lastDelay), 30)
 
-		assert.Equal(t, repositories.RenderWaiting, outcome.Outcome, "never given up, whatever the attempt count")
+		assert.Equal(t, gwrepo.RenderWaiting, outcome.Outcome, "never given up, whatever the attempt count")
 		assert.Equal(t, "waiting for the agent's endpoint", outcome.Reason)
 		lastDelay = outcome.NextAttemptAt.Sub(claimedAt)
 		delays = append(delays, lastDelay)
@@ -59,18 +59,18 @@ func TestRenderOutcomeTransientErrorSpendsTheBudget(t *testing.T) {
 	transient := errors.New("connection reset")
 
 	first := renderOutcome(transient, "connection reset", claimAfter(0, 0), 30)
-	assert.Equal(t, repositories.RenderRetry, first.Outcome)
+	assert.Equal(t, gwrepo.RenderRetry, first.Outcome)
 	assert.Equal(t, claimedAt.Add(5*time.Second), *first.NextAttemptAt)
 
-	assert.Equal(t, repositories.RenderRetry, renderOutcome(transient, "", claimAfter(28, 0), 30).Outcome)
+	assert.Equal(t, gwrepo.RenderRetry, renderOutcome(transient, "", claimAfter(28, 0), 30).Outcome)
 	last := renderOutcome(transient, "connection reset", claimAfter(29, 0), 30)
-	assert.Equal(t, repositories.RenderGiveUp, last.Outcome)
+	assert.Equal(t, gwrepo.RenderGiveUp, last.Outcome)
 	assert.Equal(t, "connection reset", last.Reason)
 }
 
 func TestRenderOutcomePermanentGivesUpAtOnce(t *testing.T) {
 	outcome := renderOutcome(Permanent(errors.New("invalid policy")), "invalid policy", claimAfter(0, 0), 30)
-	assert.Equal(t, repositories.RenderGiveUp, outcome.Outcome)
+	assert.Equal(t, gwrepo.RenderGiveUp, outcome.Outcome)
 }
 
 type describingKind struct{ Kind }

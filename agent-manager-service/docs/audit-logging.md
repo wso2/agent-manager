@@ -311,6 +311,8 @@ The operations below emit a record describing what actually changed, not just th
 | Git secrets | `git-secret:create` / `:delete` | Fail-closed |
 | Gateway tokens | `gateway-token:rotate` / `:revoke` | Fail-closed |
 | Agent tokens | `agent-token:mint`, `agent-token:regenerate-tracing` | Fail-closed |
+| Module workloads | `workload-credential:issue`, `workload-token:exchange` | Fail-closed |
+| Module workloads | `workload-credential:revoke` | Fail-open |
 | Agent OAuth identity | `agent-identity:provision` / `:regenerate-secret` / `:revoke-secret` / `:retry-provisioning` | Fail-closed |
 | Agent OAuth identity | `system:agent-identity-provisioned` / `system:agent-identity-exhausted` (reconciler, system actor) | Fail-open |
 | Env identity credential | `service-account:configure` / `:remove` | Fail-closed |
@@ -355,6 +357,9 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `agent-token:mint` | credential | 4 critical | `agentName`, `expiresIn` |
 | `agent-token:regenerate-tracing` | credential | 4 critical | `agentName` |
 | `agent:build` | deployment | 2 notice | `agentName`, `buildName`, `commitId` |
+| `workload-credential:issue` | credential | 4 critical | `module`, `subject`, `scopes` |
+| `workload-credential:revoke` | credential | 4 critical | `module` |
+| `workload-token:exchange` | credential | 4 critical | `module`, `credentialId`, `expiresIn` |
 | `agent:change-deployment-state` | deployment | 3 warning | `agentName`, `environment`, `toState` |
 | `agent:create` | config | 2 notice | `agentName`, `agentType` |
 | `agent:delete` | config | 3 warning | `agentName` |

@@ -1,0 +1,87 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package legacyapi
+
+import (
+	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+)
+
+func route(method, path string) string {
+	return method + " " + path
+}
+
+func registerMonitorScoreRoutes(rr *middleware.RouteRegistrar) {
+	agentBase := "/orgs/{orgName}/projects/{projName}/agents/{agentName}"
+	monitorBase := agentBase + "/monitors/{monitorName}"
+
+	// GET .../monitors/{monitorName}/scores - Get scores for a monitor (time-range based)
+	// Query params: startTime, endTime, evaluator (optional), level (optional), span_type (optional)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores"), rbac.MonitorScoreRead, notImplemented)
+
+	// GET .../monitors/{monitorName}/runs/{runId}/scores - Get per-run aggregated scores
+	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/runs/{runId}/scores"), rbac.MonitorScoreRead, notImplemented)
+
+	// GET .../monitors/{monitorName}/scores/breakdown - Get scores grouped by span label (agent/LLM breakdown)
+	// Query params: startTime, endTime, level (required: "agent" or "llm")
+	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores/breakdown"), rbac.MonitorScoreRead, notImplemented)
+
+	// GET .../monitors/{monitorName}/scores/timeseries - Get time-series data for an evaluator
+	// Query params: startTime, endTime, evaluator (required), granularity (optional: hour/day/week)
+	rr.HandleFuncWithValidationAndAuthz(route("GET", monitorBase+"/scores/timeseries"), rbac.MonitorScoreRead, notImplemented)
+
+	// GET .../agents/{agentName}/scores - Aggregated scores per trace for an agent
+	// Query params: startTime, endTime
+	rr.HandleFuncWithValidationAndAuthz(route("GET", agentBase+"/scores"), rbac.MonitorScoreRead, notImplemented)
+
+	// GET .../agents/{agentName}/traces/{traceId}/scores - Get all evaluation scores for a trace across all monitors
+	rr.HandleFuncWithValidationAndAuthz(route("GET", agentBase+"/traces/{traceId}/scores"), rbac.MonitorScoreRead, notImplemented)
+}
+
+func registerMonitorRoutes(rr *middleware.RouteRegistrar) {
+	base := "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors"
+
+	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors - List all monitors
+	rr.HandleFuncWithValidationAndAuthz(route("GET", base), rbac.MonitorRead, notImplemented)
+
+	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors - Create a new evaluation monitor
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base), rbac.MonitorCreate, notImplemented)
+
+	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Get a specific monitor
+	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}"), rbac.MonitorRead, notImplemented)
+
+	// DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Delete a monitor
+	rr.HandleFuncWithValidationAndAuthz(route("DELETE", base+"/{monitorName}"), rbac.MonitorDelete, notImplemented)
+
+	// PATCH /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName} - Update a monitor
+	rr.HandleFuncWithValidationAndAuthz(route("PATCH", base+"/{monitorName}"), rbac.MonitorUpdate, notImplemented)
+
+	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop - Stop a monitor
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/stop"), rbac.MonitorExecute, notImplemented)
+
+	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start - Start a monitor
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/start"), rbac.MonitorExecute, notImplemented)
+
+	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs - List monitor runs
+	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}/runs"), rbac.MonitorRead, notImplemented)
+
+	// POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun - Create a new run with same time parameters
+	rr.HandleFuncWithValidationAndAuthz(route("POST", base+"/{monitorName}/runs/{runId}/rerun"), rbac.MonitorExecute, notImplemented)
+
+	// GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/logs - Get monitor run logs
+	rr.HandleFuncWithValidationAndAuthz(route("GET", base+"/{monitorName}/runs/{runId}/logs"), rbac.MonitorRead, notImplemented)
+}

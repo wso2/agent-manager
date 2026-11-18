@@ -103,7 +103,7 @@ export function EnvironmentViewPage() {
   const gateways = gatewaysData?.gateways ?? [];
 
   // Thunder Id belongs to Agent Identity: skip the fetch entirely when that
-  // module is off (turned off in ui-modules.js, or not installed: its install
+  // module is off (left out by the server UI manifest, or not installed: its install
   // check is the enableAgentIdentity flag), so the hidden section costs nothing.
   const agentIdEnabled = useIsUIModuleInstalled("agent-identity") === true;
 

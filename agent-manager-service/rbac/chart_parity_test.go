@@ -32,6 +32,7 @@ package rbac
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -108,7 +109,7 @@ func TestResourceServerTreeMatchesCatalog(t *testing.T) {
 		}
 	}
 
-	diffScopeSets(t, "resource-server tree", catalogScopes(t), chartSide)
+	diffScopeSets(t, "resource-server tree", catalogScopes(t), withoutModuleOwned(chartSide))
 }
 
 // TestAdvertisedScopesMatchCatalog covers the second copy of the catalog:
@@ -148,5 +149,19 @@ func TestAdvertisedScopesMatchCatalog(t *testing.T) {
 		}
 	}
 
-	diffScopeSets(t, "OAUTH_SCOPES_SUPPORTED", catalogScopes(t), chartSide)
+	diffScopeSets(t, "OAUTH_SCOPES_SUPPORTED", catalogScopes(t), withoutModuleOwned(chartSide))
+}
+
+// withoutModuleOwned drops the permissions of resources a module owns (the
+// gateway module's gateway:*): the bootstrap and the full distribution's
+// configuration declare them, and the module, not this package, does.
+func withoutModuleOwned(chartSide map[Permission]bool) map[Permission]bool {
+	out := make(map[Permission]bool, len(chartSide))
+	for perm := range chartSide {
+		resource, _, _ := strings.Cut(string(perm), ":")
+		if !slices.Contains(moduleOwnedResources, resource) {
+			out[perm] = true
+		}
+	}
+	return out
 }

@@ -1,0 +1,6 @@
+# Build output on the host. The image builds its own console into
+# webconsole/dist (see the Dockerfile); a local `make console-embed` copy must
+# not leak into an image built with CONSOLE=none.
+webconsole/dist/
+bin/
+localdata/

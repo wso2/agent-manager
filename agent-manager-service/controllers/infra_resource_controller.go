@@ -88,7 +88,7 @@ func (c *infraResourceController) ListOrganizations(w http.ResponseWriter, r *ht
 	orgs, total, err := c.infraResourceManager.ListOrganizations(ctx, limit, offset)
 	if err != nil {
 		log.Error("ListOrganizations: failed to list organizations", "error", err)
-		handleCommonErrors(w, err, "Failed to list organizations")
+		HandleCommonErrors(w, err, "Failed to list organizations")
 		return
 	}
 
@@ -121,7 +121,7 @@ func (c *infraResourceController) GetOrganization(w http.ResponseWriter, r *http
 	org, err := c.infraResourceManager.GetOrganization(ctx, ouID)
 	if err != nil {
 		log.Error("GetOrganization: failed to get organization", "error", err)
-		handleCommonErrors(w, err, "Failed to get organization")
+		HandleCommonErrors(w, err, "Failed to get organization")
 		return
 	}
 	// The org is resolved from the token's OU, so the token's handle is its handle.
@@ -168,7 +168,7 @@ func (c *infraResourceController) ListProjects(w http.ResponseWriter, r *http.Re
 	projects, total, err := c.infraResourceManager.ListProjects(ctx, ouID, limit, offset)
 	if err != nil {
 		log.Error("ListProjects: failed to list projects", "error", err)
-		handleCommonErrors(w, err, "Failed to list projects")
+		HandleCommonErrors(w, err, "Failed to list projects")
 		return
 	}
 	projectList := utils.ConvertToProjectListResponse(projects)
@@ -211,7 +211,7 @@ func (c *infraResourceController) CreateProject(w http.ResponseWriter, r *http.R
 	project, err := c.infraResourceManager.CreateProject(ctx, ouID, payload)
 	if err != nil {
 		log.Error("CreateProject: failed to create project", "error", err)
-		handleCommonErrors(w, err, "Failed to create project")
+		HandleCommonErrors(w, err, "Failed to create project")
 		return
 	}
 	projectResponse := spec.ProjectResponse{
@@ -251,7 +251,7 @@ func (c *infraResourceController) UpdateProject(w http.ResponseWriter, r *http.R
 	project, err := c.infraResourceManager.UpdateProject(ctx, ouID, projectName, payload)
 	if err != nil {
 		log.Error("UpdateProject: failed to update project", "error", err)
-		handleCommonErrors(w, err, "Failed to update project")
+		HandleCommonErrors(w, err, "Failed to update project")
 		return
 	}
 
@@ -278,7 +278,7 @@ func (c *infraResourceController) DeleteProject(w http.ResponseWriter, r *http.R
 	err := c.infraResourceManager.DeleteProject(ctx, ouID, projectName)
 	if err != nil {
 		log.Error("DeleteProject: failed to delete project", "error", err)
-		handleCommonErrors(w, err, "Failed to delete project")
+		HandleCommonErrors(w, err, "Failed to delete project")
 		return
 	}
 	if c.eventsCleaner != nil {
@@ -326,7 +326,7 @@ func (c *infraResourceController) ListOrgEnvironments(w http.ResponseWriter, r *
 	environments, err := c.infraResourceManager.ListOrgEnvironments(ctx, ouID)
 	if err != nil {
 		log.Error("ListOrgEnvironments: failed to get environments", "error", err)
-		handleCommonErrors(w, err, "Failed to get environments")
+		HandleCommonErrors(w, err, "Failed to get environments")
 		return
 	}
 	environmentsListResponse := utils.ConvertToEnvironmentListResponse(environments)

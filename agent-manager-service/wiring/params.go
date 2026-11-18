@@ -27,18 +27,16 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
-	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/fileauth"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 )
 
 // AppParams contains all wired application dependencies
@@ -52,54 +50,20 @@ type AppParams struct {
 	OUHandleLookup middleware.OUHandleLookup
 
 	// Controllers
-	AgentController                  controllers.AgentController
-	InfraResourceController          controllers.InfraResourceController
-	AgentTokenController             controllers.AgentTokenController
-	EnvironmentController            controllers.EnvironmentController
-	GatewayController                controllers.GatewayController
-	LLMController                    controllers.LLMController
-	LLMDeploymentController          controllers.LLMDeploymentController
-	LLMProviderAPIKeyController      controllers.LLMProviderAPIKeyController
-	LLMProxyAPIKeyController         controllers.LLMProxyAPIKeyController
-	AgentAPIKeyController            controllers.AgentAPIKeyController
-	A2AAgentCardController           controllers.A2AAgentCardController
-	A2AProxyController               controllers.A2AProxyController
-	LLMProxyDeploymentController     controllers.LLMProxyDeploymentController
-	MCPProxyController               controllers.MCPProxyController
-	WebSocketController              controllers.WebSocketController
-	GatewayInternalController        controllers.GatewayInternalController
-	MonitorController                controllers.MonitorController
-	MonitorScoresController          controllers.MonitorScoresController
-	MonitorScoresPublisherController controllers.MonitorScoresPublisherController
-	EvaluatorController              controllers.EvaluatorController
-	CatalogController                controllers.CatalogController
-	AgentConfigurationController     controllers.AgentConfigurationController
-	IdentityController               controllers.IdentityController
-	MCPProxyScopeController          controllers.MCPProxyScopeController
-	AgentIdentityController          controllers.AgentIdentityController
-	EventsController                 controllers.EventsController
-	MonitorAlertController           controllers.MonitorAlertController
-	MonitorScheduler                 services.MonitorSchedulerService
-	AgentThunderReconciler           services.AgentThunderReconcilerService
-	A2ACardReconciler                services.A2ACardReconcilerService
-	DeploymentTimeoutSweeper         services.DeploymentTimeoutSweeper
-	ReconcileWorker                  *reconcile.Worker
-	DefaultGatewaySeeder             *services.DefaultGatewaySeeder
+	AgentController         controllers.AgentController
+	InfraResourceController controllers.InfraResourceController
+	AgentTokenController    controllers.AgentTokenController
+	EnvironmentController   controllers.EnvironmentController
+	IdentityController      controllers.IdentityController
+	EventsController        controllers.EventsController
+	AgentThunderReconciler  services.AgentThunderReconcilerService
 
 	// Services
-	LLMTemplateStore         *services.LLMTemplateStore
 	InfraResourceManager     services.InfraResourceManager
 	AgentManagerService      services.AgentManagerService
 	AgentTokenManagerService services.AgentTokenManagerService
 	EnvironmentService       services.EnvironmentService
 	EventDispatcher          services.EventDispatcherService
-	MonitorAlerts            services.MonitorAlertProcessor
-	// Services the MCP connection tools call directly.
-	LLMProviderService           *services.LLMProviderService
-	LLMProviderDeploymentService *services.LLMProviderDeploymentService
-	PlatformGatewayService       *services.PlatformGatewayService
-	MCPProxyService              *services.MCPProxyService
-	AgentConfigurationService    services.AgentConfigurationService
 
 	// FileAuthService backs the file-based login endpoint. It is always
 	// constructed; it reports itself disabled unless AUTH_MODE=file.
@@ -112,11 +76,15 @@ type AppParams struct {
 	// PlatformRepository stores organizations, projects, environments and agents.
 	PlatformRepository repositories.PlatformRepository
 
-	// WebSocket
-	WebSocketManager *websocket.Manager
-
-	// EventHub for cross-instance gateway event delivery
-	EventHub eventhub.EventHub
+	// What features built on the core (see package builtin) take from it.
+	Config                       *config.Config
+	EncryptionKey                []byte
+	SecretManagementClient       secretmanagersvc.SecretManagementClient
+	IdentityClient               thundersvc.IdentityClient
+	EnvThunderResolver           thundersvc.EnvThunderResolver
+	AgentConfigRepository        repositories.AgentConfigRepository
+	AgentThunderClientRepository repositories.AgentThunderClientRepository
+	AgentThunderProvisioning     services.AgentThunderProvisioningService
 
 	// Database
 	DB *gorm.DB

@@ -28,8 +28,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -40,7 +40,7 @@ func TestAssignGatewayConcurrentEnvironmentsRefused(t *testing.T) {
 	gdb := db.DB(context.Background())
 	id := seedRuntimeURLGateway(t, gdb, "env-fixed-"+uuid.NewString()[:8])
 	org := gatewayOrgOf(t, gdb, id)
-	svc := services.NewPlatformGatewayService(repositories.NewGatewayRepo(gdb), nil)
+	svc := gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(gdb), nil)
 
 	environments := []string{uuid.NewString(), uuid.NewString()}
 	for _, env := range environments {

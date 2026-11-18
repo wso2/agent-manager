@@ -8,8 +8,7 @@ AMP Lite runs as one Docker Compose stack. There is no Kubernetes or Helm.
 
 | Service | What it does | Default address |
 |---|---|---|
-| Console | Web UI | http://localhost:3000 |
-| Agent Manager API | REST API and MCP server | http://localhost:9000 |
+| Agent Manager | Console, REST API and MCP server | http://localhost:9000 |
 | ThunderID | Sign-in and agent identities | http://thunder.amp.localhost:8080 |
 | AI Gateway | Agent traffic, LLM and MCP calls, trace ingest | http://default-default.gateway.localhost:19080 |
 | Observer | Trace queries | http://localhost:9098 |
@@ -23,7 +22,7 @@ Your agents run wherever you host them. You register them in AMP, which gives ea
 
 - Docker with Compose v2: Docker Desktop, Colima or Docker Engine on Linux.
 - About 2 GB of free memory for the stack. OpenSearch uses most of it.
-- Free host ports: 3000, 8080, 9000, 9098, 9243 and 19080. Change them in `.env` if any are taken.
+- Free host ports: 8080, 9000, 9098, 9243 and 19080. Change them in `.env` if any are taken.
 - On Linux hosts, OpenSearch needs `sudo sysctl -w vm.max_map_count=262144`. Docker Desktop and Colima already set it.
 
 ## Install
@@ -69,7 +68,7 @@ The API creates and migrates its tables on every start. Switching databases late
 
 ## Sign in
 
-Open http://localhost:3000 and sign in as `admin` with the `AMP_ADMIN_PASSWORD` from `.env`.
+Open http://localhost:9000 and sign in as `admin` with the `AMP_ADMIN_PASSWORD` from `.env`.
 
 A new install has no projects. Create one with **Add project** before you register an agent.
 
