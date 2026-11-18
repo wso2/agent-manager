@@ -187,7 +187,7 @@ func TestModuleContract(t *testing.T) {
 	}
 
 	t.Run("routes of an uninstalled module are not found", func(t *testing.T) {
-		code, _ := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		code, _ := w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 	})
 
@@ -208,7 +208,7 @@ func TestModuleContract(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("routes need sign-in and the module's permission", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		code, body := w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		var who map[string]any
 		require.NoError(t, json.Unmarshal(body, &who))
@@ -219,14 +219,20 @@ func TestModuleContract(t *testing.T) {
 		assert.Equal(t, []any{project}, who["projects"])
 		assert.Equal(t, true, who["foreignNotFound"])
 
-		code, body = w.call(t, w.limited, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		code, body = w.call(t, w.limited, http.MethodGet, "/m/testmod/whoami", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		require.NoError(t, json.Unmarshal(body, &who))
 		assert.Equal(t, false, who["canWrite"])
 
-		code, _ = w.call(t, w.limited, http.MethodGet, "/api/v1/m/testmod/tags", nil)
+		code, _ = w.call(t, w.limited, http.MethodGet, "/m/testmod/tags", nil)
 		assert.Equal(t, http.StatusForbidden, code)
-		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/nosuch", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/nosuch", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+		// Module APIs live at the root, with no alias under the core's prefix,
+		// and workload routes only on the internal server.
+		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/internal/ping", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 	})
 
@@ -244,7 +250,7 @@ func TestModuleContract(t *testing.T) {
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("tagged",
 			map[string]any{"testmod": map[string]any{"tag": "blue", "announce": true}}))
 		require.Equal(t, http.StatusAccepted, code, string(body))
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/tags", nil)
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/tags", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.JSONEq(t, `[{"agent":"tagged","tag":"blue"}]`, string(body))
 	})
@@ -257,7 +263,7 @@ func TestModuleContract(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, code, string(body))
 		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/tagged", nil)
 		assert.Equal(t, http.StatusOK, code, "a refused delete keeps the agent")
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/tags", nil)
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/tags", nil)
 		require.Equal(t, http.StatusOK, code)
 		assert.JSONEq(t, `[{"agent":"tagged","tag":"undeletable"}]`, string(body), "and everything it owns")
 	})
@@ -314,7 +320,7 @@ func TestModuleContract(t *testing.T) {
 
 	t.Run("events reach every subscriber after commit, with retries", func(t *testing.T) {
 		for _, name := range []string{"w1", "flaky"} {
-			code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/widgets", map[string]any{"name": name})
+			code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/widgets", map[string]any{"name": name})
 			require.Equal(t, http.StatusCreated, code, string(body))
 		}
 		want := map[string]bool{
@@ -324,7 +330,7 @@ func TestModuleContract(t *testing.T) {
 			testmod.WidgetCreated + "/flaky": false,
 		}
 		eventually(t, "module events", func() bool {
-			code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/received", nil)
+			code, body := w.call(t, w.full, http.MethodGet, "/m/testmod/received", nil)
 			if code != http.StatusOK {
 				return false
 			}
@@ -374,21 +380,21 @@ func TestModuleContract(t *testing.T) {
 	}
 
 	t.Run("a capability resolves through the provider", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testcap/echo?s=hi", nil)
+		code, body := w.call(t, w.full, http.MethodGet, "/m/testcap/echo?s=hi", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.JSONEq(t, `{"echo":"echo:hi"}`, string(body))
 	})
 
 	t.Run("workload tokens open the module's internal routes", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/workloads", nil)
+		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/workloads", nil)
 		require.Equal(t, http.StatusCreated, code, string(body))
 		var issued struct{ Token, CredentialID, Secret string }
 		require.NoError(t, json.Unmarshal(body, &issued))
 		ping := func(token string) (int, []byte) {
 			if token == "" {
-				return w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil)
+				return w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil)
 			}
-			return w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer "+token)
+			return w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil, "Authorization", "Bearer "+token)
 		}
 		exchange := func(id, secret string) (int, []byte) {
 			return w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
@@ -436,7 +442,7 @@ func TestModuleContract(t *testing.T) {
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.Contains(t, string(body), "run:exchanged")
 
-		code, body = w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/workloads/revoke", map[string]string{"credentialId": issued.CredentialID})
+		code, body = w.call(t, w.full, http.MethodPost, "/m/testmod/workloads/revoke", map[string]string{"credentialId": issued.CredentialID})
 		require.Equal(t, http.StatusNoContent, code, string(body))
 		code, _ = exchange(issued.CredentialID, issued.Secret)
 		assert.Equal(t, http.StatusUnauthorized, code, "a revoked credential")
@@ -445,21 +451,21 @@ func TestModuleContract(t *testing.T) {
 	})
 
 	t.Run("disabling a module removes its routes at once", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/workloads", nil)
+		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/workloads", nil)
 		require.Equal(t, http.StatusCreated, code, string(body))
 		var issued struct{ Token, CredentialID, Secret string }
 		require.NoError(t, json.Unmarshal(body, &issued))
 
 		require.NoError(t, w.host.Disable(ctx, testmod.ConsumerName))
-		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testcap/echo?s=hi", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testcap/echo?s=hi", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		require.NoError(t, w.host.Disable(ctx, testmod.Name))
-		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("late", map[string]any{"testmod": map[string]any{"tag": "x"}}))
 		assert.Equal(t, http.StatusBadRequest, code, string(body))
 
-		code, _ = w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer "+issued.Token)
+		code, _ = w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil, "Authorization", "Bearer "+issued.Token)
 		assert.Equal(t, http.StatusNotFound, code)
 		code, _ = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
 			map[string]string{"credentialId": issued.CredentialID, "secret": issued.Secret})

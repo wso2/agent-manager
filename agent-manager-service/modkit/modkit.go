@@ -368,14 +368,15 @@ type Runtime interface {
 	// joined with "." ("limits.max"); "" when unset.
 	Config(key string) string
 
-	// Handle mounts an API route at /api/v1/m/<module><path>, behind the same
+	// Handle mounts an API route at /m/<module><path> on the API port, beside
+	// the core's /api/v1, behind the same
 	// sign-in, permission check and audit trail as the core's routes. path is
 	// a net/http pattern path ("/widgets/{id}"). perm is one of the module's
 	// permissions (as named in its manifest) or a core permission; "" means
 	// any signed-in user of the organization, which only reads may use.
 	Handle(method, path, perm string, h http.HandlerFunc)
 	// HandleInternal mounts a route for the module's workloads at
-	// /api/internal/v1/m/<module><path> on the internal server. Callers
+	// /m/<module>/internal<path> on the internal server. Callers
 	// present a token from IssueToken (or exchanged for a workload
 	// credential) that carries scope.
 	HandleInternal(method, path, scope string, h http.HandlerFunc)

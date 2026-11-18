@@ -63,9 +63,10 @@ func MakeHTTPHandlerWithMiddleware(params *wiring.AppParams, extraAPIRoutes func
 
 // Modules serves the routes of the active modules.
 type Modules interface {
-	// ServeAPI serves /api/v1/m/<module>/..., behind sign-in.
+	// ServeAPI serves /m/<module>/... on the API port, behind sign-in.
 	ServeAPI() http.Handler
-	// ServeInternal serves /api/internal/v1/m/<module>/... for module workloads.
+	// ServeInternal serves /m/<module>/internal/... on the internal server,
+	// for module workloads.
 	ServeInternal() http.Handler
 	// ServeTokenExchange serves POST /api/internal/v1/workload-tokens.
 	ServeTokenExchange() http.Handler
@@ -141,27 +142,19 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 		ui = src
 	}
 	registerUIManifestRoute(rr, ui)
-	if modules != nil {
-		// The module is looked up on every request, so enabling or disabling
-		// one changes these routes without a restart.
-		apiMux.Handle("/m/", modules.ServeAPI())
-	}
 	if extraAPIRoutes != nil {
 		extraAPIRoutes(apiMux, params)
 	}
 
-	// Apply middleware in reverse order (last middleware is applied first)
-	apiHandler := http.Handler(apiMux)
-	if apiMiddleware != nil {
-		apiHandler = apiMiddleware(apiMux)
+	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", signedIn(params, apiMux, apiMiddleware)))
+	if modules != nil {
+		// Module APIs live beside the core's, at /m/<module>, behind the same
+		// chain. The module is looked up on every request, so enabling or
+		// disabling one changes these routes without a restart.
+		moduleMux := http.NewServeMux()
+		moduleMux.Handle("/m/", modules.ServeAPI())
+		mux.Handle("/m/", signedIn(params, moduleMux, apiMiddleware))
 	}
-	apiHandler = params.AuthMiddleware(apiHandler)
-	apiHandler = logger.RequestLogger()(apiHandler)
-	apiHandler = middleware.AddCorrelationID()(apiHandler)
-	apiHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(apiHandler)
-	apiHandler = middleware.RecovererOnPanic()(apiHandler)
-
-	mux.Handle("/api/v1/", http.StripPrefix("/api/v1", apiHandler))
 
 	// The console, at the root: its files, its runtime config and, for any
 	// other path, its index page. Every API path above is more specific.
@@ -170,6 +163,32 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	}
 
 	return mux
+}
+
+// signedIn wraps an API mux in the chain every signed-in API route gets.
+// Middleware is applied in reverse order (the last one runs first).
+func signedIn(params *wiring.AppParams, apiMux *http.ServeMux, apiMiddleware func(*http.ServeMux) http.Handler) http.Handler {
+	h := http.Handler(apiMux)
+	if apiMiddleware != nil {
+		h = apiMiddleware(apiMux)
+	}
+	h = params.AuthMiddleware(h)
+	h = logger.RequestLogger()(h)
+	h = middleware.AddCorrelationID()(h)
+	h = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(h)
+	return middleware.RecovererOnPanic()(h)
+}
+
+// internalChain wraps an internal-server mux: no JWT, the routes authenticate
+// themselves. The audit recorder covers what the route registrar does not —
+// the WebSocket upgrade, and the handler-level emits for api-key rejections,
+// which happen before any route wrapper could see them.
+func internalChain(params *wiring.AppParams, internalMux *http.ServeMux) http.Handler {
+	h := middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceInternal)(internalMux)
+	h = logger.RequestLogger()(h)
+	h = middleware.AddCorrelationID()(h)
+	h = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(h)
+	return middleware.RecovererOnPanic()(h)
 }
 
 // MakeInternalHTTPHandler creates the internal HTTPS server handler
@@ -198,23 +217,15 @@ func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Module
 	internalRR := middleware.NewInternalRouteRegistrar(internalMux, params.AuditRecorder)
 	bundles.InternalRoutes(internalRR, internalMux)
 	if modules != nil {
-		internalMux.Handle("/m/", modules.ServeInternal())
 		internalMux.Handle("POST /workload-tokens", modules.ServeTokenExchange())
 	}
-
-	// Apply basic middleware (no JWT auth)
-	internalHandler := http.Handler(internalMux)
-	// The registrar above audits the routes it owns. This installs the recorder
-	// for everything else on the internal chain — the WebSocket upgrade, and the
-	// handler-level emits for api-key rejections, which happen before any route
-	// wrapper could see them.
-	internalHandler = middleware.WithAuditRecorder(params.AuditRecorder, audit.SurfaceInternal)(internalHandler)
-	internalHandler = logger.RequestLogger()(internalHandler)
-	internalHandler = middleware.AddCorrelationID()(internalHandler)
-	internalHandler = middleware.CORS(config.GetConfig().CORSAllowedOrigin)(internalHandler)
-	internalHandler = middleware.RecovererOnPanic()(internalHandler)
-
-	mux.Handle("/api/internal/v1/", http.StripPrefix("/api/internal/v1", internalHandler))
+	mux.Handle("/api/internal/v1/", http.StripPrefix("/api/internal/v1", internalChain(params, internalMux)))
+	if modules != nil {
+		// Module workload routes, at /m/<module>/internal/...
+		moduleMux := http.NewServeMux()
+		moduleMux.Handle("/m/", modules.ServeInternal())
+		mux.Handle("/m/", internalChain(params, moduleMux))
+	}
 
 	return mux
 }

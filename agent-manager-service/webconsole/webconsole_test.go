@@ -58,6 +58,7 @@ func TestHandlerServesFilesAndFallsBackToIndex(t *testing.T) {
 		{"/api/unknown", "", "", 404},
 		{"/auth/whatever", "", "", 404},
 		{"/mcp", "", "", 404},
+		{"/m/nosuch/things", "", "", 404},
 	}
 	for _, c := range cases {
 		rec := get(t, h, c.path)

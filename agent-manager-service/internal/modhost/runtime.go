@@ -124,6 +124,10 @@ func (r *runtime) Handle(method, path, perm string, h http.HandlerFunc) {
 		r.fail(err)
 		return
 	}
+	if path == "/internal" || strings.HasPrefix(path, "/internal/") {
+		r.fail(fmt.Errorf("Handle %s %s: /m/%s/internal belongs to the module's workload routes (HandleInternal)", method, path, r.name))
+		return
+	}
 	full := rbac.Permission("")
 	if perm != "" {
 		var err error

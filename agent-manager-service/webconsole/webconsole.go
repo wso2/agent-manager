@@ -44,7 +44,7 @@ func Embedded() bool { return dist() != nil }
 
 // reserved paths belong to the API; the console never answers them, so a
 // typo in an API path is a 404 rather than the console's index page.
-var reserved = []string{"/api/", "/auth/", "/mcp", "/.well-known/", "/healthz"}
+var reserved = []string{"/api/", "/m/", "/auth/", "/mcp", "/.well-known/", "/healthz"}
 
 // Handler serves the console: files from the build, config.js rendered from
 // the configuration, and index.html for every other path (client-side routes).

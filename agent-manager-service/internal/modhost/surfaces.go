@@ -45,9 +45,12 @@ type Route struct {
 	Handler http.HandlerFunc
 }
 
-// Pattern is the route's net/http pattern on the API mux, below /api/v1 or
-// /api/internal/v1.
+// Pattern is the route's net/http pattern: /m/<module><path> on the API port,
+// or /m/<module>/internal<path> on the internal server.
 func (r Route) Pattern() string {
+	if r.Scope != "" {
+		return r.Method + " /m/" + r.Module + "/internal" + r.Path
+	}
 	return r.Method + " /m/" + r.Module + r.Path
 }
 
@@ -177,8 +180,8 @@ func moduleOf(path string) string {
 	return name
 }
 
-// ServeAPI serves module routes, mounted at /m/ on the API mux (below
-// /api/v1, behind sign-in). It resolves the module against the current
+// ServeAPI serves module routes, mounted at /m/ on the API port, behind
+// sign-in. It resolves the module against the current
 // snapshot on every request, so a disabled module's routes are gone at once.
 func (h *Host) ServeAPI() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -192,7 +195,7 @@ func (h *Host) ServeAPI() http.Handler {
 }
 
 // ServeInternal serves module workload routes, mounted at /m/ on the internal
-// API mux (below /api/internal/v1).
+// server: /m/<module>/internal/...
 func (h *Host) ServeInternal() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mux := h.current().internal[moduleOf(r.URL.Path)]

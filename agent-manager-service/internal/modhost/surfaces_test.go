@@ -224,12 +224,13 @@ func operationSnapshotCopiesAndGuard(t *testing.T, d database) {
 func TestRegistrationsThatFailActivation(t *testing.T) {
 	ok := func(http.ResponseWriter, *http.Request) {}
 	cases := map[string]func(rt modkit.Runtime){
-		"unknown permission":       func(rt modkit.Runtime) { rt.Handle(http.MethodGet, "/x", "nope:read", ok) },
-		"write without permission": func(rt modkit.Runtime) { rt.Handle(http.MethodDelete, "/x", "", ok) },
-		"bad method":               func(rt modkit.Runtime) { rt.Handle("TRACE", "/x", "", ok) },
-		"internal without scope":   func(rt modkit.Runtime) { rt.HandleInternal(http.MethodGet, "/x", "", ok) },
-		"hook on a project":        func(rt modkit.Runtime) { rt.Hook("project", modkit.Validate, nil) },
-		"unknown event":            func(rt modkit.Runtime) { rt.Subscribe("nobody.declares", nil) },
+		"unknown permission":           func(rt modkit.Runtime) { rt.Handle(http.MethodGet, "/x", "nope:read", ok) },
+		"write without permission":     func(rt modkit.Runtime) { rt.Handle(http.MethodDelete, "/x", "", ok) },
+		"bad method":                   func(rt modkit.Runtime) { rt.Handle("TRACE", "/x", "", ok) },
+		"internal without scope":       func(rt modkit.Runtime) { rt.HandleInternal(http.MethodGet, "/x", "", ok) },
+		"public route under /internal": func(rt modkit.Runtime) { rt.Handle(http.MethodGet, "/internal/x", "", ok) },
+		"hook on a project":            func(rt modkit.Runtime) { rt.Hook("project", modkit.Validate, nil) },
+		"unknown event":                func(rt modkit.Runtime) { rt.Subscribe("nobody.declares", nil) },
 	}
 	for name, register := range cases {
 		t.Run(name, func(t *testing.T) {
