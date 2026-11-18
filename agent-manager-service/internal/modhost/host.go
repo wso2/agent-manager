@@ -431,6 +431,9 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 	if mf.CoreAPI != modkit.CoreAPIVersion {
 		return fmt.Errorf("targets core API v%d, this core implements v%d", mf.CoreAPI, modkit.CoreAPIVersion)
 	}
+	if err := checkWorkloads(mf); err != nil {
+		return err
+	}
 	for _, c := range mf.Requires {
 		if _, ok := v.caps[c]; !ok {
 			return fmt.Errorf("required capability %s is not provided by an active module", c)
@@ -469,6 +472,9 @@ func (h *Host) commit(rt *runtime, v *view) error {
 		return err
 	}
 	if err := declare(v.perms.Clone(), rt.mf); err != nil {
+		return err
+	}
+	if err := checkEndpoints(rt.mf, rt.internal); err != nil {
 		return err
 	}
 	d := h.deps()

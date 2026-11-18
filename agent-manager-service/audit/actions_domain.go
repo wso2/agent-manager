@@ -266,17 +266,23 @@ func init() {
 		"expiresIn": KindCount,
 	})
 	registerCredential(ActionWorkloadCredentialIssue, map[string]FieldKind{
-		"module":  KindName,
-		"subject": KindIdentifier,
-		"scopes":  KindNameList,
+		"module":   KindName,
+		"workload": KindName,
+		"subject":  KindIdentifier,
 	})
 	registerCredential(ActionWorkloadCredentialRevoke, map[string]FieldKind{
 		"module": KindName,
 	})
+	// A workload heartbeat: the first token of a new instance, or a refusal
+	// (reason is the error code). Refreshes of a known instance are not
+	// recorded.
 	registerCredential(ActionWorkloadTokenExchange, map[string]FieldKind{
 		"module":       KindName,
+		"workload":     KindName,
+		"instance":     KindName,
 		"credentialId": KindIdentifier,
 		"expiresIn":    KindCount,
+		"reason":       KindEnum,
 	})
 	registerCredential(ActionAgentTokenRegenerateTracing, map[string]FieldKind{
 		"agentName": KindName,

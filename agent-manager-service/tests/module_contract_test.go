@@ -498,14 +498,14 @@ func TestModuleContract(t *testing.T) {
 			}
 			return w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil, "Authorization", "Bearer "+token)
 		}
-		exchange := func(id, secret string) (int, []byte) {
-			return w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
-				map[string]string{"credentialId": id, "secret": secret})
+		heartbeat := func(credential, protocol string) (int, []byte) {
+			return w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workloads/heartbeat",
+				map[string]string{"credential": credential, "protocol": protocol, "instance": "pinger-0", "version": "test"})
 		}
 
 		code, body = ping(issued.Token)
 		require.Equal(t, http.StatusOK, code, string(body))
-		assert.JSONEq(t, fmt.Sprintf(`{"subject":"run:direct","orgId":%q}`, w.org), string(body))
+		assert.JSONEq(t, fmt.Sprintf(`{"subject":"run:direct","orgId":%q,"workload":"","instance":""}`, w.org), string(body))
 
 		code, _ = ping("")
 		assert.Equal(t, http.StatusUnauthorized, code)
@@ -534,22 +534,41 @@ func TestModuleContract(t *testing.T) {
 		code, _ = ping(agentToken.Token)
 		assert.Equal(t, http.StatusUnauthorized, code, "an agent token")
 
-		code, _ = exchange(issued.CredentialID, "wrong")
+		code, body = heartbeat(issued.CredentialID+".wrong", testmod.PingerProtocol)
 		assert.Equal(t, http.StatusUnauthorized, code)
-		code, body = exchange(issued.CredentialID, issued.Secret)
+		assert.Contains(t, string(body), `"error":"invalid_credential"`)
+		code, body = heartbeat(issued.Secret, "testmod-ping/v0")
+		assert.Equal(t, http.StatusConflict, code, "a protocol the module does not accept")
+		assert.Contains(t, string(body), `"error":"unsupported_protocol"`)
+		code, body = heartbeat(issued.Secret, testmod.OldPingerProtocol)
 		require.Equal(t, http.StatusOK, code, string(body))
-		var exchanged modhost.TokenExchangeResponse
-		require.NoError(t, json.Unmarshal(body, &exchanged))
-		code, body = ping(exchanged.Token)
+		var hb modhost.HeartbeatResponse
+		require.NoError(t, json.Unmarshal(body, &hb))
+		assert.Equal(t, testmod.Name, hb.Module)
+		assert.Equal(t, testmod.Pinger, hb.Workload)
+		assert.Equal(t, map[string]string{
+			"rest":   "http://example.com/m/testmod/internal",
+			"events": "ws://example.com/m/testmod/internal/events",
+		}, hb.Endpoints)
+		code, body = ping(hb.Token)
 		require.Equal(t, http.StatusOK, code, string(body))
-		assert.Contains(t, string(body), "run:exchanged")
+		assert.JSONEq(t, `{"subject":"pinger:issued","orgId":"`+w.org+`","workload":"pinger","instance":"pinger-0"}`, string(body))
+
+		hl, err := w.host.Health(ctx, testmod.Name)
+		require.NoError(t, err)
+		assert.Equal(t, modhost.HealthOK, hl.Status, hl.Reasons)
+		assert.Equal(t, map[string]any{"pings": "counted elsewhere"}, hl.Detail)
 
 		code, body = w.call(t, w.full, http.MethodPost, "/m/testmod/workloads/revoke", map[string]string{"credentialId": issued.CredentialID})
 		require.Equal(t, http.StatusNoContent, code, string(body))
-		code, _ = exchange(issued.CredentialID, issued.Secret)
+		code, body = heartbeat(issued.Secret, testmod.PingerProtocol)
 		assert.Equal(t, http.StatusUnauthorized, code, "a revoked credential")
+		assert.Contains(t, string(body), `"error":"invalid_credential"`)
+		hl, err = w.host.Health(ctx, testmod.Name)
+		require.NoError(t, err)
+		assert.Equal(t, modhost.HealthDegraded, hl.Status, "the required pinger is gone")
 
-		assertIssuerSeparation(t, w, exchanged.Token)
+		assertIssuerSeparation(t, w, hb.Token)
 	})
 
 	t.Run("disabling a module removes its routes at once", func(t *testing.T) {
@@ -567,8 +586,9 @@ func TestModuleContract(t *testing.T) {
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("late", map[string]any{"testmod": map[string]any{"tag": "x"}}))
 		assert.Equal(t, http.StatusBadRequest, code, string(body))
 
-		code, _ = w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil, "Authorization", "Bearer "+issued.Token)
-		assert.Equal(t, http.StatusNotFound, code)
+		code, body = w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil, "Authorization", "Bearer "+issued.Token)
+		assert.Equal(t, http.StatusUnauthorized, code, "workloads of an inactive module stand by")
+		assert.Contains(t, string(body), `"error":"module_inactive"`)
 		code, _ = w.call(t, w.internal, http.MethodGet, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
 		assert.Equal(t, http.StatusNotFound, code, "a disabled module's fixed internal routes are gone")
 		assert.Zero(t, testmod.WorkerRunning.Load(), "and its workers stopped")
@@ -576,9 +596,10 @@ func TestModuleContract(t *testing.T) {
 		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.NotContains(t, string(body), testmod.WidgetArchived, "and its webhook events")
-		code, _ = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
-			map[string]string{"credentialId": issued.CredentialID, "secret": issued.Secret})
+		code, body = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workloads/heartbeat",
+			map[string]string{"credential": issued.Secret, "protocol": testmod.PingerProtocol})
 		assert.Equal(t, http.StatusUnauthorized, code, "a credential of an inactive module")
+		assert.Contains(t, string(body), `"error":"module_inactive"`)
 	})
 }
 

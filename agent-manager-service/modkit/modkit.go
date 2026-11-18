@@ -92,6 +92,63 @@ type Manifest struct {
 	AuditActions []AuditAction `json:"auditActions,omitempty"`
 
 	UI *UI `json:"ui,omitempty"`
+
+	// Workloads are the parts of the module that run outside the core
+	// binary, such as a gateway runtime or a worker pool. They talk to the
+	// module only over its internal routes (HandleInternal), with tokens
+	// the core issues.
+	Workloads []WorkloadSpec `json:"workloads,omitempty"`
+}
+
+// WorkloadKind says how a workload runs.
+type WorkloadKind string
+
+const (
+	// WorkloadService is long-running. Its instances heartbeat to the core,
+	// which records them for module health and hands each a fresh token.
+	WorkloadService WorkloadKind = "service"
+	// WorkloadJob runs once per unit of work, started by the module or
+	// another workload. Jobs get tokens from IssueToken, not credentials.
+	WorkloadJob WorkloadKind = "job"
+)
+
+// WorkloadSpec declares one of the module's workloads. (Workload is the
+// caller of an internal route.)
+type WorkloadSpec struct {
+	// Name is lowercase letters, digits and dashes ("gateway-controller").
+	Name string       `json:"name"`
+	Kind WorkloadKind `json:"kind"`
+	// Trusted workloads run first-party code only; untrusted ones run user
+	// code and must be isolated by the platform.
+	Trusted bool `json:"trusted"`
+	// Image is the image this module version expects, if it ships one.
+	Image string `json:"image,omitempty"`
+	// Scopes are the module-local scopes the workload's tokens carry.
+	Scopes []string `json:"scopes"`
+	// Protocols this module version accepts in the workload's heartbeats,
+	// newest first. A service names at least one.
+	Protocols []string `json:"protocols,omitempty"`
+	// Required services make the module "degraded" while no instance is
+	// connected.
+	Required bool `json:"required,omitempty"`
+	// Endpoints are internal routes of the module the workload uses, besides
+	// "rest", the module's internal root, which is reported whenever the
+	// module has internal routes. The heartbeat response gives each as an
+	// absolute URL, so a workload is configured with only the heartbeat URL
+	// and its credential.
+	Endpoints   []Endpoint `json:"endpoints,omitempty"`
+	Description string     `json:"description,omitempty"`
+}
+
+// Endpoint is a named internal route of the module.
+type Endpoint struct {
+	// Name is lowercase letters, digits and dashes; "rest" is reserved.
+	Name string `json:"name"`
+	// Path is a route path the module registers with HandleInternal
+	// ("/ws/gateways/connect").
+	Path string `json:"path"`
+	// WebSocket endpoints are reported with a ws or wss scheme.
+	WebSocket bool `json:"websocket,omitempty"`
 }
 
 // PermissionName is the full name of one of the module's permissions:
@@ -418,8 +475,8 @@ type Runtime interface {
 	Handle(method, path, perm string, h http.HandlerFunc, opts ...RouteOption)
 	// HandleInternal mounts a route for the module's workloads at
 	// /m/<module>/internal<path> on the internal server. Callers present a
-	// token from IssueToken (or exchanged for a workload credential) that
-	// carries scope.
+	// token from IssueToken or from a heartbeat that carries scope. While
+	// the module is inactive they answer 401.
 	HandleInternal(method, path, scope string, h http.HandlerFunc, opts ...RouteOption)
 	// HandleInternalAt mounts a route at a fixed path under /api/internal/v1
 	// on the internal server ("/api/internal/v1/things"), served only while
@@ -452,8 +509,10 @@ type Runtime interface {
 	// IssueToken mints a short-lived token for one of the module's workloads,
 	// signed with the core's key and verifiable with its JWKS.
 	IssueToken(ctx context.Context, req TokenRequest) (string, error)
-	// IssueCredential creates a credential a workload exchanges for a token at
-	// POST /api/internal/v1/workload-tokens. The secret is returned only here.
+	// IssueCredential creates a credential for one of the module's service
+	// workloads, which presents it in its heartbeats to
+	// POST /api/internal/v1/workloads/heartbeat. The secret is returned only
+	// here.
 	IssueCredential(ctx context.Context, req CredentialRequest) (Credential, error)
 	// RevokeCredential revokes one of the module's credentials.
 	RevokeCredential(ctx context.Context, id string) error
@@ -488,29 +547,35 @@ type TokenRequest struct {
 	Claims  map[string]string // extra string claims
 }
 
-// CredentialRequest describes a workload credential. Tokens exchanged for it
-// carry its subject, organization and scopes.
+// CredentialRequest describes a workload credential. Tokens issued on its
+// heartbeats carry its subject and organization, and the scopes the
+// workload declares.
 type CredentialRequest struct {
-	Subject string
-	OrgID   string
-	Scopes  []string
-	// TTL of each exchanged token; zero means the default.
-	TokenTTL time.Duration
+	// Workload is a service workload the manifest declares.
+	Workload string
+	Subject  string
+	OrgID    string
 }
 
-// Credential is a workload credential: the id and secret a workload presents.
+// Credential is a workload credential.
 type Credential struct {
-	ID     string `json:"id"`
+	ID string `json:"id"`
+	// Secret is what the workload presents as "credential" in its
+	// heartbeats. Only a hash of it is stored.
 	Secret string `json:"secret"`
 }
 
 // Workload is the caller of an internal route, from its verified token.
 type Workload struct {
-	Module  string
-	Subject string
-	OrgID   string
-	Scopes  []string
-	Claims  map[string]string
+	Module string
+	// Name and Instance are the declared workload and the instance that
+	// heartbeated; both are empty in a token from IssueToken.
+	Name     string
+	Instance string
+	Subject  string
+	OrgID    string
+	Scopes   []string
+	Claims   map[string]string
 }
 
 type workloadKey struct{}

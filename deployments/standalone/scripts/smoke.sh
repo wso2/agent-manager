@@ -105,7 +105,7 @@ check agent-kinds "$(pick 501 404)" "$(code "${A[@]}" "$B/agent-kinds")"
 check monitors 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/monitors")"
 check evaluators 404 "$(code "${A[@]}" "$B/evaluators")"
 check module-route-404 404 "$(code "${A[@]}" "$API/m/testmod/whoami")"
-check workload-exchange-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workload-tokens" -d '{"credentialId":"x","secret":"y"}')"
+check workload-heartbeat-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workloads/heartbeat" -d '{"credential":"x.y","protocol":"p/v1"}')"
 
 check agent-delete 204 "$(code "${A[@]}" -X DELETE "$B/projects/$P/agents/$AG")"
 check agent-gone 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG")"

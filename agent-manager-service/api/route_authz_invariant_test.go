@@ -118,8 +118,8 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/"}: "routes modules mount at fixed internal paths with " +
 		"HandleInternalAt (time-boxed to wso2/agent-manager#2493); each authenticates its callers itself, as the " +
 		"gateway's internal routes do, and is audited through the internal route registrar.",
-	{"MakeInternalHTTPHandlerWithModules", "Handle", "POST /workload-tokens"}: "workload credential exchange: the caller " +
-		"authenticates with the credential's secret in the body; the exchange is audited fail-closed.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "POST /workloads/heartbeat"}: "workload heartbeat: the caller " +
+		"authenticates with the credential's secret in the body; a new instance is audited fail-closed before its first token.",
 	{"RegisterRoute", "Handle", "/mcp"}:  "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
 	{"RegisterRoute", "Handle", "/mcp/"}: "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
 }

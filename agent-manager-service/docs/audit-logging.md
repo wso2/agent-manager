@@ -355,9 +355,9 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `agent-token:mint` | credential | 4 critical | `agentName`, `expiresIn` |
 | `agent-token:regenerate-tracing` | credential | 4 critical | `agentName` |
 | `agent:build` | deployment | 2 notice | `agentName`, `buildName`, `commitId` |
-| `workload-credential:issue` | credential | 4 critical | `module`, `subject`, `scopes` |
+| `workload-credential:issue` | credential | 4 critical | `module`, `workload`, `subject` |
 | `workload-credential:revoke` | credential | 4 critical | `module` |
-| `workload-token:exchange` | credential | 4 critical | `module`, `credentialId`, `expiresIn` |
+| `workload-token:exchange` | credential | 4 critical | `module`, `workload`, `instance`, `credentialId`, `expiresIn`, `reason` |
 | `agent:change-deployment-state` | deployment | 3 warning | `agentName`, `environment`, `toState` |
 | `agent:create` | config | 2 notice | `agentName`, `agentType` |
 | `agent:delete` | config | 3 warning | `agentName` |

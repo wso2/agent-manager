@@ -422,7 +422,7 @@ func TestRegistrationsThatFailActivationG1(t *testing.T) {
 			rt.HandleInternalAt(http.MethodGet, "/api/v1/x", ok)
 		},
 		"internal-at on a core path": func(rt modkit.Runtime) {
-			rt.HandleInternalAt(http.MethodPost, "/api/internal/v1/workload-tokens", ok, modkit.Audit("act"))
+			rt.HandleInternalAt(http.MethodPost, "/api/internal/v1/workloads/heartbeat", ok, modkit.Audit("act"))
 		},
 		"internal-at under module routes": func(rt modkit.Runtime) {
 			rt.HandleInternalAt(http.MethodGet, "/api/internal/v1/m/t-bad/x", ok)

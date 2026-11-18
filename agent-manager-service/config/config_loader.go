@@ -188,6 +188,7 @@ func loadSettings(strict bool) {
 	}
 	config.IsOnPremDeployment = r.readOptionalBool("IS_ON_PREM_DEPLOYMENT", true)
 	config.ServerPublicURL = r.readOptionalString("SERVER_PUBLIC_URL", "")
+	config.InternalServerPublicURL = r.readOptionalString("INTERNAL_SERVER_PUBLIC_URL", "")
 	config.GrowthAnalytics = GrowthAnalyticsConfig{
 		Enabled:                   r.readOptionalBool("MOESIF_ENABLED", false),
 		ConsoleEnabled:            r.readOptionalBool("CONSOLE_ANALYTICS_ENABLED", false),
@@ -481,6 +482,7 @@ func loadSettings(strict bool) {
 
 	validateOAuthAuthorizationServers(config, r)
 	validateServerPublicURL(config, r)
+	validatePublicURL("INTERNAL_SERVER_PUBLIC_URL", config.InternalServerPublicURL, r)
 	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
 	validateFileMountLimitsConfig(config, r)
@@ -732,19 +734,24 @@ func OrganizationTokenURL(tokenURL, ouID string) (string, error) {
 }
 
 func validateServerPublicURL(cfg *Config, r *configReader) {
-	if cfg.ServerPublicURL == "" {
+	validatePublicURL("SERVER_PUBLIC_URL", cfg.ServerPublicURL, r)
+}
+
+// validatePublicURL checks an optional http(s) origin setting.
+func validatePublicURL(key, value string, r *configReader) {
+	if value == "" {
 		return
 	}
-	u, err := url.Parse(cfg.ServerPublicURL)
+	u, err := url.Parse(value)
 	if err != nil {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q is not a valid URL: %w", cfg.ServerPublicURL, err))
+		r.errors = append(r.errors, fmt.Errorf("%s %q is not a valid URL: %w", key, value, err))
 		return
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must use http or https scheme", cfg.ServerPublicURL))
+		r.errors = append(r.errors, fmt.Errorf("%s %q must use http or https scheme", key, value))
 	}
 	if u.Host == "" {
-		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must have a non-empty host", cfg.ServerPublicURL))
+		r.errors = append(r.errors, fmt.Errorf("%s %q must have a non-empty host", key, value))
 	}
 }
 

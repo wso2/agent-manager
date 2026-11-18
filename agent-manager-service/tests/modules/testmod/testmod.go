@@ -34,6 +34,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -56,8 +57,17 @@ const (
 	// HandleInternalAt, and LegacyKey the api-key it checks there.
 	LegacyPath = "/api/internal/v1/testmod-legacy/ping"
 	LegacyKey  = "testmod-legacy-key"
-	// PingScope is the workload scope of Name's internal route.
+	// PingScope is the workload scope of Name's internal routes.
 	PingScope = "ping"
+	// Pinger is Name's service workload; it heartbeats with PingerProtocol
+	// and uses the "events" WebSocket endpoint.
+	Pinger = "pinger"
+	// PingerProtocol is the newest protocol Name accepts from Pinger.
+	PingerProtocol = "testmod-ping/v2"
+	// OldPingerProtocol is the previous one, still accepted.
+	OldPingerProtocol = "testmod-ping/v1"
+	// EventsPath is the WebSocket route behind the "events" endpoint.
+	EventsPath = "/events"
 )
 
 //go:embed migrations
@@ -112,7 +122,18 @@ func (module) Manifest() modkit.Manifest {
 			{Name: "secret-read", Class: "credential", Description: "Read a secret"},
 			{Name: "legacy-ping", Description: "Ping the fixed internal path"},
 		},
+		Workloads: []modkit.WorkloadSpec{{
+			Name: Pinger, Kind: modkit.WorkloadService, Trusted: true, Required: true,
+			Scopes:    []string{PingScope},
+			Protocols: []string{PingerProtocol, OldPingerProtocol},
+			Endpoints: []modkit.Endpoint{{Name: "events", Path: EventsPath, WebSocket: true}},
+		}},
 	}
+}
+
+// Health reports a fixed detail, so tests can see the host asks for it.
+func (module) Health(context.Context, modkit.Runtime) map[string]any {
+	return map[string]any{"pings": "counted elsewhere"}
 }
 
 func (module) Migrations() fs.FS {
@@ -480,7 +501,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"message": err.Error()})
 			return
 		}
-		cred, err := rt.IssueCredential(r.Context(), modkit.CredentialRequest{Subject: "run:exchanged", Scopes: []string{PingScope}})
+		cred, err := rt.IssueCredential(r.Context(), modkit.CredentialRequest{Workload: Pinger, Subject: "pinger:issued"})
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"message": err.Error()})
 			return
@@ -607,10 +628,31 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 
 	rt.HandleInternal(http.MethodGet, "/ping", PingScope, func(w http.ResponseWriter, r *http.Request) {
 		wl, _ := modkit.WorkloadFrom(r.Context())
-		writeJSON(w, http.StatusOK, map[string]string{"subject": wl.Subject, "orgId": modkit.OrgID(r.Context())})
+		writeJSON(w, http.StatusOK, map[string]string{
+			"subject": wl.Subject, "orgId": modkit.OrgID(r.Context()), "workload": wl.Name, "instance": wl.Instance,
+		})
+	})
+	rt.HandleInternal(http.MethodGet, EventsPath, PingScope, func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		wl, _ := modkit.WorkloadFrom(r.Context())
+		if conn.WriteMessage(websocket.TextMessage, []byte("hello "+wl.Instance)) != nil {
+			return
+		}
+		// Hold the connection until the workload closes it.
+		for {
+			if _, _, err := conn.ReadMessage(); err != nil {
+				return
+			}
+		}
 	})
 	return nil
 }
+
+var upgrader = websocket.Upgrader{CheckOrigin: func(*http.Request) bool { return true }}
 
 type consumer struct{}
 

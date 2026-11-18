@@ -870,14 +870,27 @@ CREATE INDEX idx_module_event_deliveries_available_at ON module_event_deliveries
 CREATE TABLE workload_credentials (
     id UUID NOT NULL,
     module VARCHAR(63) NOT NULL,
+    workload VARCHAR(63) NOT NULL,
     org_id UUID,
     subject VARCHAR(255) NOT NULL,
-    scopes VARCHAR(1024) NOT NULL,
-    token_ttl_seconds INTEGER NOT NULL,
     secret_hash VARCHAR(64) NOT NULL,
     created_at TIMESTAMPTZ NOT NULL,
     revoked_at TIMESTAMPTZ,
     CONSTRAINT pk_workload_credentials PRIMARY KEY (id),
     CONSTRAINT fk_workload_credentials_org_id FOREIGN KEY (org_id) REFERENCES organizations (id) ON DELETE CASCADE
 );
-CREATE INDEX idx_workload_credentials_module ON workload_credentials (module);
+CREATE INDEX idx_workload_credentials_module_workload ON workload_credentials (module, workload);
+
+CREATE TABLE workload_instances (
+    credential_id UUID NOT NULL,
+    instance VARCHAR(255) NOT NULL,
+    module VARCHAR(63) NOT NULL,
+    workload VARCHAR(63) NOT NULL,
+    protocol VARCHAR(63) NOT NULL,
+    version VARCHAR(63) NOT NULL,
+    first_seen TIMESTAMPTZ NOT NULL,
+    last_seen TIMESTAMPTZ NOT NULL,
+    CONSTRAINT pk_workload_instances PRIMARY KEY (credential_id, instance),
+    CONSTRAINT fk_workload_instances_credential_id FOREIGN KEY (credential_id) REFERENCES workload_credentials (id) ON DELETE CASCADE
+);
+CREATE INDEX idx_workload_instances_module_workload_last_seen ON workload_instances (module, workload, last_seen);

@@ -208,7 +208,7 @@ func (r *runtime) HandleInternal(method, path, scope string, h http.HandlerFunc,
 const internalAtPrefix = "/api/internal/v1"
 
 // internalAtReserved are the core's own paths below the internal prefix.
-var internalAtReserved = []string{"/m", "/workload-tokens", "/workloads", "/health"}
+var internalAtReserved = []string{"/m", "/workloads", "/health"}
 
 func (r *runtime) HandleInternalAt(method, absPath string, h http.HandlerFunc, opts ...modkit.RouteOption) {
 	if !r.registering("HandleInternalAt") {

@@ -943,20 +943,39 @@ tables:
       - {columns: [event_id], references: module_events, ref_columns: [id], on_delete: cascade}
     indexes: [[available_at]]
 
-  # Credentials a module's workloads exchange for short-lived workload tokens.
-  # Only a hash of the secret is kept.
+  # Credentials a module's service workloads present in their heartbeats,
+  # which return short-lived workload tokens. Only a hash of the secret is
+  # kept. Tokens carry the scopes the workload declares in the manifest.
   - name: workload_credentials
     columns:
       - {name: id, type: id}
       - {name: module, type: text, size: 63}
+      - {name: workload, type: text, size: 63}
       - {name: org_id, type: id, nullable: true}
       - {name: subject, type: text, size: 255}
-      - {name: scopes, type: text, size: 1024}
-      - {name: token_ttl_seconds, type: int}
       - {name: secret_hash, type: text, size: 64}
       - {name: created_at, type: time}
       - {name: revoked_at, type: time, nullable: true}
     primary_key: [id]
     foreign_keys:
       - {columns: [org_id], references: organizations, ref_columns: [id], on_delete: cascade}
-    indexes: [[module]]
+    indexes: [[module, workload]]
+
+  # Workload instances that heartbeated, one row per credential and instance
+  # name. last_seen is refreshed on every heartbeat; an instance seen in the
+  # last 30 seconds counts as connected for module health. Revoking the
+  # credential removes its rows.
+  - name: workload_instances
+    columns:
+      - {name: credential_id, type: id}
+      - {name: instance, type: text, size: 255}
+      - {name: module, type: text, size: 63}
+      - {name: workload, type: text, size: 63}
+      - {name: protocol, type: text, size: 63}
+      - {name: version, type: text, size: 63}
+      - {name: first_seen, type: time}
+      - {name: last_seen, type: time}
+    primary_key: [credential_id, instance]
+    foreign_keys:
+      - {columns: [credential_id], references: workload_credentials, ref_columns: [id], on_delete: cascade}
+    indexes: [[module, workload, last_seen]]

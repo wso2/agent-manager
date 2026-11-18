@@ -18,7 +18,6 @@ package modhost
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -106,6 +105,10 @@ type Deps struct {
 	Tokens        Tokens
 	// Secrets is the core's secret store.
 	Secrets SecretStore
+	// InternalURL is the origin workloads reach the internal server at,
+	// for the endpoints a heartbeat returns; empty means the origin each
+	// heartbeat arrived on.
+	InternalURL string
 }
 
 // Attach supplies the core services modules use. Call it before Boot.
@@ -252,11 +255,21 @@ func mountInternalAt(mount func(*http.ServeMux, Route), routes []Route) (mux *ht
 }
 
 // ServeInternal serves module workload routes, mounted at /m/ on the internal
-// server: /m/<module>/internal/...
+// server: /m/<module>/internal/... A compiled-in module that is not active
+// answers 401 module_inactive, which tells its workloads to stand by.
 func (h *Host) ServeInternal() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mux := h.current().internal[moduleOf(r.URL.Path)]
+		name := moduleOf(r.URL.Path)
+		v := h.current()
+		mux := v.internal[name]
 		if mux == nil {
+			if _, compiled := h.mods[name]; compiled && !slices.Contains(v.active, name) {
+				writeWorkloadError(w, http.StatusUnauthorized, WorkloadError{
+					Error:   ErrModuleInactive,
+					Message: name + " is not active; stand by and retry",
+				})
+				return
+			}
 			writeNotFound(w)
 			return
 		}
@@ -305,32 +318,25 @@ func (h *Host) mountInternal(module string, routes []Route) (mux *http.ServeMux,
 	return mux, nil
 }
 
-func writeUnauthorized(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	if status == http.StatusUnauthorized {
-		w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
-	}
-	w.WriteHeader(status)
-	body, _ := json.Marshal(map[string]string{"message": msg})
-	_, _ = w.Write(body)
-}
-
 func (h *Host) requireWorkload(module, scope string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokens := h.deps().Tokens
 		raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if tokens == nil || !ok || raw == "" {
-			writeUnauthorized(w, http.StatusUnauthorized, "a workload token is required")
+			writeWorkloadError(w, http.StatusUnauthorized, WorkloadError{Error: ErrInvalidToken, Message: "a workload token is required"})
 			return
 		}
 		wl, err := tokens.VerifyWorkload(strings.TrimSpace(raw))
 		if err != nil {
 			h.log.Debug("modhost:rejected workload token", "module", module, "error", err)
-			writeUnauthorized(w, http.StatusUnauthorized, "invalid workload token")
+			writeWorkloadError(w, http.StatusUnauthorized, WorkloadError{Error: ErrInvalidToken, Message: "invalid workload token"})
 			return
 		}
 		if wl.Module != module || !slices.Contains(wl.Scopes, scope) {
-			writeUnauthorized(w, http.StatusForbidden, "the workload token does not grant this route")
+			writeWorkloadError(w, http.StatusForbidden, WorkloadError{
+				Error:   ErrInsufficientScope,
+				Message: "the workload token does not grant this route",
+			})
 			return
 		}
 		ctx := modkit.WithWorkload(r.Context(), wl)

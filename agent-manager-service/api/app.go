@@ -70,8 +70,8 @@ type Modules interface {
 	// ServeInternal serves /m/<module>/internal/... on the internal server,
 	// for module workloads.
 	ServeInternal() http.Handler
-	// ServeTokenExchange serves POST /api/internal/v1/workload-tokens.
-	ServeTokenExchange() http.Handler
+	// ServeHeartbeat serves POST /api/internal/v1/workloads/heartbeat.
+	ServeHeartbeat() http.Handler
 	// ServeInternalAt serves the routes modules mount at fixed paths below
 	// /api/internal/v1.
 	ServeInternalAt() http.Handler
@@ -233,7 +233,7 @@ func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
 }
 
 // MakeInternalHTTPHandlerWithModules is MakeInternalHTTPHandler that also serves
-// module workload routes and the workload token exchange; modules may be nil.
+// module workload routes and workload heartbeats; modules may be nil.
 func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Modules, bundles builtin.Built) http.Handler {
 	mux := http.NewServeMux()
 
@@ -252,7 +252,7 @@ func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Module
 	internalRR := middleware.NewInternalRouteRegistrar(internalMux, params.AuditRecorder)
 	bundles.InternalRoutes(internalRR, internalMux)
 	if modules != nil {
-		internalMux.Handle("POST /workload-tokens", modules.ServeTokenExchange())
+		internalMux.Handle("POST /workloads/heartbeat", modules.ServeHeartbeat())
 		// Routes modules mount at fixed paths (HandleInternalAt); every
 		// path the core serves here is more specific.
 		internalMux.Handle("/", modules.ServeInternalAt())

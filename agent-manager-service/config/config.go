@@ -67,6 +67,10 @@ type Config struct {
 	KeyManagerConfigurations KeyManagerConfigurations
 	IsOnPremDeployment       bool
 	ServerPublicURL          string
+	// InternalServerPublicURL is the origin module workloads reach the
+	// internal server at, used for the endpoints a heartbeat returns. Empty
+	// means the origin of each heartbeat request.
+	InternalServerPublicURL string
 
 	// FileAuth configures the file-based login mode used by on-prem
 	// deployments that run without an identity provider. Inert unless

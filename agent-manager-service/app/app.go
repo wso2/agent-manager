@@ -417,6 +417,7 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 		MountInternal: api.ModuleInternalMounter(deps),
 		Core:          repositories.NewCoreReadAPI(database),
 		Secrets:       repositories.NewModuleSecretStore(database, deps.EncryptionKey),
+		InternalURL:   config.GetConfig().InternalServerPublicURL,
 	}
 	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
 		attach.Tokens = signer
