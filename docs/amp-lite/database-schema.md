@@ -393,19 +393,33 @@ Events for modules: core events (`agent.created`, `agent.deleted`, `environment.
 
 ### workload_credentials
 
-Credentials a module's workloads exchange for short-lived workload tokens (`POST /workload-tokens`).
+Credentials a module's service workloads present in their heartbeats (`POST /api/internal/v1/workloads/heartbeat`), which return short-lived workload tokens. Tokens carry the scopes the workload declares in the module's manifest.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | ID | no | PK |
-| module | short text (63) | no | Indexed. |
+| module | short text (63) | no | Indexed with workload. |
+| workload | short text (63) | no | A service workload the module declares. |
 | org_id | ID | yes | FK → organizations, cascade. |
-| subject | short text (255) | no | |
-| scopes | short text (1024) | no | |
-| token_ttl_seconds | whole number | no | |
-| secret_hash | short text (64) | no | sha256 of the secret; the secret itself is returned once. |
+| subject | short text (255) | no | Who uses it, e.g. `default` or `gateway:<id>`. |
+| secret_hash | short text (64) | no | sha256 of the secret; the credential (`<id>.<secret>`) is shown once. |
 | created_at | time | no | |
 | revoked_at | time | yes | |
+
+### workload_instances
+
+Workload instances that heartbeated. A row is refreshed on every heartbeat; an instance seen in the last 30 seconds counts as connected for module health.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| credential_id | ID | no | PK part 1. FK → workload_credentials, cascade. Revoking the credential deletes its rows. |
+| instance | short text (255) | no | PK part 2. The name the instance reports. |
+| module | short text (63) | no | Indexed with workload and last_seen. |
+| workload | short text (63) | no | |
+| protocol | short text (63) | no | From the last heartbeat. |
+| version | short text (63) | no | From the last heartbeat. |
+| first_seen | time | no | |
+| last_seen | time | no | Rows not seen for 24 hours are deleted on the credential's next new instance. |
 
 ### Gateway module tables
 

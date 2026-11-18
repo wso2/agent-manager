@@ -93,6 +93,7 @@ return modkit.Manifest{
 - **RoleGrants:** predefined role name (`rbac.RoleAdmin` is `"Agent Manager Admin"`, also `Developer`, `AI Lead`, `Platform Engineer`) to the module's permission names. File sign-in grants them while the module is active. ThunderID roles are rendered by `amp init thunder` from every compiled-in module, so a new module's permissions reach ThunderID on the next `amp init`.
 - **Events:** the event types the module publishes, named `<module>.<event>`, each with a description. An event with a `Scope` (`org`, `project` or `agent`, the narrowest resource it is about) is also a webhook event: while the module is active it is listed in the event catalog (`GET /api/v1/orgs/{org}/events/event-types`) and organizations can subscribe to it. Routes raise it with `modkit.Emits` (see [Route options](#route-options)). An event without a scope only reaches module subscribers.
 - **AuditActions:** the audit actions the module's routes and tools name with `modkit.Audit`, each recorded as `<module>:<name>`, with a class (`credential`, `identity`, `deployment`, `config` or `read`; `config` when empty) and a severity (`info`, `notice`, `warning` or `critical`; `critical` for credential and identity actions and `info` otherwise when empty). An entry named after one of the module's permissions classifies the action that permission names.
+- **Workloads:** the parts of the module that run outside the binary. See [Workloads](#workloads).
 - **UI:** console pages the module turns on, listed by `GET /api/v1/ui-manifest`. From the gateway:
 
   ```go
@@ -158,10 +159,12 @@ rt.Handle(http.MethodGet, "/tags", "widget-read", func(w http.ResponseWriter, r 
 
 `Handle(method, path, perm, h, opts...)` mounts `/m/<name><path>` on the API port, beside the core's `/api/v1`, with the core's sign-in, permission check, organization from the token and audit trail. `perm` is the module's own permission (short name) or a core one. A `GET` may pass `""` (any signed-in user of the organization); every other method must name a permission, which also names its audit action unless an option names another. Paths under `/internal` belong to the workload routes below. `rt.Can(ctx, perm)` checks a permission inside a handler.
 
-`HandleInternal(method, path, scope, h, opts...)` mounts `/m/<name>/internal<path>` on the internal server (:9243) for the module's own workloads. Callers present a workload token carrying `scope`; `modkit.WorkloadFrom(ctx)` returns who they are. A module gets those tokens by:
+`HandleInternal(method, path, scope, h, opts...)` mounts `/m/<name>/internal<path>` on the internal server (:9243) for the module's own workloads. Callers present a workload token carrying `scope` as `Authorization: Bearer`; `modkit.WorkloadFrom(ctx)` returns who they are (module, workload, instance, subject, organization, scopes). While the module is inactive these routes answer `401 {"error":"module_inactive"}`. A workload gets its tokens from:
 
-- `rt.IssueToken(ctx, modkit.TokenRequest{Subject, OrgID, Scopes, TTL, Claims})`: a short-lived token (15 minutes by default, at most an hour), signed with the core's key, audience `amp-module:<name>`. The public API refuses it.
-- `rt.IssueCredential(ctx, modkit.CredentialRequest{...})`: an id and secret (only a hash is stored in `workload_credentials`) that a workload exchanges for a token at `POST /api/internal/v1/workload-tokens`. `rt.RevokeCredential` revokes one.
+- a [heartbeat](#workloads), with a credential: the usual way for a service workload;
+- `rt.IssueToken(ctx, modkit.TokenRequest{Subject, OrgID, Scopes, TTL, Claims})`: a short-lived token (15 minutes by default, at most an hour) the module mints itself, for a job it starts.
+
+Tokens are RS256, signed with the core's agent-token key, with issuer `agent-manager-service/workload`, audience `amp-module:<name>` and type `amp-workload+jwt`. The public API refuses them.
 
 #### Route options
 
@@ -272,7 +275,87 @@ type Proxy interface {
 ### Optional interfaces
 
 - `modkit.Installer`: `OnInstall(ctx, rt)` runs once when the module is installed, to catch up with core state that existed before it (agents created earlier, for example). If it fails, the module stays installed and the error is reported.
-- `modkit.HealthReporter`: `Health(ctx, rt) map[string]any` is part of the contract, but nothing calls it yet.
+- `modkit.HealthReporter`: `Health(ctx, rt) map[string]any` adds the module's own detail to `amp module health`. It runs within 5 seconds and must read only shared state (its tables), never one replica's memory, so every replica gives the same answer.
+
+## Workloads
+
+A workload is a part of the module that runs outside the binary: a gateway runtime, a worker pool, a job. Workloads never touch the database. They call the module's internal routes with tokens the core issues. The module declares them in its manifest; from `testmod`:
+
+```go
+Workloads: []modkit.WorkloadSpec{{
+	Name: "pinger", Kind: modkit.WorkloadService, Trusted: true, Required: true,
+	Scopes:    []string{"ping"},
+	Protocols: []string{"testmod-ping/v2", "testmod-ping/v1"},
+	Endpoints: []modkit.Endpoint{{Name: "events", Path: "/events", WebSocket: true}},
+}},
+```
+
+- **Kind:** a `service` runs all the time and heartbeats; a `job` runs once per unit of work and gets a token from `rt.IssueToken`, not a credential.
+- **Trusted:** whether it runs only first-party code. **Image:** the image this module version expects, if it ships one.
+- **Scopes:** the module-local scopes its tokens carry.
+- **Protocols:** what this module version accepts in its heartbeats, newest first. Accepting N and N-1 lets old and new instances overlap during a rollout. A heartbeat with any other protocol is refused.
+- **Required:** the module is `degraded` while no instance of it is connected.
+- **Endpoints:** internal routes the workload uses, by name. Each path must be one the module registers with `HandleInternal` (a `GET` route for a WebSocket), or the module doesn't activate. `rest`, the module's internal root, is always reported and can't be declared.
+
+### Credentials
+
+A service workload gets a credential from an operator, or from the module:
+
+```bash
+amp module credential <module> <workload> [--subject S] [--out FILE]
+```
+
+- It prints the credential once on stdout (the id and subject go to stderr). With `--out`, it writes the credential to FILE, readable by its owner only; if FILE already holds one it is kept and nothing is minted, so a bootstrap step can run on every start.
+- `--subject` names who uses it (default: the workload's name). Tokens carry it as their subject.
+- The module must be active. Only a hash of the secret is stored, in `workload_credentials`.
+- A module mints its own with `rt.IssueCredential(ctx, modkit.CredentialRequest{Workload, Subject, OrgID})`, for example one per registered runtime, and revokes one with `rt.RevokeCredential`. Revoking refuses the credential's next heartbeat and drops its instances from health; tokens already issued stay valid until they expire. Purging a module's data (with uninstall, not built yet) revokes all its credentials (`Host.RevokeAllCredentials`).
+
+### Heartbeat
+
+A workload is configured with two things: the heartbeat URL and its credential. Every 10 seconds or so it sends:
+
+```http
+POST /api/internal/v1/workloads/heartbeat
+{"credential": "<credential>", "instance": "gateway-0", "protocol": "amp-gateway/v1", "version": "1.4.0"}
+```
+
+`instance` names the process (default `default`) and `version` is shown in health. A heartbeat is answered with a 15-minute token and the workload's endpoints as absolute URLs:
+
+```json
+{
+  "token": "eyJ...",
+  "tokenType": "Bearer",
+  "expiresAt": "2026-11-18T10:15:00Z",
+  "module": "ai-gateway",
+  "workload": "gateway-controller",
+  "endpoints": {
+    "rest": "https://amp-api:9243/m/ai-gateway/internal",
+    "websocket": "wss://amp-api:9243/m/ai-gateway/internal/ws/gateways/connect"
+  }
+}
+```
+
+- **Endpoints.** A workload builds every URL from `endpoints`, re-reads them on every heartbeat, and reconnects when one changes, so moving a module's internal routes needs no change to the workload. `rest` is present when the module has internal routes; the others are the ones the workload declares. WebSocket endpoints use `wss` (or `ws` for `http`).
+- **Base URL.** `INTERNAL_SERVER_PUBLIC_URL` if set (the internal server's counterpart of `SERVER_PUBLIC_URL`, for a proxy in front of it); otherwise the scheme and host the heartbeat arrived on, honouring the first `X-Forwarded-Proto` and `X-Forwarded-Host` when they are valid, as the console's `config.js` does. The core logs the endpoints it gives each new instance.
+- **Registry.** Each heartbeat refreshes a `workload_instances` row (credential, instance, protocol, version, last seen). The first heartbeat of an instance is audited (`workload-token:exchange`) before its token is returned; refreshes are not.
+- **Refusals.** The body is `{"error": "<code>", "message": "..."}`:
+
+  | Status | `error` | Meaning | The workload |
+  |---|---|---|---|
+  | 400 | `invalid_request` | No credential or protocol, or a value with spaces | Fix its configuration |
+  | 401 | `invalid_credential` | Unknown or revoked credential | Stands by and retries |
+  | 401 | `module_inactive` | The module is disabled or not installed | Stands by and retries |
+  | 409 | `unsupported_protocol` | The module doesn't accept this protocol; `protocols` lists what it does | Stops: deploy a matching version |
+
+  Internal routes answer `401 module_inactive` too while the module is inactive, `401 invalid_token` for a missing or bad token, and `403 insufficient_scope` for a token of another module or without the route's scope.
+
+### Health
+
+```bash
+amp module health [<module>]
+```
+
+reports each installed module (or one) as `ok`, `degraded` or `inactive`, with its workloads and their connected instances (those that heartbeated in the last 30 seconds), and the module's own `HealthReporter` detail. A module is `degraded` when a required service has no connected instance or it failed to activate. Health is read from the database, so every replica, and the command, agree.
 
 ## Connecting to the core
 
@@ -284,7 +367,7 @@ type Proxy interface {
 | Read orgs, projects, agents or environments | `rt.Core()` |
 | Keep a secret value | `rt.Secrets()` |
 | Serve your own API | `rt.Handle`, described in your own OpenAPI document |
-| Let your own workloads call you | `rt.HandleInternal` with workload tokens |
+| Let your own workloads call you | `rt.HandleInternal`, with the workload declared in the manifest |
 | Run something in the background | `rt.Go` |
 | Offer tools to MCP clients | `rt.MCPTool` |
 
@@ -341,6 +424,8 @@ amp module install <name> [--with-deps]
 amp module enable <name>
 amp module disable <name>
 amp module uninstall <name>
+amp module credential <name> <workload> [--subject S] [--out FILE]
+amp module health [<name>]
 ```
 
 In the Compose stack, run them in the API container (for example `docker compose exec amp-api /go/bin/amp module list`). Changes reach running servers within seconds. `install --with-deps` also installs the modules that provide what it `Requires`; disable and uninstall are refused while an active module requires it. Built-in modules can't be changed.
@@ -366,7 +451,7 @@ modules:
 
 When a module is disabled:
 
-- its routes answer 404 at once (its fixed internal paths too), and its hooks, event handlers and capabilities stop;
+- its routes answer 404 at once (its fixed internal paths too; its internal routes and its workloads' heartbeats answer `401 module_inactive`, so workloads stand by), and its hooks, event handlers and capabilities stop;
 - its workers are stopped on every replica, its MCP tools leave `/mcp`, and its webhook events leave the event catalog;
 - a request with an `extensions` block for it is a 400, and capability lookups fail (a core feature that needs it answers 400 naming the capability);
 - its pages leave the UI manifest, and its permissions leave file sign-in roles and the console's sign-in scopes;

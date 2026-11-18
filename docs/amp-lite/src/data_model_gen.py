@@ -373,9 +373,9 @@ card("modmig", "modules", RX + 265, 0, 240, "Module migration", "module_migratio
 card("modev", "modules", RX + 530, 0, 240, "Module event", "module_events, module_event_deliveries",
      "Events for modules, one delivery per subscribing module, retried with backoff.",
      [("type", "e.g. agent.created"), ("source", "core or a module"), ("attempts", "")], chips=["queue"])
-card("wlcred", "modules", RX, 0, 240, "Workload credential", "workload_credentials",
-     "A module workload's credential, exchanged for short-lived tokens. Only a hash is kept.",
-     [("module", ""), ("subject", ""), ("scopes", ""), ("revoked_at", "")])
+card("wlcred", "modules", RX, 0, 240, "Workload credential", "workload_credentials, workload_instances",
+     "A module workload's credential, presented in heartbeats for short-lived tokens, and the instances that heartbeat. Only a hash is kept.",
+     [("module, workload", ""), ("subject", ""), ("revoked_at", ""), ("last_seen", "per instance")])
 
 # ---------------------------------------------------------------- Deferred strip
 DW = 360

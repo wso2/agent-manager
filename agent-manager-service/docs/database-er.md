@@ -269,13 +269,22 @@ erDiagram
     workload_credentials {
         id id PK
         text module
+        text workload
         id org_id FK "nullable"
         text subject
-        text scopes
-        int token_ttl_seconds
         text secret_hash
         time created_at
         time revoked_at "nullable"
+    }
+    workload_instances {
+        id credential_id PK,FK
+        text instance PK
+        text module
+        text workload
+        text protocol
+        text version
+        time first_seen
+        time last_seen
     }
     organizations ||--o{ projects : has
     organizations ||--o{ environments : has
@@ -302,4 +311,5 @@ erDiagram
     organizations ||--o{ module_events : owns
     module_events ||--o{ module_event_deliveries : owns
     organizations ||--o{ workload_credentials : owns
+    workload_credentials ||--o{ workload_instances : owns
 ```
