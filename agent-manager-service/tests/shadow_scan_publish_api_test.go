@@ -72,8 +72,13 @@ func TestShadowScanPublishThroughTheRouteStack(t *testing.T) {
 	ctx := context.Background()
 	cfg := config.GetConfig()
 	origClient := cfg.IDP.ClientID
+	origEnabled := cfg.ShadowRunner.Enabled
 	cfg.IDP.ClientID = shadowScanTokenClient
-	t.Cleanup(func() { cfg.IDP.ClientID = origClient })
+	cfg.ShadowRunner.Enabled = true // source code scans are off by default
+	t.Cleanup(func() {
+		cfg.IDP.ClientID = origClient
+		cfg.ShadowRunner.Enabled = origEnabled
+	})
 
 	ouID := "ou-" + uuid.NewString()
 	repo := repositories.NewShadowAgentRepository(db.GetDB())

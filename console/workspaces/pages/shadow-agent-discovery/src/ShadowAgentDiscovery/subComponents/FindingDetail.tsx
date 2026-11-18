@@ -261,7 +261,7 @@ function SourceCard({ f }: { f: ShadowFindingDetail }) {
           title="Source"
           hint={
             isCode
-              ? "The source code repositories whose scans found this agent."
+              ? "The GitHub or Azure DevOps platforms whose scans found this agent."
               : "The platform connections that list this agent."
           }
         />

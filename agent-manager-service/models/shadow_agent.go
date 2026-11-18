@@ -286,7 +286,7 @@ type ShadowFindingRelation struct {
 }
 
 // ShadowFinding is an agent a platform lists, as one connection found it:
-// what the platform reports about it and its review status. The same agent
+// what the platform reports about it. The same agent
 // found through two connections is two rows with the same provider, kind
 // and external ID; the API shows them as one agent.
 type ShadowFinding struct {
