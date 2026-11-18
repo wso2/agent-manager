@@ -178,8 +178,8 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
 
   const matchEditing = useCallback(
     (item: GuardrailDefinition) =>
-      editingPolicy ? matchApplied(editingPolicy, item) : false,
-    [editingPolicy, matchApplied],
+      editingPolicy ? matchAvailable(editingPolicy, item) : false,
+    [editingPolicy, matchAvailable],
   );
 
   const isAdded = useMemo(
@@ -205,18 +205,20 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
     [onAdd],
   );
 
+  // Editing keeps the saved version: opening v1 while v2 is installed shows the
+  // installed schema but never upgrades the saved policy.
   const handleEdit = useCallback(
     (policy: GuardrailDefinition, settings: ParameterValues) => {
       onEdit({
         name: policy.name,
-        version: policy.version,
+        version: editingPolicy?.version ?? policy.version,
         displayName: policy.displayName,
         settings: settings as Record<string, unknown>,
       });
       setDrawerOpen(false);
       setEditingPolicy(null);
     },
-    [onEdit],
+    [onEdit, editingPolicy],
   );
 
   const handleRowClick = useCallback((policy: PolicySelection) => {

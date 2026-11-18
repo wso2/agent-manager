@@ -434,11 +434,17 @@ export function LLMProviderGuardrailsTab({
     [drawerContext, editingContext, handleAddGuardrail, handleEditGuardrail, handleCloseDrawer],
   );
 
+  // Any installed version of the saved guardrail opens for editing.
+  const matchEdit = useCallback(
+    (g: GuardrailDefinition) =>
+      g.status === "installed" && g.name === editingContext?.guardrailName,
+    [editingContext],
+  );
+
   const getDisplayName = useCallback(
     (p: LLMPolicy): string => {
       const def = availableGuardrails.find(
-        (g: GuardrailDefinition) =>
-          g.name === p.name && g.version === p.version,
+        (g: GuardrailDefinition) => g.name === p.name,
       );
       return def?.displayName ?? p.name;
     },
@@ -753,6 +759,7 @@ export function LLMProviderGuardrailsTab({
               }
             : undefined
         }
+        matchEdit={matchEdit}
         editPolicyKey={
           editingContext
             ? `${editingContext.guardrailName}@${editingContext.guardrailVersion}`

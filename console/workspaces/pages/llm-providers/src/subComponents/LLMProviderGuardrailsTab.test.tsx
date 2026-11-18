@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { LLMProviderResponse } from "@agent-management-platform/types";
@@ -140,5 +140,48 @@ describe("LLMProviderGuardrailsTab unavailable guardrails", () => {
     expect(
       screen.queryByText("Not available on this gateway"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("LLMProviderGuardrailsTab editing an older saved version", () => {
+  it("opens the installed v2 form and saves the params under the saved v1.0.0", async () => {
+    catalog.state = {
+      data: loadedCatalog([
+        {
+          name: "legacy-guard",
+          version: "v2.0.0",
+          displayName: "Legacy Guard",
+          status: "installed",
+          source: "hub",
+          provider: "hub",
+          categories: [],
+          isLatest: true,
+          description: "",
+          parameters: {
+            type: "object",
+            properties: { mode: { type: "string" } },
+          },
+        },
+      ]),
+      error: null,
+    };
+    const onUpdate = vi.fn().mockResolvedValue(provider);
+    renderTab(onUpdate);
+
+    expect(screen.getByText(/Legacy Guard/)).toBeInTheDocument();
+    fireEvent.click(screen.getByText(/Legacy Guard/));
+    // The editor is prefilled, not the picker list.
+    const field = screen.getByDisplayValue("strict");
+    fireEvent.change(field, { target: { value: "lenient" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(onUpdate).toHaveBeenCalled());
+    const [{ policies }] = onUpdate.mock.calls[0];
+    expect(policies[0]).toMatchObject({
+      name: "legacy-guard",
+      version: "v1.0.0",
+      paths: [{ params: { mode: "lenient" } }],
+    });
   });
 });

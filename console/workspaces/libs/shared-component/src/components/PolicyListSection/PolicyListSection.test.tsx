@@ -259,4 +259,63 @@ describe("PolicyListSection applied policies", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });
+
+  it("edits an applied v1 policy against the installed v2 schema and keeps v1 (default matcher)", () => {
+    const { onEdit } = renderList(
+      {
+        catalogData: catalog([
+          policy({
+            name: "legacy-guard",
+            version: "v2.0.0",
+            parameters: {
+              type: "object",
+              properties: { mode: { type: "string" } },
+            },
+          }),
+        ]),
+      },
+      applied,
+    );
+    fireEvent.click(screen.getByText("Legacy Guard"));
+    // The editor opens prefilled, not the picker list.
+    const field = screen.getByDisplayValue("strict");
+    fireEvent.change(field, { target: { value: "lenient" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onEdit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "legacy-guard",
+        version: "v1.0.0",
+        settings: { mode: "lenient" },
+      }),
+    );
+  });
+
+  it("MCP name+major editing still saves the saved major", () => {
+    const major = (v: string) => v.replace(/^v/, "").split(".")[0];
+    const { onEdit } = renderList(
+      {
+        catalogData: catalog([
+          policy({
+            name: "legacy-guard",
+            version: "v1.0.2",
+            parameters: {
+              type: "object",
+              properties: { mode: { type: "string" } },
+            },
+          }),
+        ]),
+        matchApplied: (a, item) =>
+          a.name === item.name && major(a.version) === major(item.version),
+      },
+      [{ ...applied[0], version: "v1" }],
+    );
+    fireEvent.click(screen.getByText("Legacy Guard"));
+    fireEvent.change(screen.getByDisplayValue("strict"), {
+      target: { value: "lenient" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onEdit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "legacy-guard", version: "v1", settings: { mode: "lenient" } }),
+    );
+  });
 });
