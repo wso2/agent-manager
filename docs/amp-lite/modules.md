@@ -14,7 +14,7 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Built-in modules** set `Builtin: true` in their manifest. They are always active and can't be disabled or uninstalled. Today these are `gateway` (the AI Gateway) and `legacy` (the routes Lite doesn't serve yet, which answer `501`, and the evaluator catalog).
+- **Built-in modules** set `Builtin: true` in their manifest. They are always active and can't be disabled or uninstalled. Today these are `gateway` (the AI Gateway) and `legacy` (the routes Lite doesn't serve yet, which answer `501`).
 - **Installable modules** start as *available* and are installed by an operator (see [Operating modules](#operating-modules)). There are none in this repository yet; `tests/modules/testmod` is one, used only by tests.
 
 A distribution is a `main` package that chooses its modules with blank imports:
@@ -33,7 +33,7 @@ Both call `cli.Main`, so they share every command. The Dockerfile builds one or 
 | Core | Modules |
 |---|---|
 | Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
-| Users, roles and RBAC, the permission registry | `legacy`: placeholder routes and the evaluator catalog |
+| Users, roles and RBAC, the permission registry | `legacy`: placeholder routes |
 | Audit log, settings, secrets, agent tokens and JWKS | Later: observability, evaluation, agent identity, A2A and other product areas as they are split out |
 | HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | |
 

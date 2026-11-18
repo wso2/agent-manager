@@ -10,7 +10,7 @@ An open control plane for enterprises to register, govern and observe AI agents.
 
 WSO2 Agent Manager provides a platform for enterprise AI agent management. Organizations register the AI agents they run, govern how those agents reach models, tools and other agents, and trace what they do.
 
-This branch is **AMP Lite**, a development preview of Agent Manager without OpenChoreo. Lite connects external agents only: agents run wherever you host them and are registered in AMP, which issues their identities, fronts their traffic through the AI Gateway and collects their traces. Each organization has one internal `default` environment that the console and API never show. Hosted agents (builds and deployments) and evaluations are deferred; in `amp` their API routes answer `501 Not Implemented`. Lite is not production-ready.
+This branch is **AMP Lite**, a development preview of Agent Manager without OpenChoreo. Lite connects external agents only: agents run wherever you host them and are registered in AMP, which issues their identities, fronts their traffic through the AI Gateway and collects their traces. Each organization has one internal `default` environment that the console and API never show. Hosted agents (builds and deployments) are deferred; in `amp` their API routes answer `501 Not Implemented`. Evaluation is not part of Lite; it is planned to return as a module. Lite is not production-ready.
 
 The API is one binary with a module host. It comes in two distributions built from the same image: `amp` (the core plus the built-in modules, including the AI Gateway) and `amp-core` (organizations, projects, agents, identities and traces, with no modules).
 
@@ -39,7 +39,7 @@ The API is one binary with a module host. It comes in two distributions built fr
 | **amp-observer** ([agent-manager-observer](agent-manager-observer)) | API for querying trace data in OpenSearch |
 | **amctl** ([cli](cli)) | Command-line client for the Agent Manager API |
 | **amp-instrumentation** ([libs/amp-instrumentation](libs/amp-instrumentation)) | Python auto-instrumentation package for AI frameworks |
-| **amp-evaluation** ([libs/amp-evaluation](libs/amp-evaluation)) | Python library for scoring agent traces (evaluations are deferred in Lite) |
+| **amp-evaluation** ([libs/amp-evaluation](libs/amp-evaluation)) | Python library for scoring agent traces; Lite does not run evaluations, and the library is no longer released from this branch |
 
 ## Deployment
 

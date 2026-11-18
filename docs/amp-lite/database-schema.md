@@ -10,7 +10,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 
 ## Decisions that shape the schema
 
-- Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) and evaluation (evaluators, monitors, runs, scores, alerts) are deferred; if they come back, they come as modules with their own tables.
+- Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) are deferred, and evaluation (evaluators, monitors, runs, scores, alerts) is removed from Lite; if they come back, they come as modules with their own tables.
 - The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>`. The built-in `gateway` module still uses the tables listed under [Gateway module tables](#gateway-module-tables) with their original names; `amp-core` (no modules) leaves them empty.
 - Multi-tenant. `organizations` is the root.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
@@ -266,7 +266,7 @@ One row per agent per environment each, unique (agent_id, environment_id), casca
 
 ### Deferred
 
-- Evaluation monitors (per environment today) and the eval publisher and scheduler credentials (`org_publisher_credentials`, `org_scheduler_credentials`, encrypted today) move to `secrets` and pick up `environment_id` if evaluation lands in Lite.
+- Evaluation is not part of Lite. A future evaluation module brings its own tables: its monitors pick up `environment_id`, and its publisher and scheduler credentials live in `secrets`.
 
 ## Events, audit log and console usage
 
@@ -304,7 +304,7 @@ Today audit events (`audit.Event`, schema version 1) go only to stdout through `
 | actor_id | short text (255) | yes | Username for console users. |
 | actor_display, actor_token_id, on_behalf_of | short text (255) | yes | |
 | auth_method | short text (32) | yes | |
-| surface | short text (16) | no | api, mcp, internal, publisher, system |
+| surface | short text (16) | no | api, mcp, internal, system |
 | source_ip | short text (45) | yes | |
 | user_agent | short text (512) | yes | |
 | correlation_id | short text (64) | yes | |
@@ -424,4 +424,4 @@ The schema above is the target. The migrations currently differ in these places:
 - `agent_model_config_mcp_envs` has an extra `mcp_proxy_id` column, and `a2a_proxies` an extra `artifact_id`.
 - `gateways` also enforces that a self-hosted gateway is egress only.
 - `audit_events` and `usage_events` exist, but nothing writes or reads them yet.
-- `models/` still defines tables that are not in this schema: evaluation (monitors, monitor alerts, scores and evaluators) and `rest_apis`.
+- `models/` still defines a table that is not in this schema: `rest_apis`.

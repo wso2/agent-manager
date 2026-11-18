@@ -382,7 +382,7 @@ DW = 360
 dx = 60
 deferred = [
     ("d_eval", "Evaluation", "monitors, runs, scores, evaluators, alerts, eval credentials",
-     "Deferred. Credentials would move to secrets and gain an environment."),
+     "Not in Lite; returns as a module. Its credentials would live in secrets."),
     ("d_host", "Hosted-agent runtime", "builds, deployments, env vars, resources, git credentials, agent kinds",
      "Lite only connects external agents. Added if hosted agents come to Lite."),
     ("d_pmcp", "Project MCP proxies", "",

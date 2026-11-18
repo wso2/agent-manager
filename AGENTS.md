@@ -42,12 +42,11 @@ console ──HTTP──▶ agent-manager-service ──▶ SQLite or PostgreSQL
    │                                                     │
    └──HTTP──▶ agent-manager-observer ──▶ Observer ──▶ OTel traces from instrumented agents
                                                      │
-                          evaluation-job ──uses amp-evaluation──▶ fetches those traces, scores them
 cli (amctl) ──HTTP──▶ agent-manager-service   (same API as the console)
 ```
 
 - **`agent-manager-service`** is the hub — the REST and MCP API the console and CLI both call. It also serves the built console on its own port. Its core imports no module; the AI Gateway is the built-in `gateway` module (see [Writing a module](docs/amp-lite/modules.md)).
-- **Instrumented agents** emit OTel traces (via `amp-instrumentation`, run with `amp-instrument`); `agent-manager-observer` serves them to the console; `evaluation-job` scores them via `amp-evaluation`.
+- **Instrumented agents** emit OTel traces (via `amp-instrumentation`, run with `amp-instrument`); `agent-manager-observer` serves them to the console. `evaluation-job` and `amp-evaluation` are kept as source for a future evaluation module; Lite neither builds nor runs them.
 
 ## Local dev environment (from repo root)
 
@@ -86,7 +85,7 @@ These apply everywhere; each aspect guide restates the specifics for its stack.
 
 - **Platform** — `.github/workflows/release.yml` (and `release-promote.yml` to promote an existing release): images, Helm charts and the install bundle, tagged `amp/v<version>`
 - **amctl** — its own version line via `.github/workflows/amctl_release.yaml`, tagged `amctl/v<version>`. The platform release does not ship amctl; see [`cli/AGENTS.md`](cli/AGENTS.md#releases-and-updates)
-- **Python libraries** — `amp_instrumentation_release.yaml`, `amp_evaluation_release.yaml`
+- **Python libraries** — `amp_instrumentation_release.yaml`
 
 ## Contributing
 

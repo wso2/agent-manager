@@ -39,7 +39,7 @@ Edit `.env` before the first start. The defaults are for local development only.
 | Setting | What to set |
 |---|---|
 | `AMP_ADMIN_PASSWORD` | The console admin password |
-| `AMP_API_CLIENT_SECRET`, `AMP_CONSOLE_CLIENT_SECRET`, `AMP_PUBLISHER_CLIENT_SECRET`, `AMP_SYSTEM_CLIENT_SECRET` | Random strings |
+| `AMP_API_CLIENT_SECRET`, `AMP_CONSOLE_CLIENT_SECRET`, `AMP_SYSTEM_CLIENT_SECRET` | Random strings |
 | `AMP_ENCRYPTION_KEY` | 64 hex characters, from `openssl rand -hex 32`. It encrypts stored secrets; keep it safe, because data encrypted with it can't be read without it |
 | `GATEWAY_ADMIN_PASSWORD` | A strong password |
 | `AMP_DEFAULT_USERS` | Optional extra console users, as `username:password[:admin]` entries separated by commas |
@@ -95,11 +95,11 @@ AMP_DEFAULT_USERS=dev:dev-password, lead:lead-password:admin
 
 | Entry | Role | Scopes |
 | --- | --- | --- |
-| `dev:dev-password` | Developer | 52 |
-| `lead:lead-password:admin` | Agent Manager Admin | 101 |
+| `dev:dev-password` | Developer | 45 |
+| `lead:lead-password:admin` | Agent Manager Admin | 90 |
 
 Developer covers day-to-day work: full control of projects, agents and LLM
-proxies, plus monitors and git secrets. It can read and
+proxies, plus git secrets. It can read and
 connect to MCP servers and LLM providers but not create them, and it cannot
 touch organization settings, identity providers, gateways, roles or groups.
 Admin holds everything.
@@ -182,7 +182,7 @@ The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `am
 
 ## Limits of this preview
 
-- Only external agents are supported. Hosted agents (builds and deployments) and evaluations are not available; their API routes answer `501 Not Implemented`. No traces are stored.
+- Only external agents are supported. Hosted agents (builds and deployments) are not available; their API routes answer `501 Not Implemented`. Evaluation (evaluators, monitors, scores and alerts) is not part of Lite and has no API routes. No traces are stored.
 - Each organization has one internal environment, which the console doesn't show.
 - It is not production-ready: there is no high availability, and TLS is up to you.
 - Sign-in is file-based by default, which suits local and single-operator installs. Use `AUTH_MODE=idp` for anything shared; see [How sign-in works](#how-sign-in-works).
