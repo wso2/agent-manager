@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
@@ -25,7 +24,7 @@ import (
 )
 
 // RegisterAgentConfigRoutes registers all agent configuration routes
-func RegisterAgentConfigRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.AgentConfigurationController) {
+func RegisterAgentConfigRoutes(rr Router, ctrl gwctl.AgentConfigurationController) {
 	rr.HandleFuncWithValidationAndAuthz(
 		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs",
 		rbac.AgentUpdate, growthanalytics.Track("amp.agent-development.bind-model-config", actionDims("created-model-config-binding"), ctrl.CreateAgentModelConfig),

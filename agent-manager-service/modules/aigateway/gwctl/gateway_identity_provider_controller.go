@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -169,7 +170,7 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 	// fetch validates TLS — an issuer on its own does not say who can actually
 	// mint an accepted token.
 	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "UpsertGatewayIdentityProvider", "Failed to upsert identity provider", audit.ActionGatewaySetIdentityProvider,
+		w, r, "UpsertGatewayIdentityProvider", "Failed to upsert identity provider", gwaudit.GatewaySetIdentityProvider,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceGateway, gatewayID, gatewayID),
 		audit.Detail("identityProviderName", name),
@@ -208,7 +209,7 @@ func (c *gatewayController) DeleteGatewayIdentityProvider(w http.ResponseWriter,
 
 	ctx := r.Context()
 	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "DeleteGatewayIdentityProvider", "Failed to delete identity provider", audit.ActionGatewayRemoveIdentityProvider,
+		w, r, "DeleteGatewayIdentityProvider", "Failed to delete identity provider", gwaudit.GatewayRemoveIdentityProvider,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceGateway, gatewayID, gatewayID),
 		audit.Detail("identityProviderName", name),

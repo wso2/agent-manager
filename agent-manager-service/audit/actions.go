@@ -175,10 +175,15 @@ func (a Action) Resource() string {
 	return string(a)
 }
 
-// Verb returns the trailing "<verb>" segment of the action.
+// Verb returns the trailing "<verb>" segment of the action. A module's
+// action reads "<module>:<resource>.<verb>"; its verb is the last segment.
 func (a Action) Verb() string {
 	if idx := strings.Index(string(a), ":"); idx != -1 {
-		return string(a)[idx+1:]
+		verb := string(a)[idx+1:]
+		if dot := strings.LastIndex(verb, "."); dot != -1 {
+			return verb[dot+1:]
+		}
+		return verb
 	}
 	return ""
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -125,7 +126,7 @@ func (s *a2aAgentCardService) SetA2ACardSource(
 		return err
 	}
 	err = s.proxyHooks.StoreCardSource(ctx, agent, ouID, projectName, env, sourceURL)
-	recordCardSourceChange(ctx, audit.ActionAgentSetCardSource, agent, ouID, projectName, envName, err,
+	recordCardSourceChange(ctx, gwaudit.AgentSetCardSource, agent, ouID, projectName, envName, err,
 		audit.Detail("sourceUrl", sourceURL))
 	return err
 }
@@ -142,7 +143,7 @@ func (s *a2aAgentCardService) DeleteA2ACardSource(
 		return err
 	}
 	err = s.proxyHooks.RemoveCardSource(ctx, agent, ouID, projectName, env)
-	recordCardSourceChange(ctx, audit.ActionAgentRemoveCardSource, agent, ouID, projectName, envName, err)
+	recordCardSourceChange(ctx, gwaudit.AgentRemoveCardSource, agent, ouID, projectName, envName, err)
 	return err
 }
 

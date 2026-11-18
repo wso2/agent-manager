@@ -26,6 +26,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -134,7 +135,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 		vhost = gateway.Vhost
 	}
 	audit.Record(
-		ctx, audit.ActionGatewayCreate,
+		ctx, gwaudit.GatewayCreate,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceGateway, gatewayResponseID(gateway), req.DisplayName),
 		audit.Environment(env.UUID),
@@ -182,7 +183,7 @@ func (c *gatewayController) UpdateSelfHostedGateway(w http.ResponseWriter, r *ht
 	}
 	gateway, err := c.gatewayService.UpdateGateway(existing.UUID.String(), ouID, req.Description, req.DisplayName, req.IsCritical, properties, nil)
 	audit.Record(
-		ctx, audit.ActionGatewayUpdate,
+		ctx, gwaudit.GatewayUpdate,
 		audit.Org(ouID),
 		audit.Resource(audit.ResourceGateway, existing.UUID.String()),
 		audit.Result(err),

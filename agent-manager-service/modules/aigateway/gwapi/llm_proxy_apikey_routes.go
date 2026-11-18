@@ -17,13 +17,12 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
 // RegisterLLMProxyAPIKeyRoutes registers API key routes for LLM proxies
-func RegisterLLMProxyAPIKeyRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.LLMProxyAPIKeyController) {
+func RegisterLLMProxyAPIKeyRoutes(rr Router, ctrl gwctl.LLMProxyAPIKeyController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys", gwperm.LLMProxyAPIKeyManage, ctrl.ListAPIKeys)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys", gwperm.LLMProxyAPIKeyManage, ctrl.CreateAPIKey)
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}", gwperm.LLMProxyAPIKeyManage, ctrl.RevokeAPIKey)

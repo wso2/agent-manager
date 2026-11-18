@@ -44,31 +44,6 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 	}{
 		{"POST /orgs/{orgName}/git-secrets", []rbac.Permission{rbac.GitSecretCreate}, ActionGitSecretCreate},
 		{"DELETE /orgs/{orgName}/git-secrets/{secretName}", []rbac.Permission{rbac.GitSecretDelete}, ActionGitSecretDelete},
-		{
-			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
-			[]rbac.Permission{rbac.AgentUpdate, testTierAxis},
-			ActionAgentSetCardSource,
-		},
-		{
-			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
-			[]rbac.Permission{rbac.AgentUpdate, testTierAxis},
-			ActionAgentRemoveCardSource,
-		},
-		{
-			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy",
-			[]rbac.Permission{rbac.AgentUpdate, testTierAxis},
-			ActionAgentSetA2AProxy,
-		},
-		{
-			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy",
-			[]rbac.Permission{rbac.AgentUpdate, testTierAxis},
-			ActionAgentRemoveA2AProxy,
-		},
-		{"POST /orgs/{orgName}/llm-providers/{id}/api-keys", nil, ActionAPIKeyCreate},
-		{"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRotate},
-		{"DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", nil, ActionAPIKeyRevoke},
-		{"POST /orgs/{orgName}/gateways/{gatewayID}/tokens", nil, ActionGatewayTokenRotate},
-		{"DELETE /orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}", nil, ActionGatewayTokenRevoke},
 		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token", nil, ActionAgentTokenMint},
 		{
 			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/tracing-token/regenerate",
@@ -121,13 +96,6 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		},
 		{"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}", []rbac.Permission{rbac.AgentDelete}, ActionAgentDelete},
 		{"DELETE /orgs/{orgName}/projects/{projName}", []rbac.Permission{rbac.ProjectDelete}, ActionProjectDelete},
-		{"POST /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}", nil, ActionGatewayAssignEnvironment},
-		{"DELETE /orgs/{orgName}/gateways/{gatewayID}/environments/{envID}", nil, ActionGatewayUnassignEnvironment},
-		{"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}", nil, ActionGatewaySetIdentityProvider},
-		{
-			"DELETE /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}",
-			nil, ActionGatewayRemoveIdentityProvider,
-		},
 	}
 
 	for _, pair := range pairs {
@@ -147,9 +115,8 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 // change to routine.
 func TestCredentialAndIdentityActionsAreCritical(t *testing.T) {
 	critical := []Action{
-		ActionAPIKeyCreate, ActionAPIKeyRotate, ActionAPIKeyRevoke,
 		ActionGitSecretCreate, ActionGitSecretDelete,
-		ActionGatewayTokenRotate, ActionGatewayTokenRevoke,
+
 		ActionAgentTokenMint, ActionAgentTokenRegenerateTracing,
 		ActionAgentIdentityProvision, ActionAgentIdentityRegenerateSecret, ActionAgentIdentityRevokeSecret,
 		ActionAgentIdentityRetryProvisioning,
@@ -160,9 +127,6 @@ func TestCredentialAndIdentityActionsAreCritical(t *testing.T) {
 		ActionRoleAssign, ActionRoleUnassign,
 		ActionGroupAddMember, ActionGroupRemoveMember,
 		ActionUserInvite, ActionUserCreate, ActionUserUpdate, ActionUserDelete,
-		// Changing a gateway's trusted issuers decides whose tokens it accepts.
-		ActionGatewaySetIdentityProvider, ActionGatewayRemoveIdentityProvider,
-		ActionAgentSetA2AProxy, ActionAgentRemoveA2AProxy,
 	}
 
 	for _, action := range critical {

@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -186,13 +187,13 @@ func TestSelfHostedGatewayRoutes_SelfHostedGatewaySucceeds(t *testing.T) {
 		audit  audit.Action
 	}{
 		{"list", http.MethodGet, "", "", gwperm.Read, http.StatusOK, ""},
-		{"create", http.MethodPost, "", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["https://edge.example.com"]}`, gwperm.Create, http.StatusCreated, audit.ActionGatewayCreate},
+		{"create", http.MethodPost, "", `{"displayName":"Edge","handle":"edge","environment":"dev","endpoints":["https://edge.example.com"]}`, gwperm.Create, http.StatusCreated, gwaudit.GatewayCreate},
 		{"get", http.MethodGet, "/" + id, "", gwperm.Read, http.StatusOK, ""},
-		{"update", http.MethodPut, "/" + id, `{"description":"edge site"}`, gwperm.Update, http.StatusOK, audit.ActionGatewayUpdate},
+		{"update", http.MethodPut, "/" + id, `{"description":"edge site"}`, gwperm.Update, http.StatusOK, gwaudit.GatewayUpdate},
 		{"list tokens", http.MethodGet, tokenPath, "", gwperm.TokenManage, http.StatusOK, ""},
-		{"rotate token", http.MethodPost, tokenPath, "", gwperm.TokenManage, http.StatusCreated, audit.ActionGatewayTokenRotate},
-		{"revoke token", http.MethodDelete, tokenPath + "/" + f.token.UUID.String(), "", gwperm.TokenManage, http.StatusNoContent, audit.ActionGatewayTokenRevoke},
-		{"delete", http.MethodDelete, "/" + id, "", gwperm.Delete, http.StatusNoContent, audit.ActionGatewayDelete},
+		{"rotate token", http.MethodPost, tokenPath, "", gwperm.TokenManage, http.StatusCreated, gwaudit.GatewayTokenRotate},
+		{"revoke token", http.MethodDelete, tokenPath + "/" + f.token.UUID.String(), "", gwperm.TokenManage, http.StatusNoContent, gwaudit.GatewayTokenRevoke},
+		{"delete", http.MethodDelete, "/" + id, "", gwperm.Delete, http.StatusNoContent, gwaudit.GatewayDelete},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

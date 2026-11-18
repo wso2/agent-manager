@@ -232,12 +232,12 @@ func internalChain(params *wiring.AppParams, internalMux *http.ServeMux) http.Ha
 // MakeInternalHTTPHandler creates the internal HTTPS server handler
 // This server hosts WebSocket connections and gateway internal APIs without JWT middleware
 func MakeInternalHTTPHandler(params *wiring.AppParams) http.Handler {
-	return MakeInternalHTTPHandlerWithModules(params, nil, nil)
+	return MakeInternalHTTPHandlerWithModules(params, nil)
 }
 
 // MakeInternalHTTPHandlerWithModules is MakeInternalHTTPHandler that also serves
 // module workload routes and workload heartbeats; modules may be nil.
-func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Modules, bundles builtin.Built) http.Handler {
+func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Modules) http.Handler {
 	mux := http.NewServeMux()
 
 	// Health check endpoint
@@ -248,12 +248,10 @@ func MakeInternalHTTPHandlerWithModules(params *wiring.AppParams, modules Module
 		}
 	})
 
-	// Create internal mux for the routes of module workloads and built-in
-	// bundles, such as the gateway internal API and WebSocket (NO JWT
-	// middleware); these authenticate themselves
+	// The internal API (NO JWT middleware): workload heartbeats and the
+	// routes modules mount at fixed paths, such as the AI Gateway's
+	// controller API and WebSocket, which authenticate themselves.
 	internalMux := http.NewServeMux()
-	internalRR := middleware.NewInternalRouteRegistrar(internalMux, params.AuditRecorder)
-	bundles.InternalRoutes(internalRR, internalMux)
 	if modules != nil {
 		internalMux.Handle("POST /workloads/heartbeat", modules.ServeHeartbeat())
 		// Routes modules mount at fixed paths (HandleInternalAt); every

@@ -22,8 +22,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 )
 
 // TestConfigUpdateRecordNamesTheConfigWithoutARename is the regression for a
@@ -45,7 +45,7 @@ func TestConfigUpdateRecordNamesTheConfigWithoutARename(t *testing.T) {
 
 	flush()
 
-	e, ok := findEvent(sink.captured(), audit.ActionAgentConfigUpdate)
+	e, ok := findEvent(sink.captured(), gwaudit.AgentConfigUpdate)
 	require.True(t, ok, "a successful configuration update must be recorded")
 	require.Equal(t, "production-llm", e.ResourceName,
 		"resource name must fall back to the stored name when the request is not a rename")
@@ -69,7 +69,7 @@ func TestConfigUpdateRecordPrefersTheNewNameOnRename(t *testing.T) {
 
 	flush()
 
-	e, ok := findEvent(sink.captured(), audit.ActionAgentConfigUpdate)
+	e, ok := findEvent(sink.captured(), gwaudit.AgentConfigUpdate)
 	require.True(t, ok)
 	require.Equal(t, "new-name", e.ResourceName)
 	require.Equal(t, []string{"name"}, e.Details["updatedFields"])
@@ -95,7 +95,7 @@ func TestConfigUpdateRecordListsEveryChangedField(t *testing.T) {
 
 	flush()
 
-	e, ok := findEvent(sink.captured(), audit.ActionAgentConfigUpdate)
+	e, ok := findEvent(sink.captured(), gwaudit.AgentConfigUpdate)
 	require.True(t, ok)
 	require.ElementsMatch(t,
 		[]string{"name", "description", "envMappings", "environmentVariables"},
@@ -116,6 +116,6 @@ func TestConfigUpdateRecordSurvivesAMissingExistingConfig(t *testing.T) {
 
 	flush()
 
-	_, ok := findEvent(sink.captured(), audit.ActionAgentConfigUpdate)
+	_, ok := findEvent(sink.captured(), gwaudit.AgentConfigUpdate)
 	require.True(t, ok, "a record must still be emitted, even unnamed")
 }

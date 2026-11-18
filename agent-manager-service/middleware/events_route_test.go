@@ -94,8 +94,25 @@ func TestWithEvents_SkipsFailuresAndUncataloguedRoutes(t *testing.T) {
 	assert.Empty(t, pub.got, "a route outside the catalog emits nothing")
 }
 
+// serveRouteEvent serves one request through a module route's event, as
+// HandleModuleRoute installs it.
+func serveRouteEvent(t *testing.T, pattern string, omitData bool, pathValues map[string]string, handler http.HandlerFunc) *capturePublisher {
+	t.Helper()
+	pub := &capturePublisher{}
+	method, path, _ := strings.Cut(pattern, " ")
+	meta := audit.RouteMeta{Pattern: pattern, Method: method, Path: path, Params: extractPathParams(pattern)}
+	h := withRouteEvent(pub, meta, "testmod.key_created", events.ScopeAgent, omitData)(handler)
+	req := httptest.NewRequest(method, "/x", nil)
+	for k, v := range pathValues {
+		req.SetPathValue(k, v)
+	}
+	req = req.WithContext(orgctx.WithResolvedOrg(req.Context(), orgctx.ResolvedOrg{OUID: "ou-1", OuHandle: "acme"}))
+	h(httptest.NewRecorder(), req)
+	return pub
+}
+
 func TestWithEvents_OmitDataRoutesCarryNoBody(t *testing.T) {
-	pub := serveEvent(t, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys",
+	pub := serveRouteEvent(t, "POST /m/testmod/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", true,
 		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1", "envID": "prod"},
 		func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusCreated)
@@ -109,7 +126,7 @@ func TestWithEvents_OmitDataRoutesCarryNoBody(t *testing.T) {
 func TestWithEvents_APIKeyEventNamesKeyAndEnvironment(t *testing.T) {
 	// The API key service resolves envID, which may be a UUID, to the
 	// environment name, and adds the created key's name.
-	pub := serveEvent(t, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys",
+	pub := serveRouteEvent(t, "POST /m/testmod/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", true,
 		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1", "envID": "6f1c0c1e-env-uuid"},
 		func(w http.ResponseWriter, r *http.Request) {
 			events.SetEnvironment(r.Context(), "prod")

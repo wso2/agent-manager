@@ -122,9 +122,10 @@ func Options(opts []RouteOption) RouteOptions {
 // AuditAction is an audit action a module declares for its routes and tools.
 // It is recorded as "<module>:<name>".
 type AuditAction struct {
-	// Name is one segment of lowercase letters, digits and dashes, or the
-	// name of one of the module's permissions, to classify the action that
-	// permission names.
+	// Name is an action ("archive") or a resource and an action
+	// ("widgets.archive"), each of lowercase letters, digits and dashes, or
+	// the name of one of the module's permissions, to classify the action
+	// that permission names.
 	Name string `json:"name"`
 	// Class is "credential", "identity", "deployment", "config" or "read";
 	// empty means "config".

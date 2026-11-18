@@ -77,18 +77,3 @@ func TestEveryTierGrantSitsAboveTheFloor(t *testing.T) {
 		}
 	}
 }
-
-// TestFormerNames: every permission but the two environment tiers (which
-// never name an action) keeps its former name as its routes' audit action.
-func TestFormerNames(t *testing.T) {
-	for _, a := range Actions {
-		p := rbac.Permission(Module + ":" + a.Name)
-		_, ok := FormerNames[p]
-		if axis := p == DeployNonProduction || p == DeployProduction; ok == axis {
-			t.Errorf("%s: former name present = %v", p, ok)
-		}
-	}
-	if len(FormerNames) != len(Actions)-2 {
-		t.Errorf("%d former names for %d permissions", len(FormerNames), len(Actions))
-	}
-}

@@ -17,14 +17,13 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
 // RegisterLLMProviderAPIKeyRoutes registers API key routes for LLM providers
-func RegisterLLMProviderAPIKeyRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.LLMProviderAPIKeyController) {
+func RegisterLLMProviderAPIKeyRoutes(rr Router, ctrl gwctl.LLMProviderAPIKeyController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{id}/api-keys", gwperm.LLMProviderAPIKeyManage, ctrl.ListAPIKeys)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{id}/api-keys", gwperm.LLMProviderAPIKeyManage,
 		growthanalytics.Track("amp.connections.llm-provider-api-key", actionDims("issued-provider-api-key"), ctrl.CreateAPIKey))

@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -186,7 +187,7 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 	// change cannot commit with its record. Write the intent first and refuse
 	// if it fails: a live credential nobody can attribute is worse than a
 	// failed request. The key value itself is never passed to the recorder.
-	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyCreate, apiKeyAuditTarget{
+	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyCreate, apiKeyAuditTarget{
 		OUID:        ouID,
 		OwnerType:   audit.APIKeyOwnerAgent,
 		OwnerID:     artifactUUID,
@@ -234,7 +235,7 @@ func (s *AgentAPIKeyService) RevokeAPIKey(
 	}
 	artifactUUID := artifact.UUID.String()
 
-	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyRevoke, apiKeyAuditTarget{
+	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRevoke, apiKeyAuditTarget{
 		OUID:        ouID,
 		OwnerType:   audit.APIKeyOwnerAgent,
 		OwnerID:     artifactUUID,
@@ -269,7 +270,7 @@ func (s *AgentAPIKeyService) RotateAPIKey(
 	}
 	artifactUUID := artifact.UUID.String()
 
-	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyRotate, apiKeyAuditTarget{
+	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRotate, apiKeyAuditTarget{
 		OUID:        ouID,
 		OwnerType:   audit.APIKeyOwnerAgent,
 		OwnerID:     artifactUUID,
@@ -366,7 +367,7 @@ func (s *AgentAPIKeyService) IssueTestAPIKey(
 	// short-lived and scoped to the requesting user, so refusing the Try-It
 	// flow when the trail is unavailable would cost more than it protects.
 	audit.Record(
-		ctx, audit.ActionAPIKeyIssueTest,
+		ctx, gwaudit.APIKeyIssueTest,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceAPIKey, artifactUUID, keyName),
 		audit.Project(projectName),

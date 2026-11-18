@@ -37,6 +37,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -2958,7 +2959,7 @@ func (s *agentConfigurationService) recordConfigUpdate(ctx context.Context, conf
 	// an audit log: it carried no actor, no outcome and no durability, so it
 	// could not answer who changed the configuration.
 	audit.Record(
-		ctx, audit.ActionAgentConfigUpdate,
+		ctx, gwaudit.AgentConfigUpdate,
 		audit.Org(ouID),
 		audit.ResourceNamed("agent-config", configUUID.String(), configName),
 		audit.Project(projectName),
@@ -3168,7 +3169,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 	}
 
 	audit.Record(
-		ctx, audit.ActionAgentConfigDelete,
+		ctx, gwaudit.AgentConfigDelete,
 		audit.Org(ouID),
 		audit.ResourceNamed("agent-config", configUUID.String(), existingConfig.Name),
 		audit.Project(projectName),

@@ -22,6 +22,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -87,7 +88,7 @@ func (s *LLMProviderAPIKeyService) CreateAPIKey(
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
-	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyCreate, apiKeyAuditTarget{
+	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyCreate, apiKeyAuditTarget{
 		OUID:      orgID,
 		OwnerType: audit.APIKeyOwnerLLMProvider,
 		OwnerID:   providerID,
@@ -116,7 +117,7 @@ func (s *LLMProviderAPIKeyService) RevokeAPIKey(
 		return utils.ErrLLMProviderNotFound
 	}
 
-	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyRevoke, apiKeyAuditTarget{
+	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRevoke, apiKeyAuditTarget{
 		OUID:      orgID,
 		OwnerType: audit.APIKeyOwnerLLMProvider,
 		OwnerID:   providerID,
@@ -149,7 +150,7 @@ func (s *LLMProviderAPIKeyService) RevokeAllUserManagedKeys(
 	// A bulk revocation, triggered when API-key security is turned off. Recorded
 	// as one event naming the provider rather than one per key: the operation
 	// the operator performed was "disable key security on this provider".
-	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyRevoke, apiKeyAuditTarget{
+	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRevoke, apiKeyAuditTarget{
 		OUID:      orgID,
 		OwnerType: audit.APIKeyOwnerLLMProvider,
 		OwnerID:   providerID,
@@ -180,7 +181,7 @@ func (s *LLMProviderAPIKeyService) RotateAPIKey(
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
-	attempt, err := beginAPIKeyAudit(ctx, audit.ActionAPIKeyRotate, apiKeyAuditTarget{
+	attempt, err := beginAPIKeyAudit(ctx, gwaudit.APIKeyRotate, apiKeyAuditTarget{
 		OUID:      orgID,
 		OwnerType: audit.APIKeyOwnerLLMProvider,
 		OwnerID:   providerID,

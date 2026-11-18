@@ -17,13 +17,12 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
-func registerAgentIdentityRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.AgentIdentityController) {
+func registerAgentIdentityRoutes(rr Router, ctrl gwctl.AgentIdentityController) {
 	// Groups
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments/{envName}/agent-identities/groups", gwperm.AgentIdentityRead, ctrl.ListGroups)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/environments/{envName}/agent-identities/groups", gwperm.AgentIdentityCreate,

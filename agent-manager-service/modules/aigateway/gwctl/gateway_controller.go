@@ -34,6 +34,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -287,7 +288,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		models.GatewayHostingManaged,
 	)
 	audit.Record(
-		ctx, audit.ActionGatewayCreate,
+		ctx, gwaudit.GatewayCreate,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceGateway, gatewayResponseID(gateway), req.Name),
 		audit.Detail("gatewayName", req.Name),
@@ -475,7 +476,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	var description *string // Description not in spec
 	gateway, err := c.gatewayService.UpdateGateway(gatewayID, ouID, description, req.DisplayName, req.IsCritical, properties, req.RuntimeUrl)
 	audit.Record(
-		ctx, audit.ActionGatewayUpdate,
+		ctx, gwaudit.GatewayUpdate,
 		audit.Org(ouID),
 		audit.Resource(audit.ResourceGateway, gatewayID),
 		audit.Result(err),
@@ -500,7 +501,7 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "DeleteGateway", "Failed to delete gateway", audit.ActionGatewayDelete,
+		w, r, "DeleteGateway", "Failed to delete gateway", gwaudit.GatewayDelete,
 		audit.Org(ouID),
 		audit.Resource(audit.ResourceGateway, gatewayID),
 	)
@@ -543,7 +544,7 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 	// Assign via service
 	assignErr := c.gatewayService.AssignGatewayToEnvironment(gatewayID, resolvedEnvID)
 	audit.Record(
-		ctx, audit.ActionGatewayAssignEnvironment,
+		ctx, gwaudit.GatewayAssignEnvironment,
 		audit.Org(ouID),
 		audit.Resource(audit.ResourceGateway, gatewayID),
 		audit.Environment(resolvedEnvID),
@@ -613,7 +614,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 	// Remove via service
 	removeErr := c.gatewayService.RemoveGatewayFromEnvironment(ctx, gatewayID, resolvedEnvID)
 	audit.Record(
-		ctx, audit.ActionGatewayUnassignEnvironment,
+		ctx, gwaudit.GatewayUnassignEnvironment,
 		audit.Org(ouID),
 		audit.Resource(audit.ResourceGateway, gatewayID),
 		audit.Environment(resolvedEnvID),
@@ -756,7 +757,7 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 	// context carries. A rotated gateway token is live credential material, so
 	// the operation is refused when it cannot be recorded.
 	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "RotateGatewayToken", "Failed to rotate gateway token", audit.ActionGatewayTokenRotate,
+		w, r, "RotateGatewayToken", "Failed to rotate gateway token", gwaudit.GatewayTokenRotate,
 		audit.Org(ouID),
 		audit.Resource(audit.ResourceGateway, gatewayID),
 	)
@@ -796,7 +797,7 @@ func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Re
 	log.Info("RevokeGatewayToken: starting", "ouID", ouID, "gatewayID", gatewayID, "tokenID", tokenID)
 
 	attempt, ok := controllers.BeginAuditOrFail(
-		w, r, "RevokeGatewayToken", "Failed to revoke token", audit.ActionGatewayTokenRevoke,
+		w, r, "RevokeGatewayToken", "Failed to revoke token", gwaudit.GatewayTokenRevoke,
 		audit.Org(ouID),
 		audit.Resource(audit.ResourceGateway, gatewayID),
 		audit.Detail("tokenId", tokenID),

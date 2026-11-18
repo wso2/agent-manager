@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
@@ -26,7 +25,7 @@ import (
 
 // registerAgentGatewayRoutes registers the agent and environment routes that
 // only exist with a gateway.
-func registerAgentGatewayRoutes(rr *middleware.RouteRegistrar, ctrl *gwctl.AgentGatewayController, envCtrl *gwctl.EnvironmentGatewayController) {
+func registerAgentGatewayRoutes(rr Router, ctrl *gwctl.AgentGatewayController, envCtrl *gwctl.EnvironmentGatewayController) {
 	// Both of these rewrite a running deployment's env vars, secret references
 	// and file mounts, so they reach an environment the same way a deploy does
 	// and carry the same two axes: agent:update is the capability, and the tier

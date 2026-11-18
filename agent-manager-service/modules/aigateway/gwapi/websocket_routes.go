@@ -17,13 +17,11 @@
 package gwapi
 
 import (
-	"net/http"
-
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 )
 
 // RegisterWebSocketRoutes registers all WebSocket routes
 // These routes use API key authentication instead of JWT
-func RegisterWebSocketRoutes(mux *http.ServeMux, ctrl gwctl.WebSocketController) {
-	mux.HandleFunc("GET /ws/gateways/connect", ctrl.Connect)
+func RegisterWebSocketRoutes(rr InternalRouter, ctrl gwctl.WebSocketController) {
+	rr.HandleFuncWithValidation("GET /ws/gateways/connect", ctrl.Connect)
 }

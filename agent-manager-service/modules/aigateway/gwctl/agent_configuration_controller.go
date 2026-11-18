@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -1041,7 +1042,7 @@ func (c *agentConfigurationController) CreateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "CreateMCPConfigAPIKey", "Failed to issue API key", audit.ActionAPIKeyCreate, audit.APIKeyOwnerMCPConfig,
+	attempt, ok := beginConfigAPIKeyAudit(w, r, "CreateMCPConfigAPIKey", "Failed to issue API key", gwaudit.APIKeyCreate, audit.APIKeyOwnerMCPConfig,
 		ouID, projName, agentName, envName, configUUID.String(), name)
 	if !ok {
 		return
@@ -1080,7 +1081,7 @@ func (c *agentConfigurationController) RotateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "RotateMCPConfigAPIKey", "Failed to issue API key", audit.ActionAPIKeyRotate, audit.APIKeyOwnerMCPConfig,
+	attempt, ok := beginConfigAPIKeyAudit(w, r, "RotateMCPConfigAPIKey", "Failed to issue API key", gwaudit.APIKeyRotate, audit.APIKeyOwnerMCPConfig,
 		ouID, projName, agentName, envName, configUUID.String(), keyName)
 	if !ok {
 		return
@@ -1110,7 +1111,7 @@ func (c *agentConfigurationController) RevokeMCPConfigAPIKey(w http.ResponseWrit
 	}
 	keyName := r.PathValue("keyName")
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "RevokeMCPConfigAPIKey", "Failed to revoke API key", audit.ActionAPIKeyRevoke, audit.APIKeyOwnerMCPConfig,
+	attempt, ok := beginConfigAPIKeyAudit(w, r, "RevokeMCPConfigAPIKey", "Failed to revoke API key", gwaudit.APIKeyRevoke, audit.APIKeyOwnerMCPConfig,
 		ouID, projName, agentName, envName, configUUID.String(), keyName)
 	if !ok {
 		return
@@ -1171,7 +1172,7 @@ func (c *agentConfigurationController) CreateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "CreateLLMConfigAPIKey", "Failed to issue API key", audit.ActionAPIKeyCreate, audit.APIKeyOwnerModelConfig,
+	attempt, ok := beginConfigAPIKeyAudit(w, r, "CreateLLMConfigAPIKey", "Failed to issue API key", gwaudit.APIKeyCreate, audit.APIKeyOwnerModelConfig,
 		ouID, projName, agentName, envName, configUUID.String(), name)
 	if !ok {
 		return
@@ -1210,7 +1211,7 @@ func (c *agentConfigurationController) RotateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "RotateLLMConfigAPIKey", "Failed to issue API key", audit.ActionAPIKeyRotate, audit.APIKeyOwnerModelConfig,
+	attempt, ok := beginConfigAPIKeyAudit(w, r, "RotateLLMConfigAPIKey", "Failed to issue API key", gwaudit.APIKeyRotate, audit.APIKeyOwnerModelConfig,
 		ouID, projName, agentName, envName, configUUID.String(), keyName)
 	if !ok {
 		return
@@ -1240,7 +1241,7 @@ func (c *agentConfigurationController) RevokeLLMConfigAPIKey(w http.ResponseWrit
 	}
 	keyName := r.PathValue("keyName")
 
-	attempt, ok := beginConfigAPIKeyAudit(w, r, "RevokeLLMConfigAPIKey", "Failed to revoke API key", audit.ActionAPIKeyRevoke, audit.APIKeyOwnerModelConfig,
+	attempt, ok := beginConfigAPIKeyAudit(w, r, "RevokeLLMConfigAPIKey", "Failed to revoke API key", gwaudit.APIKeyRevoke, audit.APIKeyOwnerModelConfig,
 		ouID, projName, agentName, envName, configUUID.String(), keyName)
 	if !ok {
 		return

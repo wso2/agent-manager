@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
@@ -37,7 +36,7 @@ import (
 // an ordinary org-level grant that any tenant's admin holds, so the
 // platform-admin OU check is what actually keeps other tenants out. See
 // middleware.RequirePlatformAdminOU.
-func RegisterPlatformGatewayHealthRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.GatewayController) {
+func RegisterPlatformGatewayHealthRoutes(rr Router, ctrl gwctl.GatewayController) {
 	rr.HandleFuncWithValidationAndPlatformAdminAuthz(
 		"GET /platform/gateways/failure-summary", gwperm.Read, ctrl.GetPlatformGatewayFailureSummary,
 	)

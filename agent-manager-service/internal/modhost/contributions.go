@@ -46,7 +46,7 @@ var (
 	}
 	eventScopes       = []string{"", string(events.ScopeOrg), string(events.ScopeProject), string(events.ScopeAgent)}
 	eventNamePattern  = regexp.MustCompile(`^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$`)
-	actionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+	actionNamePattern = permissionNamePattern
 )
 
 // checkManifest refuses audit actions and event types a module cannot
@@ -54,7 +54,7 @@ var (
 func checkManifest(mf modkit.Manifest) error {
 	for _, a := range mf.AuditActions {
 		if !actionNamePattern.MatchString(a.Name) {
-			return fmt.Errorf("audit action %q must be lowercase letters, digits and dashes, starting with a letter", a.Name)
+			return fmt.Errorf("audit action %q must be <action> or <resource>.<action>, each lowercase letters, digits and dashes, starting with a letter", a.Name)
 		}
 		if _, ok := auditClasses[a.Class]; !ok {
 			return fmt.Errorf("audit action %s: unknown class %q", a.Name, a.Class)

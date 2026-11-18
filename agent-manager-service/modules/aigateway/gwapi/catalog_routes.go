@@ -17,11 +17,10 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
-func registerCatalogRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.CatalogController) {
+func registerCatalogRoutes(rr Router, ctrl gwctl.CatalogController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/catalog", gwperm.CatalogRead, ctrl.ListCatalog)
 }

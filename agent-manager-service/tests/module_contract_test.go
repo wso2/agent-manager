@@ -144,7 +144,7 @@ func newModuleWorld(t *testing.T) moduleWorld {
 		host:     host,
 		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host, nil),
 		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host, nil),
-		internal: api.MakeInternalHTTPHandlerWithModules(full, host, nil),
+		internal: api.MakeInternalHTTPHandlerWithModules(full, host),
 		signer:   full.AgentTokenManagerService.(services.WorkloadTokenSigner),
 		freshOrg: func() (http.Handler, string) {
 			id := uuid.Must(uuid.NewV7()).String()

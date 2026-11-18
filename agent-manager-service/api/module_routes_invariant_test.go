@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"sort"
 	"strings"
@@ -40,6 +41,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/modules/testmod"
 )
@@ -83,8 +87,10 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 	_, err = host.Migrate(ctx)
 	require.NoError(t, err)
 	require.NoError(t, host.Boot(ctx))
-	_, err = host.Install(ctx, m.Manifest().Name, false)
-	require.NoError(t, err)
+	if !m.Manifest().Builtin { // built-in modules are active after Boot
+		_, err = host.Install(ctx, m.Manifest().Name, false)
+		require.NoError(t, err)
+	}
 	require.Equal(t, []string{m.Manifest().Name}, host.Active())
 	values := func(m map[string]audit.RouteMeta) []audit.RouteMeta {
 		out := make([]audit.RouteMeta, 0, len(m))
@@ -101,8 +107,45 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 // that action is one of the module's permissions or declared audit actions.
 func TestModuleRoutesAreAudited(t *testing.T) {
 	m := testmod.Module()
-	mf := m.Manifest()
 	_, public, internal := mountedModule(t, m)
+	checkModuleAudited(t, m.Manifest(), public, internal)
+	byPattern := map[string]audit.RouteMeta{}
+	for _, meta := range public {
+		byPattern[meta.Pattern] = meta
+	}
+	archive := byPattern["POST /m/testmod/widgets/{name}/archive"]
+	assert.Equal(t, audit.Action("testmod:widget-archive"), archive.Action, "Audit names the action instead of the permission")
+	read := byPattern["GET /m/testmod/secrets/{name}"]
+	assert.True(t, read.Audited, "Audit on a read records it")
+	assert.Equal(t, audit.ClassCredential, read.Action.Class(), "the manifest classifies its actions")
+	assert.False(t, byPattern["GET /m/testmod/tags"].Audited, "other reads are not recorded")
+}
+
+// TestGatewayRoutesAreAudited holds the AI Gateway's routes to the same
+// invariant, on the API port and on the internal server.
+func TestGatewayRoutesAreAudited(t *testing.T) {
+	host, public, internal := mountedGateway(t)
+	var mf modkit.Manifest
+	for _, m := range modkit.Registered() {
+		if m.Manifest().Name == gwperm.Module {
+			mf = m.Manifest()
+		}
+	}
+	checkModuleAudited(t, mf, public, internal)
+	require.NotEmpty(t, host.Routes(gwperm.Module))
+	for _, meta := range public {
+		assert.True(t, strings.HasPrefix(meta.Path, "/m/ai-gateway/"), "%s is outside /m/ai-gateway", meta.Pattern)
+	}
+	for _, meta := range internal {
+		// Below /api/internal/v1, where the released controllers call them.
+		assert.False(t, strings.HasPrefix(meta.Path, "/m/"), "%s is a workload route", meta.Pattern)
+	}
+}
+
+// checkModuleAudited checks that every route of mf that changes state is
+// recorded, under an action the manifest declares.
+func checkModuleAudited(t *testing.T, mf modkit.Manifest, public, internal []audit.RouteMeta) {
+	t.Helper()
 	declared := map[audit.Action]bool{}
 	for _, p := range mf.Permissions {
 		declared[audit.Action(mf.PermissionName(p.Name))] = true
@@ -120,16 +163,6 @@ func TestModuleRoutesAreAudited(t *testing.T) {
 			assert.True(t, declared[meta.Action], "%s is audited as %q, which the manifest does not declare", meta.Pattern, meta.Action)
 		}
 	}
-	byPattern := map[string]audit.RouteMeta{}
-	for _, meta := range public {
-		byPattern[meta.Pattern] = meta
-	}
-	archive := byPattern["POST /m/testmod/widgets/{name}/archive"]
-	assert.Equal(t, audit.Action("testmod:widget-archive"), archive.Action, "Audit names the action instead of the permission")
-	read := byPattern["GET /m/testmod/secrets/{name}"]
-	assert.True(t, read.Audited, "Audit on a read records it")
-	assert.Equal(t, audit.ClassCredential, read.Action.Class(), "the manifest classifies its actions")
-	assert.False(t, byPattern["GET /m/testmod/tags"].Audited, "other reads are not recorded")
 }
 
 // moduleSpec is the part of a module's OpenAPI document the invariant reads.
@@ -204,4 +237,22 @@ func TestCoreSpecHasNoModulePaths(t *testing.T) {
 			}
 		}
 	}
+}
+
+// mountedGateway activates the AI Gateway module, with controllers that are
+// never called, and returns its ledgers.
+func mountedGateway(t *testing.T) (*modhost.Host, []audit.RouteMeta, []audit.RouteMeta) {
+	t.Helper()
+	gw := &gwwire.Gateway{}
+	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
+	prev := aigateway.Current()
+	aigateway.SetCurrent(gw)
+	t.Cleanup(func() { aigateway.SetCurrent(prev) })
+	for _, m := range modkit.Registered() {
+		if m.Manifest().Name == gwperm.Module {
+			return mountedModule(t, m)
+		}
+	}
+	t.Fatal("the AI Gateway module is not linked")
+	return nil, nil, nil
 }

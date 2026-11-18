@@ -17,14 +17,13 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
 // RegisterLLMDeploymentRoutes registers all LLM deployment-related routes
-func RegisterLLMDeploymentRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.LLMDeploymentController) {
+func RegisterLLMDeploymentRoutes(rr Router, ctrl gwctl.LLMDeploymentController) {
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments", gwperm.LLMProviderDeploy,
 		growthanalytics.Track("amp.connections.deploy-llm-provider", actionDims("deployed-llm-provider"), ctrl.DeployLLMProvider))
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments/undeploy", gwperm.LLMProviderDeploy,

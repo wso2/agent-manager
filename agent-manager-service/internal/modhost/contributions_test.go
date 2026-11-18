@@ -487,7 +487,9 @@ func TestRegistrationsThatFailActivationG1(t *testing.T) {
 // which exists only until the AI Gateway's controllers can register as
 // workloads (wso2/agent-manager#2493). A new caller fails this test; when the
 // list is empty again, HandleInternalAt goes.
-var internalAtUsers = map[string]bool{}
+var internalAtUsers = map[string]bool{
+	"aigateway": true, // its controller API at /api/internal/v1
+}
 
 func TestHandleInternalAtUsers(t *testing.T) {
 	root := filepath.Join("..", "..", "modules")

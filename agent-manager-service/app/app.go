@@ -322,7 +322,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 
 	// Create internal HTTPS server for module workloads and built-in features
 	// (the gateway WebSocket and internal APIs)
-	internalHandler := api.MakeInternalHTTPHandlerWithModules(dependencies, moduleHost(), bundles)
+	internalHandler := api.MakeInternalHTTPHandlerWithModules(dependencies, moduleHost())
 	internalServer := server.NewInternalServer(&cfg.InternalServer, internalHandler)
 
 	stopCh := signals.SetupSignalHandler()

@@ -17,13 +17,12 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
 // RegisterLLMProxyDeploymentRoutes registers all LLM proxy deployment-related routes
-func RegisterLLMProxyDeploymentRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.LLMProxyDeploymentController) {
+func RegisterLLMProxyDeploymentRoutes(rr Router, ctrl gwctl.LLMProxyDeploymentController) {
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments", gwperm.LLMProxyDeploy, ctrl.DeployLLMProxy)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/undeploy", gwperm.LLMProxyDeploy, ctrl.UndeployLLMProxyDeployment)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/restore", gwperm.LLMProxyDeploy, ctrl.RestoreLLMProxyDeployment)

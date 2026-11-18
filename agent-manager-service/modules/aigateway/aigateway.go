@@ -29,19 +29,18 @@ import (
 	"fmt"
 	"io/fs"
 	"log/slog"
-	"net/http"
 	"sync/atomic"
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/agentgwv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwinit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -62,11 +61,6 @@ func init() {
 	gwinit.Register()
 	// The environment tier says where an action lands, never what it is.
 	audit.RegisterAxisPermissions(gwperm.DeployNonProduction, gwperm.DeployProduction)
-	actions := make(map[rbac.Permission]audit.Action, len(gwperm.FormerNames))
-	for p, name := range gwperm.FormerNames {
-		actions[p] = audit.Action(name)
-	}
-	audit.RegisterPermissionActions(actions)
 	// The scopes of the tools the gateway's toolsets add to /mcp.
 	rbac.AddMCPScopes(gwperm.MCPScopes...)
 }
@@ -77,16 +71,18 @@ func (module) Manifest() modkit.Manifest {
 		perms = append(perms, modkit.Permission{Name: a.Name, DisplayName: a.DisplayName, Description: a.Description})
 	}
 	return modkit.Manifest{
-		Name:        Name,
-		DisplayName: "AI Gateway",
-		Version:     "1.0.0",
-		Description: "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
-		CoreAPI:     modkit.CoreAPIVersion,
-		Builtin:     true,
-		Provides:    []string{llmv1.ID, mcpv1.ID, agentgwv1.ID},
-		Permissions: perms,
-		RoleGrants:  gwperm.RoleGrants,
-		UI:          &ui,
+		Name:         Name,
+		DisplayName:  "AI Gateway",
+		Version:      "1.0.0",
+		Description:  "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
+		CoreAPI:      modkit.CoreAPIVersion,
+		Builtin:      true,
+		Provides:     []string{llmv1.ID, mcpv1.ID, agentgwv1.ID},
+		Permissions:  perms,
+		RoleGrants:   gwperm.RoleGrants,
+		Events:       gwaudit.Events,
+		AuditActions: gwaudit.Actions,
+		UI:           &ui,
 	}
 }
 
@@ -118,11 +114,17 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
 	rt.Provide(agentgwv1.ID, gw.AgentGateway)
+	gwapi.RegisterRoutes(gwapi.NewModuleRouter(rt), gw)
+	gwapi.RegisterInternalRoutes(gwapi.NewModuleInternalRouter(rt), gw)
 	return nil
 }
 
 // Current is the gateway built at startup, or nil.
 func Current() *gwwire.Gateway { return built.Load() }
+
+// SetCurrent sets the gateway Activate mounts, for a process that builds it
+// without Build (tests).
+func SetCurrent(gw *gwwire.Gateway) { built.Store(gw) }
 
 // Capabilities returns what the module provides, for a process that builds the
 // gateway without a module host (tests).
@@ -142,7 +144,7 @@ func Build(_ context.Context, core *wiring.AppParams) (*builtin.Parts, error) {
 		return nil, err
 	}
 	built.Store(gw)
-	return Parts(gw, core), nil
+	return Parts(gw), nil
 }
 
 // Wire builds the gateway's services without starting anything.
@@ -191,13 +193,9 @@ func currentOptions() Options {
 }
 
 // Parts is what the built gateway adds to the server.
-func Parts(gw *gwwire.Gateway, core *wiring.AppParams) *builtin.Parts {
+func Parts(gw *gwwire.Gateway) *builtin.Parts {
 	w := &workers{gw: gw}
 	return &builtin.Parts{
-		Routes: func(rr *middleware.RouteRegistrar) { gwapi.RegisterRoutes(rr, gw, core) },
-		InternalRoutes: func(rr *middleware.RouteRegistrar, mux *http.ServeMux) {
-			gwapi.RegisterInternalRoutes(rr, mux, gw)
-		},
 		MCPTools: gwapi.MCPTools(gw),
 		Init:     w.seed,
 		Start:    w.start,

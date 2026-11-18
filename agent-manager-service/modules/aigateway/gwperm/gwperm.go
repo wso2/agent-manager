@@ -158,37 +158,6 @@ func join(lists ...[]string) []string {
 	return out
 }
 
-// FormerNames are the permissions' names before they moved into the
-// module. Routes gated by one still record it as their audit action.
-var FormerNames = map[rbac.Permission]string{
-	Create: "gateway:create", Read: "gateway:read", Update: "gateway:update", Delete: "gateway:delete",
-	TokenManage: "gateway:token-manage",
-
-	LLMProviderCreate: "llm-provider:create", LLMProviderRead: "llm-provider:read",
-	LLMProviderUpdate: "llm-provider:update", LLMProviderDelete: "llm-provider:delete",
-	LLMProviderConfigureGuardrail: "llm-provider:configure-guardrail", LLMProviderConnect: "llm-provider:connect",
-	LLMProviderDeploy: "llm-provider:deploy", LLMProviderAPIKeyManage: "llm-provider:api-key-manage",
-
-	LLMProviderTemplateCreate: "llm-provider-template:create", LLMProviderTemplateRead: "llm-provider-template:read",
-	LLMProviderTemplateUpdate: "llm-provider-template:update", LLMProviderTemplateDelete: "llm-provider-template:delete",
-
-	LLMProxyCreate: "llm-proxy:create", LLMProxyRead: "llm-proxy:read", LLMProxyUpdate: "llm-proxy:update",
-	LLMProxyDelete: "llm-proxy:delete", LLMProxyDeploy: "llm-proxy:deploy", LLMProxyAPIKeyManage: "llm-proxy:api-key-manage",
-
-	MCPServerCreate: "mcp-server:create", MCPServerRead: "mcp-server:read", MCPServerUpdate: "mcp-server:update",
-	MCPServerDelete: "mcp-server:delete", MCPServerConfigureGuardrail: "mcp-server:configure-guardrail",
-	MCPServerConnect: "mcp-server:connect", MCPServerAPIKeyManage: "mcp-server:api-key-manage",
-
-	ScopeCreate: "scope:create", ScopeRead: "scope:read", ScopeUpdate: "scope:update", ScopeDelete: "scope:delete",
-
-	CatalogRead: "catalog:read",
-
-	AgentIdentityCreate: "agent-identity:create", AgentIdentityRead: "agent-identity:read",
-	AgentIdentityUpdate: "agent-identity:update", AgentIdentityDelete: "agent-identity:delete",
-
-	AgentAPIKeyManage: "agent:api-key-manage",
-}
-
 // MCPScopes are the permissions of the tools the gateway's toolsets add to
 // the core's MCP server.
 var MCPScopes = []rbac.Permission{DeployNonProduction, LLMProviderRead, LLMProviderUpdate, MCPServerRead}

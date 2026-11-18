@@ -14,23 +14,21 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package gwapi registers the AI Gateway's routes on the core's routers.
+// Package gwapi registers the AI Gateway's routes: its public API at
+// /m/ai-gateway and the controller-facing routes below /api/internal/v1.
 package gwapi
 
 import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmcp"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
-// RegisterRoutes registers the gateway's routes on the authenticated /api/v1
-// router.
-func RegisterRoutes(rr *middleware.RouteRegistrar, gw *gwwire.Gateway, core *wiring.AppParams) {
+// RegisterRoutes registers the gateway's public routes.
+func RegisterRoutes(rr Router, gw *gwwire.Gateway) {
 	RegisterGatewayRoutes(rr, gw.GatewayController)
 	RegisterPlatformGatewayHealthRoutes(rr, gw.GatewayController)
 	registerAgentGatewayRoutes(rr, gw.AgentGatewayController, gw.EnvironmentGatewayController)
@@ -44,7 +42,6 @@ func RegisterRoutes(rr *middleware.RouteRegistrar, gw *gwwire.Gateway, core *wir
 	registerA2AProxyRoutes(rr, gw.A2AProxyController)
 	RegisterLLMProxyDeploymentRoutes(rr, gw.LLMProxyDeploymentController)
 	RegisterMCPProxyRoutes(rr, gw.MCPProxyController)
-	RegisterProjectMCPProxyRoutes(rr, middleware.ApplyOrgOverride(core.OUHandleLookup))
 	RegisterAgentConfigRoutes(rr, gw.AgentConfigurationController)
 	registerMCPProxyScopeRoutes(rr, gw.MCPProxyScopeController)
 	registerAgentIdentityRoutes(rr, gw.AgentIdentityController)
@@ -52,9 +49,9 @@ func RegisterRoutes(rr *middleware.RouteRegistrar, gw *gwwire.Gateway, core *wir
 
 // RegisterInternalRoutes registers the gateway-facing internal routes: the
 // gateway internal API and the gateway WebSocket.
-func RegisterInternalRoutes(rr *middleware.RouteRegistrar, mux *http.ServeMux, gw *gwwire.Gateway) {
+func RegisterInternalRoutes(rr InternalRouter, gw *gwwire.Gateway) {
 	RegisterGatewayInternalRoutes(rr, gw.GatewayInternalController)
-	RegisterWebSocketRoutes(mux, gw.WebSocketController)
+	RegisterWebSocketRoutes(rr, gw.WebSocketController)
 }
 
 // MCPTools adds the gateway's toolsets to the core's MCP server: LLM

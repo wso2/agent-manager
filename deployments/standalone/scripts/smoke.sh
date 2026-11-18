@@ -70,6 +70,8 @@ ORG=$(jq -r '.organizations[0].name // empty' "$BODY" 2>/dev/null)
 if [ -n "$ORG" ]; then check orgs-listed ok ok; else check orgs-listed ok "none"; fi
 ORG=${ORG:-default}
 B=$API/api/v1/orgs/$ORG
+# The AI Gateway module's API.
+GW=$API/m/ai-gateway/orgs/$ORG
 P=smoke-$RANDOM
 AG=ext-$RANDOM
 EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
@@ -92,11 +94,13 @@ check identity-roles 200 "$(code "${A[@]}" "$B/identities/roles")"
 check events-types 200 "$(code "${A[@]}" "$B/events/event-types")"
 
 # --- Gateway routes: served by amp, absent from amp-core -----------------------------------
-check gateways "$(pick 200 404)" "$(code "${A[@]}" "$B/gateways")"
-check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$B/llm-providers")"
-check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$B/environments/default/gateways")"
-check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$B/projects/$P/agents/$AG/deployments")"
-check catalog "$(pick 200 404)" "$(code "${A[@]}" "$B/catalog")"
+check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
+check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GW/llm-providers")"
+check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default/gateways")"
+check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/deployments")"
+check catalog "$(pick 200 404)" "$(code "${A[@]}" "$GW/catalog")"
+# No alias under the core's API.
+check gateways-old-path 404 "$(code "${A[@]}" "$B/gateways")"
 check mcp-endpoint 401 "$(code -X POST "$API/mcp" -d '{}')"
 check ws-internal "$(pick 401 404)" "$(code -k "$INT/api/internal/v1/ws/gateways/connect")"
 # Not-yet-implemented routes: answered 501 by amp's legacy bundle, absent from amp-core.

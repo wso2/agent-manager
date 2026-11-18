@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 )
 
@@ -28,7 +27,7 @@ import (
 // not a bare mux, because that is what puts these routes in the audit ledger
 // and under the same coverage test as the public API — the bulk-sync endpoints
 // below hand real key material to a gateway.
-func RegisterGatewayInternalRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.GatewayInternalController) {
+func RegisterGatewayInternalRoutes(rr InternalRouter, ctrl gwctl.GatewayInternalController) {
 	// API key bulk-sync endpoints (must be registered before {id} catch-all routes)
 	rr.HandleFuncWithValidation("GET /llm-providers/api-keys", ctrl.GetLLMProviderAPIKeys)
 	rr.HandleFuncWithValidation("GET /llm-proxies/api-keys", ctrl.GetLLMProxyAPIKeys)

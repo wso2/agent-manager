@@ -17,14 +17,13 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
 // RegisterAgentAPIKeyRoutes registers API key routes for agents
-func RegisterAgentAPIKeyRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.AgentAPIKeyController) {
+func RegisterAgentAPIKeyRoutes(rr Router, ctrl gwctl.AgentAPIKeyController) {
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", gwperm.AgentAPIKeyManage,
 		growthanalytics.Track("amp.security-access.issue-api-key", keyPurposeDims("production"), ctrl.CreateAPIKey))
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test", gwperm.AgentAPIKeyManage,

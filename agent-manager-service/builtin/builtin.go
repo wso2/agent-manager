@@ -49,9 +49,6 @@ type Bundle struct {
 type Parts struct {
 	// Routes registers routes on the authenticated /api/v1 router.
 	Routes func(rr *middleware.RouteRegistrar)
-	// InternalRoutes registers routes on the internal /api/internal/v1
-	// router, which has no JWT authentication.
-	InternalRoutes func(rr *middleware.RouteRegistrar, mux *http.ServeMux)
 	// RootRoutes registers routes at the server root, outside /api/v1; they
 	// authenticate themselves.
 	RootRoutes func(mux *http.ServeMux, core *wiring.AppParams)
@@ -127,15 +124,6 @@ func (b Built) Routes(rr *middleware.RouteRegistrar) {
 	for _, p := range b {
 		if p.Routes != nil {
 			p.Routes(rr)
-		}
-	}
-}
-
-// InternalRoutes registers every bundle's internal routes.
-func (b Built) InternalRoutes(rr *middleware.RouteRegistrar, mux *http.ServeMux) {
-	for _, p := range b {
-		if p.InternalRoutes != nil {
-			p.InternalRoutes(rr, mux)
 		}
 	}
 }

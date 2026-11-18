@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -559,7 +560,7 @@ func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r
 	// trail is unavailable would leave the mirror stale for no gain.
 	err := c.gatewayService.SaveGatewayPolicyManifest(r.Context(), gatewayID, manifest)
 	audit.Record(
-		r.Context(), audit.ActionGatewayPushManifest,
+		r.Context(), gwaudit.GatewayPushManifest,
 		audit.Org(identity.OUID),
 		audit.Resource(audit.ResourceGateway, gatewayID),
 		audit.SurfaceOpt(audit.SurfaceInternal),

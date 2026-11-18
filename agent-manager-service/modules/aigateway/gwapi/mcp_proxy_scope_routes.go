@@ -17,13 +17,12 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
-func registerMCPProxyScopeRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.MCPProxyScopeController) {
+func registerMCPProxyScopeRoutes(rr Router, ctrl gwctl.MCPProxyScopeController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies/{proxyId}/scopes", gwperm.ScopeRead, ctrl.ListMCPProxyScopes)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies/{proxyId}/scopes", gwperm.ScopeCreate,
 		growthanalytics.Track("amp.connections.manage-mcp-scope", actionDims("created-mcp-scope"), ctrl.CreateMCPProxyScope))

@@ -17,14 +17,13 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
 // RegisterMCPProxyRoutes registers MCP proxy routes.
-func RegisterMCPProxyRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.MCPProxyController) {
+func RegisterMCPProxyRoutes(rr Router, ctrl gwctl.MCPProxyController) {
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies/fetch-server-info", gwperm.MCPServerConnect,
 		growthanalytics.Track("amp.connections.create-mcp-proxy", actionDims("probed-mcp-server"), ctrl.FetchServerInfo))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies/policies", gwperm.MCPServerRead, ctrl.ListAvailableMCPPolicies)

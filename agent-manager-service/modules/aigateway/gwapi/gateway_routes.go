@@ -17,13 +17,12 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
 
-func RegisterGatewayRoutes(rr *middleware.RouteRegistrar, ctrl gwctl.GatewayController) {
+func RegisterGatewayRoutes(rr Router, ctrl gwctl.GatewayController) {
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/gateways", gwperm.Create,
 		growthanalytics.Track("amp.deployment-ops.register-gateway", actionDims("registered-gateway"), ctrl.RegisterGateway))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/gateways", gwperm.Read, ctrl.ListGateways)

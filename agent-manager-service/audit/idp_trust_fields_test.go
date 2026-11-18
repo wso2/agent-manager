@@ -23,36 +23,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
-// TestIdentityProviderTrustInputsAreRecorded pins the fields that decide which
-// tokens a gateway will accept.
-//
-// The issuer alone does not answer that: jwksUri says where the signing keys
-// are fetched from, and skipTlsVerify says whether that fetch validates the
-// certificate. An operator pointing a trusted issuer at a new JWKS URI with TLS
-// verification off is the change worth catching, and without these two keys the
-// record showed only that the issuer was "updated".
-func TestIdentityProviderTrustInputsAreRecorded(t *testing.T) {
-	for _, action := range []Action{ActionGatewaySetIdentityProvider, ActionGatewayRemoveIdentityProvider} {
-		e := Event{
-			Action: action,
-			Details: map[string]any{
-				"identityProviderName": "corp-idp",
-				"issuer":               "https://idp.example",
-				"jwksUri":              "https://idp.example/.well-known/jwks.json",
-				"skipTlsVerify":        true,
-			},
-		}
-
-		redact(&e)
-
-		for _, key := range []string{"identityProviderName", "issuer", "jwksUri", "skipTlsVerify"} {
-			if _, ok := e.Details[key]; !ok {
-				t.Errorf("%s: trust input %q was dropped; declare it in idpFields", action, key)
-			}
-		}
-	}
-}
-
 // TestEnvelopeNamesAnActorTheHandlerAuthenticated is the regression for a
 // coverage record that called an authenticated caller anonymous.
 //
@@ -72,7 +42,7 @@ func TestEnvelopeNamesAnActorTheHandlerAuthenticated(t *testing.T) {
 	})
 	ctx, _ = NewRequestScope(ctx)
 
-	before := BuildEvent(ctx, ActionAPIKeySync)
+	before := BuildEvent(ctx, testSyncAction)
 	if before.ActorType != ActorAnonymous || before.ActorID != "" {
 		t.Fatalf("precondition: expected an unnamed actor before the handler runs, got %q/%q",
 			before.ActorType, before.ActorID)
@@ -80,7 +50,7 @@ func TestEnvelopeNamesAnActorTheHandlerAuthenticated(t *testing.T) {
 
 	IdentifyActor(ctx, ActorGateway, "gw-42", "api-key")
 
-	e := BuildEvent(ctx, ActionAPIKeySync)
+	e := BuildEvent(ctx, testSyncAction)
 	if e.ActorID != "gw-42" {
 		t.Errorf("ActorID = %q, want the gateway the handler authenticated", e.ActorID)
 	}
@@ -101,7 +71,7 @@ func TestExplicitActorBeatsTheScope(t *testing.T) {
 	// "the option won" from "both happened to agree".
 	IdentifyActor(ctx, ActorService, "gw-scope", "api-key")
 
-	e := BuildEvent(ctx, ActionGatewayPushManifest,
+	e := BuildEvent(ctx, testSyncAction,
 		Actor(ActorGateway, "gw-explicit", ""), AuthMethod("mtls"))
 
 	if e.ActorID != "gw-explicit" {
@@ -125,7 +95,7 @@ func TestJWTActorIsNotClobberedByAnEmptyScope(t *testing.T) {
 	})
 	ctx, _ = NewRequestScope(ctx)
 
-	e := BuildEvent(ctx, ActionAPIKeySync)
+	e := BuildEvent(ctx, testSyncAction)
 	if e.ActorID != "alice@example.com" {
 		t.Errorf("ActorID = %q; an unused scope must not clear it", e.ActorID)
 	}
@@ -200,3 +170,6 @@ func TestScopesOfRendersPermissionsAsRecorded(t *testing.T) {
 			viaHelper, viaOption.RequiredPermission)
 	}
 }
+
+// testSyncAction stands for a record the internal gateway server writes.
+const testSyncAction Action = "test-gateway:sync"

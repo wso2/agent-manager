@@ -32,6 +32,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -189,7 +190,7 @@ func (s *a2aProxyService) SetA2AProxy(
 			return err
 		}
 		// A PUT can set, replace or clear the credential the gateway sends upstream, so it is refused unrecorded.
-		if attempt, err = s.beginAudit(ctx, audit.ActionAgentSetA2AProxy, t, proxy.UpstreamAuthHeader, authChanged); err != nil {
+		if attempt, err = s.beginAudit(ctx, gwaudit.AgentSetA2AProxy, t, proxy.UpstreamAuthHeader, authChanged); err != nil {
 			return err
 		}
 		artifact, err := s.ensureArtifact(tx, t)
@@ -513,7 +514,7 @@ func (s *a2aProxyService) removeProxy(ctx context.Context, t a2aProxyTarget, car
 		if existing == nil {
 			return onDirect(ctx, tx, s.cardRepo, t, ifDirect)
 		}
-		attempt, err = s.beginAudit(ctx, audit.ActionAgentRemoveA2AProxy, t, existing.UpstreamAuthHeader, existing.UpstreamAuthSecret != "")
+		attempt, err = s.beginAudit(ctx, gwaudit.AgentRemoveA2AProxy, t, existing.UpstreamAuthHeader, existing.UpstreamAuthSecret != "")
 		if err != nil {
 			return err
 		}

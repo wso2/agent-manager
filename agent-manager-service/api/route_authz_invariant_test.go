@@ -88,8 +88,10 @@ func (r routeRegistration) String() string {
 // and pattern: replacing an exempt route while keeping the same number of raw
 // registrations must not silently inherit the old exemption.
 var unguardedRouteAllowlist = map[routeKey]string{
-	{"RegisterWebSocketRoutes", "HandleFunc", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is on internalMux and authenticates the gateway with an " +
-		"api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
+	{"RegisterWebSocketRoutes", "HandleFuncWithValidation", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is a HandleInternalAt route of the " +
+		"AI Gateway and authenticates the gateway with an api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
+	{"handle", "Handle", "method"}: "the AI Gateway's adapter onto modkit.Runtime.Handle: the module host registers each route through " +
+		"RouteRegistrar.HandleModuleRoute, which applies the permission the route names.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",
 	{"registerFileAuthRoutes", "Handle", "POST /auth/login"}: "file-mode sign-in: this is where a caller goes to obtain a token, so it cannot " +
 		"require one. It verifies a bcrypt password against the configured user file and answers 404 when file mode is off; both outcomes are " +
