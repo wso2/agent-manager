@@ -3,16 +3,15 @@
 package gwwire
 
 import (
-	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/google/wire"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -26,11 +25,10 @@ import (
 var coreSet = wire.NewSet(
 	wire.FieldsOf(
 		new(*wiring.AppParams),
-		"DB", "Config", "Logger", "PlatformRepository", "InfraResourceManager",
+		"DB", "Logger", "PlatformRepository", "InfraResourceManager",
 		"EncryptionKey", "SecretManagementClient",
 		"AgentThunderClientRepository",
 	),
-	wiring.ProvideConfigFromPtr,
 )
 
 var repositoryProviderSet = wire.NewSet(
@@ -118,7 +116,7 @@ var controllerProviderSet = wire.NewSet(
 // Initialize builds the gateway on the core's services. gatewayApplier
 // patches the gateway runtime config when an identity provider changes; nil
 // keeps the script-driven behaviour.
-func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplier) (*Gateway, error) {
+func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplier, settings gwconfig.Settings) (*Gateway, error) {
 	wire.Build(
 		coreSet,
 		repositoryProviderSet,
@@ -131,25 +129,14 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	return &Gateway{}, nil
 }
 
-// ProvideGatewayManifestCacheBackend builds the gateway-manifest cache backend
-// selected by config.GatewayManifestCache.Backend. Not part of the wire provider
-// sets: nothing constructs a dependency on it (the cache is a services-package-level
-// var, not a constructor param — see gwsvc.SetGatewayManifestCacheBackend's doc
-// comment for why). Called directly from app.Run at startup, before the rest of the
-// dependency graph is built, so every reader/writer in the services package picks up
-// the configured backend from their first call.
-func ProvideGatewayManifestCacheBackend(cfg config.Config) (gwsvc.GatewayManifestCacheBackend, error) {
-	switch cfg.GatewayManifestCache.Backend {
-	case "redis":
-		return gwsvc.NewRedisGatewayManifestCache(cfg.GatewayManifestCache.Redis), nil
-	case "memory", "":
-		return gwsvc.NewInMemoryGatewayManifestCache(), nil
-	default:
-		// Config validation (validateGatewayManifestCacheConfig) already rejects an
-		// unrecognized backend at load time; this is an extra guard against a Config
-		// built directly (e.g. in tests) bypassing that validation.
-		return nil, fmt.Errorf("unknown gateway manifest cache backend %q", cfg.GatewayManifestCache.Backend)
+// ProvideGatewayManifestCacheBackend builds the gateway-manifest cache backend the settings select (gwconfig.Load
+// has refused any other). Not part of the wire provider sets: the cache is a package-level backend (see
+// gwsvc.SetGatewayManifestCacheBackend), selected before the rest of the gateway is built.
+func ProvideGatewayManifestCacheBackend(s gwconfig.Settings) gwsvc.GatewayManifestCacheBackend {
+	if s.ManifestCache.Backend == "redis" {
+		return gwsvc.NewRedisGatewayManifestCache(s.ManifestCache.Redis)
 	}
+	return gwsvc.NewInMemoryGatewayManifestCache()
 }
 
 var reconcileProviderSet = wire.NewSet(
@@ -192,11 +179,11 @@ func ProvideEventHub(db *gorm.DB, logger *slog.Logger) (eventhub.EventHub, error
 }
 
 // ProvideWebSocketManager creates a new WebSocket manager with config
-func ProvideWebSocketManager(cfg config.Config, hub eventhub.EventHub) *websocket.Manager {
+func ProvideWebSocketManager(s gwconfig.Settings, hub eventhub.EventHub) *websocket.Manager {
 	wsConfig := websocket.ManagerConfig{
-		MaxConnections:    cfg.WebSocket.MaxConnections,
+		MaxConnections:    s.WebSocket.MaxConnections,
 		HeartbeatInterval: 20 * time.Second,
-		HeartbeatTimeout:  time.Duration(cfg.WebSocket.ConnectionTimeout) * time.Second,
+		HeartbeatTimeout:  time.Duration(s.WebSocket.ConnectionTimeoutSeconds) * time.Second,
 	}
 	return websocket.NewManager(wsConfig, hub)
 }
@@ -207,17 +194,17 @@ func ProvideWebSocketController(
 	hub eventhub.EventHub,
 	gatewayService *gwsvc.PlatformGatewayService,
 	ackHandler *gwsvc.DeploymentAckHandler,
-	cfg config.Config,
+	s gwconfig.Settings,
 ) gwctl.WebSocketController {
-	return gwctl.NewWebSocketController(manager, hub, gatewayService, ackHandler, cfg.WebSocket.RateLimitPerMin)
+	return gwctl.NewWebSocketController(manager, hub, gatewayService, ackHandler, s.WebSocket.RateLimitPerMin)
 }
 
 // ProvideDefaultGatewaySeeder registers the gateway named in configuration.
 func ProvideDefaultGatewaySeeder(
-	cfg config.Config, gateways *gwsvc.PlatformGatewayService, repo gwrepo.GatewayRepository,
+	s gwconfig.Settings, gateways *gwsvc.PlatformGatewayService, repo gwrepo.GatewayRepository,
 	platform repositories.PlatformRepository, logger *slog.Logger,
 ) *gwsvc.DefaultGatewaySeeder {
-	return gwsvc.NewDefaultGatewaySeeder(cfg.DefaultGateway, gateways, repo, platform, logger)
+	return gwsvc.NewDefaultGatewaySeeder(s.DefaultGateway, gateways, repo, platform, logger)
 }
 
 // ProvideDeploymentAckHandler creates a new deployment ack handler that runs the reconcile kinds' after-live hooks.
@@ -237,15 +224,14 @@ func ProvideReconcileKinds(
 // the gateways it locks and checks contexts on.
 func ProvideReconcileCore(
 	db *gorm.DB, deploymentRepo gwrepo.DeploymentRepository, gatewayRepo gwrepo.GatewayRepository,
-	hub eventhub.EventHub, kinds reconcile.Kinds, cfg *config.Config, logger *slog.Logger,
+	hub eventhub.EventHub, kinds reconcile.Kinds, s gwconfig.Settings, logger *slog.Logger,
 ) *reconcile.Core {
-	seconds := func(n int) time.Duration { return time.Duration(n) * time.Second }
 	return reconcile.NewCore(db, deploymentRepo, hub, kinds, reconcile.Config{
-		RenderInterval: seconds(cfg.Reconcile.RenderIntervalSeconds),
-		PlaceInterval:  seconds(cfg.Reconcile.PlaceIntervalSeconds),
-		DriftInterval:  seconds(cfg.Reconcile.DriftIntervalSeconds),
-		Lease:          seconds(cfg.Reconcile.RenderLeaseSeconds),
-		AttemptBudget:  cfg.Reconcile.RenderAttemptBudget,
+		RenderInterval: s.Reconcile.RenderInterval,
+		PlaceInterval:  s.Reconcile.PlaceInterval,
+		DriftInterval:  s.Reconcile.DriftInterval,
+		Lease:          s.Reconcile.RenderLease,
+		AttemptBudget:  s.Reconcile.RenderAttemptBudget,
 	}, logger).WithGateways(gatewayRepo)
 }
 
@@ -253,10 +239,10 @@ func ProvideReconcileCore(
 // refuses to remove a mapping while the gateway serves the environment's artifacts.
 func ProvidePlatformGatewayService(
 	gatewayRepo gwrepo.GatewayRepository, gatewayApplier gwsvc.GatewayConfigApplier, worker *reconcile.Worker,
-	core *reconcile.Core,
+	core *reconcile.Core, s gwconfig.Settings,
 ) *gwsvc.PlatformGatewayService {
 	return gwsvc.NewPlatformGatewayService(gatewayRepo, gatewayApplier).WithEnvironmentPlacer(worker).
-		WithEnvironmentGuard(core)
+		WithEnvironmentGuard(core).WithFailureSettings(s.Failure)
 }
 
 func ProvideGatewayRepository(db *gorm.DB) gwrepo.GatewayRepository {

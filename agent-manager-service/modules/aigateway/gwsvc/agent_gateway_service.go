@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
@@ -389,7 +388,7 @@ func resolveTracingConfig(existingConfig *gwmodels.AgentConfig, enableAutoInstru
 func resolveAPIConfig(existingConfig *gwmodels.AgentConfig, enableApiKeySecurity *bool, corsConfig *gwspec.CORSConfig, enableOAuthSecurity *bool, oauthConfig *gwspec.OAuthConfig, withDefaults bool) resolvedCORSConfig {
 	var resolved resolvedCORSConfig
 	if withDefaults {
-		defaultCORS := config.GetAgentWorkloadConfig().CORS
+		defaultCORS := agentCORSDefaults.Load()
 		resolved = resolvedCORSConfig{
 			EnableApiKeySecurity: true,
 			CORSEnabled:          true,

@@ -397,6 +397,18 @@ What it already does as a module:
 
 - **MCP tools:** its 11 tools are registered with `rt.MCPTool` from `Activate` (`gwmcp`), so they leave `/mcp` with the module, and the MCP endpoint's protected-resource metadata lists their scopes only while it is active.
 - **Agent identity:** its agent-identity pages and MCP proxy scopes reach the environment's directory through the core's `identity.directory/v1`, not a ThunderID client of their own.
+- **Settings:** its settings are module settings, `MODULE_AI_GATEWAY_<KEY>` (or the `config:` block of its `modules:` entry), loaded and checked by `gwconfig`:
+
+  | Keys | What they set |
+  |---|---|
+  | `DEFAULT_GATEWAY_NAME`, `_DISPLAY_NAME`, `_VHOST`, `_TYPE`, `_ORG_OU_ID`, `_ORG_HANDLE`, `_TOKEN`, `_TOKEN_FILE` | The gateway registered at startup (Compose sets the bundled one). An empty name registers none. |
+  | `A2A_CARD_FETCH_DIAL_ADDR` | The `host:port` platform agent-card fetches dial instead of the card URL's host. |
+  | `MANIFEST_CACHE_BACKEND` (`memory` or `redis`), `MANIFEST_CACHE_REDIS_HOST`, `_PORT`, `_PASSWORD`, `_DB`, `_TLS_ENABLED` | Where gateway-reported policy manifests are cached; use `redis` with more than one replica. |
+  | `WEBSOCKET_MAX_CONNECTIONS`, `WEBSOCKET_CONNECTION_TIMEOUT`, `WEBSOCKET_RATE_LIMIT_PER_MIN` | Limits on gateway controller connections. |
+  | `DEPLOYMENT_TIMEOUT_SECONDS`, `DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS` | When an unacknowledged deploy or undeploy fails. |
+  | `RECONCILE_RENDER_INTERVAL_SECONDS`, `_PLACE_INTERVAL_SECONDS`, `_DRIFT_INTERVAL_SECONDS`, `_RENDER_LEASE_SECONDS`, `_RENDER_ATTEMPT_BUDGET` | The reconcile worker. |
+  | `FAILURE_THRESHOLD_SECONDS`, `FAILURE_MAX_AGE_SECONDS`, `FAILURE_PERCENTAGE_THRESHOLD` | The platform gateway failure summary. |
+  | `AGENT_CORS_ALLOWED_ORIGIN`, `_METHODS`, `_HEADERS`, `AGENT_CORS_ALLOW_CREDENTIALS` | The CORS policy agents' gateway routes get by default. |
 
 What is left: its workers and settings still come through `builtin.Bundle` (`Build(ctx, *wiring.AppParams)` builds it on the core's Go services and repositories), and its packages import core `services`, `repositories`, `controllers` and `models` (its data types still live in core `models`). Don't copy this for a new module.
 

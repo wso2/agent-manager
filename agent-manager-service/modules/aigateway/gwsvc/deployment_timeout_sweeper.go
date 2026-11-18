@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
@@ -60,13 +60,11 @@ func NewDeploymentTimeoutSweeper(
 	}
 }
 
-// NewConfiguredDeploymentTimeoutSweeper reads the interval and timeout from cfg.
+// NewConfiguredDeploymentTimeoutSweeper reads the interval and timeout from the settings.
 func NewConfiguredDeploymentTimeoutSweeper(
-	deploymentRepo gwrepo.DeploymentRepository, logger *slog.Logger, cfg *config.Config,
+	deploymentRepo gwrepo.DeploymentRepository, logger *slog.Logger, s gwconfig.Settings,
 ) DeploymentTimeoutSweeper {
-	return NewDeploymentTimeoutSweeper(deploymentRepo, logger,
-		time.Duration(cfg.DeploymentTimeout.SweepIntervalSeconds)*time.Second,
-		time.Duration(cfg.DeploymentTimeout.TimeoutSeconds)*time.Second)
+	return NewDeploymentTimeoutSweeper(deploymentRepo, logger, s.DeploymentTimeout.SweepInterval, s.DeploymentTimeout.Timeout)
 }
 
 func (s *deploymentTimeoutSweeper) Start(ctx context.Context) error {

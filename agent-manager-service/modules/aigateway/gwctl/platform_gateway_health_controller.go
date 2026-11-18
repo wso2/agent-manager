@@ -18,9 +18,7 @@ package gwctl
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -66,13 +64,13 @@ func (c *gatewayController) GetPlatformGatewayFailureSummary(w http.ResponseWrit
 		return
 	}
 
-	cfg := config.GetConfig()
+	failure := c.gatewayService.FailureSettings()
 	includeDetails := r.URL.Query().Get("includeDetails") == "true"
 
 	summary, err := c.gatewayService.GetCrossOrgGatewayFailureSummary(ctx, gwsvc.GatewayFailureSummaryQuery{
-		StalenessThreshold:         time.Duration(cfg.GatewayFailureThresholdSeconds) * time.Second,
-		MaxAge:                     time.Duration(cfg.GatewayFailureMaxAgeSeconds) * time.Second,
-		FailurePercentageThreshold: cfg.GatewayFailurePercentageThreshold,
+		StalenessThreshold:         failure.Threshold,
+		MaxAge:                     failure.MaxAge,
+		FailurePercentageThreshold: failure.PercentageThreshold,
 		IncludeDetails:             includeDetails,
 	})
 	if err != nil {

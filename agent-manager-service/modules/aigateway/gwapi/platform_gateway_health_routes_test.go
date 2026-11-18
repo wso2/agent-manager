@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
@@ -67,7 +68,7 @@ func platformHealthMux(t *testing.T, total, failed, abandoned int64) *http.Serve
 		},
 	}
 	ctrl := gwctl.NewGatewayController(
-		gwsvc.NewPlatformGatewayService(repo, nil),
+		gwsvc.NewPlatformGatewayService(repo, nil).WithFailureSettings(failureSettings),
 		&repomocks.PlatformRepositoryMock{},
 		nil,
 	)
@@ -114,14 +115,20 @@ func withPlatformAdminOUID(t *testing.T, ouID string) {
 	t.Cleanup(func() { cfg.PlatformAdminOUID = orig })
 }
 
-// withFailurePercentageThreshold sets the process-global fleet health threshold
-// for one test. Tests using it must not run in parallel.
+// failureSettings are the failure summary settings platformHealthMux builds the service with: the defaults, unless a
+// test changes them.
+var failureSettings = func() gwconfig.Failure {
+	s, _ := gwconfig.Load(func(string) string { return "" })
+	return s.Failure
+}()
+
+// withFailurePercentageThreshold sets the fleet health threshold of the muxes one test builds. Tests using it must
+// not run in parallel.
 func withFailurePercentageThreshold(t *testing.T, pct float64) {
 	t.Helper()
-	cfg := config.GetConfig()
-	orig := cfg.GatewayFailurePercentageThreshold
-	cfg.GatewayFailurePercentageThreshold = pct
-	t.Cleanup(func() { cfg.GatewayFailurePercentageThreshold = orig })
+	orig := failureSettings
+	failureSettings.PercentageThreshold = pct
+	t.Cleanup(func() { failureSettings = orig })
 }
 
 // decodeSummary reads the response body, which must be the summary document

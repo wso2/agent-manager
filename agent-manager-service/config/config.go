@@ -49,15 +49,10 @@ type Config struct {
 	IsLocalDevEnv bool
 
 	// Default Chat API configuration
-	DefaultChatAPI     DefaultChatAPIConfig
-	DefaultGatewayPort int
+	DefaultChatAPI DefaultChatAPIConfig
 	// DefaultOrg is the organization created at startup, so a fresh install
 	// lists one before anything has been written to it.
 	DefaultOrg DefaultOrgConfig
-	// DefaultGateway is the gateway registered from configuration at startup.
-	DefaultGateway DefaultGatewayConfig
-	// A2ACardFetchDialAddr, when set, is the host:port every platform card fetch dials instead of its URL host.
-	A2ACardFetchDialAddr string
 
 	// JWT Signing configuration for agent API tokens
 	JWTSigning JWTSigningConfig
@@ -104,9 +99,6 @@ type Config struct {
 	// Internal Server configuration (for WebSocket and gateway internal APIs)
 	InternalServer InternalServerConfig
 
-	// WebSocket configuration
-	WebSocket WebSocketConfig
-
 	// EncryptionKey is a hex-encoded 32-byte key used for AES-256-GCM encryption
 	// of secrets at rest (e.g., LLM provider API keys in monitor configs).
 	EncryptionKey string `json:"-"`
@@ -138,44 +130,6 @@ type Config struct {
 	// move.
 	PlatformAdminOUID string
 
-	// DeploymentTimeout configures the sweeper that fails gateway deploys and undeploys the gateway never acked.
-	DeploymentTimeout DeploymentTimeoutConfig
-
-	// Reconcile configures the gateway reconcile worker: rendering owed deploys, placing environment-addressed
-	// artifacts on their gateways, and checking deployed artifacts for drift.
-	Reconcile ReconcileConfig
-
-	// GatewayFailureThresholdSeconds is how long a gateway must have been
-	// disconnected (is_active false) before it counts as failed. Configurable
-	// rather than a constant because the SLO differs per deployment shape, and
-	// it is read once per request so a change needs no code release.
-	GatewayFailureThresholdSeconds int
-
-	// GatewayFailureMaxAgeSeconds is the far edge of the failure window: a
-	// disconnected gateway whose last update is older than this is no longer
-	// reported as failed.
-	//
-	// Without an upper bound, a gateway that was decommissioned — or simply
-	// abandoned — counts as a fresh failure forever, and enough of them push the
-	// fleet permanently over its percentage threshold, which makes the whole
-	// signal useless. Must exceed GatewayFailureThresholdSeconds, or the window
-	// is empty and nothing can ever be reported failed.
-	//
-	// In seconds, matching its sibling above rather than being friendlier to read
-	// as days, so the two can be compared directly at startup — and so
-	// mistakenly setting "7" instead of 604800 is caught there rather than
-	// silently narrowing the window to seven seconds.
-	GatewayFailureMaxAgeSeconds int
-
-	// GatewayFailurePercentageThreshold is the share of failed gateways, as a
-	// percentage of the whole fleet, at or above which the fleet is reported
-	// unhealthy — the summary route answers with 503 rather than 200.
-	//
-	// A float, not an int, because a large fleet's SLO lives below one percent:
-	// with whole numbers the strictest expressible threshold is 1%, which is
-	// 4 dead gateways out of 400 before anything is reported wrong.
-	GatewayFailurePercentageThreshold float64
-
 	// TLS Configurations
 	TLSConfig TLSConfig
 
@@ -191,60 +145,6 @@ type Config struct {
 	// Events configures the platform event bus and the delivery of events to
 	// event destinations.
 	Events EventsConfig
-
-	// GatewayManifestCache configures where the gateway-reported policy manifest
-	// cache lives. The default in-memory backend is process-local and therefore
-	// inconsistent across replicas — set Backend to "redis" in HA deployments.
-	GatewayManifestCache GatewayManifestCacheConfig
-
-	// EvalJobsUsePublicGatewayURL points scheduled evaluation jobs at the LLM
-	// proxy's public gateway vhost instead of the gateway's in-cluster address.
-	// Off by default: on-premises evaluation jobs run in the same cluster as the
-	// gateway, and the public vhost may not be trusted there (self-signed TLS).
-	// Deployments that run evaluation jobs in a separate workflow-plane cluster
-	// (WSO2 Cloud) turn it on. EVAL_JOBS_USE_PUBLIC_GATEWAY_URL.
-	EvalJobsUsePublicGatewayURL bool
-}
-
-// DeploymentTimeoutConfig sets how often the timeout sweeper runs and how long a DEPLOYING or UNDEPLOYING row may
-// wait for the gateway's ack before it is FAILED with DEPLOYMENT_TIMEOUT.
-type DeploymentTimeoutConfig struct {
-	SweepIntervalSeconds int
-	TimeoutSeconds       int
-}
-
-// ReconcileConfig sets the reconcile worker's intervals, the render claim's lease and the render attempt budget.
-type ReconcileConfig struct {
-	// RenderIntervalSeconds is how often due renders are claimed; a save also nudges the worker.
-	RenderIntervalSeconds int
-	// PlaceIntervalSeconds is how often the fleet-wide placement pass runs; mapping a gateway places at once.
-	PlaceIntervalSeconds int
-	// DriftIntervalSeconds is how often one replica checks deployed artifacts for drift.
-	DriftIntervalSeconds int
-	// RenderLeaseSeconds is how long a claimed render is held before another replica may claim it again.
-	RenderLeaseSeconds int
-	// RenderAttemptBudget is how many failed renders give up a deploy. Waiting for an input never counts.
-	RenderAttemptBudget int
-}
-
-// GatewayManifestCacheConfig selects and configures the backend for the
-// gateway-manifest cache (see services.GatewayManifestCacheBackend).
-type GatewayManifestCacheConfig struct {
-	// Backend is "memory" (default, single-replica only) or "redis" (required for
-	// HA — a per-replica in-memory cache would leave replicas disagreeing on which
-	// policies gateways report, since each only sees the manifest pushes routed to it).
-	Backend string
-	Redis   GatewayManifestCacheRedisConfig
-}
-
-// GatewayManifestCacheRedisConfig configures the Redis backend. Only read/validated
-// when GatewayManifestCacheConfig.Backend == "redis".
-type GatewayManifestCacheRedisConfig struct {
-	Host       string
-	Port       int
-	Password   string `json:"-"`
-	DB         int
-	TLSEnabled bool
 }
 
 // Event bus modes.
@@ -367,17 +267,6 @@ type FileAuthConfig struct {
 	// TokenTTL is how long a login token stays valid. File mode issues no
 	// refresh token, so this is the whole session.
 	TokenTTL time.Duration
-}
-
-type AgentWorkload struct {
-	CORS CORSConfig
-}
-
-type CORSConfig struct {
-	AllowOrigin      string
-	AllowMethods     string
-	AllowHeaders     string
-	AllowCredentials bool
 }
 
 // GrowthAnalyticsConfig configures feature-usage telemetry export to Moesif.
@@ -584,13 +473,6 @@ func (c ThunderConfig) ResolvedSystemResourceIdentifier() string {
 	return strings.TrimRight(c.BaseURL, "/") + "/mcp"
 }
 
-// WebSocketConfig holds WebSocket-specific configuration
-type WebSocketConfig struct {
-	MaxConnections    int // Maximum number of concurrent WebSocket connections (default: 1000)
-	ConnectionTimeout int // Connection timeout in seconds (default: 30)
-	RateLimitPerMin   int // Rate limit per gateway per minute (default: 10)
-}
-
 // FileMountLimitsConfig holds the operator-configured size caps for agent file mounts.
 // Sizes are in bytes of inline file content; secret-reference mounts carry no
 // inline content and do not count.
@@ -620,20 +502,4 @@ type DefaultOrgConfig struct {
 	// OUID and Handle are the Thunder OU the organization stands for.
 	OUID   string
 	Handle string
-}
-
-// DefaultGatewayConfig registers one gateway at startup, so a bundled gateway connects with no manual
-// step. An empty Name turns it off.
-type DefaultGatewayConfig struct {
-	Name        string
-	DisplayName string
-	Vhost       string
-	// FunctionalityType is INGRESS, EGRESS or BOTH.
-	FunctionalityType string
-	// OrgOUID and OrgHandle are the Thunder OU the gateway belongs to.
-	OrgOUID   string
-	OrgHandle string
-	// Token is the registration token the gateway connects with, read from TokenFile when empty.
-	Token     string
-	TokenFile string
 }

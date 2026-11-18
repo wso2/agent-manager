@@ -19,7 +19,9 @@ package gwsvc
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 )
 
@@ -109,6 +111,18 @@ var gatewayManifestCache GatewayManifestCacheBackend = NewInMemoryGatewayManifes
 func SetGatewayManifestCacheBackend(backend GatewayManifestCacheBackend) {
 	gatewayManifestCache = backend
 }
+
+// agentCORSDefaults is the CORS policy an agent's gateway route gets unless its settings say otherwise, set once
+// at startup like the manifest cache.
+var agentCORSDefaults atomic.Pointer[gwconfig.CORS]
+
+func init() {
+	defaults, _ := gwconfig.Load(func(string) string { return "" })
+	SetAgentCORSDefaults(defaults.AgentCORS)
+}
+
+// SetAgentCORSDefaults sets the default CORS policy of agents' gateway routes.
+func SetAgentCORSDefaults(c gwconfig.CORS) { agentCORSDefaults.Store(&c) }
 
 // gatewayManifest returns the manifest to evaluate for a gateway, and whether the
 // gateway's policies are known at all: its own cached push, otherwise the manifest still

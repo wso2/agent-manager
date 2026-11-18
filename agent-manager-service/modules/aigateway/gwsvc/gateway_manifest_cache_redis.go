@@ -25,7 +25,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 )
 
 // gatewayManifestCacheRedisKeyPrefix prefixes one key per gateway UUID. Every replica
@@ -49,7 +49,7 @@ type RedisGatewayManifestCache struct {
 // NewRedisGatewayManifestCache creates a Redis-backed manifest cache from config. It
 // does not itself connect or ping — the first Get/Set surfaces any connectivity issue,
 // consistent with how other lazily-dialed clients in this codebase behave.
-func NewRedisGatewayManifestCache(cfg config.GatewayManifestCacheRedisConfig) *RedisGatewayManifestCache {
+func NewRedisGatewayManifestCache(cfg gwconfig.Redis) *RedisGatewayManifestCache {
 	opts := &redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.Host, cfg.Port),
 		Password: cfg.Password,

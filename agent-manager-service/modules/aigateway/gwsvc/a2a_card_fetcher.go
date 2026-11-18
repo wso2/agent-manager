@@ -26,7 +26,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 )
 
@@ -56,9 +56,10 @@ type a2aCardFetcher struct {
 	guarded *http.Client
 }
 
-// NewA2ACardFetcher creates an A2ACardFetcher with the spec's 5s timeout.
-func NewA2ACardFetcher() A2ACardFetcher {
-	return newA2ACardFetcher(a2aCardFetchTimeout, config.GetConfig().A2ACardFetchDialAddr)
+// NewA2ACardFetcher creates an A2ACardFetcher with the spec's 5s timeout, dialling the settings' card fetch
+// address when one is set.
+func NewA2ACardFetcher(s gwconfig.Settings) A2ACardFetcher {
+	return newA2ACardFetcher(a2aCardFetchTimeout, s.A2ACardFetchDialAddr)
 }
 
 func newA2ACardFetcher(timeout time.Duration, dialAddr string) *a2aCardFetcher {

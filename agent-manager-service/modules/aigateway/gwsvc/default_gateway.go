@@ -28,9 +28,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
@@ -42,7 +42,7 @@ import (
 // gateway is configured with, so a bundled gateway connects without a manual registration step. It is
 // safe to run on every start: an existing gateway is kept, and the token is added only when missing.
 type DefaultGatewaySeeder struct {
-	cfg      config.DefaultGatewayConfig
+	cfg      gwconfig.DefaultGateway
 	gateways *PlatformGatewayService
 	repo     gwrepo.GatewayRepository
 	platform repositories.PlatformRepository
@@ -51,7 +51,7 @@ type DefaultGatewaySeeder struct {
 
 // NewDefaultGatewaySeeder builds the seeder.
 func NewDefaultGatewaySeeder(
-	cfg config.DefaultGatewayConfig, gateways *PlatformGatewayService, repo gwrepo.GatewayRepository,
+	cfg gwconfig.DefaultGateway, gateways *PlatformGatewayService, repo gwrepo.GatewayRepository,
 	platform repositories.PlatformRepository, logger *slog.Logger,
 ) *DefaultGatewaySeeder {
 	return &DefaultGatewaySeeder{cfg: cfg, gateways: gateways, repo: repo, platform: platform, logger: logger}

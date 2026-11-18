@@ -22,10 +22,11 @@ import (
 	"slices"
 
 	"github.com/google/uuid"
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 func agentEnvAPIArtifactHandle(projectName, agentName, environmentID string) string {

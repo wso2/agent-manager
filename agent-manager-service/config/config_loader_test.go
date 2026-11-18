@@ -430,74 +430,6 @@ func TestValidatePostgresTLSConfig(t *testing.T) {
 	}
 }
 
-func TestValidateGatewayManifestCacheConfig(t *testing.T) {
-	tests := []struct {
-		name        string
-		backend     string
-		redisHost   string
-		wantErrors  int
-		errContains string
-	}{
-		{
-			name:       "default memory backend accepted",
-			backend:    "memory",
-			wantErrors: 0,
-		},
-		{
-			name:       "redis backend with host accepted",
-			backend:    "redis",
-			redisHost:  "redis.internal",
-			wantErrors: 0,
-		},
-		{
-			name:        "redis backend without host rejected",
-			backend:     "redis",
-			redisHost:   "",
-			wantErrors:  1,
-			errContains: "GATEWAY_MANIFEST_CACHE_REDIS_HOST is required",
-		},
-		{
-			name:        "unknown backend rejected",
-			backend:     "memcached",
-			wantErrors:  1,
-			errContains: "GATEWAY_MANIFEST_CACHE_BACKEND",
-		},
-		{
-			name:        "empty backend rejected",
-			backend:     "",
-			wantErrors:  1,
-			errContains: "GATEWAY_MANIFEST_CACHE_BACKEND",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			cfg := &Config{GatewayManifestCache: GatewayManifestCacheConfig{
-				Backend: tc.backend,
-				Redis:   GatewayManifestCacheRedisConfig{Host: tc.redisHost},
-			}}
-			r := &configReader{}
-			validateGatewayManifestCacheConfig(cfg, r)
-
-			if len(r.errors) != tc.wantErrors {
-				t.Fatalf("expected %d errors, got %d: %v", tc.wantErrors, len(r.errors), r.errors)
-			}
-			if tc.errContains != "" {
-				found := false
-				for _, e := range r.errors {
-					if strings.Contains(e.Error(), tc.errContains) {
-						found = true
-						break
-					}
-				}
-				if !found {
-					t.Errorf("expected an error containing %q, got %v", tc.errContains, r.errors)
-				}
-			}
-		})
-	}
-}
-
 func TestValidateAuditConfig(t *testing.T) {
 	valid := AuditConfig{Enabled: true, BufferSize: 4096, BatchSize: 200, FlushIntervalMs: 1000}
 
@@ -870,62 +802,6 @@ func TestGrowthAnalyticsAuthMode(t *testing.T) {
 	}
 	if got := growthAnalyticsAuthMode(GrowthAnalyticsConfig{}); got != "caller-jwt" {
 		t.Errorf("without ID = %q, want caller-jwt", got)
-	}
-}
-
-func TestValidateDeploymentTimeoutConfig(t *testing.T) {
-	tests := []struct {
-		name        string
-		cfg         DeploymentTimeoutConfig
-		wantErrors  int
-		errContains string
-	}{
-		{name: "defaults accepted", cfg: DeploymentTimeoutConfig{SweepIntervalSeconds: 60, TimeoutSeconds: 300}},
-		{
-			name:        "zero sweep interval rejected",
-			cfg:         DeploymentTimeoutConfig{SweepIntervalSeconds: 0, TimeoutSeconds: 300},
-			wantErrors:  1,
-			errContains: "DEPLOYMENT_TIMEOUT_SWEEP_INTERVAL_SECONDS",
-		},
-		{
-			name:        "negative timeout rejected",
-			cfg:         DeploymentTimeoutConfig{SweepIntervalSeconds: 60, TimeoutSeconds: -1},
-			wantErrors:  1,
-			errContains: "DEPLOYMENT_TIMEOUT_SECONDS",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			r := &configReader{}
-			validateDeploymentTimeoutConfig(&Config{DeploymentTimeout: tc.cfg}, r)
-			if len(r.errors) != tc.wantErrors {
-				t.Fatalf("got %d errors (%v), want %d", len(r.errors), r.errors, tc.wantErrors)
-			}
-			if tc.errContains != "" && !strings.Contains(r.errors[0].Error(), tc.errContains) {
-				t.Errorf("error %q does not mention %q", r.errors[0], tc.errContains)
-			}
-		})
-	}
-}
-
-func TestValidateReconcileConfig(t *testing.T) {
-	valid := ReconcileConfig{
-		RenderIntervalSeconds: 5, PlaceIntervalSeconds: 600, DriftIntervalSeconds: 300,
-		RenderLeaseSeconds: 120, RenderAttemptBudget: 30,
-	}
-	r := &configReader{}
-	validateReconcileConfig(&Config{Reconcile: valid}, r)
-	if len(r.errors) != 0 {
-		t.Fatalf("defaults rejected: %v", r.errors)
-	}
-
-	zeroBudget := valid
-	zeroBudget.RenderAttemptBudget = 0
-	r = &configReader{}
-	validateReconcileConfig(&Config{Reconcile: zeroBudget}, r)
-	if len(r.errors) != 1 || !strings.Contains(r.errors[0].Error(), "RECONCILE_RENDER_ATTEMPT_BUDGET") {
-		t.Fatalf("got %v, want one RECONCILE_RENDER_ATTEMPT_BUDGET error", r.errors)
 	}
 }
 

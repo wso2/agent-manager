@@ -35,12 +35,14 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwinit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmcp"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
@@ -177,16 +179,18 @@ func Build(_ context.Context, core *wiring.AppParams) (*builtin.Parts, error) {
 
 // Wire builds the gateway's services without starting anything.
 func Wire(core *wiring.AppParams) (*gwwire.Gateway, error) {
-	cfg := core.Config
-	// The manifest cache is a package-level backend, selected before anything
-	// reads or writes it (see gwsvc.SetGatewayManifestCacheBackend).
-	backend, err := gwwire.ProvideGatewayManifestCacheBackend(*cfg)
+	settings, err := gwconfig.Load(func(key string) string {
+		return config.Value(config.ModuleConfigKey(gwperm.Module, key))
+	})
 	if err != nil {
-		return nil, fmt.Errorf("gateway manifest cache backend: %w", err)
+		return nil, fmt.Errorf("ai-gateway settings: %w", err)
 	}
-	gwsvc.SetGatewayManifestCacheBackend(backend)
+	// The manifest cache and the agent CORS defaults are package-level, selected
+	// before anything reads them (see gwsvc.SetGatewayManifestCacheBackend).
+	gwsvc.SetGatewayManifestCacheBackend(gwwire.ProvideGatewayManifestCacheBackend(settings))
+	gwsvc.SetAgentCORSDefaults(settings.AgentCORS)
 	opts := currentOptions()
-	return gwwire.Initialize(core, opts.GatewayConfigApplier)
+	return gwwire.Initialize(core, opts.GatewayConfigApplier, settings)
 }
 
 // Options are what a distribution injects into the gateway. The zero value

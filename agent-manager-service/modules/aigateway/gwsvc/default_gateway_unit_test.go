@@ -26,9 +26,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
@@ -38,11 +38,11 @@ import (
 
 const seedOUID = "01900000-0000-7000-8000-000000000001"
 
-func seedConfig(t *testing.T) (config.DefaultGatewayConfig, string) {
+func seedConfig(t *testing.T) (gwconfig.DefaultGateway, string) {
 	t.Helper()
 	token, err := gatewaytoken.New()
 	require.NoError(t, err)
-	return config.DefaultGatewayConfig{
+	return gwconfig.DefaultGateway{
 		Name: "default", DisplayName: "Default AI Gateway", Vhost: "http://gw.localhost:19080",
 		FunctionalityType: "BOTH", OrgOUID: seedOUID, OrgHandle: "default", Token: token,
 	}, token
@@ -64,7 +64,7 @@ func seedPlatform(t *testing.T) *repomocks.PlatformRepositoryMock {
 func TestDefaultGatewaySeederDisabledDoesNothing(t *testing.T) {
 	// Every mock func is nil: any repository call panics.
 	repo := &gwrepomocks.GatewayRepositoryMock{}
-	s := NewDefaultGatewaySeeder(config.DefaultGatewayConfig{}, NewPlatformGatewayService(repo, nil), repo,
+	s := NewDefaultGatewaySeeder(gwconfig.DefaultGateway{}, NewPlatformGatewayService(repo, nil), repo,
 		&repomocks.PlatformRepositoryMock{}, discardLogger())
 	require.NoError(t, s.Seed(context.Background()))
 }

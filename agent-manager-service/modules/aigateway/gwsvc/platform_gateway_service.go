@@ -38,6 +38,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -55,6 +56,8 @@ type PlatformGatewayService struct {
 	placer EnvironmentPlacer
 	// guard refuses to unmap a gateway from an environment it still serves. Nil refuses nothing.
 	guard EnvironmentGuard
+	// failure sets the platform gateway failure summary.
+	failure gwconfig.Failure
 	// verifyTokenSfg serializes the DB lookup in VerifyToken per tokenPrefix, so a
 	// burst of concurrent requests for the same (often forged) prefix triggers one
 	// repository call instead of one per request. Different prefixes still run
@@ -104,6 +107,15 @@ func (s *PlatformGatewayService) WithEnvironmentGuard(guard EnvironmentGuard) *P
 	s.guard = guard
 	return s
 }
+
+// WithFailureSettings sets the window and threshold of the platform gateway failure summary.
+func (s *PlatformGatewayService) WithFailureSettings(f gwconfig.Failure) *PlatformGatewayService {
+	s.failure = f
+	return s
+}
+
+// FailureSettings are the window and threshold of the platform gateway failure summary.
+func (s *PlatformGatewayService) FailureSettings() gwconfig.Failure { return s.failure }
 
 // placeEnvironments asks the worker to place the environments just mapped to a gateway of ouID. The request doesn't
 // wait: rendering can call out of AMS, and a failure is retried by the worker's slow pass.

@@ -351,10 +351,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 		slog.Info("Internal server is running",
 			"address", fmt.Sprintf("%s://localhost:%d", scheme, cfg.InternalServer.Port),
-			"tlsEnabled", cfg.InternalServer.TLSEnabled,
-			"maxWebSocketConnections", cfg.WebSocket.MaxConnections,
-			"heartbeatTimeout", fmt.Sprintf("%ds", cfg.WebSocket.ConnectionTimeout),
-			"rateLimitPerMin", cfg.WebSocket.RateLimitPerMin)
+			"tlsEnabled", cfg.InternalServer.TLSEnabled)
 		if err := internalServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			slog.Error("Failed to start internal server", "error", err)
 			os.Exit(1)
