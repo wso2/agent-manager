@@ -140,9 +140,10 @@ data:
   EVENTS_DELIVERY_RETENTION_DAYS: {{ .deliveryRetentionDays | default 14 | quote }}
   EVENTS_ALLOW_PRIVATE_DESTINATIONS: {{ dig "allowPrivateDestinations" false . | quote }}
   {{- end }}
+  # Public policy hub URL; an explicit "" disables the hub.
+  POLICY_HUB_BASE_URL: {{ .Values.agentManagerService.config.policyHub.baseUrl | quote }}
   # Gateway manifest cache backend. Must be "redis" whenever replicaCount > 1 — see
   # the gatewayManifestCache note in values.yaml.
-  POLICY_HUB_BASE_URL: {{ .Values.agentManagerService.config.policyHub.baseUrl | default "" | quote }}
   GATEWAY_MANIFEST_CACHE_BACKEND: {{ .Values.agentManagerService.config.gatewayManifestCache.backend | default "memory" | quote }}
   GATEWAY_MANIFEST_CACHE_REDIS_HOST: {{ .Values.agentManagerService.config.gatewayManifestCache.redis.host | default "" | quote }}
   GATEWAY_MANIFEST_CACHE_REDIS_PORT: {{ .Values.agentManagerService.config.gatewayManifestCache.redis.port | default 6379 | quote }}

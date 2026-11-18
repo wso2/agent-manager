@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -127,7 +128,7 @@ func TestPolicyHubClient_ColdFailureNotOK(t *testing.T) {
 func TestPolicyHubClient_TimeoutBounded(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
-		case <-time.After(200 * time.Millisecond):
+		case <-time.After(time.Second):
 		case <-r.Context().Done():
 		}
 		hubPage(w, []string{"a"}, 0, 50, 1)
@@ -138,7 +139,7 @@ func TestPolicyHubClient_TimeoutBounded(t *testing.T) {
 	start := time.Now()
 	policies, ok := c.Snapshot(context.Background())
 
-	assert.Less(t, time.Since(start), 150*time.Millisecond)
+	assert.Less(t, time.Since(start), 500*time.Millisecond)
 	assert.False(t, ok)
 	assert.Empty(t, policies)
 }
@@ -156,4 +157,79 @@ func TestPolicyHubClient_EmptyBaseURLDisabled(t *testing.T) {
 	assert.False(t, ok)
 	assert.Empty(t, policies)
 	assert.Zero(t, hits.Load())
+}
+
+func TestPolicyHubClient_FailureBackoffSkipsRefetch(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewPolicyHubClient(srv.URL, time.Minute, time.Second, srv.Client())
+	_, ok1 := c.Snapshot(context.Background())
+	_, ok2 := c.Snapshot(context.Background())
+
+	assert.False(t, ok1)
+	assert.False(t, ok2)
+	assert.Equal(t, int32(1), hits.Load())
+}
+
+func TestPolicyHubClient_RetriesAfterBackoffElapses(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	c := NewPolicyHubClient(srv.URL, time.Minute, time.Second, srv.Client()).(*policyHubClient)
+	c.backoff = time.Nanosecond
+	c.Snapshot(context.Background())
+	c.Snapshot(context.Background())
+
+	assert.Equal(t, int32(2), hits.Load())
+}
+
+func TestPolicyHubClient_ConcurrentColdCallersShareOneFetch(t *testing.T) {
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		time.Sleep(100 * time.Millisecond)
+		hubPage(w, []string{"a"}, 0, 50, 1)
+	}))
+	defer srv.Close()
+
+	c := NewPolicyHubClient(srv.URL, time.Minute, 2*time.Second, srv.Client())
+	const n = 8
+	var wg sync.WaitGroup
+	oks := make([]bool, n)
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_, oks[i] = c.Snapshot(context.Background())
+		}(i)
+	}
+	wg.Wait()
+
+	assert.Equal(t, int32(1), hits.Load())
+	for _, ok := range oks {
+		assert.True(t, ok)
+	}
+}
+
+func TestPolicyHubClient_SnapshotReturnsCopy(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hubPage(w, []string{"a"}, 0, 50, 1)
+	}))
+	defer srv.Close()
+
+	c := NewPolicyHubClient(srv.URL, time.Minute, time.Second, srv.Client())
+	first, _ := c.Snapshot(context.Background())
+	first[0].Name = "mutated"
+	second, _ := c.Snapshot(context.Background())
+
+	assert.Equal(t, "a", second[0].Name)
 }

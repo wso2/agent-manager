@@ -47,16 +47,23 @@ type PolicyHubClient interface {
 	Snapshot(ctx context.Context) (policies []HubPolicy, ok bool)
 }
 
+// policyHubFailureBackoff is how long after a failed refresh the client serves
+// whatever it has without retrying.
+const policyHubFailureBackoff = 30 * time.Second
+
 type policyHubClient struct {
 	baseURL string
 	ttl     time.Duration
 	timeout time.Duration
+	backoff time.Duration
 	hc      *http.Client
 
 	mu        sync.Mutex
 	policies  []HubPolicy
 	fetchedAt time.Time
+	failedAt  time.Time
 	hasData   bool
+	inflight  chan struct{} // non-nil while a refresh is running; closed when it ends
 }
 
 // NewPolicyHubClient builds a cached hub client. An empty baseURL disables the hub.
@@ -64,7 +71,18 @@ func NewPolicyHubClient(baseURL string, ttl, timeout time.Duration, hc *http.Cli
 	if hc == nil {
 		hc = &http.Client{}
 	}
-	return &policyHubClient{baseURL: strings.TrimSpace(baseURL), ttl: ttl, timeout: timeout, hc: hc}
+	return &policyHubClient{
+		baseURL: strings.TrimSpace(baseURL), ttl: ttl, timeout: timeout,
+		backoff: policyHubFailureBackoff, hc: hc,
+	}
+}
+
+// snapshotLocked returns a copy of the cache. Caller holds c.mu.
+func (c *policyHubClient) snapshotLocked() ([]HubPolicy, bool) {
+	if !c.hasData {
+		return nil, false
+	}
+	return append([]HubPolicy(nil), c.policies...), true
 }
 
 func (c *policyHubClient) Snapshot(ctx context.Context) ([]HubPolicy, bool) {
@@ -72,20 +90,48 @@ func (c *policyHubClient) Snapshot(ctx context.Context) ([]HubPolicy, bool) {
 		return nil, false
 	}
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.hasData && time.Since(c.fetchedAt) < c.ttl {
-		return c.policies, true
+		defer c.mu.Unlock()
+		return c.snapshotLocked()
 	}
+	if !c.failedAt.IsZero() && time.Since(c.failedAt) < c.backoff {
+		defer c.mu.Unlock()
+		return c.snapshotLocked()
+	}
+	if c.inflight != nil {
+		// A refresh is already running: serve stale data, or wait for that one fetch.
+		if c.hasData {
+			defer c.mu.Unlock()
+			return c.snapshotLocked()
+		}
+		wait := c.inflight
+		c.mu.Unlock()
+		select {
+		case <-wait:
+		case <-ctx.Done():
+		}
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return c.snapshotLocked()
+	}
+	done := make(chan struct{})
+	c.inflight = done
+	c.mu.Unlock()
+
 	fetchCtx, cancel := context.WithTimeout(ctx, c.timeout)
-	defer cancel()
 	fresh, err := c.fetchAll(fetchCtx)
+	cancel()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if err != nil {
-		// Serve stale data if we have any; otherwise report no data.
-		return c.policies, c.hasData
+		c.failedAt = time.Now()
+	} else {
+		c.policies, c.fetchedAt, c.hasData, c.failedAt = fresh, time.Now(), true, time.Time{}
 	}
-	c.policies, c.fetchedAt, c.hasData = fresh, time.Now(), true
-	return c.policies, true
+	c.inflight = nil
+	close(done)
+	return c.snapshotLocked()
 }
 
 type hubPageResponse struct {

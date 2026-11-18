@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"log/slog"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -1291,6 +1292,30 @@ func TestLoadEnvs_A2ACardTestUpstreamHosts(t *testing.T) {
 
 		if got := config.A2ACardTestUpstreamHosts; len(got) != 0 {
 			t.Errorf("A2ACardTestUpstreamHosts = %v, want empty", got)
+		}
+	})
+}
+
+func TestReadPolicyHubBaseURL(t *testing.T) {
+	t.Run("unset uses public default", func(t *testing.T) {
+		t.Setenv("POLICY_HUB_BASE_URL", "")
+		if err := os.Unsetenv("POLICY_HUB_BASE_URL"); err != nil {
+			t.Fatal(err)
+		}
+		if got := readPolicyHubBaseURL(); got != defaultPolicyHubBaseURL {
+			t.Errorf("got %q, want default %q", got, defaultPolicyHubBaseURL)
+		}
+	})
+	t.Run("set empty disables the hub", func(t *testing.T) {
+		t.Setenv("POLICY_HUB_BASE_URL", "")
+		if got := readPolicyHubBaseURL(); got != "" {
+			t.Errorf("got %q, want empty", got)
+		}
+	})
+	t.Run("custom value is used as-is", func(t *testing.T) {
+		t.Setenv("POLICY_HUB_BASE_URL", "https://hub.example.com/policies")
+		if got := readPolicyHubBaseURL(); got != "https://hub.example.com/policies" {
+			t.Errorf("got %q", got)
 		}
 	})
 }
