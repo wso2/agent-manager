@@ -81,13 +81,13 @@ check agent-create 202 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"
 check agent-get 200 "$(code "${A[@]}" "$B/projects/$P/agents/$AG")"
 check agent-list 200 "$(code "${A[@]}" "$B/projects/$P/agents")"
 check agent-update 200 "$(code "${A[@]}" -X PUT "$B/projects/$P/agents/$AG" -d '{"displayName":"Renamed","description":"smoke"}')"
-check agent-config 200 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/configurations?environment=default")"
 check agent-token 200 "$(code "${A[@]}" -X POST "$B/projects/$P/agents/$AG/token" -d '{}')"
 if jq -e '.token | type == "string" and length > 0' "$BODY" >/dev/null 2>&1; then check agent-token-issued yes yes
 else check agent-token-issued yes no; fi
 check unknown-extension 400 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"x$AG\",\"displayName\":\"X\",$EXT,\"extensions\":{\"nosuch\":{}}}")"
-# An LLM binding names a provider: amp has none by that name, amp-core no LLM support.
-check agent-with-llm-config-refused "$(pick 404 400)" "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"llm$AG\",\"displayName\":\"L\",$EXT,\"modelConfig\":[{\"providerName\":\"nosuch-provider\"}]}")"
+# An LLM binding goes in the AI Gateway's extension block: amp has no provider by
+# that name, and amp-core no ai-gateway module.
+check agent-with-llm-config-refused 400 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"llm$AG\",\"displayName\":\"L\",$EXT,\"extensions\":{\"ai-gateway\":{\"modelConfig\":[{\"providerName\":\"nosuch-provider\"}]}}}")"
 check agent-llm-not-created 404 "$(code "${A[@]}" "$B/projects/$P/agents/llm$AG")"
 check environments 200 "$(code "${A[@]}" "$B/environments")"
 check identity-roles 200 "$(code "${A[@]}" "$B/identities/roles")"
@@ -98,6 +98,7 @@ check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
 check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GW/llm-providers")"
 check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default/gateways")"
 check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/deployments")"
+check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/configurations?environment=default")"
 check catalog "$(pick 200 404)" "$(code "${A[@]}" "$GW/catalog")"
 # No alias under the core's API.
 check gateways-old-path 404 "$(code "${A[@]}" "$B/gateways")"

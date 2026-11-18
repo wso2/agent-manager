@@ -365,6 +365,9 @@ type ClientInterface interface {
 
 	UpdateMCPProxyScope(ctx context.Context, orgName string, proxyId string, scopeAction string, body UpdateMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetAgentConfigurations request
+	GetAgentConfigurations(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// UpdateAgentDeploySettingsWithBody request with any body
 	UpdateAgentDeploySettingsWithBody(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -1767,6 +1770,18 @@ func (c *Client) UpdateMCPProxyScopeWithBody(ctx context.Context, orgName string
 
 func (c *Client) UpdateMCPProxyScope(ctx context.Context, orgName string, proxyId string, scopeAction string, body UpdateMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateMCPProxyScopeRequest(c.Server, orgName, proxyId, scopeAction, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetAgentConfigurations(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetAgentConfigurationsRequest(c.Server, orgName, projName, agentName, params)
 	if err != nil {
 		return nil, err
 	}
@@ -6778,6 +6793,72 @@ func NewUpdateMCPProxyScopeRequestWithBody(server string, orgName string, proxyI
 	return req, nil
 }
 
+// NewGetAgentConfigurationsRequest generates requests for GetAgentConfigurations
+func NewGetAgentConfigurationsRequest(server string, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "projName", projName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam2 string
+
+	pathParam2, err = runtime.StyleParamWithOptions("simple", false, "agentName", agentName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/projects/%s/agents/%s/configurations", pathParam0, pathParam1, pathParam2)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "environment", params.Environment, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, err
+		} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+			return nil, err
+		} else {
+			for k, v := range parsed {
+				for _, v2 := range v {
+					queryValues.Add(k, v2)
+				}
+			}
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewUpdateAgentDeploySettingsRequest calls the generic UpdateAgentDeploySettings builder with application/json body
 func NewUpdateAgentDeploySettingsRequest(server string, orgName string, projName string, agentName string, body UpdateAgentDeploySettingsJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -10559,6 +10640,9 @@ type ClientWithResponsesInterface interface {
 
 	UpdateMCPProxyScopeWithResponse(ctx context.Context, orgName string, proxyId string, scopeAction string, body UpdateMCPProxyScopeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateMCPProxyScopeResp, error)
 
+	// GetAgentConfigurationsWithResponse request
+	GetAgentConfigurationsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams, reqEditors ...RequestEditorFn) (*GetAgentConfigurationsResp, error)
+
 	// UpdateAgentDeploySettingsWithBodyWithResponse request with any body
 	UpdateAgentDeploySettingsWithBodyWithResponse(ctx context.Context, orgName string, projName string, agentName string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateAgentDeploySettingsResp, error)
 
@@ -12651,6 +12735,30 @@ func (r UpdateMCPProxyScopeResp) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r UpdateMCPProxyScopeResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+type GetAgentConfigurationsResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *AgentConfigurationResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetAgentConfigurationsResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetAgentConfigurationsResp) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -14984,6 +15092,15 @@ func (c *ClientWithResponses) UpdateMCPProxyScopeWithResponse(ctx context.Contex
 		return nil, err
 	}
 	return ParseUpdateMCPProxyScopeResp(rsp)
+}
+
+// GetAgentConfigurationsWithResponse request returning *GetAgentConfigurationsResp
+func (c *ClientWithResponses) GetAgentConfigurationsWithResponse(ctx context.Context, orgName string, projName string, agentName string, params *GetAgentConfigurationsParams, reqEditors ...RequestEditorFn) (*GetAgentConfigurationsResp, error) {
+	rsp, err := c.GetAgentConfigurations(ctx, orgName, projName, agentName, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetAgentConfigurationsResp(rsp)
 }
 
 // UpdateAgentDeploySettingsWithBodyWithResponse request with arbitrary body returning *UpdateAgentDeploySettingsResp
@@ -19216,6 +19333,46 @@ func ParseUpdateMCPProxyScopeResp(rsp *http.Response) (*UpdateMCPProxyScopeResp,
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetAgentConfigurationsResp parses an HTTP response from a GetAgentConfigurationsWithResponse call
+func ParseGetAgentConfigurationsResp(rsp *http.Response) (*GetAgentConfigurationsResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetAgentConfigurationsResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AgentConfigurationResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 

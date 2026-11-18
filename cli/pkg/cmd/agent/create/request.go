@@ -95,10 +95,7 @@ func Build(opts *CreateOptions) (amsvc.CreateAgentRequest, []string) {
 	v = append(v, bv...)
 	req.Build = b
 	req.InputInterface = buildInterface(opts)
-	cfg, cv := buildConfig(opts)
-	v = append(v, cv...)
-	req.Configurations = cfg
-	req.ModelConfig = buildModelConfig(opts)
+	req.Extensions = buildGatewayExtension(opts)
 
 	return req, append(v, droppedInternalFlags(opts)...)
 }
@@ -199,70 +196,30 @@ func buildInterface(opts *CreateOptions) *amsvc.InputInterface {
 	return iface
 }
 
-func buildConfig(opts *CreateOptions) (*amsvc.Configurations, []string) {
-	var envs []amsvc.EnvironmentVariable
-	var v []string
-
-	appendEnvs := func(entries []string, flag string, mk func(k, val string) amsvc.EnvironmentVariable) {
-		for _, entry := range entries {
-			k, val, ok := strings.Cut(entry, "=")
-			if !ok {
-				v = append(v, fmt.Sprintf("%s %q: missing '=' separator", flag, entry))
-				continue
-			}
-			envs = append(envs, mk(k, val))
-		}
-	}
-	appendEnvs(opts.Env, "--env", func(k, val string) amsvc.EnvironmentVariable {
-		return amsvc.EnvironmentVariable{Key: k, Value: &val}
-	})
-	appendEnvs(opts.EnvSecret, "--env-secret", func(k, val string) amsvc.EnvironmentVariable {
-		tr := true
-		return amsvc.EnvironmentVariable{Key: k, Value: &val, IsSensitive: &tr}
-	})
-	appendEnvs(opts.EnvFromSecret, "--env-from-secret", func(k, val string) amsvc.EnvironmentVariable {
-		return amsvc.EnvironmentVariable{Key: k, SecretRef: &val}
-	})
-
-	hasEnv := len(envs) > 0
-	hasInstr := opts.DisableAutoInstrumentation
-	if !hasEnv && !hasInstr {
-		return nil, v
-	}
-
-	cfg := &amsvc.Configurations{}
-	if hasEnv {
-		cfg.Env = &envs
-	}
-	if hasInstr {
-		f := false
-		cfg.EnableAutoInstrumentation = &f
-	}
-	return cfg, v
-}
-
-func buildModelConfig(opts *CreateOptions) *[]amsvc.ModelConfigRequest {
+// buildGatewayExtension attaches the LLM provider through the AI Gateway
+// module's extension block (extensions.ai-gateway.modelConfig).
+func buildGatewayExtension(opts *CreateOptions) *amsvc.Extensions {
 	if opts.LLMProvider == "" {
 		return nil
 	}
-	mc := amsvc.ModelConfigRequest{ProviderName: opts.LLMProvider}
-	var evs []amsvc.EnvironmentVariableConfig
+	mc := map[string]any{"providerName": opts.LLMProvider}
+	var evs []map[string]string
 	if opts.LLMURLEnv != "" {
-		evs = append(evs, amsvc.EnvironmentVariableConfig{Key: "url", Name: opts.LLMURLEnv})
+		evs = append(evs, map[string]string{"key": "url", "name": opts.LLMURLEnv})
 	}
 	if opts.LLMAPIKeyEnv != "" {
-		evs = append(evs, amsvc.EnvironmentVariableConfig{Key: "apikey", Name: opts.LLMAPIKeyEnv})
+		evs = append(evs, map[string]string{"key": "apikey", "name": opts.LLMAPIKeyEnv})
 	}
 	if len(evs) > 0 {
-		mc.EnvironmentVariables = &evs
+		mc["environmentVariables"] = evs
 	}
-	return &[]amsvc.ModelConfigRequest{mc}
+	return &amsvc.Extensions{"ai-gateway": {"modelConfig": []any{mc}}}
 }
 
 // droppedInternalFlags reports internal-mode flag input the builder dropped:
 // chat-api never carries base-path/openapi-spec (and the port is fixed), the
 // build union holds exactly one variant's fields, and LLM env names without a
-// provider never reach modelConfig.
+// provider never reach the extension block.
 func droppedInternalFlags(opts *CreateOptions) []string {
 	var v []string
 
@@ -332,10 +289,6 @@ func droppedExternalFlags(opts *CreateOptions) []string {
 	disallow("--port", opts.PortSet)
 	disallow("--base-path", opts.BasePath != "")
 	disallow("--openapi-spec", opts.OpenAPISpec != "")
-	disallow("--env", len(opts.Env) > 0)
-	disallow("--env-secret", len(opts.EnvSecret) > 0)
-	disallow("--env-from-secret", len(opts.EnvFromSecret) > 0)
-	disallow("--no-auto-instrumentation", opts.DisableAutoInstrumentation)
 	disallow("--llm-provider", opts.LLMProvider != "")
 	disallow("--llm-url-env", opts.LLMURLEnv != "")
 	disallow("--llm-api-key-env", opts.LLMAPIKeyEnv != "")

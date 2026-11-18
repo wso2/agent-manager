@@ -74,11 +74,6 @@ type CreateOptions struct {
 	BasePath    string
 	OpenAPISpec string
 
-	DisableAutoInstrumentation bool
-	Env                        []string
-	EnvSecret                  []string
-	EnvFromSecret              []string
-
 	LLMProvider  string
 	LLMURLEnv    string
 	LLMAPIKeyEnv string
@@ -172,10 +167,6 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.Flags().IntVar(&opts.Port, "port", 8000, "Service port (1..65535) (custom-api and a2a-agent only; chat-api uses a fixed port)")
 	cmd.Flags().StringVar(&opts.BasePath, "base-path", "", "Base path for the service")
 	cmd.Flags().StringVar(&opts.OpenAPISpec, "openapi-spec", "", "Path to OpenAPI schema within the repo")
-	cmd.Flags().BoolVar(&opts.DisableAutoInstrumentation, "no-auto-instrumentation", false, "Disable automatic instrumentation")
-	cmd.Flags().StringSliceVar(&opts.Env, "env", nil, "Environment variable as KEY=VALUE (repeatable)")
-	cmd.Flags().StringSliceVar(&opts.EnvSecret, "env-secret", nil, "Sensitive env variable as KEY=VALUE (repeatable)")
-	cmd.Flags().StringSliceVar(&opts.EnvFromSecret, "env-from-secret", nil, "Env variable from secret as KEY=SECRETNAME (repeatable)")
 	cmd.Flags().StringVar(&opts.LLMProvider, "llm-provider", "", "Handle of a configured LLM provider to attach (internal only)")
 	cmd.Flags().StringVar(&opts.LLMURLEnv, "llm-url-env", "", "Env var name for the provider URL (default: auto-generated)")
 	cmd.Flags().StringVar(&opts.LLMAPIKeyEnv, "llm-api-key-env", "", "Env var name for the provider API key (default: auto-generated)")

@@ -33,7 +33,7 @@ spec:
     subType: chat-api           # internal only: or custom-api, a2a-agent (see inputInterface below)
   provisioning:
     type: internal              # or: external (then omit agentType.subType,
-                                #     repository, build, inputInterface and configurations)
+                                #     repository, build and inputInterface)
     repository:
       url: <https://github.com/org/repo>
       branch: <main>
@@ -73,21 +73,13 @@ spec:
   #     type: TCP
   #   startup:
   #     enabled: false                  # turns a check off
-  # configurations:
-  #   env:
-  #     - key: <KEY>
-  #       value: <value>
-  #     - key: <SECRET_KEY>             # sensitive value, stored as a secret
-  #       value: <secret-value>
-  #       isSensitive: true
-  #     - key: <FROM_SECRET>            # reference an existing secret
-  #       secretRef: <secret-name>
-  #   enableAutoInstrumentation: false
-  # modelConfig:                        # attach a configured LLM provider
-  #   - providerName: <provider-handle>
-  #     environmentVariables:
-  #       - key: url
-  #         name: <ENV_VAR_FOR_URL>
-  #       - key: apikey
-  #         name: <ENV_VAR_FOR_API_KEY>
+  # extensions:
+  #   ai-gateway:                       # needs the AI Gateway module
+  #     modelConfig:                    # attach a configured LLM provider
+  #       - providerName: <provider-handle>
+  #         environmentVariables:
+  #           - key: url
+  #             name: <ENV_VAR_FOR_URL>
+  #           - key: apikey
+  #             name: <ENV_VAR_FOR_API_KEY>
 `

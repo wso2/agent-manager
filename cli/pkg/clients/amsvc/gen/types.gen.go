@@ -812,10 +812,9 @@ type AgentResourceConfigsResponse struct {
 
 // AgentResponse defines model for AgentResponse.
 type AgentResponse struct {
-	AgentType      AgentType       `json:"agentType"`
-	Build          *Build          `json:"build,omitempty"`
-	Configurations *Configurations `json:"configurations,omitempty"`
-	CreatedAt      time.Time       `json:"createdAt"`
+	AgentType AgentType `json:"agentType"`
+	Build     *Build    `json:"build,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
 
 	// CreatedBy The user who created this agent. Resolved from an audit-only
 	// requester id captured at creation time, so it is best-effort and
@@ -1126,67 +1125,6 @@ type ConfigResponse struct {
 	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
 }
 
-// ConfigurationItem defines model for ConfigurationItem.
-type ConfigurationItem struct {
-	// IsSensitive Whether this configuration value is sensitive (e.g., a secret)
-	IsSensitive *bool `json:"isSensitive,omitempty"`
-
-	// IsSystem Whether this configuration is system-managed (injected by the platform, e.g. LLM_PROVIDER_URL, LLM_PROVIDER_KEY). System-managed items are read-only and should not be edited by users.
-	IsSystem *bool `json:"isSystem,omitempty"`
-
-	// Key Configuration key
-	Key string `json:"key"`
-
-	// SecretRef Reference to the secret storing this value. Only present for sensitive configurations.
-	SecretRef *string `json:"secretRef,omitempty"`
-
-	// Value Configuration value (empty for sensitive values)
-	Value string `json:"value"`
-}
-
-// ConfigurationResponse defines model for ConfigurationResponse.
-type ConfigurationResponse struct {
-	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
-	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
-
-	// AgentName Name of the agent
-	AgentName string `json:"agentName"`
-
-	// Configurations Configuration data containing env vars and file mounts
-	Configurations struct {
-		// Env List of environment variable configurations
-		Env []ConfigurationItem `json:"env"`
-
-		// Files List of file mount configurations
-		Files []FileMount `json:"files"`
-	} `json:"configurations"`
-	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
-
-	// EnableApiKeySecurity Whether API key security is enabled for this environment's agent endpoint
-	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
-
-	// EnableAutoInstrumentation Whether auto-instrumentation (tracing) is enabled for this environment
-	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
-
-	// EnableOAuthSecurity Whether OAuth security is enabled for this environment's agent endpoint
-	EnableOAuthSecurity *bool `json:"enableOAuthSecurity,omitempty"`
-
-	// Environment Environment name
-	Environment string `json:"environment"`
-
-	// InstrumentationVersion AMP instrumentation version pinned for this environment, if any
-	InstrumentationVersion *string `json:"instrumentationVersion,omitempty"`
-
-	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
-	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
-
-	// ProjectName Name of the project
-	ProjectName string `json:"projectName"`
-
-	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Defaults to 30 seconds when unset.
-	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
-}
-
 // Configurations defines model for Configurations.
 type Configurations struct {
 	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
@@ -1273,9 +1211,8 @@ type ConsoleActionBatchResponse struct {
 
 // CreateAgentRequest Create an agent. For internal provisioning, supply either repository (source build) or agentKind (from a published Kind version).
 type CreateAgentRequest struct {
-	AgentType      *AgentType      `json:"agentType,omitempty"`
-	Build          *Build          `json:"build,omitempty"`
-	Configurations *Configurations `json:"configurations,omitempty"`
+	AgentType *AgentType `json:"agentType,omitempty"`
+	Build     *Build     `json:"build,omitempty"`
 
 	// Description Description of the agent
 	Description *string `json:"description,omitempty"`
@@ -1297,12 +1234,6 @@ type CreateAgentRequest struct {
 
 	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 	Labels *Labels `json:"labels,omitempty"`
-
-	// McpConfig Optional MCP proxy configurations to create atomically with the agent. Applied to every environment in the project's deployment pipeline, so the agent can be promoted without reconfiguring each one. Name and type are auto-generated.
-	McpConfig *[]MCPConfigRequest `json:"mcpConfig,omitempty"`
-
-	// ModelConfig Optional LLM configurations to create atomically with the agent. Applied to the component's initial (lowest) environment. Name and type are auto-generated.
-	ModelConfig *[]ModelConfigRequest `json:"modelConfig,omitempty"`
 
 	// Name Unique name of the agent
 	Name         string       `json:"name"`
@@ -1537,14 +1468,6 @@ type EndpointSchema struct {
 // EndpointsResponse Map of endpoint names to endpoint configurations
 type EndpointsResponse map[string]EndpointConfiguration
 
-// EnvProviderConfiguration defines model for EnvProviderConfiguration.
-type EnvProviderConfiguration struct {
-	Policies *[]LLMPolicy `json:"policies,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-}
-
 // Environment defines model for Environment.
 type Environment struct {
 	// CreatedAt Timestamp when the environment was created
@@ -1585,15 +1508,6 @@ type EnvironmentVariable struct {
 
 	// Value Value (plain text or secret value for input; omitted for secrets in responses)
 	Value *string `json:"value,omitempty"`
-}
-
-// EnvironmentVariableConfig defines model for EnvironmentVariableConfig.
-type EnvironmentVariableConfig struct {
-	// Key Environment variable key
-	Key string `json:"key"`
-
-	// Name Environment variable name. Must start with a letter or underscore and contain only letters, digits, and underscores.
-	Name string `json:"name"`
 }
 
 // ErrorResponse defines model for ErrorResponse.
@@ -1934,9 +1848,6 @@ type GatewayEnvironmentResponse struct {
 	// DnsPrefix DNS prefix for the environment
 	DnsPrefix string `json:"dnsPrefix"`
 
-	// Gateway Gateway configuration with ingress and egress network specs
-	Gateway *GatewaySpec `json:"gateway,omitempty"`
-
 	// Id Unique identifier for the environment
 	Id string `json:"id"`
 
@@ -2154,27 +2065,6 @@ type JWKS struct {
 	Keys []JWK `json:"keys"`
 }
 
-// LLMPolicy defines model for LLMPolicy.
-type LLMPolicy struct {
-	// Name Policy name
-	Name  string          `json:"name"`
-	Paths []LLMPolicyPath `json:"paths"`
-
-	// Version Policy version
-	Version string `json:"version"`
-}
-
-// LLMPolicyPath defines model for LLMPolicyPath.
-type LLMPolicyPath struct {
-	Methods []string `json:"methods"`
-
-	// Params Policy parameters
-	Params *map[string]interface{} `json:"params,omitempty"`
-
-	// Path Path pattern
-	Path string `json:"path"`
-}
-
 // Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 type Labels map[string]string
 
@@ -2254,26 +2144,6 @@ type ListCommitsResponse struct {
 
 	// Offset Number of results skipped
 	Offset int `json:"offset"`
-}
-
-// MCPConfigRequest defines model for MCPConfigRequest.
-type MCPConfigRequest struct {
-	// EnvironmentVariables Optional custom environment variable names exposed to the agent
-	EnvironmentVariables *[]EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
-
-	// ProxyName Handle of an already-configured MCP proxy. Applied to every environment in the project's deployment pipeline. An environment the proxy has no endpoint in yet is still recorded, and is bound automatically once the proxy becomes available there.
-	ProxyName string `json:"proxyName"`
-}
-
-// ModelConfigRequest defines model for ModelConfigRequest.
-type ModelConfigRequest struct {
-	Configuration *EnvProviderConfiguration `json:"configuration,omitempty"`
-
-	// EnvironmentVariables Optional custom environment variable names exposed to the agent
-	EnvironmentVariables *[]EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
-
-	// ProviderName Handle of an already-configured LLM provider. Applied to the component's initial (lowest) environment.
-	ProviderName string `json:"providerName"`
 }
 
 // OAuthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
@@ -2520,15 +2390,6 @@ type RepositoryConfig struct {
 
 	// Url URL of the git repository
 	Url string `json:"url"`
-}
-
-// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-type Resilience struct {
-	// IdleTimeout Per-route stream idle timeout. "0s" disables it; omit to use the gateway's default.
-	IdleTimeout *string `json:"idleTimeout,omitempty"`
-
-	// Timeout Max duration for the whole request→upstream-response. "0s" disables it; omit to use the gateway's default.
-	Timeout *string `json:"timeout,omitempty"`
 }
 
 // ResourceConfig defines model for ResourceConfig.
@@ -2780,18 +2641,6 @@ type UpdateAgentBuildParametersRequest struct {
 	// InputInterface Endpoint configurations
 	InputInterface InputInterface `json:"inputInterface"`
 	Provisioning   Provisioning   `json:"provisioning"`
-}
-
-// UpdateAgentConfigurationsRequest defines model for UpdateAgentConfigurationsRequest.
-type UpdateAgentConfigurationsRequest struct {
-	// Env Environment variables to apply to the agent's release binding for this environment. System-managed keys are filtered server-side and re-injected from the agent's LLM/MCP configuration. Sending an empty array clears all user-managed env vars.
-	Env *[]EnvironmentVariable `json:"env,omitempty"`
-
-	// EnvironmentName Name of the environment whose env vars / file mounts to replace.
-	EnvironmentName string `json:"environmentName"`
-
-	// Files File mounts to apply to the agent's release binding for this environment. Sending an empty array clears all user-managed file mounts.
-	Files *[]FileMount `json:"files,omitempty"`
 }
 
 // UpdateAgentKindRequest defines model for UpdateAgentKindRequest.
@@ -3071,12 +2920,6 @@ type BuildAgentParams struct {
 	CommitId *string `form:"commitId,omitempty" json:"commitId,omitempty"`
 }
 
-// GetAgentConfigurationsParams defines parameters for GetAgentConfigurations.
-type GetAgentConfigurationsParams struct {
-	// Environment Environment name
-	Environment string `form:"environment" json:"environment"`
-}
-
 // GetAgentEndpointsParams defines parameters for GetAgentEndpoints.
 type GetAgentEndpointsParams struct {
 	// Environment Environment name
@@ -3274,9 +3117,6 @@ type UpdateAgentJSONRequestBody = UpdateAgentBasicInfoRequest
 
 // UpdateAgentBuildParametersJSONRequestBody defines body for UpdateAgentBuildParameters for application/json ContentType.
 type UpdateAgentBuildParametersJSONRequestBody = UpdateAgentBuildParametersRequest
-
-// UpdateAgentConfigurationsJSONRequestBody defines body for UpdateAgentConfigurations for application/json ContentType.
-type UpdateAgentConfigurationsJSONRequestBody = UpdateAgentConfigurationsRequest
 
 // DeployAgentJSONRequestBody defines body for DeployAgent for application/json ContentType.
 type DeployAgentJSONRequestBody = DeployAgentRequest

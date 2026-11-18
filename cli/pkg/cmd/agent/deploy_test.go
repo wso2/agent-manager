@@ -20,10 +20,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
-	"sort"
 	"strings"
 	"testing"
 
@@ -31,8 +29,6 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
-
-func boolPtr(b bool) *bool { return &b }
 
 func TestParseEnvFlag(t *testing.T) {
 	cases := []struct {
@@ -71,156 +67,6 @@ func TestParseEnvFlag(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestMergeEnv(t *testing.T) {
-	type result struct {
-		final     map[string]string
-		conflicts []string
-	}
-	cases := []struct {
-		name    string
-		current []gen.ConfigurationItem
-		cli     map[string]string
-		want    result
-	}{
-		{
-			name:    "no current, no cli",
-			current: nil, cli: nil,
-			want: result{final: map[string]string{}, conflicts: nil},
-		},
-		{
-			name: "preserve current when cli absent",
-			current: []gen.ConfigurationItem{
-				{Key: "A", Value: "1"},
-				{Key: "B", Value: "2"},
-			},
-			cli:  nil,
-			want: result{final: map[string]string{"A": "1", "B": "2"}, conflicts: nil},
-		},
-		{
-			name:    "add new cli key",
-			current: []gen.ConfigurationItem{{Key: "A", Value: "1"}},
-			cli:     map[string]string{"B": "2"},
-			want:    result{final: map[string]string{"A": "1", "B": "2"}, conflicts: nil},
-		},
-		{
-			name:    "same value is not a conflict",
-			current: []gen.ConfigurationItem{{Key: "A", Value: "1"}},
-			cli:     map[string]string{"A": "1"},
-			want:    result{final: map[string]string{"A": "1"}, conflicts: nil},
-		},
-		{
-			name:    "different value is a conflict",
-			current: []gen.ConfigurationItem{{Key: "A", Value: "1"}},
-			cli:     map[string]string{"A": "2"},
-			want:    result{final: map[string]string{"A": "2"}, conflicts: []string{"A"}},
-		},
-		{
-			name: "sensitive current key always conflicts when cli sets it",
-			current: []gen.ConfigurationItem{
-				{Key: "SECRET", Value: "", IsSensitive: boolPtr(true)},
-			},
-			cli:  map[string]string{"SECRET": "new"},
-			want: result{final: map[string]string{"SECRET": "new"}, conflicts: []string{"SECRET"}},
-		},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			final, conflicts := mergeEnv(tc.current, tc.cli)
-
-			gotFinal := map[string]string{}
-			for _, ev := range final {
-				if ev.Value == nil {
-					gotFinal[ev.Key] = ""
-				} else {
-					gotFinal[ev.Key] = *ev.Value
-				}
-			}
-			if len(gotFinal) != len(tc.want.final) {
-				t.Errorf("final size = %d, want %d (%v vs %v)", len(gotFinal), len(tc.want.final), gotFinal, tc.want.final)
-			}
-			for k, v := range tc.want.final {
-				if gotFinal[k] != v {
-					t.Errorf("final[%q] = %q, want %q", k, gotFinal[k], v)
-				}
-			}
-
-			gotConflicts := make([]string, 0, len(conflicts))
-			for _, c := range conflicts {
-				gotConflicts = append(gotConflicts, c.Key)
-			}
-			sort.Strings(gotConflicts)
-			wantConflicts := append([]string{}, tc.want.conflicts...)
-			sort.Strings(wantConflicts)
-			if len(gotConflicts) != len(wantConflicts) {
-				t.Fatalf("conflicts = %v, want %v", gotConflicts, wantConflicts)
-			}
-			for i := range gotConflicts {
-				if gotConflicts[i] != wantConflicts[i] {
-					t.Errorf("conflicts[%d] = %q, want %q", i, gotConflicts[i], wantConflicts[i])
-				}
-			}
-		})
-	}
-}
-
-func TestRenderConflictTable_PlainOnly(t *testing.T) {
-	io, _, _, errOut := iostreams.Test()
-	io.SetTerminal(true, true, true)
-	conflicts := []envConflict{
-		{Key: "OPENAI_MODEL", CurrentValue: "gpt-4o-mini", NewValue: "gpt-4o", CurrentSensitive: false},
-	}
-	renderConflictTable(io, conflicts)
-	out := errOut.String()
-	if strings.Contains(out, "secret") {
-		t.Errorf("plain-only render should not mention secrets, got: %q", out)
-	}
-	for _, want := range []string{"OPENAI_MODEL", "gpt-4o-mini", "gpt-4o"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("output missing %q: %q", want, out)
-		}
-	}
-}
-
-func TestRenderConflictTable_SensitiveBanner(t *testing.T) {
-	io, _, _, errOut := iostreams.Test()
-	io.SetTerminal(true, true, true)
-	conflicts := []envConflict{
-		{Key: "PINECONE_API_KEY", CurrentValue: "", NewValue: "new-secret-value", CurrentSensitive: true},
-	}
-	renderConflictTable(io, conflicts)
-	out := errOut.String()
-	if !strings.Contains(out, "PINECONE_API_KEY") {
-		t.Errorf("banner should name affected key, got: %q", out)
-	}
-	if !strings.Contains(out, "secret") {
-		t.Errorf("banner should mention secret demotion, got: %q", out)
-	}
-	if !strings.Contains(out, "(secret)") {
-		t.Errorf("table should render current sensitive value as (secret), got: %q", out)
-	}
-	if !strings.Contains(out, "***") {
-		t.Errorf("table should render incoming sensitive value as ***, got: %q", out)
-	}
-	if strings.Contains(out, "new-secret-value") {
-		t.Errorf("table must NOT echo incoming CLI value for sensitive key, got: %q", out)
-	}
-}
-
-// fakeDeployPrompter records Confirm calls and returns a canned answer.
-type fakeDeployPrompter struct {
-	confirmCalls  int
-	confirmAnswer bool
-	confirmErr    error
-	confirmPrompt string
-}
-
-func (p *fakeDeployPrompter) ConfirmDeletion(required string) error { return nil }
-func (p *fakeDeployPrompter) Confirm(prompt string) (bool, error) {
-	p.confirmCalls++
-	p.confirmPrompt = prompt
-	return p.confirmAnswer, p.confirmErr
 }
 
 // recordedRequest captures a single inbound request body for assertions.
@@ -303,21 +149,6 @@ func stubBuildsListLatest(name, imageID, status string) map[string]any {
 	}
 }
 
-func stubConfigurations(items []map[string]any) map[string]any {
-	if items == nil {
-		items = []map[string]any{}
-	}
-	return map[string]any{
-		"agentName":   "order-bot",
-		"projectName": "triage",
-		"environment": "dev",
-		"configurations": map[string]any{
-			"env":   items,
-			"files": []map[string]any{},
-		},
-	}
-}
-
 func stubDeployAccepted(imageID string) map[string]any {
 	return map[string]any{
 		"agentName":   "order-bot",
@@ -329,14 +160,12 @@ func stubDeployAccepted(imageID string) map[string]any {
 
 func TestDeploy_LatestBuild_HappyPath(t *testing.T) {
 	io, _, _ := newTestDeployIO(true, false)
-	prompter := &fakeDeployPrompter{}
 	requests := []recordedRequest{}
 
 	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "image-sha-123", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
-		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("image-sha-123")},
+		"GET /orgs/acme/projects/triage/agents/order-bot":              {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":       {200, stubBuildsListLatest("b1", "image-sha-123", "Completed")},
+		"POST /orgs/acme/projects/triage/agents/order-bot/deployments": {202, stubDeployAccepted("image-sha-123")},
 	}
 	srv := newStubServer(t, routes, &requests)
 	defer srv.Close()
@@ -344,7 +173,6 @@ func TestDeploy_LatestBuild_HappyPath(t *testing.T) {
 
 	opts := &DeployOptions{
 		IO:        io,
-		Prompter:  prompter,
 		Client:    func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:     baseScope(),
 		Org:       "acme",
@@ -379,14 +207,10 @@ func TestDeploy_LatestBuild_HappyPath(t *testing.T) {
 	if _, hasInstr := sent["enableAutoInstrumentation"]; hasInstr {
 		t.Errorf("enableAutoInstrumentation must not be sent; server reads from DB")
 	}
-	if prompter.confirmCalls != 0 {
-		t.Errorf("confirm should not be called for no-conflict deploy; got %d", prompter.confirmCalls)
-	}
 }
 
 func TestDeploy_NoBuilds_ReturnsBuildNotDeployable(t *testing.T) {
 	io, out, _ := newTestDeployIO(true, true)
-	prompter := &fakeDeployPrompter{}
 	requests := []recordedRequest{}
 
 	routes := map[string]stubResponse{
@@ -398,7 +222,7 @@ func TestDeploy_NoBuilds_ReturnsBuildNotDeployable(t *testing.T) {
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: prompter,
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",
@@ -431,7 +255,7 @@ func TestDeploy_NotBuildable_PassthroughError(t *testing.T) {
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",
@@ -444,82 +268,6 @@ func TestDeploy_NotBuildable_PassthroughError(t *testing.T) {
 	errBody := env["error"].(map[string]any)
 	if errBody["code"] != clierr.Validation {
 		t.Errorf("code = %v, want %s (ValidateBuildable returns Validation)", errBody["code"], clierr.Validation)
-	}
-}
-
-// stubBuildDetails is the response shape for GetBuild (single build).
-func stubBuildDetails(name, imageID, status string) map[string]any {
-	out := map[string]any{
-		"agentName":       "order-bot",
-		"projectName":     "triage",
-		"buildName":       name,
-		"startedAt":       "2026-05-13T11:00:00Z",
-		"buildParameters": map[string]any{},
-	}
-	if imageID != "" {
-		out["imageId"] = imageID
-	}
-	if status != "" {
-		out["status"] = status
-	}
-	return out
-}
-
-// stubConfigsWithKVs builds a configurations response from (key, value) pairs.
-func stubConfigsWithKVs(kvs ...[2]string) map[string]any {
-	items := make([]map[string]any, 0, len(kvs))
-	for _, kv := range kvs {
-		items = append(items, map[string]any{"key": kv[0], "value": kv[1]})
-	}
-	return stubConfigurations(items)
-}
-
-func TestDeploy_BuildNameSuccess_PreservesExistingEnv(t *testing.T) {
-	io, _, _ := newTestDeployIO(true, false)
-	requests := []recordedRequest{}
-
-	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                   {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds/specific-b": {200, stubBuildDetails("specific-b", "image-X", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations":    {200, stubConfigsWithKVs([2]string{"FOO", "1"}, [2]string{"BAR", "2"})},
-		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":      {202, stubDeployAccepted("image-X")},
-	}
-	srv := newStubServer(t, routes, &requests)
-	defer srv.Close()
-	client, _ := gen.NewClientWithResponses(srv.URL)
-
-	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
-		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
-		Scope:  baseScope(),
-		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		BuildName: "specific-b",
-	})
-	if err != nil {
-		t.Fatalf("runDeploy: %v", err)
-	}
-
-	var post []byte
-	for _, r := range requests {
-		if r.method == "POST" && strings.HasSuffix(r.path, "/deployments") {
-			post = r.body
-		}
-	}
-	var sent map[string]any
-	_ = json.Unmarshal(post, &sent)
-	if sent["imageId"] != "image-X" {
-		t.Errorf("imageId = %v, want image-X", sent["imageId"])
-	}
-	envArr, _ := sent["env"].([]any)
-	gotKeys := map[string]string{}
-	for _, e := range envArr {
-		m := e.(map[string]any)
-		if v, ok := m["value"].(string); ok {
-			gotKeys[m["key"].(string)] = v
-		}
-	}
-	if gotKeys["FOO"] != "1" || gotKeys["BAR"] != "2" {
-		t.Errorf("env should preserve FOO=1, BAR=2; got %v", gotKeys)
 	}
 }
 
@@ -536,7 +284,7 @@ func deployStatusErrorTest(t *testing.T, status, wantSubstr string) {
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",
@@ -587,7 +335,7 @@ func TestDeploy_BuildCompletedButNoImageID_Errors(t *testing.T) {
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",
@@ -631,226 +379,12 @@ func captureDeployPost(requests []recordedRequest) []byte {
 	return nil
 }
 
-func TestDeploy_EnvNewKey_NoConflict(t *testing.T) {
+func TestDeploy_EnvFlagsSentSorted(t *testing.T) {
 	io, _, _ := newTestDeployIO(true, false)
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"EXISTING", "1"})},
-		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
-	}
-	srv := newStubServer(t, routes, &requests)
-	defer srv.Close()
-	client, _ := gen.NewClientWithResponses(srv.URL)
-
-	prompter := &fakeDeployPrompter{}
-	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: prompter,
-		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
-		Scope:  baseScope(),
-		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		EnvFlags: []string{"NEW_KEY=hello"},
-	})
-	if err != nil {
-		t.Fatalf("runDeploy: %v", err)
-	}
-	got := envFromPost(t, captureDeployPost(requests))
-	if got["EXISTING"] != "1" || got["NEW_KEY"] != "hello" {
-		t.Errorf("env = %v, want EXISTING=1, NEW_KEY=hello", got)
-	}
-	if prompter.confirmCalls != 0 {
-		t.Errorf("no prompt expected when no conflict")
-	}
-}
-
-func TestDeploy_EnvConflict_YesFlagBypassesPrompt(t *testing.T) {
-	io, _, _ := newTestDeployIO(true, false)
-	requests := []recordedRequest{}
-	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
-		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
-	}
-	srv := newStubServer(t, routes, &requests)
-	defer srv.Close()
-	client, _ := gen.NewClientWithResponses(srv.URL)
-
-	prompter := &fakeDeployPrompter{}
-	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: prompter,
-		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
-		Scope:  baseScope(),
-		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		EnvFlags: []string{"A=2"},
-		Yes:      true,
-	})
-	if err != nil {
-		t.Fatalf("runDeploy: %v", err)
-	}
-	got := envFromPost(t, captureDeployPost(requests))
-	if got["A"] != "2" {
-		t.Errorf("env[A] = %q, want 2", got["A"])
-	}
-	if prompter.confirmCalls != 0 {
-		t.Errorf("--yes should bypass prompt; got %d calls", prompter.confirmCalls)
-	}
-}
-
-func TestDeploy_EnvConflict_PromptAccepted(t *testing.T) {
-	io, _, _ := newTestDeployIO(true, false)
-	requests := []recordedRequest{}
-	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
-		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
-	}
-	srv := newStubServer(t, routes, &requests)
-	defer srv.Close()
-	client, _ := gen.NewClientWithResponses(srv.URL)
-
-	prompter := &fakeDeployPrompter{confirmAnswer: true}
-	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: prompter,
-		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
-		Scope:  baseScope(),
-		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		EnvFlags: []string{"A=2"},
-	})
-	if err != nil {
-		t.Fatalf("runDeploy: %v", err)
-	}
-	if prompter.confirmCalls != 1 {
-		t.Errorf("expected 1 confirm call, got %d", prompter.confirmCalls)
-	}
-	if captureDeployPost(requests) == nil {
-		t.Fatal("expected POST to be sent after accepted prompt")
-	}
-}
-
-func TestDeploy_EnvConflict_PromptDeclined(t *testing.T) {
-	io, _, _ := newTestDeployIO(true, false)
-	requests := []recordedRequest{}
-	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
-	}
-	srv := newStubServer(t, routes, &requests)
-	defer srv.Close()
-	client, _ := gen.NewClientWithResponses(srv.URL)
-
-	prompter := &fakeDeployPrompter{confirmAnswer: false}
-	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: prompter,
-		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
-		Scope:  baseScope(),
-		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		EnvFlags: []string{"A=2"},
-	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if captureDeployPost(requests) != nil {
-		t.Errorf("POST should not be sent when prompt is declined")
-	}
-	var cliErr clierr.CLIError
-	if !errors.As(err, &cliErr) || cliErr.Code != clierr.ConfirmationRequired {
-		t.Errorf("err = %v, want ConfirmationRequired", err)
-	}
-	if !strings.Contains(cliErr.Message, "deploy cancelled") {
-		t.Errorf("message = %q, want 'deploy cancelled'", cliErr.Message)
-	}
-}
-
-func TestDeploy_EnvConflict_JSONModeWithoutYes_Errors(t *testing.T) {
-	io, out, _ := newTestDeployIO(true, true)
-	requests := []recordedRequest{}
-	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
-	}
-	srv := newStubServer(t, routes, &requests)
-	defer srv.Close()
-	client, _ := gen.NewClientWithResponses(srv.URL)
-
-	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
-		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
-		Scope:  baseScope(),
-		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		EnvFlags: []string{"A=2"},
-	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	env := decodeEnvelope(t, out.String())
-	errBody := env["error"].(map[string]any)
-	if errBody["code"] != clierr.ConfirmationRequired {
-		t.Errorf("code = %v, want %s", errBody["code"], clierr.ConfirmationRequired)
-	}
-	if !strings.Contains(errBody["message"].(string), "--json") {
-		t.Errorf("message should mention --json: %v", errBody["message"])
-	}
-}
-
-func TestDeploy_EnvConflict_NonTTYWithoutYes_Errors(t *testing.T) {
-	io, _, _ := newTestDeployIO(false, false)
-	requests := []recordedRequest{}
-	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigsWithKVs([2]string{"A", "1"})},
-	}
-	srv := newStubServer(t, routes, &requests)
-	defer srv.Close()
-	client, _ := gen.NewClientWithResponses(srv.URL)
-
-	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
-		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
-		Scope:  baseScope(),
-		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		EnvFlags: []string{"A=2"},
-	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	var cliErr clierr.CLIError
-	if !errors.As(err, &cliErr) || cliErr.Code != clierr.ConfirmationRequired {
-		t.Errorf("code = %v, want ConfirmationRequired", err)
-	}
-	if !strings.Contains(cliErr.Message, "stdin is not a terminal") {
-		t.Errorf("message should mention stdin: %q", cliErr.Message)
-	}
-}
-
-func sensitiveConfigsRoute() (string, stubResponse) {
-	return "GET /orgs/acme/projects/triage/agents/order-bot/configurations",
-		stubResponse{200, map[string]any{
-			"agentName":   "order-bot",
-			"projectName": "triage",
-			"environment": "dev",
-			"configurations": map[string]any{
-				"env": []any{
-					map[string]any{"key": "PINECONE_API_KEY", "value": "", "isSensitive": true},
-				},
-				"files": []any{},
-			},
-		}}
-}
-
-func TestDeploy_EnvSensitiveConflict_WithYes_JSONReportsKeyOnly(t *testing.T) {
-	io, out, _ := newTestDeployIO(true, true)
-	requests := []recordedRequest{}
-	sk, sv := sensitiveConfigsRoute()
-	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		sk: sv,
+		"GET /orgs/acme/projects/triage/agents/order-bot":              {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":       {200, stubBuildsListLatest("b1", "img1", "Completed")},
 		"POST /orgs/acme/projects/triage/agents/order-bot/deployments": {202, stubDeployAccepted("img1")},
 	}
 	srv := newStubServer(t, routes, &requests)
@@ -858,64 +392,22 @@ func TestDeploy_EnvSensitiveConflict_WithYes_JSONReportsKeyOnly(t *testing.T) {
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		EnvFlags: []string{"PINECONE_API_KEY=newval"},
-		Yes:      true,
+		EnvFlags: []string{"B=2", "A=1"},
 	})
 	if err != nil {
 		t.Fatalf("runDeploy: %v", err)
 	}
-	env := decodeEnvelope(t, out.String())
-	data := env["data"].(map[string]any)
-	resolved, ok := data["conflictsResolved"].([]any)
-	if !ok || len(resolved) != 1 || resolved[0] != "PINECONE_API_KEY" {
-		t.Errorf("conflictsResolved = %v, want [PINECONE_API_KEY]", resolved)
-	}
 	body := captureDeployPost(requests)
-	if !strings.Contains(string(body), "newval") {
-		t.Errorf("POST should still send the new value")
+	got := envFromPost(t, body)
+	if len(got) != 2 || got["A"] != "1" || got["B"] != "2" {
+		t.Errorf("env = %v, want A=1, B=2", got)
 	}
-	if strings.Contains(out.String(), "newval") {
-		t.Errorf("envelope must NOT contain the new sensitive value: %s", out.String())
-	}
-}
-
-func TestDeploy_EnvSensitiveConflict_JSONWithoutYes_ErrorsKeyOnly(t *testing.T) {
-	io, out, _ := newTestDeployIO(true, true)
-	requests := []recordedRequest{}
-	sk, sv := sensitiveConfigsRoute()
-	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		sk: sv,
-	}
-	srv := newStubServer(t, routes, &requests)
-	defer srv.Close()
-	client, _ := gen.NewClientWithResponses(srv.URL)
-
-	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
-		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
-		Scope:  baseScope(),
-		Org:    "acme", Proj: "triage", AgentName: "order-bot",
-		EnvFlags: []string{"PINECONE_API_KEY=newval"},
-	})
-	if err == nil {
-		t.Fatal("expected error")
-	}
-	if captureDeployPost(requests) != nil {
-		t.Errorf("no POST should be issued before confirmation")
-	}
-	env := decodeEnvelope(t, out.String())
-	errBody := env["error"].(map[string]any)
-	if errBody["code"] != clierr.ConfirmationRequired {
-		t.Errorf("code = %v, want %s", errBody["code"], clierr.ConfirmationRequired)
-	}
-	if strings.Contains(out.String(), "newval") {
-		t.Errorf("error envelope must NOT contain the new sensitive value: %s", out.String())
+	if !bytes.Contains(body, []byte(`"key":"A"`)) || bytes.Index(body, []byte(`"key":"A"`)) > bytes.Index(body, []byte(`"key":"B"`)) {
+		t.Errorf("env not sorted by key: %s", body)
 	}
 }
 
@@ -923,16 +415,15 @@ func TestDeploy_EnvFlag_MalformedEmptyKey(t *testing.T) {
 	io, out, _ := newTestDeployIO(true, true)
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
+		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "img1", "Completed")},
 	}
 	srv := newStubServer(t, routes, &requests)
 	defer srv.Close()
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",
@@ -952,16 +443,15 @@ func TestDeploy_EnvFlag_MalformedNoEquals(t *testing.T) {
 	io, out, _ := newTestDeployIO(true, true)
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
+		"GET /orgs/acme/projects/triage/agents/order-bot":        {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds": {200, stubBuildsListLatest("b1", "img1", "Completed")},
 	}
 	srv := newStubServer(t, routes, &requests)
 	defer srv.Close()
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",
@@ -987,17 +477,16 @@ func TestDeploy_StatusCompleted_IsDeployable(t *testing.T) {
 	io, _, _ := newTestDeployIO(true, false)
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Completed")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
-		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
+		"GET /orgs/acme/projects/triage/agents/order-bot":              {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":       {200, stubBuildsListLatest("b1", "img1", "Completed")},
+		"POST /orgs/acme/projects/triage/agents/order-bot/deployments": {202, stubDeployAccepted("img1")},
 	}
 	srv := newStubServer(t, routes, &requests)
 	defer srv.Close()
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",
@@ -1014,17 +503,16 @@ func TestDeploy_StatusSucceeded_IsDeployable(t *testing.T) {
 	io, _, _ := newTestDeployIO(true, false)
 	requests := []recordedRequest{}
 	routes := map[string]stubResponse{
-		"GET /orgs/acme/projects/triage/agents/order-bot":                {200, stubBuildableAgent()},
-		"GET /orgs/acme/projects/triage/agents/order-bot/builds":         {200, stubBuildsListLatest("b1", "img1", "Succeeded")},
-		"GET /orgs/acme/projects/triage/agents/order-bot/configurations": {200, stubConfigurations(nil)},
-		"POST /orgs/acme/projects/triage/agents/order-bot/deployments":   {202, stubDeployAccepted("img1")},
+		"GET /orgs/acme/projects/triage/agents/order-bot":              {200, stubBuildableAgent()},
+		"GET /orgs/acme/projects/triage/agents/order-bot/builds":       {200, stubBuildsListLatest("b1", "img1", "Succeeded")},
+		"POST /orgs/acme/projects/triage/agents/order-bot/deployments": {202, stubDeployAccepted("img1")},
 	}
 	srv := newStubServer(t, routes, &requests)
 	defer srv.Close()
 	client, _ := gen.NewClientWithResponses(srv.URL)
 
 	err := runDeploy(context.Background(), &DeployOptions{
-		IO: io, Prompter: &fakeDeployPrompter{},
+		IO:     io,
 		Client: func(context.Context) (*gen.ClientWithResponses, error) { return client, nil },
 		Scope:  baseScope(),
 		Org:    "acme", Proj: "triage", AgentName: "order-bot",

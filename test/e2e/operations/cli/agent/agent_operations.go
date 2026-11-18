@@ -126,17 +126,16 @@ func AgentStatus(g Gomega, h *amctl.Harness, org, project, name string) AgentSta
 
 // DeployResult is the data shape of `amctl agent deploy --json`.
 type DeployResult struct {
-	Agent             string   `json:"agent"`
-	Build             string   `json:"build"`
-	ImageId           string   `json:"imageId"`
-	TargetEnvironment string   `json:"targetEnvironment"`
-	ConflictsResolved []string `json:"conflictsResolved"`
+	Agent             string `json:"agent"`
+	Build             string `json:"build"`
+	ImageId           string `json:"imageId"`
+	TargetEnvironment string `json:"targetEnvironment"`
 }
 
-// DeployAgent runs `amctl agent deploy --yes` (a redeploy of the latest build
+// DeployAgent runs `amctl agent deploy` (a redeploy of the latest build
 // to the pipeline's lowest environment) and returns the deploy result.
 func DeployAgent(g Gomega, h *amctl.Harness, org, project, name string) DeployResult {
-	return amctl.DecodeData[DeployResult](g, h.Run("agent", "deploy", name, "--org", org, "--project", project, "--yes", "--json"))
+	return amctl.DecodeData[DeployResult](g, h.Run("agent", "deploy", name, "--org", org, "--project", project, "--json"))
 }
 
 // DeployAgentEventually redeploys the agent, tolerating a transient 409
@@ -148,7 +147,7 @@ func DeployAgent(g Gomega, h *amctl.Harness, org, project, name string) DeployRe
 func DeployAgentEventually(h *amctl.Harness, org, project, name string, timeout time.Duration) DeployResult {
 	var result DeployResult
 	Eventually(func(g Gomega) {
-		res := h.Run("agent", "deploy", name, "--org", org, "--project", project, "--yes", "--json")
+		res := h.Run("agent", "deploy", name, "--org", org, "--project", project, "--json")
 		if res.ExitCode != 0 {
 			env := res.Envelope(g)
 			g.Expect(env.Error).NotTo(BeNil(), "expected error envelope on failed deploy: %s", res.Combined())

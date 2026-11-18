@@ -18,7 +18,6 @@ package create
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -28,8 +27,6 @@ import (
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
 
-var envKeyRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
-
 // contentFlags carry request content. They are owned by flag mode: --template
 // takes no input at all, and with --file the manifest is the source of truth.
 // Contextual flags (--org, --project, --json) stay allowed in every mode.
@@ -37,8 +34,7 @@ var contentFlags = []string{
 	"display-name", "description", "provisioning", "subtype", "type",
 	"repo-url", "repo-branch", "repo-path", "repo-secret",
 	"build-type", "language", "language-version", "run-command", "dockerfile",
-	"port", "base-path", "openapi-spec", "no-auto-instrumentation",
-	"env", "env-secret", "env-from-secret",
+	"port", "base-path", "openapi-spec",
 	"llm-provider", "llm-url-env", "llm-api-key-env",
 	"card-url", "proxy",
 }
@@ -247,18 +243,6 @@ func internalRequestViolations(req amsvc.CreateAgentRequest) []string {
 		}
 	}
 
-	if req.Configurations != nil && req.Configurations.Env != nil {
-		v = append(v, envViolations(*req.Configurations.Env)...)
-	}
-
-	if req.ModelConfig != nil {
-		for i, mc := range *req.ModelConfig {
-			if mc.ProviderName == "" {
-				v = append(v, fmt.Sprintf("spec.modelConfig[%d].providerName is required", i))
-			}
-		}
-	}
-
 	return v
 }
 
@@ -306,23 +290,6 @@ func buildViolations(b *amsvc.Build) []string {
 	return nil
 }
 
-func envViolations(envs []amsvc.EnvironmentVariable) []string {
-	var v []string
-	seen := map[string]bool{}
-	for _, e := range envs {
-		if !envKeyRE.MatchString(e.Key) {
-			v = append(v, fmt.Sprintf("spec.configurations.env: invalid key %q (must match [A-Za-z_][A-Za-z0-9_]*)", e.Key))
-			continue
-		}
-		if seen[e.Key] {
-			v = append(v, fmt.Sprintf("spec.configurations.env: duplicate key %q", e.Key))
-			continue
-		}
-		seen[e.Key] = true
-	}
-	return v
-}
-
 func externalRequestViolations(req amsvc.CreateAgentRequest) []string {
 	var v []string
 
@@ -342,8 +309,6 @@ func externalRequestViolations(req amsvc.CreateAgentRequest) []string {
 	disallow("spec.provisioning.agentKind", req.Provisioning.AgentKind != nil)
 	disallow("spec.build", req.Build != nil)
 	disallow("spec.inputInterface", req.InputInterface != nil)
-	disallow("spec.configurations", req.Configurations != nil)
-	disallow("spec.modelConfig", req.ModelConfig != nil)
 
 	return v
 }

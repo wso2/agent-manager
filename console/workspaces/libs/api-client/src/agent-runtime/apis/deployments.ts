@@ -192,7 +192,7 @@ export async function getAgentConfigurations(params: GetAgentConfigurationsPathP
     const token = getToken ? await getToken() : undefined;
     const search = { environment: query.environment };
     const res = await httpGET(
-        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/configurations`,
+        `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/configurations`,
         { searchParams: search, token },
     );
     if (!res.ok) throw await res.json();

@@ -61,6 +61,48 @@ func (e APIKeySecurityIn) Valid() bool {
 	}
 }
 
+// Defines values for AgentBindingKind.
+const (
+	AgentBindingKindLlm AgentBindingKind = "llm"
+	AgentBindingKindMcp AgentBindingKind = "mcp"
+)
+
+// Valid indicates whether the value is a known member of the AgentBindingKind enum.
+func (e AgentBindingKind) Valid() bool {
+	switch e {
+	case AgentBindingKindLlm:
+		return true
+	case AgentBindingKindMcp:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AgentBindingState.
+const (
+	AgentBindingStateFailed   AgentBindingState = "failed"
+	AgentBindingStatePending  AgentBindingState = "pending"
+	AgentBindingStateReady    AgentBindingState = "ready"
+	AgentBindingStateRemoving AgentBindingState = "removing"
+)
+
+// Valid indicates whether the value is a known member of the AgentBindingState enum.
+func (e AgentBindingState) Valid() bool {
+	switch e {
+	case AgentBindingStateFailed:
+		return true
+	case AgentBindingStatePending:
+		return true
+	case AgentBindingStateReady:
+		return true
+	case AgentBindingStateRemoving:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for AgentCardResponseSource.
 const (
 	External AgentCardResponseSource = "external"
@@ -576,13 +618,13 @@ func (e LLMDeploymentResponseStatusDesired) Valid() bool {
 
 // Defines values for LLMProviderConsumerItemConsumerType.
 const (
-	Agent LLMProviderConsumerItemConsumerType = "agent"
+	LLMProviderConsumerItemConsumerTypeAgent LLMProviderConsumerItemConsumerType = "agent"
 )
 
 // Valid indicates whether the value is a known member of the LLMProviderConsumerItemConsumerType enum.
 func (e LLMProviderConsumerItemConsumerType) Valid() bool {
 	switch e {
-	case Agent:
+	case LLMProviderConsumerItemConsumerTypeAgent:
 		return true
 	default:
 		return false
@@ -633,25 +675,25 @@ func (e LLMProviderResponseStatus) Valid() bool {
 
 // Defines values for MCPEndpointEnvironmentDeploymentStatus.
 const (
-	MCPEndpointEnvironmentDeploymentStatusDeployed    MCPEndpointEnvironmentDeploymentStatus = "Deployed"
-	MCPEndpointEnvironmentDeploymentStatusDeploying   MCPEndpointEnvironmentDeploymentStatus = "Deploying"
-	MCPEndpointEnvironmentDeploymentStatusFailed      MCPEndpointEnvironmentDeploymentStatus = "Failed"
-	MCPEndpointEnvironmentDeploymentStatusUndeployed  MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
-	MCPEndpointEnvironmentDeploymentStatusUndeploying MCPEndpointEnvironmentDeploymentStatus = "Undeploying"
+	Deployed    MCPEndpointEnvironmentDeploymentStatus = "Deployed"
+	Deploying   MCPEndpointEnvironmentDeploymentStatus = "Deploying"
+	Failed      MCPEndpointEnvironmentDeploymentStatus = "Failed"
+	Undeployed  MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
+	Undeploying MCPEndpointEnvironmentDeploymentStatus = "Undeploying"
 )
 
 // Valid indicates whether the value is a known member of the MCPEndpointEnvironmentDeploymentStatus enum.
 func (e MCPEndpointEnvironmentDeploymentStatus) Valid() bool {
 	switch e {
-	case MCPEndpointEnvironmentDeploymentStatusDeployed:
+	case Deployed:
 		return true
-	case MCPEndpointEnvironmentDeploymentStatusDeploying:
+	case Deploying:
 		return true
-	case MCPEndpointEnvironmentDeploymentStatusFailed:
+	case Failed:
 		return true
-	case MCPEndpointEnvironmentDeploymentStatusUndeployed:
+	case Undeployed:
 		return true
-	case MCPEndpointEnvironmentDeploymentStatusUndeploying:
+	case Undeploying:
 		return true
 	default:
 		return false
@@ -907,6 +949,29 @@ type APIKeySecurity struct {
 // APIKeySecurityIn Where the API key is located
 type APIKeySecurityIn string
 
+// AgentBinding defines model for AgentBinding.
+type AgentBinding struct {
+	// ConfigId The agent configuration the binding provisioned.
+	ConfigId  *string          `json:"configId,omitempty"`
+	Kind      AgentBindingKind `json:"kind"`
+	LastError *string          `json:"lastError,omitempty"`
+
+	// Position Index of the binding in the request's modelConfig or mcpConfig list.
+	Position int `json:"position"`
+
+	// State pending until the module has provisioned the binding, ready once it has, failed when the last attempt failed (it is retried), and removing while a binding an update dropped is revoked.
+	State AgentBindingState `json:"state"`
+
+	// Target The LLM provider or MCP proxy handle.
+	Target string `json:"target"`
+}
+
+// AgentBindingKind defines model for AgentBinding.Kind.
+type AgentBindingKind string
+
+// AgentBindingState pending until the module has provisioned the binding, ready once it has, failed when the last attempt failed (it is retried), and removing while a binding an update dropped is revoked.
+type AgentBindingState string
+
 // AgentCardCORSConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
 type AgentCardCORSConfig struct {
 	// AllowCredentials Whether credentials are allowed. Cannot be true when allowOrigin contains "*".
@@ -951,6 +1016,25 @@ type AgentCardResponseSource string
 
 // AgentCardResponseStatus pending while a fetch is due or retrying; failed once the retry budget ran out.
 type AgentCardResponseStatus string
+
+// AgentConfigurationResponse defines model for AgentConfigurationResponse.
+type AgentConfigurationResponse struct {
+	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
+	AgentCardCorsConfig       *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
+	AgentName                 string               `json:"agentName"`
+	Bindings                  []AgentBinding       `json:"bindings"`
+	CorsConfig                *CORSConfig          `json:"corsConfig,omitempty"`
+	EnableApiKeySecurity      *bool                `json:"enableApiKeySecurity,omitempty"`
+	EnableAutoInstrumentation *bool                `json:"enableAutoInstrumentation,omitempty"`
+	EnableOAuthSecurity       *bool                `json:"enableOAuthSecurity,omitempty"`
+	Environment               string               `json:"environment"`
+	InstrumentationVersion    *string              `json:"instrumentationVersion,omitempty"`
+
+	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
+	OauthConfig              *OAuthConfig `json:"oauthConfig,omitempty"`
+	ProjectName              string       `json:"projectName"`
+	ResilienceTimeoutSeconds *int         `json:"resilienceTimeoutSeconds,omitempty"`
+}
 
 // AgentIdentityAgentListResponse defines model for AgentIdentityAgentListResponse.
 type AgentIdentityAgentListResponse struct {
@@ -3354,6 +3438,12 @@ type ListMCPProxiesParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
+}
+
+// GetAgentConfigurationsParams defines parameters for GetAgentConfigurations.
+type GetAgentConfigurationsParams struct {
+	// Environment Environment name
+	Environment string `form:"environment" json:"environment"`
 }
 
 // ListAgentMCPConfigsParams defines parameters for ListAgentMCPConfigs.

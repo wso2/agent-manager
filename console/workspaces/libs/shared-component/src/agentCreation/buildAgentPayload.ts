@@ -17,6 +17,7 @@
  */
 
 import {
+  AgentExtensions,
   AgentKindConfigSchemaItem,
   CreateAgentRequest,
   MCPConfigRequest,
@@ -200,6 +201,21 @@ export function buildMCPConfig(
   return configs.length > 0 ? configs : undefined;
 }
 
+// LLM and MCP bindings ride in the AI Gateway module's extension block; the
+// module provisions them after the agent is created.
+const gatewayExtension = (
+  modelConfig?: ModelConfigRequest[],
+  mcpConfig?: MCPConfigRequest[],
+): AgentExtensions | undefined =>
+  modelConfig || mcpConfig
+    ? {
+      "ai-gateway": {
+        ...(modelConfig ? { modelConfig } : {}),
+        ...(mcpConfig ? { mcpConfig } : {}),
+      },
+    }
+    : undefined;
+
 const subTypeByInterface = {
   CUSTOM: "custom-api",
   A2A: "a2a-agent",
@@ -215,6 +231,7 @@ export const buildAgentCreationPayload = (
 ): { params: OrgProjPathParams; body: CreateAgentRequest } => {
   const modelConfig = buildModelConfig(llmProviders, initialEnvironmentName);
   const mcpConfig = buildMCPConfig(mcpProxies, initialEnvironmentName);
+  const extensions = gatewayExtension(modelConfig, mcpConfig);
 
   const labels =
     data.labels && Object.keys(data.labels).length > 0 ? data.labels : undefined;
@@ -272,29 +289,6 @@ export const buildAgentCreationPayload = (
               runCommand: data.runCommand ?? "",
             },
           },
-        configurations: {
-          env: data.env
-            .filter((envVar) => envVar.key && envVar.value)
-            .map((envVar) => ({
-              key: envVar.key!.replace(/\s+/g, '_'),
-              value: envVar.value!,
-              isSensitive: envVar.isSensitive || false,
-            })),
-          files: (data.files ?? [])
-            .filter((f) => f.key && f.mountPath)
-            .map((f) => ({
-              key: f.key!,
-              mountPath: f.mountPath!,
-              value: f.value ?? '',
-              isSensitive: f.isSensitive || false,
-            })),
-          enableAutoInstrumentation: data.enableAutoInstrumentation,
-          ...(data.language === "python" &&
-          data.enableAutoInstrumentation !== false &&
-          data.instrumentationVersion
-            ? { instrumentationVersion: data.instrumentationVersion }
-            : {}),
-        },
         inputInterface: {
           type: "HTTP",
           ...(data.interfaceType === "CUSTOM"
@@ -310,8 +304,7 @@ export const buildAgentCreationPayload = (
             : {}),
         },
         ...(Object.keys(healthChecks).length > 0 ? { healthChecks } : {}),
-        ...(modelConfig ? { modelConfig } : {}),
-        ...(mcpConfig ? { mcpConfig } : {}),
+        ...(extensions ? { extensions } : {}),
       },
     };
   }
@@ -327,7 +320,7 @@ export const buildAgentCreationPayload = (
         type: "external",
       },
       agentType: { type: "external-agent-api" },
-      ...(modelConfig ? { modelConfig } : {}),
+      ...(gatewayExtension(modelConfig) ? { extensions: gatewayExtension(modelConfig) } : {}),
     },
   };
 };
@@ -343,6 +336,7 @@ export const buildCatalogAgentPayload = (
 ): { params: OrgProjPathParams; body: CreateAgentRequest } => {
   const modelConfig = buildModelConfig(llmProviders, initialEnvironmentName);
   const mcpConfig = buildMCPConfig(mcpProxies, initialEnvironmentName);
+  const extensions = gatewayExtension(modelConfig, mcpConfig);
 
   return {
     params,
@@ -360,30 +354,7 @@ export const buildCatalogAgentPayload = (
           version,
         },
       },
-      configurations: {
-        // A whitespace-only value (e.g. a pasted secret with a trailing newline) must
-        // be treated the same as "left empty" — otherwise it both ships a broken,
-        // barely-visible value AND skips the server-side default backfill for secret
-        // fields, which only fires when the submitted value is truly empty.
-        env: (data.env ?? [])
-          .filter((envVar) => envVar.key && envVar.value?.trim())
-          .map((envVar) => ({
-            key: envVar.key!.trim().replace(/\s+/g, '_'),
-            value: envVar.value!.trim(),
-            isSensitive: envVar.isSensitive || false,
-          })),
-        files: (data.files ?? [])
-          .filter((f) => f.key && f.mountPath)
-          .map((f) => ({
-            key: f.key!,
-            mountPath: f.mountPath!,
-            value: f.value ?? '',
-            isSensitive: f.isSensitive || false,
-          })),
-        enableAutoInstrumentation: data.enableAutoInstrumentation,
-      },
-      ...(modelConfig ? { modelConfig } : {}),
-      ...(mcpConfig ? { mcpConfig } : {}),
+      ...(extensions ? { extensions } : {}),
     },
   };
 };
