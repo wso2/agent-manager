@@ -849,13 +849,9 @@ components:
         status:
           $ref: "#/components/schemas/TraceStatus"
         input:
+          type: string
           nullable: true
-          oneOf:
-            - type: string
-            - type: object
-            - type: array
-              maxItems: 10000
-              items: {}
+          description: Trace input as text. Structured input is returned as JSON encoded in the string.
         output:
           nullable: true
           oneOf:
