@@ -131,3 +131,17 @@ export interface OrganizationSwitcherProps {
   /** Reports the organizations to offer, or null to leave the header's own list. */
   onSwitcherChange: (switcher: OrganizationSwitcherState | null) => void;
 }
+
+/**
+ * Props passed to a component injected at MountPoints.ProjectSettingsAction. It renders
+ * in place of the project overview's Settings button, for users who can change the
+ * project.
+ */
+export interface ProjectSettingsActionProps {
+  /** Organization id (handle) the project belongs to. */
+  orgId: string;
+  /** Project id (handle). */
+  projectId: string;
+  /** True until the project has loaded. */
+  disabled: boolean;
+}

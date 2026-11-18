@@ -253,6 +253,9 @@ type agentThunderProvisioningService struct {
 	logger             *slog.Logger
 	endpointResolver   *agentThunderEndpointResolver
 	bindingLocks       keyedMutex
+	// bindingDBLocker extends bindingLocks across replicas (see lockBinding).
+	// Nil when repo cannot lock, as with the generated mock in unit tests.
+	bindingDBLocker repositories.AgentThunderBindingLocker
 	// awaitTimeout is awaitEnvProvisionTimeout; a field so tests can shorten it.
 	awaitTimeout            time.Duration
 	identityManagementMode  thundersvc.IdentityManagementMode
@@ -512,7 +515,7 @@ func NewAgentThunderProvisioningService(
 	workloadInjector AgentIdentityInjectionService,
 	logger *slog.Logger,
 ) AgentThunderProvisioningService {
-	return &agentThunderProvisioningService{
+	svc := &agentThunderProvisioningService{
 		repo:                   repo,
 		envResolver:            envResolver,
 		secretMgmtClient:       secretMgmtClient,
@@ -521,13 +524,42 @@ func NewAgentThunderProvisioningService(
 		awaitTimeout:           awaitEnvProvisionTimeout,
 		identityManagementMode: thundersvc.IdentityManagementLegacyDirect,
 	}
+	if locker, ok := repo.(repositories.AgentThunderBindingLocker); ok {
+		svc.bindingDBLocker = locker
+	}
+	return svc
 }
 
-// keyedMutex serializes RegenerateSecret/RevokeSecret per binding within this
-// process, so two concurrent rotations for the same binding can't interleave
-// their Thunder call and OpenBao write and leave the stored secret mismatched
-// with what Thunder actually considers active. In-process only — it does not
-// protect across multiple replicas of this service. Entries are refcounted
+// lockBinding serializes AttemptProvision, RegenerateSecret, RevokeSecret and
+// DeleteAllBindings per binding across every replica, so two of them can't
+// interleave their Thunder calls and secret store writes and leave the stored
+// secret mismatched with what Thunder actually considers active.
+//
+// It takes the in-process lock first and the database lock second, so
+// callers on one replica queue in memory and each replica holds at most one
+// database connection per binding. The release func drops them in reverse.
+func (s *agentThunderProvisioningService) lockBinding(ctx context.Context, ouID, projectName, agentName, envName string) (func(), error) {
+	key := bindingLockKey(ouID, projectName, agentName, envName)
+	release, err := s.bindingLocks.Lock(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if s.bindingDBLocker == nil {
+		return release, nil
+	}
+	dbRelease, err := s.bindingDBLocker.LockBinding(ctx, key)
+	if err != nil {
+		release()
+		return nil, err
+	}
+	return func() {
+		dbRelease()
+		release()
+	}, nil
+}
+
+// keyedMutex is lockBinding's in-process half: it serializes work per binding
+// within this process. Entries are refcounted
 // and removed once the last waiter releases, so the map doesn't grow
 // unbounded with every binding ever rotated over a long-lived process.
 //
@@ -821,8 +853,8 @@ func (s *agentThunderProvisioningService) AttemptProvision(ctx context.Context, 
 	// RegenerateSecret/RevokeSecret on the same binding. ctx here is normally
 	// either detached (ProvisionForAgent's background goroutine) or the
 	// reconciler's own long-lived context, so in practice this only returns
-	// early on process shutdown — see keyedMutex.Lock's doc comment.
-	release, err := s.bindingLocks.Lock(ctx, bindingLockKey(binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName))
+	// early on process shutdown — see lockBinding.
+	release, err := s.lockBinding(ctx, binding.OUID, binding.ProjectName, binding.AgentName, binding.EnvironmentName)
 	if err != nil {
 		s.logger.Warn("Agent thunder provisioning attempt cancelled while waiting for binding lock",
 			"bindingID", binding.ID, "agentName", binding.AgentName, "envName", binding.EnvironmentName, "error", err)
@@ -1390,7 +1422,7 @@ func (s *agentThunderProvisioningService) setProjectAgentIdentitySecret(
 }
 
 func (s *agentThunderProvisioningService) RegenerateSecret(ctx context.Context, ouID, projectName, agentName, envName string) (models.AgentProvisioningType, string, string, error) {
-	release, err := s.bindingLocks.Lock(ctx, bindingLockKey(ouID, projectName, agentName, envName))
+	release, err := s.lockBinding(ctx, ouID, projectName, agentName, envName)
 	if err != nil {
 		return "", "", "", fmt.Errorf("wait for agent thunder binding lock: %w", err)
 	}
@@ -1511,7 +1543,7 @@ func (s *agentThunderProvisioningService) GetAgentGroups(ctx context.Context, ou
 }
 
 func (s *agentThunderProvisioningService) RevokeSecret(ctx context.Context, ouID, projectName, agentName, envName string) (string, error) {
-	release, err := s.bindingLocks.Lock(ctx, bindingLockKey(ouID, projectName, agentName, envName))
+	release, err := s.lockBinding(ctx, ouID, projectName, agentName, envName)
 	if err != nil {
 		return "", fmt.Errorf("wait for agent thunder binding lock: %w", err)
 	}
@@ -1636,7 +1668,7 @@ func (s *agentThunderProvisioningService) DeleteAllBindings(ctx context.Context,
 	bindings := make([]models.AgentThunderClient, 0, len(snapshot))
 	releases := make([]func(), 0, len(snapshot))
 	for _, b := range snapshot {
-		release, lockErr := s.bindingLocks.Lock(ctx, bindingLockKey(ouID, projectName, agentName, b.EnvironmentName))
+		release, lockErr := s.lockBinding(ctx, ouID, projectName, agentName, b.EnvironmentName)
 		if lockErr != nil {
 			s.logger.Warn("Agent thunder binding deletion cancelled while waiting for binding lock",
 				"ouID", ouID, "bindingID", b.ID, "agentName", agentName, "env", b.EnvironmentName, "error", lockErr)

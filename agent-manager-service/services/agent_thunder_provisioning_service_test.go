@@ -3153,3 +3153,94 @@ func TestStoreCredential_ReferenceNameTaken_CleanupFails_WrapsBothErrors(t *test
 // TestRegenerateSecret_External_NeverStoresSecret guards the invariant that an
 // external agent's secret is minted by Thunder and handed straight back in
 // the response — it must never touch secretMgmtClient at all, first time or
+
+// fakeBindingDBLocker stands in for the database half of lockBinding. onLock
+// and onRelease run while lockBinding holds or is dropping the in-process lock.
+type fakeBindingDBLocker struct {
+	err       error
+	onLock    func(key string)
+	onRelease func(key string)
+}
+
+func (f *fakeBindingDBLocker) LockBinding(_ context.Context, key string) (func(), error) {
+	if f.onLock != nil {
+		f.onLock(key)
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	return func() {
+		if f.onRelease != nil {
+			f.onRelease(key)
+		}
+	}, nil
+}
+
+// lockingThunderClientRepo is a repository that can also take binding locks,
+// as the real AgentThunderClientRepo can.
+type lockingThunderClientRepo struct {
+	*repomocks.AgentThunderClientRepositoryMock
+	fakeBindingDBLocker
+}
+
+// inProcessLockHeld reports whether key's in-process lock is held, by trying
+// to take it with a short deadline.
+func inProcessLockHeld(t *testing.T, m *keyedMutex, key string) bool {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	release, err := m.Lock(ctx, key)
+	if err != nil {
+		return true
+	}
+	release()
+	return false
+}
+
+func TestNewAgentThunderProvisioningService_UsesRepoBindingLocker(t *testing.T) {
+	repo := &lockingThunderClientRepo{AgentThunderClientRepositoryMock: &repomocks.AgentThunderClientRepositoryMock{}}
+	svc := NewAgentThunderProvisioningService(repo, nil, nil, nil, slog.Default()).(*agentThunderProvisioningService)
+	assert.NotNil(t, svc.bindingDBLocker, "a repository that can lock bindings must back lockBinding across replicas")
+
+	plain := NewAgentThunderProvisioningService(&repomocks.AgentThunderClientRepositoryMock{}, nil, nil, nil, slog.Default()).(*agentThunderProvisioningService)
+	assert.Nil(t, plain.bindingDBLocker, "a repository that cannot lock bindings leaves only the in-process lock")
+}
+
+// TestLockBinding_TakesInProcessLockBeforeDBLockAndReleasesInReverse guards
+// the ordering: callers on one replica must queue on the in-process lock, so
+// the database lock (and its connection) is only ever requested by its holder.
+func TestLockBinding_TakesInProcessLockBeforeDBLockAndReleasesInReverse(t *testing.T) {
+	const ouID, projectName, agentName, envName = "ou", "proj", "agent", "dev"
+	key := bindingLockKey(ouID, projectName, agentName, envName)
+	svc := &agentThunderProvisioningService{}
+	var dbLockedKey string
+	var heldAtDBLock, heldAtDBRelease bool
+	svc.bindingDBLocker = &fakeBindingDBLocker{
+		onLock: func(k string) {
+			dbLockedKey = k
+			heldAtDBLock = inProcessLockHeld(t, &svc.bindingLocks, key)
+		},
+		onRelease: func(string) { heldAtDBRelease = inProcessLockHeld(t, &svc.bindingLocks, key) },
+	}
+
+	release, err := svc.lockBinding(context.Background(), ouID, projectName, agentName, envName)
+	require.NoError(t, err)
+	release()
+
+	assert.Equal(t, key, dbLockedKey, "the database lock must use the same key as the in-process lock")
+	assert.True(t, heldAtDBLock, "the in-process lock must already be held when the database lock is requested")
+	assert.True(t, heldAtDBRelease, "the in-process lock must still be held when the database lock is released")
+	assert.False(t, inProcessLockHeld(t, &svc.bindingLocks, key), "release must free the in-process lock")
+}
+
+func TestLockBinding_DBLockErrorReleasesInProcessLock(t *testing.T) {
+	const ouID, projectName, agentName, envName = "ou", "proj", "agent", "dev"
+	dbErr := errors.New("database unavailable")
+	svc := &agentThunderProvisioningService{bindingDBLocker: &fakeBindingDBLocker{err: dbErr}}
+
+	release, err := svc.lockBinding(context.Background(), ouID, projectName, agentName, envName)
+	require.ErrorIs(t, err, dbErr)
+	assert.Nil(t, release)
+	assert.False(t, inProcessLockHeld(t, &svc.bindingLocks, bindingLockKey(ouID, projectName, agentName, envName)),
+		"a failed database lock must not leave the in-process lock held")
+}

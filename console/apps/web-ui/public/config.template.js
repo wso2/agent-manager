@@ -71,6 +71,7 @@ window.__RUNTIME_CONFIG__ = {
   basePath: '$BASE_PATH',
   apiBaseUrl: '$API_BASE_URL',
   configDiscoveryBaseUrl: '$CONFIG_DISCOVERY_BASE_URL',
+  identityPlatformConsoleUrl: '$IDENTITY_PLATFORM_URL',
   gatewayControlPlaneUrl: '$GATEWAY_CONTROL_PLANE_URL',
   gatewayVersion: '$GATEWAY_VERSION',
   ampVersion: '$AMP_VERSION',

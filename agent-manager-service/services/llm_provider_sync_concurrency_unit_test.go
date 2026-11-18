@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -92,12 +93,16 @@ func TestSyncDependentProxyAuthHeaders_SerialisesPerProvider(t *testing.T) {
 // The lock is per provider, so unrelated providers still sync concurrently.
 func TestSyncDependentProxyAuthHeaders_DifferentProvidersDoNotBlock(t *testing.T) {
 	svc := &LLMProviderService{}
-	releaseA := svc.lockProviderSync("provider-a")
+	releaseA, err := svc.lockProviderSync(context.Background(), "provider-a")
+	require.NoError(t, err)
 	defer releaseA()
 
 	done := make(chan struct{})
 	go func() {
-		release := svc.lockProviderSync("provider-b")
+		release, err := svc.lockProviderSync(context.Background(), "provider-b")
+		if err != nil {
+			return
+		}
 		release()
 		close(done)
 	}()
@@ -107,4 +112,106 @@ func TestSyncDependentProxyAuthHeaders_DifferentProvidersDoNotBlock(t *testing.T
 	case <-context.Background().Done():
 		t.Fatal("a second provider's sync must not wait on the first")
 	}
+}
+
+// fakeProviderSyncDBLocker stands in for the database half of lockProviderSync.
+// onLock and onRelease run while lockProviderSync holds or is dropping the
+// in-process lock.
+type fakeProviderSyncDBLocker struct {
+	err       error
+	onLock    func(providerUUID string)
+	onRelease func(providerUUID string)
+}
+
+func (f *fakeProviderSyncDBLocker) LockProviderSync(_ context.Context, providerUUID string) (func(), error) {
+	if f.onLock != nil {
+		f.onLock(providerUUID)
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	return func() {
+		if f.onRelease != nil {
+			f.onRelease(providerUUID)
+		}
+	}, nil
+}
+
+// lockingProviderRepo is a provider repository that can also take sync locks,
+// as the real LLMProviderRepo can.
+type lockingProviderRepo struct {
+	*repomocks.LLMProviderRepositoryMock
+	fakeProviderSyncDBLocker
+}
+
+// providerSyncLockHeld reports whether providerUUID's in-process sync lock is held.
+func providerSyncLockHeld(svc *LLMProviderService, providerUUID string) bool {
+	v, ok := svc.proxySyncLocks.Load(providerUUID)
+	if !ok {
+		return false
+	}
+	mu := v.(*sync.Mutex)
+	if mu.TryLock() {
+		mu.Unlock()
+		return false
+	}
+	return true
+}
+
+func TestNewLLMProviderService_UsesRepoSyncLocker(t *testing.T) {
+	repo := &lockingProviderRepo{LLMProviderRepositoryMock: &repomocks.LLMProviderRepositoryMock{}}
+	svc := NewLLMProviderService(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	require.NotNil(t, svc.proxySyncDBLocker, "a repository that can lock syncs must back lockProviderSync across replicas")
+
+	plain := NewLLMProviderService(nil, &repomocks.LLMProviderRepositoryMock{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	require.Nil(t, plain.proxySyncDBLocker, "a repository that cannot lock syncs leaves only the in-process lock")
+}
+
+// The in-process lock comes first so syncs on one replica queue in memory and
+// only the holder asks the database for the lock (and a connection).
+func TestLockProviderSync_TakesInProcessLockBeforeDBLockAndReleasesInReverse(t *testing.T) {
+	const providerUUID = "provider-a"
+	svc := &LLMProviderService{}
+	var dbLockedUUID string
+	var heldAtDBLock, heldAtDBRelease bool
+	svc.proxySyncDBLocker = &fakeProviderSyncDBLocker{
+		onLock: func(id string) {
+			dbLockedUUID = id
+			heldAtDBLock = providerSyncLockHeld(svc, providerUUID)
+		},
+		onRelease: func(string) { heldAtDBRelease = providerSyncLockHeld(svc, providerUUID) },
+	}
+
+	release, err := svc.lockProviderSync(context.Background(), providerUUID)
+	require.NoError(t, err)
+	release()
+
+	require.Equal(t, providerUUID, dbLockedUUID, "the database lock must use the provider UUID")
+	require.True(t, heldAtDBLock, "the in-process lock must already be held when the database lock is requested")
+	require.True(t, heldAtDBRelease, "the in-process lock must still be held when the database lock is released")
+	require.False(t, providerSyncLockHeld(svc, providerUUID), "release must free the in-process lock")
+}
+
+func TestLockProviderSync_DBLockErrorReleasesInProcessLock(t *testing.T) {
+	const providerUUID = "provider-a"
+	dbErr := errors.New("database unavailable")
+	svc := &LLMProviderService{proxySyncDBLocker: &fakeProviderSyncDBLocker{err: dbErr}}
+
+	release, err := svc.lockProviderSync(context.Background(), providerUUID)
+	require.ErrorIs(t, err, dbErr)
+	require.Nil(t, release)
+	require.False(t, providerSyncLockHeld(svc, providerUUID), "a failed database lock must not leave the in-process lock held")
+}
+
+// A sync that cannot take the lock must not touch the provider's proxies.
+func TestSyncDependentProxyAuthHeaders_LockErrorSkipsSync(t *testing.T) {
+	dbErr := errors.New("database unavailable")
+	providerRepo := &repomocks.LLMProviderRepositoryMock{}
+	svc := &LLMProviderService{providerRepo: providerRepo, proxySyncDBLocker: &fakeProviderSyncDBLocker{err: dbErr}}
+
+	err := svc.SyncDependentProxyAuthHeaders(
+		context.Background(), &models.LLMProvider{UUID: uuid.New()}, "ou-acme", &LLMProxyService{}, &LLMProxyDeploymentService{})
+
+	require.ErrorIs(t, err, dbErr)
+	require.Empty(t, providerRepo.GetByUUIDCalls(), "a sync that cannot lock must not read or rewrite anything")
 }

@@ -32,4 +32,5 @@ export interface ConfigResponse {
    * false. Absent is treated as false.
    */
   eventsEnabled?: boolean;
+  identityControlPlaneEnabled?: boolean;
 }

@@ -75,18 +75,37 @@ type LLMProviderService struct {
 	// proxySyncLocks serialises dependent-proxy syncs per provider. Zero value is
 	// usable, so it needs no wiring in the constructor.
 	proxySyncLocks sync.Map
+	// proxySyncDBLocker extends proxySyncLocks across replicas (see
+	// lockProviderSync). Nil when providerRepo cannot lock, as with the
+	// generated mock in unit tests.
+	proxySyncDBLocker repositories.LLMProviderSyncLocker
 }
 
-// lockProviderSync serialises syncs for one provider and returns the release func.
-// Without it two overlapping edits race: the slower goroutine can read valid state,
-// then write it after the faster one, leaving a proxy unsecured while its provider
-// requires a key. Process-local — multiple replicas would need the same guarantee
-// in the database.
-func (s *LLMProviderService) lockProviderSync(providerUUID string) func() {
+// lockProviderSync serialises syncs for one provider across every replica and
+// returns the release func. Without it two overlapping edits race: the slower
+// goroutine can read valid state, then write it after the faster one, leaving a
+// proxy unsecured while its provider requires a key. Edits of one provider can
+// land on different replicas, so the in-process lock alone is not enough.
+//
+// It takes the in-process lock first and the database lock second, so syncs on
+// one replica queue in memory and each replica holds at most one database
+// connection per provider. The release func drops them in reverse.
+func (s *LLMProviderService) lockProviderSync(ctx context.Context, providerUUID string) (func(), error) {
 	v, _ := s.proxySyncLocks.LoadOrStore(providerUUID, &sync.Mutex{})
 	mu := v.(*sync.Mutex)
 	mu.Lock()
-	return mu.Unlock
+	if s.proxySyncDBLocker == nil {
+		return mu.Unlock, nil
+	}
+	dbRelease, err := s.proxySyncDBLocker.LockProviderSync(ctx, providerUUID)
+	if err != nil {
+		mu.Unlock()
+		return nil, err
+	}
+	return func() {
+		dbRelease()
+		mu.Unlock()
+	}, nil
 }
 
 // NewLLMProviderService creates a new LLM provider service
@@ -104,7 +123,7 @@ func NewLLMProviderService(
 	monitorMappingRepo repositories.MonitorLLMMappingRepository,
 	apiKeyService *LLMProviderAPIKeyService,
 ) *LLMProviderService {
-	return &LLMProviderService{
+	svc := &LLMProviderService{
 		db:                 db,
 		providerRepo:       providerRepo,
 		templateRepo:       templateRepo,
@@ -118,6 +137,10 @@ func NewLLMProviderService(
 		monitorMappingRepo: monitorMappingRepo,
 		apiKeyService:      apiKeyService,
 	}
+	if locker, ok := providerRepo.(repositories.LLMProviderSyncLocker); ok {
+		svc.proxySyncDBLocker = locker
+	}
+	return svc
 }
 
 // providerVersionPattern mirrors the spec's `version` pattern. The endpoint used to
@@ -1129,7 +1152,7 @@ func ProviderAuthHeadersChanged(existing, updated *models.LLMProvider) bool {
 // A proxy already carrying both names is skipped, so a provider edit that leaves security
 // alone redeploys nothing. It is best-effort: a proxy that fails is logged and the rest
 // continue, since stopping partway strands more of the fleet than finishing does. The
-// returned error covers only a failure to enumerate dependents.
+// returned error covers only a failure to take the sync lock or enumerate dependents.
 func (s *LLMProviderService) SyncDependentProxyAuthHeaders(
 	ctx context.Context,
 	provider *models.LLMProvider,
@@ -1145,7 +1168,11 @@ func (s *LLMProviderService) SyncDependentProxyAuthHeaders(
 	// provider can interleave its writes with ours. Holding the lock across the whole
 	// walk means the sync that runs last both reads and writes last, so the proxies end
 	// up matching whichever edit committed last.
-	defer s.lockProviderSync(provider.UUID.String())()
+	release, err := s.lockProviderSync(ctx, provider.UUID.String())
+	if err != nil {
+		return fmt.Errorf("failed to lock provider %s before syncing dependent proxies: %w", provider.UUID.String(), err)
+	}
+	defer release()
 
 	// Re-read rather than trust the caller's snapshot: this runs detached in its own
 	// goroutine, so a second edit can commit and start its own sync before this one runs.
@@ -1170,7 +1197,8 @@ func (s *LLMProviderService) SyncDependentProxyAuthHeaders(
 
 		for _, proxy := range proxies {
 			changed, syncErr := s.syncProxyAuthHeader(
-				ctx, proxy, ouID, provider, upstreamHeader, proxyService, proxyDeploymentService)
+				ctx, proxy, ouID, provider, upstreamHeader, proxyService, proxyDeploymentService,
+			)
 			switch {
 			case syncErr != nil:
 				failed++
@@ -1282,7 +1310,8 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		if s.apiKeyService == nil {
 			return nil, fmt.Errorf(
 				"proxy %s needs an upstream credential for provider %s but no api key service is configured",
-				proxy.Handle, provider.Configuration.Handle)
+				proxy.Handle, provider.Configuration.Handle,
+			)
 		}
 		keyName := proxy.Configuration.Name
 		apiKey, err := s.apiKeyService.CreateAPIKey(ctx, ouID, provider.UUID.String(), &models.CreateAPIKeyRequest{
@@ -1308,7 +1337,8 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		}, nil
 	}
 	return nil, fmt.Errorf(
-		"proxy %s: upstream auth action %d does not build a credential", proxy.Handle, action)
+		"proxy %s: upstream auth action %d does not build a credential", proxy.Handle, action,
+	)
 }
 
 // syncProxyAuthHeader brings one proxy's ingress and upstream auth in line with its

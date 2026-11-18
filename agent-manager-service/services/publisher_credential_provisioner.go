@@ -17,7 +17,10 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -152,9 +155,17 @@ type publisherCredentialProvisioner struct {
 
 	sfg singleflight.Group // serializes provisioning and per-org client construction
 
+	// orgCredLocker serializes creating and regenerating an org's credentials across
+	// replicas (see lockOrgCredentials). Nil when schedulerCredRepo cannot lock, as with
+	// the generated mock in unit tests; singleflight then dedupes within this process only.
+	orgCredLocker repositories.OrgCredentialLocker
+
 	// orgOCClients caches per-org OpenChoreoClients so that the underlying http.Client
 	// connection pool and the wrapped AuthProvider's token cache are reused across
-	// scheduler cycles. Singleflight serializes builders; the lock guards map access only.
+	// scheduler cycles. Each entry records the stored credential it was built from, and
+	// GetOCClientForOrg serves it only while that credential is still the stored one, so a
+	// credential another replica regenerated replaces the client here on the next call.
+	// Singleflight serializes builders; the lock guards map access only.
 	//
 	// orgOCGen counts credential replacements per org. The two paths use different
 	// singleflight keys ("provision:" vs "ocClient:") and so do not exclude each other:
@@ -163,8 +174,21 @@ type publisherCredentialProvisioner struct {
 	// exactly the staleness the eviction exists to prevent. Comparing the counter across
 	// the read closes that window.
 	orgOCMu      sync.RWMutex
-	orgOCClients map[string]client.OpenChoreoClient
+	orgOCClients map[string]orgOCClientEntry
 	orgOCGen     map[string]uint64
+}
+
+// orgOCClientEntry is a cached org client and the stored scheduler credential it was
+// built from.
+type orgOCClientEntry struct {
+	client                client.OpenChoreoClient
+	clientID              string
+	clientSecretEncrypted []byte
+}
+
+// builtFrom reports whether the entry was built from cred, the credential now stored.
+func (e orgOCClientEntry) builtFrom(cred *models.OrgSchedulerCredential) bool {
+	return e.clientID == cred.ClientID && bytes.Equal(e.clientSecretEncrypted, cred.ClientSecretEncrypted)
 }
 
 // NewPublisherCredentialProvisioner creates a provisioner.
@@ -204,7 +228,7 @@ func NewPublisherCredentialProvisioner(
 		"usesDefaultResourceServer", cfg.Thunder.UseDefaultResourceServer,
 	)
 
-	return &publisherCredentialProvisioner{
+	p := &publisherCredentialProvisioner{
 		thunderClient:     thunderCl,
 		secretClient:      secretClient,
 		ocClient:          ocClient,
@@ -214,9 +238,32 @@ func NewPublisherCredentialProvisioner(
 		encryptionKey:     encryptionKey,
 		idpTokenURL:       cfg.IDP.TokenURL,
 		ocBaseURL:         cfg.OpenChoreo.BaseURL,
-		orgOCClients:      make(map[string]client.OpenChoreoClient),
+		orgOCClients:      make(map[string]orgOCClientEntry),
 		orgOCGen:          make(map[string]uint64),
-	}, nil
+	}
+	if locker, ok := schedulerCredRepo.(repositories.OrgCredentialLocker); ok {
+		p.orgCredLocker = locker
+	}
+	return p, nil
+}
+
+// lockOrgCredentials serializes creating and regenerating one org's credentials across
+// every replica and returns the release func. Without it, two replicas handling an org's
+// first runs can both find no stored credential: one creates the Thunder app, the other
+// finds it already there and regenerates its secret, which invalidates the first one's,
+// and whichever stores last can leave the dead secret in place. Nothing re-provisions a
+// stored credential, so eval jobs and the scheduler then fail auth until fixed by hand.
+// Callers re-read the stored credential once they hold the lock, so the replica that
+// waited reuses what the other one stored.
+func (p *publisherCredentialProvisioner) lockOrgCredentials(ctx context.Context, ouID string) (func(), error) {
+	if p.orgCredLocker == nil {
+		return func() {}, nil
+	}
+	release, err := p.orgCredLocker.LockOrgCredentials(ctx, ouID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock credentials for org %s: %w", ouID, err)
+	}
+	return release, nil
 }
 
 func (p *publisherCredentialProvisioner) IsThunderMode() bool { return true }
@@ -244,11 +291,18 @@ func schedulerSecretLocation(ouID string) secretmanagersvc.SecretLocation {
 }
 
 // EnsureCredentials provisions per-org publisher and scheduler credentials.
-// Uses singleflight to deduplicate concurrent provisioning calls for the same org.
+// Singleflight deduplicates concurrent calls for the same org within this process, and
+// the org credential lock serializes them across replicas.
 func (p *publisherCredentialProvisioner) EnsureCredentials(ctx context.Context, ouID, orgUUID string) (*PublisherCredentials, error) {
 	p.logger.Debug("EnsureCredentials called", "ouID", ouID, "orgUUID", orgUUID)
 
 	result, err, _ := p.sfg.Do("provision:"+ouID, func() (any, error) {
+		release, err := p.lockOrgCredentials(ctx, ouID)
+		if err != nil {
+			return nil, err
+		}
+		defer release()
+
 		pubCreds, err := p.provisionPublisherCredentials(ctx, ouID, orgUUID)
 		if err != nil {
 			return nil, err
@@ -465,113 +519,194 @@ func (p *publisherCredentialProvisioner) evictOrgOCClient(ouID string) {
 	p.orgOCGen[ouID]++
 }
 
-// GetOCClientForOrg returns a cached OC client authenticated with the publisher app's
+// GetOCClientForOrg returns a cached OC client authenticated with the scheduler app's
 // org-scoped token. Used by the scheduler for CreateWorkflowRun and GetWorkflowRun —
 // operations that run without a live user request context.
 //
 // The OpenChoreoClient (and the AuthProvider it wraps, plus the underlying http.Client)
 // is built once per org and cached, so connection-pool keep-alive and token-refresh state
-// are preserved across scheduler cycles.
+// are preserved across scheduler cycles. Each call reads the stored credential and serves
+// the cached client only if it was built from that credential: another replica may have
+// regenerated the secret, and a client holding the old one keeps working only until its
+// access token expires.
 func (p *publisherCredentialProvisioner) GetOCClientForOrg(ctx context.Context, ouID string) (client.OpenChoreoClient, error) {
+	// Snapshot the generation before reading the credential, so a replacement in this
+	// process that lands while the client is built is detected before it is cached.
 	p.orgOCMu.RLock()
-	c, ok := p.orgOCClients[ouID]
+	gen := p.orgOCGen[ouID]
 	p.orgOCMu.RUnlock()
-	if ok {
-		return c, nil
+
+	cred, err := p.schedulerCredRepo.GetByOrgName(ouID)
+	switch {
+	case errors.Is(err, gorm.ErrRecordNotFound):
+		cred = nil
+	case err != nil:
+		p.orgOCMu.RLock()
+		entry, ok := p.orgOCClients[ouID]
+		p.orgOCMu.RUnlock()
+		if ok {
+			// The read only checks the cached client is still current. A transient
+			// database error must not stop the scheduler using a client that worked.
+			p.logger.Warn("Failed to look up scheduler credentials, using cached org OC client",
+				"ouID", ouID, "error", err)
+			return entry.client, nil
+		}
+		return nil, fmt.Errorf("failed to look up scheduler credentials for org %s: %w", ouID, err)
+	default:
+		p.orgOCMu.RLock()
+		entry, ok := p.orgOCClients[ouID]
+		p.orgOCMu.RUnlock()
+		if ok && entry.builtFrom(cred) {
+			return entry.client, nil
+		}
 	}
 
-	result, err, _ := p.sfg.Do("ocClient:"+ouID, func() (any, error) {
-		// Re-check under read lock — singleflight may have just finished a previous build.
-		p.orgOCMu.RLock()
-		if c, ok := p.orgOCClients[ouID]; ok {
-			p.orgOCMu.RUnlock()
-			return c, nil
-		}
-		p.orgOCMu.RUnlock()
-
-		// Snapshot the generation before reading the credential, so a replacement that
-		// lands while this builder runs is detected before the result is cached.
-		p.orgOCMu.RLock()
-		gen := p.orgOCGen[ouID]
-		p.orgOCMu.RUnlock()
-
-		// DB I/O and decrypt run with no lock held; singleflight already serializes
-		// concurrent callers for this ouID.
-		cred, err := p.schedulerCredRepo.GetByOrgName(ouID)
-		if err != nil {
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("failed to look up scheduler credentials for org %s: %w", ouID, err)
-			}
-			// Provision on demand: the periodic scheduler calls this directly and never calls EnsureCredentials.
-			p.logger.Info("No scheduler credentials found for org, provisioning on demand", "ouID", ouID)
-			if provErr := p.provisionSchedulerCredentials(ctx, ouID, ouID); provErr != nil {
-				return nil, fmt.Errorf("failed to provision scheduler credentials for org %s: %w", ouID, provErr)
-			}
-			cred, err = p.schedulerCredRepo.GetByOrgName(ouID)
-			if err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
-					return nil, fmt.Errorf("%w: org %s — provisioned but still not found: %w", ErrSchedulerCredentialNotFound, ouID, err)
-				}
-				return nil, fmt.Errorf("failed to look up scheduler credentials for org %s after provisioning: %w", ouID, err)
-			}
-		}
-		if len(cred.ClientSecretEncrypted) == 0 {
-			// Record exists but has no encrypted secret — regenerate the Thunder client secret,
-			// push it to the secret store, and persist the encrypted copy to DB.
-			p.logger.Info("No encrypted secret for org, regenerating Thunder client secret",
-				"ouID", ouID, "clientID", cred.ClientID)
-			newSecret, backfillErr := p.thunderClient.RegenerateAppClientSecret(ctx, schedulerAppName(ouID))
-			if backfillErr != nil {
-				return nil, fmt.Errorf("failed to regenerate client secret for org %s: %w", ouID, backfillErr)
-			}
-			// Propagate the new secret to the secret store.
-			if _, backfillErr = p.secretClient.PatchSecret(ctx, schedulerSecretLocation(ouID),
-				map[string]string{"client-secret": newSecret}, nil); backfillErr != nil {
-				return nil, fmt.Errorf("failed to update secret store for org %s: %w", ouID, backfillErr)
-			}
-			encrypted, backfillErr := utils.EncryptBytes([]byte(newSecret), p.encryptionKey)
-			if backfillErr != nil {
-				return nil, fmt.Errorf("failed to encrypt regenerated client secret for org %s: %w", ouID, backfillErr)
-			}
-			cred.ClientSecretEncrypted = encrypted
-			if backfillErr = p.schedulerCredRepo.Upsert(cred); backfillErr != nil {
-				return nil, fmt.Errorf("failed to persist regenerated secret for org %s: %w", ouID, backfillErr)
-			}
-			p.logger.Info("Backfilled encrypted client secret", "ouID", ouID, "clientID", cred.ClientID)
-		}
-
-		secretBytes, err := utils.DecryptBytes(cred.ClientSecretEncrypted, p.encryptionKey)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decrypt publisher secret for org %s: %w", ouID, err)
-		}
-
-		authProv := newOrgClientAuthProvider(p.idpTokenURL, cred.ClientID, string(secretBytes))
-		ocCl, err := client.NewOpenChoreoClient(&client.Config{
-			BaseURL:          p.ocBaseURL,
-			DefaultNamespace: config.GetConfig().OpenChoreo.DefaultNamespace,
-			AuthProvider:     authProv,
-			ResourceLabels:   config.GetConfig().OpenChoreo.ResourceLabels,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to build OC client for org %s: %w", ouID, err)
-		}
-
-		p.orgOCMu.Lock()
-		if p.orgOCGen[ouID] == gen {
-			p.orgOCClients[ouID] = ocCl
-		} else {
-			// Superseded mid-build. Hand this client back for the call in flight — the
-			// caller fails and retries on its own if the secret is already invalid — but
-			// do not cache it, so the next call rebuilds from the current credential.
-			p.logger.Info("Credentials changed while building org OC client, not caching it", "ouID", ouID)
-		}
-		p.orgOCMu.Unlock()
-
-		p.logger.Debug("Created org OC client", "ouID", ouID, "clientID", cred.ClientID)
-		return ocCl, nil
+	result, err, _ := p.sfg.Do(orgOCBuildKey(ouID, cred), func() (any, error) {
+		return p.buildOrgOCClient(ctx, ouID, cred, gen)
 	})
 	if err != nil {
 		return nil, err
 	}
 	return result.(client.OpenChoreoClient), nil
+}
+
+// orgOCBuildKey keys an in-flight client build by the org and the stored credential it
+// builds from, so a caller that read a newer credential never joins a build from an older
+// one. Builds that must first repair a missing or secretless credential share one key per
+// org. The credential is digested so the key never carries the encrypted secret.
+func orgOCBuildKey(ouID string, cred *models.OrgSchedulerCredential) string {
+	if cred == nil || len(cred.ClientSecretEncrypted) == 0 {
+		return "ocClient:" + ouID + ":repair"
+	}
+	digest := sha256.New()
+	digest.Write([]byte(cred.ClientID))
+	digest.Write([]byte{0})
+	digest.Write(cred.ClientSecretEncrypted)
+	return "ocClient:" + ouID + ":" + hex.EncodeToString(digest.Sum(nil))
+}
+
+// buildOrgOCClient builds and caches the org's client from cred, the stored scheduler
+// credential (nil when none is stored), repairing the credential first if it is missing
+// or has no encrypted secret.
+func (p *publisherCredentialProvisioner) buildOrgOCClient(
+	ctx context.Context, ouID string, cred *models.OrgSchedulerCredential, gen uint64,
+) (client.OpenChoreoClient, error) {
+	if cred == nil || len(cred.ClientSecretEncrypted) == 0 {
+		repaired, err := p.repairSchedulerCredential(ctx, ouID)
+		if err != nil {
+			return nil, err
+		}
+		cred = repaired
+		// Provisioning evicts and advances the generation itself; re-snapshot so the
+		// client built from the credential it just stored can be cached.
+		p.orgOCMu.RLock()
+		gen = p.orgOCGen[ouID]
+		p.orgOCMu.RUnlock()
+	} else {
+		// A previous build may have cached a client from this same credential since the
+		// caller looked.
+		p.orgOCMu.RLock()
+		entry, ok := p.orgOCClients[ouID]
+		p.orgOCMu.RUnlock()
+		if ok && entry.builtFrom(cred) {
+			return entry.client, nil
+		}
+	}
+
+	secretBytes, err := utils.DecryptBytes(cred.ClientSecretEncrypted, p.encryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrypt publisher secret for org %s: %w", ouID, err)
+	}
+
+	authProv := newOrgClientAuthProvider(p.idpTokenURL, cred.ClientID, string(secretBytes))
+	ocCl, err := client.NewOpenChoreoClient(&client.Config{
+		BaseURL:          p.ocBaseURL,
+		DefaultNamespace: config.GetConfig().OpenChoreo.DefaultNamespace,
+		AuthProvider:     authProv,
+		ResourceLabels:   config.GetConfig().OpenChoreo.ResourceLabels,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build OC client for org %s: %w", ouID, err)
+	}
+
+	p.orgOCMu.Lock()
+	if p.orgOCGen[ouID] == gen {
+		// Lazily allocated: writing to a nil map panics, and a provisioner built without
+		// one stays usable.
+		if p.orgOCClients == nil {
+			p.orgOCClients = make(map[string]orgOCClientEntry)
+		}
+		p.orgOCClients[ouID] = orgOCClientEntry{
+			client:                ocCl,
+			clientID:              cred.ClientID,
+			clientSecretEncrypted: cred.ClientSecretEncrypted,
+		}
+	} else {
+		// Superseded mid-build. Hand this client back for the call in flight — the
+		// caller fails and retries on its own if the secret is already invalid — but
+		// do not cache it, so the next call rebuilds from the current credential.
+		p.logger.Info("Credentials changed while building org OC client, not caching it", "ouID", ouID)
+	}
+	p.orgOCMu.Unlock()
+
+	p.logger.Debug("Created org OC client", "ouID", ouID, "clientID", cred.ClientID)
+	return ocCl, nil
+}
+
+// repairSchedulerCredential provisions the org's scheduler credential if none is stored,
+// or regenerates its secret if the stored one has no encrypted copy, and returns the
+// credential now stored. It holds the org credential lock and re-reads first, so a
+// credential another replica repaired meanwhile is reused rather than replaced.
+func (p *publisherCredentialProvisioner) repairSchedulerCredential(ctx context.Context, ouID string) (*models.OrgSchedulerCredential, error) {
+	release, err := p.lockOrgCredentials(ctx, ouID)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	cred, err := p.schedulerCredRepo.GetByOrgName(ouID)
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("failed to look up scheduler credentials for org %s: %w", ouID, err)
+		}
+		// Provision on demand: the periodic scheduler calls this directly and never calls EnsureCredentials.
+		p.logger.Info("No scheduler credentials found for org, provisioning on demand", "ouID", ouID)
+		if provErr := p.provisionSchedulerCredentials(ctx, ouID, ouID); provErr != nil {
+			return nil, fmt.Errorf("failed to provision scheduler credentials for org %s: %w", ouID, provErr)
+		}
+		cred, err = p.schedulerCredRepo.GetByOrgName(ouID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, fmt.Errorf("%w: org %s — provisioned but still not found: %w", ErrSchedulerCredentialNotFound, ouID, err)
+			}
+			return nil, fmt.Errorf("failed to look up scheduler credentials for org %s after provisioning: %w", ouID, err)
+		}
+	}
+	if len(cred.ClientSecretEncrypted) > 0 {
+		return cred, nil
+	}
+
+	// Record exists but has no encrypted secret — regenerate the Thunder client secret,
+	// push it to the secret store, and persist the encrypted copy to DB.
+	p.logger.Info("No encrypted secret for org, regenerating Thunder client secret",
+		"ouID", ouID, "clientID", cred.ClientID)
+	newSecret, err := p.thunderClient.RegenerateAppClientSecret(ctx, schedulerAppName(ouID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to regenerate client secret for org %s: %w", ouID, err)
+	}
+	// Propagate the new secret to the secret store.
+	if _, err = p.secretClient.PatchSecret(ctx, schedulerSecretLocation(ouID),
+		map[string]string{"client-secret": newSecret}, nil); err != nil {
+		return nil, fmt.Errorf("failed to update secret store for org %s: %w", ouID, err)
+	}
+	encrypted, err := utils.EncryptBytes([]byte(newSecret), p.encryptionKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encrypt regenerated client secret for org %s: %w", ouID, err)
+	}
+	cred.ClientSecretEncrypted = encrypted
+	if err = p.schedulerCredRepo.Upsert(cred); err != nil {
+		return nil, fmt.Errorf("failed to persist regenerated secret for org %s: %w", ouID, err)
+	}
+	p.logger.Info("Backfilled encrypted client secret", "ouID", ouID, "clientID", cred.ClientID)
+	return cred, nil
 }
