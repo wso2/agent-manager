@@ -32,7 +32,7 @@ import {
 } from "@wso2/oxygen-ui";
 import { AlertTriangle, Edit } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { useGetGateway } from "@agent-management-platform/api-client";
+import { isGatewayActive, useGetGateway } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
   isSelfHostedGateway,
@@ -54,6 +54,7 @@ export const ViewGateway: React.FC = () => {
     data: gateway,
     isLoading,
     error,
+    refetch,
   } = useGetGateway({
     orgName: orgId,
     gatewayId,
@@ -62,9 +63,7 @@ export const ViewGateway: React.FC = () => {
   const isSelfHosted = gateway !== undefined && isSelfHostedGateway(gateway);
 
   const displayName = gateway?.displayName ?? gateway?.name ?? gatewayId ?? "";
-  const isActive =
-    gateway?.status === "ACTIVE" ||
-    (gateway as { isActive?: boolean } | undefined)?.isActive;
+  const isActive = isGatewayActive(gateway);
 
   return (
     <>
@@ -171,9 +170,13 @@ export const ViewGateway: React.FC = () => {
                   <Card variant="outlined" sx={{ p: 3 }}>
                     <Stack spacing={2}>
                       <Typography variant="h6">Set up the gateway</Typography>
+                      {/* The steps poll by UUID; this page may have been opened by
+                          name, so it re-reads its own copy once they see the
+                          gateway connect. */}
                       <SelfHostedSetupSteps
                         orgName={orgId ?? ""}
                         gatewayId={gateway.uuid}
+                        onConnected={() => void refetch()}
                       />
                     </Stack>
                   </Card>

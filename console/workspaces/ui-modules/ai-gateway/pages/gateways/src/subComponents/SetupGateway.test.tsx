@@ -23,11 +23,20 @@ import { keepNewGatewayToken, newGatewayToken } from "./newGatewayToken";
 
 const hoisted = vi.hoisted(() => ({
   gateway: { uuid: "gw-1", displayName: "Edge One", hosting: "SELF_HOSTED", status: "INACTIVE" },
+  error: null as Error | null,
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
-  useGetGateway: () => ({ data: hoisted.gateway, isLoading: false }),
+  useGetGateway: () => ({
+    data: hoisted.error ? undefined : hoisted.gateway,
+    isLoading: false,
+    error: hoisted.error,
+  }),
   isGatewayActive: (gw?: { status?: string }) => gw?.status === "ACTIVE",
+}));
+
+vi.mock("@agent-management-platform/shared-component", () => ({
+  getErrorMessage: (err: unknown) => (err instanceof Error ? err.message : ""),
 }));
 
 vi.mock("@agent-management-platform/views", async () => {
@@ -56,6 +65,7 @@ const renderSetup = (state: SetupGatewayState | null = null) =>
 
 afterEach(() => {
   hoisted.gateway = { ...hoisted.gateway, hosting: "SELF_HOSTED", status: "INACTIVE" };
+  hoisted.error = null;
 });
 
 describe("SetupGateway", () => {
@@ -91,6 +101,23 @@ describe("SetupGateway", () => {
     expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(screen.getByText("gateway view")).toBeInTheDocument();
+  });
+
+  it("forgets the token however the page is left", () => {
+    keepNewGatewayToken("gw-1", "secret");
+    const { unmount } = renderSetup();
+
+    unmount();
+    expect(newGatewayToken("gw-1")).toBeNull();
+  });
+
+  it("shows an error instead of the steps for a gateway that cannot be loaded", () => {
+    hoisted.error = new Error("gateway not found");
+    renderSetup();
+
+    expect(screen.getByText(/Failed to load gateway\. gateway not found/)).toBeInTheDocument();
+    expect(screen.queryByText(/^steps/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
   });
 
   it("sends a managed gateway to its page", () => {

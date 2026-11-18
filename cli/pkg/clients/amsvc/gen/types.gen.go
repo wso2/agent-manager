@@ -3535,6 +3535,10 @@ type GatewayTokenInfo struct {
 	// Id Unique token identifier (UUID)
 	Id string `json:"id"`
 
+	// Prefix The first characters of the token itself, so a token in use can be matched
+	// to its entry. Not enough to authenticate with.
+	Prefix string `json:"prefix"`
+
 	// RevokedAt Timestamp when the token was revoked (null if still active)
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
 

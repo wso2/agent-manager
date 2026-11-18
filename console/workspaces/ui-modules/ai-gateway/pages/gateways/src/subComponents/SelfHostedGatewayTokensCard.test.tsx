@@ -20,14 +20,14 @@ import { render, screen } from "@testing-library/react";
 import { FeatureManagementProvider } from "@agent-management-platform/feature-management";
 import { SelfHostedGatewayTokensCard } from "./SelfHostedGatewayTokensCard";
 
-const tokenId = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
+const recordId = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useSelfHostedGatewayTokens: () => ({
     data: {
       count: 1,
       list: [
-        { id: tokenId, prefix: "9b2c41d0", status: "active", createdAt: new Date().toISOString() },
+        { id: recordId, prefix: "9b2c41d0", status: "active", createdAt: new Date().toISOString() },
       ],
     },
     isLoading: false,
@@ -52,6 +52,6 @@ describe("SelfHostedGatewayTokensCard", () => {
     );
 
     expect(screen.getByText("9b2c41d0-••••••••")).toBeInTheDocument();
-    expect(screen.queryByText(tokenId)).not.toBeInTheDocument();
+    expect(screen.queryByText(recordId)).not.toBeInTheDocument();
   });
 });

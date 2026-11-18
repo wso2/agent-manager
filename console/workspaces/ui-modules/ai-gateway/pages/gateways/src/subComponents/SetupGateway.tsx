@@ -15,11 +15,12 @@
  * under the License.
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Box, Button, Stack } from "@wso2/oxygen-ui";
 import { generatePath, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { PageLayout } from "@agent-management-platform/views";
 import { isGatewayActive, useGetGateway } from "@agent-management-platform/api-client";
+import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, isSelfHostedGateway } from "@agent-management-platform/types";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
 import { forgetNewGatewayToken, newGatewayToken } from "./newGatewayToken";
@@ -38,14 +39,24 @@ export interface SetupGatewayState {
  * which leaves the one-time token in memory for it (see newGatewayToken).
  */
 export function SetupGateway() {
-  const { orgId = "", gatewayId = "" } = useParams<{ orgId: string; gatewayId: string }>();
+  const { gatewayId = "" } = useParams<{ gatewayId: string }>();
+  // Keyed by gateway: moving between two gateways' setup pages starts afresh, so one
+  // gateway's token is never shown for another.
+  return <SetupGatewayPage key={gatewayId} gatewayId={gatewayId} />;
+}
+
+function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
+  const { orgId = "" } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const { state } = useLocation() as { state: SetupGatewayState | null };
   // Read once: the steps own the token from here (Reconfigure replaces it).
   const [token] = useState(() => newGatewayToken(gatewayId));
+  // However the page is left (Done, Back, the sidebar), the token is forgotten: it may
+  // be revoked afterwards, and a later visit must not offer it again.
+  useEffect(() => () => forgetNewGatewayToken(gatewayId), [gatewayId]);
 
   // Polls until the gateway connects; step 5 of the steps shows the same status.
-  const { data: gateway, isLoading } = useGetGateway(
+  const { data: gateway, isLoading, error } = useGetGateway(
     { orgName: orgId, gatewayId },
     { pollUntilActive: true },
   );
@@ -62,10 +73,23 @@ export function SetupGateway() {
     return <Navigate to={viewHref} replace />;
   }
 
-  const finish = () => {
-    forgetNewGatewayToken(gatewayId);
-    navigate(viewHref);
-  };
+  const finish = () => navigate(viewHref);
+
+  // A gateway that cannot be loaded (not found, no access) has nothing to set up.
+  if (error && !gateway) {
+    return (
+      <PageLayout
+        title="Set up gateway"
+        disableIcon
+        backHref={listHref}
+        backLabel="Back to gateways"
+      >
+        <Alert severity="error">
+          Failed to load gateway. {getErrorMessage(error) || "Please try again."}
+        </Alert>
+      </PageLayout>
+    );
+  }
 
   return (
     <PageLayout
