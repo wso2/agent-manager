@@ -737,8 +737,6 @@ func TestTrack_ApplicationIDMode_SendsWithoutCallerJWT(t *testing.T) {
 	waitForEvent(t, fs)
 }
 
-// TestSharedHTTPClient_RefusesRedirects: a redirect must not carry the
-// Application ID header to another host, so the client stops at the 3xx.
 func TestMCPReporterUsesCurrentRequestAttributionAndToolOutcome(t *testing.T) {
 	withGrowthAnalyticsConfig(t, "https://collector.example")
 	sender, tokens := withFakeSender(t)
@@ -764,6 +762,8 @@ func TestMCPReporterUsesCurrentRequestAttributionAndToolOutcome(t *testing.T) {
 	}
 }
 
+// TestSharedHTTPClient_RefusesRedirects: a redirect must not carry the
+// Application ID header to another host, so the client stops at the 3xx.
 func TestSharedHTTPClient_RefusesRedirects(t *testing.T) {
 	var followed bool
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

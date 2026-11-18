@@ -18,12 +18,16 @@ package tools
 
 import (
 	"context"
+	"os"
 	"slices"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/auth"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
+	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -82,6 +86,93 @@ func TestMutatingToolsHaveGrowthAnalytics(t *testing.T) {
 		if _, registered := reg.actions[name]; !registered {
 			t.Errorf("analytics mapping for unregistered tool %q", name)
 		}
+	}
+}
+
+// Verify the metadata the tools actually submit, including the deployment
+// actions computed at runtime.
+func TestToolTelemetryMatchesTaxonomy(t *testing.T) {
+	type feature struct {
+		Code     string
+		Status   string
+		Tracking struct {
+			Dimensions []struct {
+				Name     string
+				Type     string
+				Values   []string
+				Required bool
+			}
+		}
+		SubFeatures []feature `yaml:"sub_features"`
+	}
+	var taxonomy struct {
+		Features []feature
+	}
+	data, err := os.ReadFile("../../middleware/growthanalytics/taxonomy.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal(data, &taxonomy); err != nil {
+		t.Fatal(err)
+	}
+	features := make(map[string]feature)
+	var indexFeatures func([]feature)
+	indexFeatures = func(entries []feature) {
+		for _, entry := range entries {
+			features[entry.Code] = entry
+			indexFeatures(entry.SubFeatures)
+		}
+	}
+	indexFeatures(taxonomy.Features)
+
+	for name := range trackedTools {
+		t.Run(name, func(t *testing.T) {
+			calls := 0
+			report := growthanalytics.MCPReporter(func(_ context.Context, code string, metadata map[string]any, _ bool) {
+				calls++
+				feature, ok := features[code]
+				if !ok || feature.Status == "deprecated" {
+					t.Fatalf("tool emits undeclared or deprecated code %q", code)
+				}
+				for _, dim := range feature.Tracking.Dimensions {
+					value, sent := metadata[dim.Name]
+					if !sent {
+						if dim.Required {
+							t.Errorf("%s is missing required dimension %q", code, dim.Name)
+						}
+						continue
+					}
+					delete(metadata, dim.Name)
+					if dim.Type != "enum" {
+						continue
+					}
+					if dim.Name == "outcome" && value == growthanalytics.DynamicOutcome {
+						if !slices.Contains(dim.Values, "success") || !slices.Contains(dim.Values, "failure") {
+							t.Errorf("%s must declare both dynamic outcome values", code)
+						}
+					} else if enum, ok := value.(string); !ok || !slices.Contains(dim.Values, enum) {
+						t.Errorf("%s sends %s=%v, want one of %v", code, dim.Name, value, dim.Values)
+					}
+				}
+				delete(metadata, "channel") // Shared event metadata.
+				if len(metadata) > 0 {
+					t.Errorf("%s sends undeclared dimensions: %v", code, metadata)
+				}
+			})
+			request := &gomcp.CallToolRequest{Extra: &gomcp.RequestExtra{
+				TokenInfo: &auth.TokenInfo{Extra: map[string]any{growthanalytics.MCPReporterKey: report}},
+			}}
+			inputs := []any{nil}
+			if name == "update_deployment_state" {
+				inputs = append(inputs, updateDeploymentStateInput{State: "redeploy"}, updateDeploymentStateInput{State: "undeploy"})
+			}
+			for _, input := range inputs {
+				reportToolUsage(t.Context(), request, name, input, true)
+			}
+			if calls != len(inputs) {
+				t.Errorf("got %d events for %d tool invocations", calls, len(inputs))
+			}
+		})
 	}
 }
 

@@ -1125,6 +1125,42 @@ features:
             - type: "count"
               label: "Agent Kind Version Changes"
 
+  - code: "amp.discovery.view-catalog"
+    name: "Catalog Browsing"
+    description: "Use amp.console.navigation.page-view on the catalog route."
+    category: "discovery"
+    tier: "core"
+    status: "deprecated"
+    availability:
+      introduced_in: "1.0.0"
+      deprecated_in: "2026.12.0"
+    tracking:
+      event_name: "amp.discovery.view-catalog"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions: []
+      aggregations:
+        - type: "count"
+          label: "Catalog Views"
+
+  - code: "amp.discovery.view-build-options"
+    name: "Agent Build Options Discovery"
+    description: "Use amp.console.navigation.build-options-viewed."
+    category: "discovery"
+    tier: "core"
+    status: "deprecated"
+    availability:
+      introduced_in: "1.0.0"
+      deprecated_in: "2026.12.0"
+    tracking:
+      event_name: "amp.discovery.view-build-options"
+      event_category: "discovery"
+      platforms: ["web"]
+      dimensions: []
+      aggregations:
+        - type: "count"
+          label: "Build Options Views"
+
   # ============================================================
   # OBSERVABILITY
   # ============================================================
@@ -1231,6 +1267,31 @@ features:
       aggregations:
         - type: "count"
           label: "Custom Evaluator Changes"
+
+  - code: "amp.observability.view-scores"
+    name: "Monitor & Trace Score Viewing"
+    description: "Use amp.console.observability.eval-result-viewed with its view_type dimension."
+    category: "observability"
+    tier: "core"
+    status: "deprecated"
+    availability:
+      introduced_in: "1.0.0"
+      deprecated_in: "2026.12.0"
+    tracking:
+      event_name: "amp.observability.view-scores"
+      event_category: "engagement"
+      platforms: ["web"]
+      dimensions:
+        - name: "view_type"
+          type: "enum"
+          values: ["scores", "breakdown", "timeseries", "trace-scores", "run-scores"]
+          required: true
+      aggregations:
+        - type: "count"
+          label: "Score Views"
+        - type: "count_distinct"
+          dimension: "view_type"
+          label: "Distinct Score View Types Used"
 
   # ============================================================
   # EVENTS & WEBHOOKS
