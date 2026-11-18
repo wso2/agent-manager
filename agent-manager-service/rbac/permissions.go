@@ -163,14 +163,6 @@ const (
 	LLMProxyAPIKeyManage Permission = "llm-proxy:api-key-manage"
 )
 
-// Evaluator permissions
-const (
-	EvaluatorCreate Permission = "evaluator:create"
-	EvaluatorRead   Permission = "evaluator:read"
-	EvaluatorUpdate Permission = "evaluator:update"
-	EvaluatorDelete Permission = "evaluator:delete"
-)
-
 // Agent permissions
 const (
 	AgentCreate Permission = "agent:create"
@@ -198,17 +190,6 @@ const (
 	AgentKindCreate Permission = "agent-kind:create"
 	AgentKindUpdate Permission = "agent-kind:update"
 	AgentKindDelete Permission = "agent-kind:delete"
-)
-
-// Monitor permissions
-const (
-	MonitorCreate       Permission = "monitor:create"
-	MonitorRead         Permission = "monitor:read"
-	MonitorUpdate       Permission = "monitor:update"
-	MonitorDelete       Permission = "monitor:delete"
-	MonitorExecute      Permission = "monitor:execute"
-	MonitorScoreRead    Permission = "monitor:score-read"
-	MonitorScorePublish Permission = "monitor:score-publish"
 )
 
 // Events permissions — event destinations, org subscriptions and the org's

@@ -15,30 +15,24 @@
 // under the License.
 
 // Package legacyapi registers the routes of features this version does not
-// serve (hosted agents, agent kinds, repositories, git secrets, monitors),
-// which answer 501, and the evaluator catalog.
+// serve (hosted agents, agent kinds, repositories, git secrets), which answer
+// 501.
 package legacyapi
 
 import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy/evaluators"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // RegisterRoutes registers the legacy routes on the authenticated /api/v1
 // router.
-func RegisterRoutes(rr *middleware.RouteRegistrar, evaluatorCtrl evaluators.EvaluatorController) {
+func RegisterRoutes(rr *middleware.RouteRegistrar) {
 	registerHostedRoutes(rr)
 	registerAgentKindRoutes(rr)
 	registerRepositoryRoutes(rr)
 	RegisterGitSecretRoutes(rr)
-	registerMonitorRoutes(rr)
-	registerMonitorScoreRoutes(rr)
-	registerMonitorAlertRoutes(rr)
-	RegisterMonitorPublisherRoutes(rr)
-	registerEvaluatorRoutes(rr, evaluatorCtrl)
 }
 
 // notImplemented answers 501 for a route this version does not serve.

@@ -67,11 +67,10 @@ type ThunderConfig struct {
 	ConsoleRedirectURIs []string
 	CORSOrigins         []string
 
-	APIClient       Client
-	ConsoleClient   Client
-	PublisherClient Client
-	SystemClient    Client
-	CLIClient       Client
+	APIClient     Client
+	ConsoleClient Client
+	SystemClient  Client
+	CLIClient     Client
 
 	// Admin is Thunder's built-in admin account; its password is set by Thunder's setup.
 	Admin User
@@ -88,7 +87,7 @@ func init() {
 		"AMCTL_CLIENT_ID", "AMCTL_REDIRECT_URIS", "AMP_ADMIN_PASSWORD", "AMP_ADMIN_USERNAME",
 		"AMP_API_CLIENT_ID", "AMP_API_CLIENT_SECRET", "AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
 		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER", "AMP_PUBLIC_URL",
-		"AMP_PUBLISHER_CLIENT_ID", "AMP_PUBLISHER_CLIENT_SECRET", "AMP_SYSTEM_CLIENT_ID", "AMP_SYSTEM_CLIENT_SECRET",
+		"AMP_SYSTEM_CLIENT_ID", "AMP_SYSTEM_CLIENT_SECRET",
 		"CONSOLE_URL", "PLATFORM_ADMIN_OU_ID",
 		"THUNDER_ADMIN_EMAIL", "THUNDER_ADMIN_FAMILY_NAME", "THUNDER_ADMIN_GIVEN_NAME", "THUNDER_ADMIN_USERNAME",
 		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT", "THUNDER_PUBLIC_URL",
@@ -177,9 +176,6 @@ func LoadThunderConfig() (*ThunderConfig, error) {
 		},
 		ConsoleClient: Client{
 			ID: r.str("AMP_CONSOLE_CLIENT_ID", "amp-console-client"), Secret: r.required("AMP_CONSOLE_CLIENT_SECRET"),
-		},
-		PublisherClient: Client{
-			ID: r.str("AMP_PUBLISHER_CLIENT_ID", "amp-publisher-client"), Secret: r.required("AMP_PUBLISHER_CLIENT_SECRET"),
 		},
 		SystemClient: Client{
 			ID: r.str("AMP_SYSTEM_CLIENT_ID", "amp-system-client"), Secret: r.required("AMP_SYSTEM_CLIENT_SECRET"),
@@ -300,7 +296,6 @@ func SampleThunderConfig() *ThunderConfig {
 		CORSOrigins:         []string{"http://localhost:3000"},
 		APIClient:           Client{ID: "amp-api-client", Secret: "amp-api-client-secret"},
 		ConsoleClient:       Client{ID: "amp-console-client", Secret: "amp-console-client-secret"},
-		PublisherClient:     Client{ID: "amp-publisher-client", Secret: "amp-publisher-client-secret"},
 		SystemClient:        Client{ID: "amp-system-client", Secret: "amp-system-client-secret"},
 		CLIClient:           Client{ID: "amctl", RedirectURIs: []string{"http://127.0.0.1:10325/callback"}},
 		Admin:               User{Username: "admin", Email: "admin@example.com", GivenName: "Admin", FamilyName: "User"},

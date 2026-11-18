@@ -101,8 +101,9 @@ check mcp-endpoint 401 "$(code -X POST "$API/mcp" -d '{}')"
 check ws-internal "$(pick 401 404)" "$(code -k "$INT/api/internal/v1/ws/gateways/connect")"
 # Not-yet-implemented routes: answered 501 by amp's legacy bundle, absent from amp-core.
 check agent-kinds "$(pick 501 404)" "$(code "${A[@]}" "$B/agent-kinds")"
-check monitors "$(pick 501 404)" "$(code "${A[@]}" "$B/projects/$P/agents/$AG/monitors")"
-check evaluators "$(pick 200 404)" "$(code "${A[@]}" "$B/evaluators")"
+# Evaluation is not part of either distribution.
+check monitors 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/monitors")"
+check evaluators 404 "$(code "${A[@]}" "$B/evaluators")"
 check module-route-404 404 "$(code "${A[@]}" "$API/api/v1/m/testmod/whoami")"
 check workload-exchange-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workload-tokens" -d '{"credentialId":"x","secret":"y"}')"
 

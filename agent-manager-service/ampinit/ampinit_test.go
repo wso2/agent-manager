@@ -32,16 +32,15 @@ import (
 func setThunderEnv(t *testing.T) {
 	t.Helper()
 	for k, v := range map[string]string{
-		"THUNDER_PUBLIC_URL":          "https://id.example.com",
-		"THUNDER_PORT":                "8090",
-		"AMP_PUBLIC_URL":              "https://api.example.com/",
-		"CONSOLE_URL":                 "https://console.example.com",
-		"AMP_API_CLIENT_SECRET":       "s1",
-		"AMP_CONSOLE_CLIENT_SECRET":   "s2",
-		"AMP_PUBLISHER_CLIENT_SECRET": "s3",
-		"AMP_SYSTEM_CLIENT_SECRET":    "s4",
-		"AMP_API_CLIENT_ID":           "custom-api",
-		"AMP_DEFAULT_USERS":           "dev:pw1, ops:pw2:admin",
+		"THUNDER_PUBLIC_URL":        "https://id.example.com",
+		"THUNDER_PORT":              "8090",
+		"AMP_PUBLIC_URL":            "https://api.example.com/",
+		"CONSOLE_URL":               "https://console.example.com",
+		"AMP_API_CLIENT_SECRET":     "s1",
+		"AMP_CONSOLE_CLIENT_SECRET": "s2",
+		"AMP_SYSTEM_CLIENT_SECRET":  "s4",
+		"AMP_API_CLIENT_ID":         "custom-api",
+		"AMP_DEFAULT_USERS":         "dev:pw1, ops:pw2:admin",
 	} {
 		t.Setenv(k, v)
 	}

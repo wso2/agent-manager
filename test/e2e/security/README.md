@@ -52,13 +52,12 @@ The live run writes its JUnit report to `test/e2e/security-report.xml`.
 | `tokens` | Missing, malformed, forged, tampered, and oversized tokens |
 | `observability` | Scope enforcement on trace, log, metric, and build-log routes |
 | `roles` | Predefined roles and custom-role permission changes |
-| `publisher` | Publisher audiences and publisher route confinement |
 | `agentid` | AgentID credential creation, rotation, revocation, and non-disclosure |
 | `runtime` | Container hardening, Kubernetes API isolation, and AgentID-scoped MCP access |
 
 ## Environment overrides
 
-Role and publisher tests require Thunder administrative credentials. Use
+Role tests require Thunder administrative credentials. Use
 secret-backed values outside the local quick-start environment:
 
 ```bash

@@ -39,7 +39,6 @@ func TestPlacementPolicy_ProviderHostingAndAPIKeyPurpose(t *testing.T) {
 	}{
 		{"platform agent", platformAgentPolicy, managedOnly, models.APIKeyPurposeConsoleManaged, false, false},
 		{"external agent", externalAgentPolicy, managedFirst, models.APIKeyPurposeUserManaged, true, true},
-		{"monitor", monitorPolicy, managedOnly, models.APIKeyPurposeConsoleManaged, false, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -72,10 +71,6 @@ func TestPlacementPolicy_RefusedBy(t *testing.T) {
 		{"external agent, managed, identity", externalAgentPolicy, managed, identityOn, 0},
 		{"external agent, self-hosted, no identity", externalAgentPolicy, selfHosted, nil, 0},
 		{"external agent, self-hosted, identity", externalAgentPolicy, selfHosted, identityOn, ruleAgentIdentity},
-		{"monitor, managed, no identity", monitorPolicy, managed, nil, 0},
-		{"monitor, managed, identity", monitorPolicy, managed, identityOn, 0},
-		{"monitor, self-hosted, no identity", monitorPolicy, selfHosted, nil, ruleManagedConsumer},
-		{"monitor, self-hosted, identity", monitorPolicy, selfHosted, identityOn, ruleManagedConsumer | ruleAgentIdentity},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -90,7 +85,7 @@ func TestPlacementPolicy_RefusedBy(t *testing.T) {
 func TestPlacementPolicy_NilGatewayIsNeverRefused(t *testing.T) {
 	enabled := true
 	identityOn := &models.SecurityConfig{Enabled: &enabled, Identity: &models.IdentitySecurity{Enabled: &enabled}}
-	for _, p := range []placementPolicy{platformAgentPolicy, externalAgentPolicy, monitorPolicy} {
+	for _, p := range []placementPolicy{platformAgentPolicy, externalAgentPolicy} {
 		assert.Zero(t, p.refusedBy(nil, identityOn))
 	}
 }

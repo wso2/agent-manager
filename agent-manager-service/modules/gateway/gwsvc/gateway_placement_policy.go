@@ -33,7 +33,6 @@ type gatewayConsumer uint8
 const (
 	platformAgentConsumer gatewayConsumer = iota // runs
 	externalAgentConsumer
-	monitorConsumer
 )
 
 // placementPolicy is which gateways a consumer may use and how AMS hands it credentials.
@@ -42,7 +41,6 @@ type placementPolicy struct{ consumer gatewayConsumer }
 var (
 	platformAgentPolicy = placementPolicy{platformAgentConsumer}
 	externalAgentPolicy = placementPolicy{externalAgentConsumer}
-	monitorPolicy       = placementPolicy{monitorConsumer}
 )
 
 func placementPolicyFor(agent *models.AgentResponse) placementPolicy {
@@ -83,7 +81,7 @@ func (p placementPolicy) apiKeyPurpose() int {
 type hostingRule uint8
 
 const (
-	ruleManagedConsumer hostingRule = 1 << iota // a platform-hosted agent or monitor would use it
+	ruleManagedConsumer hostingRule = 1 << iota // a platform-hosted agent would use it
 	ruleAgentIdentity                           // Agent Identity cannot be validated there
 )
 
@@ -100,7 +98,7 @@ func identityRefuses(gw *models.Gateway, security *models.SecurityConfig) bool {
 	return gw != nil && !gw.IsManaged() && mcpIdentityEnabled(security)
 }
 
-// refusedBy is the rules gw breaks for an agent or monitor binding secured by security.
+// refusedBy is the rules gw breaks for an agent binding secured by security.
 func (p placementPolicy) refusedBy(gw *models.Gateway, security *models.SecurityConfig) hostingRule {
 	var r hostingRule
 	if p.consumerRefuses(gw) {
@@ -191,8 +189,6 @@ const deployProviderHint = "deploy it from the LLM provider's Deployment tab"
 // consumerNoun names the consumers the policy covers, for messages.
 func (p placementPolicy) consumerNoun() string {
 	switch p.consumer {
-	case monitorConsumer:
-		return "monitors"
 	case externalAgentConsumer:
 		return "external agents"
 	default:

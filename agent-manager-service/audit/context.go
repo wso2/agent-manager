@@ -32,8 +32,8 @@ type Source struct {
 	// Pattern is the route pattern, never the raw URL.
 	Pattern string
 	// ActorType overrides the default actor classification for surfaces that
-	// know better than the token does — the internal gateway server, the score
-	// publisher, background workers.
+	// know better than the token does — the internal gateway server,
+	// background workers.
 	ActorType ActorType
 	// ActorID names the principal on surfaces that do not carry a JWT.
 	ActorID string

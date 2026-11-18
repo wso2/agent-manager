@@ -57,8 +57,6 @@ const (
 	ErrCodeGatewayAlreadyExists    = "GATEWAY_ALREADY_EXISTS"
 	ErrCodeGatewayEnvironmentFixed = "GATEWAY_ENVIRONMENT_FIXED"
 	ErrCodeEnvironmentHasNoGateway = "ENVIRONMENT_HAS_NO_GATEWAY"
-	ErrCodeMonitorNotFound         = "MONITOR_NOT_FOUND"
-	ErrCodeMonitorAlreadyExists    = "MONITOR_ALREADY_EXISTS"
 	ErrCodeProviderNotFound        = "PROVIDER_NOT_FOUND"
 	ErrCodeProviderAlreadyExists   = "PROVIDER_ALREADY_EXISTS"
 	ErrCodeDeploymentNotFound      = "DEPLOYMENT_NOT_FOUND"

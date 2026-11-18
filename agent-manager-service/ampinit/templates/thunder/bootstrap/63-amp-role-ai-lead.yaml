@@ -1,7 +1,7 @@
 resource_type: role
 id: amp-role-ai-lead
 name: AI Lead
-description: "AI lead access: manage LLM providers, MCP servers, and evaluators"
+description: "AI lead access: manage LLM providers and MCP servers"
 ouHandle: default
 permissions:
   - resourceServerId: amp-resource-server

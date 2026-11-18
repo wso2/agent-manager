@@ -179,10 +179,6 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodPut, orgBase + "/agent-kinds/" + absentName, []string{"amp:agent-kind:update"}},
 		{http.MethodDelete, orgBase + "/agent-kinds/" + absentName, []string{"amp:agent-kind:delete"}},
 		{http.MethodGet, orgBase + "/catalog", []string{"amp:catalog:read"}},
-
-		// --- Evaluators --------------------------------------------------------
-		{http.MethodPost, orgBase + "/evaluators/custom", []string{"amp:evaluator:create"}},
-		{http.MethodDelete, orgBase + "/evaluators/custom/" + absentName, []string{"amp:evaluator:delete"}},
 	}
 }
 

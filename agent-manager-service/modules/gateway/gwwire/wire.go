@@ -52,7 +52,6 @@ var repositoryProviderSet = wire.NewSet(
 	gwrepo.NewEnvAgentModelMappingRepository,
 	gwrepo.NewEnvAgentMCPMappingRepository,
 	gwrepo.NewAgentEnvConfigVariableRepository,
-	gwrepo.NewMonitorLLMMappingRepository,
 	ProvideAIApplicationRepository,
 	gwrepo.NewMCPProxyScopeRepository,
 )

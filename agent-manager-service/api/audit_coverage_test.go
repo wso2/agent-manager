@@ -31,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy/evaluators"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -95,7 +94,7 @@ func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
 	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
 	return builtin.Built{
 		gateway.Parts(gw, params),
-		legacy.Parts(evaluators.NewEvaluatorController(nil)),
+		legacy.Parts(),
 	}
 }
 

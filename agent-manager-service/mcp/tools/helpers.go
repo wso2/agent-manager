@@ -130,22 +130,6 @@ func wrapToolError(toolName string, err error) error {
 		return fmt.Errorf("%s: invalid agent name. Call list_agents or list_project_agent_pairs to see valid agents", toolName)
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		return fmt.Errorf("%s: invalid environment name. Call list_environments to see valid environments", toolName)
-	case errors.Is(err, utils.ErrEvaluatorNotFound):
-		return fmt.Errorf("%s: invalid evaluator id. Call list_evaluators to see valid evaluators", toolName)
-	case errors.Is(err, utils.ErrCustomEvaluatorNotFound):
-		return fmt.Errorf("%s: custom evaluator not found. Call list_evaluators to see valid evaluators", toolName)
-	case errors.Is(err, utils.ErrCustomEvaluatorAlreadyExists):
-		return fmt.Errorf("%s: custom evaluator already exists with this identifier or display name", toolName)
-	case errors.Is(err, utils.ErrCustomEvaluatorIdentifierTaken):
-		return fmt.Errorf("%s: evaluator identifier conflicts with a built-in evaluator", toolName)
-	case errors.Is(err, utils.ErrMonitorNotFound):
-		return fmt.Errorf("%s: monitor not found. Call list_monitors to see valid monitors", toolName)
-	case errors.Is(err, utils.ErrMonitorRunNotFound):
-		return fmt.Errorf("%s: monitor run not found. Call list_monitor_runs to see valid runs", toolName)
-	case errors.Is(err, utils.ErrMonitorAlreadyStopped):
-		return fmt.Errorf("%s: monitor is already stopped", toolName)
-	case errors.Is(err, utils.ErrMonitorAlreadyActive):
-		return fmt.Errorf("%s: monitor is already active", toolName)
 	case errors.Is(err, utils.ErrLLMProviderNotFound):
 		return fmt.Errorf("%s: LLM provider not found. Call list_llm_providers to see valid providers", toolName)
 	case errors.Is(err, utils.ErrMCPProxyNotFound):

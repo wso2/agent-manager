@@ -368,9 +368,6 @@ func (s *AgentGatewayService) clearInheritedA2AState(ctx context.Context, ouID, 
 	return nil
 }
 
-// cleanupAgentMonitors has nothing to remove: Lite runs no monitors.
-func (s *AgentGatewayService) cleanupAgentMonitors(context.Context, string, string, string) {}
-
 // deleteAgentAPIArtifact removes the agent's per-environment API artifacts and
 // tells gateways holding an A2A Agent for them to drop it. It returns what it
 // could not remove; the component is already gone by then, so deleting the

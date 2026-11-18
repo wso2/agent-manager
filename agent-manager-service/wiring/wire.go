@@ -217,8 +217,8 @@ func ProvideEventBus(cfg config.Config, logger *slog.Logger) (events.Bus, error)
 	}
 }
 
-// ProvideEventPublisher returns the publisher routes and the monitor
-// scheduler use. Without a bus, events are discarded.
+// ProvideEventPublisher returns the publisher routes use. Without a bus,
+// events are discarded.
 func ProvideEventPublisher(bus events.Bus, outbox events.Outbox, logger *slog.Logger) events.Publisher {
 	if bus == nil {
 		return events.NoopPublisher{}

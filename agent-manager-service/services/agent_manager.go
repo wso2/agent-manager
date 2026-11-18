@@ -637,8 +637,8 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		return err
 	}
 
-	// Deletion is irreversible and cascades into configs, identities and
-	// monitors, so it is refused when it cannot be recorded.
+	// Deletion is irreversible and cascades into configs and identities, so
+	// it is refused when it cannot be recorded.
 	deleteAttempt, auditErr := audit.Begin(
 		ctx, audit.ActionAgentDelete,
 		audit.Org(ouID),

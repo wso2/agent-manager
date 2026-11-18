@@ -113,55 +113,6 @@ func CleanupStaleE2EResources(client *framework.AMPClient, orgName string) {
 	cleanupStaleDeploymentPipelines(client, orgName)
 	cleanupStaleLLMProviders(client, orgName)
 	cleanupStaleMCPProxies(client, orgName)
-	cleanupStaleCustomEvaluators(client, orgName)
-}
-
-// cleanupStaleCustomEvaluators deletes e2e-created custom evaluators (identifier
-// prefixed with "e2e-"). Built-in evaluators are never touched. There is no creation
-// timestamp on evaluators, but this runs in BeforeSuite before the current run creates
-// its own (uniquely-suffixed) evaluator, so anything present is from a prior run.
-// A 409 means an active monitor still references it (ErrCustomEvaluatorInUse); since
-// monitors are not cleaned here, that evaluator is logged and left in place.
-func cleanupStaleCustomEvaluators(client *framework.AMPClient, orgName string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/evaluators", orgName)
-	resp, err := client.Get(path)
-	if err != nil {
-		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list evaluators: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		ginkgo.GinkgoWriter.Printf("stale cleanup: list evaluators returned %d, skipping\n", resp.StatusCode)
-		return
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to read evaluators response: %v\n", err)
-		return
-	}
-
-	var evaluators framework.EvaluatorListResponse
-	if err := json.Unmarshal(body, &evaluators); err != nil {
-		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to decode evaluators: %v\n", err)
-		return
-	}
-
-	for _, e := range evaluators.Evaluators {
-		if e.IsBuiltin || !strings.HasPrefix(e.Identifier, "e2e-") {
-			continue
-		}
-
-		evalPath := fmt.Sprintf("/api/v1/orgs/%s/evaluators/custom/%s", orgName, e.Identifier)
-		delResp, err := client.Delete(evalPath)
-		if err != nil {
-			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete custom evaluator %s: %v\n", e.Identifier, err)
-			continue
-		}
-		delResp.Body.Close()
-		logDeleteResult("custom evaluator", e.Identifier, delResp.StatusCode)
-	}
 }
 
 // logDeleteResult reports a stale-cleanup DELETE outcome without misreporting a

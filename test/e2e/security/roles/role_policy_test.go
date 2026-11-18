@@ -102,9 +102,8 @@ func roleProbes() []roleProbe {
 		{"developer", "amp:environment:update", false, http.MethodPut, orgPath("/environments/" + absentResourceName)},
 		{"developer", "amp:role:update", false, http.MethodPut, orgPath("/identities/roles/" + absentResourceName)},
 
-		// AI Lead: owns AI providers and evaluation, not project/platform administration.
+		// AI Lead: owns AI providers, not project/platform administration.
 		{"ai-lead", "amp:llm-provider:create", true, http.MethodPost, orgPath("/llm-providers")},
-		{"ai-lead", "amp:evaluator:create", true, http.MethodPost, orgPath("/evaluators/custom")},
 		{"ai-lead", "amp:project:create", false, http.MethodPost, orgPath("/projects")},
 		{"ai-lead", "amp:environment:update", false, http.MethodPut, orgPath("/environments/" + absentResourceName)},
 

@@ -127,7 +127,7 @@ func (c *thunderClient) findAgentByName(ctx context.Context, token, name string)
 // PUT only auto-regenerates a secret when transitioning from a non-secret auth
 // method, which does not apply to an already-secret-based client_credentials
 // agent — so this explicitly supplies the new value, exactly like
-// RegenerateClientSecret does for /applications.
+// RegenerateAppClientSecret does for /applications.
 func (c *thunderClient) RegenerateAgentSecret(ctx context.Context, thunderAgentID string) (string, error) {
 	token, err := c.getSystemToken(ctx)
 	if err != nil {

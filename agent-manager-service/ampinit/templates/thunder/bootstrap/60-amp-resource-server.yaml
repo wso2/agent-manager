@@ -170,15 +170,6 @@ resources:
       - { name: Delete, handle: delete, description: "Delete an LLM proxy" }
       - { name: Deploy, handle: deploy, description: "Deploy, undeploy, and restore an LLM proxy" }
       - { name: Manage API Key, handle: api-key-manage, description: "Create, update, and delete LLM proxy API keys" }
-  - name: Evaluator
-    handle: evaluator
-    parent: amp
-    description: Evaluator management
-    actions:
-      - { name: Create, handle: create, description: "Create a custom evaluator" }
-      - { name: Read, handle: read, description: "View evaluators" }
-      - { name: Update, handle: update, description: "Update a custom evaluator" }
-      - { name: Delete, handle: delete, description: "Delete a custom evaluator" }
   - name: Agent
     handle: agent
     parent: amp
@@ -204,18 +195,6 @@ resources:
       - { name: Read, handle: read, description: "View agent kinds and versions" }
       - { name: Update, handle: update, description: "Update an agent kind" }
       - { name: Delete, handle: delete, description: "Delete an agent kind" }
-  - name: Monitor
-    handle: monitor
-    parent: amp
-    description: Monitor management
-    actions:
-      - { name: Create, handle: create, description: "Create a monitor" }
-      - { name: Read, handle: read, description: "View monitors, runs, and run logs" }
-      - { name: Update, handle: update, description: "Update a monitor" }
-      - { name: Delete, handle: delete, description: "Delete a monitor" }
-      - { name: Execute, handle: execute, description: "Start, stop, and rerun monitors" }
-      - { name: Read Score, handle: score-read, description: "View scores, breakdowns, and timeseries" }
-      - { name: Publish Score, handle: score-publish, description: "Publish monitor scores (internal/system use)" }
   - name: Events
     handle: events
     parent: amp

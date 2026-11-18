@@ -110,7 +110,7 @@ func TestUpdateLLMProvider_UpdateErrors(t *testing.T) {
 						return tt.err
 					},
 				}
-				svc := gwsvc.NewLLMProviderService(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+				svc := gwsvc.NewLLMProviderService(nil, repo, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 				// A nil deployment service deliberately makes any attempted gateway I/O fail.
 				ctrl := NewLLMController(nil, svc, nil, nil, nil, nil, nil)
 				req := httptest.NewRequest(http.MethodPut, "/orgs/acme/llm-providers/"+providerUUID.String(),

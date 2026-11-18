@@ -119,7 +119,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 	if !found {
 		body := amsvc.CreateAgentModelConfigRequest{
 			Name:                 o.Name,
-			Type:                 amsvc.CreateAgentModelConfigRequestTypeLlm,
+			Type:                 amsvc.Llm,
 			EnvMappings:          map[string]amsvc.EnvModelConfigRequest{cmdutil.DefaultEnvironment: mapping},
 			EnvironmentVariables: envVars,
 			Description:          modelconfig.OptionalString(o.Description),

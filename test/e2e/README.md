@@ -14,7 +14,7 @@ make e2e-test FOCUS="Project Deletion Conflict"   # one spec by description
 ```
 
 
-The suites target the full `amp` stack (`make up`). Against `amp-core` (`make up-core`) the `llmprovider`, `mcpproxy` and `evaluators` suites, and specs that go through the AI Gateway, fail by design: those routes belong to modules that binary doesn't link.
+The suites target the full `amp` stack (`make up`). Against `amp-core` (`make up-core`) the `llmprovider` and `mcpproxy` suites, and specs that go through the AI Gateway, fail by design: those routes belong to modules that binary doesn't link.
 
 ## Layout
 

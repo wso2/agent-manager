@@ -53,11 +53,11 @@ const (
 
 // routeDirs pairs each package of routes with the package of the controllers
 // they call: the core's, and those of the built-in modules the full
-// distribution links.
+// distribution links. The legacy module's routes only answer 501 and track
+// nothing.
 var routeDirs = [][2]string{
 	{apiRoutesDir, controllersDir},
 	{"../../modules/gateway/gwapi", "../../modules/gateway/gwctl"},
-	{"../../modules/legacy/legacyapi", "../../modules/legacy/evaluators"},
 }
 
 // The structs mirror the skeleton field for field. Decoding with KnownFields
@@ -463,7 +463,7 @@ var notEmittedFeatures = map[string]bool{
 	"amp.discovery.manage-kind":               true,
 	"amp.discovery.manage-kind.add-version":   true,
 	"amp.source-control.manage-git-secret":    true,
-	// Evaluation features: Lite runs no monitors or custom evaluators, so their routes answer 501.
+	// Evaluation features: Lite has no monitors or custom evaluators, so nothing emits them.
 	"amp.observability.create-monitor":            true,
 	"amp.observability.create-monitor.start-stop": true,
 	"amp.observability.create-monitor.rerun":      true,

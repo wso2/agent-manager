@@ -23,14 +23,8 @@ import (
 //			DeleteAppFunc: func(ctx context.Context, appName string) (bool, error) {
 //				panic("mock out the DeleteApp method")
 //			},
-//			DeletePublisherAppFunc: func(ctx context.Context, orgName string) (bool, error) {
-//				panic("mock out the DeletePublisherApp method")
-//			},
 //			EnsureAppFunc: func(ctx context.Context, appName string, orgUUID string) (string, string, bool, error) {
 //				panic("mock out the EnsureApp method")
-//			},
-//			EnsurePublisherAppFunc: func(ctx context.Context, orgName string, orgUUID string) (string, string, bool, error) {
-//				panic("mock out the EnsurePublisherApp method")
 //			},
 //			GetDefaultOUIDFunc: func(ctx context.Context) (string, error) {
 //				panic("mock out the GetDefaultOUID method")
@@ -40,9 +34,6 @@ import (
 //			},
 //			RegenerateAppClientSecretFunc: func(ctx context.Context, appName string) (string, error) {
 //				panic("mock out the RegenerateAppClientSecret method")
-//			},
-//			RegenerateClientSecretFunc: func(ctx context.Context, orgName string) (string, error) {
-//				panic("mock out the RegenerateClientSecret method")
 //			},
 //		}
 //
@@ -60,14 +51,8 @@ type ThunderClientMock struct {
 	// DeleteAppFunc mocks the DeleteApp method.
 	DeleteAppFunc func(ctx context.Context, appName string) (bool, error)
 
-	// DeletePublisherAppFunc mocks the DeletePublisherApp method.
-	DeletePublisherAppFunc func(ctx context.Context, orgName string) (bool, error)
-
 	// EnsureAppFunc mocks the EnsureApp method.
 	EnsureAppFunc func(ctx context.Context, appName string, orgUUID string) (string, string, bool, error)
-
-	// EnsurePublisherAppFunc mocks the EnsurePublisherApp method.
-	EnsurePublisherAppFunc func(ctx context.Context, orgName string, orgUUID string) (string, string, bool, error)
 
 	// GetDefaultOUIDFunc mocks the GetDefaultOUID method.
 	GetDefaultOUIDFunc func(ctx context.Context) (string, error)
@@ -77,9 +62,6 @@ type ThunderClientMock struct {
 
 	// RegenerateAppClientSecretFunc mocks the RegenerateAppClientSecret method.
 	RegenerateAppClientSecretFunc func(ctx context.Context, appName string) (string, error)
-
-	// RegenerateClientSecretFunc mocks the RegenerateClientSecret method.
-	RegenerateClientSecretFunc func(ctx context.Context, orgName string) (string, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -108,28 +90,12 @@ type ThunderClientMock struct {
 			// AppName is the appName argument value.
 			AppName string
 		}
-		// DeletePublisherApp holds details about calls to the DeletePublisherApp method.
-		DeletePublisherApp []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-		}
 		// EnsureApp holds details about calls to the EnsureApp method.
 		EnsureApp []struct {
 			// Ctx is the ctx argument value.
 			Ctx context.Context
 			// AppName is the appName argument value.
 			AppName string
-			// OrgUUID is the orgUUID argument value.
-			OrgUUID string
-		}
-		// EnsurePublisherApp holds details about calls to the EnsurePublisherApp method.
-		EnsurePublisherApp []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
 			// OrgUUID is the orgUUID argument value.
 			OrgUUID string
 		}
@@ -152,24 +118,14 @@ type ThunderClientMock struct {
 			// AppName is the appName argument value.
 			AppName string
 		}
-		// RegenerateClientSecret holds details about calls to the RegenerateClientSecret method.
-		RegenerateClientSecret []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OrgName is the orgName argument value.
-			OrgName string
-		}
 	}
 	lockCreateAgentIdentity       sync.RWMutex
 	lockDeleteAgentIdentity       sync.RWMutex
 	lockDeleteApp                 sync.RWMutex
-	lockDeletePublisherApp        sync.RWMutex
 	lockEnsureApp                 sync.RWMutex
-	lockEnsurePublisherApp        sync.RWMutex
 	lockGetDefaultOUID            sync.RWMutex
 	lockRegenerateAgentSecret     sync.RWMutex
 	lockRegenerateAppClientSecret sync.RWMutex
-	lockRegenerateClientSecret    sync.RWMutex
 }
 
 // CreateAgentIdentity calls CreateAgentIdentityFunc.
@@ -288,42 +244,6 @@ func (mock *ThunderClientMock) DeleteAppCalls() []struct {
 	return calls
 }
 
-// DeletePublisherApp calls DeletePublisherAppFunc.
-func (mock *ThunderClientMock) DeletePublisherApp(ctx context.Context, orgName string) (bool, error) {
-	if mock.DeletePublisherAppFunc == nil {
-		panic("ThunderClientMock.DeletePublisherAppFunc: method is nil but ThunderClient.DeletePublisherApp was just called")
-	}
-	callInfo := struct {
-		Ctx     context.Context
-		OrgName string
-	}{
-		Ctx:     ctx,
-		OrgName: orgName,
-	}
-	mock.lockDeletePublisherApp.Lock()
-	mock.calls.DeletePublisherApp = append(mock.calls.DeletePublisherApp, callInfo)
-	mock.lockDeletePublisherApp.Unlock()
-	return mock.DeletePublisherAppFunc(ctx, orgName)
-}
-
-// DeletePublisherAppCalls gets all the calls that were made to DeletePublisherApp.
-// Check the length with:
-//
-//	len(mockedThunderClient.DeletePublisherAppCalls())
-func (mock *ThunderClientMock) DeletePublisherAppCalls() []struct {
-	Ctx     context.Context
-	OrgName string
-} {
-	var calls []struct {
-		Ctx     context.Context
-		OrgName string
-	}
-	mock.lockDeletePublisherApp.RLock()
-	calls = mock.calls.DeletePublisherApp
-	mock.lockDeletePublisherApp.RUnlock()
-	return calls
-}
-
 // EnsureApp calls EnsureAppFunc.
 func (mock *ThunderClientMock) EnsureApp(ctx context.Context, appName string, orgUUID string) (string, string, bool, error) {
 	if mock.EnsureAppFunc == nil {
@@ -361,46 +281,6 @@ func (mock *ThunderClientMock) EnsureAppCalls() []struct {
 	mock.lockEnsureApp.RLock()
 	calls = mock.calls.EnsureApp
 	mock.lockEnsureApp.RUnlock()
-	return calls
-}
-
-// EnsurePublisherApp calls EnsurePublisherAppFunc.
-func (mock *ThunderClientMock) EnsurePublisherApp(ctx context.Context, orgName string, orgUUID string) (string, string, bool, error) {
-	if mock.EnsurePublisherAppFunc == nil {
-		panic("ThunderClientMock.EnsurePublisherAppFunc: method is nil but ThunderClient.EnsurePublisherApp was just called")
-	}
-	callInfo := struct {
-		Ctx     context.Context
-		OrgName string
-		OrgUUID string
-	}{
-		Ctx:     ctx,
-		OrgName: orgName,
-		OrgUUID: orgUUID,
-	}
-	mock.lockEnsurePublisherApp.Lock()
-	mock.calls.EnsurePublisherApp = append(mock.calls.EnsurePublisherApp, callInfo)
-	mock.lockEnsurePublisherApp.Unlock()
-	return mock.EnsurePublisherAppFunc(ctx, orgName, orgUUID)
-}
-
-// EnsurePublisherAppCalls gets all the calls that were made to EnsurePublisherApp.
-// Check the length with:
-//
-//	len(mockedThunderClient.EnsurePublisherAppCalls())
-func (mock *ThunderClientMock) EnsurePublisherAppCalls() []struct {
-	Ctx     context.Context
-	OrgName string
-	OrgUUID string
-} {
-	var calls []struct {
-		Ctx     context.Context
-		OrgName string
-		OrgUUID string
-	}
-	mock.lockEnsurePublisherApp.RLock()
-	calls = mock.calls.EnsurePublisherApp
-	mock.lockEnsurePublisherApp.RUnlock()
 	return calls
 }
 
@@ -505,41 +385,5 @@ func (mock *ThunderClientMock) RegenerateAppClientSecretCalls() []struct {
 	mock.lockRegenerateAppClientSecret.RLock()
 	calls = mock.calls.RegenerateAppClientSecret
 	mock.lockRegenerateAppClientSecret.RUnlock()
-	return calls
-}
-
-// RegenerateClientSecret calls RegenerateClientSecretFunc.
-func (mock *ThunderClientMock) RegenerateClientSecret(ctx context.Context, orgName string) (string, error) {
-	if mock.RegenerateClientSecretFunc == nil {
-		panic("ThunderClientMock.RegenerateClientSecretFunc: method is nil but ThunderClient.RegenerateClientSecret was just called")
-	}
-	callInfo := struct {
-		Ctx     context.Context
-		OrgName string
-	}{
-		Ctx:     ctx,
-		OrgName: orgName,
-	}
-	mock.lockRegenerateClientSecret.Lock()
-	mock.calls.RegenerateClientSecret = append(mock.calls.RegenerateClientSecret, callInfo)
-	mock.lockRegenerateClientSecret.Unlock()
-	return mock.RegenerateClientSecretFunc(ctx, orgName)
-}
-
-// RegenerateClientSecretCalls gets all the calls that were made to RegenerateClientSecret.
-// Check the length with:
-//
-//	len(mockedThunderClient.RegenerateClientSecretCalls())
-func (mock *ThunderClientMock) RegenerateClientSecretCalls() []struct {
-	Ctx     context.Context
-	OrgName string
-} {
-	var calls []struct {
-		Ctx     context.Context
-		OrgName string
-	}
-	mock.lockRegenerateClientSecret.RLock()
-	calls = mock.calls.RegenerateClientSecret
-	mock.lockRegenerateClientSecret.RUnlock()
 	return calls
 }

@@ -15,10 +15,9 @@
 // under the License.
 
 // Package legacy registers, as one built-in module, the permissions that no
-// module owns yet (LLM and MCP proxies, agent identities, evaluators,
-// monitors, hosted agents) and the routes of features this version does not
-// serve, which answer 501, plus the evaluator catalog. It is always active and
-// owns no tables of its own. The AI Gateway's code is the gateway module's;
+// module owns yet (LLM and MCP proxies, agent identities, hosted agents) and
+// the routes of features this version does not serve, which answer 501. It is
+// always active and owns no tables of its own. The AI Gateway's code is the gateway module's;
 // the permissions of its LLM and MCP features stay here, under their scope
 // names, until that module takes them over.
 package legacy
@@ -29,10 +28,7 @@ import (
 	"slices"
 
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy/evaluators"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy/evaluators/evalrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy/legacyapi"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
@@ -48,18 +44,14 @@ func init() {
 	builtin.Register(builtin.Bundle{Name: Name, Build: build})
 }
 
-// build wires the evaluator catalog and returns the legacy routes.
-func build(_ context.Context, core *wiring.AppParams) (*builtin.Parts, error) {
-	evaluatorService := evaluators.NewEvaluatorManagerService(core.Logger,
-		evalrepo.NewCustomEvaluatorRepo(core.DB), evalrepo.NewMonitorRepo(core.DB))
-	return Parts(evaluators.NewEvaluatorController(evaluatorService)), nil
+// build returns the legacy routes.
+func build(context.Context, *wiring.AppParams) (*builtin.Parts, error) {
+	return Parts(), nil
 }
 
 // Parts is what the legacy module adds to the server: its routes.
-func Parts(evaluatorCtrl evaluators.EvaluatorController) *builtin.Parts {
-	return &builtin.Parts{
-		Routes: func(rr *middleware.RouteRegistrar) { legacyapi.RegisterRoutes(rr, evaluatorCtrl) },
-	}
+func Parts() *builtin.Parts {
+	return &builtin.Parts{Routes: legacyapi.RegisterRoutes}
 }
 
 func (module) Manifest() modkit.Manifest {
