@@ -32,6 +32,7 @@ When a semantic event describes a successful request, the coverage tier stands d
 - **Every MCP tool that changes state.** `addTool` requires an `audit.Action` alongside its permissions and panics without one, so a new mutating tool cannot ship unattributed — the same registration-time guarantee the route registrar gives REST. Read-only tools declare a read action and are not recorded.
 - **Reads only when they disclose credentials or security configuration** — API-key listings, git secrets, gateway tokens, role assignments, identity-provider configuration. Auditing every GET would multiply volume several-fold for little forensic gain.
 - One documented exemption: `POST /orgs/{orgName}/utils/generate-name`, which suggests a name and persists nothing.
+- **Module routes and tools follow the same rules.** A module's mutating route (`/m/<module>/...`) is recorded under its permission, or under an action its manifest declares and the route names with `modkit.Audit`; the manifest gives that action its class and severity, and `modkit.Audit` on a read records the read. `api/module_routes_invariant_test.go` checks it for the test module.
 
 ### Record shape
 
