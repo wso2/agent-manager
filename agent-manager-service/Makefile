@@ -23,7 +23,7 @@ run: gen-keys ## Run development server with hot-reloading.
 wire: ## Run wire code gen.
 	@echo "Running wire code gen"
 	@(cd wiring && wire)
-	@(cd modules/gateway/gwwire && wire)
+	@(cd modules/aigateway/gwwire && wire)
 	@echo "Wire code gen done"
 
 .PHONY: schema

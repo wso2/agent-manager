@@ -77,7 +77,7 @@ func serveOverrideAt(t *testing.T, pathOrg, header string, lookup OUHandleLookup
 	}
 
 	pattern := "PUT /orgs/{orgName}/projects/{projName}/mcp-proxies/{proxyId}"
-	meta := audit.NewRouteMeta(pattern, audit.ExtractPathParams(pattern), []rbac.Permission{rbac.MCPServerUpdate})
+	meta := audit.NewRouteMeta(pattern, audit.ExtractPathParams(pattern), []rbac.Permission{rbac.ProjectUpdate})
 	rec := &captureRecorder{}
 	handler := WithAudit(rec, meta)(RequireOrgMatch(stubResolver{})(ApplyOrgOverride(lookup)(next)))
 

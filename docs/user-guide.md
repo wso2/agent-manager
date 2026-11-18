@@ -96,7 +96,7 @@ AMP_DEFAULT_USERS=dev:dev-password, lead:lead-password:admin
 | Entry | Role | Scopes |
 | --- | --- | --- |
 | `dev:dev-password` | Developer | 45 |
-| `lead:lead-password:admin` | Agent Manager Admin | 90 |
+| `lead:lead-password:admin` | Agent Manager Admin | 89 |
 
 Developer covers day-to-day work: full control of projects, agents and LLM
 proxies, plus git secrets. It can read and

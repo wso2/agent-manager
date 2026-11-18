@@ -23,6 +23,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -32,7 +33,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 		{
 			name:                "list_llm_providers",
 			toolset:             "llm-provider",
-			permissions:         []rbac.Permission{rbac.LLMProviderRead},
+			permissions:         []rbac.Permission{gwperm.LLMProviderRead},
 			descriptionKeywords: []string{"list", "provider"},
 			descriptionMinLen:   20,
 			optionalParams:      []string{"limit", "offset"},
@@ -47,7 +48,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 		{
 			name:                "get_llm_provider",
 			toolset:             "llm-provider",
-			permissions:         []rbac.Permission{rbac.LLMProviderRead},
+			permissions:         []rbac.Permission{gwperm.LLMProviderRead},
 			descriptionKeywords: []string{"provider", "guardrail", "deployed"},
 			descriptionMinLen:   20,
 			requiredParams:      []string{"provider_id"},
@@ -62,7 +63,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 		{
 			name:                "add_llm_provider_guardrails",
 			toolset:             "llm-provider",
-			permissions:         []rbac.Permission{rbac.LLMProviderUpdate},
+			permissions:         []rbac.Permission{gwperm.LLMProviderUpdate},
 			descriptionKeywords: []string{"guardrail", "provider", "redeployed"},
 			descriptionMinLen:   20,
 			requiredParams:      []string{"provider_id", "guardrails"},
@@ -92,7 +93,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 		{
 			name:                "remove_llm_provider_guardrail",
 			toolset:             "llm-provider",
-			permissions:         []rbac.Permission{rbac.LLMProviderUpdate},
+			permissions:         []rbac.Permission{gwperm.LLMProviderUpdate},
 			descriptionKeywords: []string{"remove", "guardrail", "redeployed"},
 			descriptionMinLen:   20,
 			requiredParams:      []string{"provider_id", "name"},
@@ -107,7 +108,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 		{
 			name:                "add_llm_provider_to_catalog",
 			toolset:             "llm-provider",
-			permissions:         []rbac.Permission{rbac.LLMProviderUpdate},
+			permissions:         []rbac.Permission{gwperm.LLMProviderUpdate},
 			descriptionKeywords: []string{"catalog", "provider", "in_catalog"},
 			descriptionMinLen:   20,
 			requiredParams:      []string{"provider_id"},
@@ -122,7 +123,7 @@ func llmProviderToolSpecs() []toolTestSpec {
 		{
 			name:                "list_llm_guardrails",
 			toolset:             "llm-provider",
-			permissions:         []rbac.Permission{rbac.LLMProviderRead},
+			permissions:         []rbac.Permission{gwperm.LLMProviderRead},
 			descriptionKeywords: []string{"guardrail"},
 			descriptionMinLen:   20,
 			optionalParams:      []string{"provider_id", "name"},
@@ -143,7 +144,7 @@ func mcpProxyToolSpecs() []toolTestSpec {
 		{
 			name:                "list_mcp_proxies",
 			toolset:             "mcp-proxy",
-			permissions:         []rbac.Permission{rbac.MCPServerRead},
+			permissions:         []rbac.Permission{gwperm.MCPServerRead},
 			descriptionKeywords: []string{"list", "mcp proxies"},
 			descriptionMinLen:   20,
 			optionalParams:      []string{"limit", "offset"},
@@ -158,7 +159,7 @@ func mcpProxyToolSpecs() []toolTestSpec {
 		{
 			name:                "get_mcp_proxy",
 			toolset:             "mcp-proxy",
-			permissions:         []rbac.Permission{rbac.MCPServerRead},
+			permissions:         []rbac.Permission{gwperm.MCPServerRead},
 			descriptionKeywords: []string{"mcp proxy", "tools", "deployed"},
 			descriptionMinLen:   20,
 			requiredParams:      []string{"proxy_id"},

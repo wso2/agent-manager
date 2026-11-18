@@ -30,8 +30,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 )
 
 // failingKind is an inline kind whose every render fails with err.

@@ -76,10 +76,11 @@ type Manifest struct {
 	Provides []string `json:"provides,omitempty"`
 
 	// Permissions are namespaced by the core as "<module>:<name>" and carried
-	// in tokens as the scope "amp:<module>:<name>". A name is one segment of
-	// lowercase letters, digits and dashes ("widget-read"). Built-in modules
-	// may also declare permissions that predate modules by their full names
-	// ("llm-provider:read"), which are used as written.
+	// in tokens as the scope "amp:<module>:<name>". A name is an action
+	// ("widget-read") or a resource and an action ("widgets.read"), each of
+	// lowercase letters, digits and dashes. Built-in modules may also declare
+	// permissions that predate modules by their full names ("git-secret:read"),
+	// which are used as written.
 	Permissions []Permission `json:"permissions,omitempty"`
 	// RoleGrants gives the module's permissions (by the names in Permissions)
 	// to the predefined roles while the module is active.

@@ -126,7 +126,7 @@ if [ "$CONSOLE" = yes ]; then
   check config-authmode yes "$(has "authMode: 'file'")"
   check config-apibase yes "$(has "apiBaseUrl: '$API'")"
   check config-console-env yes "$(has "gatewayVersion: 'v")"
-  check config-scopes-gateway "$(pick yes no)" "$(has 'amp:gateway:read')"
+  check config-scopes-gateway "$(pick yes no)" "$(has 'amp:ai-gateway:gateways.read')"
   check config-scopes-core yes "$(has 'amp:agent:create')"
 else
   skip "console files (--no-console)"
@@ -138,7 +138,7 @@ check ui-manifest 200 "$(code "${A[@]}" "$API/api/v1/ui-manifest")"
 CORE_PAGES=ai-gateway/external-agent
 GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity
 check ui-manifest-pages "$(pick "$CORE_PAGES,$GW_PAGES" "$CORE_PAGES")" "$(jq -r '.pages | join(",")' "$BODY")"
-check ui-manifest-modules "$(pick core,gateway core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
+check ui-manifest-modules "$(pick core,ai-gateway core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
 
 echo "== $DIST: $pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]

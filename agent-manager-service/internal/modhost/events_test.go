@@ -160,14 +160,15 @@ func eventRetentionAndUninstallPurge(t *testing.T, d database) {
 }
 
 func TestModulesCannotTakeCoreResourceNames(t *testing.T) {
-	for _, name := range []string{"agent", "org", "amp", "llm-provider"} {
+	for _, name := range []string{"agent", "org", "amp", "git-secret"} {
 		assert.Panics(t, func() {
 			modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest(name, nil, nil)}})
 		}, name)
 	}
-	// gateway:* belongs to the gateway module, so a module may take its name.
+	// The AI Gateway's permissions are its own, so no core resource is
+	// named after it.
 	assert.NotPanics(t, func() {
-		modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest("gateway", nil, nil)}})
+		modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest("ai-gateway", nil, nil)}})
 	})
 	builtin := manifest("agent", nil, nil)
 	builtin.Builtin = true

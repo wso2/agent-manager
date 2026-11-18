@@ -28,7 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -392,7 +392,7 @@ func callToolWithScopes(t *testing.T, mock tierMock, tool, extraScopes string, a
 // An attach that reaches a production environment needs the same
 // amp:agent:env-production scope the deploy tools need there.
 func TestAttachProductionEnvironmentNeedsTheProductionScope(t *testing.T) {
-	prodScope := rbac.AgentEnvProduction.Scope()
+	prodScope := gwperm.DeployProduction.Scope()
 
 	t.Run("named production environment is refused without the scope", func(t *testing.T) {
 		mock := tierMock{NewMockToolsetHandler()}
@@ -594,8 +594,8 @@ func TestAttachMCPProxyProductionEnvironmentNeedsTheProductionScope(t *testing.T
 
 	mock = tierMock{NewMockToolsetHandler()}
 	failed, text = callToolWithScopes(t, mock, "attach_mcp_proxy_to_agent", "", map[string]any{"proxy_id": testProxyID, "environments": []any{"prod"}})
-	if !failed || !strings.Contains(text, rbac.AgentEnvProduction.Scope()) {
-		t.Fatalf("want a refusal naming %s, got failed=%v: %s", rbac.AgentEnvProduction.Scope(), failed, text)
+	if !failed || !strings.Contains(text, gwperm.DeployProduction.Scope()) {
+		t.Fatalf("want a refusal naming %s, got failed=%v: %s", gwperm.DeployProduction.Scope(), failed, text)
 	}
 	if _, created := mock.calls["CreateAgentConfig"]; created {
 		t.Error("created an MCP config in production without the production scope")

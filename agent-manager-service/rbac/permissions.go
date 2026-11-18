@@ -16,6 +16,8 @@
 
 package rbac
 
+import "sync"
+
 // Permission is a typed string representing an OAuth2 scope (without the resource server prefix).
 type Permission string
 
@@ -39,7 +41,8 @@ func (p Permission) Scope() string {
 }
 
 // MainMCPScopes returns exactly the permission scopes required by the tools
-// registered on the Agent Manager MCP endpoint.
+// registered on the Agent Manager MCP endpoint: the core's, and those a
+// linked built-in module adds with AddMCPScopes.
 func MainMCPScopes() []string {
 	permissions := []Permission{
 		ProjectRead,
@@ -48,19 +51,33 @@ func MainMCPScopes() []string {
 		AgentCreate,
 		AgentTokenManage,
 		AgentBuild,
-		AgentEnvNonProduction,
 		AgentSuspend,
 		AgentUpdate,
 		EnvironmentRead,
-		LLMProviderRead,
-		LLMProviderUpdate,
-		MCPServerRead,
 	}
+	mcpScopesMu.Lock()
+	permissions = append(permissions, mcpScopes...)
+	mcpScopesMu.Unlock()
 	scopes := make([]string, 0, len(permissions))
 	for _, permission := range permissions {
 		scopes = append(scopes, permission.Scope())
 	}
 	return scopes
+}
+
+var (
+	mcpScopesMu sync.Mutex
+	mcpScopes   []Permission
+)
+
+// AddMCPScopes adds the permissions of the MCP tools a built-in module
+// registers on the core's MCP server through its toolsets. It is called from
+// the module package's init, so only a binary that links the module
+// advertises them.
+func AddMCPScopes(perms ...Permission) {
+	mcpScopesMu.Lock()
+	defer mcpScopesMu.Unlock()
+	mcpScopes = append(mcpScopes, perms...)
 }
 
 // Org permissions
@@ -106,82 +123,15 @@ const (
 	GitSecretDelete Permission = "git-secret:delete"
 )
 
-// LLM provider template permissions
-const (
-	LLMProviderTemplateCreate Permission = "llm-provider-template:create"
-	LLMProviderTemplateRead   Permission = "llm-provider-template:read"
-	LLMProviderTemplateUpdate Permission = "llm-provider-template:update"
-	LLMProviderTemplateDelete Permission = "llm-provider-template:delete"
-)
-
-// LLM provider permissions
-const (
-	LLMProviderCreate             Permission = "llm-provider:create"
-	LLMProviderRead               Permission = "llm-provider:read"
-	LLMProviderUpdate             Permission = "llm-provider:update"
-	LLMProviderDelete             Permission = "llm-provider:delete"
-	LLMProviderConfigureGuardrail Permission = "llm-provider:configure-guardrail"
-	LLMProviderConnect            Permission = "llm-provider:connect"
-	LLMProviderDeploy             Permission = "llm-provider:deploy"
-	LLMProviderAPIKeyManage       Permission = "llm-provider:api-key-manage"
-)
-
-// MCP server permissions
-const (
-	MCPServerCreate             Permission = "mcp-server:create"
-	MCPServerRead               Permission = "mcp-server:read"
-	MCPServerUpdate             Permission = "mcp-server:update"
-	MCPServerDelete             Permission = "mcp-server:delete"
-	MCPServerConfigureGuardrail Permission = "mcp-server:configure-guardrail"
-	MCPServerConnect            Permission = "mcp-server:connect"
-	MCPServerAPIKeyManage       Permission = "mcp-server:api-key-manage"
-)
-
-// Scope catalog permissions
-const (
-	ScopeCreate Permission = "scope:create"
-	ScopeRead   Permission = "scope:read"
-	ScopeUpdate Permission = "scope:update"
-	ScopeDelete Permission = "scope:delete"
-)
-
-// Agent identity (env-Thunder agent groups/roles) permissions
-const (
-	AgentIdentityRead   Permission = "agent-identity:read"
-	AgentIdentityCreate Permission = "agent-identity:create"
-	AgentIdentityUpdate Permission = "agent-identity:update"
-	AgentIdentityDelete Permission = "agent-identity:delete"
-)
-
-// LLM proxy permissions
-const (
-	LLMProxyCreate       Permission = "llm-proxy:create"
-	LLMProxyRead         Permission = "llm-proxy:read"
-	LLMProxyUpdate       Permission = "llm-proxy:update"
-	LLMProxyDelete       Permission = "llm-proxy:delete"
-	LLMProxyDeploy       Permission = "llm-proxy:deploy"
-	LLMProxyAPIKeyManage Permission = "llm-proxy:api-key-manage"
-)
-
 // Agent permissions
 const (
-	AgentCreate Permission = "agent:create"
-	AgentRead   Permission = "agent:read"
-	AgentUpdate Permission = "agent:update"
-	AgentDelete Permission = "agent:delete"
-	AgentBuild  Permission = "agent:build"
-	// The environment tier is an authorization axis of its own, about where an
-	// action lands rather than what it is. AgentEnvNonProduction is the floor —
-	// "may act on environments at all" — and AgentEnvProduction is held in
-	// addition to it to reach environments flagged isProduction.
-	// The production grant is never sufficient on its own: every surface
-	// declares the floor statically and denies before the tier is evaluated.
-	AgentEnvNonProduction Permission = "agent:env-non-production"
-	AgentEnvProduction    Permission = "agent:env-production"
-	AgentRollback         Permission = "agent:rollback"
-	AgentSuspend          Permission = "agent:suspend"
-	AgentTokenManage      Permission = "agent:token-manage"
-	AgentAPIKeyManage     Permission = "agent:api-key-manage"
+	AgentCreate      Permission = "agent:create"
+	AgentRead        Permission = "agent:read"
+	AgentUpdate      Permission = "agent:update"
+	AgentDelete      Permission = "agent:delete"
+	AgentBuild       Permission = "agent:build"
+	AgentSuspend     Permission = "agent:suspend"
+	AgentTokenManage Permission = "agent:token-manage"
 )
 
 // Agent Kind permissions
@@ -216,9 +166,8 @@ const (
 	GroupDelete Permission = "group:delete"
 )
 
-// Catalog and repository permissions
+// Repository permissions
 const (
-	CatalogRead    Permission = "catalog:read"
 	RepositoryRead Permission = "repository:read"
 )
 

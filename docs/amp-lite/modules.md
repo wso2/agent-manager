@@ -14,14 +14,14 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Built-in modules** set `Builtin: true` in their manifest. They are always active and can't be disabled or uninstalled. Today these are `gateway` (the AI Gateway) and `legacy` (the routes Lite doesn't serve yet, which answer `501`).
+- **Built-in modules** set `Builtin: true` in their manifest. They are always active and can't be disabled or uninstalled. Today these are `ai-gateway` (the AI Gateway) and `legacy` (the routes Lite doesn't serve yet, which answer `501`).
 - **Installable modules** start as *available* and are installed by an operator (see [Operating modules](#operating-modules)). There are none in this repository yet; `tests/modules/testmod` is one, used only by tests.
 
 A distribution is a `main` package that chooses its modules with blank imports:
 
 | Distribution | `main` | Modules |
 |---|---|---|
-| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `gateway`, `legacy` |
+| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway`, `legacy` |
 | `amp-core` | `cmd/amp-core/main.go` imports nothing | none |
 
 Both call `cli.Main`, so they share every command. The Dockerfile builds one or the other with `--build-arg DISTRIBUTION=amp|amp-core`.
@@ -32,7 +32,7 @@ Both call `cli.Main`, so they share every command. The Dockerfile builds one or 
 
 | Core | Modules |
 |---|---|
-| Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
+| Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`ai-gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
 | Users, roles and RBAC, the permission registry | `legacy`: placeholder routes |
 | Audit log, settings, secrets, agent tokens and JWKS | Later: observability, evaluation, agent identity, A2A and other product areas as they are split out |
 | HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | |
@@ -89,7 +89,7 @@ return modkit.Manifest{
 - **CoreAPI:** `modkit.CoreAPIVersion` (currently `1`). The core refuses a module written against another version.
 - **Requires, Optional, Provides:** capability ids, versioned like `llm.proxy/v1`. Dependencies name capabilities, not modules, so a provider can be replaced without touching its consumers. `Requires` must be satisfied for the module to install or enable; `Optional` is used when present.
 - **DisplayName:** how people see the module, such as the name of its resource in ThunderID; `Name` when empty.
-- **Permissions:** one-segment names. `widget-read` in module `testmod` becomes the permission `testmod:widget-read` and the token scope `amp:testmod:widget-read`. Built-in modules may also declare older full names (`llm-provider:read`), which are used as written. A permission's `DisplayName` names its action in ThunderID (`Name` when empty).
+- **Permissions:** an action (`widget-read`) or a resource and an action (`widgets.read`), each lowercase letters, digits and dashes. `widget-read` in module `testmod` becomes the permission `testmod:widget-read` and the token scope `amp:testmod:widget-read`; the AI Gateway's `llm-providers.read` becomes `ai-gateway:llm-providers.read` and `amp:ai-gateway:llm-providers.read`. Built-in modules may also declare older full names (`git-secret:read`), which are used as written. A permission's `DisplayName` names its action in ThunderID (`Name` when empty).
 - **RoleGrants:** predefined role name (`rbac.RoleAdmin` is `"Agent Manager Admin"`, also `Developer`, `AI Lead`, `Platform Engineer`) to the module's permission names. File sign-in grants them while the module is active. ThunderID roles are rendered by `amp init thunder` from every compiled-in module, so a new module's permissions reach ThunderID on the next `amp init`.
 - **Events:** the event types the module publishes, named `<module>.<event>`, each with a description. An event with a `Scope` (`org`, `project` or `agent`, the narrowest resource it is about) is also a webhook event: while the module is active it is listed in the event catalog (`GET /api/v1/orgs/{org}/events/event-types`) and organizations can subscribe to it. Routes raise it with `modkit.Emits` (see [Route options](#route-options)). An event without a scope only reaches module subscribers.
 - **AuditActions:** the audit actions the module's routes and tools name with `modkit.Audit`, each recorded as `<module>:<name>`, with a class (`credential`, `identity`, `deployment`, `config` or `read`; `config` when empty) and a severity (`info`, `notice`, `warning` or `critical`; `critical` for credential and identity actions and `info` otherwise when empty). An entry named after one of the module's permissions classifies the action that permission names.
@@ -380,9 +380,9 @@ A module must not:
 
 ### Where the gateway stands
 
-The `gateway` module predates the contract and doesn't follow it yet. Its `Activate` only provides `llm.proxy/v1`, `mcp.proxy/v1` and `agent.gateway/v1`; everything else goes through an escape hatch for built-in modules, `builtin.Bundle`. Its `Build(ctx, *wiring.AppParams)` builds the gateway on the core's Go services and repositories and returns `builtin.Parts`: routes under `/api/v1/orgs/...`, internal routes (gateway control plane and WebSocket), MCP tools, and an `Init`, `Start` and `Stop` for its workers. Its packages import core `services`, `repositories`, `controllers`, `models` and `spec`, its tables are core tables without the `mod_gateway_` prefix (listed in [database-schema.md](database-schema.md#gateway-module-tables)), and its contracts take `spec` types. Don't copy this for a new module.
+The `ai-gateway` module (`modules/aigateway`) predates the contract and doesn't follow it yet. Its 42 permissions are its own (`ai-gateway:<resource>.<action>`, such as `ai-gateway:llm-providers.read` and `ai-gateway:deploy.production`), declared in its manifest and rendered into ThunderID as the `ai-gateway` resource. Its `Activate` only provides `llm.proxy/v1`, `mcp.proxy/v1` and `agent.gateway/v1`; everything else goes through an escape hatch for built-in modules, `builtin.Bundle`. Its `Build(ctx, *wiring.AppParams)` builds the gateway on the core's Go services and repositories and returns `builtin.Parts`: routes under `/api/v1/orgs/...`, internal routes (gateway control plane and WebSocket), MCP tools, and an `Init`, `Start` and `Stop` for its workers. Its packages import core `services`, `repositories`, `controllers`, `models` and `spec`, its tables are core tables without the `mod_ai_gateway_` prefix (listed in [database-schema.md](database-schema.md#gateway-module-tables)), and its contracts take `spec` types. Don't copy this for a new module.
 
-The `Runtime` now has what it needs to run on the contract alone: background workers, MCP tools, secrets, lookups by name, `LockAgent` and `EnsureOrg`, project hooks, audit and webhook route options, display names, its own OpenAPI document, and `HandleInternalAt` for its controllers' fixed paths. What is left is moving the gateway onto them: its routes to `/m/<name>` with its own document, its tables to `mod_<name>_*` with their own migrations, its settings to `rt.Config`, its ThunderID resource to its manifest, its gateway route patterns out of `audit/policy.go` and `events/catalog.go`, its MCP tool definitions out of `mcp/tools`, and contracts free of `spec` types.
+The `Runtime` now has what it needs to run on the contract alone: background workers, MCP tools, secrets, lookups by name, `LockAgent` and `EnsureOrg`, project hooks, audit and webhook route options, display names, its own OpenAPI document, and `HandleInternalAt` for its controllers' fixed paths. What is left is moving the gateway onto them: its routes to `/m/<name>` with its own document, its tables to `mod_<name>_*` with their own migrations, its settings to `rt.Config`, its gateway route patterns out of `audit/policy.go` and `events/catalog.go`, its MCP tool definitions out of `mcp/tools`, and contracts free of `spec` types.
 
 ## Testing
 

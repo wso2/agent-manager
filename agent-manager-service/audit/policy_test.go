@@ -84,7 +84,7 @@ func TestDeriveAction(t *testing.T) {
 			name:   "multiple permissions fall back to resource plus method verb",
 			method: http.MethodPut,
 			path:   "/orgs/{orgName}/unmapped",
-			perms:  []rbac.Permission{rbac.EnvironmentRead, rbac.LLMProviderRead},
+			perms:  []rbac.Permission{rbac.EnvironmentRead, rbac.AgentRead},
 			want:   "environment:update",
 		},
 		{
@@ -103,18 +103,18 @@ func TestDeriveAction(t *testing.T) {
 			name:   "the environment tier does not name the action",
 			method: http.MethodPost,
 			path:   "/orgs/{orgName}/unmapped-tiered",
-			perms:  []rbac.Permission{rbac.AgentSuspend, rbac.AgentEnvNonProduction},
+			perms:  []rbac.Permission{rbac.AgentSuspend, testTierAxis},
 			want:   "agent:suspend",
 		},
 		{
 			// A route gated only on the axis is the case this filter exists for:
 			// it derives nothing and panics at registration, rather than
-			// registering "agent:env-non-production" as an action with no class,
+			// registering the axis as an action with no class,
 			// no severity and no detail schema.
 			name:   "a tier-only route yields no action",
 			method: http.MethodPost,
 			path:   "/orgs/{orgName}/unmapped-tier-only",
-			perms:  []rbac.Permission{rbac.AgentEnvNonProduction},
+			perms:  []rbac.Permission{testTierAxis},
 			want:   "",
 		},
 	}
@@ -220,3 +220,9 @@ func TestIdentityReadsAreNotCritical(t *testing.T) {
 		})
 	}
 }
+
+// testTierAxis stands for a module's environment-tier permission, which the
+// module registers as an axis.
+const testTierAxis rbac.Permission = "ai-gateway:deploy.non-production"
+
+func init() { RegisterAxisPermissions(testTierAxis) }

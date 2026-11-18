@@ -27,7 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy" // the legacy routes
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -48,7 +48,7 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 	}
 	// No module host runs here, so the core reaches the gateway's
 	// capabilities directly.
-	coreext.Set(coreext.Static(gateway.Capabilities(gateway.Current())))
+	coreext.Set(coreext.Static(aigateway.Capabilities(aigateway.Current())))
 	t.Cleanup(func() { coreext.Set(nil) })
 
 	// Create HTTP handler

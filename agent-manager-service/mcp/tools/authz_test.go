@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -359,17 +360,17 @@ func TestAuthzMiddlewarePutsPerRequestScopesOnContext(t *testing.T) {
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
 		OuId:  testOrgName,
-		Scope: rbac.AgentBuild.Scope() + " " + rbac.AgentEnvProduction.Scope(),
+		Scope: rbac.AgentBuild.Scope() + " " + gwperm.DeployProduction.Scope(),
 	})
 	extra := &gomcp.RequestExtra{TokenInfo: &auth.TokenInfo{
-		Scopes: []string{rbac.AgentBuild.Scope(), rbac.AgentEnvNonProduction.Scope()},
+		Scopes: []string{rbac.AgentBuild.Scope(), gwperm.DeployNonProduction.Scope()},
 		Extra:  map[string]any{TokenInfoOUIDKey: testOrgName},
 	}}
 
 	var sawProduction, sawNonProduction bool
 	next := func(handlerCtx context.Context, _ string, _ gomcp.Request) (gomcp.Result, error) {
-		sawProduction = jwtassertion.HasAllScopes(handlerCtx, []string{rbac.AgentEnvProduction.Scope()})
-		sawNonProduction = jwtassertion.HasAllScopes(handlerCtx, []string{rbac.AgentEnvNonProduction.Scope()})
+		sawProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.DeployProduction.Scope()})
+		sawNonProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.DeployNonProduction.Scope()})
 		return &gomcp.CallToolResult{}, nil
 	}
 	req := &gomcp.CallToolRequest{Params: &gomcp.CallToolParamsRaw{Name: "some_tool"}, Extra: extra}
@@ -393,12 +394,12 @@ func TestAuthzMiddlewareKeepsSessionScopesWithoutTokenInfo(t *testing.T) {
 	reg.permissions["some_tool"] = []rbac.Permission{rbac.AgentBuild}
 	ctx := jwtassertion.ContextWithTokenClaimsAndScope(context.Background(), &jwtassertion.TokenClaims{
 		OuId:  testOrgName,
-		Scope: rbac.AgentBuild.Scope() + " " + rbac.AgentEnvNonProduction.Scope(),
+		Scope: rbac.AgentBuild.Scope() + " " + gwperm.DeployNonProduction.Scope(),
 	})
 
 	var sawNonProduction bool
 	next := func(handlerCtx context.Context, _ string, _ gomcp.Request) (gomcp.Result, error) {
-		sawNonProduction = jwtassertion.HasAllScopes(handlerCtx, []string{rbac.AgentEnvNonProduction.Scope()})
+		sawNonProduction = jwtassertion.HasAllScopes(handlerCtx, []string{gwperm.DeployNonProduction.Scope()})
 		return &gomcp.CallToolResult{}, nil
 	}
 	req := &gomcp.CallToolRequest{Params: &gomcp.CallToolParamsRaw{Name: "some_tool"}}

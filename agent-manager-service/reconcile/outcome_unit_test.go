@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
 var claimedAt = time.Date(2026, 10, 29, 12, 0, 0, 0, time.UTC)

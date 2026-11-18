@@ -16,7 +16,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
 - Console login is file-based to start with: a default username and password belong to a default org; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
 - Thunder ships with Lite and gives every external agent its agent ID. Thunder keeps its own separate database; ours stores only IDs returned by Thunder's API.
-- Gateways belong to an org, with no limit per org, and are managed by the gateway module. With `amp`, the default org's bundled gateway is running out of the box; users add more (managed or self-hosted).
+- Gateways belong to an org, with no limit per org, and are managed by the `ai-gateway` module. With `amp`, the default org's bundled gateway is running out of the box; users add more (managed or self-hosted).
 - Secrets live in our database, encrypted. Production can plug in an external vault.
 - Audit log (console actions) and console usage tracking are stored in our database.
 - Traces, runtime logs, build logs and metrics are not stored in Lite; they come back with an observability module and its own store.
@@ -366,7 +366,7 @@ Modules are compiled into the binary (`cmd/amp` links them, `cmd/amp-core` links
 | state | short text (16) | no | CHECK `active`, `disabled` or `uninstalled`. |
 | created_at, updated_at | time | no | |
 
-Built-in modules (`gateway`, `legacy`) are always `active` and can't be disabled. A compiled-in module with no row is available but not installed.
+Built-in modules (`ai-gateway`, `legacy`) are always `active` and can't be disabled. A compiled-in module with no row is available but not installed.
 
 ### module_generation
 

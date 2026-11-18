@@ -39,7 +39,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
 // Fake kinds. fakeKind is gateway-addressed; fakeEnvKind adds per-environment records kept in

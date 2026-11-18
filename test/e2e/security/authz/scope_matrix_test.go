@@ -131,17 +131,13 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodPut, agentBase + "/" + absentName, []string{"amp:agent:update"}},
 		{http.MethodDelete, agentBase + "/" + absentName, []string{"amp:agent:delete"}},
 		{http.MethodPost, agentBase + "/" + absentName + "/builds", []string{"amp:agent:build"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/deployments", []string{"amp:agent:env-non-production"}},
-		{http.MethodPost, agentBase + "/" + absentName + "/promote", []string{"amp:agent:env-non-production"}},
-		{
-			http.MethodPost,
-			agentBase + "/" + absentName + "/deployments/state",
-			[]string{"amp:agent:suspend", "amp:agent:env-non-production"},
-		},
+		{http.MethodPost, agentBase + "/" + absentName + "/deployments", []string{"amp:agent:update"}},
+		{http.MethodPost, agentBase + "/" + absentName + "/promote", []string{"amp:agent:update"}},
+		{http.MethodPost, agentBase + "/" + absentName + "/deployments/state", []string{"amp:agent:suspend"}},
 		{http.MethodPost, agentBase + "/" + absentName + "/publish-kind", []string{"amp:agent-kind:create"}},
 		{
 			http.MethodPost, agentBase + "/" + absentName + "/environments/" + absentName + "/api-keys",
-			[]string{"amp:agent:api-key-manage"},
+			[]string{"amp:ai-gateway:agent-api-keys.manage"},
 		},
 
 		// --- Projects --------------------------------------------------------
@@ -171,14 +167,14 @@ func guardedRoutes(org string) []guardedRoute {
 		// --- Secrets and gateways --------------------------------------------
 		{http.MethodPost, orgBase + "/git-secrets", []string{"amp:git-secret:create"}},
 		{http.MethodDelete, orgBase + "/git-secrets/" + absentName, []string{"amp:git-secret:delete"}},
-		{http.MethodPost, orgBase + "/gateways", []string{"amp:gateway:create"}},
-		{http.MethodDelete, orgBase + "/gateways/" + absentName, []string{"amp:gateway:delete"}},
-		{http.MethodPost, orgBase + "/gateways/" + absentName + "/tokens", []string{"amp:gateway:token-manage"}},
+		{http.MethodPost, orgBase + "/gateways", []string{"amp:ai-gateway:gateways.create"}},
+		{http.MethodDelete, orgBase + "/gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
+		{http.MethodPost, orgBase + "/gateways/" + absentName + "/tokens", []string{"amp:ai-gateway:gateways.token-manage"}},
 
 		// --- Agent kinds and catalog ------------------------------------------
 		{http.MethodPut, orgBase + "/agent-kinds/" + absentName, []string{"amp:agent-kind:update"}},
 		{http.MethodDelete, orgBase + "/agent-kinds/" + absentName, []string{"amp:agent-kind:delete"}},
-		{http.MethodGet, orgBase + "/catalog", []string{"amp:catalog:read"}},
+		{http.MethodGet, orgBase + "/catalog", []string{"amp:ai-gateway:catalog.read"}},
 	}
 }
 

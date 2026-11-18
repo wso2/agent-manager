@@ -28,7 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -164,7 +164,7 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 			"limit":  intProperty(fmt.Sprintf("Optional. Max providers to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, nil),
-	}, audit.ActionLLMProviderRead, listLLMProviders(t.LLMProviderToolset), rbac.LLMProviderRead)
+	}, audit.ActionLLMProviderRead, listLLMProviders(t.LLMProviderToolset), gwperm.LLMProviderRead)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "get_llm_provider",
@@ -174,7 +174,7 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 		InputSchema: createSchema(map[string]any{
 			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
 		}, []string{"provider_id"}),
-	}, audit.ActionLLMProviderRead, getLLMProvider(t.LLMProviderToolset, t.EnvironmentToolset), rbac.LLMProviderRead)
+	}, audit.ActionLLMProviderRead, getLLMProvider(t.LLMProviderToolset, t.EnvironmentToolset), gwperm.LLMProviderRead)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "add_llm_provider_guardrails",
@@ -187,7 +187,7 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 			"provider_id": stringProperty("Required. LLM provider id from list_llm_providers."),
 			"guardrails":  arrayProperty("Required. Guardrails to add or replace.", guardrailSchema()),
 		}, []string{"provider_id", "guardrails"}),
-	}, audit.ActionLLMProviderUpdate, addLLMProviderGuardrails(t.LLMProviderToolset), rbac.LLMProviderUpdate)
+	}, audit.ActionLLMProviderUpdate, addLLMProviderGuardrails(t.LLMProviderToolset), gwperm.LLMProviderUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "remove_llm_provider_guardrail",
@@ -200,7 +200,7 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 			"name":        stringProperty("Required. Name of the guardrail to remove, as get_llm_provider lists it."),
 			"version":     stringProperty("Optional. Version of the guardrail to remove; required when the provider has more than one version of it."),
 		}, []string{"provider_id", "name"}),
-	}, audit.ActionLLMProviderUpdate, removeLLMProviderGuardrail(t.LLMProviderToolset), rbac.LLMProviderUpdate)
+	}, audit.ActionLLMProviderUpdate, removeLLMProviderGuardrail(t.LLMProviderToolset), gwperm.LLMProviderUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "add_llm_provider_to_catalog",
@@ -210,7 +210,7 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 		InputSchema: createSchema(map[string]any{
 			"provider_id": stringProperty("Required. LLM provider `id` from list_llm_providers."),
 		}, []string{"provider_id"}),
-	}, audit.ActionLLMProviderUpdate, addLLMProviderToCatalog(t.LLMProviderToolset), rbac.LLMProviderUpdate)
+	}, audit.ActionLLMProviderUpdate, addLLMProviderToCatalog(t.LLMProviderToolset), gwperm.LLMProviderUpdate)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_llm_guardrails",
@@ -222,7 +222,7 @@ func (t *Toolsets) registerLLMProviderTools(server *gomcp.Server, reg *toolRegis
 			"provider_id": stringProperty("Optional. LLM provider id; limits the result to guardrails on the gateways that provider is deployed to."),
 			"name":        stringProperty("Optional. A guardrail name from an earlier call; returns only that guardrail, with its parameter schema."),
 		}, nil),
-	}, audit.ActionLLMProviderRead, listLLMGuardrails(t.LLMProviderToolset), rbac.LLMProviderRead)
+	}, audit.ActionLLMProviderRead, listLLMGuardrails(t.LLMProviderToolset), gwperm.LLMProviderRead)
 }
 
 func listLLMProviders(handler LLMProviderToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listLLMProvidersInput) (*gomcp.CallToolResult, any, error) {

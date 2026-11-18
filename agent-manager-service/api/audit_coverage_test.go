@@ -27,9 +27,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwctl"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwwire"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -93,7 +93,7 @@ func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
 	gw := &gwwire.Gateway{}
 	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
 	return builtin.Built{
-		gateway.Parts(gw, params),
+		aigateway.Parts(gw, params),
 		legacy.Parts(),
 	}
 }

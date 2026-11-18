@@ -362,16 +362,16 @@ func TestRenderThunderGrantsModulePermissions(t *testing.T) {
 	}
 }
 
-// A module named after a core resource would add a second "gateway" (or
-// "agent", ...) resource to the resource server; rendering refuses it.
+// A module named after a core resource would add a second "agent" (or
+// "git-secret", ...) resource to the resource server; rendering refuses it.
 func TestRenderThunderRefusesAModuleNamedAfterACoreResource(t *testing.T) {
 	setThunderEnv(t)
 	cfg, err := LoadThunderConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Modules = append(cfg.Modules, modkit.Manifest{Name: "gateway", Permissions: []modkit.Permission{{Name: "manage"}}})
-	if _, err := RenderThunder(cfg); err == nil || !strings.Contains(err.Error(), "gateway") {
+	cfg.Modules = append(cfg.Modules, modkit.Manifest{Name: "git-secret", Permissions: []modkit.Permission{{Name: "manage"}}})
+	if _, err := RenderThunder(cfg); err == nil || !strings.Contains(err.Error(), "git-secret") {
 		t.Fatalf("RenderThunder = %v, want a refusal naming the module", err)
 	}
 }

@@ -1,0 +1,51 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwapi
+
+import (
+	"net/http"
+
+	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+)
+
+// RegisterProjectMCPProxyRoutes registers the project-scoped MCP proxy routes.
+//
+// Every route is registered through RouteRegistrar, which builds the one middleware chain
+// (see RouteRegistrar.register). These routes additionally compose orgOverride
+// (middleware.ApplyOrgOverride) between org resolution and the permission check, because
+// the Integration Platform drives them for a tenant with a service token from the platform's
+// root OU plus X-Impersonate-Org. No other route takes the override.
+func RegisterProjectMCPProxyRoutes(
+	rr *middleware.RouteRegistrar,
+	orgOverride func(http.HandlerFunc) http.HandlerFunc,
+) {
+	const base = "/orgs/{orgName}/projects/{projName}/mcp-proxies"
+
+	// PUT is gated on update; the controller additionally requires MCPServerCreate when the
+	// upsert would insert.
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+base+"/{proxyId}", gwperm.MCPServerUpdate, orgOverride, notImplemented)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+base, gwperm.MCPServerRead, orgOverride, notImplemented)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+base+"/{proxyId}", gwperm.MCPServerRead, orgOverride, notImplemented)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+base+"/{proxyId}", gwperm.MCPServerDelete, orgOverride, notImplemented)
+
+	// Environment bindings: binding and unbinding change the proxy, so both are gated on update.
+	const binding = base + "/{proxyId}/environments/{envName}"
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("PUT "+binding, gwperm.MCPServerUpdate, orgOverride, notImplemented)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("GET "+binding, gwperm.MCPServerRead, orgOverride, notImplemented)
+	rr.HandleFuncWithValidationAndAuthzAndOrgOverride("DELETE "+binding, gwperm.MCPServerUpdate, orgOverride, notImplemented)
+}

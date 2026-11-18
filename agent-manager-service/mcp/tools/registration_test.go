@@ -23,6 +23,7 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -87,6 +88,10 @@ func TestToolPermissionsAreAdvertised(t *testing.T) {
 	advertised := make(map[string]bool)
 	for _, scope := range rbac.MainMCPScopes() {
 		advertised[scope] = true
+	}
+	// The gateway adds its tools' scopes when it is linked.
+	for _, p := range gwperm.MCPScopes {
+		advertised[p.Scope()] = true
 	}
 	for _, spec := range allToolSpecs {
 		for _, perm := range spec.permissions {

@@ -7420,8 +7420,8 @@ paths:
       description: |
         Creates the proxy if no proxy with this handle exists in the org, otherwise updates it. Handles
         are unique across the org: a handle already used by an org-level proxy or by another project's
-        proxy returns 409 HANDLE_IN_USE. Creating needs the amp:mcp-server:create scope; updating an
-        existing proxy needs amp:mcp-server:update.
+        proxy returns 409 HANDLE_IN_USE. Creating needs the amp:ai-gateway:mcp-servers.create scope; updating an
+        existing proxy needs amp:ai-gateway:mcp-servers.update.
 
         An identical body is a no-op and returns 200. `source` is fixed after create: changing it returns
         400 IMMUTABLE_FIELD. A source whose component is of type mi-mcp-server (legacy HTTP+SSE) or does

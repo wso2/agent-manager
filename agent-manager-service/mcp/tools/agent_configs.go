@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -266,7 +267,7 @@ func attachConfig(
 	}
 	if len(skipped) > 0 {
 		out.Note += fmt.Sprintf(" Production environments %s were left out: configuring them needs %s.",
-			strings.Join(skipped, ", "), rbac.AgentEnvProduction.Scope())
+			strings.Join(skipped, ", "), gwperm.DeployProduction.Scope())
 	}
 	if configType == models.AgentConfigTypeLLM {
 		out.Proxies = attachedProxies(resp, envNames)
@@ -288,7 +289,7 @@ func requireProductionTier(
 	ctx context.Context, toolName string, envHandler EnvironmentToolsetHandler, ouID string,
 	envNames []string, named bool,
 ) ([]string, []string, error) {
-	if _, short := jwtassertion.FirstMissingScope(ctx, rbac.AgentEnvProduction); !short {
+	if _, short := jwtassertion.FirstMissingScope(ctx, gwperm.DeployProduction); !short {
 		return envNames, nil, nil
 	}
 	if envHandler == nil {
@@ -325,14 +326,14 @@ func requireProductionTier(
 		audit.Org(ouID),
 		audit.Environment(refused[0]),
 		audit.OutcomeOpt(audit.OutcomeDeny),
-		audit.RequiredPermissions(rbac.AgentEnvNonProduction, rbac.AgentEnvProduction),
+		audit.RequiredPermissions(gwperm.DeployNonProduction, gwperm.DeployProduction),
 		audit.Detail("reason", "missing-environment-tier-scope"),
-		audit.Detail("missingScope", rbac.AgentEnvProduction.Scope()),
+		audit.Detail("missingScope", gwperm.DeployProduction.Scope()),
 		audit.Detail("grantedScopes", jwtassertion.GrantedScopeCount(ctx)),
 	)
 	return nil, nil, fmt.Errorf("%s: %s is required to configure production environment %s. "+
 		"Pass only non-production environments, or use a token with that scope",
-		toolName, rbac.AgentEnvProduction.Scope(), strings.Join(refused, ", "))
+		toolName, gwperm.DeployProduction.Scope(), strings.Join(refused, ", "))
 }
 
 // attachedProxies lists the per-agent LLM proxy each environment got, so a

@@ -78,7 +78,7 @@ Run these in `agent-manager-service`:
 |---|---|
 | Any Go code | `make fmt` (gofumpt; CI rejects unformatted code) and `make lint` |
 | The OpenAPI spec | `make spec` |
-| Wiring in `wiring/wire.go` or `modules/gateway/gwwire/wire.go` | `make wire` (regenerates both) |
+| Wiring in `wiring/wire.go` or `modules/aigateway/gwwire/wire.go` | `make wire` (regenerates both) |
 | A repository or client interface | `make mocks` (needs moq v0.5.3 from `make tools`) |
 | The database schema in `db_migrations/schema/lite.yaml`, or a module's in `modules/<name>/schema/` | `make schema`, which regenerates the SQLite and PostgreSQL migrations |
 | Anything you want to run outside Compose | `make build` (`bin/amp`, `bin/amp-core`; run `make console-embed` first to include the console) |

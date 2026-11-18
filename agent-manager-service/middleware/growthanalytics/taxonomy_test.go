@@ -57,7 +57,7 @@ const (
 // nothing.
 var routeDirs = [][2]string{
 	{apiRoutesDir, controllersDir},
-	{"../../modules/gateway/gwapi", "../../modules/gateway/gwctl"},
+	{"../../modules/aigateway/gwapi", "../../modules/aigateway/gwctl"},
 }
 
 // The structs mirror the skeleton field for field. Decoding with KnownFields

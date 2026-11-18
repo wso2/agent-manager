@@ -46,22 +46,22 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		{"DELETE /orgs/{orgName}/git-secrets/{secretName}", []rbac.Permission{rbac.GitSecretDelete}, ActionGitSecretDelete},
 		{
 			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
-			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
+			[]rbac.Permission{rbac.AgentUpdate, testTierAxis},
 			ActionAgentSetCardSource,
 		},
 		{
 			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/agent-card/source",
-			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
+			[]rbac.Permission{rbac.AgentUpdate, testTierAxis},
 			ActionAgentRemoveCardSource,
 		},
 		{
 			"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy",
-			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
+			[]rbac.Permission{rbac.AgentUpdate, testTierAxis},
 			ActionAgentSetA2AProxy,
 		},
 		{
 			"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/a2a-proxy",
-			[]rbac.Permission{rbac.AgentUpdate, rbac.AgentEnvNonProduction},
+			[]rbac.Permission{rbac.AgentUpdate, testTierAxis},
 			ActionAgentRemoveA2AProxy,
 		},
 		{"POST /orgs/{orgName}/llm-providers/{id}/api-keys", nil, ActionAPIKeyCreate},
@@ -112,7 +112,7 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		// The audit vocabulary is unchanged: the trail still says agent:promote.
 		{
 			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote",
-			[]rbac.Permission{rbac.AgentEnvNonProduction},
+			[]rbac.Permission{testTierAxis},
 			ActionAgentPromote,
 		},
 		{

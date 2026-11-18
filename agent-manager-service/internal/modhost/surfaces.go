@@ -160,7 +160,8 @@ func permissionName(mf modkit.Manifest, name string) rbac.Permission {
 	return rbac.Permission(mf.PermissionName(name))
 }
 
-var permissionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+// A permission is <action> or <resource>.<action>.
+var permissionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?$`)
 
 // declare adds a module's permissions and role grants to the registry being
 // built for a snapshot.
@@ -171,11 +172,11 @@ func declare(reg *rbac.Registry, mf modkit.Manifest) error {
 		if written && strings.ContainsAny(p.Name, " \t") {
 			return fmt.Errorf("permission name %q is not valid", p.Name)
 		}
-		// One segment, so an identity provider that builds scopes as
+		// No colon, so an identity provider that builds scopes as
 		// <resource>:<action> gives "<module>:<name>" with the module as the
 		// resource.
 		if !written && !permissionNamePattern.MatchString(p.Name) {
-			return fmt.Errorf("permission name %q must be lowercase letters, digits and dashes, starting with a letter", p.Name)
+			return fmt.Errorf("permission name %q must be <action> or <resource>.<action>, each lowercase letters, digits and dashes, starting with a letter", p.Name)
 		}
 		perms = append(perms, permissionName(mf, p.Name))
 	}

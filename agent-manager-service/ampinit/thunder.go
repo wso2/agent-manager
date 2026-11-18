@@ -36,6 +36,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -307,9 +308,8 @@ func (r *thunderRenderer) appendModuleResources(content []byte) ([]byte, error) 
 		return nil, err
 	}
 	for _, m := range mods {
-		// The template already declares the core's resources and those of the
-		// built-in modules (gateway); a second resource of the same handle
-		// would clash with it.
+		// The template already declares the core's resources; a second
+		// resource of the same handle would clash with it.
 		if slices.Contains(rbac.ReservedResources(), m.Handle) || declared.declaresResource(m.Handle) {
 			return nil, fmt.Errorf("module %q is named after a core permission resource; its permissions would clash with %s:*",
 				m.Handle, m.Handle)
@@ -337,13 +337,16 @@ func (r *thunderRenderer) declaresResource(handle string) bool {
 }
 
 // moduleResources lists the resources of the modules compiled into this
-// binary. Built-in modules declare permissions that predate modules, whose
-// resources are already in the resource server template; that includes the
-// gateway module's gateway resource, which keeps its display names there.
+// binary. A built-in module's permissions that predate modules (written with
+// their resource, as the legacy module's are) are in the resource server
+// template already and are left out.
 func (r *thunderRenderer) moduleResources() []moduleResource {
 	var out []moduleResource
 	for _, mf := range r.cfg.Modules {
-		if mf.Builtin || len(mf.Permissions) == 0 {
+		perms := slices.DeleteFunc(slices.Clone(mf.Permissions), func(p modkit.Permission) bool {
+			return mf.Builtin && strings.Contains(p.Name, ":")
+		})
+		if len(perms) == 0 {
 			continue
 		}
 		name := mf.DisplayName
@@ -351,7 +354,7 @@ func (r *thunderRenderer) moduleResources() []moduleResource {
 			name = mf.Name
 		}
 		res := moduleResource{Name: name, Handle: mf.Name, Parent: rbac.ResourceServer, Description: "Permissions of the " + name + " module"}
-		for _, p := range mf.Permissions {
+		for _, p := range perms {
 			desc := p.Description
 			if desc == "" {
 				desc = p.Name
@@ -369,9 +372,7 @@ func (r *thunderRenderer) moduleResources() []moduleResource {
 
 // moduleGrants is what the compiled-in modules grant a predefined role. They
 // are granted whether or not a module is installed: an inactive module's
-// routes are not served, so the grant opens nothing until it is. A built-in
-// module's own permissions are granted the same way; their resource is in the
-// bootstrap template (see moduleResources).
+// routes are not served, so the grant opens nothing until it is.
 func (r *thunderRenderer) moduleGrants(role string) []rbac.Permission {
 	var out []rbac.Permission
 	for _, mf := range r.cfg.Modules {

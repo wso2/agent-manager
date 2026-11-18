@@ -94,7 +94,7 @@ The OAuth client itself comes from `ampinit/templates/thunder/bootstrap/59-am-mc
 
 ## Adding a new tool
 
-The core's tools (projects, agents, environments) live in `mcp/tools/` with handlers in `mcp/handlers/`. A module adds its own toolsets: the gateway's handlers are in `modules/gateway/gwmcp/`, wired through `builtin.Parts.MCPTools`, so they are registered only when the gateway is linked.
+The core's tools (projects, agents, environments) live in `mcp/tools/` with handlers in `mcp/handlers/`. A module adds its own toolsets: the gateway's handlers are in `modules/aigateway/gwmcp/`, wired through `builtin.Parts.MCPTools`, so they are registered only when the gateway is linked.
 
 1. **Define an input struct** in the relevant file under `mcp/tools/`
    (e.g., `projects.go`). Use snake_case JSON tags for keys.

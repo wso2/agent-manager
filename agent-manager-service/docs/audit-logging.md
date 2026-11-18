@@ -863,7 +863,7 @@ Changes through MCP (`update_deployment_state`) produce a bare wrapper record ca
     "projectName": "payments",
     "environment": "production",
     "outcome": "success",
-    "requiredPermission": "amp:agent:suspend amp:agent:env-non-production",
+    "requiredPermission": "amp:agent:suspend amp:ai-gateway:deploy.non-production",
     "details": {
       "agentName": "checkout-agent",
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
@@ -989,7 +989,7 @@ Deploys through MCP (`deploy_agent`) additionally produce a bare wrapper record 
     "projectName": "payments",
     "environment": "development",
     "outcome": "success",
-    "requiredPermission": "amp:agent:env-non-production",
+    "requiredPermission": "amp:ai-gateway:deploy.non-production",
     "details": {
       "agentName": "checkout-agent",
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
@@ -1035,7 +1035,7 @@ Deploys through MCP (`deploy_agent`) additionally produce a bare wrapper record 
     "projectName": "payments",
     "environment": "production",
     "outcome": "success",
-    "requiredPermission": "amp:agent:env-non-production",
+    "requiredPermission": "amp:ai-gateway:deploy.non-production",
     "details": {
       "agentName": "checkout-agent",
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
@@ -1084,7 +1084,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
     "projectName": "payments",
     "environment": "production",
     "outcome": "success",
-    "requiredPermission": "amp:agent:api-key-manage",
+    "requiredPermission": "amp:ai-gateway:agent-api-keys.manage",
     "details": {
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "gatewayConnected": true,
@@ -1131,7 +1131,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
     "projectName": "payments",
     "environment": "development",
     "outcome": "success",
-    "requiredPermission": "amp:agent:api-key-manage",
+    "requiredPermission": "amp:ai-gateway:agent-api-keys.manage",
     "details": {
       "expiresAt": "2026-09-25T09:13:37Z",
       "keyName": "test-key-8c1f04b2",
@@ -1179,7 +1179,7 @@ Agent key; the other owners differ as for `api-key:create`.
     "projectName": "payments",
     "environment": "production",
     "outcome": "success",
-    "requiredPermission": "amp:agent:api-key-manage",
+    "requiredPermission": "amp:ai-gateway:agent-api-keys.manage",
     "details": {
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "gatewayCount": 2,
@@ -1227,7 +1227,7 @@ Agent key; the other owners differ as for `api-key:create`.
     "projectName": "payments",
     "environment": "production",
     "outcome": "success",
-    "requiredPermission": "amp:agent:api-key-manage",
+    "requiredPermission": "amp:ai-gateway:agent-api-keys.manage",
     "details": {
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "gatewayConnected": true,
@@ -1421,7 +1421,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceType": "gateway",
     "resourceId": "gw-3c9e",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:token-manage",
+    "requiredPermission": "amp:ai-gateway:gateways.token-manage",
     "details": {
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "tokenId": "tok-1f8b"
@@ -1461,7 +1461,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceType": "gateway",
     "resourceId": "gw-3c9e",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:token-manage",
+    "requiredPermission": "amp:ai-gateway:gateways.token-manage",
     "details": {
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "tokenId": "tok-4a2d"
@@ -1502,7 +1502,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceId": "gw-3c9e",
     "environment": "e7a1c3d2-4b5f-4e6a-9c8d-1f2e3a4b5c6d",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:update",
+    "requiredPermission": "amp:ai-gateway:gateways.update",
     "details": {
       "environment": "e7a1c3d2-4b5f-4e6a-9c8d-1f2e3a4b5c6d"
     }
@@ -1542,7 +1542,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceId": "gw-3c9e",
     "resourceName": "edge-eu",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:create",
+    "requiredPermission": "amp:ai-gateway:gateways.create",
     "details": {
       "gatewayName": "edge-eu",
       "gatewayType": "egress",
@@ -1583,7 +1583,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceType": "gateway",
     "resourceId": "gw-3c9e",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:delete",
+    "requiredPermission": "amp:ai-gateway:gateways.delete",
     "details": {
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35"
     }
@@ -1658,7 +1658,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceId": "gw-3c9e",
     "resourceName": "gw-3c9e",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:update",
+    "requiredPermission": "amp:ai-gateway:gateways.update",
     "details": {
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "identityProviderName": "corp-idp"
@@ -1701,7 +1701,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceId": "gw-3c9e",
     "resourceName": "gw-3c9e",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:update",
+    "requiredPermission": "amp:ai-gateway:gateways.update",
     "details": {
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "identityProviderName": "corp-idp",
@@ -1745,7 +1745,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceId": "gw-3c9e",
     "environment": "e7a1c3d2-4b5f-4e6a-9c8d-1f2e3a4b5c6d",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:update",
+    "requiredPermission": "amp:ai-gateway:gateways.update",
     "details": {
       "environment": "e7a1c3d2-4b5f-4e6a-9c8d-1f2e3a4b5c6d"
     }
@@ -1784,7 +1784,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "resourceType": "gateway",
     "resourceId": "gw-3c9e",
     "outcome": "success",
-    "requiredPermission": "amp:gateway:update"
+    "requiredPermission": "amp:ai-gateway:gateways.update"
   }
 }
 ```
@@ -2125,7 +2125,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "permissionCount": 1,
       "permissions": [
-        "amp:agent:env-production"
+        "amp:ai-gateway:deploy.production"
       ],
       "resourceServerId": "rs-amp",
       "roleName": "sre"
@@ -2171,7 +2171,7 @@ MCP only (`create_project`). REST project creation is covered by the coverage en
       "attemptEventId": "3f2c9a1e-5b7d-4e8f-a0c6-1d9b2e4f7a35",
       "permissionCount": 1,
       "permissions": [
-        "amp:agent:env-production"
+        "amp:ai-gateway:deploy.production"
       ],
       "resourceServerId": "rs-amp",
       "roleName": "sre"

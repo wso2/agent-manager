@@ -28,8 +28,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 

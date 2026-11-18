@@ -20,7 +20,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -33,7 +33,7 @@ func TestGatewayReadersReadEnvironments(t *testing.T) {
 	prev := rbac.Current()
 	rbac.SetCurrent(reg)
 	t.Cleanup(func() { rbac.SetCurrent(prev) })
-	readers := []rbac.Permission{rbac.LLMProviderRead, rbac.LLMProxyRead, gwperm.Read}
+	readers := []rbac.Permission{gwperm.LLMProviderRead, gwperm.LLMProxyRead, gwperm.Read}
 	for role := range rbac.PredefinedRolePermissions {
 		held := rbac.RoleGrants(role)
 		if !slices.ContainsFunc(readers, func(p rbac.Permission) bool { return slices.Contains(held, p) }) {

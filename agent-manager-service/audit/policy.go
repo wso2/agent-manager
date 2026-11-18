@@ -459,24 +459,53 @@ func deriveAction(method, path string, perms []rbac.Permission) Action {
 	}
 	named := namingPermissions(perms)
 	if len(named) == 1 {
-		return Action(named[0])
+		return permissionAction(named[0])
 	}
 	if len(named) > 1 {
 		verb := methodVerbs[method]
 		if verb == "" {
 			verb = strings.ToLower(method)
 		}
-		return Action(Action(named[0]).Resource() + ":" + verb)
+		return Action(permissionAction(named[0]).Resource() + ":" + verb)
 	}
 	return ""
+}
+
+// permissionActions name the action of a route gated by a permission whose
+// name is not its action: the AI Gateway's permissions, renamed into its
+// module, keep recording under their former names until its routes declare
+// their actions themselves.
+var permissionActions = map[rbac.Permission]Action{}
+
+// RegisterPermissionActions names the actions of routes gated by perms. Call
+// it from a package init, before any route is registered.
+func RegisterPermissionActions(actions map[rbac.Permission]Action) {
+	for p, a := range actions {
+		permissionActions[p] = a
+	}
+}
+
+// permissionAction is the action a route gated only by p records.
+func permissionAction(p rbac.Permission) Action {
+	if a, ok := permissionActions[p]; ok {
+		return a
+	}
+	return Action(p)
 }
 
 // axisPermissions gate an operation on where it lands rather than on what it is.
 // They are an authorization axis of their own, held in addition to the
 // capability the route demands, so they never describe the operation.
-var axisPermissions = map[rbac.Permission]bool{
-	rbac.AgentEnvNonProduction: true,
-	rbac.AgentEnvProduction:    true,
+// A module that declares one registers it with RegisterAxisPermissions (the
+// AI Gateway's environment-tier permissions).
+var axisPermissions = map[rbac.Permission]bool{}
+
+// RegisterAxisPermissions marks perms as axis permissions. Call it from a
+// package init, before any route is registered.
+func RegisterAxisPermissions(perms ...rbac.Permission) {
+	for _, p := range perms {
+		axisPermissions[p] = true
+	}
 }
 
 // namingPermissions returns the permissions that can name an action — every one

@@ -24,7 +24,7 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -75,7 +75,7 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 			"limit":  intProperty(fmt.Sprintf("Optional. Max proxies to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, nil),
-	}, audit.ActionMCPServerRead, listMCPProxies(t.MCPProxyToolset), rbac.MCPServerRead)
+	}, audit.ActionMCPServerRead, listMCPProxies(t.MCPProxyToolset), gwperm.MCPServerRead)
 
 	addTool(reg, server, &gomcp.Tool{
 		Name: "get_mcp_proxy",
@@ -85,7 +85,7 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 		InputSchema: createSchema(map[string]any{
 			"proxy_id": stringProperty("Required. MCP proxy id from list_mcp_proxies."),
 		}, []string{"proxy_id"}),
-	}, audit.ActionMCPServerRead, getMCPProxy(t.MCPProxyToolset, t.EnvironmentToolset), rbac.MCPServerRead)
+	}, audit.ActionMCPServerRead, getMCPProxy(t.MCPProxyToolset, t.EnvironmentToolset), gwperm.MCPServerRead)
 }
 
 func listMCPProxies(handler MCPProxyToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listMCPProxiesInput) (*gomcp.CallToolResult, any, error) {

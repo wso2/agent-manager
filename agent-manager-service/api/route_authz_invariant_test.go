@@ -32,7 +32,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/gateway" // the full distribution's routes
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the full distribution's routes
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -189,19 +190,18 @@ var declaredButUnenforcedPermissions = map[string]string{
 	// rbac/predefined_roles.go and what the API actually checks. Removing an
 	// entry from this map (because the route now enforces it) is the fix; this
 	// map exists to stop the list growing silently.
-	"AgentEnvProduction": "NOT ENFORCED BY A ROUTE REGISTRAR: the tier a deploy/promote/config-update " +
+	"gwperm.DeployProduction": "NOT ENFORCED BY A ROUTE REGISTRAR: the tier a deploy/promote/config-update " +
 		"lands in is only known once the request body or pipeline is resolved, so no route can " +
-		"declare it statically. services.requireEnvTier checks it dynamically in the service layer " +
+		"declare it statically. gwsvc.RequireEnvironmentTier checks it dynamically in the service layer " +
 		"once the target environment's IsProduction flag is known.",
-	"AgentRollback": "NOT ENFORCED: no rollback route consults it",
 	"OrgAssignRole": "NOT ENFORCED: role assignment goes through " +
 		"POST /identities/roles/{roleID}/assignees/add, which requires RoleUpdate instead",
-	"OrgManageIDP":                  "NOT ENFORCED: no route consults it",
-	"OrgModifySettings":             "NOT ENFORCED: no route consults it",
-	"LLMProviderConfigureGuardrail": "NOT ENFORCED: guardrail config routes require LLMProviderUpdate instead",
-	"LLMProviderConnect":            "NOT ENFORCED: no route consults it",
-	"MCPServerConfigureGuardrail":   "NOT ENFORCED: no route consults it",
-	"MCPServerAPIKeyManage":         "NOT ENFORCED: no route consults it",
+	"OrgManageIDP":                         "NOT ENFORCED: no route consults it",
+	"OrgModifySettings":                    "NOT ENFORCED: no route consults it",
+	"gwperm.LLMProviderConfigureGuardrail": "NOT ENFORCED: guardrail config routes require LLMProviderUpdate instead",
+	"gwperm.LLMProviderConnect":            "NOT ENFORCED: no route consults it",
+	"gwperm.MCPServerConfigureGuardrail":   "NOT ENFORCED: no route consults it",
+	"gwperm.MCPServerAPIKeyManage":         "NOT ENFORCED: no route consults it",
 }
 
 // TestSecurityInvariantEveryPermissionIsEnforced fails when a declared
@@ -371,7 +371,7 @@ func TestSecurityInvariantNamingConventionHolds(t *testing.T) {
 // from the URL. Relative to this package's directory.
 var orgScopedPackages = []string{
 	".", filepath.Join("..", "controllers"),
-	filepath.Join("..", "modules", "gateway", "gwapi"), filepath.Join("..", "modules", "gateway", "gwctl"),
+	filepath.Join("..", "modules", "aigateway", "gwapi"), filepath.Join("..", "modules", "aigateway", "gwctl"),
 	filepath.Join("..", "modules", "legacy", "legacyapi"),
 }
 
@@ -449,13 +449,13 @@ func TestSecurityInvariantHandlersNeverReadOrgFromPath(t *testing.T) {
 // full distribution links.
 var routePackages = []string{
 	".", filepath.Join("..", "mcp"),
-	filepath.Join("..", "modules", "gateway", "gwapi"),
+	filepath.Join("..", "modules", "aigateway", "gwapi"),
 	filepath.Join("..", "modules", "legacy", "legacyapi"),
 }
 
 // modulePermissionPackages declare permissions of built-in modules, as
 // <package>.<Name> constants of type rbac.Permission.
-var modulePermissionPackages = []string{filepath.Join("..", "modules", "gateway", "gwperm")}
+var modulePermissionPackages = []string{filepath.Join("..", "modules", "aigateway", "gwperm")}
 
 // forEachRouteRegistration walks every production Go file in routePackages and
 // invokes fn for every net/http or RouteRegistrar registration call. Permission
@@ -746,6 +746,21 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 			t.Errorf("reviewed role mapping %s -> %s has no entry in rbac.PredefinedRolePermissions", roleConstant, handle)
 		}
 	}
+	// The AI Gateway module grants its own permissions, as the bootstrap
+	// renders them (see thunderBootstrap).
+	byName := map[string]string{
+		rbac.RoleAdmin: "admin", rbac.RoleDeveloper: "developer",
+		rbac.RoleAILead: "ai-lead", rbac.RolePlatformEngineer: "platform-engineer",
+	}
+	for _, m := range modkit.Registered() {
+		if mf := m.Manifest(); mf.Name == gwperm.Module {
+			for role, names := range mf.RoleGrants {
+				for _, n := range names {
+					roles[byName[role]][rbac.Permission(mf.PermissionName(n)).Scope()] = true
+				}
+			}
+		}
+	}
 	return roles
 }
 
@@ -753,7 +768,15 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 // install generates.
 func thunderBootstrap(t *testing.T) map[string][]byte {
 	t.Helper()
-	files, err := ampinit.RenderThunder(ampinit.SampleThunderConfig())
+	// The full distribution's bootstrap: the core's resources and the AI
+	// Gateway module's.
+	cfg := ampinit.SampleThunderConfig()
+	for _, m := range modkit.Registered() {
+		if m.Manifest().Name == gwperm.Module {
+			cfg.Modules = append(cfg.Modules, m.Manifest())
+		}
+	}
+	files, err := ampinit.RenderThunder(cfg)
 	if err != nil {
 		t.Fatalf("render Thunder bootstrap: %v", err)
 	}

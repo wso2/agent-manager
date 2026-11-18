@@ -34,24 +34,18 @@ func registerHostedRoutes(rr *middleware.RouteRegistrar) {
 		notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds", rbac.AgentRead, notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds/{buildName}", rbac.AgentRead, notImplemented)
-	// Deploy and promote declare only the tier floor, and have no capability
-	// scope of their own: within an environment the tier scope is the whole
-	// grant. The environment that decides the real answer is not known here —
-	// deploy derives it from the pipeline, promote takes it from the body — so
-	// requireEnvTier in the service layer is the guarantee, and this declaration
-	// is a cheap early deny plus the floor half of a production check.
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", rbac.AgentEnvNonProduction,
+	// The environment-tier permissions belong to the AI Gateway module; these
+	// stubs answer 501 and need only the agent permission.
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", rbac.AgentUpdate,
 		notImplemented)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote", rbac.AgentEnvNonProduction,
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote", rbac.AgentUpdate,
 		notImplemented)
-	rr.HandleFuncWithValidationAndAllAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations",
-		notImplemented,
-		rbac.AgentUpdate, rbac.AgentEnvNonProduction)
+	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations", rbac.AgentUpdate,
+		notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/tracing-token/regenerate", rbac.AgentTokenManage,
 		notImplemented)
-	// Two independent axes: the capability to change deployment state, and the
-	// tier of the environment it is changed in.
-	rr.HandleFuncWithValidationAndAllAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state", notImplemented, rbac.AgentSuspend, rbac.AgentEnvNonProduction)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state", rbac.AgentSuspend,
+		notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/endpoints", rbac.AgentRead, notImplemented)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind", rbac.AgentKindCreate,
 		notImplemented)

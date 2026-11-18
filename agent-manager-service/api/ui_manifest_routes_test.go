@@ -38,10 +38,10 @@ func TestUIManifestFiltersByPermission(t *testing.T) {
 		Pages: []modhost.UIEntry{
 			{ID: "ai-gateway/gateways", Permission: "gateway:read"},
 			{ID: "ai-gateway/external-agent"}, // also the core's: listed once
-			{ID: "ai-gateway/llm-providers", Permission: rbac.LLMProviderRead},
+			{ID: "ai-gateway/llm-providers", Permission: rbac.AgentKindRead},
 		},
 		Nav:   []modhost.UIEntry{{ID: "gateways", Label: "Gateways", Permission: "gateway:read"}},
-		Slots: []modhost.UIEntry{{ID: "agent.overview", Component: "Card", Permission: rbac.LLMProviderRead}},
+		Slots: []modhost.UIEntry{{ID: "agent.overview", Component: "Card", Permission: rbac.AgentKindRead}},
 	}}
 	req := httptest.NewRequest("GET", "/ui-manifest", nil)
 	scopes := []string{rbac.AgentCreate.Scope(), "amp:gateway:read"}

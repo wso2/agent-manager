@@ -23,8 +23,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 

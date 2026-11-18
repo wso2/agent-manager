@@ -20,7 +20,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 )
 
 // ErrInputNotReady matches a Render error made by InputNotReady.
