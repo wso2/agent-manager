@@ -1,0 +1,7 @@
+# oapi-codegen configuration for the AI Gateway module types generation
+package: gen
+output: cli/pkg/clients/aigateway/gen/types.gen.go
+generate:
+  models: true
+  client: false
+  embedded-spec: false

@@ -237,6 +237,8 @@ console-logs:
 amctl-gen-client:
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen.yaml agent-manager-service/docs/api_v1_openapi.yaml
 	@oapi-codegen -config cli/pkg/clients/amsvc/gen/oapi-codegen-client.yaml agent-manager-service/docs/api_v1_openapi.yaml
+	@oapi-codegen -config cli/pkg/clients/aigateway/gen/oapi-codegen.yaml agent-manager-service/modules/aigateway/api/openapi.yaml
+	@oapi-codegen -config cli/pkg/clients/aigateway/gen/oapi-codegen-client.yaml agent-manager-service/modules/aigateway/api/openapi.yaml
 	@echo "amctl client generated successfully"
 
 # amctl CLI build targets

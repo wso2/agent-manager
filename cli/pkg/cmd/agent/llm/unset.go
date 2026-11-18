@@ -25,7 +25,7 @@ import (
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -36,7 +36,7 @@ import (
 type UnsetOptions struct {
 	IO           *iostreams.IOStreams
 	Prompter     prompter.Prompter
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj, agent string) render.Scope
 	ResolveAgent func([]string) (string, []string, error)
@@ -60,7 +60,7 @@ func NewUnsetCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &UnsetOptions{
 		IO:           f.IOStreams,
 		Prompter:     f.Prompter,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.AgentScope,
 		ResolveAgent: f.ResolveAgent,
@@ -121,7 +121,7 @@ func runUnset(ctx context.Context, o *UnsetOptions) error {
 	return runUnsetDelete(ctx, o, client, id)
 }
 
-func runUnsetDelete(ctx context.Context, o *UnsetOptions, client *amsvc.ClientWithResponses, id openapi_types.UUID) error {
+func runUnsetDelete(ctx context.Context, o *UnsetOptions, client *aigateway.ClientWithResponses, id openapi_types.UUID) error {
 	resp, err := client.DeleteAgentModelConfigWithResponse(ctx, o.Org, o.Proj, o.AgentName, id)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))

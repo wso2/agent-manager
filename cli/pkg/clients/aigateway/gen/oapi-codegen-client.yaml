@@ -1,0 +1,9 @@
+# oapi-codegen configuration for the AI Gateway module client generation
+package: gen
+output: cli/pkg/clients/aigateway/gen/client.gen.go
+generate:
+  models: false
+  client: true
+  embedded-spec: false
+output-options:
+  response-type-suffix: Resp

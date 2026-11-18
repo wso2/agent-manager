@@ -16,117 +16,15 @@ const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
 
-// Defines values for A2AProxyResponseStatus.
-const (
-	A2AProxyResponseStatusDEPLOYED    A2AProxyResponseStatus = "DEPLOYED"
-	A2AProxyResponseStatusDEPLOYING   A2AProxyResponseStatus = "DEPLOYING"
-	A2AProxyResponseStatusFAILED      A2AProxyResponseStatus = "FAILED"
-	A2AProxyResponseStatusUNDEPLOYED  A2AProxyResponseStatus = "UNDEPLOYED"
-	A2AProxyResponseStatusUNDEPLOYING A2AProxyResponseStatus = "UNDEPLOYING"
-)
-
-// Valid indicates whether the value is a known member of the A2AProxyResponseStatus enum.
-func (e A2AProxyResponseStatus) Valid() bool {
-	switch e {
-	case A2AProxyResponseStatusDEPLOYED:
-		return true
-	case A2AProxyResponseStatusDEPLOYING:
-		return true
-	case A2AProxyResponseStatusFAILED:
-		return true
-	case A2AProxyResponseStatusUNDEPLOYED:
-		return true
-	case A2AProxyResponseStatusUNDEPLOYING:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for APIKeySecurityIn.
-const (
-	APIKeySecurityInHeader APIKeySecurityIn = "header"
-	APIKeySecurityInQuery  APIKeySecurityIn = "query"
-)
-
-// Valid indicates whether the value is a known member of the APIKeySecurityIn enum.
-func (e APIKeySecurityIn) Valid() bool {
-	switch e {
-	case APIKeySecurityInHeader:
-		return true
-	case APIKeySecurityInQuery:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AgentCardResponseSource.
-const (
-	AgentCardResponseSourceExternal AgentCardResponseSource = "external"
-	AgentCardResponseSourcePlatform AgentCardResponseSource = "platform"
-)
-
-// Valid indicates whether the value is a known member of the AgentCardResponseSource enum.
-func (e AgentCardResponseSource) Valid() bool {
-	switch e {
-	case AgentCardResponseSourceExternal:
-		return true
-	case AgentCardResponseSourcePlatform:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AgentCardResponseStatus.
-const (
-	AgentCardResponseStatusFailed  AgentCardResponseStatus = "failed"
-	AgentCardResponseStatusFetched AgentCardResponseStatus = "fetched"
-	AgentCardResponseStatusPending AgentCardResponseStatus = "pending"
-)
-
-// Valid indicates whether the value is a known member of the AgentCardResponseStatus enum.
-func (e AgentCardResponseStatus) Valid() bool {
-	switch e {
-	case AgentCardResponseStatusFailed:
-		return true
-	case AgentCardResponseStatusFetched:
-		return true
-	case AgentCardResponseStatusPending:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AgentIdentityAssignmentEntryType.
-const (
-	AgentIdentityAssignmentEntryTypeAgent AgentIdentityAssignmentEntryType = "agent"
-	AgentIdentityAssignmentEntryTypeGroup AgentIdentityAssignmentEntryType = "group"
-)
-
-// Valid indicates whether the value is a known member of the AgentIdentityAssignmentEntryType enum.
-func (e AgentIdentityAssignmentEntryType) Valid() bool {
-	switch e {
-	case AgentIdentityAssignmentEntryTypeAgent:
-		return true
-	case AgentIdentityAssignmentEntryTypeGroup:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for AgentKindResponseKind.
 const (
-	AgentKindResponseKindAgentKind AgentKindResponseKind = "AgentKind"
+	AgentKind AgentKindResponseKind = "AgentKind"
 )
 
 // Valid indicates whether the value is a known member of the AgentKindResponseKind enum.
 func (e AgentKindResponseKind) Valid() bool {
 	switch e {
-	case AgentKindResponseKindAgentKind:
+	case AgentKind:
 		return true
 	default:
 		return false
@@ -298,63 +196,6 @@ func (e BuildpackBuildType) Valid() bool {
 	}
 }
 
-// Defines values for CatalogEntryKind.
-const (
-	CatalogEntryKindAgent       CatalogEntryKind = "agent"
-	CatalogEntryKindLlmProvider CatalogEntryKind = "LlmProvider"
-	CatalogEntryKindMcp         CatalogEntryKind = "mcp"
-)
-
-// Valid indicates whether the value is a known member of the CatalogEntryKind enum.
-func (e CatalogEntryKind) Valid() bool {
-	switch e {
-	case CatalogEntryKindAgent:
-		return true
-	case CatalogEntryKindLlmProvider:
-		return true
-	case CatalogEntryKindMcp:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CatalogLLMProviderEntryKind.
-const (
-	LlmProvider CatalogLLMProviderEntryKind = "LlmProvider"
-)
-
-// Valid indicates whether the value is a known member of the CatalogLLMProviderEntryKind enum.
-func (e CatalogLLMProviderEntryKind) Valid() bool {
-	switch e {
-	case LlmProvider:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateAgentModelConfigRequestType.
-const (
-	Llm   CreateAgentModelConfigRequestType = "llm"
-	Mcp   CreateAgentModelConfigRequestType = "mcp"
-	Other CreateAgentModelConfigRequestType = "other"
-)
-
-// Valid indicates whether the value is a known member of the CreateAgentModelConfigRequestType enum.
-func (e CreateAgentModelConfigRequestType) Valid() bool {
-	switch e {
-	case Llm:
-		return true
-	case Mcp:
-		return true
-	case Other:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for CreateEnvironmentRequestIsolationTier.
 const (
 	CreateEnvironmentRequestIsolationTierGvisor CreateEnvironmentRequestIsolationTier = "gvisor"
@@ -382,81 +223,6 @@ const (
 func (e CreateGitSecretRequestType) Valid() bool {
 	switch e {
 	case Basic:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DeploymentDetailsResponseGatewayStatus.
-const (
-	DeploymentDetailsResponseGatewayStatusDEPLOYED    DeploymentDetailsResponseGatewayStatus = "DEPLOYED"
-	DeploymentDetailsResponseGatewayStatusDEPLOYING   DeploymentDetailsResponseGatewayStatus = "DEPLOYING"
-	DeploymentDetailsResponseGatewayStatusFAILED      DeploymentDetailsResponseGatewayStatus = "FAILED"
-	DeploymentDetailsResponseGatewayStatusUNDEPLOYED  DeploymentDetailsResponseGatewayStatus = "UNDEPLOYED"
-	DeploymentDetailsResponseGatewayStatusUNDEPLOYING DeploymentDetailsResponseGatewayStatus = "UNDEPLOYING"
-)
-
-// Valid indicates whether the value is a known member of the DeploymentDetailsResponseGatewayStatus enum.
-func (e DeploymentDetailsResponseGatewayStatus) Valid() bool {
-	switch e {
-	case DeploymentDetailsResponseGatewayStatusDEPLOYED:
-		return true
-	case DeploymentDetailsResponseGatewayStatusDEPLOYING:
-		return true
-	case DeploymentDetailsResponseGatewayStatusFAILED:
-		return true
-	case DeploymentDetailsResponseGatewayStatusUNDEPLOYED:
-		return true
-	case DeploymentDetailsResponseGatewayStatusUNDEPLOYING:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DeploymentEndpointVisibility.
-const (
-	DeploymentEndpointVisibilityInternal DeploymentEndpointVisibility = "Internal"
-	DeploymentEndpointVisibilityPrivate  DeploymentEndpointVisibility = "Private"
-	DeploymentEndpointVisibilityPublic   DeploymentEndpointVisibility = "Public"
-)
-
-// Valid indicates whether the value is a known member of the DeploymentEndpointVisibility enum.
-func (e DeploymentEndpointVisibility) Valid() bool {
-	switch e {
-	case DeploymentEndpointVisibilityInternal:
-		return true
-	case DeploymentEndpointVisibilityPrivate:
-		return true
-	case DeploymentEndpointVisibilityPublic:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DeploymentSummaryStatus.
-const (
-	DeploymentSummaryStatusDEPLOYED    DeploymentSummaryStatus = "DEPLOYED"
-	DeploymentSummaryStatusDEPLOYING   DeploymentSummaryStatus = "DEPLOYING"
-	DeploymentSummaryStatusFAILED      DeploymentSummaryStatus = "FAILED"
-	DeploymentSummaryStatusUNDEPLOYED  DeploymentSummaryStatus = "UNDEPLOYED"
-	DeploymentSummaryStatusUNDEPLOYING DeploymentSummaryStatus = "UNDEPLOYING"
-)
-
-// Valid indicates whether the value is a known member of the DeploymentSummaryStatus enum.
-func (e DeploymentSummaryStatus) Valid() bool {
-	switch e {
-	case DeploymentSummaryStatusDEPLOYED:
-		return true
-	case DeploymentSummaryStatusDEPLOYING:
-		return true
-	case DeploymentSummaryStatusFAILED:
-		return true
-	case DeploymentSummaryStatusUNDEPLOYED:
-		return true
-	case DeploymentSummaryStatusUNDEPLOYING:
 		return true
 	default:
 		return false
@@ -649,30 +415,6 @@ func (e EventTypeScope) Valid() bool {
 	}
 }
 
-// Defines values for ExtractionIdentifierLocation.
-const (
-	ExtractionIdentifierLocationHeader     ExtractionIdentifierLocation = "header"
-	ExtractionIdentifierLocationPathParam  ExtractionIdentifierLocation = "pathParam"
-	ExtractionIdentifierLocationPayload    ExtractionIdentifierLocation = "payload"
-	ExtractionIdentifierLocationQueryParam ExtractionIdentifierLocation = "queryParam"
-)
-
-// Valid indicates whether the value is a known member of the ExtractionIdentifierLocation enum.
-func (e ExtractionIdentifierLocation) Valid() bool {
-	switch e {
-	case ExtractionIdentifierLocationHeader:
-		return true
-	case ExtractionIdentifierLocationPathParam:
-		return true
-	case ExtractionIdentifierLocationPayload:
-		return true
-	case ExtractionIdentifierLocationQueryParam:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for GatewayEnvironmentResponseIsolationTier.
 const (
 	GatewayEnvironmentResponseIsolationTierGvisor GatewayEnvironmentResponseIsolationTier = "gvisor"
@@ -685,114 +427,6 @@ func (e GatewayEnvironmentResponseIsolationTier) Valid() bool {
 	case GatewayEnvironmentResponseIsolationTierGvisor:
 		return true
 	case GatewayEnvironmentResponseIsolationTierKata:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GatewayHosting.
-const (
-	MANAGED    GatewayHosting = "MANAGED"
-	SELFHOSTED GatewayHosting = "SELF_HOSTED"
-)
-
-// Valid indicates whether the value is a known member of the GatewayHosting enum.
-func (e GatewayHosting) Valid() bool {
-	switch e {
-	case MANAGED:
-		return true
-	case SELFHOSTED:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GatewayStatus.
-const (
-	GatewayStatusACTIVE       GatewayStatus = "ACTIVE"
-	GatewayStatusERROR        GatewayStatus = "ERROR"
-	GatewayStatusINACTIVE     GatewayStatus = "INACTIVE"
-	GatewayStatusPROVISIONING GatewayStatus = "PROVISIONING"
-)
-
-// Valid indicates whether the value is a known member of the GatewayStatus enum.
-func (e GatewayStatus) Valid() bool {
-	switch e {
-	case GatewayStatusACTIVE:
-		return true
-	case GatewayStatusERROR:
-		return true
-	case GatewayStatusINACTIVE:
-		return true
-	case GatewayStatusPROVISIONING:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GatewayTokenInfoStatus.
-const (
-	GatewayTokenInfoStatusActive  GatewayTokenInfoStatus = "active"
-	GatewayTokenInfoStatusRevoked GatewayTokenInfoStatus = "revoked"
-)
-
-// Valid indicates whether the value is a known member of the GatewayTokenInfoStatus enum.
-func (e GatewayTokenInfoStatus) Valid() bool {
-	switch e {
-	case GatewayTokenInfoStatusActive:
-		return true
-	case GatewayTokenInfoStatusRevoked:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GatewayType.
-const (
-	GatewayTypeBOTH    GatewayType = "BOTH"
-	GatewayTypeEGRESS  GatewayType = "EGRESS"
-	GatewayTypeINGRESS GatewayType = "INGRESS"
-)
-
-// Valid indicates whether the value is a known member of the GatewayType enum.
-func (e GatewayType) Valid() bool {
-	switch e {
-	case GatewayTypeBOTH:
-		return true
-	case GatewayTypeEGRESS:
-		return true
-	case GatewayTypeINGRESS:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GatewayTypeInput.
-const (
-	GatewayTypeInputAI      GatewayTypeInput = "AI"
-	GatewayTypeInputBOTH    GatewayTypeInput = "BOTH"
-	GatewayTypeInputEGRESS  GatewayTypeInput = "EGRESS"
-	GatewayTypeInputINGRESS GatewayTypeInput = "INGRESS"
-	GatewayTypeInputREGULAR GatewayTypeInput = "REGULAR"
-)
-
-// Valid indicates whether the value is a known member of the GatewayTypeInput enum.
-func (e GatewayTypeInput) Valid() bool {
-	switch e {
-	case GatewayTypeInputAI:
-		return true
-	case GatewayTypeInputBOTH:
-		return true
-	case GatewayTypeInputEGRESS:
-		return true
-	case GatewayTypeInputINGRESS:
-		return true
-	case GatewayTypeInputREGULAR:
 		return true
 	default:
 		return false
@@ -817,339 +451,18 @@ func (e HealthCheckType) Valid() bool {
 	}
 }
 
-// Defines values for HealthStatusResponseStatus.
-const (
-	HEALTHY     HealthStatusResponseStatus = "HEALTHY"
-	UNHEALTHY   HealthStatusResponseStatus = "UNHEALTHY"
-	UNREACHABLE HealthStatusResponseStatus = "UNREACHABLE"
-)
-
-// Valid indicates whether the value is a known member of the HealthStatusResponseStatus enum.
-func (e HealthStatusResponseStatus) Valid() bool {
-	switch e {
-	case HEALTHY:
-		return true
-	case UNHEALTHY:
-		return true
-	case UNREACHABLE:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for IdentityProviderType.
-const (
-	Custom IdentityProviderType = "custom"
-	System IdentityProviderType = "system"
-)
-
-// Valid indicates whether the value is a known member of the IdentityProviderType enum.
-func (e IdentityProviderType) Valid() bool {
-	switch e {
-	case Custom:
-		return true
-	case System:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LLMAccessControlMode.
-const (
-	AllowAll LLMAccessControlMode = "allow_all"
-	DenyAll  LLMAccessControlMode = "deny_all"
-)
-
-// Valid indicates whether the value is a known member of the LLMAccessControlMode enum.
-func (e LLMAccessControlMode) Valid() bool {
-	switch e {
-	case AllowAll:
-		return true
-	case DenyAll:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LLMDeployRequestBase.
-const (
-	Current LLMDeployRequestBase = "current"
-)
-
-// Valid indicates whether the value is a known member of the LLMDeployRequestBase enum.
-func (e LLMDeployRequestBase) Valid() bool {
-	switch e {
-	case Current:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LLMDeploymentResponseStatus.
-const (
-	LLMDeploymentResponseStatusARCHIVED    LLMDeploymentResponseStatus = "ARCHIVED"
-	LLMDeploymentResponseStatusDEPLOYED    LLMDeploymentResponseStatus = "DEPLOYED"
-	LLMDeploymentResponseStatusDEPLOYING   LLMDeploymentResponseStatus = "DEPLOYING"
-	LLMDeploymentResponseStatusFAILED      LLMDeploymentResponseStatus = "FAILED"
-	LLMDeploymentResponseStatusUNDEPLOYED  LLMDeploymentResponseStatus = "UNDEPLOYED"
-	LLMDeploymentResponseStatusUNDEPLOYING LLMDeploymentResponseStatus = "UNDEPLOYING"
-)
-
-// Valid indicates whether the value is a known member of the LLMDeploymentResponseStatus enum.
-func (e LLMDeploymentResponseStatus) Valid() bool {
-	switch e {
-	case LLMDeploymentResponseStatusARCHIVED:
-		return true
-	case LLMDeploymentResponseStatusDEPLOYED:
-		return true
-	case LLMDeploymentResponseStatusDEPLOYING:
-		return true
-	case LLMDeploymentResponseStatusFAILED:
-		return true
-	case LLMDeploymentResponseStatusUNDEPLOYED:
-		return true
-	case LLMDeploymentResponseStatusUNDEPLOYING:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LLMDeploymentResponseStatusDesired.
-const (
-	LLMDeploymentResponseStatusDesiredDEPLOYED   LLMDeploymentResponseStatusDesired = "DEPLOYED"
-	LLMDeploymentResponseStatusDesiredUNDEPLOYED LLMDeploymentResponseStatusDesired = "UNDEPLOYED"
-)
-
-// Valid indicates whether the value is a known member of the LLMDeploymentResponseStatusDesired enum.
-func (e LLMDeploymentResponseStatusDesired) Valid() bool {
-	switch e {
-	case LLMDeploymentResponseStatusDesiredDEPLOYED:
-		return true
-	case LLMDeploymentResponseStatusDesiredUNDEPLOYED:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LLMProviderConsumerItemConsumerType.
-const (
-	LLMProviderConsumerItemConsumerTypeAgent LLMProviderConsumerItemConsumerType = "agent"
-)
-
-// Valid indicates whether the value is a known member of the LLMProviderConsumerItemConsumerType enum.
-func (e LLMProviderConsumerItemConsumerType) Valid() bool {
-	switch e {
-	case LLMProviderConsumerItemConsumerTypeAgent:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LLMProviderListItemStatus.
-const (
-	LLMProviderListItemStatusDeployed LLMProviderListItemStatus = "deployed"
-	LLMProviderListItemStatusFailed   LLMProviderListItemStatus = "failed"
-	LLMProviderListItemStatusPending  LLMProviderListItemStatus = "pending"
-)
-
-// Valid indicates whether the value is a known member of the LLMProviderListItemStatus enum.
-func (e LLMProviderListItemStatus) Valid() bool {
-	switch e {
-	case LLMProviderListItemStatusDeployed:
-		return true
-	case LLMProviderListItemStatusFailed:
-		return true
-	case LLMProviderListItemStatusPending:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LLMProviderResponseStatus.
-const (
-	LLMProviderResponseStatusDeployed LLMProviderResponseStatus = "deployed"
-	LLMProviderResponseStatusFailed   LLMProviderResponseStatus = "failed"
-	LLMProviderResponseStatusPending  LLMProviderResponseStatus = "pending"
-)
-
-// Valid indicates whether the value is a known member of the LLMProviderResponseStatus enum.
-func (e LLMProviderResponseStatus) Valid() bool {
-	switch e {
-	case LLMProviderResponseStatusDeployed:
-		return true
-	case LLMProviderResponseStatusFailed:
-		return true
-	case LLMProviderResponseStatusPending:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MCPEndpointEnvironmentDeploymentStatus.
-const (
-	MCPEndpointEnvironmentDeploymentStatusDeployed    MCPEndpointEnvironmentDeploymentStatus = "Deployed"
-	MCPEndpointEnvironmentDeploymentStatusDeploying   MCPEndpointEnvironmentDeploymentStatus = "Deploying"
-	MCPEndpointEnvironmentDeploymentStatusFailed      MCPEndpointEnvironmentDeploymentStatus = "Failed"
-	MCPEndpointEnvironmentDeploymentStatusUndeployed  MCPEndpointEnvironmentDeploymentStatus = "Undeployed"
-	MCPEndpointEnvironmentDeploymentStatusUndeploying MCPEndpointEnvironmentDeploymentStatus = "Undeploying"
-)
-
-// Valid indicates whether the value is a known member of the MCPEndpointEnvironmentDeploymentStatus enum.
-func (e MCPEndpointEnvironmentDeploymentStatus) Valid() bool {
-	switch e {
-	case MCPEndpointEnvironmentDeploymentStatusDeployed:
-		return true
-	case MCPEndpointEnvironmentDeploymentStatusDeploying:
-		return true
-	case MCPEndpointEnvironmentDeploymentStatusFailed:
-		return true
-	case MCPEndpointEnvironmentDeploymentStatusUndeployed:
-		return true
-	case MCPEndpointEnvironmentDeploymentStatusUndeploying:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MCPProjectDeploymentStatus.
-const (
-	MCPProjectDeploymentStatusDeployed  MCPProjectDeploymentStatus = "Deployed"
-	MCPProjectDeploymentStatusDeploying MCPProjectDeploymentStatus = "Deploying"
-	MCPProjectDeploymentStatusFailed    MCPProjectDeploymentStatus = "Failed"
-)
-
-// Valid indicates whether the value is a known member of the MCPProjectDeploymentStatus enum.
-func (e MCPProjectDeploymentStatus) Valid() bool {
-	switch e {
-	case MCPProjectDeploymentStatusDeployed:
-		return true
-	case MCPProjectDeploymentStatusDeploying:
-		return true
-	case MCPProjectDeploymentStatusFailed:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MCPProxyEnvironmentUpstreamAuthType.
-const (
-	MCPProxyEnvironmentUpstreamAuthTypeApiKey MCPProxyEnvironmentUpstreamAuthType = "api-key"
-	MCPProxyEnvironmentUpstreamAuthTypeNone   MCPProxyEnvironmentUpstreamAuthType = "none"
-)
-
-// Valid indicates whether the value is a known member of the MCPProxyEnvironmentUpstreamAuthType enum.
-func (e MCPProxyEnvironmentUpstreamAuthType) Valid() bool {
-	switch e {
-	case MCPProxyEnvironmentUpstreamAuthTypeApiKey:
-		return true
-	case MCPProxyEnvironmentUpstreamAuthTypeNone:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MCPProxyEnvironmentUpstreamAuthRedactedType.
-const (
-	MCPProxyEnvironmentUpstreamAuthRedactedTypeApiKey MCPProxyEnvironmentUpstreamAuthRedactedType = "api-key"
-	MCPProxyEnvironmentUpstreamAuthRedactedTypeNone   MCPProxyEnvironmentUpstreamAuthRedactedType = "none"
-)
-
-// Valid indicates whether the value is a known member of the MCPProxyEnvironmentUpstreamAuthRedactedType enum.
-func (e MCPProxyEnvironmentUpstreamAuthRedactedType) Valid() bool {
-	switch e {
-	case MCPProxyEnvironmentUpstreamAuthRedactedTypeApiKey:
-		return true
-	case MCPProxyEnvironmentUpstreamAuthRedactedTypeNone:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ProvisioningType.
 const (
-	ProvisioningTypeExternal ProvisioningType = "external"
-	ProvisioningTypeInternal ProvisioningType = "internal"
+	External ProvisioningType = "external"
+	Internal ProvisioningType = "internal"
 )
 
 // Valid indicates whether the value is a known member of the ProvisioningType enum.
 func (e ProvisioningType) Valid() bool {
 	switch e {
-	case ProvisioningTypeExternal:
+	case External:
 		return true
-	case ProvisioningTypeInternal:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RateLimitEntryResetUnit.
-const (
-	RateLimitEntryResetUnitDay    RateLimitEntryResetUnit = "day"
-	RateLimitEntryResetUnitHour   RateLimitEntryResetUnit = "hour"
-	RateLimitEntryResetUnitMinute RateLimitEntryResetUnit = "minute"
-)
-
-// Valid indicates whether the value is a known member of the RateLimitEntryResetUnit enum.
-func (e RateLimitEntryResetUnit) Valid() bool {
-	switch e {
-	case RateLimitEntryResetUnitDay:
-		return true
-	case RateLimitEntryResetUnitHour:
-		return true
-	case RateLimitEntryResetUnitMinute:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for RateLimitResetWindowUnit.
-const (
-	RateLimitResetWindowUnitDay    RateLimitResetWindowUnit = "day"
-	RateLimitResetWindowUnitHour   RateLimitResetWindowUnit = "hour"
-	RateLimitResetWindowUnitMinute RateLimitResetWindowUnit = "minute"
-	RateLimitResetWindowUnitSecond RateLimitResetWindowUnit = "second"
-)
-
-// Valid indicates whether the value is a known member of the RateLimitResetWindowUnit enum.
-func (e RateLimitResetWindowUnit) Valid() bool {
-	switch e {
-	case RateLimitResetWindowUnitDay:
-		return true
-	case RateLimitResetWindowUnitHour:
-		return true
-	case RateLimitResetWindowUnitMinute:
-		return true
-	case RateLimitResetWindowUnitSecond:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for SelfHostedGatewayRequestFunctionalityType.
-const (
-	Ai SelfHostedGatewayRequestFunctionalityType = "ai"
-)
-
-// Valid indicates whether the value is a known member of the SelfHostedGatewayRequestFunctionalityType enum.
-func (e SelfHostedGatewayRequestFunctionalityType) Valid() bool {
-	switch e {
-	case Ai:
+	case Internal:
 		return true
 	default:
 		return false
@@ -1176,58 +489,16 @@ func (e UpdateDeploymentStateRequestState) Valid() bool {
 
 // Defines values for UpdateDeploymentStateResponseState.
 const (
-	Active   UpdateDeploymentStateResponseState = "Active"
-	Undeploy UpdateDeploymentStateResponseState = "Undeploy"
+	UpdateDeploymentStateResponseStateActive   UpdateDeploymentStateResponseState = "Active"
+	UpdateDeploymentStateResponseStateUndeploy UpdateDeploymentStateResponseState = "Undeploy"
 )
 
 // Valid indicates whether the value is a known member of the UpdateDeploymentStateResponseState enum.
 func (e UpdateDeploymentStateResponseState) Valid() bool {
 	switch e {
-	case Active:
+	case UpdateDeploymentStateResponseStateActive:
 		return true
-	case Undeploy:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpstreamAuthType.
-const (
-	ApiKey UpstreamAuthType = "api-key"
-	None   UpstreamAuthType = "none"
-)
-
-// Valid indicates whether the value is a known member of the UpstreamAuthType enum.
-func (e UpstreamAuthType) Valid() bool {
-	switch e {
-	case ApiKey:
-		return true
-	case None:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListCatalogResourcesParamsKind.
-const (
-	ListCatalogResourcesParamsKindAgent       ListCatalogResourcesParamsKind = "agent"
-	ListCatalogResourcesParamsKindAgentKind   ListCatalogResourcesParamsKind = "AgentKind"
-	ListCatalogResourcesParamsKindLlmProvider ListCatalogResourcesParamsKind = "LlmProvider"
-	ListCatalogResourcesParamsKindMcp         ListCatalogResourcesParamsKind = "mcp"
-)
-
-// Valid indicates whether the value is a known member of the ListCatalogResourcesParamsKind enum.
-func (e ListCatalogResourcesParamsKind) Valid() bool {
-	switch e {
-	case ListCatalogResourcesParamsKindAgent:
-		return true
-	case ListCatalogResourcesParamsKindAgentKind:
-		return true
-	case ListCatalogResourcesParamsKindLlmProvider:
-		return true
-	case ListCatalogResourcesParamsKindMcp:
+	case UpdateDeploymentStateResponseStateUndeploy:
 		return true
 	default:
 		return false
@@ -1260,73 +531,19 @@ func (e ListOrgEventDeliveriesParamsStatus) Valid() bool {
 
 // Defines values for ListEventTypesParamsScope.
 const (
-	Agent   ListEventTypesParamsScope = "agent"
-	Org     ListEventTypesParamsScope = "org"
-	Project ListEventTypesParamsScope = "project"
+	ListEventTypesParamsScopeAgent   ListEventTypesParamsScope = "agent"
+	ListEventTypesParamsScopeOrg     ListEventTypesParamsScope = "org"
+	ListEventTypesParamsScopeProject ListEventTypesParamsScope = "project"
 )
 
 // Valid indicates whether the value is a known member of the ListEventTypesParamsScope enum.
 func (e ListEventTypesParamsScope) Valid() bool {
 	switch e {
-	case Agent:
+	case ListEventTypesParamsScopeAgent:
 		return true
-	case Org:
+	case ListEventTypesParamsScopeOrg:
 		return true
-	case Project:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for ListGatewaysParamsStatus.
-const (
-	ListGatewaysParamsStatusACTIVE       ListGatewaysParamsStatus = "ACTIVE"
-	ListGatewaysParamsStatusERROR        ListGatewaysParamsStatus = "ERROR"
-	ListGatewaysParamsStatusINACTIVE     ListGatewaysParamsStatus = "INACTIVE"
-	ListGatewaysParamsStatusPROVISIONING ListGatewaysParamsStatus = "PROVISIONING"
-)
-
-// Valid indicates whether the value is a known member of the ListGatewaysParamsStatus enum.
-func (e ListGatewaysParamsStatus) Valid() bool {
-	switch e {
-	case ListGatewaysParamsStatusACTIVE:
-		return true
-	case ListGatewaysParamsStatusERROR:
-		return true
-	case ListGatewaysParamsStatusINACTIVE:
-		return true
-	case ListGatewaysParamsStatusPROVISIONING:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetLLMProviderDeploymentsParamsStatus.
-const (
-	GetLLMProviderDeploymentsParamsStatusARCHIVED    GetLLMProviderDeploymentsParamsStatus = "ARCHIVED"
-	GetLLMProviderDeploymentsParamsStatusDEPLOYED    GetLLMProviderDeploymentsParamsStatus = "DEPLOYED"
-	GetLLMProviderDeploymentsParamsStatusDEPLOYING   GetLLMProviderDeploymentsParamsStatus = "DEPLOYING"
-	GetLLMProviderDeploymentsParamsStatusFAILED      GetLLMProviderDeploymentsParamsStatus = "FAILED"
-	GetLLMProviderDeploymentsParamsStatusUNDEPLOYED  GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYED"
-	GetLLMProviderDeploymentsParamsStatusUNDEPLOYING GetLLMProviderDeploymentsParamsStatus = "UNDEPLOYING"
-)
-
-// Valid indicates whether the value is a known member of the GetLLMProviderDeploymentsParamsStatus enum.
-func (e GetLLMProviderDeploymentsParamsStatus) Valid() bool {
-	switch e {
-	case GetLLMProviderDeploymentsParamsStatusARCHIVED:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusDEPLOYED:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusDEPLOYING:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusFAILED:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYED:
-		return true
-	case GetLLMProviderDeploymentsParamsStatusUNDEPLOYING:
+	case ListEventTypesParamsScopeProject:
 		return true
 	default:
 		return false
@@ -1359,120 +576,27 @@ func (e ListAgentEventDeliveriesParamsStatus) Valid() bool {
 
 // Defines values for ListProjectEventDeliveriesParamsStatus.
 const (
-	Delivered ListProjectEventDeliveriesParamsStatus = "delivered"
-	Failed    ListProjectEventDeliveriesParamsStatus = "failed"
-	Pending   ListProjectEventDeliveriesParamsStatus = "pending"
-	Skipped   ListProjectEventDeliveriesParamsStatus = "skipped"
+	ListProjectEventDeliveriesParamsStatusDelivered ListProjectEventDeliveriesParamsStatus = "delivered"
+	ListProjectEventDeliveriesParamsStatusFailed    ListProjectEventDeliveriesParamsStatus = "failed"
+	ListProjectEventDeliveriesParamsStatusPending   ListProjectEventDeliveriesParamsStatus = "pending"
+	ListProjectEventDeliveriesParamsStatusSkipped   ListProjectEventDeliveriesParamsStatus = "skipped"
 )
 
 // Valid indicates whether the value is a known member of the ListProjectEventDeliveriesParamsStatus enum.
 func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
 	switch e {
-	case Delivered:
+	case ListProjectEventDeliveriesParamsStatusDelivered:
 		return true
-	case Failed:
+	case ListProjectEventDeliveriesParamsStatusFailed:
 		return true
-	case Pending:
+	case ListProjectEventDeliveriesParamsStatusPending:
 		return true
-	case Skipped:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetLLMProxyDeploymentsParamsStatus.
-const (
-	ARCHIVED    GetLLMProxyDeploymentsParamsStatus = "ARCHIVED"
-	DEPLOYED    GetLLMProxyDeploymentsParamsStatus = "DEPLOYED"
-	DEPLOYING   GetLLMProxyDeploymentsParamsStatus = "DEPLOYING"
-	FAILED      GetLLMProxyDeploymentsParamsStatus = "FAILED"
-	UNDEPLOYED  GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYED"
-	UNDEPLOYING GetLLMProxyDeploymentsParamsStatus = "UNDEPLOYING"
-)
-
-// Valid indicates whether the value is a known member of the GetLLMProxyDeploymentsParamsStatus enum.
-func (e GetLLMProxyDeploymentsParamsStatus) Valid() bool {
-	switch e {
-	case ARCHIVED:
-		return true
-	case DEPLOYED:
-		return true
-	case DEPLOYING:
-		return true
-	case FAILED:
-		return true
-	case UNDEPLOYED:
-		return true
-	case UNDEPLOYING:
+	case ListProjectEventDeliveriesParamsStatusSkipped:
 		return true
 	default:
 		return false
 	}
 }
-
-// A2AProxyResponse How an external agent is published through the environment's ingress gateway.
-type A2AProxyResponse struct {
-	// GatewayUrl The agent's base URL on the environment's ingress gateway, where its card is served at /.well-known/agent-card.json once DEPLOYED. Empty while no ingress gateway is mapped to the environment.
-	GatewayUrl string `json:"gatewayUrl"`
-
-	// Status The agent's deployment status on the environment's ingress gateway. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see statusReason). An environment with no ingress gateway is UNDEPLOYED with statusReason "no gateway in this environment".
-	Status A2AProxyResponseStatus `json:"status"`
-
-	// StatusReason Why the status is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or "no gateway in this environment". Empty when there is nothing to say.
-	StatusReason string `json:"statusReason"`
-
-	// UpstreamAuthHeader The header the gateway adds upstream; empty when none. A non-empty header means a secret is stored. The secret itself is never returned.
-	UpstreamAuthHeader string `json:"upstreamAuthHeader"`
-}
-
-// A2AProxyResponseStatus The agent's deployment status on the environment's ingress gateway. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see statusReason). An environment with no ingress gateway is UNDEPLOYED with statusReason "no gateway in this environment".
-type A2AProxyResponseStatus string
-
-// A2AProxyUpstreamAuth A static header the gateway adds to every call to the agent, card fetch included.
-type A2AProxyUpstreamAuth struct {
-	// Header Header name. Host is not allowed.
-	Header string `json:"header"`
-
-	// Value Header value: at most 8192 bytes, with no quote, "%", control character (including line breaks and tabs) or "{{". Omit it to keep the stored secret.
-	Value *string `json:"value,omitempty"`
-}
-
-// APIKeyInfo Masked, read-only view of a stored API key for listing. The plain key value is never returned; only the masked representation.
-type APIKeyInfo struct {
-	// CreatedAt Creation timestamp in RFC3339 format.
-	CreatedAt time.Time `json:"createdAt"`
-
-	// DisplayName Human-readable name shown in the console.
-	DisplayName string `json:"displayName"`
-
-	// ExpiresAt Optional expiration timestamp if set.
-	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-
-	// MaskedApiKey Masked representation of the API key (full value is shown only once at creation).
-	MaskedApiKey string `json:"maskedApiKey"`
-
-	// Name Unique name of the API key.
-	Name string `json:"name"`
-
-	// Status Current lifecycle status of the API key (e.g. active, revoked).
-	Status string `json:"status"`
-}
-
-// APIKeySecurity defines model for APIKeySecurity.
-type APIKeySecurity struct {
-	// Enabled Whether API key security is enabled
-	Enabled *bool `json:"enabled,omitempty"`
-
-	// In Where the API key is located
-	In *APIKeySecurityIn `json:"in,omitempty"`
-
-	// Key API key parameter name
-	Key *string `json:"key,omitempty"`
-}
-
-// APIKeySecurityIn Where the API key is located
-type APIKeySecurityIn string
 
 // AddAgentKindVersionRequest defines model for AddAgentKindVersionRequest.
 type AddAgentKindVersionRequest struct {
@@ -1513,33 +637,6 @@ type AgentCardCORSConfig struct {
 	Inherit *bool `json:"inherit,omitempty"`
 }
 
-// AgentCardResponse An A2A agent's stored public agent card for one environment, and the state of its fetch.
-type AgentCardResponse struct {
-	// Card The last good card, as returned by the agent. Absent until the first successful fetch.
-	Card *map[string]interface{} `json:"card,omitempty"`
-
-	// FetchedAt Time of the last successful fetch. Absent until then.
-	FetchedAt *time.Time `json:"fetchedAt,omitempty"`
-
-	// LastError Why the last attempt failed; empty after a success.
-	LastError string `json:"lastError"`
-
-	// Source platform cards are fetched through the environment's gateway; external cards from a registered URL.
-	Source AgentCardResponseSource `json:"source"`
-
-	// SourceUrl The registered URL (external) or the URL last fetched (platform).
-	SourceUrl string `json:"sourceUrl"`
-
-	// Status pending while a fetch is due or retrying; failed once the retry budget ran out.
-	Status AgentCardResponseStatus `json:"status"`
-}
-
-// AgentCardResponseSource platform cards are fetched through the environment's gateway; external cards from a registered URL.
-type AgentCardResponseSource string
-
-// AgentCardResponseStatus pending while a fetch is due or retrying; failed once the retry budget ran out.
-type AgentCardResponseStatus string
-
 // AgentCreatedBy The user who created this agent. Resolved from an audit-only
 // requester id captured at creation time, so it is best-effort and
 // omitted entirely when unknown (e.g. agents created before this was
@@ -1557,35 +654,6 @@ type AgentCreatedBy struct {
 type AgentIdentityActionRequest struct {
 	// Environment Environment name to regenerate the AgentID secret in
 	Environment string `json:"environment"`
-}
-
-// AgentIdentityAgentListResponse defines model for AgentIdentityAgentListResponse.
-type AgentIdentityAgentListResponse struct {
-	Agents []AgentIdentityAgentResponse `json:"agents"`
-}
-
-// AgentIdentityAgentResponse defines model for AgentIdentityAgentResponse.
-type AgentIdentityAgentResponse struct {
-	AgentName   string `json:"agentName"`
-	ProjectName string `json:"projectName"`
-
-	// Status Thunder binding status (pending/in_progress/completed/failed)
-	Status         string  `json:"status"`
-	ThunderAgentId *string `json:"thunderAgentId,omitempty"`
-}
-
-// AgentIdentityAssignmentEntry defines model for AgentIdentityAssignmentEntry.
-type AgentIdentityAssignmentEntry struct {
-	Id   string                           `json:"id"`
-	Type AgentIdentityAssignmentEntryType `json:"type"`
-}
-
-// AgentIdentityAssignmentEntryType defines model for AgentIdentityAssignmentEntry.Type.
-type AgentIdentityAssignmentEntryType string
-
-// AgentIdentityAssignmentsRequest defines model for AgentIdentityAssignmentsRequest.
-type AgentIdentityAssignmentsRequest struct {
-	Assignments []AgentIdentityAssignmentEntry `json:"assignments"`
 }
 
 // AgentIdentityEnvironmentView One environment's AgentID binding. This is a safe view that never
@@ -1616,56 +684,6 @@ type AgentIdentityEnvironmentView struct {
 	// `in_progress` to `completed`, or to `failed` if it runs out of
 	// retries (5 attempts over about 15 minutes).
 	Status AgentThunderStatus `json:"status"`
-}
-
-// AgentIdentityGroupRequest defines model for AgentIdentityGroupRequest.
-type AgentIdentityGroupRequest struct {
-	Description *string `json:"description,omitempty"`
-	Name        string  `json:"name"`
-}
-
-// AgentIdentityMembersRequest defines model for AgentIdentityMembersRequest.
-type AgentIdentityMembersRequest struct {
-	// AgentIds Thunder agent IDs (from the agents picker)
-	AgentIds []string `json:"agentIds"`
-}
-
-// AgentIdentityRoleAssignmentsResponse defines model for AgentIdentityRoleAssignmentsResponse.
-type AgentIdentityRoleAssignmentsResponse struct {
-	// Agents Raw agent assignment entries; resolve display data via the agents picker.
-	Agents *[]AgentIdentityAssignmentEntry `json:"agents,omitempty"`
-	Groups *[]struct {
-		CreatedAt   *string `json:"createdAt,omitempty"`
-		Description *string `json:"description,omitempty"`
-		Id          string  `json:"id"`
-		Name        string  `json:"name"`
-		OuId        *string `json:"ouId,omitempty"`
-		UpdatedAt   *string `json:"updatedAt,omitempty"`
-	} `json:"groups,omitempty"`
-}
-
-// AgentIdentityRoleRequest defines model for AgentIdentityRoleRequest.
-type AgentIdentityRoleRequest struct {
-	Description *string `json:"description,omitempty"`
-	Name        string  `json:"name"`
-
-	// Scopes Scope strings ("<proxy-handle>:<action>") carried as the role's permissions. On update this is a full replacement of the role's scopes: omit the field to leave existing scopes untouched, or send an explicit empty array to clear them all.
-	Scopes *[]string `json:"scopes,omitempty"`
-}
-
-// AgentIdentityScopeEntry defines model for AgentIdentityScopeEntry.
-type AgentIdentityScopeEntry struct {
-	Description *string `json:"description,omitempty"`
-
-	// McpProxyId Handle of the owning MCP proxy.
-	McpProxyId   string  `json:"mcpProxyId"`
-	McpProxyName *string `json:"mcpProxyName,omitempty"`
-	Scope        string  `json:"scope"`
-}
-
-// AgentIdentityScopeListResponse defines model for AgentIdentityScopeListResponse.
-type AgentIdentityScopeListResponse struct {
-	Scopes []AgentIdentityScopeEntry `json:"scopes"`
 }
 
 // AgentKindConfigSchemaItem defines model for AgentKindConfigSchemaItem.
@@ -1760,70 +778,6 @@ type AgentListResponse struct {
 
 	// Total Total number of agents matching the query
 	Total int `json:"total"`
-}
-
-// AgentModelConfigListItem defines model for AgentModelConfigListItem.
-type AgentModelConfigListItem struct {
-	// AgentId Agent identifier
-	AgentId string `json:"agentId"`
-
-	// CreatedAt Creation timestamp
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Description Configuration description
-	Description *string `json:"description,omitempty"`
-
-	// Name Configuration name
-	Name string `json:"name"`
-
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// Type Configuration type
-	Type string `json:"type"`
-
-	// Uuid Configuration UUID
-	Uuid openapi_types.UUID `json:"uuid"`
-}
-
-// AgentModelConfigListResponse defines model for AgentModelConfigListResponse.
-type AgentModelConfigListResponse struct {
-	// Configs List of agent model configurations
-	Configs    []AgentModelConfigListItem `json:"configs"`
-	Pagination PaginationInfo             `json:"pagination"`
-}
-
-// AgentModelConfigResponse defines model for AgentModelConfigResponse.
-type AgentModelConfigResponse struct {
-	// AgentId Agent identifier
-	AgentId string `json:"agentId"`
-
-	// CreatedAt Configuration creation timestamp
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Description Description of the configuration
-	Description *string `json:"description,omitempty"`
-
-	// EnvMappings Environment-specific model configurations
-	EnvMappings map[string]EnvProviderConfigMappings `json:"envMappings"`
-
-	// EnvironmentVariables Environment variables configured for the agent
-	EnvironmentVariables []EnvironmentVariableConfig `json:"environmentVariables"`
-
-	// Name Name of the configuration
-	Name string `json:"name"`
-
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// Type Type of configuration
-	Type string `json:"type"`
-
-	// UpdatedAt Configuration last updated timestamp
-	UpdatedAt time.Time `json:"updatedAt"`
-
-	// Uuid Unique identifier for the configuration
-	Uuid openapi_types.UUID `json:"uuid"`
 }
 
 // AgentProvisioningType Whether the agent runs on the platform (`internal`) or outside it (`external`)
@@ -1933,21 +887,6 @@ type AgentType struct {
 
 	// Type Type of the agent
 	Type string `json:"type"`
-}
-
-// AuthInfo defines model for AuthInfo.
-type AuthInfo struct {
-	// In how the token should be set (header, query param)
-	In string `json:"in"`
-
-	// Name expected header or query paremeter name
-	Name string `json:"name"`
-
-	// Type authentication type, api-key, oauth2
-	Type string `json:"type"`
-
-	// Value api key or token value
-	Value *string `json:"value,omitempty"`
 }
 
 // AutoScalingConfig defines model for AutoScalingConfig.
@@ -2137,111 +1076,6 @@ type CORSConfig struct {
 
 	// Enabled Enable or disable CORS for this agent endpoint
 	Enabled *bool `json:"enabled,omitempty"`
-}
-
-// CatalogEntry defines model for CatalogEntry.
-type CatalogEntry struct {
-	// CreatedAt Timestamp when the entry was created
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Handle Unique handle/identifier for the resource
-	Handle string `json:"handle"`
-
-	// InCatalog Whether the resource is available in the catalog
-	InCatalog bool `json:"inCatalog"`
-
-	// Kind Type of resource
-	Kind CatalogEntryKind `json:"kind"`
-
-	// Name Human-readable name of the resource
-	Name string `json:"name"`
-
-	// Uuid Unique identifier for the catalog entry
-	Uuid openapi_types.UUID `json:"uuid"`
-
-	// Version Version of the resource
-	Version string `json:"version"`
-}
-
-// CatalogEntryKind Type of resource
-type CatalogEntryKind string
-
-// CatalogLLMProviderEntry defines model for CatalogLLMProviderEntry.
-type CatalogLLMProviderEntry struct {
-	// Context API context path
-	Context *string `json:"context,omitempty"`
-
-	// CreatedAt Timestamp when the provider was created
-	CreatedAt time.Time `json:"createdAt"`
-
-	// CreatedBy User who created the provider
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Deployments The provider's live deployments, one per gateway currently serving it. Gateways it is only owed a deploy to are not listed.
-	Deployments *[]DeploymentSummary `json:"deployments,omitempty"`
-
-	// Description Provider description
-	Description *string `json:"description,omitempty"`
-
-	// Handle Unique handle/identifier for the provider
-	Handle string `json:"handle"`
-
-	// InCatalog Whether the provider is available in the catalog
-	InCatalog bool `json:"inCatalog"`
-
-	// Kind Resource type (always "LlmProvider" for this schema)
-	Kind CatalogLLMProviderEntryKind `json:"kind"`
-
-	// ModelProviders List of model providers and their models
-	ModelProviders *[]LLMModelProvider `json:"modelProviders,omitempty"`
-
-	// Name Human-readable name of the provider
-	Name     string    `json:"name"`
-	Policies *[]string `json:"policies,omitempty"`
-
-	// RateLimiting Rate limiting configuration summary
-	RateLimiting *RateLimitingSummary `json:"rateLimiting,omitempty"`
-
-	// Security Security configuration summary
-	Security *SecuritySummary `json:"security,omitempty"`
-
-	// Status Provider status
-	Status string `json:"status"`
-
-	// Template Template identifier used by this provider
-	Template string `json:"template"`
-
-	// Uuid Unique identifier for the LLM provider
-	Uuid openapi_types.UUID `json:"uuid"`
-
-	// Version Version of the provider
-	Version string `json:"version"`
-
-	// Vhost Virtual host
-	Vhost *string `json:"vhost,omitempty"`
-}
-
-// CatalogLLMProviderEntryKind Resource type (always "LlmProvider" for this schema)
-type CatalogLLMProviderEntryKind string
-
-// CatalogListResponse defines model for CatalogListResponse.
-type CatalogListResponse struct {
-	// Entries List of catalog entries
-	Entries []CatalogListResponse_Entries_Item `json:"entries"`
-
-	// Limit Maximum number of results returned
-	Limit int `json:"limit"`
-
-	// Offset Number of results skipped
-	Offset int `json:"offset"`
-
-	// Total Total number of entries matching the filter
-	Total int `json:"total"`
-}
-
-// CatalogListResponse_Entries_Item defines model for CatalogListResponse.entries.Item.
-type CatalogListResponse_Entries_Item struct {
-	union json.RawMessage
 }
 
 // Commit Git commit information
@@ -2437,37 +1271,6 @@ type ConsoleActionBatchResponse struct {
 	Dropped int `json:"dropped"`
 }
 
-// CostRateLimit defines model for CostRateLimit.
-type CostRateLimit struct {
-	// Amount Maximum cost amount
-	Amount float64 `json:"amount"`
-
-	// Enabled Whether cost rate limiting is enabled
-	Enabled bool                 `json:"enabled"`
-	Reset   RateLimitResetWindow `json:"reset"`
-}
-
-// CreateAgentModelConfigRequest defines model for CreateAgentModelConfigRequest.
-type CreateAgentModelConfigRequest struct {
-	// Description Optional description of the configuration
-	Description *string `json:"description,omitempty"`
-
-	// EnvMappings Map of environment names to their model configurations
-	EnvMappings map[string]EnvModelConfigRequest `json:"envMappings"`
-
-	// EnvironmentVariables Optional custom environment variable names. If omitted, names are auto-generated from the config name. Duplicate keys are rejected with 400.
-	EnvironmentVariables *[]EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
-
-	// Name Name of the model configuration
-	Name string `json:"name"`
-
-	// Type Type of configuration
-	Type CreateAgentModelConfigRequestType `json:"type"`
-}
-
-// CreateAgentModelConfigRequestType Type of configuration
-type CreateAgentModelConfigRequestType string
-
 // CreateAgentRequest Create an agent. For internal provisioning, supply either repository (source build) or agentKind (from a published Kind version).
 type CreateAgentRequest struct {
 	AgentType      *AgentType      `json:"agentType,omitempty"`
@@ -2551,39 +1354,6 @@ type CreateEnvironmentRequest struct {
 // CreateEnvironmentRequestIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
 type CreateEnvironmentRequestIsolationTier string
 
-// CreateGatewayRequest defines model for CreateGatewayRequest.
-type CreateGatewayRequest struct {
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// EnvironmentIds The environment UUID to assign the gateway to during creation. A gateway serves exactly one environment, so at most one is allowed.
-	EnvironmentIds *[]string `json:"environmentIds,omitempty"`
-
-	// GatewayType Gateway placement role accepted on input. `REGULAR` and `AI` are deprecated
-	// aliases kept for gateway charts pinned to an older version (REGULAR -> BOTH,
-	// AI -> EGRESS); prefer INGRESS/EGRESS/BOTH. Responses and the canonical
-	// `GatewayType` schema never emit REGULAR/AI.
-	GatewayType GatewayTypeInput `json:"gatewayType"`
-
-	// IsCritical Flag indicating if this is a critical production gateway
-	IsCritical *bool `json:"isCritical,omitempty"`
-
-	// Name Unique gateway name (lowercase, alphanumeric with hyphens)
-	Name string `json:"name"`
-
-	// OrgId Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
-	OrgId *string `json:"orgId,omitempty"`
-
-	// Region Deployment region (optional)
-	Region *string `json:"region,omitempty"`
-
-	// RuntimeUrl In-cluster base URL of the gateway runtime, used by sandboxed platform-hosted agents. Empty means no internal address is registered and the vhost is used instead. Must carry an explicit port other than 80 or 443 and a cluster-local host.
-	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
-
-	// Vhost Virtual host for the gateway (FQDN or IP)
-	Vhost string `json:"vhost"`
-}
-
 // CreateGitSecretRequest defines model for CreateGitSecretRequest.
 type CreateGitSecretRequest struct {
 	// Credentials Authentication credentials for a git secret.
@@ -2606,114 +1376,6 @@ type CreateGroupRequest struct {
 
 	// Name Group name
 	Name string `json:"name"`
-}
-
-// CreateLLMAPIKeyRequest defines model for CreateLLMAPIKeyRequest.
-type CreateLLMAPIKeyRequest struct {
-	// DisplayName Human-readable display name for the API key. When name is omitted, the name generated from it (lowercase letters, digits and hyphens) must be at least 3 characters long.
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// ExpiresAt Optional expiration time in ISO 8601 format (e.g. 2026-12-31T23:59:59Z).
-	ExpiresAt *string `json:"expiresAt,omitempty"`
-
-	// Name Unique identifier for the API key. If omitted, generated from displayName.
-	Name *string `json:"name,omitempty"`
-}
-
-// CreateLLMAPIKeyResponse defines model for CreateLLMAPIKeyResponse.
-type CreateLLMAPIKeyResponse struct {
-	// ApiKey Generated API key value. Returned only once; store it securely.
-	ApiKey *string `json:"apiKey,omitempty"`
-
-	// GatewayConnected Whether every target gateway had a live websocket connection to the
-	// control plane when the key was created. When false, the key has
-	// been stored but will only become usable once the gateway
-	// reconnects and syncs.
-	GatewayConnected *bool `json:"gatewayConnected,omitempty"`
-
-	// KeyId Unique identifier of the created key.
-	KeyId *string `json:"keyId,omitempty"`
-
-	// Message Additional details about the operation result.
-	Message string `json:"message"`
-
-	// Status Result of the operation ("success" or "error").
-	Status string `json:"status"`
-}
-
-// CreateLLMProviderRequest defines model for CreateLLMProviderRequest.
-type CreateLLMProviderRequest struct {
-	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
-
-	// Context API context path (must start with /, no trailing slash)
-	Context string `json:"context"`
-
-	// Description Description of the LLM provider
-	Description *string               `json:"description,omitempty"`
-	Gateways    *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique identifier for the LLM provider
-	Id string `json:"id"`
-
-	// ModelProviders List of model providers and their models
-	ModelProviders *[]LLMModelProvider `json:"modelProviders,omitempty"`
-
-	// Name Human-readable name of the LLM provider
-	Name string `json:"name"`
-
-	// Openapi Custom OpenAPI specification (YAML or JSON)
-	Openapi *string `json:"openapi,omitempty"`
-
-	// Policies List of policies applied to this provider
-	Policies     *[]LLMPolicy           `json:"policies,omitempty"`
-	RateLimiting *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-	Security *SecurityConfig `json:"security,omitempty"`
-
-	// Template Template identifier being used
-	Template string         `json:"template"`
-	Upstream UpstreamConfig `json:"upstream"`
-
-	// Version Version of the LLM provider
-	Version string `json:"version"`
-}
-
-// CreateLLMProviderTemplateRequest defines model for CreateLLMProviderTemplateRequest.
-type CreateLLMProviderTemplateRequest struct {
-	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
-
-	// Description Description of the LLM provider template
-	Description *string `json:"description,omitempty"`
-
-	// Id Unique handle for the template
-	Id       string                       `json:"id"`
-	Metadata *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-
-	// Name Human-readable LLM Template name
-	Name            string                `json:"name"`
-	PromptTokens    *ExtractionIdentifier `json:"promptTokens,omitempty"`
-	RemainingTokens *ExtractionIdentifier `json:"remainingTokens,omitempty"`
-	RequestModel    *ExtractionIdentifier `json:"requestModel,omitempty"`
-	ResponseModel   *ExtractionIdentifier `json:"responseModel,omitempty"`
-	TotalTokens     *ExtractionIdentifier `json:"totalTokens,omitempty"`
-}
-
-// CreateLLMProxyRequest defines model for CreateLLMProxyRequest.
-type CreateLLMProxyRequest struct {
-	Configuration LLMProxyConfig `json:"configuration"`
-
-	// Description Description of the LLM proxy
-	Description *string `json:"description,omitempty"`
-
-	// Openapi Custom OpenAPI specification
-	Openapi *string `json:"openapi,omitempty"`
-
-	// ProviderUuid UUID of the LLM provider
-	ProviderUuid openapi_types.UUID `json:"providerUuid"`
 }
 
 // CreateOrganizationRequest defines model for CreateOrganizationRequest.
@@ -2800,66 +1462,6 @@ type DeployAgentRequest struct {
 	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
 }
 
-// DeploymentDetailsResponse defines model for DeploymentDetailsResponse.
-type DeploymentDetailsResponse struct {
-	// Endpoints List of deployment endpoints
-	Endpoints []DeploymentEndpoint `json:"endpoints"`
-
-	// EnvironmentDisplayName Environment display name
-	EnvironmentDisplayName *string `json:"environmentDisplayName,omitempty"`
-
-	// GatewayStatus The agent's deployment status on the environment's ingress gateway, the only place an API agent is served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway status could not be read.
-	GatewayStatus *DeploymentDetailsResponseGatewayStatus `json:"gatewayStatus,omitempty"`
-
-	// GatewayStatusReason Why gatewayStatus is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, what a deploy is waiting for, or "no gateway in this environment". Empty when there is nothing to say.
-	GatewayStatusReason *string `json:"gatewayStatusReason,omitempty"`
-
-	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
-	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
-
-	// ImageId Container image ID
-	ImageId string `json:"imageId"`
-
-	// KindVersion Agent Kind version this deployment runs, resolved from the deployed image. Per-environment, so it reflects what is actually deployed rather than the version the agent was created from. Absent for source-built agents and when the image matches no published version.
-	KindVersion *string `json:"kindVersion,omitempty"`
-
-	// LastDeployed Timestamp of last deployment
-	LastDeployed *time.Time `json:"lastDeployed,omitempty"`
-
-	// PromotionTargetEnvironment Promotion target environment details
-	PromotionTargetEnvironment *struct {
-		// DisplayName Human-readable display name of the promotion target environment
-		DisplayName string `json:"displayName"`
-
-		// Name name of the promotion target environment
-		Name string `json:"name"`
-	} `json:"promotionTargetEnvironment,omitempty"`
-
-	// Status Deployment status
-	Status string `json:"status"`
-}
-
-// DeploymentDetailsResponseGatewayStatus The agent's deployment status on the environment's ingress gateway, the only place an API agent is served. DEPLOYING until the gateway acknowledges the deployment, including while it waits for an input (see gatewayStatusReason). An environment with no ingress gateway is UNDEPLOYED with gatewayStatusReason "no gateway in this environment". Absent for an agent the gateway does not serve, and when the gateway status could not be read.
-type DeploymentDetailsResponseGatewayStatus string
-
-// DeploymentEndpoint defines model for DeploymentEndpoint.
-type DeploymentEndpoint struct {
-	// Name Name of the endpoint
-	Name string `json:"name"`
-
-	// Url URL of the endpoint
-	Url string `json:"url"`
-
-	// Visibility Visibility level of the endpoint
-	Visibility DeploymentEndpointVisibility `json:"visibility"`
-}
-
-// DeploymentEndpointVisibility Visibility level of the endpoint
-type DeploymentEndpointVisibility string
-
-// DeploymentListResponse Map of environment names to deployment details. Keys are ordered according to deployment pipeline sequence.
-type DeploymentListResponse map[string]DeploymentDetailsResponse
-
 // DeploymentPipelineListResponse defines model for DeploymentPipelineListResponse.
 type DeploymentPipelineListResponse struct {
 	DeploymentPipelines []DeploymentPipelineResponse `json:"deploymentPipelines"`
@@ -2895,30 +1497,6 @@ type DeploymentResponse struct {
 	ImageId     string `json:"imageId"`
 	ProjectName string `json:"projectName"`
 }
-
-// DeploymentSummary defines model for DeploymentSummary.
-type DeploymentSummary struct {
-	// DeployedAt Timestamp when the resource was deployed
-	DeployedAt *time.Time `json:"deployedAt,omitempty"`
-
-	// EnvironmentName Environment name (from gateway name or properties)
-	EnvironmentName *string `json:"environmentName,omitempty"`
-
-	// GatewayId Gateway UUID
-	GatewayId openapi_types.UUID `json:"gatewayId"`
-
-	// GatewayName Gateway name/identifier
-	GatewayName string `json:"gatewayName"`
-
-	// Status The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
-	Status DeploymentSummaryStatus `json:"status"`
-
-	// Vhost Gateway virtual host
-	Vhost *string `json:"vhost,omitempty"`
-}
-
-// DeploymentSummaryStatus The status a user is shown for the provider on the gateway. In the catalog, which lists live deployments only, DEPLOYING means the provider is live and a redeploy is queued.
-type DeploymentSummaryStatus string
 
 // DockerBuild defines model for DockerBuild.
 type DockerBuild struct {
@@ -2958,34 +1536,6 @@ type EndpointSchema struct {
 
 // EndpointsResponse Map of endpoint names to endpoint configurations
 type EndpointsResponse map[string]EndpointConfiguration
-
-// EnvModelConfigRequest defines model for EnvModelConfigRequest.
-type EnvModelConfigRequest struct {
-	Configuration EnvProviderConfiguration `json:"configuration"`
-
-	// McpProxyId ID/handle of the MCP proxy for this environment
-	McpProxyId *string `json:"mcpProxyId,omitempty"`
-
-	// McpProxyName Handle/name of the MCP proxy for this environment
-	McpProxyName *string `json:"mcpProxyName,omitempty"`
-
-	// ProviderName Handle of the LLM provider for this environment. For MCP configs, proxyName/proxyId may be used instead.
-	ProviderName *string `json:"providerName,omitempty"`
-
-	// ProxyId ID/handle of the MCP proxy for this environment
-	ProxyId *string `json:"proxyId,omitempty"`
-
-	// ProxyName Handle/name of the MCP proxy for this environment
-	ProxyName *string `json:"proxyName,omitempty"`
-}
-
-// EnvProviderConfigMappings defines model for EnvProviderConfigMappings.
-type EnvProviderConfigMappings struct {
-	Configuration *ProviderConfig `json:"configuration,omitempty"`
-
-	// EnvironmentName Name of the environment
-	EnvironmentName string `json:"environmentName"`
-}
 
 // EnvProviderConfiguration defines model for EnvProviderConfiguration.
 type EnvProviderConfiguration struct {
@@ -3337,18 +1887,6 @@ type EventTypeListResponse struct {
 // Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
 type Extensions map[string]map[string]interface{}
 
-// ExtractionIdentifier defines model for ExtractionIdentifier.
-type ExtractionIdentifier struct {
-	// Identifier JSONPath or other identifier to extract the value
-	Identifier string `json:"identifier"`
-
-	// Location Where to find the token information
-	Location ExtractionIdentifierLocation `json:"location"`
-}
-
-// ExtractionIdentifierLocation Where to find the token information
-type ExtractionIdentifierLocation string
-
 // FileMount defines model for FileMount.
 type FileMount struct {
 	// IsSensitive If true, value is stored in KV and synced via ExternalSecret
@@ -3418,25 +1956,6 @@ type GatewayEnvironmentResponse struct {
 // GatewayEnvironmentResponseIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
 type GatewayEnvironmentResponseIsolationTier string
 
-// GatewayHosting Who runs the gateway runtime.
-// - MANAGED: the platform provisions and runs it.
-// - SELF_HOSTED: the customer runs it and connects it to the platform.
-type GatewayHosting string
-
-// GatewayListResponse defines model for GatewayListResponse.
-type GatewayListResponse struct {
-	Gateways []GatewayResponse `json:"gateways"`
-
-	// Limit Number of results per page
-	Limit int32 `json:"limit"`
-
-	// Offset Number of results skipped
-	Offset int32 `json:"offset"`
-
-	// Total Total number of gateways matching the filter
-	Total int32 `json:"total"`
-}
-
 // GatewayListenerSpec Gateway listener configuration
 type GatewayListenerSpec struct {
 	// Host Virtual host for the listener
@@ -3455,62 +1974,6 @@ type GatewayNetworkSpec struct {
 	Internal *GatewayEndpointSpec `json:"internal,omitempty"`
 }
 
-// GatewayResponse defines model for GatewayResponse.
-type GatewayResponse struct {
-	// CreatedAt Timestamp when the gateway was registered
-	CreatedAt time.Time `json:"createdAt"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// Environments List of environments mapped to this gateway
-	Environments *[]GatewayEnvironmentResponse `json:"environments,omitempty"`
-
-	// GatewayType Gateway placement role. Naming and placement policy, not capability — every
-	// gateway has identical runtime capabilities regardless of role.
-	// - INGRESS: handles inbound agent traffic. At most one per environment.
-	// - EGRESS: hosts outbound LLM/MCP artifacts. Uncapped per environment.
-	// - BOTH: does both. Counts against the ingress cap.
-	//
-	// Immutable once registered. `REGULAR` and `AI` are accepted on input as
-	// deprecated aliases (REGULAR -> BOTH, AI -> EGRESS) so gateway charts pinned to
-	// an older version keep registering; responses always emit canonical values.
-	GatewayType GatewayType `json:"gatewayType"`
-
-	// Hosting Who runs the gateway runtime.
-	// - MANAGED: the platform provisions and runs it.
-	// - SELF_HOSTED: the customer runs it and connects it to the platform.
-	Hosting GatewayHosting `json:"hosting"`
-
-	// IsCritical Flag indicating if this is a critical production gateway
-	IsCritical bool `json:"isCritical"`
-
-	// Name Unique gateway name (lowercase, alphanumeric with hyphens)
-	Name string `json:"name"`
-
-	// Region Deployment region
-	Region *string `json:"region,omitempty"`
-
-	// RuntimeUrl In-cluster base URL of the gateway runtime, used by sandboxed platform-hosted agents. Empty means no internal address is registered and the vhost is used instead. Must carry an explicit port other than 80 or 443 and a cluster-local host.
-	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
-
-	// Status Gateway operational status:
-	// - ACTIVE: Gateway is operational and ready
-	// - INACTIVE: Gateway is registered but not active
-	// - PROVISIONING: Gateway is being set up
-	// - ERROR: Gateway has encountered an error
-	Status GatewayStatus `json:"status"`
-
-	// UpdatedAt Timestamp when the gateway was last updated
-	UpdatedAt time.Time `json:"updatedAt"`
-
-	// Uuid Unique identifier for the gateway
-	Uuid string `json:"uuid"`
-
-	// Vhost Virtual host for the gateway
-	Vhost string `json:"vhost"`
-}
-
 // GatewaySpec Gateway configuration with ingress and egress network specs
 type GatewaySpec struct {
 	// Egress External and internal gateway endpoints
@@ -3519,75 +1982,6 @@ type GatewaySpec struct {
 	// Ingress External and internal gateway endpoints
 	Ingress *GatewayNetworkSpec `json:"ingress,omitempty"`
 }
-
-// GatewayStatus Gateway operational status:
-// - ACTIVE: Gateway is operational and ready
-// - INACTIVE: Gateway is registered but not active
-// - PROVISIONING: Gateway is being set up
-// - ERROR: Gateway has encountered an error
-type GatewayStatus string
-
-// GatewayTokenInfo defines model for GatewayTokenInfo.
-type GatewayTokenInfo struct {
-	// CreatedAt Timestamp when the token was created
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Id Unique token identifier (UUID)
-	Id string `json:"id"`
-
-	// RevokedAt Timestamp when the token was revoked (null if still active)
-	RevokedAt *time.Time `json:"revokedAt,omitempty"`
-
-	// Status Current token status
-	Status GatewayTokenInfoStatus `json:"status"`
-}
-
-// GatewayTokenInfoStatus Current token status
-type GatewayTokenInfoStatus string
-
-// GatewayTokenListResponse defines model for GatewayTokenListResponse.
-type GatewayTokenListResponse struct {
-	// Count Number of tokens in this response
-	Count int `json:"count"`
-
-	// List List of token metadata
-	List []GatewayTokenInfo `json:"list"`
-}
-
-// GatewayTokenResponse defines model for GatewayTokenResponse.
-type GatewayTokenResponse struct {
-	// CreatedAt Timestamp when the token was created
-	CreatedAt time.Time `json:"createdAt"`
-
-	// ExpiresAt Token expiration time (if applicable)
-	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-
-	// GatewayId Gateway UUID
-	GatewayId string `json:"gatewayId"`
-
-	// Token New authentication token (only returned once)
-	Token string `json:"token"`
-
-	// TokenId Unique identifier for this token
-	TokenId string `json:"tokenId"`
-}
-
-// GatewayType Gateway placement role. Naming and placement policy, not capability — every
-// gateway has identical runtime capabilities regardless of role.
-// - INGRESS: handles inbound agent traffic. At most one per environment.
-// - EGRESS: hosts outbound LLM/MCP artifacts. Uncapped per environment.
-// - BOTH: does both. Counts against the ingress cap.
-//
-// Immutable once registered. `REGULAR` and `AI` are accepted on input as
-// deprecated aliases (REGULAR -> BOTH, AI -> EGRESS) so gateway charts pinned to
-// an older version keep registering; responses always emit canonical values.
-type GatewayType string
-
-// GatewayTypeInput Gateway placement role accepted on input. `REGULAR` and `AI` are deprecated
-// aliases kept for gateway charts pinned to an older version (REGULAR -> BOTH,
-// AI -> EGRESS); prefer INGRESS/EGRESS/BOTH. Responses and the canonical
-// `GatewayType` schema never emit REGULAR/AI.
-type GatewayTypeInput string
 
 // GitCredentials Authentication credentials for a git secret.
 type GitCredentials struct {
@@ -3711,81 +2105,6 @@ type HealthChecks struct {
 	Startup *HealthCheck `json:"startup,omitempty"`
 }
 
-// HealthStatusResponse defines model for HealthStatusResponse.
-type HealthStatusResponse struct {
-	// CheckedAt Timestamp when the health check was performed
-	CheckedAt time.Time `json:"checkedAt"`
-
-	// ErrorMessage Error message if health check failed
-	ErrorMessage *string `json:"errorMessage,omitempty"`
-
-	// GatewayId UUID of the gateway that was checked
-	GatewayId string `json:"gatewayId"`
-
-	// ResponseTime Response time from the gateway (if reachable)
-	ResponseTime *string `json:"responseTime,omitempty"`
-
-	// Status Health check result status
-	Status HealthStatusResponseStatus `json:"status"`
-}
-
-// HealthStatusResponseStatus Health check result status
-type HealthStatusResponseStatus string
-
-// IdentityProvider A JWT identity provider (token issuer) configured on a gateway. Mirrors a
-// gateway-side jwt-auth `system.keyManagers` entry. Only the fields needed to
-// identify an issuer and validate its tokens are surfaced.
-type IdentityProvider struct {
-	// Description Optional human-readable description (mirror-only).
-	Description *string `json:"description,omitempty"`
-
-	// EnvironmentName Environment this provider's gateway is mapped to (read-only, set on org-wide listing).
-	EnvironmentName *string `json:"environmentName,omitempty"`
-
-	// GatewayId UUID of the gateway this provider is registered to (read-only, set on org-wide listing).
-	GatewayId *string `json:"gatewayId,omitempty"`
-
-	// GatewayName Name of the gateway this provider is registered to (read-only, set on org-wide listing).
-	GatewayName *string `json:"gatewayName,omitempty"`
-
-	// Issuer Expected `iss` claim value for tokens validated by this identity provider.
-	Issuer *string `json:"issuer,omitempty"`
-
-	// JwksUri Remote JWKS endpoint used to fetch signing keys.
-	JwksUri *string `json:"jwksUri,omitempty"`
-
-	// Name Unique identity provider name within the gateway (referenced as an issuer).
-	Name string `json:"name"`
-
-	// SkipTlsVerify Skip TLS verification when fetching the JWKS endpoint (testing/trusted internal only).
-	SkipTlsVerify *bool `json:"skipTlsVerify,omitempty"`
-
-	// Type Provenance of the identity provider. `system` providers (e.g.
-	// ThunderKeyManager) are seeded with the platform and cannot be deleted;
-	// `custom` providers are added by operators via the management script.
-	Type *IdentityProviderType `json:"type,omitempty"`
-}
-
-// IdentityProviderType Provenance of the identity provider. `system` providers (e.g.
-// ThunderKeyManager) are seeded with the platform and cannot be deleted;
-// `custom` providers are added by operators via the management script.
-type IdentityProviderType string
-
-// IdentityProviderListResponse defines model for IdentityProviderListResponse.
-type IdentityProviderListResponse struct {
-	// Count Number of identity providers in this response
-	Count int `json:"count"`
-
-	// List List of identity providers
-	List []IdentityProvider `json:"list"`
-}
-
-// IdentitySecurity Agent Identity security — callers present a JWT issued by the environment's IdP. v1 pins the issuer to the ThunderKeyManager key manager.
-type IdentitySecurity struct {
-	// Enabled Whether Agent Identity security is enabled
-	Enabled *bool `json:"enabled,omitempty"`
-}
-
 // InputInterface Endpoint configurations
 type InputInterface struct {
 	// BasePath Base path for the endpoint
@@ -3806,26 +2125,6 @@ type InputInterfaceSchema struct {
 
 	// Path Path to OpenAPI schema file
 	Path *string `json:"path,omitempty"`
-}
-
-// IssueTestAPIKeyResponse defines model for IssueTestAPIKeyResponse.
-type IssueTestAPIKeyResponse struct {
-	// ApiKey The test API key value to send as the X-API-Key header.
-	ApiKey *string `json:"apiKey,omitempty"`
-
-	// ExpiresAt Expiry timestamp (RFC3339); the console rotates the key before this elapses.
-	ExpiresAt time.Time `json:"expiresAt"`
-
-	// GatewayConnected Whether every gateway serving the agent's environment had a live
-	// websocket connection to the control plane when the key was issued.
-	// When false, the key has been stored but will only become usable
-	// once the gateway reconnects and syncs.
-	GatewayConnected *bool `json:"gatewayConnected,omitempty"`
-
-	// KeyId The fixed name "console-test".
-	KeyId   *string `json:"keyId,omitempty"`
-	Message *string `json:"message,omitempty"`
-	Status  string  `json:"status"`
 }
 
 // JWK defines model for JWK.
@@ -3855,112 +2154,11 @@ type JWKS struct {
 	Keys []JWK `json:"keys"`
 }
 
-// LLMAccessControl defines model for LLMAccessControl.
-type LLMAccessControl struct {
-	Exceptions *[]RouteException `json:"exceptions,omitempty"`
-
-	// Mode Access control mode
-	Mode LLMAccessControlMode `json:"mode"`
-}
-
-// LLMAccessControlMode Access control mode
-type LLMAccessControlMode string
-
-// LLMDeployRequest Deploys the artifact's current configuration to a gateway. The deployment is named by the server; a client's name or metadata is ignored.
-type LLMDeployRequest struct {
-	// Base Omit, or "current", to deploy the current configuration. Any other value is rejected with 400: to redeploy an earlier deployment, restore it.
-	Base *LLMDeployRequestBase `json:"base,omitempty"`
-
-	// GatewayId Gateway UUID to deploy to
-	GatewayId openapi_types.UUID `json:"gatewayId"`
-}
-
-// LLMDeployRequestBase Omit, or "current", to deploy the current configuration. Any other value is rejected with 400: to redeploy an earlier deployment, restore it.
-type LLMDeployRequestBase string
-
-// LLMDeploymentResponse One deployment of an LLM provider or proxy to a gateway, with the status a user is shown for it on that gateway.
-type LLMDeploymentResponse struct {
-	// ArtifactId The provider's or proxy's UUID
-	ArtifactId       openapi_types.UUID      `json:"artifactId"`
-	BaseDeploymentId *openapi_types.UUID     `json:"baseDeploymentId,omitempty"`
-	CreatedAt        time.Time               `json:"createdAt"`
-	DeploymentId     openapi_types.UUID      `json:"deploymentId"`
-	GatewayId        openapi_types.UUID      `json:"gatewayId"`
-	Metadata         *map[string]interface{} `json:"metadata,omitempty"`
-	Name             string                  `json:"name"`
-	OrganizationId   *string                 `json:"organizationId,omitempty"`
-
-	// Status What the user is shown: ARCHIVED when the gateway's current deployment is another one. DEPLOYING also covers a redeploy that is owed; FAILED also covers a deploy that was given up.
-	Status LLMDeploymentResponseStatus `json:"status"`
-
-	// StatusDesired Where the deployment's current transition is heading. Tells a failed deploy (DEPLOYED) from a failed undeploy (UNDEPLOYED). Absent for an ARCHIVED deployment.
-	StatusDesired *LLMDeploymentResponseStatusDesired `json:"statusDesired,omitempty"`
-
-	// StatusReason Why the status is what it is: the gateway's error code, DEPLOYMENT_TIMEOUT, or why a redeploy is waiting or was given up. Absent when there is nothing to say.
-	StatusReason *string    `json:"statusReason,omitempty"`
-	UpdatedAt    *time.Time `json:"updatedAt,omitempty"`
-}
-
-// LLMDeploymentResponseStatus What the user is shown: ARCHIVED when the gateway's current deployment is another one. DEPLOYING also covers a redeploy that is owed; FAILED also covers a deploy that was given up.
-type LLMDeploymentResponseStatus string
-
-// LLMDeploymentResponseStatusDesired Where the deployment's current transition is heading. Tells a failed deploy (DEPLOYED) from a failed undeploy (UNDEPLOYED). Absent for an ARCHIVED deployment.
-type LLMDeploymentResponseStatusDesired string
-
-// LLMModel defines model for LLMModel.
-type LLMModel struct {
-	// Description Model description
-	Description *string `json:"description,omitempty"`
-
-	// Id Model ID
-	Id string `json:"id"`
-
-	// Name Model name
-	Name *string `json:"name,omitempty"`
-}
-
-// LLMModelProvider defines model for LLMModelProvider.
-type LLMModelProvider struct {
-	// Id Provider ID
-	Id     string      `json:"id"`
-	Models *[]LLMModel `json:"models,omitempty"`
-
-	// Name Provider name
-	Name *string `json:"name,omitempty"`
-}
-
 // LLMPolicy defines model for LLMPolicy.
 type LLMPolicy struct {
 	// Name Policy name
 	Name  string          `json:"name"`
 	Paths []LLMPolicyPath `json:"paths"`
-
-	// Version Policy version
-	Version string `json:"version"`
-}
-
-// LLMPolicyAvailabilityResponse defines model for LLMPolicyAvailabilityResponse.
-type LLMPolicyAvailabilityResponse struct {
-	Count int32                 `json:"count"`
-	List  []LLMPolicyDefinition `json:"list"`
-}
-
-// LLMPolicyDefinition defines model for LLMPolicyDefinition.
-type LLMPolicyDefinition struct {
-	// Description Policy description
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable policy name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// Name Policy name
-	Name string `json:"name"`
-
-	// Parameters JSON-Schema describing the user-configurable parameters
-	Parameters *map[string]interface{} `json:"parameters,omitempty"`
-
-	// SystemParameters JSON-Schema describing operator-level (gateway config) parameters
-	SystemParameters *map[string]interface{} `json:"systemParameters,omitempty"`
 
 	// Version Policy version
 	Version string `json:"version"`
@@ -3977,280 +2175,8 @@ type LLMPolicyPath struct {
 	Path string `json:"path"`
 }
 
-// LLMProviderConsumerItem defines model for LLMProviderConsumerItem.
-type LLMProviderConsumerItem struct {
-	// ConsumerName Name (handle) of the agent consuming the proxy
-	ConsumerName string `json:"consumerName"`
-
-	// ConsumerType The kind of consumer; always an agent
-	ConsumerType LLMProviderConsumerItemConsumerType `json:"consumerType"`
-
-	// ProjectName Name of the project the proxy belongs to
-	ProjectName string `json:"projectName"`
-
-	// ProxyId Handle/ID of the LLM proxy
-	ProxyId string `json:"proxyId"`
-
-	// ProxyName Display name of the LLM proxy
-	ProxyName string `json:"proxyName"`
-}
-
-// LLMProviderConsumerItemConsumerType The kind of consumer; always an agent
-type LLMProviderConsumerItemConsumerType string
-
-// LLMProviderConsumerListResponse defines model for LLMProviderConsumerListResponse.
-type LLMProviderConsumerListResponse struct {
-	Consumers []LLMProviderConsumerItem `json:"consumers"`
-
-	// Total Total number of consumers
-	Total int32 `json:"total"`
-}
-
-// LLMProviderListItem defines model for LLMProviderListItem.
-type LLMProviderListItem struct {
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy User who created the provider
-	CreatedBy *string               `json:"createdBy,omitempty"`
-	Gateways  *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique identifier for the LLM provider
-	Id string `json:"id"`
-
-	// Name Human-readable name of the LLM provider
-	Name string `json:"name"`
-
-	// Status Provider status
-	Status LLMProviderListItemStatus `json:"status"`
-
-	// Template Template identifier
-	Template string `json:"template"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-
-	// Uuid Provider UUID
-	Uuid string `json:"uuid"`
-}
-
-// LLMProviderListItemStatus Provider status
-type LLMProviderListItemStatus string
-
-// LLMProviderListResponse defines model for LLMProviderListResponse.
-type LLMProviderListResponse struct {
-	Limit     int32                 `json:"limit"`
-	Offset    int32                 `json:"offset"`
-	Providers []LLMProviderListItem `json:"providers"`
-	Total     int32                 `json:"total"`
-}
-
-// LLMProviderResponse defines model for LLMProviderResponse.
-type LLMProviderResponse struct {
-	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
-
-	// Context API context path
-	Context string `json:"context"`
-
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy User who created the provider
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Provider description
-	Description *string               `json:"description,omitempty"`
-	Gateways    *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique identifier for the LLM provider
-	Id string `json:"id"`
-
-	// InCatalog Whether the provider is available in the catalog
-	InCatalog *bool `json:"inCatalog,omitempty"`
-
-	// ModelProviders List of model providers
-	ModelProviders *[]LLMModelProvider `json:"modelProviders,omitempty"`
-
-	// Name Human-readable name of the LLM provider
-	Name string `json:"name"`
-
-	// Openapi OpenAPI specification
-	Openapi *string `json:"openapi,omitempty"`
-
-	// Policies List of policies applied to this provider
-	Policies     *[]LLMPolicy           `json:"policies,omitempty"`
-	RateLimiting *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-	Security *SecurityConfig `json:"security,omitempty"`
-
-	// Status Provider status
-	Status LLMProviderResponseStatus `json:"status"`
-
-	// Template Template identifier
-	Template string `json:"template"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Upstream  UpstreamConfig `json:"upstream"`
-
-	// Uuid UUID of the llm provider
-	Uuid string `json:"uuid"`
-
-	// Version Version of the LLM provider
-	Version string `json:"version"`
-}
-
-// LLMProviderResponseStatus Provider status
-type LLMProviderResponseStatus string
-
-// LLMProviderTemplateAuth defines model for LLMProviderTemplateAuth.
-type LLMProviderTemplateAuth struct {
-	// Header Header name for authentication
-	Header *string `json:"header,omitempty"`
-
-	// Type Authentication type
-	Type *string `json:"type,omitempty"`
-
-	// ValuePrefix Prefix for the authentication value
-	ValuePrefix *string `json:"valuePrefix,omitempty"`
-}
-
-// LLMProviderTemplateListResponse defines model for LLMProviderTemplateListResponse.
-type LLMProviderTemplateListResponse struct {
-	// Limit Number of results per page
-	Limit int32 `json:"limit"`
-
-	// Offset Number of results skipped
-	Offset    int32                         `json:"offset"`
-	Templates []LLMProviderTemplateResponse `json:"templates"`
-
-	// Total Total number of templates
-	Total int32 `json:"total"`
-}
-
-// LLMProviderTemplateMetadata defines model for LLMProviderTemplateMetadata.
-type LLMProviderTemplateMetadata struct {
-	Auth *LLMProviderTemplateAuth `json:"auth,omitempty"`
-
-	// EndpointUrl Default endpoint URL for the template
-	EndpointUrl *string `json:"endpointUrl,omitempty"`
-
-	// LogoUrl URL of the provider logo
-	LogoUrl *string `json:"logoUrl,omitempty"`
-
-	// OpenapiSpecUrl URL to the OpenAPI specification for the provider
-	OpenapiSpecUrl *string `json:"openapiSpecUrl,omitempty"`
-}
-
-// LLMProviderTemplateResponse defines model for LLMProviderTemplateResponse.
-type LLMProviderTemplateResponse struct {
-	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
-
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy Username of the creator
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Description of the LLM provider template
-	Description *string `json:"description,omitempty"`
-
-	// Id Unique handle for the template
-	Id       string                       `json:"id"`
-	Metadata *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-
-	// Name Human-readable LLM Template name
-	Name            string                `json:"name"`
-	PromptTokens    *ExtractionIdentifier `json:"promptTokens,omitempty"`
-	RemainingTokens *ExtractionIdentifier `json:"remainingTokens,omitempty"`
-	RequestModel    *ExtractionIdentifier `json:"requestModel,omitempty"`
-	ResponseModel   *ExtractionIdentifier `json:"responseModel,omitempty"`
-	TotalTokens     *ExtractionIdentifier `json:"totalTokens,omitempty"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-
-	// Uuid UUID of the template
-	Uuid *openapi_types.UUID `json:"uuid,omitempty"`
-}
-
-// LLMProxyConfig defines model for LLMProxyConfig.
-type LLMProxyConfig struct {
-	// Context API context path
-	Context *string `json:"context,omitempty"`
-
-	// Name Proxy name
-	Name     *string      `json:"name,omitempty"`
-	Policies *[]LLMPolicy `json:"policies,omitempty"`
-
-	// Provider Provider reference
-	Provider *string `json:"provider,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-	Security *SecurityConfig `json:"security,omitempty"`
-
-	// Version Proxy version
-	Version *string `json:"version,omitempty"`
-
-	// Vhost Virtual host
-	Vhost *string `json:"vhost,omitempty"`
-}
-
-// LLMProxyListResponse defines model for LLMProxyListResponse.
-type LLMProxyListResponse struct {
-	Limit   int32              `json:"limit"`
-	Offset  int32              `json:"offset"`
-	Proxies []LLMProxyResponse `json:"proxies"`
-	Total   int32              `json:"total"`
-}
-
-// LLMProxyResponse defines model for LLMProxyResponse.
-type LLMProxyResponse struct {
-	Configuration LLMProxyConfig `json:"configuration"`
-
-	// CreatedBy User who created the proxy
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Proxy description
-	Description *string `json:"description,omitempty"`
-
-	// Openapi OpenAPI specification
-	Openapi *string `json:"openapi,omitempty"`
-
-	// ProjectId Project UUID
-	ProjectId openapi_types.UUID `json:"projectId"`
-
-	// ProviderUuid Provider UUID
-	ProviderUuid openapi_types.UUID `json:"providerUuid"`
-
-	// Status Proxy status
-	Status string `json:"status"`
-
-	// Uuid UUID of the proxy
-	Uuid openapi_types.UUID `json:"uuid"`
-}
-
-// LLMRateLimitingConfig defines model for LLMRateLimitingConfig.
-type LLMRateLimitingConfig struct {
-	ConsumerLevel *RateLimitingScopeConfig `json:"consumerLevel,omitempty"`
-	ProviderLevel *RateLimitingScopeConfig `json:"providerLevel,omitempty"`
-}
-
 // Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 type Labels map[string]string
-
-// ListAPIKeysResponse defines model for ListAPIKeysResponse.
-type ListAPIKeysResponse struct {
-	// Keys List of masked API keys.
-	Keys []APIKeyInfo `json:"keys"`
-}
 
 // ListBranchesRequest Request body for listing repository branches
 type ListBranchesRequest struct {
@@ -4339,369 +2265,6 @@ type MCPConfigRequest struct {
 	ProxyName string `json:"proxyName"`
 }
 
-// MCPEndpointEnvironment One endpoint→environment binding.
-type MCPEndpointEnvironment struct {
-	// DeploymentStatus Per-environment deployment status. Deploying until the environment's gateway acknowledges the deployment, and while a redeploy is owed; Failed when the gateway rejected it or it couldn't be rendered.
-	DeploymentStatus *MCPEndpointEnvironmentDeploymentStatus `json:"deploymentStatus,omitempty"`
-
-	// EnvironmentUuid Target environment UUID.
-	EnvironmentUuid openapi_types.UUID `json:"environmentUuid"`
-
-	// GatewayId Egress gateway to deploy this endpoint→environment binding to. Optional:
-	// inferred when the environment has exactly one egress gateway, and required
-	// when it has more than one. Placement is fixed once deployed — supplying a
-	// different gateway on update is rejected. Emitted on read as the gateway the
-	// binding is actually deployed to.
-	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
-}
-
-// MCPEndpointEnvironmentDeploymentStatus Per-environment deployment status. Deploying until the environment's gateway acknowledges the deployment, and while a redeploy is owed; Failed when the gateway rejected it or it couldn't be rendered.
-type MCPEndpointEnvironmentDeploymentStatus string
-
-// MCPPolicy defines model for MCPPolicy.
-type MCPPolicy struct {
-	// DisplayName Human-readable policy name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// ExecutionCondition Optional policy execution condition
-	ExecutionCondition *string `json:"executionCondition,omitempty"`
-
-	// Name Policy name
-	Name string `json:"name"`
-
-	// Params Policy-specific parameters
-	Params *map[string]interface{} `json:"params,omitempty"`
-
-	// Version Policy version
-	Version string `json:"version"`
-}
-
-// MCPPolicyAvailabilityResponse defines model for MCPPolicyAvailabilityResponse.
-type MCPPolicyAvailabilityResponse struct {
-	Count int32                    `json:"count"`
-	List  []MCPPolicyAvailableItem `json:"list"`
-}
-
-// MCPPolicyAvailableItem defines model for MCPPolicyAvailableItem.
-type MCPPolicyAvailableItem struct {
-	// Name Policy name
-	Name string `json:"name"`
-
-	// Version Policy version
-	Version string `json:"version"`
-}
-
-// MCPProjectDeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
-type MCPProjectDeploymentStatus string
-
-// MCPProxyCapabilities defines model for MCPProxyCapabilities.
-type MCPProxyCapabilities struct {
-	Prompts   *[]map[string]interface{} `json:"prompts,omitempty"`
-	Resources *[]map[string]interface{} `json:"resources,omitempty"`
-	Tools     *[]map[string]interface{} `json:"tools,omitempty"`
-}
-
-// MCPProxyEndpoint One deployable endpoint of an MCP proxy. An endpoint carries the upstream (URL + auth), policies, capabilities, and security, and is deployed to one or more environments. Within a proxy an endpoint's id is unique and an environment maps to at most one endpoint.
-type MCPProxyEndpoint struct {
-	Capabilities *MCPProxyCapabilities `json:"capabilities,omitempty"`
-
-	// Environments Environments this endpoint is deployed to.
-	Environments *[]MCPEndpointEnvironment `json:"environments,omitempty"`
-
-	// Id Endpoint handle, unique within the parent proxy
-	Id string `json:"id"`
-
-	// McpSpecVersions MCP specification versions this endpoint's upstream server supports, for example from the supportedVersions of /mcp-proxies/fetch-server-info. Each value is a date (YYYY-MM-DD). Deployed to this endpoint's gateway artifacts; when absent, the proxy's mcpSpecVersion is used.
-	McpSpecVersions *[]string `json:"mcpSpecVersions,omitempty"`
-
-	// Name Human-readable endpoint name
-	Name     *string      `json:"name,omitempty"`
-	Policies *[]MCPPolicy `json:"policies,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-	Security *SecurityConfig `json:"security,omitempty"`
-	Upstream UpstreamConfig  `json:"upstream"`
-}
-
-// MCPProxyEnvironmentRequest Replaces the binding's configuration. Every field is optional; an omitted field resets to its default.
-type MCPProxyEnvironmentRequest struct {
-	// GatewayId Required only when the environment has more than one egress-capable gateway. Cannot change once placed. Must name a managed gateway: a self-hosted gateway has no route to the in-cluster upstream, so naming one is rejected with 400 VALIDATION_ERROR.
-	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
-
-	// Policies Gateway policies, e.g. CORS and basic-ratelimit. Each needs a name and a version.
-	Policies *[]MCPPolicy `json:"policies,omitempty"`
-
-	// ReleaseBindingName The source component's release binding to front. Required only when the component has more than one release binding in the environment, one per deployment track for example; without it such a component is rejected with 400 VALIDATION_ERROR. It must be a binding of the source component in this project and environment, or it is rejected with 400 VALIDATION_ERROR.
-	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
-
-	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
-	Security *MCPProxyEnvironmentSecurity `json:"security,omitempty"`
-
-	// UpstreamAuth Credentials the gateway adds when it calls the upstream.
-	UpstreamAuth *MCPProxyEnvironmentUpstreamAuth `json:"upstreamAuth,omitempty"`
-}
-
-// MCPProxyEnvironmentResponse defines model for MCPProxyEnvironmentResponse.
-type MCPProxyEnvironmentResponse struct {
-	// Context The proxy's context, as given, without the project prefix.
-	Context string `json:"context"`
-
-	// DeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
-	DeploymentStatus *MCPProjectDeploymentStatus `json:"deploymentStatus,omitempty"`
-
-	// DeploymentStatusReason The ack's error code (or DEPLOYMENT_TIMEOUT) for Failed, the render reason for a waiting Deploying (CONTEXT_IN_USE when a clash was found at placement), and NO_GATEWAY when deploymentStatus is absent.
-	DeploymentStatusReason *string            `json:"deploymentStatusReason,omitempty"`
-	EnvironmentName        string             `json:"environmentName"`
-	EnvironmentUuid        openapi_types.UUID `json:"environmentUuid"`
-
-	// GatewayId Absent while the environment has no gateway.
-	GatewayId *openapi_types.UUID `json:"gatewayId,omitempty"`
-	Policies  *[]MCPPolicy        `json:"policies,omitempty"`
-
-	// PublicUrl Gateway URL of the MCP endpoint: the gateway vhost plus /<projName><context>/mcp. It already ends in the MCP path, so clients use it as is and do not append /mcp. Absent if the gateway has no vhost.
-	PublicUrl *string `json:"publicUrl,omitempty"`
-
-	// ReleaseBindingName The release binding the binding was given. Absent when none was given.
-	ReleaseBindingName *string `json:"releaseBindingName,omitempty"`
-
-	// Security A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
-	Security     *MCPProxyEnvironmentSecurity             `json:"security,omitempty"`
-	UpdatedAt    *time.Time                               `json:"updatedAt,omitempty"`
-	UpstreamAuth *MCPProxyEnvironmentUpstreamAuthRedacted `json:"upstreamAuth,omitempty"`
-}
-
-// MCPProxyEnvironmentSecurity A binding's security. Phase 1 accepts apiKey, which is also the default when the field is omitted or names no variant (an api key in the X-API-Key header), and no security (enabled false only). An apiKey with enabled false while security is not disabled is rejected with 400 VALIDATION_ERROR. jwt is rejected with 400 "jwt security is not available yet", and identity with 400.
-type MCPProxyEnvironmentSecurity struct {
-	ApiKey  *APIKeySecurity `json:"apiKey,omitempty"`
-	Enabled *bool           `json:"enabled,omitempty"`
-
-	// Identity Agent Identity security — callers present a JWT issued by the environment's IdP. v1 pins the issuer to the ThunderKeyManager key manager.
-	Identity *IdentitySecurity `json:"identity,omitempty"`
-
-	// Jwt Reserved. Not available yet; a request that enables it is rejected with 400.
-	Jwt *MCPProxyJWTSecurity `json:"jwt,omitempty"`
-}
-
-// MCPProxyEnvironmentUpstreamAuth Credentials the gateway adds when it calls the upstream.
-type MCPProxyEnvironmentUpstreamAuth struct {
-	Header *string                             `json:"header,omitempty"`
-	Type   MCPProxyEnvironmentUpstreamAuthType `json:"type"`
-
-	// Value Required with api-key. Stored encrypted; never returned.
-	Value *string `json:"value,omitempty"`
-}
-
-// MCPProxyEnvironmentUpstreamAuthType defines model for MCPProxyEnvironmentUpstreamAuth.Type.
-type MCPProxyEnvironmentUpstreamAuthType string
-
-// MCPProxyEnvironmentUpstreamAuthRedacted defines model for MCPProxyEnvironmentUpstreamAuthRedacted.
-type MCPProxyEnvironmentUpstreamAuthRedacted struct {
-	Header *string                                     `json:"header,omitempty"`
-	Type   MCPProxyEnvironmentUpstreamAuthRedactedType `json:"type"`
-}
-
-// MCPProxyEnvironmentUpstreamAuthRedactedType defines model for MCPProxyEnvironmentUpstreamAuthRedacted.Type.
-type MCPProxyEnvironmentUpstreamAuthRedactedType string
-
-// MCPProxyJWTSecurity Reserved. Not available yet; a request that enables it is rejected with 400.
-type MCPProxyJWTSecurity struct {
-	Audiences *[]string `json:"audiences,omitempty"`
-	Enabled   *bool     `json:"enabled,omitempty"`
-	Issuers   *[]string `json:"issuers,omitempty"`
-}
-
-// MCPProxyListItem defines model for MCPProxyListItem.
-type MCPProxyListItem struct {
-	// Context MCP proxy context path
-	Context *string `json:"context,omitempty"`
-
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy User who created the MCP proxy
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Description of the MCP proxy
-	Description *string `json:"description,omitempty"`
-
-	// Id Unique handle for the MCP proxy
-	Id *string `json:"id,omitempty"`
-
-	// McpSpecVersion MCP specification version implemented by the upstream server
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// Name Human-readable name of the MCP proxy
-	Name *string `json:"name,omitempty"`
-
-	// ProjectName Set for a project-owned proxy; absent for an org-level one
-	ProjectName *string `json:"projectName,omitempty"`
-
-	// Status MCP proxy status
-	Status *string `json:"status,omitempty"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-
-	// Version Version of the MCP proxy
-	Version *string `json:"version,omitempty"`
-}
-
-// MCPProxyListResponse defines model for MCPProxyListResponse.
-type MCPProxyListResponse struct {
-	Count      int32              `json:"count"`
-	List       []MCPProxyListItem `json:"list"`
-	Pagination PaginationInfo     `json:"pagination"`
-}
-
-// MCPProxyRequest defines model for MCPProxyRequest.
-type MCPProxyRequest struct {
-	// Context MCP proxy context path
-	Context *string `json:"context,omitempty"`
-
-	// Description Description of the MCP proxy
-	Description *string `json:"description,omitempty"`
-
-	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint is deployed to one or more environments; within a proxy an environment maps to at most one endpoint. At least one endpoint is required.
-	Endpoints *[]MCPProxyEndpoint `json:"endpoints,omitempty"`
-
-	// Gateways Deprecated and never implemented. Deployment is per (endpoint, environment),
-	// so this proxy-wide field is at the wrong granularity — use
-	// MCPEndpointEnvironment.gatewayId. Populated on read only.
-	// Deprecated: this property has been marked as deprecated upstream, but no `x-deprecated-reason` was set
-	Gateways *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique handle for the MCP proxy
-	Id string `json:"id"`
-
-	// InCatalog Whether the MCP proxy is available in the catalog
-	InCatalog *bool `json:"inCatalog,omitempty"`
-
-	// McpSpecVersion MCP specification version implemented by the upstream server
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// Name Human-readable name of the MCP proxy
-	Name string `json:"name"`
-
-	// Version Version of the MCP proxy
-	Version string `json:"version"`
-
-	// Vhost Virtual host assigned to the MCP proxy
-	Vhost *string `json:"vhost,omitempty"`
-}
-
-// MCPProxyResponse defines model for MCPProxyResponse.
-type MCPProxyResponse struct {
-	// Context MCP proxy context path
-	Context *string `json:"context,omitempty"`
-
-	// CreatedAt Timestamp when the resource was created
-	CreatedAt *time.Time `json:"createdAt,omitempty"`
-
-	// CreatedBy User who created the MCP proxy
-	CreatedBy *string `json:"createdBy,omitempty"`
-
-	// Description Description of the MCP proxy
-	Description *string `json:"description,omitempty"`
-
-	// Endpoints Deployable endpoint definitions of the MCP proxy. Each endpoint reports its per-environment deployment status. Absent for a project-owned proxy.
-	Endpoints *[]MCPProxyEndpoint `json:"endpoints,omitempty"`
-
-	// Gateways Gateway UUIDs associated with the MCP proxy
-	Gateways *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// Id Unique handle for the MCP proxy
-	Id string `json:"id"`
-
-	// InCatalog Whether the MCP proxy is available in the catalog
-	InCatalog *bool `json:"inCatalog,omitempty"`
-
-	// McpSpecVersion MCP specification version implemented by the upstream server
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// Name Human-readable name of the MCP proxy
-	Name string `json:"name"`
-
-	// ProjectName Set for a project-owned proxy; absent for an org-level one
-	ProjectName *string `json:"projectName,omitempty"`
-
-	// UpdatedAt Timestamp when the resource was last updated
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-
-	// Version Version of the MCP proxy
-	Version string `json:"version"`
-
-	// Vhost Virtual host assigned to the MCP proxy
-	Vhost *string `json:"vhost,omitempty"`
-}
-
-// MCPProxyScopeListResponse defines model for MCPProxyScopeListResponse.
-type MCPProxyScopeListResponse struct {
-	Scopes []MCPProxyScopeResponse `json:"scopes"`
-}
-
-// MCPProxyScopeRequest defines model for MCPProxyScopeRequest.
-type MCPProxyScopeRequest struct {
-	// Action Action name on the proxy's resource server; the token scope is "<proxy-handle>:<action>".
-	Action      string  `json:"action"`
-	Description *string `json:"description,omitempty"`
-
-	// Tools MCP tool names this scope authorizes. May be omitted or empty to declare a scope before binding it to any tool; such a scope is grantable to roles but enforced on no tool.
-	Tools *[]string `json:"tools,omitempty"`
-}
-
-// MCPProxyScopeResponse defines model for MCPProxyScopeResponse.
-type MCPProxyScopeResponse struct {
-	Action      string     `json:"action"`
-	CreatedAt   *time.Time `json:"createdAt,omitempty"`
-	Description *string    `json:"description,omitempty"`
-
-	// Scope Derived token scope string ("<proxy-handle>:<action>").
-	Scope     string     `json:"scope"`
-	Tools     []string   `json:"tools"`
-	UpdatedAt *time.Time `json:"updatedAt,omitempty"`
-}
-
-// MCPProxyScopeUpdateRequest defines model for MCPProxyScopeUpdateRequest.
-type MCPProxyScopeUpdateRequest struct {
-	Description *string `json:"description,omitempty"`
-
-	// Tools Replaces the scope's tool list. Omit to leave it unchanged; send an empty array to unbind the scope from every tool.
-	Tools *[]string `json:"tools,omitempty"`
-}
-
-// MCPProxySource The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
-type MCPProxySource struct {
-	ComponentName string `json:"componentName"`
-	EndpointName  string `json:"endpointName"`
-}
-
-// MCPServerInfoFetchRequest defines model for MCPServerInfoFetchRequest.
-type MCPServerInfoFetchRequest struct {
-	Auth *UpstreamAuth `json:"auth,omitempty"`
-
-	// ProxyId Existing MCP proxy ID to refresh from. Currently unsupported by the backend.
-	ProxyId *string `json:"proxyId,omitempty"`
-
-	// Url MCP server endpoint URL
-	Url *string `json:"url,omitempty"`
-}
-
-// MCPServerInfoFetchResponse defines model for MCPServerInfoFetchResponse.
-type MCPServerInfoFetchResponse struct {
-	Prompts   *[]map[string]interface{} `json:"prompts,omitempty"`
-	Resources *[]map[string]interface{} `json:"resources,omitempty"`
-
-	// ServerInfo MCP server metadata returned by initialize
-	ServerInfo *map[string]interface{} `json:"serverInfo,omitempty"`
-
-	// SupportedVersions MCP specification versions the upstream server supports. For a server that answers server/discover (MCP 2026-07-28 and later), the versions it reported; for an earlier server, the version agreed in the initialize handshake.
-	SupportedVersions *[]string                 `json:"supportedVersions,omitempty"`
-	Tools             *[]map[string]interface{} `json:"tools,omitempty"`
-}
-
 // ModelConfigRequest defines model for ModelConfigRequest.
 type ModelConfigRequest struct {
 	Configuration *EnvProviderConfiguration `json:"configuration,omitempty"`
@@ -4729,16 +2292,6 @@ type OAuthConfig struct {
 
 	// Issuers Issuer names for token validation, referencing identity provider entries configured gateway-side. Must be non-empty when OAuth security is enabled, and every name must be one of the environment's configured identity providers.
 	Issuers *[]string `json:"issuers,omitempty"`
-}
-
-// OidcDiscoveryResponse Issuer metadata resolved from an OpenID Connect discovery document, used to
-// auto-populate the Add Identity Provider dialog.
-type OidcDiscoveryResponse struct {
-	// Issuer The `issuer` value from the discovery document.
-	Issuer string `json:"issuer"`
-
-	// JwksUri The `jwks_uri` value from the discovery document.
-	JwksUri string `json:"jwksUri"`
 }
 
 // OrganizationListItem defines model for OrganizationListItem.
@@ -4784,18 +2337,6 @@ type OrganizationResponse struct {
 	Name string `json:"name"`
 }
 
-// PaginationInfo defines model for PaginationInfo.
-type PaginationInfo struct {
-	// Count Number of items in current response
-	Count int `json:"count"`
-
-	// Limit Maximum number of items per page
-	Limit int `json:"limit"`
-
-	// Offset Number of items skipped
-	Offset int `json:"offset"`
-}
-
 // ProjectListItem defines model for ProjectListItem.
 type ProjectListItem struct {
 	// CreatedAt Timestamp when the project was created
@@ -4823,81 +2364,6 @@ type ProjectListResponse struct {
 
 	// Total Total number of projects matching the query
 	Total int `json:"total"`
-}
-
-// ProjectMCPProxyEnvironmentSummary defines model for ProjectMCPProxyEnvironmentSummary.
-type ProjectMCPProxyEnvironmentSummary struct {
-	// DeploymentStatus Deployment status of a project proxy binding. A pending deployment, or a redeploy still waiting, shows as Deploying. Absent when the environment has no gateway (see deploymentStatusReason). Undeploying and Undeployed do not occur: bindings are deleted, never undeployed.
-	DeploymentStatus       *MCPProjectDeploymentStatus `json:"deploymentStatus,omitempty"`
-	DeploymentStatusReason *string                     `json:"deploymentStatusReason,omitempty"`
-	EnvironmentName        string                      `json:"environmentName"`
-
-	// PublicUrl The environment binding's publicUrl. It already ends in the MCP path, so clients use it as is and do not append /mcp.
-	PublicUrl *string `json:"publicUrl,omitempty"`
-}
-
-// ProjectMCPProxyListItem defines model for ProjectMCPProxyListItem.
-type ProjectMCPProxyListItem struct {
-	Context     string     `json:"context"`
-	CreatedAt   *time.Time `json:"createdAt,omitempty"`
-	Description *string    `json:"description,omitempty"`
-
-	// Environments A summary per binding. GET the binding for its security and policies.
-	Environments []ProjectMCPProxyEnvironmentSummary `json:"environments"`
-	Id           string                              `json:"id"`
-	Name         string                              `json:"name"`
-
-	// Source The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
-	Source    MCPProxySource `json:"source"`
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Version   string         `json:"version"`
-}
-
-// ProjectMCPProxyListResponse defines model for ProjectMCPProxyListResponse.
-type ProjectMCPProxyListResponse struct {
-	// Count Items in this page
-	Count      int32                     `json:"count"`
-	List       []ProjectMCPProxyListItem `json:"list"`
-	Pagination PaginationInfo            `json:"pagination"`
-}
-
-// ProjectMCPProxyRequest defines model for ProjectMCPProxyRequest.
-type ProjectMCPProxyRequest struct {
-	// Context Context path relative to the project. Defaults to /<proxyId>. Must start with / and have no empty, "." or ".." segments (400 VALIDATION_ERROR otherwise). The gateway serves it at /<projName><context>; reads return it as sent.
-	Context     *string `json:"context,omitempty"`
-	Description *string `json:"description,omitempty"`
-
-	// McpSpecVersion MCP protocol version of the upstream server, if known
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-
-	// Name Display name
-	Name string `json:"name"`
-
-	// Source The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
-	Source MCPProxySource `json:"source"`
-
-	// Version Defaults to v1
-	Version *string `json:"version,omitempty"`
-}
-
-// ProjectMCPProxyResponse defines model for ProjectMCPProxyResponse.
-type ProjectMCPProxyResponse struct {
-	Context      string                        `json:"context"`
-	CreatedAt    *time.Time                    `json:"createdAt,omitempty"`
-	CreatedBy    *string                       `json:"createdBy,omitempty"`
-	Description  *string                       `json:"description,omitempty"`
-	Environments []MCPProxyEnvironmentResponse `json:"environments"`
-
-	// Id Handle
-	Id             string  `json:"id"`
-	McpSpecVersion *string `json:"mcpSpecVersion,omitempty"`
-	Name           string  `json:"name"`
-	ProjectName    string  `json:"projectName"`
-
-	// Source The hosted agent endpoint a project MCP proxy fronts. Fixed after create.
-	Source    MCPProxySource `json:"source"`
-	UpdatedAt *time.Time     `json:"updatedAt,omitempty"`
-	Version   string         `json:"version"`
 }
 
 // ProjectResponse defines model for ProjectResponse.
@@ -4993,47 +2459,6 @@ type PromotionPath struct {
 	TargetEnvironmentRefs []TargetEnvironmentRef `json:"targetEnvironmentRefs"`
 }
 
-// ProviderConfig defines model for ProviderConfig.
-type ProviderConfig struct {
-	AuthInfo *AuthInfo `json:"authInfo,omitempty"`
-
-	// McpProxyId ID/handle of the MCP proxy
-	McpProxyId *string `json:"mcpProxyId,omitempty"`
-
-	// McpProxyName Name/handle of the MCP proxy
-	McpProxyName *string `json:"mcpProxyName,omitempty"`
-
-	// Policies Provider-specific policy configurations
-	Policies *[]LLMPolicy `json:"policies,omitempty"`
-
-	// ProviderName Name of the llm provider
-	ProviderName string `json:"providerName"`
-
-	// ProviderPolicies Guardrails configured on the org-level LLM provider this config is based on; applied in addition to the config's own policies
-	ProviderPolicies *[]LLMPolicy `json:"providerPolicies,omitempty"`
-
-	// ProviderUuid UUID of the org-level LLM provider this config is based on
-	ProviderUuid *openapi_types.UUID `json:"providerUuid,omitempty"`
-
-	// ProxyId ID/handle of the MCP proxy
-	ProxyId *string `json:"proxyId,omitempty"`
-
-	// ProxyName Name/handle of the MCP proxy
-	ProxyName *string `json:"proxyName,omitempty"`
-
-	// ProxyUuid UUID of the proxy created
-	ProxyUuid openapi_types.UUID `json:"proxyUuid"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Status Status of the proxy
-	Status *string `json:"status,omitempty"`
-
-	// Url url of the created proxy
-	Url string `json:"url"`
-}
-
 // Provisioning defines model for Provisioning.
 type Provisioning struct {
 	// AgentKind Reference to a published Agent Kind version (mutually exclusive with repository)
@@ -5082,76 +2507,6 @@ type PublishAgentKindRequest struct {
 	Version string `json:"version"`
 }
 
-// RateLimitEntry defines model for RateLimitEntry.
-type RateLimitEntry struct {
-	// Limit Limit value (count for request/token, amount for cost)
-	Limit float32 `json:"limit"`
-
-	// ResetDuration Reset window duration
-	ResetDuration int `json:"resetDuration"`
-
-	// ResetUnit Reset window time unit
-	ResetUnit RateLimitEntryResetUnit `json:"resetUnit"`
-}
-
-// RateLimitEntryResetUnit Reset window time unit
-type RateLimitEntryResetUnit string
-
-// RateLimitResetWindow defines model for RateLimitResetWindow.
-type RateLimitResetWindow struct {
-	// Duration Reset window duration
-	Duration int `json:"duration"`
-
-	// Unit Time unit
-	Unit RateLimitResetWindowUnit `json:"unit"`
-}
-
-// RateLimitResetWindowUnit Time unit
-type RateLimitResetWindowUnit string
-
-// RateLimitingLimitConfig defines model for RateLimitingLimitConfig.
-type RateLimitingLimitConfig struct {
-	Cost    *CostRateLimit    `json:"cost,omitempty"`
-	Request *RequestRateLimit `json:"request,omitempty"`
-	Token   *TokenRateLimit   `json:"token,omitempty"`
-}
-
-// RateLimitingResourceLimit defines model for RateLimitingResourceLimit.
-type RateLimitingResourceLimit struct {
-	Limit RateLimitingLimitConfig `json:"limit"`
-
-	// Resource Resource identifier
-	Resource string `json:"resource"`
-}
-
-// RateLimitingScope Scope-level rate limiting summary
-type RateLimitingScope struct {
-	Cost *RateLimitEntry `json:"cost,omitempty"`
-
-	// GlobalEnabled Whether global rate limiting is enabled
-	GlobalEnabled *bool           `json:"globalEnabled,omitempty"`
-	Request       *RateLimitEntry `json:"request,omitempty"`
-
-	// ResourceWiseEnabled Whether resource-wise rate limiting is enabled
-	ResourceWiseEnabled *bool           `json:"resourceWiseEnabled,omitempty"`
-	Token               *RateLimitEntry `json:"token,omitempty"`
-}
-
-// RateLimitingScopeConfig defines model for RateLimitingScopeConfig.
-type RateLimitingScopeConfig struct {
-	Global       *RateLimitingLimitConfig        `json:"global,omitempty"`
-	ResourceWise *ResourceWiseRateLimitingConfig `json:"resourceWise,omitempty"`
-}
-
-// RateLimitingSummary Rate limiting configuration summary
-type RateLimitingSummary struct {
-	// ConsumerLevel Scope-level rate limiting summary
-	ConsumerLevel *RateLimitingScope `json:"consumerLevel,omitempty"`
-
-	// ProviderLevel Scope-level rate limiting summary
-	ProviderLevel *RateLimitingScope `json:"providerLevel,omitempty"`
-}
-
 // RepositoryConfig Git repository configuration
 type RepositoryConfig struct {
 	// AppPath Path within the repository where the source code resides
@@ -5165,16 +2520,6 @@ type RepositoryConfig struct {
 
 	// Url URL of the git repository
 	Url string `json:"url"`
-}
-
-// RequestRateLimit defines model for RequestRateLimit.
-type RequestRateLimit struct {
-	// Count Maximum number of requests
-	Count int `json:"count"`
-
-	// Enabled Whether request rate limiting is enabled
-	Enabled bool                 `json:"enabled"`
-	Reset   RateLimitResetWindow `json:"reset"`
 }
 
 // Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
@@ -5234,12 +2579,6 @@ type ResourceRequests struct {
 	Memory *string `json:"memory,omitempty"`
 }
 
-// ResourceWiseRateLimitingConfig defines model for ResourceWiseRateLimitingConfig.
-type ResourceWiseRateLimitingConfig struct {
-	Default   RateLimitingLimitConfig     `json:"default"`
-	Resources []RateLimitingResourceLimit `json:"resources"`
-}
-
 // RoleListResponse defines model for RoleListResponse.
 type RoleListResponse struct {
 	// Limit Maximum results returned
@@ -5275,149 +2614,6 @@ type RoleResponse struct {
 		Permissions      *[]string `json:"permissions,omitempty"`
 		ResourceServerId *string   `json:"resourceServerId,omitempty"`
 	} `json:"permissions,omitempty"`
-}
-
-// RotateGatewayTokenRequest defines model for RotateGatewayTokenRequest.
-type RotateGatewayTokenRequest struct {
-	// OrgId Optional. OU ID of the caller's organization. The organization always comes from the token; a different value is refused with 403.
-	OrgId *string `json:"orgId,omitempty"`
-}
-
-// RotateLLMAPIKeyRequest defines model for RotateLLMAPIKeyRequest.
-type RotateLLMAPIKeyRequest struct {
-	// DisplayName Updated display name for the API key.
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// ExpiresAt Optional new expiration time in ISO 8601 format.
-	ExpiresAt *string `json:"expiresAt,omitempty"`
-}
-
-// RotateLLMAPIKeyResponse defines model for RotateLLMAPIKeyResponse.
-type RotateLLMAPIKeyResponse struct {
-	// ApiKey New API key value. Returned only once; store it securely.
-	ApiKey *string `json:"apiKey,omitempty"`
-
-	// GatewayConnected Whether every target gateway had a live websocket connection to the
-	// control plane when the key was rotated. When false, the new key has
-	// been stored but will only become usable once the gateway
-	// reconnects and syncs.
-	GatewayConnected *bool `json:"gatewayConnected,omitempty"`
-
-	// KeyId Unique identifier of the rotated key.
-	KeyId *string `json:"keyId,omitempty"`
-
-	// Message Additional details about the operation result.
-	Message string `json:"message"`
-
-	// Status Result of the operation ("success" or "error").
-	Status string `json:"status"`
-}
-
-// RouteException defines model for RouteException.
-type RouteException struct {
-	// Methods HTTP methods
-	Methods []string `json:"methods"`
-
-	// Path Route path pattern
-	Path string `json:"path"`
-}
-
-// SecurityConfig Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-type SecurityConfig struct {
-	ApiKey *APIKeySecurity `json:"apiKey,omitempty"`
-
-	// Enabled Whether security is enabled
-	Enabled *bool `json:"enabled,omitempty"`
-
-	// Identity Agent Identity security — callers present a JWT issued by the environment's IdP. v1 pins the issuer to the ThunderKeyManager key manager.
-	Identity *IdentitySecurity `json:"identity,omitempty"`
-}
-
-// SecuritySummary Security configuration summary
-type SecuritySummary struct {
-	// ApiKeyEnabled Whether API key security is enabled
-	ApiKeyEnabled *bool `json:"apiKeyEnabled,omitempty"`
-
-	// ApiKeyIn Where the API key is located (header/query)
-	ApiKeyIn *string `json:"apiKeyIn,omitempty"`
-
-	// Enabled Whether security is enabled
-	Enabled *bool `json:"enabled,omitempty"`
-}
-
-// SelfHostedGatewayRequest defines model for SelfHostedGatewayRequest.
-type SelfHostedGatewayRequest struct {
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// Endpoints At least one http(s) endpoint URL. The first is the gateway's address.
-	Endpoints []string `json:"endpoints"`
-
-	// Environment Name of the environment to bind the gateway to. Must exist.
-	Environment       string                                     `json:"environment"`
-	FunctionalityType *SelfHostedGatewayRequestFunctionalityType `json:"functionalityType,omitempty"`
-
-	// Handle The gateway's name, unique in the organization and fixed once created. Lowercase letters, numbers and hyphens, not starting or ending with a hyphen.
-	Handle     string                  `json:"handle"`
-	IsCritical *bool                   `json:"isCritical,omitempty"`
-	Properties *map[string]interface{} `json:"properties,omitempty"`
-
-	// Version Gateway version, `major.minor` or CalVer `YYYY.MM.DD`.
-	Version *string `json:"version,omitempty"`
-}
-
-// SelfHostedGatewayRequestFunctionalityType defines model for SelfHostedGatewayRequest.FunctionalityType.
-type SelfHostedGatewayRequestFunctionalityType string
-
-// SelfHostedGatewayUpdateRequest defines model for SelfHostedGatewayUpdateRequest.
-type SelfHostedGatewayUpdateRequest struct {
-	Description *string                 `json:"description,omitempty"`
-	DisplayName *string                 `json:"displayName,omitempty"`
-	IsCritical  *bool                   `json:"isCritical,omitempty"`
-	Properties  *map[string]interface{} `json:"properties,omitempty"`
-}
-
-// SetA2AProxyRequest defines model for SetA2AProxyRequest.
-type SetA2AProxyRequest struct {
-	// UpstreamAuth A static header the gateway adds to every call to the agent, card fetch included.
-	UpstreamAuth *A2AProxyUpstreamAuth `json:"upstreamAuth,omitempty"`
-}
-
-// SetAgentCardSourceRequest defines model for SetAgentCardSourceRequest.
-type SetAgentCardSourceRequest struct {
-	// Url Public http(s) URL of the agent card, normally ending in /.well-known/agent-card.json.
-	Url string `json:"url"`
-}
-
-// StoredAPIKey defines model for StoredAPIKey.
-type StoredAPIKey struct {
-	// ArtifactUuid UUID of the artifact this key is bound to.
-	ArtifactUuid openapi_types.UUID `json:"artifactUuid"`
-	CreatedAt    time.Time          `json:"createdAt"`
-
-	// DisplayName Human-readable name shown in the console.
-	DisplayName string `json:"displayName"`
-
-	// ExpiresAt Expiration timestamp if set.
-	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
-
-	// MaskedApiKey Masked representation of the API key (full value is shown only once at creation).
-	MaskedApiKey string `json:"maskedApiKey"`
-
-	// Name Unique name of the API key within the agent.
-	Name string `json:"name"`
-
-	// Purpose Internal purpose code of the API key.
-	Purpose int32 `json:"purpose"`
-
-	// Status Current lifecycle status of the API key (e.g. active, revoked).
-	Status    string    `json:"status"`
-	UpdatedAt time.Time `json:"updatedAt"`
-
-	// Uuid Stable API key identifier.
-	Uuid openapi_types.UUID `json:"uuid"`
 }
 
 // TargetEnvironmentRef defines model for TargetEnvironmentRef.
@@ -5479,16 +2675,6 @@ type ThunderUrlRequest struct {
 type ThunderUrlResponse struct {
 	Handle *string `json:"handle,omitempty"`
 	Url    string  `json:"url"`
-}
-
-// TokenRateLimit defines model for TokenRateLimit.
-type TokenRateLimit struct {
-	// Count Maximum number of tokens
-	Count int `json:"count"`
-
-	// Enabled Whether token rate limiting is enabled
-	Enabled bool                 `json:"enabled"`
-	Reset   RateLimitResetWindow `json:"reset"`
 }
 
 // TokenRequest defines model for TokenRequest.
@@ -5608,40 +2794,6 @@ type UpdateAgentConfigurationsRequest struct {
 	Files *[]FileMount `json:"files,omitempty"`
 }
 
-// UpdateAgentDeploySettingsRequest defines model for UpdateAgentDeploySettingsRequest.
-type UpdateAgentDeploySettingsRequest struct {
-	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
-	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
-	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
-
-	// EnableApiKeySecurity Enable API key security for the agent endpoint in this environment. Omit to keep the current value.
-	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
-
-	// EnableAutoInstrumentation Enable auto instrumentation for observability in this environment. Omit to keep the current value.
-	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
-
-	// EnableOAuthSecurity Enable OAuth security for the agent endpoint in this environment. Mutually exclusive with enableApiKeySecurity. Omit to keep the current value.
-	EnableOAuthSecurity *bool `json:"enableOAuthSecurity,omitempty"`
-
-	// EnvironmentName Name of the environment whose deploy settings to update.
-	EnvironmentName string `json:"environmentName"`
-
-	// InstrumentationVersion AMP instrumentation version to pin for this agent. Selects the
-	// pre-built init-container image
-	// (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the
-	// `traceloop-sdk` it bundles. Applies only to Python buildpack agents
-	// with auto-instrumentation enabled. Omit (or send null) to keep the
-	// currently-pinned version. Must be one of the versions supported by
-	// the deployment; unknown or python-incompatible values are rejected.
-	InstrumentationVersion *string `json:"instrumentationVersion,omitempty"`
-
-	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
-	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
-
-	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Omit to keep the current value.
-	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
-}
-
 // UpdateAgentKindRequest defines model for UpdateAgentKindRequest.
 type UpdateAgentKindRequest struct {
 	Description *string `json:"description,omitempty"`
@@ -5649,21 +2801,6 @@ type UpdateAgentKindRequest struct {
 
 	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 	Labels *Labels `json:"labels,omitempty"`
-}
-
-// UpdateAgentModelConfigRequest defines model for UpdateAgentModelConfigRequest.
-type UpdateAgentModelConfigRequest struct {
-	// Description Updated description
-	Description *string `json:"description,omitempty"`
-
-	// EnvMappings Updated map of environment names to their model configurations
-	EnvMappings *map[string]EnvModelConfigRequest `json:"envMappings,omitempty"`
-
-	// EnvironmentVariables Optional updated environment variable names. Partial updates are supported: entries are merged by key, so only the keys included in the payload will be renamed and omitted keys retain their existing names. Changes apply globally across all environments. If omitted entirely, all existing names are left unchanged.
-	EnvironmentVariables *[]EnvironmentVariableConfig `json:"environmentVariables,omitempty"`
-
-	// Name Updated name of the model configuration
-	Name *string `json:"name,omitempty"`
 }
 
 // UpdateAgentResourceConfigsRequest defines model for UpdateAgentResourceConfigsRequest.
@@ -5729,25 +2866,6 @@ type UpdateEnvironmentRequest struct {
 	IsProduction *bool `json:"isProduction,omitempty"`
 }
 
-// UpdateGatewayRequest Update request for gateway properties (all fields optional, but at least one must be provided)
-type UpdateGatewayRequest struct {
-	// DisplayName Updated display name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// IsCritical Updated critical flag
-	IsCritical *bool `json:"isCritical,omitempty"`
-
-	// RuntimeUrl In-cluster base URL of the gateway runtime, used by sandboxed platform-hosted agents. Empty means no internal address is registered and the vhost is used instead. Must carry an explicit port other than 80 or 443 and a cluster-local host.
-	RuntimeUrl *string `json:"runtimeUrl,omitempty"`
-
-	// Status Gateway operational status:
-	// - ACTIVE: Gateway is operational and ready
-	// - INACTIVE: Gateway is registered but not active
-	// - PROVISIONING: Gateway is being set up
-	// - ERROR: Gateway has encountered an error
-	Status *GatewayStatus `json:"status,omitempty"`
-}
-
 // UpdateGroupRequest defines model for UpdateGroupRequest.
 type UpdateGroupRequest struct {
 	// Description Group description
@@ -5755,83 +2873,6 @@ type UpdateGroupRequest struct {
 
 	// Name Group name
 	Name *string `json:"name,omitempty"`
-}
-
-// UpdateLLMProviderCatalogRequest defines model for UpdateLLMProviderCatalogRequest.
-type UpdateLLMProviderCatalogRequest struct {
-	// InCatalog Whether the provider should be available in the catalog.
-	// - true: Add to catalog (makes it discoverable for agent configurations)
-	// - false: Remove from catalog (hides from catalog queries)
-	InCatalog bool `json:"inCatalog"`
-}
-
-// UpdateLLMProviderRequest defines model for UpdateLLMProviderRequest.
-type UpdateLLMProviderRequest struct {
-	AccessControl *LLMAccessControl `json:"accessControl,omitempty"`
-
-	// Context Updated API context path
-	Context *string `json:"context,omitempty"`
-
-	// Description Updated description
-	Description *string               `json:"description,omitempty"`
-	Gateways    *[]openapi_types.UUID `json:"gateways,omitempty"`
-
-	// ModelProviders Updated model providers list
-	ModelProviders *[]LLMModelProvider `json:"modelProviders,omitempty"`
-
-	// Name Updated human-readable name
-	Name *string `json:"name,omitempty"`
-
-	// Openapi Updated OpenAPI specification
-	Openapi *string `json:"openapi,omitempty"`
-
-	// Policies Updated list of policies
-	Policies     *[]LLMPolicy           `json:"policies,omitempty"`
-	RateLimiting *LLMRateLimitingConfig `json:"rateLimiting,omitempty"`
-
-	// Resilience Route-level request/idle timeouts applied at the API level (no per-operation override for LLM providers, LLM proxies, or MCP proxies).
-	Resilience *Resilience `json:"resilience,omitempty"`
-
-	// Security Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
-	Security *SecurityConfig `json:"security,omitempty"`
-
-	// Template Updated template identifier
-	Template *string         `json:"template,omitempty"`
-	Upstream *UpstreamConfig `json:"upstream,omitempty"`
-
-	// Version Updated version
-	Version *string `json:"version,omitempty"`
-}
-
-// UpdateLLMProviderTemplateRequest defines model for UpdateLLMProviderTemplateRequest.
-type UpdateLLMProviderTemplateRequest struct {
-	CompletionTokens *ExtractionIdentifier `json:"completionTokens,omitempty"`
-
-	// Description Updated description
-	Description *string                      `json:"description,omitempty"`
-	Metadata    *LLMProviderTemplateMetadata `json:"metadata,omitempty"`
-
-	// Name Updated name of the template
-	Name            *string               `json:"name,omitempty"`
-	PromptTokens    *ExtractionIdentifier `json:"promptTokens,omitempty"`
-	RemainingTokens *ExtractionIdentifier `json:"remainingTokens,omitempty"`
-	RequestModel    *ExtractionIdentifier `json:"requestModel,omitempty"`
-	ResponseModel   *ExtractionIdentifier `json:"responseModel,omitempty"`
-	TotalTokens     *ExtractionIdentifier `json:"totalTokens,omitempty"`
-}
-
-// UpdateLLMProxyRequest defines model for UpdateLLMProxyRequest.
-type UpdateLLMProxyRequest struct {
-	Configuration *LLMProxyConfig `json:"configuration,omitempty"`
-
-	// Description Updated description
-	Description *string `json:"description,omitempty"`
-
-	// Openapi Updated OpenAPI specification
-	Openapi *string `json:"openapi,omitempty"`
-
-	// ProviderUuid Updated provider UUID
-	ProviderUuid *openapi_types.UUID `json:"providerUuid,omitempty"`
 }
 
 // UpdateProjectRequest defines model for UpdateProjectRequest.
@@ -5858,53 +2899,6 @@ type UpdateRoleRequest struct {
 type UpdateUserRequest struct {
 	// Attributes User attributes to update
 	Attributes *map[string]string `json:"attributes,omitempty"`
-}
-
-// UpsertIdentityProviderRequest Request body for creating or updating a gateway identity provider (name is taken from the path).
-type UpsertIdentityProviderRequest struct {
-	// Description Optional human-readable description (mirror-only).
-	Description *string `json:"description,omitempty"`
-
-	// Issuer Expected `iss` claim value for tokens validated by this identity provider.
-	Issuer *string `json:"issuer,omitempty"`
-
-	// JwksUri Remote JWKS endpoint used to fetch signing keys.
-	JwksUri *string `json:"jwksUri,omitempty"`
-
-	// SkipTlsVerify Skip TLS verification when fetching the JWKS endpoint.
-	SkipTlsVerify *bool `json:"skipTlsVerify,omitempty"`
-}
-
-// UpstreamAuth defines model for UpstreamAuth.
-type UpstreamAuth struct {
-	// Header Authentication header name
-	Header *string `json:"header,omitempty"`
-
-	// Type Authentication type
-	Type UpstreamAuthType `json:"type"`
-
-	// Value Authentication value/token
-	Value *string `json:"value,omitempty"`
-}
-
-// UpstreamAuthType Authentication type
-type UpstreamAuthType string
-
-// UpstreamConfig defines model for UpstreamConfig.
-type UpstreamConfig struct {
-	Main    *UpstreamEndpoint `json:"main,omitempty"`
-	Sandbox *UpstreamEndpoint `json:"sandbox,omitempty"`
-}
-
-// UpstreamEndpoint defines model for UpstreamEndpoint.
-type UpstreamEndpoint struct {
-	Auth *UpstreamAuth `json:"auth,omitempty"`
-
-	// Ref Reference to endpoint configuration
-	Ref *string `json:"ref,omitempty"`
-
-	// Url Upstream endpoint URL
-	Url *string `json:"url,omitempty"`
 }
 
 // UserListResponse defines model for UserListResponse.
@@ -5935,24 +2929,6 @@ type UserResponse struct {
 	OuId *string `json:"ouId,omitempty"`
 }
 
-// AgentIdentityEnvName defines model for AgentIdentityEnvName.
-type AgentIdentityEnvName = string
-
-// AgentIdentityGroupID defines model for AgentIdentityGroupID.
-type AgentIdentityGroupID = string
-
-// AgentIdentityLimit defines model for AgentIdentityLimit.
-type AgentIdentityLimit = int
-
-// AgentIdentityOffset defines model for AgentIdentityOffset.
-type AgentIdentityOffset = int
-
-// AgentIdentityOrgName defines model for AgentIdentityOrgName.
-type AgentIdentityOrgName = string
-
-// AgentIdentityRoleID defines model for AgentIdentityRoleID.
-type AgentIdentityRoleID = string
-
 // NotImplemented defines model for NotImplemented.
 type NotImplemented = ErrorResponse
 
@@ -5974,28 +2950,6 @@ type ListAgentKindsParams struct {
 	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
 }
 
-// ListCatalogResourcesParams defines parameters for ListCatalogResources.
-type ListCatalogResourcesParams struct {
-	// Kind Filter by resource type
-	Kind *ListCatalogResourcesParamsKind `form:"kind,omitempty" json:"kind,omitempty"`
-
-	// EnvironmentId Filter by environment UUID (only applicable for LlmProvider kind)
-	EnvironmentId *openapi_types.UUID `form:"environmentId,omitempty" json:"environmentId,omitempty"`
-
-	// GatewayHosting With `environmentId`, count only deployments on gateways with this hosting. Monitors and
-	// platform-hosted agents can only use LLM providers deployed to `MANAGED` gateways.
-	GatewayHosting *GatewayHosting `form:"gatewayHosting,omitempty" json:"gatewayHosting,omitempty"`
-
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListCatalogResourcesParamsKind defines parameters for ListCatalogResources.
-type ListCatalogResourcesParamsKind string
-
 // ListDeploymentPipelinesParams defines parameters for ListDeploymentPipelines.
 type ListDeploymentPipelinesParams struct {
 	// Limit Maximum number of results to return
@@ -6012,33 +2966,6 @@ type ListEnvironmentsParams struct {
 
 	// Offset Number of results to skip
 	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListAgentIdentityGroupsParams defines parameters for ListAgentIdentityGroups.
-type ListAgentIdentityGroupsParams struct {
-	// Offset Number of results to skip
-	Offset *AgentIdentityOffset `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Limit Maximum number of results to return
-	Limit *AgentIdentityLimit `form:"limit,omitempty" json:"limit,omitempty"`
-}
-
-// GetAgentIdentityGroupMembersParams defines parameters for GetAgentIdentityGroupMembers.
-type GetAgentIdentityGroupMembersParams struct {
-	// Offset Number of results to skip
-	Offset *AgentIdentityOffset `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Limit Maximum number of results to return
-	Limit *AgentIdentityLimit `form:"limit,omitempty" json:"limit,omitempty"`
-}
-
-// ListAgentIdentityRolesParams defines parameters for ListAgentIdentityRoles.
-type ListAgentIdentityRolesParams struct {
-	// Offset Number of results to skip
-	Offset *AgentIdentityOffset `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Limit Maximum number of results to return
-	Limit *AgentIdentityLimit `form:"limit,omitempty" json:"limit,omitempty"`
 }
 
 // ListOrgEventDeliveriesParams defines parameters for ListOrgEventDeliveries.
@@ -6072,28 +2999,6 @@ type ListEventTypesParams struct {
 
 // ListEventTypesParamsScope defines parameters for ListEventTypes.
 type ListEventTypesParamsScope string
-
-// ListGatewaysParams defines parameters for ListGateways.
-type ListGatewaysParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Type Filter by gateway type. `REGULAR` and `AI` are deprecated aliases
-	// (REGULAR -> BOTH, AI -> EGRESS) kept for backward compatibility.
-	Type *GatewayTypeInput `form:"type,omitempty" json:"type,omitempty"`
-
-	// Status Filter by gateway status
-	Status *ListGatewaysParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-
-	// Environment Filter by environment name
-	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
-}
-
-// ListGatewaysParamsStatus defines parameters for ListGateways.
-type ListGatewaysParamsStatus string
 
 // ListGitSecretsParams defines parameters for ListGitSecrets.
 type ListGitSecretsParams struct {
@@ -6129,87 +3034,6 @@ type ListUsersParams struct {
 
 	// Limit Maximum number of results to return
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-}
-
-// DiscoverOidcConfigurationParams defines parameters for DiscoverOidcConfiguration.
-type DiscoverOidcConfigurationParams struct {
-	// Url Issuer base URL or full .well-known/openid-configuration URL.
-	Url string `form:"url" json:"url"`
-}
-
-// ListLLMProviderTemplatesParams defines parameters for ListLLMProviderTemplates.
-type ListLLMProviderTemplatesParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListLLMProvidersParams defines parameters for ListLLMProviders.
-type ListLLMProvidersParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListAvailableLLMPoliciesParams defines parameters for ListAvailableLLMPolicies.
-type ListAvailableLLMPoliciesParams struct {
-	// ProviderId When set, scope the result to the gateways this LLM provider is deployed to, instead of every active gateway in the organization.
-	ProviderId *openapi_types.UUID `form:"providerId,omitempty" json:"providerId,omitempty"`
-}
-
-// GetLLMProviderDeploymentsParams defines parameters for GetLLMProviderDeployments.
-type GetLLMProviderDeploymentsParams struct {
-	// GatewayId Filter by gateway ID
-	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
-
-	// Status Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
-	Status *GetLLMProviderDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-}
-
-// GetLLMProviderDeploymentsParamsStatus defines parameters for GetLLMProviderDeployments.
-type GetLLMProviderDeploymentsParamsStatus string
-
-// RestoreLLMProviderDeploymentParams defines parameters for RestoreLLMProviderDeployment.
-type RestoreLLMProviderDeploymentParams struct {
-	// DeploymentId Deployment UUID to restore
-	DeploymentId string `form:"deploymentId" json:"deploymentId"`
-
-	// GatewayId Gateway UUID
-	GatewayId string `form:"gatewayId" json:"gatewayId"`
-}
-
-// UndeployLLMProviderDeploymentParams defines parameters for UndeployLLMProviderDeployment.
-type UndeployLLMProviderDeploymentParams struct {
-	// DeploymentId Deployment UUID to undeploy
-	DeploymentId string `form:"deploymentId" json:"deploymentId"`
-
-	// GatewayId Gateway UUID
-	GatewayId string `form:"gatewayId" json:"gatewayId"`
-}
-
-// ListLLMProxiesByProviderParams defines parameters for ListLLMProxiesByProvider.
-type ListLLMProxiesByProviderParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListMCPProxiesParams defines parameters for ListMCPProxies.
-type ListMCPProxiesParams struct {
-	// Project Also include this project's proxies, read only. Without it only org-level proxies are returned. Unknown project returns 404 PROJECT_NOT_FOUND. The agent Tools picker passes the agent's project.
-	Project *string `form:"project,omitempty" json:"project,omitempty"`
-
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // ListProjectsParams defines parameters for ListProjects.
@@ -6304,24 +3128,6 @@ type ProvisionAgentIdentityParams struct {
 	Environment string `form:"environment" json:"environment"`
 }
 
-// ListAgentMCPConfigsParams defines parameters for ListAgentMCPConfigs.
-type ListAgentMCPConfigsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListAgentModelConfigsParams defines parameters for ListAgentModelConfigs.
-type ListAgentModelConfigsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // GetAgentResourceConfigsParams defines parameters for GetAgentResourceConfigs.
 type GetAgentResourceConfigsParams struct {
 	// Environment Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific resource configurations.
@@ -6367,99 +3173,6 @@ type ListProjectEventDeliveriesParams struct {
 // ListProjectEventDeliveriesParamsStatus defines parameters for ListProjectEventDeliveries.
 type ListProjectEventDeliveriesParamsStatus string
 
-// ListLLMProxiesParams defines parameters for ListLLMProxies.
-type ListLLMProxiesParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// GetLLMProxyDeploymentsParams defines parameters for GetLLMProxyDeployments.
-type GetLLMProxyDeploymentsParams struct {
-	// GatewayId Filter by gateway ID
-	GatewayId *string `form:"gatewayId,omitempty" json:"gatewayId,omitempty"`
-
-	// Status Filter by the gateway's stored deployment status. A deployment whose redeploy is owed is shown DEPLOYING but filtered by the status the gateway holds.
-	Status *GetLLMProxyDeploymentsParamsStatus `form:"status,omitempty" json:"status,omitempty"`
-}
-
-// GetLLMProxyDeploymentsParamsStatus defines parameters for GetLLMProxyDeployments.
-type GetLLMProxyDeploymentsParamsStatus string
-
-// RestoreLLMProxyDeploymentParams defines parameters for RestoreLLMProxyDeployment.
-type RestoreLLMProxyDeploymentParams struct {
-	// DeploymentId Deployment UUID to restore
-	DeploymentId string `form:"deploymentId" json:"deploymentId"`
-
-	// GatewayId Gateway UUID
-	GatewayId string `form:"gatewayId" json:"gatewayId"`
-}
-
-// UndeployLLMProxyDeploymentParams defines parameters for UndeployLLMProxyDeployment.
-type UndeployLLMProxyDeploymentParams struct {
-	// DeploymentId Deployment UUID to undeploy
-	DeploymentId string `form:"deploymentId" json:"deploymentId"`
-
-	// GatewayId Gateway UUID
-	GatewayId string `form:"gatewayId" json:"gatewayId"`
-}
-
-// ListProjectMCPProxiesParams defines parameters for ListProjectMCPProxies.
-type ListProjectMCPProxiesParams struct {
-	// Component Only proxies whose source.componentName matches
-	Component *string `form:"component,omitempty" json:"component,omitempty"`
-
-	// Endpoint Only proxies whose source.endpointName matches
-	Endpoint *string `form:"endpoint,omitempty" json:"endpoint,omitempty"`
-
-	// Limit Maximum number of results to return. Values outside 1..100 fall back to 50.
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip. A negative value falls back to 0.
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
-	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
-}
-
-// DeleteProjectMCPProxyParams defines parameters for DeleteProjectMCPProxy.
-type DeleteProjectMCPProxyParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
-	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
-}
-
-// GetProjectMCPProxyParams defines parameters for GetProjectMCPProxy.
-type GetProjectMCPProxyParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
-	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
-}
-
-// UpsertProjectMCPProxyParams defines parameters for UpsertProjectMCPProxy.
-type UpsertProjectMCPProxyParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
-	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
-}
-
-// DeleteProjectMCPProxyEnvironmentParams defines parameters for DeleteProjectMCPProxyEnvironment.
-type DeleteProjectMCPProxyEnvironmentParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
-	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
-}
-
-// GetProjectMCPProxyEnvironmentParams defines parameters for GetProjectMCPProxyEnvironment.
-type GetProjectMCPProxyEnvironmentParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
-	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
-}
-
-// PutProjectMCPProxyEnvironmentParams defines parameters for PutProjectMCPProxyEnvironment.
-type PutProjectMCPProxyEnvironmentParams struct {
-	// XImpersonateOrg Tenant org UUID for trusted service callers. Honoured only for clients that the deployment's org override resolver allow-lists; otherwise the request is refused with 403. Replaces both the org UUID and the handle for the request. The orgName path segment must then be that org's handle, or the request is refused with 403. A 403 here is final, not a missing grant on the org: it means the caller may not impersonate, the org does not exist, or the path names another org; do not retry it. A 502 means the org's handle could not be looked up and is retryable.
-	XImpersonateOrg *openapi_types.UUID `json:"X-Impersonate-Org,omitempty"`
-}
-
 // ListRepositoryBranchesParams defines parameters for ListRepositoryBranches.
 type ListRepositoryBranchesParams struct {
 	// Limit Maximum number of results to return (default 30, max 100)
@@ -6476,15 +3189,6 @@ type ListRepositoryCommitsParams struct {
 
 	// Offset Number of results to skip for pagination (default 0)
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListSelfHostedGatewaysParams defines parameters for ListSelfHostedGateways.
-type ListSelfHostedGatewaysParams struct {
-	// Limit Maximum number of results to return
-	Limit *int32 `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int32 `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
 // CheckThunderUrlAvailabilityParams defines parameters for CheckThunderUrlAvailability.
@@ -6520,30 +3224,6 @@ type SetEnvironmentThunderSystemClientJSONRequestBody = ThunderSystemClientReque
 // SetEnvironmentThunderUrlJSONRequestBody defines body for SetEnvironmentThunderUrl for application/json ContentType.
 type SetEnvironmentThunderUrlJSONRequestBody = ThunderUrlRequest
 
-// CreateAgentIdentityGroupJSONRequestBody defines body for CreateAgentIdentityGroup for application/json ContentType.
-type CreateAgentIdentityGroupJSONRequestBody = AgentIdentityGroupRequest
-
-// UpdateAgentIdentityGroupJSONRequestBody defines body for UpdateAgentIdentityGroup for application/json ContentType.
-type UpdateAgentIdentityGroupJSONRequestBody = AgentIdentityGroupRequest
-
-// AddAgentIdentityGroupMembersJSONRequestBody defines body for AddAgentIdentityGroupMembers for application/json ContentType.
-type AddAgentIdentityGroupMembersJSONRequestBody = AgentIdentityMembersRequest
-
-// RemoveAgentIdentityGroupMembersJSONRequestBody defines body for RemoveAgentIdentityGroupMembers for application/json ContentType.
-type RemoveAgentIdentityGroupMembersJSONRequestBody = AgentIdentityMembersRequest
-
-// CreateAgentIdentityRoleJSONRequestBody defines body for CreateAgentIdentityRole for application/json ContentType.
-type CreateAgentIdentityRoleJSONRequestBody = AgentIdentityRoleRequest
-
-// UpdateAgentIdentityRoleJSONRequestBody defines body for UpdateAgentIdentityRole for application/json ContentType.
-type UpdateAgentIdentityRoleJSONRequestBody = AgentIdentityRoleRequest
-
-// AddAgentIdentityRoleAssigneesJSONRequestBody defines body for AddAgentIdentityRoleAssignees for application/json ContentType.
-type AddAgentIdentityRoleAssigneesJSONRequestBody = AgentIdentityAssignmentsRequest
-
-// RemoveAgentIdentityRoleAssigneesJSONRequestBody defines body for RemoveAgentIdentityRoleAssignees for application/json ContentType.
-type RemoveAgentIdentityRoleAssigneesJSONRequestBody = AgentIdentityAssignmentsRequest
-
 // CreateEventDestinationJSONRequestBody defines body for CreateEventDestination for application/json ContentType.
 type CreateEventDestinationJSONRequestBody = EventDestinationRequest
 
@@ -6555,18 +3235,6 @@ type CreateOrgEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
 // UpdateOrgEventSubscriptionJSONRequestBody defines body for UpdateOrgEventSubscription for application/json ContentType.
 type UpdateOrgEventSubscriptionJSONRequestBody = EventSubscriptionRequest
-
-// RegisterGatewayJSONRequestBody defines body for RegisterGateway for application/json ContentType.
-type RegisterGatewayJSONRequestBody = CreateGatewayRequest
-
-// UpdateGatewayJSONRequestBody defines body for UpdateGateway for application/json ContentType.
-type UpdateGatewayJSONRequestBody = UpdateGatewayRequest
-
-// UpsertGatewayIdentityProviderJSONRequestBody defines body for UpsertGatewayIdentityProvider for application/json ContentType.
-type UpsertGatewayIdentityProviderJSONRequestBody = UpsertIdentityProviderRequest
-
-// RotateGatewayTokenJSONRequestBody defines body for RotateGatewayToken for application/json ContentType.
-type RotateGatewayTokenJSONRequestBody = RotateGatewayTokenRequest
 
 // CreateGitSecretJSONRequestBody defines body for CreateGitSecret for application/json ContentType.
 type CreateGitSecretJSONRequestBody = CreateGitSecretRequest
@@ -6592,45 +3260,6 @@ type UpdateUserJSONRequestBody = UpdateUserRequest
 // UpdateUserProfileJSONRequestBody defines body for UpdateUserProfile for application/json ContentType.
 type UpdateUserProfileJSONRequestBody = UpdateUserRequest
 
-// CreateLLMProviderTemplateJSONRequestBody defines body for CreateLLMProviderTemplate for application/json ContentType.
-type CreateLLMProviderTemplateJSONRequestBody = CreateLLMProviderTemplateRequest
-
-// UpdateLLMProviderTemplateJSONRequestBody defines body for UpdateLLMProviderTemplate for application/json ContentType.
-type UpdateLLMProviderTemplateJSONRequestBody = UpdateLLMProviderTemplateRequest
-
-// CreateLLMProviderJSONRequestBody defines body for CreateLLMProvider for application/json ContentType.
-type CreateLLMProviderJSONRequestBody = CreateLLMProviderRequest
-
-// CreateLLMProviderAPIKeyJSONRequestBody defines body for CreateLLMProviderAPIKey for application/json ContentType.
-type CreateLLMProviderAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateLLMProviderAPIKeyJSONRequestBody defines body for RotateLLMProviderAPIKey for application/json ContentType.
-type RotateLLMProviderAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
-
-// UpdateLLMProviderJSONRequestBody defines body for UpdateLLMProvider for application/json ContentType.
-type UpdateLLMProviderJSONRequestBody = UpdateLLMProviderRequest
-
-// UpdateLLMProviderCatalogStatusJSONRequestBody defines body for UpdateLLMProviderCatalogStatus for application/json ContentType.
-type UpdateLLMProviderCatalogStatusJSONRequestBody = UpdateLLMProviderCatalogRequest
-
-// DeployLLMProviderJSONRequestBody defines body for DeployLLMProvider for application/json ContentType.
-type DeployLLMProviderJSONRequestBody = LLMDeployRequest
-
-// CreateMCPProxyJSONRequestBody defines body for CreateMCPProxy for application/json ContentType.
-type CreateMCPProxyJSONRequestBody = MCPProxyRequest
-
-// FetchMCPProxyServerInfoJSONRequestBody defines body for FetchMCPProxyServerInfo for application/json ContentType.
-type FetchMCPProxyServerInfoJSONRequestBody = MCPServerInfoFetchRequest
-
-// UpdateMCPProxyJSONRequestBody defines body for UpdateMCPProxy for application/json ContentType.
-type UpdateMCPProxyJSONRequestBody = MCPProxyRequest
-
-// CreateMCPProxyScopeJSONRequestBody defines body for CreateMCPProxyScope for application/json ContentType.
-type CreateMCPProxyScopeJSONRequestBody = MCPProxyScopeRequest
-
-// UpdateMCPProxyScopeJSONRequestBody defines body for UpdateMCPProxyScope for application/json ContentType.
-type UpdateMCPProxyScopeJSONRequestBody = MCPProxyScopeUpdateRequest
-
 // CreateProjectJSONRequestBody defines body for CreateProject for application/json ContentType.
 type CreateProjectJSONRequestBody = CreateProjectRequest
 
@@ -6649,26 +3278,11 @@ type UpdateAgentBuildParametersJSONRequestBody = UpdateAgentBuildParametersReque
 // UpdateAgentConfigurationsJSONRequestBody defines body for UpdateAgentConfigurations for application/json ContentType.
 type UpdateAgentConfigurationsJSONRequestBody = UpdateAgentConfigurationsRequest
 
-// UpdateAgentDeploySettingsJSONRequestBody defines body for UpdateAgentDeploySettings for application/json ContentType.
-type UpdateAgentDeploySettingsJSONRequestBody = UpdateAgentDeploySettingsRequest
-
 // DeployAgentJSONRequestBody defines body for DeployAgent for application/json ContentType.
 type DeployAgentJSONRequestBody = DeployAgentRequest
 
 // UpdateAgentDeploymentStateJSONRequestBody defines body for UpdateAgentDeploymentState for application/json ContentType.
 type UpdateAgentDeploymentStateJSONRequestBody = UpdateDeploymentStateRequest
-
-// SetA2AProxyJSONRequestBody defines body for SetA2AProxy for application/json ContentType.
-type SetA2AProxyJSONRequestBody = SetA2AProxyRequest
-
-// SetAgentCardSourceJSONRequestBody defines body for SetAgentCardSource for application/json ContentType.
-type SetAgentCardSourceJSONRequestBody = SetAgentCardSourceRequest
-
-// CreateAgentAPIKeyJSONRequestBody defines body for CreateAgentAPIKey for application/json ContentType.
-type CreateAgentAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateAgentAPIKeyJSONRequestBody defines body for RotateAgentAPIKey for application/json ContentType.
-type RotateAgentAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
 // CreateAgentEventSubscriptionJSONRequestBody defines body for CreateAgentEventSubscription for application/json ContentType.
 type CreateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
@@ -6681,30 +3295,6 @@ type RegenerateAgentIdentitySecretJSONRequestBody = AgentIdentityActionRequest
 
 // RetryAgentIdentityProvisioningJSONRequestBody defines body for RetryAgentIdentityProvisioning for application/json ContentType.
 type RetryAgentIdentityProvisioningJSONRequestBody = AgentIdentityActionRequest
-
-// CreateAgentMCPConfigJSONRequestBody defines body for CreateAgentMCPConfig for application/json ContentType.
-type CreateAgentMCPConfigJSONRequestBody = CreateAgentModelConfigRequest
-
-// UpdateAgentMCPConfigJSONRequestBody defines body for UpdateAgentMCPConfig for application/json ContentType.
-type UpdateAgentMCPConfigJSONRequestBody = UpdateAgentModelConfigRequest
-
-// CreateMCPConfigAPIKeyJSONRequestBody defines body for CreateMCPConfigAPIKey for application/json ContentType.
-type CreateMCPConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateMCPConfigAPIKeyJSONRequestBody defines body for RotateMCPConfigAPIKey for application/json ContentType.
-type RotateMCPConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
-
-// CreateAgentModelConfigJSONRequestBody defines body for CreateAgentModelConfig for application/json ContentType.
-type CreateAgentModelConfigJSONRequestBody = CreateAgentModelConfigRequest
-
-// UpdateAgentModelConfigJSONRequestBody defines body for UpdateAgentModelConfig for application/json ContentType.
-type UpdateAgentModelConfigJSONRequestBody = UpdateAgentModelConfigRequest
-
-// CreateLLMConfigAPIKeyJSONRequestBody defines body for CreateLLMConfigAPIKey for application/json ContentType.
-type CreateLLMConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateLLMConfigAPIKeyJSONRequestBody defines body for RotateLLMConfigAPIKey for application/json ContentType.
-type RotateLLMConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
 
 // PromoteAgentJSONRequestBody defines body for PromoteAgent for application/json ContentType.
 type PromoteAgentJSONRequestBody = PromoteAgentRequest
@@ -6727,38 +3317,11 @@ type CreateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 // UpdateProjectEventSubscriptionJSONRequestBody defines body for UpdateProjectEventSubscription for application/json ContentType.
 type UpdateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
-// CreateLLMProxyJSONRequestBody defines body for CreateLLMProxy for application/json ContentType.
-type CreateLLMProxyJSONRequestBody = CreateLLMProxyRequest
-
-// UpdateLLMProxyJSONRequestBody defines body for UpdateLLMProxy for application/json ContentType.
-type UpdateLLMProxyJSONRequestBody = UpdateLLMProxyRequest
-
-// CreateLLMProxyAPIKeyJSONRequestBody defines body for CreateLLMProxyAPIKey for application/json ContentType.
-type CreateLLMProxyAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
-
-// RotateLLMProxyAPIKeyJSONRequestBody defines body for RotateLLMProxyAPIKey for application/json ContentType.
-type RotateLLMProxyAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
-
-// DeployLLMProxyJSONRequestBody defines body for DeployLLMProxy for application/json ContentType.
-type DeployLLMProxyJSONRequestBody = LLMDeployRequest
-
-// UpsertProjectMCPProxyJSONRequestBody defines body for UpsertProjectMCPProxy for application/json ContentType.
-type UpsertProjectMCPProxyJSONRequestBody = ProjectMCPProxyRequest
-
-// PutProjectMCPProxyEnvironmentJSONRequestBody defines body for PutProjectMCPProxyEnvironment for application/json ContentType.
-type PutProjectMCPProxyEnvironmentJSONRequestBody = MCPProxyEnvironmentRequest
-
 // ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
 type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest
 
 // ListRepositoryCommitsJSONRequestBody defines body for ListRepositoryCommits for application/json ContentType.
 type ListRepositoryCommitsJSONRequestBody = ListCommitsRequest
-
-// RegisterSelfHostedGatewayJSONRequestBody defines body for RegisterSelfHostedGateway for application/json ContentType.
-type RegisterSelfHostedGatewayJSONRequestBody = SelfHostedGatewayRequest
-
-// UpdateSelfHostedGatewayJSONRequestBody defines body for UpdateSelfHostedGateway for application/json ContentType.
-type UpdateSelfHostedGatewayJSONRequestBody = SelfHostedGatewayUpdateRequest
 
 // GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
 type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
@@ -6851,121 +3414,6 @@ func (t Build) MarshalJSON() ([]byte, error) {
 }
 
 func (t *Build) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsCatalogEntry returns the union data inside the CatalogListResponse_Entries_Item as a CatalogEntry
-func (t CatalogListResponse_Entries_Item) AsCatalogEntry() (CatalogEntry, error) {
-	var body CatalogEntry
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCatalogEntry overwrites any union data inside the CatalogListResponse_Entries_Item as the provided CatalogEntry
-func (t *CatalogListResponse_Entries_Item) FromCatalogEntry(v CatalogEntry) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCatalogEntry performs a merge with any union data inside the CatalogListResponse_Entries_Item, using the provided CatalogEntry
-func (t *CatalogListResponse_Entries_Item) MergeCatalogEntry(v CatalogEntry) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsCatalogLLMProviderEntry returns the union data inside the CatalogListResponse_Entries_Item as a CatalogLLMProviderEntry
-func (t CatalogListResponse_Entries_Item) AsCatalogLLMProviderEntry() (CatalogLLMProviderEntry, error) {
-	var body CatalogLLMProviderEntry
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCatalogLLMProviderEntry overwrites any union data inside the CatalogListResponse_Entries_Item as the provided CatalogLLMProviderEntry
-func (t *CatalogListResponse_Entries_Item) FromCatalogLLMProviderEntry(v CatalogLLMProviderEntry) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCatalogLLMProviderEntry performs a merge with any union data inside the CatalogListResponse_Entries_Item, using the provided CatalogLLMProviderEntry
-func (t *CatalogListResponse_Entries_Item) MergeCatalogLLMProviderEntry(v CatalogLLMProviderEntry) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAgentKindResponse returns the union data inside the CatalogListResponse_Entries_Item as a AgentKindResponse
-func (t CatalogListResponse_Entries_Item) AsAgentKindResponse() (AgentKindResponse, error) {
-	var body AgentKindResponse
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAgentKindResponse overwrites any union data inside the CatalogListResponse_Entries_Item as the provided AgentKindResponse
-func (t *CatalogListResponse_Entries_Item) FromAgentKindResponse(v AgentKindResponse) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAgentKindResponse performs a merge with any union data inside the CatalogListResponse_Entries_Item, using the provided AgentKindResponse
-func (t *CatalogListResponse_Entries_Item) MergeAgentKindResponse(v AgentKindResponse) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t CatalogListResponse_Entries_Item) Discriminator() (string, error) {
-	var discriminator struct {
-		Discriminator string `json:"kind"`
-	}
-	err := json.Unmarshal(t.union, &discriminator)
-	return discriminator.Discriminator, err
-}
-
-func (t CatalogListResponse_Entries_Item) ValueByDiscriminator() (interface{}, error) {
-	discriminator, err := t.Discriminator()
-	if err != nil {
-		return nil, err
-	}
-	switch discriminator {
-	case "AgentKind":
-		return t.AsAgentKindResponse()
-	case "LlmProvider":
-		return t.AsCatalogLLMProviderEntry()
-	case "agent":
-		return t.AsCatalogEntry()
-	case "mcp":
-		return t.AsCatalogEntry()
-	default:
-		return nil, errors.New("unknown discriminator value: " + discriminator)
-	}
-}
-
-func (t CatalogListResponse_Entries_Item) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *CatalogListResponse_Entries_Item) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

@@ -18,7 +18,7 @@
 package modelconfig
 
 import (
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
 // StringPtr returns a pointer to v.
@@ -35,13 +35,13 @@ func OptionalString(s string) *string {
 }
 
 // BuildEnvVars maps the url/apikey env-var flags to request config; nil when neither is set.
-func BuildEnvVars(urlEnv, apiKeyEnv string) *[]amsvc.EnvironmentVariableConfig {
-	var evs []amsvc.EnvironmentVariableConfig
+func BuildEnvVars(urlEnv, apiKeyEnv string) *[]aigateway.EnvironmentVariableConfig {
+	var evs []aigateway.EnvironmentVariableConfig
 	if urlEnv != "" {
-		evs = append(evs, amsvc.EnvironmentVariableConfig{Key: "url", Name: urlEnv})
+		evs = append(evs, aigateway.EnvironmentVariableConfig{Key: "url", Name: urlEnv})
 	}
 	if apiKeyEnv != "" {
-		evs = append(evs, amsvc.EnvironmentVariableConfig{Key: "apikey", Name: apiKeyEnv})
+		evs = append(evs, aigateway.EnvironmentVariableConfig{Key: "apikey", Name: apiKeyEnv})
 	}
 	if len(evs) == 0 {
 		return nil
@@ -51,10 +51,10 @@ func BuildEnvVars(urlEnv, apiKeyEnv string) *[]amsvc.EnvironmentVariableConfig {
 
 // MergeExistingEnvMappings translates every env mapping of an existing config into request shape.
 func MergeExistingEnvMappings(
-	resp *amsvc.AgentModelConfigResponse,
-	toRequest func(amsvc.EnvProviderConfigMappings) amsvc.EnvModelConfigRequest,
-) map[string]amsvc.EnvModelConfigRequest {
-	out := make(map[string]amsvc.EnvModelConfigRequest, len(resp.EnvMappings))
+	resp *aigateway.AgentModelConfigResponse,
+	toRequest func(aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest,
+) map[string]aigateway.EnvModelConfigRequest {
+	out := make(map[string]aigateway.EnvModelConfigRequest, len(resp.EnvMappings))
 	for env, m := range resp.EnvMappings {
 		out[env] = toRequest(m)
 	}

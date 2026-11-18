@@ -21,6 +21,8 @@ import (
 	"fmt"
 	"strings"
 
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
+
 	"github.com/spf13/cobra"
 
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
@@ -33,8 +35,10 @@ import (
 )
 
 type CreateOptions struct {
-	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	IO     *iostreams.IOStreams
+	Client func(context.Context) (*amsvc.ClientWithResponses, error)
+	// AIGateway registers the card URL of an A2A agent.
+	AIGateway    func(context.Context) (*aigateway.ClientWithResponses, error)
 	Observer     func(context.Context) (*observersvc.Client, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(string, string) render.Scope
@@ -87,6 +91,7 @@ func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &CreateOptions{
 		IO:           f.IOStreams,
 		Client:       f.AgentManager,
+		AIGateway:    f.AIGateway,
 		Observer:     f.Observer,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
@@ -210,7 +215,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 
 	// Branch on the request body, not the --provisioning flag — in file mode
 	// the manifest is the only source of truth.
-	if req.Provisioning.Type != amsvc.ProvisioningTypeExternal {
+	if req.Provisioning.Type != amsvc.External {
 		if opts.IO.JSON {
 			return render.JSONSuccess(opts.IO, opts.Scope, resp.JSON202)
 		}
@@ -219,7 +224,7 @@ func runCreate(ctx context.Context, opts *CreateOptions, req amsvc.CreateAgentRe
 
 	var card *cardOutcome
 	if opts.CardURL != "" {
-		card = applyCardURL(ctx, opts, client, resp.JSON202.Name)
+		card = applyCardURL(ctx, opts, resp.JSON202.Name)
 	}
 
 	// The agent is already created server-side, so a post-create failure (token
@@ -245,9 +250,13 @@ func renderAgentWithCard(opts *CreateOptions, agent *amsvc.AgentResponse, card *
 }
 
 // applyCardURL registers the card URL; failure is a warning because the agent already exists.
-func applyCardURL(ctx context.Context, opts *CreateOptions, client *amsvc.ClientWithResponses, name string) *cardOutcome {
+func applyCardURL(ctx context.Context, opts *CreateOptions, name string) *cardOutcome {
 	target := a2acard.Target{Org: opts.Org, Proj: opts.Proj, Agent: name}
-	res, err := a2acard.ApplySource(ctx, client, target, opts.CardURL, opts.CardProxy)
+	var res a2acard.SourceResult
+	client, err := opts.AIGateway(ctx)
+	if err == nil {
+		res, err = a2acard.ApplySource(ctx, client, target, opts.CardURL, opts.CardProxy)
+	}
 	card := &cardOutcome{SourceResult: res}
 	card.URL = opts.CardURL
 	if err == nil {

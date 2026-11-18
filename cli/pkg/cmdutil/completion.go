@@ -27,6 +27,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 )
 
@@ -135,7 +136,7 @@ func CompleteAgents(cmd *cobra.Command, f *Factory) []string {
 // IsBuildable returns true if the agent supports build operations.
 // Only internally-provisioned agents can be built.
 func IsBuildable(agent amsvc.AgentResponse) bool {
-	return agent.Provisioning.Type == amsvc.ProvisioningTypeInternal
+	return agent.Provisioning.Type == amsvc.Internal
 }
 
 // CompleteBuildableAgents returns sorted names of agents that support builds
@@ -255,12 +256,12 @@ func CompleteLLMProviders(cmd *cobra.Command, f *Factory) []string {
 	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
 	defer cancel()
 
-	client, err := f.AgentManager(ctx)
+	client, err := f.AIGateway(ctx)
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
 	}
-	resp, err := client.ListLLMProvidersWithResponse(ctx, org, &amsvc.ListLLMProvidersParams{})
+	resp, err := client.ListLLMProvidersWithResponse(ctx, org, &aigateway.ListLLMProvidersParams{})
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
@@ -291,12 +292,12 @@ func CompleteLLMProviderTemplates(cmd *cobra.Command, f *Factory) []string {
 	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
 	defer cancel()
 
-	client, err := f.AgentManager(ctx)
+	client, err := f.AIGateway(ctx)
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
 	}
-	resp, err := client.ListLLMProviderTemplatesWithResponse(ctx, org, &amsvc.ListLLMProviderTemplatesParams{})
+	resp, err := client.ListLLMProviderTemplatesWithResponse(ctx, org, &aigateway.ListLLMProviderTemplatesParams{})
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil
@@ -332,7 +333,7 @@ func CompleteGateways(cmd *cobra.Command, f *Factory) []string {
 	ctx, cancel := context.WithTimeout(cmd.Context(), completionTimeout)
 	defer cancel()
 
-	client, err := f.AgentManager(ctx)
+	client, err := f.AIGateway(ctx)
 	if err != nil {
 		logCompletionErr(op, map[string]string{"org": org}, err)
 		return nil

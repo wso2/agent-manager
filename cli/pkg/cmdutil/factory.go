@@ -31,6 +31,7 @@ import (
 
 	"github.com/wso2/agent-manager/cli/pkg/auth"
 	"github.com/wso2/agent-manager/cli/pkg/clients"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
@@ -47,8 +48,10 @@ type Factory struct {
 	Prompter     prompter.Prompter
 	HTTPClient   func() *http.Client
 	AgentManager func(ctx context.Context) (*amsvc.ClientWithResponses, error)
-	Observer     func(ctx context.Context) (*observersvc.Client, error)
-	Token        func(ctx context.Context) (string, error)
+	// AIGateway is the AI Gateway module's API client, at /m/ai-gateway.
+	AIGateway func(ctx context.Context) (*aigateway.ClientWithResponses, error)
+	Observer  func(ctx context.Context) (*observersvc.Client, error)
+	Token     func(ctx context.Context) (string, error)
 
 	observerOnce sync.Once
 	observerURL  string
@@ -65,6 +68,9 @@ func NewFactory(cfg *config.Config, io *iostreams.IOStreams) *Factory {
 	}
 	f.AgentManager = func(ctx context.Context) (*amsvc.ClientWithResponses, error) {
 		return f.agentManager(ctx)
+	}
+	f.AIGateway = func(ctx context.Context) (*aigateway.ClientWithResponses, error) {
+		return f.aiGateway(ctx)
 	}
 	f.Token = func(ctx context.Context) (string, error) {
 		return f.currentAccessToken(ctx)
@@ -121,7 +127,7 @@ func (f *Factory) discoverObserverURL(ctx context.Context) (string, error) {
 			return
 		}
 		if resp.JSON200 == nil {
-			f.observerErr = ErrorFromServer(resp.HTTPResponse, nil)
+			f.observerErr = ErrorFromServer[amsvc.ErrorResponse](resp.HTTPResponse, nil)
 			return
 		}
 		// observerBaseUrl left the generated API types with the trace stack;
@@ -165,30 +171,47 @@ func rewriteDockerHost(raw string) string {
 }
 
 func (f *Factory) agentManager(ctx context.Context) (*amsvc.ClientWithResponses, error) {
+	serverURL, edit, err := f.apiBase(ctx, "/api/v1")
+	if err != nil {
+		return nil, err
+	}
+	return amsvc.NewClientWithResponses(serverURL, amsvc.WithHTTPClient(f.HTTPClient()), amsvc.WithRequestEditorFn(edit))
+}
+
+func (f *Factory) aiGateway(ctx context.Context) (*aigateway.ClientWithResponses, error) {
+	serverURL, edit, err := f.apiBase(ctx, ModuleBase("ai-gateway"))
+	if err != nil {
+		return nil, err
+	}
+	return aigateway.NewClientWithResponses(serverURL, aigateway.WithHTTPClient(f.HTTPClient()), aigateway.WithRequestEditorFn(edit))
+}
+
+// ModuleBase is where a module's API is served, relative to the instance.
+func ModuleBase(module string) string { return "/m/" + module }
+
+// apiBase is the current instance's URL with base appended, and a request
+// editor that signs requests in with a fresh token.
+func (f *Factory) apiBase(ctx context.Context, base string) (string, func(context.Context, *http.Request) error, error) {
 	cfg, err := f.Config()
 	if err != nil {
-		return nil, clierr.Newf(clierr.ConfigNotLoaded, "%v", err)
+		return "", nil, clierr.Newf(clierr.ConfigNotLoaded, "%v", err)
 	}
 	inst, err := cfg.Current()
 	if err != nil {
-		return nil, clierr.New(clierr.NoInstance, err.Error())
+		return "", nil, clierr.New(clierr.NoInstance, err.Error())
 	}
 
 	token, err := f.ensureFreshToken(ctx, cfg, inst)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	serverURL := strings.TrimRight(inst.URL, "/") + "/api/v1"
-	return amsvc.NewClientWithResponses(
-		serverURL,
-		amsvc.WithHTTPClient(f.HTTPClient()),
-		amsvc.WithRequestEditorFn(func(_ context.Context, req *http.Request) error {
-			req.Header.Set("Authorization", "Bearer "+token)
-			req.Header.Set("Accept", "application/json")
-			return nil
-		}),
-	)
+	edit := func(_ context.Context, req *http.Request) error {
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Accept", "application/json")
+		return nil
+	}
+	return strings.TrimRight(inst.URL, "/") + base, edit, nil
 }
 
 func (f *Factory) ensureFreshToken(ctx context.Context, cfg *config.Config, inst *config.Instance) (string, error) {

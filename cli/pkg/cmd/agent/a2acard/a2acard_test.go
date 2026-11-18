@@ -23,7 +23,7 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 )
@@ -115,8 +115,8 @@ func TestApplySource_proxyFromDirect(t *testing.T) {
 func TestApplySource_alreadyProxiedSendsNoPut(t *testing.T) {
 	c := newClient(t, map[string]route{
 		sourceKey: {status: http.StatusAccepted},
-		proxyGet: {status: http.StatusOK, body: amsvc.A2AProxyResponse{
-			Status: amsvc.A2AProxyResponseStatusDEPLOYED, UpstreamAuthHeader: "Authorization",
+		proxyGet: {status: http.StatusOK, body: aigateway.A2AProxyResponse{
+			Status: aigateway.A2AProxyResponseStatusDEPLOYED, UpstreamAuthHeader: "Authorization",
 		}},
 	})
 	got, err := ApplySource(context.Background(), c, target, cardURL, true)

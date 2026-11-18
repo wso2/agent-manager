@@ -23,13 +23,13 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
-func mixedListResponse() amsvc.AgentModelConfigListResponse {
+func mixedListResponse() aigateway.AgentModelConfigListResponse {
 	desc := "primary openai binding"
-	return amsvc.AgentModelConfigListResponse{Configs: []amsvc.AgentModelConfigListItem{
+	return aigateway.AgentModelConfigListResponse{Configs: []aigateway.AgentModelConfigListItem{
 		{Name: "primary", Type: "llm", Description: &desc, Uuid: mustUUID("11111111-1111-1111-1111-111111111111")},
 		{Name: "secondary", Type: "llm", Uuid: mustUUID("22222222-2222-2222-2222-222222222222")},
 		{Name: "tool-proxy", Type: "mcp", Uuid: mustUUID("33333333-3333-3333-3333-333333333333")},

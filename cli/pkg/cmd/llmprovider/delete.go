@@ -23,7 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -34,7 +34,7 @@ import (
 type DeleteOptions struct {
 	IO           *iostreams.IOStreams
 	Prompter     prompter.Prompter
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj string) render.Scope
 
@@ -53,7 +53,7 @@ func NewDeleteCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &DeleteOptions{
 		IO:           f.IOStreams,
 		Prompter:     f.Prompter,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
 	}

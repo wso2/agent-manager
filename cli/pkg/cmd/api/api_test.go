@@ -40,6 +40,7 @@ func TestResolveURL(t *testing.T) {
 		{"does not double-prefix api/v1", "https://x.com", "api/v1/agents", "https://x.com/api/v1/agents", false},
 		{"does not double-prefix leading-slash api/v1", "https://x.com", "/api/v1/orgs/1", "https://x.com/api/v1/orgs/1", false},
 		{"preserves existing query string", "https://x.com", "/agents?limit=2", "https://x.com/api/v1/agents?limit=2", false},
+		{"keeps a module's API root", "https://x.com", "/m/ai-gateway/orgs/acme/llm-providers", "https://x.com/m/ai-gateway/orgs/acme/llm-providers", false},
 		{"errors on empty base", "", "agents", "", true},
 		{"errors on empty endpoint", "https://x.com", "  ", "", true},
 	}
@@ -245,6 +246,10 @@ func TestAPIExamplesUseRealEndpoints(t *testing.T) {
 		t.Fatal("found no example endpoints to check")
 	}
 	for _, ep := range endpoints {
+		// A module's API keeps its root (/m/<module>) before the org.
+		if _, rest, ok := strings.Cut(strings.TrimPrefix(ep, "/m/"), "/"); ok && strings.HasPrefix(ep, "/m/") {
+			ep = "/" + rest
+		}
 		if !strings.HasPrefix(ep, "/orgs") {
 			t.Errorf("example endpoint %q must begin with /orgs (this API has no flat resources)", ep)
 		}

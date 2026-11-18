@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -30,19 +30,19 @@ import (
 
 const getUUID = "11111111-1111-1111-1111-111111111111"
 
-func getResponseFixture() amsvc.AgentModelConfigResponse {
+func getResponseFixture() aigateway.AgentModelConfigResponse {
 	active := "active"
 	desc := "primary github binding"
-	return amsvc.AgentModelConfigResponse{
+	return aigateway.AgentModelConfigResponse{
 		Name:        "primary",
 		Type:        "mcp",
 		Description: &desc,
 		Uuid:        mustUUID(getUUID),
-		EnvMappings: map[string]amsvc.EnvProviderConfigMappings{
-			"dev":  {EnvironmentName: "dev", Configuration: &amsvc.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github"), Url: "https://dev.mcp", Status: &active}},
-			"prod": {EnvironmentName: "prod", Configuration: &amsvc.ProviderConfig{ProviderName: "gitlab", ProxyName: modelconfig.StringPtr("gitlab"), Url: "https://prod.mcp"}},
+		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
+			"dev":  {EnvironmentName: "dev", Configuration: &aigateway.ProviderConfig{ProviderName: "github", ProxyName: modelconfig.StringPtr("github"), Url: "https://dev.mcp", Status: &active}},
+			"prod": {EnvironmentName: "prod", Configuration: &aigateway.ProviderConfig{ProviderName: "gitlab", ProxyName: modelconfig.StringPtr("gitlab"), Url: "https://prod.mcp"}},
 		},
-		EnvironmentVariables: []amsvc.EnvironmentVariableConfig{
+		EnvironmentVariables: []aigateway.EnvironmentVariableConfig{
 			{Key: "url", Name: "MCP_URL"},
 			{Key: "apikey", Name: "MCP_KEY"},
 		},

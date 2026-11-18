@@ -23,7 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -33,7 +33,7 @@ import (
 
 type GetOptions struct {
 	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj, agent string) render.Scope
 	ResolveAgent func([]string) (string, []string, error)
@@ -48,7 +48,7 @@ type GetOptions struct {
 func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &GetOptions{
 		IO:           f.IOStreams,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.AgentScope,
 		ResolveAgent: f.ResolveAgent,
@@ -110,7 +110,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	return printConfig(o.IO, resp.JSON200)
 }
 
-func printConfig(io *iostreams.IOStreams, c *amsvc.AgentModelConfigResponse) error {
+func printConfig(io *iostreams.IOStreams, c *aigateway.AgentModelConfigResponse) error {
 	cs := io.ColorScheme()
 	desc := "-"
 	if c.Description != nil && *c.Description != "" {
