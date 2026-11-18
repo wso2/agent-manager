@@ -393,9 +393,8 @@ export const TracesComponent: React.FC = () => {
     return (
       <PageLayout title="Traces" disableIcon>
         <Alert severity="error" sx={{ mt: 2 }}>
-          <strong>Observer not configured.</strong> Ask your platform
-          administrator to set <code>AM_OBSERVER_PUBLIC_URL</code> on the
-          agent-manager service.
+          <strong>Observer not configured.</strong> This deployment does not
+          run a trace service.
         </Alert>
       </PageLayout>
     );

@@ -1,15 +1,13 @@
 # AMP Lite with Docker Compose
 
-Runs AMP Lite with no Kubernetes, Helm or ingress controller. Every service publishes its own port, and the AI Gateway fronts agent traffic and OTLP trace ingest.
+Runs AMP Lite with no Kubernetes, Helm or ingress controller. Every service publishes its own port, and the AI Gateway fronts agent traffic.
 
 | Service | What it is | Default URL |
 |---|---|---|
 | `thunder` | ThunderID identity provider | http://thunder.amp.localhost:8080 |
 | `amp-api` | Agent Manager API and console | http://localhost:9000 |
 | `amp-api` (internal) | Gateway control plane (WebSocket, self-signed TLS) | https://localhost:9243 |
-| `amp-observer` | Trace query API | http://localhost:9098 |
-| `gateway-runtime` | AI Gateway (agent traffic, `/otel/v1/traces`) | http://default-default.gateway.localhost:19080 |
-| `opensearch`, `otel-collector` | Trace store and pipeline | internal only |
+| `gateway-runtime` | AI Gateway (agent traffic) | http://default-default.gateway.localhost:19080 |
 | `postgres` (optional profile) | PostgreSQL instead of SQLite | internal only |
 
 Startup, in order:
@@ -17,8 +15,9 @@ Startup, in order:
 1. `amp-init` (the `amp-api` image, `amp init thunder … gateway … fileauth …`) writes ThunderID's configuration and bootstrap resources and the AI Gateway's `config.toml` from the settings in `docker-compose.yml` and `.env`: public URLs, ports, client IDs and secrets, default users. Scope lists and role grants come from Agent Manager's own permission catalog. On the first run it also creates the gateway's encryption key, listener certificate and registration token (unless `DEFAULT_GATEWAY_TOKEN` is set), and keeps them afterwards.
 2. `thunder-setup` runs ThunderID's setup when the generated bootstrap differs from the one last applied. A rerun is additive: it updates AMP's clients, roles and settings and keeps everything else in ThunderID's database. It also sets the admin password to `AMP_ADMIN_PASSWORD` again.
 3. `amp-api` (`amp serve --migrate`) migrates the core's and every module's tables, starts the module host, and creates the `default` organization and environment if needed (`DEFAULT_ORG_*`). The built-in gateway module then registers the default gateway (`DEFAULT_GATEWAY_*`) with the token from step 1.
-4. `gateway-controller` connects to `amp-api` with that token. On every gateway connection, `amp-api` deploys the built-in trace-ingest API (`/otel`, `OTEL_INGEST_UPSTREAM_URL`) on the gateway if it does not serve the current version. It is a control-plane deployment, so a gateway restart or resync keeps it.
-5. `amp-observer` applies the `otel-traces-*` index template (span IDs and attributes as keywords) to OpenSearch before it reports healthy; `otel-collector` waits for that.
+4. `gateway-controller` connects to `amp-api` with that token and receives its APIs.
+
+The stack runs no trace store: there is no OpenSearch, OpenTelemetry collector or trace query service, and the gateway serves no `/otel` trace-ingest API. Traces will return as an optional module.
 
 ## Run
 
@@ -50,49 +49,28 @@ than the file itself. Sessions last `FILE_AUTH_TOKEN_TTL` (8 hours) and are not
 renewed.
 
 File mode suits local and single-operator installs. For anything shared, set
-`AUTH_MODE=idp` to hand sign-in to ThunderID — along with `KEY_MANAGER_JWKS_URL`
-and `OBSERVER_JWKS_URL`, which default to the API's own key set and do not follow
-`AUTH_MODE`. `.env.example` lists all three. ThunderID runs either way, because
+`AUTH_MODE=idp` to hand sign-in to ThunderID — along with `KEY_MANAGER_JWKS_URL`,
+which defaults to the API's own key set and does not follow `AUTH_MODE`.
+`.env.example` lists both. ThunderID runs either way, because
 agent identity uses it; `amctl` and the MCP endpoints need `idp`.
 
 ### amp-core (no AI Gateway)
 
-`make up-core` builds the core binary (`DISTRIBUTION=amp-core`: organizations, projects, agents, sign-in, tokens, traces, no modules) and starts it without `gateway-controller` and `gateway-runtime`; `amp-init` writes no gateway configuration. It adds `docker-compose.core.yml` and runs as its own Compose project, `amp-lite-core`, so its data stays apart from the full stack's. Both use the same ports, so run one at a time. `make down-core` and `make reset-core` stop it; `DB=postgres` works as for `make up`. The console shows only the pages the core serves. Without make, from this folder:
+`make up-core` builds the core binary (`DISTRIBUTION=amp-core`: organizations, projects, agents, sign-in, tokens, no modules) and starts it without `gateway-controller` and `gateway-runtime`; `amp-init` writes no gateway configuration. It adds `docker-compose.core.yml` and runs as its own Compose project, `amp-lite-core`, so its data stays apart from the full stack's. Both use the same ports, so run one at a time. `make down-core` and `make reset-core` stop it; `DB=postgres` works as for `make up`. The console shows only the pages the core serves. Without make, from this folder:
 
 ```bash
 docker compose -p amp-lite-core -f docker-compose.yml -f docker-compose.build.yml -f docker-compose.core.yml up -d --build --wait
 ```
 
-With no gateway, agents send OTLP straight to the collector, published on `127.0.0.1:${OTEL_COLLECTOR_PORT:-4318}`. Nothing authenticates it, and the agent labels its own spans with what the gateway would otherwise derive from its token, either as headers (`x-user-organization-name`, `x-user-project-name`, `x-user-agent-name`) or as resource attributes. The AMP instrumentation SDK sends only `x-amp-api-key`, which the collector ignores, so with it set `AMP_OTEL_ENDPOINT=http://localhost:4318` and `OTEL_RESOURCE_ATTRIBUTES=agent-manager/organization=default,agent-manager/project=<project>,agent-manager/agent=<agent>`. The console's setup instructions still describe the gateway.
-
-```bash
-curl -X POST http://localhost:4318/v1/traces \
-  -H 'x-user-organization-name: default' -H 'x-user-project-name: <project>' \
-  -H 'x-user-agent-name: <agent>' -H 'Content-Type: application/json' -d @spans.json
-```
-
 ### Smoke test
 
-`make smoke` (or `make smoke-core`) runs `scripts/smoke.sh amp|amp-core` against the running stack: sign-in, the core API, which routes the distribution serves, one trace end to end, the console and the UI manifest. It reads ports and `AMP_ADMIN_PASSWORD` from the environment or `.env`, and needs `AUTH_MODE=file`.
+`make smoke` (or `make smoke-core`) runs `scripts/smoke.sh amp|amp-core` against the running stack: sign-in, the core API, which routes the distribution serves, the console and the UI manifest. It reads ports and `AMP_ADMIN_PASSWORD` from the environment or `.env`, and needs `AUTH_MODE=file`.
 
 ### PostgreSQL
 
 SQLite is the default database. To use PostgreSQL, uncomment `COMPOSE_PROFILES=postgres` and `AMP_DB_DRIVER=postgres` in `.env` (or run `make up DB=postgres`); `amp-api` migrates it on start. Switching does not copy data between the two.
 
-On Linux hosts OpenSearch needs `sudo sysctl -w vm.max_map_count=262144`; Docker Desktop and Colima already set it.
-
 On macOS with Colima, keep this folder inside your home folder: Colima shares only that with its VM, and the bind mounts come up empty anywhere else.
-
-## Send a trace
-
-```bash
-curl -X POST http://localhost:19080/otel/v1/traces \
-  -H 'Host: default-default.gateway.localhost' \
-  -H "x-amp-api-key: <agent token>" \
-  -H 'Content-Type: application/json' -d @spans.json
-```
-
-Get the agent token from `POST /api/v1/orgs/{org}/projects/{project}/agents/{agent}/token`.
 
 ## Host names
 
@@ -109,4 +87,3 @@ docker compose --profile postgres down -v   # delete all data, including Thunder
 
 - `thunder/entrypoint.sh` — installs the configuration `amp-init` generated into the ThunderID image and runs its setup or server. The templates live in `agent-manager-service/ampinit`.
 - `gateway/model_prices.json` — LLM pricing data for the gateway's cost policies.
-- `otel-collector/config.yaml` — trace pipeline. The index template is built into the observer.

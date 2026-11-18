@@ -19,14 +19,13 @@
 import { useEffect, useState } from "react";
 import {
   useRuntimeConfig,
-  setObserverBaseUrl,
   setConsoleAnalyticsEnabled,
 } from "@agent-management-platform/api-client";
 import { FullPageLoader } from "@agent-management-platform/views";
 
 export function RuntimeConfigProvider({ children }: { children: React.ReactNode }) {
   const { data, isLoading, isError } = useRuntimeConfig();
-  // Children may read isObserverConfigured() synchronously in their render
+  // Children may read the analytics switch synchronously in their render
   // body, so the store must be populated before they ever mount. Gating on
   // this flag (set in the same effect that writes the store) guarantees that;
   // gating on isLoading alone would let children's first render race ahead of
@@ -37,21 +36,17 @@ export function RuntimeConfigProvider({ children }: { children: React.ReactNode 
     // Settle once discovery resolves OR errors. A hung config endpoint is
     // turned into an error by the fetch timeout (see getRuntimeConfig), so
     // isLoading always flips eventually — the app never traps on the loader.
-    // On error data is undefined, so the store stays unset and pages render
-    // the "observer not configured" state.
     if (!isLoading) {
-      setObserverBaseUrl(data?.observerBaseUrl);
       // The service's CONSOLE_ANALYTICS_ENABLED decides this; the console has
       // no flag of its own. On error data is undefined, which leaves analytics
       // off — the safe direction for telemetry.
       setConsoleAnalyticsEnabled(data?.consoleAnalyticsEnabled);
       setSynced(true);
     }
-  }, [isLoading, isError, data?.observerBaseUrl, data?.consoleAnalyticsEnabled]);
+  }, [isLoading, isError, data?.consoleAnalyticsEnabled]);
 
-  // Gate rendering until discovery settles so observability pages never
-  // render against a transiently-empty observer URL. On error/timeout we
-  // proceed unconfigured — pages show the "observer not configured" state.
+  // Gate rendering until discovery settles. On error/timeout we proceed with
+  // the defaults.
   if (!synced) return <FullPageLoader />;
   return <>{children}</>;
 }

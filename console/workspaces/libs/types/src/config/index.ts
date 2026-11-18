@@ -85,15 +85,6 @@ export interface AppConfig {
    * `disableAuth`, which is still honoured when authMode is unset.
    */
   authMode?: ConfiguredAuthMode;
-  instrumentationUrl: string;
-  /**
-   * When true, the OTEL endpoint shown in the Setup Agent panel is
-   * `instrumentationUrl` as-is. Enable this in deployments where one endpoint
-   * fronts every environment, or where the gateway vhost is not externally
-   * reachable. Defaults to false: the endpoint is derived per environment from
-   * the vhost of the gateway mapped to that environment.
-   */
-  useConfiguredInstrumentationUrl?: boolean;
   /**
    * Base URL the API Platform Gateway uses to reach Agent Manager from inside
    * the cluster. The add-environment.sh script appends /api/v1 and

@@ -1,12 +1,11 @@
 name: Bring up AMP dev stack (build-from-source)
 description: >
   Stands up AMP Lite with Docker Compose (deployments/standalone) from the
-  working tree — building the agent-manager-service and agent-manager-observer
-  images from source (NOT released images), so jobs validate the current PR's
-  API and observer changes end to end. No Kubernetes, Helm or port-forwards:
-  the API is on :9000, the observer on :9098, ThunderID on
-  thunder.amp.localhost:8080 and the AI Gateway on :19080
-  (default-default.gateway.localhost).
+  working tree — building the agent-manager-service image from source (NOT
+  a released image), so jobs validate the current PR's API changes end to
+  end. No Kubernetes, Helm or port-forwards: the API is on :9000, ThunderID
+  on thunder.amp.localhost:8080 and the AI Gateway on :19080
+  (default-default.gateway.localhost). The stack runs no trace store.
 
   amp-api is built without the embedded console unless `console` is true.
   With `distribution: amp-core` it is the core binary instead, with no AI
@@ -37,7 +36,6 @@ runs:
       with:
         dockerfiles: |
           agent-manager-service/Dockerfile
-          agent-manager-observer/Dockerfile
     - name: Bring up AMP (build-from-source)
       shell: bash
       env:
@@ -53,14 +51,11 @@ runs:
         # so they run in identity-provider mode: file mode mints and validates
         # its own tokens and would refuse ThunderID's.
         #
-        # Switching the mode takes all three values, because the two JWKS
-        # defaults follow AUTH_MODE's default rather than AUTH_MODE itself.
+        # Switching the mode takes both values, because the JWKS default
+        # follows AUTH_MODE's default rather than AUTH_MODE itself.
         echo "AUTH_MODE=${AUTH_MODE}" >> .env
         if [ "$AUTH_MODE" = "idp" ]; then
-          {
-            echo "KEY_MANAGER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks"
-            echo "OBSERVER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks"
-          } >> .env
+          echo "KEY_MANAGER_JWKS_URL=http://thunder:\${THUNDER_PORT}/oauth2/jwks" >> .env
         fi
         export COMPOSE_FILE=docker-compose.yml:docker-compose.build.yml
         case "$DISTRIBUTION" in
@@ -73,9 +68,7 @@ runs:
           printf 'services:\n  amp-api:\n    build:\n      args: { CONSOLE: none }\n' > ci-no-console.yml
           COMPOSE_FILE="$COMPOSE_FILE:ci-no-console.yml"
         fi
-        # OpenSearch refuses to start below this on Linux hosts.
-        sudo sysctl -w vm.max_map_count=262144
-        docker compose build amp-api amp-observer
+        docker compose build amp-api
         if ! docker compose up -d --wait --wait-timeout 600; then
           docker compose ps -a
           docker compose logs --tail 200

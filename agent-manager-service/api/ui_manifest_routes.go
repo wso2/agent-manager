@@ -34,7 +34,6 @@ import (
 // console's ai-gateway module but registers agents, which the core does.
 var CoreUI = []modhost.UIEntry{
 	{ID: "ai-gateway/external-agent", Permission: rbac.AgentCreate},
-	{ID: "ai-observability/traces", Permission: rbac.ObservabilityTraceRead},
 }
 
 // UISource lists the console UI of the active modules.

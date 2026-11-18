@@ -1,4 +1,4 @@
-"""Run the manual instrumentation sample as an external agent and find its trace in Agent Manager.
+"""Run the manual instrumentation sample as an external agent against Agent Manager.
 
 The sample exports its own spans through init_otel(), so it runs without the
 amp-instrument wrapper.

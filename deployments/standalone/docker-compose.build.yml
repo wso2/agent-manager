@@ -13,5 +13,3 @@ services:
   amp-init:
     # Built by amp-api above; never pulled.
     pull_policy: never
-  amp-observer:
-    build: ../../agent-manager-observer

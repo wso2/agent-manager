@@ -1,4 +1,4 @@
-"""Run the A2A sample as an external agent and find its model trace in Agent Manager."""
+"""Run the A2A sample as an external agent against Agent Manager."""
 from __future__ import annotations
 
 import contextlib

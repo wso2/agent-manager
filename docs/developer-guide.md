@@ -7,7 +7,7 @@ How to run AMP Lite from source, change it and test it. To install and use a rel
 | Folder | What it holds |
 |---|---|
 | [agent-manager-service](../agent-manager-service) | Agent Manager API, MCP server, module host and embedded console (Go). Builds `amp` (core and modules) and `amp-core` (core only); `amp init` generates the ThunderID and gateway configuration |
-| [agent-manager-observer](../agent-manager-observer) | Trace query API over OpenSearch (Go) |
+| [agent-manager-observer](../agent-manager-observer) | Trace query API over OpenSearch (Go); not part of the Lite stack until traces return as a module |
 | [console](../console) | Web console (React, TypeScript, pnpm workspace) |
 | [cli](../cli) | `amctl`, the command-line client (Go) |
 | [libs/amp-instrumentation](../libs/amp-instrumentation) | Python auto-instrumentation for agents |
@@ -24,7 +24,7 @@ The [architecture diagram](amp-lite/architecture.png) shows how the services fit
 - Go 1.26 (see `agent-manager-service/go.mod`).
 - Node.js 22 or later and pnpm 9 for the console.
 - Python 3.11 or later, only to work on the Python libraries or run the samples.
-- Free ports 3000, 8080, 9000, 9098, 9243 and 19080.
+- Free ports 3000, 8080, 9000, 9243 and 19080.
 
 ## Start the stack
 
@@ -37,7 +37,7 @@ make dev-up    # every day after that
 
 - The API runs from your checkout under air and reloads when you save a Go file. It migrates the database on every start.
 - The console runs as a Vite dev server on http://localhost:3000.
-- Everything else (ThunderID, gateway, observer, OpenSearch, collector) runs from images.
+- Everything else (ThunderID, gateway) runs from images.
 
 Sign in at http://localhost:3000 as `admin`. The password is `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`, which is created from `.env.example` on the first run.
 
@@ -126,7 +126,7 @@ The architecture and data-model diagrams are generated. Edit the generators in [
 
 Tests that call real model providers need provider keys in `test/e2e/.env`. Without them those specs are skipped or fail at the first model call.
 
-To try a change the way a user would, register one of the [samples](../samples) as an external agent and check that its traces appear in the console.
+To try a change the way a user would, register one of the [samples](../samples) as an external agent, attach an LLM provider to it in the console, and run the sample with that provider's connection settings, so its model calls go through the AI Gateway. For the IT Helpdesk sample that is `USE_LLM_PROVIDER=true` with `LLM_PROVIDER_URL` and `LLM_PROVIDER_KEY` from the agent's LLM configuration.
 
 ## Commits and pull requests
 

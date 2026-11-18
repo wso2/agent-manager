@@ -1,4 +1,4 @@
-# Hotel Booking external agent and trace smoke
+# Hotel Booking external agent smoke
 
 The PR workflow runs the sample's local smoke test first, then starts Agent
 Manager on Docker Compose from the PR checkout with `amp-dev-stack`.
@@ -7,8 +7,8 @@ Manager on Docker Compose from the PR checkout with `amp-dev-stack`.
 [../README.md](../README.md)). It also starts the sample's Hotel API from this
 checkout and a local OpenAI-compatible model stub, which requests the hotel
 search tool and only answers once the tool result for this invocation's marker
-(`hotel-smoke-<hex>`) comes back. The run passes once the observer returns a
-model span containing that marker.
+(`hotel-smoke-<hex>`) comes back. The run passes once that round trip has
+happened.
 
 ## Local run
 

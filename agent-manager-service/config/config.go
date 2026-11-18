@@ -46,16 +46,6 @@ type Config struct {
 	// ConsoleEnabled serves the embedded console from the API port (CONSOLE_ENABLED).
 	ConsoleEnabled bool
 
-	// OpenTelemetry configuration
-	OTEL OTELConfig
-
-	// Observer service configuration (agent-manager-observer: build logs,
-	// trace tools in MCP, and the console/CLI discovery endpoint)
-	Observer ObserverConfig
-
-	// Instrumentation url for MCP
-	InstrumentationURL string
-
 	IsLocalDevEnv bool
 
 	// Default Chat API configuration
@@ -389,27 +379,6 @@ type CORSConfig struct {
 	AllowMethods     string
 	AllowHeaders     string
 	AllowCredentials bool
-}
-
-// OTELConfig holds all OpenTelemetry related configuration
-type OTELConfig struct {
-	// Tracing configuration
-	IsTraceContentEnabled bool
-
-	// OTLP Exporter configuration
-	ExporterEndpoint string
-}
-
-type ObserverConfig struct {
-	// URL is the observer service URL the agent-manager-service itself
-	// uses (server-side, in-cluster) for monitor-run log fetches and trace
-	// data queries.
-	URL string
-	// PublicURL is the externally reachable observer URL handed to
-	// out-of-cluster clients (console, CLI) via the GET /api/v1/config endpoint.
-	// It has NO fallback to URL: empty means "observer not configured" and
-	// clients surface that loudly.
-	PublicURL string
 }
 
 // GrowthAnalyticsConfig configures feature-usage telemetry export to Moesif.

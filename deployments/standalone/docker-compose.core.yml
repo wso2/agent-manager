@@ -1,10 +1,5 @@
 # amp-core: the core binary with no modules, so no AI Gateway. Builds from
 # the checkout, so use it with docker-compose.build.yml (`make up-core`).
-#
-# Agents send traces straight to the collector, published on the host's
-# loopback as OTEL_COLLECTOR_PORT. Nothing authenticates that ingest, and the
-# agent labels its spans itself, with the x-user-* headers the gateway would
-# otherwise add or the matching resource attributes (see README.md).
 
 services:
   amp-init:
@@ -15,13 +10,6 @@ services:
     image: ${AMP_CORE_IMAGE:-amp-api:lite-core}
     build:
       args: { DISTRIBUTION: amp-core }
-    environment:
-      INSTRUMENTATION_URL: http://localhost:${OTEL_COLLECTOR_PORT:-4318}
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
-
-  otel-collector:
-    ports:
-      - "127.0.0.1:${OTEL_COLLECTOR_PORT:-4318}:4318"
 
   # Kept out of the stack; `--profile gateway` would start them, and they
   # would find no control plane to connect to.

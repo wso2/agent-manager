@@ -74,14 +74,14 @@ func agentToolSpecs() []toolTestSpec {
 			permissions:         []rbac.Permission{rbac.AgentCreate, rbac.AgentTokenManage},
 			descriptionKeywords: []string{"external", "agent"},
 			descriptionMinLen:   20,
-			requiredParams:      []string{"project_name", "agent_name", "display_name", "language"},
+			requiredParams:      []string{"project_name", "agent_name", "display_name"},
 			optionalParams:      []string{"description", "environment"},
 			testArgs: map[string]any{
 				"project_name": testProjectName,
 				"agent_name":   testAgentName,
 				"display_name": testDisplayName,
-				"language":     "python",
-				"environment":  testEnvName,
+
+				"environment": testEnvName,
 			},
 			expectedMethod: "CreateAgent",
 			validateCall: func(t *testing.T, args []interface{}) {

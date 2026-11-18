@@ -33,7 +33,7 @@ func (r ApiGetConfigRequest) Execute() (*ConfigResponse, *http.Response, error) 
 /*
 GetConfig Get service configuration
 
-Returns service URLs that CLI clients need for direct backend access.
+Returns the deployment feature switches the console and CLI read before signing in.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@return ApiGetConfigRequest

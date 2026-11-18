@@ -357,7 +357,6 @@ jobs:
         package:
           - amp-api
           - amp-console
-          - amp-observer
     steps:
       # Skip packages that do not exist yet.
       - name: Check if package ${{ matrix.package }} exists

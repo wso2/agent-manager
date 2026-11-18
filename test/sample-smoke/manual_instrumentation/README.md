@@ -1,4 +1,4 @@
-# Manual Instrumentation external agent and trace smoke
+# Manual Instrumentation external agent smoke
 
 The PR workflow runs the sample's local smoke test first, then starts Agent
 Manager on Docker Compose from the PR checkout with `amp-dev-stack`.
@@ -7,8 +7,8 @@ Manager on Docker Compose from the PR checkout with `amp-dev-stack`.
 [../README.md](../README.md)), but without `amp-instrument`: the sample exports
 its own spans through `init_otel()`. It reuses the local smoke's model stub,
 which only answers once the sample's real `word_count` tool result comes back.
-The run passes once the observer returns a model span containing this
-invocation's marker.
+The run passes once that round trip has happened for this invocation's
+marker.
 
 ## Local run
 

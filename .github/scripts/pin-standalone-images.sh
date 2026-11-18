@@ -17,11 +17,10 @@ ENV_FILE="deployments/standalone/.env.example"
 
 tmp="$(mktemp)"
 sed -e "s#^AMP_API_IMAGE=.*#AMP_API_IMAGE=${PREFIX}/amp-api:${TAG}#" \
-    -e "s#^AMP_OBSERVER_IMAGE=.*#AMP_OBSERVER_IMAGE=${PREFIX}/amp-observer:${TAG}#" \
     "$ENV_FILE" > "$tmp"
 mv "$tmp" "$ENV_FILE"
 
-for image in amp-api amp-observer; do
+for image in amp-api; do
     grep -q "=${PREFIX}/${image}:${TAG}\$" "$ENV_FILE" \
         || { echo "failed to pin ${image} in $ENV_FILE" >&2; exit 1; }
 done

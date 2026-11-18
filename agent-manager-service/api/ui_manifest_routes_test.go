@@ -72,7 +72,7 @@ func TestUIManifestRootOUSeesEverything(t *testing.T) {
 	ctx := jwtassertion.ContextWithScopeList(req.Context(), nil)
 	ctx = jwtassertion.ContextWithTokenClaims(ctx, &jwtassertion.TokenClaims{OuHandle: config.GetConfig().RootOUHandle})
 	got := uiManifest(req.WithContext(ctx), src)
-	assert.Equal(t, []string{"ai-gateway/external-agent", "ai-observability/traces", "ai-gateway/gateways"}, got.Pages)
+	assert.Equal(t, []string{"ai-gateway/external-agent", "ai-gateway/gateways"}, got.Pages)
 
 	ctx = jwtassertion.ContextWithTokenClaims(req.Context(), &jwtassertion.TokenClaims{OuHandle: "default"})
 	ctx = jwtassertion.ContextWithScopeList(ctx, nil)

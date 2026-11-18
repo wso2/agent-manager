@@ -107,7 +107,7 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"unauthenticated so clients can discover how to authenticate.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +
 		"so MCP clients can discover how to authenticate.",
-	{"registerConfigRoutes", "Handle", "/api/v1/config"}: "public console/CLI discovery endpoint; exposes only the observer public URL.",
+	{"registerConfigRoutes", "Handle", "/api/v1/config"}: "public console/CLI discovery endpoint; exposes only deployment feature switches.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/"}: "the console's static files and config.js (public settings only); paths under " +
 		"/api/, /auth/ and /mcp are refused there, so it never answers for an API route.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/api/v1/"}:                  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
@@ -183,12 +183,6 @@ func TestSecurityInvariantEveryRouteIsAuthorized(t *testing.T) {
 // is enforced when the API has no such check. Each entry below must say where
 // the boundary actually lives, or admit that it does not exist.
 var declaredButUnenforcedPermissions = map[string]string{
-	// --- Enforced by a different service -----------------------------------
-	"ObservabilityTraceRead":    "enforced by agent-manager-observer (its own rbac package + RequirePermission)",
-	"ObservabilityLogRead":      "enforced by agent-manager-observer",
-	"ObservabilityMetricRead":   "enforced by agent-manager-observer",
-	"ObservabilityBuildLogRead": "enforced by agent-manager-observer",
-
 	// --- Enforced by a different mechanism ---------------------------------
 	"MonitorScorePublish": "the publisher route uses PublisherClientAuthMiddleware (audience check) " +
 		"rather than a scope check; the permission is granted to roles but never consulted",

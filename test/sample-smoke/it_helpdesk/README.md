@@ -24,10 +24,10 @@ the venv are removed on exit. Install/application logs and JSON evidence remain
 in the printed report directory. Package installation needs network access;
 inference does not.
 
-## Agent Manager external agent and trace check
+## Agent Manager external agent check
 
 `platform_smoke.py` runs the sample as an external agent against a running
-Agent Manager and finds its model trace; see [../README.md](../README.md).
+Agent Manager; see [../README.md](../README.md).
 
 ## CI
 

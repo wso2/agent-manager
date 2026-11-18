@@ -82,21 +82,6 @@ jobs:
             http://localhost:9000/api/v1/orgs/default/projects)"
           [ "$code" = "200" ] || { echo "::error::API rejected a file-mode token: $code"; exit 1; }
 
-      # The observer validates the same operator tokens against its own
-      # KEY_MANAGER_JWKS_URL. It pointed at ThunderID once and refused every
-      # file-mode token while the API accepted them.
-      - name: The observer accepts the same token
-        run: |
-          set -euo pipefail
-          code="$(curl -s -o /dev/null -w '%{http_code}' \
-            -H "Authorization: Bearer ${{ steps.signin.outputs.token }}" \
-            'http://localhost:9098/api/v1/traces?limit=1')"
-          case "$code" in
-            401) echo "::error::the observer refused a file-mode token (check OBSERVER_JWKS_URL)"; exit 1 ;;
-            000) echo "::error::the observer did not answer"; exit 1 ;;
-            *)   echo "observer answered $code (not 401: authentication passed)" ;;
-          esac
-
       - name: Bad credentials are refused
         run: |
           set -euo pipefail
@@ -116,7 +101,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/file-auth-smoke"
           docker compose ps -a > "$RUNNER_TEMP/file-auth-smoke/services.txt" 2>&1 || true
-          for s in amp-init amp-api amp-observer; do
+          for s in amp-init amp-api; do
             docker compose logs --no-color --tail 300 "$s" \
               > "$RUNNER_TEMP/file-auth-smoke/$s.log" 2>&1 || true
           done

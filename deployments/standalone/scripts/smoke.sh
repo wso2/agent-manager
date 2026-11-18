@@ -5,13 +5,12 @@
 #
 # amp is the full stack (`make up`), amp-core the core binary without the AI
 # Gateway (`make up-core`). The checks cover sign-in, the core API, which
-# routes each distribution serves, a trace sent end to end, the console the API
-# serves and the UI manifest. --no-console skips the console files, for an
+# routes each distribution serves, the console the API serves and the UI
+# manifest. --no-console skips the console files, for an
 # image built with CONSOLE=none.
 #
 # Settings come from the environment, else from .env next to the compose
-# files: AMP_API_PORT, AMP_INTERNAL_PORT, OBSERVER_PORT, GATEWAY_PORT,
-# GATEWAY_HOST, OTEL_COLLECTOR_PORT and AMP_ADMIN_PASSWORD. Sign-in uses the
+# files: AMP_API_PORT, AMP_INTERNAL_PORT and AMP_ADMIN_PASSWORD. Sign-in uses the
 # admin account, so the stack must run with AUTH_MODE=file. The token is never
 # printed. Exits non-zero if any check fails.
 set -uo pipefail
@@ -38,10 +37,6 @@ setting() { # NAME DEFAULT: the environment, else .env, else DEFAULT
 API_PORT=$(setting AMP_API_PORT 9000)
 API=http://localhost:$API_PORT
 INT=https://localhost:$(setting AMP_INTERNAL_PORT 9243)
-OBS=http://localhost:$(setting OBSERVER_PORT 9098)
-GW=http://localhost:$(setting GATEWAY_PORT 19080)
-GW_HOST=$(setting GATEWAY_HOST default-default.gateway.localhost)
-OTLP=http://localhost:$(setting OTEL_COLLECTOR_PORT 4318)
 PASSWORD=$(setting AMP_ADMIN_PASSWORD "")
 [ -n "$PASSWORD" ] || { echo "AMP_ADMIN_PASSWORD is not set and not in $ENV_FILE" >&2; exit 2; }
 
@@ -57,11 +52,6 @@ code() { curl -s -o "$BODY" -w '%{http_code}' "$@"; }
 # The value for amp, or for amp-core.
 pick() { if [ "$DIST" = amp ]; then echo "$1"; else echo "$2"; fi; }
 has() { if grep -q "$1" "$BODY"; then echo yes; else echo no; fi; }
-rfc3339() { # seconds offset from now, UTC
-  local t=$(($(date +%s) + $1))
-  date -u -d "@$t" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -r "$t" +%Y-%m-%dT%H:%M:%SZ
-}
-hex() { od -An -N"$1" -tx1 /dev/urandom | tr -d ' \n'; }
 
 # --- Sign-in ---------------------------------------------------------------------
 check health 200 "$(code "$API/healthz")"
@@ -91,7 +81,8 @@ check agent-list 200 "$(code "${A[@]}" "$B/projects/$P/agents")"
 check agent-update 200 "$(code "${A[@]}" -X PUT "$B/projects/$P/agents/$AG" -d '{"displayName":"Renamed","description":"smoke"}')"
 check agent-config 200 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/configurations?environment=default")"
 check agent-token 200 "$(code "${A[@]}" -X POST "$B/projects/$P/agents/$AG/token" -d '{}')"
-AGENT_TOKEN=$(jq -r '.token // empty' "$BODY")
+if jq -e '.token | type == "string" and length > 0' "$BODY" >/dev/null 2>&1; then check agent-token-issued yes yes
+else check agent-token-issued yes no; fi
 check unknown-extension 400 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"x$AG\",\"displayName\":\"X\",$EXT,\"extensions\":{\"nosuch\":{}}}")"
 # An LLM binding names a provider: amp has none by that name, amp-core no LLM support.
 check agent-with-llm-config-refused "$(pick 404 400)" "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"llm$AG\",\"displayName\":\"L\",$EXT,\"modelConfig\":[{\"providerName\":\"nosuch-provider\"}]}")"
@@ -114,41 +105,6 @@ check monitors "$(pick 501 404)" "$(code "${A[@]}" "$B/projects/$P/agents/$AG/mo
 check evaluators "$(pick 200 404)" "$(code "${A[@]}" "$B/evaluators")"
 check module-route-404 404 "$(code "${A[@]}" "$API/api/v1/m/testmod/whoami")"
 check workload-exchange-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workload-tokens" -d '{"credentialId":"x","secret":"y"}')"
-
-# --- A trace, end to end ----------------------------------------------------------------
-# amp: through the gateway's /otel with the agent's token; the gateway labels
-# the spans. amp-core: straight to the collector, labelled by the agent.
-TRACE_ID=$(hex 16)
-NOW_NS="$(date +%s)000000000"
-SPAN=$(jq -nc --arg t "$TRACE_ID" --arg s "$(hex 8)" --arg n "$NOW_NS" '{resourceSpans: [{
-  resource: {attributes: [{key: "service.name", value: {stringValue: "smoke"}}]},
-  scopeSpans: [{scope: {name: "smoke"}, spans: [{traceId: $t, spanId: $s, name: "smoke",
-    kind: 1, startTimeUnixNano: $n, endTimeUnixNano: $n}]}]}]}')
-send_span() {
-  if [ "$DIST" = amp ]; then
-    curl -s -o /dev/null -w '%{http_code}' -X POST "$GW/otel/v1/traces" -H "Host: $GW_HOST" \
-      -H "x-amp-api-key: $AGENT_TOKEN" -H 'Content-Type: application/json' -d "$SPAN"
-  else
-    curl -s -o /dev/null -w '%{http_code}' -X POST "$OTLP/v1/traces" \
-      -H "x-user-organization-name: $ORG" -H "x-user-project-name: $P" -H "x-user-agent-name: $AG" \
-      -H 'Content-Type: application/json' -d "$SPAN"
-  fi
-}
-# amp-core's collector has no healthcheck (nothing waits for it the way the
-# gateway does in amp), so it may still be starting right after `up --wait`.
-for _ in $(seq 1 15); do
-  sent=$(send_span)
-  [ "$sent" = 000 ] || break
-  sleep 2
-done
-check trace-ingest 200 "$sent"
-found=no
-for _ in $(seq 1 30); do
-  code "${A[@]}" "$OBS/api/v1/traces?organization=$ORG&project=$P&agent=$AG&startTime=$(rfc3339 -3600)&endTime=$(rfc3339 60)" >/dev/null
-  if [ "$(has "$TRACE_ID")" = yes ]; then found=yes; break; fi
-  sleep 2
-done
-check trace-queryable yes "$found"
 
 check agent-delete 204 "$(code "${A[@]}" -X DELETE "$B/projects/$P/agents/$AG")"
 check agent-gone 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG")"
@@ -178,7 +134,7 @@ fi
 # --- UI manifest -------------------------------------------------------------------------
 check ui-manifest-needs-token 401 "$(code "$API/api/v1/ui-manifest")"
 check ui-manifest 200 "$(code "${A[@]}" "$API/api/v1/ui-manifest")"
-CORE_PAGES=ai-gateway/external-agent,ai-observability/traces
+CORE_PAGES=ai-gateway/external-agent
 GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity
 check ui-manifest-pages "$(pick "$CORE_PAGES,$GW_PAGES" "$CORE_PAGES")" "$(jq -r '.pages | join(",")' "$BODY")"
 check ui-manifest-modules "$(pick core,gateway core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
