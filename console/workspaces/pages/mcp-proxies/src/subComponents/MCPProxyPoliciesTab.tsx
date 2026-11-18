@@ -18,7 +18,7 @@
 import { useCallback, useMemo } from "react";
 import {
   useMCPPoliciesCatalog,
-  type MCPPolicyDefinition,
+  type MCPPoliciesCatalogResponse,
 } from "@agent-management-platform/api-client";
 import type {
   MCPEndpointConfig,
@@ -61,6 +61,8 @@ export type MCPProxyPoliciesTabProps = {
   config: MCPEndpointConfig | undefined;
   selectedEndpointId: string;
   orgName?: string;
+  /** MCP proxy handle; scopes policy availability to the proxy's gateways. */
+  proxyId?: string;
   onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
 };
@@ -68,14 +70,29 @@ export type MCPProxyPoliciesTabProps = {
 export function MCPProxyPoliciesTab({
   config,
   orgName,
+  proxyId,
   onUpdate,
 }: MCPProxyPoliciesTabProps) {
   const { canWrite } = useResourceAccess("mcp_server");
   const {
-    data: catalogData,
+    data: mcpCatalog,
     isLoading: isLoadingCatalog,
     error: catalogError,
-  } = useMCPPoliciesCatalog(orgName);
+  } = useMCPPoliciesCatalog(orgName, proxyId);
+
+  // MCP proxies store the major version (e.g. "v1") on a policy, so the picker
+  // selects and matches by that rather than the exact gateway version.
+  const catalogData = useMemo<MCPPoliciesCatalogResponse | undefined>(
+    () =>
+      mcpCatalog && {
+        ...mcpCatalog,
+        data: mcpCatalog.data.map((policy) => ({
+          ...policy,
+          version: policy.savedVersion,
+        })),
+      },
+    [mcpCatalog],
+  );
 
   // The selected environment's policies (all of them, including managed ones the
   // other tabs own). Edits are persisted immediately to that environment's block.
@@ -156,9 +173,6 @@ export function MCPProxyPoliciesTab({
       catalogError={catalogError}
       filterPolicies={(items) =>
         items.filter((policy) => !isManagedMCPPolicy(policy.name))
-      }
-      getPolicyDefinitionVersion={(policy) =>
-        (policy as MCPPolicyDefinition).policyHubVersion ?? policy.version
       }
       title="Policies"
       description="Add policies to this server and drag to change their execution order."

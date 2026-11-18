@@ -150,7 +150,9 @@ export function MCPProxyManageToolsTab({
     orgName,
   );
   const availableAclPolicy = useMemo(
-    () => catalog?.data?.find((p) => p.name === ACL_POLICY_NAME),
+    () => catalog?.data?.find(
+        (p) => p.name === ACL_POLICY_NAME && p.status === "installed",
+      ),
     [catalog],
   );
 
@@ -243,7 +245,7 @@ export function MCPProxyManageToolsTab({
     );
     const newPolicy: MCPProxyPolicy = {
       name: ACL_POLICY_NAME,
-      version: availableAclPolicy.version,
+      version: availableAclPolicy.savedVersion,
       displayName: availableAclPolicy.displayName,
       params,
     };

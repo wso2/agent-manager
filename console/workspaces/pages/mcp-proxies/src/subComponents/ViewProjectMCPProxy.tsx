@@ -639,6 +639,7 @@ export function ViewProjectMCPProxy() {
                     config={selectedConfig}
                     selectedEndpointId={selected.environmentName}
                     orgName={orgId}
+                    proxyId={proxyId}
                     onUpdate={updateSelectedConfig}
                     isUpdating={isUpdating}
                   />

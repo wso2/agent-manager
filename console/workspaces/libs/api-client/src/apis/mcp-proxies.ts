@@ -24,9 +24,10 @@ import type {
   ProjectMCPProxyEnvironment,
   RefreshProjectMCPProxyCapabilitiesPathParams,
   ListAvailableMCPPoliciesPathParams,
+  ListAvailableMCPPoliciesQuery,
+  PolicyCatalogResponse,
   ListMCPProxiesPathParams,
   ListMCPProxiesQuery,
-  MCPPolicyAvailabilityResponse,
   MCPProxy,
   MCPProxyListResponse,
   MCPServerInfoFetchRequest,
@@ -115,13 +116,20 @@ export async function listMCPProxies(
 
 export async function listAvailableMCPPolicies(
   params: ListAvailableMCPPoliciesPathParams,
+  query?: ListAvailableMCPPoliciesQuery,
   getToken?: () => Promise<string>,
-): Promise<MCPPolicyAvailabilityResponse> {
+): Promise<PolicyCatalogResponse> {
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
+  const searchParams: Record<string, string> = {};
+  if (query?.proxyId) {
+    searchParams.proxyId = query.proxyId;
+  }
+
   const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/mcp-proxies/policies`, {
     token,
+    searchParams: Object.keys(searchParams).length ? searchParams : undefined,
   });
   if (!res.ok) throw await res.json();
   return res.json();

@@ -379,7 +379,9 @@ export function MCPProxyRewriteTab({
     orgName,
   );
   const availableRewritePolicy = useMemo(
-    () => catalog?.data?.find((p) => p.name === REWRITE_POLICY_NAME),
+    () => catalog?.data?.find(
+        (p) => p.name === REWRITE_POLICY_NAME && p.status === "installed",
+      ),
     [catalog],
   );
 
@@ -494,7 +496,7 @@ export function MCPProxyRewriteTab({
       const params = buildPolicyParams(state, meta);
       const newPolicy: MCPProxyPolicy = {
         name: REWRITE_POLICY_NAME,
-        version: availableRewritePolicy.version,
+        version: availableRewritePolicy.savedVersion,
         displayName: availableRewritePolicy.displayName,
         params,
       };

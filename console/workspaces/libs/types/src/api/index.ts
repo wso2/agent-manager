@@ -35,6 +35,7 @@ export * from './projects';
 export * from './metrics';
 export * from './monitors';
 export * from './logs';
+export * from './policy-catalog';
 export * from './repositories';
 export * from './resource-configs';
 export * from './llm-providers';

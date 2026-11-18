@@ -112,7 +112,6 @@ export interface AppConfig {
    * provisions the matching scheme.
    */
   tlsEnabled?: boolean;
-  guardrailsCatalogUrl: string;
   guardrailsDefinitionBaseUrl: string;
   /**
    * Capability flags that unlock guardrail policies requiring external system configuration.

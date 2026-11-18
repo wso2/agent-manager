@@ -69,7 +69,6 @@ data:
   MAX_REQUEST_BODY_BYTES: {{ dig "maxRequestBodyBytes" 0 .Values.console.config | int | quote }}
   FILE_MOUNT_MAX_FILE_BYTES: {{ .Values.console.config.fileMountMaxFileBytes | default (dig "fileMountLimits" "maxFileBytes" 1000000 .Values.agentManagerService.config) | int | quote }}
   # Guardrails configuration
-  GUARDRAILS_CATALOG_URL: {{ .Values.console.config.guardrailsCatalogUrl | default "" | quote }}
   GUARDRAILS_DEFINITION_BASE_URL: {{ .Values.console.config.guardrailsDefinitionBaseUrl | default "" | quote }}
   # Guardrail capability flags — enable policies that require external system configuration
   GUARDRAIL_CAP_AWS_BEDROCK: {{ dig "guardrailCapabilities" "awsBedrock" false .Values.console.config | quote }}

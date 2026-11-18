@@ -49,7 +49,7 @@ import type {
   ListLLMProxiesPathParams,
   LLMDeploymentListResponse,
   LLMDeploymentResponse,
-  LLMPolicyAvailabilityResponse,
+  PolicyCatalogResponse,
   LLMProviderConsumerListResponse,
   LLMProviderListResponse,
   LLMProviderResponse,
@@ -211,7 +211,7 @@ export async function listAvailableLLMPolicies(
   params: ListAvailableLLMPoliciesPathParams,
   query?: { providerId?: string },
   getToken?: () => Promise<string>,
-): Promise<LLMPolicyAvailabilityResponse> {
+): Promise<PolicyCatalogResponse> {
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 

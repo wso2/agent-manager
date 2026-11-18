@@ -1954,12 +1954,6 @@
               "title": "guardrailCapabilities",
               "type": "object"
             },
-            "guardrailsCatalogUrl": {
-              "default": "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies?categories=AI,Guardrails&limit=50",
-              "description": "Guardrails catalog URL for fetching available guardrail policies",
-              "title": "guardrailsCatalogUrl",
-              "type": "string"
-            },
             "guardrailsDefinitionBaseUrl": {
               "default": "https://db720294-98fd-40f4-85a1-cc6a3b65bc9a-prod.e1-us-east-azure.choreoapis.dev/api-platform/policy-hub-api/policy-hub-public/v1.0/policies",
               "description": "Guardrails definition base URL for fetching policy definitions",
