@@ -172,10 +172,14 @@ func toolModule(name, tool string) *testModule {
 	}}
 }
 
-func TestMCPToolsFollowTheModule(t *testing.T) {
+func TestMCPToolsFollowTheModule(t *testing.T) { eachDatabase(t, mcpToolsFollowTheModule) }
+
+func mcpToolsFollowTheModule(t *testing.T, d database) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	h, _ := booted(t, ctx, databases(t)[0], []modkit.Module{toolModule("t-tool", "t_tool_run"), toolModule("t-tool2", "t_tool_run")})
+	h, _ := booted(t, ctx, d, []modkit.Module{
+		toolModule("t-tool", "t_tool_run"), toolModule("t-tool2", "t_tool_run"), toolModule("t-a-tool", "t_tool_run"),
+	})
 	assert.Empty(t, h.MCPTools())
 	installAll(t, h, "t-tool")
 	tools := h.MCPTools()
@@ -184,9 +188,11 @@ func TestMCPToolsFollowTheModule(t *testing.T) {
 	assert.EqualValues(t, "t-tool:use", tools[0].Permission)
 	assert.Equal(t, "t-tool:use", tools[0].Action, "the permission names the audit action")
 
-	// Modules activate in a fixed order; a clash refuses the later one.
 	_, err := h.Install(ctx, "t-tool2", false)
 	require.Error(t, err, "a second module cannot add a tool of the same name")
+	_, err = h.Install(ctx, "t-a-tool", false)
+	require.Error(t, err, "nor take it from the module that has it, though it activates first")
+	assert.Equal(t, []string{"t-tool"}, h.Active())
 
 	require.NoError(t, h.Disable(ctx, "t-tool"))
 	assert.Empty(t, h.MCPTools(), "a disabled module's tools are gone")

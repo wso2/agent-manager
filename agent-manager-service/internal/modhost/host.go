@@ -540,6 +540,13 @@ func (h *Host) trial(ctx context.Context, next map[string]string, targets []stri
 			return nil, &ResolveError{Msg: fmt.Sprintf("%s failed to activate: %v", name, err)}
 		}
 	}
+	// Nor may it stop a module that runs now, as a newcomer claiming an MCP
+	// tool name or an internal path it holds would.
+	for _, name := range h.current().active {
+		if err := failed[name]; err != nil {
+			return nil, &ResolveError{Msg: fmt.Sprintf("%s would stop %s: %v", strings.Join(targets, ", "), name, err)}
+		}
+	}
 	return v, nil
 }
 
