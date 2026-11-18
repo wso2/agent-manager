@@ -1547,6 +1547,12 @@ func TestPromoteAgent_IdentityStillProvisioning_KeepsUIErrorBriefAndLogsDetail(t
 		"promotion must be blocked BEFORE calling PromoteComponent — otherwise the pod is already promoted with leaked credentials by the time this error is returned")
 }
 
+func TestBriefUIDetailPreservesWordBoundaries(t *testing.T) {
+	assert.Equal(t, "Access denied Try again Later", briefUIDetail("Access denied\u2029Try again\u2028Later"))
+	prefix := strings.Repeat("x", maxBriefUIDetail-1)
+	assert.Equal(t, prefix+" …", briefUIDetail(prefix+"\u2028retry"))
+}
+
 // The same short-message contract for the state the hard block cannot explain
 // from a binding row: provisioning was only just triggered, so no row exists
 // yet.

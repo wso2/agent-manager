@@ -17,35 +17,28 @@
 package main
 
 import (
-	"net"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestCheckHealth(t *testing.T) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "/ready", http.StatusFound)
-	})
-	mux.HandleFunc("GET /ready", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	redirect := httptest.NewServer(mux)
-	defer redirect.Close()
-
-	healthy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/healthz" {
-			http.NotFound(w, r)
-			return
-		}
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer healthy.Close()
-
-	require.NoError(t, checkHealth(t.Context(), "0.0.0.0", healthy.Listener.Addr().(*net.TCPAddr).Port))
-	require.ErrorContains(t, checkHealth(t.Context(), "localhost", redirect.Listener.Addr().(*net.TCPAddr).Port), "redirects are disabled")
-	require.ErrorContains(t, checkHealth(t.Context(), "192.0.2.1", healthy.Listener.Addr().(*net.TCPAddr).Port), "requires a loopback")
+func TestHealthProbeIP(t *testing.T) {
+	for _, tc := range []struct{ host, want string }{
+		{"", "127.0.0.1"},
+		{"0.0.0.0", "127.0.0.1"},
+		{"127.0.0.2", "127.0.0.2"},
+		{"::", "::1"},
+		{"[::]", "::1"},
+		{"[::1]", "::1"},
+	} {
+		t.Run(tc.host, func(t *testing.T) {
+			ip, err := healthProbeIP(t.Context(), tc.host)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, ip.String())
+		})
+	}
+	for _, host := range []string{"192.0.2.1", "[2001:db8::1]", "[[::1]]", "example.com"} {
+		_, err := healthProbeIP(t.Context(), host)
+		require.ErrorContains(t, err, "requires a loopback")
+	}
 }

@@ -73,20 +73,51 @@ func main() {
 	})
 }
 
-// checkHealth probes only the local service. Plain HTTP is intentional: the
-// process serves HTTP behind the ingress, and this request never leaves loopback.
-func checkHealth(ctx context.Context, host string, port int) error {
+// healthProbeIP normalizes wildcard binds and pins localhost to the address
+// family selected by the TCP listener (IPv4 when available, IPv6 otherwise).
+func healthProbeIP(ctx context.Context, host string) (net.IP, error) {
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") && strings.Contains(host, ":") {
+		host = host[1 : len(host)-1]
+	}
 	switch host {
-	case "", "0.0.0.0", "localhost":
+	case "", "0.0.0.0":
 		host = "127.0.0.1"
 	case "::":
 		host = "::1"
 	}
-	if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
-		return fmt.Errorf("health check requires a loopback or wildcard server host")
+
+	ip := net.ParseIP(host)
+	if host == "localhost" {
+		addrs, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+		if err != nil {
+			return nil, fmt.Errorf("resolve health check host: %w", err)
+		}
+		if len(addrs) > 0 {
+			ip = addrs[0]
+			for _, addr := range addrs {
+				if addr.To4() != nil {
+					ip = addr
+					break
+				}
+			}
+		}
+	}
+	if !ip.IsLoopback() {
+		return nil, fmt.Errorf("health check requires a loopback or wildcard server host")
+	}
+	return ip, nil
+}
+
+// checkHealth probes only the local service. Plain HTTP is intentional: the
+// process serves HTTP behind the ingress, and this request never leaves loopback.
+func checkHealth(ctx context.Context, host string, port int) error {
+	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	ip, err := healthProbeIP(ctx, host)
+	if err != nil {
+		return err
 	}
 	client := &http.Client{
-		Timeout:   4 * time.Second,
 		Transport: &http.Transport{Proxy: nil},
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return fmt.Errorf("health check redirects are disabled")
@@ -94,7 +125,7 @@ func checkHealth(ctx context.Context, host string, port int) error {
 	}
 	defer client.CloseIdleConnections()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"http://"+net.JoinHostPort(host, strconv.Itoa(port))+"/healthz", nil)
+		"http://"+net.JoinHostPort(ip.String(), strconv.Itoa(port))+"/healthz", nil)
 	if err != nil {
 		return fmt.Errorf("build health check: %w", err)
 	}

@@ -199,11 +199,13 @@ func (m *Manager) forwardEvents(conn *Connection, ch <-chan eventhub.Event) {
 					"error", utils.SanitizeForLog(err.Error()))
 				conn.DeliveryStats.IncrementFailed(fmt.Sprintf("forward error: %v", err))
 			} else {
-				slog.Debug("Forwarded event to gateway WebSocket",
-					"gatewayID", utils.SanitizeForLog(conn.GatewayID),
-					"connectionID", utils.SanitizeForLog(conn.ConnectionID),
-					"event_type", string(evt.EventType),
-					"event_id", evt.EventID)
+				if logger := slog.Default(); logger.Enabled(m.shutdownCtx, slog.LevelDebug) {
+					logger.DebugContext(m.shutdownCtx, "Forwarded event to gateway WebSocket",
+						"gatewayID", utils.SanitizeForLog(conn.GatewayID),
+						"connectionID", utils.SanitizeForLog(conn.ConnectionID),
+						"event_type", string(evt.EventType),
+						"event_id", evt.EventID)
+				}
 				conn.DeliveryStats.IncrementTotalSent()
 			}
 		case <-m.shutdownCtx.Done():

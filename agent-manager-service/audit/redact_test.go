@@ -196,6 +196,19 @@ func TestAttributeKeySummaryNeverRecordsValues(t *testing.T) {
 	}
 }
 
+func TestAttributeKeySummaryPreservesLineSeparatorDistinctions(t *testing.T) {
+	keys, _, _ := AttributeKeySummary(map[string]string{
+		"team\u2028name": "",
+		"team\u2029name": "",
+		`team\u2028name`: "",
+		"teamname":       "",
+	})
+	want := []string{`team\\u2028name`, `team\u2028name`, `team\u2029name`, "teamname"}
+	if !slices.Equal(keys, want) {
+		t.Errorf("keys = %q, want %q", keys, want)
+	}
+}
+
 func TestAttributeKeySummaryWithoutSensitiveKeys(t *testing.T) {
 	_, _, containsSensitive := AttributeKeySummary(map[string]string{"department": "platform"})
 	if containsSensitive {

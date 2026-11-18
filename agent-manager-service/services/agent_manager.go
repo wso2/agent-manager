@@ -5849,11 +5849,13 @@ func mcpPromotionBlockText(names []string, targetEnv string) (message, reason st
 // so the full text goes to the log instead.
 const maxBriefUIDetail = 40
 
+var uiDetailSeparators = strings.NewReplacer("\u2028", " ", "\u2029", " ")
+
 // briefUIDetail bounds an opaque upstream string for display. The value is
 // sanitised first because it originates outside this service, matching how
 // every other untrusted string is clamped (see audit.clean).
 func briefUIDetail(detail string) string {
-	return utils.TruncateForLog(utils.SanitizeForLog(detail), maxBriefUIDetail)
+	return utils.TruncateForLog(utils.SanitizeForLog(uiDetailSeparators.Replace(detail)), maxBriefUIDetail)
 }
 
 // maxBriefConnectionList budgets the connection names a blocked promotion puts
