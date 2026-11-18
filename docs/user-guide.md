@@ -145,6 +145,8 @@ The [samples](../samples) folder has ready-to-run agents. Their tracing steps ne
 
 Add LLM providers and MCP servers in the console, then attach them to an agent. The agent calls them through the AI Gateway, which checks the agent's key, applies guardrails and token or cost limits, and keeps the provider keys out of your agent.
 
+Providers and servers you pick while registering an agent are attached in the background, so the agent appears before they are ready. The agent's **Configure** page says while they are being set up, and shows the error if setting one up fails; the gateway keeps retrying. Over the API, send them in the agent create body as `extensions.ai-gateway.modelConfig` and `extensions.ai-gateway.mcpConfig`, and read each one's state (`pending`, `ready` or `failed`) from `GET /m/ai-gateway/orgs/{org}/projects/{project}/agents/{agent}/configurations`. Deleting an agent also removes its gateway keys and routes in the background; until that is done, a new agent with the same name in the project is refused.
+
 The gateway is the `ai-gateway` module. Its API is at `/m/ai-gateway/orgs/{org}/...` (for example `GET /m/ai-gateway/orgs/{org}/llm-providers`), beside the core's `/api/v1`, and its permissions are the `amp:ai-gateway:<resource>.<action>` scopes, such as `amp:ai-gateway:llm-providers.read`.
 
 ## Command line

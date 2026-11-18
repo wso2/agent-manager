@@ -266,13 +266,13 @@ const ID = "llm.proxy/v1"
 
 type Proxy interface {
 	ValidateProviders(ctx context.Context, orgID string, providers []string) error
-	BindAgent(ctx context.Context, agent contracts.AgentRef, environment string, configs []spec.ModelConfigRequest) error
 }
 ```
 
 - The provider calls `rt.Provide(llmv1.ID, impl)` for each id in its `Provides`.
 - A consuming module lists the id in `Requires` or `Optional` and resolves it at call time with `modkit.Lookup[llmv1.Proxy](rt, llmv1.ID)`. The core does the same with `coreext.Lookup[llmv1.Proxy](llmv1.ID)`.
-- Lookups always see the current set of active modules. `ok` is false when no active module provides it, so handle that: the core answers a `modelConfig` with no `llm.proxy/v1` provider with a 400 naming the capability.
+- Lookups always see the current set of active modules. `ok` is false when no active module provides it, so handle that, typically with a 400 naming the capability.
+- A capability is a call between modules, not a way for the core to drive one. The core never calls `llm.proxy/v1` or `mcp.proxy/v1`; agent bindings reach the gateway through its extension block and hooks (see [Where the gateway stands](#where-the-gateway-stands)).
 - A new major version is a new id (`llm.proxy/v2`) and package; providers can offer both while consumers move.
 
 ### Optional interfaces
@@ -390,9 +390,11 @@ What it already does as a module:
 - **Permissions:** its 42 permissions are its own (`ai-gateway:<resource>.<action>`, such as `ai-gateway:llm-providers.read` and `ai-gateway:deploy.production`), declared in its manifest and rendered into ThunderID as the `ai-gateway` resource.
 - **API:** `Activate` mounts its public API with `rt.Handle` at `/m/ai-gateway/orgs/{orgName}/...` (the paths keep the organization, which the core resolves from them), described by its own document, `modules/aigateway/api/openapi.yaml`, with Go types in `gwspec` and an amctl client in `cli/pkg/clients/aigateway`. The console calls it through `GATEWAY_BASE` in `libs/api-client`.
 - **Controller API:** the routes its gateway controllers call, and their WebSocket, stay at `/api/internal/v1/...` with the controllers' `api-key` header, mounted with `rt.HandleInternalAt` until the controllers can register as workloads ([#2493](https://github.com/wso2/agent-manager/issues/2493)).
+- **Tables:** its 32 tables are `mod_ai_gateway_*`, created by its own migrations, with no foreign keys into core; its finalize hooks clean up after agents, projects and environments ([database-schema.md](database-schema.md#gateway-module-tables)).
+- **Agent bindings:** an agent create or update carries the agent's LLM providers and MCP proxies as `extensions.ai-gateway` (`{modelConfig, mcpConfig, settings}`). The validate hook checks them, and the apply hook stores them as `pending` bindings in the agent's transaction. The `agent.created` event (and, on update, the module's own `ai-gateway.agent.bindings_changed`) then provisions each binding in the background: a retried, idempotent handler creates its LLM or MCP configuration, adopting one an earlier attempt already made, and marks it `ready`, or `failed` with the last error while it keeps retrying. `GET /m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations` returns the settings and each binding's state. Deleting the agent records a teardown in its transaction; the `agent.deleted` handler revokes and undeploys whatever was provisioned, pending bindings included, and retries until it is done. Until then a new agent with the same name is refused with 409.
 - **Audit and webhooks:** its routes declare their audit actions (`ai-gateway:<resource>.<verb>`, such as `ai-gateway:api-keys.rotate`) and webhook events (`ai-gateway.<type>`, such as `ai-gateway.llm_provider.created`) with `modkit.Audit`, `AuditCoalesce` and `Emits`; the manifest declares them (`gwaudit`).
 
-What is left: its workers, MCP tools and settings still come through `builtin.Bundle` (`Build(ctx, *wiring.AppParams)` builds it on the core's Go services and repositories), its packages import core `services`, `repositories`, `controllers` and `models`, its tables are core tables without the `mod_ai_gateway_` prefix (listed in [database-schema.md](database-schema.md#gateway-module-tables)), its agent bindings ride on the core's agent create body, and its contracts take `spec` types. Don't copy this for a new module.
+What is left: its workers, MCP tools and settings still come through `builtin.Bundle` (`Build(ctx, *wiring.AppParams)` builds it on the core's Go services and repositories), and its packages import core `services`, `repositories`, `controllers` and `models` (its data types still live in core `models`). Don't copy this for a new module.
 
 ## Testing
 
