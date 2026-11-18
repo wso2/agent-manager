@@ -267,6 +267,16 @@ func TestListTokens_ShowsShortPrefix(t *testing.T) {
 	require.Equal(t, "", shownTokenPrefix(""))
 }
 
+// The mode a gateway reports is what an identity provider change does to it: a
+// self-hosted gateway's owner applies it by hand; nothing applies it to a managed one.
+func TestIdentityProviderMode(t *testing.T) {
+	managed := storedGateway(gwmodels.GatewayHostingManaged, "org")
+	selfHosted := storedGateway(gwmodels.GatewayHostingSelfHosted, "org")
+
+	require.Equal(t, IdentityProviderModeUnsupported, toGatewayResponse(managed).IdentityProviderMode)
+	require.Equal(t, IdentityProviderModeManual, toGatewayResponse(selfHosted).IdentityProviderMode)
+}
+
 // A self-hosted gateway's identity providers are recorded in the mirror: its owner
 // keeps the key managers in the gateway's config.toml.
 func TestIdentityProvider_SelfHostedRecordsMirror(t *testing.T) {

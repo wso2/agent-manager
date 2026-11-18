@@ -72,12 +72,17 @@ func gatewayDocument(gw *gwsvc.GatewayResponse) gwspec.GatewayDocument {
 	if gw.IsActive {
 		state = gwspec.GATEWAYSTATUS_ACTIVE
 	}
+	status := &gwspec.GatewayDocumentStatus{State: &state}
+	if gw.IdentityProviderMode != "" {
+		mode := gwspec.GatewayIdentityProviderMode(gw.IdentityProviderMode)
+		status.IdentityProviderMode = &mode
+	}
 	return gwspec.GatewayDocument{
 		ApiVersion: gwconv.GroupVersion,
 		Kind:       kindGateway,
 		Metadata:   meta,
 		Spec:       spec,
-		Status:     &gwspec.GatewayDocumentStatus{State: &state},
+		Status:     status,
 	}
 }
 

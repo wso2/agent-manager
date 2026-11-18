@@ -66,8 +66,10 @@ vi.mock("@agent-management-platform/shared-component", () => ({
 }));
 
 vi.mock("./GatewayIdentityProvidersCard", () => ({
-  GatewayIdentityProvidersCard: ({ selfHosted }: { selfHosted?: boolean }) => (
-    <div>{selfHosted ? "self-hosted identity providers card" : "identity providers card"}</div>
+  GatewayIdentityProvidersCard: ({ configMode }: { configMode: string }) => (
+    <div>
+      {configMode === "manual" ? "self-hosted identity providers card" : "identity providers card"}
+    </div>
   ),
 }));
 

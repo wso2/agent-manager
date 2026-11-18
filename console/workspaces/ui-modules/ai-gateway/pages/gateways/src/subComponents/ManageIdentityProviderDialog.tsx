@@ -47,6 +47,9 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   isManagedGateway,
+  isSelfHostedGateway,
+  type GatewayHosting,
+  type GatewayIdentityProviderMode,
   type GatewayEnvironmentResponse,
   type IdentityProvider,
   INPUT_LIMITS,
@@ -86,21 +89,33 @@ interface ManageIdentityProviderDialogProps {
 
 /**
  * How an identity-provider change reaches the gateway's config.toml:
- * - "applied": Agent Manager patches it (managed mode, cloud).
+ * - "applied": the service patches it.
  * - "manual": the gateway's owner edits it (a self-hosted gateway), so the dialog
  *   gives the entry to copy.
- * - "fixed": Agent Manager regenerates it at startup with the built-in issuers only
- *   (the bundled managed gateway), so a custom issuer can be removed but not added.
+ * - "fixed": nothing applies it (a managed gateway in a deployment without a config
+ *   applier), so a custom issuer can be removed but not added.
  */
 export type IdentityProviderConfigMode = "applied" | "manual" | "fixed";
 
-/** Picks the config mode for a gateway; the one place the mode is decided. */
-export function identityProviderConfigMode(
-  selfHosted: boolean,
-  managedModeFlag: boolean,
-): IdentityProviderConfigMode {
-  if (selfHosted) return "manual";
-  return managedModeFlag ? "applied" : "fixed";
+/**
+ * The config mode of a gateway, as its service reports it (identityProviderMode), so
+ * the console offers only what the service will carry out. A service that predates
+ * the field applies nothing: its self-hosted gateways are manual, the rest fixed.
+ */
+export function identityProviderConfigMode(gateway: {
+  identityProviderMode?: GatewayIdentityProviderMode;
+  hosting?: GatewayHosting;
+}): IdentityProviderConfigMode {
+  switch (gateway.identityProviderMode) {
+    case "APPLIED":
+      return "applied";
+    case "MANUAL":
+      return "manual";
+    case "UNSUPPORTED":
+      return "fixed";
+    default:
+      return isSelfHostedGateway(gateway) ? "manual" : "fixed";
+  }
 }
 
 export function ManageIdentityProviderDialog({

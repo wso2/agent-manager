@@ -19,7 +19,8 @@ var _ MappedNullable = &GatewayDocumentStatus{}
 
 // GatewayDocumentStatus Observed state. Server-populated and ignored on input.
 type GatewayDocumentStatus struct {
-	State *GatewayStatus `json:"state,omitempty"`
+	State                *GatewayStatus               `json:"state,omitempty"`
+	IdentityProviderMode *GatewayIdentityProviderMode `json:"identityProviderMode,omitempty"`
 }
 
 // NewGatewayDocumentStatus instantiates a new GatewayDocumentStatus object
@@ -71,6 +72,38 @@ func (o *GatewayDocumentStatus) SetState(v GatewayStatus) {
 	o.State = &v
 }
 
+// GetIdentityProviderMode returns the IdentityProviderMode field value if set, zero value otherwise.
+func (o *GatewayDocumentStatus) GetIdentityProviderMode() GatewayIdentityProviderMode {
+	if o == nil || IsNil(o.IdentityProviderMode) {
+		var ret GatewayIdentityProviderMode
+		return ret
+	}
+	return *o.IdentityProviderMode
+}
+
+// GetIdentityProviderModeOk returns a tuple with the IdentityProviderMode field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewayDocumentStatus) GetIdentityProviderModeOk() (*GatewayIdentityProviderMode, bool) {
+	if o == nil || IsNil(o.IdentityProviderMode) {
+		return nil, false
+	}
+	return o.IdentityProviderMode, true
+}
+
+// HasIdentityProviderMode returns a boolean if a field has been set.
+func (o *GatewayDocumentStatus) HasIdentityProviderMode() bool {
+	if o != nil && !IsNil(o.IdentityProviderMode) {
+		return true
+	}
+
+	return false
+}
+
+// SetIdentityProviderMode gets a reference to the given GatewayIdentityProviderMode and assigns it to the IdentityProviderMode field.
+func (o *GatewayDocumentStatus) SetIdentityProviderMode(v GatewayIdentityProviderMode) {
+	o.IdentityProviderMode = &v
+}
+
 func (o GatewayDocumentStatus) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -83,6 +116,9 @@ func (o GatewayDocumentStatus) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if !IsNil(o.State) {
 		toSerialize["state"] = o.State
+	}
+	if !IsNil(o.IdentityProviderMode) {
+		toSerialize["identityProviderMode"] = o.IdentityProviderMode
 	}
 	return toSerialize, nil
 }

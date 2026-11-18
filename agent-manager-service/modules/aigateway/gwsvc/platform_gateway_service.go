@@ -151,8 +151,11 @@ type GatewayResponse struct {
 	FunctionalityType string                 `json:"functionalityType"`
 	IsActive          bool                   `json:"isActive"`
 	Hosting           string                 `json:"hosting"`
-	CreatedAt         time.Time              `json:"createdAt"`
-	UpdatedAt         time.Time              `json:"updatedAt"`
+	// IdentityProviderMode is how a custom identity provider change reaches this
+	// gateway; see identityProviderMode.
+	IdentityProviderMode string    `json:"identityProviderMode"`
+	CreatedAt            time.Time `json:"createdAt"`
+	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
 // gatewayHostingWire is the gateway's hosting as the API emits it: uppercase, like roles.
@@ -163,23 +166,43 @@ func gatewayHostingWire(gw *gwmodels.Gateway) string {
 	return string(gwspec.GATEWAYHOSTING_SELF_HOSTED)
 }
 
+// Identity provider modes, as the API emits them. This service never patches a
+// gateway's config, so it reports only these two; the API also defines APPLIED for a
+// service that does.
+const (
+	// IdentityProviderModeManual: the gateway's owner edits its config.toml (self-hosted).
+	IdentityProviderModeManual = "MANUAL"
+	// IdentityProviderModeUnsupported: nothing applies a custom identity provider to the
+	// gateway (managed), so the console offers removing one but not adding one.
+	IdentityProviderModeUnsupported = "UNSUPPORTED"
+)
+
+// identityProviderMode is how a custom identity provider change reaches a gateway.
+func identityProviderMode(gw *gwmodels.Gateway) string {
+	if gw.IsManaged() {
+		return IdentityProviderModeUnsupported
+	}
+	return IdentityProviderModeManual
+}
+
 // toGatewayResponse maps a stored gateway to its DTO; the one-time token is never part of it.
 func toGatewayResponse(gw *gwmodels.Gateway) *GatewayResponse {
 	return &GatewayResponse{
-		ID:                gw.UUID.String(),
-		OrganizationID:    gw.OUID,
-		Name:              gw.Name,
-		DisplayName:       gw.DisplayName,
-		Description:       gw.Description,
-		Properties:        gw.Properties,
-		Vhost:             gw.Vhost,
-		RuntimeURL:        gw.RuntimeURL,
-		IsCritical:        gw.IsCritical,
-		FunctionalityType: gw.GatewayFunctionalityType,
-		IsActive:          gw.IsActive,
-		Hosting:           gatewayHostingWire(gw),
-		CreatedAt:         gw.CreatedAt,
-		UpdatedAt:         gw.UpdatedAt,
+		IdentityProviderMode: identityProviderMode(gw),
+		ID:                   gw.UUID.String(),
+		OrganizationID:       gw.OUID,
+		Name:                 gw.Name,
+		DisplayName:          gw.DisplayName,
+		Description:          gw.Description,
+		Properties:           gw.Properties,
+		Vhost:                gw.Vhost,
+		RuntimeURL:           gw.RuntimeURL,
+		IsCritical:           gw.IsCritical,
+		FunctionalityType:    gw.GatewayFunctionalityType,
+		IsActive:             gw.IsActive,
+		Hosting:              gatewayHostingWire(gw),
+		CreatedAt:            gw.CreatedAt,
+		UpdatedAt:            gw.UpdatedAt,
 	}
 }
 
