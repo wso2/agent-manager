@@ -76,3 +76,30 @@ func TestShadowRunnerImage(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadEnvs_ShadowRunnerEnabled(t *testing.T) {
+	// loadEnvs replaces the package-level config; put it back afterwards.
+	prevConfig, prevWorkload := config, agentWorkloadConfig
+	t.Cleanup(func() { config, agentWorkloadConfig = prevConfig, prevWorkload })
+
+	for k, v := range map[string]string{
+		"OPEN_CHOREO_BASE_URL": "http://localhost/api/v1",
+		"DB_HOST":              "localhost",
+		"DB_USER":              "unit",
+		"DB_PASSWORD":          "unit",
+		"DB_NAME":              "unit",
+	} {
+		t.Setenv(k, v)
+	}
+	t.Setenv("AMP_SHADOW_RUNNER_ENABLED", "")
+	loadEnvs()
+	if config.ShadowRunner.Enabled {
+		t.Errorf("ShadowRunner.Enabled = true, want false by default")
+	}
+
+	t.Setenv("AMP_SHADOW_RUNNER_ENABLED", "true")
+	loadEnvs()
+	if !config.ShadowRunner.Enabled {
+		t.Errorf("ShadowRunner.Enabled = false, want true with AMP_SHADOW_RUNNER_ENABLED=true")
+	}
+}

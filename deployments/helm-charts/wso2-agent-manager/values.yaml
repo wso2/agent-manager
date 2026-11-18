@@ -289,6 +289,11 @@ agentManagerService:
     # serverPublicURL with an organization-scoped token obtained with
     # oidc.clientId.
     shadowRunner:
+      # Turns on scan commands and their results (AMP_SHADOW_RUNNER_ENABLED).
+      # Off by default: the scan token is issued to oidc.clientId and shown to
+      # the customer for an hour, so turn it on only where that client may be
+      # handed out that way.
+      enabled: false
       # The scan command's container image (AMP_SHADOW_RUNNER_IMAGE).
       # Empty: ghcr.io/wso2/amp-shadow-runner:latest.
       image: ""

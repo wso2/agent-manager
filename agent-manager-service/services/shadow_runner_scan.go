@@ -64,10 +64,15 @@ type ShadowScanTokenIssuer interface {
 }
 
 // ShadowScanRunner is what this deployment gives a source code scan command.
-// A zero value refuses every scan command as not set up.
+// A zero value is turned off: it refuses every scan command as not set up and
+// every publish as turned off.
 type ShadowScanRunner struct {
-	// Issuer is nil when the identity provider client (IDP_TOKEN_URL,
-	// IDP_CLIENT_ID, IDP_CLIENT_SECRET) is not set up.
+	// Enabled is AMP_SHADOW_RUNNER_ENABLED: scan commands may be created and
+	// their results published.
+	Enabled bool
+	// Issuer is nil when source code scans are turned off or the identity
+	// provider client (IDP_TOKEN_URL, IDP_CLIENT_ID, IDP_CLIENT_SECRET) is not
+	// set up.
 	Issuer ShadowScanTokenIssuer
 	// ClientID is the client the scan tokens are issued to, for the audit
 	// trail.
@@ -76,22 +81,29 @@ type ShadowScanRunner struct {
 	AMPURL string
 	// Image is the scan command's container image.
 	Image string
-	// unavailable says what to set when Issuer or AMPURL is missing. Empty on
-	// a zero value, which is refused as not set up.
+	// unavailable says why scan commands are refused: turned off, or Issuer
+	// or AMPURL missing. Empty on a zero value, which is refused as not set up.
 	unavailable string
 }
 
-// NewShadowScanRunner builds the scan command settings from the config. A
-// missing SERVER_PUBLIC_URL or identity provider client does not stop the
-// service: creating a scan command is then refused with a message saying
-// what to set.
+// NewShadowScanRunner builds the scan command settings from the config. While
+// AMP_SHADOW_RUNNER_ENABLED is off, creating a scan command is refused as
+// turned off and no identity provider client is built. A missing
+// SERVER_PUBLIC_URL or identity provider client does not stop the service:
+// creating a scan command is then refused with a message saying what to set.
 func NewShadowScanRunner(cfg config.Config, logger *slog.Logger) ShadowScanRunner {
 	runner := ShadowScanRunner{
+		Enabled:     cfg.ShadowRunner.Enabled,
 		Issuer:      nil,
 		ClientID:    strings.TrimSpace(cfg.IDP.ClientID),
 		AMPURL:      strings.TrimRight(strings.TrimSpace(cfg.ServerPublicURL), "/"),
 		Image:       cfg.ShadowRunner.Image,
 		unavailable: "",
+	}
+	if !runner.Enabled {
+		runner.unavailable = "they are not turned on (AMP_SHADOW_RUNNER_ENABLED)"
+		logger.Info("Source code scans disabled; scan commands and their results are refused")
+		return runner
 	}
 	missing := []string{}
 	_, urlErr := config.OrganizationTokenURL(cfg.IDP.TokenURL, "ou")
@@ -124,9 +136,9 @@ func (i *shadowScanTokenIssuer) IssueScanToken(ctx context.Context, ouID string)
 	return i.minter.mint(ctx, ouID, rbac.ShadowAgentPublish.Scope(), shadowScanTokenMinValidity)
 }
 
-// NewShadowAgentServiceWithScanRunner creates a ShadowAgentService that can
-// create source code scan commands. NewShadowAgentService creates one that
-// refuses them as not set up.
+// NewShadowAgentServiceWithScanRunner creates a ShadowAgentService that
+// creates source code scan commands and accepts their results when runner is
+// enabled and set up. NewShadowAgentService creates one that refuses both.
 func NewShadowAgentServiceWithScanRunner(
 	repo repositories.ShadowAgentRepository, connectors ShadowConnectors, encryptionKey []byte, logger *slog.Logger,
 	runner ShadowScanRunner,
@@ -151,7 +163,7 @@ func (s *shadowAgentService) CreateRunnerScan(
 		return nil, fmt.Errorf("%w: only source code repository connections (GitHub, Azure DevOps) have a scan command",
 			utils.ErrInvalidInput)
 	}
-	if s.runner.Issuer == nil || s.runner.AMPURL == "" {
+	if !s.runner.Enabled || s.runner.Issuer == nil || s.runner.AMPURL == "" {
 		err := utils.ErrShadowScanCommandUnavailable
 		if s.runner.unavailable != "" {
 			err = fmt.Errorf("%w: %s", utils.ErrShadowScanCommandUnavailable, s.runner.unavailable)

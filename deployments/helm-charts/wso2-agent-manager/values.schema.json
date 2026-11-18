@@ -851,6 +851,12 @@
               "additionalProperties": false,
               "description": "Shadow Agent Discovery source code scans: the scan command a customer runs for a GitHub or Azure DevOps platform publishes its results to serverPublicURL with an organization-scoped token obtained with oidc.clientId.",
               "properties": {
+                "enabled": {
+                  "default": false,
+                  "description": "Turns on scan commands and their results (AMP_SHADOW_RUNNER_ENABLED). Off by default: the scan token is issued to oidc.clientId and shown to the customer for an hour, so turn it on only where that client may be handed out that way.",
+                  "title": "enabled",
+                  "type": "boolean"
+                },
                 "image": {
                   "default": "",
                   "description": "The scan command's container image (AMP_SHADOW_RUNNER_IMAGE). Empty: ghcr.io/wso2/amp-shadow-runner:latest.",

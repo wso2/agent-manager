@@ -321,6 +321,7 @@ func loadEnvs() {
 	validateBuildClientConfig(config, r)
 
 	config.ShadowRunner = ShadowRunnerConfig{
+		Enabled:  r.readOptionalBool("AMP_SHADOW_RUNNER_ENABLED", false),
 		Image:    shadowRunnerImage(r.readOptionalString("AMP_SHADOW_RUNNER_IMAGE", "")),
 		Resource: strings.TrimSpace(r.readOptionalString("AMP_SHADOW_RUNNER_RESOURCE", "")),
 	}

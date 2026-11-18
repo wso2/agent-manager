@@ -558,6 +558,8 @@ func writeShadowError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Scan not found")
 	case errors.Is(err, utils.ErrShadowFindingNotFound):
 		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+	case errors.Is(err, services.ErrShadowScanPublishDisabled):
+		utils.WriteErrorResponse(w, http.StatusNotFound, "Source code scan publishing is turned off on this server")
 	case errors.Is(err, utils.ErrShadowConnectionNameTaken):
 		utils.WriteErrorResponse(w, http.StatusConflict, "A connection with this name already exists")
 	case errors.Is(err, utils.ErrShadowScanInProgress):

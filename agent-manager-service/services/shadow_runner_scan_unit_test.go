@@ -49,7 +49,7 @@ func (s *stubScanTokenIssuer) IssueScanToken(ctx context.Context, ouID string) (
 
 func shadowRunner(issuer ShadowScanTokenIssuer) ShadowScanRunner {
 	return ShadowScanRunner{
-		Issuer: issuer, ClientID: "amp-api-client", AMPURL: "https://amp.example.com",
+		Enabled: true, Issuer: issuer, ClientID: "amp-api-client", AMPURL: "https://amp.example.com",
 		Image: "ghcr.io/wso2/amp-shadow-runner:latest",
 	}
 }
@@ -198,6 +198,7 @@ func TestShadowCreateRunnerScan_RejectsInvalidRequests(t *testing.T) {
 func TestShadowCreateRunnerScan_NotSetUp(t *testing.T) {
 	source := models.ShadowConnection{ID: uuid.New(), OUID: shadowTestOU, Provider: models.ShadowProviderGitHub}
 	idp := config.IDPConfig{TokenURL: "https://idp.example.com/oauth2/token", ClientID: "amp-api-client", ClientSecret: "s"}
+	on := config.ShadowRunnerConfig{Enabled: true}
 	tests := []struct {
 		name    string
 		cfg     config.Config
@@ -206,19 +207,19 @@ func TestShadowCreateRunnerScan_NotSetUp(t *testing.T) {
 	}{
 		{
 			name:    "no SERVER_PUBLIC_URL",
-			cfg:     config.Config{IDP: idp},
+			cfg:     config.Config{IDP: idp, ShadowRunner: on},
 			want:    []string{"SERVER_PUBLIC_URL"},
-			notWant: []string{"IDP_CLIENT_ID"},
+			notWant: []string{"IDP_CLIENT_ID", "AMP_SHADOW_RUNNER_ENABLED"},
 		},
 		{
 			name:    "no identity provider client",
-			cfg:     config.Config{ServerPublicURL: "https://amp.example.com"},
+			cfg:     config.Config{ServerPublicURL: "https://amp.example.com", ShadowRunner: on},
 			want:    []string{"IDP_CLIENT_ID"},
-			notWant: []string{"SERVER_PUBLIC_URL"},
+			notWant: []string{"SERVER_PUBLIC_URL", "AMP_SHADOW_RUNNER_ENABLED"},
 		},
 		{
 			name: "neither",
-			cfg:  config.Config{},
+			cfg:  config.Config{ShadowRunner: on},
 			want: []string{"IDP_CLIENT_ID", "SERVER_PUBLIC_URL"},
 		},
 	}
@@ -245,11 +246,35 @@ func TestShadowCreateRunnerScan_NotSetUp(t *testing.T) {
 	assert.Equal(t, utils.ErrShadowScanCommandUnavailable.Error(), err.Error())
 }
 
+// While AMP_SHADOW_RUNNER_ENABLED is off, a fully set up server refuses scan
+// commands as turned off and never calls the identity provider.
+func TestShadowCreateRunnerScan_TurnedOff(t *testing.T) {
+	source := models.ShadowConnection{ID: uuid.New(), OUID: shadowTestOU, Provider: models.ShadowProviderGitHub}
+	cfg := config.Config{
+		ServerPublicURL: "https://amp.example.com",
+		IDP:             config.IDPConfig{TokenURL: "https://idp.example.com/oauth2/token", ClientID: "c", ClientSecret: "s"},
+	}
+	runner := NewShadowScanRunner(cfg, discardLogger())
+	assert.False(t, runner.Enabled)
+	assert.Nil(t, runner.Issuer, "no identity provider client is built while turned off")
+
+	// Even with an issuer set, a turned-off runner never reaches it (its func
+	// is nil, so a call panics), nor creates a scan (CreateScanFunc is nil).
+	runner.Issuer = &stubScanTokenIssuer{}
+	_, err := newRunnerShadowSvc(shadowRepoWith(source), runner).
+		CreateRunnerScan(auditableCtx(t), shadowTestOU, source.ID, models.ShadowScanOptions{})
+	require.ErrorIs(t, err, utils.ErrShadowScanCommandUnavailable)
+	assert.Contains(t, err.Error(), "not turned on")
+	assert.Contains(t, err.Error(), "AMP_SHADOW_RUNNER_ENABLED")
+}
+
 func TestNewShadowScanRunner(t *testing.T) {
 	cfg := config.Config{ServerPublicURL: "https://amp.example.com/"}
+	cfg.ShadowRunner.Enabled = true
 	cfg.ShadowRunner.Image = "img"
 
 	runner := NewShadowScanRunner(cfg, discardLogger())
+	assert.True(t, runner.Enabled)
 	assert.Nil(t, runner.Issuer, "no identity provider client, no issuer")
 	assert.Equal(t, "https://amp.example.com", runner.AMPURL)
 	assert.Equal(t, "img", runner.Image)

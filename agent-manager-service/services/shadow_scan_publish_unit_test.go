@@ -32,6 +32,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -82,7 +83,13 @@ func newPublishFixture(provider string, cfg models.ShadowConnectionConfig, opts 
 }
 
 func (f *publishFixture) publish(ctx context.Context, req *models.PublishShadowScanRequest) (*models.PublishShadowScanResponse, error) {
-	return newShadowSvc(f.repo).PublishRunnerScan(ctx, shadowTestOU, f.scan.ID, req)
+	return newPublishSvc(f.repo).PublishRunnerScan(ctx, shadowTestOU, f.scan.ID, req)
+}
+
+// newPublishSvc is a service with source code scans turned on. Publishing
+// needs no token issuer.
+func newPublishSvc(repo *repomocks.ShadowAgentRepositoryMock) ShadowAgentService {
+	return newRunnerShadowSvc(repo, shadowRunner(nil))
 }
 
 func codeAgent(id, repo, code string) models.PublishShadowScanAgent {
@@ -341,7 +348,7 @@ func TestShadowPublishRunnerScan_NotFound(t *testing.T) {
 	req := &models.PublishShadowScanRequest{Complete: true}
 
 	f := newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
-	_, err := newShadowSvc(f.repo).PublishRunnerScan(auditableCtx(t), "ou-other", f.scan.ID, req)
+	_, err := newPublishSvc(f.repo).PublishRunnerScan(auditableCtx(t), "ou-other", f.scan.ID, req)
 	require.ErrorIs(t, err, utils.ErrShadowScanNotFound, "another org's scan is not found")
 
 	f.repo.GetScanFunc = func(context.Context, string, uuid.UUID) (*models.ShadowScan, error) {
@@ -401,6 +408,29 @@ func TestShadowPublishRunnerScan_Conflicts(t *testing.T) {
 		}
 		_, err = f.publish(auditableCtx(t), req)
 		require.ErrorIs(t, err, repoErr)
+	}
+}
+
+// While source code scans are turned off, publishing is refused before the
+// scan is read or anything is saved.
+func TestShadowPublishRunnerScan_TurnedOff(t *testing.T) {
+	require.ErrorIs(t, ErrShadowScanPublishDisabled, utils.ErrNotFound)
+	f := newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{}, models.ShadowScanOptions{})
+	f.repo.GetScanFunc = nil // reaching the repository panics
+	f.repo.PublishScanResultsFunc = nil
+	req := &models.PublishShadowScanRequest{Complete: true, Agents: []models.PublishShadowScanAgent{
+		codeAgent("a", "repo-a", "github.d1_agent_dependency"),
+	}}
+
+	for name, svc := range map[string]ShadowAgentService{
+		"turned off": newRunnerShadowSvc(f.repo, NewShadowScanRunner(config.Config{}, discardLogger())),
+		"zero value": newShadowSvc(f.repo),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := svc.PublishRunnerScan(auditableCtx(t), shadowTestOU, f.scan.ID, req)
+			require.ErrorIs(t, err, ErrShadowScanPublishDisabled)
+			assert.Nil(t, f.published, "nothing is saved")
+		})
 	}
 }
 

@@ -100,6 +100,8 @@ services:
       - IDP_TOKEN_URL=http://thunder.amp.localhost:8080/oauth2/token
       # Single-org local Thunder 1.x has no /ou/{ouId}/oauth2/token endpoint.
       - IDP_ORG_TOKEN_ENDPOINT_ENABLED=false
+      # Local development turns the Shadow Agent Discovery source code scan on.
+      - AMP_SHADOW_RUNNER_ENABLED=true
       - IDP_CLIENT_ID=amp-api-client
       # For direct Compose startup, provide both client values in the environment or .env.
       - IDP_CLIENT_SECRET

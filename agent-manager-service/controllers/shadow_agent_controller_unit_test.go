@@ -204,6 +204,7 @@ func TestShadowPublishScanResults_ErrorStatuses(t *testing.T) {
 		{"invalid agent", fmt.Errorf("%w: agent 0 has no evidence", utils.ErrInvalidInput), http.StatusBadRequest},
 		{"scan not found", utils.ErrShadowScanNotFound, http.StatusNotFound},
 		{"connection deleted", utils.ErrShadowConnectionNotFound, http.StatusNotFound},
+		{"turned off", services.ErrShadowScanPublishDisabled, http.StatusNotFound},
 		{"already published", fmt.Errorf("%w: already published", utils.ErrShadowScanNotPending), http.StatusConflict},
 		{"newer scan published", utils.ErrShadowScanSuperseded, http.StatusConflict},
 		{"audit trail down", audit.ErrRecorderUnavailable, http.StatusServiceUnavailable},

@@ -14970,7 +14970,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
         "503":
-          description: Source code scans are not set up on this server, or the identity provider or audit trail is unavailable
+          description: Source code scans are turned off or not set up on this server, or the identity provider or audit trail is unavailable
           content:
             application/json:
               schema:

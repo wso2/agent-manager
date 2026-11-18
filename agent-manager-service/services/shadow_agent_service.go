@@ -131,8 +131,8 @@ type shadowAgentService struct {
 }
 
 // NewShadowAgentService creates a ShadowAgentService. It refuses source code
-// scan commands as not set up; NewShadowAgentServiceWithScanRunner creates one
-// that can create them.
+// scan commands as not set up and their results as turned off;
+// NewShadowAgentServiceWithScanRunner creates one that can accept both.
 func NewShadowAgentService(
 	repo repositories.ShadowAgentRepository, connectors ShadowConnectors, encryptionKey []byte, logger *slog.Logger,
 ) ShadowAgentService {

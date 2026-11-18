@@ -62,7 +62,7 @@ Each scan records the agents it found, so **Scans** > **View agents** lists one 
 
 The choices are stored with the scan (`options`). Without AI review, only the agents the rules prove are published.
 
-**3. The command.** **Add platform and get command** (or **Save and get command** when editing) saves the platform and creates the scan (`POST .../connections/{connectionId}/runner-scans`). This creates a `pending` scan and a scan token valid for 1 hour, and the console fills the scan ID, token, Agent Manager address and image into the command. The command is shown once: the form locks, and **Done** leaves the page. The token is kept only in the page's memory, never in a URL, storage or the query cache. For a saved platform, **Generate command** on its row in **Platforms** does the same in a dialog.
+**3. The command.** **Add platform and get command** (or **Save and get command** when editing) saves the platform and creates the scan (`POST .../connections/{connectionId}/runner-scans`). This creates a `pending` scan and a scan token valid for 1 hour, and the console fills the scan ID, token, Agent Manager address and image into the command. The command is shown once: the form locks, and **Done** leaves the page. The token is kept only in the page's memory, never in a URL, storage or the query cache. For a saved platform, **Generate command** on its row in **Platforms** does the same in a dialog. The command is available only where `AMP_SHADOW_RUNNER_ENABLED` is on (see [Configuration](#configuration)); otherwise the platform is saved and getting the command answers 503.
 
 The command has one option per line; values you entered are shell-quoted:
 
@@ -155,7 +155,7 @@ Error messages and failure reasons are scrubbed of anything that looks like a cr
 
 All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`, tag *Shadow Agent Discovery*): `providers`, `summary`, `connections` (+ `/{id}`, `/{id}/test`, `/{id}/runner-scans`), `scans` (+ `/{id}`; `DELETE` clears the finished scans), `findings` (+ `/{id}`).
 
-**`POST .../connections/{connectionId}/runner-scans`** (`amp:shadow-agent:manage`) creates a pending scan of a GitHub or Azure DevOps connection and its scan token. Request: `{"aiReview": true, "llmJudge": false}` (the LLM judge needs AI review). Response (201, `Cache-Control: no-store`): `{scanId, token, expiresAt, ampUrl, image}`, the parts the console builds the command from. 400 for any other platform or the LLM judge without AI review; 404 for an unknown connection; 503 when source code scans are not set up (the message says what to set), when the identity provider is unavailable, or when the audit trail is unavailable.
+**`POST .../connections/{connectionId}/runner-scans`** (`amp:shadow-agent:manage`) creates a pending scan of a GitHub or Azure DevOps connection and its scan token. Request: `{"aiReview": true, "llmJudge": false}` (the LLM judge needs AI review). Response (201, `Cache-Control: no-store`): `{scanId, token, expiresAt, ampUrl, image}`, the parts the console builds the command from. 400 for any other platform or the LLM judge without AI review; 404 for an unknown connection; 503 when source code scans are turned off or not set up (the message says what to set), when the identity provider is unavailable, or when the audit trail is unavailable.
 
 **`POST /api/v1/shadow-agent-publisher/scans/{scanId}/results`** is the scan command's publish endpoint. Like the build publisher, it is not in the OpenAPI spec. It admits only a scan token: one this service obtained with its own client (`IDP_CLIENT_ID`) for one organization, holding `amp:shadow-agent:publish` and no other scope. A user token is refused (403), whatever its role. The organization comes from the token, never from the request.
 
@@ -179,17 +179,18 @@ All under `/api/v1/orgs/{orgName}/shadow-agents` (see `docs/api_v1_openapi.yaml`
 - Limits: a body of at most 8 MiB (413 above it); at most 1000 agents, 50 pieces of evidence per agent and 5000 names in each repository list (400 above them).
 - The whole publish is rejected (400) when one agent is invalid: no `externalId`, an `externalId` repeated, no `repository`, no evidence, an evidence code that is not one of the connection's platform's codes, or `attributes.reviewedBy` missing or not allowed (`ai_review` needs a scan created with AI review, `ai_review_judge` one created with the LLM judge). Attributes outside the allow-list are dropped, and so is an attribute of the wrong shape: `tools` is a list of `{type, name}`, `mcpServers` a list of `{label, origin}`, `skills` and `protocolType` lists of strings, `labels` an object of strings, and every other attribute a single value. Unknown request fields are ignored.
 
-Response (200): `{"scanId": "…", "status": "partial", "findingsCount": 1}`, the scan's new status and the number of agents saved. 404 when the scan is not a source code scan of the token's organization; 409 under the publish rules above; 503 when the audit trail is unavailable.
+Response (200): `{"scanId": "…", "status": "partial", "findingsCount": 1}`, the scan's new status and the number of agents saved. 404 when the scan is not a source code scan of the token's organization or source code scans are turned off; 409 under the publish rules above; 503 when the audit trail is unavailable.
 
 ## Configuration
 
-Source code scans need the settings below. Without `SERVER_PUBLIC_URL` or the identity provider client, `runner-scans` answers 503 and the rest of Shadow Agent Discovery works.
+Source code scans need the settings below. While `AMP_SHADOW_RUNNER_ENABLED` is off, or without `SERVER_PUBLIC_URL` or the identity provider client, `runner-scans` answers 503 and the rest of Shadow Agent Discovery works.
 
 | Setting | Helm value (`agentManagerService.config.`) | Use |
 |---|---|---|
 | `SERVER_PUBLIC_URL` | `serverPublicURL` | Required. The Agent Manager address in the command (`AMP_URL`) |
 | `IDP_TOKEN_URL`, `IDP_CLIENT_ID`, `IDP_CLIENT_SECRET` | `oidc.tokenUrl`, `oidc.clientId`, `oidc.clientSecret` or `oidc.existingSecret` | Required. The client the scan token is obtained with, as for the build token. The identity provider must grant `amp:shadow-agent:publish` to the client (`amp-api-client`; the bundled Thunder chart does) |
 | `IDP_ORG_TOKEN_ENDPOINT_ENABLED` | `oidc.orgTokenEndpointEnabled` (chart default `false`) | Where the scan token (and the build token) is requested. Default `true`: from the organization token endpoint (`IDP_TOKEN_URL` with `/ou/<ouId>` inserted before `/oauth2/token`), for multi-org deployments such as WSO2 Cloud; the identity provider must serve it. The on-prem Helm chart sets `false`, since it runs a single organization and Thunder 1.x has no such endpoint: tokens then come from `IDP_TOKEN_URL` itself and name the client's own organization only |
+| `AMP_SHADOW_RUNNER_ENABLED` | `shadowRunner.enabled` | Turns on scan commands and result publishing. Default `false`: while off, Generate command (`runner-scans`) answers 503 and publishing answers 404. The scan token is issued to `IDP_CLIENT_ID` and shown to the customer, so turn it on only where that client may issue a customer-visible token, such as WSO2 Cloud |
 | `AMP_SHADOW_RUNNER_IMAGE` | `shadowRunner.image` | The command's image. Default `ghcr.io/wso2/amp-shadow-runner:latest` |
 | `AMP_SHADOW_RUNNER_RESOURCE` | `shadowRunner.resource` | Optional RFC 8707 resource indicator the token is requested for. It becomes the token's audience, so `KEY_MANAGER_AUDIENCE` (`keyManager.audience`) must admit it; startup checks. Empty requests none, and the audience is `IDP_CLIENT_ID` |
 

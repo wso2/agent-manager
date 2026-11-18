@@ -46,12 +46,22 @@ const (
 	shadowReviewedByAIReviewJudge = "ai_review_judge"
 )
 
+// ErrShadowScanPublishDisabled is returned when source code scans are turned
+// off (AMP_SHADOW_RUNNER_ENABLED). It wraps utils.ErrNotFound, so the endpoint
+// answers 404, as the build publisher does while build tokens are off.
+var ErrShadowScanPublishDisabled = fmt.Errorf("%w: source code scan publishing is turned off on this server",
+	utils.ErrNotFound)
+
 // PublishRunnerScan saves what a source code scan command found for its
 // pending scan and finishes the scan. The organization comes from the scan
-// token. Every agent must be valid, or nothing is saved.
+// token. Every agent must be valid, or nothing is saved. It is refused with
+// ErrShadowScanPublishDisabled while source code scans are turned off.
 func (s *shadowAgentService) PublishRunnerScan(
 	ctx context.Context, ouID string, scanID uuid.UUID, req *models.PublishShadowScanRequest,
 ) (*models.PublishShadowScanResponse, error) {
+	if !s.runner.Enabled {
+		return nil, ErrShadowScanPublishDisabled
+	}
 	if err := checkShadowPublishLimits(req); err != nil {
 		return nil, err
 	}

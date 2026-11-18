@@ -691,9 +691,17 @@ type BuildClientConfig struct {
 // DevOps connection. The command publishes its results to SERVER_PUBLIC_URL with
 // an organization-scoped scan token this service obtains, like the build token,
 // from the identity provider (see IDPConfig.OrgTokenEndpointEnabled) with
-// IDP_CLIENT_ID and IDP_CLIENT_SECRET. Without SERVER_PUBLIC_URL or that client, creating a
-// scan command is refused (503); the rest of the service is unaffected.
+// IDP_CLIENT_ID and IDP_CLIENT_SECRET. While it is off, or without SERVER_PUBLIC_URL
+// or that client, creating a scan command is refused (503); the rest of the service
+// is unaffected.
 type ShadowRunnerConfig struct {
+	// Enabled turns on source code scan commands: issuing scan tokens and
+	// accepting their results (AMP_SHADOW_RUNNER_ENABLED). Off by default. The
+	// scan token is issued to IDP_CLIENT_ID and shown to the customer for an
+	// hour, so turn it on only where that client may be handed out that way,
+	// such as WSO2 Cloud. Requires IDP_TOKEN_URL, IDP_CLIENT_ID,
+	// IDP_CLIENT_SECRET and SERVER_PUBLIC_URL.
+	Enabled bool
 	// Image is the scan command's container image (AMP_SHADOW_RUNNER_IMAGE).
 	Image string
 	// Resource is the RFC 8707 resource indicator the scan token is requested
