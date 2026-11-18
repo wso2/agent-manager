@@ -35,6 +35,7 @@ import { AIGatewaysTable } from "./subComponents/AIGatewaysTable";
 import { ViewGateway } from "./subComponents/ViewGateway";
 import { EditGateway } from "./subComponents/EditGateway";
 import { AddGateway } from "./subComponents/AddGateway";
+import { SetupGateway } from "./subComponents/SetupGateway";
 
 export const GatewaysOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
@@ -70,6 +71,7 @@ export const GatewaysOrganization: React.FC = () => {
         }
       />
       {canAdd && <Route path="add" element={<AddGateway />} />}
+      {canWrite && <Route path="setup/:gatewayId" element={<SetupGateway />} />}
       <Route path="view/:gatewayId" element={<ViewGateway />} />
       {canWrite && <Route path="edit/:gatewayId" element={<EditGateway />} />}
       <Route

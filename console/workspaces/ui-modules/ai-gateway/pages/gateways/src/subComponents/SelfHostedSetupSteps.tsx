@@ -16,10 +16,12 @@
  */
 
 import { type ReactNode, useState } from "react";
-import { Alert, Box, Button, Stack, Typography } from "@wso2/oxygen-ui";
+import { Alert, Box, Button, CircularProgress, Stack, Typography } from "@wso2/oxygen-ui";
 import { Check, Copy } from "@wso2/oxygen-ui-icons-react";
 import {
+  isGatewayActive,
   useCreateSelfHostedGatewayToken,
+  useGetGateway,
   useRevokeSelfHostedGatewayToken,
   useSelfHostedGatewayTokens,
 } from "@agent-management-platform/api-client";
@@ -144,6 +146,10 @@ export function SelfHostedSetupSteps({
   const { refetch: refetchTokens } = useSelfHostedGatewayTokens(params, { enabled: false });
   const { mutateAsync: createToken } = useCreateSelfHostedGatewayToken();
   const { mutateAsync: revokeToken } = useRevokeSelfHostedGatewayToken();
+  // Polls until the gateway connects; shares its cache with the page around the steps,
+  // so that page sees the connection too.
+  const { data: gateway } = useGetGateway(params, { pollUntilActive: true });
+  const connected = isGatewayActive(gateway);
 
   const version = globalConfig.gatewayVersion || DEFAULT_GATEWAY_VERSION;
   const cpHost = cpHostFromUrl(globalConfig.gatewayControlPlaneUrl || DEFAULT_CONTROL_PLANE_URL);
@@ -231,6 +237,19 @@ export function SelfHostedSetupSteps({
         </Step>
         <Step number={4} title="Start the gateway">
           <CommandField display={docker.start} copyLabel="start command" />
+        </Step>
+        <Step number={5} title="Wait for the gateway to connect">
+          {connected ? (
+            <Alert severity="success">The gateway is connected and active.</Alert>
+          ) : (
+            <Stack direction="row" spacing={1.5} alignItems="center" role="status">
+              <CircularProgress size={16} />
+              <StepText>
+                Waiting for the gateway to connect to the control plane. This updates on its own
+                once the gateway is running.
+              </StepText>
+            </Stack>
+          )}
         </Step>
       </Stack>
     </Stack>
