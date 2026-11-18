@@ -1,11 +1,8 @@
 name: Evaluation Job
 
+# Evaluation is out of AMP Lite until it returns as a module; run by hand only.
 on:
-  pull_request:
-    branches: ["main", "amp-2.x"]
-    paths:
-      - "evaluation-job/**"
-      - ".github/workflows/evaluation-job-pr-checks.yaml"
+  workflow_dispatch:
 
 # Default token scope is read-only; jobs that publish, push or deploy
 # request the extra scopes they need at job level.
