@@ -192,6 +192,12 @@ class Publisher:
         return PublishResult("".join(c for c in status if c.isprintable())[:40], count, len(body["agents"]))
 
 
+def published_line(result: PublishResult) -> str:
+    """The line printed after a successful publish."""
+    agents = "1 agent" if result.findings_count == 1 else f"{result.findings_count} agents"
+    return f"Published to Agent Manager: scan {result.status}, {agents} saved."
+
+
 def report_exit_code(report: Report) -> ExitCode:
     """OK when every repository was scanned and the list was complete, else PARTIAL_FAILURE.
 

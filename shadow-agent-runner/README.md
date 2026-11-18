@@ -9,7 +9,7 @@ The package has two parts:
 - `amp_shadow_runner`: the command line.
 - `amp_shadow_runner.engine`: the scan engine, a pure library that parses a local source tree with tree-sitter. It never opens a network connection or starts a process (`tests/engine/test_purity.py` enforces this).
 
-> Scanning is not implemented yet. `scan` checks its options, `AMP_URL` and `AMP_SCAN_TOKEN`, asks for the Git token when one is needed, then exits with status 1 and "not implemented yet". `upload` and `version` work in full.
+> `scan` works for GitHub with the rules for Python agents. Azure DevOps, the other languages and AI review come in later versions.
 
 ## Command line
 
@@ -35,10 +35,13 @@ Agent Manager builds the `scan` command, so its options match what the console s
 | `--read-ci` | Also read CI pipeline definitions. |
 | `--ai-review` | Have an LLM review the agents the rules find. |
 | `--judge` | Have a second LLM check the AI review. Needs `--ai-review`. |
+| `--yes` | Scan without asking to confirm the repository list (also `AMP_SCAN_YES=1`). Needed without a terminal. |
 
 `--repos` takes at most 5000 names, given as `name` or `<org>/name`. `AMP_URL`, `--github-api-url` and `--azure-devops-url` accept `http://` or `https://` addresses.
 
 The command asks in the terminal, with hidden input, for the secrets Agent Manager never receives. It asks for a GitHub token only with `--include-private` (a fine-grained token with read-only Contents access), and always for an Azure DevOps personal access token (Code read, and Project and team read). `docker run -it` gives the command the terminal it needs. To skip the question, or to run without a terminal, export `GITHUB_TOKEN` or `AZURE_DEVOPS_TOKEN` in your shell and pass it to the container with `-e NAME`, which copies an exported variable into the container. A GitHub scan of public repositories also uses `GITHUB_TOKEN` when it is passed, for a higher API rate limit, but never asks for it. When the GitHub or Azure DevOps address is plain `http://`, the command warns that the token will be sent to it unencrypted.
+
+The command lists the repositories it will scan, with those not found (counted as scanned, with no agents) and those it cannot scan shown apart, and asks to confirm. Declining publishes nothing; the pending scan in Agent Manager expires on its own after 1 hour. Each repository is downloaded as an archive into a private temporary folder, scanned, and deleted before the next. Files a repository's `.gitattributes` marks `export-ignore` are not in the archive, so they are not scanned. A repository that fails is reported as failed and the scan goes on. The report is written to `/out/report.json` (the folder the command runs in) before the results are published, once.
 
 `upload` publishes a saved scan report again, such as after a network failure, with the same `AMP_URL` and `AMP_SCAN_TOKEN`. The report must be for the scan ID given. Each scan accepts one publish within the hour of its token, so a token that has expired, or a scan that is no longer waiting for results, needs a new command from Agent Manager.
 

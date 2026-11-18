@@ -33,8 +33,8 @@ from amp_shadow_runner.config import (
 )
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
-from amp_shadow_runner.prompts import git_token
-from amp_shadow_runner.publish import Publisher, PublishError, report_exit_code
+from amp_shadow_runner.pipeline import YES_ENV, assume_yes, run_scan
+from amp_shadow_runner.publish import Publisher, PublishError, published_line, report_exit_code
 from amp_shadow_runner.report import DEFAULT_REPORT_PATH, ReportError, read_report
 from amp_shadow_runner.scantoken import ScanTokenError
 
@@ -65,19 +65,16 @@ def _cmd_version(args: argparse.Namespace) -> int:
     return ExitCode.OK
 
 
-def _cmd_not_implemented(args: argparse.Namespace) -> int:
-    print(f"{PROG} {args.command}: not implemented yet", file=sys.stderr)
-    return ExitCode.RUNTIME_ERROR
-
-
 def _cmd_scan(args: argparse.Namespace) -> int:
     try:
         config = build_scan_config(args)
-        git_token(config)  # R16 hands the token to the scan; it is never stored in the config.
-    except (ConfigError, ScanTokenError) as exc:  # Their messages never contain a token.
+        return run_scan(config, yes=assume_yes(args.yes))
+    except (ConfigError, ScanTokenError, ReportError) as exc:  # Their messages never contain a token.
         print(f"{PROG}: {exc}", file=sys.stderr)
         return exc.exit_code
-    return _cmd_not_implemented(args)
+    except KeyboardInterrupt:  # The workspace is already deleted.
+        print(f"\n{PROG}: Cancelled. Nothing was published.", file=sys.stderr)
+        return ExitCode.RUNTIME_ERROR
 
 
 def _cmd_upload(args: argparse.Namespace) -> int:
@@ -95,14 +92,8 @@ def _cmd_upload(args: argparse.Namespace) -> int:
     except (ConfigError, ScanTokenError, ReportError, PublishError) as exc:  # Their messages never hold a token.
         print(f"{PROG}: {exc}", file=sys.stderr)
         return exc.exit_code
-    print_published(result.status, result.findings_count)
+    print(published_line(result), file=sys.stderr)
     return report_exit_code(report)
-
-
-def print_published(status: str, findings_count: int) -> None:
-    """The line printed after a successful publish."""
-    agents = "1 agent" if findings_count == 1 else f"{findings_count} agents"
-    print(f"Published to Agent Manager: scan {status}, {agents} saved.", file=sys.stderr)
 
 
 def _add_upload_arguments(sub: argparse.ArgumentParser) -> None:
@@ -151,6 +142,11 @@ def _add_scan_arguments(sub: argparse.ArgumentParser) -> None:
     both.add_argument("--read-ci", action="store_true", help="Also read CI pipeline definitions.")
     both.add_argument("--ai-review", action="store_true", help="Have an LLM review the agents the rules find.")
     both.add_argument("--judge", action="store_true", help="Have a second LLM check the AI review (needs --ai-review).")
+    sub.add_argument(
+        "--yes",
+        action="store_true",
+        help=f"Scan the listed repositories without asking to confirm (also {YES_ENV}=1). Needed without a terminal.",
+    )
 
 
 # (name, help, handler).

@@ -21,6 +21,7 @@ import json
 import shlex
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -318,8 +319,9 @@ def test_cli_prints_only_the_message(monkeypatch: pytest.MonkeyPatch, capsys: py
         "amp-shadow-runner: AMP_SCAN_TOKEN is not set. Copy the whole command from Agent Manager again.\n"
     )
 
-    monkeypatch.setenv("AMP_SCAN_TOKEN", token)
-    assert main(_scan("--github-org", "o", "--all-repos")) == ExitCode.RUNTIME_ERROR
+    monkeypatch.setenv("AMP_SCAN_TOKEN", token)  # A valid command reaches the scan, which needs /out first.
+    monkeypatch.setattr("amp_shadow_runner.pipeline.DEFAULT_REPORT_PATH", Path("/nonexistent-amp-out/report.json"))
+    assert main(_scan("--github-org", "o", "--all-repos")) == ExitCode.CONFIG_ERROR
     out, err = capsys.readouterr()
-    assert err == "amp-shadow-runner scan: not implemented yet\n"
+    assert err.startswith("amp-shadow-runner: Cannot write the scan report to /nonexistent-amp-out")
     assert token not in out + err
