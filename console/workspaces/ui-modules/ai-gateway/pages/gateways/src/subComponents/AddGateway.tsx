@@ -280,7 +280,7 @@ export function AddGateway() {
                   disabled={isPending}
                 />
                 <TextInput
-                  label="Description"
+                  label="Description (optional)"
                   fullWidth
                   size="small"
                   multiline

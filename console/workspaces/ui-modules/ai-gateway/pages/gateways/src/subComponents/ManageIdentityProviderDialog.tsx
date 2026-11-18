@@ -92,15 +92,21 @@ interface ManageIdentityProviderDialogProps {
  * - "applied": the service patches it.
  * - "manual": the gateway's owner edits it (a self-hosted gateway), so the dialog
  *   gives the entry to copy.
- * - "fixed": nothing applies it (a managed gateway in a deployment without a config
- *   applier), so a custom issuer can be removed but not added.
+ * - "fixed": Agent Manager does not apply it (a managed gateway in a deployment
+ *   without a config applier), so the console lets a custom issuer be removed but
+ *   not added. The API still records one.
  */
 export type IdentityProviderConfigMode = "applied" | "manual" | "fixed";
 
 /**
  * The config mode of a gateway, as its service reports it (identityProviderMode), so
- * the console offers only what the service will carry out. A service that predates
- * the field applies nothing: its self-hosted gateways are manual, the rest fixed.
+ * the console offers only what the service will carry out.
+ *
+ * Assumption: the console is served by the service it is built with, which always
+ * reports the field. A response without it comes from an older service, and the
+ * console cannot tell whether that service applies changes to a managed gateway. It
+ * takes the cautious reading: self-hosted gateways are manual, the rest fixed, so Add
+ * is hidden there even if that service has an applier. The API is unaffected.
  */
 export function identityProviderConfigMode(gateway: {
   identityProviderMode?: GatewayIdentityProviderMode;

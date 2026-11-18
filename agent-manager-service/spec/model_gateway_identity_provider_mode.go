@@ -15,7 +15,7 @@ import (
 	"fmt"
 )
 
-// GatewayIdentityProviderMode How a change to the gateway's custom identity providers reaches the gateway. - APPLIED: the service patches the gateway's runtime configuration. - MANUAL: the service only records the provider; the gateway's owner edits its   config.toml and restarts it (a self-hosted gateway). - UNSUPPORTED: the service only records the provider and nothing applies it to   the gateway (a managed gateway in a deployment without a config applier).
+// GatewayIdentityProviderMode How a change to the gateway's custom identity providers reaches the gateway. - APPLIED: the service patches the gateway's runtime configuration. - MANUAL: the service only records the provider; the gateway's owner edits its   config.toml and restarts it (a self-hosted gateway). - UNSUPPORTED: the service only records the provider and does not apply it to   the gateway (a managed gateway in a deployment without a config applier).
 type GatewayIdentityProviderMode string
 
 // List of GatewayIdentityProviderMode

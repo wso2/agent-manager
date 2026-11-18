@@ -799,11 +799,11 @@ The console and agent OAuth configuration read this record.
 
 Whether the gateway itself trusts the issuer depends on the deployment:
 
-  - Managed gateway in a deployment with a gateway config applier (cloud): for a
-    custom identity provider, the gateway runtime configuration is patched
-    first, then the record is written. If the patch fails, nothing is recorded.
-    System identity providers (e.g. ThunderKeyManager) are configured on the
-    gateway separately, so for them only the record is written.
+  - Managed gateway in a deployment with a gateway config applier (cloud), for a
+    custom identity provider: the gateway runtime configuration is patched first,
+    then the record is written. If the patch fails, nothing is recorded. System
+    identity providers (e.g. ThunderKeyManager) are configured in the gateway
+    separately, so for those only the record is written.
   - Self-hosted gateway, or a managed gateway in an open-source deployment: only
     the record is written. The gateway's owner adds the matching key manager to
     the gateway's config.toml under

@@ -55,7 +55,7 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
   useEffect(() => () => forgetNewGatewayToken(gatewayId), [gatewayId]);
 
   // Polls until the gateway connects; step 5 of the steps shows the same status.
-  const { data: gateway, isLoading, error, refetch } = useGetGateway(
+  const { data: gateway, error, refetch } = useGetGateway(
     { orgName: orgId, gatewayId },
     { pollUntilActive: true },
   );
@@ -101,12 +101,13 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
       disableIcon
       backHref={listHref}
       backLabel="Back to gateways"
-      isLoading={isLoading}
+      isLoading={!gateway}
     >
       {/* Mounted only once the gateway has loaded: nothing can be reconfigured before
           its hosting is known, and PageLayout re-roots its children when loading ends,
-          which would reset the steps' state. */}
-      {!isLoading && (
+          which would reset the steps' state. Keyed on the data, not isLoading: a first
+          read paused offline is not loading, yet has no gateway. */}
+      {gateway && (
       <Stack spacing={3}>
         {token && (
           <Alert severity="success">

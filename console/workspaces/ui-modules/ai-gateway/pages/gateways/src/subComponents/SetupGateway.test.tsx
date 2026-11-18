@@ -25,12 +25,14 @@ const hoisted = vi.hoisted(() => ({
   gateway: { uuid: "gw-1", displayName: "Edge One", hosting: "SELF_HOSTED", status: "INACTIVE" },
   error: null as Error | null,
   isLoading: false,
+  /** The first read is paused (offline): not loading, no data, no error. */
+  paused: false,
   refetch: vi.fn(),
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetGateway: () => ({
-    data: hoisted.error || hoisted.isLoading ? undefined : hoisted.gateway,
+    data: hoisted.error || hoisted.isLoading || hoisted.paused ? undefined : hoisted.gateway,
     isLoading: hoisted.isLoading,
     error: hoisted.error,
     refetch: hoisted.refetch,
@@ -73,6 +75,7 @@ afterEach(() => {
   hoisted.gateway = { ...hoisted.gateway, hosting: "SELF_HOSTED", status: "INACTIVE" };
   hoisted.error = null;
   hoisted.isLoading = false;
+  hoisted.paused = false;
 });
 
 describe("SetupGateway", () => {
@@ -145,6 +148,15 @@ describe("SetupGateway", () => {
 
     expect(screen.queryByText(/^steps/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
+  });
+
+  it("holds them back while the first read is paused, which is not loading", () => {
+    hoisted.paused = true;
+    renderSetup();
+
+    expect(screen.queryByText(/^steps/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
   });
 
   it("sends a managed gateway to its page", () => {
