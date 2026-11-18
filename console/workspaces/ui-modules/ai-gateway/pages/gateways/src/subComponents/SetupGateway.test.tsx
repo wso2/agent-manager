@@ -24,19 +24,18 @@ import { keepNewGatewayToken, newGatewayToken } from "./newGatewayToken";
 const hoisted = vi.hoisted(() => ({
   gateway: { uuid: "gw-1", displayName: "Edge One", hosting: "SELF_HOSTED", status: "INACTIVE" },
   error: null as Error | null,
+  isLoading: false,
+  refetch: vi.fn(),
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetGateway: () => ({
-    data: hoisted.error ? undefined : hoisted.gateway,
-    isLoading: false,
+    data: hoisted.error || hoisted.isLoading ? undefined : hoisted.gateway,
+    isLoading: hoisted.isLoading,
     error: hoisted.error,
+    refetch: hoisted.refetch,
   }),
   isGatewayActive: (gw?: { status?: string }) => gw?.status === "ACTIVE",
-}));
-
-vi.mock("@agent-management-platform/shared-component", () => ({
-  getErrorMessage: (err: unknown) => (err instanceof Error ? err.message : ""),
 }));
 
 vi.mock("@agent-management-platform/views", async () => {
@@ -44,6 +43,13 @@ vi.mock("@agent-management-platform/views", async () => {
   return {
     PageLayout: ({ title, children }: { title: string; children: React.ReactNode }) =>
       React.createElement("div", null, React.createElement("h1", null, title), children),
+    LoadErrorNotice: ({ error, onRetry }: { error?: Error; onRetry?: () => void }) =>
+      React.createElement(
+        "div",
+        null,
+        `load error: ${error?.message}`,
+        React.createElement("button", { onClick: onRetry }, "Try again"),
+      ),
   };
 });
 
@@ -66,6 +72,7 @@ const renderSetup = (state: SetupGatewayState | null = null) =>
 afterEach(() => {
   hoisted.gateway = { ...hoisted.gateway, hosting: "SELF_HOSTED", status: "INACTIVE" };
   hoisted.error = null;
+  hoisted.isLoading = false;
 });
 
 describe("SetupGateway", () => {
@@ -115,7 +122,27 @@ describe("SetupGateway", () => {
     hoisted.error = new Error("gateway not found");
     renderSetup();
 
-    expect(screen.getByText(/Failed to load gateway\. gateway not found/)).toBeInTheDocument();
+    expect(screen.getByText("load error: gateway not found")).toBeInTheDocument();
+    expect(screen.queryByText(/^steps/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
+  });
+
+  it("retries a failed load on the same page, keeping the token", () => {
+    keepNewGatewayToken("gw-1", "secret");
+    hoisted.error = new Error("boom");
+    renderSetup();
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(hoisted.refetch).toHaveBeenCalled();
+    // Still on the page, so the cleanup that forgets the token has not run.
+    expect(newGatewayToken("gw-1")).toBe("secret");
+  });
+
+  it("holds the steps and actions back until the gateway has loaded", () => {
+    hoisted.isLoading = true;
+    renderSetup();
+
     expect(screen.queryByText(/^steps/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Done" })).not.toBeInTheDocument();
   });

@@ -61,7 +61,7 @@ describe("GatewayIdentityProvidersCard adding issuers", () => {
 
     expect(addButton()).not.toBeInTheDocument();
     expect(
-      screen.getByText("This gateway accepts tokens only from its built-in issuers."),
+      screen.getByText(/Issuer changes can't be applied to it from here\./),
     ).toBeInTheDocument();
   });
 

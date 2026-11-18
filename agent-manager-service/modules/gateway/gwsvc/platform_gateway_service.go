@@ -943,8 +943,10 @@ func (s *PlatformGatewayService) appliesToGateway(gw *models.Gateway) bool {
 // gateway. System provenance is derived from the well-known provider names.
 //
 // When a gateway config applier is configured (cloud deployments), the gateway runtime
-// config is patched before the mirror is written, so the two never diverge; if the
-// apply fails the mirror is left untouched. System providers are bootstrapped into the
+// config is patched before the mirror is written: if the apply fails the mirror is left
+// untouched. If the apply succeeds and the mirror write then fails, the runtime change
+// is not undone, so the two differ until the call is retried (both steps are
+// idempotent). System providers are bootstrapped into the
 // gateway out of band, so only custom providers are applied here. Self-hosted gateways,
 // and every gateway in open-source builds (nil applier), get the mirror only: the
 // gateway's owner adds the key manager to its config.toml.

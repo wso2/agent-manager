@@ -41,9 +41,11 @@ export const GatewaysOrganization: React.FC = () => {
   const { orgId } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const { canWrite } = useGatewayFeatures();
+  const { canWrite, canManageTokens } = useGatewayFeatures();
   const selfHostedEnabled = useFeatureFlag("enableSelfHostedGateways");
-  const canAdd = selfHostedEnabled && canWrite;
+  // A self-hosted gateway is unusable without a registration token, so adding one
+  // also needs the permission to create its token.
+  const canAdd = selfHostedEnabled && canWrite && canManageTokens;
   const openAddGateway = () =>
     navigate(
       generatePath(absoluteRouteMap.children.org.children.gateways.children.add.path, {

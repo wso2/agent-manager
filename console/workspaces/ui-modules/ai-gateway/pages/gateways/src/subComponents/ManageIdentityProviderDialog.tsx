@@ -201,6 +201,7 @@ export function ManageIdentityProviderDialog({
 
 
   // Reset form when the dialog opens, seeding from the provider for delete.
+  const lockedGatewayId = lockedGateway?.uuid;
   useEffect(() => {
     if (!open) return;
     setCopied(false);
@@ -214,19 +215,18 @@ export function ManageIdentityProviderDialog({
       setJwksUri(provider.jwksUri ?? "");
       setSkipTlsVerify(provider.skipTlsVerify ?? false);
     } else {
-      // Lock the gateway and auto-select its environment when there is only one.
-      setEnvName(
-        lockedGateway && lockedGateway.environments.length === 1
-          ? lockedGateway.environments[0].name
-          : "",
-      );
-      setGatewayId(lockedGateway?.uuid ?? "");
+      // A single environment needs no selection: effectiveEnvName falls back to it,
+      // also when the environments arrive after the dialog opens.
+      setEnvName("");
+      setGatewayId(lockedGatewayId ?? "");
       setName("");
       setIssuer("");
       setJwksUri("");
       setSkipTlsVerify(false);
     }
-  }, [open, isDelete, provider, lockedGateway]);
+    // Keyed on the locked gateway's id, not the object: a refresh of its environments
+    // must not clear what the user has typed.
+  }, [open, isDelete, provider, lockedGatewayId]);
 
   // Delete mode is read-only; in upsert mode only user-entered values count.
   const isDirty =
@@ -260,7 +260,14 @@ export function ManageIdentityProviderDialog({
   }, [discoveryUrl, discover]);
 
   const keyManagerConfig = useMemo(
-    () => buildKeyManagerConfig({ name, issuer, jwksUri, skipTlsVerify }),
+    // Trimmed like the saved record, so the entry and the record carry the same values.
+    () =>
+      buildKeyManagerConfig({
+        name: name.trim(),
+        issuer: issuer.trim(),
+        jwksUri: jwksUri.trim(),
+        skipTlsVerify,
+      }),
     [name, issuer, jwksUri, skipTlsVerify],
   );
 
@@ -350,8 +357,8 @@ export function ManageIdentityProviderDialog({
               <>
                 Agent Manager does not apply identity providers to this gateway, so removing
                 this one only deletes Agent Manager&apos;s record of it. If the issuer was added
-                to the gateway&apos;s configuration by hand, remove it there as well, or the
-                gateway keeps accepting its tokens.
+                to the gateway&apos;s configuration by hand, remove it there, then restart the
+                gateway. Until the restart, the gateway keeps accepting its tokens.
               </>
             )}
             {configMode === "manual" && (

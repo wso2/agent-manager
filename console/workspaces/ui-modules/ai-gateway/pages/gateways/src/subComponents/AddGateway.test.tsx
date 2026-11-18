@@ -16,8 +16,15 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  Link,
+  MemoryRouter,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
 import { AddGateway } from "./AddGateway";
 import { forgetNewGatewayToken, newGatewayToken } from "./newGatewayToken";
 import { deriveGatewayName } from "../form/schema";
@@ -28,11 +35,18 @@ const PROD = { name: "prod", displayName: "Production" };
 const hoisted = vi.hoisted(() => ({
   createGateway: vi.fn(),
   createToken: vi.fn(),
-  environments: [] as Array<{ name: string; displayName: string }>,
+  environments: [] as Array<{ name: string; displayName: string }> | undefined,
+  environmentsError: null as Error | null,
+  retryEnvironments: vi.fn(),
 }));
 
 vi.mock("@agent-management-platform/api-client", () => ({
-  useListEnvironments: () => ({ data: hoisted.environments }),
+  useListEnvironments: () => ({
+    data: hoisted.environments,
+    error: hoisted.environmentsError,
+    isFetching: false,
+    refetch: hoisted.retryEnvironments,
+  }),
   useCreateSelfHostedGateway: () => ({ mutateAsync: hoisted.createGateway, isPending: false }),
   useCreateSelfHostedGatewayToken: () => ({ mutateAsync: hoisted.createToken, isPending: false }),
 }));
@@ -98,6 +112,7 @@ beforeEach(() => {
   hoisted.createGateway.mockResolvedValue({ uuid: "gw-1", displayName: "Edge One" });
   hoisted.createToken.mockResolvedValue({ token: "t" });
   hoisted.environments = [DEV];
+  hoisted.environmentsError = null;
 });
 
 describe("deriveGatewayName", () => {
@@ -153,6 +168,21 @@ describe("AddGateway name", () => {
   });
 });
 
+describe("AddGateway environment loading", () => {
+  it("offers a retry and blocks creation when the environments fail to load", () => {
+    hoisted.environments = undefined;
+    hoisted.environmentsError = new Error("boom");
+    renderPage();
+
+    type(displayNameField(), "Edge One");
+    expect(screen.getByRole("button", { name: "Create gateway" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+
+    expect(hoisted.retryEnvironments).toHaveBeenCalled();
+    expect(displayNameField()).toHaveValue("Edge One");
+  });
+});
+
 describe("AddGateway environment", () => {
   const submit = (url = "https://edge.example.com") => {
     type(displayNameField(), "Edge One");
@@ -180,6 +210,57 @@ describe("AddGateway environment", () => {
 
     await waitFor(() => expect(hoisted.createGateway).toHaveBeenCalledTimes(1));
     expect(hoisted.createGateway.mock.calls[0][0].body).toMatchObject({ environment: "prod" });
+  });
+});
+
+describe("AddGateway environment refresh", () => {
+  it("does not submit an environment the form no longer offers", async () => {
+    hoisted.environments = [DEV, PROD];
+    renderPage();
+    fireEvent.mouseDown(screen.getByRole("combobox", { name: "Environment" }));
+    fireEvent.click(screen.getByRole("option", { name: "Production" }));
+
+    // Production is removed; with one environment left the field hides.
+    hoisted.environments = [DEV];
+    type(displayNameField(), "Edge One");
+    type(screen.getByPlaceholderText("https://gateway.example.com"), "https://edge.example.com");
+    fireEvent.click(screen.getByRole("button", { name: "Create gateway" }));
+
+    await waitFor(() => expect(hoisted.createGateway).toHaveBeenCalledTimes(1));
+    expect(hoisted.createGateway.mock.calls[0][0].body).toMatchObject({ environment: "dev" });
+  });
+});
+
+describe("AddGateway leaving mid-submit", () => {
+  it("keeps the token but does not pull the user back to setup", async () => {
+    let finishToken: (value: { token: string }) => void = () => {};
+    hoisted.createToken.mockReturnValue(
+      new Promise((resolve) => {
+        finishToken = resolve;
+      }),
+    );
+    forgetNewGatewayToken("gw-1");
+    render(
+      <MemoryRouter initialEntries={["/org/acme/gateways/add"]}>
+        <Link to="/somewhere">leave</Link>
+        <Routes>
+          <Route path="/org/:orgId/gateways/add" element={<AddGateway />} />
+          <Route path="/org/:orgId/gateways/setup/:gatewayId" element={<div>setup page</div>} />
+          <Route path="/somewhere" element={<div>elsewhere</div>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    type(displayNameField(), "Edge One");
+    type(screen.getByPlaceholderText("https://gateway.example.com"), "https://edge.example.com");
+    fireEvent.click(screen.getByRole("button", { name: "Create gateway" }));
+    await waitFor(() => expect(hoisted.createToken).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText("leave"));
+    await act(async () => finishToken({ token: "late" }));
+
+    expect(screen.getByText("elsewhere")).toBeInTheDocument();
+    expect(screen.queryByText("setup page")).not.toBeInTheDocument();
+    expect(newGatewayToken("gw-1")).toBe("late");
   });
 });
 

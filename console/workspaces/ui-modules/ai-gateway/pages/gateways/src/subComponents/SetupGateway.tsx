@@ -18,9 +18,8 @@
 import { useEffect, useState } from "react";
 import { Alert, Box, Button, Stack } from "@wso2/oxygen-ui";
 import { generatePath, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
-import { PageLayout } from "@agent-management-platform/views";
+import { LoadErrorNotice, PageLayout } from "@agent-management-platform/views";
 import { isGatewayActive, useGetGateway } from "@agent-management-platform/api-client";
-import { getErrorMessage } from "@agent-management-platform/shared-component";
 import { absoluteRouteMap, isSelfHostedGateway } from "@agent-management-platform/types";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
 import { forgetNewGatewayToken, newGatewayToken } from "./newGatewayToken";
@@ -56,7 +55,7 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
   useEffect(() => () => forgetNewGatewayToken(gatewayId), [gatewayId]);
 
   // Polls until the gateway connects; step 5 of the steps shows the same status.
-  const { data: gateway, isLoading, error } = useGetGateway(
+  const { data: gateway, isLoading, error, refetch } = useGetGateway(
     { orgName: orgId, gatewayId },
     { pollUntilActive: true },
   );
@@ -84,9 +83,14 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
         backHref={listHref}
         backLabel="Back to gateways"
       >
-        <Alert severity="error">
-          Failed to load gateway. {getErrorMessage(error) || "Please try again."}
-        </Alert>
+        {/* Retrying stays on this page, which keeps the one-time token in memory. */}
+        <LoadErrorNotice
+          entityLabel="gateway"
+          error={error}
+          onRetry={() => void refetch()}
+          backHref={listHref}
+          backLabel="Back to gateways"
+        />
       </PageLayout>
     );
   }
@@ -99,6 +103,10 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
       backLabel="Back to gateways"
       isLoading={isLoading}
     >
+      {/* Mounted only once the gateway has loaded: nothing can be reconfigured before
+          its hosting is known, and PageLayout re-roots its children when loading ends,
+          which would reset the steps' state. */}
+      {!isLoading && (
       <Stack spacing={3}>
         {token && (
           <Alert severity="success">
@@ -123,6 +131,7 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
           )}
         </Box>
       </Stack>
+      )}
     </PageLayout>
   );
 }
