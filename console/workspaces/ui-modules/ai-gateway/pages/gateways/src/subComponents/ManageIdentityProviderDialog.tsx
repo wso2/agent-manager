@@ -345,9 +345,10 @@ export function ManageIdentityProviderDialog({
             )}
             {configMode === "fixed" && (
               <>
-                Agent Manager generates this gateway&apos;s configuration with only its built-in
-                issuers, so this provider never reached the gateway. Removing it here deletes
-                Agent Manager&apos;s record of it; there is nothing to change on the gateway.
+                Agent Manager does not apply identity providers to this gateway, so removing
+                this one only deletes Agent Manager&apos;s record of it. If the issuer was added
+                to the gateway&apos;s configuration by hand, remove it there as well, or the
+                gateway keeps accepting its tokens.
               </>
             )}
             {configMode === "manual" && (

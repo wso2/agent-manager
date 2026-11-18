@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { Alert, Box, Button, CircularProgress, Stack, Typography } from "@wso2/oxygen-ui";
 import { Check, Copy } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -128,12 +128,15 @@ interface SelfHostedSetupStepsProps {
    * server never returns it again, so without one the steps offer Reconfigure.
    */
   initialToken?: string | null;
+  /** Called once the gateway connects, for a page that reads the gateway elsewhere. */
+  onConnected?: () => void;
 }
 
 export function SelfHostedSetupSteps({
   orgName,
   gatewayId,
   initialToken = null,
+  onConnected,
 }: SelfHostedSetupStepsProps) {
   const [token, setToken] = useState<string | null>(initialToken);
   const [justReconfigured, setJustReconfigured] = useState(false);
@@ -150,6 +153,11 @@ export function SelfHostedSetupSteps({
   // so that page sees the connection too.
   const { data: gateway } = useGetGateway(params, { pollUntilActive: true });
   const connected = isGatewayActive(gateway);
+  useEffect(() => {
+    if (connected) onConnected?.();
+    // Only the connection triggers it; a new callback identity must not.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
 
   const version = globalConfig.gatewayVersion || DEFAULT_GATEWAY_VERSION;
   const cpHost = cpHostFromUrl(globalConfig.gatewayControlPlaneUrl || DEFAULT_CONTROL_PLANE_URL);

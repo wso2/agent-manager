@@ -1406,10 +1406,6 @@ func normalizeGatewayRole(functionalityType string) (string, error) {
 
 // Token Generation and Hashing Utilities
 
-// generateToken generates a cryptographically secure token with guaranteed uniqueness
-// Format: {UUID}-{32-random-bytes-base64}
-// The UUID prefix ensures uniqueness and enables fast indexed lookups
-// The random suffix provides 256 bits of entropy for security
 // tokenPrefixShownLen is how much of a token is listed: the first group of its UUID
 // prefix, enough to tell tokens apart without revealing the full lookup key.
 const tokenPrefixShownLen = 8
@@ -1422,6 +1418,10 @@ func shownTokenPrefix(prefix string) string {
 	return prefix[:tokenPrefixShownLen]
 }
 
+// generateToken generates a cryptographically secure token with guaranteed uniqueness
+// Format: {UUID}-{32-random-bytes-base64}
+// The UUID prefix ensures uniqueness and enables fast indexed lookups
+// The random suffix provides 256 bits of entropy for security
 func generateToken() (token string, prefix string, err error) {
 	// Generate UUID for uniqueness
 	tokenUUID := uuid.New()

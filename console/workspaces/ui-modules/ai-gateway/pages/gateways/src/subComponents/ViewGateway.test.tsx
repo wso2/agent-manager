@@ -28,6 +28,7 @@ const getGateway = vi.hoisted(() => vi.fn());
 
 vi.mock("@agent-management-platform/api-client", () => ({
   useGetGateway: getGateway,
+  isGatewayActive: (gw?: { status?: string }) => gw?.status === "ACTIVE",
 }));
 
 vi.mock("@agent-management-platform/views", async () => {

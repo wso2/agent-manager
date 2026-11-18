@@ -132,8 +132,12 @@ export function useGetGateway(
       return gatewayFromDocument(doc, environments);
     },
     enabled: gatewayPresent && !!params.orgName && !!params.gatewayId,
-    refetchInterval: (q) =>
-      pollUntilActive && !isGatewayActive(q.state.data) ? POLL_INTERVAL : false,
+    // A gateway that never loaded (not found, no access) is not waited for.
+    refetchInterval: (q) => {
+      if (!pollUntilActive || isGatewayActive(q.state.data)) return false;
+      if (q.state.status === "error" && q.state.data === undefined) return false;
+      return POLL_INTERVAL;
+    },
   });
 
   const active = isGatewayActive(query.data);
