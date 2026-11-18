@@ -23603,7 +23603,6 @@ components:
       type: object
       required:
         - id
-        - display
       properties:
         id:
           type: string
