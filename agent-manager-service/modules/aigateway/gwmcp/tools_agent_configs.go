@@ -14,20 +14,17 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tools
+package gwmcp
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 
-	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -100,7 +97,7 @@ func externalAttachNote(target, keyHint string, unrevoked []string) string {
 
 // productionEnvironmentsNote is the environments argument's rule for production,
 // the tier the deploy tools apply (requireProductionTier).
-const productionEnvironmentsNote = "Production environments need amp:agent:env-production as well: without it a default leaves them out " +
+const productionEnvironmentsNote = "Production environments need amp:ai-gateway:deploy.production as well: without it a default leaves them out " +
 	"(skipped_production_environments lists them), and naming one is refused."
 
 const (
@@ -108,8 +105,8 @@ const (
 	externalMCPKeyHint = "when the proxy uses API key security, its API key section"
 )
 
-func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegistry) {
-	addTool(reg, server, &gomcp.Tool{
+func (t *Tools) registerAgentConfigTools(reg Registrar) {
+	addTool(reg, toolDef{
 		Name: "attach_llm_provider_to_agent",
 		Description: "Give an agent access to an LLM provider through the AI gateway, optionally with guardrails that apply to this agent only. " +
 			"The platform creates a per-agent proxy and injects its URL and key into the agent as environment variables. " +
@@ -123,9 +120,9 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 				productionEnvironmentsNote, map[string]any{"type": "string"}),
 			"guardrails": arrayProperty("Optional. Guardrails for this agent's LLM traffic, on top of any on the provider.", guardrailSchema()),
 		}, []string{"project_name", "agent_name", "provider_id"}),
-	}, gwaudit.AgentConfigUpdate, attachLLMProvider(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset, t.LLMProviderToolset), rbac.AgentUpdate)
+	}, gwaudit.AgentConfigUpdate, attachLLMProvider(t), rbac.AgentUpdate)
 
-	addTool(reg, server, &gomcp.Tool{
+	addTool(reg, toolDef{
 		Name: "attach_mcp_proxy_to_agent",
 		Description: "Give an agent access to an MCP proxy's tools through the AI gateway. " +
 			"The platform injects the proxy URL and a key into the agent as environment variables. " +
@@ -140,44 +137,42 @@ func (t *Toolsets) registerAgentConfigTools(server *gomcp.Server, reg *toolRegis
 			"environments": arrayProperty("Optional. Environment names to configure. Defaults to every environment, including ones the proxy is not deployed to yet. "+
 				productionEnvironmentsNote, map[string]any{"type": "string"}),
 		}, []string{"project_name", "agent_name", "proxy_id"}),
-	}, gwaudit.AgentConfigUpdate, attachMCPProxy(t.AgentConfigToolset, t.EnvironmentToolset, t.AgentToolset), rbac.AgentUpdate)
+	}, gwaudit.AgentConfigUpdate, attachMCPProxy(t), rbac.AgentUpdate)
 }
 
-func attachLLMProvider(
-	handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler, agentHandler AgentToolsetHandler, llmHandler LLMProviderToolsetHandler,
-) func(context.Context, *gomcp.CallToolRequest, attachLLMProviderInput) (*gomcp.CallToolResult, any, error) {
-	return func(ctx context.Context, _ *gomcp.CallToolRequest, input attachLLMProviderInput) (*gomcp.CallToolResult, any, error) {
+func attachLLMProvider(t *Tools) func(context.Context, attachLLMProviderInput) (any, error) {
+	return func(ctx context.Context, input attachLLMProviderInput) (any, error) {
 		const toolName = "attach_llm_provider_to_agent"
 		policies, err := toModelGuardrails(input.Guardrails)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		// A blank provider_id is reported by attachConfig.
 		if providerID := strings.TrimSpace(input.ProviderID); providerID != "" {
-			if err := requireAvailableGuardrails(ctx, toolName, llmHandler, resolveOUID(ctx), providerID, policies); err != nil {
-				return nil, nil, err
+			if err := requireAvailableGuardrails(ctx, toolName, t.LLMProviders, modkit.OrgID(ctx), providerID, policies); err != nil {
+				return nil, err
 			}
 		}
-		out, err := attachConfig(ctx, toolName, handler, envHandler, agentHandler, models.AgentConfigTypeLLM,
+		out, err := attachConfig(ctx, toolName, t, models.AgentConfigTypeLLM,
 			input.ProjectName, input.AgentName, input.ProviderID, "provider_id", input.ConfigName, input.Environments, policies)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		for _, p := range policies {
 			out.Guardrails = append(out.Guardrails, p.Name)
 		}
-		return handleToolResult(out, nil)
+		return out, nil
 	}
 }
 
-func attachMCPProxy(handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler, agentHandler AgentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, attachMCPProxyInput) (*gomcp.CallToolResult, any, error) {
-	return func(ctx context.Context, _ *gomcp.CallToolRequest, input attachMCPProxyInput) (*gomcp.CallToolResult, any, error) {
-		out, err := attachConfig(ctx, "attach_mcp_proxy_to_agent", handler, envHandler, agentHandler, models.AgentConfigTypeMCP,
+func attachMCPProxy(t *Tools) func(context.Context, attachMCPProxyInput) (any, error) {
+	return func(ctx context.Context, input attachMCPProxyInput) (any, error) {
+		out, err := attachConfig(ctx, "attach_mcp_proxy_to_agent", t, models.AgentConfigTypeMCP,
 			input.ProjectName, input.AgentName, input.ProxyID, "proxy_id", input.ConfigName, input.Environments, nil)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		return handleToolResult(out, nil)
+		return out, nil
 	}
 }
 
@@ -185,8 +180,7 @@ func attachMCPProxy(handler AgentConfigToolsetHandler, envHandler EnvironmentToo
 // selected environment at the same provider or proxy, exactly as the REST
 // create does after converting its request.
 func attachConfig(
-	ctx context.Context, toolName string,
-	handler AgentConfigToolsetHandler, envHandler EnvironmentToolsetHandler, agentHandler AgentToolsetHandler,
+	ctx context.Context, toolName string, t *Tools,
 	configType, projectName, agentName, target, targetArg, configName string,
 	environments []string, policies []models.LLMPolicy,
 ) (*attachConfigOutput, error) {
@@ -208,10 +202,11 @@ func attachConfig(
 		return nil, fmt.Errorf("%s: invalid config_name: %w", toolName, err)
 	}
 
-	ouID := resolveOUID(ctx)
+	handler := t.AgentConfigs
+	ouID := modkit.OrgID(ctx)
 	// Read before the create, so a failed lookup never leaves a config behind
 	// with the wrong note.
-	external, err := isExternalAgent(ctx, agentHandler, ouID, projectName, agentName)
+	external, err := isExternalAgent(ctx, t.Core, ouID, projectName, agentName)
 	if err != nil {
 		return nil, wrapToolError(toolName, err)
 	}
@@ -221,12 +216,12 @@ func attachConfig(
 		// "every environment" would fail for a provider deployed to only some of them.
 		envNames, err = defaultProviderEnvironments(ctx, toolName, handler, ouID, projectName, agentName, target)
 	} else {
-		envNames, err = resolveEnvironmentNames(ctx, toolName, envHandler, ouID, environments)
+		envNames, err = resolveEnvironmentNames(ctx, toolName, t.Core, ouID, environments)
 	}
 	if err != nil {
 		return nil, err
 	}
-	envNames, skipped, err := requireProductionTier(ctx, toolName, envHandler, ouID, envNames, hasEnvironmentNames(environments))
+	envNames, skipped, err := requireProductionTier(ctx, toolName, t, ouID, envNames, hasEnvironmentNames(environments))
 	if err != nil {
 		return nil, err
 	}
@@ -282,21 +277,21 @@ func attachConfig(
 }
 
 // requireProductionTier applies the deploy tools' environment tier to an attach:
-// configuring a production environment needs amp:agent:env-production on top of
-// amp:agent:update. Environments the caller named are refused when the token
+// configuring a production environment needs ai-gateway:deploy.production on
+// top of agent:update. Environments the caller named are refused when the token
 // lacks it. A default selection leaves the production ones out and returns them
 // as skipped, unless nothing would be left.
 func requireProductionTier(
-	ctx context.Context, toolName string, envHandler EnvironmentToolsetHandler, ouID string,
+	ctx context.Context, toolName string, t *Tools, ouID string,
 	envNames []string, named bool,
 ) ([]string, []string, error) {
-	if _, short := jwtassertion.FirstMissingScope(ctx, gwperm.DeployProduction); !short {
+	if t.Can != nil && t.Can(ctx, short(gwperm.DeployProduction)) {
 		return envNames, nil, nil
 	}
-	if envHandler == nil {
+	if t.Core == nil {
 		return nil, nil, fmt.Errorf("%s: environment lookup is not available", toolName)
 	}
-	envs, err := listAllEnvironments(ctx, envHandler, ouID)
+	envs, err := t.Core.ListEnvironments(ctx, ouID)
 	if err != nil {
 		return nil, nil, wrapToolError(toolName, err)
 	}
@@ -320,18 +315,6 @@ func requireProductionTier(
 	if !named && len(allowed) > 0 {
 		return allowed, refused, nil
 	}
-	// Recorded as the services record a tier refusal on deploy, so alerting on
-	// authz:deny sees attaches too.
-	audit.RecordAncillary(
-		ctx, audit.ActionAuthzDeny,
-		audit.Org(ouID),
-		audit.Environment(refused[0]),
-		audit.OutcomeOpt(audit.OutcomeDeny),
-		audit.RequiredPermissions(gwperm.DeployNonProduction, gwperm.DeployProduction),
-		audit.Detail("reason", "missing-environment-tier-scope"),
-		audit.Detail("missingScope", gwperm.DeployProduction.Scope()),
-		audit.Detail("grantedScopes", jwtassertion.GrantedScopeCount(ctx)),
-	)
 	return nil, nil, fmt.Errorf("%s: %s is required to configure production environment %s. "+
 		"Pass only non-production environments, or use a token with that scope",
 		toolName, gwperm.DeployProduction.Scope(), strings.Join(refused, ", "))
@@ -353,15 +336,15 @@ func attachedProxies(resp *models.AgentModelConfigResponse, envNames []string) [
 
 // isExternalAgent reports whether the agent runs outside the platform, read
 // before the create so a failed lookup never leaves a config behind.
-func isExternalAgent(ctx context.Context, agentHandler AgentToolsetHandler, ouID, projectName, agentName string) (bool, error) {
-	if agentHandler == nil {
+func isExternalAgent(ctx context.Context, agents CoreReader, ouID, projectName, agentName string) (bool, error) {
+	if agents == nil {
 		return false, nil
 	}
-	agent, err := agentHandler.GetAgent(ctx, ouID, projectName, agentName)
+	agent, err := agents.GetAgentByName(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return false, err
 	}
-	return agent != nil && agent.Provisioning.Type == string(utils.ExternalAgent), nil
+	return agent.Provisioning == string(utils.ExternalAgent), nil
 }
 
 // revokeIssuedKeys revokes the key the create issued in each of an external
@@ -381,7 +364,7 @@ func revokeIssuedKeys(
 	var failed []string
 	for _, env := range envs {
 		if err := handler.RevokeConfigAPIKeys(ctx, ouID, projectName, agentName, configType, resp.UUID, env); err != nil {
-			reqlogger.GetLogger(ctx).Warn("could not revoke an external agent's withheld config API key",
+			slog.WarnContext(ctx, "could not revoke an external agent's withheld config API key",
 				"configID", resp.UUID, "environment", env, "error", err)
 			failed = append(failed, env)
 		}
@@ -412,29 +395,9 @@ func defaultProviderEnvironments(ctx context.Context, toolName string, handler A
 	return names, nil
 }
 
-// listAllEnvironments reads every page of the org's environments: stopping at
-// the first page would leave the rest unconfigured, or unnamed, without saying so.
-func listAllEnvironments(ctx context.Context, handler EnvironmentToolsetHandler, ouID string) ([]models.GatewayEnvironmentResponse, error) {
-	var envs []models.GatewayEnvironmentResponse
-	for offset := int32(utils.DefaultOffset); ; {
-		result, err := handler.ListEnvironments(ctx, ouID, int32(utils.MaxLimit), offset)
-		if err != nil {
-			return nil, err
-		}
-		if result == nil || len(result.Environments) == 0 {
-			return envs, nil
-		}
-		envs = append(envs, result.Environments...)
-		offset += int32(len(result.Environments))
-		if offset >= result.Total {
-			return envs, nil
-		}
-	}
-}
-
 // resolveEnvironmentNames returns the given environment names, trimmed, or
 // every environment in the org when none are given.
-func resolveEnvironmentNames(ctx context.Context, toolName string, handler EnvironmentToolsetHandler, ouID string, names []string) ([]string, error) {
+func resolveEnvironmentNames(ctx context.Context, toolName string, core CoreReader, ouID string, names []string) ([]string, error) {
 	out := make([]string, 0, len(names))
 	for _, n := range names {
 		// Create rejects an unknown name before writing anything, so names are not looked up here.
@@ -445,10 +408,10 @@ func resolveEnvironmentNames(ctx context.Context, toolName string, handler Envir
 	if len(out) > 0 {
 		return out, nil
 	}
-	if handler == nil {
+	if core == nil {
 		return nil, fmt.Errorf("%s: environment lookup is not available", toolName)
 	}
-	envs, err := listAllEnvironments(ctx, handler, ouID)
+	envs, err := core.ListEnvironments(ctx, ouID)
 	if err != nil {
 		return nil, wrapToolError(toolName, err)
 	}

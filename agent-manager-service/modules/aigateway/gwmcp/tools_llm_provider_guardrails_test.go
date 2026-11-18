@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tools
+package gwmcp
 
 import (
 	"context"
@@ -61,7 +61,7 @@ func chatRoute(params map[string]any) models.LLMPolicyPath {
 func callGuardrailTool(t *testing.T, policies []models.LLMPolicy, tool string, args map[string]any) (bool, string, []models.LLMPolicy) {
 	t.Helper()
 	mock := policiesMock{MockToolsetHandler: NewMockToolsetHandler(), policies: policies}
-	session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: mock})
+	session := setupTestServerWithToolsets(t, &Tools{LLMProviders: mock})
 	args["provider_id"] = testProviderID
 	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
@@ -237,7 +237,7 @@ func TestGuardrailUpdateErrors(t *testing.T) {
 		t.Errorf("change error was rewritten:\n got: %s\nwant prefix: %s", text, want)
 	}
 
-	session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: failingUpdateMock{NewMockToolsetHandler()}})
+	session := setupTestServerWithToolsets(t, &Tools{LLMProviders: failingUpdateMock{NewMockToolsetHandler()}})
 	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{
 		Name: "remove_llm_provider_guardrail", Arguments: map[string]any{"provider_id": testProviderID, "name": testGuardrailName},
 	})
@@ -263,7 +263,7 @@ func (catalogMock) ListLLMProviders(context.Context, string, int, int) ([]*model
 // catalog, so the provider list offers no UUID to copy there by mistake and
 // says which providers can be attached.
 func TestLLMProviderOutputOffersOnlyAttachableIdentifiers(t *testing.T) {
-	session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: catalogMock{NewMockToolsetHandler()}})
+	session := setupTestServerWithToolsets(t, &Tools{LLMProviders: catalogMock{NewMockToolsetHandler()}})
 	for tool, args := range map[string]map[string]any{
 		"list_llm_providers": {},
 		"get_llm_provider":   {"provider_id": testProviderID},
@@ -308,7 +308,7 @@ func (m gatewayEnvsMock) GatewayEnvironmentIDs(_ context.Context, gatewayIDs []s
 func TestGetLLMProviderNamesDeploymentEnvironments(t *testing.T) {
 	call := func(mock gatewayEnvsMock) (bool, string) {
 		t.Helper()
-		session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: mock, EnvironmentToolset: mock})
+		session := setupTestServerWithToolsets(t, &Tools{LLMProviders: mock, Core: mock})
 		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{
 			Name: "get_llm_provider", Arguments: map[string]any{"provider_id": testProviderID},
 		})
@@ -371,7 +371,7 @@ func TestAddGuardrailMustBeOneTheGatewaysReport(t *testing.T) {
 
 	t.Run("provider on no gateway is checked against the org's gateways", func(t *testing.T) {
 		mock := undeployedProviderMock{policiesMock{MockToolsetHandler: NewMockToolsetHandler()}}
-		session := setupTestServerWithToolsets(t, &Toolsets{LLMProviderToolset: mock})
+		session := setupTestServerWithToolsets(t, &Tools{LLMProviders: mock})
 		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "add_llm_provider_guardrails", Arguments: map[string]any{
 			"provider_id": testProviderID,
 			"guardrails":  []any{map[string]any{"name": "word-count", "version": "v1"}},

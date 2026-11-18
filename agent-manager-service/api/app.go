@@ -128,7 +128,7 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	registerJWKSRoute(mux, params.AgentTokenController)
 
 	// Register OAuth 2.0 Protected Resource Metadata (RFC 9728) at root level (no authentication required)
-	registerWellKnownRoutes(mux)
+	registerWellKnownRoutes(mux, modules)
 
 	// Register the file-based login endpoint at root level. It is where a
 	// caller goes to obtain a token, so it cannot itself require one.
@@ -159,7 +159,7 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	if modules != nil {
 		mcpDeps.ModuleTools = moduleTools{modules}
 	}
-	mcp.RegisterRoute(mux, mcpDeps, mcpMiddleware, bundles.MCPTools()...)
+	mcp.RegisterRoute(mux, mcpDeps, mcpMiddleware)
 
 	// Other routes of built-in bundles that live at the root authenticate
 	// themselves.

@@ -13,7 +13,7 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
-package tools
+package gwmcp
 
 import (
 	"context"
@@ -366,8 +366,8 @@ func (m credentialURLMock) GetMCPProxy(ctx context.Context, ouID string, proxyID
 
 func TestDetailToolsRedactUpstreamURLCredentials(t *testing.T) {
 	mock := credentialURLMock{NewMockToolsetHandler()}
-	session := setupTestServerWithToolsets(t, &Toolsets{
-		EnvironmentToolset: mock, LLMProviderToolset: mock, MCPProxyToolset: mock,
+	session := setupTestServerWithToolsets(t, &Tools{
+		Core: mock, LLMProviders: mock, MCPProxies: mock,
 	})
 	for tool, args := range map[string]map[string]any{
 		"get_llm_provider": {"provider_id": testProviderID},

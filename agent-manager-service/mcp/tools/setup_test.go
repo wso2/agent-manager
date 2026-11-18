@@ -54,11 +54,7 @@ func setupTestServer(t *testing.T) (*gomcp.ClientSession, *MockToolsetHandler) {
 	toolsets := &Toolsets{
 		ProjectToolset:     mock,
 		AgentToolset:       mock,
-		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
-		LLMProviderToolset: mock,
-		MCPProxyToolset:    mock,
-		AgentConfigToolset: mock,
 	}
 	return setupTestServerWithToolsets(t, toolsets), mock
 }
@@ -113,7 +109,7 @@ type toolTestSpec struct {
 	name string
 
 	// Toolset group names, used by partial-registration tests
-	toolset string // "project", "agent", "deployment", "environment", "llm-provider", "gateway", "mcp-proxy", "agent-config"
+	toolset string // "project", "agent" or "environment"
 
 	// Permissions the tool must declare via addTool. Required: the
 	// registration test fails any tool whose spec leaves this empty.
@@ -138,11 +134,7 @@ var allToolSpecs = func() []toolTestSpec {
 	specs := make([]toolTestSpec, 0)
 	specs = append(specs, projectToolSpecs()...)
 	specs = append(specs, agentToolSpecs()...)
-	specs = append(specs, deploymentToolSpecs()...)
 	specs = append(specs, environmentToolSpecs()...)
-	specs = append(specs, llmProviderToolSpecs()...)
-	specs = append(specs, mcpProxyToolSpecs()...)
-	specs = append(specs, agentConfigToolSpecs()...)
 	return specs
 }()
 

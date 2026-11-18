@@ -23,7 +23,6 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -57,11 +56,7 @@ func TestToolPermissionsMatchSpecs(t *testing.T) {
 	toolsets := &Toolsets{
 		ProjectToolset:     mock,
 		AgentToolset:       mock,
-		DeploymentToolset:  mock,
 		EnvironmentToolset: mock,
-		LLMProviderToolset: mock,
-		MCPProxyToolset:    mock,
-		AgentConfigToolset: mock,
 	}
 	server := gomcp.NewServer(&gomcp.Implementation{Name: "t", Version: "0"}, nil)
 	reg := toolsets.register(server)
@@ -88,10 +83,6 @@ func TestToolPermissionsAreAdvertised(t *testing.T) {
 	advertised := make(map[string]bool)
 	for _, scope := range rbac.MainMCPScopes() {
 		advertised[scope] = true
-	}
-	// The gateway adds its tools' scopes when it is linked.
-	for _, p := range gwperm.MCPScopes {
-		advertised[p.Scope()] = true
 	}
 	for _, spec := range allToolSpecs {
 		for _, perm := range spec.permissions {
@@ -142,5 +133,27 @@ func TestNilToolsetsInstallsFailClosedMiddleware(t *testing.T) {
 	}
 	if !result.IsError {
 		t.Fatal("rogue tool executed on a nil-Toolsets server — fail-closed middleware did not deny it")
+	}
+}
+
+// Every tool's input schema refuses properties it does not declare.
+func TestEveryToolSchemaRefusesUndeclaredProperties(t *testing.T) {
+	session, _ := setupTestServer(t)
+	res, err := session.ListTools(context.Background(), &gomcp.ListToolsParams{})
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	if len(res.Tools) < len(allToolSpecs) {
+		t.Fatalf("listed %d tools, want every registered tool", len(res.Tools))
+	}
+	for _, tool := range res.Tools {
+		schema, ok := tool.InputSchema.(map[string]any)
+		if !ok {
+			t.Errorf("%s: input schema is %T", tool.Name, tool.InputSchema)
+			continue
+		}
+		if schema["additionalProperties"] != false {
+			t.Errorf("%s: input schema allows undeclared properties", tool.Name)
+		}
 	}
 }

@@ -14,14 +14,13 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tools
+package gwmcp
 
 import (
 	"context"
 	"fmt"
 
-	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
-
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -41,31 +40,31 @@ type listDeploymentsOutput struct {
 	Deployments map[string]gwspec.DeploymentDetailsResponse `json:"deployments"`
 }
 
-func (t *Toolsets) registerDeploymentTools(server *gomcp.Server, reg *toolRegistry) {
-	addTool(reg, server, &gomcp.Tool{
+func (t *Tools) registerDeploymentTools(reg Registrar) {
+	addTool(reg, toolDef{
 		Name:        "list_deployments",
 		Description: "List where an agent is reached and its gateway deployment status.",
 		InputSchema: createSchema(map[string]any{
 			"project_name": stringProperty("Required. Project name where the agent exists."),
 			"agent_name":   stringProperty("Required. Name of the agent to check deployments for."),
 		}, []string{"project_name", "agent_name"}),
-	}, gwaudit.DeploymentRead, listDeployments(t.DeploymentToolset), rbac.AgentRead)
+	}, gwaudit.DeploymentRead, listDeployments(t.Deployments), rbac.AgentRead)
 }
 
-func listDeployments(handler DeploymentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listDeploymentsInput) (*gomcp.CallToolResult, any, error) {
-	return func(ctx context.Context, _ *gomcp.CallToolRequest, input listDeploymentsInput) (*gomcp.CallToolResult, any, error) {
+func listDeployments(handler DeploymentToolsetHandler) func(context.Context, listDeploymentsInput) (any, error) {
+	return func(ctx context.Context, input listDeploymentsInput) (any, error) {
 		if input.ProjectName == "" {
-			return nil, nil, fmt.Errorf("project_name is required")
+			return nil, fmt.Errorf("project_name is required")
 		}
 		if input.AgentName == "" {
-			return nil, nil, fmt.Errorf("agent_name is required")
+			return nil, fmt.Errorf("agent_name is required")
 		}
 
-		ouID := resolveOUID(ctx)
+		ouID := modkit.OrgID(ctx)
 
 		deployments, err := handler.GetAgentDeployments(ctx, ouID, input.ProjectName, input.AgentName)
 		if err != nil {
-			return nil, nil, wrapToolError("list_deployments", err)
+			return nil, wrapToolError("list_deployments", err)
 		}
 
 		response := listDeploymentsOutput{
@@ -74,6 +73,6 @@ func listDeployments(handler DeploymentToolsetHandler) func(context.Context, *go
 			Deployments: gwconv.ConvertToDeploymentDetailsResponse(deployments),
 		}
 
-		return handleToolResult(response, nil)
+		return response, nil
 	}
 }

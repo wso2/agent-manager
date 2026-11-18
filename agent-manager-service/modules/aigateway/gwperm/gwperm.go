@@ -158,10 +158,6 @@ func join(lists ...[]string) []string {
 	return out
 }
 
-// MCPScopes are the permissions of the tools the gateway's toolsets add to
-// the core's MCP server.
-var MCPScopes = []rbac.Permission{DeployNonProduction, LLMProviderRead, LLMProviderUpdate, MCPServerRead}
-
 // RoleGrants is what each predefined role holds, by action name: what the
 // roles held of these permissions under their former names.
 var RoleGrants = map[string][]string{

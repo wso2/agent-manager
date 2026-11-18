@@ -14,10 +14,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tools
+package gwmcp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -26,72 +27,40 @@ import (
 
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
-// pagedEnvMock serves `envs` a page at a time and reports `total`, which a
-// misbehaving upstream may set higher than what it actually returns.
-type pagedEnvMock struct {
+// envListMock lists envs as the organization's environments.
+type envListMock struct {
 	*MockToolsetHandler
-	envs  []string
-	total int32
-	pages int
+	envs []string
 }
 
-func (m *pagedEnvMock) ListEnvironments(ctx context.Context, ouID string, limit int32, offset int32) (*models.EnvironmentListResponse, error) {
-	m.pages++
-	start, end := int(offset), int(offset)+int(limit)
-	if start > len(m.envs) {
-		start = len(m.envs)
+func (m *envListMock) ListEnvironments(context.Context, string) ([]modkit.Environment, error) {
+	out := make([]modkit.Environment, 0, len(m.envs))
+	for _, n := range m.envs {
+		out = append(out, modkit.Environment{ID: "uuid-" + n, Name: n})
 	}
-	if end > len(m.envs) {
-		end = len(m.envs)
-	}
-	page := []models.GatewayEnvironmentResponse{}
-	for _, n := range m.envs[start:end] {
-		page = append(page, models.GatewayEnvironmentResponse{Name: n, UUID: "uuid-" + n})
-	}
-	return &models.EnvironmentListResponse{Environments: page, Total: m.total, Limit: limit, Offset: offset}, nil
+	return out, nil
 }
 
-func TestResolveEnvironmentNamesReadsEveryPage(t *testing.T) {
-	envs := make([]string, 250)
-	for i := range envs {
-		envs[i] = fmt.Sprintf("env-%d", i)
-	}
-	m := &pagedEnvMock{MockToolsetHandler: NewMockToolsetHandler(), envs: envs, total: int32(len(envs))}
+func TestResolveEnvironmentNamesDefaultsToEveryEnvironment(t *testing.T) {
+	m := &envListMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev", "prod"}}
 
 	got, err := resolveEnvironmentNames(context.Background(), "test_tool", m, "ou", nil)
 	if err != nil {
 		t.Fatalf("resolveEnvironmentNames: %v", err)
 	}
-	if len(got) != len(envs) || got[0] != envs[0] || got[len(got)-1] != envs[len(envs)-1] {
-		t.Fatalf("got %d environments (%v ... %v), want all %d", len(got), got[0], got[len(got)-1], len(envs))
-	}
-	if m.pages != 3 {
-		t.Errorf("listed %d pages, want 3", m.pages)
-	}
-}
-
-func TestResolveEnvironmentNamesStopsOnShortUpstream(t *testing.T) {
-	// Total claims more than the upstream ever returns; the loop must end on
-	// the empty page instead of spinning.
-	m := &pagedEnvMock{MockToolsetHandler: NewMockToolsetHandler(), envs: []string{"dev", "prod"}, total: 500}
-
-	got, err := resolveEnvironmentNames(context.Background(), "test_tool", m, "ou", nil)
-	if err != nil {
-		t.Fatalf("resolveEnvironmentNames: %v", err)
-	}
-	if len(got) != 2 {
+	if len(got) != 2 || got[0] != "dev" || got[1] != "prod" {
 		t.Fatalf("got %v, want [dev prod]", got)
 	}
 }
 
 func TestResolveEnvironmentNamesErrorsWhenNoneConfigured(t *testing.T) {
-	m := &pagedEnvMock{MockToolsetHandler: NewMockToolsetHandler()}
+	m := &envListMock{MockToolsetHandler: NewMockToolsetHandler()}
 
 	if _, err := resolveEnvironmentNames(context.Background(), "test_tool", m, "ou", nil); err == nil {
 		t.Fatal("want an error when the organization has no environments")
@@ -112,7 +81,7 @@ func (m providerEnvsMock) ProviderEnvironments(ctx context.Context, ouID, projec
 
 func callAttach(t *testing.T, mock providerEnvsMock, tool string, args map[string]any) (bool, string) {
 	t.Helper()
-	session := setupTestServerWithToolsets(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock, LLMProviderToolset: mock})
+	session := setupTestServerWithToolsets(t, &Tools{AgentConfigs: mock, Core: mock, LLMProviders: mock})
 	args["project_name"], args["agent_name"] = testProjectName, testAgentName
 	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
@@ -208,14 +177,13 @@ func TestAttachLLMProviderEchoesSavedGuardrailNames(t *testing.T) {
 	}
 }
 
-// get_mcp_proxy and get_llm_provider name environments through this map, so
-// environments past the first page must be named too.
-func TestEnvironmentNamesByUUIDReadsEveryPage(t *testing.T) {
+// get_mcp_proxy and get_llm_provider name environments through this map.
+func TestEnvironmentNamesByUUIDNamesEveryEnvironment(t *testing.T) {
 	envs := make([]string, 150)
 	for i := range envs {
 		envs[i] = fmt.Sprintf("env-%d", i)
 	}
-	m := &pagedEnvMock{MockToolsetHandler: NewMockToolsetHandler(), envs: envs, total: int32(len(envs))}
+	m := &envListMock{MockToolsetHandler: NewMockToolsetHandler(), envs: envs}
 
 	names := environmentNamesByUUID(context.Background(), m, "ou")
 
@@ -247,21 +215,17 @@ func TestAttachRejectsUndeclaredArguments(t *testing.T) {
 // Every tool's input schema refuses properties it does not declare.
 func TestEveryToolSchemaRefusesUndeclaredProperties(t *testing.T) {
 	session, _ := setupTestServer(t)
-	res, err := session.ListTools(context.Background(), &gomcp.ListToolsParams{})
-	if err != nil {
-		t.Fatalf("ListTools: %v", err)
+	if len(session.tools) != 11 {
+		t.Fatalf("registered %d tools, want 11", len(session.tools))
 	}
-	if len(res.Tools) < 15 {
-		t.Fatalf("listed %d tools, want every registered tool", len(res.Tools))
-	}
-	for _, tool := range res.Tools {
-		schema, ok := tool.InputSchema.(map[string]any)
-		if !ok {
-			t.Errorf("%s: input schema is %T", tool.Name, tool.InputSchema)
+	for name, tool := range session.tools {
+		var schema map[string]any
+		if err := json.Unmarshal(tool.tool.InputSchema, &schema); err != nil {
+			t.Errorf("%s: input schema: %v", name, err)
 			continue
 		}
 		if schema["additionalProperties"] != false {
-			t.Errorf("%s: input schema allows undeclared properties", tool.Name)
+			t.Errorf("%s: input schema allows undeclared properties", name)
 		}
 	}
 }
@@ -273,16 +237,16 @@ type agentKindMock struct {
 	err          error
 }
 
-func (m agentKindMock) GetAgent(_ context.Context, _, _, agentName string) (*models.AgentResponse, error) {
+func (m agentKindMock) GetAgentByName(_ context.Context, _, _, agentName string) (modkit.Agent, error) {
 	if m.err != nil {
-		return nil, m.err
+		return modkit.Agent{}, m.err
 	}
-	return &models.AgentResponse{Name: agentName, Provisioning: models.Provisioning{Type: m.provisioning}}, nil
+	return modkit.Agent{Name: agentName, Provisioning: m.provisioning}, nil
 }
 
 func callAttachAs(t *testing.T, mock agentKindMock, tool string, args map[string]any) (bool, string) {
 	t.Helper()
-	session := setupTestServerWithToolsets(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock, AgentToolset: mock})
+	session := setupTestServerWithToolsets(t, &Tools{AgentConfigs: mock, Core: mock})
 	args["project_name"], args["agent_name"] = testProjectName, testAgentName
 	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
@@ -359,10 +323,8 @@ func TestAttachFailsBeforeCreateWhenTheAgentLookupFails(t *testing.T) {
 // placed in both.
 type tierMock struct{ *MockToolsetHandler }
 
-func (tierMock) ListEnvironments(_ context.Context, _ string, _, _ int32) (*models.EnvironmentListResponse, error) {
-	return &models.EnvironmentListResponse{Environments: []models.GatewayEnvironmentResponse{
-		{Name: "dev"}, {Name: "prod", IsProduction: true},
-	}, Total: 2}, nil
+func (tierMock) ListEnvironments(context.Context, string) ([]modkit.Environment, error) {
+	return []modkit.Environment{{Name: "dev"}, {Name: "prod", IsProduction: true}}, nil
 }
 
 func (m tierMock) ProviderEnvironments(context.Context, string, string, string, string) ([]string, error) {
@@ -378,9 +340,7 @@ func callAttachWithScopes(t *testing.T, mock tierMock, extraScopes string, args 
 
 func callToolWithScopes(t *testing.T, mock tierMock, tool, extraScopes string, args map[string]any) (bool, string) {
 	t.Helper()
-	session := setupTestServerWithClaims(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock}, &jwtassertion.TokenClaims{
-		OuId: testOrgName, Scope: strings.TrimSpace(unionScopes() + " " + extraScopes),
-	})
+	session := setupTestServerWithScopes(t, &Tools{AgentConfigs: mock, Core: mock}, strings.TrimSpace(unionScopes()+" "+extraScopes))
 	args["project_name"], args["agent_name"] = testProjectName, testAgentName
 	res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: tool, Arguments: args})
 	if err != nil {
@@ -547,7 +507,7 @@ func TestAttachRevokesTheWithheldKeyOfAnExternalAgent(t *testing.T) {
 
 	t.Run("a failed revoke is reported, not fatal", func(t *testing.T) {
 		mock := failingRevokeMock{agentKindMock: newMock(string(utils.ExternalAgent), "dev", "staging"), failEnv: "staging"}
-		session := setupTestServerWithToolsets(t, &Toolsets{AgentConfigToolset: mock, EnvironmentToolset: mock, AgentToolset: mock})
+		session := setupTestServerWithToolsets(t, &Tools{AgentConfigs: mock, Core: mock})
 		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "attach_llm_provider_to_agent", Arguments: map[string]any{
 			"project_name": testProjectName, "agent_name": testAgentName, "provider_id": testProviderID,
 		}})

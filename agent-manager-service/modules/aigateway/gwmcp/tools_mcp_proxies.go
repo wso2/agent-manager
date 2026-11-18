@@ -14,15 +14,14 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tools
+package gwmcp
 
 import (
 	"context"
 	"fmt"
 	"strings"
 
-	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
-
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -66,8 +65,8 @@ type getMCPProxyOutput struct {
 	Endpoints   []mcpProxyEndpointItem `json:"endpoints"`
 }
 
-func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry) {
-	addTool(reg, server, &gomcp.Tool{
+func (t *Tools) registerMCPProxyTools(reg Registrar) {
+	addTool(reg, toolDef{
 		Name: "list_mcp_proxies",
 		Description: "List the MCP proxies in your organization. An MCP proxy publishes an external MCP server through the AI gateway " +
 			"so agents can call its tools with a gateway-issued key. Use a proxy's `id` as the `proxy_id` argument of attach_mcp_proxy_to_agent.",
@@ -75,9 +74,9 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 			"limit":  intProperty(fmt.Sprintf("Optional. Max proxies to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
 			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, nil),
-	}, gwaudit.MCPServerRead, listMCPProxies(t.MCPProxyToolset), gwperm.MCPServerRead)
+	}, gwaudit.MCPServerRead, listMCPProxies(t.MCPProxies), gwperm.MCPServerRead)
 
-	addTool(reg, server, &gomcp.Tool{
+	addTool(reg, toolDef{
 		Name: "get_mcp_proxy",
 		Description: "Get one MCP proxy's details: the upstream MCP server URL, the tools it exposes, its guardrails, " +
 			"and the environments it is deployed to with each deployment's status. " +
@@ -85,18 +84,18 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 		InputSchema: createSchema(map[string]any{
 			"proxy_id": stringProperty("Required. MCP proxy id from list_mcp_proxies."),
 		}, []string{"proxy_id"}),
-	}, gwaudit.MCPServerRead, getMCPProxy(t.MCPProxyToolset, t.EnvironmentToolset), gwperm.MCPServerRead)
+	}, gwaudit.MCPServerRead, getMCPProxy(t.MCPProxies, t.Core), gwperm.MCPServerRead)
 }
 
-func listMCPProxies(handler MCPProxyToolsetHandler) func(context.Context, *gomcp.CallToolRequest, listMCPProxiesInput) (*gomcp.CallToolResult, any, error) {
-	return func(ctx context.Context, _ *gomcp.CallToolRequest, input listMCPProxiesInput) (*gomcp.CallToolResult, any, error) {
+func listMCPProxies(handler MCPProxyToolsetHandler) func(context.Context, listMCPProxiesInput) (any, error) {
+	return func(ctx context.Context, input listMCPProxiesInput) (any, error) {
 		limit, offset, err := resolvePagination(input.Limit, input.Offset)
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
-		resp, err := handler.ListMCPProxies(ctx, resolveOUID(ctx), limit, offset)
+		resp, err := handler.ListMCPProxies(ctx, modkit.OrgID(ctx), limit, offset)
 		if err != nil {
-			return nil, nil, wrapToolError("list_mcp_proxies", err)
+			return nil, wrapToolError("list_mcp_proxies", err)
 		}
 		out := listMCPProxiesOutput{Proxies: []mcpProxyItem{}}
 		if resp != nil {
@@ -110,26 +109,26 @@ func listMCPProxies(handler MCPProxyToolsetHandler) func(context.Context, *gomcp
 				})
 			}
 		}
-		return handleToolResult(out, nil)
+		return out, nil
 	}
 }
 
-func getMCPProxy(handler MCPProxyToolsetHandler, envHandler EnvironmentToolsetHandler) func(context.Context, *gomcp.CallToolRequest, getMCPProxyInput) (*gomcp.CallToolResult, any, error) {
-	return func(ctx context.Context, _ *gomcp.CallToolRequest, input getMCPProxyInput) (*gomcp.CallToolResult, any, error) {
+func getMCPProxy(handler MCPProxyToolsetHandler, core CoreReader) func(context.Context, getMCPProxyInput) (any, error) {
+	return func(ctx context.Context, input getMCPProxyInput) (any, error) {
 		proxyID := strings.TrimSpace(input.ProxyID)
 		if proxyID == "" {
-			return nil, nil, fmt.Errorf("proxy_id is required. Call list_mcp_proxies to see valid proxies")
+			return nil, fmt.Errorf("proxy_id is required. Call list_mcp_proxies to see valid proxies")
 		}
-		ouID := resolveOUID(ctx)
+		ouID := modkit.OrgID(ctx)
 		proxy, err := handler.GetMCPProxy(ctx, ouID, proxyID)
 		if err != nil {
-			return nil, nil, wrapToolError("get_mcp_proxy", err)
+			return nil, wrapToolError("get_mcp_proxy", err)
 		}
 		if proxy == nil {
-			return nil, nil, fmt.Errorf("get_mcp_proxy: MCP proxy service returned an empty response")
+			return nil, fmt.Errorf("get_mcp_proxy: MCP proxy service returned an empty response")
 		}
 
-		envNames := environmentNamesByUUID(ctx, envHandler, ouID)
+		envNames := environmentNamesByUUID(ctx, core, ouID)
 		out := getMCPProxyOutput{
 			ID:          proxy.ID,
 			Name:        proxy.Name,
@@ -162,24 +161,24 @@ func getMCPProxy(handler MCPProxyToolsetHandler, envHandler EnvironmentToolsetHa
 			}
 			out.Endpoints = append(out.Endpoints, item)
 		}
-		return handleToolResult(out, nil)
+		return out, nil
 	}
 }
 
 // environmentNamesByUUID maps environment UUIDs to names so results speak the
 // names other tools take. A failed lookup leaves the map empty and callers
 // fall back to the UUID.
-func environmentNamesByUUID(ctx context.Context, handler EnvironmentToolsetHandler, ouID string) map[string]string {
+func environmentNamesByUUID(ctx context.Context, core CoreReader, ouID string) map[string]string {
 	names := map[string]string{}
-	if handler == nil {
+	if core == nil {
 		return names
 	}
-	envs, err := listAllEnvironments(ctx, handler, ouID)
+	envs, err := core.ListEnvironments(ctx, ouID)
 	if err != nil {
 		return names
 	}
 	for _, env := range envs {
-		names[env.UUID] = env.Name
+		names[env.ID] = env.Name
 	}
 	return names
 }

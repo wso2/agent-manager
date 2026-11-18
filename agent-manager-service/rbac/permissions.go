@@ -16,8 +16,6 @@
 
 package rbac
 
-import "sync"
-
 // Permission is a typed string representing an OAuth2 scope (without the resource server prefix).
 type Permission string
 
@@ -41,8 +39,8 @@ func (p Permission) Scope() string {
 }
 
 // MainMCPScopes returns exactly the permission scopes required by the tools
-// registered on the Agent Manager MCP endpoint: the core's, and those a
-// linked built-in module adds with AddMCPScopes.
+// the core registers on the Agent Manager MCP endpoint. The tools of active
+// modules add their own.
 func MainMCPScopes() []string {
 	permissions := []Permission{
 		ProjectRead,
@@ -55,29 +53,11 @@ func MainMCPScopes() []string {
 		AgentUpdate,
 		EnvironmentRead,
 	}
-	mcpScopesMu.Lock()
-	permissions = append(permissions, mcpScopes...)
-	mcpScopesMu.Unlock()
 	scopes := make([]string, 0, len(permissions))
 	for _, permission := range permissions {
 		scopes = append(scopes, permission.Scope())
 	}
 	return scopes
-}
-
-var (
-	mcpScopesMu sync.Mutex
-	mcpScopes   []Permission
-)
-
-// AddMCPScopes adds the permissions of the MCP tools a built-in module
-// registers on the core's MCP server through its toolsets. It is called from
-// the module package's init, so only a binary that links the module
-// advertises them.
-func AddMCPScopes(perms ...Permission) {
-	mcpScopesMu.Lock()
-	defer mcpScopesMu.Unlock()
-	mcpScopes = append(mcpScopes, perms...)
 }
 
 // Org permissions

@@ -24,12 +24,13 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 func setupWellKnownMux() *http.ServeMux {
 	mux := http.NewServeMux()
-	registerWellKnownRoutes(mux)
+	registerWellKnownRoutes(mux, nil)
 	return mux
 }
 
@@ -209,5 +210,34 @@ func TestWellKnownOAuthProtectedResource_NoAuthRequired(t *testing.T) {
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200 without Authorization header, got %d", rec.Code)
+	}
+}
+
+// toolModules is a module set whose only surface is its MCP tools.
+type toolModules struct {
+	Modules
+	tools []modhost.MCPTool
+}
+
+func (m toolModules) MCPTools() []modhost.MCPTool { return m.tools }
+
+// The MCP metadata advertises the scopes of the active modules' tools after
+// the core's, once each.
+func TestWellKnownMCPMetadataAddsModuleToolScopes(t *testing.T) {
+	withWellKnownConfig(t, "https://am.example.com", []string{"https://idp.example.com"}, nil)
+	mux := http.NewServeMux()
+	registerWellKnownRoutes(mux, toolModules{tools: []modhost.MCPTool{
+		{Permission: "mod-x:things.read"}, {Permission: "mod-x:things.read"}, {Permission: rbac.AgentRead},
+	}})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/.well-known/oauth-protected-resource/mcp", nil))
+
+	var body protectedResourceMetadata
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	want := append(rbac.MainMCPScopes(), rbac.Permission("mod-x:things.read").Scope())
+	if !reflect.DeepEqual(body.ScopesSupported, want) {
+		t.Errorf("expected MCP scopes %v, got %v", want, body.ScopesSupported)
 	}
 }

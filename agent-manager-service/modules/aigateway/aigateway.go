@@ -42,6 +42,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwinit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmcp"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
@@ -62,7 +63,6 @@ func init() {
 	// The environment tier says where an action lands, never what it is.
 	audit.RegisterAxisPermissions(gwperm.DeployNonProduction, gwperm.DeployProduction)
 	// The scopes of the tools the gateway's toolsets add to /mcp.
-	rbac.AddMCPScopes(gwperm.MCPScopes...)
 }
 
 func (module) Manifest() modkit.Manifest {
@@ -133,6 +133,14 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	registerHooks(rt, gw.AgentGateway)
 	gwapi.RegisterRoutes(gwapi.NewModuleRouter(rt), gw)
 	gwapi.RegisterInternalRoutes(gwapi.NewModuleInternalRouter(rt), gw)
+	(&gwmcp.Tools{
+		Deployments:  gwmcp.NewDeploymentHandler(gw.AgentGateway),
+		LLMProviders: gwmcp.NewLLMProviderHandler(gw.LLMProviderService, gw.LLMProviderDeploymentService, gw.PlatformGatewayService),
+		MCPProxies:   gwmcp.NewMCPProxyHandler(gw.MCPProxyService),
+		AgentConfigs: gwmcp.NewAgentConfigHandler(gw.AgentConfigurationService),
+		Core:         rt.Core(),
+		Can:          rt.Can,
+	}).Register(rt)
 	return nil
 }
 
@@ -212,10 +220,9 @@ func currentOptions() Options {
 func Parts(gw *gwwire.Gateway) *builtin.Parts {
 	w := &workers{gw: gw}
 	return &builtin.Parts{
-		MCPTools: gwapi.MCPTools(gw),
-		Init:     w.seed,
-		Start:    w.start,
-		Stop:     w.stop,
+		Init:  w.seed,
+		Start: w.start,
+		Stop:  w.stop,
 	}
 }
 

@@ -41,17 +41,12 @@ type Dependencies struct {
 // environments) are always registered; each extend adds the toolsets of a built-in
 // feature, such as the AI Gateway's LLM provider, MCP proxy, agent configuration and
 // deployment tools.
-func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(http.Handler) http.Handler,
-	extend ...func(*tools.Toolsets),
-) {
+func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(http.Handler) http.Handler) {
 	toolsets := &tools.Toolsets{
 		ProjectToolset:     handlers.NewProjectHandler(deps.InfraResourceManager),
 		AgentToolset:       handlers.NewAgentHandler(deps.AgentManagerService, deps.AgentTokenManagerService),
 		EnvironmentToolset: handlers.NewEnvironmentHandler(deps.EnvironmentService),
 		Modules:            deps.ModuleTools,
-	}
-	for _, e := range extend {
-		e(toolsets)
 	}
 
 	handler := NewHTTPServer(toolsets)

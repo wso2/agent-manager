@@ -21,8 +21,6 @@ package gwapi
 import (
 	"net/http"
 
-	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmcp"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -52,17 +50,6 @@ func RegisterRoutes(rr Router, gw *gwwire.Gateway) {
 func RegisterInternalRoutes(rr InternalRouter, gw *gwwire.Gateway) {
 	RegisterGatewayInternalRoutes(rr, gw.GatewayInternalController)
 	RegisterWebSocketRoutes(rr, gw.WebSocketController)
-}
-
-// MCPTools adds the gateway's toolsets to the core's MCP server: LLM
-// providers, MCP proxies, agent configurations and agent deployments.
-func MCPTools(gw *gwwire.Gateway) func(*tools.Toolsets) {
-	return func(ts *tools.Toolsets) {
-		ts.DeploymentToolset = gwmcp.NewDeploymentHandler(gw.AgentGateway)
-		ts.LLMProviderToolset = gwmcp.NewLLMProviderHandler(gw.LLMProviderService, gw.LLMProviderDeploymentService, gw.PlatformGatewayService)
-		ts.MCPProxyToolset = gwmcp.NewMCPProxyHandler(gw.MCPProxyService)
-		ts.AgentConfigToolset = gwmcp.NewAgentConfigHandler(gw.AgentConfigurationService)
-	}
 }
 
 // notImplemented answers 501 for a route this version does not serve.
