@@ -25,8 +25,12 @@ import type {
 /** Value of a filter that is not narrowing anything. */
 export const ALL = "__all__";
 
-/** Owner filter value for agents that have no owner. Short, as it ends up in shared links. */
-export const NO_OWNER = "none";
+/**
+ * Filter value for "has none": no owner, no LLM provider, no MCP server.
+ * Short, as it ends up in shared links.
+ */
+export const NONE = "none";
+export const NO_OWNER = NONE;
 
 /**
  * Which agents to list by registration. Shadow agents (unregistered) are left out
@@ -227,8 +231,10 @@ export function buildFilterOptions(agents: AgentRegistryEntry[]): AgentRegistryF
     project: sortedOptions(projects),
     owner: ownerOptions,
     tag: sortedOptions(tags),
-    llmProvider: sortedOptions(llmProviders),
-    mcpServer: sortedOptions(mcpServers),
+    // "None" goes first, as with owners: an agent with no LLM provider in Agent Manager
+    // may be calling a model directly, outside the gateway.
+    llmProvider: [{ value: NONE, label: "No LLM provider" }, ...sortedOptions(llmProviders)],
+    mcpServer: [{ value: NONE, label: "No MCP server" }, ...sortedOptions(mcpServers)],
   };
 }
 
@@ -338,6 +344,13 @@ function canReachLlmProvider(
   llmProvider: string,
 ): boolean {
   if (llmProvider === ALL) return true;
+  if (llmProvider === NONE) {
+    // What a shadow agent uses is not known, so it never counts as having none.
+    return (
+      agent.registration === "registered" &&
+      environmentsInScope(agent, environment).every((env) => env.llmProviders.length === 0)
+    );
+  }
   return environmentsInScope(agent, environment).some((env) =>
     env.llmProviders.some((p) => p.id === llmProvider),
   );
@@ -349,6 +362,12 @@ function canReachMcpServer(
   mcpServer: string,
 ): boolean {
   if (mcpServer === ALL) return true;
+  if (mcpServer === NONE) {
+    return (
+      agent.registration === "registered" &&
+      environmentsInScope(agent, environment).every((env) => env.mcpServers.length === 0)
+    );
+  }
   return environmentsInScope(agent, environment).some((env) =>
     env.mcpServers.some((s) => s.id === mcpServer),
   );

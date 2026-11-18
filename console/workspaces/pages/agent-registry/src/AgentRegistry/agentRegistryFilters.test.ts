@@ -19,6 +19,7 @@
 import type { AgentRegistryEntry } from "@agent-management-platform/types";
 import {
   EMPTY_FILTERS,
+  NONE,
   NO_OWNER,
   buildFilterOptions,
   filterAgents,
@@ -202,6 +203,37 @@ describe("registration", () => {
     expect(filterChips(EMPTY_FILTERS, options)).toEqual([]);
     expect(filterChips({ ...EMPTY_FILTERS, registration: "both" }, options)).toEqual([
       { key: "registration", name: "Registration", value: "Registered and unregistered" },
+    ]);
+  });
+});
+
+describe("No LLM provider / No MCP server", () => {
+  // `owned` has no environments, so nothing in any environment.
+  it("finds registered agents with no MCP server in any environment", () => {
+    const result = filterAgents([devOnly, owned], { ...EMPTY_FILTERS, mcpServer: NONE });
+    expect(result.map((a) => a.name)).toEqual(["owned"]);
+  });
+
+  it("looks only at the chosen environment", () => {
+    // devOnly reaches Payments in development only, so it has none in production.
+    const result = filterAgents([devOnly], {
+      ...EMPTY_FILTERS,
+      environment: "production",
+      mcpServer: NONE,
+    });
+    expect(result.map((a) => a.name)).toEqual(["dev-only"]);
+  });
+
+  it("never counts a shadow agent as having none", () => {
+    const filters = { ...EMPTY_FILTERS, registration: "both" as const, llmProvider: NONE };
+    expect(filterAgents([shadow], filters)).toEqual([]);
+  });
+
+  it("is offered first, and named on its chip", () => {
+    const options = buildFilterOptions([devOnly]);
+    expect(options.mcpServer[0]).toEqual({ value: NONE, label: "No MCP server" });
+    expect(filterChips({ ...EMPTY_FILTERS, llmProvider: NONE }, options)).toEqual([
+      { key: "llmProvider", name: "LLM provider", value: "No LLM provider" },
     ]);
   });
 });

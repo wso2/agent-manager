@@ -91,8 +91,7 @@ export function AgentRegistry() {
 
   return (
     <PageLayout
-      title="Agent registry"
-      description="Every agent in the organization, across all projects, with its owner, lifecycle state and where it runs."
+      title="Agent Registry"
       avatar={null}
       actions={
         agents.length > 0 && (

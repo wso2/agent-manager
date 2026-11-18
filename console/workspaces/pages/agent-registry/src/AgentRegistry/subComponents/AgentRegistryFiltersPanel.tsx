@@ -48,13 +48,13 @@ export const FILTERS_PANEL_ID = "agent-registry-filters-panel";
 // Wide enough for two columns of fields.
 const PANEL_WIDTH = 640;
 
-/** Placeholder of each field when nothing is chosen. */
-const ANY_LABELS: Record<PanelFilterKey, string> = {
-  project: "Any project",
-  owner: "Any owner",
-  tag: "Any tag",
-  llmProvider: "Any LLM provider",
-  mcpServer: "Any MCP server",
+/** The option that filters nothing; "All", as in the header's "All environments". */
+const ALL_LABELS: Record<PanelFilterKey, string> = {
+  project: "All projects",
+  owner: "All owners",
+  tag: "All tags",
+  llmProvider: "All LLM providers",
+  mcpServer: "All MCP servers",
 };
 
 interface PanelSelectProps {
@@ -64,7 +64,7 @@ interface PanelSelectProps {
   onDraftChange: (draft: PanelDraft) => void;
 }
 
-/** One field of the panel: a select with "Any …" and the values agents have. */
+/** One field of the panel: a select with "All …" and the values agents have. */
 function PanelSelect({ filterKey, draft, options, onDraftChange }: PanelSelectProps) {
   return (
     <TextInput
@@ -75,7 +75,7 @@ function PanelSelect({ filterKey, draft, options, onDraftChange }: PanelSelectPr
       value={draft[filterKey]}
       onChange={(e) => onDraftChange({ ...draft, [filterKey]: e.target.value })}
     >
-      <MenuItem value={ALL}>{ANY_LABELS[filterKey]}</MenuItem>
+      <MenuItem value={ALL}>{ALL_LABELS[filterKey]}</MenuItem>
       {options[filterKey].map((option) => (
         <MenuItem key={option.value} value={option.value}>
           {option.label}
