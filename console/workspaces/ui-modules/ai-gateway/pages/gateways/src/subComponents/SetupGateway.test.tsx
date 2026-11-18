@@ -1,0 +1,102 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { SetupGateway, type SetupGatewayState } from "./SetupGateway";
+import { keepNewGatewayToken, newGatewayToken } from "./newGatewayToken";
+
+const hoisted = vi.hoisted(() => ({
+  gateway: { uuid: "gw-1", displayName: "Edge One", hosting: "SELF_HOSTED", status: "INACTIVE" },
+}));
+
+vi.mock("@agent-management-platform/api-client", () => ({
+  useGetGateway: () => ({ data: hoisted.gateway, isLoading: false }),
+  isGatewayActive: (gw?: { status?: string }) => gw?.status === "ACTIVE",
+}));
+
+vi.mock("@agent-management-platform/views", async () => {
+  const React = await import("react");
+  return {
+    PageLayout: ({ title, children }: { title: string; children: React.ReactNode }) =>
+      React.createElement("div", null, React.createElement("h1", null, title), children),
+  };
+});
+
+vi.mock("./SelfHostedSetupSteps", () => ({
+  SelfHostedSetupSteps: ({ initialToken }: { initialToken: string | null }) => (
+    <div>steps token={initialToken ?? "none"}</div>
+  ),
+}));
+
+const renderSetup = (state: SetupGatewayState | null = null) =>
+  render(
+    <MemoryRouter initialEntries={[{ pathname: "/org/acme/gateways/setup/gw-1", state }]}>
+      <Routes>
+        <Route path="/org/:orgId/gateways/setup/:gatewayId" element={<SetupGateway />} />
+        <Route path="/org/:orgId/gateways/view/:gatewayId" element={<div>gateway view</div>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+afterEach(() => {
+  hoisted.gateway = { ...hoisted.gateway, hosting: "SELF_HOSTED", status: "INACTIVE" };
+});
+
+describe("SetupGateway", () => {
+  it("passes the token left by the add page to the steps, and forgets it on leaving", () => {
+    keepNewGatewayToken("gw-1", "secret");
+    renderSetup();
+
+    expect(screen.getByRole("heading", { name: "Set up Edge One" })).toBeInTheDocument();
+    expect(screen.getByText("steps token=secret")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Finish later" }));
+    expect(screen.getByText("gateway view")).toBeInTheDocument();
+    expect(newGatewayToken("gw-1")).toBeNull();
+  });
+
+  it("has no token after a reload, and says why when minting failed", () => {
+    renderSetup({ tokenFailed: true, tokenError: "quota reached" });
+
+    expect(screen.getByText("steps token=none")).toBeInTheDocument();
+    expect(
+      screen.getByText(/its token could not be generated\. quota reached\./),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps Done disabled until the gateway connects", () => {
+    renderSetup();
+    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+  });
+
+  it("enables Done once the gateway is active", () => {
+    hoisted.gateway = { ...hoisted.gateway, status: "ACTIVE" };
+    renderSetup();
+
+    expect(screen.queryByRole("button", { name: "Finish later" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByText("gateway view")).toBeInTheDocument();
+  });
+
+  it("sends a managed gateway to its page", () => {
+    hoisted.gateway = { ...hoisted.gateway, hosting: "MANAGED" };
+    renderSetup();
+
+    expect(screen.getByText("gateway view")).toBeInTheDocument();
+  });
+});

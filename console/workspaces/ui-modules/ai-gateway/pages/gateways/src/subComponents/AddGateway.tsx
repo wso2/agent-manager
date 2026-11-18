@@ -50,7 +50,8 @@ import {
   GATEWAY_NAME_MAX_LENGTH,
   type AddSelfHostedGatewayFormValues,
 } from "../form/schema";
-import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
+import { keepNewGatewayToken } from "./newGatewayToken";
+import type { SetupGatewayState } from "./SetupGateway";
 
 const EMPTY_FORM: AddSelfHostedGatewayFormValues = {
   displayName: "",
@@ -59,17 +60,9 @@ const EMPTY_FORM: AddSelfHostedGatewayFormValues = {
   description: "",
 };
 
-interface CreatedGateway {
-  gateway: GatewayResponse;
-  /** Null when minting failed; the setup steps then offer Reconfigure. */
-  token: string | null;
-  tokenError?: string;
-}
-
 /**
- * Create page for a self-hosted gateway. Once the gateway is created the same
- * page shows its setup steps: the registration token exists only in this
- * page's memory, so the steps cannot live on a page reached later.
+ * Create page for a self-hosted gateway. Once the gateway and its registration token
+ * are created, it moves on to the setup page, leaving the token there in memory.
  */
 export function AddGateway() {
   const { orgId = "" } = useParams<{ orgId: string }>();
@@ -83,15 +76,12 @@ export function AddGateway() {
   // Errors show from the first submit on, then follow every edit.
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [created, setCreated] = useState<CreatedGateway | null>(null);
 
   const { mutateAsync: createGateway, isPending: creating } = useCreateSelfHostedGateway();
   const { mutateAsync: createToken, isPending: minting } = useCreateSelfHostedGatewayToken();
   const isPending = creating || minting;
 
-  const isDirty =
-    !created &&
-    (Object.keys(EMPTY_FORM) as (keyof AddSelfHostedGatewayFormValues)[]).some(
+  const isDirty = (Object.keys(EMPTY_FORM) as (keyof AddSelfHostedGatewayFormValues)[]).some(
       (key) => values[key] !== EMPTY_FORM[key],
     );
   const { allowNavigation } = useUnsavedChangesGuard(isDirty);
@@ -116,16 +106,6 @@ export function AddGateway() {
 
   const handleCancel = () => allowNavigation(() => navigate(returnTo));
 
-  const handleDone = () => {
-    if (!created) return;
-    navigate(
-      generatePath(absoluteRouteMap.children.org.children.gateways.children.view.path, {
-        orgId,
-        gatewayId: created.gateway.uuid,
-      }),
-    );
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitted(true);
@@ -149,49 +129,25 @@ export function AddGateway() {
       return;
     }
 
-    let token: string | null = null;
-    let tokenError: string | undefined;
+    const state: SetupGatewayState = {};
     try {
-      token = (await createToken({ orgName: orgId, gatewayId: gateway.uuid })).token;
+      const { token } = await createToken({ orgName: orgId, gatewayId: gateway.uuid });
+      keepNewGatewayToken(gateway.uuid, token);
     } catch (err) {
-      tokenError = getErrorMessage(err) || undefined;
+      state.tokenFailed = true;
+      state.tokenError = getErrorMessage(err) || undefined;
     }
-    setCreated({ gateway, token, tokenError });
-  };
-
-  if (created) {
-    return (
-      <PageLayout
-        title={`Set up ${created.gateway.displayName}`}
-        disableIcon
-        backHref={listHref}
-        backLabel="Back to gateways"
-      >
-        <Stack spacing={3}>
-          {created.token ? (
-            <Alert severity="success">
-              Gateway created. Run the steps below on your own infrastructure to connect it.
-            </Alert>
-          ) : (
-            <Alert severity="warning">
-              Gateway created, but its token could not be generated.
-              {created.tokenError ? ` ${created.tokenError}.` : ""} Use Reconfigure to generate one.
-            </Alert>
-          )}
-          <SelfHostedSetupSteps
-            orgName={orgId}
-            gatewayId={created.gateway.uuid}
-            initialToken={created.token}
-          />
-          <Box display="flex" justifyContent="flex-start">
-            <Button variant="contained" onClick={handleDone}>
-              Done
-            </Button>
-          </Box>
-        </Stack>
-      </PageLayout>
+    // Replace: the gateway now exists, so Back must not return to this form.
+    allowNavigation(() =>
+      navigate(
+        generatePath(absoluteRouteMap.children.org.children.gateways.children.setup.path, {
+          orgId,
+          gatewayId: gateway.uuid,
+        }),
+        { replace: true, state },
+      ),
     );
-  }
+  };
 
   return (
     <PageLayout title="Add gateway" disableIcon backHref={returnTo} backLabel="Back">

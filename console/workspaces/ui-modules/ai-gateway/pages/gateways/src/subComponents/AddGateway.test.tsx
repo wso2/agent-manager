@@ -17,8 +17,9 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { AddGateway } from "./AddGateway";
+import { forgetNewGatewayToken, newGatewayToken } from "./newGatewayToken";
 import { deriveGatewayName } from "../form/schema";
 
 const hoisted = vi.hoisted(() => ({
@@ -54,7 +55,18 @@ vi.mock("@agent-management-platform/views", async () => {
   };
 });
 
-vi.mock("./SelfHostedSetupSteps", () => ({ SelfHostedSetupSteps: () => null }));
+
+/** Stands in for the setup page: shows what the add page handed over. */
+function SetupProbe() {
+  const { gatewayId = "" } = useParams();
+  const { state } = useLocation() as { state: { tokenFailed?: boolean } | null };
+  return (
+    <div>
+      setup {gatewayId} token={newGatewayToken(gatewayId) ?? "none"} failed=
+      {String(!!state?.tokenFailed)}
+    </div>
+  );
+}
 
 /** The add page, with stand-ins for where it can lead. */
 const renderPage = (from?: string) =>
@@ -63,7 +75,7 @@ const renderPage = (from?: string) =>
       <Routes>
         <Route path="/org/:orgId/gateways/add" element={<AddGateway />} />
         <Route path="/org/:orgId/gateways" element={<div>gateway list</div>} />
-        <Route path="/org/:orgId/gateways/view/:gatewayId" element={<div>gateway view</div>} />
+        <Route path="/org/:orgId/gateways/setup/:gatewayId" element={<SetupProbe />} />
         <Route path="/somewhere" element={<div>opener</div>} />
       </Routes>
     </MemoryRouter>,
@@ -153,15 +165,28 @@ describe("AddGateway navigation", () => {
     type(displayNameField(), "Edge One");
     type(screen.getByPlaceholderText("https://gateway.example.com"), "https://edge.example.com");
     fireEvent.click(screen.getByRole("button", { name: "Create gateway" }));
-    await screen.findByRole("heading", { name: "Set up Edge One" });
+    await screen.findByText(/^setup gw-1/);
   };
 
-  it("shows the setup steps on the same page, and Done opens the gateway", async () => {
+  it("opens the setup page with the new token kept in memory", async () => {
     renderPage();
     await create();
 
-    fireEvent.click(screen.getByRole("button", { name: "Done" }));
-    expect(screen.getByText("gateway view")).toBeInTheDocument();
+    expect(
+      screen.getByText("setup gw-1 token=t failed=false", { normalizer: (t) => t.replace(/\s+/g, " ") }),
+    ).toBeInTheDocument();
+    expect(hoisted.createToken).toHaveBeenCalledWith({ orgName: "acme", gatewayId: "gw-1" });
+  });
+
+  it("tells the setup page when the token could not be minted", async () => {
+    forgetNewGatewayToken("gw-1");
+    hoisted.createToken.mockRejectedValueOnce(new Error("boom"));
+    renderPage();
+    await create();
+
+    expect(
+      screen.getByText("setup gw-1 token=none failed=true", { normalizer: (t) => t.replace(/\s+/g, " ") }),
+    ).toBeInTheDocument();
   });
 
   it("returns to the page that opened it on Cancel", () => {

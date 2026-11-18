@@ -74,6 +74,11 @@ export const generatedRouteMap =  {
               "wildPath": "/org/:orgId/gateways/add/*",
               "children": {}
             },
+            "setup": {
+              "path": "/org/:orgId/gateways/setup/:gatewayId",
+              "wildPath": "/org/:orgId/gateways/setup/:gatewayId/*",
+              "children": {}
+            },
             "view": {
               "path": "/org/:orgId/gateways/view/:gatewayId",
               "wildPath": "/org/:orgId/gateways/view/:gatewayId/*",

@@ -93,6 +93,11 @@ export const rootRouteMap: AppRoute = {
                             index: true,
                             children: {},
                         },
+                        setup: {
+                            path: 'setup/:gatewayId',
+                            index: true,
+                            children: {},
+                        },
                         view: {
                             path: 'view/:gatewayId',
                             index: true,
