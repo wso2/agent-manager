@@ -19,32 +19,21 @@
 import { useEffect, useMemo, useState } from "react";
 import { Box, ListingTable, Stack, TablePagination, Typography } from "@wso2/oxygen-ui";
 import { Users } from "@wso2/oxygen-ui-icons-react";
-import {
-  EntityAvatar,
-  displayAgentSubType,
-} from "@agent-management-platform/views";
+import { EntityAvatar } from "@agent-management-platform/views";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
-import { absoluteRouteMap, type AgentRegistryEntry } from "@agent-management-platform/types";
-import { generatePath, useNavigate } from "react-router-dom";
+import type { AgentRegistryEntry } from "@agent-management-platform/types";
+import { agentTypeText, useOpenAgent } from "./agentRow";
 import { EnvironmentStatusChips } from "./EnvironmentStatusChips";
 import { LifecycleChip } from "./LifecycleChip";
+import { NoOwnerLabel } from "./NoOwnerLabel";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
-
-/** Hosting, interface and kind in one line, e.g. "Platform · A2A · Kind reviewer 0.4.1". */
-function typeText(agent: AgentRegistryEntry): string {
-  const hosting = agent.hosting === "platform" ? "Platform" : "External";
-  const kind = agent.kindName
-    ? `Kind ${agent.kindName}${agent.kindVersion ? ` ${agent.kindVersion}` : ""}`
-    : undefined;
-  return [hosting, displayAgentSubType(agent.interface), kind].filter(Boolean).join(" · ");
-}
 
 function OwnerCell({ agent }: { agent: AgentRegistryEntry }) {
   if (!agent.owner) {
     return (
-      <Typography variant="body2" color="warning.main" noWrap>
-        No owner
+      <Typography variant="body2" noWrap>
+        <NoOwnerLabel />
       </Typography>
     );
   }
@@ -65,7 +54,7 @@ export interface AgentRegistryTableProps {
 
 /** The registry's agents, one row each. A row opens the agent in its project. */
 export function AgentRegistryTable({ orgId, agents }: AgentRegistryTableProps) {
-  const navigate = useNavigate();
+  const openAgent = useOpenAgent(orgId);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(ROWS_PER_PAGE_OPTIONS[0]);
 
@@ -78,15 +67,6 @@ export function AgentRegistryTable({ orgId, agents }: AgentRegistryTableProps) {
     () => agents.slice(page * rowsPerPage, (page + 1) * rowsPerPage),
     [agents, page, rowsPerPage],
   );
-
-  const openAgent = (agent: AgentRegistryEntry) =>
-    navigate(
-      generatePath(absoluteRouteMap.children.org.children.projects.children.agents.path, {
-        orgId,
-        projectId: agent.projectName,
-        agentId: agent.name,
-      }),
-    );
 
   return (
     // Wide table: it scrolls inside its own box so the page itself never scrolls sideways.
@@ -132,7 +112,7 @@ export function AgentRegistryTable({ orgId, agents }: AgentRegistryTableProps) {
                         component="div"
                         sx={{ maxWidth: 180 }}
                       >
-                        {typeText(agent)}
+                        {agentTypeText(agent)}
                       </Typography>
                     </Box>
                   </Stack>

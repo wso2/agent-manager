@@ -22,6 +22,9 @@ import {
   NO_OWNER,
   buildFilterOptions,
   filterAgents,
+  filterChips,
+  filtersFromSearchParams,
+  filtersToSearchParams,
   isFiltered,
 } from "./agentRegistryFilters";
 
@@ -103,8 +106,8 @@ describe("filterAgents", () => {
 
 describe("buildFilterOptions", () => {
   it("offers 'No owner' first when an agent has no owner", () => {
-    const { owners } = buildFilterOptions([owned, devOnly]);
-    expect(owners.map((o) => o.label)).toEqual(["No owner", "Owner One"]);
+    const { owner } = buildFilterOptions([owned, devOnly]);
+    expect(owner.map((o) => o.label)).toEqual(["No owner", "Owner One"]);
   });
 });
 
@@ -112,5 +115,36 @@ describe("isFiltered", () => {
   it("ignores a blank search", () => {
     expect(isFiltered({ ...EMPTY_FILTERS, search: "  " })).toBe(false);
     expect(isFiltered({ ...EMPTY_FILTERS, tag: "team:hr" })).toBe(true);
+  });
+});
+
+describe("URL", () => {
+  it("keeps only the filters that are set, and other parameters", () => {
+    const params = filtersToSearchParams(
+      { ...EMPTY_FILTERS, mcpServer: payments.id, environment: "production" },
+      new URLSearchParams("view=tiles"),
+    );
+    expect(params.toString()).toBe("view=tiles&env=production&mcp=payments-mcp");
+  });
+
+  it("reads back what it wrote", () => {
+    const filters = { ...EMPTY_FILTERS, search: "bot", owner: NO_OWNER, tag: "team:hr" };
+    expect(filtersFromSearchParams(filtersToSearchParams(filters, new URLSearchParams()))).toEqual(
+      filters,
+    );
+  });
+});
+
+describe("filterChips", () => {
+  it("names each applied panel filter with its label", () => {
+    const options = buildFilterOptions([devOnly, owned]);
+    const chips = filterChips(
+      { ...EMPTY_FILTERS, owner: NO_OWNER, mcpServer: payments.id, lifecycleState: "active" },
+      options,
+    );
+    expect(chips).toEqual([
+      { key: "owner", name: "Owner", value: "No owner" },
+      { key: "mcpServer", name: "MCP server", value: "Payments" },
+    ]);
   });
 });

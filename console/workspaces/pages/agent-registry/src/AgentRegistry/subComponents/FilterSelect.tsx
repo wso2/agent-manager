@@ -35,7 +35,6 @@ export function FilterSelect({ allLabel, ariaLabel, value, options, onChange }: 
     <Select
       size="small"
       variant="outlined"
-      displayEmpty
       value={value}
       onChange={(event) => onChange(event.target.value as string)}
       inputProps={{ "aria-label": ariaLabel }}

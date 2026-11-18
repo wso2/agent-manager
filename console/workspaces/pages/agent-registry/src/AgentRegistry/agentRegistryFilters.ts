@@ -23,29 +23,37 @@ import type {
 } from "@agent-management-platform/types";
 
 /** Value of a filter that is not narrowing anything. */
-export const ALL = "";
+export const ALL = "__all__";
 
-/** Owner filter value for agents that have no owner. */
-export const NO_OWNER = "__no-owner__";
+/** Owner filter value for agents that have no owner. Short, as it ends up in shared links. */
+export const NO_OWNER = "none";
 
 /** The registry's filters. Each one is a single value, or ALL. */
 export interface AgentRegistryFilters {
   search: string;
-  project: string;
+  /** Set in the page header. Also decides where the LLM provider and MCP server filters look. */
   environment: string;
-  owner: string;
+  /** Set with the quick toggle. */
   lifecycleState: string;
+  /** The rest are set in the Filters panel. */
+  project: string;
+  owner: string;
   tag: string;
   llmProvider: string;
   mcpServer: string;
 }
 
+/** The filters the Filters panel edits. */
+export const PANEL_FILTER_KEYS = ["project", "owner", "tag", "llmProvider", "mcpServer"] as const;
+export type PanelFilterKey = (typeof PANEL_FILTER_KEYS)[number];
+export type PanelFilters = Pick<AgentRegistryFilters, PanelFilterKey>;
+
 export const EMPTY_FILTERS: AgentRegistryFilters = {
   search: "",
-  project: ALL,
   environment: ALL,
-  owner: ALL,
   lifecycleState: ALL,
+  project: ALL,
+  owner: ALL,
   tag: ALL,
   llmProvider: ALL,
   mcpServer: ALL,
@@ -58,21 +66,70 @@ export const LIFECYCLE_LABELS: Record<AgentRegistryLifecycleState, string> = {
   retired: "Retired",
 };
 
+/** Name shown on a panel filter's chip and field. */
+export const PANEL_FILTER_NAMES: Record<PanelFilterKey, string> = {
+  project: "Project",
+  owner: "Owner",
+  tag: "Tag",
+  llmProvider: "LLM provider",
+  mcpServer: "MCP server",
+};
+
+// ---- URL ----------------------------------------------------------------
+
+/** Query parameter for each filter. Filters set to ALL are left out of the URL. */
+const URL_PARAMS: Record<keyof AgentRegistryFilters, string> = {
+  search: "q",
+  environment: "env",
+  lifecycleState: "lifecycle",
+  project: "project",
+  owner: "owner",
+  tag: "tag",
+  llmProvider: "llm",
+  mcpServer: "mcp",
+};
+
+export function filtersFromSearchParams(params: URLSearchParams): AgentRegistryFilters {
+  const filters = { ...EMPTY_FILTERS };
+  for (const [key, param] of Object.entries(URL_PARAMS) as [keyof AgentRegistryFilters, string][]) {
+    const value = params.get(param);
+    if (value) filters[key] = value;
+  }
+  return filters;
+}
+
+/** Writes the filters into the URL, keeping any other query parameters (such as the view). */
+export function filtersToSearchParams(
+  filters: AgentRegistryFilters,
+  current: URLSearchParams,
+): URLSearchParams {
+  const next = new URLSearchParams(current);
+  for (const [key, param] of Object.entries(URL_PARAMS) as [keyof AgentRegistryFilters, string][]) {
+    const value = filters[key];
+    const isEmpty = key === "search" ? value.trim() === "" : value === ALL;
+    if (isEmpty) next.delete(param);
+    else next.set(param, value);
+  }
+  return next;
+}
+
+// ---- Options ------------------------------------------------------------
+
 /** One option of a filter dropdown. */
 export interface FilterOption {
   value: string;
   label: string;
 }
 
-/** The options each filter dropdown offers, built from the agents in the registry. */
+/** The options each filter offers, built from the agents in the registry. */
 export interface AgentRegistryFilterOptions {
-  projects: FilterOption[];
   environments: FilterOption[];
-  owners: FilterOption[];
   lifecycleStates: FilterOption[];
-  tags: FilterOption[];
-  llmProviders: FilterOption[];
-  mcpServers: FilterOption[];
+  project: FilterOption[];
+  owner: FilterOption[];
+  tag: FilterOption[];
+  llmProvider: FilterOption[];
+  mcpServer: FilterOption[];
 }
 
 /** Labels are shown and matched as `key:value`. */
@@ -119,15 +176,39 @@ export function buildFilterOptions(agents: AgentRegistryEntry[]): AgentRegistryF
   }
 
   return {
-    projects: sortedOptions(projects),
     environments: sortedOptions(environments),
-    owners: ownerOptions,
     lifecycleStates: Object.entries(LIFECYCLE_LABELS).map(([value, label]) => ({ value, label })),
-    tags: sortedOptions(tags),
-    llmProviders: sortedOptions(llmProviders),
-    mcpServers: sortedOptions(mcpServers),
+    project: sortedOptions(projects),
+    owner: ownerOptions,
+    tag: sortedOptions(tags),
+    llmProvider: sortedOptions(llmProviders),
+    mcpServer: sortedOptions(mcpServers),
   };
 }
+
+// ---- Applied-filter chips -----------------------------------------------
+
+/** One applied panel filter, shown as a removable chip. */
+export interface FilterChip {
+  key: PanelFilterKey;
+  name: string;
+  value: string;
+}
+
+/** A chip for each panel filter that is set, in panel order. */
+export function filterChips(
+  filters: AgentRegistryFilters,
+  options: AgentRegistryFilterOptions,
+): FilterChip[] {
+  return PANEL_FILTER_KEYS.filter((key) => filters[key] !== ALL).map((key) => ({
+    key,
+    name: PANEL_FILTER_NAMES[key],
+    // A value no agent has any more (from an old link) still shows, as its raw id.
+    value: options[key].find((o) => o.value === filters[key])?.label ?? filters[key],
+  }));
+}
+
+// ---- Matching -----------------------------------------------------------
 
 function matchesSearch(agent: AgentRegistryEntry, search: string): boolean {
   const term = search.trim().toLowerCase();
