@@ -32,6 +32,67 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
+// fakePolicyHubClient is a canned PolicyHubClient.
+type fakePolicyHubClient struct {
+	policies []HubPolicy
+	ok       bool
+}
+
+func (f fakePolicyHubClient) Snapshot(_ context.Context) ([]HubPolicy, bool) {
+	return f.policies, f.ok
+}
+
+// undeployedProviderFixture is a provider with no placements and one managed gateway
+// reporting the given policies.
+func undeployedProviderFixture(policies ...map[string]interface{}) *LLMProviderService {
+	provider := &models.LLMProvider{UUID: uuid.New()}
+	providerRepo := &repomocks.LLMProviderRepositoryMock{
+		GetByUUIDFunc: func(_ string, _ string) (*models.LLMProvider, error) { return provider, nil },
+	}
+	deploymentRepo := &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) { return []string{}, nil },
+	}
+	gatewayRepo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{catalogGateway("managed", policies...)}, nil
+		},
+	}
+	return &LLMProviderService{providerRepo: providerRepo, gatewayRepo: gatewayRepo, deploymentRepo: deploymentRepo}
+}
+
+func TestListAvailableLLMPolicies_UndeployedProviderUsesOrgManagedScope(t *testing.T) {
+	svc := undeployedProviderFixture(map[string]interface{}{"name": "word-count-guardrail", "version": "v1.0.0"})
+	svc.policyHub = fakePolicyHubClient{ok: true, policies: []HubPolicy{
+		{Name: "word-count-guardrail", Version: "v1.0.0", Categories: []string{"Guardrails"}},
+		{Name: "pii-masking", Version: "v1.0.0", Categories: []string{"Guardrails"}},
+	}}
+
+	resp, err := svc.ListAvailableLLMPolicies(context.Background(), "org-uuid", uuid.New().String())
+
+	require.NoError(t, err)
+	assert.Equal(t, models.PolicyAvailabilityScopeOrgManaged, resp.AvailabilityScope)
+	assert.True(t, resp.HubAvailable)
+	require.Len(t, resp.List, 2)
+	assert.Equal(t, int32(2), resp.Count)
+	assert.Equal(t, "word-count-guardrail", resp.List[0].Name)
+	assert.Equal(t, models.PolicyCatalogStatusInstalled, resp.List[0].Status)
+	assert.Equal(t, "pii-masking", resp.List[1].Name)
+	assert.Equal(t, models.PolicyCatalogStatusNotInstalled, resp.List[1].Status)
+}
+
+func TestListAvailableLLMPolicies_HubUnavailable(t *testing.T) {
+	svc := undeployedProviderFixture(map[string]interface{}{"name": "word-count-guardrail", "version": "v1.0.0"})
+	svc.policyHub = fakePolicyHubClient{ok: false}
+
+	resp, err := svc.ListAvailableLLMPolicies(context.Background(), "org-uuid", uuid.New().String())
+
+	require.NoError(t, err)
+	assert.False(t, resp.HubAvailable)
+	require.Len(t, resp.List, 1)
+	assert.Equal(t, "word-count-guardrail", resp.List[0].Name)
+	assert.Equal(t, models.PolicyCatalogStatusInstalled, resp.List[0].Status)
+}
+
 // -----------------------------------------------------------------------------
 // ListAvailableLLMPolicies — surfaces full gateway-reported guardrail definitions
 // for the console, replacing the external policy-hub catalog for LLM guardrails.

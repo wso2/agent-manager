@@ -587,7 +587,7 @@ func TestResolveCatalogGateways_DeployedScope(t *testing.T) {
 		GetByUUIDFunc: func(_ string) (*models.Gateway, error) { return selfHosted, nil },
 	}
 
-	gateways, scope, err := resolveCatalogGateways(context.Background(), gatewayRepo, deploymentRepo, "org-uuid", &artifactUUID)
+	gateways, scope, err := resolveCatalogGateways(context.Background(), gatewayRepo, deploymentRepo, "org-uuid", []uuid.UUID{artifactUUID})
 
 	require.NoError(t, err)
 	assert.Equal(t, models.PolicyAvailabilityScopeDeployed, scope)
@@ -610,7 +610,7 @@ func TestResolveCatalogGateways_UndeployedFallsBackToOrgManaged(t *testing.T) {
 		},
 	}
 
-	for name, id := range map[string]*uuid.UUID{"placed but empty": &artifactUUID, "no artifact": nil} {
+	for name, id := range map[string][]uuid.UUID{"placed but empty": {artifactUUID}, "no artifact": nil} {
 		t.Run(name, func(t *testing.T) {
 			gateways, scope, err := resolveCatalogGateways(context.Background(), gatewayRepo, deploymentRepo, "org-uuid", id)
 

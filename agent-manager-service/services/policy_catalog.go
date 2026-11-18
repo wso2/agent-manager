@@ -17,9 +17,13 @@
 package services
 
 import (
+	"context"
 	"sort"
 
+	"github.com/google/uuid"
+
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // Hub categories that decide which picker a policy belongs to. Matched exactly as the hub sends them.
@@ -178,4 +182,27 @@ func buildPolicyCatalog(kind models.PolicyCatalogKind, installed installedPolici
 		return items[i].Name < items[j].Name
 	})
 	return items
+}
+
+// buildCatalogResponse resolves the gateways for the artifacts, reads what they have installed and merges it with
+// the policy hub snapshot. A nil hub counts as unavailable.
+func buildCatalogResponse(ctx context.Context, kind models.PolicyCatalogKind, gatewayRepo repositories.GatewayRepository,
+	deploymentRepo repositories.DeploymentRepository, hub PolicyHubClient, orgUUID string, artifactUUIDs []uuid.UUID,
+) (*models.PolicyCatalogResponse, error) {
+	gateways, scope, err := resolveCatalogGateways(ctx, gatewayRepo, deploymentRepo, orgUUID, artifactUUIDs)
+	if err != nil {
+		return nil, err
+	}
+	var hubPolicies []HubPolicy
+	hubOK := false
+	if hub != nil {
+		hubPolicies, hubOK = hub.Snapshot(ctx)
+	}
+	items := buildPolicyCatalog(kind, collectInstalledPolicies(gateways), hubPolicies, hubOK)
+	return &models.PolicyCatalogResponse{
+		Count:             int32(len(items)),
+		List:              items,
+		HubAvailable:      hubOK,
+		AvailabilityScope: scope,
+	}, nil
 }

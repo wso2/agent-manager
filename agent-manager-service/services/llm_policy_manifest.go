@@ -89,21 +89,35 @@ func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo reposi
 		return map[string]llmPolicyManifestItem{}, nil
 	}
 
-	gateways, _, err := resolveCatalogGateways(ctx, gatewayRepo, deploymentRepo, orgUUID, &providerUUID)
+	gateways, _, err := resolveCatalogGateways(ctx, gatewayRepo, deploymentRepo, orgUUID, []uuid.UUID{providerUUID})
 	if err != nil {
 		return nil, err
 	}
 	return intersectLLMPolicies(gateways), nil
 }
 
-// resolveCatalogGateways returns the gateways a policy catalog is checked against. When artifactUUID is set and the
-// artifact is placed on at least one gateway of the org, those gateways (of any hosting) are returned with the
-// deployed scope. Otherwise the org's active managed gateways are returned with the org_managed scope.
-func resolveCatalogGateways(ctx context.Context, gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, orgUUID string, artifactUUID *uuid.UUID) ([]*models.Gateway, models.PolicyAvailabilityScope, error) {
-	if artifactUUID != nil {
-		gatewayUUIDs, err := deploymentRepo.PlacedGateways(ctx, orgUUID, *artifactUUID)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to list deployed gateways for provider: %w", err)
+// resolveCatalogGateways returns the gateways a policy catalog is checked against. When the artifacts are placed on at
+// least one gateway of the org, those gateways (of any hosting) are returned with the deployed scope. Otherwise (no
+// artifacts, no deployment repository, or none placed) the org's active managed gateways are returned with the
+// org_managed scope. A resource deployed through several artifacts, as an MCP proxy is, passes all of them.
+func resolveCatalogGateways(ctx context.Context, gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, orgUUID string, artifactUUIDs []uuid.UUID) ([]*models.Gateway, models.PolicyAvailabilityScope, error) {
+	if gatewayRepo == nil {
+		return []*models.Gateway{}, models.PolicyAvailabilityScopeOrgManaged, nil
+	}
+	if deploymentRepo != nil && len(artifactUUIDs) > 0 {
+		var gatewayUUIDs []string
+		seen := map[string]struct{}{}
+		for _, artifactUUID := range artifactUUIDs {
+			placed, err := deploymentRepo.PlacedGateways(ctx, orgUUID, artifactUUID)
+			if err != nil {
+				return nil, "", fmt.Errorf("failed to list deployed gateways: %w", err)
+			}
+			for _, id := range placed {
+				if _, dup := seen[id]; !dup {
+					seen[id] = struct{}{}
+					gatewayUUIDs = append(gatewayUUIDs, id)
+				}
+			}
 		}
 
 		gateways := make([]*models.Gateway, 0, len(gatewayUUIDs))

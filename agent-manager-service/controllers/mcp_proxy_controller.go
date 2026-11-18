@@ -169,12 +169,18 @@ func (c *mcpProxyController) ListAvailableMCPPolicies(w http.ResponseWriter, r *
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
+	proxyID := r.URL.Query().Get("proxyId")
 
-	log.Info("ListAvailableMCPPolicies: starting", "ouID", ouID)
+	log.Info("ListAvailableMCPPolicies: starting", "ouID", ouID, "proxyID", proxyID)
 
-	resp, err := c.mcpProxyService.ListAvailableMCPPolicies(ctx, ouID)
+	resp, err := c.mcpProxyService.ListAvailableMCPPolicies(ctx, ouID, proxyID)
 	if err != nil {
-		log.Error("ListAvailableMCPPolicies: failed", "ouID", ouID, "error", err)
+		if errors.Is(err, utils.ErrMCPProxyNotFound) {
+			log.Warn("ListAvailableMCPPolicies: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
+			utils.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
+			return
+		}
+		log.Error("ListAvailableMCPPolicies: failed", "ouID", ouID, "proxyID", proxyID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list available MCP policies")
 		return
 	}

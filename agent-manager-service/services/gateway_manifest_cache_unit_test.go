@@ -137,7 +137,7 @@ func TestGatewayManifestPushDoesNotLeakAcrossOrgs(t *testing.T) {
 	require.Len(t, llm, 1)
 	require.Contains(t, llm, "word-count-guardrail\x00v1")
 
-	mcp, err := (&MCPProxyService{gatewayRepo: repo}).ListAvailableMCPPolicies(ctx, "org-b")
+	mcp, err := (&MCPProxyService{gatewayRepo: repo}).ListAvailableMCPPolicies(ctx, "org-b", "")
 	require.NoError(t, err)
 	require.Len(t, mcp.List, 1)
 	require.Equal(t, "word-count-guardrail", mcp.List[0].Name)

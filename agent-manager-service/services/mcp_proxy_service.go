@@ -28,7 +28,6 @@ import (
 	"net/http"
 	"regexp"
 	"slices"
-	"sort"
 	"strings"
 	"time"
 
@@ -109,6 +108,8 @@ type MCPProxyService struct {
 	core                   *reconcile.Core
 	kind                   *MCPProxyKind
 	isExternalAgent        externalAgentLookup
+	// policyHub supplies the public policy catalog merged into the MCP policy listing; nil disables it.
+	policyHub PolicyHubClient
 	// getProject resolves a project by name in OpenChoreo; nil treats every project as existing.
 	getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
 }
@@ -137,6 +138,7 @@ func NewMCPProxyService(
 	core *reconcile.Core,
 	kind *MCPProxyKind,
 	ocClient client.OpenChoreoClient,
+	policyHub PolicyHubClient,
 ) *MCPProxyService {
 	var getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
 	if ocClient != nil {
@@ -144,6 +146,7 @@ func NewMCPProxyService(
 	}
 	return &MCPProxyService{
 		isExternalAgent:      externalAgentLookupFrom(ocClient),
+		policyHub:            policyHub,
 		getProject:           getProject,
 		core:                 core,
 		kind:                 kind,
@@ -357,77 +360,30 @@ func (s *MCPProxyService) List(ctx context.Context, orgUUID string, projectUUID 
 	return resp, nil
 }
 
-// ListAvailableMCPPolicies returns the policy versions every catalog gateway in the organization
-// (listCatalogGateways) reports. Gateways that have not reported a manifest yet are left out
-// (see gatewayManifest).
-func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID string) (*models.PolicyCatalogResponse, error) {
-	_ = ctx
-	// Task 5: replace with buildPolicyCatalog (hub merge, not_installed, custom, proxyId scoping). Stub maps installed items only.
-	if s.gatewayRepo == nil {
-		return &models.PolicyCatalogResponse{List: []models.PolicyCatalogItem{}, AvailabilityScope: models.PolicyAvailabilityScopeOrgManaged}, nil
-	}
-
-	gateways, err := listCatalogGateways(s.gatewayRepo, orgUUID)
-	if err != nil {
-		return nil, err
-	}
-
-	var available map[string]mcpPolicyAvailableItem
-	seenGateway := false
-	for _, gateway := range gateways {
-		manifest, known := gatewayManifest(gateway)
-		if !known {
-			continue
-		}
-		gatewayPolicies := map[string]mcpPolicyAvailableItem{}
-		for _, policy := range extractGatewayPolicyManifestItems(manifest) {
-			if policy.Name == "" || policy.Version == "" {
-				continue
+// ListAvailableMCPPolicies returns the MCP policy catalog: policies installed on the gateways the proxy is checked
+// against, merged with the public policy hub. When proxyID (a handle) is set and the proxy is placed on gateways,
+// those gateways are used (deployed scope); otherwise the org's active managed gateways (org_managed scope).
+// An unknown proxy fails with utils.ErrMCPProxyNotFound.
+func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID, proxyID string) (*models.PolicyCatalogResponse, error) {
+	var artifactUUIDs []uuid.UUID
+	if handle := strings.TrimSpace(proxyID); handle != "" {
+		proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, utils.ErrMCPProxyNotFound
 			}
-			key := policy.Name + "\x00" + policy.Version
-			gatewayPolicies[key] = policy
+			return nil, fmt.Errorf("failed to get MCP proxy: %w", err)
 		}
-		if !seenGateway {
-			available = gatewayPolicies
-			seenGateway = true
-			continue
-		}
-		for key := range available {
-			if _, ok := gatewayPolicies[key]; !ok {
-				delete(available, key)
+		// Deployments are keyed by each (endpoint, environment) artifact UUID, never by the proxy's own.
+		for _, endpoint := range proxy.Endpoints {
+			for _, binding := range endpoint.Environments {
+				if binding.ArtifactUUID != uuid.Nil {
+					artifactUUIDs = append(artifactUUIDs, binding.ArtifactUUID)
+				}
 			}
 		}
 	}
-
-	if available == nil {
-		available = map[string]mcpPolicyAvailableItem{}
-	}
-	sorted := make([]mcpPolicyAvailableItem, 0, len(available))
-	for _, item := range available {
-		sorted = append(sorted, item)
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].Name == sorted[j].Name {
-			return sorted[i].Version < sorted[j].Version
-		}
-		return sorted[i].Name < sorted[j].Name
-	})
-	items := make([]models.PolicyCatalogItem, 0, len(sorted))
-	for _, item := range sorted {
-		items = append(items, models.PolicyCatalogItem{
-			Name:       item.Name,
-			Version:    item.Version,
-			Source:     models.PolicyCatalogSourceHub,
-			Status:     models.PolicyCatalogStatusInstalled,
-			Categories: []string{},
-		})
-	}
-
-	return &models.PolicyCatalogResponse{
-		Count:             int32(len(items)),
-		List:              items,
-		AvailabilityScope: models.PolicyAvailabilityScopeOrgManaged,
-	}, nil
+	return buildCatalogResponse(ctx, models.PolicyCatalogKindMCP, s.gatewayRepo, s.deploymentRepo, s.policyHub, orgUUID, artifactUUIDs)
 }
 
 // Get retrieves an MCP proxy by handle.
@@ -1037,7 +993,6 @@ func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, pr
 }
 
 // mcpPolicyAvailableItem identifies one gateway-installed policy version.
-// Task 5: remove once the MCP catalog is built by buildPolicyCatalog.
 type mcpPolicyAvailableItem struct {
 	Name    string
 	Version string

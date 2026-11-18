@@ -112,6 +112,7 @@ var serviceProviderSet = wire.NewSet(
 	services.NewAgentAPIKeyService,
 	services.NewLLMProxyDeploymentService,
 	services.NewMCPProxyService,
+	ProvidePolicyHubClient,
 	services.NewProjectMCPProxyService,
 	services.NewMCPProxyScopeService,
 	// MCPProxyScopeService only needs the narrow redeploy surface; bind it to
