@@ -175,7 +175,7 @@ func (c *policyHubClient) fetchPage(ctx context.Context, offset int) (*hubPageRe
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("policy hub returned status %d", resp.StatusCode)
 	}
