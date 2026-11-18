@@ -31,13 +31,13 @@ import {
 } from "@wso2/oxygen-ui";
 import { ChartTooltip, LineChart, XAxis } from "@wso2/oxygen-ui-charts-react";
 import { Activity, Workflow } from "@wso2/oxygen-ui-icons-react";
-import { generatePath, Link, useParams } from "react-router-dom";
+import { generatePath, Link, useLocation, useParams } from "react-router-dom";
 import {
   absoluteRouteMap,
   type EvaluationLevel,
   TraceListTimeRange,
 } from "@agent-management-platform/types";
-import { useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
+import { useEvalResultView, useMonitorScoresTimeSeriesForEvaluators } from "@agent-management-platform/api-client";
 import MetricsTooltip from "./MetricsTooltip";
 import { LEVEL_CONFIG, levelChipSx } from "./levelConfig";
 
@@ -194,6 +194,15 @@ const PerformanceByEvaluatorCard: React.FC<PerformanceByEvaluatorCardProps> = ({
     () => allLines.filter((l) => !hiddenSeries.has(l.dataKey)),
     [allLines, hiddenSeries],
   );
+
+  const { pathname } = useLocation();
+  const hasVisibleScore = !isFetching && timeSeriesByEvaluator?.evaluators.some(
+    ({ evaluatorName, points }) =>
+      evaluatorNames.includes(evaluatorName) &&
+      !hiddenSeries.has(evaluatorName) &&
+      points.some(({ aggregations }) => typeof aggregations?.["mean"] === "number"),
+  );
+  useEvalResultView("timeseries", hasVisibleScore ? pathname : undefined);
 
   const hasData = chartData.length > 0;
 

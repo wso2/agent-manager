@@ -36,12 +36,8 @@ import { useAgentWizardReturn } from "./utils/useAgentWizardReturn";
  * here on top of that is the *choice* made at each fork — which the route alone
  * does not say, since a user can also arrive by deep link.
  *
- * Abandonment is deliberately not emitted from here. The wizard has no single
- * unmount that means "gave up" (each flow navigates away on success), so any
- * client-side flag would be bookkeeping that drifts. It is instead derived in
- * Moesif: a wizard-step-viewed with no amp.agent-development.create-agent event
- * later in the same session is an abandonment, and that join is exactly what
- * having both streams under one user_id is for.
+ * Each form tracks its explicit Cancel action. Route unmounts also happen
+ * on successful creation and between steps.
  */
 export const AddNewAgent: React.FC = () => {
   const navigate = useNavigate();

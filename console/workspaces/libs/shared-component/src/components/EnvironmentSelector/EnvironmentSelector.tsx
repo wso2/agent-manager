@@ -16,6 +16,7 @@
  * under the License.
  */
 
+import { ConsoleAction, useTrack } from "@agent-management-platform/api-client";
 import { FormControl, MenuItem, Select, Typography } from "@wso2/oxygen-ui";
 import { useMemo } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
@@ -35,6 +36,7 @@ export function EnvironmentSelector() {
     }>();
     const { pathname } = useLocation();
     const navigate = useNavigate();
+    const { track } = useTrack();
 
     const pipelineEnvironments = usePipelineEnvironments(orgId, projectId);
 
@@ -53,6 +55,9 @@ export function EnvironmentSelector() {
                 value={envId}
                 onChange={(e) => {
                     const newEnvId = e.target.value as string;
+                    if (newEnvId !== envId) {
+                        track(ConsoleAction.ContextSwitch, { switch_type: "environment" });
+                    }
                     navigate(
                         pathname.replace(`/environment/${envId}`, `/environment/${newEnvId}`),
                     );

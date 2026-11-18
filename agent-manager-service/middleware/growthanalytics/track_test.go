@@ -737,6 +737,31 @@ func TestTrack_ApplicationIDMode_SendsWithoutCallerJWT(t *testing.T) {
 	waitForEvent(t, fs)
 }
 
+func TestMCPReporterUsesCurrentRequestAttributionAndToolOutcome(t *testing.T) {
+	withGrowthAnalyticsConfig(t, "https://collector.example")
+	sender, tokens := withFakeSender(t)
+
+	request := authedRequest(http.MethodPost, "https://service.example/mcp?sensitive=value")
+	ctx := jwtassertion.ContextWithTokenClaims(request.Context(), &jwtassertion.TokenClaims{
+		Sub: "request-user", OuId: "request-org",
+	})
+	report := NewMCPReporter(request.WithContext(ctx))
+	if report == nil {
+		t.Fatal("expected an authorized MCP reporter")
+	}
+	report(t.Context(), "amp.agent-development.build-agent", map[string]interface{}{
+		"action": "built-agent", "channel": "mcp", "outcome": DynamicOutcome,
+	}, false)
+	event := waitForEvent(t, sender)
+	if event.UserID != "request-user" || event.CompanyID != "request-org" || len(*tokens) != 1 || (*tokens)[0] != callerToken {
+		t.Fatalf("event did not use current HTTP request identity: %+v", event)
+	}
+	if event.Request.URI != "https://service.example/mcp" || event.Response.Status != http.StatusInternalServerError ||
+		event.Metadata["outcome"] != "failure" || event.Metadata["channel"] != "mcp" {
+		t.Fatalf("unexpected MCP event: %+v", event)
+	}
+}
+
 // TestSharedHTTPClient_RefusesRedirects: a redirect must not carry the
 // Application ID header to another host, so the client stops at the 3xx.
 func TestSharedHTTPClient_RefusesRedirects(t *testing.T) {

@@ -25,6 +25,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/auth"
 
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 )
 
@@ -38,7 +39,7 @@ import (
 // session-hijack guard, which compares TokenInfo.UserID across requests on
 // the same session, and (b) expose per-request scopes to tool handlers via
 // CallToolRequest.Extra.TokenInfo.
-func claimsTokenVerifier(ctx context.Context, _ string, _ *http.Request) (*auth.TokenInfo, error) {
+func claimsTokenVerifier(ctx context.Context, _ string, r *http.Request) (*auth.TokenInfo, error) {
 	claims := jwtassertion.GetTokenClaims(ctx)
 	if claims == nil {
 		return nil, fmt.Errorf("%w: no validated token claims on request context", auth.ErrInvalidToken)
@@ -56,12 +57,18 @@ func claimsTokenVerifier(ctx context.Context, _ string, _ *http.Request) (*auth.
 		// wired up. Reject it instead of letting UserID default to "".
 		return nil, fmt.Errorf("%w: token missing sub claim", auth.ErrInvalidToken)
 	}
+	extra := map[string]any{tools.TokenInfoOUIDKey: claims.OuId}
+	if r != nil {
+		if report := growthanalytics.NewMCPReporter(r); report != nil {
+			extra[growthanalytics.MCPReporterKey] = report
+		}
+	}
 	return &auth.TokenInfo{
 		Scopes:     strings.Fields(claims.Scope),
 		UserID:     claims.Sub,
 		Expiration: claims.ExpiresAt.Time,
 		// Record the caller's org so authzMiddleware can confirm each per-request
 		// token targets the same org as the session (see mcp/tools/authz.go).
-		Extra: map[string]any{tools.TokenInfoOUIDKey: claims.OuId},
+		Extra: extra,
 	}, nil
 }

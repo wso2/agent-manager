@@ -21,7 +21,7 @@ import { Alert, Form, Link } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
+import { useAgentWizardReturn, useTrackAgentWizardExit } from "../utils/useAgentWizardReturn";
 import {
   absoluteRouteMap,
   OrgProjPathParams,
@@ -167,9 +167,11 @@ export const InternalAgentFlow: React.FC = () => {
   // environment. Pass the name down so each section can show that hint.
   const firstEnvOnlyNotice = multipleEnvironments ? initialEnvironmentName : undefined;
 
+  const trackWizardExit = useTrackAgentWizardExit("from-source");
   const handleCancel = useCallback(() => {
+    trackWizardExit();
     allowNavigation(() => navigate(returnTo));
-  }, [allowNavigation, navigate, returnTo]);
+  }, [allowNavigation, navigate, returnTo, trackWizardExit]);
 
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
     Record<string, string | undefined>

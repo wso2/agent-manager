@@ -34,7 +34,7 @@ import { globalConfig, absoluteRouteMap } from "@agent-management-platform/types
 import { LeftNavigation, combineNavItems, flattenWithChildren } from "./LeftNavigation";
 import { useNavigationItems } from "./navigationItems";
 import { TopNavigation } from "./TopNavigation";
-import { orgRouteId, useGetUserProfile, useListOrganizations } from "@agent-management-platform/api-client";
+import { ConsoleAction, orgRouteId, useGetUserProfile, useListOrganizations, useTrack } from "@agent-management-platform/api-client";
 import { MountPoints } from "../../types";
 import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
@@ -52,6 +52,7 @@ export function OxygenLayout() {
   const [profileOpen, setProfileOpen] = useState(false);
   const { userInfo, logout } = useAuthHooks();
   const navigate = useNavigate();
+  const { track } = useTrack();
   const { orgId } = useParams();
   const profileManagementEnabled = useFeatureFlag("enableProfileManagement");
   const { data: userProfile } = useGetUserProfile({
@@ -218,7 +219,14 @@ export function OxygenLayout() {
                 }
 
                 {globalConfig.docsUrl && (
-                  <Footer.Link href={globalConfig.docsUrl + "/get-started/what-is-amp/"} target="_blank" rel="noopener noreferrer">Documentation</Footer.Link>
+                  <Footer.Link
+                    href={globalConfig.docsUrl + "/get-started/what-is-amp/"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => track(ConsoleAction.DocsLinkClick, { doc_target: "getting-started" })}
+                  >
+                    Documentation
+                  </Footer.Link>
                 )}
                 {globalConfig.footerLinks?.supportUrl && (
                   <Footer.Link href={globalConfig.footerLinks.supportUrl} target="_blank" rel="noopener noreferrer">Support</Footer.Link>

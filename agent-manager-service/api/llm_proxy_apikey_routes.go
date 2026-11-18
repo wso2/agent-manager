@@ -19,13 +19,17 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // RegisterLLMProxyAPIKeyRoutes registers API key routes for LLM proxies
 func RegisterLLMProxyAPIKeyRoutes(rr *middleware.RouteRegistrar, ctrl controllers.LLMProxyAPIKeyController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys", rbac.LLMProxyAPIKeyManage, ctrl.ListAPIKeys)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys", rbac.LLMProxyAPIKeyManage, ctrl.CreateAPIKey)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}", rbac.LLMProxyAPIKeyManage, ctrl.RevokeAPIKey)
-	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}", rbac.LLMProxyAPIKeyManage, ctrl.RotateAPIKey)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys", rbac.LLMProxyAPIKeyManage,
+		growthanalytics.Track("amp.connections.llm-proxy-api-key", actionDims("issued-proxy-api-key"), ctrl.CreateAPIKey))
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}", rbac.LLMProxyAPIKeyManage,
+		growthanalytics.Track("amp.connections.llm-proxy-api-key", actionDims("revoked-proxy-api-key"), ctrl.RevokeAPIKey))
+	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/api-keys/{keyName}", rbac.LLMProxyAPIKeyManage,
+		growthanalytics.Track("amp.connections.llm-proxy-api-key", actionDims("rotated-proxy-api-key"), ctrl.RotateAPIKey))
 }

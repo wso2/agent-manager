@@ -35,6 +35,8 @@ import {
   useEventsEnabled,
   useTokenScopes,
   useSaveMonitorAlert,
+  useDialogAnalytics,
+  useValidationErrorTracking,
 } from "@agent-management-platform/api-client";
 import type { MonitorEvaluator } from "@agent-management-platform/types";
 import {
@@ -82,6 +84,8 @@ export function MonitorAlertButton({
   const disableAlerts = useDeleteMonitorAlert(params);
 
   const [open, setOpen] = useState(false);
+  const { markCompleted } = useDialogAnalytics("monitor-alert", open && canManage);
+  const trackValidationError = useValidationErrorTracking("monitor-alert");
   const [settings, setSettings] = useState<AlertSettingsValue>(defaultAlertSettings);
   const [submitted, setSubmitted] = useState(false);
 
@@ -101,14 +105,23 @@ export function MonitorAlertButton({
 
   const enabled = alert?.enabled === true;
 
+  const handleCompleted = () => {
+    markCompleted();
+    setOpen(false);
+  };
+
   const handleSave = () => {
     setSubmitted(true);
-    if (!canManage || hasAlertSettingsErrors(validateAlertSettings(settings, evaluators))) return;
-    save.mutate(toAlertRequest(settings), { onSuccess: () => setOpen(false) });
+    if (!canManage) return;
+    if (hasAlertSettingsErrors(validateAlertSettings(settings, evaluators))) {
+      trackValidationError("alert-settings");
+      return;
+    }
+    save.mutate(toAlertRequest(settings), { onSuccess: handleCompleted });
   };
 
   const handleDisableAlerts = () => {
-    if (canManage) disableAlerts.mutate(undefined, { onSuccess: () => setOpen(false) });
+    if (canManage) disableAlerts.mutate(undefined, { onSuccess: handleCompleted });
   };
 
   return (

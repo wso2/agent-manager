@@ -21,7 +21,7 @@ import { Alert, Form } from "@wso2/oxygen-ui";
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
+import { useAgentWizardReturn, useTrackAgentWizardExit } from "../utils/useAgentWizardReturn";
 import { absoluteRouteMap, OrgProjPathParams } from "@agent-management-platform/types";
 import { useCreateAgent } from "@agent-management-platform/api-client";
 import { connectAgentSchema, type ConnectAgentFormValues } from "../form/schema";
@@ -58,9 +58,11 @@ export const ExternalAgentFlow: React.FC = () => {
     [orgId, projectId]
   );
 
+  const trackWizardExit = useTrackAgentWizardExit("connect-existing");
   const handleCancel = useCallback(() => {
+    trackWizardExit();
     allowNavigation(() => navigate(returnTo));
-  }, [allowNavigation, navigate, returnTo]);
+  }, [allowNavigation, navigate, returnTo, trackWizardExit]);
 
   const onSubmit = useCallback(
     (values: ConnectAgentFormValues) => {

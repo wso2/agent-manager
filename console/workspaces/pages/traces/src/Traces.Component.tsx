@@ -257,11 +257,17 @@ export const TracesComponent: React.FC = () => {
   const handleFiltersChange = useCallback(
     (nextFilters: TraceFilters) => {
       const next = withTraceFilters(searchParams, nextFilters);
-      if (JSON.stringify(parseTraceFilters(next)) === JSON.stringify(filters)) return;
+      const applied = parseTraceFilters(next);
+      if (JSON.stringify(applied) === JSON.stringify(filters)) return;
+      for (const key of Object.keys(applied) as (keyof TraceFilters)[]) {
+        if (JSON.stringify(applied[key]) !== JSON.stringify(filters[key])) {
+          track(ConsoleAction.FilterApplied, { page: "traces", filter: key });
+        }
+      }
       selectionCheckRef.current = selectedTrace ? { staleData: traceData } : null;
       setSearchParams(next);
     },
-    [searchParams, setSearchParams, filters, selectedTrace, traceData],
+    [searchParams, setSearchParams, filters, selectedTrace, traceData, track],
   );
 
   /** Filters the list to one conversation. */

@@ -19,15 +19,20 @@ package api
 import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // RegisterLLMProxyDeploymentRoutes registers all LLM proxy deployment-related routes
 func RegisterLLMProxyDeploymentRoutes(rr *middleware.RouteRegistrar, ctrl controllers.LLMProxyDeploymentController) {
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments", rbac.LLMProxyDeploy, ctrl.DeployLLMProxy)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/undeploy", rbac.LLMProxyDeploy, ctrl.UndeployLLMProxyDeployment)
-	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/restore", rbac.LLMProxyDeploy, ctrl.RestoreLLMProxyDeployment)
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments", rbac.LLMProxyDeploy,
+		growthanalytics.Track("amp.connections.deploy-llm-proxy", actionDims("deployed-llm-proxy"), ctrl.DeployLLMProxy))
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/undeploy", rbac.LLMProxyDeploy,
+		growthanalytics.Track("amp.connections.deploy-llm-proxy", actionDims("undeployed-llm-proxy"), ctrl.UndeployLLMProxyDeployment))
+	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/restore", rbac.LLMProxyDeploy,
+		growthanalytics.Track("amp.connections.deploy-llm-proxy", actionDims("restored-llm-proxy-deployment"), ctrl.RestoreLLMProxyDeployment))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments", rbac.LLMProxyRead, ctrl.GetLLMProxyDeployments)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/{deploymentId}", rbac.LLMProxyRead, ctrl.GetLLMProxyDeployment)
-	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/{deploymentId}", rbac.LLMProxyDeploy, ctrl.DeleteLLMProxyDeployment)
+	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/llm-proxies/{id}/deployments/{deploymentId}", rbac.LLMProxyDeploy,
+		growthanalytics.Track("amp.connections.deploy-llm-proxy", actionDims("undeployed-llm-proxy"), ctrl.DeleteLLMProxyDeployment))
 }

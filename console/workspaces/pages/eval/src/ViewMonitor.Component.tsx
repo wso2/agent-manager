@@ -48,6 +48,7 @@ import {
   generatePath,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
   useSearchParams,
@@ -68,6 +69,7 @@ import RunSummaryCard from "./subComponents/RunSummaryCard";
 import PerformanceByEvaluatorCard from "./subComponents/PerformanceByEvaluatorCard";
 import ScoreBreakdownCard from "./subComponents/ScoreBreakdownCard";
 import {
+  useEvalResultView,
   useGetMonitor,
   useGroupedScores,
   useListMonitors,
@@ -81,6 +83,13 @@ import {
   computeLevelSummaries,
   getMean,
 } from "./utils/monitorScoreUtils";
+
+function MonitorScoreTelemetry({ hasBreakdown }: { hasBreakdown: boolean }) {
+  const { pathname } = useLocation();
+  useEvalResultView("scores", pathname);
+  useEvalResultView("breakdown", hasBreakdown ? pathname : undefined);
+  return null;
+}
 
 export const ViewMonitorComponent: React.FC = () => {
   const { orgId, projectId, agentId, envId, monitorId } = useParams();
@@ -573,6 +582,14 @@ export const ViewMonitorComponent: React.FC = () => {
                 </Stack>
               ) : (
                 <>
+                  {evaluators.length > 0 && (
+                    <MonitorScoreTelemetry
+                      hasBreakdown={
+                        (hasAgentLevel && (agentGrouped?.groups?.length ?? 0) > 0) ||
+                        (hasLlmLevel && (llmGrouped?.groups?.length ?? 0) > 0)
+                      }
+                    />
+                  )}
                   <Grid container spacing={3} sx={{ alignItems: "stretch" }}>
                     <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex" }}>
                       <AgentPerformanceCard

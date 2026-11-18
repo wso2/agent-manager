@@ -14,14 +14,9 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package growthanalytics reports opt-in feature-usage telemetry
-// (MOESIF_ENABLED, off by default) from agent-manager-service to Moesif, per the Product Feature
-// Usage Tracking taxonomy (see samples/products/agent-manager/taxonomy.yaml
-// in the Feature Usage Tracking initiative docs). It instruments the
-// "Agent Development", "Security & Access", "Discovery", "Deployment Ops"
-// and "Observability" feature categories — every route registered with
-// Track, all of which are mutating (POST/PUT/PATCH/DELETE); read paths are
-// deliberately not tracked.
+// Package growthanalytics reports opt-in feature usage to Moesif using
+// taxonomy.yaml. Server-side events cover user-facing API mutations,
+// repository browse POSTs, and mutating MCP tool calls.
 //
 // Events are posted to Moesif's Events API (POST /v1/events) in one of two
 // ways (see clients/moesifcollector):
@@ -238,6 +233,35 @@ func Track(featureCode string, dimensions map[string]interface{}, handler http.H
 	}
 }
 
+// MCPReporterKey carries the per-request reporter through the SDK's TokenInfo.Extra.
+const MCPReporterKey = "amp:growth-analytics"
+
+// MCPReporter reports the outcome of a single tool call using its HTTP request identity.
+type MCPReporter func(context.Context, string, map[string]interface{}, bool)
+
+// NewMCPReporter binds analytics to the authenticated HTTP request that
+// invoked the tool. The SDK's tool context can carry an older session token.
+func NewMCPReporter(r *http.Request) MCPReporter {
+	ga := config.GetConfig().GrowthAnalytics
+	claims := jwtassertion.GetTokenClaims(r.Context())
+	if !ga.Enabled || ga.MoesifCollectorBaseURL == "" || claims == nil {
+		return nil
+	}
+
+	request := snapshotRequest(r)
+	userID, companyID := claims.Sub, claims.OuId
+	token := jwtassertion.GetJWTFromContext(r.Context())
+	return func(ctx context.Context, code string, dimensions map[string]interface{}, succeeded bool) {
+		// MCP errors are encoded in the tool result, even when the HTTP
+		// transport succeeded. Record a status representing the tool outcome.
+		status := http.StatusOK
+		if !succeeded {
+			status = http.StatusInternalServerError
+		}
+		reportEvent(ctx, ga, token, code, dimensions, nil, &statusHolder{code: status}, request, userID, companyID)
+	}
+}
+
 // reportEvent resolves the event's final metadata and fires off the send to
 // the collector proxy on a detached goroutine. The response has already
 // been fully written by the time this runs, so nothing here can affect the
@@ -270,11 +294,13 @@ func reportEvent(
 	}
 
 	resolved := resolveDimensions(dimensions, holder)
-	for k, v := range overrides.snapshot() {
-		if resolved == nil {
-			resolved = make(map[string]interface{})
+	if overrides != nil {
+		for k, v := range overrides.snapshot() {
+			if resolved == nil {
+				resolved = make(map[string]interface{})
+			}
+			resolved[k] = v
 		}
-		resolved[k] = v
 	}
 	metadata := buildMetadata(featureCode, resolved, config.GetConfig().PackageVersion, ga.DeploymentModel, ga.Environment, SourceAPI)
 

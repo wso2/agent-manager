@@ -29,6 +29,7 @@ import type {
 
 // api-client crashes at import time outside a configured app shell, and
 // EnvironmentSelector pulls it in; stub both at the module boundary.
+const { track } = vi.hoisted(() => ({ track: vi.fn() }));
 vi.mock("@agent-management-platform/api-client", () => ({
   useTraceList: vi.fn(),
   useExportTraces: vi.fn(() => ({ mutateAsync: vi.fn(), isPending: false })),
@@ -44,8 +45,13 @@ vi.mock("@agent-management-platform/api-client", () => ({
     isSuccess: true,
   })),
   isObserverConfigured: vi.fn(() => true),
-  useTrack: vi.fn(() => ({ track: vi.fn() })),
-  ConsoleAction: { TraceOpened: "trace_opened", DownloadArtifact: "download_artifact" },
+  useTrack: vi.fn(() => ({ track })),
+  ConsoleAction: {
+    TraceOpened: "trace_opened",
+    DownloadArtifact: "download_artifact",
+    FilterApplied: "filter_applied",
+  },
+  useEvalResultView: vi.fn(),
   useTrace: vi.fn(() => ({ data: undefined, isLoading: true, isTruncated: false })),
   useTraceScores: vi.fn(() => ({ data: undefined, isLoading: true })),
   useSpanDetail: vi.fn(() => ({ data: undefined, isLoading: false })),
@@ -941,6 +947,7 @@ describe("TracesComponent columns and cap notice", () => {
   });
 
   it("sets the conversation filter from the column without opening the trace", () => {
+    track.mockClear();
     renderPage("?timeRange=1h");
 
     fireEvent.click(screen.getByRole("button", { name: "Filter by conversation conv-1" }));
@@ -949,6 +956,9 @@ describe("TracesComponent columns and cap notice", () => {
     expect(currentParams().get("timeRange")).toBe("1h");
     expect(currentParams().get("selectedTrace")).toBeNull();
     expect(lastFilters()).toEqual({ conversationId: "conv-1" });
+    expect(track.mock.calls.filter(([action]) => action === "filter_applied")).toEqual([
+      ["filter_applied", { page: "traces", filter: "conversationId" }],
+    ]);
   });
 
   it("shows the examine-cap banner only when the page was truncated", () => {

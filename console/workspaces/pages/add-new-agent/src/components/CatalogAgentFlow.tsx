@@ -33,7 +33,7 @@ import {
 import { PageLayout, useFormValidation } from "@agent-management-platform/views";
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { generatePath, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { useAgentWizardReturn } from "../utils/useAgentWizardReturn";
+import { useAgentWizardReturn, useTrackAgentWizardExit } from "../utils/useAgentWizardReturn";
 import { absoluteRouteMap, type AgentKindVersionResponse, OrgProjPathParams } from "@agent-management-platform/types";
 import {
   useCreateAgent,
@@ -229,9 +229,11 @@ export const CatalogAgentFlow: React.FC = () => {
     [llmGeneratedNames],
   );
 
+  const trackWizardExit = useTrackAgentWizardExit("from-catalog");
   const handleCancel = useCallback(() => {
+    trackWizardExit();
     allowNavigation(() => navigate(returnTo));
-  }, [allowNavigation, navigate, returnTo]);
+  }, [allowNavigation, navigate, returnTo, trackWizardExit]);
 
   const [lastSubmittedValidationErrors, setLastSubmittedValidationErrors] = useState<
     Record<string, string | undefined>

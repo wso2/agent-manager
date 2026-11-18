@@ -426,27 +426,7 @@ func TestTaxonomyDeclaresTrackedEvents(t *testing.T) {
 	}
 }
 
-// These features deliberately have no emitter yet. Keep this list explicit:
-// YAML comments are documentation, not an exemption from coverage checks.
-var notEmittedFeatures = map[string]bool{
-	"amp.deployment-ops.deploy-agent.suspend":                     true,
-	"amp.deployment-ops.create-environment.thunder-system-client": true,
-	"amp.deployment-ops.a2a-proxy":                                true,
-	"amp.deployment-ops.agent-card":                               true,
-	"amp.connections.create-llm-proxy":                            true,
-	"amp.connections.deploy-llm-proxy":                            true,
-	"amp.connections.llm-proxy-api-key":                           true,
-	"amp.connections.project-mcp-proxy":                           true,
-	"amp.source-control.browse-repository":                        true,
-	"amp.discovery.view-catalog":                                  true,
-	"amp.discovery.view-build-options":                            true,
-	"amp.observability.create-monitor.alerting":                   true,
-	"amp.observability.view-scores":                               true,
-	"amp.events.manage-destination":                               true,
-	"amp.events.manage-subscription":                              true,
-}
-
-// TestTaxonomyFeaturesHaveEmitters rejects stale declarations and exemptions.
+// TestTaxonomyFeaturesHaveEmitters rejects active declarations without a registered emitter.
 func TestTaxonomyFeaturesHaveEmitters(t *testing.T) {
 	features := allFeatures(t, loadTaxonomy(t))
 	emitted := map[string]bool{}
@@ -457,16 +437,131 @@ func TestTaxonomyFeaturesHaveEmitters(t *testing.T) {
 		emitted[code] = true
 	}
 	for code, f := range features {
-		if !emitted[code] && !notEmittedFeatures[code] && f.Status != "deprecated" {
-			t.Errorf("%s: declared feature has no emitter; add tracking or explicitly mark it not emitted", code)
+		if !emitted[code] && f.Status != "deprecated" {
+			t.Errorf("%s: declared feature has no registered emitter", code)
 		}
 	}
-	for code := range notEmittedFeatures {
-		if _, declared := features[code]; !declared {
-			t.Errorf("%s: not-emitted exemption has no taxonomy declaration", code)
+}
+
+// TestTaxonomyOrgWritesAreTracked catches new org mutations that are missing
+// from the taxonomy entirely. System callbacks and telemetry ingestion are
+// outside the organization routes and do not represent feature adoption.
+func TestTaxonomyOrgWritesAreTracked(t *testing.T) {
+	const generateName = "POST /orgs/{orgName}/utils/generate-name"
+	fset := token.NewFileSet()
+	files, err := filepath.Glob(filepath.Join(apiRoutesDir, "*_routes.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := 0
+	for _, path := range files {
+		file, err := parser.ParseFile(fset, path, nil, 0)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if emitted[code] {
-			t.Errorf("%s: now has an emitter; remove its not-emitted exemption and YAML comment", code)
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok || len(call.Args) < 2 {
+				return true
+			}
+			registrar, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || !strings.HasPrefix(registrar.Sel.Name, "HandleFuncWithValidation") {
+				return true
+			}
+			pattern := routePrefix(call.Args[0])
+			method, path, _ := strings.Cut(pattern, " ")
+			if !slices.Contains([]string{"POST", "PUT", "PATCH", "DELETE"}, method) {
+				return true
+			}
+			if (path != "" && !strings.HasPrefix(path, "/orgs/")) || pattern == generateName {
+				return true
+			}
+			checked++
+			for _, arg := range call.Args[1:] {
+				if handler, ok := arg.(*ast.CallExpr); ok && isGrowthAnalyticsTrack(handler) {
+					return true
+				}
+			}
+			t.Errorf("%s: organization write %q has no growth analytics event", fset.Position(call.Pos()), pattern)
+			return true
+		})
+	}
+	if checked == 0 {
+		t.Fatal("no organization writes found")
+	}
+}
+
+func routePrefix(expr ast.Expr) string {
+	switch expr := expr.(type) {
+	case *ast.BasicLit:
+		value, _ := stringLiteral(expr)
+		return value
+	case *ast.BinaryExpr:
+		// Some org-scoped registrations build their paths with constants.
+		return routePrefix(expr.X)
+	case *ast.CallExpr:
+		if fn, ok := expr.Fun.(*ast.Ident); ok && fn.Name == "route" && len(expr.Args) == 2 {
+			return routePrefix(expr.Args[0]) + " " + routePrefix(expr.Args[1])
+		}
+	}
+	return ""
+}
+
+// TestTaxonomyConsoleActionsHaveCallSites verifies both the client-side
+// constants and the production track calls that send them.
+func TestTaxonomyConsoleActionsHaveCallSites(t *testing.T) {
+	root := "../../../console/workspaces"
+	registry, err := os.ReadFile(filepath.Join(root, "libs/api-client/src/hooks/telemetry.ts"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	declaration := regexp.MustCompile(`(?m)^\s*(\w+): "(amp\.console\.[^"]+)",`)
+	call := regexp.MustCompile(`\btrack\(\s*ConsoleAction\.(\w+)`)
+	used := map[string]bool{}
+	err = filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			if slices.Contains([]string{"dist", "node_modules", "generated"}, entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if !strings.Contains(filepath.ToSlash(path), "/src/") ||
+			!slices.Contains([]string{".ts", ".tsx"}, filepath.Ext(path)) ||
+			strings.Contains(path, ".test.") || strings.Contains(path, ".stories.") {
+			return nil
+		}
+		source, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, match := range call.FindAllSubmatch(source, -1) {
+			used[string(match[1])] = true
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	const planned = "amp.console.utility.cli-connect-viewed" // The console has no CLI connect instructions.
+	declared := map[string]bool{}
+	for _, match := range declaration.FindAllSubmatch(registry, -1) {
+		code := string(match[2])
+		hasCallSite := used[string(match[1])]
+		declared[code] = true
+		if !ConsoleActionsAllowed(code) {
+			t.Errorf("%s is missing from the console allowlist", code)
+		}
+		if hasCallSite == (code == planned) {
+			t.Errorf("%s has an unexpected emitter status (has call site: %t)", code, hasCallSite)
+		}
+	}
+	for code := range consoleActions {
+		if !declared[code] {
+			t.Errorf("%s is missing from the console registry", code)
 		}
 	}
 }
@@ -578,7 +673,7 @@ func findTrackCallsIn(t *testing.T, apiDir, controllerDir string) []emittedEvent
 			}
 			controllerDims, found := handlerDims[handler.Sel.Name]
 			if !found {
-				t.Errorf("%s: controller method %s was not found", at, handler.Sel.Name)
+				t.Errorf("%s: controller handler %s was not found", at, handler.Sel.Name)
 				return true
 			}
 			for key, values := range controllerDims {
@@ -615,32 +710,30 @@ func findControllerDimensions(t *testing.T, dir string) map[string]map[string][]
 			if !ok || fn.Recv == nil {
 				continue
 			}
-			dims := map[string][]string{}
+			// ForScope returns handler functions as fields of EventScopeHandlers.
+			// Visit each field expression so its dimension overrides belong to
+			// the handler registered on the route.
 			ast.Inspect(fn.Body, func(n ast.Node) bool {
-				call, ok := n.(*ast.CallExpr)
+				literal, ok := n.(*ast.CompositeLit)
 				if !ok {
 					return true
 				}
-				sel, ok := call.Fun.(*ast.SelectorExpr)
-				if !ok || sel.Sel.Name != "SetDimension" {
+				typ, ok := literal.Type.(*ast.Ident)
+				if !ok || typ.Name != "EventScopeHandlers" {
 					return true
 				}
-				pkg, ok := sel.X.(*ast.Ident)
-				if !ok || pkg.Name != "growthanalytics" {
-					return true
+				for _, field := range literal.Elts {
+					pair, ok := field.(*ast.KeyValueExpr)
+					if !ok {
+						continue
+					}
+					if name, ok := pair.Key.(*ast.Ident); ok {
+						out[name.Name] = readControllerDimensions(t, fset, pair.Value)
+					}
 				}
-				if len(call.Args) != 3 {
-					t.Fatalf("%s: unexpected SetDimension arguments", fset.Position(call.Pos()))
-				}
-				key, ok := stringLiteral(call.Args[1])
-				if !ok {
-					t.Errorf("%s: SetDimension key must be a string literal", fset.Position(call.Pos()))
-					return true
-				}
-				value, _ := stringLiteral(call.Args[2])
-				dims[key] = append(dims[key], value)
-				return true
+				return false
 			})
+			dims := readControllerDimensions(t, fset, fn.Body)
 			// Shared method names with no dimensions are equivalent for this
 			// check. Refuse to guess if either implementation sets dimensions.
 			if previous, exists := out[fn.Name.Name]; exists && (len(previous) > 0 || len(dims) > 0) {
@@ -650,6 +743,37 @@ func findControllerDimensions(t *testing.T, dir string) map[string]map[string][]
 		}
 	}
 	return out
+}
+
+func readControllerDimensions(t *testing.T, fset *token.FileSet, node ast.Node) map[string][]string {
+	t.Helper()
+	dims := map[string][]string{}
+	ast.Inspect(node, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		sel, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || sel.Sel.Name != "SetDimension" {
+			return true
+		}
+		pkg, ok := sel.X.(*ast.Ident)
+		if !ok || pkg.Name != "growthanalytics" {
+			return true
+		}
+		if len(call.Args) != 3 {
+			t.Fatalf("%s: unexpected SetDimension arguments", fset.Position(call.Pos()))
+		}
+		key, ok := stringLiteral(call.Args[1])
+		if !ok {
+			t.Errorf("%s: SetDimension key must be a string literal", fset.Position(call.Pos()))
+			return true
+		}
+		value, _ := stringLiteral(call.Args[2])
+		dims[key] = append(dims[key], value)
+		return true
+	})
+	return dims
 }
 
 // isGrowthAnalyticsTrack identifies calls to the tracking wrapper.
