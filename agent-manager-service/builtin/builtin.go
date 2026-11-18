@@ -32,7 +32,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/mcp/tools"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -58,9 +57,6 @@ type Parts struct {
 	RootRoutes func(mux *http.ServeMux, core *wiring.AppParams)
 	// MCPTools adds the bundle's toolsets to the core's MCP server at /mcp.
 	MCPTools func(ts *tools.Toolsets)
-	// EnvironmentReaders are permissions that also let a caller read the
-	// organization's environments, because the bundle's pages list them.
-	EnvironmentReaders []rbac.Permission
 	// Init runs once right after the module host boots, before the
 	// deployment's background workers and the bundle's own workers start;
 	// an error stops the server. ctx carries no audit recorder.
@@ -160,15 +156,6 @@ func (b Built) MCPTools() []func(*tools.Toolsets) {
 		if p.MCPTools != nil {
 			out = append(out, p.MCPTools)
 		}
-	}
-	return out
-}
-
-// EnvironmentReaders is every bundle's environment readers.
-func (b Built) EnvironmentReaders() []rbac.Permission {
-	var out []rbac.Permission
-	for _, p := range b {
-		out = append(out, p.EnvironmentReaders...)
 	}
 	return out
 }

@@ -41,7 +41,7 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams, 
 	registerAgentRoutes(rr, params.AgentController)
 	registerAgentTokenRoutes(rr, params.AgentTokenController)
 	registerInfraRoutes(rr, params.InfraResourceController)
-	registerEnvironmentRoutes(rr, params.EnvironmentController, bundles.EnvironmentReaders())
+	registerEnvironmentRoutes(rr, params.EnvironmentController)
 	registerEventsRoutes(rr, params.EventsController)
 	registerIdentityRoutes(rr, params.IdentityController)
 	registerTelemetryRoutes(rr)

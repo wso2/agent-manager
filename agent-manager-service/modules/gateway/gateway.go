@@ -188,12 +188,9 @@ func Parts(gw *gwwire.Gateway, core *wiring.AppParams) *builtin.Parts {
 			gwapi.RegisterInternalRoutes(rr, mux, gw)
 		},
 		MCPTools: gwapi.MCPTools(gw),
-		// The gateway's pages list environments for callers who hold only
-		// gateway, LLM provider or LLM proxy access.
-		EnvironmentReaders: []rbac.Permission{rbac.LLMProviderRead, rbac.LLMProxyRead, gwperm.Read},
-		Init:               w.seed,
-		Start:              w.start,
-		Stop:               w.stop,
+		Init:     w.seed,
+		Start:    w.start,
+		Stop:     w.stop,
 	}
 }
 
