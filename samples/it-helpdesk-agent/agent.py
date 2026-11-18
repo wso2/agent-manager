@@ -26,8 +26,6 @@ from tools import build_tools
 
 log = logging.getLogger("it-helpdesk")
 
-MODEL = "gpt-4o-mini"
-
 SYSTEM_PROMPT_TEMPLATE = (
     "You are an IT helpdesk agent for {company_name}. "
     "You provide L1 technical support to employees.\n\n"
@@ -132,7 +130,7 @@ async def load_mcp_tools(cfg: Config) -> list[Any]:
 def build_agent(cfg: Config, mcp_tools: list[Any] | None = None) -> Any:
     if cfg.use_llm_provider:
         llm = ChatOpenAI(
-            model=MODEL,
+            model=cfg.llm_model,
             temperature=0,
             base_url=cfg.llm_provider_url,
             api_key="not-used",
@@ -142,7 +140,7 @@ def build_agent(cfg: Config, mcp_tools: list[Any] | None = None) -> Any:
             },
         )
     else:
-        llm = ChatOpenAI(model=MODEL, temperature=0)
+        llm = ChatOpenAI(model=cfg.llm_model, temperature=0)
 
     tools = build_tools(cfg) + list(mcp_tools or [])
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
