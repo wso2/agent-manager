@@ -61,9 +61,8 @@ type ThunderConfig struct {
 	// ThunderListenPort is the port the server binds inside its container.
 	ThunderListenPort int
 
-	AMPPublicURL      string
-	ObserverPublicURL string
-	ConsoleURL        string
+	AMPPublicURL string
+	ConsoleURL   string
 
 	ConsoleRedirectURIs []string
 	CORSOrigins         []string
@@ -90,7 +89,7 @@ func init() {
 		"AMP_API_CLIENT_ID", "AMP_API_CLIENT_SECRET", "AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
 		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER", "AMP_PUBLIC_URL",
 		"AMP_PUBLISHER_CLIENT_ID", "AMP_PUBLISHER_CLIENT_SECRET", "AMP_SYSTEM_CLIENT_ID", "AMP_SYSTEM_CLIENT_SECRET",
-		"CONSOLE_URL", "OBSERVER_PUBLIC_URL", "PLATFORM_ADMIN_OU_ID",
+		"CONSOLE_URL", "PLATFORM_ADMIN_OU_ID",
 		"THUNDER_ADMIN_EMAIL", "THUNDER_ADMIN_FAMILY_NAME", "THUNDER_ADMIN_GIVEN_NAME", "THUNDER_ADMIN_USERNAME",
 		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT", "THUNDER_PUBLIC_URL",
 	)
@@ -170,10 +169,9 @@ func defaultPort(u *url.URL) int {
 func LoadThunderConfig() (*ThunderConfig, error) {
 	r := &envReader{}
 	cfg := &ThunderConfig{
-		Modules:           compiledModules(),
-		AMPPublicURL:      strings.TrimRight(r.required("AMP_PUBLIC_URL"), "/"),
-		ObserverPublicURL: strings.TrimRight(r.required("OBSERVER_PUBLIC_URL"), "/"),
-		ConsoleURL:        strings.TrimRight(r.required("CONSOLE_URL"), "/"),
+		Modules:      compiledModules(),
+		AMPPublicURL: strings.TrimRight(r.required("AMP_PUBLIC_URL"), "/"),
+		ConsoleURL:   strings.TrimRight(r.required("CONSOLE_URL"), "/"),
 		APIClient: Client{
 			ID: r.str("AMP_API_CLIENT_ID", "amp-api-client"), Secret: r.required("AMP_API_CLIENT_SECRET"),
 		},
@@ -296,7 +294,7 @@ func SampleThunderConfig() *ThunderConfig {
 	return &ThunderConfig{
 		ThunderPublicURL: "http://thunder.amp.localhost:8080", ThunderScheme: "http",
 		ThunderHost: "thunder.amp.localhost", ThunderPort: 8080, ThunderListenPort: 8080,
-		AMPPublicURL: "http://localhost:9000", ObserverPublicURL: "http://localhost:9098",
+		AMPPublicURL:        "http://localhost:9000",
 		ConsoleURL:          "http://localhost:3000",
 		ConsoleRedirectURIs: []string{"http://localhost:3000/login"},
 		CORSOrigins:         []string{"http://localhost:3000"},

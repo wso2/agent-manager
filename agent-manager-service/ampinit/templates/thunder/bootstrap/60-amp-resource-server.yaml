@@ -18,7 +18,7 @@ description: Agent Manager platform permissions
 #
 # This value IS the token's "aud" claim, so it must stay in sync with every
 # audience allow-list that accepts platform-Thunder tokens: agent-manager-service's
-# and agent-manager-observer's KEY_MANAGER_AUDIENCE, and env-Thunder's
+# KEY_MANAGER_AUDIENCE, and env-Thunder's
 # trustedIssuer.audience (PLATFORM_THUNDER_TOKEN_AUDIENCE in add-environment-thunder.sh).
 # It does NOT affect any amp:* scope string — those come from resource handles plus
 # the delimiter below, never from this identifier.
@@ -223,22 +223,6 @@ resources:
     actions:
       - { name: Read, handle: read, description: "View event destinations, organization subscriptions and the delivery log" }
       - { name: Manage, handle: manage, description: "Add, change, test and delete event destinations and organization subscriptions" }
-  - name: Observability
-    handle: observability
-    parent: amp
-    description: Observability data-read scopes, enforced by agent-manager-observer
-    # Renamed from the dashboard/metric-category model (org-dashboard, project-dashboard,
-    # guardrail-metric, infra-metric) to match the data-read model every actual consumer
-    # already expects — agent-manager-observer/rbac/permissions.go, agent-manager-service/
-    # rbac/permissions.go, and values.yaml's ampScopes/observabilityScopes all use these
-    # names; only this resource-server document still had the old ones, so Thunder could
-    # never grant amp:observability:trace-read etc. to anyone, even to a superadmin token
-    # requesting every ampScopes entry.
-    actions:
-      - { name: Trace Read, handle: trace-read, description: "Read agent execution traces" }
-      - { name: Log Read, handle: log-read, description: "Read agent runtime logs" }
-      - { name: Build Log Read, handle: build-log-read, description: "Read agent build logs" }
-      - { name: Metric Read, handle: metric-read, description: "Read agent and system metrics" }
   - name: Role
     handle: role
     parent: amp

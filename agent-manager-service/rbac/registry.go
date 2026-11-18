@@ -38,7 +38,6 @@ var CorePermissions = []Permission{
 	AgentEnvNonProduction, AgentEnvProduction, AgentRollback, AgentSuspend,
 	AgentTokenManage, AgentAPIKeyManage,
 	EventsRead, EventsManage,
-	ObservabilityTraceRead, ObservabilityLogRead, ObservabilityBuildLogRead, ObservabilityMetricRead,
 	RoleCreate, RoleRead, RoleUpdate, RoleDelete,
 	GroupCreate, GroupRead, GroupUpdate, GroupDelete,
 	ProfileRead, ProfileUpdateAttributes,

@@ -193,12 +193,10 @@ func (r *thunderRenderer) renderData(name string, data any) ([]byte, error) {
 		return nil, err
 	}
 	tmpl, err := template.New(name).Option("missingkey=error").Funcs(template.FuncMap{
-		"q":                   quote,
-		"json":                toJSON,
-		"clientScopes":        r.clientScopes,
-		"clientScopesWithout": r.clientScopesWithout,
-		"clientScopesOnly":    r.clientScopesOnly,
-		"rolePermissions":     r.rolePermissions,
+		"q":               quote,
+		"json":            toJSON,
+		"clientScopes":    r.clientScopes,
+		"rolePermissions": r.rolePermissions,
 	}).Parse(string(src))
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", name, err)
@@ -247,17 +245,6 @@ var oidcScopes = []string{"openid", "profile", "email"}
 // clientScopes is every amp scope a client may request, after the OIDC ones, then extra.
 func (r *thunderRenderer) clientScopes(extra ...string) []string {
 	return slices.Concat(oidcScopes, r.trees[ampResourceServerID], extra)
-}
-
-// clientScopesWithout is clientScopes less one resource's scopes.
-func (r *thunderRenderer) clientScopesWithout(resource string) []string {
-	return slices.DeleteFunc(r.clientScopes(), func(s string) bool { return isResourceScope(s, resource) })
-}
-
-// clientScopesOnly is the OIDC scopes and one resource's scopes.
-func (r *thunderRenderer) clientScopesOnly(resource string) []string {
-	return slices.Concat(oidcScopes, slices.DeleteFunc(slices.Clone(r.trees[ampResourceServerID]),
-		func(s string) bool { return !isResourceScope(s, resource) }))
 }
 
 func isResourceScope(scope, resource string) bool {

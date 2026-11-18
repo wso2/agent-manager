@@ -219,14 +219,6 @@ const (
 	EventsManage Permission = "events:manage"
 )
 
-// Observability permissions — data-read scopes enforced by agent-manager-observer
-const (
-	ObservabilityTraceRead    Permission = "observability:trace-read"
-	ObservabilityLogRead      Permission = "observability:log-read"
-	ObservabilityBuildLogRead Permission = "observability:build-log-read"
-	ObservabilityMetricRead   Permission = "observability:metric-read"
-)
-
 // Role management permissions
 const (
 	RoleCreate Permission = "role:create"

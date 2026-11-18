@@ -35,7 +35,6 @@ func setThunderEnv(t *testing.T) {
 		"THUNDER_PUBLIC_URL":          "https://id.example.com",
 		"THUNDER_PORT":                "8090",
 		"AMP_PUBLIC_URL":              "https://api.example.com/",
-		"OBSERVER_PUBLIC_URL":         "https://traces.example.com",
 		"CONSOLE_URL":                 "https://console.example.com",
 		"AMP_API_CLIENT_SECRET":       "s1",
 		"AMP_CONSOLE_CLIENT_SECRET":   "s2",
@@ -141,10 +140,8 @@ func TestRenderThunderUsesConfigAndCatalog(t *testing.T) {
 	if !slices.Equal(role.Permissions[0].Permissions, want) {
 		t.Errorf("AI Lead grants %v, want %v", role.Permissions[0].Permissions, want)
 	}
-	for _, p := range role.Permissions[2].Permissions {
-		if !strings.HasPrefix(p, "amp:observability:") {
-			t.Errorf("observer MCP block grants %q", p)
-		}
+	if len(role.Permissions) != 2 {
+		t.Errorf("AI Lead has %d resource-server blocks, want the API's and its MCP's", len(role.Permissions))
 	}
 
 	for name, want := range map[string]string{

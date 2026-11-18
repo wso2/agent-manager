@@ -151,10 +151,10 @@ func TestPredefinedRolesHoldOnlyCatalogScopes(t *testing.T) {
 // Keep it for the friction; do not mistake it for coverage.
 func TestPredefinedRoleSizes(t *testing.T) {
 	want := map[string]int{
-		RoleAdmin:            100,
-		RoleDeveloper:        55,
-		RoleAILead:           51,
-		RolePlatformEngineer: 64,
+		RoleAdmin:            96,
+		RoleDeveloper:        51,
+		RoleAILead:           49,
+		RolePlatformEngineer: 60,
 	}
 	if len(PredefinedRolePermissions) != len(want) {
 		t.Fatalf("PredefinedRolePermissions has %d roles, want %d", len(PredefinedRolePermissions), len(want))
