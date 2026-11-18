@@ -26,7 +26,6 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -52,7 +51,6 @@ type createExternalAgentInput struct {
 	AgentName   string  `json:"agent_name"`
 	DisplayName string  `json:"display_name"`
 	Description *string `json:"description"`
-	Language    string  `json:"language"`
 	Environment string  `json:"environment"`
 }
 
@@ -85,12 +83,9 @@ type tokenDetails struct {
 	ExpiresAt string `json:"expires_at"`
 }
 type createExternalAgentOutput struct {
-	ProjectName                 string       `json:"project_name"`
-	AgentName                   string       `json:"agent_name"`
-	Language                    string       `json:"language"`
-	TokenDetails                tokenDetails `json:"token_details"`
-	InstrumentationInstructions string       `json:"instrumentation_instructions"`
-	Note                        string       `json:"note"`
+	ProjectName  string       `json:"project_name"`
+	AgentName    string       `json:"agent_name"`
+	TokenDetails tokenDetails `json:"token_details"`
 }
 
 func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
@@ -126,15 +121,14 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 		addTool(reg, server, &gomcp.Tool{
 			Name: "create_external_agent",
 			Description: "Register an external agent in a project. " +
-				"Returns the agent identity, the API token, and step-by-step instrumentation instructions to follow in order to start sending observability data to the platform.",
+				"Returns the agent identity and an API token for it.",
 			InputSchema: createSchema(map[string]any{
 				"project_name": stringProperty("Required. Project name where the agent will be registered."),
 				"agent_name":   stringProperty("Required. Unique name for the agent."),
 				"display_name": stringProperty("Required. Human-readable display name for the agent."),
 				"description":  stringProperty("Optional. Short description about what the agent does."),
-				"language":     stringProperty("Required. Agent language for setup guide (python or ballerina)."),
 				"environment":  stringProperty("Optional. Environment the generated API token is scoped to. If omitted, the organization's only environment is used; required when more than one environment is configured. Use list_environments to discover valid names."),
-			}, []string{"project_name", "agent_name", "display_name", "language"}),
+			}, []string{"project_name", "agent_name", "display_name"}),
 		}, audit.ActionAgentCreate, createExternalAgent(t.AgentToolset, t.EnvironmentToolset), rbac.AgentCreate, rbac.AgentTokenManage)
 	}
 }
@@ -261,16 +255,6 @@ func createExternalAgent(handler AgentToolsetHandler, envHandler EnvironmentTool
 		if strings.TrimSpace(input.DisplayName) == "" {
 			return nil, nil, fmt.Errorf("display_name is required")
 		}
-		if strings.TrimSpace(input.Language) == "" {
-			return nil, nil, fmt.Errorf("language is required")
-		}
-
-		// Validate language of the agent before creation
-		language := strings.ToLower(strings.TrimSpace(input.Language))
-		if language != "python" && language != "ballerina" {
-			return nil, nil, fmt.Errorf("create_external_agent: unsupported language %q (use python or ballerina)", language)
-		}
-
 		ouID := resolveOUID(ctx)
 
 		// resolve the token environment before creating the agent so a bad
@@ -290,38 +274,20 @@ func createExternalAgent(handler AgentToolsetHandler, envHandler EnvironmentTool
 			return nil, nil, wrapToolError("create_external_agent", err)
 		}
 
-		// generate a token for the agent that allows instrumentation
+		// generate a token for the agent
 		expiresIn := "8760h"
 		tokenResp, err := handler.GenerateToken(ctx, ouID, input.ProjectName, agentName, environment, expiresIn)
 		if err != nil {
 			return nil, nil, fmt.Errorf("create_external_agent: agent %q was created but token generation failed: %w", agentName, err)
 		}
 
-		cfg := config.GetConfig()
-		otelEndpoint := resolveConsoleOtelEndpoint(cfg.InstrumentationURL)
-
-		// outputs the  setup instructions to enable instrumentation
-		var instructions string
-		switch language {
-		case "python":
-			instructions = buildPythonInstructions(otelEndpoint, tokenResp.Token)
-		case "ballerina":
-			instructions = buildBallerinaInstructions(otelEndpoint, tokenResp.Token)
-		}
-		if strings.TrimSpace(instructions) == "" {
-			return nil, nil, fmt.Errorf("create_external_agent: agent %q was created but instructions builder returned empty output for language %q", agentName, language)
-		}
-
 		response := createExternalAgentOutput{
 			ProjectName: input.ProjectName,
 			AgentName:   agentName,
-			Language:    language,
 			TokenDetails: tokenDetails{
 				Token:     tokenResp.Token,
 				ExpiresAt: time.Unix(tokenResp.ExpiresAt, 0).UTC().Format(time.RFC3339),
 			},
-			InstrumentationInstructions: instructions,
-			Note:                        verifyInstrumentationNote,
 		}
 		return handleToolResult(response, nil)
 	}
@@ -347,53 +313,4 @@ func buildExternalAgentRequest(name, displayName string, description *string) sp
 			Type: "external-agent-api",
 		},
 	}
-}
-
-const verifyInstrumentationNote = "Test instrumentation by querying the agent once, then fetch traces to verify instrumentation."
-
-func buildPythonInstructions(otelEndpoint, token string) string {
-	return fmt.Sprintf(`Follow these steps to enable instrumentation:
-
-	1. Install the AMP instrumentation package:
-	pip install amp-instrumentation
-
-	2. Export the following environment variables in the agent's runtime environment:
-	export AMP_OTEL_ENDPOINT=%q
-	export AMP_AGENT_API_KEY=%q
-
-	3. Run the agent with instrumentation enabled:
-	amp-instrument <your_existing_start_command>`,
-
-		otelEndpoint, token)
-}
-
-func buildBallerinaInstructions(otelEndpoint, token string) string {
-	return fmt.Sprintf(`Follow these steps to enable instrumentation:
-
-	1. Add the import to your main .bal file:
-	import ballerinax/amp as _;
-
-	2. Append to Ballerina.toml at the project root:
-	[build-options]
-	observabilityIncluded = true
-
-	3. Append to Config.toml at the project root:
-	[ballerina.observe]
-	tracingEnabled = true
-	tracingProvider = "amp"
-
-	4. Export environment variables:
-	export BAL_CONFIG_VAR_BALLERINAX_AMP_OTELENDPOINT=%q
-	export BAL_CONFIG_VAR_BALLERINAX_AMP_APIKEY=%q
-
-	5. Build with `+"`bal build`"+` and run normally — observability is included automatically.`,
-
-		otelEndpoint, token)
-}
-
-func resolveConsoleOtelEndpoint(value string) string {
-	if strings.TrimSpace(value) != "" {
-		return value
-	}
-	return "http://default-default.gateway.localhost:19080/otel"
 }

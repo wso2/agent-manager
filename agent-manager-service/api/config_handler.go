@@ -51,7 +51,6 @@ func registerConfigRoutes(mux *http.ServeMux) {
 		eventsOn := cfg.Events.Mode != config.EventsModeOff
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(spec.ConfigResponse{
-			ObserverBaseUrl:         cfg.Observer.PublicURL,
 			ConsoleAnalyticsEnabled: &consoleAnalytics,
 			EventsEnabled:           &eventsOn,
 		}); err != nil {

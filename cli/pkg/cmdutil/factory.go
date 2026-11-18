@@ -18,6 +18,7 @@ package cmdutil
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -123,9 +124,15 @@ func (f *Factory) discoverObserverURL(ctx context.Context) (string, error) {
 			f.observerErr = ErrorFromServer(resp.HTTPResponse, nil)
 			return
 		}
-		raw := resp.JSON200.ObserverBaseUrl
+		// observerBaseUrl left the API with the trace stack; servers that
+		// still run an observer keep sending it.
+		var advertised struct {
+			ObserverBaseURL string `json:"observerBaseUrl"`
+		}
+		_ = json.Unmarshal(resp.Body, &advertised)
+		raw := advertised.ObserverBaseURL
 		if raw == "" {
-			f.observerErr = clierr.New(clierr.ServerInvalid, "server returned empty observerBaseUrl")
+			f.observerErr = clierr.New(clierr.ServerInvalid, "server does not advertise a trace service (observerBaseUrl)")
 			return
 		}
 		f.observerURL = rewriteDockerHost(raw)

@@ -31,7 +31,7 @@ import (
 // Workload tokens are signed with the agent token key, so the JWKS endpoint
 // already publishes what verifies them. They are told apart from agent and
 // login tokens by their issuer, audience and type header: nothing that
-// trusts agent tokens (the gateway, the observer) accepts one.
+// trusts agent tokens (such as the gateway) accepts one.
 const (
 	// WorkloadTokenIssuer is the iss of every workload token.
 	WorkloadTokenIssuer = "agent-manager-service/workload"

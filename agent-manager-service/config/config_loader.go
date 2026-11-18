@@ -146,35 +146,11 @@ func loadSettings(strict bool) {
 		DefaultBasePath: r.readOptionalString("DEFAULT_CHAT_API_BASE_PATH", "/"),
 	}
 
-	// OpenTelemetry configuration
 	// Use Version from ldflags or environment variable override
 	config.PackageVersion = r.readOptionalString("AMP_VERSION", Version)
 
-	config.OTEL = OTELConfig{
-		// Tracing configuration
-		IsTraceContentEnabled: r.readOptionalBool("OTEL_TRACELOOP_TRACE_CONTENT", true),
-
-		// OTLP Exporter configuration: the AI Gateway's /otel API, addressed by
-		// its vhost ("<env>-<org>.gateway.localhost") like agent trace exports.
-		ExporterEndpoint: r.readOptionalString("OTEL_EXPORTER_OTLP_ENDPOINT", "http://default-default.gateway.localhost:19080/otel"),
-	}
-
 	config.IsLocalDevEnv = r.readOptionalBool("IS_LOCAL_DEV_ENV", false)
 
-	// Observer service configuration. URL is used server-side (in-cluster) for
-	// monitor-run log fetches. PublicURL is handed to out-of-cluster clients
-	// (console, CLI) via GET /api/v1/config. It has NO internal-URL fallback:
-	// empty means "observer not configured" and clients surface that loudly.
-	publicURLDefault := ""
-	if config.IsLocalDevEnv {
-		publicURLDefault = "http://localhost:9098"
-	}
-	config.Observer = ObserverConfig{
-		URL:       r.readOptionalString("AM_OBSERVER_URL", "http://localhost:9098"),
-		PublicURL: r.readOptionalString("AM_OBSERVER_PUBLIC_URL", publicURLDefault),
-	}
-
-	config.InstrumentationURL = r.readOptionalString("INSTRUMENTATION_URL", "http://default-default.gateway.localhost:19080/otel")
 	config.DefaultGatewayPort = int(r.readOptionalInt64("DEFAULT_GATEWAY_PORT", 19080))
 	config.DefaultOrg = DefaultOrgConfig{
 		OUID:   strings.TrimSpace(r.readOptionalString("DEFAULT_ORG_OU_ID", "01900000-0000-7000-8000-000000000001")),
@@ -287,7 +263,8 @@ func loadSettings(strict bool) {
 		if strings.TrimSpace(config.FileAuth.Issuer) == strings.TrimSpace(config.JWTSigning.Issuer) {
 			r.errors = append(r.errors, fmt.Errorf(
 				"FILE_AUTH_ISSUER (%q) must differ from JWT_SIGNING_ISSUER: login tokens and agent tokens are told apart by issuer",
-				config.FileAuth.Issuer))
+				config.FileAuth.Issuer,
+			))
 		}
 
 		// The next three are invariants, not choices: in file mode this service
@@ -504,8 +481,6 @@ func loadSettings(strict bool) {
 
 	validateOAuthAuthorizationServers(config, r)
 	validateServerPublicURL(config, r)
-	validateInstrumentationURL(config, r)
-	validateObserverURLs(config, r)
 	validateGrowthAnalyticsConfig(config)
 	validateResourceLimitsConfig(config, r)
 	validateFileMountLimitsConfig(config, r)
@@ -771,44 +746,6 @@ func validateServerPublicURL(cfg *Config, r *configReader) {
 	if u.Host == "" {
 		r.errors = append(r.errors, fmt.Errorf("SERVER_PUBLIC_URL %q must have a non-empty host", cfg.ServerPublicURL))
 	}
-}
-
-func validateInstrumentationURL(cfg *Config, r *configReader) {
-	if cfg.InstrumentationURL == "" {
-		return
-	}
-	u, err := url.Parse(cfg.InstrumentationURL)
-	if err != nil {
-		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q is not a valid URL: %w", cfg.InstrumentationURL, err))
-		return
-	}
-	if u.Scheme != "http" && u.Scheme != "https" {
-		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q must use http or https scheme", cfg.InstrumentationURL))
-	}
-	if u.Host == "" {
-		r.errors = append(r.errors, fmt.Errorf("INSTRUMENTATION_URL %q must have a non-empty host", cfg.InstrumentationURL))
-	}
-}
-
-func validateObserverURLs(cfg *Config, r *configReader) {
-	validate := func(envVar, raw string) {
-		if raw == "" {
-			return
-		}
-		u, err := url.Parse(raw)
-		if err != nil {
-			r.errors = append(r.errors, fmt.Errorf("%s %q is not a valid URL: %w", envVar, raw, err))
-			return
-		}
-		if u.Scheme != "http" && u.Scheme != "https" {
-			r.errors = append(r.errors, fmt.Errorf("%s %q must use http or https scheme", envVar, raw))
-		}
-		if u.Host == "" {
-			r.errors = append(r.errors, fmt.Errorf("%s %q must have a non-empty host", envVar, raw))
-		}
-	}
-	validate("AM_OBSERVER_URL", cfg.Observer.URL)
-	validate("AM_OBSERVER_PUBLIC_URL", cfg.Observer.PublicURL)
 }
 
 // validateGrowthAnalyticsConfig checks the feature-usage telemetry settings.

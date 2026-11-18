@@ -14382,12 +14382,7 @@ components:
           type: string
     ConfigResponse:
       type: object
-      required:
-        - observerBaseUrl
       properties:
-        observerBaseUrl:
-          type: string
-          description: Base URL for the agent-manager-observer service
         consoleAnalyticsEnabled:
           type: boolean
           description: |

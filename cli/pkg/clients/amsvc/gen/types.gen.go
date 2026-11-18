@@ -2696,9 +2696,6 @@ type ConfigResponse struct {
 	// not off). The console hides Events when false. Absent is treated as
 	// false.
 	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
-
-	// ObserverBaseUrl Base URL for the agent-manager-observer service
-	ObserverBaseUrl string `json:"observerBaseUrl"`
 }
 
 // ConfigurationItem defines model for ConfigurationItem.

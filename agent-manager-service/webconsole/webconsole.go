@@ -166,7 +166,6 @@ func defaultValues(r *http.Request) map[string]string {
 		"SIGN_OUT_REDIRECT_URL": origin + "/login",
 		"BASE_PATH":             "/",
 		"AMP_VERSION":           cfg.PackageVersion,
-		"INSTRUMENTATION_URL":   cfg.InstrumentationURL,
 		"DOCS_URL":              "https://wso2.com/agent-platform/docs/next",
 	}
 }
