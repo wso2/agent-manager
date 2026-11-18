@@ -26,7 +26,6 @@ import {
   Button,
   Card,
   Chip,
-  Grid,
   Skeleton,
   Stack,
   Typography,
@@ -140,28 +139,6 @@ export const ViewGateway: React.FC = () => {
               </Stack>
             </Card>
 
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Skeleton variant="text" width="30%" height={14} />
-                    <Skeleton variant="text" width="80%" height={20} />
-                  </Stack>
-                </Card>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Skeleton variant="text" width="35%" height={14} />
-                    <Stack direction="row" spacing={0.5}>
-                      <Skeleton variant="rounded" width={80} height={24} />
-                      <Skeleton variant="rounded" width={80} height={24} />
-                    </Stack>
-                  </Stack>
-                </Card>
-              </Grid>
-            </Grid>
-
             <Card variant="outlined" sx={{ p: 3 }}>
               <Stack spacing={2}>
                 <Skeleton variant="text" width={160} height={24} />
@@ -186,86 +163,34 @@ export const ViewGateway: React.FC = () => {
 
         {gateway && !error && (
           <Stack spacing={3}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontWeight: 500 }}
-                    >
-                      Virtual Host
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
-                    >
-                      {gateway.vhost}
-                    </Typography>
-                  </Stack>
-                </Card>
-              </Grid>
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Card variant="outlined" sx={{ p: 2, height: "100%" }}>
-                  <Stack spacing={0.5}>
-                    <Typography
-                      variant="caption"
-                      color="text.secondary"
-                      sx={{ fontWeight: 500 }}
-                    >
-                      Environments
-                    </Typography>
-                    {gateway.environments && gateway.environments.length > 0 ? (
-                      <Stack
-                        direction="row"
-                        spacing={0.5}
-                        flexWrap="wrap"
-                        useFlexGap
-                      >
-                        {gateway.environments.map((env) => (
-                          <Chip
-                            key={env.id}
-                            label={env.displayName || env.name}
-                            size="small"
-                            variant="outlined"
-                          />
-                        ))}
-                      </Stack>
-                    ) : (
-                      <Typography variant="body2" color="text.secondary">
-                        —
-                      </Typography>
-                    )}
-                  </Stack>
-                </Card>
-              </Grid>
-            </Grid>
-
-            {isSelfHosted ? (
+            {isSelfHosted && (
               <>
-                <Card variant="outlined" sx={{ p: 3 }}>
-                  <Stack spacing={2}>
-                    <Typography variant="h6">Set up the gateway</Typography>
-                    <SelfHostedSetupSteps
-                      orgName={orgId ?? ""}
-                      gatewayId={gateway.uuid}
-                    />
-                  </Stack>
-                </Card>
+                {/* Setup is only needed until the gateway connects; once it is active,
+                    tokens are rotated from the tokens card. */}
+                {!isActive && (
+                  <Card variant="outlined" sx={{ p: 3 }}>
+                    <Stack spacing={2}>
+                      <Typography variant="h6">Set up the gateway</Typography>
+                      <SelfHostedSetupSteps
+                        orgName={orgId ?? ""}
+                        gatewayId={gateway.uuid}
+                      />
+                    </Stack>
+                  </Card>
+                )}
                 <SelfHostedGatewayTokensCard
                   orgName={orgId ?? ""}
                   gatewayId={gateway.uuid}
                 />
               </>
-            ) : (
-              <GatewayIdentityProvidersCard
-                orgId={orgId ?? ""}
-                gatewayId={gateway.uuid}
-                gatewayName={gateway.displayName || gateway.name}
-                environments={gateway.environments ?? []}
-              />
             )}
+            <GatewayIdentityProvidersCard
+              orgId={orgId ?? ""}
+              gatewayId={gateway.uuid}
+              gatewayName={gateway.displayName || gateway.name}
+              environments={gateway.environments ?? []}
+              selfHosted={isSelfHosted}
+            />
           </Stack>
         )}
       </PageLayout>

@@ -131,10 +131,11 @@ func (c *gatewayController) ListGatewayIdentityProviders(w http.ResponseWriter, 
 }
 
 // UpsertGatewayIdentityProvider creates or updates an identity provider mirror row.
-// This touches only the AMS mirror, not the gateway ConfigMap (the runtime source of
-// truth). Writing here without patching the gateway lets the two diverge: agent OAuth
-// deploy-time validation checks the mirror, so a mirror-only issuer passes validation
-// while the gateway rejects its tokens at runtime. Use manage-identity-provider.sh.
+// The service also patches the gateway runtime config when it can (a managed gateway
+// with a config applier); otherwise only the mirror is written and the gateway's
+// owner edits its config.toml. Agent OAuth deploy-time validation checks the mirror,
+// so an issuer missing from the gateway's config passes validation while the gateway
+// rejects its tokens at runtime.
 func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
@@ -196,10 +197,9 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 }
 
 // DeleteGatewayIdentityProvider removes an identity provider mirror row. System
-// providers cannot be deleted. Like the upsert, this touches only the AMS mirror, not
-// the gateway ConfigMap (the runtime source of truth); deleting here alone leaves the
-// issuer trusted by the gateway at runtime. Use manage-identity-provider.sh to keep
-// the mirror and the gateway runtime in sync.
+// providers cannot be deleted. Like the upsert, the gateway runtime config is patched
+// only for a managed gateway with a config applier; otherwise the gateway's owner
+// removes the key manager from its config.toml, or the issuer stays trusted.
 func (c *gatewayController) DeleteGatewayIdentityProvider(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
 	ouID := middleware.OUIDFromRequest(r)

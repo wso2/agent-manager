@@ -60,7 +60,6 @@ import {
   buildKeyManagerConfig,
   type ManageIdentityProviderMode,
 } from "./gatewayKeyManagerConfig";
-import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 export type { ManageIdentityProviderMode };
 
@@ -81,6 +80,27 @@ interface ManageIdentityProviderDialogProps {
     name: string;
     environments: GatewayEnvironmentResponse[];
   } | null;
+  /** How a change reaches the gateway's config; see IdentityProviderConfigMode. */
+  configMode: IdentityProviderConfigMode;
+}
+
+/**
+ * How an identity-provider change reaches the gateway's config.toml:
+ * - "applied": Agent Manager patches it (managed mode, cloud).
+ * - "manual": the gateway's owner edits it (a self-hosted gateway), so the dialog
+ *   gives the entry to copy.
+ * - "fixed": Agent Manager regenerates it at startup with the built-in issuers only
+ *   (the bundled managed gateway), so a custom issuer can be removed but not added.
+ */
+export type IdentityProviderConfigMode = "applied" | "manual" | "fixed";
+
+/** Picks the config mode for a gateway; the one place the mode is decided. */
+export function identityProviderConfigMode(
+  selfHosted: boolean,
+  managedModeFlag: boolean,
+): IdentityProviderConfigMode {
+  if (selfHosted) return "manual";
+  return managedModeFlag ? "applied" : "fixed";
 }
 
 export function ManageIdentityProviderDialog({
@@ -90,6 +110,7 @@ export function ManageIdentityProviderDialog({
   mode,
   provider,
   lockedGateway,
+  configMode,
 }: ManageIdentityProviderDialogProps) {
   const isDelete = mode === "delete";
   const isGatewayLocked = !!lockedGateway;
@@ -109,10 +130,7 @@ export function ManageIdentityProviderDialog({
 
   const [copied, setCopied] = useState(false);
 
-  // Managed mode: the server patches the gateway runtime config directly. When
-  // off (self-hosted default), the operator edits the gateway's config.toml;
-  // either way the submit records the provider in Agent Manager.
-  const managedMode = useFeatureFlag("enableIdentityProviderManagedMode");
+  // Whatever the mode, the submit records the provider in Agent Manager.
   const upsertIdp = useUpsertIdentityProvider();
   const deleteIdp = useDeleteIdentityProvider();
   const isSubmitting = upsertIdp.isPending || deleteIdp.isPending;
@@ -169,7 +187,9 @@ export function ManageIdentityProviderDialog({
   const effectiveEnvName = envName || onlyEnvironment || "";
 
   // The selected environment's managed gateways populate the gateway picker (only used
-  // when no gateway is locked in): a self-hosted gateway has no identity providers here.
+  // when no gateway is locked in). Self-hosted gateways are left out because the
+  // configMode passed in describes one kind of gateway; they are reached from their own
+  // gateway page, which locks the gateway and passes the manual mode.
   const { data: gatewaysResp } = useListGateways(
     { orgName: orgId },
     effectiveEnvName ? { environment: effectiveEnvName } : undefined,
@@ -320,12 +340,20 @@ export function ManageIdentityProviderDialog({
       <DrawerContent>
         <Stack spacing={3}>
           <Typography variant="body2" color="text.secondary">
-            {managedMode ? (
+            {configMode === "applied" && (
               <>
                 Identity providers are owned by the gateway. Agent Manager patches the gateway
                 configuration and applies the change for you.
               </>
-            ) : (
+            )}
+            {configMode === "fixed" && (
+              <>
+                Agent Manager generates this gateway&apos;s configuration with only its built-in
+                issuers, so this provider never reached the gateway. Removing it here deletes
+                Agent Manager&apos;s record of it; there is nothing to change on the gateway.
+              </>
+            )}
+            {configMode === "manual" && (
               <>
                 Identity providers are owned by the gateway: its <code>configs/config.toml</code>{" "}
                 lists the token issuers it accepts. Update that file and restart the gateway, then{" "}
@@ -429,7 +457,7 @@ export function ManageIdentityProviderDialog({
             )}
           </Stack>
 
-          {!managedMode && (
+          {configMode === "manual" && (
             <Stack spacing={1}>
               <Typography variant="body2">
                 {isDelete

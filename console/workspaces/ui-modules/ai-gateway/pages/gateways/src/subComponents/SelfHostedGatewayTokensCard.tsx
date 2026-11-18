@@ -151,8 +151,14 @@ export function SelfHostedGatewayTokensCard({
             spacing={2}
             sx={{ px: 2, py: 1, border: "1px solid", borderColor: "divider", borderRadius: 1 }}
           >
-            <Typography variant="body2" sx={{ fontFamily: "monospace", flex: 1 }}>
-              {token.id}
+            {/* Only the token's start is known after creation; the mask makes that
+                plain, so the entry is not mistaken for the whole token. */}
+            <Typography
+              variant="body2"
+              sx={{ fontFamily: "monospace", flex: 1 }}
+              title="Only the start of the token is shown"
+            >
+              {`${token.prefix}-••••••••`}
             </Typography>
             <Typography variant="caption" color="text.secondary">
               Created {formatDistanceToNow(new Date(token.createdAt), { addSuffix: true })}

@@ -253,6 +253,8 @@ export interface ListEnvironmentIdentityProvidersPathParams extends OrgPathParam
 
 export interface GatewayTokenInfo {
   id: string;
+  /** The first characters of the token, to tell tokens apart; never the whole token. */
+  prefix: string;
   status: "active" | "revoked";
   createdAt: string;
   revokedAt?: string | null;

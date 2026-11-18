@@ -44,7 +44,9 @@ vi.mock("@agent-management-platform/shared-component", () => ({
 }));
 
 vi.mock("./GatewayIdentityProvidersCard", () => ({
-  GatewayIdentityProvidersCard: () => <div>identity providers card</div>,
+  GatewayIdentityProvidersCard: ({ selfHosted }: { selfHosted?: boolean }) => (
+    <div>{selfHosted ? "self-hosted identity providers card" : "identity providers card"}</div>
+  ),
 }));
 
 vi.mock("./SelfHostedGatewayTokensCard", () => ({
@@ -57,14 +59,17 @@ vi.mock("./SelfHostedSetupSteps", () => ({
 
 let featureFlags: Partial<FeatureFlags> = {};
 
-const renderGateway = (hosting: "MANAGED" | "SELF_HOSTED") => {
+const renderGateway = (
+  hosting: "MANAGED" | "SELF_HOSTED",
+  status: "ACTIVE" | "INACTIVE" = "ACTIVE",
+) => {
   getGateway.mockReturnValue({
     data: {
       uuid: "gw-1",
       name: "gw-1",
       displayName: "Gateway 1",
       hosting,
-      status: "ACTIVE",
+      status,
       environments: [],
     },
     isLoading: false,
@@ -89,13 +94,29 @@ afterEach(() => {
 });
 
 describe("ViewGateway with enableSelfHostedGateways off", () => {
-  it("shows a self-hosted gateway's setup steps and tokens", () => {
+  it("shows a self-hosted gateway's setup steps and tokens until it connects", () => {
     featureFlags = { enableSelfHostedGateways: false };
-    renderGateway("SELF_HOSTED");
+    renderGateway("SELF_HOSTED", "INACTIVE");
 
     expect(screen.getByText("setup steps")).toBeInTheDocument();
     expect(screen.getByText("tokens card")).toBeInTheDocument();
-    expect(screen.queryByText("identity providers card")).not.toBeInTheDocument();
+    // A self-hosted gateway registers identity providers too, by hand in its config.toml.
+    expect(screen.getByText("self-hosted identity providers card")).toBeInTheDocument();
+  });
+
+  it("hides the setup steps of a connected self-hosted gateway, keeping its tokens", () => {
+    featureFlags = { enableSelfHostedGateways: false };
+    renderGateway("SELF_HOSTED", "ACTIVE");
+
+    expect(screen.queryByText("setup steps")).not.toBeInTheDocument();
+    expect(screen.getByText("tokens card")).toBeInTheDocument();
+  });
+
+  it("shows neither the virtual host nor the environments", () => {
+    renderGateway("MANAGED");
+
+    expect(screen.queryByText("Virtual Host")).not.toBeInTheDocument();
+    expect(screen.queryByText("Environments")).not.toBeInTheDocument();
   });
 
   it("shows a managed gateway's identity providers", () => {
