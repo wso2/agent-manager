@@ -88,17 +88,20 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Start PostgreSQL
+        id: start-postgres
         run: |
-          docker run -d --name postgres \
+          container_id=$(docker run -d --rm \
             -e POSTGRES_USER=agentmanager \
             -e POSTGRES_PASSWORD=agentmanager \
             -e POSTGRES_DB=agentmanager \
-            -p 5432:5432 \
-            public.ecr.aws/docker/library/postgres:15-alpine
+            public.ecr.aws/docker/library/postgres:15-alpine)
+          echo "container_id=$container_id" >> "$GITHUB_OUTPUT"
 
       - name: Wait for PostgreSQL
+        env:
+          POSTGRES_CONTAINER_ID: ${{ steps.start-postgres.outputs.container_id }}
         run: |
-          until docker exec postgres pg_isready -U agentmanager; do
+          until docker exec "$POSTGRES_CONTAINER_ID" pg_isready -U agentmanager; do
             echo "Waiting for postgres..."
             sleep 1
           done
@@ -106,8 +109,10 @@ jobs:
 
       - name: Get PostgreSQL host
         id: postgres
+        env:
+          POSTGRES_CONTAINER_ID: ${{ steps.start-postgres.outputs.container_id }}
         run: |
-          POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
+          POSTGRES_IP=$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$POSTGRES_CONTAINER_ID")
           echo "host=${POSTGRES_IP}" >> "$GITHUB_OUTPUT"
           echo "PostgreSQL IP: ${POSTGRES_IP}"
 
@@ -136,6 +141,12 @@ jobs:
       - name: Run integration tests
         working-directory: ./agent-manager-service
         run: make test-integration
+
+      - name: Stop PostgreSQL
+        if: always() && steps.start-postgres.outputs.container_id != ''
+        env:
+          POSTGRES_CONTAINER_ID: ${{ steps.start-postgres.outputs.container_id }}
+        run: docker stop "$POSTGRES_CONTAINER_ID"
 
       - name: Upload integration coverage
         if: always()
