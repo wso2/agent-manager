@@ -111,8 +111,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	agentConfigurationController := gwctl.NewAgentConfigurationController(agentConfigurationService)
 	mcpProxyScopeService := gwsvc.NewMCPProxyScopeService(mcpProxyScopeRepository, mcpProxyRepository, infraResourceManager, identityDirectory, mcpProxyService, logger)
 	mcpProxyScopeController := gwctl.NewMCPProxyScopeController(mcpProxyScopeService)
-	agentThunderClientRepository := core.AgentThunderClientRepository
-	agentIdentityController := gwctl.NewAgentIdentityController(identityDirectory, agentThunderClientRepository, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
+	agentIdentityController := gwctl.NewAgentIdentityController(identityDirectory, mcpProxyRepository, mcpProxyScopeRepository, mcpProxyService)
 	agentGatewayService := gwsvc.NewAgentGatewayService(db, platformRepository, agentConfigRepository, agentConfigurationService, artifactRepository, aiApplicationService, gatewayRepository, a2APublisher, a2AAgentCardRepository, agentExposurePublisher, logger)
 	agentGatewayController := gwctl.NewAgentGatewayController(agentGatewayService)
 	environmentGatewayService := gwsvc.NewEnvironmentGatewayService(logger, gatewayRepository, platformRepository)
@@ -164,7 +163,6 @@ var coreSet = wire.NewSet(wire.FieldsOf(
 	new(*wiring.AppParams),
 	"DB", "Logger", "PlatformRepository", "InfraResourceManager",
 	"EncryptionKey", "SecretManagementClient",
-	"AgentThunderClientRepository",
 ),
 )
 

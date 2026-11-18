@@ -45,4 +45,14 @@ func (d *IdentityDirectory) For(ctx context.Context, orgID, environment string) 
 	return nil, fmt.Errorf("%w: %s is not available", identityv1.ErrNotProvisioned, identityv1.ID)
 }
 
+// ListProvisionedAgents lists the agents the core provisions identities for in the environment.
+func (d *IdentityDirectory) ListProvisionedAgents(ctx context.Context, orgID, environment string) ([]identityv1.ProvisionedAgent, error) {
+	if lookup := d.lookup.Load(); lookup != nil {
+		if dir, ok := (*lookup)(); ok {
+			return dir.ListProvisionedAgents(ctx, orgID, environment)
+		}
+	}
+	return nil, fmt.Errorf("%w: %s is not available", identityv1.ErrNotProvisioned, identityv1.ID)
+}
+
 var _ identityv1.Directory = (*IdentityDirectory)(nil)

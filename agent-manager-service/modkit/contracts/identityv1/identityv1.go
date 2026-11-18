@@ -103,10 +103,23 @@ type RoleInput struct {
 	Permissions []RolePermission
 }
 
+// ProvisionedAgent is an agent the core has provisioned (or is provisioning) an identity for in an environment.
+type ProvisionedAgent struct {
+	ProjectName string
+	AgentName   string
+	// Status is the provisioning status: pending, completed or failed.
+	Status string
+	// AgentID is the agent's id in the directory; empty until provisioning completes.
+	AgentID string
+}
+
 // Directory opens the directory of one environment of an organization.
 type Directory interface {
 	// For returns the directory of the organization's environment; ErrNotProvisioned when it has none.
 	For(ctx context.Context, orgID, environment string) (Client, error)
+	// ListProvisionedAgents lists the agents of the organization the core provisions identities for in the
+	// environment, from the core's own records rather than the directory.
+	ListProvisionedAgents(ctx context.Context, orgID, environment string) ([]ProvisionedAgent, error)
 }
 
 // Client works on one environment's directory. Errors for a missing group, role or resource server wrap

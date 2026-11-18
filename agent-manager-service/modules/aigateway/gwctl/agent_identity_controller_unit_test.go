@@ -31,13 +31,11 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1/identitymocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
 // stubRSIdentifierResolver returns the absolute per-proxy invocation URI so tests
@@ -129,7 +127,7 @@ func TestAgentIdentityCreateRole_EnsuresPerProxyRSBeforePermissionWrite(t *testi
 			return &gwmodels.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, stubRSIdentifierResolver{})
+	ctrl := NewAgentIdentityController(resolver, proxyRepo, scopeRepo, stubRSIdentifierResolver{})
 
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/environments/dev/agent-identities/roles",
 		strings.NewReader(`{"name":"readers","scopes":["gh-proxy:read","jira-proxy:write"]}`))
@@ -175,7 +173,7 @@ func TestAgentIdentityCreateRole_ProxyNotDeployedToEnvRejected(t *testing.T) {
 			return &gwmodels.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo,
+	ctrl := NewAgentIdentityController(resolver, proxyRepo, scopeRepo,
 		stubRSIdentifierResolver{err: fmt.Errorf("%w: proxy \"gh-proxy\", environment \"dev\"", gwsvc.ErrMCPProxyNotDeployedToEnvironment)})
 
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/environments/dev/agent-identities/roles",
@@ -201,7 +199,7 @@ func TestAgentIdentityCreateRole_UnknownProxyHandleRejected(t *testing.T) {
 		},
 	}
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{} // GetFunc nil: must not be reached
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, nil)
+	ctrl := NewAgentIdentityController(resolver, proxyRepo, scopeRepo, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/environments/dev/agent-identities/roles",
 		strings.NewReader(`{"name":"readers","scopes":["ghost:read"]}`))
@@ -230,7 +228,7 @@ func TestAgentIdentityCreateRole_UnknownActionRejected(t *testing.T) {
 			return nil, gorm.ErrRecordNotFound
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, nil)
+	ctrl := NewAgentIdentityController(resolver, proxyRepo, scopeRepo, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/environments/dev/agent-identities/roles",
 		strings.NewReader(`{"name":"readers","scopes":["gh-proxy:read"]}`))
@@ -252,7 +250,7 @@ func TestAgentIdentityCreateRole_MalformedScopeRejected(t *testing.T) {
 	resolver := &identitymocks.DirectoryMock{}
 	proxyRepo := &gwrepomocks.MCPProxyRepositoryMock{}      // GetByHandleFunc nil: must not be called
 	scopeRepo := &gwrepomocks.MCPProxyScopeRepositoryMock{} // GetFunc nil: must not be called
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, nil)
+	ctrl := NewAgentIdentityController(resolver, proxyRepo, scopeRepo, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/environments/dev/agent-identities/roles",
 		strings.NewReader(`{"name":"readers","scopes":["no-colon"]}`))
@@ -326,7 +324,7 @@ func TestAgentIdentityUpdateRole_ReconcilesAcrossResourceServers(t *testing.T) {
 			return &gwmodels.MCPProxyScope{MCPProxyUUID: proxyUUID, Action: action}, nil
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, proxyRepo, scopeRepo, stubRSIdentifierResolver{})
+	ctrl := NewAgentIdentityController(resolver, proxyRepo, scopeRepo, stubRSIdentifierResolver{})
 
 	req := httptest.NewRequest(http.MethodPut, "/orgs/o1/environments/dev/agent-identities/roles/role-1",
 		strings.NewReader(`{"name":"readers","scopes":["gh-proxy:read","jira-proxy:track"]}`))
@@ -365,7 +363,7 @@ func TestAgentIdentityUpdateRole_PreservesNameWhenOmitted(t *testing.T) {
 			return envClient, nil
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
+	ctrl := NewAgentIdentityController(resolver, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 
 	req := httptest.NewRequest(http.MethodPut, "/orgs/o1/environments/dev/agent-identities/roles/role-1",
 		strings.NewReader(`{"description":"metadata only"}`))
@@ -411,7 +409,7 @@ func TestAgentIdentityUpdateRole_OmittedScopesPreservesPermissions(t *testing.T)
 			return envClient, nil
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
+	ctrl := NewAgentIdentityController(resolver, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 
 	req := httptest.NewRequest(http.MethodPut, "/orgs/o1/environments/dev/agent-identities/roles/role-1",
 		strings.NewReader(`{"description":"metadata only"}`))
@@ -454,7 +452,7 @@ func TestAgentIdentityUpdateRole_ExplicitEmptyScopesClearsPermissions(t *testing
 			return envClient, nil
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
+	ctrl := NewAgentIdentityController(resolver, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 
 	req := httptest.NewRequest(http.MethodPut, "/orgs/o1/environments/dev/agent-identities/roles/role-1",
 		strings.NewReader(`{"scopes":[]}`))
@@ -492,7 +490,7 @@ func TestAgentIdentityUpdateGroup_PreservesNameWhenOmitted(t *testing.T) {
 			return envClient, nil
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
+	ctrl := NewAgentIdentityController(resolver, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 
 	req := httptest.NewRequest(http.MethodPut, "/orgs/o1/environments/dev/agent-identities/groups/grp-1",
 		strings.NewReader(`{"description":"x"}`))
@@ -518,7 +516,7 @@ func TestAgentIdentityRoutes_EnvThunderUnavailable(t *testing.T) {
 			return nil, identityv1.ErrNotProvisioned
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
+	ctrl := NewAgentIdentityController(resolver, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/orgs/o1/environments/dev/agent-identities/groups", nil)
 	req.SetPathValue("orgName", "o1")
@@ -530,28 +528,19 @@ func TestAgentIdentityRoutes_EnvThunderUnavailable(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
-// TestAgentIdentityListAgents_ReturnsBindings proves the agents picker reads
-// bindings straight from the repository (no env-Thunder round-trip: the
-// resolver's ResolveIdentityFunc is left nil and must not be called).
+// TestAgentIdentityListAgents_ReturnsBindings proves the agents picker reads the core's provisioning records
+// through the directory, without opening the environment's directory (For is left nil and must not be called).
 func TestAgentIdentityListAgents_ReturnsBindings(t *testing.T) {
-	bindingRepo := &repomocks.AgentThunderClientRepositoryMock{
-		FindByOuAndEnvironmentFunc: func(_ context.Context, ouID, environmentName string) ([]models.AgentThunderClient, error) {
+	resolver := &identitymocks.DirectoryMock{
+		ListProvisionedAgentsFunc: func(_ context.Context, ouID, environment string) ([]identityv1.ProvisionedAgent, error) {
 			assert.Equal(t, "ou-1", ouID)
-			assert.Equal(t, "dev", environmentName)
-			return []models.AgentThunderClient{
-				{
-					OUID:            "ou-1",
-					ProjectName:     "proj",
-					AgentName:       "agent-a",
-					EnvironmentName: "dev",
-					ThunderAgentID:  "thunder-1",
-					Status:          models.AgentThunderStatusCompleted,
-				},
+			assert.Equal(t, "dev", environment)
+			return []identityv1.ProvisionedAgent{
+				{ProjectName: "proj", AgentName: "agent-a", Status: "completed", AgentID: "thunder-1"},
 			}, nil
 		},
 	}
-	resolver := &identitymocks.DirectoryMock{} // must not be called
-	ctrl := NewAgentIdentityController(resolver, bindingRepo, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
+	ctrl := NewAgentIdentityController(resolver, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/orgs/o1/environments/dev/agent-identities/agents", nil)
 	req.SetPathValue("orgName", "o1")
@@ -598,7 +587,7 @@ func TestAgentIdentityGetRoleAssignments_UsesAgentSemantics(t *testing.T) {
 			return envClient, nil
 		},
 	}
-	ctrl := NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
+	ctrl := NewAgentIdentityController(resolver, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/orgs/o1/environments/dev/agent-identities/roles/r1/assignments", nil)
 	req.SetPathValue("orgName", "o1")
@@ -644,7 +633,7 @@ func adminRoleController(envClient *identitymocks.ClientMock) AgentIdentityContr
 			return envClient, nil
 		},
 	}
-	return NewAgentIdentityController(resolver, &repomocks.AgentThunderClientRepositoryMock{}, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
+	return NewAgentIdentityController(resolver, &gwrepomocks.MCPProxyRepositoryMock{}, &gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 }
 
 // adminRoleRequest builds a request with the org/env/role path values shared by

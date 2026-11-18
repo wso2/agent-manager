@@ -19,6 +19,9 @@ import (
 //			ForFunc: func(ctx context.Context, orgID string, environment string) (identityv1.Client, error) {
 //				panic("mock out the For method")
 //			},
+//			ListProvisionedAgentsFunc: func(ctx context.Context, orgID string, environment string) ([]identityv1.ProvisionedAgent, error) {
+//				panic("mock out the ListProvisionedAgents method")
+//			},
 //		}
 //
 //		// use mockedDirectory in code that requires identityv1.Directory
@@ -28,6 +31,9 @@ import (
 type DirectoryMock struct {
 	// ForFunc mocks the For method.
 	ForFunc func(ctx context.Context, orgID string, environment string) (identityv1.Client, error)
+
+	// ListProvisionedAgentsFunc mocks the ListProvisionedAgents method.
+	ListProvisionedAgentsFunc func(ctx context.Context, orgID string, environment string) ([]identityv1.ProvisionedAgent, error)
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -40,8 +46,18 @@ type DirectoryMock struct {
 			// Environment is the environment argument value.
 			Environment string
 		}
+		// ListProvisionedAgents holds details about calls to the ListProvisionedAgents method.
+		ListProvisionedAgents []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OrgID is the orgID argument value.
+			OrgID string
+			// Environment is the environment argument value.
+			Environment string
+		}
 	}
-	lockFor sync.RWMutex
+	lockFor                   sync.RWMutex
+	lockListProvisionedAgents sync.RWMutex
 }
 
 // For calls ForFunc.
@@ -81,6 +97,46 @@ func (mock *DirectoryMock) ForCalls() []struct {
 	mock.lockFor.RLock()
 	calls = mock.calls.For
 	mock.lockFor.RUnlock()
+	return calls
+}
+
+// ListProvisionedAgents calls ListProvisionedAgentsFunc.
+func (mock *DirectoryMock) ListProvisionedAgents(ctx context.Context, orgID string, environment string) ([]identityv1.ProvisionedAgent, error) {
+	if mock.ListProvisionedAgentsFunc == nil {
+		panic("DirectoryMock.ListProvisionedAgentsFunc: method is nil but Directory.ListProvisionedAgents was just called")
+	}
+	callInfo := struct {
+		Ctx         context.Context
+		OrgID       string
+		Environment string
+	}{
+		Ctx:         ctx,
+		OrgID:       orgID,
+		Environment: environment,
+	}
+	mock.lockListProvisionedAgents.Lock()
+	mock.calls.ListProvisionedAgents = append(mock.calls.ListProvisionedAgents, callInfo)
+	mock.lockListProvisionedAgents.Unlock()
+	return mock.ListProvisionedAgentsFunc(ctx, orgID, environment)
+}
+
+// ListProvisionedAgentsCalls gets all the calls that were made to ListProvisionedAgents.
+// Check the length with:
+//
+//	len(mockedDirectory.ListProvisionedAgentsCalls())
+func (mock *DirectoryMock) ListProvisionedAgentsCalls() []struct {
+	Ctx         context.Context
+	OrgID       string
+	Environment string
+} {
+	var calls []struct {
+		Ctx         context.Context
+		OrgID       string
+		Environment string
+	}
+	mock.lockListProvisionedAgents.RLock()
+	calls = mock.calls.ListProvisionedAgents
+	mock.lockListProvisionedAgents.RUnlock()
 	return calls
 }
 

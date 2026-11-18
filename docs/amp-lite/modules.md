@@ -464,7 +464,7 @@ Capabilities today:
 
 | Capability | Version | Provider | Methods | Consumers |
 |---|---|---|---|---|
-| `identity.directory/v1` (`modkit/contracts/identityv1`) | 1 | the core | `For(org, environment)` opens an environment's directory; the client lists, gets, creates, updates and deletes groups and roles, changes group members, role permissions and role assignments, and ensures or removes MCP resource servers. In Lite only the default environment has one (the platform ThunderID); any other answers `ErrNotProvisioned`. | `ai-gateway` (agent-identity pages, MCP proxy scopes) |
+| `identity.directory/v1` (`modkit/contracts/identityv1`) | 1 | the core | `For(org, environment)` opens an environment's directory; the client lists, gets, creates, updates and deletes groups and roles, changes group members, role permissions and role assignments, and ensures or removes MCP resource servers. `ListProvisionedAgents(org, environment)` lists the agents the core provisions identities for there, from the core's own records. In Lite only the default environment has one (the platform ThunderID); any other answers `ErrNotProvisioned`. | `ai-gateway` (agent-identity pages, MCP proxy scopes) |
 | `llm.proxy/v1` (`modkit/contracts/llmv1`) | 1 | `ai-gateway` | `ValidateProviders` | none in this repository |
 | `mcp.proxy/v1` (`modkit/contracts/mcpv1`) | 1 | `ai-gateway` | `ValidateProxies` | none in this repository |
 

@@ -27,7 +27,6 @@ var coreSet = wire.NewSet(
 		new(*wiring.AppParams),
 		"DB", "Logger", "PlatformRepository", "InfraResourceManager",
 		"EncryptionKey", "SecretManagementClient",
-		"AgentThunderClientRepository",
 	),
 )
 

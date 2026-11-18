@@ -21,16 +21,34 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // NewIdentityDirectory is the core's identity.directory/v1: each environment's own Thunder, reached through
 // resolver (in Lite, the platform ThunderID for the default environment).
-func NewIdentityDirectory(resolver thundersvc.EnvThunderResolver) identityv1.Directory {
-	return identityDirectory{resolver: resolver}
+func NewIdentityDirectory(
+	resolver thundersvc.EnvThunderResolver, bindings repositories.AgentThunderClientRepository,
+) identityv1.Directory {
+	return identityDirectory{resolver: resolver, bindings: bindings}
 }
 
 type identityDirectory struct {
 	resolver thundersvc.EnvThunderResolver
+	bindings repositories.AgentThunderClientRepository
+}
+
+func (d identityDirectory) ListProvisionedAgents(ctx context.Context, orgID, environment string) ([]identityv1.ProvisionedAgent, error) {
+	rows, err := d.bindings.FindByOuAndEnvironment(ctx, orgID, environment)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]identityv1.ProvisionedAgent, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, identityv1.ProvisionedAgent{
+			ProjectName: row.ProjectName, AgentName: row.AgentName, Status: string(row.Status), AgentID: row.ThunderAgentID,
+		})
+	}
+	return out, nil
 }
 
 func (d identityDirectory) For(ctx context.Context, orgID, environment string) (identityv1.Client, error) {

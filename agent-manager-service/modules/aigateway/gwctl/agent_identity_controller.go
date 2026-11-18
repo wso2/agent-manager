@@ -37,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -89,8 +88,7 @@ type MCPResourceServerIdentifierResolver interface {
 }
 
 type agentIdentityController struct {
-	resolver      identityv1.Directory
-	bindingRepo   repositories.AgentThunderClientRepository
+	directory     identityv1.Directory
 	proxyRepo     gwrepo.MCPProxyRepository
 	scopeRepo     gwrepo.MCPProxyScopeRepository
 	rsIdentifiers MCPResourceServerIdentifierResolver
@@ -98,15 +96,13 @@ type agentIdentityController struct {
 
 // NewAgentIdentityController creates a new agent-identity passthrough controller.
 func NewAgentIdentityController(
-	resolver identityv1.Directory,
-	bindingRepo repositories.AgentThunderClientRepository,
+	directory identityv1.Directory,
 	proxyRepo gwrepo.MCPProxyRepository,
 	scopeRepo gwrepo.MCPProxyScopeRepository,
 	rsIdentifiers MCPResourceServerIdentifierResolver,
 ) AgentIdentityController {
 	return &agentIdentityController{
-		resolver:      resolver,
-		bindingRepo:   bindingRepo,
+		directory:     directory,
 		proxyRepo:     proxyRepo,
 		scopeRepo:     scopeRepo,
 		rsIdentifiers: rsIdentifiers,
@@ -156,7 +152,7 @@ func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWrite
 func (c *agentIdentityController) envClient(w http.ResponseWriter, r *http.Request) (identityv1.Client, bool) {
 	ouID := middleware.OUIDFromRequest(r)
 	envName := r.PathValue("envName")
-	client, err := c.resolver.For(r.Context(), ouID, envName)
+	client, err := c.directory.For(r.Context(), ouID, envName)
 	if err != nil {
 		logger.GetLogger(r.Context()).Error("agent-identity: env-thunder resolve failed", "ouID", ouID, "env", envName, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable,
@@ -849,7 +845,7 @@ func (c *agentIdentityController) ListAgents(w http.ResponseWriter, r *http.Requ
 	envName := r.PathValue("envName")
 	ouID := middleware.OUIDFromRequest(r)
 
-	rows, err := c.bindingRepo.FindByOuAndEnvironment(ctx, ouID, envName)
+	rows, err := c.directory.ListProvisionedAgents(ctx, ouID, envName)
 	if err != nil {
 		log.Error("agent-identity ListAgents failed", "org", orgName, "env", envName, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list agent identity bindings")
@@ -861,7 +857,7 @@ func (c *agentIdentityController) ListAgents(w http.ResponseWriter, r *http.Requ
 			"agentName":      row.AgentName,
 			"projectName":    row.ProjectName,
 			"status":         row.Status,
-			"thunderAgentId": row.ThunderAgentID,
+			"thunderAgentId": row.AgentID,
 		})
 	}
 	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"agents": agents})
