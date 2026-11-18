@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React from "react";
+import React, { useEffect } from "react";
 import {
   formatRelativeTime,
   GatewayTypeChip,
@@ -43,6 +43,7 @@ import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
 import { identityProviderConfigMode } from "./ManageIdentityProviderDialog";
 import { SelfHostedGatewayTokensCard } from "./SelfHostedGatewayTokensCard";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
+import { forgetNewGatewayToken, newGatewayToken } from "./newGatewayToken";
 
 export const ViewGateway: React.FC = () => {
   const { gatewayId, orgId } = useParams<{
@@ -62,6 +63,17 @@ export const ViewGateway: React.FC = () => {
   });
 
   const isSelfHosted = gateway !== undefined && isSelfHostedGateway(gateway);
+
+  // The add page keeps the new gateway's token in memory. If the user left that page
+  // before it could open setup, this page is where they find the gateway again: give
+  // the steps that token, so they need not Reconfigure, which would revoke it.
+  const gatewayUuid = gateway?.uuid;
+  const retainedToken = gatewayUuid ? newGatewayToken(gatewayUuid) : null;
+  // As on the setup page, leaving forgets the token: it may be revoked afterwards.
+  useEffect(() => {
+    if (!gatewayUuid) return undefined;
+    return () => forgetNewGatewayToken(gatewayUuid);
+  }, [gatewayUuid]);
 
   const displayName = gateway?.displayName ?? gateway?.name ?? gatewayId ?? "";
   const isActive = isGatewayActive(gateway);
@@ -179,6 +191,7 @@ export const ViewGateway: React.FC = () => {
                       <SelfHostedSetupSteps
                         orgName={orgId ?? ""}
                         gatewayId={gateway.uuid}
+                        initialToken={retainedToken}
                         onConnected={() => void refetch()}
                       />
                     </Stack>

@@ -16,13 +16,14 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import {
   FeatureManagementProvider,
   type FeatureFlags,
 } from "@agent-management-platform/feature-management";
 import { ViewGateway } from "./ViewGateway";
+import { keepNewGatewayToken, newGatewayToken } from "./newGatewayToken";
 
 const getGateway = vi.hoisted(() => vi.fn());
 
@@ -78,7 +79,12 @@ vi.mock("./SelfHostedGatewayTokensCard", () => ({
 }));
 
 vi.mock("./SelfHostedSetupSteps", () => ({
-  SelfHostedSetupSteps: () => <div>setup steps</div>,
+  SelfHostedSetupSteps: ({ initialToken }: { initialToken?: string | null }) => (
+    <div>
+      <span>setup steps</span>
+      <span>token={initialToken ?? "none"}</span>
+    </div>
+  ),
 }));
 
 let featureFlags: Partial<FeatureFlags> = {};
@@ -141,6 +147,21 @@ describe("ViewGateway with enableSelfHostedGateways off", () => {
     expect(screen.getByText("tokens card")).toBeInTheDocument();
     // A self-hosted gateway registers identity providers too, by hand in its config.toml.
     expect(screen.getByText("self-hosted identity providers card")).toBeInTheDocument();
+  });
+
+  it("gives the steps a token the add page left behind, and forgets it on leaving", () => {
+    keepNewGatewayToken("gw-1", "secret");
+    renderGateway("SELF_HOSTED", "INACTIVE");
+
+    expect(screen.getByText("token=secret")).toBeInTheDocument();
+    cleanup();
+    expect(newGatewayToken("gw-1")).toBeNull();
+  });
+
+  it("gives the steps no token when none was left", () => {
+    renderGateway("SELF_HOSTED", "INACTIVE");
+
+    expect(screen.getByText("token=none")).toBeInTheDocument();
   });
 
   it("hides the setup steps of a connected self-hosted gateway, keeping its tokens", () => {
