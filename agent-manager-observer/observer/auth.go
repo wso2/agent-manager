@@ -173,6 +173,7 @@ func (p *AuthProvider) executeTokenRequest(ctx context.Context, postAuth bool) (
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	if !postAuth {
+		// The service loads the client ID and secret from runtime configuration.
 		// nosemgrep: go.lang.security.audit.crypto.hardcoded-credentials
 		//nolint:gosec // False positive: credentials are loaded via os.Getenv("IDP_CLIENT_SECRET")
 		req.SetBasicAuth(p.clientID, p.clientSecret)

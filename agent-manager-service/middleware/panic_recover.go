@@ -17,6 +17,7 @@
 package middleware
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -44,10 +45,10 @@ func RecovererOnPanic() func(http.Handler) http.Handler {
 					}
 
 					slog.Error("recoverOnPanic",
-						"correlationID", correlationId,
-						"operation", operation,
+						"correlationID", utils.SanitizeForLog(correlationId),
+						"operation", utils.SanitizeForLog(operation),
 						"log_type", "err_response",
-						"panic", rec,
+						"panic", utils.SanitizeForLog(fmt.Sprint(rec)),
 						"stack", string(debug.Stack()))
 
 					utils.WriteErrorResponse(w, http.StatusInternalServerError, "internal server error")

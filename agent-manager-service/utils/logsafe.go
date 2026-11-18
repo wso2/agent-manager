@@ -37,7 +37,7 @@ var logForgingReplacer = strings.NewReplacer("\n", "", "\r", "", "\x00", "", "\x
 func SanitizeForLog(s string) string {
 	s = logForgingReplacer.Replace(s)
 	return strings.Map(func(r rune) rune {
-		if r != '\t' && unicode.IsControl(r) {
+		if (r != '\t' && unicode.IsControl(r)) || r == '\u2028' || r == '\u2029' {
 			return -1
 		}
 		return r

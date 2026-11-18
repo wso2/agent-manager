@@ -123,40 +123,40 @@ func (s *LLMProviderDeploymentService) resolveProvider(identifier, ouID string) 
 // DeployLLMProvider deploys the provider's current configuration to a gateway. The deployment is named by the
 // kind; a client's name and metadata are ignored.
 func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req *models.DeployAPIRequest, ouID string) (*models.Deployment, error) {
-	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: starting", "providerID", providerID, "ouID", ouID,
-		"base", req.Base, "gatewayID", req.GatewayID)
+	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: starting", "providerID", utils.SanitizeForLog(providerID), "ouID", utils.SanitizeForLog(ouID),
+		"base", utils.SanitizeForLog(req.Base), "gatewayID", utils.SanitizeForLog(req.GatewayID))
 
 	if err := validateDeployBase(req.Base); err != nil {
 		return nil, err
 	}
 	if req.GatewayID == "" {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: gateway ID is required", "providerID", providerID)
+		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: gateway ID is required", "providerID", utils.SanitizeForLog(providerID))
 		return nil, utils.ErrDeploymentGatewayIDRequired
 	}
 
 	gatewayUUID, err := uuid.Parse(req.GatewayID)
 	if err != nil {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: invalid gateway UUID", "providerID", providerID, "gatewayID", req.GatewayID, "error", err)
+		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: invalid gateway UUID", "providerID", utils.SanitizeForLog(providerID), "gatewayID", utils.SanitizeForLog(req.GatewayID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("invalid gateway UUID: %w", err)
 	}
 
 	gateway, err := s.gatewayRepo.GetByUUID(req.GatewayID)
 	if err != nil {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get gateway", "providerID", providerID, "gatewayID", req.GatewayID, "error", err)
+		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get gateway", "providerID", utils.SanitizeForLog(providerID), "gatewayID", utils.SanitizeForLog(req.GatewayID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
 	}
 	if gateway == nil || gateway.OUID != ouID {
-		slog.Warn("LLMProviderDeploymentService.DeployLLMProvider: gateway not found or org mismatch", "providerID", providerID, "gatewayID", req.GatewayID, "ouID", ouID)
+		slog.Warn("LLMProviderDeploymentService.DeployLLMProvider: gateway not found or org mismatch", "providerID", utils.SanitizeForLog(providerID), "gatewayID", utils.SanitizeForLog(req.GatewayID), "ouID", utils.SanitizeForLog(ouID))
 		return nil, utils.ErrGatewayNotFound
 	}
 
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get provider", "providerID", providerID, "ouID", ouID, "error", err)
+		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to get provider", "providerID", utils.SanitizeForLog(providerID), "ouID", utils.SanitizeForLog(ouID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
-		slog.Warn("LLMProviderDeploymentService.DeployLLMProvider: provider not found", "providerID", providerID, "ouID", ouID)
+		slog.Warn("LLMProviderDeploymentService.DeployLLMProvider: provider not found", "providerID", utils.SanitizeForLog(providerID), "ouID", utils.SanitizeForLog(ouID))
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
@@ -175,11 +175,11 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 		return err
 	})
 	if err != nil {
-		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to deploy", "providerID", providerID, "error", err)
+		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: failed to deploy", "providerID", utils.SanitizeForLog(providerID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to create deployment: %w", err)
 	}
 
-	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: deployment started", "providerID", providerID, "deploymentID", applied.DeploymentID)
+	slog.Info("LLMProviderDeploymentService.DeployLLMProvider: deployment started", "providerID", utils.SanitizeForLog(providerID), "deploymentID", applied.DeploymentID)
 	return applied.Deployment, nil
 }
 
@@ -217,36 +217,36 @@ func providerDeploymentEvent(p models.Placement, deploymentID string, performedA
 
 // UndeployLLMProviderDeployment undeploys a deployment
 func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID string) (*models.Deployment, error) {
-	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: starting", "providerID", providerID,
-		"deploymentID", deploymentID, "gatewayID", gatewayID, "ouID", ouID)
+	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: starting", "providerID", utils.SanitizeForLog(providerID),
+		"deploymentID", utils.SanitizeForLog(deploymentID), "gatewayID", utils.SanitizeForLog(gatewayID), "ouID", utils.SanitizeForLog(ouID))
 
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get provider", "providerID", providerID, "error", err)
+		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get provider", "providerID", utils.SanitizeForLog(providerID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: provider not found", "providerID", providerID)
+		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: provider not found", "providerID", utils.SanitizeForLog(providerID))
 		return nil, utils.ErrLLMProviderNotFound
 	}
 
 	deployment, err := s.deploymentRepo.GetWithState(deploymentID, provider.UUID.String(), ouID)
 	if err != nil {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get deployment", "providerID", providerID, "deploymentID", deploymentID, "error", err)
+		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to get deployment", "providerID", utils.SanitizeForLog(providerID), "deploymentID", utils.SanitizeForLog(deploymentID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not found", "providerID", providerID, "deploymentID", deploymentID)
+		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not found", "providerID", utils.SanitizeForLog(providerID), "deploymentID", utils.SanitizeForLog(deploymentID))
 		return nil, utils.ErrDeploymentNotFound
 	}
 	if deployment.GatewayUUID.String() != gatewayID {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: gateway ID mismatch", "providerID", providerID,
-			"deploymentID", deploymentID, "expectedGatewayID", gatewayID, "actualGatewayID", deployment.GatewayUUID.String())
+		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: gateway ID mismatch", "providerID", utils.SanitizeForLog(providerID),
+			"deploymentID", utils.SanitizeForLog(deploymentID), "expectedGatewayID", utils.SanitizeForLog(gatewayID), "actualGatewayID", deployment.GatewayUUID.String())
 		return nil, utils.ErrGatewayIDMismatch
 	}
 	if deployment.Status == nil || *deployment.Status == models.DeploymentStatusArchived {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not current", "providerID", providerID,
-			"deploymentID", deploymentID, "status", deployment.Status)
+		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not current", "providerID", utils.SanitizeForLog(providerID),
+			"deploymentID", utils.SanitizeForLog(deploymentID), "status", deployment.Status)
 		return nil, utils.ErrDeploymentNotActive
 	}
 
@@ -254,18 +254,18 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 	placement := providerPlacement(provider, ouID, deployment.GatewayUUID)
 	row, err := undeployAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement)
 	if errors.Is(err, utils.ErrDeploymentNotActive) {
-		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not active", "providerID", providerID,
-			"deploymentID", deploymentID, "status", deployment.Status)
+		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not active", "providerID", utils.SanitizeForLog(providerID),
+			"deploymentID", utils.SanitizeForLog(deploymentID), "status", deployment.Status)
 		return nil, err
 	}
 	if err != nil {
-		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to undeploy", "providerID", providerID, "deploymentID", deploymentID, "error", err)
+		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: failed to undeploy", "providerID", utils.SanitizeForLog(providerID), "deploymentID", utils.SanitizeForLog(deploymentID), "error", utils.SanitizeForLog(err.Error()))
 		return nil, fmt.Errorf("failed to undeploy: %w", err)
 	}
 
 	deployment.SetStatusRow(row)
 	deployment.UpdatedAt = &row.PerformedAt
-	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: undeploy started", "providerID", providerID, "deploymentID", deploymentID)
+	slog.Info("LLMProviderDeploymentService.UndeployLLMProviderDeployment: undeploy started", "providerID", utils.SanitizeForLog(providerID), "deploymentID", utils.SanitizeForLog(deploymentID))
 	return deployment, nil
 }
 

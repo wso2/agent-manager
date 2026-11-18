@@ -23,6 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // DeploymentAckHandler processes deployment acknowledgment messages from gateways
@@ -45,7 +46,7 @@ func NewDeploymentAckHandler(deploymentRepo repositories.DeploymentRepository, a
 func (h *DeploymentAckHandler) HandleMessage(gatewayID string, data []byte) bool {
 	var msg models.GatewayMessage
 	if err := json.Unmarshal(data, &msg); err != nil {
-		slog.Warn("DeploymentAckHandler: failed to parse gateway message", "gatewayID", gatewayID, "error", err)
+		slog.Warn("DeploymentAckHandler: failed to parse gateway message", "gatewayID", utils.SanitizeForLog(gatewayID), "error", utils.SanitizeForLog(err.Error()))
 		return false
 	}
 
@@ -54,7 +55,7 @@ func (h *DeploymentAckHandler) HandleMessage(gatewayID string, data []byte) bool
 		h.handleDeploymentAck(gatewayID, msg.Payload)
 		return true
 	default:
-		slog.Debug("DeploymentAckHandler: unhandled message type", "gatewayID", gatewayID, "type", msg.Type)
+		slog.Debug("DeploymentAckHandler: unhandled message type", "gatewayID", utils.SanitizeForLog(gatewayID), "type", utils.SanitizeForLog(msg.Type))
 		return false
 	}
 }
@@ -62,21 +63,21 @@ func (h *DeploymentAckHandler) HandleMessage(gatewayID string, data []byte) bool
 func (h *DeploymentAckHandler) handleDeploymentAck(gatewayID string, payload json.RawMessage) {
 	var ack models.DeploymentAck
 	if err := json.Unmarshal(payload, &ack); err != nil {
-		slog.Error("DeploymentAckHandler: failed to parse deployment ack payload", "gatewayID", gatewayID, "error", err)
+		slog.Error("DeploymentAckHandler: failed to parse deployment ack payload", "gatewayID", utils.SanitizeForLog(gatewayID), "error", utils.SanitizeForLog(err.Error()))
 		return
 	}
 
 	log := slog.With(
-		"gatewayID", gatewayID,
-		"deploymentID", ack.DeploymentID,
-		"artifactID", ack.ArtifactID,
-		"resourceType", ack.ResourceType,
-		"action", ack.Action,
-		"status", ack.Status,
+		"gatewayID", utils.SanitizeForLog(gatewayID),
+		"deploymentID", utils.SanitizeForLog(ack.DeploymentID),
+		"artifactID", utils.SanitizeForLog(ack.ArtifactID),
+		"resourceType", utils.SanitizeForLog(ack.ResourceType),
+		"action", utils.SanitizeForLog(ack.Action),
+		"status", utils.SanitizeForLog(ack.Status),
 	)
 
 	if ack.Status == "failed" {
-		log.Warn("Gateway reported deployment failure", "errorCode", ack.ErrorCode)
+		log.Warn("Gateway reported deployment failure", "errorCode", utils.SanitizeForLog(ack.ErrorCode))
 	} else {
 		log.Info("Gateway deployment ack received")
 	}
@@ -88,7 +89,7 @@ func (h *DeploymentAckHandler) handleDeploymentAck(gatewayID string, payload jso
 		applied, err := h.deploymentRepo.ApplyAck(context.Background(), gatewayID, ack, h.afterLive)
 		switch {
 		case err != nil:
-			log.Error("DeploymentAckHandler: failed to apply deployment ack", "error", err)
+			log.Error("DeploymentAckHandler: failed to apply deployment ack", "error", utils.SanitizeForLog(err.Error()))
 		case applied:
 			log.Info("DeploymentAckHandler: deployment status updated")
 		default:

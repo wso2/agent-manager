@@ -74,6 +74,9 @@ func Fingerprint(value string) string {
 	return fmt.Sprintf("sha256:%s…%s", digest, suffix)
 }
 
+// Escape existing backslashes too, so a literal escape stays distinct.
+var attributeKeyEscapes = strings.NewReplacer("\\", "\\\\", "\u2028", `\u2028`, "\u2029", `\u2029`)
+
 // AttributeKeySummary describes a free-form attribute map without recording any
 // value. The user-creation API accepts an open map[string]string that carries
 // passwords, so recording keys and counts preserves what forensics needs —
@@ -82,7 +85,7 @@ func Fingerprint(value string) string {
 func AttributeKeySummary(attrs map[string]string) (keys []string, count int, containsSensitive bool) {
 	keys = make([]string, 0, len(attrs))
 	for k := range attrs {
-		keys = append(keys, utils.SanitizeForLog(k))
+		keys = append(keys, utils.SanitizeForLog(attributeKeyEscapes.Replace(k)))
 		if sensitiveKeyPattern.MatchString(k) {
 			containsSensitive = true
 		}
