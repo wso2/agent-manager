@@ -26,7 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
 
 // An in-cluster upstream is not public: a managed gateway takes it only for a project proxy's binding, whose

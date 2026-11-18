@@ -45,8 +45,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwwire"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 

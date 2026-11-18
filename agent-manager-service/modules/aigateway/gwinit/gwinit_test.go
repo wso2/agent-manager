@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
 )
 
 func gatewayConfig() *GatewayConfig {

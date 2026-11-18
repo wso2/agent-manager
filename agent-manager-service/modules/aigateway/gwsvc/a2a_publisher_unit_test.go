@@ -28,11 +28,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
 
 // txSentinel stands in for an open transaction; tx-bound mocks check they were handed it.

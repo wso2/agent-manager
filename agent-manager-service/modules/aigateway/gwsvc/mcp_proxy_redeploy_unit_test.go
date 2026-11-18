@@ -27,7 +27,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 )
 
 // A redeploy renders every artifact before queueing any: one that fails leaves the others' gateways untouched.

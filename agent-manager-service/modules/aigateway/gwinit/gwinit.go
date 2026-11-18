@@ -35,7 +35,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
 )
 
 //go:embed templates/config.toml

@@ -226,7 +226,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 
 ### LLM
 
-- `llm_provider_templates`: org templates only (built-ins ship in code, `resources/builtin_llm_templates.go`). org_id NOT NULL, unique (org_id, handle). `is_system` dropped.
+- `llm_provider_templates`: org templates only (built-ins ship in code, `modules/aigateway/resources/builtin_llm_templates.go`). org_id NOT NULL, unique (org_id, handle). `is_system` dropped.
 - `llm_providers`: id = artifact id. Upstream API key moves out of `configuration` JSON into `secrets` (`upstream_secret_id`).
 - `llm_proxies`: id = artifact id. (org_id, project_id) FK → projects. provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth moves out of `configuration` JSON into `secrets` (`upstream_secret_id`); this includes the key minted on the provider for a proxy.
 

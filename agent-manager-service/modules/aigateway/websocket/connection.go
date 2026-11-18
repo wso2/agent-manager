@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 )
 
 // Connection represents an active gateway connection with metadata and lifecycle management.

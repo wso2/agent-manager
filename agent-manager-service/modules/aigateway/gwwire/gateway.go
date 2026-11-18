@@ -18,11 +18,11 @@
 package gwwire
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/websocket"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
 )
 
 // Gateway is the built gateway: its controllers, workers and the services the

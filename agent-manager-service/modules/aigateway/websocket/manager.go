@@ -26,7 +26,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 )
 
 // Manager handles the lifecycle of gateway WebSocket connections.
