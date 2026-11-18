@@ -73,26 +73,31 @@ func main() {
 	})
 }
 
-// healthProbeIP normalizes wildcard binds and pins localhost to the address
-// family selected by the TCP listener (IPv4 when available, IPv6 otherwise).
-func healthProbeIP(ctx context.Context, host string) (net.IP, error) {
+// healthProbeIPs returns loopback literals for the configured listener. A
+// family-agnostic wildcard bind can accept connections on either family.
+func healthProbeIPs(ctx context.Context, host string, lookupIP func(context.Context, string, string) ([]net.IP, error)) ([]net.IP, error) {
 	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") && strings.Contains(host, ":") {
 		host = host[1 : len(host)-1]
 	}
-	switch host {
-	case "", "0.0.0.0":
-		host = "127.0.0.1"
-	case "::":
-		host = "::1"
+	ipv4Loopback, ipv6Loopback := net.IPv4(127, 0, 0, 1), net.IPv6loopback
+	if host == "" {
+		return []net.IP{ipv4Loopback, ipv6Loopback}, nil
+	}
+	ip := net.ParseIP(host)
+	if ip.IsUnspecified() {
+		if ip.To4() != nil {
+			return []net.IP{ipv4Loopback}, nil
+		}
+		return []net.IP{ipv6Loopback, ipv4Loopback}, nil
 	}
 
-	ip := net.ParseIP(host)
 	if host == "localhost" {
-		addrs, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+		addrs, err := lookupIP(ctx, "ip", host)
 		if err != nil {
 			return nil, fmt.Errorf("resolve health check host: %w", err)
 		}
 		if len(addrs) > 0 {
+			// Match the TCP listener's IPv4 preference for hostnames.
 			ip = addrs[0]
 			for _, addr := range addrs {
 				if addr.To4() != nil {
@@ -105,7 +110,7 @@ func healthProbeIP(ctx context.Context, host string) (net.IP, error) {
 	if !ip.IsLoopback() {
 		return nil, fmt.Errorf("health check requires a loopback or wildcard server host")
 	}
-	return ip, nil
+	return []net.IP{ip}, nil
 }
 
 // checkHealth probes only the local service. Plain HTTP is intentional: the
@@ -113,19 +118,32 @@ func healthProbeIP(ctx context.Context, host string) (net.IP, error) {
 func checkHealth(ctx context.Context, host string, port int) error {
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
-	ip, err := healthProbeIP(ctx, host)
+	ips, err := healthProbeIPs(ctx, host, net.DefaultResolver.LookupIP)
 	if err != nil {
 		return err
 	}
+	portText := strconv.Itoa(port)
+	deadline, _ := ctx.Deadline()
+	dialer := &net.Dialer{Deadline: deadline}
 	client := &http.Client{
-		Transport: &http.Transport{Proxy: nil},
+		Transport: &http.Transport{
+			// Try the alternate family only when TCP cannot connect. HTTP
+			// responses and redirects never trigger a second probe.
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ips[0].String(), portText))
+				if err != nil && len(ips) == 2 {
+					return dialer.DialContext(ctx, network, net.JoinHostPort(ips[1].String(), portText))
+				}
+				return conn, err
+			},
+		},
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
 			return fmt.Errorf("health check redirects are disabled")
 		},
 	}
 	defer client.CloseIdleConnections()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
-		"http://"+net.JoinHostPort(ip.String(), strconv.Itoa(port))+"/healthz", nil)
+		"http://"+net.JoinHostPort(ips[0].String(), portText)+"/healthz", nil)
 	if err != nil {
 		return fmt.Errorf("build health check: %w", err)
 	}

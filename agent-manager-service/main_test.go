@@ -17,28 +17,65 @@
 package main
 
 import (
+	"context"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestHealthProbeIP(t *testing.T) {
-	for _, tc := range []struct{ host, want string }{
-		{"", "127.0.0.1"},
-		{"0.0.0.0", "127.0.0.1"},
-		{"127.0.0.2", "127.0.0.2"},
-		{"::", "::1"},
-		{"[::]", "::1"},
-		{"[::1]", "::1"},
+func TestHealthProbeIPs(t *testing.T) {
+	for _, tc := range []struct {
+		host string
+		want []string
+	}{
+		{"", []string{"127.0.0.1", "::1"}},
+		{"0.0.0.0", []string{"127.0.0.1"}},
+		{"127.0.0.2", []string{"127.0.0.2"}},
+		{"::", []string{"::1", "127.0.0.1"}},
+		{"[::]", []string{"::1", "127.0.0.1"}},
+		{"[0:0:0:0:0:0:0:0]", []string{"::1", "127.0.0.1"}},
+		{"[::1]", []string{"::1"}},
 	} {
 		t.Run(tc.host, func(t *testing.T) {
-			ip, err := healthProbeIP(t.Context(), tc.host)
+			ips, err := healthProbeIPs(t.Context(), tc.host, nil)
 			require.NoError(t, err)
-			require.Equal(t, tc.want, ip.String())
+			var got []string
+			for _, ip := range ips {
+				got = append(got, ip.String())
+			}
+			require.Equal(t, tc.want, got)
 		})
 	}
 	for _, host := range []string{"192.0.2.1", "[2001:db8::1]", "[[::1]]", "example.com"} {
-		_, err := healthProbeIP(t.Context(), host)
+		_, err := healthProbeIPs(t.Context(), host, nil)
 		require.ErrorContains(t, err, "requires a loopback")
+	}
+}
+
+func TestHealthProbeLocalhost(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		addresses []net.IP
+		want      string
+	}{
+		{"IPv6 only", []net.IP{net.IPv6loopback}, "::1"},
+		{"dual stack", []net.IP{net.IPv6loopback, net.IPv4(127, 0, 0, 1)}, "127.0.0.1"},
+		{"non-loopback", []net.IP{net.IPv4(192, 0, 2, 1)}, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ips, err := healthProbeIPs(t.Context(), "localhost", func(_ context.Context, network, host string) ([]net.IP, error) {
+				require.Equal(t, "ip", network)
+				require.Equal(t, "localhost", host)
+				return tc.addresses, nil
+			})
+			if tc.want == "" {
+				require.ErrorContains(t, err, "requires a loopback")
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, ips, 1)
+			require.Equal(t, tc.want, ips[0].String())
+		})
 	}
 }

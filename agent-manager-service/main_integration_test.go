@@ -52,3 +52,18 @@ func TestCheckHealthHTTP(t *testing.T) {
 	require.NoError(t, checkHealth(t.Context(), healthyAddr.IP.String(), healthyAddr.Port))
 	require.ErrorContains(t, checkHealth(t.Context(), redirectAddr.IP.String(), redirectAddr.Port), "redirects are disabled")
 }
+
+func TestCheckHealthIPv6WildcardReachesIPv4Listener(t *testing.T) {
+	listener, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	server := &httptest.Server{
+		Listener: listener,
+		Config: &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})},
+	}
+	server.Start()
+	defer server.Close()
+
+	require.NoError(t, checkHealth(t.Context(), "[::]", listener.Addr().(*net.TCPAddr).Port))
+}
