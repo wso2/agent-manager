@@ -129,7 +129,10 @@ func (f *Factory) discoverObserverURL(ctx context.Context) (string, error) {
 		var advertised struct {
 			ObserverBaseURL string `json:"observerBaseUrl"`
 		}
-		_ = json.Unmarshal(resp.Body, &advertised)
+		if err := json.Unmarshal(resp.Body, &advertised); err != nil {
+			f.observerErr = clierr.Newf(clierr.ServerInvalid, "decode observerBaseUrl: %v", err)
+			return
+		}
 		raw := advertised.ObserverBaseURL
 		if raw == "" {
 			f.observerErr = clierr.New(clierr.ServerInvalid, "server does not advertise a trace service (observerBaseUrl)")

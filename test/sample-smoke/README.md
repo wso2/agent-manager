@@ -13,10 +13,22 @@ The platform smoke uses `external_agent.py`:
    under `amp-instrument`, with `AMP_AGENT_API_KEY` set to the key and
    `AMP_OTEL_ENDPOINT` pointing at a local sink that accepts and drops spans
    (Agent Manager stores no traces),
-4. sends one request carrying a unique marker and checks the model stub saw the
-   full tool round trip, then deletes the agent and project.
+4. drives the sample with a unique marker and checks the model stub's evidence
+   for that invocation, then deletes the agent and project. Most samples must
+   complete a tool round trip; the A2A sample instead sends its two skill
+   requests and checks the returned artifacts and both model calls.
 
-Run it against the Docker Compose stack (`make up` or `make dev-up`):
+The smoke signs in with client credentials against ThunderID, so the stack
+must run in idp mode. Set both lines in `deployments/standalone/.env` before
+`make up` or `make dev-up`; `AUTH_MODE` alone leaves the API validating its
+own keys and refusing ThunderID's tokens:
+
+```bash
+AUTH_MODE=idp
+KEY_MANAGER_JWKS_URL=http://thunder:${THUNDER_PORT}/oauth2/jwks
+```
+
+Then run it:
 
 ```bash
 python3.11 -m venv /tmp/smoke-env && /tmp/smoke-env/bin/pip install requests

@@ -48,8 +48,8 @@ func TestConfigEndpoint_HappyPath(t *testing.T) {
 	if err := json.NewDecoder(rec.Body).Decode(&raw); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if _, ok := raw["eventsEnabled"]; !ok {
-		t.Errorf("expected eventsEnabled in %v", raw)
+	if _, ok := raw["eventsEnabled"].(bool); !ok {
+		t.Errorf("expected a boolean eventsEnabled in %v", raw)
 	}
 	if _, ok := raw["observerBaseUrl"]; ok {
 		t.Errorf("observerBaseUrl is no longer served, got %v", raw)

@@ -124,7 +124,10 @@ def stop_process(process):
     while group_alive(process.pid) and time.monotonic() < deadline:
         time.sleep(0.2)
     if group_alive(process.pid):
-        os.killpg(process.pid, signal.SIGKILL)
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 @contextlib.contextmanager
@@ -248,10 +251,12 @@ def run(args, sample: ExternalSample):
             evidence = request(model_url + "/evidence")
             (reports / "model-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
             sample.check_evidence(evidence, marker)
-            (reports / "result.json").write_text(json.dumps({"response": result, "spanExports": sink.exports},
-                                                            indent=2, default=str) + "\n")
-            how = "under amp-instrument" if sample.auto_instrument else "with its own exporter"
-            print(f"PASS: external agent registered; local app {how} → model round trip")
+        # The app has stopped and flushed by now, and the sink was still
+        # listening while it did. The count is diagnostic: zero fails nothing.
+        (reports / "result.json").write_text(json.dumps({"response": result, "spanExports": sink.exports},
+                                                        indent=2, default=str) + "\n")
+        how = "under amp-instrument" if sample.auto_instrument else "with its own exporter"
+        print(f"PASS: external agent registered; local app {how} → model round trip")
     except BaseException:
         print(f"FAIL: {phase}; reports: {reports}", file=sys.stderr)
         for log in ("install.log", "application.log"):

@@ -51,7 +51,10 @@ type createExternalAgentInput struct {
 	AgentName   string  `json:"agent_name"`
 	DisplayName string  `json:"display_name"`
 	Description *string `json:"description"`
-	Environment string  `json:"environment"`
+	// Language is accepted and ignored: it chose the setup guide the tool
+	// returned before traces left the stack, and callers may still send it.
+	Language    string `json:"language"`
+	Environment string `json:"environment"`
 }
 
 // output structs and helpers
@@ -127,6 +130,7 @@ func (t *Toolsets) registerAgentTools(server *gomcp.Server, reg *toolRegistry) {
 				"agent_name":   stringProperty("Required. Unique name for the agent."),
 				"display_name": stringProperty("Required. Human-readable display name for the agent."),
 				"description":  stringProperty("Optional. Short description about what the agent does."),
+				"language":     stringProperty("Optional. Ignored; accepted so existing callers keep working."),
 				"environment":  stringProperty("Optional. Environment the generated API token is scoped to. If omitted, the organization's only environment is used; required when more than one environment is configured. Use list_environments to discover valid names."),
 			}, []string{"project_name", "agent_name", "display_name"}),
 		}, audit.ActionAgentCreate, createExternalAgent(t.AgentToolset, t.EnvironmentToolset), rbac.AgentCreate, rbac.AgentTokenManage)

@@ -61,12 +61,6 @@ export const aiObservabilityModule: UIModuleManifest = {
           "--namespace openchoreo-observability-plane --create-namespace",
       },
       {
-        title: "Point the agent manager service at the observer",
-        description:
-          "Set AM_OBSERVER_PUBLIC_URL on the agent-manager service to the observer's public " +
-          "URL and restart it. The console discovers the observer through /api/v1/config.",
-      },
-      {
         title: "Install the evaluation extension (optional)",
         description: "Needed for evaluation monitors; evaluators work without it.",
         command:

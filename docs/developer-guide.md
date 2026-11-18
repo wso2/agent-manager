@@ -126,7 +126,7 @@ The architecture and data-model diagrams are generated. Edit the generators in [
 
 Tests that call real model providers need provider keys in `test/e2e/.env`. Without them those specs are skipped or fail at the first model call.
 
-To try a change the way a user would, register one of the [samples](../samples) as an external agent and check that its calls go through the AI Gateway.
+To try a change the way a user would, register one of the [samples](../samples) as an external agent, attach an LLM provider to it in the console, and run the sample with that provider's connection settings, so its model calls go through the AI Gateway. For the IT Helpdesk sample that is `USE_LLM_PROVIDER=true` with `LLM_PROVIDER_URL` and `LLM_PROVIDER_KEY` from the agent's LLM configuration.
 
 ## Commits and pull requests
 

@@ -133,15 +133,19 @@ func TestRenderThunderUsesConfigAndCatalog(t *testing.T) {
 		} `yaml:"permissions"`
 	}
 	mustYAML(t, files["bootstrap/63-amp-role-ai-lead.yaml"], &role)
+	servers := make([]string, 0, len(role.Permissions))
+	for _, block := range role.Permissions {
+		servers = append(servers, block.ResourceServerID)
+	}
+	if want := []string{"amp-resource-server", "amp-agent-manager-mcp-resource-srv"}; !slices.Equal(servers, want) {
+		t.Fatalf("AI Lead grants on resource servers %v, want %v", servers, want)
+	}
 	want := make([]string, 0)
 	for _, p := range rbac.PredefinedRolePermissions[rbac.RoleAILead] {
 		want = append(want, p.Scope())
 	}
 	if !slices.Equal(role.Permissions[0].Permissions, want) {
 		t.Errorf("AI Lead grants %v, want %v", role.Permissions[0].Permissions, want)
-	}
-	if len(role.Permissions) != 2 {
-		t.Errorf("AI Lead has %d resource-server blocks, want the API's and its MCP's", len(role.Permissions))
 	}
 
 	for name, want := range map[string]string{

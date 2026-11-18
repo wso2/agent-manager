@@ -93,11 +93,8 @@ export const InstrumentationDrawer = ({
               environment={environment}
               onTokenGenerated={setGeneratedApiKey}
               autoGenerate={autoGenerate}
+              hint="Generate an API key for this agent."
             />
-            <Typography variant="body2" color="textSecondary">
-              The agent sends this key in the <code>x-amp-api-key</code> header on its calls
-              through the AI Gateway.
-            </Typography>
           </Box>
         ) : (
           <>

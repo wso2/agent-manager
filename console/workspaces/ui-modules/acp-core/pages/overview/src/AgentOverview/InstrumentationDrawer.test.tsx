@@ -25,8 +25,8 @@ vi.mock("@agent-management-platform/api-client", () => ({
 }));
 
 vi.mock("./TokenGenerationStep", () => ({
-  TokenGenerationStep: ({ stepNumber }: { stepNumber: number }) => (
-    <div data-testid="token-step">{stepNumber}</div>
+  TokenGenerationStep: ({ stepNumber, hint }: { stepNumber: number; hint?: string }) => (
+    <div data-testid="token-step" data-hint={hint ?? ""}>{stepNumber}</div>
   ),
 }));
 
@@ -61,10 +61,11 @@ describe("InstrumentationDrawer", () => {
       />,
     );
 
-    expect(screen.getByTestId("token-step")).toHaveTextContent("1");
+    const step = screen.getByTestId("token-step");
+    expect(step).toHaveTextContent("1");
+    expect(step.getAttribute("data-hint")).not.toMatch(/trace/i);
     expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
     const text = document.body.textContent ?? "";
-    expect(text).toContain("x-amp-api-key");
     expect(text).not.toContain("OTEL");
     expect(text).not.toContain("amp-instrument");
   });

@@ -81,6 +81,8 @@ check agent-list 200 "$(code "${A[@]}" "$B/projects/$P/agents")"
 check agent-update 200 "$(code "${A[@]}" -X PUT "$B/projects/$P/agents/$AG" -d '{"displayName":"Renamed","description":"smoke"}')"
 check agent-config 200 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/configurations?environment=default")"
 check agent-token 200 "$(code "${A[@]}" -X POST "$B/projects/$P/agents/$AG/token" -d '{}')"
+if jq -e '(.token // "") | length > 0' "$BODY" >/dev/null 2>&1; then check agent-token-issued yes yes
+else check agent-token-issued yes no; fi
 check unknown-extension 400 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"x$AG\",\"displayName\":\"X\",$EXT,\"extensions\":{\"nosuch\":{}}}")"
 # An LLM binding names a provider: amp has none by that name, amp-core no LLM support.
 check agent-with-llm-config-refused "$(pick 404 400)" "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"llm$AG\",\"displayName\":\"L\",$EXT,\"modelConfig\":[{\"providerName\":\"nosuch-provider\"}]}")"

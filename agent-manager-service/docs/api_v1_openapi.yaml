@@ -11,7 +11,7 @@ paths:
     get:
       security: []
       summary: Get service configuration
-      description: Returns service URLs that CLI clients need for direct backend access.
+      description: Returns the deployment feature switches the console and CLI read before signing in.
       operationId: getConfig
       tags:
         - Config

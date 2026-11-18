@@ -13,7 +13,9 @@ class SmokeGuards(unittest.TestCase):
         with span_sink() as sink:
             url = f"http://127.0.0.1:{sink.server_port}/otel/v1/traces"
             req = urllib.request.Request(url, data=b"spans", headers={"Content-Type": "application/x-protobuf"})
-            with urllib.request.urlopen(req, timeout=5) as response:
+            # Straight to the local sink, whatever proxy the environment names.
+            direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+            with direct.open(req, timeout=5) as response:
                 self.assertEqual(response.status, 200)
             self.assertEqual(sink.exports, 1)
 

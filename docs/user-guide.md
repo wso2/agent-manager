@@ -135,7 +135,7 @@ MCP endpoints also sign in through ThunderID, so they need `AUTH_MODE=idp`.
 ## Register an agent
 
 1. In the console, open a project, click **New agent**, enter a name and click **Register**.
-2. The **Setup Agent** panel opens with an API key already generated, valid for 90 days. To change that, pick another **Token Duration** and click **Regenerate**. The key is shown only once; reopen the panel later with **Set up agent** on the agent's page to generate a new one. The agent sends the key in an `x-amp-api-key` header on its calls through the AI Gateway.
+2. The **Setup Agent** panel opens with an API key already generated, valid for 90 days. To change that, pick another **Token Duration** and click **Regenerate**. The key is shown only once; reopen the panel later with **Set up agent** on the agent's page to generate a new one.
 
 You can also get a key with `POST /api/v1/orgs/{org}/projects/{project}/agents/{agent}/token`, or with the `create_external_agent` tool on the MCP server, which registers the agent and returns its key in one step.
 
@@ -164,6 +164,8 @@ Run these from the `standalone` folder:
 ### Upgrade
 
 Download and unpack the new bundle in a new folder, then copy your `.env` into it. Check the new `.env.example` for added settings, then stop the old stack and start the new one with `docker compose up -d --wait`. Keep the same `COMPOSE_PROJECT_NAME`, so the new stack uses the same data volumes. The API migrates the database on start.
+
+Releases that stored traces also ran OpenSearch. Its data volume, `<COMPOSE_PROJECT_NAME>_opensearch-data` (by default `amp-lite_opensearch-data`), is no longer part of the stack, so `docker compose down -v` leaves it behind. Back it up if you want the old traces, then remove it with `docker volume rm amp-lite_opensearch-data`.
 
 When the generated ThunderID settings change, ThunderID's setup runs again. It keeps your users and data, but it resets the admin password to `AMP_ADMIN_PASSWORD`.
 
