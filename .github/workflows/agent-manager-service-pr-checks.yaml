@@ -101,7 +101,7 @@ jobs:
         env:
           POSTGRES_CONTAINER_ID: ${{ steps.start-postgres.outputs.container_id }}
         run: |
-          until docker exec "$POSTGRES_CONTAINER_ID" pg_isready -U agentmanager; do
+          until docker exec "$POSTGRES_CONTAINER_ID" pg_isready -h 127.0.0.1 -U agentmanager; do
             echo "Waiting for postgres..."
             sleep 1
           done
@@ -139,6 +139,8 @@ jobs:
           echo "DB_NAME=agentmanager_test" >> .env.test
 
       - name: Run integration tests
+        env:
+          PG_CONTAINER: ${{ steps.start-postgres.outputs.container_id }}
         working-directory: ./agent-manager-service
         run: make test-integration
 
