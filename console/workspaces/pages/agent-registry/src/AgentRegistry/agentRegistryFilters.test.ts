@@ -25,7 +25,9 @@ import {
   filterChips,
   filtersFromSearchParams,
   filtersToSearchParams,
+  hiddenUnregisteredCount,
   isFiltered,
+  registrationFromTicks,
 } from "./agentRegistryFilters";
 
 const payments = { id: "payments-mcp", displayName: "Payments" };
@@ -34,6 +36,7 @@ function agent(overrides: Partial<AgentRegistryEntry>): AgentRegistryEntry {
   return {
     name: "a",
     displayName: "A",
+    registration: "registered",
     projectName: "p",
     projectDisplayName: "P",
     hosting: "platform",
@@ -145,6 +148,60 @@ describe("filterChips", () => {
     expect(chips).toEqual([
       { key: "owner", name: "Owner", value: "No owner" },
       { key: "mcpServer", name: "MCP server", value: "Payments" },
+    ]);
+  });
+});
+
+const shadow = agent({
+  name: "shadow",
+  registration: "unregistered",
+  projectName: "",
+  projectDisplayName: "",
+  lifecycleState: null,
+  interface: null,
+  discovery: {
+    findingId: "f1",
+    provider: "openai",
+    providerDisplayName: "OpenAI",
+    scope: "proj_cs",
+    firstSeenAt: "2026-01-01T00:00:00Z",
+    lastSeenAt: "2026-01-02T00:00:00Z",
+  },
+});
+
+describe("registration", () => {
+  it("leaves unregistered agents out by default, and counts them", () => {
+    expect(filterAgents([owned, shadow], EMPTY_FILTERS).map((a) => a.name)).toEqual(["owned"]);
+    expect(hiddenUnregisteredCount([owned, shadow], EMPTY_FILTERS)).toBe(1);
+  });
+
+  it("lists both when Unregistered is ticked too", () => {
+    const filters = { ...EMPTY_FILTERS, registration: "both" as const };
+    expect(filterAgents([owned, shadow], filters).map((a) => a.name)).toEqual(["owned", "shadow"]);
+    expect(hiddenUnregisteredCount([owned, shadow], filters)).toBe(0);
+  });
+
+  it("finds unregistered agents by the platform they were found on", () => {
+    const filters = { ...EMPTY_FILTERS, registration: "both" as const, search: "openai" };
+    expect(filterAgents([owned, shadow], filters).map((a) => a.name)).toEqual(["shadow"]);
+  });
+
+  it("does not allow both boxes unticked", () => {
+    expect(registrationFromTicks(false, false)).toBeNull();
+    expect(registrationFromTicks(true, false)).toBe("registered");
+  });
+
+  it("is left out of the URL at its default, and ignores unknown values", () => {
+    expect(filtersToSearchParams(EMPTY_FILTERS, new URLSearchParams()).toString()).toBe("");
+    const params = new URLSearchParams("registration=nonsense");
+    expect(filtersFromSearchParams(params).registration).toBe("registered");
+  });
+
+  it("gets a chip only when it differs from the default", () => {
+    const options = buildFilterOptions([owned, shadow]);
+    expect(filterChips(EMPTY_FILTERS, options)).toEqual([]);
+    expect(filterChips({ ...EMPTY_FILTERS, registration: "both" }, options)).toEqual([
+      { key: "registration", name: "Registration", value: "Registered and unregistered" },
     ]);
   });
 });

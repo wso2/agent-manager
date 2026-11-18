@@ -28,7 +28,13 @@ export const ALL = "__all__";
 /** Owner filter value for agents that have no owner. Short, as it ends up in shared links. */
 export const NO_OWNER = "none";
 
-/** The registry's filters. Each one is a single value, or ALL. */
+/**
+ * Which agents to list by registration. Shadow agents (unregistered) are left out
+ * by default; both boxes unticked is not allowed.
+ */
+export type RegistrationFilter = "registered" | "unregistered" | "both";
+
+/** The registry's filters. Each one is a single value; ALL, or the default, narrows nothing. */
 export interface AgentRegistryFilters {
   search: string;
   /** Set in the page header. Also decides where the LLM provider and MCP server filters look. */
@@ -36,6 +42,7 @@ export interface AgentRegistryFilters {
   /** Set with the quick toggle. */
   lifecycleState: string;
   /** The rest are set in the Filters panel. */
+  registration: RegistrationFilter;
   project: string;
   owner: string;
   tag: string;
@@ -46,12 +53,19 @@ export interface AgentRegistryFilters {
 /** The filters the Filters panel edits. */
 export const PANEL_FILTER_KEYS = ["project", "owner", "tag", "llmProvider", "mcpServer"] as const;
 export type PanelFilterKey = (typeof PANEL_FILTER_KEYS)[number];
-export type PanelFilters = Pick<AgentRegistryFilters, PanelFilterKey>;
+/** What the Filters panel edits: the select filters and the registration checkboxes. */
+export type PanelFilters = Pick<AgentRegistryFilters, PanelFilterKey | "registration">;
+
+/** The panel's unapplied edits. Registration is null while both boxes are unticked. */
+export type PanelDraft = Omit<PanelFilters, "registration"> & {
+  registration: RegistrationFilter | null;
+};
 
 export const EMPTY_FILTERS: AgentRegistryFilters = {
   search: "",
   environment: ALL,
   lifecycleState: ALL,
+  registration: "registered",
   project: ALL,
   owner: ALL,
   tag: ALL,
@@ -75,13 +89,38 @@ export const PANEL_FILTER_NAMES: Record<PanelFilterKey, string> = {
   mcpServer: "MCP server",
 };
 
+/** Whether the registration checkboxes are ticked, and back. */
+export function registrationTicks(value: RegistrationFilter) {
+  return {
+    registered: value !== "unregistered",
+    unregistered: value !== "registered",
+  };
+}
+
+/** Null when both boxes are unticked, which would list nothing. */
+export function registrationFromTicks(
+  registered: boolean,
+  unregistered: boolean,
+): RegistrationFilter | null {
+  if (registered && unregistered) return "both";
+  if (registered) return "registered";
+  if (unregistered) return "unregistered";
+  return null;
+}
+
+/** True when a filter is at its default and so narrows nothing. */
+function isDefault(key: keyof AgentRegistryFilters, value: string): boolean {
+  return key === "search" ? value.trim() === "" : value === EMPTY_FILTERS[key];
+}
+
 // ---- URL ----------------------------------------------------------------
 
-/** Query parameter for each filter. Filters set to ALL are left out of the URL. */
+/** Query parameter for each filter. Filters at their default are left out of the URL. */
 const URL_PARAMS: Record<keyof AgentRegistryFilters, string> = {
   search: "q",
   environment: "env",
   lifecycleState: "lifecycle",
+  registration: "registration",
   project: "project",
   owner: "owner",
   tag: "tag",
@@ -93,7 +132,13 @@ export function filtersFromSearchParams(params: URLSearchParams): AgentRegistryF
   const filters = { ...EMPTY_FILTERS };
   for (const [key, param] of Object.entries(URL_PARAMS) as [keyof AgentRegistryFilters, string][]) {
     const value = params.get(param);
-    if (value) filters[key] = value;
+    if (!value) continue;
+    if (key === "registration") {
+      // Anything else in the link falls back to the default.
+      if (value === "unregistered" || value === "both") filters.registration = value;
+    } else {
+      filters[key] = value;
+    }
   }
   return filters;
 }
@@ -106,8 +151,7 @@ export function filtersToSearchParams(
   const next = new URLSearchParams(current);
   for (const [key, param] of Object.entries(URL_PARAMS) as [keyof AgentRegistryFilters, string][]) {
     const value = filters[key];
-    const isEmpty = key === "search" ? value.trim() === "" : value === ALL;
-    if (isEmpty) next.delete(param);
+    if (isDefault(key, value)) next.delete(param);
     else next.set(param, value);
   }
   return next;
@@ -153,6 +197,8 @@ export function buildFilterOptions(agents: AgentRegistryEntry[]): AgentRegistryF
   let hasAgentWithoutOwner = false;
 
   for (const agent of agents) {
+    // An unregistered agent has no project, owner or tags; it only adds to "No owner".
+    if (agent.registration === "unregistered") continue;
     projects.set(agent.projectName, agent.projectDisplayName);
     if (agent.owner) {
       owners.set(agent.owner.id, agent.owner.displayName);
@@ -188,24 +234,52 @@ export function buildFilterOptions(agents: AgentRegistryEntry[]): AgentRegistryF
 
 // ---- Applied-filter chips -----------------------------------------------
 
+const REGISTRATION_CHIP_VALUES: Record<RegistrationFilter, string> = {
+  registered: "Registered",
+  unregistered: "Unregistered only",
+  both: "Registered and unregistered",
+};
+
 /** One applied panel filter, shown as a removable chip. */
 export interface FilterChip {
-  key: PanelFilterKey;
+  key: PanelFilterKey | "registration";
   name: string;
   value: string;
 }
 
-/** A chip for each panel filter that is set, in panel order. */
+/**
+ * A chip for each panel filter that is set, in panel order. Registration gets one
+ * only when it differs from the default (registered agents only).
+ */
 export function filterChips(
   filters: AgentRegistryFilters,
   options: AgentRegistryFilterOptions,
 ): FilterChip[] {
-  return PANEL_FILTER_KEYS.filter((key) => filters[key] !== ALL).map((key) => ({
-    key,
-    name: PANEL_FILTER_NAMES[key],
-    // A value no agent has any more (from an old link) still shows, as its raw id.
-    value: options[key].find((o) => o.value === filters[key])?.label ?? filters[key],
-  }));
+  const chips: FilterChip[] = PANEL_FILTER_KEYS.filter((key) => filters[key] !== ALL).map(
+    (key) => ({
+      key,
+      name: PANEL_FILTER_NAMES[key],
+      // A value no agent has any more (from an old link) still shows, as its raw id.
+      value: options[key].find((o) => o.value === filters[key])?.label ?? filters[key],
+    }),
+  );
+  if (filters.registration !== EMPTY_FILTERS.registration) {
+    chips.push({
+      key: "registration",
+      name: "Registration",
+      value: REGISTRATION_CHIP_VALUES[filters.registration],
+    });
+  }
+  return chips;
+}
+
+/** How many unregistered agents the registration filter is hiding. */
+export function hiddenUnregisteredCount(
+  agents: AgentRegistryEntry[],
+  filters: AgentRegistryFilters,
+): number {
+  if (filters.registration !== "registered") return 0;
+  return agents.filter((agent) => agent.registration === "unregistered").length;
 }
 
 // ---- Matching -----------------------------------------------------------
@@ -219,6 +293,9 @@ function matchesSearch(agent: AgentRegistryEntry, search: string): boolean {
     agent.description ?? "",
     agent.projectDisplayName,
     agent.owner?.displayName ?? "",
+    agent.discovery?.providerDisplayName ?? "",
+    agent.discovery?.scope ?? "",
+    agent.discovery?.ownerHint ?? "",
     ...Object.entries(agent.labels).map(([k, v]) => tagText(k, v)),
   ];
   return searchable.some((text) => text.toLowerCase().includes(term));
@@ -277,6 +354,10 @@ function canReachMcpServer(
   );
 }
 
+function matchesRegistration(agent: AgentRegistryEntry, registration: RegistrationFilter): boolean {
+  return registration === "both" || agent.registration === registration;
+}
+
 /** Keeps the agents that match every filter. */
 export function filterAgents(
   agents: AgentRegistryEntry[],
@@ -285,6 +366,7 @@ export function filterAgents(
   return agents.filter(
     (agent) =>
       matchesSearch(agent, filters.search) &&
+      matchesRegistration(agent, filters.registration) &&
       (filters.project === ALL || agent.projectName === filters.project) &&
       isInEnvironment(agent, filters.environment) &&
       matchesOwner(agent, filters.owner) &&
@@ -297,7 +379,7 @@ export function filterAgents(
 
 /** True when any filter or the search is narrowing the list. */
 export function isFiltered(filters: AgentRegistryFilters): boolean {
-  return Object.entries(filters).some(([key, value]) =>
-    key === "search" ? value.trim() !== "" : value !== ALL,
+  return (Object.entries(filters) as [keyof AgentRegistryFilters, string][]).some(
+    ([key, value]) => !isDefault(key, value),
   );
 }

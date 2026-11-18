@@ -46,3 +46,4 @@ export function LifecycleChip({ state, variant = "outlined" }: LifecycleChipProp
     />
   );
 }
+

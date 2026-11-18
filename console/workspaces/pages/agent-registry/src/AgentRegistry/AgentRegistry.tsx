@@ -25,10 +25,12 @@ import { ResourceListShell } from "@agent-management-platform/shared-component";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
   type AgentRegistryFilters,
+  EMPTY_FILTERS,
   buildFilterOptions,
   filterAgents,
   filtersFromSearchParams,
   filtersToSearchParams,
+  hiddenUnregisteredCount,
 } from "./agentRegistryFilters";
 import { AgentRegistryTable } from "./subComponents/AgentRegistryTable";
 import { AgentRegistryTiles } from "./subComponents/AgentRegistryTiles";
@@ -80,6 +82,12 @@ export function AgentRegistry() {
   const agents = useMemo(() => data?.agents ?? [], [data?.agents]);
   const filterOptions = useMemo(() => buildFilterOptions(agents), [agents]);
   const shownAgents = useMemo(() => filterAgents(agents, filters), [agents, filters]);
+  // "Showing X of Y" counts only the agents the registration choice lets in, so
+  // hidden shadow agents don't make the list look filtered when it isn't.
+  const inScopeCount = useMemo(
+    () => filterAgents(agents, { ...EMPTY_FILTERS, registration: filters.registration }).length,
+    [agents, filters.registration],
+  );
 
   return (
     <PageLayout
@@ -110,7 +118,8 @@ export function AgentRegistry() {
             view={view}
             onViewChange={setView}
             shownCount={shownAgents.length}
-            totalCount={agents.length}
+            totalCount={inScopeCount}
+            hiddenUnregisteredCount={hiddenUnregisteredCount(agents, filters)}
           />
         }
         error={error}

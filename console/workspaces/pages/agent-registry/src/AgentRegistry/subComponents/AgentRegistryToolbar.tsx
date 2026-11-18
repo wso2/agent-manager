@@ -40,8 +40,7 @@ import {
   type AgentRegistryFilters,
   EMPTY_FILTERS,
   type FilterChip,
-  PANEL_FILTER_KEYS,
-  type PanelFilters,
+  type PanelDraft,
   filterChips,
 } from "../agentRegistryFilters";
 import { AgentRegistryFiltersPanel, FILTERS_PANEL_ID } from "./AgentRegistryFiltersPanel";
@@ -49,8 +48,9 @@ import { AgentRegistryFiltersPanel, FILTERS_PANEL_ID } from "./AgentRegistryFilt
 /** How the list shows agents. */
 export type AgentRegistryView = "table" | "tiles";
 
-function panelFiltersOf(filters: AgentRegistryFilters): PanelFilters {
+function panelDraftOf(filters: AgentRegistryFilters): PanelDraft {
   return {
+    registration: filters.registration,
     project: filters.project,
     owner: filters.owner,
     tag: filters.tag,
@@ -59,7 +59,7 @@ function panelFiltersOf(filters: AgentRegistryFilters): PanelFilters {
   };
 }
 
-const EMPTY_PANEL_FILTERS = panelFiltersOf(EMPTY_FILTERS);
+const EMPTY_PANEL_DRAFT = panelDraftOf(EMPTY_FILTERS);
 
 interface LifecycleToggleProps {
   value: string;
@@ -175,6 +175,8 @@ export interface AgentRegistryToolbarProps {
   onViewChange: (view: AgentRegistryView) => void;
   shownCount: number;
   totalCount: number;
+  /** Unregistered agents the default registration filter hides; 0 when none are hidden. */
+  hiddenUnregisteredCount: number;
 }
 
 /**
@@ -189,9 +191,10 @@ export function AgentRegistryToolbar({
   onViewChange,
   shownCount,
   totalCount,
+  hiddenUnregisteredCount,
 }: AgentRegistryToolbarProps) {
   const [panelOpen, setPanelOpen] = useState(false);
-  const [draft, setDraft] = useState<PanelFilters>(() => panelFiltersOf(filters));
+  const [draft, setDraft] = useState<PanelDraft>(() => panelDraftOf(filters));
   const [filtersButton, setFiltersButton] = useState<HTMLButtonElement | null>(null);
 
   const chips = filterChips(filters, options);
@@ -206,24 +209,32 @@ export function AgentRegistryToolbar({
   /** Opens the panel on the applied filters; an open panel keeps its draft. */
   const openPanel = () => {
     if (panelOpen) return;
-    setDraft(panelFiltersOf(filters));
+    setDraft(panelDraftOf(filters));
     setPanelOpen(true);
   };
+  /** Applies the draft; the panel's Filter button is disabled while registration is null. */
   const applyDraft = () => {
-    onChange({ ...filters, ...draft });
+    if (draft.registration === null) return;
+    onChange({ ...filters, ...draft, registration: draft.registration });
     setPanelOpen(false);
   };
+  /** Puts the chip's filter back to its default: ALL, or registered agents only. */
   const removeChip = (chip: FilterChip) => {
-    onChange({ ...filters, [chip.key]: ALL });
-    setDraft((d) => ({ ...d, [chip.key]: ALL }));
+    const defaultValue = EMPTY_FILTERS[chip.key];
+    onChange({ ...filters, [chip.key]: defaultValue });
+    setDraft((d) => ({ ...d, [chip.key]: defaultValue }));
+  };
+  const showUnregistered = () => {
+    onChange({ ...filters, registration: "both" });
+    setDraft((d) => ({ ...d, registration: "both" }));
   };
   /** Clears search, lifecycle and panel filters. The environment is the page scope, so it stays. */
   const clearAll = () => {
     onChange({ ...EMPTY_FILTERS, environment: filters.environment });
-    setDraft(EMPTY_PANEL_FILTERS);
+    setDraft(EMPTY_PANEL_DRAFT);
   };
 
-  const panelFilterCount = PANEL_FILTER_KEYS.filter((key) => filters[key] !== ALL).length;
+  const panelFilterCount = chips.length;
 
   return (
     <Stack spacing={1.5}>
@@ -258,6 +269,23 @@ export function AgentRegistryToolbar({
         <ViewToggle value={view} onChange={onViewChange} />
       </Stack>
 
+      {/* Hidden by default, so say so: otherwise people take the list as complete. */}
+      {hiddenUnregisteredCount > 0 && (
+        <Typography variant="body2" color="text.secondary">
+          {hiddenUnregisteredCount === 1
+            ? "1 unregistered agent found outside Agent Manager is not shown."
+            : `${hiddenUnregisteredCount} unregistered agents found outside Agent Manager are not shown.`}{" "}
+          <Button
+            variant="text"
+            size="small"
+            onClick={showUnregistered}
+            sx={{ p: 0, minWidth: 0, verticalAlign: "baseline" }}
+          >
+            Show
+          </Button>
+        </Typography>
+      )}
+
       {isAnythingFiltered && (
         <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
           {chips.map((chip) => (
@@ -285,7 +313,7 @@ export function AgentRegistryToolbar({
           options={options}
           environmentLabel={environmentLabel}
           onDraftChange={setDraft}
-          onReset={() => setDraft(EMPTY_PANEL_FILTERS)}
+          onReset={() => setDraft(EMPTY_PANEL_DRAFT)}
           onApply={applyDraft}
           onClose={() => setPanelOpen(false)}
         />
