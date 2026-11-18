@@ -41,6 +41,7 @@ type llmPolicyManifestItem struct {
 	Version          string
 	DisplayName      string
 	Description      string
+	ManagedBy        string
 	Parameters       map[string]interface{}
 	SystemParameters map[string]interface{}
 }
@@ -88,32 +89,117 @@ func intersectDeployedGatewayLLMPolicies(ctx context.Context, gatewayRepo reposi
 		return map[string]llmPolicyManifestItem{}, nil
 	}
 
-	gatewayUUIDs, err := deploymentRepo.PlacedGateways(ctx, orgUUID, providerUUID)
+	gateways, _, err := resolveCatalogGateways(ctx, gatewayRepo, deploymentRepo, orgUUID, &providerUUID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list deployed gateways for provider: %w", err)
+		return nil, err
 	}
-
-	gateways := make([]*models.Gateway, 0, len(gatewayUUIDs))
-	for _, gatewayUUID := range gatewayUUIDs {
-		gateway, err := gatewayRepo.GetByUUID(gatewayUUID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				// A deployment row can outlive the gateway it points to (e.g. the
-				// gateway was since deleted); skip it rather than failing the whole
-				// listing over one stale reference.
-				continue
-			}
-			return nil, fmt.Errorf("failed to get deployed gateway %s: %w", gatewayUUID, err)
-		}
-		// Defense in depth: GetByUUID isn't org-scoped, so verify the gateway we
-		// fetched actually belongs to the caller's org before including its
-		// policies, even though gatewayUUIDs itself was already org-filtered.
-		if gateway != nil && gateway.OUID == orgUUID {
-			gateways = append(gateways, gateway)
-		}
-	}
-
 	return intersectLLMPolicies(gateways), nil
+}
+
+// resolveCatalogGateways returns the gateways a policy catalog is checked against. When artifactUUID is set and the
+// artifact is placed on at least one gateway of the org, those gateways (of any hosting) are returned with the
+// deployed scope. Otherwise the org's active managed gateways are returned with the org_managed scope.
+func resolveCatalogGateways(ctx context.Context, gatewayRepo repositories.GatewayRepository, deploymentRepo repositories.DeploymentRepository, orgUUID string, artifactUUID *uuid.UUID) ([]*models.Gateway, models.PolicyAvailabilityScope, error) {
+	if artifactUUID != nil {
+		gatewayUUIDs, err := deploymentRepo.PlacedGateways(ctx, orgUUID, *artifactUUID)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to list deployed gateways for provider: %w", err)
+		}
+
+		gateways := make([]*models.Gateway, 0, len(gatewayUUIDs))
+		for _, gatewayUUID := range gatewayUUIDs {
+			gateway, err := gatewayRepo.GetByUUID(gatewayUUID)
+			if err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					// A deployment row can outlive the gateway it points to (e.g. the
+					// gateway was since deleted); skip it rather than failing the whole
+					// listing over one stale reference.
+					continue
+				}
+				return nil, "", fmt.Errorf("failed to get deployed gateway %s: %w", gatewayUUID, err)
+			}
+			// Defense in depth: GetByUUID isn't org-scoped, so verify the gateway we
+			// fetched actually belongs to the caller's org before including its
+			// policies, even though gatewayUUIDs itself was already org-filtered.
+			if gateway != nil && gateway.OUID == orgUUID {
+				gateways = append(gateways, gateway)
+			}
+		}
+		if len(gateways) > 0 {
+			return gateways, models.PolicyAvailabilityScopeDeployed, nil
+		}
+	}
+
+	gateways, err := listCatalogGateways(gatewayRepo, orgUUID)
+	if err != nil {
+		return nil, "", err
+	}
+	return gateways, models.PolicyAvailabilityScopeOrgManaged, nil
+}
+
+// gatewayRef identifies a gateway in catalog results.
+type gatewayRef = models.PolicyCatalogGatewayRef
+
+// installedPolicies is the per-gateway presence of policies across a set of gateways.
+type installedPolicies struct {
+	// ByName is the available policy per name (see intersectLLMPolicies).
+	ByName map[string]llmPolicyManifestItem
+	// Custom is true for names that any reporting gateway marks managedBy "organization".
+	Custom map[string]bool
+	// MissingOn lists, for names seen on at least one but not all reporting gateways, the gateways lacking them.
+	MissingOn map[string][]gatewayRef
+	// Reporting lists the gateways that have reported a manifest.
+	Reporting []gatewayRef
+}
+
+// collectInstalledPolicies computes which policies are installed, custom or missing on which of the given gateways.
+// A gateway that has not reported a manifest is left out of every result, as in intersectLLMPolicies.
+func collectInstalledPolicies(gateways []*models.Gateway) installedPolicies {
+	result := installedPolicies{
+		ByName:    map[string]llmPolicyManifestItem{},
+		Custom:    map[string]bool{},
+		MissingOn: map[string][]gatewayRef{},
+		Reporting: []gatewayRef{},
+	}
+	for _, item := range intersectLLMPolicies(gateways) {
+		result.ByName[item.Name] = item
+	}
+
+	type reported struct {
+		ref   gatewayRef
+		names map[string]struct{}
+	}
+	var reporting []reported
+	allNames := map[string]struct{}{}
+	for _, gateway := range gateways {
+		manifest, known := gatewayManifest(gateway)
+		if !known {
+			continue
+		}
+		name := gateway.DisplayName
+		if name == "" {
+			name = gateway.Name
+		}
+		entry := reported{ref: gatewayRef{ID: gateway.UUID.String(), Name: name}, names: map[string]struct{}{}}
+		for _, policy := range extractLLMPolicyManifestItems(manifest) {
+			entry.names[policy.Name] = struct{}{}
+			allNames[policy.Name] = struct{}{}
+			if policy.ManagedBy == "organization" {
+				result.Custom[policy.Name] = true
+			}
+		}
+		reporting = append(reporting, entry)
+		result.Reporting = append(result.Reporting, entry.ref)
+	}
+
+	for name := range allNames {
+		for _, entry := range reporting {
+			if _, ok := entry.names[name]; !ok {
+				result.MissingOn[name] = append(result.MissingOn[name], entry.ref)
+			}
+		}
+	}
+	return result
 }
 
 // intersectLLMPolicies returns, keyed by "name\x00version", the full policy definitions
@@ -295,6 +381,7 @@ func extractLLMPolicyManifestItems(value interface{}) []llmPolicyManifestItem {
 			Version:          version,
 			DisplayName:      stringValue(lookup(entry, "displayName")),
 			Description:      stringValue(lookup(entry, "description")),
+			ManagedBy:        stringValue(lookup(entry, "managedBy")),
 			Parameters:       mapValue(lookup(entry, "parameters")),
 			SystemParameters: mapValue(lookup(entry, "systemParameters")),
 		})

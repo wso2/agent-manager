@@ -431,6 +431,9 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsGatewayFromAnotherOrg(t *testi
 			gw.OUID = "another-org"
 			return gw, nil
 		},
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{}, nil
+		},
 	}
 
 	available, err := intersectDeployedGatewayLLMPolicies(context.Background(), gatewayRepo, deploymentRepo, uuid.New(), "org-uuid")
@@ -448,6 +451,9 @@ func TestIntersectDeployedGatewayLLMPolicies_SkipsStaleGatewayReference(t *testi
 	gatewayRepo := &repomocks.GatewayRepositoryMock{
 		GetByUUIDFunc: func(_ string) (*models.Gateway, error) {
 			return nil, gorm.ErrRecordNotFound
+		},
+		ListWithFiltersFunc: func(_ repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			return []*models.Gateway{}, nil
 		},
 	}
 
@@ -469,6 +475,150 @@ func TestIntersectDeployedGatewayLLMPolicies_DeploymentRepoErrorIsWrapped(t *tes
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, boom)
+}
+
+// -----------------------------------------------------------------------------
+// managedBy, per-gateway presence and catalog gateway resolution.
+// -----------------------------------------------------------------------------
+
+func TestExtractLLMPolicyManifestItems_ReadsManagedBy(t *testing.T) {
+	manifest := map[string]interface{}{"policies": []interface{}{
+		map[string]interface{}{"name": "my-guard", "version": "v1.0.0", "managedBy": "organization"},
+		map[string]interface{}{"name": "hub-one", "version": "v1.0.0", "managedBy": "wso2"},
+	}}
+
+	items := extractLLMPolicyManifestItems(manifest)
+
+	require.Len(t, items, 2)
+	byName := map[string]llmPolicyManifestItem{}
+	for _, item := range items {
+		byName[item.Name] = item
+	}
+	assert.Equal(t, "organization", byName["my-guard"].ManagedBy)
+	assert.Equal(t, "wso2", byName["hub-one"].ManagedBy)
+}
+
+func catalogGateway(name string, policies ...map[string]interface{}) *models.Gateway {
+	gw := gatewayWithLLMPolicyManifest(policies...)
+	gw.UUID = uuid.New()
+	gw.Name = name
+	gw.DisplayName = name + " display"
+	return gw
+}
+
+func TestCollectInstalledPolicies_CustomFlag(t *testing.T) {
+	a := catalogGateway("a",
+		map[string]interface{}{"name": "my-guard", "version": "v1.0.0", "managedBy": "organization"},
+		map[string]interface{}{"name": "p1", "version": "v1.0.0"},
+	)
+	b := catalogGateway("b",
+		map[string]interface{}{"name": "p1", "version": "v1.0.0"},
+	)
+
+	got := collectInstalledPolicies([]*models.Gateway{a, b})
+
+	assert.True(t, got.Custom["my-guard"])
+	assert.False(t, got.Custom["p1"])
+	assert.Len(t, got.Reporting, 2)
+}
+
+func TestCollectInstalledPolicies_MissingOn(t *testing.T) {
+	a := catalogGateway("a",
+		map[string]interface{}{"name": "p1", "version": "v1.0.0"},
+		map[string]interface{}{"name": "p2", "version": "v1.0.0"},
+	)
+	b := catalogGateway("b",
+		map[string]interface{}{"name": "p1", "version": "v1.0.0"},
+	)
+
+	got := collectInstalledPolicies([]*models.Gateway{a, b})
+
+	assert.Equal(t, []gatewayRef{{ID: b.UUID.String(), Name: b.DisplayName}}, got.MissingOn["p2"])
+	assert.NotContains(t, got.ByName, "p2")
+	assert.Contains(t, got.ByName, "p1")
+	assert.NotContains(t, got.MissingOn, "p1")
+}
+
+func TestCollectInstalledPolicies_NameFallsBackToGatewayName(t *testing.T) {
+	a := catalogGateway("a", map[string]interface{}{"name": "p1", "version": "v1.0.0"})
+	b := catalogGateway("b")
+	b.DisplayName = ""
+	b.Manifest = map[string]interface{}{"policies": []interface{}{}, "x": "y"}
+
+	got := collectInstalledPolicies([]*models.Gateway{a, b})
+
+	assert.Equal(t, []gatewayRef{{ID: b.UUID.String(), Name: "b"}}, got.MissingOn["p1"])
+}
+
+func TestCollectInstalledPolicies_UnreportedGatewayExcluded(t *testing.T) {
+	a := catalogGateway("a", map[string]interface{}{"name": "p1", "version": "v1.0.0"})
+	silent := &models.Gateway{UUID: uuid.New(), Name: "silent"}
+
+	got := collectInstalledPolicies([]*models.Gateway{a, silent})
+
+	assert.Equal(t, []gatewayRef{{ID: a.UUID.String(), Name: a.DisplayName}}, got.Reporting)
+	assert.Empty(t, got.MissingOn)
+	assert.Contains(t, got.ByName, "p1")
+}
+
+func TestCollectInstalledPolicies_RollingUpgradeStaysInstalled(t *testing.T) {
+	a := catalogGateway("a", map[string]interface{}{"name": "p1", "version": "v1.0.1"})
+	b := catalogGateway("b", map[string]interface{}{"name": "p1", "version": "v1.0.2"})
+
+	got := collectInstalledPolicies([]*models.Gateway{a, b})
+
+	require.Contains(t, got.ByName, "p1")
+	assert.Equal(t, "v1.0.1", got.ByName["p1"].Version)
+	assert.NotContains(t, got.MissingOn, "p1")
+}
+
+func TestResolveCatalogGateways_DeployedScope(t *testing.T) {
+	artifactUUID := uuid.New()
+	selfHosted := catalogGateway("sh")
+	selfHosted.OUID = "org-uuid"
+	selfHosted.Hosting = models.GatewayHostingSelfHosted
+	deploymentRepo := &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, _ string, id uuid.UUID) ([]string, error) {
+			assert.Equal(t, artifactUUID, id)
+			return []string{"gw-sh"}, nil
+		},
+	}
+	gatewayRepo := &repomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(_ string) (*models.Gateway, error) { return selfHosted, nil },
+	}
+
+	gateways, scope, err := resolveCatalogGateways(context.Background(), gatewayRepo, deploymentRepo, "org-uuid", &artifactUUID)
+
+	require.NoError(t, err)
+	assert.Equal(t, models.PolicyAvailabilityScopeDeployed, scope)
+	assert.Equal(t, []*models.Gateway{selfHosted}, gateways)
+}
+
+func TestResolveCatalogGateways_UndeployedFallsBackToOrgManaged(t *testing.T) {
+	artifactUUID := uuid.New()
+	managed := catalogGateway("m")
+	deploymentRepo := &repomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, _ string, _ uuid.UUID) ([]string, error) {
+			return []string{}, nil
+		},
+	}
+	gatewayRepo := &repomocks.GatewayRepositoryMock{
+		ListWithFiltersFunc: func(f repositories.GatewayFilterOptions) ([]*models.Gateway, error) {
+			assert.Equal(t, models.GatewayHostingManaged, f.Hosting)
+			assert.Equal(t, "org-uuid", f.OrganizationID)
+			return []*models.Gateway{managed}, nil
+		},
+	}
+
+	for name, id := range map[string]*uuid.UUID{"placed but empty": &artifactUUID, "no artifact": nil} {
+		t.Run(name, func(t *testing.T) {
+			gateways, scope, err := resolveCatalogGateways(context.Background(), gatewayRepo, deploymentRepo, "org-uuid", id)
+
+			require.NoError(t, err)
+			assert.Equal(t, models.PolicyAvailabilityScopeOrgManaged, scope)
+			assert.Equal(t, []*models.Gateway{managed}, gateways)
+		})
+	}
 }
 
 // -----------------------------------------------------------------------------
