@@ -77,7 +77,7 @@ Run these in `agent-manager-service`:
 | When you change | Run |
 |---|---|
 | Any Go code | `make fmt` (gofumpt; CI rejects unformatted code) and `make lint` |
-| The OpenAPI spec | `make spec` |
+| The OpenAPI spec | `make spec`, and `make amctl-gen-client` at the repository root for the CLI's client (`make tools-codegen` installs the pinned oapi-codegen) |
 | Wiring in `wiring/wire.go` or `modules/gateway/gwwire/wire.go` | `make wire` (regenerates both) |
 | A repository or client interface | `make mocks` (needs moq v0.5.3 from `make tools`) |
 | The database schema in `db_migrations/schema/lite.yaml`, or a module's in `modules/<name>/schema/` | `make schema`, which regenerates the SQLite and PostgreSQL migrations |
