@@ -76,7 +76,21 @@ const ATTRIBUTE_LABELS: Record<string, string> = {
   description: "Description",
   displayName: "Display name",
   runtimeReference: "Runtime reference",
+  reviewedBy: "Confirmed by",
 };
+
+/** Who confirmed a code agent before the scan published it. */
+const REVIEWED_BY_LABELS: Record<string, string> = {
+  rules: "Rules",
+  ai_review: "AI review",
+  ai_review_judge: "AI review and LLM judge",
+};
+
+/** An attribute's value, as shown on the page. */
+function attributeValue(key: string, v: unknown): string {
+  if (key === "reviewedBy" && typeof v === "string") return REVIEWED_BY_LABELS[v] ?? v;
+  return formatValue(v);
+}
 
 function formatValue(v: unknown): string {
   if (v === null || v === undefined) return "—";
@@ -116,7 +130,7 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
-function EvidenceCard({ finding }: { finding: ShadowFindingDetail }) {
+function EvidenceCard({ finding, isCode }: { finding: ShadowFindingDetail; isCode: boolean }) {
   return (
     <Card variant="outlined">
       <CardContent>
@@ -124,7 +138,9 @@ function EvidenceCard({ finding }: { finding: ShadowFindingDetail }) {
           Evidence
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-          The platform listing that returned this agent.
+          {isCode
+            ? "The code in the repository that matched each rule."
+            : "The platform listing that returned this agent."}
         </Typography>
         {finding.signals.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
@@ -222,6 +238,9 @@ export function FindingDetail({
   const attributes = Object.entries(f.attributes ?? {});
   const owner = ownerLabel(f.ownerHint);
   const foundBy = f.foundBy ?? [];
+  const isCode = f.kind === "code_agent";
+  const reviewedBy = f.attributes?.reviewedBy;
+  const aiReviewed = reviewedBy === "ai_review" || reviewedBy === "ai_review_judge";
 
   return (
     <PageLayout
@@ -233,9 +252,24 @@ export function FindingDetail({
       <Stack spacing={3}>
         {!f.present && (
           <Alert severity="warning">
-            The latest complete scan of {f.connectionName} no longer listed this agent: it was
-            deleted at the platform, or it is no longer in the connection&apos;s scope. It was last
-            seen {shortDate(f.lastSeenAt)}.
+            {isCode ? (
+              <>
+                The latest complete scan of {f.connectionName} no longer found this agent: it was
+                removed from the repository&apos;s code, or the repository is no longer in the
+                platform&apos;s scope. It was last seen {shortDate(f.lastSeenAt)}.
+              </>
+            ) : (
+              <>
+                The latest complete scan of {f.connectionName} no longer listed this agent: it was
+                deleted at the platform, or it is no longer in the connection&apos;s scope. It was
+                last seen {shortDate(f.lastSeenAt)}.
+              </>
+            )}
+          </Alert>
+        )}
+        {aiReviewed && (
+          <Alert severity="info">
+            AI review confirmed this agent. AI review can make mistakes, so check the evidence.
           </Alert>
         )}
         <Card variant="outlined">
@@ -247,9 +281,11 @@ export function FindingDetail({
                 </Typography>
                 <StatusChip status={f.status} />
               </Grid>
-              <Grid size={{ xs: 6, md: 3 }}>
-                <Field label="State at the platform" value={f.state} />
-              </Grid>
+              {!isCode && (
+                <Grid size={{ xs: 6, md: 3 }}>
+                  <Field label="State at the platform" value={f.state} />
+                </Grid>
+              )}
               <Grid size={{ xs: 12, md: 6 }}>
                 {canManage && (
                   <Stack direction="row" spacing={1} justifyContent={{ md: "flex-end" }}>
@@ -289,7 +325,7 @@ export function FindingDetail({
           </CardContent>
         </Card>
 
-        <EvidenceCard finding={f} />
+        <EvidenceCard finding={f} isCode={isCode} />
 
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, md: 6 }}>
@@ -300,16 +336,19 @@ export function FindingDetail({
                 </Typography>
                 <Stack spacing={1.5}>
                   <Field
-                    label="Platform ID"
+                    label={isCode ? "Location in code" : "Platform ID"}
                     value={<span style={{ fontFamily: "monospace" }}>{f.externalId}</span>}
                   />
-                  {f.scope && <Field label="Scope" value={f.scope} />}
+                  {f.scope && <Field label={isCode ? "Repository" : "Scope"} value={f.scope} />}
                   {attributes.map(([k, v]) => (
-                    <Field key={k} label={ATTRIBUTE_LABELS[k] ?? k} value={formatValue(v)} />
+                    <Field key={k} label={ATTRIBUTE_LABELS[k] ?? k} value={attributeValue(k, v)} />
                   ))}
                   <Typography variant="caption" color="text.secondary">
-                    Only what the platform&apos;s agent listing reports. Instructions, prompts, tool
-                    definitions and secrets are never stored.
+                    {isCode
+                      ? "Only what the scan command reported from the repository's code. " +
+                        "Source code, prompts and secrets are never stored."
+                      : "Only what the platform's agent listing reports. Instructions, prompts, " +
+                        "tool definitions and secrets are never stored."}
                   </Typography>
                 </Stack>
               </CardContent>
@@ -331,25 +370,28 @@ export function FindingDetail({
                             size="small"
                             variant="outlined"
                             color="warning"
-                            label="No longer listed"
+                            label={isCode ? "No longer found" : "No longer listed"}
                           />
                         )}
                       </Stack>
                     ))}
                     {foundBy.length > 1 && (
                       <Typography variant="caption" color="text.secondary">
-                        The same agent (same platform and platform ID) was found through{" "}
-                        {foundBy.length} connections; it is shown once.
+                        The same agent (
+                        {isCode ? "same repository location" : "same platform and platform ID"})
+                        was found through {foundBy.length} connections; it is shown once.
                       </Typography>
                     )}
                   </Stack>
                   <Grid container spacing={1.5} sx={{ mt: 1 }}>
-                    <Grid size={6}>
-                      <Field
-                        label="Created at the platform"
-                        value={shortDate(f.providerCreatedAt)}
-                      />
-                    </Grid>
+                    {!isCode && (
+                      <Grid size={6}>
+                        <Field
+                          label="Created at the platform"
+                          value={shortDate(f.providerCreatedAt)}
+                        />
+                      </Grid>
+                    )}
                     <Grid size={6}>
                       <Field label="First seen by a scan" value={shortDate(f.firstSeenAt)} />
                     </Grid>

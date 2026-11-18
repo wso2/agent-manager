@@ -135,7 +135,7 @@ Each piece of a code agent's evidence has one of twelve codes, `github.d1_agent_
 
 These are evidence codes only: an agent is published because the rules proved it or AI review confirmed it, never by a score.
 
-**Details.** An agent shows what its listing reports, through an allow-list: model, framework, kind, version, status, tools and MCP servers (type and name; server label and URL origin), skills, image, source repository, region or location, project or workspace, execution role, protocol, labels and the platform's short description. Owner details are shown only when the agent listing reports who created the agent. A code agent also has the `reviewedBy` attribute in the API: who confirmed it (`rules`, `ai_review` or `ai_review_judge`). The console shows it with its raw key for now.
+**Details.** An agent shows what its listing reports, through an allow-list: model, framework, kind, version, status, tools and MCP servers (type and name; server label and URL origin), skills, image, source repository, region or location, project or workspace, execution role, protocol, labels and the platform's short description. Owner details are shown only when the agent listing reports who created the agent. A code agent also has the `reviewedBy` attribute in the API: who confirmed it (`rules`, `ai_review` or `ai_review_judge`). The console shows it as **Confirmed by**: Rules, AI review, or AI review and LLM judge. With AI review, the agent detail page notes that AI review can make mistakes.
 
 ## Data retention
 

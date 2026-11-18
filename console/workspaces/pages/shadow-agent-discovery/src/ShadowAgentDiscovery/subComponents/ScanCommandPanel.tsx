@@ -89,7 +89,6 @@ export function ScanOptions({
           </Stack>
         }
       />
-      {aiReview && <Alert severity="warning">AI review can make mistakes.</Alert>}
     </Stack>
   );
 }

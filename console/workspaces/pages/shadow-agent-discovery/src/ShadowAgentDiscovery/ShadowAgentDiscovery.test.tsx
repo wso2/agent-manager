@@ -549,6 +549,82 @@ describe("FindingDetail", () => {
     expect(screen.queryByText(/verdict/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/onboard/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/no longer listed/i)).not.toBeInTheDocument();
+    expect(screen.getByText("The platform listing that returned this agent.")).toBeInTheDocument();
+    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
+  });
+
+  const codeAgent = (reviewedBy: string, over: Partial<ShadowFindingDetail> = {}) =>
+    detail({
+      provider: "github",
+      kind: "code_agent",
+      externalId: "wso2/support-bot:agent.py",
+      attributes: { framework: "langgraph", reviewedBy },
+      signals: [
+        {
+          code: "github.d1_agent_dependency",
+          name: "Agent framework dependency",
+          source: "requirements.txt",
+          condition: "A dependency on an agent framework",
+          observed: { dependency: "langgraph" },
+          detectedAt: "2026-11-10T00:00:00Z",
+        },
+      ],
+      ...over,
+    });
+
+  it("explains code evidence and warns that AI review confirmed a code agent", () => {
+    hoisted.detail = codeAgent("ai_review_judge");
+    renderDetail();
+    expect(
+      screen.getByText("The code in the repository that matched each rule."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("The platform listing that returned this agent.")).toBeNull();
+    expect(screen.getByText("requirements.txt")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed by")).toBeInTheDocument();
+    expect(screen.getByText("AI review and LLM judge")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "AI review confirmed this agent. AI review can make mistakes, so check the evidence.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Location in code")).toBeInTheDocument();
+    expect(screen.getByText("Repository")).toBeInTheDocument();
+    expect(screen.queryByText("Platform ID")).not.toBeInTheDocument();
+    expect(screen.getByText(/Only what the scan command reported/)).toBeInTheDocument();
+  });
+
+  it("warns about AI mistakes for a code agent confirmed by AI review alone", () => {
+    hoisted.detail = codeAgent("ai_review");
+    renderDetail();
+    expect(screen.getByText("AI review")).toBeInTheDocument();
+    expect(screen.getByText(/AI review can make mistakes/)).toBeInTheDocument();
+  });
+
+  it("words a code agent that is no longer found, without platform-only fields", () => {
+    hoisted.detail = codeAgent("ai_review", {
+      present: false,
+      foundBy: [
+        { findingId: "f1", connectionId: "c1", connectionName: "WSO2 GitHub", present: false },
+        { findingId: "f9", connectionId: "c9", connectionName: "WSO2 mirror", present: true },
+      ],
+    });
+    renderDetail();
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(screen.getByText(/no longer found this agent/)).toBeInTheDocument();
+    expect(screen.queryByText(/no longer listed this agent/)).not.toBeInTheDocument();
+    expect(screen.getByText("No longer found")).toBeInTheDocument();
+    expect(screen.queryByText("No longer listed")).not.toBeInTheDocument();
+    expect(screen.getByText(/same repository location/)).toBeInTheDocument();
+    expect(screen.queryByText("State at the platform")).not.toBeInTheDocument();
+    expect(screen.queryByText("Created at the platform")).not.toBeInTheDocument();
+  });
+
+  it("shows a rule-proven code agent without the AI warning", () => {
+    hoisted.detail = codeAgent("rules");
+    renderDetail();
+    expect(screen.getByText("Confirmed by")).toBeInTheDocument();
+    expect(screen.getByText("Rules")).toBeInTheDocument();
+    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
   });
 
   it("notes an agent found through several connections, and its owner when listed", () => {
@@ -1068,17 +1144,16 @@ describe("GenerateCommandDialog", () => {
   });
   const spec = sourceHostSpec();
 
-  it("offers the LLM judge only with AI review, and warns about AI mistakes", () => {
+  it("offers the LLM judge only with AI review, with no AI warning in the panel", () => {
     render(
       <GenerateCommandDialog orgName="acme" target={target} spec={spec} onClose={vi.fn()} />,
     );
     const ai = screen.getByRole("switch", { name: /^AI review/ });
     const judge = screen.getByRole("switch", { name: /^LLM judge/ });
     expect(judge).toBeDisabled();
-    expect(screen.queryByText("AI review can make mistakes.")).not.toBeInTheDocument();
     fireEvent.click(ai);
     expect(judge).toBeEnabled();
-    expect(screen.getByText("AI review can make mistakes.")).toBeInTheDocument();
+    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
     fireEvent.click(judge);
     fireEvent.click(screen.getByRole("button", { name: "Generate" }));
     expect(hoisted.generate).toHaveBeenLastCalledWith(
