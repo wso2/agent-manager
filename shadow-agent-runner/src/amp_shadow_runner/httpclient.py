@@ -224,7 +224,7 @@ class HttpClient:
         headers: dict[str, str],
         read: Callable[[http.client.HTTPResponse, str, str], T],
     ) -> T:
-        origin = _origin(url)
+        first = origin(url)
         current, sent = url, headers
         for _ in range(MAX_REDIRECTS + 1):
             with self._open(method, current, data, sent) as response:
@@ -234,7 +234,7 @@ class HttpClient:
                     if not location:
                         raise HttpError(f"{method} {safe_url(current)} failed: HTTP {status} without a Location")
                     current = redirect_target(current, location)
-                    if _origin(current) != origin:
+                    if origin(current) != first:
                         # Once dropped, credentials stay dropped for the rest of the chain.
                         sent = {k: v for k, v in sent.items() if k.lower() not in _CREDENTIAL_HEADERS}
                     continue
@@ -307,7 +307,8 @@ def redirect_target(current: str, location: str) -> str:
     return target
 
 
-def _origin(url: str) -> tuple[str, str, int]:
+def origin(url: str) -> tuple[str, str, int]:
+    """The (scheme, host, port) a URL's credentials belong to. Raises ValueError for an invalid address."""
     parts = urlsplit(url)
     scheme = parts.scheme.lower()
     return scheme, parts.hostname or "", parts.port or (443 if scheme == "https" else 80)

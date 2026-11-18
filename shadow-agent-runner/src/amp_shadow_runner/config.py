@@ -158,7 +158,7 @@ def _github(args: argparse.Namespace) -> tuple[str, bool, tuple[str, ...], str]:
                 name = owner
             elif owner.casefold() != org.casefold():
                 raise ConfigError(f"Repository {item!r} is not in {org}.")
-            if not _GITHUB_REPO.fullmatch(name):
+            if not _GITHUB_REPO.fullmatch(name) or name in (".", ".."):  # GitHub forbids . and ..
                 raise ConfigError(f"{item!r} is not a GitHub repository name.")
             return name
 

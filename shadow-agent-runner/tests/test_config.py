@@ -189,6 +189,7 @@ def test_token_is_not_in_repr() -> None:
         (["--github-org", "o", "--repos", "other/api"], "Repository 'other/api' is not in o."),
         (["--github-org", "o", "--repos", "o/a/b"], "'o/a/b' is not a GitHub repository name."),
         (["--github-org", "o", "--repos", "a" * 101], "is not a GitHub repository name."),
+        (["--github-org", "o", "--repos", "a,.."], "'..' is not a GitHub repository name."),
         (["--azure-devops-org", "my org", "--all-projects"], "'my org' is not an Azure DevOps organization name."),
         (["--azure-devops-org", "https://dev.azure.com/o", "--all-projects"], "not an Azure DevOps organization"),
         (["--azure-devops-org", "o", "--projects", "a%2Fb"], "'a%2Fb' is not an Azure DevOps project name."),

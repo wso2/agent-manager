@@ -30,7 +30,7 @@ from typing import Any
 import pytest
 
 from amp_shadow_runner import __version__
-from amp_shadow_runner.httpclient import HttpClient, HttpError, _origin, redirect_target, safe_url
+from amp_shadow_runner.httpclient import HttpClient, HttpError, origin, redirect_target, safe_url
 
 NOW = 1_800_000_000.0
 TOKEN = "Bearer s3cr3t-scan-token-value"
@@ -296,7 +296,7 @@ def test_short_download_leaves_no_file(server: _Server, tmp_path: Path) -> None:
     assert not dest.exists()
 
 
-def test_same_origin_redirect_keeps_authorization(server: _Server, client: HttpClient, tmp_path: Path) -> None:
+def test_sameorigin_redirect_keeps_authorization(server: _Server, client: HttpClient, tmp_path: Path) -> None:
     server.route("/land", (200, {}, b"data"))
     url = server.route("/tarball", (302, {"Location": "/land?sig=abc"}, b""))
     client.download(url, tmp_path / "a", max_bytes=100, headers={"Authorization": TOKEN})
@@ -305,7 +305,7 @@ def test_same_origin_redirect_keeps_authorization(server: _Server, client: HttpC
 
 
 @pytest.mark.parametrize("name", ["Authorization", "authorization"])
-def test_cross_origin_redirect_drops_authorization(
+def test_crossorigin_redirect_drops_authorization(
     server: _Server, other: _Server, client: HttpClient, tmp_path: Path, name: str
 ) -> None:
     landing = other.route("/codeload", (200, {}, b"data"))
@@ -329,10 +329,10 @@ def test_authorization_stays_dropped_when_redirected_back(server: _Server, other
     assert "Authorization" not in server.seen[1].headers
 
 
-def test_origin_compares_scheme_host_and_port() -> None:
-    assert _origin("http://h:8443/a") != _origin("https://h:8443/a")
-    assert _origin("https://H/a") == _origin("https://h:443/b?c")
-    assert _origin("https://h/a") != _origin("https://h:8443/a")
+def testorigin_compares_scheme_host_and_port() -> None:
+    assert origin("http://h:8443/a") != origin("https://h:8443/a")
+    assert origin("https://H/a") == origin("https://h:443/b?c")
+    assert origin("https://h/a") != origin("https://h:8443/a")
 
 
 def test_too_many_redirects_fail(server: _Server, client: HttpClient) -> None:
