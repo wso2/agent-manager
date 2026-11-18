@@ -35,7 +35,6 @@ export function encodeRequired(value: string | undefined, label: string): string
   }
   return encodeURIComponent(value);
 }
-export const OBS_SERVICE_BASE = '/api';
 export const POLL_INTERVAL = 5000;
 export const SLOW_POLL_INTERVAL = 15000;
 

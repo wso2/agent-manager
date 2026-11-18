@@ -80,7 +80,6 @@ window.__RUNTIME_CONFIG__ = {
   gatewayVersion: '$GATEWAY_VERSION',
   ampVersion: '$AMP_VERSION',
   promptsBaseUrl: '$PROMPTS_BASE_URL',
-  instrumentationUrl: '$INSTRUMENTATION_URL',
   agentManagerInternalBaseUrl: '$AGENT_MANAGER_INTERNAL_BASE_URL',
   agentManagerInternalCpHost: '$AGENT_MANAGER_INTERNAL_CP_HOST',
   idpHostBaseDomain: '$IDP_HOST_BASE_DOMAIN',
