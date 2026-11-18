@@ -16,10 +16,8 @@
  * under the License.
  */
 
-import { useQueryClient } from "@tanstack/react-query";
 import { generatePath } from "react-router-dom";
 import {
-  createOrganization,
   generateResourceName,
   getOrganization,
   listOrganizations,
@@ -29,7 +27,6 @@ import {
   type OrganizationListItem,
   type OrganizationListResponse,
   type OrganizationResponse,
-  type CreateOrganizationRequest,
   type GetOrganizationPathParams,
   type ListOrganizationsQuery,
   type ResourceNameRequest,
@@ -91,22 +88,6 @@ export function useGetOrganization(params: GetOrganizationPathParams) {
     queryKey: ['organization', params],
     queryFn: () => getOrganization(params, getToken),
     enabled: !!params.orgName,
-  });
-}
-
-export function useCreateOrganization() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return useApiMutation<
-    OrganizationResponse,
-    unknown,
-    CreateOrganizationRequest
-  >({
-    action: { verb: 'create', target: 'organization' },
-    mutationFn: (body) => createOrganization(body, getToken),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['organizations'] });
-    },
   });
 }
 
