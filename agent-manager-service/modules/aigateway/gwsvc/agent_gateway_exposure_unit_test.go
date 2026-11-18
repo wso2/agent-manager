@@ -29,8 +29,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
@@ -43,7 +43,7 @@ type gatewayExposureHarness struct {
 	pending   []models.Placement
 	exposure  *AgentExposurePublisher
 	a2a       *A2APublisher
-	txConfigs *repomocks.AgentConfigRepositoryMock
+	txConfigs *gwrepomocks.AgentConfigRepositoryMock
 }
 
 func newGatewayExposureHarness(t *testing.T) *gatewayExposureHarness {
@@ -54,7 +54,7 @@ func newGatewayExposureHarness(t *testing.T) *gatewayExposureHarness {
 		gateway: &models.Gateway{
 			UUID: uuid.New(), Vhost: "https://agents.example.com", GatewayFunctionalityType: models.GatewayRoleIngress,
 		},
-		txConfigs: &repomocks.AgentConfigRepositoryMock{UpsertFunc: func(context.Context, *models.AgentConfig) error { return nil }},
+		txConfigs: &gwrepomocks.AgentConfigRepositoryMock{UpsertFunc: func(context.Context, *models.AgentConfig) error { return nil }},
 	}
 	m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*models.Gateway, error) {
 		if h.gateway == nil {
@@ -89,12 +89,12 @@ func (h *gatewayExposureHarness) wire(t *testing.T, s *AgentGatewayService) {
 	s.gatewayRepo = h.gateways
 	s.a2aPublisher = h.a2a
 	s.exposure = h.exposure
-	plain, _ := s.agentConfigRepo.(*repomocks.AgentConfigRepositoryMock)
+	plain, _ := s.agentConfigRepo.(*gwrepomocks.AgentConfigRepositoryMock)
 	if plain == nil {
-		plain = &repomocks.AgentConfigRepositoryMock{}
+		plain = &gwrepomocks.AgentConfigRepositoryMock{}
 		s.agentConfigRepo = plain
 	}
-	plain.WithTxFunc = func(tx *gorm.DB) repositories.AgentConfigRepository {
+	plain.WithTxFunc = func(tx *gorm.DB) gwrepo.AgentConfigRepository {
 		assert.Same(t, txSentinel, tx, "the config is saved in the exposure transaction")
 		return h.txConfigs
 	}

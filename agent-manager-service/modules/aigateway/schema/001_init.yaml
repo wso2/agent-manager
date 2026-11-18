@@ -30,6 +30,44 @@ tables:
       - {name: updated_at, type: time}
     primary_key: [agent_id, environment_id]
 
+  # The LLM providers and MCP proxies an agent asked for in its
+  # extensions.ai-gateway block. The agent's hooks write them; a handler
+  # provisions each one as an agent configuration (config_id) in the background.
+  - name: mod_ai_gateway_agent_bindings
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: agent_id, type: id}
+      - {name: kind, type: text, size: 8}
+      - {name: position, type: int}
+      - {name: target, type: text, size: 255}
+      - {name: request, type: json}
+      - {name: state, type: text, size: 16}
+      - {name: last_error, type: text, size: 2000, nullable: true}
+      - {name: config_id, type: id, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    indexes: [[org_id, agent_id]]
+    checks:
+      - "kind IN ('llm', 'mcp')"
+      - "state IN ('pending', 'ready', 'failed', 'removing')"
+
+  # Deleted agents whose gateway state is still being revoked. The rows keep
+  # the agent's names so the revocation finds them after the agent is gone;
+  # an agent of the same name cannot be created until the row goes.
+  - name: mod_ai_gateway_agent_teardowns
+    columns:
+      - {name: agent_id, type: id}
+      - {name: org_id, type: id}
+      - {name: project_name, type: text, size: 255}
+      - {name: agent_name, type: text, size: 255}
+      - {name: last_error, type: text, size: 2000, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [agent_id]
+    unique: [[org_id, project_name, agent_name]]
+
   # --- Gateways -----------------------------------------------------------------------------
 
   - name: mod_ai_gateway_gateways

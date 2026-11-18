@@ -105,7 +105,7 @@ func goldenA2AKind(t *testing.T, proxy *models.A2AProxy, fetcher A2ACardFetcher)
 		},
 	}
 	cards.WithTxFunc = func(*gorm.DB) gwrepo.A2AAgentCardRepository { return cards }
-	configs := &repomocks.AgentConfigRepositoryMock{
+	configs := &gwrepomocks.AgentConfigRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) { return cfg, nil },
 	}
 	oc := &repomocks.PlatformRepositoryMock{}

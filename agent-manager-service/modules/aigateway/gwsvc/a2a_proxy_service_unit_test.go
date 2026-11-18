@@ -33,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -50,7 +49,7 @@ type proxyHarness struct {
 	svc                *a2aProxyService
 	txProxies          *gwrepomocks.A2AProxyRepositoryMock
 	cards, txCards     *gwrepomocks.A2AAgentCardRepositoryMock
-	configs, txConfigs *repomocks.AgentConfigRepositoryMock
+	configs, txConfigs *gwrepomocks.AgentConfigRepositoryMock
 	oc                 *repomocks.PlatformRepositoryMock
 	artifactUUID       uuid.UUID
 	// steps records the order of the transition lock and the proxy reads.
@@ -63,7 +62,7 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 		publisherMocks: m,
 		txProxies:      &gwrepomocks.A2AProxyRepositoryMock{},
 		txCards:        &gwrepomocks.A2AAgentCardRepositoryMock{},
-		txConfigs:      &repomocks.AgentConfigRepositoryMock{},
+		txConfigs:      &gwrepomocks.AgentConfigRepositoryMock{},
 		artifactUUID:   uuid.New(),
 	}
 	m.proxies.WithTxFunc = func(tx *gorm.DB) gwrepo.A2AProxyRepository {
@@ -98,8 +97,8 @@ func newProxyHarness(t *testing.T) *proxyHarness {
 			return h.txCards
 		},
 	}
-	h.configs = &repomocks.AgentConfigRepositoryMock{
-		WithTxFunc: func(tx *gorm.DB) repositories.AgentConfigRepository {
+	h.configs = &gwrepomocks.AgentConfigRepositoryMock{
+		WithTxFunc: func(tx *gorm.DB) gwrepo.AgentConfigRepository {
 			assert.Same(t, txSentinel, tx)
 			return h.txConfigs
 		},

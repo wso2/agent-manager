@@ -1487,119 +1487,6 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
 
-  /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations:
-    get:
-      summary: Get agent configurations for a specific environment
-      description: Retrieves configuration settings for an agent in a specific environment
-      operationId: getAgentConfigurations
-      parameters:
-        - name: agentName
-          in: path
-          description: Unique name of the agent
-          required: true
-          schema:
-            type: string
-        - name: orgName
-          in: path
-          description: Organization name
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          description: Project name
-          required: true
-          schema:
-            type: string
-        - name: environment
-          in: query
-          description: Environment name
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: Agent configuration details
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ConfigurationResponse"
-        "404":
-          description: Agent not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-    put:
-      summary: Replace agent configurations (env vars / file mounts) for an environment
-      description: |
-        Replaces the env vars and file mounts on the agent's release binding for
-        the specified environment. System-managed env vars (e.g. LLM_PROVIDER_URL/KEY)
-        are filtered server-side from the request and re-injected from the agent's
-        LLM/MCP configuration; the caller never needs to send them. Triggers a pod
-        rollout so the new configuration takes effect immediately.
-      operationId: updateAgentConfigurations
-      parameters:
-        - name: agentName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: orgName
-          in: path
-          required: true
-          schema:
-            type: string
-        - name: projName
-          in: path
-          required: true
-          schema:
-            type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/UpdateAgentConfigurationsRequest"
-      responses:
-        "204":
-          description: Configurations updated successfully
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "404":
-          description: Agent or environment not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "503":
-          description: Secret values were saved, but the rollout stopped because workload secret sync could not be confirmed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ErrorResponse"
-        "501":
-          $ref: "#/components/responses/NotImplemented"
-  # ============================================
-  # GATEWAY ENVIRONMENT ENDPOINTS
-  # ============================================
-
   /orgs/{orgName}/environments:
     parameters:
       - name: orgName
@@ -5791,29 +5678,10 @@ components:
           $ref: "#/components/schemas/AgentType"
         build:
           $ref: "#/components/schemas/Build"
-        configurations:
-          $ref: "#/components/schemas/Configurations"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
         healthChecks:
           $ref: "#/components/schemas/HealthChecks"
-        modelConfig:
-          type: array
-          description: >-
-            Optional LLM configurations to create atomically with the agent.
-            Applied to the component's initial (lowest) environment. Name and
-            type are auto-generated.
-          items:
-            $ref: "#/components/schemas/ModelConfigRequest"
-        mcpConfig:
-          type: array
-          description: >-
-            Optional MCP proxy configurations to create atomically with the
-            agent. Applied to every environment in the project's deployment
-            pipeline, so the agent can be promoted without reconfiguring each
-            one. Name and type are auto-generated.
-          items:
-            $ref: "#/components/schemas/MCPConfigRequest"
         labels:
           $ref: "#/components/schemas/Labels"
         extensions:
@@ -5854,44 +5722,6 @@ components:
           type: string
           format: uri
           description: Repository clone URL; defaults to provisioning.repository.url
-
-    ModelConfigRequest:
-      type: object
-      required:
-        - providerName
-      properties:
-        providerName:
-          type: string
-          description: >-
-            Handle of an already-configured LLM provider. Applied to the
-            component's initial (lowest) environment.
-        configuration:
-          $ref: "#/components/schemas/EnvProviderConfiguration"
-        environmentVariables:
-          type: array
-          description: Optional custom environment variable names exposed to the agent
-          uniqueItems: true
-          items:
-            $ref: "#/components/schemas/EnvironmentVariableConfig"
-
-    MCPConfigRequest:
-      type: object
-      required:
-        - proxyName
-      properties:
-        proxyName:
-          type: string
-          description: >-
-            Handle of an already-configured MCP proxy. Applied to every
-            environment in the project's deployment pipeline. An environment
-            the proxy has no endpoint in yet is still recorded, and is bound
-            automatically once the proxy becomes available there.
-        environmentVariables:
-          type: array
-          description: Optional custom environment variable names exposed to the agent
-          uniqueItems: true
-          items:
-            $ref: "#/components/schemas/EnvironmentVariableConfig"
 
     UpdateAgentBasicInfoRequest:
       type: object
@@ -6150,8 +5980,6 @@ components:
           $ref: "#/components/schemas/Provisioning"
         agentType:
           $ref: "#/components/schemas/AgentType"
-        configurations:
-          $ref: "#/components/schemas/Configurations"
         inputInterface:
           $ref: "#/components/schemas/InputInterface"
         healthChecks:
@@ -7038,93 +6866,6 @@ components:
           description: Name of the target environment
       required:
         - name
-
-    ConfigurationResponse:
-      type: object
-      properties:
-        projectName:
-          type: string
-          description: Name of the project
-        agentName:
-          type: string
-          description: Name of the agent
-        environment:
-          type: string
-          description: Environment name
-        enableAutoInstrumentation:
-          type: boolean
-          description: Whether auto-instrumentation (tracing) is enabled for this environment
-        instrumentationVersion:
-          type: string
-          description: AMP instrumentation version pinned for this environment, if any
-        enableApiKeySecurity:
-          type: boolean
-          description: Whether API key security is enabled for this environment's agent endpoint
-        enableOAuthSecurity:
-          type: boolean
-          description: Whether OAuth security is enabled for this environment's agent endpoint
-        corsConfig:
-          $ref: "#/components/schemas/CORSConfig"
-          nullable: true
-          description: CORS configuration for this environment's agent endpoint
-        agentCardCorsConfig:
-          description: Effective public Agent Card CORS for this environment. Meaningful only for A2A agents.
-          $ref: "#/components/schemas/AgentCardCORSConfig"
-        oauthConfig:
-          $ref: "#/components/schemas/OAuthConfig"
-          nullable: true
-          description: OAuth configuration for this environment's agent endpoint
-        resilienceTimeoutSeconds:
-          type: integer
-          description: Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Defaults to 30 seconds when unset.
-          minimum: 1
-          maximum: 3600
-        configurations:
-          type: object
-          description: Configuration data containing env vars and file mounts
-          required:
-            - env
-            - files
-          properties:
-            env:
-              type: array
-              description: List of environment variable configurations
-              items:
-                $ref: "#/components/schemas/ConfigurationItem"
-            files:
-              type: array
-              description: List of file mount configurations
-              items:
-                $ref: "#/components/schemas/FileMount"
-      required:
-        - projectName
-        - agentName
-        - environment
-        - configurations
-
-    ConfigurationItem:
-      type: object
-      properties:
-        key:
-          type: string
-          description: Configuration key
-        value:
-          type: string
-          description: Configuration value (empty for sensitive values)
-        isSensitive:
-          type: boolean
-          description: Whether this configuration value is sensitive (e.g., a secret)
-          default: false
-        secretRef:
-          type: string
-          description: Reference to the secret storing this value. Only present for sensitive configurations.
-        isSystem:
-          type: boolean
-          description: Whether this configuration is system-managed (injected by the platform, e.g. LLM_PROVIDER_URL, LLM_PROVIDER_KEY). System-managed items are read-only and should not be edited by users.
-          default: false
-      required:
-        - key
-        - value
 
     OrganizationResponse:
       type: object
@@ -8118,9 +7859,6 @@ components:
           type: boolean
           description: Whether this is a production environment
           example: false
-        gateway:
-          description: Gateway configuration with ingress and egress network specs.
-          $ref: "#/components/schemas/GatewaySpec"
         createdAt:
           type: string
           format: date-time
@@ -8786,68 +8524,6 @@ components:
           additionalProperties: true
           description: Policy-specific parameters
 
-    Resilience:
-      type: object
-      description: >-
-        Route-level request/idle timeouts applied at the API level (no
-        per-operation override for LLM providers, LLM proxies, or MCP proxies).
-      properties:
-        timeout:
-          type: string
-          pattern: '^\d+(ms|s|m|h)$'
-          description: >-
-            Max duration for the whole request→upstream-response. "0s"
-            disables it; omit to use the gateway's default.
-          example: 15s
-        idleTimeout:
-          type: string
-          pattern: '^\d+(ms|s|m|h)$'
-          description: >-
-            Per-route stream idle timeout. "0s" disables it; omit to use the
-            gateway's default.
-          example: 20s
-
-    LLMPolicy:
-      type: object
-      required:
-        - name
-        - version
-        - paths
-      properties:
-        name:
-          type: string
-          description: Policy name
-          example: rate-limiter
-        version:
-          type: string
-          description: Policy version
-          example: v1
-        paths:
-          type: array
-          items:
-            $ref: "#/components/schemas/LLMPolicyPath"
-
-    LLMPolicyPath:
-      type: object
-      required:
-        - path
-        - methods
-      properties:
-        path:
-          type: string
-          description: Path pattern
-          example: /v1/chat/completions
-        methods:
-          type: array
-          items:
-            type: string
-          example:
-            - POST
-        params:
-          type: object
-          additionalProperties: true
-          description: Policy parameters
-
     APIKeySecurity:
       type: object
       properties:
@@ -8876,16 +8552,6 @@ components:
           type: boolean
           description: Whether Agent Identity security is enabled
 
-    EnvProviderConfiguration:
-      type: object
-      properties:
-        policies:
-          type: array
-          items:
-            $ref: "#/components/schemas/LLMPolicy"
-        resilience:
-          $ref: "#/components/schemas/Resilience"
-
     LLMProxyInfo:
       type: object
       required:
@@ -8911,24 +8577,6 @@ components:
           type: string
           description: Status of the proxy
           example: "active"
-
-    EnvironmentVariableConfig:
-      type: object
-      required:
-        - name
-        - key
-      properties:
-        key:
-          type: string
-          minLength: 1
-          description: Environment variable key
-          example: "apikey"
-        name:
-          type: string
-          minLength: 1
-          pattern: "^[A-Za-z_][A-Za-z0-9_]*$"
-          description: Environment variable name. Must start with a letter or underscore and contain only letters, digits, and underscores.
-          example: "OPENAI_API_KEY"
 
     PaginationInfo:
       type: object

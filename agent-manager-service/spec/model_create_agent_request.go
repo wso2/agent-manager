@@ -29,13 +29,8 @@ type CreateAgentRequest struct {
 	Description    *string         `json:"description,omitempty"`
 	AgentType      *AgentType      `json:"agentType,omitempty"`
 	Build          *Build          `json:"build,omitempty"`
-	Configurations *Configurations `json:"configurations,omitempty"`
 	InputInterface *InputInterface `json:"inputInterface,omitempty"`
 	HealthChecks   *HealthChecks   `json:"healthChecks,omitempty"`
-	// Optional LLM configurations to create atomically with the agent. Applied to the component's initial (lowest) environment. Name and type are auto-generated.
-	ModelConfig []ModelConfigRequest `json:"modelConfig,omitempty"`
-	// Optional MCP proxy configurations to create atomically with the agent. Applied to every environment in the project's deployment pipeline, so the agent can be promoted without reconfiguring each one. Name and type are auto-generated.
-	McpConfig []MCPConfigRequest `json:"mcpConfig,omitempty"`
 	// User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 	Labels *map[string]string `json:"labels,omitempty"`
 	// Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
@@ -262,38 +257,6 @@ func (o *CreateAgentRequest) SetBuild(v Build) {
 	o.Build = &v
 }
 
-// GetConfigurations returns the Configurations field value if set, zero value otherwise.
-func (o *CreateAgentRequest) GetConfigurations() Configurations {
-	if o == nil || IsNil(o.Configurations) {
-		var ret Configurations
-		return ret
-	}
-	return *o.Configurations
-}
-
-// GetConfigurationsOk returns a tuple with the Configurations field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *CreateAgentRequest) GetConfigurationsOk() (*Configurations, bool) {
-	if o == nil || IsNil(o.Configurations) {
-		return nil, false
-	}
-	return o.Configurations, true
-}
-
-// HasConfigurations returns a boolean if a field has been set.
-func (o *CreateAgentRequest) HasConfigurations() bool {
-	if o != nil && !IsNil(o.Configurations) {
-		return true
-	}
-
-	return false
-}
-
-// SetConfigurations gets a reference to the given Configurations and assigns it to the Configurations field.
-func (o *CreateAgentRequest) SetConfigurations(v Configurations) {
-	o.Configurations = &v
-}
-
 // GetInputInterface returns the InputInterface field value if set, zero value otherwise.
 func (o *CreateAgentRequest) GetInputInterface() InputInterface {
 	if o == nil || IsNil(o.InputInterface) {
@@ -356,70 +319,6 @@ func (o *CreateAgentRequest) HasHealthChecks() bool {
 // SetHealthChecks gets a reference to the given HealthChecks and assigns it to the HealthChecks field.
 func (o *CreateAgentRequest) SetHealthChecks(v HealthChecks) {
 	o.HealthChecks = &v
-}
-
-// GetModelConfig returns the ModelConfig field value if set, zero value otherwise.
-func (o *CreateAgentRequest) GetModelConfig() []ModelConfigRequest {
-	if o == nil || IsNil(o.ModelConfig) {
-		var ret []ModelConfigRequest
-		return ret
-	}
-	return o.ModelConfig
-}
-
-// GetModelConfigOk returns a tuple with the ModelConfig field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *CreateAgentRequest) GetModelConfigOk() ([]ModelConfigRequest, bool) {
-	if o == nil || IsNil(o.ModelConfig) {
-		return nil, false
-	}
-	return o.ModelConfig, true
-}
-
-// HasModelConfig returns a boolean if a field has been set.
-func (o *CreateAgentRequest) HasModelConfig() bool {
-	if o != nil && !IsNil(o.ModelConfig) {
-		return true
-	}
-
-	return false
-}
-
-// SetModelConfig gets a reference to the given []ModelConfigRequest and assigns it to the ModelConfig field.
-func (o *CreateAgentRequest) SetModelConfig(v []ModelConfigRequest) {
-	o.ModelConfig = v
-}
-
-// GetMcpConfig returns the McpConfig field value if set, zero value otherwise.
-func (o *CreateAgentRequest) GetMcpConfig() []MCPConfigRequest {
-	if o == nil || IsNil(o.McpConfig) {
-		var ret []MCPConfigRequest
-		return ret
-	}
-	return o.McpConfig
-}
-
-// GetMcpConfigOk returns a tuple with the McpConfig field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *CreateAgentRequest) GetMcpConfigOk() ([]MCPConfigRequest, bool) {
-	if o == nil || IsNil(o.McpConfig) {
-		return nil, false
-	}
-	return o.McpConfig, true
-}
-
-// HasMcpConfig returns a boolean if a field has been set.
-func (o *CreateAgentRequest) HasMcpConfig() bool {
-	if o != nil && !IsNil(o.McpConfig) {
-		return true
-	}
-
-	return false
-}
-
-// SetMcpConfig gets a reference to the given []MCPConfigRequest and assigns it to the McpConfig field.
-func (o *CreateAgentRequest) SetMcpConfig(v []MCPConfigRequest) {
-	o.McpConfig = v
 }
 
 // GetLabels returns the Labels field value if set, zero value otherwise.
@@ -511,20 +410,11 @@ func (o CreateAgentRequest) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Build) {
 		toSerialize["build"] = o.Build
 	}
-	if !IsNil(o.Configurations) {
-		toSerialize["configurations"] = o.Configurations
-	}
 	if !IsNil(o.InputInterface) {
 		toSerialize["inputInterface"] = o.InputInterface
 	}
 	if !IsNil(o.HealthChecks) {
 		toSerialize["healthChecks"] = o.HealthChecks
-	}
-	if !IsNil(o.ModelConfig) {
-		toSerialize["modelConfig"] = o.ModelConfig
-	}
-	if !IsNil(o.McpConfig) {
-		toSerialize["mcpConfig"] = o.McpConfig
 	}
 	if !IsNil(o.Labels) {
 		toSerialize["labels"] = o.Labels

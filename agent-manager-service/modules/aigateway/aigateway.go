@@ -16,8 +16,8 @@
 
 // Package gateway registers the AI Gateway as a built-in module: gateways,
 // LLM providers and proxies, MCP proxies, A2A, agent API keys and agent
-// identities, with their routes, workers and the capabilities the core's agent
-// service uses (llm.proxy/v1, mcp.proxy/v1, agent.gateway/v1). The module is
+// identities, with their routes, workers, agent hooks and the capabilities
+// llm.proxy/v1 and mcp.proxy/v1. The module is
 // always active. Its code is built on the core's services through package
 // builtin; the core imports none of it, so a binary that does not link this
 // package (cmd/amp-core) has no gateway.
@@ -37,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/agentgwv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
@@ -78,7 +77,7 @@ func (module) Manifest() modkit.Manifest {
 		Description:  "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
 		CoreAPI:      modkit.CoreAPIVersion,
 		Builtin:      true,
-		Provides:     []string{llmv1.ID, mcpv1.ID, agentgwv1.ID},
+		Provides:     []string{llmv1.ID, mcpv1.ID},
 		Permissions:  perms,
 		RoleGrants:   gwperm.RoleGrants,
 		Events:       gwaudit.Events,
@@ -131,8 +130,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	}
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
-	rt.Provide(agentgwv1.ID, gw.AgentGateway)
-	registerHooks(rt)
+	registerHooks(rt, gw.AgentGateway)
 	gwapi.RegisterRoutes(gwapi.NewModuleRouter(rt), gw)
 	gwapi.RegisterInternalRoutes(gwapi.NewModuleInternalRouter(rt), gw)
 	return nil
@@ -149,9 +147,8 @@ func SetCurrent(gw *gwwire.Gateway) { built.Store(gw) }
 // gateway without a module host (tests).
 func Capabilities(gw *gwwire.Gateway) map[string]any {
 	return map[string]any{
-		llmv1.ID:     gw.AgentGateway.LLM(),
-		mcpv1.ID:     gw.AgentGateway.MCP(),
-		agentgwv1.ID: gw.AgentGateway,
+		llmv1.ID: gw.AgentGateway.LLM(),
+		mcpv1.ID: gw.AgentGateway.MCP(),
 	}
 }
 

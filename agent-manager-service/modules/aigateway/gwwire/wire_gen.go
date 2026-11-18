@@ -49,7 +49,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	platformAgentExposures := gwsvc.NewPlatformAgentExposures(platformAgentExposureRepository, gatewayRepository, platformRepository)
 	a2AProxyRepository := ProvideA2AProxyRepository(db)
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
-	agentConfigRepository := core.AgentConfigRepository
+	agentConfigRepository := gwrepo.NewAgentConfigRepo(db)
 	a2ACardFetcher := gwsvc.NewA2ACardFetcher()
 	apiKeyRepository := ProvideAPIKeyRepository(db)
 	gatewayEventsService := gwsvc.NewGatewayEventsService(eventHub)
@@ -169,7 +169,7 @@ var coreSet = wire.NewSet(wire.FieldsOf(
 	new(*wiring.AppParams),
 	"DB", "Config", "Logger", "PlatformRepository", "InfraResourceManager",
 	"EncryptionKey", "SecretManagementClient", "EnvThunderResolver",
-	"AgentConfigRepository", "AgentThunderClientRepository",
+	"AgentThunderClientRepository",
 ), wiring.ProvideConfigFromPtr,
 )
 
@@ -184,7 +184,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideA2AProxyRepository,
 	ProvideArtifactRepository,
 	ProvideCatalogRepository,
-	ProvideAPIKeyRepository, gwrepo.NewAgentConfigurationRepository, gwrepo.NewEnvAgentModelMappingRepository, gwrepo.NewEnvAgentMCPMappingRepository, gwrepo.NewAgentEnvConfigVariableRepository, ProvideAIApplicationRepository, gwrepo.NewMCPProxyScopeRepository,
+	ProvideAPIKeyRepository, gwrepo.NewAgentConfigurationRepository, gwrepo.NewAgentConfigRepo, gwrepo.NewEnvAgentModelMappingRepository, gwrepo.NewEnvAgentMCPMappingRepository, gwrepo.NewAgentEnvConfigVariableRepository, ProvideAIApplicationRepository, gwrepo.NewMCPProxyScopeRepository,
 )
 
 var serviceProviderSet = wire.NewSet(gwsvc.NewA2ACardFetcher, gwsvc.NewA2ACardReconcilerService, gwsvc.NewConfiguredDeploymentTimeoutSweeper, gwsvc.NewA2AAgentCardService, ProvideTxRunner, gwsvc.NewAgentExposurePublisher, gwsvc.NewA2APublisher, gwsvc.NewA2AProxyService, ProvideA2AProxyHooks,

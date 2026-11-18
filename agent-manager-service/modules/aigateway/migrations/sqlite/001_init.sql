@@ -40,6 +40,38 @@ CREATE TABLE mod_ai_gateway_agent_gateway_settings (
     CONSTRAINT ck_mod_ai_gateway_agent_gateway_settings_14 CHECK (card_cors_allow_credentials IS NULL OR card_cors_allow_credentials IN (0, 1))
 );
 
+CREATE TABLE mod_ai_gateway_agent_bindings (
+    id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    target TEXT NOT NULL,
+    request TEXT NOT NULL,
+    state TEXT NOT NULL,
+    last_error TEXT,
+    config_id TEXT,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    CONSTRAINT pk_mod_ai_gateway_agent_bindings PRIMARY KEY (id),
+    CONSTRAINT ck_mod_ai_gateway_agent_bindings_1 CHECK (json_valid(request)),
+    CONSTRAINT ck_mod_ai_gateway_agent_bindings_2 CHECK (kind IN ('llm', 'mcp')),
+    CONSTRAINT ck_mod_ai_gateway_agent_bindings_3 CHECK (state IN ('pending', 'ready', 'failed', 'removing'))
+);
+CREATE INDEX idx_mod_ai_gateway_agent_bindings_org_id_agent_id ON mod_ai_gateway_agent_bindings (org_id, agent_id);
+
+CREATE TABLE mod_ai_gateway_agent_teardowns (
+    agent_id TEXT NOT NULL,
+    org_id TEXT NOT NULL,
+    project_name TEXT NOT NULL,
+    agent_name TEXT NOT NULL,
+    last_error TEXT,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    CONSTRAINT pk_mod_ai_gateway_agent_teardowns PRIMARY KEY (agent_id),
+    CONSTRAINT uq_mod_ai_gateway_agent_teardowns_org_id_project_name__49fd1520 UNIQUE (org_id, project_name, agent_name)
+);
+
 CREATE TABLE mod_ai_gateway_gateways (
     id TEXT NOT NULL,
     org_id TEXT NOT NULL,

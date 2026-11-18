@@ -50,7 +50,7 @@ type A2AAgentKind struct {
 	proxyRepo       gwrepo.A2AProxyRepository
 	cardRepo        gwrepo.A2AAgentCardRepository
 	deploymentRepo  gwrepo.DeploymentRepository
-	agentConfigRepo repositories.AgentConfigRepository
+	agentConfigRepo gwrepo.AgentConfigRepository
 	ocClient        repositories.PlatformRepository
 	fetcher         A2ACardFetcher
 	apiKeyRepo      gwrepo.APIKeyRepository
@@ -66,7 +66,7 @@ func NewA2AAgentKind(
 	proxyRepo gwrepo.A2AProxyRepository,
 	cardRepo gwrepo.A2AAgentCardRepository,
 	deploymentRepo gwrepo.DeploymentRepository,
-	agentConfigRepo repositories.AgentConfigRepository,
+	agentConfigRepo gwrepo.AgentConfigRepository,
 	ocClient repositories.PlatformRepository,
 	fetcher A2ACardFetcher,
 	apiKeyRepo gwrepo.APIKeyRepository,

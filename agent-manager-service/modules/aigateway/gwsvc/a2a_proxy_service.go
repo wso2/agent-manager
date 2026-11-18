@@ -72,7 +72,7 @@ type a2aProxyService struct {
 	tx              TxRunner
 	proxyRepo       gwrepo.A2AProxyRepository
 	cardRepo        gwrepo.A2AAgentCardRepository
-	agentConfigRepo repositories.AgentConfigRepository
+	agentConfigRepo gwrepo.AgentConfigRepository
 	artifactRepo    gwrepo.ArtifactRepository
 	publisher       *A2APublisher
 	ocClient        repositories.PlatformRepository
@@ -85,7 +85,7 @@ func NewA2AProxyService(
 	tx TxRunner,
 	proxyRepo gwrepo.A2AProxyRepository,
 	cardRepo gwrepo.A2AAgentCardRepository,
-	agentConfigRepo repositories.AgentConfigRepository,
+	agentConfigRepo gwrepo.AgentConfigRepository,
 	artifactRepo gwrepo.ArtifactRepository,
 	publisher *A2APublisher,
 	ocClient repositories.PlatformRepository,
@@ -627,7 +627,7 @@ func (s *a2aProxyService) beginAudit(
 
 // ensureDefaultAgentConfig gives a newly proxied environment a platform A2A agent's inbound defaults, minus forwarding the
 // caller's token to the third-party origin; a saved config wins.
-func ensureDefaultAgentConfig(ctx context.Context, configs repositories.AgentConfigRepository, key agentExposureKey) error {
+func ensureDefaultAgentConfig(ctx context.Context, configs gwrepo.AgentConfigRepository, key agentExposureKey) error {
 	api := withA2AVersionHeader(resolveAPIConfig(nil, nil, nil, nil, nil, true))
 	api.OAuthForwardToken = false
 	err := configs.CreateIfAbsent(ctx, agentConfigFromAPIConfig(key.OUID, key.ProjectName, key.AgentName, key.EnvironmentName, api))

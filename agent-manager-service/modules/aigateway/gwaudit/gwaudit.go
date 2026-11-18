@@ -168,8 +168,14 @@ const (
 	AgentAPIKeyRevoked    = "ai-gateway.agent.api_key_revoked"
 )
 
-// Events are the module's webhook event types.
+// AgentBindingsChanged is published when an agent update changes its
+// bindings, for the module's own handler; it is not a webhook type.
+const AgentBindingsChanged = "ai-gateway.agent.bindings_changed"
+
+// Events are the module's event types: its webhook types and the ones only
+// its own handlers receive.
 var Events = []modkit.EventType{
+	{Name: AgentBindingsChanged, Description: "An agent's LLM or MCP bindings changed."},
 	{Name: MCPServerCreated, Scope: "org", Description: "An MCP server was added."},
 	{Name: MCPServerUpdated, Scope: "org", Description: "An MCP server was updated."},
 	{Name: MCPServerDeleted, Scope: "org", Description: "An MCP server was deleted."},

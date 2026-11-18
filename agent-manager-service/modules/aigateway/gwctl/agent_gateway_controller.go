@@ -24,6 +24,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -87,4 +88,38 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 
 	deploymentResponses := gwconv.ConvertToDeploymentDetailsResponse(deployments)
 	utils.WriteSuccessResponse(w, http.StatusOK, deploymentResponses)
+}
+
+// GetAgentConfigurations returns the agent's gateway settings in an environment
+// and the provisioning state of the bindings it asked for.
+func (c *AgentGatewayController) GetAgentConfigurations(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	ouID := middleware.OUIDFromRequest(r)
+	projName := r.PathValue(utils.PathParamProjName)
+	agentName := r.PathValue(utils.PathParamAgentName)
+	environment := r.URL.Query().Get("environment")
+	if environment == "" {
+		environment = models.DefaultEnvironmentName
+	}
+	cfg, bindings, err := c.agentService.AgentConfigurations(ctx, ouID, projName, agentName, environment)
+	if err != nil {
+		logger.GetLogger(ctx).Error("GetAgentConfigurations: failed to read configurations", "error", err)
+		controllers.HandleCommonErrors(w, err, "Failed to get configurations")
+		return
+	}
+	resp := gwspec.AgentConfigurationResponse{
+		ProjectName: projName,
+		AgentName:   agentName,
+		Environment: environment,
+		Bindings:    make([]gwspec.AgentBinding, 0, len(bindings)),
+	}
+	gwconv.PopulateAgentConfiguration(&resp, cfg)
+	for _, b := range bindings {
+		item := gwspec.AgentBinding{Kind: b.Kind, Position: int32(b.Position), Target: b.Target, State: b.State, LastError: b.LastError}
+		if b.ConfigID != nil {
+			item.ConfigId = utils.StrAsStrPointer(b.ConfigID.String())
+		}
+		resp.Bindings = append(resp.Bindings, item)
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, resp)
 }

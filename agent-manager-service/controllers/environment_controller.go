@@ -136,7 +136,6 @@ func convertToSpecEnvironmentResponse(env *models.GatewayEnvironmentResponse) sp
 		DnsPrefix:    env.DNSPrefix,
 		Description:  &env.Description,
 		IsProduction: env.IsProduction,
-		Gateway:      toSpecGatewaySpec(env.Gateway),
 		CreatedAt:    env.CreatedAt,
 		UpdatedAt:    env.UpdatedAt,
 	}
@@ -145,51 +144,6 @@ func convertToSpecEnvironmentResponse(env *models.GatewayEnvironmentResponse) sp
 	}
 
 	return response
-}
-
-// -----------------------------------------------------------------------------
-// Gateway spec translation between the generated OpenAPI types (spec.*) and the
-// internal DTO (models.*). The two shapes are field-compatible — the public API
-// deliberately omits OC-only fields (Gateway resource name/namespace, listener
-// name); the OC client constructs those at request time.
-// -----------------------------------------------------------------------------
-
-func toSpecGatewaySpec(g *models.GatewaySpec) *spec.GatewaySpec {
-	if g == nil {
-		return nil
-	}
-	return &spec.GatewaySpec{
-		Ingress: toSpecGatewayNetworkSpec(g.Ingress),
-		Egress:  toSpecGatewayNetworkSpec(g.Egress),
-	}
-}
-
-func toSpecGatewayNetworkSpec(n *models.GatewayNetworkSpec) *spec.GatewayNetworkSpec {
-	if n == nil {
-		return nil
-	}
-	return &spec.GatewayNetworkSpec{
-		External: toSpecGatewayEndpointSpec(n.External),
-		Internal: toSpecGatewayEndpointSpec(n.Internal),
-	}
-}
-
-func toSpecGatewayEndpointSpec(e *models.GatewayEndpointSpec) *spec.GatewayEndpointSpec {
-	if e == nil {
-		return nil
-	}
-	return &spec.GatewayEndpointSpec{
-		Http:  toSpecGatewayListenerSpec(e.HTTP),
-		Https: toSpecGatewayListenerSpec(e.HTTPS),
-		Tls:   toSpecGatewayListenerSpec(e.TLS),
-	}
-}
-
-func toSpecGatewayListenerSpec(l *models.GatewayListenerSpec) *spec.GatewayListenerSpec {
-	if l == nil {
-		return nil
-	}
-	return &spec.GatewayListenerSpec{Port: l.Port, Host: l.Host}
 }
 
 func (c *environmentController) ListThunderInstances(w http.ResponseWriter, r *http.Request) {

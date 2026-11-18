@@ -943,3 +943,38 @@ func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentRe
 
 	return result
 }
+
+// PopulateAgentConfiguration fills the per-environment tracing, CORS and endpoint-authentication
+// fields of resp from the agent's gateway settings row. No-op when cfg is nil (none stored yet).
+func PopulateAgentConfiguration(resp *gwspec.AgentConfigurationResponse, cfg *models.AgentConfig) {
+	if resp == nil || cfg == nil {
+		return
+	}
+	resp.EnableAutoInstrumentation = gwspec.PtrBool(cfg.EnableAutoInstrumentation)
+	resp.InstrumentationVersion = cfg.InstrumentationVersion
+	resp.EnableApiKeySecurity = gwspec.PtrBool(cfg.EnableApiKeySecurity)
+	resp.EnableOAuthSecurity = gwspec.PtrBool(cfg.EnableOAuthSecurity)
+	resp.ResilienceTimeoutSeconds = cfg.ResilienceTimeoutSeconds
+	resp.CorsConfig = &gwspec.CORSConfig{
+		Enabled:          gwspec.PtrBool(cfg.CORSEnabled),
+		AllowOrigin:      cfg.CORSAllowOrigins,
+		AllowMethods:     cfg.CORSAllowMethods,
+		AllowHeaders:     cfg.CORSAllowHeaders,
+		AllowCredentials: gwspec.PtrBool(cfg.CORSAllowCredentials),
+	}
+	resp.OauthConfig = &gwspec.OAuthConfig{
+		Issuers:          cfg.OAuthIssuers,
+		Audiences:        cfg.OAuthAudiences,
+		HeaderName:       &cfg.OAuthHeaderName,
+		AuthHeaderPrefix: &cfg.OAuthAuthHeaderPrefix,
+		ForwardToken:     &cfg.OAuthForwardToken,
+	}
+	card := cfg.EffectiveCardCORS()
+	resp.AgentCardCorsConfig = &gwspec.AgentCardCORSConfig{
+		Inherit:          gwspec.PtrBool(card.Inherited),
+		Enabled:          gwspec.PtrBool(card.Enabled),
+		AllowOrigin:      card.AllowOrigins,
+		AllowHeaders:     card.AllowHeaders,
+		AllowCredentials: gwspec.PtrBool(card.AllowCredentials),
+	}
+}

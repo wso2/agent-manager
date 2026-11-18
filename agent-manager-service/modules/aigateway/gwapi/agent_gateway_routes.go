@@ -36,6 +36,7 @@ func registerAgentGatewayRoutes(rr Router, ctrl *gwctl.AgentGatewayController, e
 		growthanalytics.Track("amp.agent-development.update-agent", updateTargetDims("deploy-settings"), ctrl.UpdateAgentDeploySettings),
 		rbac.AgentUpdate, gwperm.DeployNonProduction)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", rbac.AgentRead, ctrl.GetAgentDeployments)
+	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations", rbac.AgentRead, ctrl.GetAgentConfigurations)
 	rr.HandleFuncWithValidationAndAnyAuthz("GET /orgs/{orgName}/environments/{envID}/gateways", envCtrl.GetEnvironmentGateways,
 		rbac.EnvironmentRead, gwperm.Read)
 }

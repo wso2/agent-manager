@@ -58,6 +58,56 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations:
+    get:
+      summary: Get agent configurations for a specific environment
+      description: The agent's gateway settings in an environment, and the provisioning state of the LLM providers and MCP proxies it asked for in its extensions.ai-gateway block (see AgentGatewayExtension)
+      operationId: getAgentConfigurations
+      parameters:
+        - name: agentName
+          in: path
+          description: Unique name of the agent
+          required: true
+          schema:
+            type: string
+        - name: orgName
+          in: path
+          description: Organization name
+          required: true
+          schema:
+            type: string
+        - name: projName
+          in: path
+          description: Project name
+          required: true
+          schema:
+            type: string
+        - name: environment
+          in: query
+          description: Environment name
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Agent configuration details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentConfigurationResponse"
+        "404":
+          description: Agent not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings:
     put:
       summary: Update agent deploy settings for an environment
@@ -6806,6 +6856,134 @@ components:
         minimum: 1
         maximum: 100
   schemas:
+    AgentGatewayExtension:
+      type: object
+      description: >-
+        The extensions.ai-gateway block of an agent create or update request
+        to the core (POST and PUT /api/v1/orgs/{orgName}/projects/{projName}/agents).
+        The module stores the bindings with the agent and provisions them in
+        the background; read their state with getAgentConfigurations. On
+        update, a list that is present replaces the agent's bindings of that
+        kind and an absent one leaves them alone.
+      properties:
+        modelConfig:
+          type: array
+          description: LLM providers the agent uses, configured in the organization's default environment.
+          items:
+            $ref: "#/components/schemas/ModelConfigRequest"
+        mcpConfig:
+          type: array
+          description: MCP proxies the agent uses, configured in every environment.
+          items:
+            $ref: "#/components/schemas/MCPConfigRequest"
+        settings:
+          $ref: "#/components/schemas/AgentGatewaySettings"
+    AgentGatewaySettings:
+      type: object
+      description: >-
+        The agent's endpoint settings in the default environment, on create
+        only; change them later with updateAgentDeploySettings.
+      properties:
+        enableApiKeySecurity:
+          type: boolean
+        enableOAuthSecurity:
+          type: boolean
+        corsConfig:
+          $ref: "#/components/schemas/CORSConfig"
+        oauthConfig:
+          $ref: "#/components/schemas/OAuthConfig"
+        resilienceTimeoutSeconds:
+          type: integer
+          minimum: 1
+          maximum: 3600
+    ModelConfigRequest:
+      type: object
+      required:
+        - providerName
+      properties:
+        providerName:
+          type: string
+          description: Handle of an LLM provider in the organization's catalog.
+        configuration:
+          $ref: "#/components/schemas/EnvProviderConfiguration"
+        environmentVariables:
+          type: array
+          description: Optional custom environment variable names exposed to the agent
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+    MCPConfigRequest:
+      type: object
+      required:
+        - proxyName
+      properties:
+        proxyName:
+          type: string
+          description: >-
+            Handle of an MCP proxy the project can use. An environment the
+            proxy has no endpoint in yet is still recorded, and is bound once
+            the proxy becomes available there.
+        environmentVariables:
+          type: array
+          description: Optional custom environment variable names exposed to the agent
+          uniqueItems: true
+          items:
+            $ref: "#/components/schemas/EnvironmentVariableConfig"
+    AgentBinding:
+      type: object
+      required: [kind, position, target, state]
+      properties:
+        kind:
+          type: string
+          enum: [llm, mcp]
+        position:
+          type: integer
+          description: Index of the binding in the request's modelConfig or mcpConfig list.
+        target:
+          type: string
+          description: The LLM provider or MCP proxy handle.
+        state:
+          type: string
+          enum: [pending, ready, failed, removing]
+          description: >-
+            pending until the module has provisioned the binding, ready once
+            it has, failed when the last attempt failed (it is retried), and
+            removing while a binding an update dropped is revoked.
+        lastError:
+          type: string
+        configId:
+          type: string
+          description: The agent configuration the binding provisioned.
+    AgentConfigurationResponse:
+      type: object
+      required: [projectName, agentName, environment, bindings]
+      properties:
+        projectName:
+          type: string
+        agentName:
+          type: string
+        environment:
+          type: string
+        enableAutoInstrumentation:
+          type: boolean
+        instrumentationVersion:
+          type: string
+        enableApiKeySecurity:
+          type: boolean
+        enableOAuthSecurity:
+          type: boolean
+        corsConfig:
+          $ref: "#/components/schemas/CORSConfig"
+        agentCardCorsConfig:
+          $ref: "#/components/schemas/AgentCardCORSConfig"
+        oauthConfig:
+          $ref: "#/components/schemas/OAuthConfig"
+        resilienceTimeoutSeconds:
+          type: integer
+        bindings:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentBinding"
     MCPProxyScopeRequest:
       type: object
       required: [action]

@@ -36,17 +36,20 @@ func fresh(tx *gorm.DB) *gorm.DB {
 }
 
 // AgentIDQuery selects the id of the agent named agentName in project projectName of ouID, for a WHERE clause:
-// Where("agent_id = (?)", AgentIDQuery(db, ...)).
+// Where("agent_id = (?)", AgentIDQuery(db, ...)). A deleted agent whose gateway state is still being
+// revoked keeps its name in mod_ai_gateway_agent_teardowns until the revocation is done.
 func AgentIDQuery(db *gorm.DB, ouID, projectName, agentName string) *gorm.DB {
-	return fresh(db).Table("agents a").Select("a.id").
-		Joins("JOIN projects p ON p.org_id = a.org_id AND p.id = a.project_id").
-		Where("a.org_id = ? AND a.name = ? AND p.name = ?", ouID, agentName, projectName)
+	return fresh(db).Raw(`SELECT a.id FROM agents a JOIN projects p ON p.org_id = a.org_id AND p.id = a.project_id
+		WHERE a.org_id = ? AND a.name = ? AND p.name = ?
+		UNION ALL SELECT t.agent_id FROM mod_ai_gateway_agent_teardowns t
+		WHERE t.org_id = ? AND t.agent_name = ? AND t.project_name = ?`,
+		ouID, agentName, projectName, ouID, agentName, projectName)
 }
 
 // AgentIDByNames is the id of an agent named by OU, project and agent name.
 func AgentIDByNames(db *gorm.DB, ouID, projectName, agentName string) (uuid.UUID, error) {
 	var ids []uuid.UUID
-	if err := AgentIDQuery(db, ouID, projectName, agentName).Pluck("a.id", &ids).Error; err != nil {
+	if err := AgentIDQuery(db, ouID, projectName, agentName).Scan(&ids).Error; err != nil {
 		return uuid.Nil, err
 	}
 	if len(ids) == 0 {
@@ -61,9 +64,13 @@ func AgentNamesByID(db *gorm.DB, agentID uuid.UUID) (projectName, agentName stri
 		ProjectName string
 		AgentName   string
 	}
-	err = fresh(db).Table("agents a").Select("p.name AS project_name, a.name AS agent_name").
-		Joins("JOIN projects p ON p.org_id = a.org_id AND p.id = a.project_id").
-		Where("a.id = ?", agentID).Take(&row).Error
+	err = fresh(db).Raw(`SELECT p.name AS project_name, a.name AS agent_name FROM agents a
+		JOIN projects p ON p.org_id = a.org_id AND p.id = a.project_id WHERE a.id = ?
+		UNION ALL SELECT project_name, agent_name FROM mod_ai_gateway_agent_teardowns WHERE agent_id = ?`,
+		agentID, agentID).Scan(&row).Error
+	if err == nil && row.AgentName == "" {
+		err = gorm.ErrRecordNotFound
+	}
 	return row.ProjectName, row.AgentName, err
 }
 

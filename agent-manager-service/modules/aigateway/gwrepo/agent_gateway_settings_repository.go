@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package repositories
+package gwrepo
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // ErrAgentConfigNotFound is returned when no agent config exists for the given agent and environment.
@@ -31,7 +32,7 @@ var ErrAgentConfigNotFound = errors.New("agent config not found")
 
 // AgentConfigRepository defines the interface for agent configuration operations
 //
-//go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/agent_config_repository_mock.go . AgentConfigRepository:AgentConfigRepositoryMock
+//go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/agent_gateway_settings_repository_mock.go . AgentConfigRepository:AgentConfigRepositoryMock
 type AgentConfigRepository interface {
 	// Upsert creates or updates an agent config for a specific environment
 	Upsert(ctx context.Context, config *models.AgentConfig) error
@@ -122,7 +123,7 @@ func (r *AgentConfigRepo) WithTx(tx *gorm.DB) AgentConfigRepository {
 // Get retrieves agent config for a specific agent and environment
 func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.AgentConfig, error) {
 	var config models.AgentConfig
-	cond, args := AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	err := r.db.WithContext(ctx).Where(cond, args...).Take(&config).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -135,7 +136,7 @@ func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName,
 
 // DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 func (r *AgentConfigRepo) DeleteAllByAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	cond, args := AgentCond(r.db, ouID, projectName, agentName)
+	cond, args := repositories.AgentCond(r.db, ouID, projectName, agentName)
 	return r.db.WithContext(ctx).Where(cond, args...).Delete(&models.AgentConfig{}).Error
 }
 

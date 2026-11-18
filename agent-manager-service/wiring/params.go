@@ -82,7 +82,6 @@ type AppParams struct {
 	SecretManagementClient       secretmanagersvc.SecretManagementClient
 	IdentityClient               thundersvc.IdentityClient
 	EnvThunderResolver           thundersvc.EnvThunderResolver
-	AgentConfigRepository        repositories.AgentConfigRepository
 	AgentThunderClientRepository repositories.AgentThunderClientRepository
 	AgentThunderProvisioning     services.AgentThunderProvisioningService
 

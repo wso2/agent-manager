@@ -26,6 +26,37 @@ CREATE TABLE mod_ai_gateway_agent_gateway_settings (
     CONSTRAINT pk_mod_ai_gateway_agent_gateway_settings PRIMARY KEY (agent_id, environment_id)
 );
 
+CREATE TABLE mod_ai_gateway_agent_bindings (
+    id UUID NOT NULL,
+    org_id UUID NOT NULL,
+    agent_id UUID NOT NULL,
+    kind VARCHAR(8) NOT NULL,
+    position INTEGER NOT NULL,
+    target VARCHAR(255) NOT NULL,
+    request JSONB NOT NULL,
+    state VARCHAR(16) NOT NULL,
+    last_error VARCHAR(2000),
+    config_id UUID,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT pk_mod_ai_gateway_agent_bindings PRIMARY KEY (id),
+    CONSTRAINT ck_mod_ai_gateway_agent_bindings_1 CHECK (kind IN ('llm', 'mcp')),
+    CONSTRAINT ck_mod_ai_gateway_agent_bindings_2 CHECK (state IN ('pending', 'ready', 'failed', 'removing'))
+);
+CREATE INDEX idx_mod_ai_gateway_agent_bindings_org_id_agent_id ON mod_ai_gateway_agent_bindings (org_id, agent_id);
+
+CREATE TABLE mod_ai_gateway_agent_teardowns (
+    agent_id UUID NOT NULL,
+    org_id UUID NOT NULL,
+    project_name VARCHAR(255) NOT NULL,
+    agent_name VARCHAR(255) NOT NULL,
+    last_error VARCHAR(2000),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT pk_mod_ai_gateway_agent_teardowns PRIMARY KEY (agent_id),
+    CONSTRAINT uq_mod_ai_gateway_agent_teardowns_org_id_project_name__49fd1520 UNIQUE (org_id, project_name, agent_name)
+);
+
 CREATE TABLE mod_ai_gateway_gateways (
     id UUID NOT NULL,
     org_id UUID NOT NULL,

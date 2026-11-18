@@ -22,34 +22,30 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts"
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/agentgwv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 	"gorm.io/gorm"
 )
 
 // AgentGatewayService is the gateway's side of an agent: the LLM and MCP
-// bindings the agent is created with, its exposure through the gateway, and
-// what the gateway holds for it when it goes. It provides the llm.proxy/v1,
-// mcp.proxy/v1 and agent.gateway/v1 capabilities to the core's agent service,
-// and serves the agent routes that only exist with a gateway (deploy settings,
-// deployments).
+// bindings it asks for in its extensions.ai-gateway block, its exposure
+// through the gateway, and what the gateway holds for it when it goes (see
+// agent_bindings.go). It provides llm.proxy/v1 and mcp.proxy/v1, and serves
+// the agent routes that only exist with a gateway (deploy settings,
+// deployments, configurations).
 type AgentGatewayService struct {
 	db                        *gorm.DB
 	platform                  repositories.PlatformRepository
-	agentConfigRepo           repositories.AgentConfigRepository
+	agentConfigRepo           gwrepo.AgentConfigRepository
 	agentConfigurationService AgentConfigurationService
 	artifactRepo              gwrepo.ArtifactRepository
 	aiApplicationService      *AIApplicationService
@@ -61,16 +57,15 @@ type AgentGatewayService struct {
 }
 
 var (
-	_ llmv1.Proxy       = llmBinder{}
-	_ mcpv1.Proxy       = mcpBinder{}
-	_ agentgwv1.Gateway = (*AgentGatewayService)(nil)
+	_ llmv1.Proxy = (*AgentGatewayService)(nil)
+	_ mcpv1.Proxy = (*AgentGatewayService)(nil)
 )
 
 // NewAgentGatewayService creates the gateway's side of agents.
 func NewAgentGatewayService(
 	db *gorm.DB,
 	platform repositories.PlatformRepository,
-	agentConfigRepo repositories.AgentConfigRepository,
+	agentConfigRepo gwrepo.AgentConfigRepository,
 	agentConfigurationService AgentConfigurationService,
 	artifactRepo gwrepo.ArtifactRepository,
 	aiApplicationService *AIApplicationService,
@@ -105,60 +100,11 @@ func (s *AgentGatewayService) ValidateProxies(ctx context.Context, orgID, projec
 	return s.agentConfigurationService.ValidateMCPProxiesInCatalog(ctx, orgID, project, proxies)
 }
 
-// BindAgent is llm.proxy/v1's: the agent's LLM configurations in the environment.
-func (s llmBinder) BindAgent(ctx context.Context, agent contracts.AgentRef, environment string, configs []spec.ModelConfigRequest) error {
-	return s.createAgentLLMConfigs(ctx, agent.OrgID, agent.Project, agent.Name, environment, configs)
-}
-
-// BindAgent is mcp.proxy/v1's: the agent's MCP configurations in each environment.
-func (s mcpBinder) BindAgent(ctx context.Context, agent contracts.AgentRef, environments []string, configs []spec.MCPConfigRequest) error {
-	return s.createAgentMCPConfigs(ctx, agent.OrgID, agent.Project, agent.Name, environments, configs)
-}
-
 // LLM is the service as llm.proxy/v1.
-func (s *AgentGatewayService) LLM() llmv1.Proxy { return llmBinder{s} }
+func (s *AgentGatewayService) LLM() llmv1.Proxy { return s }
 
 // MCP is the service as mcp.proxy/v1.
-func (s *AgentGatewayService) MCP() mcpv1.Proxy { return mcpBinder{s} }
-
-// The two proxies both bind agents, each with its own configuration type, so
-// each gets a view of the service with its own BindAgent.
-type (
-	llmBinder struct{ *AgentGatewayService }
-	mcpBinder struct{ *AgentGatewayService }
-)
-
-// CheckCreate refuses a name whose deleted agent's configurations were not
-// all revoked (see checkNoOrphanedConfigs).
-func (s *AgentGatewayService) CheckCreate(ctx context.Context, agent contracts.AgentRef) error {
-	return s.checkNoOrphanedConfigs(ctx, agent.OrgID, agent.Project, agent.Name)
-}
-
-// Created clears A2A state a deleted agent of the same name left behind.
-func (s *AgentGatewayService) Created(ctx context.Context, agent contracts.AgentRef) error {
-	return s.clearInheritedA2AState(ctx, agent.OrgID, agent.Project, agent.Name)
-}
-
-// Unbind revokes and removes the agent's LLM and MCP configurations.
-func (s *AgentGatewayService) Unbind(ctx context.Context, agent contracts.AgentRef) {
-	s.deleteAgentLLMConfigurations(ctx, agent.OrgID, agent.Project, agent.Name, s.agentIs(ctx, agent, isExternalProvisioned))
-}
-
-// Deleting removes the agent's API artifacts and A2A state.
-func (s *AgentGatewayService) Deleting(ctx context.Context, agent contracts.AgentRef) error {
-	return s.deleteAgentAPIArtifact(ctx, agent.OrgID, agent.Project, agent.Name, s.agentIs(ctx, agent, a2aCapable))
-}
-
-// agentIs reads the agent, which still exists, and tests it; false when it
-// cannot be read.
-func (s *AgentGatewayService) agentIs(ctx context.Context, ref contracts.AgentRef, test func(*models.AgentResponse) bool) bool {
-	agent, err := s.platform.GetAgent(ctx, ref.OrgID, ref.Project, ref.Name)
-	if err != nil {
-		s.logger.Warn("Failed to determine agent type before deletion", "agentName", ref.Name, "error", err)
-		return false
-	}
-	return test(agent)
-}
+func (s *AgentGatewayService) MCP() mcpv1.Proxy { return s }
 
 func (s *AgentGatewayService) requireEnvTier(ctx context.Context, ouID, envName string) (*models.EnvironmentResponse, error) {
 	return RequireEnvironmentTier(ctx, s.platform, s.logger, ouID, envName)
@@ -200,34 +146,25 @@ func resolveResilienceTimeoutSeconds(existingConfig *models.AgentConfig, request
 //
 // The consequence is that promoting an agent with an LLM provider still requires the
 // target environment to be configured first, and the promotion guard says so.
-func (s *AgentGatewayService) createAgentLLMConfigs(
-	ctx context.Context, ouID, projectName, agentName, firstEnv string, modelConfig []spec.ModelConfigRequest,
-) error {
-	for i, mc := range modelConfig {
-		configName := fmt.Sprintf("%s-llm-config", agentName)
-		if len(modelConfig) > 1 {
-			configName = fmt.Sprintf("%s-llm-config-%d", agentName, i+1)
-		}
-		cfg := models.EnvProviderConfiguration{}
-		if mc.Configuration != nil {
-			cfg = convertConfiguration(*mc.Configuration)
-		}
-		createReq := models.CreateAgentModelConfigRequest{
-			Name: configName,
-			Type: "llm",
-			EnvMappings: map[string]models.EnvModelConfigRequest{
-				firstEnv: {
-					ProviderName:  mc.ProviderName,
-					Configuration: cfg,
-				},
-			},
-			EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
-		}
-		if _, err := s.agentConfigurationService.Create(ctx, ouID, projectName, agentName, createReq, "system"); err != nil {
-			return fmt.Errorf("failed to create LLM configuration %d: %w", i+1, err)
-		}
+func (s *AgentGatewayService) createLLMConfig(
+	ctx context.Context, ouID, projectName, agentName, firstEnv, configName string, mc gwspec.ModelConfigRequest,
+) (string, error) {
+	cfg := models.EnvProviderConfiguration{}
+	if mc.Configuration != nil {
+		cfg = convertConfiguration(*mc.Configuration)
 	}
-	return nil
+	resp, err := s.agentConfigurationService.Create(ctx, ouID, projectName, agentName, models.CreateAgentModelConfigRequest{
+		Name: configName,
+		Type: "llm",
+		EnvMappings: map[string]models.EnvModelConfigRequest{
+			firstEnv: {ProviderName: mc.ProviderName, Configuration: cfg},
+		},
+		EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
+	}, "system")
+	if err != nil {
+		return "", err
+	}
+	return resp.UUID, nil
 }
 
 // createAgentMCPConfigs binds the agent's MCP connections across EVERY environment in the
@@ -238,40 +175,32 @@ func (s *AgentGatewayService) createAgentLLMConfigs(
 // Environments where the proxy has no endpoint yet are not skipped: createMCPConfig
 // records the connection there with its variables injected empty, which is the state
 // ReconcileMCPBindingsForProxy later completes once the proxy becomes deployable.
-func (s *AgentGatewayService) createAgentMCPConfigs(
-	ctx context.Context, ouID, projectName, agentName string, pipelineEnvs []string, mcpConfig []spec.MCPConfigRequest,
-) error {
-	for i, mc := range mcpConfig {
-		configName := fmt.Sprintf("%s-mcp-config", agentName)
-		if len(mcpConfig) > 1 {
-			configName = fmt.Sprintf("%s-mcp-config-%d", agentName, i+1)
-		}
-		envMappings := make(map[string]models.EnvModelConfigRequest, len(pipelineEnvs))
-		for _, envName := range pipelineEnvs {
-			envMappings[envName] = models.EnvModelConfigRequest{
-				// createMCPConfig reads the MCP proxy handle from ProviderName.
-				ProviderName: mc.ProxyName,
-			}
-		}
-		createReq := models.CreateAgentModelConfigRequest{
-			Name:                 configName,
-			Type:                 models.AgentConfigTypeMCP,
-			EnvMappings:          envMappings,
-			EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
-			// Every pipeline environment is configured at once, so one misconfigured higher
-			// environment must not roll back the whole agent; see createMCPConfig.
-			DeferUnbindableMCPEnvs: true,
-		}
-		if _, err := s.agentConfigurationService.Create(ctx, ouID, projectName, agentName, createReq, "system"); err != nil {
-			return fmt.Errorf("failed to create MCP configuration %d: %w", i+1, err)
-		}
+func (s *AgentGatewayService) createMCPConfig(
+	ctx context.Context, ouID, projectName, agentName string, pipelineEnvs []string, configName string, mc gwspec.MCPConfigRequest,
+) (string, error) {
+	envMappings := make(map[string]models.EnvModelConfigRequest, len(pipelineEnvs))
+	for _, envName := range pipelineEnvs {
+		// createMCPConfig reads the MCP proxy handle from ProviderName.
+		envMappings[envName] = models.EnvModelConfigRequest{ProviderName: mc.ProxyName}
 	}
-	return nil
+	resp, err := s.agentConfigurationService.Create(ctx, ouID, projectName, agentName, models.CreateAgentModelConfigRequest{
+		Name:                 configName,
+		Type:                 models.AgentConfigTypeMCP,
+		EnvMappings:          envMappings,
+		EnvironmentVariables: convertEnvVars(mc.EnvironmentVariables),
+		// Every pipeline environment is configured at once, so one misconfigured higher
+		// environment must not fail the whole binding; see createMCPConfig.
+		DeferUnbindableMCPEnvs: true,
+	}, "system")
+	if err != nil {
+		return "", err
+	}
+	return resp.UUID, nil
 }
 
 // convertConfiguration maps a generated provider configuration to the model type,
 // preserving guardrail policies. Replaces the per-env conversion that convertEnvMappings did.
-func convertConfiguration(cfg spec.EnvProviderConfiguration) models.EnvProviderConfiguration {
+func convertConfiguration(cfg gwspec.EnvProviderConfiguration) models.EnvProviderConfiguration {
 	policies := make([]models.LLMPolicy, 0, len(cfg.Policies))
 	for _, p := range cfg.Policies {
 		paths := make([]models.LLMPolicyPath, 0, len(p.Paths))
@@ -294,78 +223,12 @@ func convertConfiguration(cfg spec.EnvProviderConfiguration) models.EnvProviderC
 	}
 }
 
-func convertEnvVars(specVars []spec.EnvironmentVariableConfig) []models.EnvironmentVariableConfig {
+func convertEnvVars(specVars []gwspec.EnvironmentVariableConfig) []models.EnvironmentVariableConfig {
 	result := make([]models.EnvironmentVariableConfig, 0, len(specVars))
 	for _, v := range specVars {
 		result = append(result, models.EnvironmentVariableConfig{Name: v.Name, Key: v.Key})
 	}
 	return result
-}
-
-// Agent-deletion cleanup runs detached from the request (see deleteAgentLLMConfigurations),
-// so it can afford to wait out the transient gateway/secret-store failures that make
-// revocation fail while the cluster is under load — the failure mode this path was
-// reported for. Four attempts at a doubling delay spans ~14s per configuration.
-// Variables rather than constants so tests can shrink the delay; production never reassigns them.
-var (
-	agentConfigCleanupAttempts   = 4
-	agentConfigCleanupRetryDelay = 2 * time.Second
-)
-
-// cleanupRetry bounds the retries of an idempotent cleanup step; delay is the wait after 0-based failed attempt n.
-type cleanupRetry struct {
-	attempts int
-	delay    func(n int) time.Duration
-}
-
-// fixedCleanupRetry waits the same backoff between every attempt.
-func fixedCleanupRetry(attempts int, backoff time.Duration) cleanupRetry {
-	return cleanupRetry{attempts: attempts, delay: func(int) time.Duration { return backoff }}
-}
-
-// agentConfigCleanupRetry backs off exponentially: an un-revoked credential stays live, so a few seconds to rule out a transient cause is worth it.
-func agentConfigCleanupRetry() cleanupRetry {
-	return cleanupRetry{attempts: agentConfigCleanupAttempts, delay: func(n int) time.Duration { return agentConfigCleanupRetryDelay << n }}
-}
-
-// retryCleanup runs an idempotent step until it succeeds or r is spent, never waiting after the final attempt.
-func retryCleanup(ctx context.Context, logger *slog.Logger, r cleanupRetry, step string, fn func() error, logAttrs ...any) error {
-	var lastErr error
-	for attempt := range r.attempts {
-		if lastErr = fn(); lastErr == nil {
-			if attempt > 0 {
-				logger.Info(step+" succeeded on retry", append([]any{"attempt", attempt + 1}, logAttrs...)...)
-			}
-			return nil
-		}
-		if attempt == r.attempts-1 {
-			break
-		}
-		delay := r.delay(attempt)
-		logger.Warn(step+" failed, retrying",
-			append([]any{"attempt", attempt + 1, "of", r.attempts, "retryIn", delay, "error", lastErr}, logAttrs...)...)
-		select {
-		case <-ctx.Done():
-			return errors.Join(lastErr, ctx.Err())
-		case <-time.After(delay):
-		}
-	}
-	return lastErr
-}
-
-// clearInheritedA2AState drops card, publication and proxy rows a deleted same-named agent left behind.
-func (s *AgentGatewayService) clearInheritedA2AState(ctx context.Context, ouID, projectName, agentName string) error {
-	if s.a2aCardRepo != nil {
-		if err := s.a2aCardRepo.DeleteForAgent(ctx, ouID, projectName, agentName); err != nil {
-			return fmt.Errorf("failed to clear leftover A2A agent card rows: %w", err)
-		}
-	}
-	if s.a2aPublisher != nil {
-		if err := s.a2aPublisher.DeleteForAgent(ctx, ouID, projectName, agentName); err != nil {
-			return fmt.Errorf("failed to clear leftover A2A publication and proxy rows: %w", err)
-		}
-	}
-	return nil
 }
 
 // deleteAgentAPIArtifact removes the agent's per-environment API artifacts and
@@ -434,72 +297,33 @@ func (s *AgentGatewayService) dropAgentArtifact(
 	})
 }
 
-// checkNoOrphanedConfigs refuses to create an agent whose name still has agent_configurations
-// rows attached to it.
-//
-// Configurations are keyed by (ou_id, project_name, agent_id) where agent_id is the agent's
-// *name*, not a per-instance identity, and DeleteForAgentDeletion deliberately keeps a row
-// whose external teardown failed so the proxy, key and deployment it names can still be found
-// and revoked. Those two facts together mean a new agent created with a deleted agent's name
-// would adopt the surviving rows — and with them a live, un-rotated LLM proxy credential — with
-// nothing in the UI to distinguish it from a fresh binding. Refusing the create is what keeps
-// that from happening silently; deleting the agent again re-runs the revocation and clears the
-// name once it succeeds.
-//
-// A list failure is fatal here rather than best-effort: without the list we cannot tell a clean
-// name from an orphaned one, and guessing wrong leaks a credential.
-func (s *AgentGatewayService) checkNoOrphanedConfigs(ctx context.Context, ouID, projectName, agentName string) error {
-	listResp, err := s.agentConfigurationService.List(ctx, ouID, projectName, agentName, 1, 0)
-	if err != nil {
-		s.logger.Error("Failed to check for orphaned agent configurations before create",
-			"agentName", agentName, "ouID", ouID, "projectName", projectName, "error", err)
-		return fmt.Errorf("failed to check for leftover configurations for agent %s: %w", agentName, err)
-	}
-	if listResp.Pagination.Count == 0 {
-		return nil
-	}
-
-	s.logger.Error("Refusing to create agent: configurations from a previously deleted agent with this name were not fully revoked",
-		"agentName", agentName, "ouID", ouID, "projectName", projectName, "orphanedConfigs", listResp.Pagination.Count)
-	return fmt.Errorf("%w: %d configuration(s) for agent %q in project %q remain; deletion cleanup may still be running, so retry shortly, then delete the agent again to re-attempt revoking them, or use a different name",
-		utils.ErrOrphanedAgentConfigsExist, listResp.Pagination.Count, agentName, projectName)
-}
-
-// deleteAgentLLMConfigurations removes all LLM and MCP configurations for an agent during agent deletion.
-// isExternalAgent must be resolved by the caller before the component is deleted so this function
-// requires no OC calls. Calls DeleteForAgentDeletion which skips Component/Workload/ReleaseBinding
-// patching and SecretReference CR deletion (handled by component teardown).
-// After all configs are deleted, the shared AI application records (one per agent+env) are removed.
-// Best-effort: individual failures are logged but do not abort the agent deletion.
-func (s *AgentGatewayService) deleteAgentLLMConfigurations(ctx context.Context, ouID, projectName, agentName string, isExternalAgent bool) {
+// revokeAgentConfigurations deletes an agent's LLM and MCP configurations, revoking their proxy credentials,
+// and then its AI application records. Each configuration is tried once; what fails keeps its row, so a
+// retry finds it again. The agent may already be deleted: its names come from its teardown row.
+func (s *AgentGatewayService) revokeAgentConfigurations(ctx context.Context, ouID, projectName, agentName string) error {
 	listResp, err := s.agentConfigurationService.List(ctx, ouID, projectName, agentName, 1000, 0)
 	if err != nil {
-		s.logger.Warn("Failed to list agent configurations for cleanup", "agentName", agentName, "error", err)
-		return
+		return fmt.Errorf("list agent configurations: %w", err)
 	}
+	var errs []error
 	for _, cfg := range listResp.Configs {
-		configUUID, parseErr := uuid.Parse(cfg.UUID)
-		if parseErr != nil {
-			s.logger.Warn("Failed to parse config UUID during agent deletion", "uuid", cfg.UUID, "type", cfg.Type, "error", parseErr)
+		configUUID, err := uuid.Parse(cfg.UUID)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("configuration %s: %w", cfg.UUID, err))
 			continue
 		}
-		delErr := retryCleanup(ctx, s.logger, agentConfigCleanupRetry(), "Configuration teardown", func() error {
-			return s.agentConfigurationService.DeleteForAgentDeletion(ctx, configUUID, ouID, projectName, agentName, isExternalAgent)
-		}, "configUUID", cfg.UUID)
-		if delErr != nil {
-			// DeleteForAgentDeletion keeps the agent_configurations row when any external
-			// step failed, so the record of what still needs revoking survives. Creating an
-			// agent with this name is refused until it is gone (see checkNoOrphanedConfigs).
-			s.logger.Error("Gave up revoking configuration during agent deletion; its LLM proxy credential may still be live",
-				"configUUID", cfg.UUID, "type", cfg.Type, "agentName", agentName, "ouID", ouID,
-				"attempts", agentConfigCleanupAttempts, "error", delErr)
+		// Lite registers external agents only.
+		if err := s.agentConfigurationService.DeleteForAgentDeletion(ctx, configUUID, ouID, projectName, agentName, true); err != nil && !errors.Is(err, utils.ErrAgentConfigNotFound) {
+			errs = append(errs, fmt.Errorf("revoke configuration %s: %w", cfg.Name, err))
 		}
 	}
-
-	// Delete all AI application records for this agent (one per environment) now that all configs are gone.
-	if delErr := s.aiApplicationService.DeleteAllByAgent(ctx, ouID, projectName, agentName); delErr != nil {
-		s.logger.Warn("Failed to delete AI applications during agent deletion", "agentName", agentName, "error", delErr)
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
+	if err := s.aiApplicationService.DeleteAllByAgent(ctx, ouID, projectName, agentName); err != nil {
+		return fmt.Errorf("delete AI applications: %w", err)
+	}
+	return nil
 }
 
 // resolvedTracingConfig holds resolved instrumentation config values.
@@ -769,7 +593,7 @@ func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouI
 	// Resolve final settings: precedence is request → existing DB
 	var existingConfig *models.AgentConfig
 	switch cfg, getErr := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, req.EnvironmentName); {
-	case errors.Is(getErr, repositories.ErrAgentConfigNotFound):
+	case errors.Is(getErr, gwrepo.ErrAgentConfigNotFound):
 		// No existing config for this env — request values / defaults apply.
 	case getErr != nil:
 		return fmt.Errorf("failed to read agent config for environment %q: %w", req.EnvironmentName, getErr)
@@ -978,7 +802,7 @@ func (s *AgentGatewayService) agentExposureKeyFor(
 }
 
 // resilienceOf converts the resilience of an agent-create model config.
-func resilienceOf(r *spec.Resilience) *models.Resilience {
+func resilienceOf(r *gwspec.Resilience) *models.Resilience {
 	if r == nil {
 		return nil
 	}

@@ -30,13 +30,12 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // deploySettingsService wires UpdateAgentDeploySettings for the external agent in externalAgent.
-func deploySettingsService(configs *repomocks.AgentConfigRepositoryMock, publisher *A2APublisher) *AgentGatewayService {
+func deploySettingsService(configs *gwrepomocks.AgentConfigRepositoryMock, publisher *A2APublisher) *AgentGatewayService {
 	oc := &repomocks.PlatformRepositoryMock{
 		GetOrganizationFunc: func(_ context.Context, name string) (*models.OrganizationResponse, error) {
 			return &models.OrganizationResponse{Name: name}, nil
@@ -59,15 +58,15 @@ func deploySettingsService(configs *repomocks.AgentConfigRepositoryMock, publish
 }
 
 // savedConfigs accepts the upsert inside the save transaction only; a plain Upsert reaches a nil func and panics.
-func savedConfigs(t *testing.T) (configs, txConfigs *repomocks.AgentConfigRepositoryMock) {
-	txConfigs = &repomocks.AgentConfigRepositoryMock{
+func savedConfigs(t *testing.T) (configs, txConfigs *gwrepomocks.AgentConfigRepositoryMock) {
+	txConfigs = &gwrepomocks.AgentConfigRepositoryMock{
 		UpsertFunc: func(context.Context, *models.AgentConfig) error { return nil },
 	}
-	configs = &repomocks.AgentConfigRepositoryMock{
+	configs = &gwrepomocks.AgentConfigRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
 			return &models.AgentConfig{EnableApiKeySecurity: true, CORSEnabled: true}, nil
 		},
-		WithTxFunc: func(tx *gorm.DB) repositories.AgentConfigRepository {
+		WithTxFunc: func(tx *gorm.DB) gwrepo.AgentConfigRepository {
 			assert.Same(t, txSentinel, tx)
 			return txConfigs
 		},

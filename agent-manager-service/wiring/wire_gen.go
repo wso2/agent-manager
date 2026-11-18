@@ -49,8 +49,7 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 	if err != nil {
 		return nil, err
 	}
-	agentConfigRepository := ProvideAgentConfigRepository(db)
-	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentConfigRepository, agentThunderProvisioning, identityClient, logger)
+	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentThunderProvisioning, identityClient, logger)
 	eventRepository := repositories.NewEventRepository(db)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, platformRepository, logger)
 	agentController := controllers.NewAgentController(agentManagerService, eventSubscriptionService)
@@ -115,7 +114,6 @@ func InitializeAppParamsWithEnvThunderEndpoints(cfg *config.Config, db *gorm.DB,
 		SecretManagementClient:       secretManagementClient,
 		IdentityClient:               identityClient,
 		EnvThunderResolver:           envThunderResolver,
-		AgentConfigRepository:        agentConfigRepository,
 		AgentThunderClientRepository: agentThunderClientRepository,
 		AgentThunderProvisioning:     agentThunderProvisioning,
 		DB:                           db,
@@ -139,14 +137,13 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 	if err != nil {
 		return nil, err
 	}
-	agentConfigRepository := ProvideAgentConfigRepository(db)
 	agentThunderClientRepository := ProvideAgentThunderClientRepository(db)
 	readSystemClientFunc := services.NewPlatformThunderSecretReader()
 	readThunderURLFunc := services.NewPlatformThunderURLReader()
 	envThunderResolver := ProvideEnvThunderResolver(readSystemClientFunc, readThunderURLFunc)
 	secretManagementClient := ProvideTestSecretManagementClient(testClients)
 	agentThunderProvisioningService := services.NewAgentThunderProvisioningService(agentThunderClientRepository, envThunderResolver, secretManagementClient, logger)
-	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentConfigRepository, agentThunderProvisioningService, identityClient, logger)
+	agentManagerService := services.NewAgentManagerService(db, platformRepository, agentTokenManagerService, agentThunderProvisioningService, identityClient, logger)
 	eventRepository := repositories.NewEventRepository(db)
 	eventSubscriptionService := services.NewEventSubscriptionService(eventRepository, platformRepository, logger)
 	agentController := controllers.NewAgentController(agentManagerService, eventSubscriptionService)
@@ -203,7 +200,6 @@ func InitializeTestAppParamsWithClientMocks(cfg *config.Config, db *gorm.DB, aut
 		SecretManagementClient:       secretManagementClient,
 		IdentityClient:               identityClient,
 		EnvThunderResolver:           envThunderResolver,
-		AgentConfigRepository:        agentConfigRepository,
 		AgentThunderClientRepository: agentThunderClientRepository,
 		AgentThunderProvisioning:     agentThunderProvisioningService,
 		DB:                           db,
@@ -284,7 +280,6 @@ var loggerProviderSet = wire.NewSet(
 )
 
 var repositoryProviderSet = wire.NewSet(
-	ProvideAgentConfigRepository,
 	ProvideAgentThunderClientRepository, repositories.NewEventRepository,
 )
 
@@ -295,10 +290,6 @@ func ProvideTestPlatformRepository(testClients TestClients) repositories.Platfor
 
 func ProvideTestSecretManagementClient(testClients TestClients) secretmanagersvc.SecretManagementClient {
 	return testClients.SecretMgmtClient
-}
-
-func ProvideAgentConfigRepository(db *gorm.DB) repositories.AgentConfigRepository {
-	return repositories.NewAgentConfigRepo(db)
 }
 
 func ProvideAgentThunderClientRepository(db *gorm.DB) repositories.AgentThunderClientRepository {

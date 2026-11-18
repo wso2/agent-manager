@@ -29,7 +29,7 @@ var coreSet = wire.NewSet(
 		new(*wiring.AppParams),
 		"DB", "Config", "Logger", "PlatformRepository", "InfraResourceManager",
 		"EncryptionKey", "SecretManagementClient", "EnvThunderResolver",
-		"AgentConfigRepository", "AgentThunderClientRepository",
+		"AgentThunderClientRepository",
 	),
 	wiring.ProvideConfigFromPtr,
 )
@@ -49,6 +49,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideCatalogRepository,
 	ProvideAPIKeyRepository,
 	gwrepo.NewAgentConfigurationRepository,
+	gwrepo.NewAgentConfigRepo,
 	gwrepo.NewEnvAgentModelMappingRepository,
 	gwrepo.NewEnvAgentMCPMappingRepository,
 	gwrepo.NewAgentEnvConfigVariableRepository,

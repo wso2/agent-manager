@@ -37,11 +37,10 @@ func capitalize(s string) string {
 }
 
 type agentPayload struct {
-	name          string
-	displayName   string
-	provisioning  spec.Provisioning
-	agentType     *spec.AgentType
-	configuration *spec.Configurations
+	name         string
+	displayName  string
+	provisioning spec.Provisioning
+	agentType    *spec.AgentType
 }
 
 func ValidateAgentBasicInfoUpdatePayload(payload spec.UpdateAgentBasicInfoRequest) error {
@@ -75,11 +74,10 @@ func ValidateAgentCreatePayload(payload spec.CreateAgentRequest) error {
 		)
 	}
 	return validateAgentPayload(agentPayload{
-		name:          payload.Name,
-		displayName:   payload.DisplayName,
-		provisioning:  payload.Provisioning,
-		agentType:     payload.AgentType,
-		configuration: payload.Configurations,
+		name:         payload.Name,
+		displayName:  payload.DisplayName,
+		provisioning: payload.Provisioning,
+		agentType:    payload.AgentType,
 	})
 }
 
@@ -96,16 +94,6 @@ func validateAgentPayload(payload agentPayload) error {
 			"Only external agents can be created",
 			"provisioning type must be 'external'",
 		)
-	}
-	// File mounts on the create payload (under .configuration.Files) — guard size /
-	// key shape / dedup early so a bad request fails before we touch the platform store.
-	if payload.configuration != nil {
-		if err := ValidateFileMounts(payload.configuration.Files); err != nil {
-			return fmt.Errorf("invalid file mounts: %w", err)
-		}
-		if err := validateEnvironmentVariables(payload.configuration.Env); err != nil {
-			return fmt.Errorf("invalid environment variables: %w", err)
-		}
 	}
 	if payload.agentType == nil {
 		return NewValidationError(

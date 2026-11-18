@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
 
 // spyConfigService records the request passed to Create.
@@ -38,24 +38,22 @@ func (s *spyConfigService) Create(_ context.Context, _, _, _ string,
 	req models.CreateAgentModelConfigRequest, _ string,
 ) (*models.AgentModelConfigResponse, error) {
 	s.lastReq = req
-	return &models.AgentModelConfigResponse{}, nil
+	return &models.AgentModelConfigResponse{UUID: "cfg"}, nil
 }
 
 // LLM providers are deliberately configured in the entry environment only: createLLMConfig
 // rolls the whole configuration back when a provider's gateway cannot be resolved in an
 // environment, so spanning the pipeline would make agent creation fail whenever a higher
-// environment is not yet set up. See createAgentLLMConfigs.
-func TestCreateAgentLLMConfigs_KeysUnderFirstEnv(t *testing.T) {
+// environment is not yet set up.
+func TestCreateLLMConfig_KeysUnderFirstEnv(t *testing.T) {
 	spy := &spyConfigService{}
 	s := &AgentGatewayService{agentConfigurationService: spy}
 
-	req := &spec.CreateAgentRequest{
-		Name:        "my-agent",
-		ModelConfig: []spec.ModelConfigRequest{{ProviderName: "openai"}},
-	}
-
-	err := s.createAgentLLMConfigs(context.Background(), "org", "proj", req.Name, "Development", req.ModelConfig)
+	id, err := s.createLLMConfig(context.Background(), "org", "proj", "my-agent", "Development", "my-agent-llm-config-1",
+		gwspec.ModelConfigRequest{ProviderName: "openai"})
 	require.NoError(t, err)
+	require.Equal(t, "cfg", id)
+	require.Equal(t, "my-agent-llm-config-1", spy.lastReq.Name)
 
 	require.Len(t, spy.lastReq.EnvMappings, 1, "exactly one env mapping")
 	got, ok := spy.lastReq.EnvMappings["Development"]
@@ -65,17 +63,12 @@ func TestCreateAgentLLMConfigs_KeysUnderFirstEnv(t *testing.T) {
 
 // An MCP connection is environment-agnostic — the same proxy backs every environment — so
 // creation binds it across the whole pipeline for the same reason.
-func TestCreateAgentMCPConfigs_KeysUnderEveryPipelineEnvironment(t *testing.T) {
+func TestCreateMCPConfig_KeysUnderEveryPipelineEnvironment(t *testing.T) {
 	spy := &spyConfigService{}
 	s := &AgentGatewayService{agentConfigurationService: spy}
 
-	req := &spec.CreateAgentRequest{
-		Name:      "my-agent",
-		McpConfig: []spec.MCPConfigRequest{{ProxyName: "booking"}},
-	}
-
-	err := s.createAgentMCPConfigs(context.Background(), "org", "proj", req.Name,
-		[]string{"Development", "Staging"}, req.McpConfig)
+	_, err := s.createMCPConfig(context.Background(), "org", "proj", "my-agent",
+		[]string{"Development", "Staging"}, "my-agent-mcp-config-1", gwspec.MCPConfigRequest{ProxyName: "booking"})
 	require.NoError(t, err)
 
 	require.Len(t, spy.lastReq.EnvMappings, 2, "every pipeline environment must be mapped")
@@ -85,7 +78,7 @@ func TestCreateAgentMCPConfigs_KeysUnderEveryPipelineEnvironment(t *testing.T) {
 		// createMCPConfig reads the MCP proxy handle from ProviderName.
 		require.Equal(t, "booking", got.ProviderName)
 	}
-	// Agent creation is the only caller allowed to defer a broken higher environment; a
+	// Agent bindings are the only caller allowed to defer a broken higher environment; a
 	// direct MCP create stays strict (see createMCPConfig).
-	require.True(t, spy.lastReq.DeferUnbindableMCPEnvs, "agent creation must opt into deferred binding")
+	require.True(t, spy.lastReq.DeferUnbindableMCPEnvs, "an agent binding must opt into deferred binding")
 }

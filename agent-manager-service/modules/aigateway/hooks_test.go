@@ -36,6 +36,7 @@ import (
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 )
 
 // migrated is a scratch SQLite database with the core's baseline and the
@@ -64,7 +65,7 @@ func TestFinalizeHooksCoverEveryReference(t *testing.T) {
 	g := migrated(t)
 	var tables []string
 	require.NoError(t, g.Raw(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'mod_ai_gateway_%'`).Scan(&tables).Error)
-	require.Len(t, tables, 30)
+	require.Len(t, tables, 32)
 	cascadesFrom := func(table string) []string {
 		var fks []struct {
 			Table    string `gorm:"column:table"`
@@ -90,7 +91,9 @@ func TestFinalizeHooksCoverEveryReference(t *testing.T) {
 		var columns []string
 		require.NoError(t, g.Raw(`SELECT name FROM pragma_table_info(?)`, table).Scan(&columns).Error)
 		if slices.Contains(columns, "agent_id") {
-			assert.True(t, covered(table, agentTables), "%s names an agent but the agent finalize hook leaves its rows", table)
+			cleaned := append(slices.Clone(gwsvc.FinalizeTables), gwsvc.TeardownTables...)
+			assert.True(t, covered(table, cleaned) || table == "mod_ai_gateway_agent_teardowns",
+				"%s names an agent but neither the agent finalize hook nor its teardown removes its rows", table)
 		}
 		if slices.Contains(columns, "environment_id") {
 			assert.True(t, covered(table, environmentTables), "%s names an environment but the environment finalize hook leaves its rows", table)
@@ -125,9 +128,11 @@ func TestFinalizeHooks(t *testing.T) {
 			VALUES (?, ?, ?, ?, ?, '[]', '[]', 'h', 'p', ?, ?, '[]', '[]', '[]', ?, ?, ?)`,
 			agent, org, env, true, false, false, true, false, now, now)
 		require.NoError(t, g.Transaction(func(tx *gorm.DB) error {
-			return finalizeAgent(ctx, modkit.HookRequest{Tx: tx, OrgID: org, ID: agent})
+			return gwsvc.RecordAgentTeardown(tx, modkit.HookRequest{Tx: tx, OrgID: org, ID: agent, Object: map[string]any{"projectName": "p", "name": "a"}})
 		}))
 		assert.Zero(t, count(`SELECT COUNT(*) FROM mod_ai_gateway_agent_gateway_settings WHERE agent_id = ?`, agent))
+		assert.EqualValues(t, 1, count(`SELECT COUNT(*) FROM mod_ai_gateway_agent_teardowns WHERE agent_id = ? AND agent_name = 'a'`, agent),
+			"the names stay for the teardown")
 	})
 
 	t.Run("project", func(t *testing.T) {

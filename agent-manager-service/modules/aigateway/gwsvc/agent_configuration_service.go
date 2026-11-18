@@ -3320,7 +3320,7 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 
 	// Step 6: Delete DB record only when all external resources were cleaned up successfully.
 	// If any step above failed, return an error so the DB row is preserved and the caller
-	// (deleteAgentLLMConfigurations) can log it — the row will be retried on the next
+	// (revokeAgentConfigurations) can report it — the row will be retried on the next
 	// agent deletion attempt via the idempotent delete path.
 	if len(cleanupErrs) > 0 {
 		return fmt.Errorf("external cleanup incomplete for config %s, DB record preserved for retry: %s",

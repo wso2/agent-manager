@@ -18,41 +18,74 @@ package aigateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 )
 
-// The module's tables reference core rows by id, without foreign keys. These
-// finalize hooks run in the core's delete transaction and do what the keys
-// did: remove the module's rows of a deleted agent, and refuse to delete a
-// project or an environment the module still uses.
-func registerHooks(rt modkit.Runtime) {
-	rt.Hook(modkit.ResourceAgent, modkit.Finalize, finalizeAgent)
+// The module's tables reference core rows by id, without foreign keys. The
+// agent hooks validate and store the extensions.ai-gateway block and record a
+// deleted agent's teardown; the event handlers provision and revoke what that
+// needs on the gateways (see gwsvc/agent_bindings.go). The project and
+// environment finalize hooks refuse to delete what the module still uses.
+func registerHooks(rt modkit.Runtime, agents *gwsvc.AgentGatewayService) {
+	rt.Hook(modkit.ResourceAgent, modkit.Validate, func(ctx context.Context, req modkit.HookRequest) error {
+		if req.Action == modkit.ActionDelete {
+			return nil
+		}
+		ext, err := gwsvc.DecodeAgentExtension(req.Extension)
+		if err != nil {
+			return err
+		}
+		return agents.ValidateAgentExtension(ctx, req.Tx, req, ext)
+	})
+	rt.Hook(modkit.ResourceAgent, modkit.Apply, func(ctx context.Context, req modkit.HookRequest) error {
+		ext, err := gwsvc.DecodeAgentExtension(req.Extension)
+		if err != nil {
+			return err
+		}
+		changed, err := agents.StoreAgentExtension(ctx, req.Tx, req, ext)
+		if err != nil || !changed || req.Action != modkit.ActionUpdate {
+			return err
+		}
+		// A create is reconciled on agent.created.
+		return rt.PublishTx(ctx, req.Tx, gwaudit.AgentBindingsChanged, map[string]string{"agentId": req.ID, "orgId": req.OrgID})
+	})
+	rt.Hook(modkit.ResourceAgent, modkit.Finalize, func(_ context.Context, req modkit.HookRequest) error {
+		return gwsvc.RecordAgentTeardown(req.Tx, req)
+	})
 	rt.Hook(modkit.ResourceProject, modkit.Finalize, finalizeProject)
 	rt.Hook(modkit.ResourceEnvironment, modkit.Finalize, finalizeEnvironment)
-}
 
-// agentTables hold rows of one agent. Rows of their own child tables go with
-// them through the module's foreign keys.
-var agentTables = []string{
-	"mod_ai_gateway_agent_gateway_settings",
-	"mod_ai_gateway_agent_model_configs",
-	"mod_ai_gateway_ai_applications",
-	"mod_ai_gateway_agent_exposures",
-	"mod_ai_gateway_agent_cards",
-	"mod_ai_gateway_a2a_proxies",
-}
-
-func finalizeAgent(_ context.Context, req modkit.HookRequest) error {
-	for _, table := range agentTables {
-		if err := req.Tx.Exec("DELETE FROM "+table+" WHERE org_id = ? AND agent_id = ?", req.OrgID, req.ID).Error; err != nil {
-			return fmt.Errorf("delete %s of agent %s: %w", table, req.ID, err)
+	reconcile := func(ctx context.Context, e modkit.Event) error {
+		var d struct {
+			ID      string `json:"id"`
+			AgentID string `json:"agentId"`
 		}
+		if err := json.Unmarshal(e.Data, &d); err != nil {
+			return err
+		}
+		if d.AgentID == "" {
+			d.AgentID = d.ID
+		}
+		return agents.ReconcileAgentBindings(ctx, e.OrgID, d.AgentID)
 	}
-	return nil
+	rt.Subscribe(modkit.EventAgentCreated, reconcile)
+	rt.Subscribe(gwaudit.AgentBindingsChanged, reconcile)
+	rt.Subscribe(modkit.EventAgentDeleted, func(ctx context.Context, e modkit.Event) error {
+		var d struct {
+			ID string `json:"id"`
+		}
+		if err := json.Unmarshal(e.Data, &d); err != nil {
+			return err
+		}
+		return agents.TeardownAgent(ctx, d.ID)
+	})
 }
 
 // projectTables hold rows that belong to a project.

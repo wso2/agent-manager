@@ -35,8 +35,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 )
 
@@ -80,7 +80,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 			return a2aTestCard(t, a2aIface("JSONRPC", "https://agent.example/team/a2a/jsonrpc")), nil
 		},
 	}
-	configs := &repomocks.AgentConfigRepositoryMock{
+	configs := &gwrepomocks.AgentConfigRepositoryMock{
 		GetFunc: func(context.Context, string, string, string, string) (*models.AgentConfig, error) {
 			return &models.AgentConfig{}, nil
 		},
@@ -99,7 +99,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	artifacts := gwrepo.NewArtifactRepo(gormDB)
 	f.publisher = NewA2APublisher(tx, exposures, proxies, cards, artifacts, f.sync.repo, testLogger(),
 		NewAgentExposurePublisher(tx, exposures, artifacts, f.sync.repo, gateways, f.core, testLogger()), kind)
-	f.proxies = NewA2AProxyService(tx, proxies, cards, repositories.NewAgentConfigRepo(gormDB),
+	f.proxies = NewA2AProxyService(tx, proxies, cards, gwrepo.NewAgentConfigRepo(gormDB),
 		gwrepo.NewArtifactRepo(gormDB), f.publisher, oc, make([]byte, 32), testLogger())
 	return f
 }
