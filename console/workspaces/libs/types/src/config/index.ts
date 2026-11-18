@@ -135,7 +135,7 @@ export interface AppConfig {
   /**
    * Host of an external app that owns project management (e.g.
    * "https://console.example.com"). When set, projects are managed there: the
-   * console hides project deletion, and "Manage project" sends the user to
+   * console hides project deletion, and the project overview's Settings sends the user to
    * `<externalProjectManagementUrl>/projects/<projectHandle>/settings`. Empty
    * (the default) manages projects in this console.
    */
