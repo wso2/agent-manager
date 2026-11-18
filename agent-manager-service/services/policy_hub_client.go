@@ -118,7 +118,15 @@ func (c *policyHubClient) Snapshot(ctx context.Context) ([]HubPolicy, bool) {
 	c.inflight = done
 	c.mu.Unlock()
 
-	fetchCtx, cancel := context.WithTimeout(ctx, c.timeout)
+	// Waiters share this fetch, so a cancelled starter must not fail it (and start the backoff).
+	// inflight is cleared by defer so that a panic cannot leave waiters blocked.
+	defer func() {
+		c.mu.Lock()
+		c.inflight = nil
+		c.mu.Unlock()
+		close(done)
+	}()
+	fetchCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.timeout)
 	fresh, err := c.fetchAll(fetchCtx)
 	cancel()
 
@@ -129,8 +137,6 @@ func (c *policyHubClient) Snapshot(ctx context.Context) ([]HubPolicy, bool) {
 	} else {
 		c.policies, c.fetchedAt, c.hasData, c.failedAt = fresh, time.Now(), true, time.Time{}
 	}
-	c.inflight = nil
-	close(done)
 	return c.snapshotLocked()
 }
 

@@ -69,7 +69,9 @@ export interface PolicyListSectionProps {
   /**
    * Whether a saved policy is the given catalog item. Defaults to name and
    * version equality; MCP passes name and major version, since it saves "v1"
-   * while the catalog lists the exact gateway version.
+   * while the catalog lists the exact gateway version. The "not available"
+   * check uses this too when given; by default it matches by name only, since
+   * any installed version of a guardrail keeps the saved one usable.
    */
   matchApplied?: (applied: PolicySelection, item: GuardrailDefinition) => boolean;
   title?: string;
@@ -96,6 +98,11 @@ const matchByNameAndVersion = (
   item: GuardrailDefinition,
 ): boolean => applied.name === item.name && applied.version === item.version;
 
+const matchByName = (
+  applied: PolicySelection,
+  item: GuardrailDefinition,
+): boolean => applied.name === item.name;
+
 export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   policies,
   onAdd,
@@ -109,7 +116,7 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   filterPolicies,
   hubAvailable,
   availabilityScope,
-  matchApplied = matchByNameAndVersion,
+  matchApplied: matchAppliedProp,
   title = "Policies",
   description = "Add policies to enforce consistent protections.",
   addButtonLabel = "Add policy",
@@ -155,15 +162,18 @@ export const PolicyListSection: React.FC<PolicyListSectionProps> = ({
   const activeIsLoading = isLoadingCatalog ?? defaultIsLoadingCatalog;
   const activeError = catalogError ?? defaultCatalogError;
 
+  const matchApplied = matchAppliedProp ?? matchByNameAndVersion;
+  const matchAvailable = matchAppliedProp ?? matchByName;
+
   // Judged against the whole catalog, not the picker's filtered view: a policy
   // the picker hides is still available on the gateway.
   const isUnavailable = useCallback(
     (policy: PolicySelection) =>
       Boolean(activeCatalog) &&
       !activeCatalog!.data.some(
-        (item) => item.status !== "not_installed" && matchApplied(policy, item),
+        (item) => item.status !== "not_installed" && matchAvailable(policy, item),
       ),
-    [activeCatalog, matchApplied],
+    [activeCatalog, matchAvailable],
   );
 
   const matchEditing = useCallback(

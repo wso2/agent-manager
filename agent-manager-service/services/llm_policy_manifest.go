@@ -31,10 +31,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
-// llmPolicyManifestItem is one guardrail policy definition reported by a gateway's
-// pushed manifest. Scoped to LLM guardrail listing only — intentionally independent
-// from MCP proxy's own manifest walk in mcp_proxy_service.go, which has different
-// availability semantics (hub-intersected) and must not be affected by this endpoint.
+// llmPolicyManifestItem is one policy definition reported by a gateway's pushed
+// manifest. LLM guardrail and MCP policy listings both read manifests through this
+// path, merged with the policy hub by buildCatalogResponse.
 type llmPolicyManifestItem struct {
 	Name             string
 	Version          string
@@ -140,7 +139,12 @@ func collectInstalledPolicies(gateways []*models.Gateway) installedPolicies {
 		MissingOn: map[string][]gatewayRef{},
 		Reporting: []gatewayRef{},
 	}
+	// Several versions of one name can survive the intersection (every gateway reports both); take the highest, so
+	// the result does not depend on map iteration order.
 	for _, item := range intersectLLMPolicies(gateways) {
+		if current, ok := result.ByName[item.Name]; ok && compareVersions(item.Version, current.Version) <= 0 {
+			continue
+		}
 		result.ByName[item.Name] = item
 	}
 

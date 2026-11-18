@@ -1954,6 +1954,16 @@
               "title": "guardrailCapabilities",
               "type": "object"
             },
+            "guardrailsCatalogUrl": {
+              "description": "Deprecated and ignored; the policy catalog is served by agent-manager-service.",
+              "title": "guardrailsCatalogUrl",
+              "type": "string"
+            },
+            "guardrailsDefinitionBaseUrl": {
+              "description": "Deprecated and ignored; the policy catalog is served by agent-manager-service.",
+              "title": "guardrailsDefinitionBaseUrl",
+              "type": "string"
+            },
             "idpHostBaseDomain": {
               "default": "amp.localhost",
               "description": "Base domain env-Thunder instances are hosted under, and whether this deployment serves them over TLS. Mirrors agentManagerService.config's own idpHostBaseDomain/tlsEnabled \u2014 kept in sync so the Create Environment drawer's rendered command matches this deployment. VM/production installs override both (see deployments/vm/lib-vm.sh).",

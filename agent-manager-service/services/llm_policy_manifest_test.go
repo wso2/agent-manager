@@ -557,6 +557,22 @@ func TestCollectInstalledPolicies_MissingOn(t *testing.T) {
 	assert.NotContains(t, got.MissingOn, "p1")
 }
 
+// Two versions of one policy on every gateway both survive the intersection; the highest must win every time.
+func TestCollectInstalledPolicies_PicksHighestVersionDeterministically(t *testing.T) {
+	policies := []map[string]interface{}{
+		{"name": "p1", "version": "v1.2.0"},
+		{"name": "p1", "version": "v1.10.0"},
+		{"name": "p1", "version": "v1.9.0"},
+	}
+	a := catalogGateway("a", policies...)
+	b := catalogGateway("b", policies...)
+
+	for i := 0; i < 50; i++ {
+		got := collectInstalledPolicies([]*models.Gateway{a, b})
+		assert.Equal(t, "v1.10.0", got.ByName["p1"].Version)
+	}
+}
+
 func TestCollectInstalledPolicies_NameFallsBackToGatewayName(t *testing.T) {
 	a := catalogGateway("a", map[string]interface{}{"name": "p1", "version": "v1.0.0"})
 	b := catalogGateway("b")

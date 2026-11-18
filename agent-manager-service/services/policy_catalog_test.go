@@ -73,13 +73,13 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			want: []want{},
 		},
 		{
-			name: "hub AI policy not installed → not_installed, missingOn = all reporting gateways",
+			name: "hub AI policy not installed → not_installed, missingOn empty (installed on none)",
 			kind: models.PolicyCatalogKindLLM,
 			installed: installedPolicies{
 				Reporting: []gatewayRef{gwA, gwB},
 			},
 			hub: []HubPolicy{hubAI, hubMCP}, hubOK: true,
-			want: []want{{"pii-mask", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.2", []gatewayRef{gwA, gwB}}},
+			want: []want{{"pii-mask", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.2", nil}},
 		},
 		{
 			name:      "no reporting gateways → hub policies not_installed, missingOn empty",
@@ -93,14 +93,14 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			kind:      models.PolicyCatalogKindLLM,
 			installed: installedPolicies{Reporting: []gatewayRef{gwA}},
 			hub:       []HubPolicy{hubCors}, hubOK: true,
-			want: []want{{"cors", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.0", []gatewayRef{gwA}}},
+			want: []want{{"cors", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.0", nil}},
 		},
 		{
 			name:      "cors tagged Security,AI,MCP → present in mcp",
 			kind:      models.PolicyCatalogKindMCP,
 			installed: installedPolicies{Reporting: []gatewayRef{gwA}},
 			hub:       []HubPolicy{hubCors}, hubOK: true,
-			want: []want{{"cors", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.0", []gatewayRef{gwA}}},
+			want: []want{{"cors", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.0", nil}},
 		},
 		{
 			name: "custom installed → in both kinds (llm), source custom",
@@ -113,7 +113,7 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			hub: []HubPolicy{hubAI}, hubOK: true,
 			want: []want{
 				{"my-policy", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceCustom, "v2.0.0", nil},
-				{"pii-mask", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.2", []gatewayRef{gwA}},
+				{"pii-mask", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.2", nil},
 			},
 		},
 		{
@@ -208,7 +208,7 @@ func TestBuildPolicyCatalog(t *testing.T) {
 				{Name: "pii-mask", Version: "v1.2", Categories: []string{"AI"}, IsLatest: false},
 				{Name: "pii-mask", Version: "v1.1", Categories: []string{"AI"}, IsLatest: true},
 			}, hubOK: true,
-			want: []want{{"pii-mask", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.1", []gatewayRef{gwA}}},
+			want: []want{{"pii-mask", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.1", nil}},
 		},
 		{
 			name: "duplicate hub entries, none latest → highest version wins",
@@ -221,7 +221,7 @@ func TestBuildPolicyCatalog(t *testing.T) {
 				{Name: "pii-mask", Version: "v1.10", Categories: []string{"AI"}},
 				{Name: "pii-mask", Version: "v1.2", Categories: []string{"AI"}},
 			}, hubOK: true,
-			want: []want{{"pii-mask", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.10", []gatewayRef{gwA}}},
+			want: []want{{"pii-mask", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.10", nil}},
 		},
 		{
 			name: "ordering → installed before not_installed, then by name",
@@ -239,8 +239,8 @@ func TestBuildPolicyCatalog(t *testing.T) {
 			want: []want{
 				{"alpha", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceHub, "v1.0.0", nil},
 				{"zeta", models.PolicyCatalogStatusInstalled, models.PolicyCatalogSourceHub, "v1.0.0", nil},
-				{"aaa", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.0", []gatewayRef{gwA}},
-				{"beta", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.0", []gatewayRef{gwA}},
+				{"aaa", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.0", nil},
+				{"beta", models.PolicyCatalogStatusNotInstalled, models.PolicyCatalogSourceHub, "v1.0", nil},
 			},
 		},
 	}

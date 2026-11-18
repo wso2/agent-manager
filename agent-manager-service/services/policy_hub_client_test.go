@@ -220,6 +220,58 @@ func TestPolicyHubClient_ConcurrentColdCallersShareOneFetch(t *testing.T) {
 	}
 }
 
+// The caller that starts the shared cold fetch may give up; the fetch must still finish for the callers waiting on
+// it, populate the cache and not start the failure backoff.
+func TestPolicyHubClient_StarterCancelDoesNotFailSharedFetch(t *testing.T) {
+	var hits atomic.Int32
+	started := make(chan struct{})
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if hits.Add(1) == 1 {
+			close(started)
+		}
+		<-release
+		hubPage(w, []string{"a"}, 0, 50, 1)
+	}))
+	defer srv.Close()
+
+	c := NewPolicyHubClient(srv.URL, time.Minute, 5*time.Second, srv.Client()).(*policyHubClient)
+
+	starterCtx, cancelStarter := context.WithCancel(context.Background())
+	starterOK := make(chan bool, 1)
+	go func() {
+		_, ok := c.Snapshot(starterCtx)
+		starterOK <- ok
+	}()
+	<-started
+
+	waiterOK := make(chan bool, 1)
+	go func() {
+		_, ok := c.Snapshot(context.Background())
+		waiterOK <- ok
+	}()
+	require.Eventually(t, func() bool {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		return c.inflight != nil
+	}, time.Second, time.Millisecond)
+	time.Sleep(50 * time.Millisecond) // let the waiter reach the inflight wait
+
+	cancelStarter()
+	close(release)
+
+	assert.True(t, <-waiterOK)
+	assert.True(t, <-starterOK)
+	got, ok := c.Snapshot(context.Background())
+	assert.True(t, ok)
+	assert.Len(t, got, 1)
+	assert.Equal(t, int32(1), hits.Load())
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	assert.True(t, c.failedAt.IsZero(), "a cancelled starter must not start the backoff")
+	assert.Nil(t, c.inflight)
+}
+
 func TestPolicyHubClient_SnapshotReturnsCopy(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		hubPage(w, []string{"a"}, 0, 50, 1)

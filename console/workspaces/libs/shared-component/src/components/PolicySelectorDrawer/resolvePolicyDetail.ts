@@ -24,13 +24,17 @@ import {
 
 /**
  * Builds the configuration schema from the catalog item's inline `parameters`.
- * Installed policies always carry them (possibly an empty object); not-installed
- * ones never do and are not selectable, so `null` means no schema is known.
+ * The service omits empty `parameters`, so an installed policy may arrive with
+ * none: that is an empty schema (no settings), not a missing one. Not-installed
+ * ones never carry a schema and are not selectable, so `null` means no schema is
+ * known.
  */
 export function resolvePolicyDetail(
   policy: GuardrailDefinition,
 ): PolicyDefinition | null {
-  if (policy.parameters === undefined) return null;
+  if (policy.parameters === undefined && policy.status !== "installed") {
+    return null;
+  }
   return {
     name: policy.name,
     version: policy.version,

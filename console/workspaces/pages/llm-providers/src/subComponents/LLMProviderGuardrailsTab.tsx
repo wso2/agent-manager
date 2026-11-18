@@ -158,10 +158,8 @@ export function LLMProviderGuardrailsTab({
     (p: LLMPolicy) =>
       catalogReady &&
       !availableGuardrails.some(
-        (g) =>
-          g.status === "installed" &&
-          g.name === p.name &&
-          g.version === p.version,
+        // Name only: any installed version keeps an applied guardrail usable.
+        (g) => g.status === "installed" && g.name === p.name,
       ),
     [catalogReady, availableGuardrails],
   );
@@ -394,10 +392,7 @@ export function LLMProviderGuardrailsTab({
   const handleOpenEditDrawer = useCallback(
     (entry: PolicyEntry) => {
       const guardrailDef = availableGuardrails.find(
-        (g) =>
-          g.status === "installed" &&
-          g.name === entry.policy.name &&
-          g.version === entry.policy.version,
+        (g) => g.status === "installed" && g.name === entry.policy.name,
       );
       if (!guardrailDef && !catalogReady) return;
 

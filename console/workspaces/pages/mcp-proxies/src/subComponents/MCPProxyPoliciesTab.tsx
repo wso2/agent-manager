@@ -173,7 +173,7 @@ export function MCPProxyPoliciesTab({
       catalogErrorLabel="Failed to load policies."
       emptySearchTitle="No policies match your search"
       emptyCatalogTitle="No policies available"
-      emptyCatalogDescription="No MCP policies reported by the active gateway are available in the policy hub."
+      emptyCatalogDescription="No policies are available for this proxy's gateways."
     />
   );
 }

@@ -327,6 +327,9 @@ func TestListLLMGuardrailsFiltersAndReturnsSchemaByName(t *testing.T) {
 	if strings.Contains(text, `"parameters"`) {
 		t.Errorf("list includes parameter schemas: %s", text)
 	}
+	if strings.Contains(text, testNotInstalledGuardrail) {
+		t.Errorf("list includes a not-installed policy: %s", text)
+	}
 
 	isErr, text = call(map[string]any{"name": testGuardrailName})
 	if isErr || !strings.Contains(text, `"parameters"`) || !strings.Contains(text, `"mask"`) {
@@ -335,6 +338,10 @@ func TestListLLMGuardrailsFiltersAndReturnsSchemaByName(t *testing.T) {
 
 	if isErr, _ = call(map[string]any{"name": "cors"}); !isErr {
 		t.Error("lookup of a non-guardrail policy by name succeeded")
+	}
+
+	if isErr, _ = call(map[string]any{"name": testNotInstalledGuardrail}); !isErr {
+		t.Error("lookup of a not-installed policy by name succeeded")
 	}
 }
 

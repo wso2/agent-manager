@@ -358,6 +358,7 @@ func TestAddGuardrailMustBeOneTheGatewaysReport(t *testing.T) {
 		"non-guardrail policy":    {map[string]any{"name": "jwt-auth", "version": "v1"}, "jwt-auth is a gateway policy, not a guardrail"},
 		"reported, not guardrail": {map[string]any{"name": "cors", "version": "v1"}, "cors is a gateway policy, not a guardrail"},
 		"unavailable version":     {map[string]any{"name": "word-count", "version": "v9"}, "word-count version v9 is not available"},
+		"not installed":           {map[string]any{"name": testNotInstalledGuardrail, "version": "v1"}, `no guardrail named "` + testNotInstalledGuardrail + `"`},
 	} {
 		t.Run(name, func(t *testing.T) {
 			failed, text, saved := callGuardrailTool(t, nil, "add_llm_provider_guardrails", map[string]any{"guardrails": []any{tc.guardrail}})

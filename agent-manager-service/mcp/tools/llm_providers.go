@@ -569,7 +569,13 @@ func listLLMGuardrails(handler LLMProviderToolsetHandler) func(context.Context, 
 		}
 		var policies []models.PolicyCatalogItem
 		if resp != nil {
-			policies = resp.List
+			for _, p := range resp.List {
+				// The catalog also lists policies no gateway has installed; only
+				// installed ones can be attached.
+				if p.Status == models.PolicyCatalogStatusInstalled {
+					policies = append(policies, p)
+				}
+			}
 		}
 
 		// One guardrail with its schema. The full list with every schema runs to
@@ -684,7 +690,7 @@ func requireAvailableGuardrails(
 	versions := map[string][]string{}
 	if resp != nil {
 		for _, p := range resp.List {
-			if !nonGuardrailPolicies[p.Name] {
+			if p.Status == models.PolicyCatalogStatusInstalled && !nonGuardrailPolicies[p.Name] {
 				versions[p.Name] = append(versions[p.Name], p.Version)
 			}
 		}

@@ -221,6 +221,16 @@ describe("PolicyListSection applied policies", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("does not flag an applied policy when another version is installed (default match is by name)", () => {
+    renderList(
+      { catalogData: catalog([policy({ name: "legacy-guard", version: "v2.0.0" })]) },
+      applied,
+    );
+    expect(
+      screen.queryByText("Not available on this gateway"),
+    ).not.toBeInTheDocument();
+  });
+
   it("matches applied policies with matchApplied (name + major) and opens the inline form", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     const major = (v: string) => v.replace(/^v/, "").split(".")[0];

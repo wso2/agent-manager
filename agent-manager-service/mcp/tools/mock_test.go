@@ -214,10 +214,12 @@ func (m *MockToolsetHandler) ListLLMGuardrails(
 ) (*models.PolicyCatalogResponse, error) {
 	m.recordCall("ListLLMGuardrails", ouID, providerID)
 	schema := map[string]interface{}{"type": "object", "properties": map[string]interface{}{"mask": map[string]interface{}{"type": "boolean"}}}
-	return &models.PolicyCatalogResponse{Count: 3, List: []models.PolicyCatalogItem{
-		{Name: testGuardrailName, Version: "v1", Parameters: schema},
-		{Name: "word-count", Version: "v1", Parameters: schema},
-		{Name: "cors", Version: "v1", Parameters: schema},
+	installed := models.PolicyCatalogStatusInstalled
+	return &models.PolicyCatalogResponse{Count: 4, List: []models.PolicyCatalogItem{
+		{Name: testGuardrailName, Version: "v1", Status: installed, Parameters: schema},
+		{Name: "word-count", Version: "v1", Status: installed, Parameters: schema},
+		{Name: "cors", Version: "v1", Status: installed, Parameters: schema},
+		{Name: testNotInstalledGuardrail, Version: "v1", Status: models.PolicyCatalogStatusNotInstalled, Parameters: schema},
 	}}, nil
 }
 

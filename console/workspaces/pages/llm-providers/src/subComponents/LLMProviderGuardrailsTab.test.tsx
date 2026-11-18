@@ -92,6 +92,31 @@ describe("LLMProviderGuardrailsTab unavailable guardrails", () => {
     expect(screen.queryByRole("button", { name: /^save$/i })).not.toBeInTheDocument();
   });
 
+  it("does not flag an applied guardrail when another version is installed", () => {
+    catalog.state = {
+      data: loadedCatalog([
+        { name: "legacy-guard", version: "v2.0.0", status: "installed", parameters: {} },
+      ]),
+      error: null,
+    };
+    renderTab();
+    expect(screen.getByText(/legacy-guard/)).toBeInTheDocument();
+    expect(
+      screen.queryByText("Not available on this gateway"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("flags an applied guardrail when only a not-installed version is listed", () => {
+    catalog.state = {
+      data: loadedCatalog([
+        { name: "legacy-guard", version: "v1.0.0", status: "not_installed" },
+      ]),
+      error: null,
+    };
+    renderTab();
+    expect(screen.getByText("Not available on this gateway")).toBeInTheDocument();
+  });
+
   it("lets an unavailable guardrail be removed", () => {
     catalog.state = { data: loadedCatalog([]), error: null };
     renderTab();

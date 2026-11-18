@@ -25,7 +25,11 @@ vi.mock("@agent-management-platform/auth", () => ({
   useAuthHooks: () => ({ getToken: async () => "t" }),
 }));
 
-import { toGuardrailCatalog } from "./guardrails";
+import {
+  filterGuardrailPolicies,
+  toGuardrailCatalog,
+  type GuardrailDefinition,
+} from "./guardrails";
 import { toMCPCatalog } from "./mcp-policies";
 
 const response = (
@@ -106,5 +110,42 @@ describe("toMCPCatalog", () => {
     );
     expect(out.hubAvailable).toBe(false);
     expect(out.availabilityScope).toBe("org_managed");
+  });
+});
+
+describe("filterGuardrailPolicies", () => {
+  const def = (overrides: Partial<GuardrailDefinition>): GuardrailDefinition => ({
+    name: "p",
+    version: "v1.0.0",
+    displayName: "P",
+    description: "",
+    provider: "hub",
+    source: "hub",
+    status: "installed",
+    categories: [],
+    isLatest: true,
+    ...overrides,
+  });
+
+  it("hides a not-installed AI-only item", () => {
+    const out = filterGuardrailPolicies([
+      def({ name: "ai-only", status: "not_installed", categories: ["AI"] }),
+    ]);
+    expect(out).toEqual([]);
+  });
+
+  it("shows a not-installed Guardrails item", () => {
+    const out = filterGuardrailPolicies([
+      def({ name: "pii", status: "not_installed", categories: ["AI", "Guardrails"] }),
+    ]);
+    expect(out.map((p) => p.name)).toEqual(["pii"]);
+  });
+
+  it("keeps an installed AI-only item unless it is excluded", () => {
+    const out = filterGuardrailPolicies([
+      def({ name: "ai-only", categories: ["AI"] }),
+      def({ name: "jwt-auth", categories: ["AI"] }),
+    ]);
+    expect(out.map((p) => p.name)).toEqual(["ai-only"]);
   });
 });

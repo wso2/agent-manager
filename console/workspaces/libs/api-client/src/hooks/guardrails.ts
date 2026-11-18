@@ -113,6 +113,7 @@ const ALL_CAPABILITY_GATED_POLICIES = new Set(
  * Tier 2 — hidden by default: policies requiring external system config;
  *           shown when the corresponding capability flag is true in `capabilities`.
  * Tier 3 — always shown: OOTB policies with no external dependencies.
+ * Not-installed policies must also be categorised "Guardrails" to be shown.
  */
 export function filterGuardrailPolicies(
   policies: GuardrailDefinition[],
@@ -130,6 +131,10 @@ export function filterGuardrailPolicies(
   );
 
   return policies.filter((p) => {
+    // The hub tags about twenty non-guardrail policies "AI"; a policy no gateway
+    // has installed is only worth offering when the hub files it under Guardrails.
+    if (p.status === "not_installed" && !p.categories.includes("Guardrails"))
+      return false;
     if (NON_GUARDRAIL_POLICY_EXCLUDELIST.has(p.name)) return false;
     if (ALL_CAPABILITY_GATED_POLICIES.has(p.name))
       return enabledCapabilityPolicies.has(p.name);

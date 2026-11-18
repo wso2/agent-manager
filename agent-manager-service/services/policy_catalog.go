@@ -153,10 +153,8 @@ func buildPolicyCatalog(kind models.PolicyCatalogKind, installed installedPolici
 		if !hubPolicyMatchesKind(kind, h.Categories) {
 			continue
 		}
-		missing, ok := installed.MissingOn[name]
-		if !ok {
-			missing = installed.Reporting
-		}
+		// MissingOn is set only for a name on some, not all, gateways; on none it stays empty.
+		missing := installed.MissingOn[name]
 		displayName := h.DisplayName
 		if displayName == "" {
 			displayName = name
