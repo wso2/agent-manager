@@ -220,7 +220,8 @@ def test_scan_tree(tmp_path: Path) -> None:
     crew = result.findings[2]
     assert [e.code for e in crew.evidence] == ["d1_agent_dependency", "d2_agent_import"]
     assert [f.service_folder for f in result.findings] == ["examples", ".", "."]
-    assert (result.files_scanned, result.files_skipped, result.parse_errors) == (5, 1, 1)
+    # web/index.ts is scanned too (it only imports): six files, one link skipped.
+    assert (result.files_scanned, result.files_skipped, result.parse_errors) == (6, 1, 1)
 
 
 def test_scan_tree_counts_an_unreadable_file_as_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -18,7 +18,8 @@
 
 The static check scans every module under ``amp_shadow_runner/engine`` for imports of networking or
 process modules. The runtime checks import every engine module afresh, walk, parse and read the imports
-of a small tree, and run ``scan_tree`` on it, with sockets and process creation patched to raise.
+of a small tree, and run ``scan_tree`` on a tree with Python and TypeScript agents, with sockets and
+process creation patched to raise.
 """
 
 import ast
@@ -188,5 +189,7 @@ def test_walk_and_parse_never_touch_network(tmp_path: Path) -> None:
 def test_scan_tree_never_touches_network(tmp_path: Path) -> None:
     (tmp_path / "requirements.txt").write_bytes(b"crewai\n")
     (tmp_path / "agent.py").write_bytes(b"from crewai import Agent\nresearcher = Agent(role='r')\n")
+    (tmp_path / "package.json").write_bytes(b'{"dependencies": {"@mastra/core": "1"}}\n')
+    (tmp_path / "agent.ts").write_bytes(b'import { Agent } from "@mastra/core";\nconst bot = new Agent({});\n')
     result = scan_tree(tmp_path, repository="r", read_ci=True)
-    assert [f.external_id for f in result.findings] == ["r:agent.py:researcher"]
+    assert [f.external_id for f in result.findings] == ["r:agent.py:researcher", "r:agent.ts:bot"]

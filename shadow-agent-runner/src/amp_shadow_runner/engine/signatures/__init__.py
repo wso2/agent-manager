@@ -24,6 +24,10 @@ that uses it:
   the method, as ``ImportTable.resolve`` gives it: ``Symbol("llama_index.core.agent.ReActAgent", "from_tools")``.
 - ``SUBCLASS``: a class derives from the symbol, ``class MyAgent(Agent)``.
 
+In TypeScript and JavaScript, ``CALL`` covers ``new Agent(...)`` as well as a plain call, and a symbol's
+module is a package root (``@mastra/core``) that also covers the package's subpaths (``@mastra/core/agent``)
+unless a signature names the subpath itself.
+
 The symbols are matched only through imports, so a local class with the same name never matches. A
 ``RuleSet`` holds the signatures of one language and the frameworks they belong to.
 
@@ -52,6 +56,10 @@ class Condition(StrEnum):
     CREW = "crew"
     """A team of agents: it labels the agent findings it links, and is reported (Not sure) only when it
     links none."""
+    TOOL_LOOP = "tool_loop"
+    """A model call that runs tools in a loop (AI SDK ``generateText``): proven when it passes ``tools`` and
+    lets the model take more than one step; with ``tools`` but no loop it is Not sure, and with no ``tools``
+    no match at all. The matcher checks it in the call itself (``Match.condition_met``)."""
 
 
 class Shape(StrEnum):
@@ -91,6 +99,9 @@ class Signature:
     prove an agent (AutoGen ``ConversableAgent`` needs ``llm_config``). Only for ``CALL`` signatures."""
     condition: Condition | None = None
     """What else proves the agent (see ``Condition``); None for a signature that always proves one."""
+    runs: bool = False
+    """The call runs the agent loop and returns its result (AI SDK ``generateText``), so the variable it is
+    assigned to names a result, not the agent: the name comes from the enclosing function instead."""
 
 
 def agent_class(

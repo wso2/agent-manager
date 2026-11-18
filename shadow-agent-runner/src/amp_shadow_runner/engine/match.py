@@ -100,6 +100,9 @@ class Match:
     tools: tuple[str, ...] = ()
     crew: str | None = None
     """The name of the crew that links this agent (see the module docstring)."""
+    condition_met: bool | None = None
+    """For a condition the matcher checks in the code it matched (``Condition.TOOL_LOOP``), whether it
+    holds; None for every other match."""
 
     @property
     def framework(self) -> str:

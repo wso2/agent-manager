@@ -9,7 +9,7 @@ The package has two parts:
 - `amp_shadow_runner`: the command line.
 - `amp_shadow_runner.engine`: the scan engine, a pure library that parses a local source tree with tree-sitter. It never opens a network connection or starts a process (`tests/engine/test_purity.py` enforces this).
 
-> `scan` works for GitHub with the rules for Python agents. Azure DevOps, the other languages and AI review come in later versions.
+> `scan` works for GitHub with the rules for Python, TypeScript and JavaScript agents. Azure DevOps, C#, Ballerina and AI review come in later versions.
 
 ## Command line
 

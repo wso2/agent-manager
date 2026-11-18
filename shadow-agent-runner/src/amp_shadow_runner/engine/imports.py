@@ -173,6 +173,13 @@ class ImportTable:
         return _split(_join(_base(imp), *rest))
 
 
+def package_root(specifier: str) -> str:
+    """The npm package a TS/JS module specifier names: ``@scope/pkg`` for ``@scope/pkg/sub``, else the part
+    before the first ``/`` (``langchain`` for ``langchain/agents``). A relative specifier gives ``.``/``..``."""
+    parts = specifier.split("/")
+    return "/".join(parts[:2]) if specifier.startswith("@") else parts[0]
+
+
 def _base(imp: Import) -> str:
     """The dotted path an import binds: the module (with its leading dots), plus the member for a member import."""
     module = "." * imp.level + imp.module

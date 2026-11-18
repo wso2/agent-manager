@@ -29,11 +29,12 @@ conditional signature (see ``Condition``) gives ``proven`` only when its conditi
   ``strict``). That manifest is also the finding's ``d1_agent_dependency`` evidence; every other finding
   takes that evidence from the lenient lookup.
 - ``CREW``: never; a crew is a finding only when it links no agent, and is then ``not_sure``.
+- ``TOOL_LOOP``: the matcher found the call loops (``Match.condition_met``).
 
 Evidence codes here carry no provider prefix: the publish step adds ``github.`` or ``azure_devops.``.
 
 - ``d2_agent_import``: the file that uses the signature, with ``observed.imports`` the number of the
-  framework's imports in it.
+  framework's imports in it (for TS/JS, the imports whose package is one of the framework's).
 - ``d1_agent_dependency``: a dependency manifest that declares the framework's package (see
   ``Dependencies.declaring``), with ``observed.declared`` true.
 - ``d7_tool_calling``: for a graph wired to tools, the file that wires it, with a true flag for each thing
@@ -57,7 +58,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from amp_shadow_runner.engine.files import Tag
-from amp_shadow_runner.engine.imports import ImportTable
+from amp_shadow_runner.engine.imports import ImportTable, package_root
+from amp_shadow_runner.engine.languages import Language
 from amp_shadow_runner.engine.manifests import Dependencies, service_folder
 from amp_shadow_runner.engine.match import Match
 from amp_shadow_runner.engine.signatures import Condition, Framework, RuleSet, Wiring
@@ -72,6 +74,8 @@ D2_AGENT_IMPORT = "d2_agent_import"
 D7_TOOL_CALLING = "d7_tool_calling"
 
 Observed = Mapping[str, bool | int | str]
+
+_SCRIPT_LANGUAGES = frozenset({Language.JAVASCRIPT, Language.TYPESCRIPT, Language.TSX})
 
 _HOP_WIRING = frozenset({Wiring.TOOL_NODE, Wiring.TOOLS_CONDITION})
 """What wires a graph to tools one import hop away (see ``Wiring.BIND_TOOLS``)."""
@@ -160,7 +164,11 @@ def classify(
                     verdict = Verdict.NOT_SURE
                 else:
                     evidence.append(Evidence(D7_TOOL_CALLING, wired[0], {k.value: True for k in sorted(wired[1])}))
-            elif (condition == Condition.DEPENDENCY and manifest is None) or condition == Condition.CREW:
+            elif (
+                (condition == Condition.DEPENDENCY and manifest is None)
+                or condition == Condition.CREW
+                or (condition == Condition.TOOL_LOOP and not match.condition_met)
+            ):
                 verdict = Verdict.NOT_SURE
             findings.append(
                 Finding(
@@ -193,10 +201,16 @@ def _wired(file: FileMatches, wiring: Mapping[str, frozenset[Wiring]]) -> tuple[
 
 
 def _import_count(imports: ImportTable, framework: Framework) -> int:
-    """How many non-type-only, absolute imports in the file come from the framework's modules."""
+    """How many non-type-only, absolute imports in the file come from the framework's modules: by dotted
+    path, or for TS/JS by the npm package the specifier names."""
+    script = imports.language in _SCRIPT_LANGUAGES
     count = 0
     for imp in imports.imports:
         if imp.type_only or imp.level:
+            continue
+        if script:
+            if package_root(imp.module) in framework.modules:
+                count += 1
             continue
         path = imp.module if imp.name is None else f"{imp.module}.{imp.name}"
         if any(path == root or path.startswith(f"{root}.") for root in framework.modules):

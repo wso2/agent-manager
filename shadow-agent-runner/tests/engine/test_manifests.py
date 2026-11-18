@@ -20,9 +20,13 @@ import pytest
 
 from amp_shadow_runner.engine.manifests import (
     Dependencies,
+    Ecosystem,
+    ecosystem,
     is_python_manifest,
     normalise,
+    npm_packages,
     python_packages,
+    read_packages,
     service_folder,
 )
 
@@ -81,6 +85,45 @@ def test_python_packages(path: str, text: str, packages: set[str]) -> None:
 )
 def test_is_python_manifest(path: str, expected: bool) -> None:
     assert is_python_manifest(path) == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "packages"),
+    [
+        (
+            '{"name": "web", "dependencies": {"@mastra/core": "^0.10", "zod": "3"}, '
+            '"devDependencies": {"@openai/agents": "*"}, "optionalDependencies": {"ai": "5"}, '
+            '"peerDependencies": {"@langchain/langgraph": "*"}, "scripts": {"langchain": "x"}}',
+            {"@mastra/core", "zod", "@openai/agents", "ai"},
+        ),
+        ('{"dependencies": ["ai"]}', set()),
+        ("[1, 2]", set()),
+        ("{not json", set()),
+        ("[" * 100_000, set()),
+        ("", set()),
+    ],
+)
+def test_npm_packages(text: str, packages: set[str]) -> None:
+    assert npm_packages(text.encode()) == packages
+
+
+@pytest.mark.parametrize(
+    ("path", "kind"),
+    [
+        ("requirements.txt", Ecosystem.PYTHON),
+        ("svc/pyproject.toml", Ecosystem.PYTHON),
+        ("web/package.json", Ecosystem.NPM),
+        ("App.csproj", None),
+        ("Ballerina.toml", None),
+    ],
+)
+def test_ecosystem(path: str, kind: Ecosystem | None) -> None:
+    assert ecosystem(path) == kind
+
+
+def test_read_packages_by_ecosystem() -> None:
+    assert read_packages("web/package.json", b'{"dependencies": {"AI": "5"}}') == {"ai"}
+    assert read_packages("requirements.txt", b"crewai\n") == {"crewai"}
 
 
 def test_normalise() -> None:

@@ -18,7 +18,7 @@
 
 import pytest
 
-from amp_shadow_runner.engine.imports import Import, ImportKind, ImportTable, Symbol, extract_imports
+from amp_shadow_runner.engine.imports import Import, ImportKind, ImportTable, Symbol, extract_imports, package_root
 from amp_shadow_runner.engine.languages import Language, parse
 
 S = Symbol
@@ -170,6 +170,21 @@ TYPESCRIPT_CASES = [
 @pytest.mark.parametrize(("source", "reference", "expected"), TYPESCRIPT_CASES)
 def test_typescript_resolve(language: Language, source: str, reference: str, expected: tuple[Symbol, ...]) -> None:
     assert _table(language, source).resolve(reference) == expected
+
+
+@pytest.mark.parametrize(
+    ("specifier", "root"),
+    [
+        ("@mastra/core/agent", "@mastra/core"),
+        ("@mastra/core", "@mastra/core"),
+        ("langchain/agents", "langchain"),
+        ("ai", "ai"),
+        ("./agent", "."),
+        ("@scope", "@scope"),
+    ],
+)
+def test_package_root(specifier: str, root: str) -> None:
+    assert package_root(specifier) == root
 
 
 SK = "Microsoft.SemanticKernel"

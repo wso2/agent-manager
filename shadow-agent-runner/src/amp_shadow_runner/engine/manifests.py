@@ -14,29 +14,74 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Read the packages that Python dependency manifests declare.
+"""Read the packages that dependency manifests declare.
 
-Only package names are read, never versions, URLs or anything else. Supported: ``requirements*.txt`` (and
-``*.txt`` under a ``requirements/`` folder), ``pyproject.toml`` (``[project]`` dependencies, optional
-dependencies and dependency groups, and Poetry dependencies and groups), ``Pipfile`` and ``setup.cfg``. A
-manifest that cannot be read or parsed declares nothing. Names are compared normalised (PEP 503: case,
-``-``, ``_`` and ``.`` do not matter).
+Only package names are read, never versions, URLs or anything else. A manifest that cannot be read or
+parsed declares nothing. Names are compared normalised (PEP 503: case, ``-``, ``_`` and ``.`` do not
+matter), whatever the ecosystem. Each manifest belongs to one ``Ecosystem``, so a Python file is never
+proven by a ``package.json`` that names a package of the same name.
+
+- Python: ``requirements*.txt`` (and ``*.txt`` under a ``requirements/`` folder), ``pyproject.toml``
+  (``[project]`` dependencies, optional dependencies and dependency groups, and Poetry dependencies and
+  groups), ``Pipfile`` and ``setup.cfg``.
+- npm: ``package.json`` ``dependencies``, ``devDependencies`` and ``optionalDependencies``. Not
+  ``peerDependencies``: a peer dependency is one the package expects its host to install, as a plugin or
+  library does, so it says the framework is used somewhere else rather than here.
 
 ``service_folder`` places a file in the service it belongs to: the folder of the nearest manifest of any
 kind (``package.json`` and ``*.csproj`` too) at or above it.
 """
 
 import configparser
+import json
 import re
 import tomllib
 from collections.abc import Iterable, Iterator, Mapping
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import PurePosixPath
 
 _PEP508_NAME = re.compile(r"\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 _SEPARATORS = re.compile(r"[-_.]+")
 _TOML_MANIFESTS = frozenset({"pyproject.toml", "Pipfile"})
 _REQUIREMENTS_FOLDER = PurePosixPath("requirements")
+
+
+_NPM_SECTIONS = ("dependencies", "devDependencies", "optionalDependencies")
+
+
+class Ecosystem(StrEnum):
+    """The package ecosystem of a manifest, and of the source files it declares packages for."""
+
+    PYTHON = "python"
+    NPM = "npm"
+
+
+def ecosystem(path: str) -> Ecosystem | None:
+    """The ecosystem of the walker's manifest at ``path``, or None when this module does not read it."""
+    if is_python_manifest(path):
+        return Ecosystem.PYTHON
+    if PurePosixPath(path).name == "package.json":
+        return Ecosystem.NPM
+    return None
+
+
+def read_packages(path: str, data: bytes) -> frozenset[str]:
+    """The normalised package names the manifest at ``path`` declares, whatever its ecosystem."""
+    if ecosystem(path) == Ecosystem.NPM:
+        return npm_packages(data)
+    return python_packages(path, data)
+
+
+def npm_packages(data: bytes) -> frozenset[str]:
+    """The normalised package names a ``package.json`` declares (see the module docstring)."""
+    try:
+        document = json.loads(data.decode("utf-8", errors="replace"))
+    except (ValueError, RecursionError):  # Invalid JSON, or nested too deeply to parse.
+        return frozenset()
+    if not isinstance(document, Mapping):
+        return frozenset()
+    return frozenset(normalise(name) for section in _NPM_SECTIONS for name in _keys(document.get(section)))
 
 
 def normalise(name: str) -> str:
