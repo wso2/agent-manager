@@ -20,7 +20,7 @@ keys/*.pem
 keys/*.key
 keys/public-keys-config.json
 
-# Evaluator artifacts
+# Local data (SQLite database, certificates)
 data/
 
 # The built console, embedded with -tags console (make console-embed)

@@ -1,4 +1,4 @@
-.PHONY: help tools setup setup-colima up-core down-core reset-core smoke smoke-core setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-eval-artifacts gen-instrumentation-contract check-contract-drift e2e-test security-test security-test-static security-test-live
+.PHONY: help tools setup setup-colima up-core down-core reset-core smoke smoke-core setup-console-local setup-console-local-force up down logs reset dev-up dev-down dev-restart dev-rebuild dev-logs dev-migrate thunder-restart thunder-reset teardown db-connect service-logs service-shell console-logs console stop-console gen-instrumentation-contract check-contract-drift e2e-test security-test security-test-static security-test-live
 
 # Default target
 help:
@@ -44,9 +44,6 @@ help:
 	@echo "  make service-logs       - View API logs"
 	@echo "  make service-shell      - Shell into the API container"
 	@echo "  make console-logs       - Tail console dev server logs"
-	@echo ""
-	@echo "🔧 Code Generation:"
-	@echo "  make gen-eval-artifacts - Regenerate evaluator Go catalog + console TS models"
 	@echo ""
 	@echo "amctl CLI:"
 	@echo "  make amctl-build             - Build amctl for current platform"
@@ -253,12 +250,6 @@ amctl-test:
 	cd cli && go test ./... -v
 
 # Code generation
-gen-eval-artifacts:
-	@echo "Generating evaluator artifacts..."
-	@cd agent-manager-service && make gen-evaluators-dev
-	@bash console/workspaces/pages/eval/scripts/generate-evaluator-models.sh --dev
-	@echo "All evaluator artifacts generated"
-
 gen-instrumentation-contract:
 	@$(MAKE) -C agent-manager-observer gen-instrumentation-contract
 
