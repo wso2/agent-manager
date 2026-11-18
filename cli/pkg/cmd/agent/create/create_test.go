@@ -666,6 +666,75 @@ func TestCreate_External_JSON(t *testing.T) {
 	}
 }
 
+// A server with no trace service still issues the agent's key; only the
+// tracing setup is left out.
+func TestCreate_External_NoTraceService(t *testing.T) {
+	routes := map[string]routeResponse{
+		"/orgs/acme/projects/triage/agents/testing/token": {
+			Status: 200,
+			Body:   amsvc.TokenResponse{Token: "tok-abc", ExpiresAt: 1700000000, IssuedAt: 1690000000, TokenType: "Bearer"},
+		},
+		"/orgs/acme/projects/triage/agents": {
+			Status: 202,
+			Body: amsvc.AgentResponse{
+				Name:         "testing",
+				DisplayName:  "Testing",
+				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
+				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				ProjectName:  "triage",
+				Uuid:         "u",
+			},
+		},
+	}
+	args := []string{
+		"agent", "create", "testing",
+		"--project", "triage",
+		"--display-name", "Testing",
+		"--provisioning", "external",
+	}
+
+	t.Run("json", func(t *testing.T) {
+		ios, out, _ := newTestIO(true)
+		clientFn, _, cleanup := newTestRouter(t, routes)
+		defer cleanup()
+		cmd := testCreateCmd(t, ios, clientFn, "")
+		cmd.SetArgs(args)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		data, ok := decodeEnvelope(t, out.String())["data"].(map[string]any)
+		if !ok {
+			t.Fatalf("missing data: %s", out.String())
+		}
+		if data["token"] != "tok-abc" {
+			t.Errorf("data.token = %v, want tok-abc", data["token"])
+		}
+		for _, k := range []string{"otelEndpoint", "instrumentationInstructions"} {
+			if _, ok := data[k]; ok {
+				t.Errorf("data.%s should be absent without a trace service, got %v", k, data[k])
+			}
+		}
+	})
+
+	t.Run("text", func(t *testing.T) {
+		ios, _, errOut := newTestIO(false)
+		clientFn, _, cleanup := newTestRouter(t, routes)
+		defer cleanup()
+		cmd := testCreateCmd(t, ios, clientFn, "")
+		cmd.SetArgs(args)
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		out := errOut.String()
+		if !strings.Contains(out, "tok-abc") {
+			t.Errorf("output missing the key\n---\n%s", out)
+		}
+		if strings.Contains(out, "AMP_OTEL_ENDPOINT") {
+			t.Errorf("output should carry no tracing setup\n---\n%s", out)
+		}
+	})
+}
+
 // External agent creation mints the token without an environment.
 func TestCreate_External_TokenWithoutEnvironment(t *testing.T) {
 	ios, _, _ := newTestIO(false)

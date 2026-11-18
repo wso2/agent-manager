@@ -38,12 +38,6 @@ type cardOutcome struct {
 }
 
 func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsvc.AgentResponse, client *amsvc.ClientWithResponses, card *cardOutcome) error {
-	oc, err := opts.Observer(ctx)
-	if err != nil {
-		return err
-	}
-	observerURL := oc.URL()
-
 	expires := externalTokenExpiresIn
 	body := amsvc.TokenRequest{ExpiresIn: &expires}
 	params := &amsvc.GenerateAgentTokenParams{}
@@ -56,16 +50,23 @@ func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsv
 		return cmdutil.ErrorFromServer(tokenResp.HTTPResponse, cmdutil.FirstNonNil(tokenResp.JSON400, tokenResp.JSON401, tokenResp.JSON404))
 	}
 
-	endpoint := otelIngestEndpoint(observerURL)
-	instructions := buildPythonInstructions(endpoint, tokenResp.JSON200.Token)
+	// The key is the agent's whatever the server offers; the tracing setup
+	// is only for a server that runs a trace service.
+	var endpoint, instructions string
+	if oc, err := opts.Observer(ctx); err == nil && oc != nil {
+		endpoint = otelIngestEndpoint(oc.URL())
+		instructions = buildPythonInstructions(endpoint, tokenResp.JSON200.Token)
+	}
 
 	if opts.IO.JSON {
 		data := map[string]any{
-			"agent":                       agent,
-			"token":                       tokenResp.JSON200.Token,
-			"tokenExpiresAt":              tokenResp.JSON200.ExpiresAt,
-			"otelEndpoint":                endpoint,
-			"instrumentationInstructions": instructions,
+			"agent":          agent,
+			"token":          tokenResp.JSON200.Token,
+			"tokenExpiresAt": tokenResp.JSON200.ExpiresAt,
+		}
+		if instructions != "" {
+			data["otelEndpoint"] = endpoint
+			data["instrumentationInstructions"] = instructions
 		}
 		if card != nil {
 			data["card"] = card
@@ -74,6 +75,10 @@ func runExternalPostCreate(ctx context.Context, opts *CreateOptions, agent *amsv
 	}
 
 	fmt.Fprintln(opts.IO.ErrOut)
+	if instructions == "" {
+		fmt.Fprintf(opts.IO.ErrOut, "Agent API key (shown once):\n  %s\n", tokenResp.JSON200.Token)
+		return nil
+	}
 	fmt.Fprintln(opts.IO.ErrOut, instructions)
 	return nil
 }

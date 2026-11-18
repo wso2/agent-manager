@@ -61,6 +61,9 @@ const (
 	SkillInstallFailed   = "SKILL_INSTALL_FAILED"
 	SkillRemoveFailed    = "SKILL_REMOVE_FAILED"
 	SkillListFailed      = "SKILL_LIST_FAILED"
+	// FeatureUnavailable: the server does not offer the feature asked for,
+	// such as a trace service, so the request cannot be served there.
+	FeatureUnavailable = "FEATURE_UNAVAILABLE"
 )
 
 // CLIError is both the wire body of an error envelope and a Go error value.
