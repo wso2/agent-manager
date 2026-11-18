@@ -17,8 +17,8 @@
 """The engine is pure: no network, no subprocesses.
 
 The static check scans every module under ``amp_shadow_runner/engine`` for imports of networking or
-process modules. The runtime check imports every engine module with sockets and process creation
-patched to raise. When ``scan_tree`` lands, it gets the same runtime check.
+process modules. The runtime checks import every engine module, and walk and parse a small tree, with
+sockets and process creation patched to raise. When ``scan_tree`` lands, it gets the same runtime check.
 """
 
 import ast
@@ -32,6 +32,8 @@ from typing import NoReturn
 import pytest
 
 import amp_shadow_runner.engine as engine
+from amp_shadow_runner.engine.files import FileKind, walk
+from amp_shadow_runner.engine.languages import parse
 
 ENGINE_DIR = Path(engine.__file__).resolve().parent
 
@@ -134,11 +136,32 @@ def _refuse(*_args: object, **_kwargs: object) -> NoReturn:
     raise AssertionError("the engine tried to use the network or start a process")
 
 
-def test_engine_import_never_touches_network(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.fixture
+def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(socket, "socket", _refuse)
     monkeypatch.setattr(socket, "create_connection", _refuse)
     monkeypatch.setattr(socket, "getaddrinfo", _refuse)
     monkeypatch.setattr(subprocess, "Popen", _refuse)
+
+
+@pytest.mark.usefixtures("no_network")
+def test_engine_import_never_touches_network() -> None:
     modules = [engine.__name__] + [m.name for m in pkgutil.walk_packages(engine.__path__, f"{engine.__name__}.")]
     for name in modules:
         importlib.reload(importlib.import_module(name))
+
+
+@pytest.mark.usefixtures("no_network")
+def test_walk_and_parse_never_touch_network(tmp_path: Path) -> None:
+    (tmp_path / "pkg").mkdir()
+    (tmp_path / "pkg" / "agent.py").write_bytes(b"import openai\n")
+    (tmp_path / "package.json").write_bytes(b"{}\n")
+    (tmp_path / "node_modules").mkdir()
+    result = walk(tmp_path, read_ci=True)
+    assert [(f.path, f.kind) for f in result.files] == [
+        ("package.json", FileKind.MANIFEST),
+        ("pkg/agent.py", FileKind.SOURCE),
+    ]
+    for f in result.files:
+        if f.language is not None:
+            assert parse(f.language, f.absolute.read_bytes()) is not None
