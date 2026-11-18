@@ -76,7 +76,7 @@ docker-build: ## Build the image for PLATFORM (default linux/amd64)
 	@docker build --platform $(PLATFORM) --build-arg VERSION=$(VERSION) -t $(DOCKER_IMAGE) .
 	@echo "Built: $(DOCKER_IMAGE)"
 
-docker-smoke: ## Smoke-test a built image (version, help, grammars, read-only, non-root)
+docker-smoke: ## Smoke-test a built image (version, help, grammars, scan checks, read-only, non-root)
 	@bash scripts/smoke-image.sh $(DOCKER_IMAGE) $(VERSION)
 
 docker-buildx: ## Build (without loading) for linux/amd64 and linux/arm64

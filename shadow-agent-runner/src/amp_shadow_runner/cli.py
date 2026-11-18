@@ -33,7 +33,7 @@ from amp_shadow_runner.config import (
 )
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
-from amp_shadow_runner.pipeline import YES_ENV, assume_yes, run_scan
+from amp_shadow_runner.pipeline import YES_ENV, PublishInterrupted, assume_yes, run_scan
 from amp_shadow_runner.publish import Publisher, PublishError, published_line, report_exit_code
 from amp_shadow_runner.report import DEFAULT_REPORT_PATH, ReportError, read_report
 from amp_shadow_runner.scantoken import ScanTokenError
@@ -72,6 +72,13 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     except (ConfigError, ScanTokenError, ReportError) as exc:  # Their messages never contain a token.
         print(f"{PROG}: {exc}", file=sys.stderr)
         return exc.exit_code
+    except PublishInterrupted:
+        print(
+            f"\n{PROG}: Cancelled while publishing. The results may already have been published; "
+            "check the scan in Agent Manager.",
+            file=sys.stderr,
+        )
+        return ExitCode.RUNTIME_ERROR
     except KeyboardInterrupt:  # The workspace is already deleted.
         print(f"\n{PROG}: Cancelled. Nothing was published.", file=sys.stderr)
         return ExitCode.RUNTIME_ERROR

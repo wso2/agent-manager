@@ -16,11 +16,19 @@
 
 """amp_shadow_runner.engine.classify and scan: findings, evidence, external ids and scanning a tree."""
 
+import hashlib
 from pathlib import Path
 
 import pytest
 
-from amp_shadow_runner.engine.classify import FileMatches, Finding, Verdict, classify
+from amp_shadow_runner.engine.classify import (
+    MAX_EXTERNAL_ID_CHARS,
+    FileMatches,
+    Finding,
+    Verdict,
+    cap_external_id,
+    classify,
+)
 from amp_shadow_runner.engine.files import Tag
 from amp_shadow_runner.engine.imports import extract_imports
 from amp_shadow_runner.engine.languages import Language, parse
@@ -110,6 +118,20 @@ def test_a_repeat_skips_a_number_already_taken() -> None:
         "support-bot:a.py:x",
         "support-bot:a.py:x@3",
     ]
+
+
+def test_long_external_ids_are_capped_stably_and_uniquely() -> None:
+    path = "a/" * 600 + "agent.py"  # Over 1000 characters.
+    files = _file(path, "from crewai import Agent\nx = Agent()\nx = Agent()\n")
+    first, second = _classify(files)
+    full = f"support-bot:{path}:x"
+    digest = hashlib.sha256(full.encode()).hexdigest()[:12]
+    assert first.external_id == f"{full[: MAX_EXTERNAL_ID_CHARS - 13]}#{digest}"
+    assert len(first.external_id) == len(second.external_id) == MAX_EXTERNAL_ID_CHARS
+    assert second.external_id != first.external_id
+    assert second.external_id.endswith("#" + hashlib.sha256(f"{full}@2".encode()).hexdigest()[:12])
+    assert [f.external_id for f in _classify(files)] == [first.external_id, second.external_id]
+    assert cap_external_id("short") == "short"
 
 
 ORIGINAL = (

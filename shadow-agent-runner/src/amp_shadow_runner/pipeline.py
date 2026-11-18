@@ -30,6 +30,10 @@
    cannot be written, the results are still published and the command exits with the report's error code.
 6. The results are published once.
 
+The whole scan must finish within the token's hour. A repository is not started with less than
+TOKEN_MARGIN_SECONDS of token lifetime left: it and the rest are failed (TOKEN_RAN_OUT), and what was
+finished is published. Too little time left right after confirming stops the scan before it starts.
+
 Exit codes: OK when every repository was scanned, the list was complete and the publish succeeded;
 PARTIAL_FAILURE when it published but some repositories failed or the list was incomplete, including when
 every repository failed (Agent Manager then marks the scan failed); a publish error's own code otherwise.
@@ -74,6 +78,7 @@ from amp_shadow_runner.report import (
     check_writable,
     write_report,
 )
+from amp_shadow_runner.scantoken import ScanTokenError
 
 YES_ENV = "AMP_SCAN_YES"
 ANONYMOUS_WARNING = (
@@ -81,7 +86,16 @@ ANONYMOUS_WARNING = (
     "Pass a token with -e GITHUB_TOKEN for a higher limit."
 )
 EXPIRES_NOTE = "Nothing was scanned or published. The pending scan in Agent Manager expires on its own after 1 hour."
+TOKEN_MARGIN_SECONDS = 180
+"""No repository is started with less than this much token lifetime left, so the results can still be published."""
+TOKEN_RAN_OUT = (
+    "not scanned: the scan token's hour ran out; scan the rest with a new command (for example with --repos)"
+)
 _EMPTY = ScanResult((), 0, 0, 0)
+
+
+class PublishInterrupted(KeyboardInterrupt):
+    """Ctrl-C after publishing started: the results may already be in Agent Manager."""
 
 
 class GitSource(Protocol):
@@ -137,8 +151,10 @@ def run_scan(
 
     The report is written to ``report_path`` (default ``/out/report.json``).
 
-    Raises ConfigError (no terminal to confirm in, or from the token prompt) and ReportError (the report
-    folder is not writable) for the caller to print; every later failure is printed here.
+    Raises ConfigError (no terminal to confirm in, or from the token prompt), ReportError (the report
+    folder is not writable) and ScanTokenError (too little token lifetime left after confirming) for the
+    caller to print; every later failure is printed here. Ctrl-C raises KeyboardInterrupt, or
+    PublishInterrupted once publishing has started.
     """
     stream = sys.stderr if out is None else out
     report_path = DEFAULT_REPORT_PATH if report_path is None else report_path
@@ -171,13 +187,19 @@ def run_scan(
         reader = sys.stdin.readline if read_answer is None else read_answer
         try:
             answer = reader()
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:  # Ctrl-D declines; Ctrl-C reaches the caller's cancel path.
             answer = ""
         if answer.strip().lower() not in ("y", "yes"):
             say(EXPIRES_NOTE)
             return ExitCode.OK
 
-    repositories = _scan_all(config, source, listing.repositories, Progress(stream))
+    deadline = config.token_expires_at.timestamp() - TOKEN_MARGIN_SECONDS
+    if listing.repositories and clock() >= deadline:
+        raise ScanTokenError(
+            "The scan token has too little time left to scan and publish. "
+            "Generate a new command in Agent Manager and run it again."
+        )
+    repositories = _scan_all(config, source, listing.repositories, Progress(stream), deadline, clock)
     repositories += [RepositoryReport(name, RepositoryStatus.GONE) for name in listing.gone]
     repositories += [RepositoryReport(f.name, RepositoryStatus.FAILED, reason=f.reason) for f in listing.failed]
     report = Report(
@@ -204,23 +226,34 @@ def run_scan(
         result = make_publisher(config).publish(
             report, report_location=str(report_path) if report_error is None else None
         )
+        say(published_line(result))
     except PublishError as exc:
         say(f"amp-shadow-runner: {exc}")
         return exc.exit_code
-    say(published_line(result))
+    except KeyboardInterrupt:
+        raise PublishInterrupted from None
     if report_error is not None:
         return report_error.exit_code
     return report_exit_code(report)
 
 
 def _scan_all(
-    config: ScanConfig, source: GitSource, repos: tuple[Repository, ...], progress: Progress
+    config: ScanConfig,
+    source: GitSource,
+    repos: tuple[Repository, ...],
+    progress: Progress,
+    deadline: float,
+    clock: Callable[[], float],
 ) -> list[RepositoryReport]:
+    """Scan each repository in turn. None is started after ``deadline``: it and the rest are failed."""
     reports: list[RepositoryReport] = []
     total = len(repos)
     stopped: str | None = None
     with workspace() as root:
         for index, repo in enumerate(repos, 1):
+            if stopped is None and clock() >= deadline:
+                stopped = TOKEN_RAN_OUT
+                progress.failed(index, total, repo.name, stopped)
             if stopped is not None:
                 reports.append(RepositoryReport(repo.name, RepositoryStatus.FAILED, reason=stopped))
                 continue

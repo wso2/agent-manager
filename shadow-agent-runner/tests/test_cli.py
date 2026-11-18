@@ -29,6 +29,7 @@ from amp_shadow_runner import __version__
 from amp_shadow_runner.cli import main
 from amp_shadow_runner.engine import ENGINE_VERSION, RULE_PACK_ID
 from amp_shadow_runner.exitcodes import ExitCode
+from amp_shadow_runner.pipeline import PublishInterrupted
 from tests.test_config import _token
 
 
@@ -159,3 +160,24 @@ def test_scan_of_azure_devops_is_not_available_yet(
     out, err = capsys.readouterr()
     assert err == "amp-shadow-runner: Azure DevOps scans are not available in this version of the runner yet.\n"
     assert token not in out + err
+
+
+@pytest.mark.parametrize(
+    ("interrupt", "message"),
+    [
+        (KeyboardInterrupt(), "Cancelled. Nothing was published."),
+        (PublishInterrupted(), "Cancelled while publishing. The results may already have been published"),
+    ],
+)
+def test_ctrl_c_says_whether_anything_was_published(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], interrupt: KeyboardInterrupt, message: str
+) -> None:
+    def interrupted(*args: object, **kwargs: object) -> int:
+        raise interrupt
+
+    monkeypatch.setattr("amp_shadow_runner.cli.run_scan", interrupted)
+    monkeypatch.setenv("AMP_URL", "https://agent-manager.example.com")
+    monkeypatch.setenv("AMP_SCAN_TOKEN", _token(time.time() + 3600))
+    argv = ["scan", "--scan-id", "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f", "--github-org", "o", "--all-repos"]
+    assert main(argv) == ExitCode.RUNTIME_ERROR
+    assert message in capsys.readouterr().err

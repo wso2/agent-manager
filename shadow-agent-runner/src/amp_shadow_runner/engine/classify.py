@@ -32,9 +32,12 @@ published: the report lists them apart, since test doubles are not running agent
 
 ``external_id`` is ``<repository>:<path>:<qualified name>`` (see ``Match.qualified``), so it holds no line
 number and code added elsewhere never changes it. Only a real repeat of the same qualified name (two
-unnamed agents in one scope) gets ``@2``, ``@3`` and so on, numbered in source order.
+unnamed agents in one scope) gets ``@2``, ``@3`` and so on, numbered in source order. An ID over
+MAX_EXTERNAL_ID_CHARS keeps a readable prefix and ends with ``#`` and 12 hex characters of the full ID's
+SHA-256, so it stays stable and unique within Agent Manager's limit.
 """
 
+import hashlib
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -47,6 +50,8 @@ from amp_shadow_runner.engine.signatures import Framework, RuleSet
 
 MAX_NAME_CHARS = 200
 """The longest agent name kept (Agent Manager's limit)."""
+MAX_EXTERNAL_ID_CHARS = 1000
+"""The longest external ID published (Agent Manager keys agents on the first 1024 characters)."""
 
 D1_AGENT_DEPENDENCY = "d1_agent_dependency"
 D2_AGENT_IMPORT = "d2_agent_import"
@@ -160,13 +165,21 @@ def _attributes(match: Match, tag: Tag | None) -> dict[str, object]:
     return attributes
 
 
+def cap_external_id(external_id: str) -> str:
+    """``external_id``, or when it is over MAX_EXTERNAL_ID_CHARS, a prefix, ``#`` and a 12-hex SHA-256 of it."""
+    if len(external_id) <= MAX_EXTERNAL_ID_CHARS:
+        return external_id
+    digest = hashlib.sha256(external_id.encode("utf-8", "surrogatepass")).hexdigest()[:12]
+    return f"{external_id[: MAX_EXTERNAL_ID_CHARS - 13]}#{digest}"
+
+
 def _unique(external_id: str, counts: dict[str, int], used: set[str]) -> str:
-    """``external_id``, or for its n-th use ``external_id@n`` (or the next free number)."""
+    """``external_id``, or for its n-th use ``external_id@n`` (or the next free number), capped in length."""
     n = counts.get(external_id, 1)
-    candidate = external_id
+    candidate = cap_external_id(external_id)
     while candidate in used:
         n += 1
-        candidate = f"{external_id}@{n}"
+        candidate = cap_external_id(f"{external_id}@{n}")
     counts[external_id] = n
     used.add(candidate)
     return candidate

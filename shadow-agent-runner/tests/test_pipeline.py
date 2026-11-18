@@ -21,7 +21,7 @@ import io
 import json
 import tarfile
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -31,9 +31,17 @@ import pytest
 from amp_shadow_runner.config import ConfigError, ScanConfig
 from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.gitsource import FailedRepository, GitSourceError, Repository, RepositoryError, RepositoryList
-from amp_shadow_runner.pipeline import ANONYMOUS_WARNING, EXPIRES_NOTE, assume_yes, run_scan
+from amp_shadow_runner.pipeline import (
+    ANONYMOUS_WARNING,
+    EXPIRES_NOTE,
+    TOKEN_RAN_OUT,
+    PublishInterrupted,
+    assume_yes,
+    run_scan,
+)
 from amp_shadow_runner.publish import PublishError, PublishResult, build_body
 from amp_shadow_runner.report import EXPORT_IGNORE_NOTE, Report, ReportError, read_report
+from amp_shadow_runner.scantoken import ScanTokenError
 from tests.test_config import _token
 
 SCAN_ID = "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f"
@@ -119,7 +127,7 @@ class FakeSource:
 class FakePublisher:
     """Records each publish and checks the report was already written."""
 
-    def __init__(self, report_path: Path, *, error: PublishError | None = None) -> None:
+    def __init__(self, report_path: Path, *, error: BaseException | None = None) -> None:
         self.report_path = report_path
         self.error = error
         self.reports: list[Report] = []
@@ -131,11 +139,11 @@ class FakePublisher:
         if self.error is not None:
             raise self.error
         agents = len(build_body(report)["agents"])
-        return PublishResult("partial", agents, agents)
+        return PublishResult("partial", agents)
 
 
 class Run:
-    def __init__(self, tmp_path: Path, source: FakeSource, *, error: PublishError | None = None) -> None:
+    def __init__(self, tmp_path: Path, source: FakeSource, *, error: BaseException | None = None) -> None:
         self.report_path = tmp_path / "report.json"
         self.source = source
         self.publisher = FakePublisher(self.report_path, error=error)
@@ -149,7 +157,14 @@ class Run:
         tty: bool = False,
         answer: str = "",
         token: str | None = GIT_TOKEN,
+        clock: Callable[[], float] = time.time,
+        answer_error: BaseException | None = None,
     ) -> int:
+        def read_answer() -> str:
+            if answer_error is not None:
+                raise answer_error
+            return answer
+
         return run_scan(
             config or _config(),
             yes=yes,
@@ -158,7 +173,8 @@ class Run:
             make_source=lambda _config, _token: self.source,
             make_publisher=lambda _config: self.publisher,
             is_tty=lambda: tty,
-            read_answer=lambda: answer,
+            read_answer=read_answer,
+            clock=clock,
             out=self.out,
         )
 
@@ -427,3 +443,57 @@ def test_an_unsaved_report_is_still_published(tmp_path: Path, monkeypatch: pytes
     assert len(run.publisher.reports) == 1
     assert "No space left on device). The results are published anyway." in run.text
     assert "Report: not saved" in run.text
+
+
+T0 = 1_800_000_000.0
+
+
+class SlowSource(FakeSource):
+    """Each download takes 500 seconds on ``now``."""
+
+    def __init__(self, *args: Any, now: list[float], **kwargs: Any) -> None:
+        super().__init__(*args, **kwargs)
+        self.now = now
+
+    def download_tarball(self, repo: Repository, dest_dir: Path) -> Path:
+        self.now[0] += 500
+        return super().download_tarball(repo, dest_dir)
+
+
+def test_a_scan_that_outlasts_the_token_publishes_what_it_finished(tmp_path: Path) -> None:
+    now = [T0]
+    repos = RepositoryList((_repo("a"), _repo("b"), _repo("c"), _repo("d")))
+    run = Run(tmp_path, SlowSource(repos, {"a": {"agent.py": AGENT}}, now=now))
+    config = _config(token_expires_at=datetime.fromtimestamp(T0 + 1000, UTC))  # Repositories start until T0+820.
+    assert run(config, clock=lambda: now[0]) == ExitCode.PARTIAL_FAILURE
+    assert run.body["scannedRepositories"] == ["a", "b"]
+    assert run.body["failedRepositories"] == [{"name": n, "reason": TOKEN_RAN_OUT} for n in ("c", "d")]
+    assert len(run.body["agents"]) == 1
+    assert run.publisher.report_on_disk == [True]
+    assert "download:c" not in run.source.calls
+    assert f"[3/4] c: failed: {TOKEN_RAN_OUT}" in run.text
+
+
+def test_too_little_token_time_after_confirming_stops_before_scanning(tmp_path: Path) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
+    config = _config(token_expires_at=datetime.fromtimestamp(T0 + 100, UTC))
+    with pytest.raises(ScanTokenError, match="too little time left") as raised:
+        run(config, yes=False, tty=True, answer="y\n", clock=lambda: T0)
+    assert raised.value.exit_code == ExitCode.CONFIG_ERROR
+    assert run.source.calls == ["list_all"]
+    assert run.publisher.reports == []
+
+
+def test_ctrl_c_at_the_prompt_cancels_instead_of_declining(tmp_path: Path) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
+    with pytest.raises(KeyboardInterrupt) as raised:
+        run(yes=False, tty=True, answer_error=KeyboardInterrupt())
+    assert not isinstance(raised.value, PublishInterrupted)
+    assert EXPIRES_NOTE not in run.text
+    assert run.publisher.reports == []
+
+
+def test_ctrl_c_while_publishing_is_told_apart(tmp_path: Path) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))), error=KeyboardInterrupt())
+    with pytest.raises(PublishInterrupted):
+        run()

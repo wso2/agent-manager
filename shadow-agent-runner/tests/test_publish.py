@@ -225,7 +225,7 @@ def test_a_body_over_the_size_limit_is_refused_and_not_sent(amp: _Server, monkey
 
 def test_publish_sends_the_body_with_the_token(amp: _Server) -> None:
     result = _publisher(amp).publish(_report(_finding("A"), _finding("B", tag="test")))
-    assert result == publish.PublishResult("succeeded", 1, 1)
+    assert result == publish.PublishResult("succeeded", 1)
     [(path, headers, body)] = amp.seen
     assert path == PUBLISH_PATH.format(scan_id=SCAN_ID)
     assert headers["authorization"] == f"Bearer {TOKEN}"
@@ -242,7 +242,7 @@ def test_publish_sends_the_body_with_the_token(amp: _Server) -> None:
         (409, ExitCode.RUNTIME_ERROR, "no longer waiting for results"),
         (400, ExitCode.RUNTIME_ERROR, "refused the results \\(HTTP 400\\). Agent Manager said: bad agent"),
         (413, ExitCode.RUNTIME_ERROR, "refused the results \\(HTTP 413\\)"),
-        (503, ExitCode.RUNTIME_ERROR, "HTTP 503.*upload command"),
+        (503, ExitCode.RUNTIME_ERROR, f"(?s)HTTP 503.*AMP_SCAN_TOKEN=\\.\\.\\. <image> upload --scan-id {SCAN_ID}"),
         (500, ExitCode.RUNTIME_ERROR, "HTTP 500"),
     ],
 )

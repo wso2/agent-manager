@@ -82,7 +82,6 @@ class PublishResult:
     """The scan's new status, such as ``succeeded``, ``partial`` or ``failed``."""
     findings_count: int
     """The agents Agent Manager saved."""
-    agents_sent: int
 
 
 def reviewed_by(finding: Finding) -> str | None:
@@ -183,13 +182,13 @@ class Publisher:
             # Retried on 5xx and network errors: a repeat after a lost answer is refused (409), never saved twice.
             response = self._http.post_json(url, body, headers={"Authorization": f"Bearer {self._token}"}, retry=True)
         except HttpError as exc:
-            raise _error(exc, saved) from None
+            raise _error(exc, saved, report.scan_id) from None
         data = response.data
         status = data.get("status") if isinstance(data, dict) else None
         count = data.get("findingsCount") if isinstance(data, dict) else None
         if not isinstance(status, str) or not isinstance(count, int) or isinstance(count, bool):
             raise PublishError(f"Agent Manager sent an unexpected answer to the publish. {saved}.")
-        return PublishResult("".join(c for c in status if c.isprintable())[:40], count, len(body["agents"]))
+        return PublishResult("".join(c for c in status if c.isprintable())[:40], count)
 
 
 def published_line(result: PublishResult) -> str:
@@ -230,7 +229,7 @@ def _reason(reason: str | None) -> str:
     return text if len(text) <= MAX_REASON_CHARS else text[: MAX_REASON_CHARS - 3] + "..."
 
 
-def _error(exc: HttpError, saved: str) -> PublishError:
+def _error(exc: HttpError, saved: str, scan_id: str) -> PublishError:
     said = f" Agent Manager said: {exc.server_message}" if exc.server_message else ""
     status = exc.status
     if status in (401, 403):
@@ -254,5 +253,7 @@ def _error(exc: HttpError, saved: str) -> PublishError:
     if status in (400, 413):
         return PublishError(f"Agent Manager refused the results (HTTP {status}).{said} {saved}.")
     return PublishError(
-        f"Could not publish the results ({exc}). {saved}; publish it with the upload command within the scan's hour."
+        f"Could not publish the results ({exc}). {saved}; publish it within the scan's hour with:\n"
+        f'  docker run --rm -it --user "$(id -u):$(id -g)" -v "$PWD:/out" -e AMP_URL=... -e AMP_SCAN_TOKEN=... '
+        f"<image> upload --scan-id {scan_id}"
     )

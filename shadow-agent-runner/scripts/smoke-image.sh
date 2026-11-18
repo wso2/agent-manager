@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Smoke-test a built amp-shadow-runner image with no network and a
 # read-only root file system. Used by `make docker-smoke` and the PR workflow.
+# It never contacts Agent Manager or GitHub: the scan checks it runs stop before any request.
 # Usage: scripts/smoke-image.sh <image> <expected-version>
 set -euo pipefail
 
@@ -23,10 +24,12 @@ for command in scan upload version; do
 done
 
 echo "no arguments prints the help"
-"${run[@]}" "$image" | grep -q "usage: amp-shadow-runner"
+bare="$("${run[@]}" "$image")"
+grep -q "usage: amp-shadow-runner" <<< "$bare" || { echo "no arguments does not print the help" >&2; exit 1; }
 
 echo "version --json reports the runner version"
-"${run[@]}" "$image" version --json | grep -q "\"runner_version\": \"$version\""
+json="$("${run[@]}" "$image" version --json)"
+grep -q "\"runner_version\": \"$version\"" <<< "$json" || { echo "version --json is wrong: $json" >&2; exit 1; }
 
 echo "every grammar imports and loads"
 "${run[@]}" --entrypoint python "$image" -c '
@@ -56,6 +59,40 @@ except OSError:
 else:
     raise SystemExit("the root file system is writable")
 '
+
+echo "scan --help and upload --help list their options"
+scan_help="$("${run[@]}" "$image" scan --help)"
+for option in --include-private --yes; do
+  grep -q -- "$option" <<< "$scan_help" || { echo "scan --help does not list $option" >&2; exit 1; }
+done
+upload_help="$("${run[@]}" "$image" upload --help)"
+grep -q -- "--scan-id" <<< "$upload_help" || { echo "upload --help does not list --scan-id" >&2; exit 1; }
+
+# A syntactically valid, unexpired, unsigned JWT: enough for the runner's lifetime check, useless anywhere else.
+b64url() { base64 | tr '+/' '-_' | tr -d '=\n'; }
+fake_jwt="$(printf '{"alg":"none"}' | b64url).$(printf '{"exp":%d}' "$(( $(date +%s) + 3600 ))" | b64url).c2ln"
+scan=("${run[@]}" --tmpfs /out:uid=10001,gid=10001 -e AMP_URL=https://agent-manager.invalid -e AMP_SCAN_TOKEN="$fake_jwt"
+  "$image" scan --scan-id 3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f --github-org acme --all-repos)
+
+# expect_exit <code> <text> <command...>: the command exits <code> and its stderr names <text>.
+expect_exit() {
+  local want="$1" text="$2" got err
+  shift 2
+  set +e
+  err="$("$@" 2>&1 >/dev/null)"
+  got=$?
+  set -e
+  if [ "$got" != "$want" ] || ! grep -qF -- "$text" <<< "$err"; then
+    echo "expected exit $want naming '$text', got exit $got: $err" >&2
+    exit 1
+  fi
+}
+
+echo "scan of private repositories with no terminal and no GITHUB_TOKEN exits 2 and names GITHUB_TOKEN"
+expect_exit 2 GITHUB_TOKEN "${scan[@]}" --include-private
+
+echo "scan with no terminal and without --yes exits 2 and names --yes"
+expect_exit 2 "--yes" "${scan[@]}"
 
 echo "pip is not shipped"
 if "${run[@]}" --entrypoint python "$image" -c 'import pip' 2>/dev/null; then
