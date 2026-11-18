@@ -18,6 +18,8 @@ package cli
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,9 +42,38 @@ func TestUsageErrors(t *testing.T) {
 		{"module", "install", "a", "b"},
 		{"module", "enable", "a", "--with-deps"},
 		{"module", "disable", "--force", "a"},
+		{"module", "credential", "a"},
+		{"module", "credential", "a", "w", "x"},
+		{"module", "credential", "a", "w", "--subject"},
+		{"module", "credential", "a", "w", "--out", "--subject", "s"},
+		{"module", "install", "a", "--subject", "s"},
+		{"module", "health", "a", "b"},
 	} {
 		assert.ErrorIs(t, run("amp", args), errUsage, "%v", args)
 	}
+}
+
+func TestModuleArgs(t *testing.T) {
+	a, err := parseModuleArgs("credential", []string{"--subject", "default", "ai-gateway", "gateway-controller", "--out=/amp/gw/credential"})
+	assert.NoError(t, err)
+	assert.Equal(t, moduleArgs{pos: []string{"ai-gateway", "gateway-controller"}, subject: "default", out: "/amp/gw/credential"}, a)
+	a, err = parseModuleArgs("install", []string{"x", "--with-deps"})
+	assert.NoError(t, err)
+	assert.True(t, a.withDeps)
+	a, err = parseModuleArgs("health", nil)
+	assert.NoError(t, err)
+	assert.Empty(t, a.pos)
+}
+
+func TestWriteSecretIsOwnerOnly(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "credential")
+	assert.NoError(t, writeSecret(path, "id.secret\n"))
+	st, err := os.Stat(path)
+	assert.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o600), st.Mode().Perm())
+	got, err := os.ReadFile(path)
+	assert.NoError(t, err)
+	assert.Equal(t, "id.secret\n", string(got))
 }
 
 func TestInitRejectsUnknownComponent(t *testing.T) {
