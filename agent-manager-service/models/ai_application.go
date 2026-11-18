@@ -43,7 +43,7 @@ type AIApplication struct {
 
 // TableName returns the table name for the AIApplication model.
 func (AIApplication) TableName() string {
-	return "ai_applications"
+	return "mod_ai_gateway_ai_applications"
 }
 
 func (a *AIApplication) ref() agentRef {

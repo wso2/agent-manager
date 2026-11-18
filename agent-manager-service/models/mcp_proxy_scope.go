@@ -38,7 +38,7 @@ type MCPProxyScope struct {
 }
 
 // TableName returns the table name for the MCPProxyScope model.
-func (MCPProxyScope) TableName() string { return "mcp_proxy_scopes" }
+func (MCPProxyScope) TableName() string { return "mod_ai_gateway_mcp_proxy_scopes" }
 
 // ScopeString derives the token scope string for this row.
 func (s MCPProxyScope) ScopeString(proxyHandle string) string { return proxyHandle + ":" + s.Action }

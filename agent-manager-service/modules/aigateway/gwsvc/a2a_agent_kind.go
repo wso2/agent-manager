@@ -288,7 +288,7 @@ func (k *A2AAgentKind) UnplacedRecords(
 	arms := exposed + `
 			UNION ALL
 			SELECT a.org_id, a.id AS artifact_id, a.handle, a.kind, p.environment_id
-			FROM a2a_proxies p ` + gwrepo.A2AProxyArtifactJoin + `
+			FROM mod_ai_gateway_a2a_proxies p ` + gwrepo.A2AProxyArtifactJoin + `
 			WHERE ` + proxied
 	records, err := pageUnplacedRecords(ctx, db.DB(ctx), arms, append(exposedArgs, proxiedArgs...), afterKey, limit)
 	if err != nil {
@@ -305,7 +305,7 @@ func (k *A2AAgentKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway u
 	}, env, gateway)
 	return placedOn(ctx, tx, exposed+`
 		UNION ALL
-		SELECT 1 AS placed FROM a2a_proxies p `+gwrepo.A2AProxyArtifactJoin+`
+		SELECT 1 AS placed FROM mod_ai_gateway_a2a_proxies p `+gwrepo.A2AProxyArtifactJoin+`
 			WHERE `+proxied, append(exposedArgs, proxiedArgs...))
 }
 

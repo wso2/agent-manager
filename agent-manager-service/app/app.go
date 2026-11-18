@@ -250,7 +250,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		slog.Error("failed to apply the configured modules list", "error", err)
 		os.Exit(1)
 	}
-	warnGatewayStateWithoutProvider(modulesCtx, database, slog.Default())
 	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
 		slog.Error("failed to create the default organization", "error", err)
 		os.Exit(1)

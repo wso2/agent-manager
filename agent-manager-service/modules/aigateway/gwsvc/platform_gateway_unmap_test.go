@@ -79,13 +79,13 @@ func (c unmapCase) unmap(t *testing.T, env uuid.UUID) error {
 
 func (c unmapCase) setRow(t *testing.T, status, desired models.DeploymentStatus) {
 	t.Helper()
-	require.NoError(t, db.GetDB().Exec(`UPDATE artifact_gateway_status SET status = ?, status_desired = ?, next_attempt_at = NULL
+	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifact_gateway_status SET status = ?, status_desired = ?, next_attempt_at = NULL
 		WHERE artifact_id = ? AND gateway_id = ?`, status, desired, c.artifact.ArtifactUUID, c.gateway).Error)
 }
 
 func (c unmapCase) queueRedeploy(t *testing.T) {
 	t.Helper()
-	require.NoError(t, db.GetDB().Exec(`UPDATE artifact_gateway_status SET next_attempt_at = ?
+	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifact_gateway_status SET next_attempt_at = ?
 		WHERE artifact_id = ? AND gateway_id = ?`, time.Now().UTC(), c.artifact.ArtifactUUID, c.gateway).Error)
 }
 

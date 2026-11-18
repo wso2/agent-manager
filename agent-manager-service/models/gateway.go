@@ -43,7 +43,7 @@ type Gateway struct {
 
 // TableName returns the table name for the Gateway model
 func (Gateway) TableName() string {
-	return "gateways"
+	return "mod_ai_gateway_gateways"
 }
 
 // Gateway hosting. Stored in gateways.hosting: who runs the gateway runtime.
@@ -107,7 +107,7 @@ type GatewayToken struct {
 
 // TableName returns the table name for the GatewayToken model
 func (GatewayToken) TableName() string {
-	return "gateway_tokens"
+	return "mod_ai_gateway_gateway_tokens"
 }
 
 // IsActive returns true if token status is active
@@ -149,7 +149,7 @@ type GatewayIdentityProvider struct {
 
 // TableName returns the table name for the GatewayIdentityProvider model
 func (GatewayIdentityProvider) TableName() string {
-	return "gateway_identity_providers"
+	return "mod_ai_gateway_gateway_identity_providers"
 }
 
 // APIGatewayWithDetails represents a gateway with its association and deployment details for an API

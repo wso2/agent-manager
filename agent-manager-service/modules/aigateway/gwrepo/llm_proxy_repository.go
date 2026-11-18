@@ -110,7 +110,7 @@ func (r *LLMProxyRepo) getProxyUUIDByHandle(tx *gorm.DB, handle string, ouID str
 	var artifact struct {
 		UUID uuid.UUID `gorm:"column:id"`
 	}
-	result := tx.Table("artifacts").
+	result := tx.Table("mod_ai_gateway_artifacts").
 		Select("id").
 		Where("handle = ? AND org_id = ? AND kind = ?", handle, ouID, models.KindLLMProxy).
 		Scan(&artifact)
@@ -178,9 +178,9 @@ func (r *LLMProxyRepo) GetByIDCtx(ctx context.Context, proxyID, ouID string) (*m
 	var result proxyWithArtifact
 
 	err := r.db.WithContext(ctx).
-		Table("llm_proxies").
-		Select("llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
-		Joins("JOIN artifacts a ON llm_proxies.id = a.id").
+		Table("mod_ai_gateway_llm_proxies").
+		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
 		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", proxyID, ouID, models.KindLLMProxy).
 		Take(&result).Error
 	if err != nil {
@@ -204,10 +204,10 @@ func (r *LLMProxyRepo) GetByIDAndProject(proxyID, ouID, projectUUID string) (*mo
 	var result proxyWithArtifact
 
 	err := r.db.
-		Table("llm_proxies").
-		Select("llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
-		Joins("JOIN artifacts a ON llm_proxies.id = a.id").
-		Where("a.handle = ? AND a.org_id = ? AND llm_proxies.project_id = ? AND a.kind = ?", proxyID, ouID, projectUUID, models.KindLLMProxy).
+		Table("mod_ai_gateway_llm_proxies").
+		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
+		Where("a.handle = ? AND a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", proxyID, ouID, projectUUID, models.KindLLMProxy).
 		Take(&result).Error
 	if err != nil {
 		return nil, err
@@ -227,9 +227,9 @@ func (r *LLMProxyRepo) GetByIDAndProject(proxyID, ouID, projectUUID string) (*mo
 func (r *LLMProxyRepo) List(ouID string, limit, offset int) ([]*models.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
-		Table("llm_proxies").
-		Select("llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
-		Joins("JOIN artifacts a ON llm_proxies.id = a.id").
+		Table("mod_ai_gateway_llm_proxies").
+		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
 		Where("a.org_id = ? AND a.kind = ?", ouID, models.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
@@ -246,10 +246,10 @@ func (r *LLMProxyRepo) List(ouID string, limit, offset int) ([]*models.LLMProxy,
 func (r *LLMProxyRepo) ListByProject(ouID, projectUUID string, limit, offset int) ([]*models.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
-		Table("llm_proxies").
-		Select("llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
-		Joins("JOIN artifacts a ON llm_proxies.id = a.id").
-		Where("a.org_id = ? AND llm_proxies.project_id = ? AND a.kind = ?", ouID, projectUUID, models.KindLLMProxy).
+		Table("mod_ai_gateway_llm_proxies").
+		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
+		Where("a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", ouID, projectUUID, models.KindLLMProxy).
 		Order("a.created_at DESC").
 		Limit(limit).
 		Offset(offset).
@@ -265,15 +265,15 @@ func (r *LLMProxyRepo) ListByProject(ouID, projectUUID string, limit, offset int
 func (r *LLMProxyRepo) ListByProvider(ouID, providerUUID string, limit, offset int) ([]*models.LLMProxy, error) {
 	var results []proxyWithArtifact
 	err := r.db.
-		Table("llm_proxies").
-		Select("llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
-		Joins("JOIN artifacts a ON llm_proxies.id = a.id").
-		Where("a.org_id = ? AND llm_proxies.provider_id = ? AND a.kind = ?", ouID, providerUUID, models.KindLLMProxy).
+		Table("mod_ai_gateway_llm_proxies").
+		Select("mod_ai_gateway_llm_proxies.*, a.org_id as artifact_org_uuid, a.handle as artifact_handle, a.name as artifact_name, a.version as artifact_version, a.created_at as artifact_created_at, a.updated_at as artifact_updated_at").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
+		Where("a.org_id = ? AND mod_ai_gateway_llm_proxies.provider_id = ? AND a.kind = ?", ouID, providerUUID, models.KindLLMProxy).
 		// uuid breaks ties on created_at: proxies provisioned together share a
 		// timestamp, and without a unique second key offset paging can repeat one
 		// row and skip another — a skipped proxy is one left permanently stale by
 		// any caller that pages through to reconcile.
-		Order("a.created_at DESC, llm_proxies.id").
+		Order("a.created_at DESC, mod_ai_gateway_llm_proxies.id").
 		Limit(limit).
 		Offset(offset).
 		Scan(&results).Error
@@ -292,8 +292,8 @@ func (r *LLMProxyRepo) Count(ouID string) (int, error) {
 // CountByProject counts LLM proxies for a specific project
 func (r *LLMProxyRepo) CountByProject(ouID, projectUUID string) (int, error) {
 	var count int64
-	err := r.db.Table("artifacts a").
-		Joins("JOIN llm_proxies p ON a.id = p.id").
+	err := r.db.Table("mod_ai_gateway_artifacts a").
+		Joins("JOIN mod_ai_gateway_llm_proxies p ON a.id = p.id").
 		Where("a.org_id = ? AND p.project_id = ? AND a.kind = ?", ouID, projectUUID, models.KindLLMProxy).
 		Count(&count).Error
 	return int(count), err
@@ -302,8 +302,8 @@ func (r *LLMProxyRepo) CountByProject(ouID, projectUUID string) (int, error) {
 // CountByProvider counts LLM proxies for a specific provider
 func (r *LLMProxyRepo) CountByProvider(ouID, providerUUID string) (int, error) {
 	var count int64
-	err := r.db.Table("artifacts a").
-		Joins("JOIN llm_proxies p ON a.id = p.id").
+	err := r.db.Table("mod_ai_gateway_artifacts a").
+		Joins("JOIN mod_ai_gateway_llm_proxies p ON a.id = p.id").
 		Where("a.org_id = ? AND p.provider_id = ? AND a.kind = ?", ouID, providerUUID, models.KindLLMProxy).
 		Count(&count).Error
 	return int(count), err
@@ -365,8 +365,8 @@ func (r *LLMProxyRepo) Exists(proxyID, ouID string) (bool, error) {
 // not part of Lite, so none can.
 func (r *LLMProxyRepo) IsAgentOrMonitorProxy(ctx context.Context, proxyHandle, ouID string) (bool, error) {
 	var n int64
-	err := r.db.WithContext(ctx).Table("artifacts a").
-		Joins("JOIN agent_model_config_llm m ON m.llm_proxy_id = a.id").
+	err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifacts a").
+		Joins("JOIN mod_ai_gateway_agent_model_config_llm m ON m.llm_proxy_id = a.id").
 		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", proxyHandle, ouID, models.KindLLMProxy).
 		Count(&n).Error
 	if err != nil {
@@ -384,9 +384,9 @@ func (r *LLMProxyRepo) DeleteInProject(ctx context.Context, proxyID, ouID, proje
 func (r *LLMProxyRepo) DeleteInProjectTx(ctx context.Context, tx *gorm.DB, proxyID, ouID, projectUUID string) error {
 	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var proxy models.LLMProxy
-		err := tx.Table("llm_proxies").Select("llm_proxies.*").
-			Joins("JOIN artifacts a ON llm_proxies.id = a.id").
-			Where("a.handle = ? AND a.org_id = ? AND llm_proxies.project_id = ? AND a.kind = ?", proxyID, ouID, projectUUID, models.KindLLMProxy).
+		err := tx.Table("mod_ai_gateway_llm_proxies").Select("mod_ai_gateway_llm_proxies.*").
+			Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_proxies.id = a.id").
+			Where("a.handle = ? AND a.org_id = ? AND mod_ai_gateway_llm_proxies.project_id = ? AND a.kind = ?", proxyID, ouID, projectUUID, models.KindLLMProxy).
 			Take(&proxy).Error
 		if err != nil {
 			return fmt.Errorf("resolve proxy for deletion: %w", err)

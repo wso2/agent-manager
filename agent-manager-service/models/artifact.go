@@ -37,7 +37,7 @@ type Artifact struct {
 
 // TableName returns the table name for the Artifact model
 func (Artifact) TableName() string {
-	return "artifacts"
+	return "mod_ai_gateway_artifacts"
 }
 
 // Artifact Kind constants

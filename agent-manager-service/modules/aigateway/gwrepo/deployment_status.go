@@ -140,7 +140,7 @@ func (r *DeploymentRepo) LockStatusRows(ctx context.Context, tx *gorm.DB, ouID s
 // LockEnvironmentMapping locks the gateway's mapping to the environment until tx commits; false when there is no
 // mapping.
 func (r *DeploymentRepo) LockEnvironmentMapping(ctx context.Context, tx *gorm.DB, gatewayUUID, environmentUUID uuid.UUID) (bool, error) {
-	n, err := dbx.LockRows(r.on(ctx, tx), "gateway_environments", "gateway_id",
+	n, err := dbx.LockRows(r.on(ctx, tx), "mod_ai_gateway_gateway_environments", "gateway_id",
 		"gateway_id = ? AND environment_id = ?", gatewayUUID, environmentUUID)
 	if err != nil {
 		return false, fmt.Errorf("failed to lock gateway %s's mapping to environment %s: %w", gatewayUUID, environmentUUID, err)
@@ -237,9 +237,9 @@ func (r *DeploymentRepo) ApplyAck(ctx context.Context, gatewayID string, ack mod
 		// Find the row the ack is for, then change it only if it still differs, so a repeated ack changes nothing.
 		var candidates []ackedRow
 		args := append([]any{gatewayUUID}, targetArgs...)
-		if err := tx.Table("artifact_gateway_status s").
+		if err := tx.Table("mod_ai_gateway_artifact_gateway_status s").
 			Select("s.artifact_id, s.org_id, a.kind, a.handle, s.deployment_id").
-			Joins("JOIN artifacts a ON a.id = s.artifact_id").
+			Joins("JOIN mod_ai_gateway_artifacts a ON a.id = s.artifact_id").
 			Where("s.gateway_id = ? AND "+target, args...).
 			Scan(&candidates).Error; err != nil {
 			return err
@@ -343,11 +343,11 @@ func (r *DeploymentRepo) FailStaleTransitional(ctx context.Context, olderThan ti
 // row heads for DEPLOYED, whatever its status, because the gateway pulls before it acks. Nil when there is none.
 func (r *DeploymentRepo) GetPullable(ctx context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*models.Deployment, error) {
 	var deployments []models.Deployment
-	err := r.db.WithContext(ctx).Table("artifact_gateway_status s").
+	err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_gateway_status s").
 		Select("d.id, d.name, d.artifact_id, d.org_id, d.gateway_id, "+
 			"d.base_deployment_id, d.content, d.metadata, d.created_at, "+
 			"s.status, s.updated_at AS status_updated_at").
-		Joins("INNER JOIN artifact_deployments d ON d.id = s.deployment_id").
+		Joins("INNER JOIN mod_ai_gateway_artifact_deployments d ON d.id = s.deployment_id").
 		Where("s.artifact_id = ? AND s.org_id = ? AND s.gateway_id = ? AND s.status_desired = ?",
 			artifactUUID, ouID, gatewayID, models.DeploymentStatusDeployed).
 		Scan(&deployments).Error
@@ -462,9 +462,9 @@ type syncRow struct {
 // fetches itself, so there is no ORDER BY.
 func (r *DeploymentRepo) ListForGatewaySync(ctx context.Context, ouID, gatewayID string) ([]models.GatewaySyncRow, error) {
 	var rows []syncRow
-	err := r.db.WithContext(ctx).Table("artifact_gateway_status s").
+	err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_gateway_status s").
 		Select("s.artifact_id, s.org_id, a.kind, a.handle, s.deployment_id, s.status_desired, s.performed_at").
-		Joins("INNER JOIN artifacts a ON a.id = s.artifact_id").
+		Joins("INNER JOIN mod_ai_gateway_artifacts a ON a.id = s.artifact_id").
 		Where("s.gateway_id = ? AND s.org_id = ? AND s.deployment_id IS NOT NULL", gatewayID, ouID).
 		Scan(&rows).Error
 	if err != nil {
@@ -504,9 +504,9 @@ func (r *DeploymentRepo) ListContentForGateway(
 	var rows []contentRow
 	for _, chunk := range dbx.Chunks(deploymentIDs) {
 		var part []contentRow
-		err := r.db.WithContext(ctx).Table("artifact_deployments d").
+		err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_deployments d").
 			Select("d.artifact_id, d.org_id, a.kind, a.handle, d.id, d.content").
-			Joins("INNER JOIN artifacts a ON a.id = d.artifact_id").
+			Joins("INNER JOIN mod_ai_gateway_artifacts a ON a.id = d.artifact_id").
 			Where("d.id IN ? AND d.org_id = ? AND d.gateway_id = ?", chunk, ouID, gatewayID).
 			Scan(&part).Error
 		if err != nil {

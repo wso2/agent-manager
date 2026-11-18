@@ -51,7 +51,7 @@ type PlatformAgentExposure struct {
 	UpdatedAt    time.Time             `gorm:"column:updated_at"`
 }
 
-func (PlatformAgentExposure) TableName() string { return "agent_exposures" }
+func (PlatformAgentExposure) TableName() string { return "mod_ai_gateway_agent_exposures" }
 
 func (e *PlatformAgentExposure) ref() agentRef {
 	return agentRef{&e.OUID, &e.ProjectName, &e.AgentName, &e.AgentUUID, e.EnvironmentUUID, &e.EnvironmentName}
@@ -67,3 +67,8 @@ func (e *PlatformAgentExposure) BeforeCreate(tx *gorm.DB) error {
 
 // AfterFind fills the agent's and environment's names.
 func (e *PlatformAgentExposure) AfterFind(tx *gorm.DB) error { return e.ref().fill(tx) }
+
+// AgentNames are the project and agent names of the row's agent.
+func (e PlatformAgentExposure) AgentNames() (projectName, agentName string) {
+	return e.ProjectName, e.AgentName
+}

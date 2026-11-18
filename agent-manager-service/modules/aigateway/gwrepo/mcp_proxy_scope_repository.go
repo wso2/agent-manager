@@ -56,7 +56,7 @@ type scopeTool struct {
 	OrgID    string    `gorm:"column:org_id"`
 }
 
-func (scopeTool) TableName() string { return "mcp_proxy_scope_tools" }
+func (scopeTool) TableName() string { return "mod_ai_gateway_mcp_proxy_scope_tools" }
 
 // withTools reads each scope's tools, in name order.
 func (r *mcpProxyScopeRepository) withTools(ctx context.Context, scopes []models.MCPProxyScope) ([]models.MCPProxyScope, error) {

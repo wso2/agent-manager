@@ -165,8 +165,8 @@ func (r *agentEnvConfigVariableRepository) LockAndListByAgent(ctx context.Contex
 		return nil, fmt.Errorf("lock agent variable names: %w", err)
 	}
 	var variables []models.AgentEnvConfigVariable
-	err := tx.WithContext(ctx).Table("agent_model_config_vars v").Select("v.*").
-		Joins("JOIN agent_model_configs c ON c.id = v.config_id").
+	err := tx.WithContext(ctx).Table("mod_ai_gateway_agent_model_config_vars v").Select("v.*").
+		Joins("JOIN mod_ai_gateway_agent_model_configs c ON c.id = v.config_id").
 		Where("c.org_id = ? AND c.agent_id IN (?)", ouID, models.AgentIDQuery(tx, ouID, projectName, agentID)).
 		Find(&variables).Error
 	return variables, err

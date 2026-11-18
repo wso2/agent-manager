@@ -174,9 +174,9 @@ func (k *MCPProxyKind) UnplacedRecords(
 		Handle          string    `gorm:"column:handle"`
 		EnvironmentUUID uuid.UUID `gorm:"column:environment_id"`
 	}
-	q := db.DB(ctx).Table("mcp_proxy_endpoint_environments b").
+	q := db.DB(ctx).Table("mod_ai_gateway_mcp_proxy_endpoint_environments b").
 		Select("a.org_id, a.id AS artifact_id, a.kind, a.handle, b.environment_id").
-		Joins("JOIN artifacts a ON a.id = b.artifact_id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON a.id = b.artifact_id").
 		Where(condition, args...)
 	if afterKey != "" {
 		q = q.Where("a.id > ?", afterKey)
@@ -201,7 +201,7 @@ func (k *MCPProxyKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway u
 	condition, args := reconcile.PlacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "b.environment_id",
 	}, env, gateway)
-	return placedOn(ctx, tx, `SELECT 1 AS placed FROM mcp_proxy_endpoint_environments b JOIN artifacts a ON a.id = b.artifact_id
+	return placedOn(ctx, tx, `SELECT 1 AS placed FROM mod_ai_gateway_mcp_proxy_endpoint_environments b JOIN mod_ai_gateway_artifacts a ON a.id = b.artifact_id
 		WHERE `+condition, args)
 }
 

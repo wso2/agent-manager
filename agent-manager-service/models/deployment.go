@@ -92,7 +92,7 @@ func stringOrEmpty(s *string) string {
 
 // TableName returns the table name for the Deployment model
 func (Deployment) TableName() string {
-	return "artifact_deployments"
+	return "mod_ai_gateway_artifact_deployments"
 }
 
 // DeploymentStatus represents the status of a deployment
@@ -134,7 +134,7 @@ type DeploymentStatusRecord struct {
 
 // TableName returns the table name for the DeploymentStatusRecord model
 func (DeploymentStatusRecord) TableName() string {
-	return "artifact_gateway_status"
+	return "mod_ai_gateway_artifact_gateway_status"
 }
 
 // NewPerformedAt is t as the gateway stores it: UTC at millisecond precision. A zero t becomes now, because the

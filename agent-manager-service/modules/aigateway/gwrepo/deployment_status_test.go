@@ -185,7 +185,7 @@ func TestStartDeployPrunesTheOldestArchivedDeployments(t *testing.T) {
 	}
 
 	var kept []uuid.UUID
-	require.NoError(t, db.GetDB().Raw(`SELECT id FROM artifact_deployments WHERE artifact_id = ? AND org_id = ?`,
+	require.NoError(t, db.GetDB().Raw(`SELECT id FROM mod_ai_gateway_artifact_deployments WHERE artifact_id = ? AND org_id = ?`,
 		p.ArtifactUUID, p.OUID).Scan(&kept).Error)
 	assert.Less(t, len(kept), 26)
 	assert.NotContains(t, kept, ids[0], "the oldest archived deployment is pruned")
@@ -426,14 +426,14 @@ func TestApplyAckDeploy(t *testing.T) {
 		p := seedPlacement(t, models.KindLLMProvider)
 		deployment := startDeploy(t, p)
 		afterLive := func(_ context.Context, tx *gorm.DB, _ models.Placement, _ uuid.UUID) error {
-			require.NoError(t, tx.Exec(`UPDATE artifacts SET name = 'written-by-hook' WHERE id = ?`, p.ArtifactUUID).Error)
+			require.NoError(t, tx.Exec(`UPDATE mod_ai_gateway_artifacts SET name = 'written-by-hook' WHERE id = ?`, p.ArtifactUUID).Error)
 			return errors.New("hook failed")
 		}
 
 		assert.True(t, applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), afterLive))
 		assert.Equal(t, models.DeploymentStatusDeployed, statusRow(t, p).Status)
 		var name string
-		require.NoError(t, db.GetDB().Raw(`SELECT name FROM artifacts WHERE id = ?`, p.ArtifactUUID).Scan(&name).Error)
+		require.NoError(t, db.GetDB().Raw(`SELECT name FROM mod_ai_gateway_artifacts WHERE id = ?`, p.ArtifactUUID).Scan(&name).Error)
 		assert.Equal(t, p.Handle, name, "the hook's writes are rolled back")
 	})
 }
@@ -535,7 +535,7 @@ func TestFailStaleTransitionalDoesNotOverwriteAConcurrentAck(t *testing.T) {
 	backdate(t, p, 10*time.Minute)
 
 	tx := db.GetDB().Begin()
-	require.NoError(t, tx.Exec(`UPDATE artifact_gateway_status SET status = 'DEPLOYED' WHERE deployment_id = ?`,
+	require.NoError(t, tx.Exec(`UPDATE mod_ai_gateway_artifact_gateway_status SET status = 'DEPLOYED' WHERE deployment_id = ?`,
 		deployment.DeploymentID).Error)
 	swept := make(chan int64)
 	go func() {

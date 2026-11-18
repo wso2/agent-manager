@@ -127,9 +127,9 @@ func (r *DeploymentRepo) CreateWithLimitEnforcement(deployment *models.Deploymen
 		if count >= int64(hardLimit) {
 			// Get oldest 5 ARCHIVED deployment IDs
 			var idsToDelete []uuid.UUID
-			if err := tx.Table("artifact_deployments d").
+			if err := tx.Table("mod_ai_gateway_artifact_deployments d").
 				Select("d.id").
-				Joins("LEFT JOIN artifact_gateway_status s ON d.id = s.deployment_id "+
+				Joins("LEFT JOIN mod_ai_gateway_artifact_gateway_status s ON d.id = s.deployment_id "+
 					"AND d.artifact_id = s.artifact_id "+
 					"AND d.gateway_id = s.gateway_id").
 				Where("d.artifact_id = ? AND d.gateway_id = ? AND d.org_id = ? AND s.deployment_id IS NULL",
@@ -230,11 +230,11 @@ func (r *DeploymentRepo) GetWithState(deploymentID, artifactUUID, orgUUID string
 // GetWithStateCtx is GetWithState with context propagation — see the interface doc comment.
 func (r *DeploymentRepo) GetWithStateCtx(ctx context.Context, deploymentID, artifactUUID, orgUUID string) (*models.Deployment, error) {
 	var deployment models.Deployment
-	err := r.db.WithContext(ctx).Table("artifact_deployments d").
+	err := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_deployments d").
 		Select("d.id, d.name, d.artifact_id, d.org_id, d.gateway_id, "+
 			"d.base_deployment_id, d.metadata, d.created_at, "+
 			"s.status, s.updated_at AS status_updated_at, "+statusRowColumns).
-		Joins("LEFT JOIN artifact_gateway_status s ON d.id = s.deployment_id "+
+		Joins("LEFT JOIN mod_ai_gateway_artifact_gateway_status s ON d.id = s.deployment_id "+
 			"AND d.artifact_id = s.artifact_id "+
 			"AND d.gateway_id = s.gateway_id").
 		Where("d.id = ? AND d.artifact_id = ? AND d.org_id = ?",
@@ -277,8 +277,8 @@ func (r *DeploymentRepo) GetDeploymentsWithState(artifactUUID, orgUUID string, g
                         (CASE WHEN s.status IS NOT NULL THEN 0 ELSE 1 END) ASC,
                         d.created_at DESC
                 ) as rank_idx
-			FROM artifact_deployments d
-			LEFT JOIN artifact_gateway_status s
+			FROM mod_ai_gateway_artifact_deployments d
+			LEFT JOIN mod_ai_gateway_artifact_gateway_status s
                 ON d.id = s.deployment_id
                 AND d.gateway_id = s.gateway_id
 				AND d.artifact_id = s.artifact_id

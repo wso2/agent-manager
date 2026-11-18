@@ -91,7 +91,7 @@ func unplacedExposureArm(protocol models.AgentExposureProtocol, ouID string, env
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "e.environment_id",
 	}, models.IngressGatewayRoles, ouID, env)
 	arm := `SELECT a.org_id, a.id AS artifact_id, a.handle, a.kind, e.environment_id
-			FROM agent_exposures e JOIN artifacts a ON a.id = e.artifact_id
+			FROM mod_ai_gateway_agent_exposures e JOIN mod_ai_gateway_artifacts a ON a.id = e.artifact_id
 			WHERE e.protocol = ? AND ` + condition
 	return arm, append([]any{protocol}, args...)
 }
@@ -102,7 +102,7 @@ func placedExposureArm(protocol models.AgentExposureProtocol, env, gateway uuid.
 	condition, args := reconcile.PlacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "e.environment_id",
 	}, env, gateway)
-	arm := `SELECT 1 AS placed FROM agent_exposures e JOIN artifacts a ON a.id = e.artifact_id
+	arm := `SELECT 1 AS placed FROM mod_ai_gateway_agent_exposures e JOIN mod_ai_gateway_artifacts a ON a.id = e.artifact_id
 			WHERE e.protocol = ? AND ` + condition
 	return arm, append([]any{protocol}, args...)
 }

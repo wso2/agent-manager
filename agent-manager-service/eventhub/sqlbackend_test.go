@@ -78,7 +78,7 @@ func drain(ch <-chan Event) []string {
 func eventSeqs(t *testing.T, gatewayID string) []int64 {
 	t.Helper()
 	var seqs []int64
-	require.NoError(t, db.GetDB().Raw(`SELECT seq FROM gateway_events WHERE gateway_id = ? ORDER BY seq`, gatewayID).
+	require.NoError(t, db.GetDB().Raw(`SELECT seq FROM mod_ai_gateway_gateway_events WHERE gateway_id = ? ORDER BY seq`, gatewayID).
 		Scan(&seqs).Error)
 	return seqs
 }
@@ -94,7 +94,7 @@ func TestPublishEventNumbersEventsPerGateway(t *testing.T) {
 
 	assert.Equal(t, []int64{1, 2}, eventSeqs(t, gatewayID))
 	var stateSeq int64
-	require.NoError(t, db.GetDB().Raw(`SELECT seq FROM gateway_event_states WHERE gateway_id = ?`, gatewayID).
+	require.NoError(t, db.GetDB().Raw(`SELECT seq FROM mod_ai_gateway_gateway_event_states WHERE gateway_id = ?`, gatewayID).
 		Scan(&stateSeq).Error)
 	assert.EqualValues(t, 2, stateSeq)
 }
@@ -188,7 +188,7 @@ func TestPublishEventTxSkipsADuplicateEventWithoutAbortingTheTransaction(t *test
 	}))
 
 	var count int64
-	require.NoError(t, db.GetDB().Raw(`SELECT count(*) FROM gateway_events WHERE id = ?`, event.EventID).
+	require.NoError(t, db.GetDB().Raw(`SELECT count(*) FROM mod_ai_gateway_gateway_events WHERE id = ?`, event.EventID).
 		Scan(&count).Error)
 	assert.EqualValues(t, 1, count)
 }

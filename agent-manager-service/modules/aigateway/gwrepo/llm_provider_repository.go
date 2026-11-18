@@ -102,7 +102,7 @@ func (r *LLMProviderRepo) Create(tx *gorm.DB, p *models.LLMProvider, handle, nam
 	}
 
 	// Insert into llm_providers table
-	slog.Info("LLMProviderRepo.Create: inserting into llm_providers table", "handle", handle, "uuid", p.UUID)
+	slog.Info("LLMProviderRepo.Create: inserting into mod_ai_gateway_llm_providers table", "handle", handle, "uuid", p.UUID)
 	if err := tx.Omit("Artifact").Create(p).Error; err != nil {
 		slog.Error("LLMProviderRepo.Create: failed to insert provider", "handle", handle, "uuid", p.UUID, "error", err)
 		return err
@@ -119,7 +119,7 @@ func (r *LLMProviderRepo) GetByUUID(providerID, orgUUID string) (*models.LLMProv
 	var provider models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
-		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
 		Where("a.id = ? AND a.org_id = ? AND a.kind = ?", providerID, orgUUID, models.KindLLMProvider).
 		First(&provider).Error
 	if err != nil {
@@ -147,7 +147,7 @@ func (r *LLMProviderRepo) GetByHandle(handle, orgUUID string) (*models.LLMProvid
 	var provider models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
-		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
 		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindLLMProvider).
 		First(&provider).Error
 	if err != nil {
@@ -174,7 +174,7 @@ func (r *LLMProviderRepo) List(orgUUID string, limit, offset int) ([]*models.LLM
 	var providers []*models.LLMProvider
 	err := r.db.
 		Preload("Artifact").
-		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
 		Where("a.org_id = ? AND a.kind = ?", orgUUID, models.KindLLMProvider).
 		Order("a.created_at DESC").
 		Limit(limit).
@@ -257,7 +257,7 @@ func (r *LLMProviderRepo) Update(ctx context.Context, p *models.LLMProvider, pro
 // HasAssociatedProxies reports whether any LLM proxy still references the given provider.
 func (r *LLMProviderRepo) HasAssociatedProxies(ctx context.Context, providerUUID uuid.UUID) (bool, error) {
 	var count int64
-	if err := r.db.WithContext(ctx).Table("llm_proxies").Where("provider_id = ?", providerUUID).Count(&count).Error; err != nil {
+	if err := r.db.WithContext(ctx).Table("mod_ai_gateway_llm_proxies").Where("provider_id = ?", providerUUID).Count(&count).Error; err != nil {
 		slog.Error("LLMProviderRepo.HasAssociatedProxies: failed to count associated proxies", "providerUUID", providerUUID, "error", err)
 		return false, err
 	}
@@ -268,7 +268,7 @@ func (r *LLMProviderRepo) HasAssociatedProxies(ctx context.Context, providerUUID
 // on it for the lifetime of tx — see the interface doc comment for why this must run
 // inside the same transaction as the dependent insert it guards.
 func (r *LLMProviderRepo) IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, providerUUID uuid.UUID) (bool, error) {
-	if err := dbx.LockRow(tx.WithContext(ctx), "llm_providers", "status", "id = ?", providerUUID); err != nil {
+	if err := dbx.LockRow(tx.WithContext(ctx), "mod_ai_gateway_llm_providers", "status", "id = ?", providerUUID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, utils.ErrLLMProviderNotFound
 		}
@@ -353,7 +353,7 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 	var artifact struct {
 		UUID uuid.UUID `gorm:"column:id"`
 	}
-	result := tx.Table("artifacts").
+	result := tx.Table("mod_ai_gateway_artifacts").
 		Select("id").
 		Where("id = ? AND org_id = ? AND kind = ?", providerUUID, orgUUID, models.KindLLMProvider).
 		Take(&artifact)
@@ -368,7 +368,7 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 
 	slog.Info("LLMProviderRepo.Delete: provider verified", "providerID", providerID, "uuid", providerUUID)
 
-	slog.Info("LLMProviderRepo.Delete: deleting from llm_providers table", "providerID", providerID, "uuid", providerUUID)
+	slog.Info("LLMProviderRepo.Delete: deleting from mod_ai_gateway_llm_providers table", "providerID", providerID, "uuid", providerUUID)
 	if err := tx.Where("id = ?", providerUUID).Delete(&models.LLMProvider{}).Error; err != nil {
 		if dberr.IsForeignKeyViolation(err) {
 			slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "error", err)
@@ -379,7 +379,7 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 	}
 
 	// Delete from artifacts
-	slog.Info("LLMProviderRepo.Delete: deleting from artifacts table", "providerID", providerID, "uuid", providerUUID)
+	slog.Info("LLMProviderRepo.Delete: deleting from mod_ai_gateway_artifacts table", "providerID", providerID, "uuid", providerUUID)
 	if err := r.artifactRepo.Delete(tx, providerUUID.String()); err != nil {
 		slog.Error("LLMProviderRepo.Delete: failed to delete artifact", "providerID", providerID, "uuid", providerUUID, "error", err)
 		return err

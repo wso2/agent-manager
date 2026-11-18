@@ -185,7 +185,7 @@ func (r *agentConfigurationRepository) GetByAgentID(ctx context.Context, agentID
 
 // byAgent narrows q to one agent's configurations.
 func (r *agentConfigurationRepository) byAgent(q *gorm.DB, ouID, projectName, agentName string) *gorm.DB {
-	return q.Where("agent_model_configs.org_id = ? AND agent_model_configs.agent_id IN (?)", ouID,
+	return q.Where("mod_ai_gateway_agent_model_configs.org_id = ? AND mod_ai_gateway_agent_model_configs.agent_id IN (?)", ouID,
 		models.AgentIDQuery(r.db, ouID, projectName, agentName))
 }
 
@@ -194,7 +194,7 @@ func (r *agentConfigurationRepository) byAgent(q *gorm.DB, ouID, projectName, ag
 func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context, ouID, projectName, agentID string) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
 	err := r.byAgent(withRelations(r.db.WithContext(ctx), false), ouID, projectName, agentID).
-		Where("agent_model_configs.type = ?", models.AgentConfigTypeMCP).
+		Where("mod_ai_gateway_agent_model_configs.type = ?", models.AgentConfigTypeMCP).
 		Find(&configs).Error
 	return configs, err
 }
@@ -204,8 +204,8 @@ func (r *agentConfigurationRepository) ListMCPConfigsByAgent(ctx context.Context
 func (r *agentConfigurationRepository) ListMCPConfigsByProxy(ctx context.Context, ouID string, proxyUUID uuid.UUID) ([]models.AgentConfiguration, error) {
 	var configs []models.AgentConfiguration
 	err := withRelations(r.db.WithContext(ctx), true).
-		Joins("JOIN agent_model_config_mcp p ON p.config_id = agent_model_configs.id").
-		Where("agent_model_configs.org_id = ? AND agent_model_configs.type = ? AND p.mcp_proxy_id = ?",
+		Joins("JOIN mod_ai_gateway_agent_model_config_mcp p ON p.config_id = mod_ai_gateway_agent_model_configs.id").
+		Where("mod_ai_gateway_agent_model_configs.org_id = ? AND mod_ai_gateway_agent_model_configs.type = ? AND p.mcp_proxy_id = ?",
 			ouID, models.AgentConfigTypeMCP, proxyUUID).
 		Find(&configs).Error
 	return configs, err

@@ -95,7 +95,7 @@ func (r *a2aProxyRepository) GetByEnvUUID(ctx context.Context, ouID, projectName
 }
 
 // A2AProxyArtifactJoin joins a2a_proxies p to the agent's per-environment artifact a.
-const A2AProxyArtifactJoin = `JOIN artifacts a ON a.id = p.artifact_id`
+const A2AProxyArtifactJoin = `JOIN mod_ai_gateway_artifacts a ON a.id = p.artifact_id`
 
 func (r *a2aProxyRepository) GetByArtifact(ctx context.Context, ouID string, artifactUUID uuid.UUID) (*models.A2AProxy, error) {
 	return r.first(ctx, "org_id = ? AND artifact_id = ?", ouID, artifactUUID)

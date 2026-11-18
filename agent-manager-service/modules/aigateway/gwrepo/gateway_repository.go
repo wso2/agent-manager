@@ -233,7 +233,7 @@ func (r *GatewayRepo) ListWithFiltersCtx(ctx context.Context, filters GatewayFil
 	}
 
 	var gateways []*models.Gateway
-	err := query.Order("gateways.created_at DESC, gateways.id").Find(&gateways).Error
+	err := query.Order("mod_ai_gateway_gateways.created_at DESC, mod_ai_gateway_gateways.id").Find(&gateways).Error
 	return gateways, err
 }
 
@@ -256,7 +256,7 @@ func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 
 	// Filter by organization
 	if filters.OrganizationID != "" {
-		query = query.Where("gateways.org_id = ?", filters.OrganizationID)
+		query = query.Where("mod_ai_gateway_gateways.org_id = ?", filters.OrganizationID)
 	}
 
 	// Filter by functionality type
@@ -280,8 +280,8 @@ func (r *GatewayRepo) buildFilterQuery(filters GatewayFilterOptions) *gorm.DB {
 
 	// Filter by environment (via gateway_environments); one row per gateway and environment, so no duplicates.
 	if filters.EnvironmentID != nil && *filters.EnvironmentID != "" {
-		query = query.Joins("INNER JOIN gateway_environments ON gateway_environments.gateway_id = gateways.id").
-			Where("gateway_environments.environment_id = ?", *filters.EnvironmentID)
+		query = query.Joins("INNER JOIN mod_ai_gateway_gateway_environments ON mod_ai_gateway_gateway_environments.gateway_id = mod_ai_gateway_gateways.id").
+			Where("mod_ai_gateway_gateway_environments.environment_id = ?", *filters.EnvironmentID)
 	}
 
 	return query
@@ -597,9 +597,9 @@ func (r *GatewayRepo) ListIdentityProvidersByGateway(gatewayID string) ([]models
 func (r *GatewayRepo) ListIdentityProvidersByEnvironment(environmentID string) ([]models.GatewayIdentityProvider, error) {
 	var rows []models.GatewayIdentityProvider
 	err := r.db.
-		Joins("JOIN gateway_environments ON gateway_environments.gateway_id = gateway_identity_providers.gateway_id").
-		Where("gateway_environments.environment_id = ? AND gateway_identity_providers.name <> ?", environmentID, models.ReservedIdentityProviderName).
-		Order("gateway_identity_providers.name ASC").
+		Joins("JOIN mod_ai_gateway_gateway_environments ON mod_ai_gateway_gateway_environments.gateway_id = mod_ai_gateway_gateway_identity_providers.gateway_id").
+		Where("mod_ai_gateway_gateway_environments.environment_id = ? AND mod_ai_gateway_gateway_identity_providers.name <> ?", environmentID, models.ReservedIdentityProviderName).
+		Order("mod_ai_gateway_gateway_identity_providers.name ASC").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err
@@ -623,12 +623,12 @@ func (r *GatewayRepo) ListIdentityProvidersByEnvironment(environmentID string) (
 // multiple environments appears once per environment.
 func (r *GatewayRepo) ListIdentityProvidersByOrg(ouID string) ([]IdentityProviderWithContext, error) {
 	var results []IdentityProviderWithContext
-	err := r.db.Table("gateway_identity_providers").
-		Select("gateway_identity_providers.*, gateways.name AS gateway_name, gateway_environments.environment_id AS environment_uuid").
-		Joins("JOIN gateways ON gateways.id = gateway_identity_providers.gateway_id").
-		Joins("LEFT JOIN gateway_environments ON gateway_environments.gateway_id = gateway_identity_providers.gateway_id").
-		Where("gateways.org_id = ? AND gateway_identity_providers.name <> ?", ouID, models.ReservedIdentityProviderName).
-		Order("gateway_identity_providers.name ASC").
+	err := r.db.Table("mod_ai_gateway_gateway_identity_providers").
+		Select("mod_ai_gateway_gateway_identity_providers.*, mod_ai_gateway_gateways.name AS gateway_name, mod_ai_gateway_gateway_environments.environment_id AS environment_uuid").
+		Joins("JOIN mod_ai_gateway_gateways ON mod_ai_gateway_gateways.id = mod_ai_gateway_gateway_identity_providers.gateway_id").
+		Joins("LEFT JOIN mod_ai_gateway_gateway_environments ON mod_ai_gateway_gateway_environments.gateway_id = mod_ai_gateway_gateway_identity_providers.gateway_id").
+		Where("mod_ai_gateway_gateways.org_id = ? AND mod_ai_gateway_gateway_identity_providers.name <> ?", ouID, models.ReservedIdentityProviderName).
+		Order("mod_ai_gateway_gateway_identity_providers.name ASC").
 		Scan(&results).Error
 	return results, err
 }
@@ -647,7 +647,7 @@ func (r *GatewayRepo) AcquireEnvironmentLock(tx *gorm.DB, environmentID string) 
 // AcquireGatewayLock locks the gateway row for the rest of tx, serialising concurrent environment assignments of one
 // gateway.
 func (r *GatewayRepo) AcquireGatewayLock(tx *gorm.DB, gatewayID string) error {
-	return dbx.LockRow(tx, "gateways", "id", "id = ?", gatewayID)
+	return dbx.LockRow(tx, "mod_ai_gateway_gateways", "id", "id = ?", gatewayID)
 }
 
 // CreateTx inserts a gateway inside an existing transaction. Mirrors Create,
@@ -689,8 +689,8 @@ func (r *GatewayRepo) CreateEnvironmentMappingTx(tx *gorm.DB, mapping *models.Ga
 // is_active is WebSocket liveness that flaps.
 func (r *GatewayRepo) CountIngressCapableInEnvironment(tx *gorm.DB, environmentID string) (int64, error) {
 	var count int64
-	err := tx.Table("gateway_environments AS m").
-		Joins("JOIN gateways g ON g.id = m.gateway_id").
+	err := tx.Table("mod_ai_gateway_gateway_environments AS m").
+		Joins("JOIN mod_ai_gateway_gateways g ON g.id = m.gateway_id").
 		Where("m.environment_id = ?", environmentID).
 		Where("g.functionality_type IN ?", models.IngressGatewayRoles).
 		Count(&count).Error
@@ -742,7 +742,7 @@ func (r *GatewayRepo) CountFailureSummaryAllOrgs(
 ) (GatewayFailureCounts, error) {
 	var counts GatewayFailureCounts
 	err := r.db.WithContext(ctx).
-		Table("gateways").
+		Table("mod_ai_gateway_gateways").
 		Select("COUNT(*) AS total"+
 			", COALESCE(SUM(CASE WHEN "+failedGatewayCondition+" THEN 1 ELSE 0 END), 0) AS failed"+
 			", COALESCE(SUM(CASE WHEN "+abandonedGatewayCondition+" THEN 1 ELSE 0 END), 0) AS abandoned",

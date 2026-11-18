@@ -48,7 +48,7 @@ type GatewayEnvironmentMapping struct {
 	CreatedAt       time.Time `json:"-" gorm:"column:created_at"`
 }
 
-func (GatewayEnvironmentMapping) TableName() string { return "gateway_environments" }
+func (GatewayEnvironmentMapping) TableName() string { return "mod_ai_gateway_gateway_environments" }
 
 // Gateway status constants
 const (

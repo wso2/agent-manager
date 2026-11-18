@@ -46,7 +46,7 @@ type LLMProxy struct {
 
 // TableName returns the table name for the LLMProxy model
 func (LLMProxy) TableName() string {
-	return "llm_proxies"
+	return "mod_ai_gateway_llm_proxies"
 }
 
 // LLMProxyConfig represents the LLM proxy configuration

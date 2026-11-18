@@ -111,7 +111,7 @@ func (s *agentManagerService) GetAgent(ctx context.Context, ouID string, project
 	if err != nil {
 		return nil, err
 	}
-	agentConfig, configErr := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, models.DefaultEnvironmentName)
+	agentConfig, configErr := s.gatewaySettings(ctx, ouID, projectName, agentName, models.DefaultEnvironmentName)
 	switch {
 	case errors.Is(configErr, repositories.ErrAgentConfigNotFound):
 		defaultEnabled := true
@@ -664,9 +664,6 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 	if s.agentThunderProvisioning != nil {
 		s.agentThunderProvisioning.DeleteAllBindings(cleanupCtx, ouID, projectName, agentName)
 	}
-	if configErr := s.agentConfigRepo.DeleteAllByAgent(ctx, ouID, projectName, agentName); configErr != nil {
-		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
-	}
 	var artifactErr error
 	if hasGateway {
 		artifactErr = gateway.Deleting(ctx, ref)
@@ -918,7 +915,7 @@ func (s *agentManagerService) RetryAgentIdentityProvisioning(ctx context.Context
 // persisted yet. Unlike GetAgent (which reads only the lowest environment's config), this is scoped
 // to the requested environment so the console seeds the correct per-env values.
 func (s *agentManagerService) GetAgentEnvConfig(ctx context.Context, ouID, projectName, agentName, environment string) (*models.AgentConfig, error) {
-	cfg, err := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, environment)
+	cfg, err := s.gatewaySettings(ctx, ouID, projectName, agentName, environment)
 	if errors.Is(err, repositories.ErrAgentConfigNotFound) {
 		return nil, nil //nolint:nilnil // "no config yet" is a valid, expected state distinct from an error
 	}
@@ -926,6 +923,15 @@ func (s *agentManagerService) GetAgentEnvConfig(ctx context.Context, ouID, proje
 		return nil, fmt.Errorf("failed to get agent env config: %w", err)
 	}
 	return cfg, nil
+}
+
+// gatewaySettings reads an agent's per-environment gateway settings, which
+// the AI Gateway module stores; without the module there are none.
+func (s *agentManagerService) gatewaySettings(ctx context.Context, ouID, projectName, agentName, environment string) (*models.AgentConfig, error) {
+	if _, ok := coreext.Lookup[agentgwv1.Gateway](agentgwv1.ID); !ok {
+		return nil, repositories.ErrAgentConfigNotFound
+	}
+	return s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, environment)
 }
 
 // IsLegacySecretRefPath reports whether a stored secret reference is a KV path

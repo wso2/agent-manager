@@ -239,11 +239,11 @@ func DriftKey(p models.Placement) string {
 // (DriftKey) in key order. Agent rows are only platform-hosted agents: drift is a moved release binding, which
 // external agents don't have.
 func (r *DeploymentRepo) ListDeployedForDrift(ctx context.Context, kind string, afterKey string, limit int) ([]models.Placement, error) {
-	query := r.db.WithContext(ctx).Table("artifact_gateway_status s").
+	query := r.db.WithContext(ctx).Table("mod_ai_gateway_artifact_gateway_status s").
 		Select("s.artifact_id, s.org_id, s.gateway_id, a.kind, a.handle").
-		Joins("INNER JOIN artifacts a ON a.id = s.artifact_id")
+		Joins("INNER JOIN mod_ai_gateway_artifacts a ON a.id = s.artifact_id")
 	if slices.Contains(models.AgentArtifactKinds, kind) {
-		query = query.Joins("INNER JOIN agent_exposures e ON e.artifact_id = s.artifact_id")
+		query = query.Joins("INNER JOIN mod_ai_gateway_agent_exposures e ON e.artifact_id = s.artifact_id")
 	}
 	query = query.Where("a.kind = ? AND s.status = ? AND s.next_attempt_at IS NULL", kind, models.DeploymentStatusDeployed)
 	if artifact, gateway, ok := strings.Cut(afterKey, "/"); ok {

@@ -87,15 +87,15 @@ func (f *syncFixture) snapshot(t *testing.T) statusSnapshot {
 	t.Helper()
 	var s statusSnapshot
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT * FROM artifact_gateway_status WHERE gateway_id = ? ORDER BY artifact_id`, f.gateway,
+		`SELECT * FROM mod_ai_gateway_artifact_gateway_status WHERE gateway_id = ? ORDER BY artifact_id`, f.gateway,
 	).
 		Scan(&s.Rows).Error)
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT COALESCE(MAX(seq), 0) FROM gateway_event_states WHERE gateway_id = ?`, f.gateway.String(),
+		`SELECT COALESCE(MAX(seq), 0) FROM mod_ai_gateway_gateway_event_states WHERE gateway_id = ?`, f.gateway.String(),
 	).
 		Scan(&s.Seq).Error)
 	require.NoError(t, db.GetDB().Raw(
-		`SELECT COUNT(*) FROM gateway_events WHERE gateway_id = ?`, f.gateway.String(),
+		`SELECT COUNT(*) FROM mod_ai_gateway_gateway_events WHERE gateway_id = ?`, f.gateway.String(),
 	).Scan(&s.Events).Error)
 	return s
 }
@@ -186,7 +186,7 @@ func TestCheckArtifactsExistOverTheDatabase(t *testing.T) {
 	otherOrgID := dbtest.Org(t, db.GetDB())
 	otherOrg := f.seedArtifact(t, otherOrgID, models.KindLLMProvider)
 	otherOrgProxy := f.seedArtifact(t, otherOrgID, models.KindLLMProxy)
-	require.NoError(t, db.GetDB().Exec(`UPDATE artifacts SET handle = ? WHERE id = ?`,
+	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifacts SET handle = ? WHERE id = ?`,
 		deletedProxy.Handle, otherOrgProxy.ArtifactUUID).Error, "another org's proxy holds the deleted proxy's handle")
 
 	got, err := f.svc.CheckArtifactsExist(ctx, f.ouID, []string{

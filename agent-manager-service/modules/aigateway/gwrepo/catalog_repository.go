@@ -138,16 +138,16 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 
 	// Build base query with common joins and conditions
 	baseQuery := r.db.Model(&models.LLMProvider{}).
-		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
 		Where("a.org_id = ? AND a.kind = ? AND a.in_catalog = ?",
 			filters.OrganizationName, models.KindLLMProvider, true)
 
 	// Apply environment filter if provided: providers live (acked DEPLOYED) on a gateway of the environment
 	if filters.HasEnvironmentFilter() {
 		baseQuery = baseQuery.
-			Joins("JOIN artifact_gateway_status ds ON llm_providers.id = ds.artifact_id AND ds.org_id = a.org_id").
-			Joins("JOIN gateways g ON ds.gateway_id = g.id").
-			Joins("JOIN gateway_environments gem ON ds.gateway_id = gem.gateway_id").
+			Joins("JOIN mod_ai_gateway_artifact_gateway_status ds ON mod_ai_gateway_llm_providers.id = ds.artifact_id AND ds.org_id = a.org_id").
+			Joins("JOIN mod_ai_gateway_gateways g ON ds.gateway_id = g.id").
+			Joins("JOIN mod_ai_gateway_gateway_environments gem ON ds.gateway_id = gem.gateway_id").
 			Where("gem.environment_id = ? AND ds.status = ?",
 				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
 			Distinct()
@@ -171,20 +171,20 @@ func (r *CatalogRepo) ListLLMProviders(filters *models.CatalogListFilters) ([]mo
 	query := r.db.
 		Select(`
 			a.id AS uuid, a.handle, a.name, a.version, a.kind, a.in_catalog, a.created_at,
-			llm_providers.description, llm_providers.created_by, llm_providers.status,
-			llm_providers.configuration, llm_providers.model_list,
+			mod_ai_gateway_llm_providers.description, mod_ai_gateway_llm_providers.created_by, mod_ai_gateway_llm_providers.status,
+			mod_ai_gateway_llm_providers.configuration, mod_ai_gateway_llm_providers.model_list,
 			a.org_id AS organization_name
 		`).
-		Table("llm_providers").
-		Joins("JOIN artifacts a ON llm_providers.id = a.id").
+		Table("mod_ai_gateway_llm_providers").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_llm_providers.id = a.id").
 		Where("a.org_id = ? AND a.kind = ? AND a.in_catalog = ?",
 			filters.OrganizationName, models.KindLLMProvider, true)
 
 	if filters.HasEnvironmentFilter() {
 		query = query.
-			Joins("JOIN artifact_gateway_status ds ON llm_providers.id = ds.artifact_id AND ds.org_id = a.org_id").
-			Joins("JOIN gateways g ON ds.gateway_id = g.id").
-			Joins("JOIN gateway_environments gem ON ds.gateway_id = gem.gateway_id").
+			Joins("JOIN mod_ai_gateway_artifact_gateway_status ds ON mod_ai_gateway_llm_providers.id = ds.artifact_id AND ds.org_id = a.org_id").
+			Joins("JOIN mod_ai_gateway_gateways g ON ds.gateway_id = g.id").
+			Joins("JOIN mod_ai_gateway_gateway_environments gem ON ds.gateway_id = gem.gateway_id").
 			Where("gem.environment_id = ? AND ds.status = ?",
 				filters.EnvironmentUUID, models.DeploymentStatusDeployed).
 			Distinct()
@@ -355,7 +355,7 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 
 	// Fetch all deployments for these providers in ONE query
 	query := r.db.
-		Table("artifact_gateway_status ds").
+		Table("mod_ai_gateway_artifact_gateway_status ds").
 		Select(`
 			ds.artifact_id AS artifact_uuid,
 			ds.gateway_id AS gateway_uuid,
@@ -366,8 +366,8 @@ func (r *CatalogRepo) populateDeploymentsInBatch(entries []models.CatalogLLMProv
 			ds.status, ds.status_desired, ds.status_reason, ds.next_attempt_at, ds.render_reason,
 			ds.updated_at as deployment_updated_at
 		`).
-		Joins("JOIN gateways g ON ds.gateway_id = g.id").
-		Joins("LEFT JOIN gateway_environments gem ON ds.gateway_id = gem.gateway_id").
+		Joins("JOIN mod_ai_gateway_gateways g ON ds.gateway_id = g.id").
+		Joins("LEFT JOIN mod_ai_gateway_gateway_environments gem ON ds.gateway_id = gem.gateway_id").
 		Where("ds.org_id = ? AND ds.status = ?", orgUUID, models.DeploymentStatusDeployed)
 
 	for _, chunk := range dbx.Chunks(providerUUIDs) {

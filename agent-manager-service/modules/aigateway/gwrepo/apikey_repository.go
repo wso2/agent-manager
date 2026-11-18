@@ -98,7 +98,7 @@ func (r *APIKeyRepo) ListByArtifact(ctx context.Context, artifactUUID string) ([
 func (r *APIKeyRepo) ListByArtifactKind(ouID, kind string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.
-		Joins("JOIN artifacts a ON api_keys.artifact_id = a.id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_api_keys.artifact_id = a.id").
 		Where("a.org_id = ? AND a.kind = ?", ouID, kind).
 		Find(&keys).Error
 	return keys, err
@@ -111,7 +111,7 @@ func (r *APIKeyRepo) ListByArtifactKindAndEnvs(ouID string, kinds []string, envU
 		return nil, nil
 	}
 	query := r.db.
-		Joins("JOIN artifacts a ON api_keys.artifact_id = a.id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_api_keys.artifact_id = a.id").
 		Where("a.org_id = ? AND a.kind IN ?", ouID, kinds)
 
 	// Build OR conditions matching the environment UUID suffix in the artifact handle.
@@ -130,8 +130,8 @@ func (r *APIKeyRepo) ListByArtifactKindAndEnvs(ouID string, kinds []string, envU
 func (r *APIKeyRepo) ListPermanentByArtifactKinds(ouID string, kinds []string) ([]models.StoredAPIKey, error) {
 	var keys []models.StoredAPIKey
 	err := r.db.
-		Joins("JOIN artifacts a ON api_keys.artifact_id = a.id").
-		Where("a.org_id = ? AND a.kind IN ? AND api_keys.purpose = ?",
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_api_keys.artifact_id = a.id").
+		Where("a.org_id = ? AND a.kind IN ? AND mod_ai_gateway_api_keys.purpose = ?",
 			ouID, kinds, models.APIKeyPurposeUserManaged).
 		Find(&keys).Error
 	return keys, err

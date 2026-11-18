@@ -74,7 +74,7 @@ type A2AAgentCard struct {
 	UpdatedAt            time.Time          `gorm:"column:updated_at"`
 }
 
-func (A2AAgentCard) TableName() string { return "agent_cards" }
+func (A2AAgentCard) TableName() string { return "mod_ai_gateway_agent_cards" }
 
 func (c *A2AAgentCard) ref() agentRef {
 	return agentRef{&c.OUID, &c.ProjectName, &c.AgentName, &c.AgentUUID, c.EnvironmentUUID, &c.EnvironmentName}
@@ -85,3 +85,6 @@ func (c *A2AAgentCard) BeforeCreate(tx *gorm.DB) error { return c.ref().resolve(
 
 // AfterFind fills the agent's and environment's names.
 func (c *A2AAgentCard) AfterFind(tx *gorm.DB) error { return c.ref().fill(tx) }
+
+// AgentNames are the project and agent names of the row's agent.
+func (c A2AAgentCard) AgentNames() (projectName, agentName string) { return c.ProjectName, c.AgentName }

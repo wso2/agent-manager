@@ -141,21 +141,19 @@ func runConcurrentClaims(t *testing.T, db *gorm.DB) {
 }
 
 func runCompositeKeyClaim(t *testing.T, db *gorm.DB) {
-	org := seedOrg(t, db)
 	now := dbx.Now()
-	gateway := newID()
-	require.NoError(t, db.Exec(`INSERT INTO gateways (id, org_id, name, display_name, functionality_type, hosting, vhost, is_critical, is_active, properties, created_at, updated_at)
-		VALUES (?, ?, 'gw', 'GW', 'both', 'managed', 'h', ?, ?, '{}', ?, ?)`, gateway, org, false, true, now, now).Error)
+	// A queue keyed by two columns, as the AI Gateway's render queue is.
+	require.NoError(t, db.Exec(`CREATE TABLE IF NOT EXISTS claim_pairs (
+		a VARCHAR(36) NOT NULL, b VARCHAR(36) NOT NULL, next_attempt_at TIMESTAMP NOT NULL,
+		claimed_by VARCHAR(64), claimed_until TIMESTAMP, PRIMARY KEY (a, b))`).Error)
+	require.NoError(t, db.Exec(`DELETE FROM claim_pairs`).Error)
+	group := newID()
 	for i := 0; i < 3; i++ {
-		artifact := newID()
-		require.NoError(t, db.Exec(`INSERT INTO artifacts (id, org_id, kind, handle, name, version, in_catalog, created_at, updated_at)
-			VALUES (?, ?, 'LlmProvider', ?, ?, 'v1', ?, ?, ?)`, artifact, org, "h"+artifact, "n"+artifact, false, now, now).Error)
-		require.NoError(t, db.Exec(`INSERT INTO artifact_gateway_status (artifact_id, gateway_id, org_id, status, status_desired, performed_at, next_attempt_at, attempt_count, updated_at)
-			VALUES (?, ?, ?, 'PENDING', 'DEPLOYED', ?, ?, 0, ?)`, artifact, gateway, org, now, now, now).Error)
+		require.NoError(t, db.Exec(`INSERT INTO claim_pairs (a, b, next_attempt_at) VALUES (?, ?, ?)`, newID(), group, now).Error)
 	}
 	claim := dbx.Claim{
-		Table: "artifact_gateway_status", Key: []string{"artifact_id", "gateway_id"}, Limit: 2, Now: now, Lease: time.Minute,
-		Due: func(q *gorm.DB) *gorm.DB { return q.Where("gateway_id = ? AND next_attempt_at <= ?", gateway, now) },
+		Table: "claim_pairs", Key: []string{"a", "b"}, Limit: 2, Now: now, Lease: time.Minute,
+		Due: func(q *gorm.DB) *gorm.DB { return q.Where("b = ? AND next_attempt_at <= ?", group, now) },
 	}
 	first, err := dbx.ClaimRows(context.Background(), db, claim)
 	require.NoError(t, err)

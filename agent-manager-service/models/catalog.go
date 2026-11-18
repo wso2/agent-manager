@@ -37,7 +37,7 @@ type CatalogEntry struct {
 
 // TableName returns the table name for catalog queries
 func (CatalogEntry) TableName() string {
-	return "artifacts"
+	return "mod_ai_gateway_artifacts"
 }
 
 // Catalog resource kind constants

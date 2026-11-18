@@ -46,7 +46,7 @@ type A2AProxy struct {
 	UpdatedAt          time.Time `gorm:"column:updated_at"`
 }
 
-func (A2AProxy) TableName() string { return "a2a_proxies" }
+func (A2AProxy) TableName() string { return "mod_ai_gateway_a2a_proxies" }
 
 func (p *A2AProxy) ref() agentRef {
 	return agentRef{&p.OUID, &p.ProjectName, &p.AgentName, &p.AgentUUID, p.EnvironmentUUID, &p.EnvironmentName}
@@ -84,3 +84,6 @@ type A2AProxyStatus struct {
 	// GatewayURL is where the environment's ingress gateway serves the agent; empty until one is mapped.
 	GatewayURL string
 }
+
+// AgentNames are the project and agent names of the row's agent.
+func (p A2AProxy) AgentNames() (projectName, agentName string) { return p.ProjectName, p.AgentName }

@@ -85,13 +85,13 @@ func insertFailureFixture(
 	require.NoError(t, gormDB.Create(gw).Error, "insert fixture %s", name)
 
 	require.NoError(t, gormDB.Exec(
-		"UPDATE gateways SET is_active = ?, updated_at = ? WHERE id = ?",
+		"UPDATE mod_ai_gateway_gateways SET is_active = ?, updated_at = ? WHERE id = ?",
 		isActive, updatedAt, id,
 	).Error, "pin liveness columns for %s", name)
 
 	if softDeleted {
 		// Gateways are deleted outright now, so a deleted one is simply gone.
-		require.NoError(t, gormDB.Exec("DELETE FROM gateways WHERE id = ?", id).Error, "delete %s", name)
+		require.NoError(t, gormDB.Exec("DELETE FROM mod_ai_gateway_gateways WHERE id = ?", id).Error, "delete %s", name)
 	}
 	return id
 }
@@ -197,7 +197,7 @@ func TestGatewayRepo_FailureSummaryIgnoresSelfHosted(t *testing.T) {
 	org := dbtest.Org(t, tx)
 	stale := insertFailureFixture(t, tx, org, "gw-self-hosted-stale", false, time.Now().Add(-time.Hour), false)
 	abandoned := insertFailureFixture(t, tx, org, "gw-self-hosted-abandoned", false, time.Now().Add(-8*24*time.Hour), false)
-	require.NoError(t, tx.Exec("UPDATE gateways SET hosting = ? WHERE id IN (?, ?)",
+	require.NoError(t, tx.Exec("UPDATE mod_ai_gateway_gateways SET hosting = ? WHERE id IN (?, ?)",
 		models.GatewayHostingSelfHosted, stale, abandoned).Error)
 
 	got, err := repo.CountFailureSummaryAllOrgs(ctx, window)

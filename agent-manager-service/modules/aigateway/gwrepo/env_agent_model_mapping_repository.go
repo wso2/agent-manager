@@ -18,11 +18,15 @@ package gwrepo
 
 import (
 	"context"
+	"errors"
+	"sort"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // AgentConsumer holds the proxy and agent names needed to build a consumer list item.
@@ -60,12 +64,13 @@ type EnvAgentModelMappingRepository interface {
 }
 
 type envAgentModelMappingRepository struct {
-	db *gorm.DB
+	db   *gorm.DB
+	core modkit.CoreAPI
 }
 
 // NewEnvAgentModelMappingRepository creates a new repository
 func NewEnvAgentModelMappingRepository(db *gorm.DB) EnvAgentModelMappingRepository {
-	return &envAgentModelMappingRepository{db: db}
+	return &envAgentModelMappingRepository{db: db, core: repositories.NewCoreReadAPI(db)}
 }
 
 func (r *envAgentModelMappingRepository) Create(ctx context.Context, tx *gorm.DB, mapping *models.EnvAgentModelMapping) error {
@@ -115,19 +120,46 @@ func (r *envAgentModelMappingRepository) ListAgentConsumersByProxyUUIDs(ctx cont
 	if len(proxyUUIDs) == 0 {
 		return nil, nil
 	}
-	var results []AgentConsumer
-	// A single agent gets a distinct LLM proxy artifact per environment, so grouping only
-	// by (project_name, agent_id) — rather than including the per-env proxy handle/name in
-	// the projection — collapses those per-env rows into one consumer entry per agent.
+	// A single agent gets a distinct LLM proxy artifact per environment, so grouping by
+	// agent — rather than including the per-env proxy handle/name in the projection —
+	// collapses those per-env rows into one consumer entry per agent. The agent's and its
+	// project's names come from the core.
+	var rows []struct {
+		ProxyHandle string
+		ProxyName   string
+		OrgID       string
+		AgentUUID   string
+	}
 	err := r.db.WithContext(ctx).
-		Table("agent_model_config_llm eam").
-		Select("MIN(a.handle) AS proxy_handle, MIN(a.name) AS proxy_name, p.name AS project_name, ag.name AS agent_id").
-		Joins("JOIN artifacts a ON a.id = eam.llm_proxy_id").
-		Joins("JOIN agent_model_configs ac ON ac.id = eam.config_id").
-		Joins("JOIN agents ag ON ag.id = ac.agent_id").
-		Joins("JOIN projects p ON p.id = ag.project_id").
+		Table("mod_ai_gateway_agent_model_config_llm eam").
+		Select("MIN(a.handle) AS proxy_handle, MIN(a.name) AS proxy_name, ac.org_id AS org_id, ac.agent_id AS agent_uuid").
+		Joins("JOIN mod_ai_gateway_artifacts a ON a.id = eam.llm_proxy_id").
+		Joins("JOIN mod_ai_gateway_agent_model_configs ac ON ac.id = eam.config_id").
 		Where("eam.llm_proxy_id IN ?", proxyUUIDs).
-		Group("p.name, ag.name").
-		Scan(&results).Error
-	return results, err
+		Group("ac.org_id, ac.agent_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	results := make([]AgentConsumer, 0, len(rows))
+	for _, row := range rows {
+		agent, err := r.core.GetAgent(ctx, row.OrgID, row.AgentUUID)
+		if errors.Is(err, modkit.ErrNotFound) {
+			continue // deleted meanwhile; its rows go with its finalize hook
+		}
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, AgentConsumer{
+			ProxyHandle: row.ProxyHandle, ProxyName: row.ProxyName,
+			ProjectName: agent.ProjectName, AgentID: agent.Name,
+		})
+	}
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].ProjectName != results[j].ProjectName {
+			return results[i].ProjectName < results[j].ProjectName
+		}
+		return results[i].AgentID < results[j].AgentID
+	})
+	return results, nil
 }

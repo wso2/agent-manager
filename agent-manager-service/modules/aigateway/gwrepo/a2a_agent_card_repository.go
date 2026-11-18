@@ -366,18 +366,30 @@ func deleteForEnvironment[T any](ctx context.Context, db *gorm.DB, ouID string, 
 		Delete(new(T)).Error
 }
 
-// listForEnvironment lists the T rows (of table) in one environment, ordered by project and agent name.
-func listForEnvironment[T any](ctx context.Context, db *gorm.DB, table, ouID string, environmentUUID uuid.UUID) ([]T, error) {
+// agentNamed is a per-agent row that knows its project and agent names.
+type agentNamed interface {
+	AgentNames() (projectName, agentName string)
+}
+
+// listForEnvironment lists the T rows (of table) in one environment, ordered
+// by project and agent name. The names come from the core with each row, not
+// from a join on the core's tables.
+func listForEnvironment[T agentNamed](ctx context.Context, db *gorm.DB, table, ouID string, environmentUUID uuid.UUID) ([]T, error) {
 	var rows []T
-	err := db.WithContext(ctx).Table(table).Select(table+".*").
-		Joins("JOIN agents ag ON ag.id = "+table+".agent_id").
-		Joins("JOIN projects pr ON pr.id = ag.project_id").
-		Where(table+".org_id = ? AND "+table+".environment_id = ?", ouID, environmentUUID).
-		Order("pr.name ASC, ag.name ASC").
+	err := db.WithContext(ctx).Table(table).
+		Where("org_id = ? AND environment_id = ?", ouID, environmentUUID).
 		Find(&rows).Error
 	if err != nil {
 		return nil, err
 	}
+	sort.SliceStable(rows, func(i, j int) bool {
+		pi, ai := rows[i].AgentNames()
+		pj, aj := rows[j].AgentNames()
+		if pi != pj {
+			return pi < pj
+		}
+		return ai < aj
+	})
 	return rows, nil
 }
 

@@ -49,7 +49,7 @@ type LLMProviderTemplate struct {
 
 // TableName returns the table name for the LLMProviderTemplate model
 func (LLMProviderTemplate) TableName() string {
-	return "llm_provider_templates"
+	return "mod_ai_gateway_llm_provider_templates"
 }
 
 // LLMProviderTemplateMetadata represents template metadata

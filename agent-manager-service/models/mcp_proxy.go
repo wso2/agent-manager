@@ -51,7 +51,7 @@ type MCPProxy struct {
 
 // TableName returns the table name for the MCPProxy model.
 func (MCPProxy) TableName() string {
-	return "mcp_proxies"
+	return "mod_ai_gateway_mcp_proxies"
 }
 
 // AfterFind reads the project name of a project-scoped proxy.
@@ -82,7 +82,7 @@ type MCPProxyMapping struct {
 
 // TableName returns the table name for the MCPProxyMapping model.
 func (MCPProxyMapping) TableName() string {
-	return "mcp_proxy_mappings"
+	return "mod_ai_gateway_mcp_proxy_mappings"
 }
 
 // MCPProxyConfig represents the MCP proxy configuration stored in JSON.
@@ -137,13 +137,13 @@ type MCPProxyEndpoint struct {
 
 // TableName returns the table name for the MCPProxyEndpoint model.
 func (MCPProxyEndpoint) TableName() string {
-	return "mcp_proxy_endpoints"
+	return "mod_ai_gateway_mcp_proxy_endpoints"
 }
 
 // BeforeCreate copies the proxy's organization.
 func (e *MCPProxyEndpoint) BeforeCreate(tx *gorm.DB) (err error) {
 	if e.OrgID == "" {
-		e.OrgID, err = orgIDOf(tx, "mcp_proxies", e.MCPProxyUUID)
+		e.OrgID, err = orgIDOf(tx, "mod_ai_gateway_mcp_proxies", e.MCPProxyUUID)
 	}
 	return err
 }
@@ -168,7 +168,7 @@ type MCPProxyEndpointEnvironment struct {
 
 // TableName returns the table name for the MCPProxyEndpointEnvironment model.
 func (MCPProxyEndpointEnvironment) TableName() string {
-	return "mcp_proxy_endpoint_environments"
+	return "mod_ai_gateway_mcp_proxy_endpoint_environments"
 }
 
 // BeforeCreate copies the proxy's organization.
@@ -177,7 +177,7 @@ func (e *MCPProxyEndpointEnvironment) BeforeCreate(tx *gorm.DB) (err error) {
 		e.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	if e.OrgID == "" {
-		e.OrgID, err = orgIDOf(tx, "mcp_proxies", e.MCPProxyUUID)
+		e.OrgID, err = orgIDOf(tx, "mod_ai_gateway_mcp_proxies", e.MCPProxyUUID)
 	}
 	return err
 }

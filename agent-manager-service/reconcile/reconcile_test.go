@@ -199,8 +199,8 @@ func (k *fakeEnvKind) Targets(ctx context.Context, record Record) (uuid.UUID, bo
 		return k.targets(record)
 	}
 	var gateways []uuid.UUID
-	err := db.GetDB().WithContext(ctx).Table("gateway_environments m").Select("m.gateway_id").
-		Joins("INNER JOIN gateways g ON g.id = m.gateway_id").
+	err := db.GetDB().WithContext(ctx).Table("mod_ai_gateway_gateway_environments m").Select("m.gateway_id").
+		Joins("INNER JOIN mod_ai_gateway_gateways g ON g.id = m.gateway_id").
 		Where("m.environment_id = ?", record.EnvironmentUUID).Order("m.gateway_id").Limit(1).Scan(&gateways).Error
 	if err != nil || len(gateways) == 0 {
 		return uuid.Nil, false, err
@@ -221,7 +221,7 @@ func ensureFakeRecordsTable(t *testing.T) {
 		require.NoError(t, db.GetDB().Exec(`CREATE TABLE IF NOT EXISTS reconcile_fake_records (
 			record_key TEXT PRIMARY KEY,
 			ou_id VARCHAR(255) NOT NULL,
-			artifact_uuid `+idType+` NOT NULL REFERENCES artifacts(id) ON DELETE CASCADE,
+			artifact_uuid `+idType+` NOT NULL REFERENCES mod_ai_gateway_artifacts(id) ON DELETE CASCADE,
 			handle TEXT NOT NULL,
 			environment_uuid `+idType+` NOT NULL,
 			requested_gateway `+idType+`)`).Error)
@@ -350,7 +350,7 @@ func advance(core *Core, by time.Duration) time.Time {
 func dueAt(t *testing.T, p models.Placement, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.GetDB().Exec(
-		`UPDATE artifact_gateway_status SET next_attempt_at = ? WHERE artifact_id = ? AND org_id = ? AND gateway_id = ?`,
+		`UPDATE mod_ai_gateway_artifact_gateway_status SET next_attempt_at = ? WHERE artifact_id = ? AND org_id = ? AND gateway_id = ?`,
 		at, p.ArtifactUUID, p.OUID, p.GatewayUUID,
 	).Error)
 }
@@ -375,7 +375,7 @@ type sentEvent struct {
 func eventsFor(t *testing.T, gatewayID uuid.UUID) []sentEvent {
 	t.Helper()
 	var data []string
-	require.NoError(t, db.GetDB().Raw(`SELECT event_data FROM gateway_events WHERE gateway_id = ? ORDER BY seq`,
+	require.NoError(t, db.GetDB().Raw(`SELECT event_data FROM mod_ai_gateway_gateway_events WHERE gateway_id = ? ORDER BY seq`,
 		gatewayID.String()).Scan(&data).Error)
 	events := make([]sentEvent, 0, len(data))
 	for _, d := range data {
@@ -933,7 +933,7 @@ func TestUnplacedConditionIgnoresSelfHosted(t *testing.T) {
 	ref := seedArtifact(t, ouID, fakeEnvKindName)
 	seedRecord(t, nil, ref, env)
 	selfHosted := seedGatewayWithRole(t, ouID, models.GatewayRoleEgress, env)
-	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE id = ?`,
+	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_gateways SET hosting = ? WHERE id = ?`,
 		models.GatewayHostingSelfHosted, selfHosted).Error)
 
 	records, err := kind.UnplacedRecords(context.Background(), ouID, &env, "", 10)
@@ -1212,7 +1212,7 @@ var errServesEnvironment = errors.New("the gateway serves the environment")
 
 // unmapInTx removes the gateway's mapping to env in tx as the gateway service does: delete, then check.
 func unmapInTx(ctx context.Context, core *Core, tx *gorm.DB, gateway, env uuid.UUID) error {
-	if err := tx.Exec(`DELETE FROM gateway_environments WHERE gateway_id = ? AND environment_id = ?`,
+	if err := tx.Exec(`DELETE FROM mod_ai_gateway_gateway_environments WHERE gateway_id = ? AND environment_id = ?`,
 		gateway, env).Error; err != nil {
 		return err
 	}
@@ -1316,7 +1316,7 @@ func TestPrepareDeleteSendsToEveryGatewaySentTheArtifactAndEveryActiveGateway(t 
 	undeployed.GatewayUUID = seedGateway(t, p.OUID)
 	pending := p
 	pending.GatewayUUID = seedGateway(t, p.OUID)
-	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET is_active = ? WHERE id IN (?, ?)`, false,
+	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_gateways SET is_active = ? WHERE id IN (?, ?)`, false,
 		undeployed.GatewayUUID, pending.GatewayUUID).Error)
 	bystander := seedGateway(t, p.OUID)
 	deploy(t, core, p)
@@ -1329,7 +1329,7 @@ func TestPrepareDeleteSendsToEveryGatewaySentTheArtifactAndEveryActiveGateway(t 
 		if err != nil {
 			return err
 		}
-		if err := tx.Exec(`DELETE FROM artifacts WHERE id = ?`, p.ArtifactUUID).Error; err != nil {
+		if err := tx.Exec(`DELETE FROM mod_ai_gateway_artifacts WHERE id = ?`, p.ArtifactUUID).Error; err != nil {
 			return err
 		}
 		return events.Publish(context.Background(), tx)

@@ -63,7 +63,7 @@ func insertPending(t *testing.T, p models.Placement, reason string) bool {
 func dueAt(t *testing.T, p models.Placement, at time.Time) {
 	t.Helper()
 	require.NoError(t, db.GetDB().Exec(
-		`UPDATE artifact_gateway_status SET next_attempt_at = ? WHERE artifact_id = ? AND org_id = ? AND gateway_id = ?`,
+		`UPDATE mod_ai_gateway_artifact_gateway_status SET next_attempt_at = ? WHERE artifact_id = ? AND org_id = ? AND gateway_id = ?`,
 		at, p.ArtifactUUID, p.OUID, p.GatewayUUID,
 	).Error)
 }
@@ -169,7 +169,7 @@ func TestQueueRender(t *testing.T) {
 		startDeploy(t, undeployed)
 		_, err := beginUndeploy(t, undeployed)
 		require.NoError(t, err)
-		require.NoError(t, db.GetDB().Exec(`UPDATE artifact_gateway_status SET attempt_count = 4
+		require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifact_gateway_status SET attempt_count = 4
 			WHERE artifact_id = ? AND gateway_id = ?`, placed.ArtifactUUID, placed.GatewayUUID).Error)
 
 		assert.Equal(t, int64(1), queue(t, placed, nil, QueueScopePlaced))
@@ -368,7 +368,7 @@ func TestRecordRenderOutcome(t *testing.T) {
 		epoch := queueEpoch()
 		p := seedPlacement(t, models.KindAgent)
 		require.True(t, insertPending(t, p, "placed"))
-		require.NoError(t, db.GetDB().Exec(`UPDATE artifact_gateway_status SET attempt_count = 2
+		require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifact_gateway_status SET attempt_count = 2
 			WHERE artifact_id = ? AND gateway_id = ?`, p.ArtifactUUID, p.GatewayUUID).Error)
 		dueAt(t, p, epoch)
 		return p, claimOne(t, p, epoch), epoch
@@ -498,7 +498,7 @@ func TestListDeployedForDrift(t *testing.T) {
 	exposed := func(t *testing.T, kind string, protocol models.AgentExposureProtocol) models.Placement {
 		exposure := newTestExposure(t, ouID, "agent-"+uuid.NewString()[:8], uuid.New())
 		exposure.Protocol = protocol
-		require.NoError(t, db.GetDB().Exec(`UPDATE artifacts SET kind = ? WHERE id = ?`, kind, exposure.ArtifactUUID).Error)
+		require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_artifacts SET kind = ? WHERE id = ?`, kind, exposure.ArtifactUUID).Error)
 		require.NoError(t, NewPlatformAgentExposureRepository(db.GetDB()).Upsert(context.Background(), exposure))
 		return models.Placement{
 			ArtifactRef: models.ArtifactRef{

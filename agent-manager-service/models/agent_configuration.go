@@ -85,7 +85,7 @@ type AgentConfiguration struct {
 
 // TableName returns the table name for the AgentConfiguration model
 func (AgentConfiguration) TableName() string {
-	return "agent_model_configs"
+	return "mod_ai_gateway_agent_model_configs"
 }
 
 // BeforeSave stores the type as text and resolves the agent's id from its names.
@@ -131,13 +131,13 @@ type AgentMCPConfigProxy struct {
 
 // TableName returns the table name for the AgentMCPConfigProxy model.
 func (AgentMCPConfigProxy) TableName() string {
-	return "agent_model_config_mcp"
+	return "mod_ai_gateway_agent_model_config_mcp"
 }
 
 // BeforeCreate copies the configuration's organization.
 func (p *AgentMCPConfigProxy) BeforeCreate(tx *gorm.DB) (err error) {
 	if p.OrgID == "" {
-		p.OrgID, err = orgIDOf(tx, "agent_model_configs", p.ConfigUUID)
+		p.OrgID, err = orgIDOf(tx, "mod_ai_gateway_agent_model_configs", p.ConfigUUID)
 	}
 	return err
 }
@@ -155,7 +155,7 @@ type AgentMCPConfigEnvExclusion struct {
 
 // TableName returns the table name for the AgentMCPConfigEnvExclusion model.
 func (AgentMCPConfigEnvExclusion) TableName() string {
-	return "agent_model_config_mcp_envs"
+	return "mod_ai_gateway_agent_model_config_mcp_envs"
 }
 
 // BeforeCreate marks the row as an exclusion and copies the configuration's organization.
@@ -165,7 +165,7 @@ func (e *AgentMCPConfigEnvExclusion) BeforeCreate(tx *gorm.DB) (err error) {
 		e.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	if e.OrgID == "" {
-		e.OrgID, err = orgIDOf(tx, "agent_model_configs", e.ConfigUUID)
+		e.OrgID, err = orgIDOf(tx, "mod_ai_gateway_agent_model_configs", e.ConfigUUID)
 	}
 	return err
 }
@@ -180,7 +180,7 @@ type AgentMCPConfigScope struct {
 
 // TableName returns the table name for the AgentMCPConfigScope model.
 func (AgentMCPConfigScope) TableName() string {
-	return "agent_model_config_mcp"
+	return "mod_ai_gateway_agent_model_config_mcp"
 }
 
 // EnvAgentModelMapping represents per-environment LLM proxy mapping
@@ -198,7 +198,7 @@ type EnvAgentModelMapping struct {
 
 // TableName returns the table name for the EnvAgentModelMapping model
 func (EnvAgentModelMapping) TableName() string {
-	return "agent_model_config_llm"
+	return "mod_ai_gateway_agent_model_config_llm"
 }
 
 // BeforeCreate copies the configuration's organization.
@@ -210,7 +210,7 @@ func (m *EnvAgentModelMapping) BeforeCreate(tx *gorm.DB) (err error) {
 		m.PolicyConfiguration = LLMPolicies{}
 	}
 	if m.OrgID == "" {
-		m.OrgID, err = orgIDOf(tx, "agent_model_configs", m.ConfigUUID)
+		m.OrgID, err = orgIDOf(tx, "mod_ai_gateway_agent_model_configs", m.ConfigUUID)
 	}
 	return err
 }
@@ -234,7 +234,7 @@ type EnvAgentMCPMapping struct {
 
 // TableName returns the table name for the EnvAgentMCPMapping model.
 func (EnvAgentMCPMapping) TableName() string {
-	return "agent_model_config_mcp_envs"
+	return "mod_ai_gateway_agent_model_config_mcp_envs"
 }
 
 // BeforeCreate copies the configuration's organization.
@@ -244,7 +244,7 @@ func (m *EnvAgentMCPMapping) BeforeCreate(tx *gorm.DB) (err error) {
 		m.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	if m.OrgID == "" {
-		m.OrgID, err = orgIDOf(tx, "agent_model_configs", m.ConfigUUID)
+		m.OrgID, err = orgIDOf(tx, "mod_ai_gateway_agent_model_configs", m.ConfigUUID)
 	}
 	return err
 }
@@ -263,7 +263,7 @@ type AgentEnvConfigVariable struct {
 
 // TableName returns the table name for the AgentEnvConfigVariable model
 func (AgentEnvConfigVariable) TableName() string {
-	return "agent_model_config_vars"
+	return "mod_ai_gateway_agent_model_config_vars"
 }
 
 // BeforeCreate copies the configuration's organization.
@@ -272,7 +272,7 @@ func (v *AgentEnvConfigVariable) BeforeCreate(tx *gorm.DB) (err error) {
 		v.CreatedAt = time.Now().UTC().Truncate(time.Microsecond)
 	}
 	if v.OrgID == "" {
-		v.OrgID, err = orgIDOf(tx, "agent_model_configs", v.ConfigUUID)
+		v.OrgID, err = orgIDOf(tx, "mod_ai_gateway_agent_model_configs", v.ConfigUUID)
 	}
 	return err
 }

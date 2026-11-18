@@ -43,7 +43,7 @@ type LLMProvider struct {
 
 // TableName returns the table name for the LLMProvider model
 func (LLMProvider) TableName() string {
-	return "llm_providers"
+	return "mod_ai_gateway_llm_providers"
 }
 
 // LLMProviderConfig represents the LLM provider configuration

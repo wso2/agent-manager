@@ -91,7 +91,7 @@ type eventStateRow struct {
 	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
-func (eventStateRow) TableName() string { return "gateway_event_states" }
+func (eventStateRow) TableName() string { return "mod_ai_gateway_gateway_event_states" }
 
 // eventRow is one row of gateway_events.
 type eventRow struct {
@@ -107,12 +107,12 @@ type eventRow struct {
 	ProcessedAt  time.Time `gorm:"column:processed_at"`
 }
 
-func (eventRow) TableName() string { return "gateway_events" }
+func (eventRow) TableName() string { return "mod_ai_gateway_gateway_events" }
 
 // ensureGatewayState creates the gateway's state row if it has none, taking its organization from the gateway.
 func ensureGatewayState(tx *gorm.DB, gatewayID string, now time.Time) (string, error) {
 	var gw struct{ OrgID string }
-	if err := tx.Table("gateways").Select("org_id").Where("id = ?", gatewayID).Take(&gw).Error; err != nil {
+	if err := tx.Table("mod_ai_gateway_gateways").Select("org_id").Where("id = ?", gatewayID).Take(&gw).Error; err != nil {
 		return "", fmt.Errorf("gateway %q: %w", gatewayID, err)
 	}
 	if _, err := dbx.InsertIfAbsent(tx, &eventStateRow{GatewayID: gatewayID, OrgID: gw.OrgID, UpdatedAt: now}); err != nil {

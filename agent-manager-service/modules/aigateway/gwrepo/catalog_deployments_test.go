@@ -130,7 +130,7 @@ func TestCatalogEnvironmentFilterByGatewayHosting(t *testing.T) {
 	assert.Len(t, list(models.GatewayHostingManaged), 1, "seeded gateways are managed by default")
 	assert.Empty(t, list(models.GatewayHostingSelfHosted))
 
-	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE id = ?`,
+	require.NoError(t, db.GetDB().Exec(`UPDATE mod_ai_gateway_gateways SET hosting = ? WHERE id = ?`,
 		models.GatewayHostingSelfHosted, p.GatewayUUID).Error)
 	assert.Empty(t, list(models.GatewayHostingManaged))
 	assert.Len(t, list(models.GatewayHostingSelfHosted), 1)

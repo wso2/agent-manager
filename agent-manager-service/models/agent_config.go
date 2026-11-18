@@ -62,7 +62,7 @@ type AgentConfig struct {
 	CardCORSAllowCredentials *bool    `gorm:"column:card_cors_allow_credentials"`
 }
 
-func (AgentConfig) TableName() string { return "agent_gateway_settings" }
+func (AgentConfig) TableName() string { return "mod_ai_gateway_agent_gateway_settings" }
 
 func (c *AgentConfig) ref() agentRef {
 	return agentRef{&c.OUID, &c.ProjectName, &c.AgentName, &c.AgentUUID, c.EnvironmentUUID, &c.EnvironmentName}

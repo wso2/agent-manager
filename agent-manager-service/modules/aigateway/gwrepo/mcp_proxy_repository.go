@@ -27,6 +27,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -86,11 +88,11 @@ func (f MCPProxyListFilter) apply(q *gorm.DB, orgUUID string) *gorm.DB {
 	switch {
 	case f.AllProjects:
 	case f.ProjectUUID == nil:
-		q = q.Where("mcp_proxies.project_id IS NULL")
+		q = q.Where("mod_ai_gateway_mcp_proxies.project_id IS NULL")
 	case f.IncludeOrgOwned:
-		q = q.Where("(mcp_proxies.project_id = ? OR mcp_proxies.project_id IS NULL)", *f.ProjectUUID)
+		q = q.Where("(mod_ai_gateway_mcp_proxies.project_id = ? OR mod_ai_gateway_mcp_proxies.project_id IS NULL)", *f.ProjectUUID)
 	default:
-		q = q.Where("mcp_proxies.project_id = ?", *f.ProjectUUID)
+		q = q.Where("mod_ai_gateway_mcp_proxies.project_id = ?", *f.ProjectUUID)
 	}
 	return q
 }
@@ -98,6 +100,7 @@ func (f MCPProxyListFilter) apply(q *gorm.DB, orgUUID string) *gorm.DB {
 // MCPProxyRepo implements MCPProxyRepository using GORM.
 type MCPProxyRepo struct {
 	db           *gorm.DB
+	core         modkit.CoreAPI
 	artifactRepo ArtifactRepository
 }
 
@@ -105,6 +108,7 @@ type MCPProxyRepo struct {
 func NewMCPProxyRepo(db *gorm.DB) MCPProxyRepository {
 	return &MCPProxyRepo{
 		db:           db,
+		core:         repositories.NewCoreReadAPI(db),
 		artifactRepo: NewArtifactRepo(db),
 	}
 }
@@ -181,8 +185,8 @@ func (r *MCPProxyRepo) GetByUUID(ctx context.Context, proxyUUID, orgUUID string)
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
-		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
-		Where("mcp_proxies.id = ? AND a.org_id = ? AND a.kind = ?", proxyUUID, orgUUID, models.KindMCPProxy).
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
+		Where("mod_ai_gateway_mcp_proxies.id = ? AND a.org_id = ? AND a.kind = ?", proxyUUID, orgUUID, models.KindMCPProxy).
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -200,7 +204,7 @@ func (r *MCPProxyRepo) GetByHandle(ctx context.Context, handle, orgUUID string) 
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
-		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
 		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
 		First(&proxy).Error
 	if err != nil {
@@ -217,7 +221,7 @@ func (r *MCPProxyRepo) GetByHandle(ctx context.Context, handle, orgUUID string) 
 // transaction. Use this to serialize read-modify-write flows against
 // concurrent updates.
 func (r *MCPProxyRepo) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle, orgUUID string) (*models.MCPProxy, error) {
-	if _, err := dbx.LockRows(tx.WithContext(ctx), "mcp_proxies", "status",
+	if _, err := dbx.LockRows(tx.WithContext(ctx), "mod_ai_gateway_mcp_proxies", "status",
 		"id IN (?)", tx.Session(&gorm.Session{NewDB: true}).Model(&models.Artifact{}).Select("id").
 			Where("handle = ? AND org_id = ? AND kind = ?", handle, orgUUID, models.KindMCPProxy)); err != nil {
 		return nil, err
@@ -227,7 +231,7 @@ func (r *MCPProxyRepo) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, ha
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
-		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
 		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
 		First(&proxy).Error
 	if err != nil {
@@ -240,7 +244,7 @@ func (r *MCPProxyRepo) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, ha
 func (r *MCPProxyRepo) List(ctx context.Context, orgUUID string, f MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
 	base := func() *gorm.DB {
 		return f.apply(r.db.WithContext(ctx).Model(&models.MCPProxy{}).
-			Joins("JOIN artifacts a ON mcp_proxies.id = a.id"), orgUUID)
+			Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id"), orgUUID)
 	}
 
 	var total int64
@@ -273,8 +277,8 @@ func (r *MCPProxyRepo) GetInProject(ctx context.Context, handle, orgUUID, projec
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
-		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
-		Where("a.handle = ? AND a.org_id = ? AND a.kind = ? AND mcp_proxies.project_id = ?",
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ? AND mod_ai_gateway_mcp_proxies.project_id = ?",
 			handle, orgUUID, models.KindMCPProxy, projectUUID).
 		First(&proxy).Error
 	if err != nil {
@@ -288,15 +292,21 @@ func (r *MCPProxyRepo) GetInProject(ctx context.Context, handle, orgUUID, projec
 
 // GetInProjectByName retrieves a project proxy by handle and its project's name.
 func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error) {
+	project, err := r.core.GetProjectByName(ctx, orgUUID, projectName)
+	if err != nil {
+		if errors.Is(err, modkit.ErrNotFound) {
+			return nil, utils.ErrMCPProxyNotFound
+		}
+		return nil, err
+	}
 	var proxy models.MCPProxy
-	err := r.db.WithContext(ctx).
+	err = r.db.WithContext(ctx).
 		Preload("Artifact").
 		Preload("Endpoints").
 		Preload("Endpoints.Environments").
-		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
-		Joins("JOIN projects p ON p.id = mcp_proxies.project_id").
-		Where("a.handle = ? AND a.org_id = ? AND a.kind = ? AND p.name = ?",
-			handle, orgUUID, models.KindMCPProxy, projectName).
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ? AND mod_ai_gateway_mcp_proxies.project_id = ?",
+			handle, orgUUID, models.KindMCPProxy, project.ID).
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -332,7 +342,7 @@ func (r *MCPProxyRepo) Delete(ctx context.Context, handle, orgUUID string) error
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var proxy models.MCPProxy
 		err := tx.
-			Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+			Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
 			Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
 			First(&proxy).Error
 		if err != nil {
@@ -362,8 +372,8 @@ func (r *MCPProxyRepo) Count(ctx context.Context, orgUUID string) (int, error) {
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&models.MCPProxy{}).
-		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
-		Where("a.org_id = ? AND a.kind = ? AND mcp_proxies.project_id IS NULL", orgUUID, models.KindMCPProxy).
+		Joins("JOIN mod_ai_gateway_artifacts a ON mod_ai_gateway_mcp_proxies.id = a.id").
+		Where("a.org_id = ? AND a.kind = ? AND mod_ai_gateway_mcp_proxies.project_id IS NULL", orgUUID, models.KindMCPProxy).
 		Count(&count).Error
 	return int(count), err
 }

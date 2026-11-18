@@ -11,7 +11,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 ## Decisions that shape the schema
 
 - Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) are deferred, and evaluation (evaluators, monitors, runs, scores, alerts) is removed from Lite; if they come back, they come as modules with their own tables.
-- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>`. The built-in `gateway` module still uses the tables listed under [Gateway module tables](#gateway-module-tables) with their original names; `amp-core` (no modules) leaves them empty.
+- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 30 tables are listed under [Gateway module tables](#gateway-module-tables); `amp-core` (no modules) doesn't have them.
 - Multi-tenant. `organizations` is the root.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
 - Console login is file-based to start with: a default username and password belong to a default org; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
@@ -176,7 +176,7 @@ External agents' client secrets are never stored, as today: regenerate creates a
 
 ### agent_gateway_settings
 
-One row per agent per environment. Replaces `agent_configs`. PK (agent_id, environment_id). FK (org_id, agent_id) → agents CASCADE; FK (org_id, environment_id) → environments.
+One row per agent per environment, in the `ai-gateway` module (`mod_ai_gateway_agent_gateway_settings`). Replaces `agent_configs`. PK (agent_id, environment_id). Removed with its agent by the module's agent finalize hook.
 
 - Yes/no: api_key_security, oauth_enabled, oauth_forward_token, cors_enabled, cors_allow_credentials
 - JSON: oauth_issuers, oauth_audiences, cors_allow_origins, cors_allow_methods, cors_allow_headers
@@ -203,7 +203,7 @@ Index (org_id, owner_kind, owner_id). Owning tables reference a secret by `secre
 
 ## Gateways, LLM, MCP and A2A
 
-Everything in this section is used only by the gateway module (see [Gateway module tables](#gateway-module-tables)).
+Everything in this section, and `agent_gateway_settings` above, belongs to the `ai-gateway` module: each table is created by the module's migrations as `mod_ai_gateway_<name>` (see [Gateway module tables](#gateway-module-tables)), and its references to core rows (organizations, projects, agents, environments, secrets) have no foreign keys. The descriptions below use the short names.
 
 Common changes to every existing table here: `ou_id` becomes `org_id` (FK); leftover `organization_name` / `org_name` / `project_name` / `agent_name` columns and `deleted_at` go (rows point at the owner's id instead); `environment_name` + `environment_uuid` become one `environment_id` FK. Columns not mentioned keep today's meaning and get the portable types.
 
@@ -219,11 +219,10 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 
 ### Artifacts and gateway deployments
 
-- `artifacts`: base row for every gateway-deployable item (kind: RestApi, WebSubAPI, LlmProvider, LlmProxy, Agent, McpProxy, McpProxyMapping, OtelIngest). Unique (org_id, handle), (org_id, name, version).
+- `artifacts`: base row for every gateway-deployable item (kind: RestApi, WebSubAPI, LlmProvider, LlmProxy, Agent, McpProxy, McpProxyMapping). Unique (org_id, handle), (org_id, name, version).
 - `artifact_deployments` (was `deployments`): artifact_id cascade; gateway_id and base_deployment_id no action (SQL Server rejects multiple cascade paths and self-referencing SET NULL; the service clears them). content binary, metadata JSON.
 - `artifact_gateway_status` (was `deployment_status`): PK (artifact_id, gateway_id), org_id. Cascade from artifact only; deleting a gateway clears its rows in the service. Status CHECK constraints kept. claimed_by, claimed_until for the render queue.
 - Typed rows share the artifact's id (`llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`): FK id → artifacts(id) ON DELETE CASCADE, so deleting the artifact deletes the typed row and everything under it. Their project FK has no action, so a project that still has LLM proxies or MCP servers can't be deleted.
-- `OtelIngest`: the built-in trace-ingest API (`/otel`), published only when `OTEL_INGEST_UPSTREAM_URL` is set; the Lite stack leaves it empty, so no gateway serves it. One artifact per org (handle `amp-otel-ingest`), created when a gateway first connects and deployed to each gateway on connect unless it already serves the current version. Gateways receive it as a RestApi. It has no typed row.
 
 ### LLM
 
@@ -423,9 +422,15 @@ Workload instances that heartbeated. A row is refreshed on every heartbeat; an i
 
 ### Gateway module tables
 
-The gateway module is built in to `amp`. It reads and writes these tables, which still carry their original names (no `mod_gateway_` prefix) and live in the core migrations for now: `gateways`, `gateway_environments`, `environment_default_gateways`, `gateway_tokens`, `gateway_identity_providers`, `gateway_event_states`, `gateway_events`, `artifacts`, `artifact_deployments`, `artifact_gateway_status`, `llm_provider_templates`, `llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`, `mcp_proxy_scopes`, `mcp_proxy_scope_tools`, `mcp_proxy_endpoints`, `mcp_proxy_endpoint_environments`, `agent_model_configs`, `agent_model_config_llm`, `agent_model_config_mcp`, `agent_model_config_mcp_envs`, `agent_model_config_vars`, `ai_applications`, `api_keys`, `agent_exposures`, `agent_cards` and `a2a_proxies`. It also uses the `gateway.drift_scan` lock.
+The `ai-gateway` module (`modules/aigateway`) creates its tables with its own migrations, rendered from `modules/aigateway/schema/001_init.yaml` by `make schema`: `mod_ai_gateway_` followed by `agent_gateway_settings`, `gateways`, `gateway_environments`, `environment_default_gateways`, `gateway_tokens`, `gateway_identity_providers`, `gateway_event_states`, `gateway_events`, `artifacts`, `artifact_deployments`, `artifact_gateway_status`, `llm_provider_templates`, `llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`, `mcp_proxy_scopes`, `mcp_proxy_scope_tools`, `mcp_proxy_endpoints`, `mcp_proxy_endpoint_environments`, `agent_model_configs`, `agent_model_config_llm`, `agent_model_config_mcp`, `agent_model_config_mcp_envs`, `agent_model_config_vars`, `ai_applications`, `api_keys`, `agent_exposures`, `agent_cards` and `a2a_proxies`. Foreign keys between them stay; there are none into core tables. It also uses the `gateway.drift_scan` lock in `locks`.
 
-`agent_gateway_settings` is still written by the core's agent service and read by the gateway. With `amp-core` all of these tables stay empty. If an `amp-core` install finds rows in `gateways` or `agent_model_configs` at startup, it logs one warning: deleting agents will not revoke their LLM or MCP proxy credentials.
+Its finalize hooks do what the dropped keys did, in the core's delete transaction:
+
+- **Agent deleted:** its rows in `agent_gateway_settings`, `agent_model_configs` (and, through their keys, the per-config tables), `ai_applications`, `agent_exposures`, `agent_cards` and `a2a_proxies` are deleted.
+- **Project deleted:** refused (409) while the project has LLM proxies or MCP servers.
+- **Environment deleted:** refused (409) while a gateway mapped to it serves artifacts; otherwise its rows in the module's per-environment tables are deleted.
+
+Organizations are not deleted in Lite.
 
 The `legacy` module has no tables.
 

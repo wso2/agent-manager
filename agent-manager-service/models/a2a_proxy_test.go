@@ -24,7 +24,7 @@ import (
 )
 
 func TestA2AProxyTable(t *testing.T) {
-	assert.Equal(t, "a2a_proxies", A2AProxy{}.TableName())
+	assert.Equal(t, "mod_ai_gateway_a2a_proxies", A2AProxy{}.TableName())
 }
 
 // The Agent YAML carries the ciphertext as secretRef; the internal API decrypts it for the gateway.

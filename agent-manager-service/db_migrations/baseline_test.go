@@ -114,12 +114,12 @@ func assertBaselineKeys(t *testing.T, gormDB *gorm.DB) {
 	require.NoError(t, gormDB.Raw("SELECT count(*) FROM agent_labels").Scan(&labels).Error)
 	assert.Zero(t, labels, "labels cascade from the agent")
 
-	insertGateway := func(properties string) error {
-		return exec(`INSERT INTO gateways (id, org_id, name, display_name, functionality_type, hosting, vhost, is_critical, is_active, properties, created_at, updated_at)
-			VALUES (?, ?, ?, 'G', 'both', 'managed', 'h', ?, ?, ?, ?, ?)`, id(), orgA, id(), false, true, properties, now, now)
+	insertUsage := func(dimensions string) error {
+		return exec(`INSERT INTO usage_events (id, org_id, occurred_at, source, feature_code, product_version, dimensions)
+			VALUES (?, ?, ?, 'api', 'f', 'v', ?)`, id(), orgA, now, dimensions)
 	}
-	require.NoError(t, insertGateway(`{"replicas": 1}`))
-	assert.Error(t, insertGateway("not json"), "JSON is validated")
+	require.NoError(t, insertUsage(`{"replicas": 1}`))
+	assert.Error(t, insertUsage("not json"), "JSON is validated")
 }
 
 func TestWaitForBaseline(t *testing.T) {

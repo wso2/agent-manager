@@ -132,7 +132,7 @@ func TestLLMProviderRepo_Update_SyncsArtifactName(t *testing.T) {
 	var artifact models.Artifact
 	require.NoError(t, gdb.First(&artifact, "id = ?", provider.UUID).Error)
 	require.Equal(t, "Renamed Provider", artifact.Name,
-		"Update must sync the new name into artifacts.name — that's what every read path serves as the provider's display name")
+		"Update must sync the new name into mod_ai_gateway_artifacts.name — that's what every read path serves as the provider's display name")
 }
 
 // TestLLMProviderRepo_Update_EmptyNameLeavesArtifactNameUnchanged confirms an

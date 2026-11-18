@@ -66,6 +66,6 @@ func TestAssignGatewayConcurrentEnvironmentsRefused(t *testing.T) {
 	}
 	require.Equal(t, 1, refused, "exactly one assign must be refused; errors: %v", errs)
 	var mappings int64
-	require.NoError(t, gdb.Raw(`SELECT count(*) FROM gateway_environments WHERE gateway_id = ?`, id).Row().Scan(&mappings))
+	require.NoError(t, gdb.Raw(`SELECT count(*) FROM mod_ai_gateway_gateway_environments WHERE gateway_id = ?`, id).Row().Scan(&mappings))
 	require.EqualValues(t, 1, mappings)
 }

@@ -18,17 +18,20 @@ package apitestutils
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
+	"github.com/wso2/agent-manager/agent-manager-service/app"
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy" // the legacy routes
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the AI Gateway
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy"    // the legacy routes
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -46,13 +49,27 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 	if err != nil {
 		t.Fatalf("failed to build the built-in features: %v", err)
 	}
-	// No module host runs here, so the core reaches the gateway's
-	// capabilities directly.
-	coreext.Set(coreext.Static(aigateway.Capabilities(aigateway.Current())))
-	t.Cleanup(func() { coreext.Set(nil) })
+	// The built-in modules run on a module host, as in the server: their
+	// routes, capabilities and hooks (the gateway's finalize hooks remove
+	// its rows of a deleted agent).
+	var mods []modkit.Module
+	for _, m := range modkit.Registered() {
+		if m.Manifest().Builtin {
+			mods = append(mods, m)
+		}
+	}
+	host := modhost.NewWith(db, config.GetConfig().Database.Driver, slog.Default(), mods)
+	// The host follows module changes until the test ends.
+	ctx, cancel := context.WithCancel(context.Background())
+	stop, err := app.StartModules(ctx, host, db, appParams)
+	if err != nil {
+		cancel()
+		t.Fatalf("failed to start the modules: %v", err)
+	}
+	t.Cleanup(func() { stop(); cancel() })
 
 	// Create HTTP handler
-	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, nil, bundles)
+	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, host, bundles)
 
 	// Return the handler instance
 	return handler

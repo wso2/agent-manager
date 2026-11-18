@@ -160,7 +160,7 @@ func (f *a2aFixture) seedAPIKey(t *testing.T, artifact models.ArtifactRef, name,
 		CreatedAt: time.Now(), UpdatedAt: time.Now(), ExpiresAt: expiresAt,
 	}
 	require.NoError(t, gwrepo.NewAPIKeyRepo(db.GetDB()).Upsert(&stored))
-	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM api_keys WHERE id = ?`, stored.UUID) })
+	t.Cleanup(func() { db.GetDB().Exec(`DELETE FROM mod_ai_gateway_api_keys WHERE id = ?`, stored.UUID) })
 	return stored
 }
 

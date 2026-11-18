@@ -26,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm/clause"
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
@@ -98,18 +97,6 @@ func ensureAgent(t *testing.T, ou, project, agent string) uuid.UUID {
 	return dbtest.Agent(t, gormDB, ou, p.ID, agent)
 }
 
-// newArtifact creates an artifact of kind in the organization and returns its id.
-func newArtifact(t *testing.T, ou, kind, handle string) uuid.UUID {
-	t.Helper()
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	a := models.Artifact{
-		UUID: uuid.Must(uuid.NewV7()), Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ou,
-		CreatedAt: now, UpdatedAt: now,
-	}
-	require.NoError(t, db.GetDB().Create(&a).Error)
-	return a.UUID
-}
-
 // seedAgent makes sure the agent and each named environment exist in the organization.
 func seedAgent(t *testing.T, ou, project, agent string, envs ...string) {
 	t.Helper()
@@ -145,43 +132,4 @@ func envWithID(t *testing.T, ou string, id uuid.UUID, name string) {
 	require.NoError(t, gormDB.Create(&models.Environment{
 		ID: id, OrgID: uuid.MustParse(ou), Name: name, DisplayName: name, CreatedAt: now, UpdatedAt: now,
 	}).Error)
-}
-
-// seedLLMProxy writes a provider and an LLM proxy of it in the organization's project "checkout", and returns the
-// proxy's handle and id.
-func seedLLMProxy(t *testing.T, ou string) (string, uuid.UUID) {
-	t.Helper()
-	gdb := db.GetDB()
-	providerID := newArtifact(t, ou, models.KindLLMProvider, "provider-"+uuid.NewString()[:8])
-	require.NoError(t, gdb.Create(&models.LLMProvider{
-		UUID: providerID, OrgID: ou, TemplateHandle: "openai", Status: "CREATED",
-	}).Error)
-	ensureAgent(t, ou, "checkout", "proxy-owner")
-	var project models.Project
-	require.NoError(t, gdb.Where("org_id = ? AND name = ?", ou, "checkout").Take(&project).Error)
-	handle := "proxy-" + uuid.NewString()[:8]
-	proxyID := newArtifact(t, ou, models.KindLLMProxy, handle)
-	require.NoError(t, gdb.Create(&models.LLMProxy{
-		UUID: proxyID, OrgID: ou, ProjectUUID: project.ID, ProviderUUID: providerID, Status: "deployed",
-	}).Error)
-	return handle, proxyID
-}
-
-// mapLLMProxyToAgent makes the proxy an agent's LLM configuration in the default environment, and returns the
-// configuration's and the environment's ids.
-func mapLLMProxyToAgent(t *testing.T, ou string, proxyID uuid.UUID) (uuid.UUID, uuid.UUID) {
-	t.Helper()
-	gdb := db.GetDB()
-	agentID := ensureAgent(t, ou, "checkout", "proxy-owner")
-	now := time.Now().UTC().Truncate(time.Microsecond)
-	cfg := models.AgentConfiguration{
-		UUID: uuid.Must(uuid.NewV7()), Name: "cfg-" + uuid.NewString()[:8], OUID: ou, AgentUUID: agentID, Type: "llm",
-		CreatedAt: now, UpdatedAt: now,
-	}
-	require.NoError(t, gdb.Omit(clause.Associations).Create(&cfg).Error)
-	envID := dbtest.Environment(t, gdb, ou)
-	require.NoError(t, gdb.Omit(clause.Associations).Create(&models.EnvAgentModelMapping{
-		ConfigUUID: cfg.UUID, EnvironmentUUID: envID, OrgID: ou, LLMProxyUUID: proxyID, CreatedAt: now,
-	}).Error)
-	return cfg.UUID, envID
 }

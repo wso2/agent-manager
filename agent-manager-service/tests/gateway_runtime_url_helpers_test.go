@@ -44,7 +44,7 @@ func runtimeURLTestTx(t *testing.T) *gorm.DB {
 func seedRuntimeURLGateway(t *testing.T, tx *gorm.DB, name string) uuid.UUID {
 	t.Helper()
 	gw := dbtest.GatewayIn(t, tx, dbtest.Org(t, tx), "both")
-	require.NoError(t, tx.Exec(`UPDATE gateways SET name = ?, display_name = ?, is_active = ?, runtime_url = NULL WHERE id = ?`,
+	require.NoError(t, tx.Exec(`UPDATE mod_ai_gateway_gateways SET name = ?, display_name = ?, is_active = ?, runtime_url = NULL WHERE id = ?`,
 		name, name, false, gw.UUID).Error)
 	return gw.UUID
 }
@@ -53,7 +53,7 @@ func seedRuntimeURLGateway(t *testing.T, tx *gorm.DB, name string) uuid.UUID {
 func runtimeURLOf(t *testing.T, tx *gorm.DB, id uuid.UUID) sql.NullString {
 	t.Helper()
 	var got sql.NullString
-	require.NoError(t, tx.Raw(`SELECT runtime_url FROM gateways WHERE id = ?`, id).Row().Scan(&got))
+	require.NoError(t, tx.Raw(`SELECT runtime_url FROM mod_ai_gateway_gateways WHERE id = ?`, id).Row().Scan(&got))
 	return got
 }
 
@@ -61,6 +61,6 @@ func runtimeURLOf(t *testing.T, tx *gorm.DB, id uuid.UUID) sql.NullString {
 func gatewayOrgOf(t *testing.T, tx *gorm.DB, id uuid.UUID) string {
 	t.Helper()
 	var org string
-	require.NoError(t, tx.Raw(`SELECT org_id FROM gateways WHERE id = ?`, id).Row().Scan(&org))
+	require.NoError(t, tx.Raw(`SELECT org_id FROM mod_ai_gateway_gateways WHERE id = ?`, id).Row().Scan(&org))
 	return org
 }

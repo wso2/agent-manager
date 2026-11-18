@@ -25,7 +25,7 @@ package aigateway
 
 import (
 	"context"
-	_ "embed"
+	"embed"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -103,8 +103,19 @@ var openAPI []byte
 // OpenAPI is the module's API document, at /m/ai-gateway.
 func (module) OpenAPI() []byte { return openAPI }
 
-func (module) Migrations() fs.FS { return nil }
-func (module) UI() fs.FS         { return nil }
+//go:embed migrations
+var migrations embed.FS
+
+// Migrations creates the module's tables (mod_ai_gateway_*), rendered from
+// schema/ by make schema.
+func (module) Migrations() fs.FS {
+	sub, err := fs.Sub(migrations, "migrations")
+	if err != nil {
+		panic(err)
+	}
+	return sub
+}
+func (module) UI() fs.FS { return nil }
 
 // built is the gateway built at startup; Activate provides its capabilities.
 var built atomic.Pointer[gwwire.Gateway]
@@ -121,6 +132,7 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
 	rt.Provide(agentgwv1.ID, gw.AgentGateway)
+	registerHooks(rt)
 	gwapi.RegisterRoutes(gwapi.NewModuleRouter(rt), gw)
 	gwapi.RegisterInternalRoutes(gwapi.NewModuleInternalRouter(rt), gw)
 	return nil

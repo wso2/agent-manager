@@ -206,7 +206,7 @@ func TestAgentMCPBindingTeardownDeletesInTheDeletingTransaction(t *testing.T) {
 		tx := f.hub.txs[len(f.hub.txs)-1]
 		require.NotNil(t, tx)
 		var count int64
-		require.NoError(t, tx.Raw(`SELECT count(*) FROM artifacts WHERE id = ?`, f.artifact).Scan(&count).Error)
+		require.NoError(t, tx.Raw(`SELECT count(*) FROM mod_ai_gateway_artifacts WHERE id = ?`, f.artifact).Scan(&count).Error)
 		artifactsSeen = append(artifactsSeen, count)
 	}
 	svc := &agentConfigurationService{db: db.GetDB(), mcpProxyService: f.svc, logger: slog.New(slog.DiscardHandler)}
@@ -260,7 +260,7 @@ func TestMCPSaveThatCannotRenderCommitsNothing(t *testing.T) {
 
 			assert.ErrorIs(t, err, utils.ErrInvalidInput)
 			var artifacts int64
-			require.NoError(t, db.GetDB().Table("artifacts").Where("handle LIKE ?", handle+"%").Count(&artifacts).Error)
+			require.NoError(t, db.GetDB().Table("mod_ai_gateway_artifacts").Where("handle LIKE ?", handle+"%").Count(&artifacts).Error)
 			assert.Zero(t, artifacts, "neither the proxy nor its environment artifact is committed")
 			assert.Len(t, f.hub.published, published, "no event")
 		})
@@ -323,9 +323,9 @@ func TestMCPBindingShowsDeployingUntilTheGatewayAcks(t *testing.T) {
 func (f *mcpFixture) bindingRows(t *testing.T) (environments, endpoints int64) {
 	t.Helper()
 	gormDB := db.GetDB()
-	require.NoError(t, gormDB.Table("mcp_proxy_endpoint_environments").
+	require.NoError(t, gormDB.Table("mod_ai_gateway_mcp_proxy_endpoint_environments").
 		Where("artifact_id = ?", f.artifact).Count(&environments).Error)
-	require.NoError(t, gormDB.Table("mcp_proxy_endpoints").
+	require.NoError(t, gormDB.Table("mod_ai_gateway_mcp_proxy_endpoints").
 		Where("id = ?", f.proxy.Endpoints[0].UUID).Count(&endpoints).Error)
 	return environments, endpoints
 }

@@ -61,7 +61,7 @@ type StoredAPIKey struct {
 
 // TableName returns the table name for the StoredAPIKey model
 func (StoredAPIKey) TableName() string {
-	return "api_keys"
+	return "mod_ai_gateway_api_keys"
 }
 
 // RotateAPIKeyRequest represents the optional parameters when rotating an API key

@@ -148,9 +148,9 @@ func (k *LLMProxyKind) UnplacedRecords(
 	agents, agentArgs := reconcile.UnplacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "m.environment_id",
 	}, models.EgressGatewayRoles, ouID, env)
-	q := db.DB(ctx).Table("agent_model_config_llm m").
+	q := db.DB(ctx).Table("mod_ai_gateway_agent_model_config_llm m").
 		Select("a.org_id, a.id AS artifact_id, a.handle, m.environment_id").
-		Joins("JOIN artifacts a ON a.id = m.llm_proxy_id").
+		Joins("JOIN mod_ai_gateway_artifacts a ON a.id = m.llm_proxy_id").
 		Where(agents, agentArgs...)
 	if artifact, environment, ok := strings.Cut(afterKey, "/"); ok {
 		q = dbx.After(q, []string{"a.id", "m.environment_id"}, []any{artifact, environment})
@@ -183,7 +183,7 @@ func (k *LLMProxyKind) PlacedOn(ctx context.Context, tx *gorm.DB, env, gateway u
 	agents, agentArgs := reconcile.PlacedCondition(reconcile.RecordColumns{
 		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "m.environment_id",
 	}, env, gateway)
-	return placedOn(ctx, tx, `SELECT 1 AS placed FROM agent_model_config_llm m JOIN artifacts a ON a.id = m.llm_proxy_id
+	return placedOn(ctx, tx, `SELECT 1 AS placed FROM mod_ai_gateway_agent_model_config_llm m JOIN mod_ai_gateway_artifacts a ON a.id = m.llm_proxy_id
 			WHERE `+agents, agentArgs)
 }
 

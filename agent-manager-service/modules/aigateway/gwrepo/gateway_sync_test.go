@@ -39,7 +39,7 @@ func seedArtifactOn(t *testing.T, p models.Placement, ouID, kind string) models.
 	require.NoError(t, NewArtifactRepo(gdb).Create(gdb, &models.Artifact{
 		UUID: artifactUUID, Handle: handle, Name: handle, Version: "v1.0", Kind: kind, OUID: ouID,
 	}))
-	t.Cleanup(func() { gdb.Exec(`DELETE FROM artifacts WHERE id = ?`, artifactUUID) })
+	t.Cleanup(func() { gdb.Exec(`DELETE FROM mod_ai_gateway_artifacts WHERE id = ?`, artifactUUID) })
 	return models.Placement{
 		ArtifactRef: models.ArtifactRef{OUID: ouID, ArtifactUUID: artifactUUID, Kind: kind, Handle: handle},
 		GatewayUUID: p.GatewayUUID,
