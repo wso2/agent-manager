@@ -87,8 +87,7 @@ func Initialize(core *wiring.AppParams, gatewayApplier gwsvc.GatewayConfigApplie
 	llmTemplateStore := gwsvc.NewLLMTemplateStore()
 	llmProviderTemplateService := gwsvc.NewLLMProviderTemplateService(llmProviderTemplateRepository, llmTemplateStore)
 	artifactRepository := ProvideArtifactRepository(db)
-	monitorLLMMappingRepository := gwrepo.NewMonitorLLMMappingRepository(db)
-	llmProviderService := gwsvc.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmTemplateStore, llmProxyRepository, artifactRepository, v, gatewayRepository, deploymentRepository, envAgentModelMappingRepository, monitorLLMMappingRepository, llmProviderAPIKeyService)
+	llmProviderService := gwsvc.NewLLMProviderService(db, llmProviderRepository, llmProviderTemplateRepository, llmTemplateStore, llmProxyRepository, artifactRepository, v, gatewayRepository, deploymentRepository, envAgentModelMappingRepository, llmProviderAPIKeyService)
 	llmProviderDeploymentService := gwsvc.NewLLMProviderDeploymentService(txRunner, deploymentRepository, llmProviderRepository, llmProviderTemplateRepository, gatewayRepository, gatewayEventsService, reconcileCore)
 	llmController := gwctl.NewLLMController(llmProviderTemplateService, llmProviderService, llmProxyService, llmProviderDeploymentService, llmProxyDeploymentService, artifactRepository, platformRepository)
 	llmDeploymentController := gwctl.NewLLMDeploymentController(llmProviderDeploymentService)
@@ -185,7 +184,7 @@ var repositoryProviderSet = wire.NewSet(
 	ProvideA2AProxyRepository,
 	ProvideArtifactRepository,
 	ProvideCatalogRepository,
-	ProvideAPIKeyRepository, gwrepo.NewAgentConfigurationRepository, gwrepo.NewEnvAgentModelMappingRepository, gwrepo.NewEnvAgentMCPMappingRepository, gwrepo.NewAgentEnvConfigVariableRepository, gwrepo.NewMonitorLLMMappingRepository, ProvideAIApplicationRepository, gwrepo.NewMCPProxyScopeRepository,
+	ProvideAPIKeyRepository, gwrepo.NewAgentConfigurationRepository, gwrepo.NewEnvAgentModelMappingRepository, gwrepo.NewEnvAgentMCPMappingRepository, gwrepo.NewAgentEnvConfigVariableRepository, ProvideAIApplicationRepository, gwrepo.NewMCPProxyScopeRepository,
 )
 
 var serviceProviderSet = wire.NewSet(gwsvc.NewA2ACardFetcher, gwsvc.NewA2ACardReconcilerService, gwsvc.NewConfiguredDeploymentTimeoutSweeper, gwsvc.NewA2AAgentCardService, ProvideTxRunner, gwsvc.NewAgentExposurePublisher, gwsvc.NewA2APublisher, gwsvc.NewA2AProxyService, ProvideA2AProxyHooks,

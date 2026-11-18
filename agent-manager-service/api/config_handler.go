@@ -46,8 +46,7 @@ func registerConfigRoutes(mux *http.ServeMux) {
 		// whether to report at all, rather than carrying a second flag of its
 		// own that could disagree with this one.
 		consoleAnalytics := growthanalytics.ConsoleEnabled(cfg.GrowthAnalytics)
-		// Events and monitor alerts need the event bus; the console hides
-		// them otherwise.
+		// Events need the event bus; the console hides them otherwise.
 		eventsOn := cfg.Events.Mode != config.EventsModeOff
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(spec.ConfigResponse{

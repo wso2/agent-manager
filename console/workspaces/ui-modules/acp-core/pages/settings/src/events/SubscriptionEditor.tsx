@@ -395,7 +395,7 @@ export function SubscriptionEditor({
             <SectionTitle
               hint={
                 target.scope === "agent"
-                  ? "The agent's events: builds, deployments, configuration, API keys, monitors and monitor runs."
+                  ? "The agent's events: builds, deployments, configuration and API keys."
                   : target.scope === "project"
                     ? "The project's events and those of every agent in it."
                     : "Any event in the organization, from projects, agents and shared resources."

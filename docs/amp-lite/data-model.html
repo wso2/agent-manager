@@ -29,7 +29,7 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 </style>
 </head>
 <body>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2880 2332" width="100%" role="img" aria-labelledby="dtitle ddesc">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2880 2334" width="100%" role="img" aria-labelledby="dtitle ddesc">
 <title id="dtitle">AMP Lite data model</title>
 <desc id="ddesc">Main tables of AMP Lite grouped into tenancy, agents, AI gateway, secrets, events, audit, and internals, with labelled relationships.</desc>
 <defs>
@@ -39,7 +39,7 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <marker id="arrowp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#ffffff" stroke="#7c3aed" stroke-width="1.5"/></marker>
 <marker id="arrowc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#0891b2"/></marker>
 </defs>
-<rect x="0" y="0" width="2880" height="2332" fill="#ffffff"/>
+<rect x="0" y="0" width="2880" height="2334" fill="#ffffff"/>
 <text x="30" y="52" class="title">AMP Lite data model</text>
 <text x="32" y="80" class="subtitle">WSO2 Agent Manager without OpenChoreo. One database holds everything the control plane manages; environments exist but stay hidden.</text>
 <rect x="1560" y="14" width="1290" height="112" rx="8" fill="#f8fafc" stroke="#cbd5e1"/>
@@ -82,7 +82,7 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2040" y="1344" class="aname" fill="#475569">INTERNALS (WORKERS)</text>
 <rect x="2022" y="1576" width="828" height="506" rx="14" fill="#f0fdfa" stroke="#0f766e" stroke-opacity="0.45" stroke-width="1.5"/>
 <text x="2040" y="1606" class="aname" fill="#0f766e">MODULE HOST</text>
-<rect x="30" y="2104" width="2820" height="198" rx="14" fill="#ffffff" stroke="#64748b" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="8 6"/>
+<rect x="30" y="2104" width="2820" height="200" rx="14" fill="#ffffff" stroke="#64748b" stroke-opacity="0.45" stroke-width="1.5" stroke-dasharray="8 6"/>
 <text x="48" y="2134" class="aname" fill="#64748b">NOT IN AMP LITE YET, OR KEPT OUTSIDE THIS DATABASE</text>
 <text x="320" y="438" class="anote">Every table carries org_id, and children point at parents through (org_id, parent id),</text>
 <text x="320" y="456" class="anote">so no row can reach another org's data.</text>
@@ -770,15 +770,15 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2064" y="2034"><tspan class="fkey">revoked_at</tspan></text>
 </g>
 <g class="card" id="card-d_eval">
-<rect x="60" y="2162" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<rect x="60" y="2162" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
 <text x="74" y="2186" class="ctitle" fill="#64748b">Evaluation</text>
 <text x="74" y="2200" class="ctable">monitors, runs, scores, evaluators, alerts,</text>
 <text x="74" y="2214" class="ctable">eval credentials</text>
-<text x="74" y="2236" class="cpurpose" fill="#64748b">Deferred. Credentials would move to secrets and gain</text>
-<text x="74" y="2252" class="cpurpose" fill="#64748b">an environment.</text>
+<text x="74" y="2236" class="cpurpose" fill="#64748b">Not in Lite; returns as a module. Its credentials</text>
+<text x="74" y="2252" class="cpurpose" fill="#64748b">would live in secrets.</text>
 </g>
 <g class="card" id="card-d_host">
-<rect x="444" y="2162" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<rect x="444" y="2162" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
 <text x="458" y="2186" class="ctitle" fill="#64748b">Hosted-agent runtime</text>
 <text x="458" y="2200" class="ctable">builds, deployments, env vars, resources,</text>
 <text x="458" y="2214" class="ctable">git credentials, agent kinds</text>
@@ -786,12 +786,12 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="458" y="2252" class="cpurpose" fill="#64748b">agents come to Lite.</text>
 </g>
 <g class="card" id="card-d_pmcp">
-<rect x="828" y="2162" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<rect x="828" y="2162" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
 <text x="842" y="2186" class="ctitle" fill="#64748b">Project MCP proxies</text>
 <text x="842" y="2208" class="cpurpose" fill="#64748b">Exposing a hosted agent's own MCP endpoint. Deferred.</text>
 </g>
 <g class="card" id="card-d_envs">
-<rect x="1212" y="2162" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<rect x="1212" y="2162" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
 <text x="1226" y="2186" class="ctitle" fill="#64748b">More environments</text>
 <text x="1226" y="2200" class="ctable">environment rows, deployment pipeline,</text>
 <text x="1226" y="2214" class="ctable">per-env Thunder</text>
@@ -799,21 +799,22 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="1226" y="2252" class="cpurpose" fill="#64748b">carry environment_id.</text>
 </g>
 <g class="card" id="card-o_thunder">
-<rect x="1626" y="2162" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<rect x="1626" y="2162" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
 <text x="1640" y="2186" class="ctitle" fill="#64748b">Thunder</text>
 <text x="1640" y="2200" class="ctable">own database</text>
 <text x="1640" y="2222" class="cpurpose" fill="#64748b">Issues agent identities. Ours stores only the IDs it</text>
 <text x="1640" y="2238" class="cpurpose" fill="#64748b">returns. One Thunder per install, set in config.</text>
 </g>
 <g class="card" id="card-o_obs">
-<rect x="2010" y="2162" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<rect x="2010" y="2162" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
 <text x="2024" y="2186" class="ctitle" fill="#64748b">Traces, logs, metrics</text>
-<text x="2024" y="2200" class="ctable">observability store</text>
-<text x="2024" y="2222" class="cpurpose" fill="#64748b">Agent traces, runtime and build logs, and metrics</text>
-<text x="2024" y="2238" class="cpurpose" fill="#64748b">live outside this database.</text>
+<text x="2024" y="2200" class="ctable">observability module (later)</text>
+<text x="2024" y="2222" class="cpurpose" fill="#64748b">Not stored in Lite. When observability returns as a</text>
+<text x="2024" y="2238" class="cpurpose" fill="#64748b">module, they live in its own store, not this</text>
+<text x="2024" y="2254" class="cpurpose" fill="#64748b">database.</text>
 </g>
 <g class="card" id="card-o_users">
-<rect x="2394" y="2162" width="360" height="110" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
+<rect x="2394" y="2162" width="360" height="112" rx="9" fill="#fafafa" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="7 5" filter="url(#shadow)"/>
 <text x="2408" y="2186" class="ctitle" fill="#64748b">Users and roles</text>
 <text x="2408" y="2200" class="ctable">config file</text>
 <text x="2408" y="2222" class="cpurpose" fill="#64748b">Console sign-in and role mapping come from a file.</text>

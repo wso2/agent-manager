@@ -47,7 +47,6 @@ const ampScopes = "amp:agent-identity:create amp:agent-identity:delete amp:agent
 	"amp:agent:token-manage amp:agent:update amp:catalog:read amp:data-plane:read " +
 	"amp:deployment-pipeline:create amp:deployment-pipeline:delete amp:deployment-pipeline:read amp:deployment-pipeline:update " +
 	"amp:environment:create amp:environment:delete amp:environment:read amp:environment:update " +
-	"amp:evaluator:create amp:evaluator:delete amp:evaluator:read amp:evaluator:update " +
 	"amp:gateway:create amp:gateway:delete amp:gateway:read amp:gateway:token-manage amp:gateway:update " +
 	"amp:git-secret:create amp:git-secret:delete amp:git-secret:read " +
 	"amp:group:create amp:group:delete amp:group:read amp:group:update " +
@@ -56,7 +55,7 @@ const ampScopes = "amp:agent-identity:create amp:agent-identity:delete amp:agent
 	"amp:llm-provider:delete amp:llm-provider:deploy amp:llm-provider:read amp:llm-provider:update " +
 	"amp:llm-proxy:api-key-manage amp:llm-proxy:create amp:llm-proxy:delete amp:llm-proxy:deploy amp:llm-proxy:read amp:llm-proxy:update " +
 	"amp:mcp-server:api-key-manage amp:mcp-server:configure-guardrail amp:mcp-server:connect amp:mcp-server:create amp:mcp-server:delete amp:mcp-server:read amp:mcp-server:update " +
-	"amp:monitor:create amp:monitor:delete amp:monitor:execute amp:monitor:read amp:monitor:score-publish amp:events:read amp:events:manage amp:monitor:score-read amp:monitor:update " +
+	"amp:events:read amp:events:manage " +
 	"amp:org:assign-role amp:org:invite-member amp:org:manage-idp amp:org:manage-service-account amp:org:modify-settings amp:org:remove-member amp:org:view " +
 	"amp:project:create amp:project:delete amp:project:read amp:project:update amp:repository:read " +
 	"amp:role:create amp:role:delete amp:role:read amp:role:update " +

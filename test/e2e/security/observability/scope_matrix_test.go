@@ -119,7 +119,3 @@ var _ = Describe("SEC-OBS-001: observability scope matrix", Label("security"), f
 		}
 	})
 })
-
-// The publisher-audience carve-out is covered separately by security/publisher:
-// it provisions a real amp-publisher-* OAuth client and verifies both Observer
-// trace-only confinement and Agent Manager's publisher-only ingestion route.

@@ -92,9 +92,8 @@ text("cl_lbl", 872, 244, 420, 20, "Docker Compose stack (docker compose up)", si
 
 pill("lb_cp", 350, 221, 440, "PORTS · console + API + MCP :9000 · ThunderID :8080")
 pill("egress", 1260, 221, 100, "EGRESS", fill="#7f1d1d")
-pill("lb_dp", 1400, 221, 610, "PORT :19080 · AI Gateway runtime · agent endpoints · trace ingest")
-pill("lb_op", 1560, 851, 360, "PORT :9098 · Agent Manager Observer · traces")
-for pid, x, y, w in (("lb_cp", 350, 221, 440), ("egress", 1260, 221, 100), ("lb_dp", 1400, 221, 610), ("lb_op", 1560, 851, 360)):
+pill("lb_dp", 1400, 221, 610, "PORT :19080 · AI Gateway runtime · agent endpoints")
+for pid, x, y, w in (("lb_cp", 350, 221, 440), ("egress", 1260, 221, 100), ("lb_dp", 1400, 221, 610)):
     reg(pid, x, y, w, 18)
 
 # ---------------------------------------------------------------- control plane
@@ -139,30 +138,21 @@ sub("init", 300, 745, 820, 62,
 # ---------------------------------------------------------------- data plane
 box("dp", 1180, 290, 860, 280, INDIGO, fill="#F5F5FF", arc=2)
 text("dp_lbl", 1200, 298, 820, 20, "DATA PLANE", size=13, color=INDIGO, bold=True, valign="middle")
-comp("gw", 1200, 330, 560, 220, INDIGO, "AI Gateway",
+comp("gw", 1200, 330, 820, 220, INDIGO, "AI Gateway",
      "• inbound: the public entry point for agent endpoints; API keys and OAuth tokens checked here<br/>"
      "• outbound: LLM and MCP proxy, guardrails, token and cost limits; provider keys stay in the gateway<br/>"
      "• gateway-controller pulls its config from Agent Manager; gateway-runtime (Envoy) serves the traffic",
      logos=[IMG["gw_logo0"]], prod="amp only · the gateway module registers the default gateway at startup · more per org", prod_color=INDIGO)
-comp("tracegw", 1780, 330, 240, 220, ORANGE, "Trace ingest",
-     "OTLP at /otel/v1/traces<br/>checks the agent token<br/>maps its organization, project and agent claims to "
-     "x-user-*-name headers<br/>forwards to the OTel Collector<br/>Agent Manager pushes this API to every gateway",
-     logos=[IMG["tracegw_logo0"]], prod="/otel API on the AI Gateway", prod_color=ORANGE)
 
-# ---------------------------------------------------------------- observability plane
-box("op", 1180, 610, 860, 210, ORANGE, fill="#FFF8EE", arc=2)
-text("op_lbl", 1200, 618, 820, 20, "OBSERVABILITY PLANE", size=13, color=ORANGE, bold=True, valign="middle")
-comp("observer", 1200, 646, 260, 140, ORANGE, "Agent Manager Observer",
-     "traces per agent for the console, CLI and AI assistants<br/>applies the otel-traces-* index template at startup",
-     logos=[IMG["observer_logo0"]], title_size=13)
-sub("tags", 1480, 646, 260, 140,
-    "<b>Tenant tags on every span</b><br/>agent token claims: organization · project · agent<br/>"
-    "↓ gateway headers: x-user-*-name<br/>↓ resource attributes: agent-manager/*<br/>"
-    "the observer filters queries on these",
-    ORANGE, "#FFF1DC")
-comp("collect", 1760, 646, 260, 140, ORANGE, "Collect",
-     "adds agent-manager/* attributes from the headers; writes spans to OpenSearch<br/>amp-core: agents send OTLP here on :4318",
-     logos=[IMG["collect_logo0"]], prod="OpenTelemetry Collector", prod_color=ORANGE)
+# ---------------------------------------------------------------- not in Lite
+box("later", 1180, 610, 860, 210, GREY, fill="#F8FAFC", arc=2, dashed=True)
+text("later_lbl", 1200, 618, 820, 20, "NOT IN AMP LITE", size=13, color="#64748b", bold=True, valign="middle")
+text("later_body", 1200, 650, 820, 150,
+     "No trace store, trace query service or evaluation runs in this stack. Agents may still be instrumented, "
+     "but nothing here receives or keeps their spans.<br/><br/>"
+     "Observability (trace ingest, storage and queries) and evaluation (evaluators, monitors, scores and alerts) "
+     "are planned to return as modules on the module host.",
+     size=12, color="#475569")
 
 # ---------------------------------------------------------------- backing services
 def backing(id, x, y, w, h, sub_text=""):
@@ -178,11 +168,6 @@ comp("sqldb", 54, 340, 172, 270, BLUE, "SQL database",
 comp("thdb", 54, 640, 172, 160, BLUE, "ThunderID data",
      "users, agent identities and OAuth clients<br/>Thunder's own database, separate from Agent Manager's",
      logos=[DB_ICON], logo_size=22, title_size=13)
-
-backing("bk_right", 2080, 590, 210, 230)
-comp("os", 2094, 630, 182, 180, "#005EB8", "OpenSearch",
-     "traces (otel-traces-* index)",
-     logos=[IMG["os_logo0"]], logo_size=22, title_size=13)
 
 
 # ---------------------------------------------------------------- flows
@@ -200,19 +185,11 @@ label("l_invoke", 1488, 270, 110, "invoke agents", INDIGO)
 edge("f_ext_lb", [(1740, 190), (1740, 221)], INDIGO, "a_ext", "lb_dp")
 edge("f_lb_gw2", [(1740, 239), (1740, 330)], INDIGO, "lb_dp", "gw")
 label("l_ext", 1610, 270, 124, "LLM &amp; MCP calls", INDIGO, align="right")
-edge("f_ext_lb_tr", [(1975, 190), (1975, 221)], ORANGE, "a_ext", "lb_dp")
-edge("f_lb_tgw", [(1975, 239), (1975, 330)], ORANGE, "lb_dp", "tracegw")
-label("l_ext_tr", 1870, 270, 98, "traces (OTLP)", ORANGE, align="right")
 
 edge("f_gw_eg", [(1310, 330), (1310, 239)], INDIGO, "gw", "egress")
 edge("f_eg_llm", [(1310, 221), (1310, 190)], INDIGO, "egress", "a_llm")
 edge("f_eg_ag", [(1350, 221), (1350, 204), (1700, 204), (1700, 190)], INDIGO, "egress", "a_ext")
 label("l_llm", 1318, 270, 150, "LLM · MCP · to agents", INDIGO)
-
-# trace views from the browser
-edge("f_team_lb3", [(1100, 110), (1100, 96), (2310, 96), (2310, 860), (1920, 860)], GREEN, "a_team", "lb_op")
-label("l_traceui", 2150, 74, 150, "trace views (browser)", GREEN)
-edge("f_lb_obs", [(1560, 860), (1160, 860), (1160, 740), (1200, 740)], GREEN, "lb_op", "observer")
 
 # control plane
 edge("f_api_gwcfg", [(1120, 440), (1200, 440)], GREEN, "amapi", "gw")
@@ -225,22 +202,13 @@ edge("f_api_db", [(300, 545), (226, 545)], BLUE, "amapi", "sqldb")
 label("l_data", 230, 527, 70, "read / write", BLUE)
 edge("f_th_db", [(300, 700), (226, 700)], BLUE, "thunder", "thdb")
 
-# telemetry
-edge("f_tgw_collect", [(1960, 550), (1960, 646)], ORANGE, "tracegw", "collect")
-label("l_fwd", 1730, 582, 222, "spans + x-user-*-name headers", ORANGE, align="right")
-edge("f_collect_os", [(2020, 700), (2094, 700)], BLUE, "collect", "os")
-label("l_write", 2026, 684, 50, "write", BLUE)
-edge("f_obs_os", [(1330, 786), (1330, 800), (2094, 800)], BLUE, "observer", "os")
-label("l_query", 1480, 803, 140, "query traces", BLUE)
-
 # ---------------------------------------------------------------- legend
-box("legend", 280, 900, 2010, 130, "#cbd5e1", arc=4, sw=1)
+box("legend", 280, 900, 2010, 100, "#cbd5e1", arc=4, sw=1)
 text("lg_title", 296, 908, 200, 18, "Flows", size=12, color="#0f172a", bold=True, valign="middle")
 LG = [
     (GREEN, False, "manage, configure"),
     (RED, True, "identity · single sign-on · agent identities"),
     (INDIGO, False, "agent traffic"),
-    (ORANGE, False, "telemetry (traces)"),
     (BLUE, False, "data reads / writes"),
 ]
 cols = [296, 796, 1296, 1796]
@@ -249,12 +217,12 @@ for i, (c, d, t) in enumerate(LG):
     y = 948 if i < 4 else 978
     edge(f"lg_e{i}", [(x, y), (x + 34, y)], c, dashed=d)
     text(f"lg_t{i}", x + 42, y - 8, 226, 16, t, size=11, color="#0f172a", valign="middle")
-pill("lg_lb", 296, 1002, 120, "PORT")
-text("lg_lb_t", 424, 1002, 1100, 18,
+pill("lg_lb", 296, 972, 120, "PORT")
+text("lg_lb_t", 424, 972, 1100, 18,
      "a published host port: each service listens on its own port; no ingress, load balancer or reverse proxy",
      size=11, color="#0f172a", valign="middle")
 
-text("footer", 40, 1050, 2250, 20,
+text("footer", 40, 1020, 2250, 20,
      "AMP Lite (WSO2 Agent Manager without OpenChoreo) as it runs in development today; not production-ready. "
      "Agents run outside the stack and are registered as external agents; each organization has one internal default environment. "
      "amp-core (make up-core) runs without the data plane. "

@@ -25,9 +25,9 @@ type LLMProviderConsumerItem struct {
 	ProxyName string `json:"proxyName"`
 	// Name of the project the proxy belongs to
 	ProjectName string `json:"projectName"`
-	// Whether the consumer is an agent or a monitor
+	// The kind of consumer; always an agent
 	ConsumerType string `json:"consumerType"`
-	// Name (handle) of the agent or monitor consuming the proxy
+	// Name (handle) of the agent consuming the proxy
 	ConsumerName string `json:"consumerName"`
 }
 

@@ -184,7 +184,7 @@ func TestCreateApp_SendsRequiredApplicationConfiguration(t *testing.T) {
 		require.Equal(t, http.MethodPost, r.Method)
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&gotBody))
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"clientId": "amp-publisher-acme", "clientSecret": "s3cret"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"clientId": "amp-app-acme", "clientSecret": "s3cret"})
 	})
 	server := httptest.NewServer(mux)
 	defer server.Close()
@@ -193,9 +193,9 @@ func TestCreateApp_SendsRequiredApplicationConfiguration(t *testing.T) {
 	tc, ok := client.(*thunderClient)
 	require.True(t, ok)
 
-	clientID, clientSecret, err := tc.createApp(context.Background(), "test-token", "amp-publisher-acme", "ou-1")
+	clientID, clientSecret, err := tc.createApp(context.Background(), "test-token", "amp-app-acme", "ou-1")
 	require.NoError(t, err)
-	assert.Equal(t, "amp-publisher-acme", clientID)
+	assert.Equal(t, "amp-app-acme", clientID)
 	assert.Equal(t, "s3cret", clientSecret)
 	assert.Equal(t, "m2m", gotBody["type"], "type is required by ThunderID 1.0.0-alpha2 and must be sent on every application create")
 

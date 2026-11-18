@@ -382,7 +382,7 @@ DW = 360
 dx = 60
 deferred = [
     ("d_eval", "Evaluation", "monitors, runs, scores, evaluators, alerts, eval credentials",
-     "Deferred. Credentials would move to secrets and gain an environment."),
+     "Not in Lite; returns as a module. Its credentials would live in secrets."),
     ("d_host", "Hosted-agent runtime", "builds, deployments, env vars, resources, git credentials, agent kinds",
      "Lite only connects external agents. Added if hosted agents come to Lite."),
     ("d_pmcp", "Project MCP proxies", "",
@@ -396,8 +396,8 @@ for key, t, tb, p in deferred:
 outside = [
     ("o_thunder", "Thunder", "own database",
      "Issues agent identities. Ours stores only the IDs it returns. One Thunder per install, set in config."),
-    ("o_obs", "Traces, logs, metrics", "observability store",
-     "Agent traces, runtime and build logs, and metrics live outside this database."),
+    ("o_obs", "Traces, logs, metrics", "observability module (later)",
+     "Not stored in Lite. When observability returns as a module, they live in its own store, not this database."),
     ("o_users", "Users and roles", "config file",
      "Console sign-in and role mapping come from a file. Tables refer to users by username."),
 ]

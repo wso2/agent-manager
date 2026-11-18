@@ -83,7 +83,6 @@ type SubscriptionCounts map[uuid.UUID]map[string]int
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/event_repository_mock.go . EventRepository:EventRepositoryMock
 type EventRepository interface {
-	MonitorAlertWants(ctx context.Context, ouID string, alertID, destinationID uuid.UUID, project, agent string) (bool, error)
 	ListDestinations(ctx context.Context, ouID string) ([]models.EventDestination, error)
 	// GetDestination returns the org's destination with id, or
 	// gorm.ErrRecordNotFound.
@@ -1135,9 +1134,4 @@ func (r *eventRepository) FailStaleDeliveries(ctx context.Context, cutoff time.T
 func (r *eventRepository) PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error) {
 	res := r.db.WithContext(ctx).Where("created_at < ?", cutoff.UTC()).Delete(&models.EventDelivery{})
 	return res.RowsAffected, res.Error
-}
-
-// MonitorAlertWants is always false: Lite runs no monitors, so no alert sends to a destination.
-func (r *eventRepository) MonitorAlertWants(context.Context, string, uuid.UUID, uuid.UUID, string, string) (bool, error) {
-	return false, nil
 }

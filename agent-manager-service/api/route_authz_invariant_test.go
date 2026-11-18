@@ -87,8 +87,6 @@ func (r routeRegistration) String() string {
 // and pattern: replacing an exempt route while keeping the same number of raw
 // registrations must not silently inherit the old exemption.
 var unguardedRouteAllowlist = map[routeKey]string{
-	{"RegisterMonitorPublisherRoutes", "HandleFuncWithValidation", "POST /publisher/monitors/{monitorId}/runs/{runId}/scores"}: "POST /publisher/.../scores is guarded by jwtassertion.PublisherClientAuthMiddleware, " +
-		"which requires an amp-publisher-* audience instead of an amp: scope.",
 	{"RegisterWebSocketRoutes", "HandleFunc", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is on internalMux and authenticates the gateway with an " +
 		"api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",
@@ -183,10 +181,6 @@ func TestSecurityInvariantEveryRouteIsAuthorized(t *testing.T) {
 // is enforced when the API has no such check. Each entry below must say where
 // the boundary actually lives, or admit that it does not exist.
 var declaredButUnenforcedPermissions = map[string]string{
-	// --- Enforced by a different mechanism ---------------------------------
-	"MonitorScorePublish": "the publisher route uses PublisherClientAuthMiddleware (audience check) " +
-		"rather than a scope check; the permission is granted to roles but never consulted",
-
 	// --- NOT ENFORCED ANYWHERE ---------------------------------------------
 	// These gate nothing today. Each one is a gap between the role matrix in
 	// rbac/predefined_roles.go and what the API actually checks. Removing an
@@ -375,7 +369,7 @@ func TestSecurityInvariantNamingConventionHolds(t *testing.T) {
 var orgScopedPackages = []string{
 	".", filepath.Join("..", "controllers"),
 	filepath.Join("..", "modules", "gateway", "gwapi"), filepath.Join("..", "modules", "gateway", "gwctl"),
-	filepath.Join("..", "modules", "legacy", "legacyapi"), filepath.Join("..", "modules", "legacy", "evaluators"),
+	filepath.Join("..", "modules", "legacy", "legacyapi"),
 }
 
 // TestSecurityInvariantHandlersNeverReadOrgFromPath enforces the token-trust model: the org a

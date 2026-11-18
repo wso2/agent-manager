@@ -283,8 +283,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
-	// Lite runs no evaluation monitors, so the monitor scheduler is never started.
-
 	// Start the AgentID provisioning retry reconciler, but only when provisioning
 	// is enabled — otherwise there is nothing to reconcile.
 	agentThunderReconcilerCtx, agentThunderReconcilerCancel := context.WithCancel(backgroundCtx)
@@ -514,8 +512,7 @@ func setupLogger(cfg *config.Config) {
 }
 
 // startEvents sets up the event bus, retrying until it answers, then starts
-// the publisher and the event dispatcher. Lite runs no monitors, so monitor
-// alerting is not started. A no-op with events off.
+// the publisher and the event dispatcher. A no-op with events off.
 func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 	done := make(chan struct{})
 	if deps.EventBus == nil {

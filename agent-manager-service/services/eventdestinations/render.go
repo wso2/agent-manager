@@ -36,7 +36,7 @@ type Text struct {
 
 // dataNameKeys are the event data fields that name what the event is about,
 // in the order they are tried.
-var dataNameKeys = []string{"displayName", "name", "agentName", "monitorName", "projectName"}
+var dataNameKeys = []string{"displayName", "name", "agentName", "projectName"}
 
 // Render turns the CloudEvent in msg into Text. It never fails: a body that is
 // not a CloudEvent is rendered from msg's type alone.
@@ -48,26 +48,7 @@ func Render(msg Message) Text {
 
 	var lines []string
 	data, _ := evt.Data.(map[string]any)
-	if strings.HasPrefix(name, "monitor.alert.") {
-		if s, ok := data["title"].(string); ok && s != "" {
-			title = s
-		}
-		if s, ok := data["body"].(string); ok && s != "" {
-			lines = append(lines, s)
-		}
-		if monitor, ok := data["monitor"].(map[string]any); ok {
-			monitorName, _ := monitor["monitorDisplayName"].(string)
-			if monitorName == "" {
-				monitorName, _ = monitor["monitorName"].(string)
-			}
-			if monitorName != "" {
-				lines = append(lines, "Monitor: "+monitorName)
-			}
-			if runID, ok := monitor["runId"].(string); ok && runID != "" {
-				lines = append(lines, "Run: "+runID)
-			}
-		}
-	} else if s, ok := data["message"].(string); ok && s != "" {
+	if s, ok := data["message"].(string); ok && s != "" {
 		lines = append(lines, s)
 	} else if def, ok := events.Lookup(name); ok && def.Description != "" {
 		lines = append(lines, def.Description)

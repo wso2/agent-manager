@@ -87,7 +87,7 @@ The relevant env vars on `amp-api` are already set in `deployments/standalone/do
 - SERVER_PUBLIC_URL=http://localhost:9000
 - OAUTH_AUTHORIZATION_SERVERS=http://thunder.amp.localhost:8080
 - KEY_MANAGER_ISSUER=Agent Management Platform Local,http://thunder.amp.localhost:8080
-- KEY_MANAGER_AUDIENCE=urn:wso2:amp,localhost,amp-publisher-*,amp-api-client,amp-console-client,amctl,am-mcp,http://localhost:9000/mcp
+- KEY_MANAGER_AUDIENCE=urn:wso2:amp,localhost,amp-api-client,amp-console-client,amctl,am-mcp,http://localhost:9000/mcp
 ```
 
 The OAuth client itself comes from `ampinit/templates/thunder/bootstrap/59-am-mcp-client.yaml`, rendered by `amp init thunder`.

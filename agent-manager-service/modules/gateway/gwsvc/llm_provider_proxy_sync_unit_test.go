@@ -113,7 +113,7 @@ func newProxySyncFixture(t *testing.T) *proxySyncFixture {
 	encryptionKey := make([]byte, 32)
 	apiKeySvc := NewLLMProviderAPIKeyService(providerRepo, gatewayRepo, NewGatewayEventsService(&stubEventHub{}), apiKeyRepo)
 	f.svc = NewLLMProviderService(nil, providerRepo, nil, nil, f.proxyRepo, nil, encryptionKey, gatewayRepo, f.deployRepo,
-		nil, nil, apiKeySvc)
+		nil, apiKeySvc)
 	f.proxySvc = NewLLMProxyService(f.proxyRepo, providerRepo, encryptionKey)
 	f.deploySvc = NewLLMProxyDeploymentService(nil, f.deployRepo, f.proxyRepo, providerRepo, gatewayRepo, nil, core, kind)
 	return f

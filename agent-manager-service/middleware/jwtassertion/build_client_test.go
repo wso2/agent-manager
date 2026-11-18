@@ -67,7 +67,7 @@ func TestBuildClientOrg(t *testing.T) {
 		},
 		{
 			name:   "another client of the same organization",
-			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "amp-publisher-" + buildTestOrg},
+			claims: &TokenClaims{OuId: buildTestOrg, ClientID: "amp-other-" + buildTestOrg},
 			want:   "",
 		},
 		{

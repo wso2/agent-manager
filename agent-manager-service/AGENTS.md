@@ -2,7 +2,7 @@
 
 Go control-plane API. Layered **controller → service → repository**, wired with `wire`. Request/response types and mocks are **generated** — never hand-edited.
 
-The core (orgs, projects, environments, agents, identity, tokens, events) lives in the top-level packages below and imports no module. The AI Gateway (gateways, LLM and MCP proxies, A2A, agent API keys, agent identities) is the built-in `gateway` module under `modules/gateway/`, with the same layers in `gwapi/`, `gwctl/`, `gwsvc/`, `gwrepo/` and `gwwire/`; it plugs into the server through `builtin/` and reaches the core's agent lifecycle through the capabilities in `modkit/contracts/`. Routes this version does not serve (answering 501) and the evaluator catalog are the `legacy` module's (`modules/legacy/`). `cmd/amp` links every module; `cmd/amp-core` links none.
+The core (orgs, projects, environments, agents, identity, tokens, events) lives in the top-level packages below and imports no module. The AI Gateway (gateways, LLM and MCP proxies, A2A, agent API keys, agent identities) is the built-in `gateway` module under `modules/gateway/`, with the same layers in `gwapi/`, `gwctl/`, `gwsvc/`, `gwrepo/` and `gwwire/`; it plugs into the server through `builtin/` and reaches the core's agent lifecycle through the capabilities in `modkit/contracts/`. Routes this version does not serve (answering 501) are the `legacy` module's (`modules/legacy/`). `cmd/amp` links every module; `cmd/amp-core` links none.
 
 ## File map
 
@@ -126,7 +126,7 @@ Generated files are checked in and **never hand-edited**. Regenerate and commit 
 - **Errors** — map the specific sentinel (`gorm.ErrRecordNotFound` → `utils.ErrXxxNotFound`); wrap everything else `fmt.Errorf("...: %w", err)`. Never flatten an unexpected error into not-found; never silently fall back to a default on a non-not-found error. Compare sentinels with `errors.Is`, never `==` or string match.
 - **Context** — every I/O method takes `context.Context` first and propagates it. HTTP clients use `NewRequestWithContext`.
 - **Org scoping** — always set `org_id` from the caller's token (Thunder OU ID / `ouID`), never from the request path or body. Missing tenant identity is an error, not a wildcard. Every org-scoped table maps the tenant column as `ou_id`.
-- **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. Organizations, projects, the per-org `default` environment and agents live in `repositories.PlatformRepository`. ThunderID addressing uses one configured org name (`AMP_ORG_NAMESPACE`, default `"default"`, `config.OrgNamespace`); traces are scoped by the agent token's `organization` claim.
+- **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. Organizations, projects, the per-org `default` environment and agents live in `repositories.PlatformRepository`. ThunderID addressing uses one configured org name (`AMP_ORG_NAMESPACE`, default `"default"`, `config.OrgNamespace`); the gateway's trace ingest, when enabled, scopes spans by the agent token's `organization` claim.
 - **Concurrency** — never hold a lock across I/O. Atomic upserts (`ON CONFLICT`), not read-then-write. Serialize expensive side effects per-key, not globally.
 - **Config** — validate at startup, not first use; check co-dependent values together.
 - **Observability** — log with correlation context (org, resource ID, request ID). Debug = hot paths, Info = rare events, Error = destructive ops.
@@ -197,12 +197,12 @@ platform := &repomocks.PlatformRepositoryMock{
 }
 ```
 
-- In-package interfaces (`MonitorExecutor`, `PublisherCredentialProvisioner`) have **no** generated mock — hand-write a func-field stub in the test file, same `<Method>Func` shape.
+- In-package interfaces without a `//go:generate moq` directive have **no** generated mock — hand-write a func-field stub in the test file, same `<Method>Func` shape.
 
 ## Shared test helpers — reuse, don't redeclare (duplicate = compile error)
 
 - `strPtr(s string) *string` — in `llm_deployment_service_test.go`.
-- `discardLogger() *slog.Logger` — in `evaluator_manager_unit_test.go`.
+- `discardLogger() *slog.Logger` — in `helpers_test.go`.
 
 If your helper name also exists in an `integration`-tagged file, they collide only under `-tags=integration`; give the unit-tier copy a distinct name (e.g. `intPtrU`) rather than editing the integration file.
 

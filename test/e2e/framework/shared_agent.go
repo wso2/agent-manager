@@ -31,7 +31,6 @@ const E2EProjectPrefix = "e2e-test-"
 const E2EAgentPrefix = "e2e-test-agent-"
 const E2ELLMProviderPrefix = "e2e-test-llm-provider-"
 const E2EMCPProxyPrefix = "e2e-test-mcp-proxy-"
-const E2EMonitorPrefix = "e2e-test-mon-monitor-"
 
 // TestMCPServerURL is a public, always-on upstream MCP "everything" server used
 // as the proxy upstream by the MCP e2e tests (proxy lifecycle, invocation, and

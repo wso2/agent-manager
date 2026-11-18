@@ -37,9 +37,6 @@ const (
 
 	// EventFanoutConsumer is the durable consumer the event dispatcher reads.
 	EventFanoutConsumer = "event-fanout"
-	// MonitorAlertFanoutConsumer is the durable consumer the monitor alert
-	// processor reads.
-	MonitorAlertFanoutConsumer = "monitor-alert-fanout"
 
 	streamMaxAge = 72 * time.Hour
 	// natsAckWait is how long a handler has before an unanswered message is
@@ -67,7 +64,7 @@ const EventMaxDeliver = 20
 // consumer is listed together with the worker that reads it: one created
 // with no reader would hold every event until that worker ships, then
 // deliver up to streamMaxAge of them at once.
-var provisionedConsumers = []string{EventFanoutConsumer, MonitorAlertFanoutConsumer}
+var provisionedConsumers = []string{EventFanoutConsumer}
 
 // natsQueues maps work queue names to their JetStream streams and subjects.
 // A queue's subjects must stay outside amp.events.>, which AMP_EVENTS

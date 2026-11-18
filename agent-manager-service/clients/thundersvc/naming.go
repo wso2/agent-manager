@@ -342,9 +342,8 @@ const (
 
 // AgentThunderAppName returns the OAuth app name to use in Thunder for a per-agent client.
 // Format: amp-agent-<org>-<env>-<project>-<agent>, truncated to 100 chars with a
-// collision-safe hash suffix (see ThunderReleaseName). The name mirrors
-// amp-publisher-<org> but is fully scoped to env + project + agent to avoid
-// collisions.
+// collision-safe hash suffix (see ThunderReleaseName). The name is fully
+// scoped to env + project + agent to avoid collisions.
 //
 // env is included even though each env already has its own physically separate
 // Thunder instance (so it isn't needed for uniqueness there): without it, every
