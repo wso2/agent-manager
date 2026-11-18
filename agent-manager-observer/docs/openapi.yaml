@@ -854,6 +854,7 @@ components:
             - type: string
             - type: object
             - type: array
+              maxItems: 10000
               items: {}
         output:
           nullable: true
