@@ -115,11 +115,15 @@ func TestObservabilityModule(t *testing.T) {
 			TraceID: "trace-a", SpanCount: 2, RootSpanID: "root", RootSpanName: "invoke_agent support",
 			StartTime: start, EndTime: end, DurationNs: end.Sub(start).Nanoseconds(),
 		},
-		store.SpanDetails{SpanID: "root", SpanName: "invoke_agent support", StartTime: start, EndTime: end,
+		store.SpanDetails{
+			SpanID: "root", SpanName: "invoke_agent support", StartTime: start, EndTime: end,
 			DurationNs: end.Sub(start).Nanoseconds(), Status: &store.SpanStatus{Code: "Ok"},
-			ResourceAttributes: map[string]any{"agent-manager/agent": agent}},
-		store.SpanDetails{SpanID: "llm", ParentSpanID: "root", SpanName: "chat gpt-4o", StartTime: start, EndTime: end,
-			Status: &store.SpanStatus{Code: "Error", Message: "rate limited"}, Attributes: map[string]any{"gen_ai.request.model": "gpt-4o"}},
+			ResourceAttributes: map[string]any{"agent-manager/agent": agent},
+		},
+		store.SpanDetails{
+			SpanID: "llm", ParentSpanID: "root", SpanName: "chat gpt-4o", StartTime: start, EndTime: end,
+			Status: &store.SpanStatus{Code: "Error", Message: "rate limited"}, Attributes: map[string]any{"gen_ai.request.model": "gpt-4o"},
+		},
 	)
 
 	window := url.Values{
