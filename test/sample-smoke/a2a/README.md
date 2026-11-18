@@ -33,5 +33,5 @@ Agent Manager; see [../README.md](../README.md).
 python3.11 -m unittest discover -s test/sample-smoke/a2a -p 'test_*.py' -v
 ```
 
-These reject failed/protocol-error tasks, missing/wrong artifacts, stale or
-and partial model evidence.
+These reject failed/protocol-error tasks, missing/wrong artifacts, and stale or
+partial model evidence.

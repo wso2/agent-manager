@@ -69,7 +69,7 @@ export async function listAgents(params, query, getToken) {
 }
 ```
 - HTTP helpers are `httpGET/POST/PUT/PATCH/DELETE` from `shared/utils` — they read `globalConfig.apiBaseUrl` and set the `Authorization: Bearer` header. Do not hand-roll `fetch`.
-- `SERVICE_BASE = '/api/v1'`; the observability service uses `OBS_SERVICE_BASE = '/api'` (`utils/utils.ts`).
+- `SERVICE_BASE = '/api/v1'` (`utils/utils.ts`). Observer calls go through `httpGETObserver`, which needs a trace service URL set with `setObserverBaseUrl`; nothing sets it while the stack runs no trace service.
 
 **`hooks/<resource>.ts`** — wrap with `useApiQuery` / `useApiMutation` (not raw `useQuery`/`useMutation`):
 ```ts

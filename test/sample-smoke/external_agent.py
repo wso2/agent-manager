@@ -4,8 +4,9 @@ The sample runs on this machine from the checkout, under `amp-instrument` from
 libs/amp-instrumentation (so the PR's instrumentation is what gets exercised),
 against a local model stub. Agent Manager registers it as an external agent and
 issues its API key; the run passes once the model stub has seen this
-invocation's full round trip. Agent Manager stores no traces, so the sample's
-spans go to a local sink that accepts and drops them.
+invocation's full round trip and the sample has exported spans with that key.
+Agent Manager stores no traces, so the spans go to a local sink that checks the
+key header and drops them.
 
 Each sample's platform_smoke.py describes how to start it (an ExternalSample)
 and calls run().
@@ -100,34 +101,37 @@ def free_port():
         return sock.getsockname()[1]
 
 
-def group_alive(pgid):
+def signal_group(pgid, sig):
+    """Signal a process group; False once nothing signalable is left in it.
+
+    macOS answers EPERM for a group whose remaining members are zombies or
+    belong to someone else, so that counts as gone too.
+    """
     try:
-        os.killpg(pgid, 0)
-    except ProcessLookupError:
+        os.killpg(pgid, sig)
+    except (ProcessLookupError, PermissionError):
         return False
-    except PermissionError:
-        return True
     return True
 
 
 def stop_process(process):
+    # The group id is the leader's pid. It is probed while the leader is
+    # still unreaped where possible, and only for a few seconds after, so a
+    # recycled pid is not a practical concern.
+    pgid = process.pid
     if process.poll() is None:
-        os.killpg(process.pid, signal.SIGTERM)
+        signal_group(pgid, signal.SIGTERM)
         try:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:
-            os.killpg(process.pid, signal.SIGKILL)
+            signal_group(pgid, signal.SIGKILL)
             process.wait(timeout=5)
     # A wrapper such as amp-instrument can exit before the app it started,
     # which is still flushing spans; wait for the whole group.
     deadline = time.monotonic() + 10
-    while group_alive(process.pid) and time.monotonic() < deadline:
+    while signal_group(pgid, 0) and time.monotonic() < deadline:
         time.sleep(0.2)
-    if group_alive(process.pid):
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+    signal_group(pgid, signal.SIGKILL)
 
 
 @contextlib.contextmanager
@@ -173,6 +177,8 @@ class _SpanSink(BaseHTTPRequestHandler):
     def do_POST(self):
         self.rfile.read(int(self.headers.get("Content-Length", 0)))
         self.server.exports += 1
+        if self.server.key and self.headers.get("x-amp-api-key") == self.server.key:
+            self.server.keyed_exports += 1
         self.send_response(200)
         self.send_header("Content-Type", "application/x-protobuf")
         self.send_header("Content-Length", "0")
@@ -183,14 +189,16 @@ class _SpanSink(BaseHTTPRequestHandler):
 
 
 @contextlib.contextmanager
-def span_sink():
+def span_sink(key=""):
     """An OTLP/HTTP endpoint that accepts spans and drops them, yielding the server.
 
-    The instrumentation needs an endpoint to export to, and one that refuses
-    spans would fill the application log with export errors.
+    It counts every export, and in keyed_exports those that carried key in
+    the x-amp-api-key header, as the instrumentation sends it.
     """
     server = ThreadingHTTPServer(("127.0.0.1", 0), _SpanSink)
+    server.key = key
     server.exports = 0
+    server.keyed_exports = 0
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -227,7 +235,7 @@ def run(args, sample: ExternalSample):
             print(f"==> {phase}", flush=True)
             model_url = stack.enter_context(sample.model())
             service_env = sample.services(stack, reports) if sample.services else {}
-            sink = stack.enter_context(span_sink())
+            sink = stack.enter_context(span_sink(token))
 
             phase = "application startup"
             print(f"==> {phase}", flush=True)
@@ -252,11 +260,17 @@ def run(args, sample: ExternalSample):
             (reports / "model-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
             sample.check_evidence(evidence, marker)
         # The app has stopped and flushed by now, and the sink was still
-        # listening while it did. The count is diagnostic: zero fails nothing.
-        (reports / "result.json").write_text(json.dumps({"response": result, "spanExports": sink.exports},
-                                                        indent=2, default=str) + "\n")
+        # listening while it did.
+        phase = "span export"
+        (reports / "result.json").write_text(json.dumps(
+            {"response": result, "spanExports": sink.exports, "keyedSpanExports": sink.keyed_exports},
+            indent=2, default=str) + "\n")
+        if not sink.keyed_exports:
+            raise AssertionError(f"the sample exported no spans with its API key "
+                                 f"({sink.exports} exports without it)")
         how = "under amp-instrument" if sample.auto_instrument else "with its own exporter"
-        print(f"PASS: external agent registered; local app {how} → model round trip")
+        print(f"PASS: external agent registered; local app {how} → model round trip → "
+              f"{sink.keyed_exports} span exports with the agent's key")
     except BaseException:
         print(f"FAIL: {phase}; reports: {reports}", file=sys.stderr)
         for log in ("install.log", "application.log"):

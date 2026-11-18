@@ -46,6 +46,7 @@ jobs:
   resolve-heavy-shards:
     runs-on:
       - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    if: ${{ vars.AMP_MATRIX_HEAVY_TIER == 'true' }}
     outputs:
       versions: ${{ steps.shards.outputs.versions }}
     steps:
@@ -63,6 +64,10 @@ jobs:
     # GitHub-hosted: the job runs the Docker Compose stack and the cell agents.
     runs-on: ubuntu-latest
     needs: [full-emission-matrix, resolve-heavy-shards]
+    # Off unless the AMP_MATRIX_HEAVY_TIER repository variable is "true": the
+    # heavy tier reads each cell's spans back from the observer, which the
+    # standalone stack no longer runs. Turn it back on with the trace module.
+    if: ${{ vars.AMP_MATRIX_HEAVY_TIER == 'true' }}
     # One shard per Traceloop version, each on its own stack: a new release
     # adds a parallel shard instead of lengthening one serial run, and a
     # wedged stack only fails its own shard's cells.
@@ -278,10 +283,13 @@ jobs:
     permissions:
       contents: read
       issues: write   # opens/updates the failure-tracking issue
+    # !cancelled(): the skipped heavy tier must not skip this job too.
     if: |
-      needs.publish-matrix-summary.outputs.has_failures == 'true' ||
-      needs.full-emission-matrix.result == 'failure' ||
-      needs.heavy-tier.result == 'failure'
+      !cancelled() && (
+        needs.publish-matrix-summary.outputs.has_failures == 'true' ||
+        needs.full-emission-matrix.result == 'failure' ||
+        needs.heavy-tier.result == 'failure'
+      )
     outputs:
       issue_url: ${{ steps.issue.outputs.url }}
     steps:

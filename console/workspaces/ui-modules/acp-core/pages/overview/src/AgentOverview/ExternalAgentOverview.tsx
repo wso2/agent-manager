@@ -25,7 +25,7 @@ import {
   usePipelineEnvironmentsState,
   UppercaseCaptionLabel,
 } from "@agent-management-platform/shared-component";
-import { InstrumentationDrawer } from "./InstrumentationDrawer";
+import { SetupAgentDrawer } from "./SetupAgentDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
 import { EnvironmentSectionsContent } from "./EnvironmentSectionsContent";
 import { EnvironmentSingleHeader } from "./EnvironmentSingleHeader";
@@ -141,12 +141,9 @@ export const ExternalAgentOverview = () => {
           )
         )}
       </Box>
-      {/* No tracing guide: nothing in this deployment ingests traces, so the
-          drawer offers only the agent's API key. */}
-      <InstrumentationDrawer
+      <SetupAgentDrawer
         open={searchParams.get("setup") === "true" && selectedEnvironmentId !== ""}
         onClose={closeSetupDrawer}
-        agentId={agentId ?? ""}
         orgName={orgId ?? "default"}
         projName={projectId ?? "default"}
         agentName={agentId ?? ""}

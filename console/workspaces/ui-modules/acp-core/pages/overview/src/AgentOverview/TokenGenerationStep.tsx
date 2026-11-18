@@ -31,12 +31,10 @@ interface TokenGenerationStepProps {
   projName: string;
   agentName: string;
   environment?: string;
-  onTokenGenerated: (token: string) => void;
+  onTokenGenerated?: (token: string) => void;
   // When true, mint a token once automatically on first open (right after agent creation).
   // Subsequent opens require an explicit Generate click.
   autoGenerate?: boolean;
-  // What to say before a token exists.
-  hint?: string;
 }
 
 export const TokenGenerationStep = ({
@@ -47,7 +45,6 @@ export const TokenGenerationStep = ({
   environment,
   onTokenGenerated,
   autoGenerate = false,
-  hint = "Generate a token to authenticate your traces.",
 }: TokenGenerationStepProps) => {
   const [duration, setDuration] = useState<string>(DEFAULT_TOKEN_EXPIRY);
   const [enabled, setEnabled] = useState(false);
@@ -68,7 +65,7 @@ export const TokenGenerationStep = ({
   const token = data?.token ?? null;
 
   useEffect(() => {
-    if (data?.token) onTokenGenerated(data.token);
+    if (data?.token) onTokenGenerated?.(data.token);
   }, [data?.token, onTokenGenerated]);
 
   // Mints once: setEnabled(true) triggers the first fetch; a later regenerate uses refetch().
@@ -166,7 +163,7 @@ export const TokenGenerationStep = ({
         <Typography variant="body2" color="textSecondary">
           {token
             ? "Token generated successfully. Copy it now as you won't be able to see it again."
-            : hint}
+            : "Generate an API key for this agent."}
         </Typography>
       </Box>
     </Box>

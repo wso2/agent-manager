@@ -20,7 +20,7 @@ on:
         required: false
         default: 'all'
       include_heavy_tier:
-        description: 'Also run the heavy-tier subset against a built-from-source AMP stack'
+        description: 'Also run the heavy-tier subset against a built-from-source AMP stack (unavailable: the stack runs no trace store)'
         type: boolean
         default: false
       include_record_mode:
@@ -28,7 +28,7 @@ on:
         type: boolean
         default: false
       heavy_only:
-        description: 'Skip the emission matrix and run only the heavy tier (implies heavy)'
+        description: 'Skip the emission matrix and run only the heavy tier (implies heavy; unavailable: the stack runs no trace store)'
         type: boolean
         default: false
       heavy_cell_id:
@@ -169,6 +169,12 @@ jobs:
       versions: ${{ steps.shards.outputs.versions }}
       count: ${{ steps.shards.outputs.count }}
     steps:
+      # The heavy tier reads each cell's spans back from the observer, which
+      # the standalone stack no longer runs; it returns with the trace module.
+      - name: Heavy tier unavailable
+        run: |
+          echo "::error::The heavy tier needs a trace store, which the standalone stack no longer runs."
+          exit 1
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:

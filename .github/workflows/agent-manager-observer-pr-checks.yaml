@@ -1,0 +1,109 @@
+name: Agent Manager Observer
+
+on:
+  pull_request:
+    branches: ["main", "amp-2.x"]
+    paths:
+      - "agent-manager-observer/**"
+      - ".github/workflows/agent-manager-observer-pr-checks.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install pinned lint tools (tools.mk)
+        run: make tools-lint
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          install-mode: none
+          working-directory: agent-manager-observer
+
+  test:
+    name: Test
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Create test .env file
+        working-directory: ./agent-manager-observer
+        run: |
+          cat > .env << EOF
+          OPENSEARCH_ADDRESS=http://localhost:9200
+          OPENSEARCH_USERNAME=admin
+          OPENSEARCH_PASSWORD=admin
+          AM_OBSERVER_PORT=9098
+          LOG_LEVEL=INFO
+          EOF
+
+      - name: Run tests
+        working-directory: ./agent-manager-observer
+        run: make test
+
+      - name: Upload test logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-logs
+          path: agent-manager-observer/data/test_output.log
+          retention-days: 7
+
+  build:
+    name: Build
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./agent-manager-observer
+          file: ./agent-manager-observer/Dockerfile
+          push: false
+          tags: agent-manager-observer:pr-check
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  format-check:
+    name: Format Check
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Check formatting
+        working-directory: ./agent-manager-observer
+        run: |
+          make fmt
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Code is not formatted. Please run 'make fmt'"
+            git diff
+            exit 1
+          fi

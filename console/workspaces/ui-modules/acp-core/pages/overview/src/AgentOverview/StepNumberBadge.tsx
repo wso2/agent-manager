@@ -22,7 +22,7 @@ interface StepNumberBadgeProps {
     stepNumber: number;
 }
 
-/** Numbered circle badge labeling an ordered setup step (SetupStep, TokenGenerationStep). */
+/** Numbered circle badge labeling an ordered setup step (TokenGenerationStep). */
 export const StepNumberBadge = ({ stepNumber }: StepNumberBadgeProps) => (
     <Box
         sx={{
