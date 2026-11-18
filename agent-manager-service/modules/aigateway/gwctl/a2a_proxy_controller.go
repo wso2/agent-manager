@@ -24,8 +24,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -54,13 +54,13 @@ func (c *a2aProxyController) GetA2AProxy(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK,
-		spec.NewA2AProxyResponse(string(status.Status), status.StatusReason, status.UpstreamAuthHeader, status.GatewayURL))
+		gwspec.NewA2AProxyResponse(string(status.Status), status.StatusReason, status.UpstreamAuthHeader, status.GatewayURL))
 }
 
 func (c *a2aProxyController) SetA2AProxy(w http.ResponseWriter, r *http.Request) {
 	ouID, projName, agentName, envName := agentCardPath(r)
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	var req spec.SetA2AProxyRequest
+	var req gwspec.SetA2AProxyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -92,7 +92,7 @@ func (c *a2aProxyController) RefreshA2AProxy(w http.ResponseWriter, r *http.Requ
 }
 
 // toA2AProxyAuthUpdate keeps the request's three cases apart: no auth, a header alone, a header and a value.
-func toA2AProxyAuthUpdate(auth *spec.A2AProxyUpstreamAuth) *models.A2AProxyAuthUpdate {
+func toA2AProxyAuthUpdate(auth *gwspec.A2AProxyUpstreamAuth) *models.A2AProxyAuthUpdate {
 	if auth == nil {
 		return nil
 	}

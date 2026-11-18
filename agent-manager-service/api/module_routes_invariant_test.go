@@ -212,6 +212,15 @@ func TestModuleSpecMatchesRoutes(t *testing.T) {
 	checkModuleSpec(t, m, host.Routes(testmod.Name))
 }
 
+func TestGatewaySpecMatchesRoutes(t *testing.T) {
+	host, _, _ := mountedGateway(t)
+	for _, m := range modkit.Registered() {
+		if m.Manifest().Name == gwperm.Module {
+			checkModuleSpec(t, m, host.Routes(gwperm.Module))
+		}
+	}
+}
+
 // TestCoreSpecHasNoModulePaths keeps module APIs out of the core's document:
 // each module describes its routes in its own.
 func TestCoreSpecHasNoModulePaths(t *testing.T) {

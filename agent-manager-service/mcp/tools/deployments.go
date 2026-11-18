@@ -23,9 +23,9 @@ import (
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // input structs
@@ -36,9 +36,9 @@ type listDeploymentsInput struct {
 
 // output structs
 type listDeploymentsOutput struct {
-	ProjectName string                                    `json:"project_name"`
-	AgentName   string                                    `json:"agent_name"`
-	Deployments map[string]spec.DeploymentDetailsResponse `json:"deployments"`
+	ProjectName string                                      `json:"project_name"`
+	AgentName   string                                      `json:"agent_name"`
+	Deployments map[string]gwspec.DeploymentDetailsResponse `json:"deployments"`
 }
 
 func (t *Toolsets) registerDeploymentTools(server *gomcp.Server, reg *toolRegistry) {
@@ -71,7 +71,7 @@ func listDeployments(handler DeploymentToolsetHandler) func(context.Context, *go
 		response := listDeploymentsOutput{
 			ProjectName: input.ProjectName,
 			AgentName:   input.AgentName,
-			Deployments: utils.ConvertToDeploymentDetailsResponse(deployments),
+			Deployments: gwconv.ConvertToDeploymentDetailsResponse(deployments),
 		}
 
 		return handleToolResult(response, nil)

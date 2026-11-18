@@ -26,8 +26,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -107,14 +107,14 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	var gatewayHosting string
 	switch hosting := r.URL.Query().Get("gatewayHosting"); hosting {
 	case "":
-	case string(spec.GATEWAYHOSTING_MANAGED):
+	case string(gwspec.GATEWAYHOSTING_MANAGED):
 		gatewayHosting = models.GatewayHostingManaged
-	case string(spec.GATEWAYHOSTING_SELF_HOSTED):
+	case string(gwspec.GATEWAYHOSTING_SELF_HOSTED):
 		gatewayHosting = models.GatewayHostingSelfHosted
 	default:
 		log.Error("ListCatalog: invalid gatewayHosting parameter", "gatewayHosting", hosting)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, fmt.Sprintf("Invalid gatewayHosting parameter. Must be one of: %s, %s",
-			spec.GATEWAYHOSTING_MANAGED, spec.GATEWAYHOSTING_SELF_HOSTED))
+			gwspec.GATEWAYHOSTING_MANAGED, gwspec.GATEWAYHOSTING_SELF_HOSTED))
 		return
 	}
 
@@ -157,10 +157,10 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
-func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, offset int32) *spec.CatalogListResponse {
-	specEntries := make([]spec.CatalogListResponseEntriesInner, len(entries))
+func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, offset int32) *gwspec.CatalogListResponse {
+	specEntries := make([]gwspec.CatalogListResponseEntriesInner, len(entries))
 	for i, entry := range entries {
-		catalogEntry := spec.CatalogEntry{
+		catalogEntry := gwspec.CatalogEntry{
 			Uuid:      entry.UUID.String(),
 			Handle:    entry.Handle,
 			Name:      entry.Name,
@@ -169,10 +169,10 @@ func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, o
 			InCatalog: entry.InCatalog,
 			CreatedAt: entry.CreatedAt,
 		}
-		specEntries[i] = spec.CatalogEntryAsCatalogListResponseEntriesInner(&catalogEntry)
+		specEntries[i] = gwspec.CatalogEntryAsCatalogListResponseEntriesInner(&catalogEntry)
 	}
 
-	return &spec.CatalogListResponse{
+	return &gwspec.CatalogListResponse{
 		Entries: specEntries,
 		Total:   total,
 		Limit:   limit,
@@ -182,9 +182,9 @@ func convertToCatalogListResponse(entries []models.CatalogEntry, total, limit, o
 
 func convertToLLMProviderCatalogResponse(entries []models.CatalogLLMProviderEntry, total, limit, offset int32) any {
 	// Convert to comprehensive LLM provider entries
-	specEntries := make([]spec.CatalogLLMProviderEntry, len(entries))
+	specEntries := make([]gwspec.CatalogLLMProviderEntry, len(entries))
 	for i, entry := range entries {
-		specEntry := spec.CatalogLLMProviderEntry{
+		specEntry := gwspec.CatalogLLMProviderEntry{
 			Uuid:      entry.UUID.String(),
 			Handle:    entry.Handle,
 			Name:      entry.Name,
@@ -243,17 +243,17 @@ func convertToLLMProviderCatalogResponse(entries []models.CatalogLLMProviderEntr
 	}
 }
 
-func convertModelProviders(providers []models.LLMModelProvider) []spec.LLMModelProvider {
-	result := make([]spec.LLMModelProvider, len(providers))
+func convertModelProviders(providers []models.LLMModelProvider) []gwspec.LLMModelProvider {
+	result := make([]gwspec.LLMModelProvider, len(providers))
 	for i, p := range providers {
-		result[i] = spec.LLMModelProvider{
+		result[i] = gwspec.LLMModelProvider{
 			Id:   p.ID,
 			Name: &p.Name,
 		}
 		if len(p.Models) > 0 {
-			models := make([]spec.LLMModel, len(p.Models))
+			models := make([]gwspec.LLMModel, len(p.Models))
 			for j, m := range p.Models {
-				models[j] = spec.LLMModel{
+				models[j] = gwspec.LLMModel{
 					Id:   m.ID,
 					Name: &m.Name,
 				}
@@ -267,16 +267,16 @@ func convertModelProviders(providers []models.LLMModelProvider) []spec.LLMModelP
 	return result
 }
 
-func convertSecuritySummary(security *models.SecuritySummary) *spec.SecuritySummary {
-	return &spec.SecuritySummary{
+func convertSecuritySummary(security *models.SecuritySummary) *gwspec.SecuritySummary {
+	return &gwspec.SecuritySummary{
 		Enabled:       security.Enabled,
 		ApiKeyEnabled: security.APIKeyEnabled,
 		ApiKeyIn:      security.APIKeyIn,
 	}
 }
 
-func convertRateLimitingSummary(rateLimiting *models.RateLimitingSummary) *spec.RateLimitingSummary {
-	result := &spec.RateLimitingSummary{}
+func convertRateLimitingSummary(rateLimiting *models.RateLimitingSummary) *gwspec.RateLimitingSummary {
+	result := &gwspec.RateLimitingSummary{}
 
 	if rateLimiting.ProviderLevel != nil {
 		result.ProviderLevel = convertRateLimitingScope(rateLimiting.ProviderLevel)
@@ -307,14 +307,14 @@ func interfaceToFloat32(v interface{}) float32 {
 	return 0
 }
 
-func convertRateLimitingScope(scope *models.RateLimitingScope) *spec.RateLimitingScope {
-	result := &spec.RateLimitingScope{
+func convertRateLimitingScope(scope *models.RateLimitingScope) *gwspec.RateLimitingScope {
+	result := &gwspec.RateLimitingScope{
 		GlobalEnabled:       &scope.GlobalEnabled,
 		ResourceWiseEnabled: &scope.ResourceWiseEnabled,
 	}
 
 	if scope.Request != nil {
-		entry := spec.RateLimitEntry{
+		entry := gwspec.RateLimitEntry{
 			Limit:         interfaceToFloat32(scope.Request.Limit),
 			ResetDuration: scope.Request.ResetDuration,
 			ResetUnit:     scope.Request.ResetUnit,
@@ -322,7 +322,7 @@ func convertRateLimitingScope(scope *models.RateLimitingScope) *spec.RateLimitin
 		result.Request = &entry
 	}
 	if scope.Token != nil {
-		entry := spec.RateLimitEntry{
+		entry := gwspec.RateLimitEntry{
 			Limit:         interfaceToFloat32(scope.Token.Limit),
 			ResetDuration: scope.Token.ResetDuration,
 			ResetUnit:     scope.Token.ResetUnit,
@@ -330,7 +330,7 @@ func convertRateLimitingScope(scope *models.RateLimitingScope) *spec.RateLimitin
 		result.Token = &entry
 	}
 	if scope.Cost != nil {
-		entry := spec.RateLimitEntry{
+		entry := gwspec.RateLimitEntry{
 			Limit:         interfaceToFloat32(scope.Cost.Limit),
 			ResetDuration: scope.Cost.ResetDuration,
 			ResetUnit:     scope.Cost.ResetUnit,
@@ -361,10 +361,10 @@ func validCatalogKinds() []string {
 	}
 }
 
-func convertDeploymentSummaries(deployments []models.DeploymentSummary) []spec.DeploymentSummary {
-	result := make([]spec.DeploymentSummary, len(deployments))
+func convertDeploymentSummaries(deployments []models.DeploymentSummary) []gwspec.DeploymentSummary {
+	result := make([]gwspec.DeploymentSummary, len(deployments))
 	for i, d := range deployments {
-		result[i] = spec.DeploymentSummary{
+		result[i] = gwspec.DeploymentSummary{
 			GatewayId:       d.GatewayID.String(),
 			GatewayName:     d.GatewayName,
 			EnvironmentName: d.EnvironmentName,

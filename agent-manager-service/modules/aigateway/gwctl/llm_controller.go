@@ -27,10 +27,11 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -121,7 +122,7 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 
-	var req spec.CreateLLMProviderTemplateRequest
+	var req gwspec.CreateLLMProviderTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateLLMProviderTemplate: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -129,7 +130,7 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 	}
 
 	// Convert spec request to model
-	template := utils.ConvertSpecToModelLLMProviderTemplate(&req, ouID)
+	template := gwconv.ConvertSpecToModelLLMProviderTemplate(&req, ouID)
 
 	created, err := c.templateService.Create(ouID, "system", template)
 	if err != nil {
@@ -151,7 +152,7 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 	}
 
 	// Convert model response to spec
-	response := utils.ConvertModelToSpecLLMProviderTemplateResponse(created)
+	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(created)
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
@@ -183,12 +184,12 @@ func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.
 	}
 
 	// Convert models to spec responses
-	specTemplates := make([]spec.LLMProviderTemplateResponse, len(templates))
+	specTemplates := make([]gwspec.LLMProviderTemplateResponse, len(templates))
 	for i, t := range templates {
-		specTemplates[i] = utils.ConvertModelToSpecLLMProviderTemplateResponse(t)
+		specTemplates[i] = gwconv.ConvertModelToSpecLLMProviderTemplateResponse(t)
 	}
 
-	resp := spec.LLMProviderTemplateListResponse{
+	resp := gwspec.LLMProviderTemplateListResponse{
 		Templates: specTemplates,
 		Total:     int32(totalCount),
 		Limit:     int32(limit),
@@ -220,7 +221,7 @@ func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Re
 	}
 
 	// Convert model to spec response
-	response := utils.ConvertModelToSpecLLMProviderTemplateResponse(template)
+	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(template)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -230,7 +231,7 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	ouID := middleware.OUIDFromRequest(r)
 	templateID := r.PathValue(utils.PathParamTemplateId)
 
-	var req spec.UpdateLLMProviderTemplateRequest
+	var req gwspec.UpdateLLMProviderTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProviderTemplate: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -238,9 +239,9 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	}
 
 	// Convert spec request to model - create minimal template with only updatable fields
-	template := &spec.CreateLLMProviderTemplateRequest{
+	template := &gwspec.CreateLLMProviderTemplateRequest{
 		Id:               templateID,
-		Name:             utils.GetOrDefault(req.Name, ""),
+		Name:             gwconv.GetOrDefault(req.Name, ""),
 		Description:      req.Description,
 		Metadata:         req.Metadata,
 		PromptTokens:     req.PromptTokens,
@@ -250,7 +251,7 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 		RequestModel:     req.RequestModel,
 		ResponseModel:    req.ResponseModel,
 	}
-	modelTemplate := utils.ConvertSpecToModelLLMProviderTemplate(template, ouID)
+	modelTemplate := gwconv.ConvertSpecToModelLLMProviderTemplate(template, ouID)
 
 	updated, err := c.templateService.Update(ouID, templateID, modelTemplate)
 	if err != nil {
@@ -272,7 +273,7 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	}
 
 	// Convert model to spec response
-	response := utils.ConvertModelToSpecLLMProviderTemplateResponse(updated)
+	response := gwconv.ConvertModelToSpecLLMProviderTemplateResponse(updated)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -338,7 +339,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("CreateLLMProvider: starting", "ouID", ouID)
 
-	var req spec.CreateLLMProviderRequest
+	var req gwspec.CreateLLMProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateLLMProvider: failed to decode request", "ouID", ouID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -359,7 +360,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	// Convert spec request to model
-	provider := utils.ConvertSpecToModelLLMProvider(&req, ouID)
+	provider := gwconv.ConvertSpecToModelLLMProvider(&req, ouID)
 	log.Info("CreateLLMProvider: calling service layer", "ouID", ouID,
 		"providerName", provider.Configuration.Name,
 		"providerVersion", provider.Configuration.Version,
@@ -401,7 +402,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	log.Info("CreateLLMProvider: provider created successfully", "ouID", ouID, "providerUUID", created.UUID, "providerName", created.Configuration.Name)
 
 	// Convert model to spec response
-	response := utils.ConvertModelToSpecLLMProviderResponse(created)
+	response := gwconv.ConvertModelToSpecLLMProviderResponse(created)
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
@@ -464,12 +465,12 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 	log.Info("ListLLMProviders: providers retrieved", "ouID", ouID, "count", len(providers), "total", totalCount)
 
 	// Convert models to spec responses
-	specProviders := make([]spec.LLMProviderListItem, len(providers))
+	specProviders := make([]gwspec.LLMProviderListItem, len(providers))
 	for i, p := range providers {
-		specProviders[i] = utils.ConvertModelToSpecLLMProviderListItemResponse(p)
+		specProviders[i] = gwconv.ConvertModelToSpecLLMProviderListItemResponse(p)
 	}
 
-	resp := spec.LLMProviderListResponse{
+	resp := gwspec.LLMProviderListResponse{
 		Providers: specProviders,
 		Total:     int32(totalCount),
 		Limit:     int32(limit),
@@ -509,7 +510,7 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	log.Info("GetLLMProvider: provider retrieved", "ouID", ouID, "providerID", providerID, "providerUUID", provider.UUID)
 
 	// Convert model to spec response
-	response := utils.ConvertModelToSpecLLMProviderResponse(provider)
+	response := gwconv.ConvertModelToSpecLLMProviderResponse(provider)
 
 	gatewayMappings, err := c.providerService.GetProviderGatewayMapping(ctx, provider.UUID, ouID, c.deploymentService)
 	if err != nil {
@@ -531,7 +532,7 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 func preserveOmittedProviderFields(
 	provider *models.LLMProvider,
 	existing *models.LLMProvider,
-	req *spec.UpdateLLMProviderRequest,
+	req *gwspec.UpdateLLMProviderRequest,
 ) {
 	if provider == nil || existing == nil || req == nil {
 		return
@@ -568,7 +569,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	log.Info("UpdateLLMProvider: starting", "ouID", ouID, "providerID", providerID)
 
-	var req spec.UpdateLLMProviderRequest
+	var req gwspec.UpdateLLMProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProvider: failed to decode request", "ouID", ouID, "providerID", providerID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -576,9 +577,9 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	log.Info("UpdateLLMProvider: request decoded", "ouID", ouID, "providerID", providerID,
-		"templateHandle", utils.GetOrDefault(req.Template, ""),
-		"name", utils.GetOrDefault(req.Name, ""),
-		"version", utils.GetOrDefault(req.Version, ""),
+		"templateHandle", gwconv.GetOrDefault(req.Template, ""),
+		"name", gwconv.GetOrDefault(req.Name, ""),
+		"version", gwconv.GetOrDefault(req.Version, ""),
 		"gatewayCount", len(req.Gateways))
 
 	// Fetch the existing provider so that fields omitted from the request are preserved
@@ -599,25 +600,25 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 
 	// Resolve Version: use request value if provided, otherwise preserve the stored value.
 	existingVersion := existing.Configuration.Version
-	resolvedVersion := utils.GetOrDefault(req.Version, existingVersion)
+	resolvedVersion := gwconv.GetOrDefault(req.Version, existingVersion)
 
 	// Resolve Context: use request value if provided, otherwise preserve the stored value.
 	existingContext := "/"
 	if existing.Configuration.Context != nil {
 		existingContext = *existing.Configuration.Context
 	}
-	resolvedContext := utils.GetOrDefault(req.Context, existingContext)
+	resolvedContext := gwconv.GetOrDefault(req.Context, existingContext)
 
 	// Convert spec request to model - create minimal provider with only updatable fields
 	// For update, we need to construct a CreateLLMProviderRequest with the updated fields.
 	// Id (the unique handle) is never changed on update — always taken from the existing record.
-	providerReq := &spec.CreateLLMProviderRequest{
+	providerReq := &gwspec.CreateLLMProviderRequest{
 		Id:             existing.Artifact.Handle,
-		Name:           utils.GetOrDefault(req.Name, existing.Configuration.Name),
+		Name:           gwconv.GetOrDefault(req.Name, existing.Configuration.Name),
 		Description:    req.Description,
 		Version:        resolvedVersion,
 		Context:        resolvedContext,
-		Template:       utils.GetOrDefault(req.Template, existing.Configuration.Template),
+		Template:       gwconv.GetOrDefault(req.Template, existing.Configuration.Template),
 		Openapi:        req.Openapi,
 		ModelProviders: req.ModelProviders,
 	}
@@ -634,14 +635,14 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		providerReq.Resilience = req.Resilience
 	}
 
-	provider := utils.ConvertSpecToModelLLMProvider(providerReq, ouID)
+	provider := gwconv.ConvertSpecToModelLLMProvider(providerReq, ouID)
 	preserveOmittedProviderFields(provider, existing, &req)
 
 	// Preserve upstream directly from the stored model to avoid the spec converter
 	// masking credentials with "***REDACTED***" (H-3). If the request supplies a new
 	// upstream, convert that instead.
 	if req.Upstream != nil {
-		upstream := utils.ConvertSpecToModelUpstreamConfig(*req.Upstream)
+		upstream := gwconv.ConvertSpecToModelUpstreamConfig(*req.Upstream)
 		// If the converted upstream has no new auth value (i.e. the client echoed back the
 		// redaction marker), carry the existing SecretRef forward so the stored encrypted
 		// reference is not lost.
@@ -779,7 +780,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	}
 
 	// Convert model to spec response
-	response := utils.ConvertModelToSpecLLMProviderResponse(updated)
+	response := gwconv.ConvertModelToSpecLLMProviderResponse(updated)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -848,7 +849,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req spec.CreateLLMProxyRequest
+	var req gwspec.CreateLLMProxyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("CreateLLMProxy: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -856,7 +857,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert spec request to model with resolved project UUID
-	proxy, err := utils.ConvertSpecToModelLLMProxy(&req, projectUUID)
+	proxy, err := gwconv.ConvertSpecToModelLLMProxy(&req, projectUUID)
 	if err != nil {
 		log.Error("CreateLLMProxy: failed to convert spec to model", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid UUID in request")
@@ -889,7 +890,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert model to spec response
-	response := utils.ConvertModelToSpecLLMProxyResponse(created)
+	response := gwconv.ConvertModelToSpecLLMProxyResponse(created)
 	utils.WriteSuccessResponse(w, http.StatusCreated, response)
 }
 
@@ -939,12 +940,12 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert models to spec responses
-	specProxies := make([]spec.LLMProxyResponse, len(proxies))
+	specProxies := make([]gwspec.LLMProxyResponse, len(proxies))
 	for i, p := range proxies {
-		specProxies[i] = utils.ConvertModelToSpecLLMProxyResponse(p)
+		specProxies[i] = gwconv.ConvertModelToSpecLLMProxyResponse(p)
 	}
 
-	resp := spec.LLMProxyListResponse{
+	resp := gwspec.LLMProxyListResponse{
 		Proxies: specProxies,
 		Total:   int32(totalCount),
 		Limit:   int32(limit),
@@ -991,12 +992,12 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 	}
 
 	// Convert models to spec responses
-	specProxies := make([]spec.LLMProxyResponse, len(proxies))
+	specProxies := make([]gwspec.LLMProxyResponse, len(proxies))
 	for i, p := range proxies {
-		specProxies[i] = utils.ConvertModelToSpecLLMProxyResponse(p)
+		specProxies[i] = gwconv.ConvertModelToSpecLLMProxyResponse(p)
 	}
 
-	resp := spec.LLMProxyListResponse{
+	resp := gwspec.LLMProxyListResponse{
 		Proxies: specProxies,
 		Total:   int32(totalCount),
 		Limit:   int32(limit),
@@ -1042,7 +1043,7 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert model to spec response
-	response := utils.ConvertModelToSpecLLMProxyResponse(proxy)
+	response := gwconv.ConvertModelToSpecLLMProxyResponse(proxy)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -1071,7 +1072,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req spec.UpdateLLMProxyRequest
+	var req gwspec.UpdateLLMProxyRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProxy: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -1079,13 +1080,13 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert spec request to model - create minimal proxy with only updatable fields
-	proxyReq := &spec.CreateLLMProxyRequest{
-		ProviderUuid:  utils.GetOrDefault(req.ProviderUuid, ""),
+	proxyReq := &gwspec.CreateLLMProxyRequest{
+		ProviderUuid:  gwconv.GetOrDefault(req.ProviderUuid, ""),
 		Description:   req.Description,
 		Openapi:       req.Openapi,
-		Configuration: utils.GetOrDefaultProxyConfig(req.Configuration),
+		Configuration: gwconv.GetOrDefaultProxyConfig(req.Configuration),
 	}
-	proxy, err := utils.ConvertSpecToModelLLMProxy(proxyReq, projectUUID)
+	proxy, err := gwconv.ConvertSpecToModelLLMProxy(proxyReq, projectUUID)
 	if err != nil {
 		log.Error("UpdateLLMProxy: failed to convert spec to model", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid UUID in request")
@@ -1112,7 +1113,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert model to spec response
-	response := utils.ConvertModelToSpecLLMProxyResponse(updated)
+	response := gwconv.ConvertModelToSpecLLMProxyResponse(updated)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -1182,9 +1183,9 @@ func (c *llmController) ListLLMProviderConsumers(w http.ResponseWriter, r *http.
 		}
 	}
 
-	items := make([]spec.LLMProviderConsumerItem, len(consumers))
+	items := make([]gwspec.LLMProviderConsumerItem, len(consumers))
 	for i, c := range consumers {
-		items[i] = spec.LLMProviderConsumerItem{
+		items[i] = gwspec.LLMProviderConsumerItem{
 			ProxyId:      c.ProxyID,
 			ProxyName:    c.ProxyName,
 			ProjectName:  c.ProjectName,
@@ -1193,7 +1194,7 @@ func (c *llmController) ListLLMProviderConsumers(w http.ResponseWriter, r *http.
 		}
 	}
 
-	resp := spec.LLMProviderConsumerListResponse{
+	resp := gwspec.LLMProviderConsumerListResponse{
 		Consumers: items,
 		Total:     int32(len(items)),
 	}
@@ -1209,7 +1210,7 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	providerID := r.PathValue(utils.PathParamProviderId)
 
 	// Decode request body
-	var req spec.UpdateLLMProviderCatalogRequest
+	var req gwspec.UpdateLLMProviderCatalogRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateLLMProviderCatalogStatus: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -1234,6 +1235,6 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	}
 
 	// Convert to response
-	response := utils.ConvertModelToSpecLLMProviderResponse(provider)
+	response := gwconv.ConvertModelToSpecLLMProviderResponse(provider)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }

@@ -24,8 +24,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -92,7 +92,7 @@ func (c *llmProxyAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.R
 
 	log.Info("CreateLLMProxyAPIKey: starting", "ouID", ouID, "proxyID", proxyID)
 
-	var specReq spec.CreateLLMAPIKeyRequest
+	var specReq gwspec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateLLMProxyAPIKey: failed to decode request", "ouID", ouID, "proxyID", proxyID, "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -193,7 +193,7 @@ func (c *llmProxyAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.R
 
 	log.Info("RotateLLMProxyAPIKey: starting", "ouID", ouID, "proxyID", proxyID, "keyName", keyName)
 
-	var specReq spec.RotateLLMAPIKeyRequest
+	var specReq gwspec.RotateLLMAPIKeyRequest
 	// Body is optional for rotation; ignore decode errors on empty body
 	_ = json.NewDecoder(r.Body).Decode(&specReq)
 

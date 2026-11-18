@@ -25,6 +25,7 @@ package aigateway
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -95,6 +96,12 @@ var ui = modkit.UI{Pages: []modkit.Page{
 	{ID: "ai-gateway/configure-agent", Permission: string(rbac.AgentRead)},
 	{ID: "agent-identity/agent-identity", Permission: "agent-identities.read"},
 }}
+
+//go:embed api/openapi.yaml
+var openAPI []byte
+
+// OpenAPI is the module's API document, at /m/ai-gateway.
+func (module) OpenAPI() []byte { return openAPI }
 
 func (module) Migrations() fs.FS { return nil }
 func (module) UI() fs.FS         { return nil }

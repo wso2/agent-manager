@@ -27,8 +27,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -72,7 +72,7 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 
 	log.Info("CreateAgentAPIKey: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
 
-	var specReq spec.CreateLLMAPIKeyRequest
+	var specReq gwspec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateAgentAPIKey: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -221,7 +221,7 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 
 	log.Info("RotateAgentAPIKey: starting", "ouID", ouID, "agentName", agentName, "envID", envID, "keyName", keyName)
 
-	var specReq spec.RotateLLMAPIKeyRequest
+	var specReq gwspec.RotateLLMAPIKeyRequest
 	// Body is optional for rotation; only an empty body is acceptable.
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil && !errors.Is(err, io.EOF) {
 		log.Warn("RotateAgentAPIKey: invalid request body", "ouID", ouID, "agentName", agentName, "keyName", keyName, "error", err)

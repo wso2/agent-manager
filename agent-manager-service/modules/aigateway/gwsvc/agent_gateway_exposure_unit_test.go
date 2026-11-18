@@ -27,11 +27,11 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // gatewayExposureHarness exposes agents through a reconcile core over publisherMocks, whose plain and
@@ -145,7 +145,7 @@ func TestDeploymentResponseCarriesStatusReason(t *testing.T) {
 
 	deployments, err := s.GetAgentDeployments(context.Background(), "acme", "proj1", "my-agent")
 	require.NoError(t, err)
-	response := utils.ConvertToDeploymentDetailsResponse(deployments)
+	response := gwconv.ConvertToDeploymentDetailsResponse(deployments)
 
 	deployment := response[models.DefaultEnvironmentName]
 	require.NotNil(t, deployment.GatewayStatus)
@@ -167,7 +167,7 @@ func TestDeploymentResponseFallsBackWhenGatewayUnreadable(t *testing.T) {
 
 	deployments, err := s.GetAgentDeployments(context.Background(), "acme", "proj1", "my-agent")
 	require.NoError(t, err)
-	deployment := utils.ConvertToDeploymentDetailsResponse(deployments)[models.DefaultEnvironmentName]
+	deployment := gwconv.ConvertToDeploymentDetailsResponse(deployments)[models.DefaultEnvironmentName]
 
 	assert.Nil(t, deployment.GatewayStatus)
 	assert.Nil(t, deployment.GatewayStatusReason)
@@ -186,7 +186,7 @@ func TestDeploymentResponseOmitsGatewayStatusWithoutExposure(t *testing.T) {
 
 	deployments, err := s.GetAgentDeployments(context.Background(), "acme", "proj1", "my-agent")
 	require.NoError(t, err)
-	deployment := utils.ConvertToDeploymentDetailsResponse(deployments)[models.DefaultEnvironmentName]
+	deployment := gwconv.ConvertToDeploymentDetailsResponse(deployments)[models.DefaultEnvironmentName]
 
 	assert.Nil(t, deployment.GatewayStatus)
 	assert.Nil(t, deployment.GatewayStatusReason)

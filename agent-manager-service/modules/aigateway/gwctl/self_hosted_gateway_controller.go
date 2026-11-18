@@ -27,8 +27,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -104,7 +104,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 
-	var req spec.SelfHostedGatewayRequest
+	var req gwspec.SelfHostedGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("RegisterSelfHostedGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -163,7 +163,7 @@ func (c *gatewayController) UpdateSelfHostedGateway(w http.ResponseWriter, r *ht
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	var req spec.SelfHostedGatewayUpdateRequest
+	var req gwspec.SelfHostedGatewayUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateSelfHostedGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")

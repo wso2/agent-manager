@@ -23,8 +23,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -54,12 +54,12 @@ func (c *EnvironmentGatewayController) GetEnvironmentGateways(w http.ResponseWri
 	}
 
 	// Convert to spec responses
-	specGateways := make([]spec.GatewayResponse, len(gatewayList))
+	specGateways := make([]gwspec.GatewayResponse, len(gatewayList))
 	for i, gw := range gatewayList {
 		specGateways[i] = convertToSpecGatewayResponse(&gw)
 	}
 
-	response := spec.GetEnvironmentGateways200Response{
+	response := gwspec.GetEnvironmentGateways200Response{
 		Gateways: specGateways,
 	}
 
@@ -67,16 +67,16 @@ func (c *EnvironmentGatewayController) GetEnvironmentGateways(w http.ResponseWri
 }
 
 // convertToSpecGatewayResponse converts internal gateway response to spec response
-func convertToSpecGatewayResponse(gw *models.GatewayResponse) spec.GatewayResponse {
-	response := spec.GatewayResponse{
+func convertToSpecGatewayResponse(gw *models.GatewayResponse) gwspec.GatewayResponse {
+	response := gwspec.GatewayResponse{
 		Uuid:        gw.UUID,
 		Name:        gw.Name,
 		DisplayName: gw.DisplayName,
 		GatewayType: canonicalGatewayType(gw.GatewayType),
-		Hosting:     spec.GatewayHosting(gw.Hosting),
+		Hosting:     gwspec.GatewayHosting(gw.Hosting),
 		Vhost:       gw.VHost,
 		IsCritical:  gw.IsCritical,
-		Status:      spec.GatewayStatus(gw.Status),
+		Status:      gwspec.GatewayStatus(gw.Status),
 	}
 
 	return response

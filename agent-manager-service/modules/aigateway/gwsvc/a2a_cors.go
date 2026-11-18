@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -45,7 +45,7 @@ func withA2AVersionHeader(cfg resolvedCORSConfig) resolvedCORSConfig {
 
 // resolveCardCORSOverride picks the card CORS override to persist: the
 // request's when it carries one (inherit clearing it), otherwise the stored one.
-func resolveCardCORSOverride(existing *models.AgentConfig, req *spec.AgentCardCORSConfig) *models.CardCORS {
+func resolveCardCORSOverride(existing *models.AgentConfig, req *gwspec.AgentCardCORSConfig) *models.CardCORS {
 	if req == nil {
 		return existing.CardCORSOverride()
 	}
@@ -63,7 +63,7 @@ func resolveCardCORSOverride(existing *models.AgentConfig, req *spec.AgentCardCO
 // validateCardCORS checks the request shape first (agentCardCorsConfig is
 // A2A-only, and enabled is required unless inheriting), then the resolved
 // override (an enabled card needs origins, and cannot pair credentials with "*").
-func validateCardCORS(isA2A bool, req *spec.AgentCardCORSConfig, override *models.CardCORS) error {
+func validateCardCORS(isA2A bool, req *gwspec.AgentCardCORSConfig, override *models.CardCORS) error {
 	if req != nil && !isA2A {
 		return fmt.Errorf("%w: agentCardCorsConfig applies only to A2A agents", utils.ErrInvalidInput)
 	}

@@ -25,6 +25,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -134,7 +135,7 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 	log.Info("DeployLLMProxy: deployment created successfully", "ouID", ouID, "proxyID", proxyID,
 		"deploymentID", deployment.DeploymentID, "gatewayID", req.GatewayID)
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	utils.WriteSuccessResponse(w, http.StatusCreated, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmProxyDeploymentController) UndeployLLMProxyDeployment(w http.ResponseWriter, r *http.Request) {
@@ -288,7 +289,7 @@ func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.Response
 
 	log.Info("RestoreLLMProxyDeployment: restored successfully", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmProxyDeploymentController) DeleteLLMProxyDeployment(w http.ResponseWriter, r *http.Request) {
@@ -403,7 +404,7 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployment(w http.ResponseWrit
 
 	log.Info("GetLLMProxyDeployment: retrieved successfully", "ouID", ouID, "proxyID", proxyID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmProxyDeploymentController) GetLLMProxyDeployments(w http.ResponseWriter, r *http.Request) {
@@ -459,5 +460,5 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployments(w http.ResponseWri
 
 	log.Info("GetLLMProxyDeployments: retrieved successfully", "ouID", ouID, "proxyID", proxyID, "count", len(deployments))
 
-	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponses(deployments))
+	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponses(deployments))
 }

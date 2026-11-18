@@ -33,6 +33,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -289,7 +290,7 @@ func convertConfiguration(cfg spec.EnvProviderConfiguration) models.EnvProviderC
 	}
 	return models.EnvProviderConfiguration{
 		Policies:   policies,
-		Resilience: utils.ConvertSpecToModelResilience(cfg.Resilience),
+		Resilience: resilienceOf(cfg.Resilience),
 	}
 }
 
@@ -558,7 +559,7 @@ func resolveTracingConfig(existingConfig *models.AgentConfig, enableAutoInstrume
 }
 
 // resolveAPIConfig resolves CORS, API key, and OAuth security config: request > DB > env-var defaults (only if withDefaults).
-func resolveAPIConfig(existingConfig *models.AgentConfig, enableApiKeySecurity *bool, corsConfig *spec.CORSConfig, enableOAuthSecurity *bool, oauthConfig *spec.OAuthConfig, withDefaults bool) resolvedCORSConfig {
+func resolveAPIConfig(existingConfig *models.AgentConfig, enableApiKeySecurity *bool, corsConfig *gwspec.CORSConfig, enableOAuthSecurity *bool, oauthConfig *gwspec.OAuthConfig, withDefaults bool) resolvedCORSConfig {
 	var resolved resolvedCORSConfig
 	if withDefaults {
 		defaultCORS := config.GetAgentWorkloadConfig().CORS
@@ -730,7 +731,7 @@ func buildPolicies(cfg resolvedCORSConfig) []map[string]interface{} {
 // auto instrumentation) on an existing release binding without redeploying or promoting the
 // agent. Triggers a pod rollout so policy changes take effect immediately. Any field omitted
 // from the request keeps its current DB value.
-func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouID, projectName, agentName string, req *spec.UpdateAgentDeploySettingsRequest) error {
+func (s *AgentGatewayService) UpdateAgentDeploySettings(ctx context.Context, ouID, projectName, agentName string, req *gwspec.UpdateAgentDeploySettingsRequest) error {
 	s.logger.Info("Updating agent deploy settings", "agentName", agentName, "ouID", ouID, "projectName", projectName, "environment", req.EnvironmentName)
 
 	if req.EnvironmentName == "" {
@@ -974,4 +975,12 @@ func (s *AgentGatewayService) agentExposureKeyFor(
 		return agentExposureKey{}, false, err
 	}
 	return key, true, nil
+}
+
+// resilienceOf converts the resilience of an agent-create model config.
+func resilienceOf(r *spec.Resilience) *models.Resilience {
+	if r == nil {
+		return nil
+	}
+	return &models.Resilience{Timeout: r.Timeout, IdleTimeout: r.IdleTimeout}
 }

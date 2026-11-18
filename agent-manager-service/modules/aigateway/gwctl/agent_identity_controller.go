@@ -34,10 +34,10 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -255,7 +255,7 @@ func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Req
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	var body spec.AgentIdentityGroupRequest
+	var body gwspec.AgentIdentityGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -327,7 +327,7 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
 
-	var body spec.AgentIdentityGroupRequest
+	var body gwspec.AgentIdentityGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -440,7 +440,7 @@ func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
 
-	var body spec.AgentIdentityMembersRequest
+	var body gwspec.AgentIdentityMembersRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -478,7 +478,7 @@ func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *h
 	log := logger.GetLogger(ctx)
 	groupID := r.PathValue(utils.PathParamGroupID)
 
-	var body spec.AgentIdentityMembersRequest
+	var body gwspec.AgentIdentityMembersRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -589,7 +589,7 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	var body spec.AgentIdentityRoleRequest
+	var body gwspec.AgentIdentityRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -739,7 +739,7 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 	roleID := r.PathValue(utils.PathParamRoleID)
 
-	var body spec.AgentIdentityRoleRequest
+	var body gwspec.AgentIdentityRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -1043,7 +1043,7 @@ func agentMemberEntries(agentIDs []string) []thundersvc.GroupMember {
 // decodeAgentIdentityAssignments converts the request payload into the Thunder
 // assignments shape, accepting only agent and group assignee types.
 func decodeAgentIdentityAssignments(r *http.Request) (thundersvc.RoleAssignmentsRequest, error) {
-	var body spec.AgentIdentityAssignmentsRequest
+	var body gwspec.AgentIdentityAssignmentsRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		return thundersvc.RoleAssignmentsRequest{}, errors.New("invalid request body")
 	}

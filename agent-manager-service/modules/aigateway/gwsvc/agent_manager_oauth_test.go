@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -96,7 +96,7 @@ func TestResolveAPIConfig_OAuthDefaults(t *testing.T) {
 }
 
 func TestResolveAPIConfig_OAuthFromRequest(t *testing.T) {
-	cfg := resolveAPIConfig(nil, boolPtr(false), nil, boolPtr(true), &spec.OAuthConfig{
+	cfg := resolveAPIConfig(nil, boolPtr(false), nil, boolPtr(true), &gwspec.OAuthConfig{
 		Issuers:          []string{"CustomKeyManager"},
 		Audiences:        []string{"my-api"},
 		HeaderName:       strPtr("X-Token"),

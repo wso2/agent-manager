@@ -24,6 +24,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -128,7 +129,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	log.Info("DeployLLMProvider: deployment created successfully", "ouID", ouID, "providerID", providerID,
 		"deploymentID", deployment.DeploymentID, "gatewayID", req.GatewayID)
 
-	utils.WriteSuccessResponse(w, http.StatusCreated, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	utils.WriteSuccessResponse(w, http.StatusCreated, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
@@ -272,7 +273,7 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 
 	log.Info("RestoreLLMProviderDeployment: restored successfully", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
@@ -370,7 +371,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 
 	log.Info("GetLLMProviderDeployment: retrieved successfully", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponse(deployment))
+	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponse(deployment))
 }
 
 func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWriter, r *http.Request) {
@@ -426,5 +427,5 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 
 	log.Info("GetLLMProviderDeployments: retrieved successfully", "ouID", ouID, "providerID", providerID, "count", len(deployments))
 
-	utils.WriteSuccessResponse(w, http.StatusOK, utils.ConvertModelToSpecLLMDeploymentResponses(deployments))
+	utils.WriteSuccessResponse(w, http.StatusOK, gwconv.ConvertModelToSpecLLMDeploymentResponses(deployments))
 }

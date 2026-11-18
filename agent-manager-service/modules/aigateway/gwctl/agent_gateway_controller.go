@@ -24,8 +24,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -48,7 +49,7 @@ func (c *AgentGatewayController) UpdateAgentDeploySettings(w http.ResponseWriter
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	var payload spec.UpdateAgentDeploySettingsRequest
+	var payload gwspec.UpdateAgentDeploySettingsRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		log.Error("UpdateAgentDeploySettings: failed to decode request body", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -84,6 +85,6 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 		return
 	}
 
-	deploymentResponses := utils.ConvertToDeploymentDetailsResponse(deployments)
+	deploymentResponses := gwconv.ConvertToDeploymentDetailsResponse(deployments)
 	utils.WriteSuccessResponse(w, http.StatusOK, deploymentResponses)
 }

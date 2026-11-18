@@ -29,9 +29,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -110,7 +110,7 @@ func TestUpdateAgentDeploySettingsDecidesAProxiedExternalAgentUnderTheLock(t *te
 	apiKeys := false
 
 	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev", EnableApiKeySecurity: &apiKeys})
+		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev", EnableApiKeySecurity: &apiKeys})
 
 	require.NoError(t, err)
 	require.Len(t, txConfigs.UpsertCalls(), 1)
@@ -136,7 +136,7 @@ func TestUpdateAgentDeploySettingsSavesWhenTheReRenderCannotBeMarked(t *testing.
 	svc := deploySettingsService(configs, m.publisher())
 
 	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
+		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
 
 	require.NoError(t, err)
 	assert.Len(t, txConfigs.UpsertCalls(), 1)
@@ -154,9 +154,9 @@ func TestUpdateAgentDeploySettingsAppliesA2ACORSToAProxiedExternalAgent(t *testi
 	enabled, inherit := true, false
 
 	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&spec.UpdateAgentDeploySettingsRequest{
+		&gwspec.UpdateAgentDeploySettingsRequest{
 			EnvironmentName:     "dev",
-			AgentCardCorsConfig: &spec.AgentCardCORSConfig{Inherit: &inherit, Enabled: &enabled, AllowOrigin: []string{"https://app.example.com"}},
+			AgentCardCorsConfig: &gwspec.AgentCardCORSConfig{Inherit: &inherit, Enabled: &enabled, AllowOrigin: []string{"https://app.example.com"}},
 		})
 
 	require.NoError(t, err)
@@ -181,7 +181,7 @@ func TestUpdateAgentDeploySettingsSeesASwitchToDirectUnderTheLock(t *testing.T) 
 	svc := deploySettingsService(configs, m.publisher())
 
 	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
+		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
 
 	require.NoError(t, err)
 	assert.Len(t, txConfigs.UpsertCalls(), 1)
@@ -197,7 +197,7 @@ func TestUpdateAgentDeploySettingsRejectsADirectExternalEnvironment(t *testing.T
 	svc := deploySettingsService(configs, m.publisher())
 
 	err := svc.UpdateAgentDeploySettings(tierGrantedCtx(t), "org-1", "checkout", "weather",
-		&spec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
+		&gwspec.UpdateAgentDeploySettingsRequest{EnvironmentName: "dev"})
 
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
 	assert.Contains(t, err.Error(), "gateway")

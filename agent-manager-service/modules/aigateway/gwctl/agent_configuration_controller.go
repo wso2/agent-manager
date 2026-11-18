@@ -33,8 +33,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -88,7 +89,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 
 	// Bind request body
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-	var specReq spec.CreateAgentModelConfigRequest
+	var specReq gwspec.CreateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateAgentModelConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -254,7 +255,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-	var specReq spec.UpdateAgentModelConfigRequest
+	var specReq gwspec.UpdateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("UpdateAgentModelConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -399,7 +400,7 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	createdBy := callerSubject(ctx)
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-	var specReq spec.CreateAgentModelConfigRequest
+	var specReq gwspec.CreateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("CreateAgentMCPConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -555,7 +556,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
-	var specReq spec.UpdateAgentModelConfigRequest
+	var specReq gwspec.UpdateAgentModelConfigRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		log.Error("UpdateAgentMCPConfig: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -660,7 +661,7 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 
 // Converter functions between spec and models
 
-func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigRequest) (models.CreateAgentModelConfigRequest, error) {
+func convertCreateAgentModelConfigRequest(specReq gwspec.CreateAgentModelConfigRequest) (models.CreateAgentModelConfigRequest, error) {
 	envMappings := make(map[string]models.EnvModelConfigRequest)
 	for envName, envConfig := range specReq.EnvMappings {
 		proxyName := resolveEnvConfigProxyName(envConfig)
@@ -671,7 +672,7 @@ func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigReq
 			ProviderName: proxyName,
 			Configuration: models.EnvProviderConfiguration{
 				Policies:   convertToModelPolicies(&envConfig.Configuration),
-				Resilience: utils.ConvertSpecToModelResilience(envConfig.Configuration.Resilience),
+				Resilience: gwconv.ConvertSpecToModelResilience(envConfig.Configuration.Resilience),
 			},
 		}
 	}
@@ -693,7 +694,7 @@ func convertCreateAgentModelConfigRequest(specReq spec.CreateAgentModelConfigReq
 	}, nil
 }
 
-func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigRequest) (models.UpdateAgentModelConfigRequest, error) {
+func convertUpdateAgentModelConfigRequest(specReq gwspec.UpdateAgentModelConfigRequest) (models.UpdateAgentModelConfigRequest, error) {
 	req := models.UpdateAgentModelConfigRequest{}
 
 	if specReq.Name != nil {
@@ -713,7 +714,7 @@ func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigReq
 				ProviderName: proxyName,
 				Configuration: models.EnvProviderConfiguration{
 					Policies:   convertToModelPolicies(&envConfig.Configuration),
-					Resilience: utils.ConvertSpecToModelResilience(envConfig.Configuration.Resilience),
+					Resilience: gwconv.ConvertSpecToModelResilience(envConfig.Configuration.Resilience),
 				},
 			}
 		}
@@ -729,10 +730,10 @@ func convertUpdateAgentModelConfigRequest(specReq spec.UpdateAgentModelConfigReq
 	return req, nil
 }
 
-func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) spec.AgentModelConfigResponse {
-	envModelConfig := make(map[string]spec.EnvProviderConfigMappings)
+func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) gwspec.AgentModelConfigResponse {
+	envModelConfig := make(map[string]gwspec.EnvProviderConfigMappings)
 	for envName, envConfig := range modelResp.EnvModelConfig {
-		specEnvConfig := spec.EnvProviderConfigMappings{
+		specEnvConfig := gwspec.EnvProviderConfigMappings{
 			EnvironmentName: envConfig.EnvironmentName,
 		}
 
@@ -747,12 +748,12 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 			if envConfig.LLMProxy.ProxyUUID != nil {
 				proxyUUID = *envConfig.LLMProxy.ProxyUUID
 			}
-			modelEnvConfig := &spec.ProviderConfig{
+			modelEnvConfig := &gwspec.ProviderConfig{
 				ProxyUuid:        proxyUUID,
 				ProviderName:     providerName,
 				Policies:         convertToSpecPolicies(&envConfig.LLMProxy.Policies),
 				ProviderPolicies: convertToSpecPolicies(&envConfig.LLMProxy.ProviderPolicies),
-				Resilience:       utils.ConvertModelToSpecResilience(envConfig.LLMProxy.Resilience),
+				Resilience:       gwconv.ConvertModelToSpecResilience(envConfig.LLMProxy.Resilience),
 			}
 			if envConfig.LLMProxy.ProviderUUID != nil {
 				modelEnvConfig.SetProviderUuid(*envConfig.LLMProxy.ProviderUUID)
@@ -781,7 +782,7 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 				if envConfig.LLMProxy.AuthIn != nil && *envConfig.LLMProxy.AuthIn != "" {
 					in = *envConfig.LLMProxy.AuthIn
 				}
-				modelEnvConfig.AuthInfo = &spec.AuthInfo{
+				modelEnvConfig.AuthInfo = &gwspec.AuthInfo{
 					Type:  "api-key",
 					In:    in,
 					Name:  *envConfig.LLMProxy.AuthHeaderName,
@@ -798,15 +799,15 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 		envModelConfig[envName] = specEnvConfig
 	}
 
-	envVars := make([]spec.EnvironmentVariableConfig, len(modelResp.EnvironmentVariables))
+	envVars := make([]gwspec.EnvironmentVariableConfig, len(modelResp.EnvironmentVariables))
 	for i, envVar := range modelResp.EnvironmentVariables {
-		envVars[i] = spec.EnvironmentVariableConfig{
+		envVars[i] = gwspec.EnvironmentVariableConfig{
 			Name: envVar.Name,
 			Key:  envVar.Key,
 		}
 	}
 
-	return spec.AgentModelConfigResponse{
+	return gwspec.AgentModelConfigResponse{
 		Uuid:                 modelResp.UUID,
 		Name:                 modelResp.Name,
 		Description:          getStringPtr(modelResp.Description),
@@ -820,7 +821,7 @@ func convertAgentModelConfigResponse(modelResp models.AgentModelConfigResponse) 
 	}
 }
 
-func resolveEnvConfigProxyName(envConfig spec.EnvModelConfigRequest) string {
+func resolveEnvConfigProxyName(envConfig gwspec.EnvModelConfigRequest) string {
 	switch {
 	case envConfig.GetProviderName() != "":
 		return envConfig.GetProviderName()
@@ -837,10 +838,10 @@ func resolveEnvConfigProxyName(envConfig spec.EnvModelConfigRequest) string {
 	}
 }
 
-func convertAgentModelConfigListResponse(modelResp models.AgentModelConfigListResponse) spec.AgentModelConfigListResponse {
-	configs := make([]spec.AgentModelConfigListItem, len(modelResp.Configs))
+func convertAgentModelConfigListResponse(modelResp models.AgentModelConfigListResponse) gwspec.AgentModelConfigListResponse {
+	configs := make([]gwspec.AgentModelConfigListItem, len(modelResp.Configs))
 	for i, config := range modelResp.Configs {
-		configs[i] = spec.AgentModelConfigListItem{
+		configs[i] = gwspec.AgentModelConfigListItem{
 			Uuid:        config.UUID,
 			Name:        config.Name,
 			Description: getStringPtr(config.Description),
@@ -851,9 +852,9 @@ func convertAgentModelConfigListResponse(modelResp models.AgentModelConfigListRe
 		}
 	}
 
-	return spec.AgentModelConfigListResponse{
+	return gwspec.AgentModelConfigListResponse{
 		Configs: configs,
-		Pagination: spec.PaginationInfo{
+		Pagination: gwspec.PaginationInfo{
 			Count:  int32(modelResp.Pagination.Count),
 			Offset: int32(modelResp.Pagination.Offset),
 			Limit:  int32(modelResp.Pagination.Limit),
@@ -863,13 +864,13 @@ func convertAgentModelConfigListResponse(modelResp models.AgentModelConfigListRe
 
 // Helper functions
 
-func convertToSpecPolicies(modelPolicies *[]models.LLMPolicy) []spec.LLMPolicy {
+func convertToSpecPolicies(modelPolicies *[]models.LLMPolicy) []gwspec.LLMPolicy {
 	if modelPolicies == nil {
 		return nil
 	}
-	policies := make([]spec.LLMPolicy, len(*modelPolicies))
+	policies := make([]gwspec.LLMPolicy, len(*modelPolicies))
 	for i, policy := range *modelPolicies {
-		policies[i] = spec.LLMPolicy{
+		policies[i] = gwspec.LLMPolicy{
 			Name:    policy.Name,
 			Version: policy.Version,
 			Paths:   convertToSpecPolicyPaths(&policy.Paths),
@@ -878,13 +879,13 @@ func convertToSpecPolicies(modelPolicies *[]models.LLMPolicy) []spec.LLMPolicy {
 	return policies
 }
 
-func convertToSpecPolicyPaths(modelPaths *[]models.LLMPolicyPath) []spec.LLMPolicyPath {
+func convertToSpecPolicyPaths(modelPaths *[]models.LLMPolicyPath) []gwspec.LLMPolicyPath {
 	if modelPaths == nil {
 		return nil
 	}
-	paths := make([]spec.LLMPolicyPath, len(*modelPaths))
+	paths := make([]gwspec.LLMPolicyPath, len(*modelPaths))
 	for i, path := range *modelPaths {
-		paths[i] = spec.LLMPolicyPath{
+		paths[i] = gwspec.LLMPolicyPath{
 			Path:    path.Path,
 			Methods: path.Methods,
 			Params:  path.Params,
@@ -893,7 +894,7 @@ func convertToSpecPolicyPaths(modelPaths *[]models.LLMPolicyPath) []spec.LLMPoli
 	return paths
 }
 
-func convertToModelPolicies(specConfig *spec.EnvProviderConfiguration) []models.LLMPolicy {
+func convertToModelPolicies(specConfig *gwspec.EnvProviderConfiguration) []models.LLMPolicy {
 	if specConfig == nil {
 		return nil
 	}
@@ -908,7 +909,7 @@ func convertToModelPolicies(specConfig *spec.EnvProviderConfiguration) []models.
 	return policies
 }
 
-func convertToModelPolicyPaths(specPaths *[]spec.LLMPolicyPath) []models.LLMPolicyPath {
+func convertToModelPolicyPaths(specPaths *[]gwspec.LLMPolicyPath) []models.LLMPolicyPath {
 	if specPaths == nil {
 		return nil
 	}
@@ -1032,7 +1033,7 @@ func (c *agentConfigurationController) CreateMCPConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	var specReq spec.CreateLLMAPIKeyRequest
+	var specReq gwspec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -1073,7 +1074,7 @@ func (c *agentConfigurationController) RotateMCPConfigAPIKey(w http.ResponseWrit
 	}
 	keyName := r.PathValue("keyName")
 
-	var specReq spec.RotateLLMAPIKeyRequest
+	var specReq gwspec.RotateLLMAPIKeyRequest
 	// Body is optional for rotation: an empty body (io.EOF) is allowed, but any
 	// other decode error indicates a malformed request and must be rejected.
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil && !errors.Is(err, io.EOF) {
@@ -1162,7 +1163,7 @@ func (c *agentConfigurationController) CreateLLMConfigAPIKey(w http.ResponseWrit
 		return
 	}
 
-	var specReq spec.CreateLLMAPIKeyRequest
+	var specReq gwspec.CreateLLMAPIKeyRequest
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -1203,7 +1204,7 @@ func (c *agentConfigurationController) RotateLLMConfigAPIKey(w http.ResponseWrit
 	}
 	keyName := r.PathValue("keyName")
 
-	var specReq spec.RotateLLMAPIKeyRequest
+	var specReq gwspec.RotateLLMAPIKeyRequest
 	// Body is optional for rotation: an empty body (io.EOF) is allowed, but any
 	// other decode error indicates a malformed request and must be rejected.
 	if err := json.NewDecoder(r.Body).Decode(&specReq); err != nil && !errors.Is(err, io.EOF) {

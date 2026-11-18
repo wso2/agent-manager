@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -68,14 +68,14 @@ func TestResolveCardCORSOverride(t *testing.T) {
 		assert.Nil(t, resolveCardCORSOverride(nil, nil))
 	})
 	t.Run("inherit clears stored", func(t *testing.T) {
-		assert.Nil(t, resolveCardCORSOverride(stored, &spec.AgentCardCORSConfig{Inherit: spec.PtrBool(true)}))
+		assert.Nil(t, resolveCardCORSOverride(stored, &gwspec.AgentCardCORSConfig{Inherit: gwspec.PtrBool(true)}))
 	})
 	t.Run("explicit request replaces stored", func(t *testing.T) {
-		got := resolveCardCORSOverride(stored, &spec.AgentCardCORSConfig{
-			Enabled:          spec.PtrBool(true),
+		got := resolveCardCORSOverride(stored, &gwspec.AgentCardCORSConfig{
+			Enabled:          gwspec.PtrBool(true),
 			AllowOrigin:      []string{"*"},
 			AllowHeaders:     []string{"Content-Type"},
-			AllowCredentials: spec.PtrBool(false),
+			AllowCredentials: gwspec.PtrBool(false),
 		})
 		assert.Equal(t, &models.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowHeaders: []string{"Content-Type"}}, got)
 	})
@@ -85,12 +85,12 @@ func TestValidateCardCORS(t *testing.T) {
 	enabledNoOrigins := &models.CardCORS{Enabled: true}
 	wildcardCreds := &models.CardCORS{Enabled: true, AllowOrigins: []string{"*"}, AllowCredentials: true}
 	ok := &models.CardCORS{Enabled: true, AllowOrigins: []string{"*"}}
-	req := &spec.AgentCardCORSConfig{Enabled: spec.PtrBool(true)}
+	req := &gwspec.AgentCardCORSConfig{Enabled: gwspec.PtrBool(true)}
 
 	assert.ErrorIs(t, validateCardCORS(false, req, ok), utils.ErrInvalidInput, "non-A2A agents cannot set it")
 	assert.NoError(t, validateCardCORS(false, nil, nil), "and are untouched when they don't")
-	assert.ErrorIs(t, validateCardCORS(true, &spec.AgentCardCORSConfig{}, nil), utils.ErrInvalidInput, "enabled is required unless inheriting")
-	assert.NoError(t, validateCardCORS(true, &spec.AgentCardCORSConfig{Inherit: spec.PtrBool(true)}, nil))
+	assert.ErrorIs(t, validateCardCORS(true, &gwspec.AgentCardCORSConfig{}, nil), utils.ErrInvalidInput, "enabled is required unless inheriting")
+	assert.NoError(t, validateCardCORS(true, &gwspec.AgentCardCORSConfig{Inherit: gwspec.PtrBool(true)}, nil))
 	assert.ErrorIs(t, validateCardCORS(true, req, enabledNoOrigins), utils.ErrInvalidInput)
 	assert.ErrorIs(t, validateCardCORS(true, req, wildcardCreds), utils.ErrInvalidInput)
 	assert.NoError(t, validateCardCORS(true, req, ok))

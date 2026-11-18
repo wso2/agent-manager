@@ -26,8 +26,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -75,7 +75,7 @@ func (c *a2aAgentCardController) RefreshAgentCard(w http.ResponseWriter, r *http
 func (c *a2aAgentCardController) SetAgentCardSource(w http.ResponseWriter, r *http.Request) {
 	ouID, projName, agentName, envName := agentCardPath(r)
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	var req spec.SetAgentCardSourceRequest
+	var req gwspec.SetAgentCardSourceRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -123,8 +123,8 @@ func writeAgentCardError(w http.ResponseWriter, r *http.Request, err error, fall
 	}
 }
 
-func toAgentCardResponse(card *models.A2AAgentCard) (*spec.AgentCardResponse, error) {
-	resp := spec.NewAgentCardResponse(string(card.Source), string(card.Status), card.SourceURL, card.LastError)
+func toAgentCardResponse(card *models.A2AAgentCard) (*gwspec.AgentCardResponse, error) {
+	resp := gwspec.NewAgentCardResponse(string(card.Source), string(card.Status), card.SourceURL, card.LastError)
 	if len(card.Card) > 0 {
 		dec := json.NewDecoder(bytes.NewReader(card.Card))
 		dec.UseNumber()

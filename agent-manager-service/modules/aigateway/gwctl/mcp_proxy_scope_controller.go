@@ -24,8 +24,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -71,13 +71,13 @@ func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *h
 		return
 	}
 
-	items := make([]spec.MCPProxyScopeResponse, 0, len(result.Scopes))
+	items := make([]gwspec.MCPProxyScopeResponse, 0, len(result.Scopes))
 	for i := range result.Scopes {
 		items = append(items, toMCPProxyScopeResponse(result.ProxyHandle, result.Scopes[i]))
 	}
 
 	log.Info("ListMCPProxyScopes: completed", "ouID", ouID, "proxyID", proxyID, "count", len(items))
-	utils.WriteSuccessResponse(w, http.StatusOK, spec.MCPProxyScopeListResponse{Scopes: items})
+	utils.WriteSuccessResponse(w, http.StatusOK, gwspec.MCPProxyScopeListResponse{Scopes: items})
 }
 
 // CreateMCPProxyScope handles POST /orgs/{orgName}/mcp-proxies/{proxyId}/scopes.
@@ -90,7 +90,7 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 
 	log.Info("CreateMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID)
 
-	var body spec.MCPProxyScopeRequest
+	var body gwspec.MCPProxyScopeRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		log.Error("CreateMCPProxyScope: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -144,7 +144,7 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 
 	log.Info("UpdateMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID, "action", action)
 
-	var body spec.MCPProxyScopeUpdateRequest
+	var body gwspec.MCPProxyScopeUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		log.Error("UpdateMCPProxyScope: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -232,21 +232,21 @@ func (c *mcpProxyScopeController) ListAgentIdentityScopes(w http.ResponseWriter,
 		return
 	}
 
-	items := make([]spec.AgentIdentityScopeEntry, 0, len(entries))
+	items := make([]gwspec.AgentIdentityScopeEntry, 0, len(entries))
 	for _, e := range entries {
 		items = append(items, toAgentIdentityScopeEntry(e))
 	}
 
 	log.Info("ListAgentIdentityScopes: completed", "ouID", ouID, "envName", envName, "count", len(items))
-	utils.WriteSuccessResponse(w, http.StatusOK, spec.AgentIdentityScopeListResponse{Scopes: items})
+	utils.WriteSuccessResponse(w, http.StatusOK, gwspec.AgentIdentityScopeListResponse{Scopes: items})
 }
 
 // toMCPProxyScopeResponse maps a stored scope to its API representation.
-func toMCPProxyScopeResponse(handle string, s models.MCPProxyScope) spec.MCPProxyScopeResponse {
+func toMCPProxyScopeResponse(handle string, s models.MCPProxyScope) gwspec.MCPProxyScopeResponse {
 	description := s.Description
 	createdAt := s.CreatedAt
 	updatedAt := s.UpdatedAt
-	return spec.MCPProxyScopeResponse{
+	return gwspec.MCPProxyScopeResponse{
 		Action:      s.Action,
 		Scope:       s.ScopeString(handle),
 		Description: &description,
@@ -257,8 +257,8 @@ func toMCPProxyScopeResponse(handle string, s models.MCPProxyScope) spec.MCPProx
 }
 
 // toAgentIdentityScopeEntry maps an env-filtered scope aggregate entry to its API representation.
-func toAgentIdentityScopeEntry(e models.EnvironmentScopeEntry) spec.AgentIdentityScopeEntry {
-	entry := spec.AgentIdentityScopeEntry{
+func toAgentIdentityScopeEntry(e models.EnvironmentScopeEntry) gwspec.AgentIdentityScopeEntry {
+	entry := gwspec.AgentIdentityScopeEntry{
 		Scope:      e.Scope,
 		McpProxyId: e.MCPProxyID,
 	}

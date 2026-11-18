@@ -39,7 +39,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -138,9 +138,9 @@ type GatewayResponse struct {
 // gatewayHostingWire is the gateway's hosting as the API emits it: uppercase, like roles.
 func gatewayHostingWire(gw *models.Gateway) string {
 	if gw.IsManaged() {
-		return string(spec.GATEWAYHOSTING_MANAGED)
+		return string(gwspec.GATEWAYHOSTING_MANAGED)
 	}
-	return string(spec.GATEWAYHOSTING_SELF_HOSTED)
+	return string(gwspec.GATEWAYHOSTING_SELF_HOSTED)
 }
 
 // toGatewayResponse maps a stored gateway to its DTO; the one-time token is never part of it.

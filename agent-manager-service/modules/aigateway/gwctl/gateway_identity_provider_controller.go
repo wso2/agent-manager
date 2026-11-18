@@ -29,17 +29,17 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // toSpecIdentityProvider maps a mirror row to the API representation.
-func toSpecIdentityProvider(p models.GatewayIdentityProvider) spec.IdentityProvider {
+func toSpecIdentityProvider(p models.GatewayIdentityProvider) gwspec.IdentityProvider {
 	issuer := p.Issuer
 	jwksURI := p.JWKSUri
 	skip := p.JWKSSkipTLSVerify
 	providerType := p.Type
-	out := spec.IdentityProvider{
+	out := gwspec.IdentityProvider{
 		Name:          p.Name,
 		Issuer:        &issuer,
 		JwksUri:       &jwksURI,
@@ -54,8 +54,8 @@ func toSpecIdentityProvider(p models.GatewayIdentityProvider) spec.IdentityProvi
 }
 
 // identityProviderListResponse wraps a slice of providers in the list envelope.
-func identityProviderListResponse(providers []spec.IdentityProvider) spec.IdentityProviderListResponse {
-	return spec.IdentityProviderListResponse{
+func identityProviderListResponse(providers []gwspec.IdentityProvider) gwspec.IdentityProviderListResponse {
+	return gwspec.IdentityProviderListResponse{
 		Count: int32(len(providers)),
 		List:  providers,
 	}
@@ -87,7 +87,7 @@ func (c *gatewayController) ListIdentityProviders(w http.ResponseWriter, r *http
 		log.Warn("ListIdentityProviders: failed to list environments", "error", envErr)
 	}
 
-	providers := make([]spec.IdentityProvider, 0, len(rows))
+	providers := make([]gwspec.IdentityProvider, 0, len(rows))
 	for _, row := range rows {
 		providers = append(providers, enrichSpecIdentityProvider(row, envNames))
 	}
@@ -95,7 +95,7 @@ func (c *gatewayController) ListIdentityProviders(w http.ResponseWriter, r *http
 }
 
 // enrichSpecIdentityProvider maps an org-wide row, attaching gateway/env context.
-func enrichSpecIdentityProvider(row gwrepo.IdentityProviderWithContext, envNames map[string]string) spec.IdentityProvider {
+func enrichSpecIdentityProvider(row gwrepo.IdentityProviderWithContext, envNames map[string]string) gwspec.IdentityProvider {
 	out := toSpecIdentityProvider(row.GatewayIdentityProvider)
 	gatewayID := row.GatewayUUID.String()
 	out.GatewayId = &gatewayID
@@ -124,7 +124,7 @@ func (c *gatewayController) ListGatewayIdentityProviders(w http.ResponseWriter, 
 		return
 	}
 
-	specProviders := make([]spec.IdentityProvider, 0, len(providers))
+	specProviders := make([]gwspec.IdentityProvider, 0, len(providers))
 	for _, p := range providers {
 		specProviders = append(specProviders, toSpecIdentityProvider(p))
 	}
@@ -156,7 +156,7 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 		ctx = middleware.WithResolvedOrg(ctx, org)
 	}
 
-	var req spec.UpsertIdentityProviderRequest
+	var req gwspec.UpsertIdentityProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpsertGatewayIdentityProvider: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -250,7 +250,7 @@ func (c *gatewayController) ListEnvironmentIdentityProviders(w http.ResponseWrit
 		return
 	}
 
-	specProviders := make([]spec.IdentityProvider, 0, len(providers))
+	specProviders := make([]gwspec.IdentityProvider, 0, len(providers))
 	for _, p := range providers {
 		specProviders = append(specProviders, toSpecIdentityProvider(p))
 	}
@@ -281,7 +281,7 @@ func (c *gatewayController) DiscoverOidcConfiguration(w http.ResponseWriter, r *
 		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to discover OIDC configuration")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, spec.OidcDiscoveryResponse{Issuer: issuer, JwksUri: jwksURI})
+	utils.WriteSuccessResponse(w, http.StatusOK, gwspec.OidcDiscoveryResponse{Issuer: issuer, JwksUri: jwksURI})
 }
 
 func derefString(s *string) string {

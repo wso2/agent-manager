@@ -35,9 +35,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -223,7 +223,7 @@ func refusedForeignBodyOrg(w http.ResponseWriter, r *http.Request, bodyOrg *stri
 func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	var req spec.CreateGatewayRequest
+	var req gwspec.CreateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("RegisterGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -426,7 +426,7 @@ func gatewayPagination(r *http.Request) (limit, offset int) {
 
 // toSpecGatewayList converts a service gateway page to its wire form. Environments are
 // fetched once for the whole page rather than per gateway.
-func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, gatewaysResp *gwsvc.GatewayListResponse, limit, offset int) spec.GatewayListResponse {
+func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, gatewaysResp *gwsvc.GatewayListResponse, limit, offset int) gwspec.GatewayListResponse {
 	log := logger.GetLogger(ctx)
 	// Fetch environments ONCE for the entire organization (not per-gateway)
 	ocEnvironments, err := c.ocClient.ListEnvironments(ctx, ouID)
@@ -443,14 +443,14 @@ func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, 
 	allMappings := c.getGatewayEnvironmentMappingsBulk(ctx, gatewayIDs)
 
 	// Convert to spec responses with pre-fetched environment data
-	specGateways := make([]spec.GatewayResponse, 0, len(gatewaysResp.List))
+	specGateways := make([]gwspec.GatewayResponse, 0, len(gatewaysResp.List))
 	for _, gw := range gatewaysResp.List {
 		// Use pre-fetched mappings and environments (no additional DB/RPC calls)
 		environments := c.matchGatewayEnvironments(allMappings[gw.ID], ocEnvironments, ouID)
 		specGateways = append(specGateways, convertGatewayToSpecResponse(&gw, ouID, environments))
 	}
 
-	return spec.GatewayListResponse{
+	return gwspec.GatewayListResponse{
 		Gateways: specGateways,
 		Total:    int32(gatewaysResp.Pagination.Total),
 		Limit:    int32(limit),
@@ -464,7 +464,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 	ouID := middleware.OUIDFromRequest(r)
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
-	var req spec.UpdateGatewayRequest
+	var req gwspec.UpdateGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpdateGateway: failed to decode request", "error", err)
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -656,12 +656,12 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 	environments := c.getGatewayEnvironmentsFromDB(ctx, ouID, gatewayID)
 
 	// Convert to spec responses
-	specEnvs := make([]spec.GatewayEnvironmentResponse, len(environments))
+	specEnvs := make([]gwspec.GatewayEnvironmentResponse, len(environments))
 	for i, env := range environments {
 		specEnvs[i] = convertGatewayEnvironmentToSpecResponse(&env)
 	}
 
-	response := spec.GetGatewayEnvironments200Response{
+	response := gwspec.GetGatewayEnvironments200Response{
 		Environments: specEnvs,
 	}
 
@@ -713,9 +713,9 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 	}
 
 	// Map service DTOs to spec types
-	tokenInfos := make([]spec.GatewayTokenInfo, 0, len(svcResp.List))
+	tokenInfos := make([]gwspec.GatewayTokenInfo, 0, len(svcResp.List))
 	for _, t := range svcResp.List {
-		info := spec.NewGatewayTokenInfo(t.ID, t.Status, t.CreatedAt)
+		info := gwspec.NewGatewayTokenInfo(t.ID, t.Status, t.CreatedAt)
 		if t.RevokedAt != nil {
 			info.SetRevokedAt(*t.RevokedAt)
 		} else {
@@ -724,7 +724,7 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 		tokenInfos = append(tokenInfos, *info)
 	}
 
-	response := spec.NewGatewayTokenListResponse(int32(svcResp.Count), tokenInfos)
+	response := gwspec.NewGatewayTokenListResponse(int32(svcResp.Count), tokenInfos)
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
@@ -741,7 +741,7 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 	// The request body is optional; its only field, orgId, may name only the
 	// caller's own org.
 	if r.Body != nil && r.ContentLength != 0 {
-		var req spec.RotateGatewayTokenRequest
+		var req gwspec.RotateGatewayTokenRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			log.Error("RotateGatewayToken: failed to decode request", "error", err)
 			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
@@ -776,7 +776,7 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 	attempt.Complete(ctx, nil, audit.Detail("tokenId", tokenResp.ID))
 
 	// Convert to spec response
-	response := spec.GatewayTokenResponse{
+	response := gwspec.GatewayTokenResponse{
 		GatewayId: gatewayID,
 		Token:     tokenResp.Token,
 		TokenId:   tokenResp.ID,
@@ -937,17 +937,17 @@ func gatewayEnvironmentResponse(env *models.EnvironmentResponse, ouID string) mo
 // Helper conversion functions
 
 // canonicalGatewayType uppercases the stored lowercase role for the wire enum.
-func canonicalGatewayType(role string) spec.GatewayType {
-	return spec.GatewayType(strings.ToUpper(role))
+func canonicalGatewayType(role string) gwspec.GatewayType {
+	return gwspec.GatewayType(strings.ToUpper(role))
 }
 
-func convertGatewayToSpecResponse(gw *gwsvc.GatewayResponse, ouID string, environments []models.GatewayEnvironmentResponse) spec.GatewayResponse {
-	response := spec.GatewayResponse{
+func convertGatewayToSpecResponse(gw *gwsvc.GatewayResponse, ouID string, environments []models.GatewayEnvironmentResponse) gwspec.GatewayResponse {
+	response := gwspec.GatewayResponse{
 		Uuid:        gw.ID,
 		Name:        gw.Name,
 		DisplayName: gw.DisplayName,
 		GatewayType: canonicalGatewayType(gw.FunctionalityType),
-		Hosting:     spec.GatewayHosting(gw.Hosting),
+		Hosting:     gwspec.GatewayHosting(gw.Hosting),
 		Vhost:       gw.Vhost,
 		RuntimeUrl:  runtimeURLPtr(gw.RuntimeURL),
 		IsCritical:  gw.IsCritical,
@@ -958,7 +958,7 @@ func convertGatewayToSpecResponse(gw *gwsvc.GatewayResponse, ouID string, enviro
 
 	// Convert environments
 	if len(environments) > 0 {
-		envs := make([]spec.GatewayEnvironmentResponse, len(environments))
+		envs := make([]gwspec.GatewayEnvironmentResponse, len(environments))
 		for i, env := range environments {
 			envs[i] = convertGatewayEnvironmentToSpecResponse(&env)
 		}
@@ -976,15 +976,15 @@ func runtimeURLPtr(runtimeURL string) *string {
 	return &runtimeURL
 }
 
-func convertStatusToGatewayStatus(isActive bool) spec.GatewayStatus {
+func convertStatusToGatewayStatus(isActive bool) gwspec.GatewayStatus {
 	if isActive {
 		return "ACTIVE"
 	}
 	return "INACTIVE"
 }
 
-func convertGatewayEnvironmentToSpecResponse(env *models.GatewayEnvironmentResponse) spec.GatewayEnvironmentResponse {
-	response := spec.GatewayEnvironmentResponse{
+func convertGatewayEnvironmentToSpecResponse(env *models.GatewayEnvironmentResponse) gwspec.GatewayEnvironmentResponse {
+	response := gwspec.GatewayEnvironmentResponse{
 		Id:           env.UUID,
 		Name:         env.Name,
 		DisplayName:  env.DisplayName,

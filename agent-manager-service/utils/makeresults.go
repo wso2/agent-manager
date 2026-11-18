@@ -128,45 +128,6 @@ func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentR
 	return response
 }
 
-func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentResponse) map[string]spec.DeploymentDetailsResponse {
-	result := make(map[string]spec.DeploymentDetailsResponse)
-
-	if len(deploymentDetails) == 0 {
-		return result
-	}
-
-	for _, deployment := range deploymentDetails {
-		// Convert model endpoints to spec endpoints
-		endpoints := make([]spec.DeploymentEndpoint, len(deployment.Endpoints))
-		for i, endpoint := range deployment.Endpoints {
-			endpoints[i] = spec.DeploymentEndpoint{
-				Name:       endpoint.Name,
-				Visibility: endpoint.Visibility,
-				Url:        endpoint.URL,
-			}
-		}
-
-		// Create the deployment details response
-		var envDisplayName *string
-		if deployment.EnvironmentDisplayName != "" {
-			envDisplayName = &deployment.EnvironmentDisplayName
-		}
-
-		deploymentResponse := spec.DeploymentDetailsResponse{
-			Status:                 deployment.Status,
-			Endpoints:              endpoints,
-			EnvironmentDisplayName: envDisplayName,
-			GatewayStatus:          stringToPtr(deployment.GatewayStatus),
-			GatewayStatusReason:    stringToPtr(deployment.GatewayStatusReason),
-		}
-
-		// Add to result map with environment name as key
-		result[deployment.Environment] = deploymentResponse
-	}
-
-	return result
-}
-
 func ConvertToEnvironmentListResponse(environments []*models.EnvironmentResponse) []spec.Environment {
 	if len(environments) == 0 {
 		return []spec.Environment{}
@@ -314,4 +275,11 @@ func redactSensitiveFileValues(files []spec.FileMount) []spec.FileMount {
 		}
 	}
 	return redacted
+}
+
+func stringToPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

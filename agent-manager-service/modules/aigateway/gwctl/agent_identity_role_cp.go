@@ -27,9 +27,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -171,7 +171,7 @@ func (c *agentIdentityController) writeEnsureError(w http.ResponseWriter, r *htt
 }
 
 func (c *agentIdentityController) createRoleViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
-	var body spec.AgentIdentityRoleRequest
+	var body gwspec.AgentIdentityRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
@@ -200,7 +200,7 @@ func (c *agentIdentityController) createRoleViaProvider(w http.ResponseWriter, r
 
 func (c *agentIdentityController) updateRoleViaProvider(w http.ResponseWriter, r *http.Request, provider services.IdentityRoleProvider) {
 	roleID := r.PathValue(utils.PathParamRoleID)
-	var body spec.AgentIdentityRoleRequest
+	var body gwspec.AgentIdentityRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return

@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 )
 
 func storedProvider() *models.LLMProvider {
@@ -52,7 +52,7 @@ func TestPreserveOmittedProviderFields_PartialUpdateKeepsStoredValues(t *testing
 	existing := storedProvider()
 	// A caller changing only the description: every other field is absent.
 	description := "just a new description"
-	req := &spec.UpdateLLMProviderRequest{Description: &description}
+	req := &gwspec.UpdateLLMProviderRequest{Description: &description}
 
 	// What conversion produces from that request: the omitted fields are all empty.
 	provider := &models.LLMProvider{Configuration: models.LLMProviderConfig{Name: "acme-openai"}}
@@ -76,8 +76,8 @@ func TestPreserveOmittedProviderFields_PartialUpdateKeepsStoredValues(t *testing
 func TestPreserveOmittedProviderFields_SuppliedValuesWin(t *testing.T) {
 	existing := storedProvider()
 	disabled := false
-	req := &spec.UpdateLLMProviderRequest{
-		Security: &spec.SecurityConfig{Enabled: &disabled},
+	req := &gwspec.UpdateLLMProviderRequest{
+		Security: &gwspec.SecurityConfig{Enabled: &disabled},
 	}
 
 	// Conversion already wrote the request's security onto the model.
@@ -102,7 +102,7 @@ func TestPreserveOmittedProviderFields_SuppliedValuesWin(t *testing.T) {
 // must keep the ability to remove every policy.
 func TestPreserveOmittedProviderFields_EmptySliceClears(t *testing.T) {
 	existing := storedProvider()
-	req := &spec.UpdateLLMProviderRequest{Policies: []spec.LLMPolicy{}}
+	req := &gwspec.UpdateLLMProviderRequest{Policies: []gwspec.LLMPolicy{}}
 
 	provider := &models.LLMProvider{
 		Configuration: models.LLMProviderConfig{Policies: []models.LLMPolicy{}},
