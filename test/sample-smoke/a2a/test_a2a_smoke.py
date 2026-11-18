@@ -2,7 +2,6 @@
 import unittest
 from a2a_smoke import check_task, check_evidence
 from a2a_platform_smoke import A2A
-from external_agent import trace_matches
 
 MARKER = 'smoke-' + 'a' * 32
 
@@ -20,11 +19,6 @@ class Guards(unittest.TestCase):
         check_evidence({'calls': [{'marker': MARKER, 'skill': s} for s in ('summary', 'actions')]}, MARKER)
         for calls in ([], [{'marker': MARKER, 'skill': 'summary'}], [{'marker': 'stale', 'skill': s} for s in ('summary', 'actions')]):
             with self.assertRaises(AssertionError): check_evidence({'calls': calls}, MARKER)
-
-    def test_trace_must_contain_this_invocation_on_a_model_span(self):
-        self.assertFalse(trace_matches([], MARKER))
-        self.assertFalse(trace_matches([{'attributes': {'gen_ai.operation.name': 'chat', 'content': 'other request'}}], MARKER))
-        self.assertTrue(trace_matches([{'attributes': {'gen_ai.operation.name': 'chat', 'content': MARKER}}], MARKER))
 
     def test_registered_names_fit_the_project_name_limit(self):
         self.assertLessEqual(len(A2A.name_prefix) + 12, 25)

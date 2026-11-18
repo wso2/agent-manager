@@ -22,10 +22,10 @@ must carry this invocation's unique marker. The app process and stub are stopped
 and the temporary environment removed on success, failure, and cancellation.
 Install/app logs, model evidence and response JSON remain in the reports directory.
 
-## Agent Manager external agent and trace check
+## Agent Manager external agent check
 
 `a2a_platform_smoke.py` runs the sample as an external agent against a running
-Agent Manager and finds its model trace; see [../README.md](../README.md).
+Agent Manager; see [../README.md](../README.md).
 
 ## Regression guards
 
@@ -34,4 +34,4 @@ python3.11 -m unittest discover -s test/sample-smoke/a2a -p 'test_*.py' -v
 ```
 
 These reject failed/protocol-error tasks, missing/wrong artifacts, stale or
-partial model evidence, and traces without this invocation's model span.
+and partial model evidence.

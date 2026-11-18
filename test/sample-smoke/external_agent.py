@@ -1,10 +1,11 @@
-"""Run a sample as an external agent against a running Agent Manager and find its trace.
+"""Run a sample as an external agent against a running Agent Manager.
 
 The sample runs on this machine from the checkout, under `amp-instrument` from
 libs/amp-instrumentation (so the PR's instrumentation is what gets exercised),
 against a local model stub. Agent Manager registers it as an external agent and
-issues the token its spans are sent with to the AI Gateway's /otel endpoint;
-the run passes once this invocation's model span is readable from the observer.
+issues its API key; the run passes once the model stub has seen this
+invocation's full round trip. Agent Manager stores no traces, so the sample's
+spans go to a local sink that accepts and drops them.
 
 Each sample's platform_smoke.py describes how to start it (an ExternalSample)
 and calls run().
@@ -14,7 +15,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
@@ -24,6 +25,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from typing import Callable, ContextManager
 import urllib.error
@@ -33,7 +35,6 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "test/instrumentation-matrix"))
 from heavy.amp_client import AmpClient, DeployedAgent, IdpCredentials  # noqa: E402
-from harness.classify import classify_span  # noqa: E402
 
 INSTRUMENTATION = ROOT / "libs/amp-instrumentation"
 
@@ -93,28 +94,20 @@ def wait_ready(url, process=None, timeout=120):
     raise TimeoutError(f"Readiness timed out for {url}: {last}")
 
 
-class NotReady(Exception):
-    """A poll attempt hit a transient server error; try again until the deadline."""
-
-
-def wait_until(description, poll, timeout=180):
-    deadline = time.monotonic() + timeout
-    last = None
-    while time.monotonic() < deadline:
-        try:
-            result = poll()
-        except NotReady as exc:
-            result, last = None, exc
-        if result:
-            return result
-        time.sleep(5)
-    raise TimeoutError(f"Timed out waiting for {description}" + (f" (last error: {last})" if last else ""))
-
-
 def free_port():
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
+
+
+def group_alive(pgid):
+    try:
+        os.killpg(pgid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def stop_process(process):
@@ -125,6 +118,13 @@ def stop_process(process):
         except subprocess.TimeoutExpired:
             os.killpg(process.pid, signal.SIGKILL)
             process.wait(timeout=5)
+    # A wrapper such as amp-instrument can exit before the app it started,
+    # which is still flushing spans; wait for the whole group.
+    deadline = time.monotonic() + 10
+    while group_alive(process.pid) and time.monotonic() < deadline:
+        time.sleep(0.2)
+    if group_alive(process.pid):
+        os.killpg(process.pid, signal.SIGKILL)
 
 
 @contextlib.contextmanager
@@ -166,40 +166,35 @@ def base_env():
     return {k: os.environ[k] for k in ("PATH", "HOME", "LANG", "SYSTEMROOT") if k in os.environ}
 
 
-def trace_matches(spans, marker):
-    # A populated trace list is insufficient: require this invocation's model span.
-    return any(classify_span(span) == "llm" and marker in json.dumps(span) for span in spans)
+class _SpanSink(BaseHTTPRequestHandler):
+    def do_POST(self):
+        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        self.server.exports += 1
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-protobuf")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
+    def log_message(self, *_):
+        pass
 
 
-def poll_trace(client, deployed, observer, marker, since, reports):
-    params = {"organization": deployed.org, "project": deployed.project_name,
-              "agent": deployed.agent_name, "environment": deployed.environment,
-              "startTime": (since - timedelta(seconds=5)).isoformat(),
-              "endTime": (since + timedelta(minutes=10)).isoformat(), "limit": 100}
+@contextlib.contextmanager
+def span_sink():
+    """An OTLP/HTTP endpoint that accepts spans and drops them, yielding the server.
 
-    def get(path, query=None):
-        response = client._session.get(observer.rstrip("/") + path, params=query,
-                                       headers={"Authorization": f"Bearer {client.access_token()}"}, timeout=30)
-        # The first span creates the day's trace index, and searches fail until
-        # its shard starts; any other error, or one that outlasts the wait, fails.
-        if response.status_code >= 500:
-            raise NotReady(f"{path} returned {response.status_code}: {response.text[:200]}")
-        response.raise_for_status()
-        return response.json()
-
-    def poll():
-        listing = get("/api/v1/traces", params)
-        (reports / "trace-list.json").write_text(json.dumps(listing, indent=2) + "\n")
-        for trace in listing.get("traces", []):
-            tid = trace["traceId"]
-            summaries = get(f"/api/v1/traces/{tid}/spans", params)
-            spans = [get(f"/api/v1/traces/{tid}/spans/{span['spanId']}") for span in summaries.get("spans", [])]
-            if trace_matches(spans, marker):
-                (reports / "trace-spans.json").write_text(json.dumps(spans, indent=2) + "\n")
-                return tid
-        return None
-
-    return wait_until("this invocation's model span in the observer", poll)
+    The instrumentation needs an endpoint to export to, and one that refuses
+    spans would fill the application log with export errors.
+    """
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _SpanSink)
+    server.exports = 0
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
 
 
 def run(args, sample: ExternalSample):
@@ -229,6 +224,7 @@ def run(args, sample: ExternalSample):
             print(f"==> {phase}", flush=True)
             model_url = stack.enter_context(sample.model())
             service_env = sample.services(stack, reports) if sample.services else {}
+            sink = stack.enter_context(span_sink())
 
             phase = "application startup"
             print(f"==> {phase}", flush=True)
@@ -237,7 +233,7 @@ def run(args, sample: ExternalSample):
             env.update(sample.extra_env)
             env.update(service_env)
             env.update(sample.env(model_url, port))
-            env.update(AMP_OTEL_ENDPOINT=args.gateway.rstrip("/") + "/otel", AMP_AGENT_API_KEY=token,
+            env.update(AMP_OTEL_ENDPOINT=f"http://127.0.0.1:{sink.server_port}/otel", AMP_AGENT_API_KEY=token,
                        AMP_TRACE_CONTENT="true", OTEL_BSP_SCHEDULE_DELAY="100", PYTHONUNBUFFERED="1")
             wrapper = [str(venv / "bin/amp-instrument")] if sample.auto_instrument else []
             command = [*wrapper, str(venv / "bin/python"),
@@ -248,18 +244,14 @@ def run(args, sample: ExternalSample):
 
             phase = "model round trip"
             print(f"==> {phase}", flush=True)
-            since = datetime.now(timezone.utc)
             result = sample.invoke(endpoint, marker)
             evidence = request(model_url + "/evidence")
             (reports / "model-evidence.json").write_text(json.dumps(evidence, indent=2) + "\n")
             sample.check_evidence(evidence, marker)
-
-            phase = "trace ingestion"
-            print(f"==> {phase}", flush=True)
-            trace_id = poll_trace(client, deployed, args.observer, marker, since, reports)
-            (reports / "result.json").write_text(json.dumps({"traceId": trace_id, "response": result}, indent=2, default=str) + "\n")
+            (reports / "result.json").write_text(json.dumps({"response": result, "spanExports": sink.exports},
+                                                            indent=2, default=str) + "\n")
             how = "under amp-instrument" if sample.auto_instrument else "with its own exporter"
-            print(f"PASS: local app {how} → model round trip → AI Gateway → trace {trace_id}")
+            print(f"PASS: external agent registered; local app {how} → model round trip")
     except BaseException:
         print(f"FAIL: {phase}; reports: {reports}", file=sys.stderr)
         for log in ("install.log", "application.log"):
@@ -277,8 +269,6 @@ def parse_args(description):
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--reports", type=Path, default=Path(tempfile.mkdtemp(prefix="external-smoke-")))
     for name, env, default in [("api", "AMP_API_BASE_URL", "http://localhost:9000"),
-                               ("observer", "AM_OBSERVER_BASE_URL", "http://localhost:9098"),
-                               ("gateway", "AMP_GATEWAY_URL", "http://default-default.gateway.localhost:19080"),
                                ("token-url", "IDP_TOKEN_URL", "http://thunder.amp.localhost:8080/oauth2/token"),
                                ("client-id", "IDP_CLIENT_ID", "amp-api-client"),
                                ("org", "DEFAULT_ORG", "default"), ("environment", "DEFAULT_ENV", "default")]:

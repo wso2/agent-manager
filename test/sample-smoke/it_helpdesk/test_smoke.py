@@ -1,10 +1,9 @@
-"""Regression guards against passing a broken tool loop or unrelated/stale trace."""
+"""Regression guards against passing a broken tool loop."""
 import unittest
 from urllib.error import HTTPError
 
 from smoke import check_evidence, local_model, request
 from platform_smoke import IT_HELPDESK
-from external_agent import trace_matches
 
 MARKER = "smoke-" + "a" * 32
 
@@ -31,12 +30,6 @@ class SmokeGuards(unittest.TestCase):
                     {"role": "user", "content": MARKER},
                     {"role": "tool", "tool_call_id": "call_" + MARKER, "content": '[]'}]})
             self.assertTrue(request(url + "/evidence")["errors"])
-
-    def test_trace_must_contain_this_invocation_on_a_model_span(self):
-        self.assertFalse(trace_matches([], MARKER))
-        self.assertFalse(trace_matches([{"attributes": {"gen_ai.operation.name": "chat", "content": "other request"}}], MARKER))
-        self.assertFalse(trace_matches([{"attributes": {"gen_ai.operation.name": "execute_tool", "content": MARKER}}], MARKER))
-        self.assertTrue(trace_matches([{"attributes": {"gen_ai.operation.name": "chat", "content": MARKER}}], MARKER))
 
     def test_registered_names_fit_the_project_name_limit(self):
         self.assertLessEqual(len(IT_HELPDESK.name_prefix) + 12, 25)

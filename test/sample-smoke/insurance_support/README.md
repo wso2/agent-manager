@@ -9,7 +9,7 @@ ephemeral stack.
 [../README.md](../README.md)). A local OpenAI-compatible model service supports
 Strands streaming completions. It requests the real `list_policies` tool and
 validates all three policy IDs before responding. The test invokes `/chat` and
-requires an observer model span containing this invocation's unique marker.
+requires the model stub to have seen this invocation's unique marker.
 Bedrock and MCP behavior remains covered by the existing offline integration
 tests; the platform scenario uses the default OpenAI path and local policy tools.
 

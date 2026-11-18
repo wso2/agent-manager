@@ -1,4 +1,4 @@
-"""Run the Hotel Booking sample as an external agent and find its trace in Agent Manager."""
+"""Run the Hotel Booking sample as an external agent against Agent Manager."""
 from __future__ import annotations
 
 import contextlib
