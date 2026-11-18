@@ -1,0 +1,7 @@
+# Fixture: a lock that adds a PSF-2.0 package (typing-extensions) to the runtime closure.
+tree-sitter==0.26.0 \
+    --hash=sha256:0000000000000000000000000000000000000000000000000000000000000000
+    # via -r requirements.in
+typing-extensions==4.16.0 \
+    --hash=sha256:0000000000000000000000000000000000000000000000000000000000000000
+    # via -r requirements.in

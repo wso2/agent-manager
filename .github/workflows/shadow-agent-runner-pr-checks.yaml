@@ -1,0 +1,144 @@
+name: Shadow Agent Runner
+
+on:
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "shadow-agent-runner/**"
+      - ".github/workflows/shadow-agent-runner-pr-checks.yaml"
+
+# Default token scope is read-only; jobs that publish, push or deploy
+# request the extra scopes they need at job level.
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: shadow-agent-runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Pinned: ruff 0.16 widened its default rule set, so an unpinned
+          # install changes what CI enforces without any code change.
+          pip install ruff==0.15.22
+
+      - name: Run ruff linter
+        run: ruff check .
+
+      - name: Run ruff formatter check
+        run: ruff format --check .
+
+  type-check:
+    name: Type Check
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: shadow-agent-runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # The hash-checked lock first, so the package is tested against exactly
+      # what the image ships; then the package and its dev tools.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes --no-deps -r locks/requirements-linux-py312.txt
+          pip install -e '.[dev]'
+
+      - name: Run mypy
+        run: mypy
+
+  test:
+    name: Test
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: shadow-agent-runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --require-hashes --no-deps -r locks/requirements-linux-py312.txt
+          pip install -e '.[dev]'
+
+      - name: Run tests
+        run: python -m pytest
+
+  dependencies:
+    name: Dependencies
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    defaults:
+      run:
+        working-directory: shadow-agent-runner
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # Hermetic: reads only committed files. Refreshing the lock is a
+      # human-run step (`make lock`), not something CI re-resolves.
+      - name: Verify the lock matches requirements.in and pyproject.toml
+        run: make check-lock
+
+      # The runtime closure alone, in a clean venv, exactly as the image installs it.
+      - name: Check licences, denylist and THIRD_PARTY_LICENSES.md
+        run: |
+          python -m venv "$RUNNER_TEMP/runtime"
+          "$RUNNER_TEMP/runtime/bin/pip" install --require-hashes --no-deps -r locks/requirements-linux-py312.txt
+          "$RUNNER_TEMP/runtime/bin/python" scripts/check_deps.py
+
+      - name: Check binary wheels exist for linux amd64 and arm64
+        run: make check-wheels
+
+  image:
+    name: Image
+    runs-on:
+      - codebuild-wso2_agent-manager-${{ github.run_id }}-${{ github.run_attempt }}
+    env:
+      IMAGE: amp-shadow-runner:pr
+      VERSION: 0.0.0-pr
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      # amd64 only, to keep PRs fast. `make docker-buildx` builds both architectures.
+      - name: Build image
+        run: docker build --platform linux/amd64 --build-arg VERSION="$VERSION" -t "$IMAGE" shadow-agent-runner
+
+      - name: Smoke-test image
+        run: bash shadow-agent-runner/scripts/smoke-image.sh "$IMAGE" "$VERSION"
