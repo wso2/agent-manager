@@ -610,6 +610,7 @@ export function ViewMCPProxy() {
                       config={selectedConfig}
                       selectedEndpointId={selectedEndpointId}
                       orgName={orgId}
+                      proxyId={routeProxyId}
                       isLoading={isTabContentLoading}
                       onUpdate={updateSelectedEndpointConfig}
                       isUpdating={updateMCPProxy.isPending}
@@ -635,6 +636,7 @@ export function ViewMCPProxy() {
                       config={selectedConfig}
                       selectedEndpointId={selectedEndpointId}
                       orgName={orgId}
+                      proxyId={routeProxyId}
                       isLoading={isTabContentLoading}
                       onUpdate={updateSelectedEndpointConfig}
                       isUpdating={updateMCPProxy.isPending}

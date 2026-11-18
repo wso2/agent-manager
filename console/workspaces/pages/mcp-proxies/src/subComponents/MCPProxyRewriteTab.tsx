@@ -341,6 +341,8 @@ export type MCPProxyRewriteTabProps = {
   config: MCPEndpointConfig | undefined;
   selectedEndpointId: string;
   orgName: string | undefined;
+  /** MCP proxy handle; scopes policy availability to the proxy's gateways. */
+  proxyId?: string;
   isLoading?: boolean;
   onUpdate: (fields: Partial<MCPEndpointConfig>) => Promise<unknown>;
   isUpdating: boolean;
@@ -350,6 +352,7 @@ export function MCPProxyRewriteTab({
   config,
   selectedEndpointId,
   orgName,
+  proxyId,
   isLoading = false,
   onUpdate,
   isUpdating,
@@ -377,9 +380,11 @@ export function MCPProxyRewriteTab({
 
   const { data: catalog, isLoading: isCatalogLoading } = useMCPPoliciesCatalog(
     orgName,
+    proxyId,
   );
   const availableRewritePolicy = useMemo(
-    () => catalog?.data?.find(
+    () =>
+      catalog?.data?.find(
         (p) => p.name === REWRITE_POLICY_NAME && p.status === "installed",
       ),
     [catalog],
