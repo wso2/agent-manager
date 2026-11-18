@@ -42,7 +42,7 @@ func CreateAgentAPIKey(g Gomega, client *framework.AMPClient, orgName, projName,
 		req.DisplayName = fmt.Sprintf("%s-%s", req.DisplayName, uuid.New().String()[:8])
 	}
 
-	basePath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/environments/%s/api-keys",
+	basePath := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/environments/%s/api-keys",
 		orgName, projName, agentName, environment)
 
 	resp, err := client.Post(basePath, req)

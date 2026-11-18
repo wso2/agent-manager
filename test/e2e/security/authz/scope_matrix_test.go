@@ -122,6 +122,9 @@ func guardedRoutes(org string) []guardedRoute {
 	agentBase := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents", org, absentName)
 	orgBase := fmt.Sprintf("/api/v1/orgs/%s", org)
 	identityBase := orgBase + "/identities"
+	// The AI Gateway module's API.
+	gwOrgBase := fmt.Sprintf("/m/ai-gateway/orgs/%s", org)
+	gwAgentBase := gwOrgBase + "/projects/" + absentName + "/agents"
 
 	return []guardedRoute{
 		// --- Agent lifecycle -------------------------------------------------
@@ -136,7 +139,7 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodPost, agentBase + "/" + absentName + "/deployments/state", []string{"amp:agent:suspend"}},
 		{http.MethodPost, agentBase + "/" + absentName + "/publish-kind", []string{"amp:agent-kind:create"}},
 		{
-			http.MethodPost, agentBase + "/" + absentName + "/environments/" + absentName + "/api-keys",
+			http.MethodPost, gwAgentBase + "/" + absentName + "/environments/" + absentName + "/api-keys",
 			[]string{"amp:ai-gateway:agent-api-keys.manage"},
 		},
 
@@ -167,14 +170,14 @@ func guardedRoutes(org string) []guardedRoute {
 		// --- Secrets and gateways --------------------------------------------
 		{http.MethodPost, orgBase + "/git-secrets", []string{"amp:git-secret:create"}},
 		{http.MethodDelete, orgBase + "/git-secrets/" + absentName, []string{"amp:git-secret:delete"}},
-		{http.MethodPost, orgBase + "/gateways", []string{"amp:ai-gateway:gateways.create"}},
-		{http.MethodDelete, orgBase + "/gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
-		{http.MethodPost, orgBase + "/gateways/" + absentName + "/tokens", []string{"amp:ai-gateway:gateways.token-manage"}},
+		{http.MethodPost, gwOrgBase + "/gateways", []string{"amp:ai-gateway:gateways.create"}},
+		{http.MethodDelete, gwOrgBase + "/gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
+		{http.MethodPost, gwOrgBase + "/gateways/" + absentName + "/tokens", []string{"amp:ai-gateway:gateways.token-manage"}},
 
 		// --- Agent kinds and catalog ------------------------------------------
 		{http.MethodPut, orgBase + "/agent-kinds/" + absentName, []string{"amp:agent-kind:update"}},
 		{http.MethodDelete, orgBase + "/agent-kinds/" + absentName, []string{"amp:agent-kind:delete"}},
-		{http.MethodGet, orgBase + "/catalog", []string{"amp:ai-gateway:catalog.read"}},
+		{http.MethodGet, gwOrgBase + "/catalog", []string{"amp:ai-gateway:catalog.read"}},
 	}
 }
 

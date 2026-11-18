@@ -29,11 +29,11 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
-// CoreUI is the console UI the core serves itself, besides the console's
-// always-on core module (acp-core). The external-agent page sits in the
-// console's ai-gateway module but registers agents, which the core does.
+// CoreUI is the console UI the core serves itself, in the console's
+// always-on core module (acp-core): the external-agent page registers
+// agents, which the core does.
 var CoreUI = []modhost.UIEntry{
-	{ID: "ai-gateway/external-agent", Permission: rbac.AgentCreate},
+	{ID: "acp-core/external-agent", Permission: rbac.AgentCreate},
 }
 
 // UISource lists the console UI of the active modules.

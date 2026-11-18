@@ -185,7 +185,7 @@ func cleanupStaleDeploymentPipelines(client *framework.AMPClient, orgName string
 // are not cascaded by project or environment deletion.
 func cleanupStaleLLMProviders(client *framework.AMPClient, orgName string) {
 
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-providers", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers", orgName)
 	resp, err := client.Get(path)
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list LLM providers: %v\n", err)
@@ -219,7 +219,7 @@ func cleanupStaleLLMProviders(client *framework.AMPClient, orgName string) {
 			continue
 		}
 
-		providerPath := fmt.Sprintf("/api/v1/orgs/%s/llm-providers/%s", orgName, p.ID)
+		providerPath := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers/%s", orgName, p.ID)
 		delResp, err := client.Delete(providerPath)
 		if err != nil {
 			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete LLM provider %s: %v\n", p.ID, err)
@@ -236,7 +236,7 @@ func cleanupStaleLLMProviders(client *framework.AMPClient, orgName string) {
 // createdAt, so each candidate is fetched by handle to read its age.
 func cleanupStaleMCPProxies(client *framework.AMPClient, orgName string) {
 
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies", orgName)
 	resp, err := client.Get(path)
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("stale cleanup: failed to list MCP proxies: %v\n", err)
@@ -269,7 +269,7 @@ func cleanupStaleMCPProxies(client *framework.AMPClient, orgName string) {
 			continue
 		}
 
-		proxyPath := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies/%s", orgName, *p.ID)
+		proxyPath := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s", orgName, *p.ID)
 		delResp, err := client.Delete(proxyPath)
 		if err != nil {
 			ginkgo.GinkgoWriter.Printf("stale cleanup: failed to delete MCP proxy %s: %v\n", *p.ID, err)
@@ -285,7 +285,7 @@ func cleanupStaleMCPProxies(client *framework.AMPClient, orgName string) {
 // createdAt) it returns false, leaving an unreadable proxy alone rather than
 // deleting one out from under a concurrent run.
 func mcpProxyOlderThanCutoff(client *framework.AMPClient, orgName, handle string) bool {
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies/%s", orgName, handle)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s", orgName, handle)
 	resp, err := client.Get(path)
 	if err != nil {
 		return false

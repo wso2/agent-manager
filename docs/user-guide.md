@@ -145,6 +145,8 @@ The [samples](../samples) folder has ready-to-run agents. Their tracing steps ne
 
 Add LLM providers and MCP servers in the console, then attach them to an agent. The agent calls them through the AI Gateway, which checks the agent's key, applies guardrails and token or cost limits, and keeps the provider keys out of your agent.
 
+The gateway is the `ai-gateway` module. Its API is at `/m/ai-gateway/orgs/{org}/...` (for example `GET /m/ai-gateway/orgs/{org}/llm-providers`), beside the core's `/api/v1`, and its permissions are the `amp:ai-gateway:<resource>.<action>` scopes, such as `amp:ai-gateway:llm-providers.read`.
+
 ## Command line
 
 `amctl` is the command-line client for the Agent Manager API. See [cli](../cli).

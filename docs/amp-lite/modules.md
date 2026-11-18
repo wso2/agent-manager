@@ -383,9 +383,16 @@ A module must not:
 
 ### Where the gateway stands
 
-The `ai-gateway` module (`modules/aigateway`) predates the contract and doesn't follow it yet. Its 42 permissions are its own (`ai-gateway:<resource>.<action>`, such as `ai-gateway:llm-providers.read` and `ai-gateway:deploy.production`), declared in its manifest and rendered into ThunderID as the `ai-gateway` resource. Its `Activate` only provides `llm.proxy/v1`, `mcp.proxy/v1` and `agent.gateway/v1`; everything else goes through an escape hatch for built-in modules, `builtin.Bundle`. Its `Build(ctx, *wiring.AppParams)` builds the gateway on the core's Go services and repositories and returns `builtin.Parts`: routes under `/api/v1/orgs/...`, internal routes (gateway control plane and WebSocket), MCP tools, and an `Init`, `Start` and `Stop` for its workers. Its packages import core `services`, `repositories`, `controllers`, `models` and `spec`, its tables are core tables without the `mod_ai_gateway_` prefix (listed in [database-schema.md](database-schema.md#gateway-module-tables)), and its contracts take `spec` types. Don't copy this for a new module.
+The `ai-gateway` module (`modules/aigateway`) is moving onto the contract and doesn't follow it fully yet.
 
-The `Runtime` now has what it needs to run on the contract alone: background workers, MCP tools, secrets, lookups by name, `LockAgent` and `EnsureOrg`, project hooks, audit and webhook route options, display names, its own OpenAPI document, and `HandleInternalAt` for its controllers' fixed paths. What is left is moving the gateway onto them: its routes to `/m/<name>` with its own document, its tables to `mod_<name>_*` with their own migrations, its settings to `rt.Config`, its gateway route patterns out of `audit/policy.go` and `events/catalog.go`, its MCP tool definitions out of `mcp/tools`, and contracts free of `spec` types.
+What it already does as a module:
+
+- **Permissions:** its 42 permissions are its own (`ai-gateway:<resource>.<action>`, such as `ai-gateway:llm-providers.read` and `ai-gateway:deploy.production`), declared in its manifest and rendered into ThunderID as the `ai-gateway` resource.
+- **API:** `Activate` mounts its public API with `rt.Handle` at `/m/ai-gateway/orgs/{orgName}/...` (the paths keep the organization, which the core resolves from them), described by its own document, `modules/aigateway/api/openapi.yaml`, with Go types in `gwspec` and an amctl client in `cli/pkg/clients/aigateway`. The console calls it through `GATEWAY_BASE` in `libs/api-client`.
+- **Controller API:** the routes its gateway controllers call, and their WebSocket, stay at `/api/internal/v1/...` with the controllers' `api-key` header, mounted with `rt.HandleInternalAt` until the controllers can register as workloads ([#2493](https://github.com/wso2/agent-manager/issues/2493)).
+- **Audit and webhooks:** its routes declare their audit actions (`ai-gateway:<resource>.<verb>`, such as `ai-gateway:api-keys.rotate`) and webhook events (`ai-gateway.<type>`, such as `ai-gateway.llm_provider.created`) with `modkit.Audit`, `AuditCoalesce` and `Emits`; the manifest declares them (`gwaudit`).
+
+What is left: its workers, MCP tools and settings still come through `builtin.Bundle` (`Build(ctx, *wiring.AppParams)` builds it on the core's Go services and repositories), its packages import core `services`, `repositories`, `controllers` and `models`, its tables are core tables without the `mod_ai_gateway_` prefix (listed in [database-schema.md](database-schema.md#gateway-module-tables)), its agent bindings ride on the core's agent create body, and its contracts take `spec` types. Don't copy this for a new module.
 
 ## Testing
 

@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../../shared/utils";
+import { httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 import type {
   ThunderGroup,
   ThunderRole,
@@ -38,7 +38,7 @@ import type {
 } from "@agent-management-platform/types";
 
 const envBase = (orgName: string, envName: string) =>
-  `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/environments/${encodeURIComponent(envName)}/agent-identities`;
+  `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/environments/${encodeURIComponent(envName)}/agent-identities`;
 
 const toSearch = (query?: AgentIdentityListQuery) =>
   query

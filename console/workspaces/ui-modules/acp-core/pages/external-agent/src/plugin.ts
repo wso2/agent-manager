@@ -28,8 +28,9 @@ import { ExternalAgentIcon } from "@agent-management-platform/views";
 
 const newAgent = absoluteRouteMap.children.org.children.projects.children.newAgent;
 
-// An externally-hosted agent runs outside the platform; the AI gateway fronts
-// it, so this module offers the agent type and its register form.
+// An externally-hosted agent runs outside the platform and only registers
+// with it, which the core does; this page offers the agent type and its
+// register form.
 export const externalAgentPlugin: PluginManifest = {
   id: "external-agent",
   name: "Externally-hosted agents",

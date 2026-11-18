@@ -29,6 +29,12 @@ export function sleep(ms: number): Promise<void> {
 }
 export const SERVICE_BASE = '/api/v1';
 
+/** Where a module's API is served, beside the core's /api/v1. */
+export const moduleBase = (module: string): string => `/m/${module}`;
+
+/** The AI Gateway module's API. */
+export const GATEWAY_BASE = moduleBase('ai-gateway');
+
 export function encodeRequired(value: string | undefined, label: string): string {
   if (!value) {
     throw new Error(`Missing required parameter: ${label}`);

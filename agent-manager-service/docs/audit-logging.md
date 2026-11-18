@@ -32,7 +32,7 @@ When a semantic event describes a successful request, the coverage tier stands d
 - **Every MCP tool that changes state.** `addTool` requires an `audit.Action` alongside its permissions and panics without one, so a new mutating tool cannot ship unattributed — the same registration-time guarantee the route registrar gives REST. Read-only tools declare a read action and are not recorded.
 - **Reads only when they disclose credentials or security configuration** — API-key listings, git secrets, gateway tokens, role assignments, identity-provider configuration. Auditing every GET would multiply volume several-fold for little forensic gain.
 - One documented exemption: `POST /orgs/{orgName}/utils/generate-name`, which suggests a name and persists nothing.
-- **Module routes and tools follow the same rules.** A module's mutating route (`/m/<module>/...`) is recorded under its permission, or under an action its manifest declares and the route names with `modkit.Audit`; the manifest gives that action its class and severity, and `modkit.Audit` on a read records the read. `api/module_routes_invariant_test.go` checks it for the test module.
+- **Module routes and tools follow the same rules.** A module's mutating route (`/m/<module>/...`) is recorded under its permission, or under an action its manifest declares and the route names with `modkit.Audit`; the manifest gives that action its class and severity, and `modkit.Audit` on a read records the read. `api/module_routes_invariant_test.go` checks it for the test module and the AI Gateway.
 
 ### Record shape
 
@@ -112,13 +112,15 @@ Actions read as `<resource>:<verb>`. Most are the route's `rbac.Permission` verb
 - A permission naming a different resource than the operation acts on — `publish-kind` is gated by `agent-kind:create` but acts on an agent.
 - A permission narrower than the effect — `deployments/state` is gated by `agent:suspend` but also resumes.
 
+A module's actions carry its name: `<module>:<name>`, where the name is the module's permission or a declared action, often `<resource>.<verb>`. The AI Gateway's read `ai-gateway:<resource>.<verb>` (`ai-gateway:api-keys.rotate`, `ai-gateway:gateways.set-identity-provider`); its routes declare them, and its semantic events and their detail keys are in `modules/aigateway/gwaudit`.
+
 `requestPath` holds the **route pattern** on every record a route produced (see the one `authn:failure` exception above). Queries on it are exact, which is what makes deriving the human-readable action safe.
 
 `actionClass` is one of `authn`, `authz`, `credential`, `identity`, `deployment`, `config`, `read`, `system`. `severity` runs 1 (info) to 4 (critical); credential and privilege changes are always 4.
 
 ### Severity 4 — the events worth alerting on
 
-`authz:root-ou-bypass`, and everything in `actionClass: credential` or `identity` with a mutating verb — notably `role:*`, `group:*`, `user:*`, `api-key:create` / `:rotate` / `:revoke`, `git-secret:*`, `agent-identity:*`, `agent-token:*`, `gateway-token:*`, `service-account:*`, and `gateway:set-identity-provider` / `:remove-identity-provider` (changing which issuer a gateway trusts changes who can mint tokens it accepts). `api-key:issue-test` is the deliberate exception: console Try-It keys are short-lived, so they rank as a notice.
+`authz:root-ou-bypass`, and everything in `actionClass: credential` or `identity` with a mutating verb — notably `role:*`, `group:*`, `user:*`, `ai-gateway:api-keys.create` / `:rotate` / `:revoke`, `git-secret:*`, `agent-identity:*`, `agent-token:*`, `ai-gateway:gateway-tokens.*`, `service-account:*`, and `ai-gateway:gateways.set-identity-provider` / `:remove-identity-provider` (changing which issuer a gateway trusts changes who can mint tokens it accepts). `ai-gateway:api-keys.issue-test` is the deliberate exception: console Try-It keys are short-lived, so they rank as a notice.
 
 ## What is never recorded
 
@@ -306,10 +308,10 @@ The operations below emit a record describing what actually changed, not just th
 
 | Area | Actions | Mode |
 |---|---|---|
-| API keys | `api-key:create` / `:rotate` / `:revoke` (agent, LLM provider, LLM proxy) | Fail-closed |
-| API keys | `api-key:issue-test` (console Try-It) | Fail-open |
+| API keys | `ai-gateway:api-keys.create` / `:rotate` / `:revoke` (agent, LLM provider, LLM proxy) | Fail-closed |
+| API keys | `ai-gateway:api-keys.issue-test` (console Try-It) | Fail-open |
 | Git secrets | `git-secret:create` / `:delete` | Fail-closed |
-| Gateway tokens | `gateway-token:rotate` / `:revoke` | Fail-closed |
+| Gateway tokens | `ai-gateway:gateway-tokens.rotate` / `:revoke` | Fail-closed |
 | Agent tokens | `agent-token:mint`, `agent-token:regenerate-tracing` | Fail-closed |
 | Module workloads | `workload-credential:issue`, `workload-token:exchange` | Fail-closed |
 | Module workloads | `workload-credential:revoke` | Fail-open |
@@ -324,18 +326,18 @@ The operations below emit a record describing what actually changed, not just th
 | Agent lifecycle | `agent:build` | Fail-open |
 | Builds | `build-workload:publish` (a build's workload step, through the build publisher endpoint; service actor: the client its build token was issued to, `IDP_CLIENT_ID`) | Fail-closed |
 | Build token | `build-token:issue` (organization-scoped access token a build uses to call the build publisher endpoint, obtained with `IDP_CLIENT_ID` and stored in the secret store) | Fail-closed |
-| Gateways | `gateway:delete`, `gateway:set-identity-provider`, `gateway:remove-identity-provider` | Fail-closed |
-| Gateways | `gateway:create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
-| Internal | `gateway:push-manifest`, `api-key:sync` (bulk sync, coalesced per gateway) | Fail-open |
-| Agent config | `agent-config:update` / `:delete` | Fail-open |
-| A2A card source | `agent:set-card-source` / `agent:remove-card-source` | Fail-open |
-| A2A proxy | `agent:set-a2a-proxy` / `agent:remove-a2a-proxy` | Fail-closed |
-| Per-config API keys | `api-key:create` / `:rotate` / `:revoke` (model-config, mcp-config) | Fail-closed |
+| Gateways | `ai-gateway:gateways.delete`, `ai-gateway:gateways.set-identity-provider`, `ai-gateway:gateways.remove-identity-provider` | Fail-closed |
+| Gateways | `ai-gateway:gateways.create` / `:update` / `:assign-environment` / `:unassign-environment` | Fail-open |
+| Internal | `ai-gateway:gateways.push-manifest`, `ai-gateway:api-keys.sync` (bulk sync, coalesced per gateway) | Fail-open |
+| Agent config | `ai-gateway:agent-configs.update` / `:delete` | Fail-open |
+| A2A card source | `ai-gateway:agents.set-card-source` / `ai-gateway:agents.remove-card-source` | Fail-open |
+| A2A proxy | `ai-gateway:agents.set-a2a-proxy` / `ai-gateway:agents.remove-a2a-proxy` | Fail-closed |
+| Per-config API keys | `ai-gateway:api-keys.create` / `:rotate` / `:revoke` (model-config, mcp-config) | Fail-closed |
 
 Three of these carry detail worth calling out:
 
 - **`agent:deploy` and `agent:promote` both record the target environment and `isProduction`.** The route declares only the tier floor whatever the agent actually lands on, so the declared permission cannot tell a sandbox push from a production one — only the record can. Both flags come free: the environment-tier check (`requireEnvTier`) has already resolved the environment by the time the record is opened. `agent:promote` records both ends of the move as well.
-- **`agent:remove-a2a-proxy` is also written when the card source of a proxied environment is removed**, since that discards the stored upstream secret too; the card route's own `agent:remove-card-source` is written alongside it.
+- **`ai-gateway:agents.remove-a2a-proxy` is also written when the card source of a proxied environment is removed**, since that discards the stored upstream secret too; the card route's own `ai-gateway:agents.remove-card-source` is written alongside it.
 - **`role:grant-permission` records the granted scopes in full.** Scope strings are identifiers, not secrets, and "alice granted SRE deploy-production" is the question the event exists to answer.
 
 ## Action reference
@@ -346,8 +348,8 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 
 | Action | Class | Severity | Detail keys |
 |---|---|---|---|
-| `agent-config:delete` | config | 2 notice | `agentName`, `configName`, `configType`, `environmentCount` |
-| `agent-config:update` | config | 1 info | `agentName`, `configName`, `configType`, `updatedFields` |
+| `ai-gateway:agent-configs.delete` | config | 2 notice | `agentName`, `configName`, `configType`, `environmentCount` |
+| `ai-gateway:agent-configs.update` | config | 1 info | `agentName`, `configName`, `configType`, `updatedFields` |
 | `agent-identity:provision` | credential | 4 critical | `agentName`, `alreadyExisted`, `clientId`, `environment` |
 | `agent-identity:regenerate-secret` | credential | 4 critical | `agentName`, `clientId`, `environment` |
 | `agent-identity:retry-provisioning` | credential | 4 critical | `agentName`, `environment` |
@@ -364,15 +366,15 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `agent:deploy` | deployment | 2 notice | `agentName`, `environment`, `imageId`, `isProduction` |
 | `agent:promote` | deployment | 3 warning | `agentName`, `environment`, `isProduction`, `sourceEnv`, `targetEnv` |
 | `agent:read` | read | 1 info | — |
-| `agent:remove-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
-| `agent:remove-card-source` | config | 2 notice | `agentName` |
-| `agent:set-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
-| `agent:set-card-source` | config | 1 info | `agentName`, `sourceUrl` |
-| `api-key:create` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
-| `api-key:issue-test` | credential | 2 notice | `expiresAt`, `keyName`, `ownerName`, `ownerType`, `rotated` |
-| `api-key:revoke` | credential | 4 critical | `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
-| `api-key:rotate` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
-| `api-key:sync` | read | 2 notice | `keyCount` |
+| `ai-gateway:agents.remove-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
+| `ai-gateway:agents.remove-card-source` | config | 2 notice | `agentName` |
+| `ai-gateway:agents.set-a2a-proxy` | credential | 4 critical | `agentName`, `upstreamAuthChanged`, `upstreamAuthHeader` |
+| `ai-gateway:agents.set-card-source` | config | 1 info | `agentName`, `sourceUrl` |
+| `ai-gateway:api-keys.create` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
+| `ai-gateway:api-keys.issue-test` | credential | 2 notice | `expiresAt`, `keyName`, `ownerName`, `ownerType`, `rotated` |
+| `ai-gateway:api-keys.revoke` | credential | 4 critical | `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
+| `ai-gateway:api-keys.rotate` | credential | 4 critical | `expiresAt`, `gatewayConnected`, `gatewayCount`, `keyName`, `ownerName`, `ownerType` |
+| `ai-gateway:api-keys.sync` | read | 2 notice | `keyCount` |
 | `authn:failure` | authn | 3 warning | `authHeader`, `reason` |
 | `authz:deny` | authz | 3 warning | `grantedScopes`, `imageId`, `missingScope`, `reason` |
 | `authz:root-ou-bypass` | authz | 4 critical | `rootOUBypass` |
@@ -387,16 +389,16 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `event-subscription:create` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
 | `event-subscription:delete` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
 | `event-subscription:update` | config | 2 notice | `allEvents`, `destinationId`, `enabled`, `environments`, `eventCount`, `scope` |
-| `gateway-token:revoke` | credential | 4 critical | `gatewayName`, `tokenId` |
-| `gateway-token:rotate` | credential | 4 critical | `expiresAt`, `gatewayName`, `tokenId` |
-| `gateway:assign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
-| `gateway:create` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
-| `gateway:delete` | config | 3 warning | `environment`, `gatewayName`, `gatewayType`, `vhost` |
-| `gateway:push-manifest` | config | 1 info | `policyCount` |
-| `gateway:remove-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
-| `gateway:set-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
-| `gateway:unassign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
-| `gateway:update` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
+| `ai-gateway:gateway-tokens.revoke` | credential | 4 critical | `gatewayName`, `tokenId` |
+| `ai-gateway:gateway-tokens.rotate` | credential | 4 critical | `expiresAt`, `gatewayName`, `tokenId` |
+| `ai-gateway:gateways.assign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
+| `ai-gateway:gateways.create` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
+| `ai-gateway:gateways.delete` | config | 3 warning | `environment`, `gatewayName`, `gatewayType`, `vhost` |
+| `ai-gateway:gateways.push-manifest` | config | 1 info | `policyCount` |
+| `ai-gateway:gateways.remove-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
+| `ai-gateway:gateways.set-identity-provider` | credential | 4 critical | `gatewayName`, `identityProviderName`, `issuer`, `jwksUri`, `skipTlsVerify` |
+| `ai-gateway:gateways.unassign-environment` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
+| `ai-gateway:gateways.update` | config | 2 notice | `environment`, `gatewayName`, `gatewayType`, `vhost` |
 | `git-secret:create` | credential | 4 critical | `secretType`, `username` |
 | `git-secret:delete` | credential | 4 critical | — |
 | `group:add-member` | identity | 4 critical | `groupName`, `memberCount`, `memberTypes`, `members` |
@@ -430,7 +432,7 @@ Not shown: the three read actions, which are never recorded, and `system:audit-d
 Where two emit sites share an action, the sample shows the first listed; the others differ as noted.
 
 <details>
-<summary><code>agent-config:update</code> — Record · `services/agent_configuration_service.go:3534`</summary>
+<summary><code>ai-gateway:agent-configs.update</code> — Record · `services/agent_configuration_service.go:3534`</summary>
 
 Model configs only; MCP-config updates produce the coverage envelope alone.
 
@@ -441,7 +443,7 @@ Model configs only; MCP-config updates produce the coverage envelope alone.
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "agent-config:update",
+    "action": "ai-gateway:agent-configs.update",
     "actionClass": "config",
     "severity": 1,
     "actorType": "user",
@@ -454,7 +456,7 @@ Model configs only; MCP-config updates produce the coverage envelope alone.
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "PUT",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "agent-config",
@@ -478,7 +480,7 @@ Model configs only; MCP-config updates produce the coverage envelope alone.
 </details>
 
 <details>
-<summary><code>agent-config:delete</code> — Record · `services/agent_configuration_service.go:3820`</summary>
+<summary><code>ai-gateway:agent-configs.delete</code> — Record · `services/agent_configuration_service.go:3820`</summary>
 
 Model configs only; MCP-config deletes produce the coverage envelope alone.
 
@@ -489,7 +491,7 @@ Model configs only; MCP-config deletes produce the coverage envelope alone.
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "agent-config:delete",
+    "action": "ai-gateway:agent-configs.delete",
     "actionClass": "config",
     "severity": 2,
     "actorType": "user",
@@ -502,7 +504,7 @@ Model configs only; MCP-config deletes produce the coverage envelope alone.
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/model-configs/{configId}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "agent-config",
@@ -980,7 +982,7 @@ Deploys through MCP (`deploy_agent`) additionally produce a bare wrapper record 
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "agent",
@@ -1051,7 +1053,7 @@ Deploys through MCP (`deploy_agent`) additionally produce a bare wrapper record 
 </details>
 
 <details>
-<summary><code>api-key:create</code> — Begin + Complete · `services/agent_apikey_service.go:189`</summary>
+<summary><code>ai-gateway:api-keys.create</code> — Begin + Complete · `services/agent_apikey_service.go:189`</summary>
 
 Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_controller.go`) use `ownerType` `model-config` / `mcp-config` and carry no `gatewayCount`; LLM-provider and LLM-proxy keys carry no project or environment.
 
@@ -1062,7 +1064,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "api-key:create",
+    "action": "ai-gateway:api-keys.create",
     "actionClass": "credential",
     "severity": 4,
     "actorType": "user",
@@ -1075,7 +1077,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "api-key",
@@ -1100,7 +1102,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
 </details>
 
 <details>
-<summary><code>api-key:issue-test</code> — Record · `services/agent_apikey_service.go:365`</summary>
+<summary><code>ai-gateway:api-keys.issue-test</code> — Record · `services/agent_apikey_service.go:365`</summary>
 
 ```json
 {
@@ -1109,7 +1111,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "api-key:issue-test",
+    "action": "ai-gateway:api-keys.issue-test",
     "actionClass": "credential",
     "severity": 2,
     "actorType": "user",
@@ -1122,7 +1124,7 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "api-key",
@@ -1146,9 +1148,9 @@ Agent key. Model-config and MCP-config keys (`controllers/agent_configuration_co
 </details>
 
 <details>
-<summary><code>api-key:revoke</code> — Begin + Complete · `services/agent_apikey_service.go:234`</summary>
+<summary><code>ai-gateway:api-keys.revoke</code> — Begin + Complete · `services/agent_apikey_service.go:234`</summary>
 
-Agent key; the other owners differ as for `api-key:create`.
+Agent key; the other owners differ as for `ai-gateway:api-keys.create`.
 
 ```json
 {
@@ -1157,7 +1159,7 @@ Agent key; the other owners differ as for `api-key:create`.
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "api-key:revoke",
+    "action": "ai-gateway:api-keys.revoke",
     "actionClass": "credential",
     "severity": 4,
     "actorType": "user",
@@ -1170,7 +1172,7 @@ Agent key; the other owners differ as for `api-key:create`.
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "api-key",
@@ -1194,9 +1196,9 @@ Agent key; the other owners differ as for `api-key:create`.
 </details>
 
 <details>
-<summary><code>api-key:rotate</code> — Begin + Complete · `services/agent_apikey_service.go:269`</summary>
+<summary><code>ai-gateway:api-keys.rotate</code> — Begin + Complete · `services/agent_apikey_service.go:269`</summary>
 
-Agent key; the other owners differ as for `api-key:create`.
+Agent key; the other owners differ as for `ai-gateway:api-keys.create`.
 
 ```json
 {
@@ -1205,7 +1207,7 @@ Agent key; the other owners differ as for `api-key:create`.
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "api-key:rotate",
+    "action": "ai-gateway:api-keys.rotate",
     "actionClass": "credential",
     "severity": 4,
     "actorType": "user",
@@ -1218,7 +1220,7 @@ Agent key; the other owners differ as for `api-key:create`.
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "PUT",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "api-key",
@@ -1243,7 +1245,7 @@ Agent key; the other owners differ as for `api-key:create`.
 </details>
 
 <details>
-<summary><code>api-key:sync</code> — coverage envelope · `middleware/audit_route.go:139 (coverage envelope)`</summary>
+<summary><code>ai-gateway:api-keys.sync</code> — coverage envelope · `middleware/audit_route.go:139 (coverage envelope)`</summary>
 
 No semantic emit: the coverage envelope for the gateway bulk-sync routes, coalesced to one record per gateway per window.
 
@@ -1255,7 +1257,7 @@ No semantic emit: the coverage envelope for the gateway bulk-sync routes, coales
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
     "durationMs": 42,
-    "action": "api-key:sync",
+    "action": "ai-gateway:api-keys.sync",
     "actionClass": "read",
     "severity": 2,
     "actorType": "gateway",
@@ -1393,7 +1395,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway-token:revoke</code> — Begin + Complete · `controllers/gateway_controller.go:642`</summary>
+<summary><code>ai-gateway:gateway-tokens.revoke</code> — Begin + Complete · `controllers/gateway_controller.go:642`</summary>
 
 ```json
 {
@@ -1402,7 +1404,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway-token:revoke",
+    "action": "ai-gateway:gateway-tokens.revoke",
     "actionClass": "credential",
     "severity": 4,
     "actorType": "user",
@@ -1415,7 +1417,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/tokens/{tokenID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1433,7 +1435,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway-token:rotate</code> — Begin + Complete · `controllers/gateway_controller.go:602`</summary>
+<summary><code>ai-gateway:gateway-tokens.rotate</code> — Begin + Complete · `controllers/gateway_controller.go:602`</summary>
 
 ```json
 {
@@ -1442,7 +1444,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway-token:rotate",
+    "action": "ai-gateway:gateway-tokens.rotate",
     "actionClass": "credential",
     "severity": 4,
     "actorType": "user",
@@ -1455,7 +1457,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/gateways/{gatewayID}/tokens",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/tokens",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1473,7 +1475,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway:assign-environment</code> — Record · `controllers/gateway_controller.go:430`</summary>
+<summary><code>ai-gateway:gateways.assign-environment</code> — Record · `controllers/gateway_controller.go:430`</summary>
 
 ```json
 {
@@ -1482,7 +1484,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway:assign-environment",
+    "action": "ai-gateway:gateways.assign-environment",
     "actionClass": "config",
     "severity": 2,
     "actorType": "user",
@@ -1495,7 +1497,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/gateways/{gatewayID}/environments/{envID}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/environments/{envID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1513,7 +1515,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway:create</code> — Record · `controllers/gateway_controller.go:204`</summary>
+<summary><code>ai-gateway:gateways.create</code> — Record · `controllers/gateway_controller.go:204`</summary>
 
 ```json
 {
@@ -1522,7 +1524,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway:create",
+    "action": "ai-gateway:gateways.create",
     "actionClass": "config",
     "severity": 2,
     "actorType": "user",
@@ -1535,7 +1537,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/gateways",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1555,7 +1557,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway:delete</code> — Begin + Complete · `controllers/gateway_controller.go:387`</summary>
+<summary><code>ai-gateway:gateways.delete</code> — Begin + Complete · `controllers/gateway_controller.go:387`</summary>
 
 ```json
 {
@@ -1564,7 +1566,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway:delete",
+    "action": "ai-gateway:gateways.delete",
     "actionClass": "config",
     "severity": 3,
     "actorType": "user",
@@ -1577,7 +1579,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/gateways/{gatewayID}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1594,7 +1596,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway:push-manifest</code> — Record · `controllers/gateway_internal_controller.go:455`</summary>
+<summary><code>ai-gateway:gateways.push-manifest</code> — Record · `controllers/gateway_internal_controller.go:455`</summary>
 
 ```json
 {
@@ -1603,7 +1605,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway:push-manifest",
+    "action": "ai-gateway:gateways.push-manifest",
     "actionClass": "config",
     "severity": 1,
     "actorType": "gateway",
@@ -1629,7 +1631,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway:remove-identity-provider</code> — Begin + Complete · `controllers/gateway_identity_provider_controller.go:196`</summary>
+<summary><code>ai-gateway:gateways.remove-identity-provider</code> — Begin + Complete · `controllers/gateway_identity_provider_controller.go:196`</summary>
 
 ```json
 {
@@ -1638,7 +1640,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway:remove-identity-provider",
+    "action": "ai-gateway:gateways.remove-identity-provider",
     "actionClass": "credential",
     "severity": 4,
     "actorType": "user",
@@ -1651,7 +1653,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1670,7 +1672,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway:set-identity-provider</code> — Begin + Complete · `controllers/gateway_identity_provider_controller.go:157`</summary>
+<summary><code>ai-gateway:gateways.set-identity-provider</code> — Begin + Complete · `controllers/gateway_identity_provider_controller.go:157`</summary>
 
 `jwksUri` was supplied as `https://svc:s3cret@idp.example.com/oauth2/jwks?key=abc`; userinfo and query are stripped at write time.
 
@@ -1681,7 +1683,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway:set-identity-provider",
+    "action": "ai-gateway:gateways.set-identity-provider",
     "actionClass": "credential",
     "severity": 4,
     "actorType": "user",
@@ -1694,7 +1696,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "PUT",
-    "requestPath": "/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1716,7 +1718,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway:unassign-environment</code> — Record · `controllers/gateway_controller.go:470`</summary>
+<summary><code>ai-gateway:gateways.unassign-environment</code> — Record · `controllers/gateway_controller.go:470`</summary>
 
 ```json
 {
@@ -1725,7 +1727,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway:unassign-environment",
+    "action": "ai-gateway:gateways.unassign-environment",
     "actionClass": "config",
     "severity": 2,
     "actorType": "user",
@@ -1738,7 +1740,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/gateways/{gatewayID}/environments/{envID}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}/environments/{envID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",
@@ -1756,7 +1758,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
 </details>
 
 <details>
-<summary><code>gateway:update</code> — Record · `controllers/gateway_controller.go:362`</summary>
+<summary><code>ai-gateway:gateways.update</code> — Record · `controllers/gateway_controller.go:362`</summary>
 
 ```json
 {
@@ -1765,7 +1767,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
     "schemaVersion": 1,
     "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "gateway:update",
+    "action": "ai-gateway:gateways.update",
     "actionClass": "config",
     "severity": 2,
     "actorType": "user",
@@ -1778,7 +1780,7 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
     "userAgent": "amctl/1.2.3",
     "correlationId": "c0ffee-4d2a-9b1e",
     "requestMethod": "PUT",
-    "requestPath": "/orgs/{orgName}/gateways/{gatewayID}",
+    "requestPath": "/m/ai-gateway/orgs/{orgName}/gateways/{gatewayID}",
     "ouId": "ou-9f2",
     "orgHandle": "acme",
     "resourceType": "gateway",

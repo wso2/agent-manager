@@ -10,7 +10,7 @@ import (
 
 // CreateLLMProxyAPIKey creates an API key for an LLM proxy.
 func CreateLLMProxyAPIKey(g Gomega, client *framework.AMPClient, orgName, projName, proxyID string, req framework.CreateLLMAPIKeyRequest) framework.CreateLLMAPIKeyResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/llm-proxies/%s/api-keys",
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/llm-proxies/%s/api-keys",
 		orgName, projName, proxyID)
 
 	resp, err := client.Post(path, req)

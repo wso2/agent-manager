@@ -29,7 +29,7 @@ import type {
   RotateAgentAPIKeyRequest,
   RotateAgentAPIKeyResponse,
 } from "@agent-management-platform/types";
-import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../../shared/utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 
 export async function createAgentAPIKey(
   params: CreateAgentAPIKeyPathParams,
@@ -43,7 +43,7 @@ export async function createAgentAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys`,
     body,
     { token },
   );
@@ -62,7 +62,7 @@ export async function listAgentAPIKeys(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -82,7 +82,7 @@ export async function rotateAgentAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/${keyName}`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/${keyName}`,
     body,
     { token },
   );
@@ -102,7 +102,7 @@ export async function revokeAgentAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/${keyName}`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/${keyName}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -119,7 +119,7 @@ export async function issueTestAgentAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/test`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/api-keys/test`,
     {},
     { token },
   );

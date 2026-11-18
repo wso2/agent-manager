@@ -30,7 +30,7 @@ import (
 
 // FetchServerInfo connects to an upstream MCP server and returns its capabilities.
 func FetchServerInfo(g Gomega, client *framework.AMPClient, orgName string, req framework.MCPServerInfoFetchRequest) framework.MCPServerInfoFetchResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies/fetch-server-info", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/fetch-server-info", orgName)
 
 	resp, err := client.Post(path, req)
 	g.Expect(err).NotTo(HaveOccurred(), "fetch MCP server info request failed")
@@ -42,7 +42,7 @@ func FetchServerInfo(g Gomega, client *framework.AMPClient, orgName string, req 
 
 // CreateMCPProxy creates an org-level MCP proxy.
 func CreateMCPProxy(g Gomega, client *framework.AMPClient, orgName string, req framework.CreateMCPProxyRequest) framework.MCPProxyResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies", orgName)
 
 	resp, err := client.Post(path, req)
 	g.Expect(err).NotTo(HaveOccurred(), "create MCP proxy request failed")
@@ -54,7 +54,7 @@ func CreateMCPProxy(g Gomega, client *framework.AMPClient, orgName string, req f
 
 // GetMCPProxy retrieves an MCP proxy by UUID or handle.
 func GetMCPProxy(g Gomega, client *framework.AMPClient, orgName, proxyID string) framework.MCPProxyResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies/%s", orgName, proxyID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s", orgName, proxyID)
 
 	resp, err := client.Get(path)
 	g.Expect(err).NotTo(HaveOccurred(), "get MCP proxy request failed")
@@ -67,7 +67,7 @@ func GetMCPProxy(g Gomega, client *framework.AMPClient, orgName, proxyID string)
 // GetMCPProxyExpectStatus performs a GET and asserts the response status, without
 // decoding a body. Useful for verifying a proxy is gone after deletion.
 func GetMCPProxyExpectStatus(g Gomega, client *framework.AMPClient, orgName, proxyID string, expected int) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies/%s", orgName, proxyID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s", orgName, proxyID)
 
 	resp, err := client.Get(path)
 	g.Expect(err).NotTo(HaveOccurred(), "get MCP proxy request failed")
@@ -77,7 +77,7 @@ func GetMCPProxyExpectStatus(g Gomega, client *framework.AMPClient, orgName, pro
 
 // ListMCPProxies lists org-level MCP proxies.
 func ListMCPProxies(g Gomega, client *framework.AMPClient, orgName string) framework.MCPProxyListResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies", orgName)
 
 	resp, err := client.Get(path)
 	g.Expect(err).NotTo(HaveOccurred(), "list MCP proxies request failed")
@@ -89,7 +89,7 @@ func ListMCPProxies(g Gomega, client *framework.AMPClient, orgName string) frame
 
 // DeleteMCPProxy deletes an MCP proxy by UUID or handle.
 func DeleteMCPProxy(g Gomega, client *framework.AMPClient, orgName, proxyID string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies/%s", orgName, proxyID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s", orgName, proxyID)
 
 	resp, err := client.Delete(path)
 	g.Expect(err).NotTo(HaveOccurred(), "delete MCP proxy request failed")
@@ -103,7 +103,7 @@ func DeleteMCPProxyBestEffort(ctx context.Context, client *framework.AMPClient, 
 	if proxyID == "" {
 		return
 	}
-	path := fmt.Sprintf("/api/v1/orgs/%s/mcp-proxies/%s", orgName, proxyID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/mcp-proxies/%s", orgName, proxyID)
 	response, err := client.DeleteWithContext(ctx, path)
 	if err != nil {
 		ginkgo.GinkgoWriter.Printf("teardown: delete MCP proxy %q failed: %v\n", proxyID, err)
