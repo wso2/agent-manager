@@ -19,5 +19,5 @@
 ENGINE_VERSION = "0.1.0"
 """Version of the scan engine. Bump it when matching or classification behaviour changes."""
 
-RULE_PACK_ID = "none"
-"""Identity of the bundled signature rule pack; ``none`` until signatures exist."""
+RULE_PACK_ID = "builtin-1"
+"""Identity of the bundled signature rule pack. Bump the number when a signature is added, changed or removed."""

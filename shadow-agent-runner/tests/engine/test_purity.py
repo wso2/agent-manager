@@ -17,9 +17,8 @@
 """The engine is pure: no network, no subprocesses.
 
 The static check scans every module under ``amp_shadow_runner/engine`` for imports of networking or
-process modules. The runtime checks import every engine module, and walk, parse and read the imports of
-a small tree, with sockets and process creation patched to raise. When ``scan_tree`` lands, it gets the
-same runtime check.
+process modules. The runtime checks import every engine module afresh, walk, parse and read the imports
+of a small tree, and run ``scan_tree`` on it, with sockets and process creation patched to raise.
 """
 
 import ast
@@ -27,15 +26,18 @@ import importlib
 import pkgutil
 import socket
 import subprocess
+import sys
 from pathlib import Path
 from typing import NoReturn
 
 import pytest
 
+import amp_shadow_runner
 import amp_shadow_runner.engine as engine
 from amp_shadow_runner.engine.files import FileKind, walk
 from amp_shadow_runner.engine.imports import extract_imports
 from amp_shadow_runner.engine.languages import parse
+from amp_shadow_runner.engine.scan import scan_tree
 
 ENGINE_DIR = Path(engine.__file__).resolve().parent
 
@@ -147,10 +149,19 @@ def no_network(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.usefixtures("no_network")
-def test_engine_import_never_touches_network() -> None:
+def test_engine_import_never_touches_network(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Import every engine module afresh, then put the originals back.
+
+    A fresh import, not ``importlib.reload``: reloading modules one by one leaves some holding classes from
+    before the reload and some from after (a ``Symbol`` of one is not equal to the other's), which breaks
+    every later test that scans.
+    """
     modules = [engine.__name__] + [m.name for m in pkgutil.walk_packages(engine.__path__, f"{engine.__name__}.")]
+    monkeypatch.setattr(amp_shadow_runner, "engine", engine)  # The fresh import rebinds it; restored after.
     for name in modules:
-        importlib.reload(importlib.import_module(name))
+        monkeypatch.delitem(sys.modules, name, raising=False)
+    for name in modules:
+        importlib.import_module(name)
 
 
 @pytest.mark.usefixtures("no_network")
@@ -169,6 +180,14 @@ def test_walk_and_parse_never_touch_network(tmp_path: Path) -> None:
             source = f.absolute.read_bytes()
             tree = parse(f.language, source)
             assert tree is not None
-            # Compared by field: the import test above reloads the engine, which replaces its classes.
+            # Compared by field, in case an engine module was imported afresh.
             symbols = extract_imports(f.language, tree, source).resolve("openai")
             assert [(s.module, s.name) for s in symbols] == [("openai", None)]
+
+
+@pytest.mark.usefixtures("no_network")
+def test_scan_tree_never_touches_network(tmp_path: Path) -> None:
+    (tmp_path / "requirements.txt").write_bytes(b"crewai\n")
+    (tmp_path / "agent.py").write_bytes(b"from crewai import Agent\nresearcher = Agent(role='r')\n")
+    result = scan_tree(tmp_path, repository="r", read_ci=True)
+    assert [f.external_id for f in result.findings] == ["r:agent.py:researcher"]

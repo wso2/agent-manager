@@ -27,4 +27,4 @@ def test_runner_version_is_set() -> None:
 
 def test_engine_identity() -> None:
     assert ENGINE_VERSION == "0.1.0"
-    assert RULE_PACK_ID == "none"
+    assert RULE_PACK_ID == "builtin-1"
