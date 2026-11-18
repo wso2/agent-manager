@@ -26,6 +26,10 @@ that uses it:
 
 The symbols are matched only through imports, so a local class with the same name never matches. A
 ``RuleSet`` holds the signatures of one language and the frameworks they belong to.
+
+A signature with a ``Condition`` proves an agent only when the condition holds; otherwise its match is
+"Not sure" (see ``Condition``). The ``RuleSet`` also holds what those conditions look for: ``ToolWiring``
+(what wires a graph to tools) and ``CrewLinking`` (the decorators of a CrewAI project class).
 """
 
 import functools
@@ -34,6 +38,20 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from amp_shadow_runner.engine.imports import Symbol
+
+
+class Condition(StrEnum):
+    """What a conditional signature needs, besides its own use, to prove an agent. Without it the match is
+    Not sure: reported, and published only when AI review confirms it."""
+
+    TOOLS = "tools"
+    """A graph that is wired to tools (see ``ToolWiring``) in its own file or one import hop away."""
+    DEPENDENCY = "dependency"
+    """The nearest manifest declares one of the framework's packages. When the symbol's top module is a
+    module of the repository itself (a local ``agents`` package), it is no match at all."""
+    CREW = "crew"
+    """A team of agents: it labels the agent findings it links, and is reported (Not sure) only when it
+    links none."""
 
 
 class Shape(StrEnum):
@@ -71,6 +89,8 @@ class Signature:
     requires: str | None = None
     """A keyword argument the call must pass, with a value other than a literal ``False`` or ``None``, to
     prove an agent (AutoGen ``ConversableAgent`` needs ``llm_config``). Only for ``CALL`` signatures."""
+    condition: Condition | None = None
+    """What else proves the agent (see ``Condition``); None for a signature that always proves one."""
 
 
 def agent_class(
@@ -102,6 +122,11 @@ def conditional_class(framework: str, module: str, name: str, *, requires: str) 
     return (Signature(framework, Symbol(module, name), Shape.CALL, requires=requires),)
 
 
+def conditional_calls(framework: str, module: str, *names: str, condition: Condition) -> tuple[Signature, ...]:
+    """``CALL`` signatures for functions or classes that prove an agent only under ``condition``."""
+    return tuple(Signature(framework, Symbol(module, name), Shape.CALL, condition=condition) for name in names)
+
+
 def agent_classes(framework: str, module: str, *names: str) -> tuple[Signature, ...]:
     """``agent_class`` for several classes of one module, with no factories."""
     return tuple(sig for name in names for sig in agent_class(framework, module, name))
@@ -117,12 +142,49 @@ def base_classes(framework: str, module: str, *names: str) -> tuple[Signature, .
     return tuple(Signature(framework, Symbol(module, name), Shape.SUBCLASS) for name in names)
 
 
+class Wiring(StrEnum):
+    """What wired a graph to tools; published as a flag in the ``d7_tool_calling`` evidence."""
+
+    TOOL_NODE = "toolNode"
+    """A call of a ``ToolWiring.calls`` symbol (``ToolNode(...)``)."""
+    TOOLS_CONDITION = "toolsCondition"
+    """A reference to a ``ToolWiring.references`` symbol (``tools_condition``)."""
+    BIND_TOOLS = "bindTools"
+    """A call of a ``ToolWiring.methods`` method on any object (``llm.bind_tools(...)``). Since any class can
+    have such a method, it counts only in the graph's own file, never one import hop away."""
+
+
+@dataclass(frozen=True)
+class ToolWiring:
+    """What wires a graph to tools (``Condition.TOOLS``), each giving one ``Wiring``. Only a file that imports
+    a module starting with one of ``modules`` (``langchain_openai``, ``langgraph.prebuilt``) is looked at."""
+
+    calls: frozenset[Symbol] = frozenset()
+    references: frozenset[Symbol] = frozenset()
+    """Count anywhere but their own import statement."""
+    methods: frozenset[str] = frozenset()
+    modules: tuple[str, ...] = ()
+    """Prefixes of a top-level module name (``langchain`` covers ``langchain_core``)."""
+
+
+@dataclass(frozen=True)
+class CrewLinking:
+    """The decorators of a CrewAI project class, which ``Condition.CREW`` reads to link agents to a crew."""
+
+    agent_decorators: frozenset[Symbol] = frozenset()
+    """Mark a method that returns an agent (``@agent``)."""
+    project_decorators: frozenset[Symbol] = frozenset()
+    """Mark a project class (``@CrewBase``), whose ``self.agents`` holds every ``@agent`` method's agent."""
+
+
 @dataclass(frozen=True)
 class RuleSet:
-    """The signatures of one language, and the frameworks they belong to."""
+    """The signatures of one language, the frameworks they belong to, and what their conditions look for."""
 
     frameworks: tuple[Framework, ...]
     signatures: tuple[Signature, ...]
+    wiring: ToolWiring = ToolWiring()
+    crews: CrewLinking = CrewLinking()
 
     def __post_init__(self) -> None:
         known = {f.id for f in self.frameworks}
@@ -159,14 +221,19 @@ class RuleSet:
 
 
 __all__ = [
+    "Condition",
+    "CrewLinking",
     "Framework",
     "RuleSet",
     "Shape",
     "Signature",
+    "ToolWiring",
+    "Wiring",
     "agent_class",
     "agent_classes",
     "base_classes",
     "classmethod_factories",
+    "conditional_calls",
     "conditional_class",
     "factories",
 ]

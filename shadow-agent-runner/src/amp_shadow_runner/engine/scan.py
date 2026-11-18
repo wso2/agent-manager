@@ -22,8 +22,14 @@ process (``tests/engine/test_purity.py`` checks it).
 Only Python files are matched so far, so only they count as scanned; other languages come in later steps.
 A file that cannot be read counts as skipped, with the walker's skipped files. A file with a syntax error
 is still matched (tree-sitter recovers) and counts in ``parse_errors``.
+
+Every Python file with an import is matched, and what wires tools in it (``PythonMatches.wiring``) is
+kept by path: tool wiring is a fact about a file, not about one graph in it. The repository's Python
+files tell which imports are local modules (``RepoModules``): for the one import hop of
+``Condition.TOOLS`` and the local ``agents`` package of ``Condition.DEPENDENCY``.
 """
 
+import functools
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,7 +38,9 @@ from amp_shadow_runner.engine.files import FileKind, walk
 from amp_shadow_runner.engine.imports import extract_imports
 from amp_shadow_runner.engine.languages import Language, parse
 from amp_shadow_runner.engine.manifests import Dependencies, is_python_manifest, python_packages
-from amp_shadow_runner.engine.match import match_python
+from amp_shadow_runner.engine.match import match_python_file
+from amp_shadow_runner.engine.modules import RepoModules
+from amp_shadow_runner.engine.signatures import Wiring
 from amp_shadow_runner.engine.signatures.python import PYTHON
 
 
@@ -57,6 +65,8 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
     manifests: dict[str, frozenset[str]] = {}
     unread: set[str] = set()
     files: list[FileMatches] = []
+    wiring: dict[str, frozenset[Wiring]] = {}
+    modules = RepoModules(f.path for f in walked.files if f.kind == FileKind.SOURCE and f.language == Language.PYTHON)
     scanned = parse_errors = 0
     for file in walked.files:
         if file.kind == FileKind.MANIFEST:
@@ -82,11 +92,21 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
         if tree.root_node.has_error:
             parse_errors += 1
         imports = extract_imports(Language.PYTHON, tree, data)
-        if imports.imports:
-            matches = match_python(file.path, tree, data, imports)
-            if matches:
-                files.append(FileMatches(file.path, file.tag, imports, matches))
+        if not imports.imports:
+            continue  # Nothing to match, and wiring tools needs a langchain or langgraph import.
+        found = match_python_file(
+            file.path, tree, data, imports, is_local=functools.partial(modules.is_local, file.path)
+        )
+        if found.wiring:
+            wiring[file.path] = found.wiring
+        if found.matches:
+            imported = modules.imported(file.path, imports)
+            files.append(FileMatches(file.path, file.tag, imports, found.matches, imported))
     findings = classify(
-        files, repository=repository, dependencies=Dependencies(manifests, frozenset(unread)), rules=PYTHON
+        files,
+        repository=repository,
+        dependencies=Dependencies(manifests, frozenset(unread)),
+        rules=PYTHON,
+        wiring=wiring,
     )
     return ScanResult(findings, scanned, skipped, parse_errors)

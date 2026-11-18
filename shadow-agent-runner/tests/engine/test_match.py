@@ -16,12 +16,14 @@
 
 """amp_shadow_runner.engine.match and signatures: Python agent signatures, names and facts."""
 
+from collections.abc import Callable
+
 import pytest
 
 from amp_shadow_runner.engine.imports import Symbol, extract_imports
 from amp_shadow_runner.engine.languages import Language, parse
-from amp_shadow_runner.engine.match import MAX_TOOLS, Match, match_python
-from amp_shadow_runner.engine.signatures import Framework, RuleSet, Shape, Signature, agent_class
+from amp_shadow_runner.engine.match import MAX_TOOLS, Match, PythonMatches, match_python_file
+from amp_shadow_runner.engine.signatures import Condition, Framework, RuleSet, Shape, Signature, Wiring, agent_class
 from amp_shadow_runner.engine.signatures.python import PYTHON
 
 
@@ -29,7 +31,7 @@ def _matches(source: str) -> tuple[Match, ...]:
     data = source.encode()
     tree = parse(Language.PYTHON, data)
     assert tree is not None
-    return match_python("app/agent.py", tree, data, extract_imports(Language.PYTHON, tree, data))
+    return match_python_file("app/agent.py", tree, data, extract_imports(Language.PYTHON, tree, data)).matches
 
 
 def _found(source: str) -> list[tuple[str, int, str]]:
@@ -371,3 +373,273 @@ def test_python_framework_ids_are_lowercase_hyphenated() -> None:
     for framework in PYTHON.frameworks:
         assert framework.id == framework.id.lower()
         assert "_" not in framework.id
+
+
+def _file(source: str, is_local: Callable[[str], bool] | None = None) -> PythonMatches:
+    data = source.encode()
+    tree = parse(Language.PYTHON, data)
+    assert tree is not None
+    return match_python_file(
+        "app/graph.py", tree, data, extract_imports(Language.PYTHON, tree, data), is_local=is_local
+    )
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "from langgraph.graph import StateGraph\nworkflow = StateGraph(State)",
+        "from langgraph.graph.state import StateGraph\nworkflow = StateGraph(State)",
+        "from langgraph.graph import MessageGraph\nworkflow = MessageGraph()",
+        "import langgraph.graph as lg\nworkflow = lg.StateGraph(State)",
+    ],
+)
+def test_graph_is_a_conditional_match(source: str) -> None:
+    (match,) = _matches(source)
+    assert (match.framework, match.name, match.signature.condition) == ("langgraph", "workflow", Condition.TOOLS)
+
+
+NODE, CONDITION, BIND = Wiring.TOOL_NODE, Wiring.TOOLS_CONDITION, Wiring.BIND_TOOLS
+
+
+@pytest.mark.parametrize(
+    ("source", "wired"),
+    [
+        ("from langgraph.prebuilt import ToolNode\nnode = ToolNode(tools)", {NODE}),
+        ("from langgraph.prebuilt.tool_node import ToolNode as TN\nnode = TN(tools)", {NODE}),
+        ("from langgraph import prebuilt\nnode = prebuilt.ToolNode(tools)", {NODE}),
+        (
+            "from langgraph.prebuilt import tools_condition\ng.add_conditional_edges('agent', tools_condition)",
+            {CONDITION},
+        ),
+        ("from langgraph.prebuilt import tools_condition as tc\ng.add_conditional_edges('agent', tc)", {CONDITION}),
+        (
+            "import langgraph.prebuilt\ng.add_conditional_edges('agent', langgraph.prebuilt.tools_condition)",
+            {CONDITION},
+        ),
+        ("from langgraph.prebuilt import *\ng.add_conditional_edges('agent', tools_condition)", {CONDITION}),
+        (
+            "from langgraph.prebuilt import ToolNode, tools_condition\n"
+            "node = ToolNode(tools)\ng.add_conditional_edges('agent', tools_condition)",
+            {NODE, CONDITION},
+        ),
+        ("from langchain_openai import ChatOpenAI\nllm = ChatOpenAI().bind_tools(TOOLS)", {BIND}),
+        ("from langgraph.graph import StateGraph\ndef call(state, model):\n    return model.bind_tools(T)", {BIND}),
+        # .bind_tools needs a langchain or langgraph import: any class may have such a method.
+        ("def call(state, model):\n    return model.bind_tools(TOOLS).invoke(state)", set()),
+        ("from myapp.registry import Registry\nRegistry().bind_tools(handlers)", set()),
+        # Importing is not using; a name that no import binds, or a local class of the same name, is not wiring.
+        ("from langgraph.prebuilt import tools_condition, ToolNode", set()),
+        ("from langgraph.prebuilt import ToolNode\nisinstance(n, ToolNode)", set()),
+        ("from langgraph.graph import StateGraph\nclass ToolNode:\n    pass\nnode = ToolNode(tools)", set()),
+        ("from langgraph.graph import StateGraph\ng.add_conditional_edges('agent', tools_condition)", set()),
+        ("from langgraph.graph import END\nfrom myapp import router\ng.add_edge('a', router.tools_condition)", set()),
+        (
+            "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    from langgraph.prebuilt import ToolNode\nToolNode(t)",
+            set(),
+        ),
+        ("from langchain_core.tools import tool\nmodel.bind(tools=TOOLS)", set()),
+    ],
+)
+def test_tool_wiring(source: str, wired: set[Wiring]) -> None:
+    assert _file(source).wiring == wired
+
+
+OPENAI_AGENT = "from agents import Agent, Runner\nsupport = Agent(name='Support', instructions='x')\n"
+
+
+def test_openai_agent_is_a_conditional_match() -> None:
+    (match,) = _file(OPENAI_AGENT).matches
+    assert (match.framework, match.name, match.signature.condition) == (
+        "openai-agents",
+        "Support",
+        Condition.DEPENDENCY,
+    )
+    (other,) = _matches("import agents\nbot = agents.Agent(name='Bot')\n")
+    assert other.framework == "openai-agents"
+
+
+@pytest.mark.parametrize(
+    ("source", "local", "matched", "asked"),
+    [
+        (OPENAI_AGENT, {"agents"}, False, ["agents"]),
+        (OPENAI_AGENT, set(), True, ["agents"]),
+        # The whole module and every module above it are asked about: a local agents package, or a local
+        # agents/agent.py in a namespace folder.
+        ("from agents.agent import Agent\nx = Agent(name='x')\n", {"agents"}, False, ["agents"]),
+        ("from agents.agent import Agent\nx = Agent(name='x')\n", {"agents.agent"}, False, ["agents", "agents.agent"]),
+        ("from agents.agent import Agent\nx = Agent(name='x')\n", set(), True, ["agents", "agents.agent"]),
+    ],
+)
+def test_openai_agent_from_a_local_module_is_no_match(
+    source: str, local: set[str], matched: bool, asked: list[str]
+) -> None:
+    seen: list[str] = []
+
+    def is_local(module: str) -> bool:
+        seen.append(module)
+        return module in local
+
+    assert bool(_file(source, is_local).matches) is matched
+    assert seen == asked
+
+
+def test_only_the_dependency_condition_asks_whether_a_module_is_local() -> None:
+    assert len(_file("from crewai import Agent\nx = Agent()\n", lambda _: True).matches) == 1
+
+
+def test_runner_is_not_an_agent() -> None:
+    assert _matches("from agents import Runner\nresult = Runner.run_sync(starting_agent, 'hi')\n") == ()
+    assert _matches("from agents import Runner\nawait Runner.run(agent, 'hi')\n") == ()
+
+
+def _crews(source: str) -> list[tuple[str, str, str | None]]:
+    return [(m.framework if m.signature.condition is None else "crew", m.name, m.crew) for m in _matches(source)]
+
+
+CREW_IMPORTS = "from crewai import Agent, Crew, Task\nfrom crewai.project import CrewBase, agent, crew, task\n"
+
+
+def test_crew_links_variables_and_inline_agents() -> None:
+    source = (
+        "from crewai import Agent, Crew\n"
+        "researcher = Agent(role='r')\n"
+        "def main():\n"
+        "    writer = Agent(role='w')\n"
+        "    team = Crew(agents=[researcher, writer, Agent(role='inline')], tasks=[])\n"
+        "    other = Agent(role='o')\n"
+    )
+    assert _crews(source) == [
+        ("crewai", "researcher", "team"),
+        ("crewai", "writer", "team"),
+        ("crewai", "main", "team"),
+        ("crewai", "other", None),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("crew", "name"),
+    [
+        ("Crew(name='Research Team', agents=[researcher])", "Research Team"),
+        ("team = Crew(agents=[researcher])", "team"),
+        ("def build():\n    return Crew(agents=[researcher])", "build"),
+        # A crew built in a method is named after its class, unless named or assigned.
+        ("class Team:\n    def crew(self):\n        return Crew(agents=[researcher])", "Team"),
+        (
+            "class Team:\n    def crew(self):\n        def inner():\n            return Crew(agents=[researcher])",
+            "inner",
+        ),
+        ("class Team:\n    def crew(self):\n        return Crew(name='Research', agents=[researcher])", "Research"),
+        ("class Team:\n    def crew(self):\n        team = Crew(agents=[researcher])", "team"),
+        ("class Holder:\n    crews = [Crew(agents=[researcher])]", "Holder"),
+        ("Crew(agents=[researcher])", "crewai-crew"),
+    ],
+)
+def test_crew_name(crew: str, name: str) -> None:
+    source = f"from crewai import Agent, Crew\nresearcher = Agent(role='r')\n{crew}\n"
+    assert _crews(source) == [("crewai", "researcher", name)]
+
+
+def test_crew_links_self_attributes_and_methods() -> None:
+    source = (
+        CREW_IMPORTS + "class Team:\n"
+        "    def __init__(self):\n"
+        "        self.researcher = Agent(role='r')\n"
+        "    @agent\n"
+        "    def writer(self) -> Agent:\n"
+        "        return Agent(role='w')\n"
+        "    def helper(self) -> Agent:\n"
+        "        return Agent(role='h')\n"
+        "    def crew(self) -> Crew:\n"
+        "        return Crew(agents=[self.researcher, self.writer(), self.helper()], tasks=[])\n"
+    )
+    assert _crews(source) == [
+        ("crewai", "researcher", "Team"),
+        ("crewai", "writer", "Team"),
+        ("crewai", "helper", None),
+    ]
+
+
+def test_crew_base_class_links_every_agent_method() -> None:
+    source = (
+        CREW_IMPORTS + "@CrewBase\n"
+        "class ResearchCrew:\n"
+        "    @agent\n"
+        "    def researcher(self) -> Agent:\n"
+        "        return Agent(config=self.agents_config['researcher'])\n"
+        "    @agent\n"
+        "    def reporting_analyst(self) -> Agent:\n"
+        "        return Agent(config=self.agents_config['reporting_analyst'])\n"
+        "    def not_an_agent_method(self) -> Agent:\n"
+        "        return Agent(role='x')\n"
+        "    @crew\n"
+        "    def crew(self) -> Crew:\n"
+        "        return Crew(agents=self.agents, tasks=self.tasks)\n"
+    )
+    assert _crews(source) == [
+        ("crewai", "researcher", "ResearchCrew"),
+        ("crewai", "reporting_analyst", "ResearchCrew"),
+        ("crewai", "not_an_agent_method", None),
+    ]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        # self.agents outside a @CrewBase class links nothing.
+        "from crewai import Agent, Crew\nfrom crewai.project import agent\nclass T:\n"
+        "    @agent\n    def a(self):\n        return Agent()\n    def crew(self):\n        return Crew(agents=self.agents)\n",
+        # Agents built elsewhere, or dynamically.
+        "from crewai import Crew\nfrom myapp.agents import researcher\nteam = Crew(agents=[researcher])\n",
+        "from crewai import Crew\nteam = Crew(agents=build_agents(), tasks=[])\n",
+        "from crewai import Agent, Crew\ndef f():\n    a = Agent()\ndef g():\n    team = Crew(agents=[a])\n",
+    ],
+)
+def test_crew_linking_no_agent_is_a_match(source: str) -> None:
+    assert [m for m in _matches(source) if m.signature.condition == Condition.CREW][0].crew is None
+    assert all(m.crew is None for m in _matches(source))
+
+
+def test_an_agent_in_two_crews_keeps_the_first() -> None:
+    source = (
+        "from crewai import Agent, Crew\nresearcher = Agent(role='r')\n"
+        "first = Crew(agents=[researcher])\nsecond = Crew(agents=[researcher])\n"
+    )
+    assert _crews(source) == [("crewai", "researcher", "first")]
+
+
+def test_crew_links_a_list_variable_of_its_scope() -> None:
+    source = (
+        "from crewai import Agent, Crew\n"
+        "def main():\n"
+        "    researcher = Agent(role='r')\n"
+        "    writer = Agent(role='w')\n"
+        "    members = [writer]\n"
+        "    members = [researcher]\n"
+        "    team = Crew(agents=members)\n"
+        "    members = [writer]\n"
+        "def other():\n"
+        "    members = [x]\n"
+    )
+    assert _crews(source) == [("crewai", "researcher", "team"), ("crewai", "writer", None)]
+
+
+def test_crew_list_variable_from_another_scope_links_nothing() -> None:
+    source = (
+        "from crewai import Agent, Crew\nresearcher = Agent(role='r')\nmembers = [researcher]\n"
+        "def main():\n    team = Crew(agents=members)\n"
+    )
+    assert _crews(source) == [("crewai", "researcher", None), ("crew", "team", None)]
+
+
+@pytest.mark.parametrize(
+    "manager",
+    ["manager_agent=boss", "manager_agent=Agent(role='boss')"],
+)
+def test_crew_links_its_manager_agent(manager: str) -> None:
+    source = (
+        "from crewai import Agent, Crew\nboss = Agent(role='m')\n"
+        f"team = Crew(agents=build(), {manager}, process=Process.hierarchical)\n"
+    )
+    found = _crews(source)
+    assert found[-1][2] == "team"
+    assert ("crew", "team", None) not in found

@@ -14,11 +14,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""Python agent signatures that always prove an agent.
+"""Python agent signatures.
 
 Each symbol is listed at the paths code imports it from: the public path, and the defining module where
 code commonly imports that instead. Old and new paths are both listed, since ``ImportTable`` keeps every
-fallback import. Conditional rules (a plain LangGraph ``StateGraph``, OpenAI Agents) come later.
+fallback import.
+
+Most signatures always prove an agent. The conditional ones (see ``Condition``):
+
+- a LangGraph ``StateGraph`` or ``MessageGraph`` is proven only when wired to tools: a ``ToolNode(...)``
+  call or a ``tools_condition`` reference in its file or one import hop away, or a ``.bind_tools(...)`` call
+  in its own file, in a file that imports a ``langchain*`` or ``langgraph*`` module. A plain workflow graph
+  may be no agent;
+- an OpenAI Agents SDK ``Agent`` is imported from ``agents``, a name local packages use too, so it is proven
+  only when the nearest manifest declares ``openai-agents``, and is no match when ``agents`` is a module of
+  the repository. ``Runner.run(...)`` only runs an agent, so it is not one;
+- a CrewAI ``Crew`` labels the agents it links with ``crew``; one that links none is Not sure itself.
 
 Left out on purpose:
 
@@ -30,13 +41,18 @@ Left out on purpose:
 - the LangChain ``create_*_agent`` functions other than the common ones.
 """
 
+from amp_shadow_runner.engine.imports import Symbol
 from amp_shadow_runner.engine.signatures import (
+    Condition,
+    CrewLinking,
     Framework,
     RuleSet,
+    ToolWiring,
     agent_class,
     agent_classes,
     base_classes,
     classmethod_factories,
+    conditional_calls,
     conditional_class,
     factories,
 )
@@ -63,6 +79,7 @@ PYTHON = RuleSet(
         Framework("llama-index", ("llama_index",), ("llama-index", "llama-index-core", "llama-index-agent-openai")),
         Framework("pydantic-ai", ("pydantic_ai",), ("pydantic-ai", "pydantic-ai-slim")),
         Framework("smolagents", ("smolagents",), ("smolagents",)),
+        Framework("openai-agents", ("agents",), ("openai-agents",)),
     ),
     signatures=(
         # LangChain: the legacy agents (langchain 0.x, and langchain_classic since 1.0), and create_agent (1.0).
@@ -87,12 +104,17 @@ PYTHON = RuleSet(
         *factories("langchain", "langchain.agents.openai_tools.base", "create_openai_tools_agent"),
         *factories("langchain", "langchain.agents.structured_chat.base", "create_structured_chat_agent"),
         *factories("langchain", "langchain.agents.initialize", "initialize_agent"),
-        # LangGraph's prebuilt ReAct agent. A plain StateGraph is a conditional rule.
+        # LangGraph's prebuilt ReAct agent, and graphs (proven only when wired to tools).
         *factories("langgraph", "langgraph.prebuilt", "create_react_agent"),
         *factories("langgraph", "langgraph.prebuilt.chat_agent_executor", "create_react_agent"),
-        # CrewAI
+        *conditional_calls("langgraph", "langgraph.graph", "StateGraph", "MessageGraph", condition=Condition.TOOLS),
+        *conditional_calls("langgraph", "langgraph.graph.state", "StateGraph", condition=Condition.TOOLS),
+        *conditional_calls("langgraph", "langgraph.graph.message", "MessageGraph", condition=Condition.TOOLS),
+        # CrewAI, and the crews that link its agents.
         *agent_classes("crewai", "crewai", "Agent"),
         *agent_classes("crewai", "crewai.agent", "Agent"),
+        *conditional_calls("crewai", "crewai", "Crew", condition=Condition.CREW),
+        *conditional_calls("crewai", "crewai.crew", "Crew", condition=Condition.CREW),
         # Strands Agents
         *agent_classes("strands", "strands", "Agent"),
         *agent_classes("strands", "strands.agent", "Agent"),
@@ -131,6 +153,23 @@ PYTHON = RuleSet(
         # smolagents
         *agent_classes("smolagents", "smolagents", "CodeAgent", "ToolCallingAgent"),
         *agent_classes("smolagents", "smolagents.agents", "CodeAgent", "ToolCallingAgent"),
+        # OpenAI Agents SDK (the package openai-agents, imported as agents).
+        *conditional_calls("openai-agents", "agents", "Agent", condition=Condition.DEPENDENCY),
+        *conditional_calls("openai-agents", "agents.agent", "Agent", condition=Condition.DEPENDENCY),
+    ),
+    wiring=ToolWiring(
+        calls=frozenset({Symbol("langgraph.prebuilt", "ToolNode"), Symbol("langgraph.prebuilt.tool_node", "ToolNode")}),
+        references=frozenset(
+            {Symbol("langgraph.prebuilt", "tools_condition"), Symbol("langgraph.prebuilt.tool_node", "tools_condition")}
+        ),
+        methods=frozenset({"bind_tools"}),
+        modules=("langchain", "langgraph"),
+    ),
+    crews=CrewLinking(
+        agent_decorators=frozenset({Symbol("crewai.project", "agent"), Symbol("crewai.project.annotations", "agent")}),
+        project_decorators=frozenset(
+            {Symbol("crewai.project", "CrewBase"), Symbol("crewai.project.crew_base", "CrewBase")}
+        ),
     ),
 )
-"""The always-proven Python signatures."""
+"""The Python signatures, and what their conditions look for."""

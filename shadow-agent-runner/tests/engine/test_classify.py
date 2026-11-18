@@ -33,7 +33,7 @@ from amp_shadow_runner.engine.files import Tag
 from amp_shadow_runner.engine.imports import extract_imports
 from amp_shadow_runner.engine.languages import Language, parse
 from amp_shadow_runner.engine.manifests import Dependencies
-from amp_shadow_runner.engine.match import match_python
+from amp_shadow_runner.engine.match import match_python_file
 from amp_shadow_runner.engine.scan import scan_tree
 from amp_shadow_runner.engine.signatures.python import PYTHON
 
@@ -45,7 +45,7 @@ def _file(path: str, source: str, tag: Tag | None = None) -> FileMatches:
     tree = parse(Language.PYTHON, data)
     assert tree is not None
     imports = extract_imports(Language.PYTHON, tree, data)
-    return FileMatches(path, tag, imports, match_python(path, tree, data, imports))
+    return FileMatches(path, tag, imports, match_python_file(path, tree, data, imports).matches)
 
 
 def _classify(*files: FileMatches, dependencies: Dependencies = NO_DEPENDENCIES) -> tuple[Finding, ...]:
@@ -235,3 +235,217 @@ def test_scan_tree_counts_an_unreadable_file_as_skipped(tmp_path: Path, monkeypa
     monkeypatch.setattr(Path, "read_bytes", read_bytes)
     result = scan_tree(tmp_path, repository="r")
     assert (result.findings, result.files_scanned, result.files_skipped) == ((), 1, 1)
+
+
+GRAPH = "from langgraph.graph import StateGraph\nworkflow = StateGraph(State)\n"
+TOOL_NODE = "from langgraph.prebuilt import ToolNode\ntool_node = ToolNode([search])\n"
+NODE, CONDITION, BIND = {"toolNode": True}, {"toolsCondition": True}, {"bindTools": True}
+
+
+@pytest.mark.parametrize(
+    ("files", "verdict", "wired"),
+    [
+        # Wired in the graph's own file.
+        (
+            {"app/graph.py": GRAPH + "from langgraph.prebuilt import ToolNode\nnode = ToolNode(tools)\n"},
+            "proven",
+            ("app/graph.py", NODE),
+        ),
+        (
+            {
+                "app/graph.py": GRAPH
+                + "from langgraph.prebuilt import tools_condition\nworkflow.add_conditional_edges('a', tools_condition)\n"
+            },
+            "proven",
+            ("app/graph.py", CONDITION),
+        ),
+        (
+            {"app/graph.py": GRAPH + "def agent(state):\n    return llm.bind_tools(TOOLS).invoke(state)\n"},
+            "proven",
+            ("app/graph.py", BIND),
+        ),
+        (
+            {
+                "app/graph.py": GRAPH
+                + "from langgraph.prebuilt import ToolNode, tools_condition\nn = ToolNode(t)\n"
+                + "workflow.add_conditional_edges('a', tools_condition)\n"
+            },
+            "proven",
+            ("app/graph.py", {"toolNode": True, "toolsCondition": True}),
+        ),
+        # One relative import hop.
+        (
+            {
+                "app/__init__.py": "",
+                "app/graph.py": "from .tools import tool_node\n" + GRAPH,
+                "app/tools.py": TOOL_NODE,
+            },
+            "proven",
+            ("app/tools.py", NODE),
+        ),
+        (
+            {
+                "app/__init__.py": "",
+                "app/graph.py": "from . import nodes\n" + GRAPH,
+                "app/nodes.py": "from langgraph.prebuilt import tools_condition\nroute = tools_condition\n",
+            },
+            "proven",
+            ("app/nodes.py", CONDITION),
+        ),
+        # One absolute import hop, from the package root (src layout), or from a folder above it.
+        (
+            {
+                "src/myapp/__init__.py": "",
+                "src/myapp/graph.py": "from myapp.tools import tool_node\n" + GRAPH,
+                "src/myapp/tools.py": TOOL_NODE,
+            },
+            "proven",
+            ("src/myapp/tools.py", NODE),
+        ),
+        (
+            {"backend/app/graph.py": "from app.nodes import tool_node\n" + GRAPH, "backend/app/nodes.py": TOOL_NODE},
+            "proven",
+            ("backend/app/nodes.py", NODE),
+        ),
+        # A plain workflow graph, or one wired only two hops away, is Not sure.
+        ({"app/graph.py": GRAPH + "workflow.add_node('step', step)\n"}, "not_sure", None),
+        (
+            {
+                "app/__init__.py": "",
+                "app/graph.py": "from .nodes import step\n" + GRAPH,
+                "app/nodes.py": "from .tools import tool_node\nstep = 1\n",
+                "app/tools.py": TOOL_NODE,
+            },
+            "not_sure",
+            None,
+        ),
+        # A .bind_tools one hop away does not count, even with a langchain import there.
+        (
+            {
+                "app/graph.py": "from utils import call_model\n" + GRAPH,
+                "app/utils.py": "from langchain_openai import ChatOpenAI\n"
+                "def call_model(state):\n    return llm.bind_tools(TOOLS).invoke(state)\n",
+            },
+            "not_sure",
+            None,
+        ),
+        # Nor does a Registry.bind_tools in an imported file that has no langchain or langgraph import.
+        (
+            {
+                "app/graph.py": "from registry import registry\n" + GRAPH,
+                "app/registry.py": "from myapp.core import Registry\nregistry = Registry()\nregistry.bind_tools(handlers)\n",
+            },
+            "not_sure",
+            None,
+        ),
+        # An import of a module that is not in the repository is no hop.
+        (
+            {"app/graph.py": "from otherapp.tools import tool_node\n" + GRAPH, "lib/otherapp/tools.py": TOOL_NODE},
+            "not_sure",
+            None,
+        ),
+    ],
+)
+def test_graph_is_proven_when_wired_to_tools(
+    tmp_path: Path, files: dict[str, str], verdict: str, wired: tuple[str, dict[str, bool]] | None
+) -> None:
+    _write(tmp_path, files)
+    findings = [f for f in scan_tree(tmp_path, repository="r").findings if f.framework == "langgraph"]
+    (finding,) = findings
+    assert (finding.name, finding.verdict) == ("workflow", verdict)
+    tool_evidence = [(e.source, dict(e.observed)) for e in finding.evidence if e.code == "d7_tool_calling"]
+    assert tool_evidence == ([] if wired is None else [wired])
+
+
+OPENAI = "from agents import Agent, Runner\nsupport = Agent(name='Support', instructions='secret')\n"
+
+
+@pytest.mark.parametrize(
+    ("files", "expected"),
+    [
+        ({"requirements.txt": "openai-agents>=0.2\n", "main.py": OPENAI}, [("Support", "proven")]),
+        (
+            {"pyproject.toml": '[project]\ndependencies = ["openai_agents"]\n', "main.py": OPENAI},
+            [("Support", "proven")],
+        ),
+        # No manifest declares it, or the nearest manifest does not.
+        ({"main.py": OPENAI}, [("Support", "not_sure")]),
+        (
+            {"requirements.txt": "openai-agents\n", "svc/requirements.txt": "openai\n", "svc/main.py": OPENAI},
+            [("Support", "not_sure")],
+        ),
+        # A local agents package or module: no match at all.
+        ({"requirements.txt": "openai-agents\n", "main.py": OPENAI, "agents/__init__.py": "class Agent: ...\n"}, []),
+        ({"app/main.py": OPENAI, "app/agents.py": "class Agent: ...\n"}, []),
+        # A namespace folder holding the project's own agents/agent.py: no match for agents.agent.
+        (
+            {
+                "requirements.txt": "openai-agents\n",
+                "main.py": "from agents.agent import Agent\nbot = Agent(name='Bot')\n",
+                "agents/agent.py": "class Agent: ...\n",
+            },
+            [],
+        ),
+        # A file named agents.py importing the package does not import itself.
+        ({"requirements.txt": "openai-agents\n", "app/agents.py": OPENAI}, [("Support", "proven")]),
+        # With no manifest above the file, only a root requirements/ folder proves it, not another service.
+        ({"requirements/base.txt": "openai-agents\n", "app/main.py": OPENAI}, [("Support", "proven")]),
+        ({"svc/requirements.txt": "openai-agents\n", "app/main.py": OPENAI}, [("Support", "not_sure")]),
+        # A namespace folder named agents does not hide the installed package.
+        (
+            {"requirements.txt": "openai-agents\n", "main.py": OPENAI, "agents/impl.py": "x = 1\n"},
+            [("Support", "proven")],
+        ),
+    ],
+)
+def test_openai_agent_is_proven_by_its_dependency(
+    tmp_path: Path, files: dict[str, str], expected: list[tuple[str, str]]
+) -> None:
+    _write(tmp_path, files)
+    findings = scan_tree(tmp_path, repository="r").findings
+    assert [(f.name, f.verdict) for f in findings] == expected
+    for finding in findings:
+        assert finding.framework == "openai-agents"
+        codes = [e.code for e in finding.evidence]
+        assert codes == (
+            ["d1_agent_dependency", "d2_agent_import"] if finding.verdict == "proven" else ["d2_agent_import"]
+        )
+
+
+CREW_BASE = (
+    "from crewai import Agent, Crew\nfrom crewai.project import CrewBase, agent, crew\n"
+    "@CrewBase\nclass ResearchCrew:\n"
+    "    @agent\n    def researcher(self) -> Agent:\n        return Agent(config=self.agents_config['researcher'])\n"
+    "    @crew\n    def crew(self) -> Crew:\n        return Crew(agents=self.agents, tasks=self.tasks)\n"
+)
+
+
+def test_crew_labels_its_agents() -> None:
+    (finding,) = _classify(_file("src/crew.py", CREW_BASE))
+    assert (finding.name, finding.verdict) == ("researcher", Verdict.PROVEN)
+    assert finding.attributes == {"framework": "crewai", "labels": {"crew": "ResearchCrew"}}
+
+
+def test_crew_label_merges_with_the_example_label() -> None:
+    (finding,) = _classify(_file("examples/crew.py", CREW_BASE, tag="example"))
+    assert finding.attributes["labels"] == {"codeArea": "example", "crew": "ResearchCrew"}
+
+
+def test_a_crew_linking_no_agent_is_not_sure() -> None:
+    source = "from crewai import Crew\nfrom myapp.agents import build\nteam = Crew(agents=build(), tasks=[])\n"
+    (finding,) = _classify(_file("src/crew.py", source))
+    assert (finding.name, finding.framework, finding.verdict) == ("team", "crewai", Verdict.NOT_SURE)
+    assert finding.external_id == "support-bot:src/crew.py:team"
+    assert "labels" not in finding.attributes
+
+
+def test_other_findings_keep_the_lenient_dependency_evidence() -> None:
+    # R10's D1 evidence still falls back to any declaring manifest; only the DEPENDENCY proof is strict.
+    dependencies = Dependencies({"svc/requirements.txt": frozenset({"crewai", "openai-agents"})})
+    crew, openai = _classify(
+        _file("app/a.py", "from crewai import Agent\nx = Agent()\n"),
+        _file("app/b.py", "from agents import Agent\ny = Agent()\n"),
+        dependencies=dependencies,
+    )
+    assert [e.code for e in crew.evidence] == ["d1_agent_dependency", "d2_agent_import"]
+    assert (openai.verdict, [e.code for e in openai.evidence]) == (Verdict.NOT_SURE, ["d2_agent_import"])

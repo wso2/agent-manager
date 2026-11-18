@@ -16,8 +16,19 @@
 
 """Turn signature matches into findings: what the runner reports and, when certain, publishes.
 
-A finding's verdict is ``proven`` or ``not_sure``. Every always-proven signature gives ``proven``; the
-conditional rules and the Ballerina text match add ``not_sure`` later.
+A finding's verdict is ``proven`` or ``not_sure``. Every always-proven signature gives ``proven``. A
+conditional signature (see ``Condition``) gives ``proven`` only when its condition holds:
+
+- ``TOOLS``: the file wires tools (any ``Wiring``), or a repository file it imports
+  (``FileMatches.imported``) has a ``ToolNode(...)`` call or a ``tools_condition`` reference; a
+  ``.bind_tools(...)`` there does not count. The first such file, the match's own file before the
+  others, is ``d7_tool_calling`` evidence. Wiring is a fact about a file, not about one graph: every graph
+  in a file that wires tools, or that imports one that does, counts as wired.
+- ``DEPENDENCY``: the nearest manifest above the file declares the framework's package, or, with no
+  manifest above it, one in a root ``requirements/`` folder does (``Dependencies.declaring`` with
+  ``strict``). That manifest is also the finding's ``d1_agent_dependency`` evidence; every other finding
+  takes that evidence from the lenient lookup.
+- ``CREW``: never; a crew is a finding only when it links no agent, and is then ``not_sure``.
 
 Evidence codes here carry no provider prefix: the publish step adds ``github.`` or ``azure_devops.``.
 
@@ -25,10 +36,13 @@ Evidence codes here carry no provider prefix: the publish step adds ``github.`` 
   framework's imports in it.
 - ``d1_agent_dependency``: a dependency manifest that declares the framework's package (see
   ``Dependencies.declaring``), with ``observed.declared`` true.
+- ``d7_tool_calling``: for a graph wired to tools, the file that wires it, with a true flag for each thing
+  that wired it there: ``toolNode``, ``toolsCondition`` or ``bindTools``.
 
 Findings in test code (``RepoFile.tag`` ``test``) are still returned, with their tag, but are never
 published: the report lists them apart, since test doubles are not running agents. Findings in example code
-(tag ``example``) are published like any other, with the attribute ``labels: {"codeArea": "example"}``.
+(tag ``example``) are published like any other, with the attribute ``labels: {"codeArea": "example"}``. An
+agent a crew links also has ``labels: {"crew": <crew name>}``, merged with any other label.
 
 ``external_id`` is ``<repository>:<path>:<qualified name>`` (see ``Match.qualified``), so it holds no line
 number and code added elsewhere never changes it. Only a real repeat of the same qualified name (two
@@ -46,7 +60,7 @@ from amp_shadow_runner.engine.files import Tag
 from amp_shadow_runner.engine.imports import ImportTable
 from amp_shadow_runner.engine.manifests import Dependencies, service_folder
 from amp_shadow_runner.engine.match import Match
-from amp_shadow_runner.engine.signatures import Framework, RuleSet
+from amp_shadow_runner.engine.signatures import Condition, Framework, RuleSet, Wiring
 
 MAX_NAME_CHARS = 200
 """The longest agent name kept (Agent Manager's limit)."""
@@ -55,8 +69,12 @@ MAX_EXTERNAL_ID_CHARS = 1000
 
 D1_AGENT_DEPENDENCY = "d1_agent_dependency"
 D2_AGENT_IMPORT = "d2_agent_import"
+D7_TOOL_CALLING = "d7_tool_calling"
 
 Observed = Mapping[str, bool | int | str]
+
+_HOP_WIRING = frozenset({Wiring.TOOL_NODE, Wiring.TOOLS_CONDITION})
+"""What wires a graph to tools one import hop away (see ``Wiring.BIND_TOOLS``)."""
 
 
 class Verdict(StrEnum):
@@ -93,7 +111,7 @@ class Finding:
     """``test`` or ``example`` for a finding in such code. Test findings are reported but never published."""
     attributes: Mapping[str, object]
     """Attributes to publish: ``framework``; ``model`` and ``tools`` when the code states them; and
-    ``labels`` ``{"codeArea": "example"}`` for example code."""
+    ``labels``: ``{"codeArea": "example"}`` for example code, ``{"crew": <name>}`` for an agent in a crew."""
     evidence: tuple[Evidence, ...]
     service_folder: str | None = None
     """The folder of the nearest manifest above the file (``.`` for the root), reported, not published."""
@@ -107,12 +125,21 @@ class FileMatches:
     tag: Tag | None
     imports: ImportTable
     matches: tuple[Match, ...] = field(default=())
+    imported: tuple[str, ...] = ()
+    """The repository files this file imports (``RepoModules.imported``), for ``Condition.TOOLS``."""
 
 
 def classify(
-    files: Sequence[FileMatches], *, repository: str, dependencies: Dependencies, rules: RuleSet
+    files: Sequence[FileMatches],
+    *,
+    repository: str,
+    dependencies: Dependencies,
+    rules: RuleSet,
+    wiring: Mapping[str, frozenset[Wiring]] | None = None,
 ) -> tuple[Finding, ...]:
-    """The findings for every match of one repository, ordered by path and then line."""
+    """The findings for every match of one repository, ordered by path and then line. ``wiring`` holds, by
+    path, what wires tools in each file of the repository that does (``PythonMatches.wiring``)."""
+    wiring = wiring or {}
     findings: list[Finding] = []
     counts: dict[str, int] = {}
     used: set[str] = set()
@@ -121,9 +148,20 @@ def classify(
             framework = rules.framework(match.framework)
             name = match.name.strip()[:MAX_NAME_CHARS] or f"{framework.id}-agent"
             evidence = [Evidence(D2_AGENT_IMPORT, file.path, {"imports": _import_count(file.imports, framework)})]
-            manifest = dependencies.declaring(framework.packages, file.path)
+            condition = match.signature.condition
+            strict = condition == Condition.DEPENDENCY
+            manifest = dependencies.declaring(framework.packages, file.path, strict=strict)
             if manifest is not None:
                 evidence.insert(0, Evidence(D1_AGENT_DEPENDENCY, manifest, {"declared": True}))
+            verdict = Verdict.PROVEN
+            if condition == Condition.TOOLS:
+                wired = _wired(file, wiring)
+                if wired is None:
+                    verdict = Verdict.NOT_SURE
+                else:
+                    evidence.append(Evidence(D7_TOOL_CALLING, wired[0], {k.value: True for k in sorted(wired[1])}))
+            elif (condition == Condition.DEPENDENCY and manifest is None) or condition == Condition.CREW:
+                verdict = Verdict.NOT_SURE
             findings.append(
                 Finding(
                     external_id=_unique(f"{repository}:{file.path}:{match.qualified}", counts, used),
@@ -132,7 +170,7 @@ def classify(
                     path=file.path,
                     line=match.line,
                     framework=framework.id,
-                    verdict=Verdict.PROVEN,
+                    verdict=verdict,
                     tag=file.tag,
                     attributes=_attributes(match, file.tag),
                     evidence=tuple(evidence),
@@ -140,6 +178,18 @@ def classify(
                 )
             )
     return tuple(findings)
+
+
+def _wired(file: FileMatches, wiring: Mapping[str, frozenset[Wiring]]) -> tuple[str, frozenset[Wiring]] | None:
+    """The first file that wires ``file``'s graphs to tools, and what wires them there, or None."""
+    own = wiring.get(file.path, frozenset())
+    if own:
+        return file.path, own
+    for path in file.imported:
+        kinds = wiring.get(path, frozenset()) & _HOP_WIRING
+        if kinds:
+            return path, kinds
+    return None
 
 
 def _import_count(imports: ImportTable, framework: Framework) -> int:
@@ -160,8 +210,13 @@ def _attributes(match: Match, tag: Tag | None) -> dict[str, object]:
         attributes["model"] = match.model
     if match.tools:
         attributes["tools"] = [{"type": "function", "name": name} for name in match.tools]
+    labels: dict[str, str] = {}
     if tag == "example":
-        attributes["labels"] = {"codeArea": "example"}
+        labels["codeArea"] = "example"
+    if match.crew is not None:
+        labels["crew"] = match.crew
+    if labels:
+        attributes["labels"] = labels
     return attributes
 
 

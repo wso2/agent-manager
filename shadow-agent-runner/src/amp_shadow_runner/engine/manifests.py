@@ -36,6 +36,7 @@ from pathlib import PurePosixPath
 _PEP508_NAME = re.compile(r"\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)")
 _SEPARATORS = re.compile(r"[-_.]+")
 _TOML_MANIFESTS = frozenset({"pyproject.toml", "Pipfile"})
+_REQUIREMENTS_FOLDER = PurePosixPath("requirements")
 
 
 def normalise(name: str) -> str:
@@ -149,12 +150,14 @@ class Dependencies:
         """Every manifest path, read or not."""
         return (*self.manifests, *sorted(self.unread))
 
-    def declaring(self, packages: Iterable[str], path: str) -> str | None:
+    def declaring(self, packages: Iterable[str], path: str, *, strict: bool = False) -> str | None:
         """The manifest that declares one of ``packages`` for the file at ``path``, or None.
 
         When a read manifest is in a folder above the file, only the nearest such folder's manifests count:
         the file belongs to that project. Only a file with no manifest above it falls back to the first
         declaring manifest by path, since a repository may declare its dependencies away from its code.
+        With ``strict`` (proof that a symbol is the framework's), that fallback takes only a manifest in a
+        root ``requirements/`` folder (one at the root is always above the file), never another service's.
         """
         wanted = {normalise(p) for p in packages}
         folders = PurePosixPath(path).parents
@@ -162,6 +165,8 @@ class Dependencies:
         if above:
             depth = max(len(PurePosixPath(m).parent.parts) for m in above)
             candidates = [m for m in above if len(PurePosixPath(m).parent.parts) == depth]
+        elif strict:
+            candidates = [m for m in self.manifests if PurePosixPath(m).parent == _REQUIREMENTS_FOLDER]
         else:
             candidates = list(self.manifests)
         declaring = sorted(m for m in candidates if self.manifests[m] & wanted)
