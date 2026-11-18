@@ -57,6 +57,7 @@ import {
   LazyDeploymentPipelinesOrg,
   LazyEnvironmentsOrg,
   LazyCatalogOrg,
+  LazyAgentRegistryOrg,
   LazyAddNewAgent,
   LazyAddNewProject,
   LazyEditProject,
@@ -443,6 +444,14 @@ export function RootRouter() {
             <Route
               path={relativeRouteMap.children.org.children.catalog.path + "/*"}
               element={<LazyCatalogOrg />}
+            />
+            <Route
+              path={relativeRouteMap.children.org.children.agentRegistry.path + "/*"}
+              element={
+                <Suspense fallback={<LoadingFallback />}>
+                  <LazyAgentRegistryOrg />
+                </Suspense>
+              }
             />
             <Route
               path={relativeRouteMap.children.org.children.newProject.path}
