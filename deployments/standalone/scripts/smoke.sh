@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # smoke.sh — smoke-test a running standalone stack.
 #
-#   scripts/smoke.sh amp|amp-core [--no-console]
+#   scripts/smoke.sh amp|amp-core|amp-off [--no-console]
 #
 # amp is the full stack (`make up`), amp-core the core binary without the AI
-# Gateway (`make up-core`). The checks cover sign-in, the core API, which
+# Gateway (`make up-core`), and amp-off the full stack with the ai-gateway
+# module disabled (`amp module disable ai-gateway`), which must look like
+# amp-core. The checks cover sign-in, the core API, which
 # routes each distribution serves, the console the API serves and the UI
 # manifest. --no-console skips the console files, for an
 # image built with CONSOLE=none.
@@ -19,8 +21,8 @@ DIST=${1:-}
 CONSOLE=yes
 [ "${2:-}" = "--no-console" ] && CONSOLE=no
 case "$DIST" in
-  amp | amp-core) ;;
-  *) echo "usage: $0 amp|amp-core [--no-console]" >&2; exit 2 ;;
+  amp | amp-core | amp-off) ;;
+  *) echo "usage: $0 amp|amp-core|amp-off [--no-console]" >&2; exit 2 ;;
 esac
 for tool in curl jq; do
   command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 2; }
@@ -49,7 +51,7 @@ skip() { echo "SKIP $1"; skipped=$((skipped + 1)); }
 BODY=$(mktemp)
 trap 'rm -f "$BODY"' EXIT
 code() { curl -s -o "$BODY" -w '%{http_code}' "$@"; }
-# The value for amp, or for amp-core.
+# The value for amp, or for amp-core (and amp-off).
 pick() { if [ "$DIST" = amp ]; then echo "$1"; else echo "$2"; fi; }
 has() { if grep -q "$1" "$BODY"; then echo yes; else echo no; fi; }
 
