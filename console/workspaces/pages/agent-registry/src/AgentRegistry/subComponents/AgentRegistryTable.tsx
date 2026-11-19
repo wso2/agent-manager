@@ -24,8 +24,8 @@ import type {
   AgentRegistryEntry,
   AgentRegistryRegistration,
 } from "@agent-management-platform/types";
-import { lastDeployedAt, ownerHintText } from "../agentRegistryFilters";
-import { agentTypeText, useOpenAgent } from "./agentRow";
+import { lastDeployedAt } from "../agentRegistryFilters";
+import { agentTypeText, shadowSourceText, useOpenAgent } from "./agentRow";
 import { UnknownOwnerLabel } from "./UnknownOwnerLabel";
 
 const ROWS_PER_PAGE_OPTIONS = [10, 25, 50];
@@ -119,55 +119,56 @@ function RegisteredRows({ orgId, agents }: { orgId: string; agents: AgentRegistr
   );
 }
 
-/** Unregistered (shadow) agents: where they were found and when scans saw them. */
-function UnregisteredRows({ agents }: { agents: AgentRegistryEntry[] }) {
+/**
+ * Unregistered (shadow) agents, with the same columns as Shadow Agent Discovery's own
+ * list: the agent (its scope under it), its platform, the connections that found it
+ * (Source) and when a scan last saw it.
+ */
+function UnregisteredRows({ orgId, agents }: { orgId: string; agents: AgentRegistryEntry[] }) {
+  const openAgent = useOpenAgent(orgId);
   return (
     <ListingTable variant="card">
       <ListingTable.Head>
         <ListingTable.Row>
           <ListingTable.Cell>Agent</ListingTable.Cell>
-          <ListingTable.Cell>Found on</ListingTable.Cell>
-          <ListingTable.Cell>Owner hint</ListingTable.Cell>
-          <ListingTable.Cell align="right">First seen</ListingTable.Cell>
+          <ListingTable.Cell>Platform</ListingTable.Cell>
+          <ListingTable.Cell>Source</ListingTable.Cell>
           <ListingTable.Cell align="right">Last seen</ListingTable.Cell>
         </ListingTable.Row>
       </ListingTable.Head>
       <ListingTable.Body>
-        {agents.map((agent) => (
-          // Not clickable yet: it will open its Shadow Agent Discovery page.
-          <ListingTable.Row key={agent.discovery?.findingId ?? agent.name} variant="card">
-            <ListingTable.Cell>
-              <AgentCell agent={agent} />
-            </ListingTable.Cell>
-            <ListingTable.Cell>
-              <Typography variant="body2" noWrap>
-                {agent.discovery?.providerDisplayName ?? "—"}
-              </Typography>
-              {agent.discovery?.scope && (
-                <Typography variant="caption" color="text.secondary" noWrap component="div">
-                  {agent.discovery.scope}
+        {agents.map((agent) => {
+          const discovery = agent.discovery;
+          const detail = discovery
+            ? discovery.scope
+            : undefined;
+          return (
+            <ListingTable.Row
+              key={discovery?.findingId ?? agent.name}
+              variant="card"
+              hover
+              clickable
+              onClick={() => openAgent(agent)}
+            >
+              <ListingTable.Cell>
+                <AgentCell agent={agent} detail={detail} />
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography variant="body2" noWrap>
+                  {discovery?.providerDisplayName ?? "—"}
                 </Typography>
-              )}
-            </ListingTable.Cell>
-            <ListingTable.Cell>
-              {/* The name, else the email; the email shows on hover when both are known. */}
-              <Typography
-                variant="body2"
-                color="text.secondary"
-                noWrap
-                title={agent.discovery?.ownerHint.email}
-              >
-                {ownerHintText(agent.discovery?.ownerHint) ?? "—"}
-              </Typography>
-            </ListingTable.Cell>
-            <ListingTable.Cell align="right">
-              <TimeText value={agent.discovery?.firstSeenAt} empty="—" />
-            </ListingTable.Cell>
-            <ListingTable.Cell align="right">
-              <TimeText value={agent.discovery?.lastSeenAt} empty="—" />
-            </ListingTable.Cell>
-          </ListingTable.Row>
-        ))}
+              </ListingTable.Cell>
+              <ListingTable.Cell>
+                <Typography variant="body2" color="text.secondary" noWrap>
+                  {discovery ? shadowSourceText(discovery) : "—"}
+                </Typography>
+              </ListingTable.Cell>
+              <ListingTable.Cell align="right">
+                <TimeText value={discovery?.lastSeenAt} empty="—" />
+              </ListingTable.Cell>
+            </ListingTable.Row>
+          );
+        })}
       </ListingTable.Body>
     </ListingTable>
   );
@@ -201,7 +202,7 @@ export function AgentRegistryTable({ orgId, registration, agents }: AgentRegistr
         {registration === "registered" ? (
           <RegisteredRows orgId={orgId} agents={pageOfAgents} />
         ) : (
-          <UnregisteredRows agents={pageOfAgents} />
+          <UnregisteredRows orgId={orgId} agents={pageOfAgents} />
         )}
       </Box>
       {agents.length > ROWS_PER_PAGE_OPTIONS[0] && (

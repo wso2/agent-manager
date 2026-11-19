@@ -16,7 +16,9 @@
  * under the License.
  */
 
+import type { AgentThunderStatus } from './agents';
 import type { AgentPathParams, OrgPathParams } from './common';
+import type { MonitorStatus } from './monitors';
 
 // Org-level agent registry (product-management issue #78). The backend API does
 // not exist yet; these shapes are what the console expects it to return.
@@ -44,13 +46,28 @@ export interface AgentRegistryCreatedBy {
   displayName: string;
 }
 
-/** A resource the agent can reach (an LLM provider or an MCP server). */
+/** A resource the agent can reach (an LLM provider). */
 export interface AgentRegistryResourceRef {
   id: string;
   displayName: string;
 }
 
-/** The agent in one environment: its status and what it can reach there. */
+/** An MCP server the agent can reach, and the tools it offers (from capability discovery). */
+export interface AgentRegistryMcpServerRef extends AgentRegistryResourceRef {
+  tools: string[];
+}
+
+/** An evaluation monitor on the agent in one environment (MonitorResponse). */
+export interface AgentRegistryMonitorRef {
+  name: string;
+  displayName: string;
+  status: MonitorStatus;
+}
+
+/**
+ * The agent in one environment: its deployment, and its governance posture read from
+ * existing config (AgentID, LLM providers, guardrails, MCP servers and tools, monitors).
+ */
 export interface AgentRegistryEnvironment {
   name: string;
   displayName: string;
@@ -58,8 +75,25 @@ export interface AgentRegistryEnvironment {
   deploymentStatus: AgentRegistryDeploymentStatus;
   /** Null when the agent was never deployed here. Platform agents only. */
   lastDeployedAt: string | null;
+  /** The agent's AgentID in this environment; null when none was requested. */
+  agentIdStatus: AgentThunderStatus | null;
   llmProviders: AgentRegistryResourceRef[];
-  mcpServers: AgentRegistryResourceRef[];
+  /** Names of the guardrail policies on the agent's LLM provider config here. */
+  guardrails: string[];
+  mcpServers: AgentRegistryMcpServerRef[];
+  monitors: AgentRegistryMonitorRef[];
+  /** Who may call the agent here: the security on its endpoint (agent configurations). */
+  inboundSecurity: { apiKey: boolean; oauth: boolean };
+  /** The A2A card stored for this environment (#65); A2A agents only, once fetched. */
+  a2aCard?: { skills: AgentRegistryA2ASkill[] };
+}
+
+/** One skill from an A2A agent card. */
+export interface AgentRegistryA2ASkill {
+  id: string;
+  name: string;
+  description?: string;
+  tags?: string[];
 }
 
 /**
@@ -73,6 +107,33 @@ export type AgentRegistryRegistration = 'registered' | 'unregistered';
 export interface AgentRegistryOwnerHint {
   name?: string;
   email?: string;
+  /** Where the platform says the creator came from, when it says. */
+  source?: string;
+}
+
+/**
+ * platform_agent: an agent object on the platform; runtime: a hosted agent runtime;
+ * code_agent: an agent found in source code (ShadowFindingKind).
+ */
+export type AgentRegistryFindingKind = 'platform_agent' | 'runtime' | 'code_agent';
+
+/** Evidence that a platform lists the agent (ShadowFindingSignal). */
+export interface AgentRegistryFindingSignal {
+  code: string;
+  name: string;
+  /** The platform call that returned it. */
+  source: string;
+  condition: string;
+  observed: Record<string, unknown>;
+  detectedAt: string;
+}
+
+/** One connection that found the agent (ShadowFindingSource). */
+export interface AgentRegistryFindingSource {
+  findingId: string;
+  connectionId: string;
+  connectionName: string;
+  present: boolean;
 }
 
 /**
@@ -97,6 +158,19 @@ export interface AgentRegistryDiscovery {
   present: boolean;
   /** True once it is onboarded as an external agent, which then lists it as registered. */
   onboarded: boolean;
+  // For the agent's overview page (ShadowFindingDetail); a list call may leave these out.
+  /** The connection that saw it last. */
+  connectionName: string;
+  kind: AgentRegistryFindingKind;
+  /** The platform's own ID of the agent (agent ID, ARN or resource name). */
+  externalId: string;
+  /** The agent's state as its platform reports it. */
+  state: string;
+  providerCreatedAt?: string;
+  foundBy: AgentRegistryFindingSource[];
+  /** What the platform's agent listing reports (allow-listed fields only). */
+  attributes: Record<string, unknown>;
+  signals: AgentRegistryFindingSignal[];
 }
 
 /** One row of the registry: one agent, from any project, or one found outside Agent Manager. */
@@ -131,3 +205,8 @@ export type ListAgentRegistryPathParams = OrgPathParams;
 
 /** One registered agent's registry record, for the org-level agent overview page. */
 export type GetAgentRegistryEntryPathParams = AgentPathParams;
+
+/** One unregistered agent, by its Shadow Agent Discovery finding ID. */
+export interface GetUnregisteredAgentPathParams extends OrgPathParams {
+  findingId: string | undefined;
+}

@@ -246,7 +246,7 @@ export function AgentRegistryToolbar({
           placeholder={
             filters.registration === "registered"
               ? "Search by name, project, owner or tag"
-              : "Search by name, platform or owner hint"
+              : "Search by name, platform or source"
           }
           size="small"
           width="standard"

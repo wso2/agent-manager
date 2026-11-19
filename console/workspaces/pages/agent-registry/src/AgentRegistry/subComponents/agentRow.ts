@@ -19,7 +19,11 @@
 import { useCallback } from "react";
 import { generatePath, useLocation, useNavigate } from "react-router-dom";
 import { displayAgentSubType, returnToState } from "@agent-management-platform/views";
-import { absoluteRouteMap, type AgentRegistryEntry } from "@agent-management-platform/types";
+import {
+  absoluteRouteMap,
+  type AgentRegistryDiscovery,
+  type AgentRegistryEntry,
+} from "@agent-management-platform/types";
 
 // Shared by the table and the tile views.
 
@@ -42,29 +46,40 @@ export function agentTypeText(agent: AgentRegistryEntry): string {
   return [hosting, agentInterface, kind].filter(Boolean).join(" · ");
 }
 
-/** True when the row can open a page. */
-export function canOpenAgent(agent: AgentRegistryEntry): boolean {
-  // Unregistered agents will open their Shadow Agent Discovery finding once that
-  // page is on this branch; until then they open nothing.
-  return agent.registration === "registered";
+/** The connections that found a shadow agent: one name, or "A, B" for one found twice. */
+export function shadowSourceText(discovery: AgentRegistryDiscovery): string {
+  const names = discovery.foundBy.map((s) => s.connectionName);
+  return names.length > 0 ? names.join(", ") : discovery.connectionName;
 }
 
-/** Opens the agent's org-level overview page, which links on to its project page. */
+const registryRoutes = absoluteRouteMap.children.org.children.agentRegistry.children;
+
+/**
+ * The agent's org-level overview page: a registered agent's by project and name, an
+ * unregistered agent's by its discovery finding.
+ */
+export function agentOverviewPath(orgId: string, agent: AgentRegistryEntry): string {
+  if (agent.registration === "unregistered") {
+    return generatePath(registryRoutes.unregisteredAgent.path, {
+      orgId,
+      findingId: agent.discovery?.findingId ?? agent.name,
+    });
+  }
+  return generatePath(registryRoutes.agent.path, {
+    orgId,
+    registryProjectId: agent.projectName,
+    registryAgentId: agent.name,
+  });
+}
+
+/** Opens the agent's overview page. */
 export function useOpenAgent(orgId: string) {
   const navigate = useNavigate();
   // Back on the overview returns to the list as it was: filters, search and view.
   const location = useLocation();
   return useCallback(
     (agent: AgentRegistryEntry) =>
-      canOpenAgent(agent) &&
-      navigate(
-        generatePath(absoluteRouteMap.children.org.children.agentRegistry.children.agent.path, {
-          orgId,
-          registryProjectId: agent.projectName,
-          registryAgentId: agent.name,
-        }),
-        { state: returnToState(location) },
-      ),
+      navigate(agentOverviewPath(orgId, agent), { state: returnToState(location) }),
     [navigate, orgId, location],
   );
 }

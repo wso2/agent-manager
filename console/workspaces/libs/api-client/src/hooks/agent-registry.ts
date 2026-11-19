@@ -20,10 +20,11 @@ import type {
   AgentRegistryEntry,
   AgentRegistryListResponse,
   GetAgentRegistryEntryPathParams,
+  GetUnregisteredAgentPathParams,
   ListAgentRegistryPathParams,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { getAgentRegistryEntry, listAgentRegistry } from "../apis";
+import { getAgentRegistryEntry, getUnregisteredAgent, listAgentRegistry } from "../apis";
 import { useApiQuery } from "./react-query-notifications";
 
 /** Every agent in the organization, across all projects, with its registry record. */
@@ -44,5 +45,15 @@ export function useGetAgentRegistryEntry(params: GetAgentRegistryEntryPathParams
     queryKey: ["agent-registry", "entry", params],
     queryFn: () => getAgentRegistryEntry(params, getToken),
     enabled: !!params.orgName && !!params.projName && !!params.agentName,
+  });
+}
+
+/** One unregistered (shadow) agent by its finding ID; null when there is no such agent. */
+export function useGetUnregisteredAgent(params: GetUnregisteredAgentPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<AgentRegistryEntry | null>({
+    queryKey: ["agent-registry", "unregistered", params],
+    queryFn: () => getUnregisteredAgent(params, getToken),
+    enabled: !!params.orgName && !!params.findingId,
   });
 }

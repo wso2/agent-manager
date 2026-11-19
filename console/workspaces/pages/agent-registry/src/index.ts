@@ -21,6 +21,7 @@ import { Library as RegistryIcon } from "@wso2/oxygen-ui-icons-react";
 import { AgentRegistry } from "./AgentRegistry/AgentRegistry";
 import { AgentRegistryOverview } from "./AgentRegistryOverview/AgentRegistryOverview";
 import { AgentRegistryRoutes } from "./AgentRegistryRoutes";
+import { UnregisteredAgentOverview } from "./UnregisteredAgentOverview/UnregisteredAgentOverview";
 
 export const metaData: PageMetadata = {
   title: "Agent registry",
@@ -34,6 +35,6 @@ export const metaData: PageMetadata = {
   },
 };
 
-export { AgentRegistry, AgentRegistryOverview, AgentRegistryRoutes };
+export { AgentRegistry, AgentRegistryOverview, AgentRegistryRoutes, UnregisteredAgentOverview };
 
 export default AgentRegistryRoutes;

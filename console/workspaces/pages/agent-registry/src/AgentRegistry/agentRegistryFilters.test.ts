@@ -33,7 +33,7 @@ import {
   withRegistration,
 } from "./agentRegistryFilters";
 
-const payments = { id: "payments-mcp", displayName: "Payments" };
+const payments = { id: "payments-mcp", displayName: "Payments", tools: ["get_invoice"] };
 
 function agent(overrides: Partial<AgentRegistryEntry>): AgentRegistryEntry {
   return {
@@ -59,8 +59,11 @@ function env(overrides: Partial<AgentRegistryEnvironment>): AgentRegistryEnviron
     isProduction: false,
     deploymentStatus: "active",
     lastDeployedAt: null,
+    agentIdStatus: "completed",
     llmProviders: [],
+    guardrails: [],
     mcpServers: [],
+    monitors: [],
     ...overrides,
   };
 }
@@ -105,6 +108,13 @@ const shadow = agent({
     lastSeenAt: "2026-01-02T00:00:00Z",
     present: true,
     onboarded: false,
+    connectionName: "OpenAI prod",
+    kind: "platform_agent",
+    externalId: "agent_alpha",
+    state: "active",
+    foundBy: [{ findingId: "f1", connectionId: "c1", connectionName: "OpenAI prod", present: true }],
+    attributes: { model: "gpt-x" },
+    signals: [],
   },
 });
 
@@ -237,8 +247,8 @@ describe("which shadow agents are listed", () => {
     expect(countByRegistration([shadow, gone, onboarded]).unregistered).toBe(1);
   });
 
-  it("searches the owner hint's email", () => {
-    const filters = { ...withRegistration(EMPTY_FILTERS, "unregistered"), search: "dev@" };
+  it("searches the connections that found it (Source)", () => {
+    const filters = { ...withRegistration(EMPTY_FILTERS, "unregistered"), search: "openai prod" };
     expect(names(filterAgents(all, filters))).toEqual(["shadow"]);
   });
 
