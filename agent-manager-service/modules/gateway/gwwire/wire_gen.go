@@ -9,6 +9,9 @@ package gwwire
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"time"
+
 	"github.com/google/wire"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/eventhub"
@@ -21,8 +24,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/websocket"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 	"gorm.io/gorm"
-	"log/slog"
-	"time"
 )
 
 // Injectors from wire.go:
