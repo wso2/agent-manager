@@ -50,6 +50,7 @@ import {
 } from "@agent-management-platform/types";
 import {
   AGENT_PLATFORMS,
+  AiReviewChip,
   kindLabel,
   OnboardingChip,
   providerLabel,
@@ -291,9 +292,12 @@ export function FindingsTab({
               }
             >
               <ListingTable.Cell>
-                <Typography variant="body2" fontWeight={500}>
-                  {f.displayName}
-                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="body2" fontWeight={500}>
+                    {f.displayName}
+                  </Typography>
+                  <AiReviewChip reviewedBy={f.reviewedBy} />
+                </Stack>
                 <Typography variant="caption" color="text.secondary">
                   {kindLabel(f.kind, f.provider)}
                   {f.scope ? ` · ${f.scope}` : ""}

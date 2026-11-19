@@ -24,6 +24,7 @@ import type {
   ShadowFindingKind,
   ShadowOwnerHint,
   ShadowProvider,
+  ShadowReviewedBy,
   ShadowScanStatus,
 } from "@agent-management-platform/types";
 
@@ -116,6 +117,20 @@ export function OnboardingChip({ onboarded }: { onboarded: boolean }) {
     />
   ) : (
     <Chip size="small" variant="outlined" icon={<CircleDashed size={14} />} label="Not onboarded" />
+  );
+}
+
+/** Marks a code agent that AI review confirmed; nothing for agents the rules proved. */
+export function AiReviewChip({ reviewedBy }: { reviewedBy?: ShadowReviewedBy }) {
+  if (reviewedBy !== "ai_review" && reviewedBy !== "ai_review_judge") return null;
+  // describeChild keeps "AI review" as the chip's accessible name.
+  return (
+    <Tooltip
+      title="Confirmed by AI review, not by the scan's rules. Open the agent to check its evidence."
+      describeChild
+    >
+      <Chip size="small" variant="outlined" label="AI review" />
+    </Tooltip>
   );
 }
 

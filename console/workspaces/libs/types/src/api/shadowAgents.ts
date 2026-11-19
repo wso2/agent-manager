@@ -334,7 +334,12 @@ export interface ShadowFindingSummary {
   linkedProject?: string;
   linkedAgent?: string;
   onboardedAt?: string;
+  /** For code agents, who confirmed the agent; absent for other kinds. */
+  reviewedBy?: ShadowReviewedBy;
 }
+
+/** Who confirmed a code agent: the scan's rules, AI review, or AI review and the LLM judge. */
+export type ShadowReviewedBy = "rules" | "ai_review" | "ai_review_judge";
 
 export interface ShadowFindingListResponse {
   findings: ShadowFindingSummary[];

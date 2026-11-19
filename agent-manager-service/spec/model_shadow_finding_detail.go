@@ -48,6 +48,8 @@ type ShadowFindingDetail struct {
 	// The name of the external agent it was onboarded as.
 	LinkedAgent *string    `json:"linkedAgent,omitempty"`
 	OnboardedAt *time.Time `json:"onboardedAt,omitempty"`
+	// For code agents, who confirmed the agent: rules (the scan's rules), ai_review (the customer's LLM) or ai_review_judge (the LLM judge). Absent for other kinds.
+	ReviewedBy *string `json:"reviewedBy,omitempty"`
 	// What the platform's agent listing reports about the agent (allow-listed fields only).
 	Attributes map[string]interface{} `json:"attributes"`
 	// Agents on other platforms that may be the same agent.
@@ -581,6 +583,38 @@ func (o *ShadowFindingDetail) SetOnboardedAt(v time.Time) {
 	o.OnboardedAt = &v
 }
 
+// GetReviewedBy returns the ReviewedBy field value if set, zero value otherwise.
+func (o *ShadowFindingDetail) GetReviewedBy() string {
+	if o == nil || IsNil(o.ReviewedBy) {
+		var ret string
+		return ret
+	}
+	return *o.ReviewedBy
+}
+
+// GetReviewedByOk returns a tuple with the ReviewedBy field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowFindingDetail) GetReviewedByOk() (*string, bool) {
+	if o == nil || IsNil(o.ReviewedBy) {
+		return nil, false
+	}
+	return o.ReviewedBy, true
+}
+
+// HasReviewedBy returns a boolean if a field has been set.
+func (o *ShadowFindingDetail) HasReviewedBy() bool {
+	if o != nil && !IsNil(o.ReviewedBy) {
+		return true
+	}
+
+	return false
+}
+
+// SetReviewedBy gets a reference to the given string and assigns it to the ReviewedBy field.
+func (o *ShadowFindingDetail) SetReviewedBy(v string) {
+	o.ReviewedBy = &v
+}
+
 // GetAttributes returns the Attributes field value
 func (o *ShadowFindingDetail) GetAttributes() map[string]interface{} {
 	if o == nil {
@@ -721,6 +755,9 @@ func (o ShadowFindingDetail) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.OnboardedAt) {
 		toSerialize["onboardedAt"] = o.OnboardedAt
+	}
+	if !IsNil(o.ReviewedBy) {
+		toSerialize["reviewedBy"] = o.ReviewedBy
 	}
 	toSerialize["attributes"] = o.Attributes
 	toSerialize["related"] = o.Related

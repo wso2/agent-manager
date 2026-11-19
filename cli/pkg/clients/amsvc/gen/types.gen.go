@@ -6804,6 +6804,9 @@ type ShadowFindingDetail struct {
 	// Related Agents on other platforms that may be the same agent.
 	Related []ShadowFindingRelation `json:"related"`
 
+	// ReviewedBy For code agents, who confirmed the agent: rules (the scan's rules), ai_review (the customer's LLM) or ai_review_judge (the LLM judge). Absent for other kinds.
+	ReviewedBy *string `json:"reviewedBy,omitempty"`
+
 	// Scope Where the agent lives at the platform (project, workspace, region or location).
 	Scope string `json:"scope"`
 
@@ -6887,6 +6890,9 @@ type ShadowFindingSummary struct {
 	Present           bool       `json:"present"`
 	Provider          string     `json:"provider"`
 	ProviderCreatedAt *time.Time `json:"providerCreatedAt,omitempty"`
+
+	// ReviewedBy For code agents, who confirmed the agent: rules (the scan's rules), ai_review (the customer's LLM) or ai_review_judge (the LLM judge). Absent for other kinds.
+	ReviewedBy *string `json:"reviewedBy,omitempty"`
 
 	// Scope Where the agent lives at the platform (project, workspace, region or location).
 	Scope string `json:"scope"`

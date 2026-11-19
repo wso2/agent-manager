@@ -427,6 +427,29 @@ describe("FindingsTab", () => {
     expect(screen.queryByText(/agent_three/)).not.toBeInTheDocument();
   });
 
+  it("marks code agents confirmed by AI review, but not the ones the rules proved", async () => {
+    const code = (
+      id: string,
+      displayName: string,
+      reviewedBy: ShadowFindingSummary["reviewedBy"],
+    ) => finding({ id, displayName, provider: "github", kind: "code_agent", externalId: id, reviewedBy });
+    hoisted.findings = [
+      code("a", "triage", "ai_review"),
+      code("b", "planner", "ai_review_judge"),
+      code("c", "router", "rules"),
+    ];
+    router(<FindingsTab orgName="acme" />);
+    const row = (name: string) => screen.getByText(name).closest("tr") as HTMLElement;
+    expect(within(row("triage")).getByText("AI review")).toBeInTheDocument();
+    expect(within(row("planner")).getByText("AI review")).toBeInTheDocument();
+    expect(within(row("router")).queryByText("AI review")).not.toBeInTheDocument();
+    expect(screen.queryByText(/can make mistakes/)).not.toBeInTheDocument();
+    fireEvent.mouseOver(within(row("triage")).getByText("AI review"));
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "Confirmed by AI review, not by the scan's rules. Open the agent to check its evidence.",
+    );
+  });
+
   it("has no delete actions without the manage permission, or for a scan's agents", () => {
     hoisted.findings = [finding()];
     const { unmount } = router(<FindingsTab orgName="acme" />);
