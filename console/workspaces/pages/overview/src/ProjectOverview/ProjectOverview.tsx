@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React, { useEffect, type ComponentType } from "react";
+import React, { useEffect, useLayoutEffect, type ComponentType } from "react";
 import { Box, Button, Stack } from "@wso2/oxygen-ui";
 import { Settings, Box as ProjectIcon } from "@wso2/oxygen-ui-icons-react";
 import {
@@ -59,7 +59,13 @@ export const ProjectOverview: React.FC = () => {
     orgName: orgId,
     projName: projectId,
   });
-  const { data: agents, isSuccess: isAgentsLoaded, isFetching: isAgentsFetching } = useListAgents({
+  const {
+    data: agents,
+    isSuccess: isAgentsLoaded,
+    isFetching: isAgentsFetching,
+    isFetchedAfterMount: isAgentsFetchedAfterMount,
+    refetch: refetchAgents,
+  } = useListAgents({
     orgName: orgId,
     projName: projectId,
   });
@@ -76,18 +82,36 @@ export const ProjectOverview: React.FC = () => {
     navigate(generatePath(projectRoutes.children.edit.path, { orgId, projectId }));
   };
 
+  // A project with no agents has nothing to overview; send the user to create
+  // one. The page renders as usual meanwhile (so its other queries run in
+  // parallel), with the agent list on its skeleton until the outcome is known,
+  // so the "no agents" state never flashes before the redirect.
+  //
   // Only a successful, empty response counts; a failed load must not redirect.
+  // And only one fetched during this visit: an empty list from the cache may be
+  // out of date (an agent created in another tab), so it is fetched again first.
+  const mayRedirect = canCreateAgent && !!orgId && !!projectId;
   const hasNoAgents = isAgentsLoaded && !agents?.agents?.length;
+  const isEmptyConfirmed = hasNoAgents && isAgentsFetchedAfterMount && !isAgentsFetching;
+  const shouldRedirect = mayRedirect && isEmptyConfirmed;
+  const isCheckingEmpty = mayRedirect && hasNoAgents && !isEmptyConfirmed;
 
-  // A project with no agents has nothing to overview; send the user to create one.
+  // A fresh cached empty list is not refetched on mount (staleTime); fetch it.
   useEffect(() => {
-    if (canCreateAgent && orgId && projectId && hasNoAgents && !isAgentsFetching) {
+    if (isCheckingEmpty && !isAgentsFetchedAfterMount && !isAgentsFetching) {
+      void refetchAgents();
+    }
+  }, [isCheckingEmpty, isAgentsFetchedAfterMount, isAgentsFetching, refetchAgents]);
+
+  // Layout effect: navigate before the browser paints this render.
+  useLayoutEffect(() => {
+    if (shouldRedirect) {
       // Replace so browser Back doesn't land here and redirect again.
       navigate(generatePath(projectRoutes.children.newAgent.path, { orgId, projectId }), {
         replace: true,
       });
     }
-  }, [canCreateAgent, orgId, projectId, hasNoAgents, isAgentsFetching, navigate]);
+  }, [shouldRedirect, navigate, orgId, projectId]);
 
   return (
     <PageLayout
@@ -114,7 +138,7 @@ export const ProjectOverview: React.FC = () => {
     >
       <Stack direction={{ xs: "column", lg: "row" }} gap={3} alignItems="flex-start">
         <Box sx={{ flex: 1, minWidth: 0, width: "100%" }}>
-          <AgentList showCreateAction />
+          <AgentList showCreateAction loading={isCheckingEmpty || shouldRedirect} />
         </Box>
         <Stack gap={2} sx={{ width: { xs: "100%", lg: 380 }, flexShrink: 0 }}>
           <AgentTypeSummary />
