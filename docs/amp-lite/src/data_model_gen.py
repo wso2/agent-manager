@@ -319,7 +319,7 @@ card("endpoint", "gateway", 1755, BY, 232, "MCP endpoint", "mcp_proxy_endpoints,
 RX = 2050
 card("secret", "secrets", RX, TOP, 300, "Secret", "secrets",
      "Every credential, encrypted in this database or held in an external vault.",
-     [("owner_kind, owner_id", "who uses it"), ("provider", "db | vault name"),
+     [("owner_kind, owner_id", "who uses it; mod:<module> for modules"), ("provider", "db | vault name"),
       ("ciphertext", "AES-256-GCM"), ("key_id", "for key rotation"), ("external_ref", "vault path")])
 
 EY = cards["secret"].y + cards["secret"].h + 36 + 22 + 58 + 40
@@ -365,7 +365,7 @@ card("queues", "internal", RX + 390, 0, 380, "Queue columns", "claimed_by, claim
      [], chips=["queue"])
 
 card("modules", "modules", RX, 0, 240, "Module", "modules, module_generation",
-     "Install and enable state of each compiled-in module. Every change bumps the generation; replicas poll it.",
+     "Install and enable state of each compiled-in module; no row = available (purge deletes it). Every change bumps the generation; replicas poll it.",
      [("name", ""), ("version", ""), ("state", "active | disabled | uninstalled")])
 card("modmig", "modules", RX + 265, 0, 240, "Module migration", "module_migrations",
      "Each module's applied migrations. Module tables are named mod_<module>_<table>.",
@@ -672,8 +672,9 @@ def render_svg(viewbox=None, width=None):
     notes = ["Referenced by secret_id from event",
              "destinations. Modules keep theirs by path",
              "(the AI Gateway's LLM providers, LLM proxies,",
-             "MCP endpoints and A2A proxies), deleted",
-             "with the owning row.",
+             "MCP endpoints and A2A proxies, owner kind",
+             "mod:ai-gateway), deleted with the owning row",
+             "or when the module is purged.",
              "",
              "Production can keep values in an external",
              "vault instead (provider + external_ref)."]

@@ -190,8 +190,8 @@ One row per agent per environment, in the `ai-gateway` module (`mod_ai_gateway_a
 |---|---|---|---|
 | id | ID | no | PK |
 | org_id | ID | no | FK → organizations, no cascade |
-| owner_kind | short text (32) | no | What uses it (llm_provider, event_destination, a2a_proxy, ...). For cleanup; not an FK. |
-| owner_id | ID | no | |
+| owner_kind | short text (32) | no | What uses it: a core kind (`event_destination`, ...), or `mod:<module>` for a module's secrets (`mod:ai-gateway`). For cleanup; not an FK. |
+| owner_id | ID | no | For a module secret, derived from the module and its path (`llm-providers/<id>/upstream-auth`), so a module only reaches its own. |
 | provider | short text (16) | no | `db`, or an external vault's name |
 | ciphertext | binary | yes | `db` only. AES-256-GCM, nonce stored with it. |
 | key_id | short text (64) | yes | Master key that encrypted it, for rotation. |
@@ -199,7 +199,7 @@ One row per agent per environment, in the `ai-gateway` module (`mod_ai_gateway_a
 | version | whole number | no | |
 | created_at, updated_at | time | no | |
 
-Index (org_id, owner_kind, owner_id). Owning tables reference a secret by `secret_id` (FK, no action); the service deletes the secret after the owner. Every value encrypted inline today moves here: LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth, A2A upstream auth, event destination secrets.
+Index (org_id, owner_kind, owner_id). Core tables reference a secret by `secret_id` (FK, no action) and the service deletes it after the owner (event destination secrets). Modules reach theirs only through `rt.Secrets()` by path: the AI Gateway keeps its LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth and A2A upstream auth there, each written and deleted in its row's transaction, and the row's configuration carries the path as its `secretRef`; its rows hold no secret columns. `amp module uninstall --purge` deletes a module's secrets.
 
 ## Gateways, LLM, MCP and A2A
 
