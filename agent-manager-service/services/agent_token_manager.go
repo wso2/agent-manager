@@ -69,9 +69,9 @@ type AgentTokenClaims struct {
 	EnvironmentUid string `json:"environment_uid"`
 	ProjectUid     string `json:"project_uid,omitempty"`
 	OrgId          string `json:"org_id"`
-	// Organization, Project and Agent name the agent the token belongs to.
-	// The gateway stamps them on ingested spans, and the observer scopes trace
-	// queries by them.
+	// Organization, Project and Agent name the agent the token belongs to, so
+	// whatever accepts the token knows which agent is calling without a
+	// lookup.
 	Organization string `json:"organization,omitempty"`
 	Project      string `json:"project,omitempty"`
 	Agent        string `json:"agent,omitempty"`
@@ -294,8 +294,8 @@ func (s *agentTokenManagerService) GenerateToken(ctx context.Context, req Genera
 		return nil, fmt.Errorf("failed to get project: %w", err)
 	}
 
-	// The observer scopes trace reads by the organization claim, so a token
-	// without one would ingest spans no console view ever shows.
+	// The organization claim names the agent's organization, so a token
+	// without one cannot be attributed to it.
 	org, err := s.ocClient.GetOrganization(ctx, req.OrgName)
 	if err != nil {
 		s.logger.Error("Failed to get organization", "ouID", req.OrgName, "error", err)

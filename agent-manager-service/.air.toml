@@ -3,9 +3,9 @@ testdata_dir = "testdata"
 tmp_dir = "tmp"
 
 [build]
-  args_bin = ["-migrate=true"]
+  args_bin = ["serve", "--migrate"]
   bin = "./tmp/agent-manager-service"
-  cmd = "go build -mod=readonly -o ./tmp/agent-manager-service ."
+  cmd = "go build -mod=readonly -o ./tmp/agent-manager-service ./cmd/amp"
   delay = 1000
   exclude_dir = ["assets", "tmp", "vendor", "testdata", ".bin"]
   exclude_file = []

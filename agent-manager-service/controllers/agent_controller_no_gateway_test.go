@@ -30,7 +30,7 @@ import (
 func TestHandleCommonErrorsEnvironmentHasNoGatewayIs409WithItsCode(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	handleCommonErrors(w, fmt.Errorf("%w: environment dev has no ingress gateway", utils.ErrEnvironmentHasNoGateway), "fallback")
+	HandleCommonErrors(w, fmt.Errorf("%w: environment dev has no ingress gateway", utils.ErrEnvironmentHasNoGateway), "fallback")
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"ENVIRONMENT_HAS_NO_GATEWAY"`)

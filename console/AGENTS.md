@@ -45,8 +45,9 @@ pnpm run test-watch      # vitest watch
 1. **Pick the module** by what the API call is about, not by which page calls it: `libs/api-client/src/<module>/`, one of `acp-core` (orgs, projects, agents, identities, events, config), `agent-runtime` (builds, deployments, environments, pipelines, agent configs), `ai-gateway` (gateways, LLM providers, MCP proxies, guardrails, API keys), `ai-observability` (traces, logs, metrics, monitors, evaluators), `agent-identity`, `agent-portal`. Environment calls live in `agent-runtime` even though many pages use them.
 2. **Add the fetch fn** in `libs/api-client/src/<module>/apis/<resource>.ts`.
 3. **Add the hook** in `libs/api-client/src/<module>/hooks/<resource>.ts`, and export both from `<module>/index.ts`. Pages keep importing everything from `@agent-management-platform/api-client`.
-4. **Consume the hook** in a page under `workspaces/ui-modules/<module>/pages/<feature>/`.
-5. **Register the page** — add a route (and nav item) contribution to the feature package's `src/plugin.ts`. A new package also goes in its module's `src/index.ts` plugin list. See "UI modules and plugins" below.
+4. **Gate the hook** if the module is not `acp-core`: AND its `enabled` with `useUIModulePresent("<module>")`, so it stays idle while the module is off.
+5. **Consume the hook** in a page under `workspaces/ui-modules/<module>/pages/<feature>/`, in the same module that owns the API. UI that another module's page needs is contributed, not imported (see "Pluggable structure" below).
+6. **Register the page** — add a route (and nav item) contribution to the feature package's `src/plugin.ts`. A new package also goes in its module's `src/index.ts` plugin list, and its page id in the backend module's manifest (`UI.Pages`, see below). See "Recipes" below.
 
 ### The two-file API pattern (mandatory)
 
@@ -68,7 +69,7 @@ export async function listAgents(params, query, getToken) {
 }
 ```
 - HTTP helpers are `httpGET/POST/PUT/PATCH/DELETE` from `shared/utils` — they read `globalConfig.apiBaseUrl` and set the `Authorization: Bearer` header. Do not hand-roll `fetch`.
-- `SERVICE_BASE = '/api/v1'`; the observability service uses `OBS_SERVICE_BASE = '/api'` (`utils/utils.ts`).
+- `SERVICE_BASE = '/api/v1'` (`utils/utils.ts`). Observer calls go through `httpGETObserver`, which needs a trace service URL set with `setObserverBaseUrl`; nothing sets it while the stack runs no trace service.
 
 **`hooks/<resource>.ts`** — wrap with `useApiQuery` / `useApiMutation` (not raw `useQuery`/`useMutation`):
 ```ts
@@ -114,20 +115,76 @@ The console is split into six **UI modules** under `workspaces/ui-modules/`, eac
 
 | Module | Pages |
 |---|---|
-| `acp-core` | overview, level-resource-listing, add-new-project, add-new-agent, settings (+ events), identities |
-| `agent-runtime` | build, deploy, test, deployment-pipelines |
-| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too) |
+| `acp-core` | overview, level-resource-listing, add-new-project, add-new-agent (the agent-type picker only), settings (+ events), identities |
+| `agent-runtime` | platform-agent (Platform-Hosted agent type, its create form and the samples), build, deploy, test, deployment-pipelines |
+| `ai-gateway` | gateways, llm-providers, mcp-proxies, agent-security (credentials), configure-agent (an agent's LLM, MCP and A2A configuration; serves external agents too), external-agent (Externally-Hosted agent type and its register form) |
 | `ai-observability` | traces, logs, metrics, eval |
 | `agent-identity` | env-thunders (Agent ID, groups, roles) |
-| `agent-portal` | agent-kind (catalog, publish) |
+| `agent-portal` | agent-kind (catalog, publish, and the From-catalog agent type and its create pages, active only with agent-runtime) |
 
-- **Page plugin** (`pages/<feature>/src/plugin.ts`, exported as `<feature>/plugin`): a `PluginManifest` with `route`, `nav-item` and `panel` contributions. It must not import page components; `load` uses `import()` so the page stays in its own chunk. Types are in `@…/types` (`libs/types/src/plugins`).
+### Pluggable structure: the rules
+
+Any module except `acp-core` can be turned off or not installed. The console must work, with no dead UI and no failed requests, for every combination. Every change follows these rules:
+
+1. **The owning module holds the code.** UI and API hooks for a resource live in the module that owns that resource (table above, and the api-client module list in the golden path), whichever page shows it.
+2. **No imports across modules.** A page package imports from its own module and from `libs/` only, never from another `ui-modules/<module>` package.
+3. **Contribute, do not hard-code.** A host page (an overview, "Add a New Agent", the nav) never names another module's cards, sections, agent types or menu items. The owning module adds them as contributions in its `plugin.ts`, and the host renders whatever is active.
+4. **`acp-core` knows no other module.** It defines mount points and renders contributions. It does not call another module's hooks or check a module by name.
+5. **A module that is off makes no network calls.** Its api-client query hooks are gated with `useUIModulePresent("<module>")`. Not every module is done yet: check "Gating status" below before assuming a hook is gated, and gate any hook you touch.
+6. **Outside code hides, never assumes.** UI outside a module that depends on it checks `useIsUIModuleInstalled("<module>")` (views), which is `undefined` while detection runs: treat that as loading, show "off" only on `false`. It uses the module's gated hooks, never its raw API functions.
+7. **Gate with `useActivation`, not by rendering null.** A contribution that should not appear is deactivated, so hosts can lay out and count what is really there.
+8. **`plugin.ts` stays light.** The shell loads it eagerly: it imports types, route maps, icons and small hooks only. Page components are reached through `import()` in `load`.
+
+### Where does it go?
+
+| You are adding | Put it in | How it shows up |
+|---|---|---|
+| A new page | `ui-modules/<owner>/pages/<feature>/` | `route` (+ `nav-item`) contribution |
+| A way to create a kind of agent | the module that can create it | `agent-type` contribution + its form as a project-level `route` |
+| A section on an agent or project overview | the module that owns the data | `panel` at a `PLUGIN_MOUNT_POINTS` slot |
+| A resource card on the organization overview | the module that owns the resource | `resource-summary` contribution |
+| A component or helper two modules need | `libs/shared-component` (business) or `libs/views` (primitives) | plain import |
+| A place where other modules can add UI | the host page; name it in `PLUGIN_MOUNT_POINTS` (`libs/types/src/plugins`) and its props in `libs/shared-component` | host reads panels with `useExternalComponentModulesByMountPoint` |
+| API calls | `libs/api-client/src/<owner>/` | hooks, gated per rule 5 |
+
+If a change needs `if (module X is installed)` inside another module's page, stop: either X should contribute that UI, or the code belongs in `libs/`. The remaining case, a control inside a page that only works with X (for example an OAuth option that needs agent-identity), uses rule 6.
+
+### Recipes
+
+**New page package** (copy a sibling such as `ai-gateway/pages/external-agent`):
+1. Create `ui-modules/<module>/pages/<feature>/` with `package.json` exporting `.` and `./plugin` (the `pnpm-workspace.yaml` globs already cover it; run `make install`).
+2. Write `src/plugin.ts` (a `PluginManifest`; its `id` is the page id) and export page components from `src/index.ts`.
+3. Add the package as a dependency of the module and list its plugin in `<module>/src/index.ts`, importing from `<feature>/plugin` only.
+4. Add `{ID: "<module>/<plugin id>", Permission: ...}` to the `UI.Pages` of the backend module that serves it (`agent-manager-service/modules/<name>`), or to `api.CoreUI` for a core page (not for `acp-core`, which is always on).
+5. Update the module table above.
+
+**New agent type**: contribute `agent-type` (title, description, `ctaLabel`, light `illustration`, `order`, `route`) and the create form as a project-level `route` in the same plugin. Wrap the form in `RequireAgentCreateAccess`, build on `libs/shared-component/src/agentCreation`, and take the back link from `useAgentPickerBack()`.
+
+**New overview section**: write the section component in the owning module with the props from `libs/shared-component/src/overview/panelProps.ts`, and contribute it as a `panel` with `mountPoint`, `order` and, for a half-row card, `width: "half"`. Put the conditions (agent type, access) in `useActivation`.
+
+**New organization resource card**: contribute `resource-summary` with a `useSummary` hook that returns the count, action label and link from one cached list query.
+
+### Reference
+
+- **Page plugin** (`pages/<feature>/src/plugin.ts`, exported as `<feature>/plugin`): a `PluginManifest` with `route`, `nav-item`, `panel`, `agent-type` and `resource-summary` contributions. It must not import page components; `load` uses `import()` so the page stays in its own chunk. Types are in `@…/types` (`libs/types/src/plugins`).
 - **Activation**: `useActivation` on the plugin or on a contribution is a React hook (route params, `useRouteAgent()`, feature flags, access). Return `undefined` while loading.
 - **Nav slots**: `section` names a slot defined in `core-ui/src/Layouts/OxygenLayout/navigationItems.tsx` (`NAV_LAYOUT`).
 - **Module** (`<module>/src/index.ts`): a `UIModuleManifest` listing its page plugins; `core-ui/src/plugins/builtinModules.ts` registers modules.
 - **Install and setup**: a module may set `core: true` (always installed, cannot be turned off as a whole) and `installation` (Helm `chart`, ordered `steps`, and a `useDetect` hook that reports installed / not-installed, e.g. from `/api/v1/config`). A module's pages only run while it is installed. The AI module manager (user menu → `/org/:orgId/ui-modules`) lists modules as cards with Install / Uninstall; each module has a details page at `/org/:orgId/ui-modules/<id>` (what it adds, backend setup steps, the module's optional `setup` component). Install and uninstall there are a front-end mock for now, so the AI module manager and details pages exist only when runtime config `uiModules.marketplace` is on (env `ENABLE_UI_MARKETPLACE=true`; on in `.env.development`, off by default).
-- **Turning off**: `apps/web-ui/public/ui-modules.js` sets the default modules (`window.__UI_MODULES__`): module id → `true`/`false`, and each page as `"<module>/<page>"` (`ai-observability/logs`) → `true`/`false`. A page runs only when it and its module are both on. When you add a page plugin to a non-core module, add its `"<module>/<page>": true` line under the module there. It is served as-is (not cached by nginx), so a deployment edits or mounts over it without a rebuild. The AI module manager changes the install state in memory for the current tab, and cannot switch on a module or page this file turns off.
+- **Turning on and off**: the server decides. After sign-in the console reads `GET /api/v1/ui-manifest`, which lists every page (`"<module>/<plugin id>"`, e.g. `ai-observability/traces`; the plugin's `id`, which can differ from its folder, e.g. `agent-identity/agent-identity` for `env-thunders`) the core and the active backend modules offer, filtered by the caller's permissions. A non-core UI module with no listed page is off, and so is every unlisted page of it; `acp-core` is always on. Until the manifest loads, non-core pages are pending (deep links wait, nav hides). When you add a page plugin to a non-core module, list it in the owning backend module's manifest (`modkit.UI.Pages`) or in `api.CoreUI`. If the manifest cannot be read the console shows the core pages only and reports the error. A deployment turns on more with `CONSOLE_UI_MODULES_ENABLE` (`uiModules.enable` in config.js: module ids or `<module>/<page>`, e.g. `agent-runtime agent-portal`). The manifest is cached per user and session. The AI module manager changes the install state in memory for the current tab, and cannot switch on a module or page the manifest leaves out.
 - **Single-environment mode**: deployment pipelines belong to `agent-runtime`. `useIsSingleEnvironment()` (api-client) is true when that module is absent and undefined while it is detected (treat that as loading); it is the only place that checks for the runtime. The pipeline hooks stay idle then; pages leave `deploymentPipeline` out of requests and hide pipeline UI. Environments always come from the environments API, by real name and UUID: never hard-code `default`. An environment picker hides itself when `onlyEnvironmentName(environments)` (shared-component) returns a name, and the form derives its value as `chosen || onlyEnvironmentName(environments)` instead of copying it into state.
+- **Agent types**: the "Add a New Agent" page (acp-core) defines no agent types. A module that can create a kind of agent contributes an `agent-type` (card title, description, CTA label, a light `illustration` component, `order`, and the `route` of its create form) plus that form as a project-level `route`; wrap the form in `RequireAgentCreateAccess`. The page reads active types with `useAgentTypes()` (views) and renders panels at `PLUGIN_MOUNT_POINTS.addNewAgentOptions` below the cards. What the create forms share (schema, payload builders, LLM/MCP/env-var/file-mount sections, `useInitialEnvironment`, `useAgentWizardReturn`) lives in `libs/shared-component/src/agentCreation`. `wizardSteps` (default `[id]`) are the create wizard's telemetry steps the choice records. With a single active type and no panels, the page redirects straight to that type's form (`useAgentTypePicker().soleAgentType`), so a type's first form page takes its back link from `useAgentPickerBack()`, never a hard-coded link to the picker.
+- **Overview sections**: acp-core's overviews show no other module's data themselves. A module adds a section as a `panel` at `PLUGIN_MOUNT_POINTS.agentOverviewInfo` (what the agent is built from), `agentOverviewEnvironment` (per-environment sections; `order`, and `width: "half"` panels pair up) or `projectOverviewSide`; the overview renders them with `OverviewPanels` and the props in `libs/shared-component/src/overview/panelProps.ts`. A section that should not appear (e.g. the endpoint interface for an external agent) is gated with `useActivation`, not by rendering null, so its half-row partner widens. The organization overview's resource cards are `resource-summary` contributions: card data plus a `useSummary` hook (count, action label and link), run in its own component.
+- **A module's network calls stop with the module**: a module's query hooks in api-client AND their `enabled` with `useUIModulePresent("<module>")` (`libs/api-client/src/shared/useUIModulePresent.ts`), so no page, in that module or another, calls its APIs while the UI manifest leaves it out or it is not installed. Code outside the module that uses its data also hides that UI with `useIsUIModuleInstalled("<module>")`, and never calls the module's API functions directly (they bypass the gate). A feature flag alone is not enough: the UI manifest can leave a module out while its flag is on.
+- **Gating status** (update this list when you gate more hooks):
+
+  | Module | Query hooks gated | Still pending |
+  |---|---|---|
+  | `agent-portal` | all (agent kinds) | none |
+  | `agent-identity` | all (roles, groups, thunder instances, an agent's identity) | none |
+  | `ai-gateway` | all except `useTestAgentAPIKey`, which agent-runtime's Try-It flow needs | Outside UI still shown with the module off (rule 6): ai-observability's evaluator and monitor LLM provider pickers (`EvaluatorLlmProviderSection`, `MonitorLLMProviderDrawer`, `SelectPresetMonitors`), the identity-provider list in agent-runtime's `ConsumerConfigDrawer`, and the gateway list on the deployment-pipelines `EnvironmentViewPage`. These now load nothing instead of calling the API, but should be hidden. |
+  | `agent-runtime` | pipelines only (through `useIsSingleEnvironment`) | builds, deployments, git secrets, repositories, resource, model and MCP configs, agent card, A2A proxy. Environments stay ungated on purpose: every module needs them. |
+  | `ai-observability` | none | traces, metrics, runtime logs, monitors, monitor alerts, evaluators |
 - **No imports across modules.** A page may import from its own module and from `libs/`. Code two modules need goes to `libs/shared-component` (for example the LLM provider form, the catalog kind listing, MCP ACL helpers), or the owning module adds it as a `panel` at a mount point.
 
 ## Auth (runtime-selected)
@@ -136,7 +193,7 @@ The console is split into six **UI modules** under `workspaces/ui-modules/`, eac
 - `false` → Asgardeo OAuth2 (`AsgardeoProvider`, real tokens/scopes).
 - `true` → no-auth stub (`getToken` → empty string, always authenticated) for local dev.
 
-`globalConfig` = `window.__RUNTIME_CONFIG__`, injected by `apps/web-ui/public/config.js` **before React mounts**. It is filled from `config.template.js`: in dev, the Vite server serves it from `apps/web-ui/.env.development` plus the process env (`vite.config.ts`, `runtimeConfig`); in production, the image's `40-config-setup.sh` renders it with envsubst. To change auth mode you set `DISABLE_AUTH` in that config and reload — it cannot flip at runtime.
+`globalConfig` = `window.__RUNTIME_CONFIG__`, injected by `apps/web-ui/public/config.js` **before React mounts**. It is filled from `config.template.js`: in dev, the Vite server serves it from `apps/web-ui/.env.development` plus the process env (`vite.config.ts`, `runtimeConfig`); in production, agent-manager-service renders it (the console is embedded in its binary; each `$NAME` comes from `CONSOLE_<NAME>` or a default the service derives). To change auth mode you set `DISABLE_AUTH` in that config and reload — it cannot flip at runtime.
 
 ## Conventions & gotchas
 
@@ -155,4 +212,9 @@ The console is split into six **UI modules** under `workspaces/ui-modules/`, eac
 - [ ] `pnpm run lint` clean in every package you touched.
 - [ ] `pnpm run build` succeeds for the changed package(s) (`make build` for cross-package changes).
 - [ ] New API code follows the two-file pattern and is exported from the barrel.
-- [ ] New page exports `metaData` and is routed.
+- [ ] New page is registered through its `plugin.ts`, listed in its module's `src/index.ts` and in the owning backend module's `UI.Pages`.
+- [ ] No import from another `ui-modules/<module>` package; shared code is in `libs/`.
+- [ ] UI shown on another module's page is a contribution (`panel`, `agent-type`, `resource-summary`), not hard-coded in the host.
+- [ ] Query hooks of a non-core module are gated with `useUIModulePresent`; outside callers check `useIsUIModuleInstalled` and treat `undefined` as loading.
+- [ ] `plugin.ts` imports no page components.
+- [ ] With the module left out of the UI manifest (e.g. in `amp-core`), its UI is gone and the network tab shows no calls to its APIs.

@@ -7,12 +7,14 @@ HTTP API. Written in Go with [Ginkgo](https://onsi.github.io/ginkgo/) /
 ## Quick start
 
 ```bash
-cp .env.example .env          # set OPENAI_API_KEY; other defaults match quick-start install
+cp .env.example .env          # set OPENAI_API_KEY; other defaults match `make up`
 make e2e-test                          # run all suites (from repo root)
-make e2e-test SUITE=monitors           # one suite
+make e2e-test SUITE=project            # one suite
 make e2e-test FOCUS="Project Deletion Conflict"   # one spec by description
 ```
 
+
+The suites target the full `amp` stack (`make up`). Against `amp-core` (`make up-core`) the `llmprovider` and `mcpproxy` suites, and specs that go through the AI Gateway, fail by design: those routes belong to modules that binary doesn't link.
 
 ## Layout
 
@@ -27,26 +29,12 @@ A spec reads as `It` steps that delegate to `operations/` and `testsetup/`.
 
 ## Configuration
 
-All config is environment variables with defaults matching the quick-start
-install (see `.env.example`). 
+All config is environment variables with defaults matching the local stack
+from `make up` (see `.env.example`).
 
 ## Shared fixtures
 
-Building an agent is slow (the suite budgets up to 20 min per build), so
-expensive fixtures are **built once and reused by name** across suites and
-re-runs. They persist between runs and are reused as long as they exist — but the
-root cleanup suite (`tests/e2e_suite_test.go`, label `cleanup`) deletes
-`e2e-test-*` resources older than 1 hour, so a run started more than an hour after
-the last rebuilds them fresh.
-
-| Fixture | Provisioned by |
-|---------|----------------|
-| Shared project (`e2e-test-shared`) | `testsetup.EnsureProject` |
-| IT helpdesk agent | `testsetup.SetupSharedITHelpdeskAgent` |
-| Catalog kind | published by the `catalog` suite |
-
-The `agent` suite is the canonical builder; other suites reuse by name. All
-`testsetup` helpers are idempotent (check-then-reuse).
+Fixtures that several specs use are **created once and reused by name** across suites and re-runs, through idempotent `testsetup` helpers (check-then-reuse). The shared project, `e2e-test-shared`, comes from `testsetup.EnsureProject`. The root cleanup suite (`tests/e2e_suite_test.go`, label `cleanup`) deletes `e2e-test-*` resources older than 1 hour.
 
 ## Parallel execution (important for setup code)
 
@@ -70,9 +58,6 @@ Where each hook runs, and what to use it for:
 | `BeforeSuite` | on **every** process | `Client`/`Cfg` setup only — nothing shared |
 | `BeforeAll` | once, on the single process that runs its `Describe` | a resource used by **one `Describe` only** (stays lazy — skipped when that block is filtered out) |
 | `SynchronizedBeforeSuite` | phase 1 **once** (one process); phase 2 on **every** process | a resource shared across **multiple `Describe` blocks** — phase 1 provisions it once, phase 2 gives each process its own `Client`/`Cfg` |
-
-`testsetup.SynchronizedSharedITHelpdeskAgent` is a ready-made phase pair for the
-shared agent.
 
 ## Adding a test
 

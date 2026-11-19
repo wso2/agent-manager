@@ -52,8 +52,7 @@ type ActorType string
 const (
 	// ActorUser is a human acting with a user-bearing JWT.
 	ActorUser ActorType = "user"
-	// ActorService is a machine client using client-credentials (e.g. the
-	// evaluation job publishing scores).
+	// ActorService is a machine client using client-credentials.
 	ActorService ActorType = "service"
 	// ActorAgent is a deployed agent acting with an AMS-minted token.
 	ActorAgent ActorType = "agent"
@@ -71,11 +70,10 @@ const (
 type Surface string
 
 const (
-	SurfaceAPI       Surface = "api"
-	SurfaceMCP       Surface = "mcp"
-	SurfaceInternal  Surface = "internal"
-	SurfacePublisher Surface = "publisher"
-	SurfaceSystem    Surface = "system"
+	SurfaceAPI      Surface = "api"
+	SurfaceMCP      Surface = "mcp"
+	SurfaceInternal Surface = "internal"
+	SurfaceSystem   Surface = "system"
 )
 
 // Outcome is the result of the audited operation.

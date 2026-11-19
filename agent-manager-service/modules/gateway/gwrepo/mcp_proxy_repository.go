@@ -1,0 +1,374 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwrepo
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
+)
+
+// MCPProxyRepository defines the interface for MCP proxy persistence.
+//
+//go:generate moq -rm -fmt goimports -skip-ensure -pkg gwrepomocks -out gwrepomocks/mcp_proxy_repository_mock.go . MCPProxyRepository:MCPProxyRepositoryMock
+type MCPProxyRepository interface {
+	// Create inserts the proxy. projectUUID and projectName are both nil for an
+	// organization-level proxy (listed in the catalog) and both set for a
+	// project-scoped proxy (not in the catalog).
+	Create(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle, name, version, orgUUID string, projectUUID, projectName *string) error
+	Update(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error
+	GetByUUID(ctx context.Context, proxyUUID, orgUUID string) (*models.MCPProxy, error)
+	GetByHandle(ctx context.Context, handle, orgUUID string) (*models.MCPProxy, error)
+	GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle, orgUUID string) (*models.MCPProxy, error)
+	// List returns the proxies matching the filter and the total matching count
+	// ignoring Limit/Offset. The zero filter returns organization-level proxies only.
+	List(ctx context.Context, orgUUID string, f MCPProxyListFilter) ([]*models.MCPProxy, int64, error)
+	// GetInProject returns the proxy only when it belongs to the project;
+	// utils.ErrMCPProxyNotFound when it is in another project or is org-owned.
+	GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*models.MCPProxy, error)
+	// GetInProjectByName returns the project proxy stored under projectName, whatever project
+	// UUID it carries: the lookup for a project that no longer exists, whose
+	// proxies keep the UUID of the deleted project. utils.ErrMCPProxyNotFound when there is
+	// none, or the handle is an org proxy or another project's.
+	GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error)
+	// ReassignProject moves a project proxy stored under projectName from fromProjectUUID to
+	// toProjectUUID: a re-created project (same name, new UUID) adopting the proxy its
+	// deleted predecessor left. A proxy already on toProjectUUID is left as is.
+	// utils.ErrMCPProxyNotFound when no such proxy is in the organization.
+	ReassignProject(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID, projectName, fromProjectUUID, toProjectUUID string) error
+	Delete(ctx context.Context, handle, orgUUID string) error
+	Count(ctx context.Context, orgUUID string) (int, error)
+	Exists(ctx context.Context, handle, orgUUID string) (bool, error)
+}
+
+// MCPProxyListFilter narrows List. The zero value lists organization-level proxies
+// only, which is what the org-scoped API has always returned.
+type MCPProxyListFilter struct {
+	// AllProjects lists every proxy in the organization, org-owned and every project's,
+	// with no project predicate. ProjectUUID and IncludeOrgOwned are ignored. For
+	// internal sweeps (environment cleanup, reconcile, scope listing), never user lists.
+	AllProjects bool
+	// ProjectUUID, when set, lists that project's proxies.
+	ProjectUUID *string
+	// IncludeOrgOwned additionally lists organization-level proxies. It has no effect
+	// without ProjectUUID.
+	IncludeOrgOwned bool
+	// Limit <= 0 means no limit.
+	Limit, Offset int
+}
+
+// apply adds the org, kind, project and source predicates. The query must already join
+// artifacts as a.
+func (f MCPProxyListFilter) apply(q *gorm.DB, orgUUID string) *gorm.DB {
+	q = q.Where("a.org_id = ? AND a.kind = ?", orgUUID, models.KindMCPProxy)
+	switch {
+	case f.AllProjects:
+	case f.ProjectUUID == nil:
+		q = q.Where("mcp_proxies.project_id IS NULL")
+	case f.IncludeOrgOwned:
+		q = q.Where("(mcp_proxies.project_id = ? OR mcp_proxies.project_id IS NULL)", *f.ProjectUUID)
+	default:
+		q = q.Where("mcp_proxies.project_id = ?", *f.ProjectUUID)
+	}
+	return q
+}
+
+// MCPProxyRepo implements MCPProxyRepository using GORM.
+type MCPProxyRepo struct {
+	db           *gorm.DB
+	artifactRepo ArtifactRepository
+}
+
+// NewMCPProxyRepo creates a new MCP proxy repository.
+func NewMCPProxyRepo(db *gorm.DB) MCPProxyRepository {
+	return &MCPProxyRepo{
+		db:           db,
+		artifactRepo: NewArtifactRepo(db),
+	}
+}
+
+// Create inserts a new MCP proxy and its artifact row.
+func (r *MCPProxyRepo) Create(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, handle, name, version, orgUUID string, projectUUID, projectName *string) error {
+	if p.UUID == uuid.Nil {
+		p.UUID = uuid.Must(uuid.NewV7())
+	}
+	if p.Status == "" {
+		p.Status = models.StatusCreated
+	}
+	p.OrgID = orgUUID
+	p.ProjectUUID, p.ProjectName = projectUUID, projectName
+	now := dbx.Now()
+
+	if err := r.artifactRepo.Create(tx.WithContext(ctx), &models.Artifact{
+		UUID:      p.UUID,
+		Handle:    handle,
+		Name:      name,
+		Version:   version,
+		Kind:      models.KindMCPProxy,
+		OUID:      orgUUID,
+		CreatedAt: now,
+		UpdatedAt: now,
+		InCatalog: projectUUID == nil,
+	}); err != nil {
+		return fmt.Errorf("failed to create artifact: %w", err)
+	}
+
+	if err := tx.WithContext(ctx).Create(p).Error; err != nil {
+		return err
+	}
+	return nil
+}
+
+// Update modifies an existing MCP proxy and bumps the backing artifact timestamp.
+func (r *MCPProxyRepo) Update(ctx context.Context, tx *gorm.DB, p *models.MCPProxy, orgUUID string) error {
+	if p == nil || p.UUID == uuid.Nil {
+		return gorm.ErrRecordNotFound
+	}
+
+	result := tx.WithContext(ctx).Model(&models.MCPProxy{}).
+		Where("id = ?", p.UUID).
+		Updates(map[string]interface{}{
+			"description":   p.Description,
+			"configuration": dbx.JSON(p.Configuration),
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	// A project proxy's artifact name is its handle (see models.MCPProxyArtifactName), so its
+	// display name can repeat across the org.
+	handle := p.Handle
+	if p.Artifact != nil && p.Artifact.Handle != "" {
+		handle = p.Artifact.Handle
+	}
+	return r.artifactRepo.Update(tx.WithContext(ctx), &models.Artifact{
+		UUID:    p.UUID,
+		Name:    models.MCPProxyArtifactName(p.ProjectName, handle, p.Configuration.Name),
+		Version: p.Configuration.Version,
+		OUID:    orgUUID,
+	})
+}
+
+// GetByUUID retrieves an MCP proxy by artifact UUID.
+func (r *MCPProxyRepo) GetByUUID(ctx context.Context, proxyUUID, orgUUID string) (*models.MCPProxy, error) {
+	var proxy models.MCPProxy
+	err := r.db.WithContext(ctx).
+		Preload("Artifact").
+		Preload("Endpoints").
+		Preload("Endpoints.Environments").
+		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+		Where("mcp_proxies.id = ? AND a.org_id = ? AND a.kind = ?", proxyUUID, orgUUID, models.KindMCPProxy).
+		First(&proxy).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		return nil, err
+	}
+	return &proxy, nil
+}
+
+// GetByHandle retrieves an MCP proxy by artifact handle.
+func (r *MCPProxyRepo) GetByHandle(ctx context.Context, handle, orgUUID string) (*models.MCPProxy, error) {
+	var proxy models.MCPProxy
+	err := r.db.WithContext(ctx).
+		Preload("Artifact").
+		Preload("Endpoints").
+		Preload("Endpoints.Environments").
+		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
+		First(&proxy).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+		return nil, err
+	}
+	return &proxy, nil
+}
+
+// GetByHandleForUpdate retrieves an MCP proxy by handle and locks the
+// underlying mcp_proxies and artifacts rows for the duration of the
+// transaction. Use this to serialize read-modify-write flows against
+// concurrent updates.
+func (r *MCPProxyRepo) GetByHandleForUpdate(ctx context.Context, tx *gorm.DB, handle, orgUUID string) (*models.MCPProxy, error) {
+	if _, err := dbx.LockRows(tx.WithContext(ctx), "mcp_proxies", "status",
+		"id IN (?)", tx.Session(&gorm.Session{NewDB: true}).Model(&models.Artifact{}).Select("id").
+			Where("handle = ? AND org_id = ? AND kind = ?", handle, orgUUID, models.KindMCPProxy)); err != nil {
+		return nil, err
+	}
+	var proxy models.MCPProxy
+	err := tx.WithContext(ctx).
+		Preload("Artifact").
+		Preload("Endpoints").
+		Preload("Endpoints.Environments").
+		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
+		First(&proxy).Error
+	if err != nil {
+		return nil, err
+	}
+	return &proxy, nil
+}
+
+// List retrieves MCP proxies matching the filter, newest first, with the total count.
+func (r *MCPProxyRepo) List(ctx context.Context, orgUUID string, f MCPProxyListFilter) ([]*models.MCPProxy, int64, error) {
+	base := func() *gorm.DB {
+		return f.apply(r.db.WithContext(ctx).Model(&models.MCPProxy{}).
+			Joins("JOIN artifacts a ON mcp_proxies.id = a.id"), orgUUID)
+	}
+
+	var total int64
+	if err := base().Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	q := base().
+		Preload("Artifact").
+		Preload("Endpoints").
+		Preload("Endpoints.Environments").
+		Order("a.created_at DESC")
+	if f.Limit > 0 {
+		q = q.Limit(f.Limit)
+	}
+	if f.Offset > 0 {
+		q = q.Offset(f.Offset)
+	}
+	var proxies []*models.MCPProxy
+	if err := q.Find(&proxies).Error; err != nil {
+		return nil, 0, err
+	}
+	return proxies, total, nil
+}
+
+// GetInProject retrieves an MCP proxy by handle only when it belongs to the project.
+func (r *MCPProxyRepo) GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*models.MCPProxy, error) {
+	var proxy models.MCPProxy
+	err := r.db.WithContext(ctx).
+		Preload("Artifact").
+		Preload("Endpoints").
+		Preload("Endpoints.Environments").
+		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ? AND mcp_proxies.project_id = ?",
+			handle, orgUUID, models.KindMCPProxy, projectUUID).
+		First(&proxy).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrMCPProxyNotFound
+		}
+		return nil, err
+	}
+	return &proxy, nil
+}
+
+// GetInProjectByName retrieves a project proxy by handle and its project's name.
+func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*models.MCPProxy, error) {
+	var proxy models.MCPProxy
+	err := r.db.WithContext(ctx).
+		Preload("Artifact").
+		Preload("Endpoints").
+		Preload("Endpoints.Environments").
+		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+		Joins("JOIN projects p ON p.id = mcp_proxies.project_id").
+		Where("a.handle = ? AND a.org_id = ? AND a.kind = ? AND p.name = ?",
+			handle, orgUUID, models.KindMCPProxy, projectName).
+		First(&proxy).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrMCPProxyNotFound
+		}
+		return nil, err
+	}
+	return &proxy, nil
+}
+
+// ReassignProject moves a project proxy from fromProjectUUID to toProjectUUID.
+func (r *MCPProxyRepo) ReassignProject(
+	ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID, projectName, fromProjectUUID, toProjectUUID string,
+) error {
+	db := tx.WithContext(ctx)
+	ownedByOrg := db.Session(&gorm.Session{NewDB: true}).Model(&models.Artifact{}).Select("id").
+		Where("org_id = ? AND kind = ?", orgUUID, models.KindMCPProxy)
+	result := db.Model(&models.MCPProxy{}).
+		Where("id = ? AND project_id IN (?, ?)", proxyUUID, fromProjectUUID, toProjectUUID).
+		Where("id IN (?)", ownedByOrg).
+		Update("project_id", toProjectUUID)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return utils.ErrMCPProxyNotFound
+	}
+	return nil
+}
+
+// Delete removes an MCP proxy and its artifact row.
+func (r *MCPProxyRepo) Delete(ctx context.Context, handle, orgUUID string) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var proxy models.MCPProxy
+		err := tx.
+			Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+			Where("a.handle = ? AND a.org_id = ? AND a.kind = ?", handle, orgUUID, models.KindMCPProxy).
+			First(&proxy).Error
+		if err != nil {
+			return err
+		}
+
+		if err := tx.Where("artifact_id = ? AND org_id = ?", proxy.UUID, orgUUID).
+			Delete(&models.DeploymentStatusRecord{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("artifact_id = ? AND org_id = ?", proxy.UUID, orgUUID).
+			Delete(&models.Deployment{}).Error; err != nil {
+			return err
+		}
+		// Delete through the artifact so queued secret cleanup precedes the
+		// cascading deletion of the proxy and its endpoints.
+		err = r.artifactRepo.Delete(tx, proxy.UUID.String())
+		if dberr.IsForeignKeyViolation(err) {
+			return utils.ErrMCPProxyHasMappings
+		}
+		return err
+	})
+}
+
+// Count counts organization-level MCP proxies (project-scoped proxies are excluded).
+func (r *MCPProxyRepo) Count(ctx context.Context, orgUUID string) (int, error) {
+	var count int64
+	err := r.db.WithContext(ctx).
+		Model(&models.MCPProxy{}).
+		Joins("JOIN artifacts a ON mcp_proxies.id = a.id").
+		Where("a.org_id = ? AND a.kind = ? AND mcp_proxies.project_id IS NULL", orgUUID, models.KindMCPProxy).
+		Count(&count).Error
+	return int(count), err
+}
+
+// Exists checks whether an MCP proxy exists by handle and organization.
+func (r *MCPProxyRepo) Exists(ctx context.Context, handle, orgUUID string) (bool, error) {
+	return r.artifactRepo.Exists(models.KindMCPProxy, handle, orgUUID)
+}

@@ -31,8 +31,6 @@ type Type struct {
 
 // Event types not tied to an API route.
 const (
-	TypeMonitorRunSucceeded = "monitor_run.succeeded"
-	TypeMonitorRunFailed    = "monitor_run.failed"
 	// TypeDestinationTest is sent by the "test" action of a destination. It
 	// is not in the catalog: subscriptions cannot name it, and AllEvents does
 	// not match it.
@@ -81,9 +79,6 @@ var routeEvents = map[string]routeEvent{
 	"POST /orgs/{orgName}/deployment-pipelines":                            {Type: "deployment_pipeline.created"},
 	"PUT /orgs/{orgName}/deployment-pipelines/{pipelineName}":              {Type: "deployment_pipeline.updated"},
 	"DELETE /orgs/{orgName}/deployment-pipelines/{pipelineName}":           {Type: "deployment_pipeline.deleted"},
-	"POST /orgs/{orgName}/evaluators/custom":                               {Type: "evaluator.created"},
-	"PUT /orgs/{orgName}/evaluators/custom/{identifier}":                   {Type: "evaluator.updated"},
-	"DELETE /orgs/{orgName}/evaluators/custom/{identifier}":                {Type: "evaluator.deleted"},
 	"POST /orgs/{orgName}/agent-kinds/{kindName}/versions":                 {Type: "agent_kind.version_added"},
 	"PUT /orgs/{orgName}/agent-kinds/{kindName}":                           {Type: "agent_kind.updated"},
 	"DELETE /orgs/{orgName}/agent-kinds/{kindName}":                        {Type: "agent_kind.deleted"},
@@ -118,12 +113,6 @@ var routeEvents = map[string]routeEvent{
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys":             {Type: "agent.api_key_created", OmitData: true},
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}":    {Type: "agent.api_key_rotated", OmitData: true},
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}": {Type: "agent.api_key_revoked"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors":                                  {Type: "monitor.created"},
-	"PATCH /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}":                   {Type: "monitor.updated"},
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}":                  {Type: "monitor.deleted"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start":              {Type: "monitor.started"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop":               {Type: "monitor.stopped"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun": {Type: "monitor.rerun_requested"},
 }
 
 // types is the catalog of every event subscriptions can name.
@@ -148,9 +137,6 @@ var types = []Type{
 	{"deployment_pipeline.created", ScopeOrg, "Deployment pipelines", "A deployment pipeline was created."},
 	{"deployment_pipeline.updated", ScopeOrg, "Deployment pipelines", "A deployment pipeline was updated."},
 	{"deployment_pipeline.deleted", ScopeOrg, "Deployment pipelines", "A deployment pipeline was deleted."},
-	{"evaluator.created", ScopeOrg, "Evaluators", "A custom evaluator was created."},
-	{"evaluator.updated", ScopeOrg, "Evaluators", "A custom evaluator was updated."},
-	{"evaluator.deleted", ScopeOrg, "Evaluators", "A custom evaluator was deleted."},
 	{"agent_kind.version_added", ScopeOrg, "Agent kinds", "A version was added to an agent kind."},
 	{"agent_kind.updated", ScopeOrg, "Agent kinds", "An agent kind was updated."},
 	{"agent_kind.deleted", ScopeOrg, "Agent kinds", "An agent kind was deleted."},
@@ -183,14 +169,6 @@ var types = []Type{
 	{"agent.api_key_created", ScopeAgent, "API keys", "An API key was created for the agent."},
 	{"agent.api_key_rotated", ScopeAgent, "API keys", "An API key was rotated."},
 	{"agent.api_key_revoked", ScopeAgent, "API keys", "An API key was revoked."},
-	{"monitor.created", ScopeAgent, "Monitors", "A monitor was created."},
-	{"monitor.updated", ScopeAgent, "Monitors", "A monitor was updated."},
-	{"monitor.deleted", ScopeAgent, "Monitors", "A monitor was deleted."},
-	{"monitor.started", ScopeAgent, "Monitors", "A monitor was started."},
-	{"monitor.stopped", ScopeAgent, "Monitors", "A monitor was stopped."},
-	{"monitor.rerun_requested", ScopeAgent, "Monitors", "A monitor run was re-run."},
-	{TypeMonitorRunSucceeded, ScopeAgent, "Monitor runs", "A monitor run finished, with the committed scores available at completion."},
-	{TypeMonitorRunFailed, ScopeAgent, "Monitor runs", "A monitor run failed or could not start."},
 }
 
 var typesByName = func() map[string]Type {

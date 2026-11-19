@@ -31,6 +31,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/gateway" // the full distribution's routes
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // Static authorization invariants over the route table.
@@ -84,8 +87,6 @@ func (r routeRegistration) String() string {
 // and pattern: replacing an exempt route while keeping the same number of raw
 // registrations must not silently inherit the old exemption.
 var unguardedRouteAllowlist = map[routeKey]string{
-	{"RegisterMonitorPublisherRoutes", "HandleFuncWithValidation", "POST /publisher/monitors/{monitorId}/runs/{runId}/scores"}: "POST /publisher/.../scores is guarded by jwtassertion.PublisherClientAuthMiddleware, " +
-		"which requires an amp-publisher-* audience instead of an amp: scope.",
 	{"RegisterWebSocketRoutes", "HandleFunc", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is on internalMux and authenticates the gateway with an " +
 		"api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",
@@ -98,16 +99,26 @@ var unguardedRouteAllowlist = map[routeKey]string{
 	{"registerTelemetryRoutes", "HandleFuncWithValidation", "POST /telemetry/console-actions"}: "lets an authenticated user report their own console UI activity under their own " +
 		"identity; any permission gating it would have to be granted to every role that can open the console, and the payload is " +
 		"validated against a server-side action allowlist rather than by RBAC.",
+	{"registerUIManifestRoute", "HandleFuncWithValidation", "GET /ui-manifest"}: "read-only: lists the console UI every signed-in user " +
+		"may use, and filters each entry by the permission it names.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource"}: "GET /.well-known/oauth-protected-resource is RFC 9728 resource metadata and must be " +
 		"unauthenticated so clients can discover how to authenticate.",
 	{"registerWellKnownRoutes", "HandleFunc", "GET /.well-known/oauth-protected-resource/mcp"}: "path-specific RFC 9728 metadata for the MCP resource must be unauthenticated " +
 		"so MCP clients can discover how to authenticate.",
-	{"registerConfigRoutes", "Handle", "/api/v1/config"}:       "public console/CLI discovery endpoint; exposes only the observer public URL.",
-	{"MakeHTTPHandlerWithMiddleware", "Handle", "/api/v1/"}:    "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
-	{"MakeInternalHTTPHandler", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
-	{"MakeInternalHTTPHandler", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",
-	{"RegisterRoute", "Handle", "/mcp"}:                        "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
-	{"RegisterRoute", "Handle", "/mcp/"}:                       "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
+	{"registerConfigRoutes", "Handle", "/api/v1/config"}: "public console/CLI discovery endpoint; exposes only deployment feature switches.",
+	{"MakeHTTPHandlerWithModules", "Handle", "/"}: "the console's static files and config.js (public settings only); paths under " +
+		"/api/, /auth/ and /mcp are refused there, so it never answers for an API route.",
+	{"MakeHTTPHandlerWithModules", "Handle", "/api/v1/"}:                  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
+	{"MakeInternalHTTPHandlerWithModules", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",
+	{"MakeHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module routes; the module host registers each one through " +
+		"RouteRegistrar.HandleModuleRoute, which applies the permission check.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module workload routes; the module host requires a " +
+		"workload token issued for that module and carrying the route's scope.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "POST /workload-tokens"}: "workload credential exchange: the caller " +
+		"authenticates with the credential's secret in the body; the exchange is audited fail-closed.",
+	{"RegisterRoute", "Handle", "/mcp"}:  "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
+	{"RegisterRoute", "Handle", "/mcp/"}: "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
 }
 
 var gatewayInternalRoutes = []string{
@@ -170,16 +181,6 @@ func TestSecurityInvariantEveryRouteIsAuthorized(t *testing.T) {
 // is enforced when the API has no such check. Each entry below must say where
 // the boundary actually lives, or admit that it does not exist.
 var declaredButUnenforcedPermissions = map[string]string{
-	// --- Enforced by a different service -----------------------------------
-	"ObservabilityTraceRead":    "enforced by agent-manager-observer (its own rbac package + RequirePermission)",
-	"ObservabilityLogRead":      "enforced by agent-manager-observer",
-	"ObservabilityMetricRead":   "enforced by agent-manager-observer",
-	"ObservabilityBuildLogRead": "enforced by agent-manager-observer",
-
-	// --- Enforced by a different mechanism ---------------------------------
-	"MonitorScorePublish": "the publisher route uses PublisherClientAuthMiddleware (audience check) " +
-		"rather than a scope check; the permission is granted to roles but never consulted",
-
 	// --- NOT ENFORCED ANYWHERE ---------------------------------------------
 	// These gate nothing today. Each one is a gap between the role matrix in
 	// rbac/predefined_roles.go and what the API actually checks. Removing an
@@ -365,7 +366,11 @@ func TestSecurityInvariantNamingConventionHolds(t *testing.T) {
 
 // orgScopedPackages are the packages whose handlers must never take the org
 // from the URL. Relative to this package's directory.
-var orgScopedPackages = []string{".", filepath.Join("..", "controllers")}
+var orgScopedPackages = []string{
+	".", filepath.Join("..", "controllers"),
+	filepath.Join("..", "modules", "gateway", "gwapi"), filepath.Join("..", "modules", "gateway", "gwctl"),
+	filepath.Join("..", "modules", "legacy", "legacyapi"),
+}
 
 // TestSecurityInvariantHandlersNeverReadOrgFromPath enforces the token-trust model: the org a
 // request operates on comes from the token's ouId/ouHandle claims, never from
@@ -437,7 +442,17 @@ func TestSecurityInvariantHandlersNeverReadOrgFromPath(t *testing.T) {
 // routePackages is the reviewed list of packages that register public or
 // internal HTTP endpoints. Add any new routing package here as part of its
 // security-policy review.
-var routePackages = []string{".", filepath.Join("..", "mcp")}
+// routePackages are the core's routes and those of the built-in modules the
+// full distribution links.
+var routePackages = []string{
+	".", filepath.Join("..", "mcp"),
+	filepath.Join("..", "modules", "gateway", "gwapi"),
+	filepath.Join("..", "modules", "legacy", "legacyapi"),
+}
+
+// modulePermissionPackages declare permissions of built-in modules, as
+// <package>.<Name> constants of type rbac.Permission.
+var modulePermissionPackages = []string{filepath.Join("..", "modules", "gateway", "gwperm")}
 
 // forEachRouteRegistration walks every production Go file in routePackages and
 // invokes fn for every net/http or RouteRegistrar registration call. Permission
@@ -519,8 +534,11 @@ func registrarPermissions(call *ast.CallExpr) []string {
 			continue
 		}
 		pkg, ok := sel.X.(*ast.Ident)
-		if ok && pkg.Name == "rbac" {
+		switch {
+		case ok && pkg.Name == "rbac":
 			permissions = append(permissions, sel.Sel.Name)
+		case ok:
+			permissions = append(permissions, pkg.Name+"."+sel.Sel.Name)
 		}
 	}
 	return permissions
@@ -543,7 +561,18 @@ func declaredPermissionScopes(t *testing.T) map[string]string {
 	t.Helper()
 
 	scopes := map[string]string{}
-	forEachFile(t, filepath.Join("..", "rbac"), func(_ *token.FileSet, file *ast.File) {
+	collectPermissionConsts(t, filepath.Join("..", "rbac"), "", scopes)
+	for _, dir := range modulePermissionPackages {
+		collectPermissionConsts(t, dir, filepath.Base(dir)+".", scopes)
+	}
+	return scopes
+}
+
+// collectPermissionConsts adds the Permission constants declared in dir to
+// scopes, keyed by prefix and name.
+func collectPermissionConsts(t *testing.T, dir, prefix string, scopes map[string]string) {
+	t.Helper()
+	forEachFile(t, dir, func(_ *token.FileSet, file *ast.File) {
 		for _, decl := range file.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok || genDecl.Tok != token.CONST {
@@ -554,8 +583,7 @@ func declaredPermissionScopes(t *testing.T) map[string]string {
 				if !ok {
 					continue
 				}
-				typeIdent, ok := valueSpec.Type.(*ast.Ident)
-				if !ok || typeIdent.Name != "Permission" {
+				if !isPermissionType(valueSpec.Type) {
 					continue
 				}
 				for i, name := range valueSpec.Names {
@@ -570,13 +598,39 @@ func declaredPermissionScopes(t *testing.T) map[string]string {
 					if err != nil {
 						t.Fatalf("decode rbac permission %s: %v", name.Name, err)
 					}
-					scopes[name.Name] = "amp:" + value
+					scopes[prefix+name.Name] = "amp:" + value
 				}
 			}
 		}
 	})
+}
 
-	return scopes
+// isPermissionType is true for Permission and rbac.Permission.
+func isPermissionType(e ast.Expr) bool {
+	switch e := e.(type) {
+	case *ast.Ident:
+		return e.Name == "Permission"
+	case *ast.SelectorExpr:
+		pkg, ok := e.X.(*ast.Ident)
+		return ok && pkg.Name == "rbac" && e.Sel.Name == "Permission"
+	}
+	return false
+}
+
+// moduleGrants is true when a compiled-in module grants the scope to a
+// predefined role.
+func moduleGrants(scope string) bool {
+	for _, m := range modkit.Registered() {
+		mf := m.Manifest()
+		for _, names := range mf.RoleGrants {
+			for _, n := range names {
+				if rbac.Permission(mf.PermissionName(n)).Scope() == scope {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func predefinedRolePermissions(t *testing.T) map[string]bool {
@@ -609,6 +663,12 @@ func predefinedRolePermissions(t *testing.T) map[string]bool {
 			}
 		}
 	})
+	// A built-in module's own permissions are granted by its manifest.
+	for ident, scope := range declared {
+		if strings.Contains(ident, ".") && moduleGrants(scope) {
+			granted[ident] = true
+		}
+	}
 	return granted
 }
 

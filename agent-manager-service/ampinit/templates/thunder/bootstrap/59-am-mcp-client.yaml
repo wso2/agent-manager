@@ -19,7 +19,7 @@ inboundAuthConfig:
       tokenEndpointAuthMethod: "none"
       pkceRequired: true
       publicClient: true
-      scopes: {{ json (clientScopesWithout "observability") }}
+      scopes: {{ json (clientScopes) }}
       token:
         accessToken:
           userConfig:

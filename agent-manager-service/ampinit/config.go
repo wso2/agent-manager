@@ -26,11 +26,11 @@ import (
 	"fmt"
 	"log/slog"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
 // Client is an OAuth client Thunder registers for Agent Manager.
@@ -61,43 +61,43 @@ type ThunderConfig struct {
 	// ThunderListenPort is the port the server binds inside its container.
 	ThunderListenPort int
 
-	AMPPublicURL      string
-	ObserverPublicURL string
-	ConsoleURL        string
+	AMPPublicURL string
+	ConsoleURL   string
 
 	ConsoleRedirectURIs []string
 	CORSOrigins         []string
 
-	APIClient       Client
-	ConsoleClient   Client
-	PublisherClient Client
-	SystemClient    Client
-	CLIClient       Client
+	APIClient     Client
+	ConsoleClient Client
+	SystemClient  Client
+	CLIClient     Client
 
 	// Admin is Thunder's built-in admin account; its password is set by Thunder's setup.
 	Admin User
 	Users []User
+
+	// Modules are the manifests of the modules compiled into this binary,
+	// whose permissions and role grants go into the resource server and roles.
+	Modules []modkit.Manifest
 }
 
-// GatewayConfig is everything the AI Gateway files depend on.
-type GatewayConfig struct {
-	// ControlPlaneHost is host:port of Agent Manager's gateway WebSocket listener.
-	ControlPlaneHost string
-	// RegistrationToken is the gateway's control-plane token; generated and kept when empty.
-	RegistrationToken string
-	AdminPassword     string
-	AMPJWKSURL        string
-	ThunderIssuer     string
-	ThunderJWKSURL    string
-	// Host is the gateway's public host name (MCP auth metadata, listener certificate).
-	Host         string
-	ListenerPort int
+// Settings `amp init` reads, which the configuration file may set too.
+func init() {
+	config.RegisterKeys(
+		"AMCTL_CLIENT_ID", "AMCTL_REDIRECT_URIS", "AMP_ADMIN_PASSWORD", "AMP_ADMIN_USERNAME",
+		"AMP_API_CLIENT_ID", "AMP_API_CLIENT_SECRET", "AMP_CONSOLE_CLIENT_ID", "AMP_CONSOLE_CLIENT_SECRET",
+		"AMP_DEFAULT_ORG_HANDLE", "AMP_DEFAULT_USERS", "AMP_FILE_OWNER", "AMP_PUBLIC_URL",
+		"AMP_SYSTEM_CLIENT_ID", "AMP_SYSTEM_CLIENT_SECRET",
+		"CONSOLE_URL", "PLATFORM_ADMIN_OU_ID",
+		"THUNDER_ADMIN_EMAIL", "THUNDER_ADMIN_FAMILY_NAME", "THUNDER_ADMIN_GIVEN_NAME", "THUNDER_ADMIN_USERNAME",
+		"THUNDER_CORS_ORIGINS", "THUNDER_FILE_OWNER", "THUNDER_PORT", "THUNDER_PUBLIC_URL",
+	)
 }
 
 type envReader struct{ errs []error }
 
 func (r *envReader) str(key, def string) string {
-	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+	if v := strings.TrimSpace(config.Value(key)); v != "" {
 		return v
 	}
 	return def
@@ -168,17 +168,14 @@ func defaultPort(u *url.URL) int {
 func LoadThunderConfig() (*ThunderConfig, error) {
 	r := &envReader{}
 	cfg := &ThunderConfig{
-		AMPPublicURL:      strings.TrimRight(r.required("AMP_PUBLIC_URL"), "/"),
-		ObserverPublicURL: strings.TrimRight(r.required("OBSERVER_PUBLIC_URL"), "/"),
-		ConsoleURL:        strings.TrimRight(r.required("CONSOLE_URL"), "/"),
+		Modules:      compiledModules(),
+		AMPPublicURL: strings.TrimRight(r.required("AMP_PUBLIC_URL"), "/"),
+		ConsoleURL:   strings.TrimRight(r.required("CONSOLE_URL"), "/"),
 		APIClient: Client{
 			ID: r.str("AMP_API_CLIENT_ID", "amp-api-client"), Secret: r.required("AMP_API_CLIENT_SECRET"),
 		},
 		ConsoleClient: Client{
 			ID: r.str("AMP_CONSOLE_CLIENT_ID", "amp-console-client"), Secret: r.required("AMP_CONSOLE_CLIENT_SECRET"),
-		},
-		PublisherClient: Client{
-			ID: r.str("AMP_PUBLISHER_CLIENT_ID", "amp-publisher-client"), Secret: r.required("AMP_PUBLISHER_CLIENT_SECRET"),
 		},
 		SystemClient: Client{
 			ID: r.str("AMP_SYSTEM_CLIENT_ID", "amp-system-client"), Secret: r.required("AMP_SYSTEM_CLIENT_SECRET"),
@@ -280,30 +277,10 @@ func LoadFileAuthConfig() (*FileAuthConfig, error) {
 	if users[0].Password == "" {
 		r.errs = append(r.errs, fmt.Errorf(
 			"no password for %q: set AMP_ADMIN_PASSWORD or give it an AMP_DEFAULT_USERS entry, "+
-				"otherwise file-based sign-in admits nobody", adminName))
+				"otherwise file-based sign-in admits nobody", adminName,
+		))
 	}
 	cfg.Users = users
-	return cfg, r.err()
-}
-
-// LoadGatewayConfig reads the AI Gateway inputs from the environment.
-func LoadGatewayConfig() (*GatewayConfig, error) {
-	r := &envReader{}
-	cfg := &GatewayConfig{
-		ControlPlaneHost:  r.required("GATEWAY_CONTROLPLANE_HOST"),
-		RegistrationToken: r.str("DEFAULT_GATEWAY_TOKEN", ""),
-		AdminPassword:     r.required("GATEWAY_ADMIN_PASSWORD"),
-		AMPJWKSURL:        r.required("GATEWAY_AMP_JWKS_URL"),
-		ThunderIssuer:     strings.TrimRight(r.required("THUNDER_PUBLIC_URL"), "/"),
-		ThunderJWKSURL:    r.required("GATEWAY_THUNDER_JWKS_URL"),
-		Host:              r.required("GATEWAY_HOST"),
-		ListenerPort:      r.port("GATEWAY_LISTENER_PORT", 19080),
-	}
-	if cfg.RegistrationToken != "" {
-		if _, err := gatewaytoken.Prefix(cfg.RegistrationToken); err != nil {
-			r.errs = append(r.errs, fmt.Errorf("DEFAULT_GATEWAY_TOKEN: %w", err))
-		}
-	}
 	return cfg, r.err()
 }
 
@@ -313,22 +290,27 @@ func SampleThunderConfig() *ThunderConfig {
 	return &ThunderConfig{
 		ThunderPublicURL: "http://thunder.amp.localhost:8080", ThunderScheme: "http",
 		ThunderHost: "thunder.amp.localhost", ThunderPort: 8080, ThunderListenPort: 8080,
-		AMPPublicURL: "http://localhost:9000", ObserverPublicURL: "http://localhost:9098",
+		AMPPublicURL:        "http://localhost:9000",
 		ConsoleURL:          "http://localhost:3000",
 		ConsoleRedirectURIs: []string{"http://localhost:3000/login"},
 		CORSOrigins:         []string{"http://localhost:3000"},
 		APIClient:           Client{ID: "amp-api-client", Secret: "amp-api-client-secret"},
 		ConsoleClient:       Client{ID: "amp-console-client", Secret: "amp-console-client-secret"},
-		PublisherClient:     Client{ID: "amp-publisher-client", Secret: "amp-publisher-client-secret"},
 		SystemClient:        Client{ID: "amp-system-client", Secret: "amp-system-client-secret"},
 		CLIClient:           Client{ID: "amctl", RedirectURIs: []string{"http://127.0.0.1:10325/callback"}},
 		Admin:               User{Username: "admin", Email: "admin@example.com", GivenName: "Admin", FamilyName: "User"},
 	}
 }
 
-// Run writes the ThunderID files into thunderDir and the AI Gateway files
-// into gatewayDir, skipping an empty one.
-func Run(thunderDir, gatewayDir, fileAuthDir string) error {
+// Run writes the ThunderID files into thunderDir, the file-based sign-in user
+// file into fileAuthDir, and each registered component's files into the
+// directory others names for it, skipping an empty directory.
+func Run(thunderDir, fileAuthDir string, others map[string]string) error {
+	for name := range others {
+		if _, ok := component(name); !ok {
+			return fmt.Errorf("unknown component %q", name)
+		}
+	}
 	if thunderDir != "" {
 		cfg, err := LoadThunderConfig()
 		if err != nil {
@@ -339,15 +321,16 @@ func Run(thunderDir, gatewayDir, fileAuthDir string) error {
 		}
 		slog.Info("Wrote the ThunderID configuration", "dir", thunderDir)
 	}
-	if gatewayDir != "" {
-		cfg, err := LoadGatewayConfig()
-		if err != nil {
-			return fmt.Errorf("AI Gateway configuration: %w", err)
+	for _, name := range Components() {
+		dir := others[name]
+		c, ok := component(name)
+		if !ok || dir == "" {
+			continue
 		}
-		if err := WriteGateway(cfg, gatewayDir); err != nil {
-			return fmt.Errorf("AI Gateway configuration: %w", err)
+		if err := c.Write(dir); err != nil {
+			return fmt.Errorf("%s configuration: %w", c.Title, err)
 		}
-		slog.Info("Wrote the AI Gateway configuration", "dir", gatewayDir)
+		slog.Info("Wrote the "+c.Title+" configuration", "dir", dir)
 	}
 	if fileAuthDir != "" {
 		cfg, err := LoadFileAuthConfig()
@@ -361,4 +344,13 @@ func Run(thunderDir, gatewayDir, fileAuthDir string) error {
 			"dir", fileAuthDir, "users", len(cfg.Users), "org", cfg.OrgHandle)
 	}
 	return nil
+}
+
+// compiledModules returns the manifests of the modules this binary links.
+func compiledModules() []modkit.Manifest {
+	var out []modkit.Manifest
+	for _, m := range modkit.Registered() {
+		out = append(out, m.Manifest())
+	}
+	return out
 }

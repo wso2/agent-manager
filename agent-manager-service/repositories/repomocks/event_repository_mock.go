@@ -73,9 +73,6 @@ import (
 //			LoadDestinationSecretFunc: func(ctx context.Context, d *models.EventDestination) error {
 //				panic("mock out the LoadDestinationSecret method")
 //			},
-//			MonitorAlertWantsFunc: func(ctx context.Context, ouID string, alertID uuid.UUID, destinationID uuid.UUID, project string, agent string) (bool, error) {
-//				panic("mock out the MonitorAlertWants method")
-//			},
 //			PruneDeliveriesFunc: func(ctx context.Context, cutoff time.Time) (int64, error) {
 //				panic("mock out the PruneDeliveries method")
 //			},
@@ -163,9 +160,6 @@ type EventRepositoryMock struct {
 
 	// LoadDestinationSecretFunc mocks the LoadDestinationSecret method.
 	LoadDestinationSecretFunc func(ctx context.Context, d *models.EventDestination) error
-
-	// MonitorAlertWantsFunc mocks the MonitorAlertWants method.
-	MonitorAlertWantsFunc func(ctx context.Context, ouID string, alertID uuid.UUID, destinationID uuid.UUID, project string, agent string) (bool, error)
 
 	// PruneDeliveriesFunc mocks the PruneDeliveries method.
 	PruneDeliveriesFunc func(ctx context.Context, cutoff time.Time) (int64, error)
@@ -350,21 +344,6 @@ type EventRepositoryMock struct {
 			// D is the d argument value.
 			D *models.EventDestination
 		}
-		// MonitorAlertWants holds details about calls to the MonitorAlertWants method.
-		MonitorAlertWants []struct {
-			// Ctx is the ctx argument value.
-			Ctx context.Context
-			// OuID is the ouID argument value.
-			OuID string
-			// AlertID is the alertID argument value.
-			AlertID uuid.UUID
-			// DestinationID is the destinationID argument value.
-			DestinationID uuid.UUID
-			// Project is the project argument value.
-			Project string
-			// Agent is the agent argument value.
-			Agent string
-		}
 		// PruneDeliveries holds details about calls to the PruneDeliveries method.
 		PruneDeliveries []struct {
 			// Ctx is the ctx argument value.
@@ -463,7 +442,6 @@ type EventRepositoryMock struct {
 	lockListDestinations              sync.RWMutex
 	lockListSubscriptions             sync.RWMutex
 	lockLoadDestinationSecret         sync.RWMutex
-	lockMonitorAlertWants             sync.RWMutex
 	lockPruneDeliveries               sync.RWMutex
 	lockRecordDelivery                sync.RWMutex
 	lockRecordQueuedDelivery          sync.RWMutex
@@ -1176,58 +1154,6 @@ func (mock *EventRepositoryMock) LoadDestinationSecretCalls() []struct {
 	mock.lockLoadDestinationSecret.RLock()
 	calls = mock.calls.LoadDestinationSecret
 	mock.lockLoadDestinationSecret.RUnlock()
-	return calls
-}
-
-// MonitorAlertWants calls MonitorAlertWantsFunc.
-func (mock *EventRepositoryMock) MonitorAlertWants(ctx context.Context, ouID string, alertID uuid.UUID, destinationID uuid.UUID, project string, agent string) (bool, error) {
-	if mock.MonitorAlertWantsFunc == nil {
-		panic("EventRepositoryMock.MonitorAlertWantsFunc: method is nil but EventRepository.MonitorAlertWants was just called")
-	}
-	callInfo := struct {
-		Ctx           context.Context
-		OuID          string
-		AlertID       uuid.UUID
-		DestinationID uuid.UUID
-		Project       string
-		Agent         string
-	}{
-		Ctx:           ctx,
-		OuID:          ouID,
-		AlertID:       alertID,
-		DestinationID: destinationID,
-		Project:       project,
-		Agent:         agent,
-	}
-	mock.lockMonitorAlertWants.Lock()
-	mock.calls.MonitorAlertWants = append(mock.calls.MonitorAlertWants, callInfo)
-	mock.lockMonitorAlertWants.Unlock()
-	return mock.MonitorAlertWantsFunc(ctx, ouID, alertID, destinationID, project, agent)
-}
-
-// MonitorAlertWantsCalls gets all the calls that were made to MonitorAlertWants.
-// Check the length with:
-//
-//	len(mockedEventRepository.MonitorAlertWantsCalls())
-func (mock *EventRepositoryMock) MonitorAlertWantsCalls() []struct {
-	Ctx           context.Context
-	OuID          string
-	AlertID       uuid.UUID
-	DestinationID uuid.UUID
-	Project       string
-	Agent         string
-} {
-	var calls []struct {
-		Ctx           context.Context
-		OuID          string
-		AlertID       uuid.UUID
-		DestinationID uuid.UUID
-		Project       string
-		Agent         string
-	}
-	mock.lockMonitorAlertWants.RLock()
-	calls = mock.calls.MonitorAlertWants
-	mock.lockMonitorAlertWants.RUnlock()
 	return calls
 }
 

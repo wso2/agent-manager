@@ -41,6 +41,9 @@ type SecretStore struct {
 	vaults *vault.Vaults
 }
 
+// ErrNoSecretStore is a credential to save or resolve through a repository built without a SecretStore.
+var ErrNoSecretStore = errors.New("repository has no secret store for upstream credentials")
+
 // NewSecretStore creates a SecretStore over the deployment's vaults.
 func NewSecretStore(vaults *vault.Vaults) *SecretStore {
 	return &SecretStore{vaults: vaults}
@@ -199,7 +202,7 @@ func (s *SecretStore) SnapshotUpstreamCredential(ctx context.Context, tx *gorm.D
 		return nil, nil //nolint:nilnil // no referenced credential
 	}
 	if s == nil {
-		return nil, errNoSecretStore
+		return nil, ErrNoSecretStore
 	}
 	snapshot := &UpstreamCredential{store: s}
 	err := tx.WithContext(ctx).Where("id = ?", *id).Take(&snapshot.row).Error
@@ -233,17 +236,17 @@ func (c *UpstreamCredential) LockVersion(ctx context.Context, tx *gorm.DB) error
 // Delete removes the secret. An external value it had is destroyed after tx commits. A missing row is a no-op.
 func (s *SecretStore) Delete(ctx context.Context, tx *gorm.DB, id uuid.UUID) error {
 	return tx.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return releaseSecret(tx, &id)
+		return ReleaseSecret(tx, &id)
 	})
 }
 
-// put stores value for the owner and returns the secret's id: it rewrites the secret current names, or creates one.
+// Put stores value for the owner and returns the secret's id: it rewrites the secret current names, or creates one.
 // An empty value returns nil; the caller deletes current once nothing refers to it.
-func (s *SecretStore) put(tx *gorm.DB, orgID, ownerKind string, ownerID uuid.UUID, current *uuid.UUID, value string) (*uuid.UUID, error) {
+func (s *SecretStore) Put(tx *gorm.DB, orgID, ownerKind string, ownerID uuid.UUID, current *uuid.UUID, value string) (*uuid.UUID, error) {
 	if value == "" {
 		return nil, nil //nolint:nilnil // no value means no secret
 	}
-	id := newID()
+	id := NewID()
 	if current != nil {
 		id = *current
 	}
@@ -253,8 +256,8 @@ func (s *SecretStore) put(tx *gorm.DB, orgID, ownerKind string, ownerID uuid.UUI
 	return &id, nil
 }
 
-// get reads a secret's value; a nil id or a missing row is empty.
-func (s *SecretStore) get(tx *gorm.DB, id *uuid.UUID) (string, error) {
+// Get reads a secret's value; a nil id or a missing row is empty.
+func (s *SecretStore) Get(tx *gorm.DB, id *uuid.UUID) (string, error) {
 	if id == nil {
 		return "", nil
 	}
@@ -262,9 +265,9 @@ func (s *SecretStore) get(tx *gorm.DB, id *uuid.UUID) (string, error) {
 	return string(value), err
 }
 
-// getAsStored is get for an owner that hands the store a form it encrypted itself, so its rows from before the
+// GetAsStored is Get for an owner that hands the store a form it encrypted itself, so its rows from before the
 // vault already hold what it reads back.
-func (s *SecretStore) getAsStored(tx *gorm.DB, id *uuid.UUID) (string, error) {
+func (s *SecretStore) GetAsStored(tx *gorm.DB, id *uuid.UUID) (string, error) {
 	if id == nil {
 		return "", nil
 	}
@@ -272,13 +275,8 @@ func (s *SecretStore) getAsStored(tx *gorm.DB, id *uuid.UUID) (string, error) {
 	return string(value), err
 }
 
-// delete removes a secret; nil is a no-op.
-func (s *SecretStore) delete(tx *gorm.DB, id *uuid.UUID) error {
-	return releaseSecret(tx, id)
-}
-
-// adoptSecret records ownerID as the owner of a secret a replacement row took over.
-func adoptSecret(tx *gorm.DB, id, ownerID uuid.UUID) error {
+// AdoptSecret records ownerID as the owner of a secret a replacement row took over.
+func AdoptSecret(tx *gorm.DB, id, ownerID uuid.UUID) error {
 	if err := tx.Model(&models.Secret{}).Where("id = ?", id).
 		Updates(map[string]any{"owner_id": ownerID, "updated_at": dbx.Now()}).Error; err != nil {
 		return fmt.Errorf("failed to hand secret %s to its new owner: %w", id, err)
@@ -286,10 +284,10 @@ func adoptSecret(tx *gorm.DB, id, ownerID uuid.UUID) error {
 	return nil
 }
 
-// releaseSecret deletes a secret's row in tx and queues the removal of any external value it has, which runs after
+// ReleaseSecret deletes a secret's row in tx and queues the removal of any external value it has, which runs after
 // tx commits. It needs no vault, so a delete path without a SecretStore can call it. nil and a missing row are no-ops.
 // Delete the owning row, or clear its reference, first: owners refer to secrets by foreign key.
-func releaseSecret(tx *gorm.DB, id *uuid.UUID) error {
+func ReleaseSecret(tx *gorm.DB, id *uuid.UUID) error {
 	if id == nil {
 		return nil
 	}
@@ -358,7 +356,7 @@ func queueDestroy(tx *gorm.DB, orgID string, secretID uuid.UUID, ownerKind strin
 func newSecretJob(orgID string, secretID uuid.UUID, ownerKind, action string, value *externalValue) models.SecretJob {
 	now := dbx.Now()
 	job := models.SecretJob{
-		ID: newID(), OrgID: orgID, SecretID: secretID, OwnerKind: ownerKind, Action: action,
+		ID: NewID(), OrgID: orgID, SecretID: secretID, OwnerKind: ownerKind, Action: action,
 		AvailableAt: now, CreatedAt: now,
 	}
 	if value != nil {

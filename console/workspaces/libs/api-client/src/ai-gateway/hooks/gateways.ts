@@ -19,6 +19,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 import type {
   DeleteGatewayPathParams,
   DiscoverOidcPathParams,
@@ -75,31 +76,34 @@ export function useListGateways(
   params: ListGatewaysPathParams,
   query?: ListGatewaysQuery,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<GatewayListResponse>({
     queryKey: ["gateways", params, query],
     queryFn: () => listGateways(params, query, getToken),
-    enabled: !!params.orgName,
+    enabled: gatewayPresent && !!params.orgName,
   });
 }
 
 export function useGetGateway(params: GetGatewayPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<GatewayResponse>({
     queryKey: ["gateway", params],
     queryFn: () => getGateway(params, getToken),
-    enabled: !!params.orgName && !!params.gatewayId,
+    enabled: gatewayPresent && !!params.orgName && !!params.gatewayId,
   });
 }
 
 export function useListIdentityProviders(
   params: ListIdentityProvidersPathParams,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<IdentityProviderListResponse>({
     queryKey: ["identity-providers", params],
     queryFn: () => listIdentityProviders(params, getToken),
-    enabled: !!params.orgName,
+    enabled: gatewayPresent && !!params.orgName,
   });
 }
 
@@ -120,11 +124,12 @@ export function useDiscoverOidc(params: DiscoverOidcPathParams) {
 export function useListEnvironmentIdentityProviders(
   params: ListEnvironmentIdentityProvidersPathParams,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<IdentityProviderListResponse>({
     queryKey: ["environment-identity-providers", params],
     queryFn: () => listEnvironmentIdentityProviders(params, getToken),
-    enabled: !!params.orgName && !!params.environmentId,
+    enabled: gatewayPresent && !!params.orgName && !!params.environmentId,
   });
 }
 
@@ -212,11 +217,12 @@ export function useAssignGatewayToEnvironment() {
 export function useListGatewayTokens(
   params: import("../apis/gateways").ListGatewayTokensParams,
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery({
     queryKey: ["gateway-tokens", params],
     queryFn: () => listGatewayTokens(params, getToken),
-    enabled: !!params.orgName && !!params.gatewayId,
+    enabled: gatewayPresent && !!params.orgName && !!params.gatewayId,
   });
 }
 
@@ -322,11 +328,12 @@ export function useSelfHostedGatewayTokens(
   params: SelfHostedGatewayTokensPathParams,
   { enabled = true }: { enabled?: boolean } = {},
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<GatewayTokenListResponse>({
     queryKey: selfHostedGatewayTokensKey(params),
     queryFn: () => listSelfHostedGatewayTokens(params, getToken),
-    enabled: enabled && !!params.orgName && !!params.gatewayId,
+    enabled: gatewayPresent && enabled && !!params.orgName && !!params.gatewayId,
   });
 }
 

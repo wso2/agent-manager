@@ -166,3 +166,86 @@ func TestNullableColumnsRender(t *testing.T) {
 	assert.Contains(t, ddl, "    description VARCHAR(1000),\n")
 	assert.True(t, strings.Contains(ddl, "    handle VARCHAR(63) NOT NULL,\n"))
 }
+
+// The committed module migrations must match each module's schema files. On failure, run `make schema`.
+func TestModuleMigrationsAreGenerated(t *testing.T) {
+	root := filepath.Join("..", "..")
+	modules, err := ModuleSchemas(root)
+	require.NoError(t, err)
+	for _, m := range modules {
+		name, err := m.Module()
+		require.NoError(t, err)
+		migrations, err := RenderModule(name, m.Files)
+		require.NoError(t, err)
+		for _, mig := range migrations {
+			for _, dialect := range Dialects {
+				got, err := os.ReadFile(filepath.Join(root, ModuleMigrationPath(m.Dir, dialect, mig.Version)))
+				require.NoError(t, err)
+				assert.Equal(t, mig.SQL[dialect], string(got), "%s %s is stale: run `make schema`", m.Dir, mig.Version)
+			}
+		}
+	}
+}
+
+func TestRenderModule(t *testing.T) {
+	file := func(name, body string) ModuleFile {
+		return ModuleFile{Path: "modules/x/schema/" + name, Data: []byte(body)}
+	}
+	items := file("001_items.yaml", `
+module: ai-gateway
+tables:
+  - name: mod_ai_gateway_items
+    columns: [{name: id, type: id}, {name: rank, type: int}]
+    primary_key: [id]
+    seed: [{id: 01900000-0000-7000-8000-000000000001, rank: "3"}]`)
+
+	t.Run("renders each file, referencing earlier ones", func(t *testing.T) {
+		got, err := RenderModule("ai-gateway", []ModuleFile{file("002_tags.yaml", `
+module: ai-gateway
+tables:
+  - name: mod_ai_gateway_tags
+    columns: [{name: item_id, type: id}, {name: tag, type: text, size: 32}]
+    primary_key: [item_id, tag]
+    foreign_keys: [{columns: [item_id], references: mod_ai_gateway_items, ref_columns: [id], on_delete: cascade}]`), items})
+		require.NoError(t, err)
+		require.Len(t, got, 2)
+		assert.Equal(t, "001_items", got[0].Version)
+		assert.Equal(t, "002_tags", got[1].Version)
+		assert.Contains(t, got[0].SQL[DialectPostgres], "-- Code generated from modules/x/schema/001_items.yaml")
+		assert.Contains(t, got[0].SQL[DialectPostgres], "VALUES ('01900000-0000-7000-8000-000000000001', 3)")
+		assert.NotContains(t, got[1].SQL[DialectSQLite], "CREATE TABLE mod_ai_gateway_items", "earlier tables are not rendered again")
+		assert.Contains(t, got[1].SQL[DialectSQLite], "REFERENCES mod_ai_gateway_items (id) ON DELETE CASCADE")
+	})
+
+	for name, f := range map[string]ModuleFile{
+		"table without the module prefix": file("002_x.yaml", `
+module: ai-gateway
+tables: [{name: items, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"another module's prefix": file("002_x.yaml", `
+module: ai-gateway
+tables: [{name: mod_other_items, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"wrong module name": file("002_x.yaml", `
+module: other
+tables: [{name: mod_other_items, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"table defined in an earlier file": file("002_x.yaml", `
+module: ai-gateway
+tables: [{name: mod_ai_gateway_items, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"file name without a version": file("items.yaml", `
+module: ai-gateway
+tables: [{name: mod_ai_gateway_more, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"non-integer seed for an int column": file("002_x.yaml", `
+module: ai-gateway
+tables: [{name: mod_ai_gateway_more, columns: [{name: n, type: int}], primary_key: [n], seed: [{n: "1; DROP TABLE agents"}]}]`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := RenderModule("ai-gateway", []ModuleFile{items, f})
+			assert.Error(t, err)
+		})
+	}
+
+	t.Run("core tables may not use the module prefix", func(t *testing.T) {
+		_, err := Parse([]byte(`
+tables: [{name: mod_sneaky, columns: [{name: id, type: id}], primary_key: [id]}]`))
+		assert.ErrorContains(t, err, "reserved for module tables")
+	})
+}

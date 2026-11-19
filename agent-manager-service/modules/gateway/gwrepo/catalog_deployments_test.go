@@ -1,0 +1,138 @@
+//go:build integration
+
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwrepo
+
+import (
+	"context"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+)
+
+// seedCatalogProvider writes a catalog-listed provider and an environment its gateway is mapped to, and returns the
+// provider's placement on the gateway.
+func seedCatalogProvider(t *testing.T) (models.Placement, uuid.UUID) {
+	t.Helper()
+	gdb := db.GetDB()
+	p := seedPlacement(t, models.KindLLMProvider)
+	provider := &models.LLMProvider{
+		TemplateHandle: "openai",
+		Configuration: models.LLMProviderConfig{
+			Name: "Catalog " + p.Handle, Handle: p.Handle + "-provider", Version: "v1.0", Template: "openai",
+		},
+		Status: "CREATED",
+	}
+	require.NoError(t, NewLLMProviderRepo(gdb, testSecrets(t)).Create(gdb, provider, provider.Configuration.Handle,
+		provider.Configuration.Name, "v1.0", p.OUID))
+	require.NoError(t, NewArtifactRepo(gdb).UpdateCatalogStatus(gdb, provider.UUID.String(), p.OUID, true))
+	env := dbtest.Environment(t, gdb, p.OUID) // the gateway is mapped to it
+	p.ArtifactUUID, p.Handle = provider.UUID, provider.Configuration.Handle
+	return p, env
+}
+
+func listCatalogProviders(t *testing.T, ouID string, env *uuid.UUID) []models.CatalogLLMProviderEntry {
+	t.Helper()
+	filters := &models.CatalogListFilters{OrganizationName: ouID, Limit: 10}
+	if env != nil {
+		filters.EnvironmentUUID = env.String()
+	}
+	entries, _, err := NewCatalogRepo(db.GetDB()).ListLLMProviders(filters)
+	require.NoError(t, err)
+	return entries
+}
+
+// A deploy the gateway hasn't acked isn't listed, in the environment-filtered list or the unfiltered one, until the
+// ack makes it live.
+func TestCatalogListsADeployOnceItIsLive(t *testing.T) {
+	p, env := seedCatalogProvider(t)
+	deployment := startDeploy(t, p)
+
+	entries := listCatalogProviders(t, p.OUID, nil)
+	require.Len(t, entries, 1)
+	assert.Empty(t, entries[0].Deployments)
+	assert.Empty(t, listCatalogProviders(t, p.OUID, &env), "not live in the environment yet")
+
+	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
+
+	entries = listCatalogProviders(t, p.OUID, nil)
+	require.Len(t, entries[0].Deployments, 1)
+	assert.Equal(t, models.DeploymentStatusDeployed, entries[0].Deployments[0].Status)
+	assert.Equal(t, p.GatewayUUID, entries[0].Deployments[0].GatewayID)
+	assert.Len(t, listCatalogProviders(t, p.OUID, &env), 1)
+}
+
+// A live deployment with a redeploy queued is still listed, and shows DEPLOYING because the redeploy is owed.
+func TestCatalogKeepsALiveDeploymentWhileARedeployIsQueued(t *testing.T) {
+	p, _ := seedCatalogProvider(t)
+	deployment := startDeploy(t, p)
+	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
+	_, err := NewDeploymentRepo(db.GetDB()).QueueRender(context.Background(), nil, p.OUID, p.ArtifactUUID, nil,
+		"inputs changed", QueueScopePlaced)
+	require.NoError(t, err)
+
+	entries := listCatalogProviders(t, p.OUID, nil)
+	require.Len(t, entries[0].Deployments, 1)
+	assert.Equal(t, models.DeploymentStatusDeploying, entries[0].Deployments[0].Status)
+}
+
+// A failed deploy and an undeployed provider aren't listed anywhere.
+func TestCatalogOmitsFailedAndUndeployed(t *testing.T) {
+	p, _ := seedCatalogProvider(t)
+	deployment := startDeploy(t, p)
+	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusFailed, "E"), nil)
+
+	entries := listCatalogProviders(t, p.OUID, nil)
+	assert.Empty(t, entries[0].Deployments)
+
+	_, err := beginUndeploy(t, p)
+	require.NoError(t, err)
+	applyAck(t, p, undeployAck(p.ArtifactUUID.String(), models.DeploymentAckStatusSuccess), nil)
+
+	entries = listCatalogProviders(t, p.OUID, nil)
+	assert.Empty(t, entries[0].Deployments)
+}
+
+// A gateway hosting filter narrows the environment filter to live deployments on gateways with that hosting.
+func TestCatalogEnvironmentFilterByGatewayHosting(t *testing.T) {
+	p, env := seedCatalogProvider(t)
+	deployment := startDeploy(t, p)
+	applyAck(t, p, deployAck(deployment.DeploymentID, models.DeploymentAckStatusSuccess, ""), nil)
+	list := func(hosting string) []models.CatalogLLMProviderEntry {
+		entries, _, err := NewCatalogRepo(db.GetDB()).ListLLMProviders(&models.CatalogListFilters{
+			OrganizationName: p.OUID, EnvironmentUUID: env.String(), GatewayHosting: hosting, Limit: 10,
+		})
+		require.NoError(t, err)
+		return entries
+	}
+
+	assert.Len(t, list(models.GatewayHostingManaged), 1, "seeded gateways are managed by default")
+	assert.Empty(t, list(models.GatewayHostingSelfHosted))
+
+	require.NoError(t, db.GetDB().Exec(`UPDATE gateways SET hosting = ? WHERE id = ?`,
+		models.GatewayHostingSelfHosted, p.GatewayUUID).Error)
+	assert.Empty(t, list(models.GatewayHostingManaged))
+	assert.Len(t, list(models.GatewayHostingSelfHosted), 1)
+	assert.Len(t, list(""), 1, "no hosting filter keeps every gateway")
+}

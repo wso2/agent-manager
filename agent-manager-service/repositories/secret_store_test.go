@@ -47,7 +47,7 @@ func secretRow(t *testing.T, id uuid.UUID) models.Secret {
 
 func TestSecretStoreSealsValuesIntoTheRow(t *testing.T) {
 	ctx, gdb, store := context.Background(), db.GetDB(), testSecrets(t)
-	org, owner, id := newOrg(t), newID(), newID()
+	org, owner, id := newOrg(t), NewID(), NewID()
 	t.Cleanup(func() { _ = store.Delete(ctx, gdb, id) })
 
 	require.NoError(t, store.Write(ctx, gdb, org, "test_owner", owner, id, []byte("first")))
@@ -82,7 +82,7 @@ func TestSecretStoreSealsValuesIntoTheRow(t *testing.T) {
 // A ciphertext copied into another row must not open there.
 func TestSecretStoreBindsACiphertextToItsRow(t *testing.T) {
 	ctx, gdb, store := context.Background(), db.GetDB(), testSecrets(t)
-	org, a, b := newOrg(t), newID(), newID()
+	org, a, b := newOrg(t), NewID(), NewID()
 	t.Cleanup(func() { _ = store.Delete(ctx, gdb, a); _ = store.Delete(ctx, gdb, b) })
 
 	require.NoError(t, store.Write(ctx, gdb, org, "test_owner", a, a, []byte("a-secret")))
@@ -97,7 +97,7 @@ func TestSecretStoreBindsACiphertextToItsRow(t *testing.T) {
 // Rows written before the vault hold what the owning service encrypted itself.
 func TestSecretStoreReadsRowsWrittenBeforeTheVault(t *testing.T) {
 	ctx, gdb, store := context.Background(), db.GetDB(), testSecrets(t)
-	org, id, now := newOrg(t), newID(), dbx.Now()
+	org, id, now := newOrg(t), NewID(), dbx.Now()
 	t.Cleanup(func() { _ = store.Delete(ctx, gdb, id) })
 
 	legacy, err := utils.EncryptBytes([]byte("old-value"), vaulttest.Key)
@@ -107,17 +107,17 @@ func TestSecretStoreReadsRowsWrittenBeforeTheVault(t *testing.T) {
 		Ciphertext: legacy, Version: 1, CreatedAt: now, UpdatedAt: now,
 	}).Error)
 
-	value, err := store.get(gdb, &id)
+	value, err := store.Get(gdb, &id)
 	require.NoError(t, err)
 	assert.Equal(t, "old-value", value)
 
-	stored, err := store.getAsStored(gdb, &id)
+	stored, err := store.GetAsStored(gdb, &id)
 	require.NoError(t, err)
 	assert.Equal(t, string(legacy), stored, "an owner that encrypts itself gets its own form back")
 
 	require.NoError(t, store.Write(ctx, gdb, org, "test_owner", id, id, []byte("old-value")))
 	assert.NotNil(t, secretRow(t, id).KeyID, "the next write reseals the row under the vault")
-	stored, err = store.getAsStored(gdb, &id)
+	stored, err = store.GetAsStored(gdb, &id)
 	require.NoError(t, err)
 	assert.Equal(t, "old-value", stored)
 }
@@ -147,7 +147,7 @@ func newExternalFixture(t *testing.T) *externalFixture {
 func (f *externalFixture) cleanup(t *testing.T, ids ...uuid.UUID) {
 	t.Cleanup(func() {
 		for _, id := range ids {
-			_ = releaseSecret(db.GetDB(), &id)
+			_ = ReleaseSecret(db.GetDB(), &id)
 			_ = db.GetDB().Where("secret_id = ?", id).Delete(&models.SecretJob{}).Error
 		}
 	})
@@ -211,7 +211,7 @@ func (f *externalFixture) promoted(t *testing.T, id uuid.UUID, value string) str
 
 func TestSecretStoreWritesAnExternalVaultOnlyAfterCommit(t *testing.T) {
 	f := newExternalFixture(t)
-	id := newID()
+	id := NewID()
 	f.cleanup(t, id)
 
 	f.write(t, id, "v1")
@@ -257,7 +257,7 @@ func TestSecretStoreWritesAnExternalVaultOnlyAfterCommit(t *testing.T) {
 // value the restored row points to readable.
 func TestSecretStoreRollbackKeepsTheExternalValue(t *testing.T) {
 	f := newExternalFixture(t)
-	id := newID()
+	id := NewID()
 	f.cleanup(t, id)
 	ref := f.promoted(t, id, "v1")
 
@@ -277,7 +277,7 @@ func TestSecretStoreRollbackKeepsTheExternalValue(t *testing.T) {
 
 func TestSecretJobsRetryAndNeverRemoveAValueInUse(t *testing.T) {
 	f := newExternalFixture(t)
-	id, other := newID(), newID()
+	id, other := NewID(), NewID()
 	f.cleanup(t, id, other)
 
 	// A failed promotion leaves the value readable from the row and is retried.
@@ -330,7 +330,7 @@ func TestSecretJobsRetryAndNeverRemoveAValueInUse(t *testing.T) {
 
 func TestSecretPromotionHandsOverWhatItReplaces(t *testing.T) {
 	f := newExternalFixture(t)
-	id := newID()
+	id := NewID()
 	f.cleanup(t, id)
 	first := f.promoted(t, id, "v1")
 
@@ -359,7 +359,7 @@ func TestSecretPromotionHandsOverWhatItReplaces(t *testing.T) {
 
 func TestSecretPromotionUsesTheQueuedVaultDuringRollout(t *testing.T) {
 	f := newExternalFixture(t)
-	id := newID()
+	id := NewID()
 	f.cleanup(t, id)
 	f.write(t, id, "v1")
 
@@ -394,7 +394,7 @@ func (v *stalledSecretVault) Seal(ctx context.Context, ref vault.Ref, value []by
 
 func TestSecretJobsRetryTimedOutAttemptsAndContinue(t *testing.T) {
 	f := newExternalFixture(t)
-	stalled, healthy := newID(), newID()
+	stalled, healthy := NewID(), NewID()
 	f.cleanup(t, stalled, healthy)
 	local, err := vault.NewLocal(vaulttest.Key)
 	require.NoError(t, err)
@@ -421,7 +421,7 @@ func TestSecretJobsRetryTimedOutAttemptsAndContinue(t *testing.T) {
 
 func TestSecretPromotionRecoversAnInterruptedExternalWrite(t *testing.T) {
 	f := newExternalFixture(t)
-	id := newID()
+	id := NewID()
 	f.cleanup(t, id)
 	f.write(t, id, "v1")
 
@@ -446,7 +446,7 @@ func TestSecretPromotionRecoversAnInterruptedExternalWrite(t *testing.T) {
 
 func TestSecretPromotionCannotPublishOrQueueCleanupAfterClaimExpires(t *testing.T) {
 	f := newExternalFixture(t)
-	id := newID()
+	id := NewID()
 	f.cleanup(t, id)
 	f.write(t, id, "v1")
 
@@ -487,7 +487,7 @@ func TestSecretStoreMovesBetweenVaults(t *testing.T) {
 	local, err := vault.NewLocal(vaulttest.Key)
 	require.NoError(t, err)
 	localOnly := NewSecretStore(vault.Of(local, f.external))
-	id := newID()
+	id := NewID()
 	f.cleanup(t, id)
 
 	// A value the local vault sealed stays readable after the move and goes to the external vault on its next write.

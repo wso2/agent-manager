@@ -44,6 +44,7 @@ import {
   DescriptionCard,
   PageMetaItem,
   returnToState,
+  useIsUIModuleInstalled,
 } from "@agent-management-platform/views";
 import { absoluteRouteMap, withBasePath } from "@agent-management-platform/types";
 import { formatRelativeTime, LabelChips, parseOpenApiSpecContent, SwaggerSpecViewer } from "@agent-management-platform/shared-component";
@@ -56,8 +57,10 @@ const KIND_AVATAR = { children: <BookOpenText size={32} />, color: "primary.main
 
 export const CatalogKindDetails: React.FC = () => {
   const navigate = useNavigate();
-  // Add Instance creates an agent, so it follows agent write access.
-  const canCreateAgent = useFeatureAccess("agent_create");
+  // Add Instance creates an agent, so it follows agent write access. The agent
+  // is deployed by the agent runtime, and the create page exists only with it.
+  const runtimeInstalled = useIsUIModuleInstalled("agent-runtime");
+  const canCreateAgent = useFeatureAccess("agent_create") && runtimeInstalled === true;
   const location = useLocation();
   const { kindId, orgId } = useParams<{ kindId: string; orgId: string }>();
 

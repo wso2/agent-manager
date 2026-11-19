@@ -90,15 +90,6 @@ const (
 	EnvironmentDelete Permission = "environment:delete"
 )
 
-// Gateway permissions
-const (
-	GatewayCreate      Permission = "gateway:create"
-	GatewayRead        Permission = "gateway:read"
-	GatewayUpdate      Permission = "gateway:update"
-	GatewayDelete      Permission = "gateway:delete"
-	GatewayTokenManage Permission = "gateway:token-manage"
-)
-
 // Infrastructure permissions
 const (
 	DataPlaneRead            Permission = "data-plane:read"
@@ -172,14 +163,6 @@ const (
 	LLMProxyAPIKeyManage Permission = "llm-proxy:api-key-manage"
 )
 
-// Evaluator permissions
-const (
-	EvaluatorCreate Permission = "evaluator:create"
-	EvaluatorRead   Permission = "evaluator:read"
-	EvaluatorUpdate Permission = "evaluator:update"
-	EvaluatorDelete Permission = "evaluator:delete"
-)
-
 // Agent permissions
 const (
 	AgentCreate Permission = "agent:create"
@@ -209,31 +192,12 @@ const (
 	AgentKindDelete Permission = "agent-kind:delete"
 )
 
-// Monitor permissions
-const (
-	MonitorCreate       Permission = "monitor:create"
-	MonitorRead         Permission = "monitor:read"
-	MonitorUpdate       Permission = "monitor:update"
-	MonitorDelete       Permission = "monitor:delete"
-	MonitorExecute      Permission = "monitor:execute"
-	MonitorScoreRead    Permission = "monitor:score-read"
-	MonitorScorePublish Permission = "monitor:score-publish"
-)
-
 // Events permissions — event destinations, org subscriptions and the org's
 // delivery log, granted to Admin only. Project and agent subscriptions are
 // part of the project or agent and use their read and update permissions.
 const (
 	EventsRead   Permission = "events:read"
 	EventsManage Permission = "events:manage"
-)
-
-// Observability permissions — data-read scopes enforced by agent-manager-observer
-const (
-	ObservabilityTraceRead    Permission = "observability:trace-read"
-	ObservabilityLogRead      Permission = "observability:log-read"
-	ObservabilityBuildLogRead Permission = "observability:build-log-read"
-	ObservabilityMetricRead   Permission = "observability:metric-read"
 )
 
 // Role management permissions

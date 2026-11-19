@@ -315,7 +315,7 @@ func (d *eventDispatcher) handleDelivery(ctx context.Context, msg events.Message
 		_ = msg.Retry(eventFanoutRetryDelay)
 		return
 	}
-	// The subscriptions or monitor alert settings may have been disabled,
+	// The subscriptions may have been disabled,
 	// deleted or cut off from the destination since; a retry hours later
 	// must not send what nobody wants any more.
 	stillWanted, err := d.stillWanted(ctx, delivery, dest, e)
@@ -325,7 +325,7 @@ func (d *eventDispatcher) handleDelivery(ctx context.Context, msg events.Message
 		return
 	}
 	if !stillWanted {
-		if err := d.record(ctx, delivery, models.EventDeliverySkipped, delivery.Attempts, nil, "no active subscription or monitor alert wants this event any more", nil); err != nil {
+		if err := d.record(ctx, delivery, models.EventDeliverySkipped, delivery.Attempts, nil, "no active subscription wants this event any more", nil); err != nil {
 			_ = msg.Retry(eventFanoutRetryDelay)
 			return
 		}
@@ -422,17 +422,11 @@ func eventFanoutDelay(attempt int) time.Duration {
 	return min(delay, eventFanoutMaxRetryDelay)
 }
 
-// stillWanted checks that the subscription or monitor alert that queued a
-// delivery still exists, is enabled and may still use the destination.
+// stillWanted checks that a subscription that queued a delivery still exists,
+// is enabled and may still use the destination.
 func (d *eventDispatcher) stillWanted(
 	ctx context.Context, delivery *models.EventDelivery, dest *models.EventDestination, e events.Event,
 ) (bool, error) {
-	if delivery.MonitorAlertID != nil {
-		if !dest.UsableBy(models.EventScopeAgent, delivery.ProjectName) {
-			return false, nil
-		}
-		return d.repo.MonitorAlertWants(ctx, delivery.OUID, *delivery.MonitorAlertID, dest.ID, delivery.ProjectName, delivery.AgentName)
-	}
 	ids := make([]uuid.UUID, 0, len(delivery.SubscriptionIDs))
 	for _, raw := range delivery.SubscriptionIDs {
 		if id, err := uuid.Parse(raw); err == nil {

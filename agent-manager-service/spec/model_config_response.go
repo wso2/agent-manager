@@ -19,8 +19,6 @@ var _ MappedNullable = &ConfigResponse{}
 
 // ConfigResponse struct for ConfigResponse
 type ConfigResponse struct {
-	// Base URL for the agent-manager-observer service
-	ObserverBaseUrl string `json:"observerBaseUrl"`
 	// Whether this deployment accepts console usage analytics. The console buffers and sends nothing when false, so CONSOLE_ANALYTICS_ENABLED on the service is the single switch for the whole path rather than one half of it. Absent is treated as false.
 	ConsoleAnalyticsEnabled *bool `json:"consoleAnalyticsEnabled,omitempty"`
 	// Whether this deployment delivers platform events to event destinations, that is, whether it runs an event bus (EVENTS_MODE is not off). The console hides Events when false. Absent is treated as false.
@@ -31,9 +29,8 @@ type ConfigResponse struct {
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewConfigResponse(observerBaseUrl string) *ConfigResponse {
+func NewConfigResponse() *ConfigResponse {
 	this := ConfigResponse{}
-	this.ObserverBaseUrl = observerBaseUrl
 	return &this
 }
 
@@ -43,30 +40,6 @@ func NewConfigResponse(observerBaseUrl string) *ConfigResponse {
 func NewConfigResponseWithDefaults() *ConfigResponse {
 	this := ConfigResponse{}
 	return &this
-}
-
-// GetObserverBaseUrl returns the ObserverBaseUrl field value
-func (o *ConfigResponse) GetObserverBaseUrl() string {
-	if o == nil {
-		var ret string
-		return ret
-	}
-
-	return o.ObserverBaseUrl
-}
-
-// GetObserverBaseUrlOk returns a tuple with the ObserverBaseUrl field value
-// and a boolean to check if the value has been set.
-func (o *ConfigResponse) GetObserverBaseUrlOk() (*string, bool) {
-	if o == nil {
-		return nil, false
-	}
-	return &o.ObserverBaseUrl, true
-}
-
-// SetObserverBaseUrl sets field value
-func (o *ConfigResponse) SetObserverBaseUrl(v string) {
-	o.ObserverBaseUrl = v
 }
 
 // GetConsoleAnalyticsEnabled returns the ConsoleAnalyticsEnabled field value if set, zero value otherwise.
@@ -143,7 +116,6 @@ func (o ConfigResponse) MarshalJSON() ([]byte, error) {
 
 func (o ConfigResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	toSerialize["observerBaseUrl"] = o.ObserverBaseUrl
 	if !IsNil(o.ConsoleAnalyticsEnabled) {
 		toSerialize["consoleAnalyticsEnabled"] = o.ConsoleAnalyticsEnabled
 	}

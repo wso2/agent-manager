@@ -183,7 +183,7 @@ func TestEventSubscriptionService_EventTypesFollowTheScope(t *testing.T) {
 		{orgTarget, []string{"project.created", "agent.deployed", "agent.created"}, true},
 		{projectTarget, []string{"agent.created", "agent.deployed"}, true},
 		{projectTarget, []string{"project.deleted"}, false}, // an org event
-		{agentTarget, []string{"agent.deployed", events.TypeMonitorRunFailed}, true},
+		{agentTarget, []string{"agent.deployed", "agent.api_key_revoked"}, true},
 		{agentTarget, []string{"agent.created"}, false}, // a project event
 		{agentTarget, []string{"agent.teleported"}, false},
 		{agentTarget, []string{events.TypeDestinationTest}, false},

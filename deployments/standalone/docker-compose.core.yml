@@ -1,0 +1,19 @@
+# amp-core: the core binary with no modules, so no AI Gateway. Builds from
+# the checkout, so use it with docker-compose.build.yml (`make up-core`).
+
+services:
+  amp-init:
+    image: ${AMP_CORE_IMAGE:-amp-api:lite-core}
+    command: ["init", "thunder", "/out/thunder", "fileauth", "/out/fileauth"]
+
+  amp-api:
+    image: ${AMP_CORE_IMAGE:-amp-api:lite-core}
+    build:
+      args: { DISTRIBUTION: amp-core }
+
+  # Kept out of the stack; `--profile gateway` would start them, and they
+  # would find no control plane to connect to.
+  gateway-controller:
+    profiles: [gateway]
+  gateway-runtime:
+    profiles: [gateway]

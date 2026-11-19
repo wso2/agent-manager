@@ -33,6 +33,7 @@ import type {
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 
 /**
  * Hook to list an MCP proxy's scopes
@@ -41,11 +42,12 @@ export function useListMCPProxyScopes(
   params: MCPProxyScopesPathParams,
   options?: { enabled?: boolean },
 ) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<MCPProxyScopeListResponse>({
     queryKey: ['mcp-proxy-scopes', params],
     queryFn: () => listMCPProxyScopes(params, getToken),
-    enabled: (options?.enabled ?? true) && !!params.orgName && !!params.proxyId,
+    enabled: gatewayPresent && (options?.enabled ?? true) && !!params.orgName && !!params.proxyId,
   });
 }
 

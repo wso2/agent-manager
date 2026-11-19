@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
 func setupConfigMux() *http.ServeMux {
@@ -32,19 +31,7 @@ func setupConfigMux() *http.ServeMux {
 	return mux
 }
 
-func withObserverPublicURL(t *testing.T, url string) {
-	t.Helper()
-	cfg := config.GetConfig()
-	orig := cfg.Observer.PublicURL
-	t.Cleanup(func() {
-		cfg.Observer.PublicURL = orig
-	})
-	cfg.Observer.PublicURL = url
-}
-
 func TestConfigEndpoint_HappyPath(t *testing.T) {
-	withObserverPublicURL(t, "https://observer.example.com")
-
 	mux := setupConfigMux()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
 	rec := httptest.NewRecorder()
@@ -57,56 +44,19 @@ func TestConfigEndpoint_HappyPath(t *testing.T) {
 		t.Errorf("expected Content-Type application/json, got %q", ct)
 	}
 
-	var body spec.ConfigResponse
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body.ObserverBaseUrl != "https://observer.example.com" {
-		t.Errorf("observerBaseUrl = %q, want %q", body.ObserverBaseUrl, "https://observer.example.com")
-	}
-}
-
-func TestConfigEndpoint_EmptyURLStillReturns200(t *testing.T) {
-	withObserverPublicURL(t, "")
-
-	mux := setupConfigMux()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d", rec.Code)
-	}
-
-	var body spec.ConfigResponse
-	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
-		t.Fatalf("decode: %v", err)
-	}
-	if body.ObserverBaseUrl != "" {
-		t.Errorf("observerBaseUrl = %q, want empty", body.ObserverBaseUrl)
-	}
-}
-
-func TestConfigEndpoint_FieldNameIsCamelCase(t *testing.T) {
-	withObserverPublicURL(t, "https://observer.example.com")
-
-	mux := setupConfigMux()
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
-	rec := httptest.NewRecorder()
-	mux.ServeHTTP(rec, req)
-
 	var raw map[string]any
 	if err := json.NewDecoder(rec.Body).Decode(&raw); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
-	if _, ok := raw["observerBaseUrl"]; !ok {
-		t.Errorf("expected camelCase field observerBaseUrl, got %v", raw)
+	if _, ok := raw["eventsEnabled"].(bool); !ok {
+		t.Errorf("expected a boolean eventsEnabled in %v", raw)
+	}
+	if _, ok := raw["observerBaseUrl"]; ok {
+		t.Errorf("observerBaseUrl is no longer served, got %v", raw)
 	}
 }
 
 func TestConfigEndpoint_MethodNotAllowed(t *testing.T) {
-	withObserverPublicURL(t, "https://observer.example.com")
-
 	mux := setupConfigMux()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/config", nil)
 	rec := httptest.NewRecorder()
@@ -118,8 +68,6 @@ func TestConfigEndpoint_MethodNotAllowed(t *testing.T) {
 }
 
 func TestConfigEndpoint_NoAuthRequired(t *testing.T) {
-	withObserverPublicURL(t, "https://observer.example.com")
-
 	mux := setupConfigMux()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
 	rec := httptest.NewRecorder()
@@ -131,8 +79,6 @@ func TestConfigEndpoint_NoAuthRequired(t *testing.T) {
 }
 
 func TestConfigEndpoint_CORSHeadersPresentForCrossOriginRequest(t *testing.T) {
-	withObserverPublicURL(t, "https://observer.example.com")
-
 	origin := config.GetConfig().CORSAllowedOrigin
 	mux := setupConfigMux()
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/config", nil)
@@ -149,8 +95,6 @@ func TestConfigEndpoint_CORSHeadersPresentForCrossOriginRequest(t *testing.T) {
 }
 
 func TestConfigEndpoint_PreflightOptionsSucceeds(t *testing.T) {
-	withObserverPublicURL(t, "https://observer.example.com")
-
 	origin := config.GetConfig().CORSAllowedOrigin
 	mux := setupConfigMux()
 	req := httptest.NewRequest(http.MethodOptions, "/api/v1/config", nil)

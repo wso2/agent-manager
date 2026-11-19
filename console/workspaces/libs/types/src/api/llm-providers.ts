@@ -586,7 +586,7 @@ export type ListLLMProxyAPIKeysPathParams = LLMProxyPathParams;
 // LLM provider consumers
 // -----------------------------------------------------------------------------
 
-export type LLMProviderConsumerType = "agent" | "monitor";
+export type LLMProviderConsumerType = "agent";
 
 export interface LLMProviderConsumerItem {
   proxyId: string;

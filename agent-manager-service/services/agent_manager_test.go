@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -28,7 +29,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/clientmocks"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
@@ -271,7 +271,7 @@ func TestUpdateAgentBasicInfo_PassesLabelsThroughToClient(t *testing.T) {
 				GetAgentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
 					return &models.AgentResponse{Name: "agent-1"}, nil
 				},
-				UpdateAgentBasicInfoFunc: func(_ context.Context, _, _, _, _, _ string, labels *map[string]string) error {
+				UpdateAgentBasicInfoFunc: func(_ context.Context, _, _, _, _, _ string, labels *map[string]string, _ map[string]json.RawMessage) error {
 					captured = labels
 					return nil
 				},
@@ -349,37 +349,6 @@ func TestListAgents_LabelsPassThroughUnmodified(t *testing.T) {
 
 func int32Ptr(v int32) *int32 {
 	return &v
-}
-
-func TestResolveResilienceTimeoutSeconds(t *testing.T) {
-	tests := []struct {
-		name      string
-		existing  *models.AgentConfig
-		requested *int32
-		withDef   bool
-		want      int32
-		wantErr   bool
-	}{
-		{"nothing set, withDefaults=true falls back to default", nil, nil, true, constants.DefaultResilienceTimeoutSeconds, false},
-		{"nothing set, withDefaults=false yields zero (no override)", nil, nil, false, 0, false},
-		{"existing DB value is used", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, nil, false, 60, false},
-		{"request overrides existing DB value", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(90), false, 90, false},
-		{"out-of-bounds request is rejected", &models.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(10000), false, 0, true},
-		{"minimum bound is accepted", nil, int32Ptr(constants.MinResilienceTimeoutSeconds), false, constants.MinResilienceTimeoutSeconds, false},
-		{"maximum bound is accepted", nil, int32Ptr(constants.MaxResilienceTimeoutSeconds), false, constants.MaxResilienceTimeoutSeconds, false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			got, err := resolveResilienceTimeoutSeconds(tc.existing, tc.requested, tc.withDef)
-			if tc.wantErr {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, utils.ErrInvalidInput)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
-		})
-	}
 }
 
 func TestPopulateCreatedBy_NoProvisioning_LeavesUnset(t *testing.T) {
@@ -643,4 +612,24 @@ func TestListOrgAgents_ProjectListFailurePropagates(t *testing.T) {
 
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, utils.ErrOrganizationNotFound, "an unrelated openchoreo failure must not be masked as not-found")
+}
+
+// Without a module that binds agents to LLM providers, a create that asks for
+// one is refused before anything is written, with a message naming the field.
+func TestCreateAgent_ModelConfigWithoutLLMCapabilityIsRefused(t *testing.T) {
+	platform := &repomocks.PlatformRepositoryMock{
+		GetEnvironmentFunc: func(_ context.Context, _, envName string) (*models.EnvironmentResponse, error) {
+			return &models.EnvironmentResponse{Name: envName}, nil
+		},
+	}
+	s := &agentManagerService{platform: platform, logger: discardLogger()}
+	err := s.CreateAgent(context.Background(), "ou", "proj", &spec.CreateAgentRequest{
+		Name: "a", DisplayName: "A", Provisioning: spec.Provisioning{Type: string(utils.ExternalAgent)},
+		ModelConfig: []spec.ModelConfigRequest{{ProviderName: "openai"}},
+	})
+	require.ErrorIs(t, err, utils.ErrInvalidInput)
+	verr := utils.IsValidationError(err)
+	require.NotNil(t, verr)
+	require.Contains(t, verr.Message, "modelConfig")
+	require.Empty(t, platform.CreateAgentCalls(), "nothing is written")
 }

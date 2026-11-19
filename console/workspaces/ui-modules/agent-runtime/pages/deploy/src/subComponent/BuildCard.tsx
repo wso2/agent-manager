@@ -47,7 +47,7 @@ import {
   Rocket,
   Tag,
 } from "@wso2/oxygen-ui-icons-react";
-import { StateNotice } from "@agent-management-platform/views";
+import { StateNotice, useIsUIModuleInstalled } from "@agent-management-platform/views";
 import { EditDeployConfigDrawer } from "./EditDeployConfigDrawer";
 import { BuildSelectorDrawer } from "./BuildSelectorDrawer";
 import { KindVersionSelectorDrawer } from "./KindVersionSelectorDrawer";
@@ -258,6 +258,9 @@ export function BuildCard(props: BuildCardProps) {
   );
 
   // ── Kind-agent data ─────────────────────────────────────────────────────────
+  // Kind versions come from the Agent Portal module; without it the kind query
+  // stays idle and a kind agent has nothing to deploy from here.
+  const portalInstalled = useIsUIModuleInstalled("agent-portal");
   const { data: kind, isLoading: isKindLoading } = useGetAgentKind({
     orgName: orgId,
     kindName: agent?.kindName  ?? "",
@@ -408,6 +411,23 @@ export function BuildCard(props: BuildCardProps) {
 
   // ── Kind agent branch ───────────────────────────────────────────────────────
   if (isKindAgent) {
+    if (portalInstalled === false) {
+      return (
+        <Card
+          variant="outlined"
+          sx={{ height: "fit-content", width: 350, minWidth: 350 }}
+        >
+          <CardContent>
+            <StateNotice
+              compact
+              icon={Tag}
+              title="Agent Portal is off"
+              description="This agent deploys from a catalog kind's published versions, which come from the Agent Portal module."
+            />
+          </CardContent>
+        </Card>
+      );
+    }
     if (sortedKindVersions.length === 0) {
       return (
         <Card

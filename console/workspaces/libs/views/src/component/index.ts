@@ -49,3 +49,5 @@ export * from './TimeRangeSelector';
 export * from './TokenExpirySelector';
 export * from './PageHeaderContext';
 export * from './UIModuleStatus';
+export * from './AgentTypes';
+export * from './ResourceSummaries';

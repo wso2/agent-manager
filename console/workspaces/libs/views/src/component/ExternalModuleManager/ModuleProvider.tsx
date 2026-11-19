@@ -33,6 +33,10 @@ export interface ExternalPageModule extends ExternalModuleCore {
 export interface ExternalComponentModule extends ExternalModuleCore {
   component: React.ComponentType<Record<string, unknown>>;
   kind: 'component';
+  /** Sort key at the mount point (plugin panels); modules are listed in this order. */
+  order?: number;
+  /** Requested width where the mount point lays panels out in rows. */
+  width?: 'full' | 'half';
 }
 
 export interface ExternalNavItem extends ExternalModuleCore {

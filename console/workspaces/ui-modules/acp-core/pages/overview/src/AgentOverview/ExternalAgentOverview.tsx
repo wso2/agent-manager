@@ -16,37 +16,25 @@
  * under the License.
  */
 
-import { globalConfig } from '@agent-management-platform/types';
 import { Box, Button, Skeleton } from "@wso2/oxygen-ui";
 import { Settings } from "@wso2/oxygen-ui-icons-react";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
-  useGetAgent,
-  useListGateways,
-} from "@agent-management-platform/api-client";
-import {
   DeploymentStatus,
   EnvironmentCard,
   usePipelineEnvironmentsState,
+  UppercaseCaptionLabel,
 } from "@agent-management-platform/shared-component";
-import { InstrumentationDrawer } from "./InstrumentationDrawer";
-import { otelGatewayVhost } from "./otelGateway";
+import { SetupAgentDrawer } from "./SetupAgentDrawer";
 import { NoDataFound } from "@agent-management-platform/views";
 import { EnvironmentSectionsContent } from "./EnvironmentSectionsContent";
 import { EnvironmentSingleHeader } from "./EnvironmentSingleHeader";
 import { EnvironmentTabsBar } from "./EnvironmentTabsBar";
-import { UppercaseCaptionLabel } from "./SectionHeader";
 import { ENV_SEARCH_PARAM, useSelectedEnvironmentParam } from "./useSelectedEnvironmentParam";
 
 export const ExternalAgentOverview = () => {
   const { agentId, orgId, projectId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
-
-  const { data: agent } = useGetAgent({
-    orgName: orgId,
-    projName: projectId,
-    agentName: agentId,
-  });
 
   // Show only the environments in the current project's deployment pipeline,
   // ordered by the promotion chain. isLoading covers environments + project + pipelines.
@@ -55,26 +43,6 @@ export const ExternalAgentOverview = () => {
   const { selectedEnvironment, selectEnvironment } =
     useSelectedEnvironmentParam(sortedEnvironmentList);
   const selectedEnvironmentId = selectedEnvironment?.id ?? "";
-
-  // OTEL endpoint for the Setup Agent panel. By default it is derived per
-  // environment: the gateway mapped to the selected environment carries the
-  // externally-reachable vhost, and the OTEL RestApi is published at
-  // `<vhost>/otel`; the configured URL is the fallback until that lookup
-  // resolves. A deployment that sets useConfiguredInstrumentationUrl takes the
-  // configured URL as-is, so the gateway lookup is skipped entirely.
-  // useListGateways has no `enabled` option, so orgName is withheld until the
-  // lookup is actually needed to avoid firing a throwaway request.
-  const derivesUrlFromGateway = !globalConfig.useConfiguredInstrumentationUrl;
-  const { data: envGatewayList } = useListGateways(
-    { orgName: derivesUrlFromGateway && selectedEnvironmentId ? (orgId ?? "") : "" },
-    { environment: selectedEnvironmentId },
-  );
-  const envGatewayVhost = derivesUrlFromGateway
-    ? otelGatewayVhost(envGatewayList?.gateways)
-    : undefined;
-  const agentInstrumentationUrl = envGatewayVhost
-    ? `${envGatewayVhost.replace(/\/$/, "")}/otel`
-    : (globalConfig.instrumentationUrl || "http://default-default.gateway.localhost:19080/otel");
 
   // Sets both the selected environment and setup=true in one functional
   // update — two separate setSearchParams calls in the same handler would
@@ -173,17 +141,13 @@ export const ExternalAgentOverview = () => {
           )
         )}
       </Box>
-      <InstrumentationDrawer
+      <SetupAgentDrawer
         open={searchParams.get("setup") === "true" && selectedEnvironmentId !== ""}
         onClose={closeSetupDrawer}
-        agentId={agentId ?? ""}
         orgName={orgId ?? "default"}
         projName={projectId ?? "default"}
         agentName={agentId ?? ""}
         environment={selectedEnvironment?.name}
-        instrumentationUrl={agentInstrumentationUrl}
-        componentUid={agent?.uuid}
-        environmentUid={selectedEnvironmentId}
         autoGenerate
       />
     </>

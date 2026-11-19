@@ -2,7 +2,8 @@
 # build-standalone-bundle.sh — package the Docker Compose bundle attached to a release.
 #
 # The bundle is deployments/standalone without the overlays that build from
-# source (docker-compose.build.yml, docker-compose.dev.yml), so
+# source (docker-compose.build.yml, docker-compose.dev.yml,
+# docker-compose.core.yml), so
 # `tar xzf … && cd standalone && cp .env.example .env && docker compose up -d --wait`
 # runs the released images with nothing else to download from this repository.
 # Run pin-standalone-images.sh first.
@@ -24,6 +25,7 @@ tar -czf "$BUNDLE" \
     -C deployments \
     --exclude 'standalone/docker-compose.dev.yml' \
     --exclude 'standalone/docker-compose.build.yml' \
+    --exclude 'standalone/docker-compose.core.yml' \
     --exclude 'standalone/.env' \
     standalone
 

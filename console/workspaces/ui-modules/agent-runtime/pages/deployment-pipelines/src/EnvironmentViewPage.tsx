@@ -31,7 +31,6 @@ import {
 import { AlertTriangle, Copy, DoorClosedLocked, Edit, KeyRound } from "@wso2/oxygen-ui-icons-react";
 import {
   useEnvironmentFeatures,
-  useFeatureFlag,
   useGatewayFeatures,
 } from "@agent-management-platform/feature-management";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
@@ -53,7 +52,7 @@ import {
   type GatewayResponse,
   type GatewayStatus,
 } from "@agent-management-platform/types";
-import { PageLayout, useSnackBar } from "@agent-management-platform/views";
+import { PageLayout, useIsUIModuleInstalled, useSnackBar } from "@agent-management-platform/views";
 
 const monoEllipsisSx = {
   fontFamily: "monospace",
@@ -103,9 +102,10 @@ export function EnvironmentViewPage() {
 
   const gateways = gatewaysData?.gateways ?? [];
 
-  // Thunder Id is part of the Agent ID feature set; skip the fetch entirely when
-  // the flag is off so the hidden section costs nothing.
-  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
+  // Thunder Id belongs to Agent Identity: skip the fetch entirely when that
+  // module is off (left out by the server UI manifest, or not installed: its install
+  // check is the enableAgentIdentity flag), so the hidden section costs nothing.
+  const agentIdEnabled = useIsUIModuleInstalled("agent-identity") === true;
 
   const { data: thunderInstancesData, isLoading: isLoadingProviders } =
     useListThunderInstances({ orgName: agentIdEnabled ? orgId : undefined });

@@ -35,7 +35,6 @@ export function encodeRequired(value: string | undefined, label: string): string
   }
   return encodeURIComponent(value);
 }
-export const OBS_SERVICE_BASE = '/api';
 export const POLL_INTERVAL = 5000;
 export const SLOW_POLL_INTERVAL = 15000;
 
@@ -208,10 +207,9 @@ export function isObserverConfigured(): boolean {
 }
 
 /**
- * Same as httpGET but calls the observer service directly using the
- * observer base URL discovered at runtime via GET /api/v1/config.
- * Throws if the observer is not configured — the agent-manager no longer
- * serves traces routes, so silently falling back would produce opaque 404s.
+ * Same as httpGET but calls the observer service directly, at the base URL
+ * given to setObserverBaseUrl. Throws when none was given, which is the case
+ * on a deployment with no trace service.
  */
 export async function httpGETObserver(
     context: string,
@@ -220,7 +218,7 @@ export async function httpGETObserver(
     const obsUrl = observerBaseUrl;
     if (!obsUrl) {
         throw new Error(
-            'Observer is not configured. Set AM_OBSERVER_PUBLIC_URL on the agent-manager service.'
+            'Observer is not configured: this deployment does not run a trace service.'
         );
     }
     const baseUrl = obsUrl;

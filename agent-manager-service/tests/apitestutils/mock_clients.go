@@ -18,6 +18,7 @@ package apitestutils
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 
@@ -80,8 +81,11 @@ func CreateMockPlatformRepository() *repomocks.PlatformRepositoryMock {
 				Provisioning: models.Provisioning{Type: "external"},
 			}, nil
 		},
-		UpdateAgentBasicInfoFunc: func(context.Context, string, string, string, string, string, *map[string]string) error { return nil },
-		DeleteAgentFunc:          func(context.Context, string, string, string) error { return nil },
+		UpdateAgentBasicInfoFunc: func(context.Context, string, string, string, string, string, *map[string]string, map[string]json.RawMessage) error {
+			return nil
+		},
+		CheckDeleteAgentFunc: func(context.Context, string, string, string) error { return nil },
+		DeleteAgentFunc:      func(context.Context, string, string, string) error { return nil },
 		ListAgentsFunc: func(context.Context, string, string) ([]*models.AgentResponse, error) {
 			return []*models.AgentResponse{}, nil
 		},

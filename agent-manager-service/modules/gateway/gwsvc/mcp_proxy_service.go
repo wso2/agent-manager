@@ -1,0 +1,2599 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"maps"
+	"net/http"
+	"regexp"
+	"slices"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
+	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
+	"gorm.io/gorm"
+)
+
+// mcpProxyHandleRe constrains proxy handles to kebab-case. The handle becomes the
+// Thunder resource-server handle (delimiter ":"), so it must never contain ":" and
+// must fit Thunder's 100-char handle cap; kebab is a strict subset of both.
+var mcpProxyHandleRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+
+// maxMCPProxyDeploymentHandleLength bounds the per-(endpoint,environment) gateway artifact
+// name/displayName that deployment builds via mcpProxyEnvArtifactHandle. The gateway rejects a
+// displayName outside 1-100 chars, and that rejection happens asynchronously after Create/Update
+// has already returned 201/200, so a too-long handle deploys nothing while the caller sees
+// success — surfacing later only as 404s on the MCP route. Validate it up front instead and fail
+// with a clear, actionable error.
+const maxMCPProxyDeploymentHandleLength = 100
+
+const (
+	mcpJSONRPCVersion       = "2.0"
+	mcpSpecVersionJune2025  = "2025-06-18"
+	mcpSpecVersionJuly2026  = "2026-07-28"
+	mcpMethodServerDiscover = "server/discover"
+	mcpMethodInitialize     = "initialize"
+	mcpMethodInitialized    = "notifications/initialized"
+	mcpMethodToolsList      = "tools/list"
+	mcpMethodPromptsList    = "prompts/list"
+	mcpMethodResourcesList  = "resources/list"
+	mcpClientName           = "agent-manager-mcp-client"
+	mcpClientVersion        = "1.0.0"
+	mcpSessionHeader        = "Mcp-Session-Id"
+	mcpRequestTimeout       = 10 * time.Second
+	// mcpServerInfoDeadline bounds a whole fetch-server-info probe, which makes
+	// several upstream calls of up to mcpRequestTimeout each.
+	mcpServerInfoDeadline = 20 * time.Second
+	maxMCPResponseBody    = 10 << 20
+	// JSON-RPC error codes that MCP 2026-07-28 defines. Only servers on 2026-07-28 or later send
+	// them; earlier servers use -32000 to -32019 for their own errors.
+	mcpErrorHeaderMismatch                  = -32020
+	mcpErrorMissingRequiredClientCapability = -32021
+	mcpErrorUnsupportedProtocolVersion      = -32022
+)
+
+// MCPProxyService handles MCP proxy operations.
+type MCPProxyService struct {
+	db                   *gorm.DB
+	tx                   TxRunner
+	repo                 gwrepo.MCPProxyRepository
+	endpointRepo         gwrepo.MCPProxyEndpointRepository
+	deploymentRepo       gwrepo.DeploymentRepository
+	gatewayRepo          gwrepo.GatewayRepository
+	envMCPMappingRepo    gwrepo.EnvAgentMCPMappingRepository
+	artifactRepo         gwrepo.ArtifactRepository
+	agentConfigRepo      gwrepo.AgentConfigurationRepository
+	mcpProxyScopeRepo    gwrepo.MCPProxyScopeRepository
+	gatewayEventsService *GatewayEventsService
+	apiKeyBroadcaster    apiKeyBroadcaster
+	infraManager         services.InfraResourceManager
+	client               *http.Client
+	logger               *slog.Logger
+	encryptionKey        []byte
+	resolver             thundersvc.EnvThunderResolver
+	core                 *reconcile.Core
+	kind                 *MCPProxyKind
+	isExternalAgent      externalAgentLookup
+	// getProject resolves a project by name; nil treats every project as existing.
+	getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
+}
+
+// externalAgentLookup reports whether the named agent of an organization is an external agent
+// (one that does not run on the platform). An unknown agent fails with utils.ErrNotFound.
+type externalAgentLookup func(ctx context.Context, ouID, agentName string) (bool, error)
+
+// NewMCPProxyService creates a new MCP proxy service.
+func NewMCPProxyService(
+	db *gorm.DB,
+	repo gwrepo.MCPProxyRepository,
+	endpointRepo gwrepo.MCPProxyEndpointRepository,
+	deploymentRepo gwrepo.DeploymentRepository,
+	gatewayRepo gwrepo.GatewayRepository,
+	envMCPMappingRepo gwrepo.EnvAgentMCPMappingRepository,
+	agentConfigRepo gwrepo.AgentConfigurationRepository,
+	gatewayEventsService *GatewayEventsService,
+	apiKeyRepo gwrepo.APIKeyRepository,
+	infraManager services.InfraResourceManager,
+	logger *slog.Logger,
+	encryptionKey []byte,
+	mcpProxyScopeRepo gwrepo.MCPProxyScopeRepository,
+	resolver thundersvc.EnvThunderResolver,
+	core *reconcile.Core,
+	kind *MCPProxyKind,
+	ocClient repositories.PlatformRepository,
+) *MCPProxyService {
+	var getProject func(ctx context.Context, ouID, projectName string) (*models.ProjectResponse, error)
+	if ocClient != nil {
+		getProject = ocClient.GetProject
+	}
+	return &MCPProxyService{
+		isExternalAgent:      externalAgentLookupFrom(ocClient),
+		getProject:           getProject,
+		core:                 core,
+		kind:                 kind,
+		db:                   db,
+		tx:                   NewTxRunner(db),
+		repo:                 repo,
+		endpointRepo:         endpointRepo,
+		deploymentRepo:       deploymentRepo,
+		gatewayRepo:          gatewayRepo,
+		envMCPMappingRepo:    envMCPMappingRepo,
+		agentConfigRepo:      agentConfigRepo,
+		artifactRepo:         gwrepo.NewArtifactRepo(db),
+		mcpProxyScopeRepo:    mcpProxyScopeRepo,
+		gatewayEventsService: gatewayEventsService,
+		apiKeyBroadcaster: apiKeyBroadcaster{
+			gatewayRepo:    gatewayRepo,
+			gatewayService: gatewayEventsService,
+			apiKeyRepo:     apiKeyRepo,
+		},
+		infraManager:  infraManager,
+		client:        ssrf.NewClient(mcpRequestTimeout),
+		logger:        logger,
+		encryptionKey: encryptionKey,
+		resolver:      resolver,
+	}
+}
+
+// externalAgentLookupFrom reads an agent's provisioning type from its agent record. The
+// component is looked up by organization and name only, so no project is passed.
+func externalAgentLookupFrom(ocClient repositories.PlatformRepository) externalAgentLookup {
+	if ocClient == nil {
+		return nil
+	}
+	return func(ctx context.Context, ouID, agentName string) (bool, error) {
+		component, err := ocClient.GetAgent(ctx, ouID, "", agentName)
+		if err != nil {
+			return false, err
+		}
+		return isExternalProvisioned(component), nil
+	}
+}
+
+// mcpDeployErrorIsFatal reports whether a gateway-resolution error is one of the four
+// placement errors: caller misconfiguration that must surface as a 4xx. errNoGatewayForEnvironment
+// is not one: it is a timing condition, and mapping a gateway places the binding.
+func mcpDeployErrorIsFatal(err error) bool {
+	if err == nil {
+		return false
+	}
+	return errors.Is(err, errNoEgressGatewayForEnvironment) ||
+		errors.Is(err, errAmbiguousEgressGateway) ||
+		errors.Is(err, errInvalidEgressGateway) ||
+		errors.Is(err, errPlacementFixed)
+}
+
+// mcpDeployRejection is the 4xx a save's deploy error maps to: an artifact that can't render, a context that clashes
+// on the gateway, or one of the four placement errors; nil for any other error.
+func mcpDeployRejection(err error) error {
+	switch {
+	case mcpDeployErrorIsFatal(err):
+		return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	case errors.Is(err, utils.ErrInvalidInput), errors.Is(err, utils.ErrContextInUse):
+		return err
+	}
+	return nil
+}
+
+// deploySavedMCPProxy re-reads the proxy saved in tx, with the request's explicit gateways, and deploys its
+// per-environment artifacts in tx.
+func (s *MCPProxyService) deploySavedMCPProxy(
+	ctx context.Context, tx *gorm.DB, handle, orgUUID string, endpoints []models.MCPProxyEndpointDTO,
+) error {
+	saved, err := s.repo.GetByHandleForUpdate(ctx, tx, handle, orgUUID)
+	if err != nil {
+		return fmt.Errorf("failed to read the saved MCP proxy: %w", err)
+	}
+	applyRequestedGatewayUUIDs(saved, endpoints)
+	return s.deployMCPProxyEndpoints(ctx, tx, saved, orgUUID)
+}
+
+// Create creates a new MCP proxy and its endpoints.
+//
+// Each endpoint is the deployable proxy definition; one endpoint deploys to 1..N
+// environments. Within the proxy an environment maps to at most one endpoint
+// (uq_proxy_env_single), so the (endpoint, env) rows carry the stable per-deployment
+// gateway artifact identity that agents later reuse.
+func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string, req *models.MCPProxyDTO) (*models.MCPProxyDTO, error) {
+	if req == nil {
+		return nil, utils.ErrInvalidInput
+	}
+
+	handle := strings.TrimSpace(req.ID)
+	name := strings.TrimSpace(req.Name)
+	version := strings.TrimSpace(req.Version)
+	if handle == "" || name == "" || version == "" {
+		return nil, utils.ErrInvalidInput
+	}
+
+	if len(handle) > 100 || !mcpProxyHandleRe.MatchString(handle) {
+		return nil, fmt.Errorf("%w: proxy id must be kebab-case (lowercase letters, digits, single hyphens) and at most 100 characters", utils.ErrInvalidInput)
+	}
+
+	if err := validateMCPEndpoints(req.Endpoints); err != nil {
+		return nil, err
+	}
+	if err := validateMCPSpecVersionsInRequest(req.McpSpecVersion, req.Endpoints); err != nil {
+		return nil, err
+	}
+	if err := validateMCPProxyDeploymentHandleLengths(handle, req.Endpoints); err != nil {
+		return nil, err
+	}
+	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, nil); err != nil {
+		return nil, err
+	}
+	exempt, err := s.validateMCPEndpointPlacement(ctx, orgUUID, uuid.Nil, req.Endpoints, nil)
+	if err != nil {
+		return nil, err
+	}
+	deployEndpoints := pinExemptGateways(req.Endpoints, exempt)
+	endpoints, err := s.buildMCPEndpointsForStorage(req.Endpoints, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	exists, err := s.repo.Exists(ctx, handle, orgUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check MCP proxy existence: %w", err)
+	}
+	if exists {
+		return nil, fmt.Errorf("%w: proxy id %q is already in use", utils.ErrMCPProxyExists, handle)
+	}
+
+	proxy := &models.MCPProxy{
+		Description: valueOrEmpty(req.Description),
+		CreatedBy:   createdBy,
+		Status:      models.StatusCreated,
+		Configuration: models.MCPProxyConfig{
+			Name:        name,
+			Version:     version,
+			Context:     req.Context,
+			Vhost:       req.Vhost,
+			SpecVersion: valueOrEmpty(req.McpSpecVersion),
+		},
+	}
+
+	// Each endpoint deploys one gateway artifact per target environment, in the creating transaction. These are the
+	// only artifacts the proxy contributes to any gateway; agent configurations that reference it deploy nothing and
+	// instead reuse the endpoint's per-environment artifacts. An environment with no gateway yet is placed when one
+	// is mapped.
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := s.repo.Create(ctx, tx, proxy, handle, name, version, orgUUID, nil, nil); err != nil {
+			return err
+		}
+		if err := s.persistMCPEndpoints(ctx, tx, proxy.UUID, handle, version, endpoints, orgUUID); err != nil {
+			return err
+		}
+		return s.deploySavedMCPProxy(ctx, tx, handle, orgUUID, deployEndpoints)
+	}); err != nil {
+		if rejected := mcpDeployRejection(err); rejected != nil {
+			return nil, rejected
+		}
+		if mapped := s.mapMCPProxyWriteError(err, handle, orgUUID); mapped != nil {
+			return nil, mapped
+		}
+		return nil, fmt.Errorf("failed to create MCP proxy: %w", err)
+	}
+
+	created, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrMCPProxyNotFound
+		}
+		return nil, fmt.Errorf("failed to retrieve MCP proxy: %w", err)
+	}
+
+	go s.ensureResourceServersForCurrentScopes(context.WithoutCancel(ctx), orgUUID, created)
+	return convertModelMCPProxyToSpec(created), nil
+}
+
+// List retrieves MCP proxies for an organization. With a nil projectUUID it returns
+// org-level proxies only; with one, it also includes that project's proxies (the agent
+// Tools picker). Callers resolve the project to its UUID first.
+func (s *MCPProxyService) List(ctx context.Context, orgUUID string, projectUUID *string, limit, offset int) (*models.MCPProxyListResponse, error) {
+	proxies, total64, err := s.repo.List(ctx, orgUUID, gwrepo.MCPProxyListFilter{
+		ProjectUUID:     projectUUID,
+		IncludeOrgOwned: projectUUID != nil,
+		Limit:           limit,
+		Offset:          offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list MCP proxies: %w", err)
+	}
+	total := int(total64)
+
+	resp := &models.MCPProxyListResponse{
+		Count: len(proxies),
+		List:  make([]models.MCPProxyListItem, 0, len(proxies)),
+		Pagination: models.PaginationInfo{
+			Count:  total,
+			Limit:  limit,
+			Offset: offset,
+		},
+	}
+	for _, proxy := range proxies {
+		resp.List = append(resp.List, convertModelMCPProxyToListItem(proxy))
+	}
+	return resp, nil
+}
+
+// ListAvailableMCPPolicies returns the policy versions every catalog gateway in the organization
+// (listCatalogGateways) reports. Gateways that have not reported a manifest yet are left out
+// (see gatewayManifest).
+func (s *MCPProxyService) ListAvailableMCPPolicies(ctx context.Context, orgUUID string) (*models.MCPPolicyAvailabilityResponse, error) {
+	_ = ctx
+	if s.gatewayRepo == nil {
+		return &models.MCPPolicyAvailabilityResponse{List: []models.MCPPolicyAvailableItem{}}, nil
+	}
+
+	gateways, err := listCatalogGateways(s.gatewayRepo, orgUUID)
+	if err != nil {
+		return nil, err
+	}
+
+	var available map[string]models.MCPPolicyAvailableItem
+	seenGateway := false
+	for _, gateway := range gateways {
+		manifest, known := gatewayManifest(gateway)
+		if !known {
+			continue
+		}
+		gatewayPolicies := map[string]models.MCPPolicyAvailableItem{}
+		for _, policy := range extractGatewayPolicyManifestItems(manifest) {
+			if policy.Name == "" || policy.Version == "" {
+				continue
+			}
+			key := policy.Name + "\x00" + policy.Version
+			gatewayPolicies[key] = policy
+		}
+		if !seenGateway {
+			available = gatewayPolicies
+			seenGateway = true
+			continue
+		}
+		for key := range available {
+			if _, ok := gatewayPolicies[key]; !ok {
+				delete(available, key)
+			}
+		}
+	}
+
+	if available == nil {
+		available = map[string]models.MCPPolicyAvailableItem{}
+	}
+	items := make([]models.MCPPolicyAvailableItem, 0, len(available))
+	for _, item := range available {
+		items = append(items, item)
+	}
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Name == items[j].Name {
+			return items[i].Version < items[j].Version
+		}
+		return items[i].Name < items[j].Name
+	})
+
+	return &models.MCPPolicyAvailabilityResponse{
+		Count: int32(len(items)),
+		List:  items,
+	}, nil
+}
+
+// Get retrieves an MCP proxy by handle.
+func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*models.MCPProxyDTO, error) {
+	handle := strings.TrimSpace(proxyID)
+	if handle == "" {
+		return nil, utils.ErrInvalidInput
+	}
+
+	proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrMCPProxyNotFound
+		}
+		return nil, fmt.Errorf("failed to get MCP proxy: %w", err)
+	}
+
+	dto := convertModelMCPProxyToSpec(proxy)
+	if dto != nil && proxy.ProjectUUID != nil {
+		// A project proxy is read-only here: report its owner. Its endpoint rows are its
+		// environment bindings, an internal storage shape, so they are left out below; the
+		// per-environment view is the project route's.
+		dto.ProjectName = proxy.ProjectName
+	}
+	if dto != nil && s.deploymentRepo != nil {
+		// Deployments are keyed by each (endpoint, environment) artifact UUID (the proxy's
+		// and endpoint's own UUIDs are never deployed), so aggregate placed gateways across
+		// those artifacts and report each (endpoint, environment) binding's status in MCP's words.
+		gatewaySet := map[string]struct{}{}
+		// Map (endpoint index, env UUID) -> artifact UUID for status lookup.
+		artifactByEndpointEnv := map[uuid.UUID]map[string]uuid.UUID{}
+		for _, endpoint := range proxy.Endpoints {
+			byEnv := map[string]uuid.UUID{}
+			for _, ee := range endpoint.Environments {
+				byEnv[ee.EnvironmentUUID.String()] = ee.ArtifactUUID
+			}
+			artifactByEndpointEnv[endpoint.UUID] = byEnv
+		}
+		for i := range dto.Endpoints {
+			endpointDTO := &dto.Endpoints[i]
+			byEnv := artifactByEndpointEnv[proxy.Endpoints[i].UUID]
+			for j := range endpointDTO.Environments {
+				envBinding := &endpointDTO.Environments[j]
+				status := models.MCPDeploymentStatusUndeployed
+				artifactUUID := byEnv[envBinding.EnvironmentUUID]
+				if artifactUUID != uuid.Nil {
+					rows, err := s.deploymentRepo.StatusRecords(ctx, orgUUID, artifactUUID)
+					if err != nil {
+						s.logger.Warn("Failed to read the deployment status of an MCP proxy endpoint environment",
+							"proxyID", proxy.UUID, "endpoint", endpointDTO.ID, "environment", envBinding.EnvironmentUUID, "ouID", orgUUID, "error", err)
+					} else if row := models.ShownStatusRecord(rows); row != nil {
+						status = models.MCPDeploymentStatusOf(models.UserStatusOf(*row))
+						// One gateway per (artifact, environment) is the invariant, so the placed
+						// row names the binding's gateway.
+						if row.StatusDesired == models.DeploymentStatusDeployed {
+							gatewayID := row.GatewayUUID.String()
+							gatewaySet[gatewayID] = struct{}{}
+							envBinding.GatewayID = &gatewayID
+						}
+					}
+				}
+				envBinding.DeploymentStatus = status
+			}
+		}
+		gateways := make([]string, 0, len(gatewaySet))
+		for gatewayID := range gatewaySet {
+			gateways = append(gateways, gatewayID)
+		}
+		dto.Gateways = gateways
+	}
+	if dto != nil && proxy.ProjectUUID != nil {
+		dto.Endpoints = nil
+	}
+	return dto, nil
+}
+
+// Update modifies an existing MCP proxy and redeploys it to active gateways. Returns
+// the DTO for the response and the underlying model so the caller can cascade further
+// work (e.g. redeploying agent-scoped mapping artifacts).
+func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, req *models.MCPProxyDTO) (*models.MCPProxyDTO, error) {
+	if req == nil {
+		return nil, utils.ErrInvalidInput
+	}
+
+	handle := strings.TrimSpace(proxyID)
+	if handle == "" {
+		return nil, utils.ErrInvalidInput
+	}
+	if strings.TrimSpace(req.ID) != "" && strings.TrimSpace(req.ID) != handle {
+		return nil, utils.ErrInvalidInput
+	}
+
+	name := strings.TrimSpace(req.Name)
+	version := strings.TrimSpace(req.Version)
+	if name == "" || version == "" {
+		return nil, utils.ErrInvalidInput
+	}
+
+	// Refuse a project proxy before any validation or network work; it is re-checked on
+	// the locked row below.
+	if existing, err := s.repo.GetByHandle(ctx, handle, orgUUID); err == nil && existing != nil && existing.ProjectUUID != nil {
+		return nil, utils.ErrMCPProxyProjectOwned
+	}
+
+	// Validate the endpoints outside the transaction so the placement check's DB reads and
+	// network lookups don't hold the row lock. Auth is encrypted inside the transaction because
+	// it may need to preserve the previously stored secret when the client omits it.
+	if err := validateMCPEndpoints(req.Endpoints); err != nil {
+		return nil, err
+	}
+	if err := validateMCPSpecVersionsInRequest(req.McpSpecVersion, req.Endpoints); err != nil {
+		return nil, err
+	}
+	if err := validateMCPProxyDeploymentHandleLengths(handle, req.Endpoints); err != nil {
+		return nil, err
+	}
+	// Load the proxy's current (environment -> artifact) mapping so the identity-security
+	// probe can anchor each environment on its existing deployment instead of re-selecting
+	// from the environment — mirrors indexExistingMCPEndpoints below, done here (outside
+	// the transaction) because the probe itself performs DB reads. A missing proxy is left
+	// to GetByHandleForUpdate inside the transaction, the authoritative existence check.
+	// Any other failure is returned: the placement check needs the proxy to find the agents
+	// that use it.
+	var existingArtifactByEnv map[string]uuid.UUID
+	proxyUUID := uuid.Nil
+	existingProxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to get MCP proxy before update: %w", err)
+	}
+	if err == nil && existingProxy != nil {
+		existingArtifactByEnv = indexExistingMCPEndpoints(existingProxy.Endpoints).artifactByEnv
+		proxyUUID = existingProxy.UUID
+	}
+	if err := s.validateMCPEndpointSecurity(ctx, orgUUID, req.Endpoints, existingArtifactByEnv); err != nil {
+		return nil, err
+	}
+	exempt, err := s.validateMCPEndpointPlacement(ctx, orgUUID, proxyUUID, req.Endpoints, existingArtifactByEnv)
+	if err != nil {
+		return nil, err
+	}
+	deployEndpoints := pinExemptGateways(req.Endpoints, exempt)
+
+	// Captured inside the transaction so removed-(endpoint,env) artifacts can be torn down
+	// from their gateways after the update commits. Keyed by environment UUID because
+	// uq_proxy_env_single guarantees at most one artifact per environment per proxy, so an
+	// environment's artifact identity is stable even if it moves between endpoints.
+	previousEnvArtifacts := map[string]uuid.UUID{}
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		proxy, err := s.repo.GetByHandleForUpdate(ctx, tx, handle, orgUUID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return utils.ErrMCPProxyNotFound
+			}
+			return fmt.Errorf("failed to get MCP proxy before update: %w", err)
+		}
+		if proxy.ProjectUUID != nil {
+			return utils.ErrMCPProxyProjectOwned
+		}
+
+		// Index the existing graph so buildMCPEndpointsForStorage can preserve per-env
+		// artifact UUIDs (agent bindings resolve (proxy, env) -> artifact_uuid) and per-
+		// endpoint upstream secrets when the client omits credentials.
+		existing := indexExistingMCPEndpoints(proxy.Endpoints)
+		for env, artifactUUID := range existing.artifactByEnv {
+			previousEnvArtifacts[env] = artifactUUID
+		}
+
+		endpoints, err := s.buildMCPEndpointsForStorage(req.Endpoints, &existing)
+		if err != nil {
+			return err
+		}
+
+		proxy.Description = valueOrEmpty(req.Description)
+		proxy.Name = name
+		proxy.Version = version
+		proxy.Configuration = models.MCPProxyConfig{
+			Name:        name,
+			Version:     version,
+			Context:     req.Context,
+			Vhost:       req.Vhost,
+			SpecVersion: valueOrEmpty(req.McpSpecVersion),
+		}
+
+		if err := s.repo.Update(ctx, tx, proxy, orgUUID); err != nil {
+			return err
+		}
+
+		// Endpoint config is fully specified on each PUT, so reconcile by replacing the
+		// endpoint set: delete existing endpoints (cascade removes their join rows) and
+		// re-insert. Preserved env artifact UUIDs keep agent bindings resolving, and a
+		// credential the request omitted keeps its secret, which the new row takes over.
+		// The secrets of replaced or removed credentials are released with their rows; an
+		// external vault value is only removed once this transaction commits.
+		var keptSecrets []uuid.UUID
+		for _, endpoint := range endpoints {
+			if endpoint.upstreamSecretID != nil {
+				keptSecrets = append(keptSecrets, *endpoint.upstreamSecretID)
+			}
+		}
+		for _, endpoint := range proxy.Endpoints {
+			if err := s.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID, keptSecrets...); err != nil &&
+				!errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("failed to delete existing MCP proxy endpoint: %w", err)
+			}
+		}
+		proxyHandle := handle
+		if proxy.Artifact != nil && proxy.Artifact.Handle != "" {
+			proxyHandle = proxy.Artifact.Handle
+		}
+		if err := s.persistMCPEndpoints(ctx, tx, proxy.UUID, proxyHandle, version, endpoints, orgUUID); err != nil {
+			return err
+		}
+		// Redeploy the (endpoint,env) artifacts so they pick up the new upstream / auth / policies / context.
+		return s.deploySavedMCPProxy(ctx, tx, handle, orgUUID, deployEndpoints)
+	}); err != nil {
+		if rejected := mcpDeployRejection(err); rejected != nil {
+			return nil, rejected
+		}
+		if errors.Is(err, utils.ErrMCPProxyNotFound) {
+			return nil, err
+		}
+		if mapped := s.mapMCPProxyWriteError(err, handle, orgUUID); mapped != nil {
+			return nil, mapped
+		}
+		return nil, fmt.Errorf("failed to update MCP proxy: %w", err)
+	}
+
+	updated, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, utils.ErrMCPProxyNotFound
+		}
+		return nil, fmt.Errorf("failed to retrieve MCP proxy: %w", err)
+	}
+
+	// Tear down the artifacts of environments no longer bound.
+	stillBound := map[string]struct{}{}
+	for _, endpoint := range updated.Endpoints {
+		for _, ee := range endpoint.Environments {
+			stillBound[ee.EnvironmentUUID.String()] = struct{}{}
+		}
+	}
+	var removedArtifacts []uuid.UUID
+	for env, artifactUUID := range previousEnvArtifacts {
+		if _, ok := stillBound[env]; !ok {
+			removedArtifacts = append(removedArtifacts, artifactUUID)
+		}
+	}
+	if len(removedArtifacts) > 0 {
+		if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, removedArtifacts, orgUUID); err != nil {
+			s.logger.Warn("Failed to delete removed MCP proxy endpoint artifacts", "proxyID", updated.UUID, "error", err)
+		}
+	}
+
+	// Re-ensure resource servers now that bindings are live.
+	go s.ensureResourceServersForCurrentScopes(context.WithoutCancel(ctx), orgUUID, updated)
+
+	return convertModelMCPProxyToSpec(updated), nil
+}
+
+// Delete removes an MCP proxy by handle. MCP proxy mappings are deployable artifacts
+// derived from an MCP proxy, so the source proxy cannot be deleted while mappings exist.
+// A project proxy is refused (utils.ErrMCPProxyProjectOwned) unless the platform store no longer
+// has its project.
+func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID string) error {
+	_ = orgName // unused: cleanup now resolves env-Thunder by orgUUID (ouID), not orgName
+
+	handle := strings.TrimSpace(proxyID)
+	if handle == "" {
+		return utils.ErrInvalidInput
+	}
+
+	proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return utils.ErrMCPProxyNotFound
+		}
+		return fmt.Errorf("failed to get MCP proxy before delete: %w", err)
+	}
+	if proxy.ProjectUUID != nil {
+		// A project proxy is removed through its project's routes, unless the project is gone:
+		// then the org route is the way to remove what it left.
+		gone, err := s.projectGone(ctx, orgUUID, proxy)
+		if err != nil {
+			return err
+		}
+		if !gone {
+			return utils.ErrMCPProxyProjectOwned
+		}
+	}
+
+	if err := s.ensureMCPProxyNotInUse(ctx, orgUUID, proxy); err != nil {
+		return err
+	}
+	return s.deleteLoadedMCPProxy(ctx, orgUUID, handle, proxy)
+}
+
+// projectGone reports whether the platform store no longer has the project a project proxy was published by, looked up
+// by the project name stored on the proxy. A project of that name with another UUID was re-created after the
+// proxy's was deleted, so the proxy's own project is gone too. A lookup failure other than not-found is returned,
+// never taken for a gone project.
+func (s *MCPProxyService) projectGone(ctx context.Context, orgUUID string, proxy *models.MCPProxy) (bool, error) {
+	projectName := valueOrEmpty(proxy.ProjectName)
+	if s.getProject == nil || projectName == "" {
+		return false, nil
+	}
+	project, err := s.getProject(ctx, orgUUID, projectName)
+	if err != nil {
+		if errors.Is(err, utils.ErrProjectNotFound) {
+			return true, nil
+		}
+		return false, fmt.Errorf("failed to resolve the MCP proxy's project: %w", err)
+	}
+	return project != nil && proxy.ProjectUUID != nil && project.UUID != *proxy.ProjectUUID, nil
+}
+
+// ensureMCPProxyNotInUse refuses (utils.ErrMCPProxyHasMappings) while an agent still
+// references the proxy. Shared by the org and project delete paths.
+func (s *MCPProxyService) ensureMCPProxyNotInUse(ctx context.Context, orgUUID string, proxy *models.MCPProxy) error {
+	var mappings []models.EnvAgentMCPMapping
+	var err error
+	if s.envMCPMappingRepo != nil {
+		mappings, err = s.envMCPMappingRepo.ListByMCPProxy(ctx, proxy.UUID)
+		if err != nil {
+			return fmt.Errorf("failed to list MCP mappings before delete: %w", err)
+		}
+	}
+	if len(mappings) > 0 {
+		return utils.ErrMCPProxyHasMappings
+	}
+
+	// An agent's MCP connection references a proxy in two places: a mapping row per
+	// environment it is bound in, and a row in agent_mcp_config_proxy, which is
+	// environment-independent. A connection can hold the second with none of the first —
+	// that is the state a proxy deployable in no environment leaves behind, and the state
+	// the binding reconcile exists to complete once one becomes available.
+	//
+	// The mapping check above cannot see it, and deleting would strand the connection for
+	// good: its variables stay injected but empty, no reconcile can claim it without a
+	// proxy to claim it for, and promotion refuses it with nothing left to self-heal from.
+	//
+	// This read sits outside the delete transaction, so it is a fast path that returns a
+	// clean error rather than the invariant itself: agent_mcp_config_proxy.mcp_proxy_uuid
+	// is ON DELETE RESTRICT, and MCPProxyRepo.Delete maps its 23503 violation onto the same
+	// error, which is what actually closes the window against a reference committed after
+	// this read.
+	if s.agentConfigRepo != nil {
+		configs, cfgErr := s.agentConfigRepo.ListMCPConfigsByProxy(ctx, orgUUID, proxy.UUID)
+		if cfgErr != nil {
+			return fmt.Errorf("failed to list agent configurations before delete: %w", cfgErr)
+		}
+		if len(configs) > 0 {
+			return utils.ErrMCPProxyHasMappings
+		}
+	}
+	return nil
+}
+
+// deleteLoadedMCPProxy tears down the proxy's per-(endpoint,environment) gateway artifacts and
+// deletes the proxy. The caller has already loaded the proxy and checked it is not in use.
+func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, handle string, proxy *models.MCPProxy) error {
+	// Capture the proxy's scope rows before the row delete cascades them away
+	// (mcp_proxy_scopes FK is ON DELETE CASCADE) — the Thunder cleanup below needs
+	// every scope string to strip from role permissions.
+	scopes, _ := s.mcpProxyScopeRepo.ListByProxy(ctx, proxy.UUID)
+
+	// Tear down the per-(endpoint,env) gateway artifacts this proxy deployed before removing
+	// the proxy row. The endpoint and join rows cascade-delete with the parent proxy; here we
+	// only need to broadcast deletion and remove the backing artifacts rows. Best-effort.
+	var artifactUUIDs []uuid.UUID
+	endpointEnvs, err := s.endpointRepo.ListEndpointEnvironmentsByProxy(ctx, proxy.UUID)
+	if err != nil {
+		return fmt.Errorf("failed to list MCP proxy endpoint environments before delete: %w", err)
+	}
+	for _, ee := range endpointEnvs {
+		if ee.ArtifactUUID != uuid.Nil {
+			artifactUUIDs = append(artifactUUIDs, ee.ArtifactUUID)
+		}
+	}
+	if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, artifactUUIDs, orgUUID); err != nil {
+		s.logger.Warn("Failed to delete MCP proxy endpoint artifacts during proxy delete", "proxyID", proxy.UUID, "error", err)
+	}
+
+	if err := s.repo.Delete(ctx, handle, orgUUID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return utils.ErrMCPProxyNotFound
+		}
+		return fmt.Errorf("failed to delete MCP proxy: %w", err)
+	}
+
+	s.cleanupProxyResourceServers(ctx, orgUUID, proxy, scopes)
+
+	return nil
+}
+
+// cleanupProxyResourceServers best-effort tears down the proxy's per-environment Thunder
+// resource servers and strips their scope strings from every role, after the proxy row
+// (and its cascaded scope rows) has already been deleted. Same endpoints->join-rows walk
+// and env-UUID->name map as cleanupDeletedScope; never fails the caller. Does not gate on
+// the endpoint's identity-security flag — see cleanupDeletedScope for why: RS ensure at
+// role-write time doesn't check it either, so skipping cleanup here leaks the RS whenever
+// security was disabled.
+func (s *MCPProxyService) cleanupProxyResourceServers(ctx context.Context, ouID string, proxy *models.MCPProxy, scopes []models.MCPProxyScope) {
+	handle := proxyHandleOf(proxy)
+	actions := make([]string, len(scopes))
+	for i, scope := range scopes {
+		actions[i] = scope.Action
+	}
+
+	envs, err := s.infraManager.ListOrgEnvironments(ctx, ouID)
+	if err != nil {
+		s.logger.Warn("proxy delete: listing environments failed", "proxy", handle, "error", err)
+		return
+	}
+	envName := make(map[string]string, len(envs)) // env UUID -> name (resolver keys on names)
+	for _, env := range envs {
+		envName[env.UUID] = env.Name
+	}
+
+	provider := mcpResourceServerProviderFor(s.resolver, s.logger)
+	for i := range proxy.Endpoints {
+		endpoint := &proxy.Endpoints[i]
+		for j := range endpoint.Environments {
+			name, ok := envName[endpoint.Environments[j].EnvironmentUUID.String()]
+			if !ok {
+				continue // environment no longer exists — nothing to clean
+			}
+			request := MCPResourceServerRequest{
+				OrganizationID: ouID, ProxyHandle: handle, DisplayName: mcpResourceServerDisplayName(proxy),
+				Environment: name, Actions: actions,
+			}
+			if err := provider.DeleteMCPResourceServer(ctx, request); err != nil {
+				s.logger.Warn("proxy delete: resource server delete failed", "env", name, "proxy", handle, "error", err)
+			}
+		}
+	}
+}
+
+// RemoveEnvironmentFromEndpoints removes an environment's endpoint bindings from a proxy
+// when that environment is deleted. For every endpoint of the proxy bound to the given
+// environment it tears down the (endpoint,env) gateway artifact and deletes the join row.
+// An org proxy's endpoint rows remain (they may still be bound to other environments). A
+// project proxy's binding endpoint is bound to exactly that one environment and is named
+// after it, so it is deleted with the environment: left behind, it would hold the handle a
+// re-created environment of the same name needs (uq_mcp_endpoint_handle).
+// Best-effort: per-binding failures are aggregated and returned but never abort the sweep.
+func (s *MCPProxyService) RemoveEnvironmentFromEndpoints(ctx context.Context, proxy *models.MCPProxy, envUUID uuid.UUID, orgUUID string) error {
+	if proxy == nil {
+		return nil
+	}
+	var errs []error
+	for i := range proxy.Endpoints {
+		endpoint := &proxy.Endpoints[i]
+		for j := range endpoint.Environments {
+			ee := &endpoint.Environments[j]
+			if ee.EnvironmentUUID != envUUID {
+				continue
+			}
+			// Tear down the single gateway artifact this (endpoint,env) deployed before
+			// removing the binding row.
+			artifactGone := true
+			if ee.ArtifactUUID != uuid.Nil {
+				if err := s.deleteMCPProxyEnvironmentArtifacts(ctx, []uuid.UUID{ee.ArtifactUUID}, orgUUID); err != nil {
+					artifactGone = false
+					errs = append(errs, fmt.Errorf("delete env %s artifact for proxy %s endpoint %s: %w",
+						envUUID, proxy.UUID, endpoint.Handle, err))
+				}
+			}
+			// A project binding is found through its (endpoint, env) row: keep the row and the endpoint while the
+			// artifact is still there, so a retry can find and remove all three.
+			if proxy.ProjectUUID != nil && !artifactGone {
+				continue
+			}
+			dropEndpoint := proxy.ProjectUUID != nil && len(endpoint.Environments) == 1
+			if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+				if err := s.endpointRepo.RemoveEndpointEnvironment(ctx, tx, endpoint.UUID, envUUID); err != nil &&
+					!errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
+				if dropEndpoint {
+					if err := s.endpointRepo.DeleteEndpoint(ctx, tx, endpoint.UUID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+						return err
+					}
+				}
+				return nil
+			}); err != nil {
+				errs = append(errs, fmt.Errorf("remove env %s binding from proxy %s endpoint %s: %w",
+					envUUID, proxy.UUID, endpoint.Handle, err))
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+func extractGatewayPolicyManifestItems(value interface{}) []models.MCPPolicyAvailableItem {
+	seen := map[string]struct{}{}
+	items := make([]models.MCPPolicyAvailableItem, 0)
+	var walk func(interface{})
+
+	add := func(name, version string) {
+		name = strings.TrimSpace(name)
+		version = strings.TrimSpace(version)
+		if name == "" || version == "" {
+			return
+		}
+		key := name + "\x00" + version
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		items = append(items, models.MCPPolicyAvailableItem{Name: name, Version: version})
+	}
+
+	stringValue := func(v interface{}) string {
+		if s, ok := v.(string); ok {
+			return s
+		}
+		return ""
+	}
+
+	walk = func(current interface{}) {
+		switch typed := current.(type) {
+		case []interface{}:
+			for _, item := range typed {
+				walk(item)
+			}
+		case []map[string]interface{}:
+			for _, item := range typed {
+				walk(item)
+			}
+		case map[string]interface{}:
+			name := stringValue(firstMapValue(typed, "name", "policyName", "id"))
+			version := stringValue(firstMapValue(typed, "version", "policyVersion"))
+			if name != "" && version != "" {
+				add(name, version)
+			}
+			if name != "" {
+				if versions, ok := firstMapValue(typed, "versions", "policyVersions").([]interface{}); ok {
+					for _, rawVersion := range versions {
+						add(name, stringValue(rawVersion))
+					}
+				}
+				if versions, ok := firstMapValue(typed, "versions", "policyVersions").([]string); ok {
+					for _, rawVersion := range versions {
+						add(name, rawVersion)
+					}
+				}
+			}
+			for _, nested := range typed {
+				walk(nested)
+			}
+		}
+	}
+
+	walk(value)
+	return items
+}
+
+func firstMapValue(values map[string]interface{}, keys ...string) interface{} {
+	for _, key := range keys {
+		if value, ok := values[key]; ok {
+			return value
+		}
+	}
+	return nil
+}
+
+// prepareMCPUpstreamAuthForStorage builds the auth an endpoint stores from the stored one and the request's. A new
+// plaintext credential is encrypted into SecretRef, which the endpoint repository moves into the secrets table. When
+// the request omits the credential, the stored one is kept: an inline SecretRef from before credentials moved is
+// carried in the auth, and a credential in the secrets table is kept by returning existingSecret.
+func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(
+	existing *models.UpstreamAuth, existingSecret *uuid.UUID, updated *models.UpstreamAuth,
+) (*models.UpstreamAuth, *uuid.UUID, error) {
+	auth := preserveUpstreamAuthCredential(existing, updated)
+	if auth == nil {
+		return nil, nil, nil
+	}
+
+	if auth.Header != nil {
+		header := strings.TrimSpace(*auth.Header)
+		auth.Header = &header
+	}
+	if auth.Value != nil && *auth.Value == "" {
+		auth.Value = nil
+	}
+	// A newly supplied plaintext value supersedes any preserved encrypted secret,
+	// keeping Value and SecretRef mutually exclusive for Validate.
+	if auth.Value != nil {
+		auth.SecretRef = nil
+	}
+
+	if err := auth.Validate(); err != nil {
+		return nil, nil, fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	}
+
+	// The stored credential is kept when the request supplies none.
+	var keptSecret *uuid.UUID
+	if auth.Value == nil && auth.SecretRef == nil {
+		keptSecret = existingSecret
+	}
+	hasHeader := auth.Header != nil && *auth.Header != ""
+	hasCredential := auth.Value != nil || auth.SecretRef != nil || keptSecret != nil
+	if !hasHeader && !hasCredential {
+		return nil, nil, nil
+	}
+	if hasHeader != hasCredential {
+		return nil, nil, fmt.Errorf("%w: authentication header and value must be provided together", utils.ErrInvalidInput)
+	}
+
+	if auth.Value != nil {
+		encoded, err := utils.EncryptSecretRef(*auth.Value, s.encryptionKey)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
+		}
+		auth.SecretRef = &encoded
+		auth.Value = nil
+	}
+
+	return auth, keptSecret, nil
+}
+
+// FetchServerInfo fetches server information from an MCP backend. Probes are
+// capped per user and per pod, and each one has an overall deadline.
+func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID, userID string, req *models.MCPServerInfoFetchRequest) (*models.MCPServerInfoFetchResponse, error) {
+	if req == nil || req.URL == nil || strings.TrimSpace(*req.URL) == "" {
+		return nil, utils.ErrInvalidInput
+	}
+	if req.ProxyID != nil && strings.TrimSpace(*req.ProxyID) != "" {
+		return nil, fmt.Errorf("proxyId refresh is not supported yet: %w", utils.ErrInvalidInput)
+	}
+
+	release, ok := mcpServerInfoLimiter.tryAcquire(mcpServerInfoLimiterKey(orgUUID, userID))
+	if !ok {
+		return nil, utils.ErrTooManyRequests
+	}
+	defer release()
+
+	ctx, cancel := context.WithTimeout(ctx, mcpServerInfoDeadline)
+	defer cancel()
+
+	// Validated inside the deadline: the check resolves DNS for the host.
+	endpointURL := strings.TrimSpace(*req.URL)
+	if err := ssrf.ValidateURL(ctx, endpointURL); err != nil {
+		return nil, fmt.Errorf("%w: %w", utils.ErrInvalidURL, err)
+	}
+
+	headerName, headerValue := authHeader(req.Auth)
+	return s.fetchMCPServerInfo(ctx, endpointURL, headerName, headerValue)
+}
+
+func authHeader(auth *models.UpstreamAuth) (string, string) {
+	if auth == nil || auth.Header == nil || auth.Value == nil {
+		return "", ""
+	}
+	return strings.TrimSpace(*auth.Header), *auth.Value
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func stringPtrIfNotEmpty(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
+}
+
+func timePtrIfNotZero(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	return &value
+}
+
+func copyMCPPolicies(policies []models.MCPPolicy) []models.MCPPolicy {
+	if len(policies) == 0 {
+		return nil
+	}
+	out := make([]models.MCPPolicy, len(policies))
+	copy(out, policies)
+	return out
+}
+
+func copyMCPCapabilities(capabilities *models.MCPProxyCapabilities) *models.MCPProxyCapabilities {
+	if capabilities == nil {
+		return nil
+	}
+	return &models.MCPProxyCapabilities{
+		Prompts:   capabilities.Prompts,
+		Resources: capabilities.Resources,
+		Tools:     capabilities.Tools,
+	}
+}
+
+func sanitizeMCPUpstreamEndpointForResponse(endpoint *models.UpstreamEndpoint) *models.UpstreamEndpoint {
+	if endpoint == nil {
+		return nil
+	}
+	sanitized := *endpoint
+	sanitized.Auth = sanitizeMCPUpstreamAuthForResponse(endpoint.Auth)
+	return &sanitized
+}
+
+// buildMCPEndpointDTOsForResponse maps the proxy's endpoints to response DTOs, stripping
+// plaintext upstream credentials (and never exposing SecretRef via the sanitizer) from
+// each endpoint. Environment bindings are reported as {environmentUuid} entries; the
+// per-(endpoint,env) DeploymentStatus is filled in by the Get handler from the join rows.
+func buildMCPEndpointDTOsForResponse(endpoints []models.MCPProxyEndpoint) []models.MCPProxyEndpointDTO {
+	if len(endpoints) == 0 {
+		return nil
+	}
+	out := make([]models.MCPProxyEndpointDTO, 0, len(endpoints))
+	for _, endpoint := range endpoints {
+		cfg := endpoint.Configuration
+		dto := models.MCPProxyEndpointDTO{
+			ID:           endpoint.Handle,
+			Name:         endpoint.Name,
+			Upstream:     models.UpstreamConfig{Main: sanitizeMCPUpstreamEndpointForResponse(cfg.Upstream)},
+			Resilience:   cfg.Resilience,
+			Capabilities: copyMCPCapabilities(cfg.Capabilities),
+			Security:     cfg.Security,
+		}
+		if policies := copyMCPPolicies(cfg.Policies); policies != nil {
+			dto.Policies = &policies
+		}
+		if len(cfg.SpecVersions) > 0 {
+			versions := slices.Clone(cfg.SpecVersions)
+			dto.McpSpecVersions = &versions
+		}
+		envs := make([]models.MCPEndpointEnvironmentDTO, 0, len(endpoint.Environments))
+		for _, ee := range endpoint.Environments {
+			envs = append(envs, models.MCPEndpointEnvironmentDTO{
+				EnvironmentUUID: ee.EnvironmentUUID.String(),
+			})
+		}
+		dto.Environments = envs
+		out = append(out, dto)
+	}
+	return out
+}
+
+func sanitizeMCPUpstreamAuthForResponse(auth *models.UpstreamAuth) *models.UpstreamAuth {
+	if auth == nil {
+		return nil
+	}
+	sanitized := *auth
+	sanitized.Value = nil
+	// SecretRef is the AES-256-GCM ciphertext of the same credential and is not
+	// declared on the spec's UpstreamAuth, so it must not reach a response body.
+	sanitized.SecretRef = nil
+	return &sanitized
+}
+
+func defaultMCPProxySecurity(security *models.SecurityConfig) *models.SecurityConfig {
+	enabled := true
+	if security != nil {
+		out := *security
+		if out.Enabled == nil {
+			out.Enabled = &enabled
+		}
+		if !isBoolTrue(out.Enabled) {
+			return &out
+		}
+		if out.Identity != nil && isBoolTrue(out.Identity.Enabled) {
+			// Agent Identity mode: no API-key defaulting. Mutual exclusion is
+			// enforced in validateMCPEnvironments before this runs.
+			identity := *out.Identity
+			out.Identity = &identity
+			out.APIKey = nil
+			return &out
+		}
+		if out.APIKey == nil {
+			out.APIKey = &models.APIKeySecurity{}
+		} else {
+			apiKey := *out.APIKey
+			out.APIKey = &apiKey
+		}
+		if out.APIKey.Enabled == nil {
+			out.APIKey.Enabled = &enabled
+		}
+		if isBoolTrue(out.APIKey.Enabled) {
+			if strings.TrimSpace(out.APIKey.Key) == "" {
+				out.APIKey.Key = "X-API-Key"
+			}
+			if strings.TrimSpace(out.APIKey.In) == "" {
+				out.APIKey.In = "header"
+			}
+		}
+		return &out
+	}
+	return &models.SecurityConfig{
+		Enabled: &enabled,
+		APIKey: &models.APIKeySecurity{
+			Enabled: &enabled,
+			Key:     "X-API-Key",
+			In:      "header",
+		},
+	}
+}
+
+func convertModelMCPProxyToSpec(proxy *models.MCPProxy) *models.MCPProxyDTO {
+	if proxy == nil {
+		return nil
+	}
+	id := proxy.Handle
+	name := proxy.Name
+	version := proxy.Version
+	createdAt := proxy.CreatedAt
+	updatedAt := proxy.UpdatedAt
+	inCatalog := false
+	if proxy.Artifact != nil {
+		id = proxy.Artifact.Handle
+		name = proxy.Artifact.Name
+		version = proxy.Artifact.Version
+		createdAt = proxy.Artifact.CreatedAt
+		updatedAt = proxy.Artifact.UpdatedAt
+		inCatalog = proxy.Artifact.InCatalog
+	}
+	// A project proxy's artifact name is its handle (models.MCPProxyArtifactName); its display name is the
+	// configured one.
+	if name == "" || proxy.ProjectUUID != nil {
+		name = proxy.Configuration.Name
+	}
+	if version == "" {
+		version = proxy.Configuration.Version
+	}
+	return &models.MCPProxyDTO{
+		Context:        proxy.Configuration.Context,
+		CreatedAt:      timePtrIfNotZero(createdAt),
+		CreatedBy:      stringPtrIfNotEmpty(proxy.CreatedBy),
+		Description:    stringPtrIfNotEmpty(proxy.Description),
+		ID:             id,
+		InCatalog:      inCatalog,
+		McpSpecVersion: stringPtrIfNotEmpty(proxy.Configuration.SpecVersion),
+		Name:           name,
+		Endpoints:      buildMCPEndpointDTOsForResponse(proxy.Endpoints),
+		UpdatedAt:      timePtrIfNotZero(updatedAt),
+		Version:        version,
+		Vhost:          proxy.Configuration.Vhost,
+	}
+}
+
+func convertModelMCPProxyToListItem(proxy *models.MCPProxy) models.MCPProxyListItem {
+	status := proxy.Status
+	id := proxy.Handle
+	name := proxy.Name
+	version := proxy.Version
+	createdAt := proxy.CreatedAt
+	updatedAt := proxy.UpdatedAt
+	if proxy.Artifact != nil {
+		id = proxy.Artifact.Handle
+		name = proxy.Artifact.Name
+		version = proxy.Artifact.Version
+		createdAt = proxy.Artifact.CreatedAt
+		updatedAt = proxy.Artifact.UpdatedAt
+	}
+	// A project proxy's artifact name is its handle (models.MCPProxyArtifactName); its display name is the
+	// configured one.
+	if name == "" || proxy.ProjectUUID != nil {
+		name = proxy.Configuration.Name
+	}
+	if version == "" {
+		version = proxy.Configuration.Version
+	}
+	return models.MCPProxyListItem{
+		Context:        proxy.Configuration.Context,
+		CreatedAt:      timePtrIfNotZero(createdAt),
+		CreatedBy:      stringPtrIfNotEmpty(proxy.CreatedBy),
+		Description:    stringPtrIfNotEmpty(proxy.Description),
+		ID:             stringPtrIfNotEmpty(id),
+		McpSpecVersion: stringPtrIfNotEmpty(proxy.Configuration.SpecVersion),
+		Name:           stringPtrIfNotEmpty(name),
+		ProjectName:    proxy.ProjectName,
+		Status:         stringPtrIfNotEmpty(status),
+		UpdatedAt:      timePtrIfNotZero(updatedAt),
+		Version:        stringPtrIfNotEmpty(version),
+	}
+}
+
+// validateMCPSpecVersionsInRequest checks the MCP versions an API caller sent in a create or
+// update request, and rejects the request (400) if they're wrong, so the caller can fix them:
+//   - the proxy's mcpSpecVersion, when set, must be a real date (YYYY-MM-DD);
+//   - an endpoint's mcpSpecVersions, when set, needs at least one version, each a real date.
+//
+// The gateway rejects a deploy with any other version. The console sends versions that
+// obtainValidMCPVersionsFromServer already cleaned, but any API caller can send anything, so
+// the request is checked here too.
+func validateMCPSpecVersionsInRequest(mcpSpecVersion *string, endpoints []models.MCPProxyEndpointDTO) error {
+	if mcpSpecVersion != nil && *mcpSpecVersion != "" && !isMCPVersionDate(*mcpSpecVersion) {
+		return fmt.Errorf("%w: mcpSpecVersion: %q is not an MCP version (YYYY-MM-DD)", utils.ErrInvalidInput, *mcpSpecVersion)
+	}
+	for _, endpoint := range endpoints {
+		if endpoint.McpSpecVersions == nil {
+			continue
+		}
+		if len(*endpoint.McpSpecVersions) == 0 {
+			return fmt.Errorf("%w: endpoint %q: mcpSpecVersions must list at least one MCP version",
+				utils.ErrInvalidInput, endpoint.ID)
+		}
+		for _, version := range *endpoint.McpSpecVersions {
+			if !isMCPVersionDate(version) {
+				return fmt.Errorf("%w: endpoint %q: mcpSpecVersions: %q is not an MCP version (YYYY-MM-DD)",
+					utils.ErrInvalidInput, endpoint.ID, version)
+			}
+		}
+	}
+	return nil
+}
+
+// obtainStoredMCPSpecVersions returns the MCP versions to deploy for one gateway artifact. Its
+// config carries the endpoint's own list (SpecVersions) and the proxy's single SpecVersion: the
+// list is used when set, otherwise the single version as a one-item list (older endpoints and
+// project proxies have only that). Returns nil when neither is set.
+func obtainStoredMCPSpecVersions(config models.MCPProxyConfig) *[]string {
+	if len(config.SpecVersions) > 0 {
+		versions := config.SpecVersions
+		return &versions
+	}
+	if config.SpecVersion != "" {
+		return &[]string{config.SpecVersion}
+	}
+	return nil
+}
+
+// validateMCPProxyDeploymentHandleLengths rejects a proxy whose deployed gateway artifact
+// name/displayName would exceed the gateway's length limit. The console derives short endpoint
+// handles, but a blank-name endpoint whose handle falls back to a long upstream hostname, or a
+// direct API caller supplying its own long id, can push the composite past the limit. Catching
+// it here turns a silent async deploy failure into an immediate, explicit 400.
+func validateMCPProxyDeploymentHandleLengths(proxyHandle string, endpoints []models.MCPProxyEndpointDTO) error {
+	for _, endpoint := range endpoints {
+		endpointHandle := strings.TrimSpace(endpoint.ID)
+		for _, env := range endpoint.Environments {
+			// Build the exact string deployment will emit, so this check stays in lockstep with
+			// the derivation instead of re-deriving its length by hand.
+			artifactHandle := mcpProxyEnvArtifactHandle(proxyHandle, endpointHandle, env.EnvironmentUUID)
+			if len(artifactHandle) > maxMCPProxyDeploymentHandleLength {
+				return fmt.Errorf(
+					"%w: endpoint %q would produce a %d-character gateway deployment name, exceeding the limit of %d; shorten the endpoint name/id or the proxy id",
+					utils.ErrInvalidInput, endpointHandle, len(artifactHandle), maxMCPProxyDeploymentHandleLength,
+				)
+			}
+		}
+	}
+	return nil
+}
+
+// validateMCPEndpoints enforces the endpoint request structure: at least one endpoint,
+// each with a non-empty handle (unique within the proxy), a well-formed upstream URL, and
+// at least one valid target environment UUID. It also enforces the hard rule that an
+// environment maps to at most one endpoint within the proxy. The private-address check on
+// the upstream depends on where the proxy is placed, so it lives in validateMCPEndpointPlacement.
+func validateMCPEndpoints(endpoints []models.MCPProxyEndpointDTO) error {
+	if len(endpoints) == 0 {
+		return fmt.Errorf("%w: at least one endpoint is required", utils.ErrInvalidInput)
+	}
+	seenHandles := make(map[string]struct{}, len(endpoints))
+	// Enforces uq_proxy_env_single at the service layer: no environment may be bound to
+	// two endpoints within the same proxy.
+	envToEndpoint := map[string]string{}
+	for _, endpoint := range endpoints {
+		handle := strings.TrimSpace(endpoint.ID)
+		if handle == "" {
+			return fmt.Errorf("%w: an endpoint is missing an id", utils.ErrInvalidInput)
+		}
+		if _, dup := seenHandles[handle]; dup {
+			return fmt.Errorf("%w: duplicate endpoint id %q", utils.ErrInvalidInput, handle)
+		}
+		seenHandles[handle] = struct{}{}
+
+		// Structural security check (no network I/O): apiKey and identity are mutually
+		// exclusive.
+		if sec := endpoint.Security; sec != nil && isBoolTrue(sec.Enabled) {
+			apiKeyOn := sec.APIKey != nil && isBoolTrue(sec.APIKey.Enabled)
+			identityOn := sec.Identity != nil && isBoolTrue(sec.Identity.Enabled)
+			if apiKeyOn && identityOn {
+				return fmt.Errorf("%w: endpoint %q: apiKey and identity security are mutually exclusive", utils.ErrInvalidInput, handle)
+			}
+		}
+
+		if endpoint.Upstream.Main == nil || strings.TrimSpace(endpoint.Upstream.Main.URL) == "" {
+			return fmt.Errorf("%w: endpoint %q is missing an upstream url", utils.ErrInvalidInput, handle)
+		}
+		if _, err := ssrf.ValidateURLShape(strings.TrimSpace(endpoint.Upstream.Main.URL)); err != nil {
+			return fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
+		}
+		if err := endpoint.Resilience.Validate(); err != nil {
+			return fmt.Errorf("%w: endpoint %q: %w", utils.ErrInvalidInput, handle, err)
+		}
+
+		if len(endpoint.Environments) == 0 {
+			return fmt.Errorf("%w: endpoint %q must target at least one environment", utils.ErrInvalidInput, handle)
+		}
+		seenEnvsInEndpoint := make(map[string]struct{}, len(endpoint.Environments))
+		for _, env := range endpoint.Environments {
+			envUUID := strings.TrimSpace(env.EnvironmentUUID)
+			if envUUID == "" {
+				return fmt.Errorf("%w: endpoint %q has an environment binding missing an environment id", utils.ErrInvalidInput, handle)
+			}
+			if _, err := uuid.Parse(envUUID); err != nil {
+				return fmt.Errorf("%w: endpoint %q has an invalid environment id %q: %w", utils.ErrInvalidInput, handle, envUUID, err)
+			}
+			if _, dup := seenEnvsInEndpoint[envUUID]; dup {
+				return fmt.Errorf("%w: endpoint %q lists environment %q more than once", utils.ErrInvalidInput, handle, envUUID)
+			}
+			seenEnvsInEndpoint[envUUID] = struct{}{}
+			if owner, bound := envToEndpoint[envUUID]; bound {
+				return fmt.Errorf("%w: environment %q is targeted by endpoints %q and %q", utils.ErrMCPEnvAlreadyBound, envUUID, owner, handle)
+			}
+			envToEndpoint[envUUID] = handle
+		}
+	}
+	return nil
+}
+
+// validateMCPEndpointSecurity enforces the cross-resource identity-mode rule: an
+// identity-mode endpoint's target environments must each have a gateway advertising
+// mcp-auth v1 + mcp-authz v1 in its policy manifest. It performs DB reads, so call
+// it outside a transaction.
+//
+// existingArtifactByEnv is the proxy's current (environment UUID -> artifact UUID)
+// mapping on update (nil on create, from indexExistingMCPEndpoints/GetByHandle — see
+// callers). When an environment already has a deployed artifact, the probe anchors on
+// that artifact's actual gateway — mirroring deployMCPProxyEndpoints — instead of
+// re-selecting from the environment, so a second egress gateway never breaks validation
+// for a binding that already works.
+func (s *MCPProxyService) validateMCPEndpointSecurity(
+	ctx context.Context, orgName string, endpoints []models.MCPProxyEndpointDTO, existingArtifactByEnv map[string]uuid.UUID,
+) error {
+	for _, endpoint := range endpoints {
+		handle := strings.TrimSpace(endpoint.ID)
+		if endpoint.Security == nil || !isBoolTrue(endpoint.Security.Enabled) ||
+			endpoint.Security.Identity == nil || !isBoolTrue(endpoint.Security.Identity.Enabled) {
+			continue
+		}
+		for _, env := range endpoint.Environments {
+			envIDStr := strings.TrimSpace(env.EnvironmentUUID)
+			envUUID, err := uuid.Parse(envIDStr)
+			if err != nil {
+				continue // already rejected by validateMCPEndpoints
+			}
+
+			var candidates []*models.Gateway
+			if artifactUUID, ok := existingArtifactByEnv[envUUID.String()]; ok && artifactUUID != uuid.Nil {
+				var deployed []string
+				if s.deploymentRepo != nil {
+					ids, depErr := s.deploymentRepo.PlacedGateways(ctx, orgName, artifactUUID)
+					if depErr != nil {
+						return fmt.Errorf("endpoint %q environment %q: list deployed gateways: %w", handle, env.EnvironmentUUID, depErr)
+					}
+					deployed = ids
+				}
+				gateway, gwErr := resolveEgressGatewayForArtifact(s.gatewayRepo, orgName, envUUID, deployed, nil)
+				if errors.Is(gwErr, errNoGatewayForEnvironment) {
+					continue // no gateway yet: allowed, deploys later; policies checked when one exists
+				}
+				if gwErr != nil {
+					return fmt.Errorf("endpoint %q environment %q: resolve gateway: %w", handle, env.EnvironmentUUID, gwErr)
+				}
+				candidates = []*models.Gateway{gateway}
+			} else {
+				// No existing deployment to anchor on (create, or a genuinely new
+				// binding): this is a read-only policy probe, not a placement decision —
+				// actual placement is resolved at deploy time — so multiple egress-capable
+				// gateways are tolerated here rather than treated as ambiguous. Accept only
+				// if every candidate supports the required policies.
+				gws, gwErr := egressCandidatesForEnvironment(s.gatewayRepo, orgName, envUUID)
+				if errors.Is(gwErr, errNoGatewayForEnvironment) {
+					continue
+				}
+				if gwErr != nil {
+					return fmt.Errorf("endpoint %q environment %q: resolve gateway: %w", handle, env.EnvironmentUUID, gwErr)
+				}
+				candidates = gws
+			}
+
+			for _, gateway := range candidates {
+				supported, reported := gatewayHasMCPIdentityPolicies(gateway)
+				if !reported {
+					continue // not reported yet: like no gateway, checked once it reports
+				}
+				if !supported {
+					return fmt.Errorf("%w: endpoint %q environment %q: gateway %q does not support mcp-auth/mcp-authz v1 policies required for Agent Identity security", utils.ErrInvalidInput, handle, env.EnvironmentUUID, gateway.Name)
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// errMCPIdentityOnSelfHostedGateway refuses Agent Identity security where the binding's gateway
+// is self-hosted. Such a gateway takes its key managers from its own static config, and AMS
+// pushes it no ThunderKeyManager, so mcp-auth would reject every identity token with a 401.
+var errMCPIdentityOnSelfHostedGateway = fmt.Errorf("%w: Agent Identity isn't available on self-hosted gateways", utils.ErrInvalidInput)
+
+// validateMCPEndpointPlacement resolves the egress gateway for every (endpoint, environment)
+// binding before the save's transaction opens, so a caller-supplied gatewayId that cannot host
+// the binding fails the request before any row is locked. The deploy step in the transaction
+// raises the same 400 and rolls the save back. Mirrors CreateAndDeploy's pre-Create placement
+// check for LLM providers. It performs DB reads, so call it outside a transaction.
+//
+// Only the fatal placement errors are enforced here; every other outcome (no gateway mapped
+// yet, transient lookup failures) is left to the deploy step. Those outcomes still count as
+// an unresolved target for the upstream's private-address check, which fails closed.
+//
+// existingArtifactByEnv is the proxy's current (environment -> artifact) mapping, nil on
+// create. An environment with a deployed artifact anchors on that artifact's gateway, so
+// errPlacementFixed also surfaces before the write rather than after it.
+//
+// proxyUUID is the proxy being updated, uuid.Nil on create. A proxy platform-hosted agents use
+// may not move onto a self-hosted gateway (proxyUsersPolicy).
+//
+// An identity-mode endpoint may not resolve to a self-hosted gateway in any environment
+// (errMCPIdentityOnSelfHostedGateway). Known gap: an environment whose anchor lookup fails is
+// skipped below, so this check does not run for it.
+//
+// An endpoint whose environments all resolve to self-hosted gateways skips the upstream's
+// private-address check. That exemption holds only for the gateways it was decided for, so
+// the returned map names, per environment of such an endpoint, the self-hosted gateway it
+// resolved to; the caller pins each one with pinExemptGateways before its transaction. With
+// the pin, the deploy step's resolution either returns that gateway or fails with
+// errInvalidEgressGateway or errPlacementFixed (a 400) when the environment's gateways
+// changed in between. An environment left with no gateway at all is saved unplaced; placing
+// it later goes through MCPProxyKind.Targets, which refuses a managed gateway for an
+// upstream that is not public.
+func (s *MCPProxyService) validateMCPEndpointPlacement(
+	ctx context.Context, orgUUID string, proxyUUID uuid.UUID, endpoints []models.MCPProxyEndpointDTO, existingArtifactByEnv map[string]uuid.UUID,
+) (map[string]uuid.UUID, error) {
+	agentUse := &mcpProxyAgentUse{}
+	exempt := map[string]uuid.UUID{}
+	for _, endpoint := range endpoints {
+		handle := strings.TrimSpace(endpoint.ID)
+		// Only an endpoint whose every environment resolves to a self-hosted gateway may reach a private upstream.
+		resolvedByEnv := make(map[string]uuid.UUID, len(endpoint.Environments))
+		needsSSRFGuard := false
+		for _, env := range endpoint.Environments {
+			envIDStr := strings.TrimSpace(env.EnvironmentUUID)
+			envUUID, err := uuid.Parse(envIDStr)
+			if err != nil {
+				needsSSRFGuard = true // already rejected by validateMCPEndpoints
+				continue
+			}
+
+			deployed, ok := s.anchorGatewaysForEnvironment(ctx, orgUUID, existingArtifactByEnv[envUUID.String()])
+			if !ok {
+				// Anchor unknown: skip rather than resolve without it, since environment-only
+				// selection could reject a binding the anchor would have resolved cleanly.
+				needsSSRFGuard = true
+				continue
+			}
+
+			gateway, err := resolveEgressGatewayForArtifact(s.gatewayRepo, orgUUID, envUUID, deployed, requestedGatewayUUID(env))
+			if mcpDeployErrorIsFatal(err) {
+				return nil, fmt.Errorf("%w: endpoint %q environment %q: %w", utils.ErrInvalidInput, handle, envIDStr, err)
+			}
+			if err != nil || gateway == nil {
+				needsSSRFGuard = true
+				continue
+			}
+			if identityRefuses(gateway, endpoint.Security) {
+				return nil, fmt.Errorf("%w: environment %s resolves to self-hosted gateway %s; use API key security",
+					errMCPIdentityOnSelfHostedGateway, envIDStr, gateway.Name)
+			}
+			if !gateway.IsManaged() && !slices.Contains(deployed, gateway.UUID.String()) {
+				users, err := s.proxyUsersPolicy(ctx, orgUUID, proxyUUID, envUUID, agentUse)
+				if err != nil {
+					return nil, err
+				}
+				if users.consumerRefuses(gateway) {
+					return nil, fmt.Errorf("%w: environment %q: platform-hosted agents use this MCP proxy, so it cannot be placed on self-hosted gateway %q; use a separate MCP proxy for self-hosted gateways",
+						utils.ErrInvalidInput, envUUID, gateway.Name)
+				}
+			}
+			needsSSRFGuard = needsSSRFGuard || gatewayNeedsPublicUpstream(gateway)
+			resolvedByEnv[envUUID.String()] = gateway.UUID
+		}
+
+		if !needsSSRFGuard && len(resolvedByEnv) > 0 {
+			maps.Copy(exempt, resolvedByEnv)
+			continue
+		}
+		upstreamURL := ""
+		if endpoint.Upstream.Main != nil {
+			upstreamURL = strings.TrimSpace(endpoint.Upstream.Main.URL)
+		}
+		if err := ssrf.ValidateURL(ctx, upstreamURL); err != nil {
+			return nil, fmt.Errorf("%w: endpoint %q upstream url: %w", utils.ErrInvalidURL, handle, err)
+		}
+	}
+	return exempt, nil
+}
+
+// mcpProxyAgentUse caches, for one validation, which platform-hosted agents use the proxy.
+type mcpProxyAgentUse struct {
+	loaded             bool
+	internalReferenced bool
+	internalBoundInEnv map[uuid.UUID]bool
+}
+
+// proxyUsersPolicy is the placement policy of the agents that use the proxy's binding for envUUID:
+// platformAgentPolicy while platform-hosted agents use the proxy, bound in that environment (a mapping
+// row, which survives the environment being removed from the proxy and re-added) or recording the proxy
+// at all (the binding reconcile or a promotion could bind it there later); externalAgentPolicy otherwise,
+// including on create (proxyUUID is uuid.Nil).
+//
+// Agent use is read from ListMCPConfigsByProxy (the agent_mcp_config_proxy reference rows). A
+// mapping row whose configuration is not in that list counts as platform-hosted (fail closed),
+// so a stale mapping row of an external agent can refuse a placement that is in fact safe.
+func (s *MCPProxyService) proxyUsersPolicy(
+	ctx context.Context, orgUUID string, proxyUUID, envUUID uuid.UUID, use *mcpProxyAgentUse,
+) (placementPolicy, error) {
+	if proxyUUID == uuid.Nil {
+		return externalAgentPolicy, nil
+	}
+	if !use.loaded {
+		if err := s.loadMCPProxyAgentUse(ctx, orgUUID, proxyUUID, use); err != nil {
+			return platformAgentPolicy, err
+		}
+	}
+	if use.internalReferenced || use.internalBoundInEnv[envUUID] {
+		return platformAgentPolicy, nil
+	}
+	return externalAgentPolicy, nil
+}
+
+// loadMCPProxyAgentUse finds the platform-hosted agents among those using the proxy, failing
+// closed: a mapping row whose configuration no longer references the proxy names no agent, so
+// it counts as platform-hosted. Once any referencing agent is platform-hosted every environment
+// is refused, so the remaining agents are not looked up.
+func (s *MCPProxyService) loadMCPProxyAgentUse(ctx context.Context, orgUUID string, proxyUUID uuid.UUID, use *mcpProxyAgentUse) error {
+	use.internalBoundInEnv = map[uuid.UUID]bool{}
+	var configs []models.AgentConfiguration
+	if s.agentConfigRepo != nil {
+		var err error
+		configs, err = s.agentConfigRepo.ListMCPConfigsByProxy(ctx, orgUUID, proxyUUID)
+		if err != nil {
+			return fmt.Errorf("failed to list agent configurations of proxy %s: %w", proxyUUID, err)
+		}
+	}
+	internal, err := s.anyInternalAgent(ctx, configs)
+	if err != nil {
+		return err
+	}
+	use.internalReferenced = internal
+	if !internal && s.envMCPMappingRepo != nil {
+		mappings, err := s.envMCPMappingRepo.ListByMCPProxy(ctx, proxyUUID)
+		if err != nil {
+			return fmt.Errorf("failed to list agent MCP mappings of proxy %s: %w", proxyUUID, err)
+		}
+		referencing := make(map[uuid.UUID]bool, len(configs))
+		for _, config := range configs {
+			referencing[config.UUID] = true
+		}
+		for _, m := range mappings {
+			if !referencing[m.ConfigUUID] {
+				use.internalBoundInEnv[m.EnvironmentUUID] = true
+			}
+		}
+	}
+	use.loaded = true
+	return nil
+}
+
+// anyInternalAgent reports whether any configuration belongs to a platform-hosted agent, asking
+// once per agent. An agent the platform store doesn't know is skipped: its configuration is an orphan.
+// Any other lookup failure is returned, refusing the placement.
+func (s *MCPProxyService) anyInternalAgent(ctx context.Context, configs []models.AgentConfiguration) (bool, error) {
+	type agentKey struct{ ouID, name string }
+	seen := map[agentKey]bool{}
+	for _, config := range configs {
+		key := agentKey{config.OUID, config.AgentID}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		if s.isExternalAgent == nil {
+			return true, nil
+		}
+		external, err := s.isExternalAgent(ctx, config.OUID, config.AgentID)
+		if errors.Is(err, utils.ErrAgentNotFound) || errors.Is(err, utils.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return false, fmt.Errorf("failed to determine the type of agent %s using the MCP proxy: %w", config.AgentID, err)
+		}
+		if !external {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// anchorGatewaysForEnvironment returns the gateways artifactUUID is placed on, and whether
+// that set could be determined at all. A nil artifact is a new binding: no anchor to look up,
+// which is a known-empty set rather than an unknown one.
+func (s *MCPProxyService) anchorGatewaysForEnvironment(ctx context.Context, orgUUID string, artifactUUID uuid.UUID) ([]string, bool) {
+	if artifactUUID == uuid.Nil || s.deploymentRepo == nil {
+		return nil, true
+	}
+	deployed, err := s.deploymentRepo.PlacedGateways(ctx, orgUUID, artifactUUID)
+	if err != nil {
+		s.logger.Warn("Skipping MCP placement pre-check; could not list existing deployments",
+			"artifactUUID", artifactUUID, "error", err)
+		return nil, false
+	}
+	return deployed, true
+}
+
+// requestedGatewayUUID extracts the caller's gatewayId for one environment binding, treating
+// blank as unset. Matches applyRequestedGatewayUUIDs, which feeds the deploy step the same value.
+func requestedGatewayUUID(env models.MCPEndpointEnvironmentDTO) *string {
+	if env.GatewayID == nil {
+		return nil
+	}
+	gwID := strings.TrimSpace(*env.GatewayID)
+	if gwID == "" {
+		return nil
+	}
+	return &gwID
+}
+
+// egressCandidatesForEnvironment returns every egress-capable gateway mapped to the
+// environment, never erroring on multiplicity (unlike resolveEgressGatewayForEnvironment)
+// — used only by the identity-security probe above, which checks policy support rather
+// than choosing a placement.
+func egressCandidatesForEnvironment(repo gwrepo.GatewayRepository, ouID string, envUUID uuid.UUID) ([]*models.Gateway, error) {
+	envIDStr := envUUID.String()
+	gateways, err := repo.ListWithFilters(gwrepo.GatewayFilterOptions{
+		OrganizationID: ouID,
+		EnvironmentID:  &envIDStr,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list gateways for environment %s: %w", envIDStr, err)
+	}
+	if len(gateways) == 0 {
+		return nil, errNoGatewayForEnvironment
+	}
+	candidates := make([]*models.Gateway, 0, len(gateways))
+	for _, gw := range gateways {
+		if gw.IsEgressCapable() {
+			candidates = append(candidates, gw)
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("%w (environment %s)", errNoEgressGatewayForEnvironment, envIDStr)
+	}
+	return candidates, nil
+}
+
+// gatewayHasMCPIdentityPolicies reports whether the gateway's policy manifest
+// advertises both mcp-auth v1 and mcp-authz v1 (the policies identity mode emits), and
+// whether the gateway has reported a manifest at all (see gatewayManifest).
+func gatewayHasMCPIdentityPolicies(gateway *models.Gateway) (supported, reported bool) {
+	manifest, reported := gatewayManifest(gateway)
+	if !reported {
+		return false, false
+	}
+	need := map[string]bool{"mcp-auth\x00v1": false, "mcp-authz\x00v1": false}
+	for _, item := range extractGatewayPolicyManifestItems(manifest) {
+		key := item.Name + "\x00" + normalizePolicyVersionToMajor(item.Version)
+		if _, ok := need[key]; ok {
+			need[key] = true
+		}
+	}
+	return need["mcp-auth\x00v1"] && need["mcp-authz\x00v1"], true
+}
+
+// storableMCPEndpoint is the persistence-ready form of one endpoint: the endpoint config
+// (with encrypted auth) plus the (environment UUID -> stable artifact UUID) bindings.
+type storableMCPEndpoint struct {
+	handle       string
+	name         string
+	config       models.MCPEndpointConfig
+	envArtifacts map[string]uuid.UUID // environment UUID -> artifact UUID
+	// upstreamSecretID is the stored credential's secret the endpoint keeps, when the request omitted the credential.
+	upstreamSecretID *uuid.UUID
+}
+
+// existingMCPEndpointIndex indexes a proxy's currently-stored endpoints so an update can
+// preserve stable per-environment artifact UUIDs (agent bindings resolve (proxy, env) ->
+// artifact_uuid) and per-endpoint upstream secrets when the client omits credentials.
+type existingMCPEndpointIndex struct {
+	// authByEndpointHandle carries the stored upstream auth for credential preservation.
+	authByEndpointHandle map[string]*models.UpstreamAuth
+	// secretByEndpointHandle carries the secret holding each endpoint's stored credential.
+	secretByEndpointHandle map[string]*uuid.UUID
+	// artifactByEnv is keyed by environment UUID: uq_proxy_env_single guarantees one
+	// artifact per environment per proxy, so the identity survives an endpoint remap.
+	artifactByEnv map[string]uuid.UUID
+}
+
+func indexExistingMCPEndpoints(endpoints []models.MCPProxyEndpoint) existingMCPEndpointIndex {
+	idx := existingMCPEndpointIndex{
+		authByEndpointHandle:   map[string]*models.UpstreamAuth{},
+		secretByEndpointHandle: map[string]*uuid.UUID{},
+		artifactByEnv:          map[string]uuid.UUID{},
+	}
+	for _, endpoint := range endpoints {
+		if endpoint.Configuration.Upstream != nil {
+			idx.authByEndpointHandle[strings.TrimSpace(endpoint.Handle)] = endpoint.Configuration.Upstream.Auth
+		}
+		if endpoint.UpstreamSecretID != nil {
+			idx.secretByEndpointHandle[strings.TrimSpace(endpoint.Handle)] = endpoint.UpstreamSecretID
+		}
+		for _, ee := range endpoint.Environments {
+			if ee.ArtifactUUID != uuid.Nil {
+				idx.artifactByEnv[ee.EnvironmentUUID.String()] = ee.ArtifactUUID
+			}
+		}
+	}
+	return idx
+}
+
+// buildMCPEndpointsForStorage normalizes incoming endpoint DTOs for persistence: it encrypts
+// each endpoint's upstream auth (preserving a previously stored secret when the client omits
+// the credential, matched by endpoint handle), applies default security, and allocates a
+// stable artifact UUID per (endpoint, environment) binding — preserving the previous one when
+// the environment stays bound. Call validateMCPEndpoints first. existing may be nil on create.
+// This performs no network I/O, so it is safe to call inside a transaction.
+func (s *MCPProxyService) buildMCPEndpointsForStorage(incoming []models.MCPProxyEndpointDTO, existing *existingMCPEndpointIndex) ([]storableMCPEndpoint, error) {
+	authByHandle := map[string]*models.UpstreamAuth{}
+	secretByHandle := map[string]*uuid.UUID{}
+	artifactByEnv := map[string]uuid.UUID{}
+	if existing != nil {
+		authByHandle = existing.authByEndpointHandle
+		secretByHandle = existing.secretByEndpointHandle
+		artifactByEnv = existing.artifactByEnv
+	}
+	// A stored secret is kept by at most one incoming endpoint, even if the request repeats a handle.
+	keptSecrets := map[uuid.UUID]bool{}
+
+	out := make([]storableMCPEndpoint, 0, len(incoming))
+	for _, incomingEndpoint := range incoming {
+		handle := strings.TrimSpace(incomingEndpoint.ID)
+		config := models.MCPEndpointConfig{
+			Resilience:   incomingEndpoint.Resilience,
+			Policies:     copyMCPPolicies(policiesFromPtr(incomingEndpoint.Policies)),
+			Capabilities: copyMCPCapabilities(incomingEndpoint.Capabilities),
+			SpecVersions: specVersionsFromPtr(incomingEndpoint.McpSpecVersions),
+			Security:     defaultMCPProxySecurity(incomingEndpoint.Security),
+		}
+		var keptSecret *uuid.UUID
+		if incomingEndpoint.Upstream.Main != nil {
+			endpoint := *incomingEndpoint.Upstream.Main
+			endpoint.URL = strings.TrimSpace(endpoint.URL)
+			storedSecret := secretByHandle[handle]
+			if storedSecret != nil && keptSecrets[*storedSecret] {
+				storedSecret = nil
+			}
+			auth, kept, err := s.prepareMCPUpstreamAuthForStorage(authByHandle[handle], storedSecret, incomingEndpoint.Upstream.Main.Auth)
+			if err != nil {
+				return nil, err
+			}
+			if kept != nil {
+				keptSecrets[*kept] = true
+			}
+			keptSecret = kept
+			endpoint.Auth = auth
+			config.Upstream = &endpoint
+		}
+
+		envArtifacts := make(map[string]uuid.UUID, len(incomingEndpoint.Environments))
+		for _, env := range incomingEndpoint.Environments {
+			envUUID := strings.TrimSpace(env.EnvironmentUUID)
+			// The single gateway artifact deployed for this (endpoint, environment) is
+			// identified by a stable UUID: preserve the previously stored one when the
+			// environment stays bound, mint a new one otherwise.
+			artifactUUID := artifactByEnv[envUUID]
+			if artifactUUID == uuid.Nil {
+				artifactUUID = uuid.New()
+			}
+			envArtifacts[envUUID] = artifactUUID
+		}
+
+		out = append(out, storableMCPEndpoint{
+			handle:           handle,
+			name:             strings.TrimSpace(incomingEndpoint.Name),
+			config:           config,
+			envArtifacts:     envArtifacts,
+			upstreamSecretID: keptSecret,
+		})
+	}
+	return out, nil
+}
+
+// pinExemptGateways returns a copy of endpoints in which every environment in exempt that names no gatewayId names
+// the gateway validateMCPEndpointPlacement approved it for. An explicit gatewayId is already the approved one.
+func pinExemptGateways(endpoints []models.MCPProxyEndpointDTO, exempt map[string]uuid.UUID) []models.MCPProxyEndpointDTO {
+	pinned := slices.Clone(endpoints)
+	for i := range pinned {
+		pinned[i].Environments = slices.Clone(pinned[i].Environments)
+		for j := range pinned[i].Environments {
+			env := &pinned[i].Environments[j]
+			envKey, _ := canonicalEnvironmentUUID(env.EnvironmentUUID)
+			gatewayUUID, ok := exempt[envKey]
+			if !ok || requestedGatewayUUID(*env) != nil {
+				continue
+			}
+			gatewayID := gatewayUUID.String()
+			env.GatewayID = &gatewayID
+		}
+	}
+	return pinned
+}
+
+// canonicalEnvironmentUUID spells a request's environment UUID the way stored bindings key it. uuid.Parse accepts
+// upper case, braces and other forms the request body may carry.
+func canonicalEnvironmentUUID(raw string) (string, bool) {
+	envUUID, err := uuid.Parse(strings.TrimSpace(raw))
+	if err != nil {
+		return "", false
+	}
+	return envUUID.String(), true
+}
+
+// applyRequestedGatewayUUIDs copies each request DTO's caller-specified gatewayId onto the
+// matching (endpoint, environment) binding of a freshly-reloaded proxy, transiently and
+// in-memory only — RequestedGatewayUUID is gorm:"-", so this never persists. Create/Update
+// reload the proxy from the DB (losing any in-memory state) before deploying, so this must
+// run on that reloaded copy, right before deployMCPProxyEndpoints. uq_proxy_env_single
+// guarantees at most one binding per environment per proxy, so keying by environment UUID
+// alone is unambiguous.
+func applyRequestedGatewayUUIDs(proxy *models.MCPProxy, endpoints []models.MCPProxyEndpointDTO) {
+	requested := map[string]*string{}
+	for _, endpoint := range endpoints {
+		for _, env := range endpoint.Environments {
+			envUUID, valid := canonicalEnvironmentUUID(env.EnvironmentUUID)
+			if !valid || env.GatewayID == nil {
+				continue
+			}
+			gwID := strings.TrimSpace(*env.GatewayID)
+			if gwID == "" {
+				continue
+			}
+			requested[envUUID] = &gwID
+		}
+	}
+	if len(requested) == 0 {
+		return
+	}
+	for i := range proxy.Endpoints {
+		endpoint := &proxy.Endpoints[i]
+		for j := range endpoint.Environments {
+			ee := &endpoint.Environments[j]
+			if gwID, ok := requested[ee.EnvironmentUUID.String()]; ok {
+				ee.RequestedGatewayUUID = gwID
+			}
+		}
+	}
+}
+
+// persistMCPEndpoints inserts the endpoint rows and their (endpoint, environment) join rows
+// for the proxy. The artifacts row backing each (endpoint, env) deployment is created lazily
+// at deploy time (ensureMCPProxyEnvArtifactRow); here we only record the intended identity.
+func (s *MCPProxyService) persistMCPEndpoints(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, proxyHandle, proxyVersion string, endpoints []storableMCPEndpoint, ouID string) error {
+	now := time.Now()
+	for _, endpoint := range endpoints {
+		endpointUUID := uuid.New()
+		row := &models.MCPProxyEndpoint{
+			UUID:             endpointUUID,
+			MCPProxyUUID:     proxyUUID,
+			Handle:           endpoint.handle,
+			Name:             endpoint.name,
+			Status:           models.StatusCreated,
+			Configuration:    endpoint.config,
+			UpstreamSecretID: endpoint.upstreamSecretID,
+		}
+		if err := s.endpointRepo.CreateEndpoint(ctx, tx, row); err != nil {
+			return err
+		}
+		for envUUIDStr, artifactUUID := range endpoint.envArtifacts {
+			envUUID, err := uuid.Parse(envUUIDStr)
+			if err != nil {
+				return fmt.Errorf("%w: invalid environment id %q: %w", utils.ErrInvalidInput, envUUIDStr, err)
+			}
+			// The join row's artifact_uuid FKs to artifacts (fk_endpoint_env_artifact), so
+			// the backing artifacts row must exist before the join row is inserted. Create
+			// it now, in the same transaction, with the same stable handle the deploy path
+			// (ensureMCPProxyEnvArtifactRow) computes — so deploy-time creation no-ops. On
+			// update a preserved environment keeps its stable artifact UUID and row (join
+			// rows cascade-delete, artifacts rows do not); the row is keyed by that UUID
+			// (its primary key), so existence is checked by UUID — a preserved artifact
+			// whose environment remapped to a different endpoint (new handle) is still
+			// found, avoiding a primary-key collision on re-create.
+			artifactHandle := mcpProxyEnvArtifactHandle(proxyHandle, endpoint.handle, envUUIDStr)
+			if _, err := s.artifactRepo.GetByUUID(artifactUUID.String(), ouID); errors.Is(err, utils.ErrArtifactNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
+				if err := s.artifactRepo.Create(tx.WithContext(ctx), &models.Artifact{
+					UUID:      artifactUUID,
+					Handle:    artifactHandle,
+					Name:      artifactHandle,
+					Version:   proxyVersion,
+					Kind:      models.KindMCPMapping,
+					OUID:      ouID,
+					CreatedAt: now,
+					UpdatedAt: now,
+				}); err != nil {
+					return fmt.Errorf("failed to create MCP proxy endpoint environment artifact: %w", err)
+				}
+			} else if err != nil {
+				return fmt.Errorf("failed to check MCP proxy endpoint environment artifact: %w", err)
+			}
+			if err := s.endpointRepo.AddEndpointEnvironment(ctx, tx, &models.MCPProxyEndpointEnvironment{
+				MCPProxyUUID:         proxyUUID,
+				EndpointUUID:         endpointUUID,
+				EnvironmentUUID:      envUUID,
+				ArtifactUUID:         artifactUUID,
+				Status:               models.StatusCreated,
+				RequestedGatewayUUID: nil,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// mapMCPProxyWriteError maps Postgres unique-violation errors from the write path to
+// friendly sentinels. It distinguishes the proxy-handle collision (uq_artifact_handle_ou_id)
+// from the name+version collision (uq_artifact_name_version_ou_id) and the
+// environment-already-bound collision (uq_proxy_env_single / uq_endpoint_env). Returns nil
+// when err is not a recognized unique violation, so the caller falls back to a generic error.
+//
+// uq_artifact_handle_ou_id is a table-wide constraint shared by every artifact kind (LLM
+// providers, MCP proxies, ...), not just MCP proxies — a handle collision with a
+// differently-kinded artifact must not be reported as "MCP proxy already exists". handle
+// and orgUUID let it resolve the conflicting artifact's actual kind before deciding.
+func (s *MCPProxyService) mapMCPProxyWriteError(err error, handle, orgUUID string) error {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" {
+		return nil
+	}
+	switch pgErr.ConstraintName {
+	case "uq_proxy_env_single", "uq_endpoint_env":
+		return fmt.Errorf("%w", utils.ErrMCPEnvAlreadyBound)
+	case "uq_mcp_endpoint_handle":
+		return fmt.Errorf("%w: duplicate endpoint id", utils.ErrInvalidInput)
+	case "uq_artifact_handle_ou_id":
+		if conflicting, getErr := s.artifactRepo.GetByHandle(handle, orgUUID); getErr == nil &&
+			conflicting != nil && conflicting.Kind != models.KindMCPProxy {
+			return fmt.Errorf("%w: handle already in use by another artifact: %w", utils.ErrArtifactExists, utils.ErrMCPProxyHandleInUse)
+		}
+		return fmt.Errorf("%w: handle already in use: %w", utils.ErrMCPProxyExists, utils.ErrMCPProxyHandleInUse)
+	case "uq_artifact_name_version_ou_id":
+		return fmt.Errorf("%w: another artifact already uses this name and version", utils.ErrInvalidInput)
+	default:
+		return nil
+	}
+}
+
+// policiesFromPtr dereferences the DTO's optional policies slice pointer.
+func policiesFromPtr(policies *[]models.MCPPolicy) []models.MCPPolicy {
+	if policies == nil {
+		return nil
+	}
+	return *policies
+}
+
+func specVersionsFromPtr(versions *[]string) []string {
+	if versions == nil {
+		return nil
+	}
+	return slices.Clone(*versions)
+}
+
+func (s *MCPProxyService) fetchMCPServerInfo(ctx context.Context, endpointURL string, headerName string, headerValue string) (*models.MCPServerInfoFetchResponse, error) {
+	// discover MCP server with server/discover (MCP 2026-07-28 onwards).
+	// If server answers: pick the highest MCP version both sides support. 2026-07-28 or later
+	// needs no initialize. An earlier version, or none in common, still connects with initialize.
+	// Server refuses: before MCP 2026-07-28. Connect with initialize.
+	discoverResult, serverAnsweredDiscover, err := s.discoverMCPServer(ctx, endpointURL, headerName, headerValue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to discover MCP server: %w", err)
+	}
+	if serverAnsweredDiscover {
+		protocolVersion := chooseMCPVersion(discoverResult.Result.SupportedVersions)
+		if !mcpVersionNeedsInitialize(protocolVersion) {
+			return s.fetchToolsPromptsAndResources(ctx, endpointURL, "", headerName, headerValue, protocolVersion,
+				discoverResult.Result.Meta.ServerInfo, discoverResult.Result.SupportedVersions)
+		}
+		// if the shared version is before 2026-07-28, or there is none, still needs initialize.
+	}
+
+	sessionID, agreedVersion, serverInfo, err := s.initializeMCPServer(ctx, endpointURL, headerName, headerValue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MCP server: %w", err)
+	}
+
+	notifyReq := mcpJSONRPCRequest{
+		JSONRPC: mcpJSONRPCVersion,
+		Method:  mcpMethodInitialized,
+	}
+	if _, err := s.postJSONRPCWithSession(ctx, endpointURL, notifyReq, sessionID, headerName, headerValue); err != nil {
+		return nil, fmt.Errorf("failed to send notification: %w", err)
+	}
+
+	// The versions the server supports: the list from server/discover if the server answered it
+	// with one (wider than the one version initialize agrees on), otherwise the version initialize
+	// agreed on.
+	serverVersions := []string{agreedVersion}
+	if serverAnsweredDiscover && len(discoverResult.Result.SupportedVersions) > 0 {
+		serverVersions = discoverResult.Result.SupportedVersions
+	}
+
+	// Server before MCP 2026-07-28: list at the version initialize asked for. Each request
+	// carries the session ID that initialize gave us. mcpSpecVersionJune2025 here only selects
+	// that session path; agreedVersion would be wrong, because a server agreeing on 2026-07-28 or
+	// later would switch the requests to the path without a session.
+	return s.fetchToolsPromptsAndResources(ctx, endpointURL, sessionID, headerName, headerValue, mcpSpecVersionJune2025,
+		serverInfo, serverVersions)
+}
+
+// isMCPVersionDate reports whether a version is a real date, YYYY-MM-DD, which is how MCP numbers
+// its versions. The gateway parses versions the same way and rejects the deploy otherwise, so a
+// shape-only check would let "2025-13-45" through to a failed deploy.
+func isMCPVersionDate(version string) bool {
+	parsed, err := time.Parse(time.DateOnly, version)
+	return err == nil && parsed.Format(time.DateOnly) == version
+}
+
+// obtainValidMCPVersionsFromServer cleans the MCP versions an upstream MCP server reported (in
+// server/discover or initialize): it keeps only values shaped like an MCP version (a date,
+// YYYY-MM-DD) and quietly drops the rest. Returns nil, which leaves the supportedVersions field out of the response, when none
+// are left.
+// Versions an API caller sends are checked by validateMCPSpecVersionsInRequest instead.
+func obtainValidMCPVersionsFromServer(versions []string) *[]string {
+	kept := make([]string, 0, len(versions))
+	for _, version := range versions {
+		if isMCPVersionDate(version) {
+			kept = append(kept, version)
+		}
+	}
+	if len(kept) == 0 {
+		return nil
+	}
+	return &kept
+}
+
+// fetchToolsPromptsAndResources asks the server for its tools, prompts and resources, and builds
+// the response with them, the server's info and the MCP versions it supports.
+// protocolVersion decides how to send each request (see postJSONRPCForVersion). A failed list is
+// left out of the response, but running out of time fails the whole fetch, so a cut-off probe
+// is not reported as complete.
+func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string, serverInfo map[string]interface{}, serverVersions []string) (*models.MCPServerInfoFetchResponse, error) {
+	resp := &models.MCPServerInfoFetchResponse{}
+	if serverInfo != nil {
+		resp.ServerInfo = &serverInfo
+	}
+	resp.SupportedVersions = obtainValidMCPVersionsFromServer(serverVersions)
+
+	if tools := s.fetchTools(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(tools) > 0 {
+		resp.Tools = &tools
+	}
+	if prompts := s.fetchPrompts(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(prompts) > 0 {
+		resp.Prompts = &prompts
+	}
+	if resources := s.fetchResources(ctx, endpointURL, sessionID, headerName, headerValue, protocolVersion); len(resources) > 0 {
+		resp.Resources = &resources
+	}
+
+	if err := ctx.Err(); err != nil {
+		// Only the deadline says the server was too slow; a cancel means the caller left.
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, fmt.Errorf("%w: MCP server did not answer in time: %w", utils.ErrURLUnreachable, err)
+		}
+		return nil, err
+	}
+
+	return resp, nil
+}
+
+// postJSONRPCForVersion sends requests based on the MCP server's expected protocol version.
+//   - Before MCP 2026-07-28: the request carries the session ID taken from initialize, in the
+//     Mcp-Session-Id header.
+//   - MCP 2026-07-28 and later: no session. Instead the request carries the version and
+//     client info in params._meta, and the version and method in HTTP headers.
+func (s *MCPProxyService) postJSONRPCForVersion(ctx context.Context, endpointURL string, req mcpJSONRPCRequest, sessionID string, headerName string, headerValue string, protocolVersion string) ([]byte, error) {
+	if mcpVersionNeedsInitialize(protocolVersion) {
+		return s.postJSONRPCWithSession(ctx, endpointURL, req, sessionID, headerName, headerValue)
+	}
+
+	req.Params = map[string]interface{}{"_meta": buildRequestMeta(protocolVersion)}
+	body, _, err := s.postJSONRPC(ctx, endpointURL, req, "", headerName, headerValue, buildRequestHeaders(protocolVersion, req.Method))
+	return body, err
+}
+
+// mcpClientSupportedSpecVersions are the MCP spec versions Agent Manager's MCP client
+// supports when communicating with an MCP server.
+var mcpClientSupportedSpecVersions = []string{mcpSpecVersionJune2025, "2025-11-25", mcpSpecVersionJuly2026}
+
+// chooseMCPVersion picks the MCP version to communicate with a server in the highest version
+// that both the server and Agent Manager support. It returns "" when there is none, e.g. the
+// server's list is empty or has only versions Agent Manager doesn't support. Same rule as the
+// Go MCP SDK's client.
+func chooseMCPVersion(serverVersions []string) string {
+	chosen := ""
+	for _, version := range serverVersions {
+		// MCP versions are dates (YYYY-MM-DD), so the larger string is the later version.
+		if slices.Contains(mcpClientSupportedSpecVersions, version) && version > chosen {
+			chosen = version
+		}
+	}
+	return chosen
+}
+
+// mcpVersionNeedsInitialize reports whether an MCP version still uses the initialize handshake and
+// a session: every version before 2026-07-28.
+func mcpVersionNeedsInitialize(protocolVersion string) bool {
+	return protocolVersion < mcpSpecVersionJuly2026
+}
+
+// buildRequestMeta builds the params._meta that MCP 2026-07-28 requires on every request.
+func buildRequestMeta(protocolVersion string) map[string]interface{} {
+	return map[string]interface{}{
+		"io.modelcontextprotocol/protocolVersion":    protocolVersion,
+		"io.modelcontextprotocol/clientInfo":         map[string]string{"name": mcpClientName, "version": mcpClientVersion},
+		"io.modelcontextprotocol/clientCapabilities": map[string]interface{}{},
+	}
+}
+
+// buildRequestHeaders builds the HTTP headers MCP 2026-07-28 requires on every request: the version
+// and the method.
+func buildRequestHeaders(protocolVersion string, method string) map[string]string {
+	return map[string]string{
+		"MCP-Protocol-Version": protocolVersion,
+		"Mcp-Method":           method,
+	}
+}
+
+// discoverMCPServer sends server/discover, the first request in MCP 2026-07-28. There are three
+// outcomes:
+//   - The server answers with the MCP versions it supports: returns true.
+//   - The server refuses the method (see isServerDiscoverRefusal), so it is prior to
+//     MCP 2026-07-28: returns false and no error.
+//   - Any other error, e.g. 401, 403, 429, 5xx, unreachable, a 2xx body that isn't JSON-RPC, or a
+//     2026-07-28 error (see isMCPJuly2026Error) with any status: returns the error.
+func (s *MCPProxyService) discoverMCPServer(ctx context.Context, endpointURL string, headerName string, headerValue string) (mcpServerDiscoverResult, bool, error) {
+	discoverReq := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 1, Method: mcpMethodServerDiscover}
+
+	var discoverResult mcpServerDiscoverResult
+	body, err := s.postJSONRPCForVersion(ctx, endpointURL, discoverReq, "", headerName, headerValue, mcpSpecVersionJuly2026)
+	if err != nil {
+		if isServerDiscoverRefusal(err) {
+			return discoverResult, false, nil
+		}
+		return discoverResult, false, err
+	}
+	if err := json.Unmarshal(body, &discoverResult); err != nil {
+		return discoverResult, false, fmt.Errorf("failed to parse server/discover response: %w, body: %s", err, string(body))
+	}
+	// HTTP 200 with a 2026-07-28 error, e.g. -32022 "Unsupported protocol version", comes from a
+	// new server that refused this request: report it, as with a 4xx, instead of trying initialize.
+	if isMCPJuly2026Error(discoverResult.Error) {
+		return discoverResult, false, fmt.Errorf("server/discover failed: %s (code %d)",
+			discoverResult.Error.Message, discoverResult.Error.Code)
+	}
+	// HTTP 200 with any other JSON-RPC error, e.g. -32601 "Method not found", is a refusal.
+	serverAnswered := discoverResult.Error == nil
+	return discoverResult, serverAnswered, nil
+}
+
+// isServerDiscoverRefusal reports whether a failed server/discover means "this server doesn't
+// support the method", so Agent Manager should try initialize instead.
+//
+//	401, 403, 429                       -> no: credentials or rate limit; initialize would also fail
+//	a 2026-07-28 error in the body      -> no: the server is new, e.g. it doesn't support client
+//	                                       version (-32022) or rejected its headers (-32020)
+//	other 4xx (e.g. 400, 404, 405)      -> yes: the server refused this request
+//	5xx with a JSON-RPC error body      -> yes: the server's MCP layer refused the method
+//	other 5xx                           -> no: the server is broken
+//	unreachable, timeout, too large     -> no
+func isServerDiscoverRefusal(err error) bool {
+	var statusErr *mcpHTTPStatusError
+	if !errors.As(err, &statusErr) {
+		return false
+	}
+	rpcErr := parseJSONRPCError(statusErr.Body)
+	switch {
+	case statusErr.StatusCode == http.StatusForbidden, statusErr.StatusCode == http.StatusTooManyRequests:
+		return false
+	case isMCPJuly2026Error(rpcErr):
+		return false
+	case statusErr.StatusCode >= 400 && statusErr.StatusCode < 500:
+		return true
+	case statusErr.StatusCode >= 500:
+		return rpcErr != nil
+	default:
+		return false
+	}
+}
+
+// initializeMCPServer runs the initialize handshake (MCP before 2026-07-28). It returns the session
+// ID, the MCP version the server agreed on, and the server's info.
+func (s *MCPProxyService) initializeMCPServer(ctx context.Context, endpointURL string, headerName string, headerValue string) (string, string, map[string]interface{}, error) {
+	initReq := mcpJSONRPCRequest{
+		JSONRPC: mcpJSONRPCVersion,
+		ID:      1,
+		Method:  mcpMethodInitialize,
+		Params: map[string]interface{}{
+			"protocolVersion": mcpSpecVersionJune2025,
+			"capabilities":    map[string]interface{}{"roots": map[string]bool{"listChanged": true}},
+			"clientInfo":      map[string]string{"name": mcpClientName, "version": mcpClientVersion},
+		},
+	}
+
+	body, headers, err := s.postJSONRPC(ctx, endpointURL, initReq, "", headerName, headerValue, nil)
+	if err != nil {
+		return "", "", nil, err
+	}
+
+	var initResult mcpInitializeResult
+	if err := json.Unmarshal(body, &initResult); err != nil {
+		return "", "", nil, fmt.Errorf("failed to parse initialize response: %w, body: %s", err, string(body))
+	}
+	if initResult.Error != nil {
+		return "", "", nil, fmt.Errorf("initialize request returned an error: %s", initResult.Error.Message)
+	}
+
+	return headers.Get(mcpSessionHeader), initResult.Result.ProtocolVersion, initResult.Result.ServerInfo, nil
+}
+
+func (s *MCPProxyService) fetchTools(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 2, Method: mcpMethodToolsList}
+	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
+	if err != nil {
+		s.logger.Warn("Failed to fetch MCP tools, continuing with available info", "error", err)
+		return nil
+	}
+	var result mcpToolsResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		s.logger.Warn("Failed to parse MCP tools response, continuing with available info", "error", err)
+		return nil
+	}
+	if result.Error != nil {
+		s.logger.Warn("tools/list returned an error, continuing with available info", "error", result.Error.Message)
+		return nil
+	}
+	return result.Result.Tools
+}
+
+func (s *MCPProxyService) fetchPrompts(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 3, Method: mcpMethodPromptsList}
+	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
+	if err != nil {
+		s.logger.Warn("Failed to fetch MCP prompts, continuing with available info", "error", err)
+		return nil
+	}
+	var result mcpPromptsResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		s.logger.Warn("Failed to parse MCP prompts response, continuing with available info", "error", err)
+		return nil
+	}
+	if result.Error != nil {
+		s.logger.Warn("prompts/list returned an error, continuing with available info", "error", result.Error.Message)
+		return nil
+	}
+	return result.Result.Prompts
+}
+
+func (s *MCPProxyService) fetchResources(ctx context.Context, endpointURL string, sessionID string, headerName string, headerValue string, protocolVersion string) []map[string]interface{} {
+	req := mcpJSONRPCRequest{JSONRPC: mcpJSONRPCVersion, ID: 4, Method: mcpMethodResourcesList}
+	body, err := s.postJSONRPCForVersion(ctx, endpointURL, req, sessionID, headerName, headerValue, protocolVersion)
+	if err != nil {
+		s.logger.Warn("Failed to fetch MCP resources, continuing with available info", "error", err)
+		return nil
+	}
+	var result mcpResourcesResult
+	if err := json.Unmarshal(body, &result); err != nil {
+		s.logger.Warn("Failed to parse MCP resources response, continuing with available info", "error", err)
+		return nil
+	}
+	if result.Error != nil {
+		s.logger.Warn("resources/list returned an error, continuing with available info", "error", result.Error.Message)
+		return nil
+	}
+	return result.Result.Resources
+}
+
+func (s *MCPProxyService) postJSONRPCWithSession(ctx context.Context, endpointURL string, payload interface{}, sessionID string, headerName string, headerValue string) ([]byte, error) {
+	body, _, err := s.postJSONRPC(ctx, endpointURL, payload, sessionID, headerName, headerValue, nil)
+	return body, err
+}
+
+func (s *MCPProxyService) postJSONRPC(ctx context.Context, endpointURL string, payload interface{}, sessionID string, headerName string, headerValue string, extraHeaders map[string]string) ([]byte, http.Header, error) {
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, nil, err
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpointURL, bytes.NewBuffer(data))
+	if err != nil {
+		return nil, nil, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json, text/event-stream")
+	setSafeHeader(httpReq.Header, headerName, headerValue)
+	for name, value := range extraHeaders {
+		httpReq.Header.Set(name, value)
+	}
+	if sessionID != "" {
+		httpReq.Header.Set(mcpSessionHeader, sessionID)
+	}
+
+	resp, err := s.client.Do(httpReq)
+	if err != nil {
+		if errors.Is(err, utils.ErrInvalidURL) {
+			return nil, nil, err
+		}
+		return nil, nil, fmt.Errorf("%w: failed to reach MCP server: %w", utils.ErrURLUnreachable, err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			s.logger.Warn("Failed to close MCP server response body", "error", closeErr)
+		}
+	}()
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxMCPResponseBody+1))
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+	if len(body) > maxMCPResponseBody {
+		return nil, nil, fmt.Errorf("%w: response body exceeds %d bytes", utils.ErrMCPResponseTooLarge, maxMCPResponseBody)
+	}
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, nil, utils.ErrMCPServerUnauthorized
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, nil, &mcpHTTPStatusError{StatusCode: resp.StatusCode, Body: string(body)}
+	}
+	if isMCPEventStream(resp) {
+		data, err := parseMCPEventStream(body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse event stream: %w, body: %s", err, string(body))
+		}
+		body = data
+	}
+
+	return body, resp.Header, nil
+}
+
+func setSafeHeader(headers http.Header, headerName string, headerValue string) {
+	if strings.TrimSpace(headerName) == "" {
+		return
+	}
+	switch strings.ToLower(headerName) {
+	case strings.ToLower(mcpSessionHeader), "content-type", "accept":
+		return
+	default:
+		headers.Set(headerName, headerValue)
+	}
+}
+
+func parseMCPEventStream(body []byte) ([]byte, error) {
+	lines := bytes.Split(body, []byte("\n"))
+	var eventData bytes.Buffer
+	hasData := false
+	flushEvent := func() []byte {
+		if !hasData {
+			return nil
+		}
+		data := eventData.Bytes()
+		eventData.Reset()
+		hasData = false
+		if len(data) > 0 && !bytes.Equal(data, []byte("{}")) {
+			return data
+		}
+		return nil
+	}
+
+	for _, line := range lines {
+		line = bytes.TrimSpace(line)
+		if len(line) == 0 {
+			if data := flushEvent(); data != nil {
+				return data, nil
+			}
+			continue
+		}
+		data, ok := bytes.CutPrefix(line, []byte("data:"))
+		if !ok {
+			continue
+		}
+		data = bytes.TrimSpace(data)
+		if hasData {
+			eventData.WriteByte('\n')
+		}
+		eventData.Write(data)
+		hasData = true
+	}
+	if data := flushEvent(); data != nil {
+		return data, nil
+	}
+	return nil, errors.New("no data found in event stream")
+}
+
+func isMCPEventStream(resp *http.Response) bool {
+	return strings.Contains(resp.Header.Get("Content-Type"), "text/event-stream")
+}
+
+type mcpJSONRPCRequest struct {
+	JSONRPC string      `json:"jsonrpc"`
+	ID      int         `json:"id,omitempty"`
+	Method  string      `json:"method"`
+	Params  interface{} `json:"params,omitempty"`
+}
+
+// parseJSONRPCError returns the JSON-RPC error in a response body, or nil when the body isn't a
+// JSON-RPC error response.
+func parseJSONRPCError(body string) *mcpJSONRPCError {
+	var response struct {
+		Error *mcpJSONRPCError `json:"error"`
+	}
+	if json.Unmarshal([]byte(body), &response) != nil {
+		return nil
+	}
+	return response.Error
+}
+
+// isMCPJuly2026Error reports whether a JSON-RPC error has one of the codes that only servers on
+// MCP 2026-07-28 or later send (header mismatch, missing client capability, unsupported protocol
+// version).
+func isMCPJuly2026Error(rpcErr *mcpJSONRPCError) bool {
+	if rpcErr == nil {
+		return false
+	}
+	switch rpcErr.Code {
+	case mcpErrorHeaderMismatch, mcpErrorMissingRequiredClientCapability, mcpErrorUnsupportedProtocolVersion:
+		return true
+	default:
+		return false
+	}
+}
+
+// mcpHTTPStatusError is a non-2xx answer from an MCP server, other than 401 (which is
+// utils.ErrMCPServerUnauthorized). It keeps the status code so callers can decide what to do with it.
+type mcpHTTPStatusError struct {
+	StatusCode int
+	Body       string
+}
+
+func (e *mcpHTTPStatusError) Error() string {
+	return fmt.Sprintf("request failed with status %d: %s", e.StatusCode, e.Body)
+}
+
+type mcpJSONRPCError struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
+
+type mcpServerDiscoverResult struct {
+	Result struct {
+		SupportedVersions []string `json:"supportedVersions"`
+		Meta              struct {
+			ServerInfo map[string]interface{} `json:"io.modelcontextprotocol/serverInfo"`
+		} `json:"_meta"`
+	} `json:"result"`
+	Error *mcpJSONRPCError `json:"error"`
+}
+
+type mcpInitializeResult struct {
+	Result struct {
+		ProtocolVersion string                 `json:"protocolVersion"`
+		ServerInfo      map[string]interface{} `json:"serverInfo"`
+		Capabilities    map[string]interface{} `json:"capabilities"`
+	} `json:"result"`
+	Error *mcpJSONRPCError `json:"error"`
+}
+
+type mcpToolsResult struct {
+	Result struct {
+		Tools []map[string]interface{} `json:"tools"`
+	} `json:"result"`
+	Error *mcpJSONRPCError `json:"error"`
+}
+
+type mcpPromptsResult struct {
+	Result struct {
+		Prompts []map[string]interface{} `json:"prompts"`
+	} `json:"result"`
+	Error *mcpJSONRPCError `json:"error"`
+}
+
+type mcpResourcesResult struct {
+	Result struct {
+		Resources []map[string]interface{} `json:"resources"`
+	} `json:"result"`
+	Error *mcpJSONRPCError `json:"error"`
+}

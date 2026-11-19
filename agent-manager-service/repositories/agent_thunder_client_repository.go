@@ -204,7 +204,7 @@ func NewAgentThunderClientRepo(db *gorm.DB) AgentThunderClientRepository {
 func (r *AgentThunderClientRepo) Upsert(ctx context.Context, c *models.AgentThunderClient) error {
 	now := dbx.Now()
 	if c.ID == uuid.Nil {
-		c.ID = newID()
+		c.ID = NewID()
 	}
 	if c.Status == "" {
 		c.Status = models.AgentThunderStatusPending
@@ -218,7 +218,7 @@ func (r *AgentThunderClientRepo) Upsert(ctx context.Context, c *models.AgentThun
 
 func (r *AgentThunderClientRepo) FindByAgent(ctx context.Context, ouID, projectName, agentName string) ([]models.AgentThunderClient, error) {
 	var rows []models.AgentThunderClient
-	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	cond, args := AgentCond(r.db, ouID, projectName, agentName)
 	if err := r.db.WithContext(ctx).Where(cond, args...).Order("environment_id").Find(&rows).Error; err != nil {
 		return nil, fmt.Errorf("find agent thunder clients by agent: %w", err)
 	}
@@ -243,7 +243,7 @@ func (r *AgentThunderClientRepo) FindByOuAndEnvironment(ctx context.Context, ouI
 
 func (r *AgentThunderClientRepo) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*models.AgentThunderClient, error) {
 	var c models.AgentThunderClient
-	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	err := r.db.WithContext(ctx).Where(cond, args...).Take(&c).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -332,7 +332,7 @@ func (r *AgentThunderClientRepo) UpdateSecretRef(context.Context, uuid.UUID, str
 }
 
 func (r *AgentThunderClientRepo) DeleteByAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	cond, args := agentCond(r.db, ouID, projectName, agentName)
+	cond, args := AgentCond(r.db, ouID, projectName, agentName)
 	if err := r.db.WithContext(ctx).Where(cond, args...).Delete(&models.AgentThunderClient{}).Error; err != nil {
 		return fmt.Errorf("delete agent thunder clients by agent: %w", err)
 	}

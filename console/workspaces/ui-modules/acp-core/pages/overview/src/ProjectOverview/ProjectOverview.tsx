@@ -22,15 +22,17 @@ import { Edit } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
 import { AgentList } from "@agent-management-platform/level-resource-listing";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
-import { absoluteRouteMap } from "@agent-management-platform/types";
+import { absoluteRouteMap, PLUGIN_MOUNT_POINTS } from "@agent-management-platform/types";
 import { useFeatureAccess, useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   useListAgents,
   useGetProject,
-  useIsSingleEnvironment,
 } from "@agent-management-platform/api-client";
 import { AgentTypeSummary } from "./subComponents/AgentTypeSummary";
-import { DeploymentPipelineCard } from "./subComponents/DeploymentPipelineCard";
+import {
+  OverviewPanels,
+  type ProjectOverviewPanelProps,
+} from "@agent-management-platform/shared-component";
 
 const projectRoutes = absoluteRouteMap.children.org.children.projects;
 
@@ -42,8 +44,6 @@ export const ProjectOverview: React.FC = () => {
   const navigate = useNavigate();
   const { canWrite: canWriteProject } = useResourceAccess("project");
   const canCreateAgent = useFeatureAccess("agent_create");
-  // Pipelines belong to the agent runtime; without it there is none to show.
-  const singleEnv = useIsSingleEnvironment();
   const { data: project, isLoading } = useGetProject({
     orgName: orgId,
     projName: projectId,
@@ -92,7 +92,11 @@ export const ProjectOverview: React.FC = () => {
         </Box>
         <Stack gap={2} sx={{ width: { xs: "100%", lg: 380 }, flexShrink: 0 }}>
           <AgentTypeSummary />
-          {singleEnv === false && <DeploymentPipelineCard />}
+          {/* Module sections (e.g. the deployment pipeline, from agent-runtime). */}
+          <OverviewPanels<ProjectOverviewPanelProps>
+            mountPoint={PLUGIN_MOUNT_POINTS.projectOverviewSide}
+            props={{ orgId, projectId }}
+          />
         </Stack>
       </Stack>
     </PageLayout>

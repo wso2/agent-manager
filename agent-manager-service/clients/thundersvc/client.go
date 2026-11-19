@@ -41,23 +41,10 @@ import (
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg clientmocks -out ../clientmocks/thunder_client_fake.go . ThunderClient:ThunderClientMock
 type ThunderClient interface {
-	// EnsurePublisherApp creates an OAuth2 app named "amp-publisher-{orgName}" in Thunder
-	// if it doesn't already exist. orgUUID is the Thunder organization unit UUID to assign
-	// the app to. Returns clientId and clientSecret.
-	// Idempotent: if app already exists, returns its existing clientId
-	// (clientSecret is only available at creation time).
-	EnsurePublisherApp(ctx context.Context, orgName, orgUUID string) (clientID, clientSecret string, created bool, err error)
-
-	// DeletePublisherApp deletes the OAuth2 app named "amp-publisher-{orgName}" from Thunder.
-	// Returns true if the app was found and deleted, false if it didn't exist.
-	DeletePublisherApp(ctx context.Context, orgName string) (bool, error)
-
-	// RegenerateClientSecret regenerates the OAuth2 client secret for the app
-	// named "amp-publisher-{orgName}". Returns the new client secret.
-	// Use this when the app exists but the secret has been lost (e.g. not in the local DB).
-	RegenerateClientSecret(ctx context.Context, orgName string) (clientSecret string, err error)
-
-	// EnsureApp generalizes EnsurePublisherApp for a differently-named app (e.g. amp-scheduler-<ouID>).
+	// EnsureApp creates an OAuth2 app named appName in Thunder if it doesn't
+	// already exist, in the organization unit orgUUID. Idempotent: if the app
+	// already exists, returns its existing clientId (clientSecret is only
+	// available at creation time).
 	EnsureApp(ctx context.Context, appName, orgUUID string) (clientID, clientSecret string, created bool, err error)
 
 	// DeleteApp deletes the OAuth2 app named appName from Thunder.
@@ -382,22 +369,6 @@ func (c *thunderClient) getDefaultOUID(ctx context.Context, token string) (strin
 		return "", fmt.Errorf("thunder OU decode: %w", err)
 	}
 	return result.ID, nil
-}
-
-// EnsurePublisherApp creates or returns an existing OAuth2 app for the given org.
-// orgUUID is the Thunder organization unit UUID. If empty, the default OU is used.
-func (c *thunderClient) EnsurePublisherApp(ctx context.Context, orgName, orgUUID string) (clientID, clientSecret string, created bool, err error) {
-	return c.EnsureApp(ctx, "amp-publisher-"+orgName, orgUUID)
-}
-
-// DeletePublisherApp deletes the OAuth2 app named "amp-publisher-{orgName}" from Thunder.
-func (c *thunderClient) DeletePublisherApp(ctx context.Context, orgName string) (bool, error) {
-	return c.DeleteApp(ctx, "amp-publisher-"+orgName)
-}
-
-// RegenerateClientSecret regenerates the OAuth2 client secret for the publisher app.
-func (c *thunderClient) RegenerateClientSecret(ctx context.Context, orgName string) (string, error) {
-	return c.RegenerateAppClientSecret(ctx, "amp-publisher-"+orgName)
 }
 
 // EnsureApp creates or returns an existing OAuth2 app named appName in Thunder.

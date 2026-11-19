@@ -1,11 +1,11 @@
-"""Regression guards against passing a broken tool loop or unrelated/stale trace."""
+"""Regression guards against passing a broken tool loop."""
 import json
 from pathlib import Path
 import tempfile
 import unittest
 
 from platform_smoke import MANUAL, check_evidence, model
-from external_agent import request, trace_matches, without_instrumentation_pin  # noqa: E402 - path set by platform_smoke
+from external_agent import request, without_instrumentation_pin  # noqa: E402 - path set by platform_smoke
 
 MARKER = "smoke-" + "a" * 32
 TOOL_RESULT = json.dumps({"word_count": 4})
@@ -23,10 +23,6 @@ class SmokeGuards(unittest.TestCase):
             check_evidence(request(url + "/evidence"), MARKER)
             with self.assertRaises(AssertionError):
                 check_evidence(request(url + "/evidence"), "smoke-" + "b" * 32)
-
-    def test_trace_must_contain_this_invocation_on_a_model_span(self):
-        self.assertFalse(trace_matches([{"attributes": {"gen_ai.operation.name": "embeddings", "content": MARKER}}], MARKER))
-        self.assertTrue(trace_matches([{"attributes": {"gen_ai.operation.name": "chat", "content": MARKER}}], MARKER))
 
     def test_checkout_instrumentation_replaces_the_sample_pin(self):
         with tempfile.TemporaryDirectory() as work:

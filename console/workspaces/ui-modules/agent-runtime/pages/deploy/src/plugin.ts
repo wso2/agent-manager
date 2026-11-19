@@ -25,6 +25,7 @@ import { useRouteAgent } from "@agent-management-platform/api-client";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginActivationState,
   type PluginManifest,
 } from "@agent-management-platform/types";
@@ -40,11 +41,45 @@ const useInternalAgent = (): PluginActivationState => {
   return !!agent && agent.provisioning?.type !== "external";
 };
 
+/** An internal agent built from source, not created from a catalog kind. */
+const useSourceBuiltAgent = (): PluginActivationState => {
+  const { data: agent, isLoading } = useRouteAgent();
+  if (isLoading) return undefined;
+  return agent?.provisioning?.type === "internal" && !agent.kindName;
+};
+
 export const deployPlugin: PluginManifest = {
   id: "deploy",
   name: "Deploy",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      // Agent overview: the source repository and latest build.
+      type: "panel",
+      id: "overview-built-from",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewInfo,
+      order: 10,
+      useActivation: useSourceBuiltAgent,
+      load: () => import("./index").then((m) => ({ default: m.AgentInfoPanel as ComponentType })),
+    },
+    {
+      // Agent overview, per environment: the endpoint (invoke URL, auth, CORS).
+      type: "panel",
+      id: "overview-endpoint",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewEnvironment,
+      order: 10,
+      load: () => import("./index").then((m) => ({ default: m.EnvCapabilitiesSection as ComponentType })),
+    },
+    {
+      // The deployed endpoint's HTTP resources; external agents have none.
+      type: "panel",
+      id: "overview-interface",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewEnvironment,
+      order: 40,
+      width: "half",
+      useActivation: useInternalAgent,
+      load: () => import("./index").then((m) => ({ default: m.EnvAgentInterfaceCard as ComponentType })),
+    },
     {
       type: "route",
       id: "page",

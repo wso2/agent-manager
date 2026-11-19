@@ -138,16 +138,12 @@ func (EventSubscription) TableName() string { return "event_subscriptions" }
 // subscriptions may match the same event and send it to the same
 // destination; it is delivered once, and SubscriptionIDs lists them all.
 type EventDelivery struct {
-	// MonitorAlertID, SourceEventID and Payload carried monitor alerts, which Lite does not run.
-	MonitorAlertID  *uuid.UUID      `gorm:"-" json:"-"`
-	SourceEventID   string          `gorm:"-" json:"-"`
-	Payload         json.RawMessage `gorm:"-" json:"-"`
-	ID              uuid.UUID       `gorm:"column:id;primaryKey" json:"id"`
-	OUID            string          `gorm:"column:org_id" json:"ouId"`
-	DestinationID   uuid.UUID       `gorm:"column:destination_id" json:"destinationId"`
-	SubscriptionIDs []string        `gorm:"-" json:"subscriptionIds"`
-	EventID         string          `gorm:"column:event_id" json:"eventId"`
-	EventType       string          `gorm:"column:event_type" json:"eventType"`
+	ID              uuid.UUID `gorm:"column:id;primaryKey" json:"id"`
+	OUID            string    `gorm:"column:org_id" json:"ouId"`
+	DestinationID   uuid.UUID `gorm:"column:destination_id" json:"destinationId"`
+	SubscriptionIDs []string  `gorm:"-" json:"subscriptionIds"`
+	EventID         string    `gorm:"column:event_id" json:"eventId"`
+	EventType       string    `gorm:"column:event_type" json:"eventType"`
 	// EventScope, ProjectName, AgentName and Environment say where the event
 	// happened, so each level's delivery log shows only its own events.
 	EventScope    string     `gorm:"column:event_scope" json:"eventScope"`

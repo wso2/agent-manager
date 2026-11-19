@@ -1,7 +1,7 @@
 {
   "name": "@agent-management-platform/ui-module-ai-gateway",
   "version": "1.0.0",
-  "description": "AI Gateway UI module: Gateways, LLM service providers, MCP servers and agent credentials.",
+  "description": "AI Gateway UI module: Gateways, LLM service providers, MCP servers, agent credentials, externally-hosted agents, and each agent's LLM, MCP and A2A configuration.",
   "type": "module",
   "types": "dist/index.d.ts",
   "exports": {
@@ -25,7 +25,8 @@
     "@agent-management-platform/llm-providers": "workspace:*",
     "@agent-management-platform/mcp-proxies": "workspace:*",
     "@agent-management-platform/agent-security": "workspace:*",
-    "@agent-management-platform/configure-agent": "workspace:*"
+    "@agent-management-platform/configure-agent": "workspace:*",
+    "@agent-management-platform/external-agent": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.6.0",

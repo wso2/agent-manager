@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { Link as RouterLink, generatePath, useLocation, useParams } from "react-router-dom";
 import {
   Box,
@@ -28,31 +28,17 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import {
-  ArrowRight,
-  BookOpenText,
-  Brain,
-  Code,
-  Plus,
-  Server,
-  Shield,
-  Users,
-} from "@wso2/oxygen-ui-icons-react";
+import { ArrowRight, Plus } from "@wso2/oxygen-ui-icons-react";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import {
-  useListAgentKinds,
-  useListEvaluators,
-  useListLLMProviders,
-  useListMCPProxies,
-  useListProjects,
-} from "@agent-management-platform/api-client";
-import { absoluteRouteMap } from "@agent-management-platform/types";
-import { returnToState } from "@agent-management-platform/views";
-import { useFeatureFlag, useResourceAccess } from "@agent-management-platform/feature-management";
+import { useListProjects } from "@agent-management-platform/api-client";
+import { absoluteRouteMap, type ResourceSummaryState } from "@agent-management-platform/types";
+import { returnToState, useResourceSummaries } from "@agent-management-platform/views";
+import { useResourceAccess } from "@agent-management-platform/feature-management";
 import { CARD_SLOTS, useRotatingSlots } from "./hooks/useRotatingSlots";
 import { CARD_GRID_SX } from "./cardGrid";
 import { ResourceCard, ResourceCount, type ResourceCardData } from "./subComponents/ResourceCard";
 import { ProjectRow } from "./subComponents/ProjectRow";
+import { ResourceSummaryBoundary, ResourceSummaryProbe } from "./ResourceSummaryProbe";
 
 const orgRoutes = absoluteRouteMap.children.org;
 const PROJECTS_SHOWN = 3;
@@ -63,84 +49,45 @@ export const OrganizationOverview: React.FC = () => {
   const location = useLocation();
   const params = { orgName: orgId };
   const { canWrite: canWriteProject } = useResourceAccess("project");
-  const { canWrite: canWriteLLM } = useResourceAccess("llm_provider");
-  const { canWrite: canWriteMCP } = useResourceAccess("mcp_server");
-  const agentIdEnabled = useFeatureFlag("enableAgentIdentity");
+  // Resource cards come from the modules that own the resources (resource-summary
+  // contributions); each one's count comes from its own hook, run by a probe below.
+  const summaries = useResourceSummaries();
+  const [summaryStates, setSummaryStates] = useState<Record<string, ResourceSummaryState>>({});
+  const reportSummary = useCallback((key: string, state: ResourceSummaryState) => {
+    setSummaryStates((prev) => ({ ...prev, [key]: state }));
+  }, []);
+  const [failedSummaries, setFailedSummaries] = useState<ReadonlySet<string>>(new Set());
+  const failSummary = useCallback((key: string) => {
+    setFailedSummaries((prev) => new Set(prev).add(key));
+  }, []);
 
-  const { data: kinds, isLoading: isLoadingKinds } = useListAgentKinds(params);
-  const { data: llmProviders, isLoading: isLoadingLLM } = useListLLMProviders(params);
-  const { data: mcpProxies, isLoading: isLoadingMCP } = useListMCPProxies(params);
-  const { data: evaluators, isLoading: isLoadingEvaluators } = useListEvaluators(params);
   const { data: projects, isLoading: isLoadingProjects } = useListProjects(params);
 
   const projectList = projects?.projects ?? [];
-  const identityRoutes = orgRoutes.children.thunderInstances.children;
 
-  const resourceCards: ResourceCardData[] = [
-    {
-      icon: <BookOpenText size={26} />,
-      title: "Agent Catalog",
-      count: kinds?.total,
-      loading: isLoadingKinds,
-      description: "Reusable, versioned agent templates your teams can create agents from.",
-      actionLabel: "Browse the catalog",
-      to: generatePath(orgRoutes.children.catalog.path, { orgId }),
-    },
-    {
-      icon: <Brain size={26} />,
-      title: "LLM Service Providers",
-      count: llmProviders?.total,
-      loading: isLoadingLLM,
-      alwaysShow: true,
-      description: "Model providers your agents call, with guardrails and rate limits.",
-      actionLabel: canWriteLLM ? "Add an LLM provider" : "View LLM providers",
-      to: canWriteLLM
-        ? generatePath(orgRoutes.children.llmProviders.children.add.path, { orgId })
-        : generatePath(orgRoutes.children.llmProviders.path, { orgId }),
-    },
-    {
-      icon: <Server size={26} />,
-      title: "MCP Servers",
-      // Backend sets pagination.count to the org-wide total (the spec text says page size).
-      count: mcpProxies?.pagination?.count ?? mcpProxies?.count,
-      loading: isLoadingMCP,
-      alwaysShow: true,
-      description: "Tool servers your agents can use, registered once and shared.",
-      actionLabel: canWriteMCP ? "Register an MCP server" : "View MCP servers",
-      to: canWriteMCP
-        ? generatePath(orgRoutes.children.mcpProxies.children.add.path, { orgId })
-        : generatePath(orgRoutes.children.mcpProxies.path, { orgId }),
-    },
-    {
-      icon: <Code size={26} />,
-      title: "Evaluators",
-      count: evaluators?.total,
-      loading: isLoadingEvaluators,
-      description: "Checks that score your agents' traces, from built-in to your own.",
-      actionLabel: "Browse evaluators",
-      to: generatePath(orgRoutes.children.evaluators.path, { orgId }),
-    },
-    ...(agentIdEnabled
-      ? [
-          {
-            icon: <Users size={26} />,
-            title: "Agent Identity Groups",
-            countless: true,
-            description: "Groups that collect agent identities so access is granted together.",
-            actionLabel: "Manage groups",
-            to: generatePath(identityRoutes.groups.path, { orgId }),
-          },
-          {
-            icon: <Shield size={26} />,
-            title: "Agent Identity Roles",
-            countless: true,
-            description: "Roles that decide what each agent identity is allowed to do.",
-            actionLabel: "Manage roles",
-            to: generatePath(identityRoutes.roles.path, { orgId }),
-          },
-        ]
-      : []),
-  ];
+  // A card joins once its hook has reported; until then it holds rotation like
+  // a loading count.
+  const reportedSummaries = summaries.filter(
+    (summary) => summaryStates[summary.key] && !failedSummaries.has(summary.key),
+  );
+  const summariesLoading = summaries.some(
+    (summary) => !summaryStates[summary.key] && !failedSummaries.has(summary.key),
+  );
+  const resourceCards: ResourceCardData[] = reportedSummaries.map((summary) => {
+    const state = summaryStates[summary.key];
+    const Icon = summary.icon;
+    return {
+      icon: <Icon size={26} />,
+      title: summary.title,
+      description: summary.description,
+      alwaysShow: summary.alwaysShow,
+      count: state.count,
+      countless: state.countless,
+      loading: state.isLoading,
+      actionLabel: state.actionLabel,
+      to: state.to,
+    };
+  });
 
   // Resources with nothing in them are left out. The rest fill three cards, and a card that
   // has more than one swaps between them in place. An organization with none of them yet
@@ -151,7 +98,7 @@ export const OrganizationOverview: React.FC = () => {
   );
   const shownCards = resourceCards.some((card) => (card.count ?? 0) > 0) ? nonEmpty : resourceCards;
   // Hold rotation until every count is in, so it starts once on the settled set.
-  const countsLoading = resourceCards.some((card) => card.loading);
+  const countsLoading = summariesLoading || resourceCards.some((card) => card.loading);
   const { order, leavingSlot, setPaused } = useRotatingSlots(
     countsLoading ? Math.min(CARD_SLOTS, shownCards.length) : shownCards.length,
   );
@@ -172,6 +119,15 @@ export const OrganizationOverview: React.FC = () => {
 
   return (
     <PageContent fullWidth>
+      {summaries.map((summary) => (
+        <ResourceSummaryBoundary key={summary.key} summaryKey={summary.key} onFail={failSummary}>
+          <ResourceSummaryProbe
+            summaryKey={summary.key}
+            useSummary={summary.useSummary}
+            onReport={reportSummary}
+          />
+        </ResourceSummaryBoundary>
+      ))}
       <Stack spacing={{ xs: 3, md: 4 }}>
         <Stack spacing={1}>
           <Typography

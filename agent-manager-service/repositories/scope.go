@@ -20,12 +20,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -35,8 +38,8 @@ import (
 // lookups below translate project, agent and environment names, so repositories keep the interfaces the services
 // call while storing only ids.
 
-// ensureOrg returns the organization for an OU, creating it and its default environment on first use.
-func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organization, error) {
+// EnsureOrg returns the organization for an OU, creating it and its default environment on first use.
+func EnsureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organization, error) {
 	if ouID == "" {
 		return nil, utils.ErrOrganizationNotFound
 	}
@@ -64,14 +67,35 @@ func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organizat
 		CreatedAt: now, UpdatedAt: now,
 	}
 	env := models.Environment{
-		ID: newID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
+		ID: NewID(), OrgID: org.ID, Name: models.DefaultEnvironmentName, DisplayName: "Default",
 		CreatedAt: now, UpdatedAt: now,
 	}
+	// The default environment is the only one an organization gets, and it
+	// comes with the organization, possibly on a read: it cannot be refused,
+	// so environment hooks get only the apply phase, in a savepoint. A module
+	// that fails there is logged and its writes undone; the organization is
+	// created all the same.
+	op := coreext.Begin(ctx, modkit.ResourceEnvironment)
+	envReq := modkit.HookRequest{Action: modkit.ActionCreate, OrgID: org.ID.String()}
 	txErr := db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(&org).Error; err != nil {
 			return err
 		}
-		return tx.Create(&env).Error
+		if err := tx.Create(&env).Error; err != nil {
+			return err
+		}
+		object := environmentObject(&env)
+		hookErr := tx.Transaction(func(sp *gorm.DB) error {
+			if err := op.Run(ctx, sp, modkit.Apply, withObject(envReq, env.ID.String(), object), nil); err != nil {
+				return err
+			}
+			return emit(ctx, op, sp, modkit.EventEnvironmentCreated, org.ID.String(), env.Name, object)
+		})
+		if hookErr != nil {
+			slog.ErrorContext(ctx, "module hooks failed on a new organization's default environment; created without them",
+				"orgId", org.ID.String(), "error", hookErr)
+		}
+		return nil
 	})
 	if txErr != nil {
 		// A concurrent request may have created it first.
@@ -84,9 +108,17 @@ func ensureOrg(ctx context.Context, db *gorm.DB, ouID string) (*models.Organizat
 	return &org, nil
 }
 
+// environmentObject is an environment as module hooks and events see it.
+func environmentObject(e *models.Environment) map[string]any {
+	return map[string]any{
+		"id": e.ID.String(), "orgId": e.OrgID.String(), "name": e.Name,
+		"displayName": e.DisplayName, "isProduction": e.IsProduction,
+	}
+}
+
 // orgIDFor is the id of the caller's organization.
 func orgIDFor(ctx context.Context, db *gorm.DB, ouID string) (uuid.UUID, error) {
-	org, err := ensureOrg(ctx, db, ouID)
+	org, err := EnsureOrg(ctx, db, ouID)
 	if err != nil {
 		return uuid.Nil, err
 	}
@@ -189,11 +221,22 @@ func ouIDByOrgID(ctx context.Context, db *gorm.DB, orgID uuid.UUID) (string, err
 	return deref(org.ThunderOUID), nil
 }
 
-// lockAgent locks an agent's row for the rest of tx, serialising work on that agent (schema rule 10).
-func lockAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentName string) (agentScope, error) {
+// LockAgent locks an agent's row for the rest of tx, serialising work on that agent (schema rule 10).
+func LockAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentName string) (agentScope, error) {
 	scope, err := agentScopeFor(ctx, tx, ouID, projectName, agentName)
 	if err != nil {
 		return agentScope{}, err
 	}
 	return scope, dbx.LockRow(tx.WithContext(ctx), "agents", "id", "id = ?", scope.AgentID)
+}
+
+// AgentCond matches the rows of the named agent.
+func AgentCond(db *gorm.DB, ouID, projectName, agentName string) (string, []any) {
+	return "org_id = ? AND agent_id IN (?)", []any{ouID, models.AgentIDQuery(db, ouID, projectName, agentName)}
+}
+
+// AgentEnvCond matches the named agent's rows in the named environment.
+func AgentEnvCond(db *gorm.DB, ouID, projectName, agentName, environmentName string) (string, []any) {
+	cond, args := AgentCond(db, ouID, projectName, agentName)
+	return cond + " AND environment_id IN (?)", append(args, models.EnvironmentIDQuery(db, ouID, environmentName))
 }

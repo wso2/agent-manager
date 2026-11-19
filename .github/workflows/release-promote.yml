@@ -428,7 +428,7 @@ jobs:
         run: |
           cp .env.example .env
           sudo sysctl -w vm.max_map_count=262144
-          docker compose up -d --wait --wait-timeout 600 --scale amp-console=0
+          docker compose up -d --wait --wait-timeout 600
 
       - name: Run e2e tests
         env:

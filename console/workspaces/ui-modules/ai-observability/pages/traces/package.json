@@ -61,7 +61,8 @@
     "@agent-management-platform/types": "workspace:*",
     "@agent-management-platform/shared-component": "workspace:*",
     "zod": "4.6.7",
-    "@monaco-editor/react": "4.7.0"
+    "@monaco-editor/react": "4.7.0",
+    "@wso2/oxygen-ui-charts-react": "0.20.0"
   },
   "devDependencies": {
     "@storybook/addon-essentials": "8.6.13",

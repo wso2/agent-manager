@@ -43,21 +43,17 @@ type Config struct {
 	// CORSAllowedOrigin is the single allowed origin for CORS; use "*" to allow all
 	CORSAllowedOrigin string
 
-	// OpenTelemetry configuration
-	OTEL OTELConfig
-
-	// Observer service configuration (agent-manager-observer: build logs,
-	// trace tools in MCP, and the console/CLI discovery endpoint)
-	Observer ObserverConfig
-
-	// Instrumentation url for MCP
-	InstrumentationURL string
+	// ConsoleEnabled serves the embedded console from the API port (CONSOLE_ENABLED).
+	ConsoleEnabled bool
 
 	IsLocalDevEnv bool
 
 	// Default Chat API configuration
 	DefaultChatAPI     DefaultChatAPIConfig
 	DefaultGatewayPort int
+	// DefaultOrg is the organization created at startup, so a fresh install
+	// lists one before anything has been written to it.
+	DefaultOrg DefaultOrgConfig
 	// DefaultGateway is the gateway registered from configuration at startup.
 	DefaultGateway DefaultGatewayConfig
 	// OtelIngest is the trace-ingest API pushed to every gateway.
@@ -396,27 +392,6 @@ type CORSConfig struct {
 	AllowCredentials bool
 }
 
-// OTELConfig holds all OpenTelemetry related configuration
-type OTELConfig struct {
-	// Tracing configuration
-	IsTraceContentEnabled bool
-
-	// OTLP Exporter configuration
-	ExporterEndpoint string
-}
-
-type ObserverConfig struct {
-	// URL is the observer service URL the agent-manager-service itself
-	// uses (server-side, in-cluster) for monitor-run log fetches and trace
-	// data queries.
-	URL string
-	// PublicURL is the externally reachable observer URL handed to
-	// out-of-cluster clients (console, CLI) via the GET /api/v1/config endpoint.
-	// It has NO fallback to URL: empty means "observer not configured" and
-	// clients surface that loudly.
-	PublicURL string
-}
-
 // GrowthAnalyticsConfig configures feature-usage telemetry export to Moesif.
 // Two ways to authenticate:
 //   - MoesifApplicationID set: events go to MoesifCollectorBaseURL (default
@@ -649,6 +624,14 @@ type ResourceLimitsConfig struct {
 	MaxCPU string
 	// MaxMemory is the maximum memory value (Kubernetes quantity string) applied to both requests and limits
 	MaxMemory string
+}
+
+// DefaultOrgConfig names the organization created at startup, with its default environment. An empty
+// OUID turns it off.
+type DefaultOrgConfig struct {
+	// OUID and Handle are the Thunder OU the organization stands for.
+	OUID   string
+	Handle string
 }
 
 // DefaultGatewayConfig registers one gateway at startup, so a bundled gateway connects with no manual

@@ -69,7 +69,8 @@ jobs:
           IMAGES=$(jq -c '[.images[] | {
             name: .name,
             "service-dir": .dir,
-            context: (.context // "")
+            context: (.context // ""),
+            "build-contexts": (.buildContexts // "")
           }]' "$CONFIG_FILE")
 
           echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
@@ -110,6 +111,7 @@ jobs:
           registry-org: ${{ env.REGISTRY_ORG }}
           tag: ${{ needs.prepare.outputs.version }}
           context: ${{ matrix.image.context }}
+          build-contexts: ${{ matrix.image.build-contexts }}
 
   # Only a complete build gets a tag.
   tag:

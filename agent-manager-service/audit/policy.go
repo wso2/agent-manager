@@ -246,9 +246,6 @@ var actionOverrides = map[string]Action{
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions":                    "event-subscription:create",
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}":    "event-subscription:update",
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
-	// Monitor alert settings are shared and require monitor update permission.
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/alerting":    "monitor-alert:update",
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/alerting": "monitor-alert:delete",
 
 	// Gating permission names a different resource than the effect.
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",
@@ -370,10 +367,6 @@ var actionOverrides = map[string]Action{
 	"POST /artifacts/exists":        "artifact:check-exists",
 
 	// Reads expressed as POST because they carry a request body.
-	// The score-publish route carries no rbac.Permission at all — it is gated
-	// only by an audience check — so there is nothing to derive from.
-	"POST /publisher/monitors/{monitorId}/runs/{runId}/scores": "monitor-score:publish",
-
 	"POST /orgs/{orgName}/repositories/branches":         "repository:list-branches",
 	"POST /orgs/{orgName}/repositories/commits":          "repository:list-commits",
 	"POST /orgs/{orgName}/mcp-proxies/fetch-server-info": "mcp-server:fetch-server-info",

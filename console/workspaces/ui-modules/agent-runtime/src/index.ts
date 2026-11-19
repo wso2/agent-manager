@@ -17,8 +17,8 @@
  */
 
 // Agent Runtime UI module. Lists the module's page plugins; the console registers
-// modules, and operators turn a whole module or a single page off in
-// public/ui-modules.js (apps/web-ui).
+// modules, and the server turns a whole module or a single page on or
+// off (GET /api/v1/ui-manifest).
 //
 // Import only each page package's `/plugin` entry: the package root pulls in
 // its page components and would put them in the shell's main chunk.
@@ -30,11 +30,18 @@ import { buildPlugin } from "@agent-management-platform/build/plugin";
 import { deployPlugin } from "@agent-management-platform/deploy/plugin";
 import { testPlugin } from "@agent-management-platform/test/plugin";
 import { deploymentPipelinesPlugin } from "@agent-management-platform/deployment-pipelines/plugin";
+import { platformAgentPlugin } from "@agent-management-platform/platform-agent/plugin";
 
 export const agentRuntimeModule: UIModuleManifest = {
   id: "agent-runtime",
   name: "Agent Runtime",
-  description: "Build, deploy and try agents; environments and deployment pipelines.",
+  description: "Platform-hosted agents: create, build, deploy and try them; environments and deployment pipelines.",
   apiVersion: PLUGIN_API_VERSION,
-  plugins: [buildPlugin, deployPlugin, testPlugin, deploymentPipelinesPlugin],
+  plugins: [
+    platformAgentPlugin,
+    buildPlugin,
+    deployPlugin,
+    testPlugin,
+    deploymentPipelinesPlugin,
+  ],
 };

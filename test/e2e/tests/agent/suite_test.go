@@ -18,7 +18,7 @@
 // canonical builder of the shared IT helpdesk agents: internal_agent_test.go
 // builds the single-env agent and promote_agent_test.go builds the
 // two-env agent, both as explicit lifecycle test steps. The
-// configuration, llmprovider, monitors and traces domains reuse those agents
+// configuration, llmprovider and traces domains reuse those agents
 // by name via the idempotent helpers in the testsetup package.
 
 package agent

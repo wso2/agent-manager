@@ -20,13 +20,17 @@
 // the page components: they are reached only through the dynamic import() in
 // each `load`, which keeps them in the package's own chunk.
 import type { ComponentType } from "react";
-import { useFeatureManagement } from "@agent-management-platform/feature-management";
+import { useFeatureManagement, useResourceAccess } from "@agent-management-platform/feature-management";
 import { MCPLogo } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
   type PluginManifest,
+  type ResourceSummaryState,
 } from "@agent-management-platform/types";
+import { generatePath, useParams } from "react-router-dom";
+import { useListMCPProxies } from "@agent-management-platform/api-client";
+import { Server } from "@wso2/oxygen-ui-icons-react";
 
 // Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
@@ -42,11 +46,37 @@ const useResourcesNav = () => {
   );
 };
 
+/** The organization overview's MCP Servers card. */
+const useMCPServersSummary = (): ResourceSummaryState => {
+  const { orgId = "" } = useParams();
+  const { canWrite } = useResourceAccess("mcp_server");
+  const { data, isLoading } = useListMCPProxies({ orgName: orgId });
+  const mcpProxies = absoluteRouteMap.children.org.children.mcpProxies;
+  return {
+    // Backend sets pagination.count to the org-wide total (the spec text says page size).
+    count: data?.pagination?.count ?? data?.count,
+    isLoading,
+    actionLabel: canWrite ? "Register an MCP server" : "View MCP servers",
+    to: generatePath(canWrite ? mcpProxies.children.add.path : mcpProxies.path, { orgId }),
+  };
+};
+
 export const mcpProxiesPlugin: PluginManifest = {
   id: "mcp-proxies",
   name: "MCP servers",
   apiVersion: PLUGIN_API_VERSION,
   contributions: [
+    {
+      // Organization overview: the MCP Servers card.
+      type: "resource-summary",
+      id: "mcp-servers-summary",
+      order: 30,
+      title: "MCP Servers",
+      description: "Tool servers your agents can use, registered once and shared.",
+      icon: Server,
+      alwaysShow: true,
+      useSummary: useMCPServersSummary,
+    },
     {
       type: "route",
       id: "page",

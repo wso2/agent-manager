@@ -166,7 +166,6 @@ func TestE2EMultiPermissionToolDeniedWithPartialScopes(t *testing.T) {
 			"project_name": testProjectName,
 			"agent_name":   testAgentName,
 			"display_name": testDisplayName,
-			"language":     "python",
 		},
 	})
 	if err != nil {

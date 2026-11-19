@@ -30,8 +30,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo/gwrepomocks"
 )
 
 // failingKind is an inline kind whose every render fails with err.
@@ -55,10 +55,10 @@ func testClaim() models.ClaimedRender {
 }
 
 // renderRepo hands out claim as the artifact's one due row and records the outcome written back for it.
-func renderRepo(claim models.ClaimedRender, recordErr error) (*repomocks.DeploymentRepositoryMock, *[]repositories.RenderOutcome) {
-	var recorded []repositories.RenderOutcome
-	repo := &repomocks.DeploymentRepositoryMock{
-		QueueRenderFunc: func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string, repositories.QueueScope) (int64, error) {
+func renderRepo(claim models.ClaimedRender, recordErr error) (*gwrepomocks.DeploymentRepositoryMock, *[]gwrepo.RenderOutcome) {
+	var recorded []gwrepo.RenderOutcome
+	repo := &gwrepomocks.DeploymentRepositoryMock{
+		QueueRenderFunc: func(context.Context, *gorm.DB, string, uuid.UUID, []uuid.UUID, string, gwrepo.QueueScope) (int64, error) {
 			return 1, nil
 		},
 		ClaimDueRendersOfFunc: func(context.Context, string, uuid.UUID, []uuid.UUID, time.Time, time.Duration) ([]models.ClaimedRender, error) {
@@ -67,7 +67,7 @@ func renderRepo(claim models.ClaimedRender, recordErr error) (*repomocks.Deploym
 		ClaimDueRendersFunc: func(context.Context, time.Time, time.Duration, int) ([]models.ClaimedRender, error) {
 			return []models.ClaimedRender{claim}, nil
 		},
-		RecordRenderOutcomeFunc: func(_ context.Context, _ models.ClaimedRender, outcome repositories.RenderOutcome) error {
+		RecordRenderOutcomeFunc: func(_ context.Context, _ models.ClaimedRender, outcome gwrepo.RenderOutcome) error {
 			recorded = append(recorded, outcome)
 			return recordErr
 		},
@@ -75,7 +75,7 @@ func renderRepo(claim models.ClaimedRender, recordErr error) (*repomocks.Deploym
 	return repo, &recorded
 }
 
-func newRenderCore(repo repositories.DeploymentRepository, logger *slog.Logger, kind Kind) *Core {
+func newRenderCore(repo gwrepo.DeploymentRepository, logger *slog.Logger, kind Kind) *Core {
 	return NewCore(nil, repo, nil, Kinds{kind}, Config{Lease: time.Minute, AttemptBudget: 3}, logger)
 }
 
@@ -85,11 +85,11 @@ func TestRenderClaimReturnsAFailedRenderAfterRecordingIt(t *testing.T) {
 	tests := []struct {
 		name    string
 		err     error
-		outcome repositories.RenderOutcomeKind
+		outcome gwrepo.RenderOutcomeKind
 	}{
-		{name: "retry", err: errors.New("connection reset"), outcome: repositories.RenderRetry},
-		{name: "give up", err: Permanent(errors.New("invalid config")), outcome: repositories.RenderGiveUp},
-		{name: "waiting", err: InputNotReady("waiting for the endpoint"), outcome: repositories.RenderWaiting},
+		{name: "retry", err: errors.New("connection reset"), outcome: gwrepo.RenderRetry},
+		{name: "give up", err: Permanent(errors.New("invalid config")), outcome: gwrepo.RenderGiveUp},
+		{name: "waiting", err: InputNotReady("waiting for the endpoint"), outcome: gwrepo.RenderWaiting},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -111,7 +111,7 @@ func TestRenderClaimReturnsAFailedRenderAfterRecordingIt(t *testing.T) {
 
 func TestRenderClaimDropsASupersededOutcome(t *testing.T) {
 	claim := testClaim()
-	repo, _ := renderRepo(claim, repositories.ErrRenderSuperseded)
+	repo, _ := renderRepo(claim, gwrepo.ErrRenderSuperseded)
 	core := newRenderCore(repo, discardLogger(), failingKind{err: errors.New("connection reset")})
 
 	assert.NoError(t, core.renderClaim(context.Background(), claim))
@@ -140,7 +140,7 @@ func TestMarkStalePassesOnAFailedInlineRender(t *testing.T) {
 
 	var failed *RenderFailedError
 	require.ErrorAs(t, err, &failed)
-	assert.Equal(t, repositories.RenderGiveUp, failed.Outcome)
+	assert.Equal(t, gwrepo.RenderGiveUp, failed.Outcome)
 	assert.ErrorIs(t, err, renderErr)
 }
 
@@ -153,7 +153,7 @@ func TestMarkStaleLeavesARenderWaitingForAnInputToTheWorker(t *testing.T) {
 
 	assert.NoError(t, err)
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, repositories.RenderWaiting, (*recorded)[0].Outcome)
+	assert.Equal(t, gwrepo.RenderWaiting, (*recorded)[0].Outcome)
 }
 
 func TestWorkerDoesNotReportAFailedRenderAsAnError(t *testing.T) {

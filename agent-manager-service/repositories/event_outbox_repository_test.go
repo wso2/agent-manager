@@ -43,7 +43,7 @@ func TestEventOutboxLeaseRecovery(t *testing.T) {
 	}
 	repo := NewEventOutboxRepository(tx)
 	ctx := context.Background()
-	e := events.New(uuid.NewString(), events.TypeMonitorRunFailed, events.ScopeAgent, ou, "p", "a", time.Now())
+	e := events.New(uuid.NewString(), "agent.deployed", events.ScopeAgent, ou, "p", "a", time.Now())
 	require.NoError(t, repo.Put(ctx, e))
 	require.NoError(t, repo.Put(ctx, e))
 	first, err := repo.Claim(ctx)

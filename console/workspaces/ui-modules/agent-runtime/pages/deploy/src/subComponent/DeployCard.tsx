@@ -22,6 +22,7 @@ import {
   useGetAllAgentBuilds,
   useGetAgentMetrics,
   useGetAgentResourceConfigs,
+  isObserverConfigured,
   useGetDeploymentPipeline,
   useListAgentDeployments,
   useUpdateDeploymentState,
@@ -403,6 +404,9 @@ export function DeployCard(props: DeployCardProps) {
   const isEnvironmentActive =
     currentDeployment?.status === DeploymentStatus.ACTIVE;
 
+  // Traces, logs and metrics come from a trace service, which a deployment
+  // may not run; without one the card neither queries nor links to them.
+  const observerOn = isObserverConfigured();
   const { data: metrics } = useGetAgentMetrics(
     {
       orgName: orgId,
@@ -418,7 +422,8 @@ export function DeployCard(props: DeployCardProps) {
         !!projectId &&
         !!agentId &&
         !!currentEnvironment.name &&
-        isEnvironmentActive,
+        isEnvironmentActive &&
+        observerOn,
       enableAutoRefresh: true,
       timeRange: TraceListTimeRange.TEN_MINUTES,
     },
@@ -901,42 +906,48 @@ export function DeployCard(props: DeployCardProps) {
                     <FlaskConical size={16} style={{ marginRight: 8 }} />
                     Test agent
                   </MenuItem>
-                  <MenuItem
-                    component={Link}
-                    to={generatePath(
-                      absoluteRouteMap.children.org.children.projects.children.agents
-                        .children.environment.children.observability.children.traces.path,
-                      { orgId, projectId, agentId, envId: currentEnvironment?.name },
-                    )}
-                    onClick={() => setActionsMenuAnchor(null)}
-                  >
-                    <Workflow size={16} style={{ marginRight: 8 }} />
-                    View traces
-                  </MenuItem>
-                  <MenuItem
-                    component={Link}
-                    to={generatePath(
-                      absoluteRouteMap.children.org.children.projects.children.agents
-                        .children.environment.children.observability.children.logs.path,
-                      { orgId, projectId, agentId, envId: currentEnvironment?.name },
-                    )}
-                    onClick={() => setActionsMenuAnchor(null)}
-                  >
-                    <ScrollText size={16} style={{ marginRight: 8 }} />
-                    View logs
-                  </MenuItem>
-                  <MenuItem
-                    component={Link}
-                    to={generatePath(
-                      absoluteRouteMap.children.org.children.projects.children.agents
-                        .children.environment.children.observability.children.metrics.path,
-                      { orgId, projectId, agentId, envId: currentEnvironment?.name },
-                    )}
-                    onClick={() => setActionsMenuAnchor(null)}
-                  >
-                    <LineChart size={16} style={{ marginRight: 8 }} />
-                    View metrics
-                  </MenuItem>
+                  {observerOn && (
+                    <MenuItem
+                      component={Link}
+                      to={generatePath(
+                        absoluteRouteMap.children.org.children.projects.children.agents
+                          .children.environment.children.observability.children.traces.path,
+                        { orgId, projectId, agentId, envId: currentEnvironment?.name },
+                      )}
+                      onClick={() => setActionsMenuAnchor(null)}
+                    >
+                      <Workflow size={16} style={{ marginRight: 8 }} />
+                      View traces
+                    </MenuItem>
+                  )}
+                  {observerOn && (
+                    <MenuItem
+                      component={Link}
+                      to={generatePath(
+                        absoluteRouteMap.children.org.children.projects.children.agents
+                          .children.environment.children.observability.children.logs.path,
+                        { orgId, projectId, agentId, envId: currentEnvironment?.name },
+                      )}
+                      onClick={() => setActionsMenuAnchor(null)}
+                    >
+                      <ScrollText size={16} style={{ marginRight: 8 }} />
+                      View logs
+                    </MenuItem>
+                  )}
+                  {observerOn && (
+                    <MenuItem
+                      component={Link}
+                      to={generatePath(
+                        absoluteRouteMap.children.org.children.projects.children.agents
+                          .children.environment.children.observability.children.metrics.path,
+                        { orgId, projectId, agentId, envId: currentEnvironment?.name },
+                      )}
+                      onClick={() => setActionsMenuAnchor(null)}
+                    >
+                      <LineChart size={16} style={{ marginRight: 8 }} />
+                      View metrics
+                    </MenuItem>
+                  )}
                   <MenuItem
                     component={Link}
                     to={generatePath(

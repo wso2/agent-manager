@@ -2,6 +2,8 @@
 
 Go control-plane API. Layered **controller → service → repository**, wired with `wire`. Request/response types and mocks are **generated** — never hand-edited.
 
+The core (orgs, projects, environments, agents, identity, tokens, events) lives in the top-level packages below and imports no module. The AI Gateway (gateways, LLM and MCP proxies, A2A, agent API keys, agent identities) is the built-in `gateway` module under `modules/gateway/`, with the same layers in `gwapi/`, `gwctl/`, `gwsvc/`, `gwrepo/` and `gwwire/`; it plugs into the server through `builtin/` and reaches the core's agent lifecycle through the capabilities in `modkit/contracts/`. Routes this version does not serve (answering 501) are the `legacy` module's (`modules/legacy/`). `cmd/amp` links every module; `cmd/amp-core` links none.
+
 ## File map
 
 | Need | Location |
@@ -16,8 +18,23 @@ Go control-plane API. Layered **controller → service → repository**, wired w
 | Audit trail (actions, redaction, sinks) | `audit/` |
 | Role → permission map | `rbac/predefined_roles.go` |
 | Sentinel errors | `utils/errors.go` |
-| Generated mocks | `repositories/repomocks/`, `clients/clientmocks/` |
-| DI wiring | `wiring/wire.go` |
+| Generated mocks | `repositories/repomocks/`, `clients/clientmocks/`, `modules/gateway/gwrepo/gwrepomocks/` |
+| DI wiring | `wiring/wire.go` (core), `modules/gateway/gwwire/wire.go` (gateway) |
+| Configuration (env + `amp.yaml`) | `config/config_loader.go`, `config/file.go`, example `amp.example.yaml` |
+| Embedded console (`-tags console`) | `webconsole/` (`make console-embed` fills `webconsole/dist/`) |
+| Console UI of the core / modules | `api.CoreUI` in `api/ui_manifest_routes.go`, `modkit.UI.Pages` in a module's manifest |
+
+## Configuration, the console and the modules list
+
+- **One binary, one image.** `amp serve [--migrate]`, `amp migrate`, `amp init thunder DIR gateway DIR fileauth DIR`, `amp module …`; the old flags (`-migrate`, `-init-thunder=…`) still work. The image carries it as `/go/bin/amp` (and `/go/bin/agent-manager-service`). Compose's `amp-init` runs `amp init` from the `amp-api` image.
+- **Settings** are environment variables, and an optional `amp.yaml` fills in what the environment leaves unset. The command line loads one file after parsing its flags: `--config`, else `$AMP_CONFIG`, else `./amp.yaml`. YAML keys are the variable names nested by `_` (`db: {driver: postgres}` is `DB_DRIVER`). A set variable always wins, even when empty (`FOO=` clears a file value). File values never enter the process environment: read settings with `config.Value`, and register keys a command reads outside the config package with `config.RegisterKeys` (keys nothing reads are logged as likely typos). See `amp.example.yaml`.
+- **Modules list.** `modules:` in `amp.yaml` (or `AMP_MODULES=gateway,widgets=off`) is reconciled at boot: listed modules are installed with their providers and enabled or disabled as listed (a module listed disabled is installed only if it never was); other installed modules are disabled unless a listed one requires them. A change another replica already made counts as done. No list (or a `modules:` key whose entries are all commented out) means no reconcile; an empty list needs `modules: []` or `AMP_MODULES=none`. A module's `config:` block reaches it via `Runtime.Config("key")` (env `MODULE_<NAME>_<KEY>`).
+- **Console.** The built console is embedded with `-tags console` and served at `/` on the API port (SPA fallback to `index.html`; hashed `assets/` cached a year; `index.html`, `config.js` not cached). Without the tag a placeholder page is served — no Node needed for backend work. `config.js` fills each `$NAME` of the console's `config.template.js` from `CONSOLE_<NAME>`, else a default the service derives (public URL, ThunderID, `AUTH_MODE`, instrumentation URL, sign-in scopes = every active permission). `CONSOLE_ENABLED=false` turns it off. Set `SERVER_PUBLIC_URL` behind a proxy or ingress; without it the origin comes from the request (`X-Forwarded-Proto`/`X-Forwarded-Host` when set). The image builds the console unless built with `--build-arg CONSOLE=none`. `make dev-up` still runs Vite on :3000 against the API.
+- **Which console pages show** comes from `GET /api/v1/ui-manifest` (signed-in, filtered by the caller's permissions): the core's `api.CoreUI` plus every active module's `Manifest().UI.Pages` (`"<console module>/<page>"`). A console UI module with no listed page is hidden. A module adding console pages lists them there.
+
+## Add a module
+
+Follow [docs/amp-lite/modules.md](../docs/amp-lite/modules.md): what belongs in the core, the manifest, migrations, the `Runtime` surfaces (routes, hooks, events, capabilities), console pages, tests and operation. `tests/modules/testmod` is a small complete example. A new module never imports core packages or touches core tables, and does not copy the gateway's `builtin.Bundle` route.
 
 ## Golden path: add or change an API resource
 
@@ -109,7 +126,7 @@ Generated files are checked in and **never hand-edited**. Regenerate and commit 
 - **Errors** — map the specific sentinel (`gorm.ErrRecordNotFound` → `utils.ErrXxxNotFound`); wrap everything else `fmt.Errorf("...: %w", err)`. Never flatten an unexpected error into not-found; never silently fall back to a default on a non-not-found error. Compare sentinels with `errors.Is`, never `==` or string match.
 - **Context** — every I/O method takes `context.Context` first and propagates it. HTTP clients use `NewRequestWithContext`.
 - **Org scoping** — always set `org_id` from the caller's token (Thunder OU ID / `ouID`), never from the request path or body. Missing tenant identity is an error, not a wildcard. Every org-scoped table maps the tenant column as `ou_id`.
-- **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. Organizations, projects, the per-org `default` environment and agents live in `repositories.PlatformRepository`. ThunderID addressing uses one configured org name (`AMP_ORG_NAMESPACE`, default `"default"`, `config.OrgNamespace`); traces are scoped by the agent token's `organization` claim.
+- **Tenant isolation is DB-only** — org isolation happens at the DB (`ou_id`) layer alone. Organizations, projects, the per-org `default` environment and agents live in `repositories.PlatformRepository`. ThunderID addressing uses one configured org name (`AMP_ORG_NAMESPACE`, default `"default"`, `config.OrgNamespace`); the gateway's trace ingest, when enabled, scopes spans by the agent token's `organization` claim.
 - **Concurrency** — never hold a lock across I/O. Atomic upserts (`ON CONFLICT`), not read-then-write. Serialize expensive side effects per-key, not globally.
 - **Config** — validate at startup, not first use; check co-dependent values together.
 - **Observability** — log with correlation context (org, resource ID, request ID). Debug = hot paths, Info = rare events, Error = destructive ops.
@@ -180,12 +197,12 @@ platform := &repomocks.PlatformRepositoryMock{
 }
 ```
 
-- In-package interfaces (`MonitorExecutor`, `PublisherCredentialProvisioner`) have **no** generated mock — hand-write a func-field stub in the test file, same `<Method>Func` shape.
+- In-package interfaces without a `//go:generate moq` directive have **no** generated mock — hand-write a func-field stub in the test file, same `<Method>Func` shape.
 
 ## Shared test helpers — reuse, don't redeclare (duplicate = compile error)
 
 - `strPtr(s string) *string` — in `llm_deployment_service_test.go`.
-- `discardLogger() *slog.Logger` — in `evaluator_manager_unit_test.go`.
+- `discardLogger() *slog.Logger` — in `helpers_test.go`.
 
 If your helper name also exists in an `integration`-tagged file, they collide only under `-tags=integration`; give the unit-tier copy a distinct name (e.g. `intPtrU`) rather than editing the integration file.
 

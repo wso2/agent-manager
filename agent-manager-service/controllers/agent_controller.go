@@ -26,11 +26,11 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -43,10 +43,8 @@ type AgentController interface {
 	CreateAgent(w http.ResponseWriter, r *http.Request)
 	UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Request)
 	DeleteAgent(w http.ResponseWriter, r *http.Request)
-	GetAgentDeployments(w http.ResponseWriter, r *http.Request)
 	GetAgentConfigurations(w http.ResponseWriter, r *http.Request)
 	GenerateName(w http.ResponseWriter, r *http.Request)
-	UpdateAgentDeploySettings(w http.ResponseWriter, r *http.Request)
 	GetAgentIdentity(w http.ResponseWriter, r *http.Request)
 	RegenerateAgentIdentitySecret(w http.ResponseWriter, r *http.Request)
 	RevokeAgentIdentitySecret(w http.ResponseWriter, r *http.Request)
@@ -72,12 +70,18 @@ func NewAgentController(
 	}
 }
 
-// handleCommonErrors checks for common resource errors and writes appropriate responses.
+// HandleCommonErrors checks for common resource errors and writes appropriate responses.
 // If no common error matches, writes an internal server error with the provided fallback message.
-// handleCommonErrors writes the HTTP error response for the sentinel errors the agent services
+// HandleCommonErrors writes the HTTP error response for the sentinel errors the agent services
 // return, and a 500 with fallbackMsg for anything else.
-func handleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
+func HandleCommonErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	if writeIfNotImplemented(w, err) {
+		return
+	}
+	// A module hook rejected the change, with a status and message for the caller.
+	var rejected *modkit.Error
+	if errors.As(err, &rejected) {
+		utils.WriteErrorResponse(w, rejected.Status, rejected.Message)
 		return
 	}
 	switch {
@@ -186,7 +190,7 @@ func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
 	agent, err := c.agentService.GetAgent(ctx, ouID, projName, agentName)
 	if err != nil {
 		log.Error("GetAgent: failed to get agent", "error", err)
-		handleCommonErrors(w, err, "Failed to get agent")
+		HandleCommonErrors(w, err, "Failed to get agent")
 		return
 	}
 
@@ -236,7 +240,7 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	agents, total, err := c.agentService.ListAgents(ctx, ouID, projName, labelFilter, int32(limit), int32(offset))
 	if err != nil {
 		log.Error("ListAgents: failed to list agents", "error", err)
-		handleCommonErrors(w, err, "Failed to list agents")
+		HandleCommonErrors(w, err, "Failed to list agents")
 		return
 	}
 
@@ -259,7 +263,7 @@ func (c *agentController) ListOrgAgents(w http.ResponseWriter, r *http.Request) 
 	agents, err := c.agentService.ListOrgAgents(ctx, ouID)
 	if err != nil {
 		log.Error("ListOrgAgents: failed to list agents", "error", err)
-		handleCommonErrors(w, err, "Failed to list agents")
+		HandleCommonErrors(w, err, "Failed to list agents")
 		return
 	}
 
@@ -302,7 +306,7 @@ func (c *agentController) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	err := c.agentService.CreateAgent(ctx, ouID, projName, &payload)
 	if err != nil {
 		log.Error("CreateAgent: failed to create agent", "error", err)
-		handleCommonErrors(w, err, "Failed to create agent")
+		HandleCommonErrors(w, err, "Failed to create agent")
 		return
 	}
 	agentType := spec.AgentType{}
@@ -347,7 +351,7 @@ func (c *agentController) UpdateAgentBasicInfo(w http.ResponseWriter, r *http.Re
 	agent, err := c.agentService.UpdateAgentBasicInfo(ctx, ouID, projName, agentName, &payload)
 	if err != nil {
 		log.Error("UpdateAgent: failed to update agent", "error", err)
-		handleCommonErrors(w, err, "Failed to update agent")
+		HandleCommonErrors(w, err, "Failed to update agent")
 		return
 	}
 
@@ -366,41 +370,13 @@ func (c *agentController) DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	err := c.agentService.DeleteAgent(ctx, ouID, projName, agentName)
 	if err != nil {
 		log.Error("DeleteAgent: failed to delete agent", "error", err)
-		handleCommonErrors(w, err, "Failed to delete agent")
+		HandleCommonErrors(w, err, "Failed to delete agent")
 		return
 	}
 	if c.eventsCleaner != nil {
 		c.eventsCleaner.RemoveForAgent(ctx, ouID, projName, agentName)
 	}
 	utils.WriteSuccessResponse(w, http.StatusNoContent, "")
-}
-
-func (c *agentController) UpdateAgentDeploySettings(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	var payload spec.UpdateAgentDeploySettingsRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		log.Error("UpdateAgentDeploySettings: failed to decode request body", "error", err)
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
-		return
-	}
-	if payload.EnvironmentName == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
-		return
-	}
-	events.SetEnvironment(ctx, payload.EnvironmentName)
-
-	if err := c.agentService.UpdateAgentDeploySettings(ctx, ouID, projName, agentName, &payload); err != nil {
-		log.Error("UpdateAgentDeploySettings: failed to update deploy settings", "error", err)
-		handleCommonErrors(w, err, "Failed to update deploy settings")
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
 }
 
 func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
@@ -427,7 +403,7 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 	candidateName, err := c.agentService.GenerateName(ctx, ouID, payload)
 	if err != nil {
 		log.Error("GenerateAgentName: failed to generate agent name", "error", err)
-		handleCommonErrors(w, err, "Failed to check agent name availability")
+		HandleCommonErrors(w, err, "Failed to check agent name availability")
 		return
 	}
 
@@ -437,26 +413,6 @@ func (c *agentController) GenerateName(w http.ResponseWriter, r *http.Request) {
 		ResourceType: payload.ResourceType,
 	}
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
-}
-
-func (c *agentController) GetAgentDeployments(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	log := logger.GetLogger(ctx)
-
-	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-
-	deployments, err := c.agentService.GetAgentDeployments(ctx, ouID, projName, agentName)
-	if err != nil {
-		log.Error("GetAgentDeployments: failed to get deployments", "error", err)
-		handleCommonErrors(w, err, "Failed to get deployments")
-		return
-	}
-
-	deploymentResponses := utils.ConvertToDeploymentDetailsResponse(deployments)
-	utils.WriteSuccessResponse(w, http.StatusOK, deploymentResponses)
 }
 
 // GetAgentIdentity handles GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities
@@ -482,7 +438,7 @@ func (c *agentController) GetAgentIdentity(w http.ResponseWriter, r *http.Reques
 	views, err := c.agentService.GetAgentIdentity(ctx, ouID, projName, agentName)
 	if err != nil {
 		log.Error("GetAgentIdentity: failed to get agent identity", "orgName", orgName, "agentName", agentName, "error", err)
-		handleCommonErrors(w, err, "Failed to get agent identity")
+		HandleCommonErrors(w, err, "Failed to get agent identity")
 		return
 	}
 
@@ -533,7 +489,7 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 
 	log.Info("RegenerateAgentIdentitySecret: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
-	attempt, ok := beginAuditOrFail(
+	attempt, ok := BeginAuditOrFail(
 		w, r, "RegenerateAgentIdentitySecret", "Failed to regenerate agent identity secret", audit.ActionAgentIdentityRegenerateSecret,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceAgentIdentity, agentName, agentName),
@@ -555,7 +511,7 @@ func (c *agentController) RegenerateAgentIdentitySecret(w http.ResponseWriter, r
 			return
 		}
 		log.Error("RegenerateAgentIdentitySecret: failed to regenerate secret", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
-		handleCommonErrors(w, err, "Failed to regenerate agent identity secret")
+		HandleCommonErrors(w, err, "Failed to regenerate agent identity secret")
 		return
 	}
 
@@ -585,7 +541,7 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 
 	log.Info("RevokeAgentIdentitySecret: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
-	attempt, ok := beginAuditOrFail(
+	attempt, ok := BeginAuditOrFail(
 		w, r, "RevokeAgentIdentitySecret", "Failed to revoke agent identity secret", audit.ActionAgentIdentityRevokeSecret,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceAgentIdentity, agentName, agentName),
@@ -607,7 +563,7 @@ func (c *agentController) RevokeAgentIdentitySecret(w http.ResponseWriter, r *ht
 			return
 		}
 		log.Error("RevokeAgentIdentitySecret: failed to revoke secret", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
-		handleCommonErrors(w, err, "Failed to revoke agent identity secret")
+		HandleCommonErrors(w, err, "Failed to revoke agent identity secret")
 		return
 	}
 
@@ -640,7 +596,7 @@ func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.
 
 	log.Info("ProvisionAgentIdentity: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
-	attempt, ok := beginAuditOrFail(
+	attempt, ok := BeginAuditOrFail(
 		w, r, "ProvisionAgentIdentity", "Failed to provision agent identity", audit.ActionAgentIdentityProvision,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceAgentIdentity, agentName, agentName),
@@ -657,7 +613,7 @@ func (c *agentController) ProvisionAgentIdentity(w http.ResponseWriter, r *http.
 	if err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("ProvisionAgentIdentity: failed to provision agent identity", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
-		handleCommonErrors(w, err, "Failed to provision agent identity")
+		HandleCommonErrors(w, err, "Failed to provision agent identity")
 		return
 	}
 
@@ -706,7 +662,7 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 
 	log.Info("RetryAgentIdentityProvisioning: starting", "orgName", orgName, "agentName", agentName, "envID", envID)
 
-	attempt, ok := beginAuditOrFail(
+	attempt, ok := BeginAuditOrFail(
 		w, r, "RetryAgentIdentityProvisioning", "Failed to retry agent identity provisioning", audit.ActionAgentIdentityRetryProvisioning,
 		audit.Org(ouID),
 		audit.ResourceNamed(audit.ResourceAgentIdentity, agentName, agentName),
@@ -733,7 +689,7 @@ func (c *agentController) RetryAgentIdentityProvisioning(w http.ResponseWriter, 
 			return
 		}
 		log.Error("RetryAgentIdentityProvisioning: failed to retry provisioning", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
-		handleCommonErrors(w, err, "Failed to retry agent identity provisioning")
+		HandleCommonErrors(w, err, "Failed to retry agent identity provisioning")
 		return
 	}
 
@@ -783,7 +739,7 @@ func (c *agentController) GetAgentRoles(w http.ResponseWriter, r *http.Request) 
 			return
 		}
 		log.Error("GetAgentRoles: failed to get agent roles", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
-		handleCommonErrors(w, err, "Failed to get agent roles")
+		HandleCommonErrors(w, err, "Failed to get agent roles")
 		return
 	}
 
@@ -832,7 +788,7 @@ func (c *agentController) GetAgentGroups(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		log.Error("GetAgentGroups: failed to get agent groups", "orgName", orgName, "agentName", agentName, "envID", envID, "error", err)
-		handleCommonErrors(w, err, "Failed to get agent groups")
+		HandleCommonErrors(w, err, "Failed to get agent groups")
 		return
 	}
 
@@ -857,13 +813,13 @@ func (c *agentController) GetAgentConfigurations(w http.ResponseWriter, r *http.
 
 	if _, err := c.agentService.GetAgent(ctx, ouID, projName, agentName); err != nil {
 		log.Error("GetAgentConfigurations: failed to get agent", "error", err)
-		handleCommonErrors(w, err, "Failed to get configurations")
+		HandleCommonErrors(w, err, "Failed to get configurations")
 		return
 	}
 	envCfg, err := c.agentService.GetAgentEnvConfig(ctx, ouID, projName, agentName, environment)
 	if err != nil {
 		log.Error("GetAgentConfigurations: failed to read agent config", "error", err)
-		handleCommonErrors(w, err, "Failed to get configurations")
+		HandleCommonErrors(w, err, "Failed to get configurations")
 		return
 	}
 	resp := spec.ConfigurationResponse{

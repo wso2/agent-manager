@@ -15,10 +15,9 @@
 // under the License.
 
 // Package events publishes platform events (a project created, an agent
-// deployed, a monitor run finished) to an event bus, NATS JetStream by
-// default. The event dispatcher subscribes to them and delivers each one to
-// the destinations of the subscriptions it matches, at its org, project or
-// agent.
+// deployed) to an event bus, NATS JetStream by default. The event dispatcher
+// subscribes to them and delivers each one to the destinations of the
+// subscriptions it matches, at its org, project or agent.
 //
 // Events report what happened. They carry no judgement: there are no
 // thresholds or detections here, receivers decide what matters to them.

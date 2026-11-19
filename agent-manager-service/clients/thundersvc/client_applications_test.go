@@ -32,7 +32,7 @@ import (
 // paths, but the /applications side itself had no direct test coverage
 // before the two were consolidated onto the same code.
 
-func TestEnsurePublisherApp_CreatesNewApp_WhenNoneExists(t *testing.T) {
+func TestEnsureApp_CreatesNewApp_WhenNoneExists(t *testing.T) {
 	var createdBody map[string]any
 	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -54,7 +54,7 @@ func TestEnsurePublisherApp_CreatesNewApp_WhenNoneExists(t *testing.T) {
 				"name": createdBody["name"],
 				"inboundAuthConfig": []map[string]any{
 					{"type": "oauth2", "config": map[string]any{
-						"clientId":     "amp-publisher-acme",
+						"clientId":     "amp-app-acme",
 						"clientSecret": "generated-secret",
 					}},
 				},
@@ -66,30 +66,30 @@ func TestEnsurePublisherApp_CreatesNewApp_WhenNoneExists(t *testing.T) {
 	defer srv.Close()
 
 	c := NewThunderClient(srv.URL, "sys-client", "sys-secret")
-	clientID, clientSecret, created, err := c.EnsurePublisherApp(context.Background(), "acme", "ou-1")
+	clientID, clientSecret, created, err := c.EnsureApp(context.Background(), "amp-app-acme", "ou-1")
 
 	require.NoError(t, err)
 	assert.True(t, created)
-	assert.Equal(t, "amp-publisher-acme", clientID)
+	assert.Equal(t, "amp-app-acme", clientID)
 	assert.Equal(t, "generated-secret", clientSecret)
-	assert.Equal(t, "amp-publisher-acme", createdBody["name"])
+	assert.Equal(t, "amp-app-acme", createdBody["name"])
 }
 
-func TestEnsurePublisherApp_ReturnsExisting_WhenAlreadyExists(t *testing.T) {
+func TestEnsureApp_ReturnsExisting_WhenAlreadyExists(t *testing.T) {
 	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, http.MethodGet, r.Method)
 		require.Equal(t, "/applications", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"applications": []map[string]any{
-				{"id": "app-uuid-1", "name": "amp-publisher-acme", "clientId": "existing-client-id"},
+				{"id": "app-uuid-1", "name": "amp-app-acme", "clientId": "existing-client-id"},
 			},
 		})
 	})
 	defer srv.Close()
 
 	c := NewThunderClient(srv.URL, "sys-client", "sys-secret")
-	clientID, clientSecret, created, err := c.EnsurePublisherApp(context.Background(), "acme", "ou-1")
+	clientID, clientSecret, created, err := c.EnsureApp(context.Background(), "amp-app-acme", "ou-1")
 
 	require.NoError(t, err)
 	assert.False(t, created)
@@ -97,13 +97,13 @@ func TestEnsurePublisherApp_ReturnsExisting_WhenAlreadyExists(t *testing.T) {
 	assert.Empty(t, clientSecret, "an already-existing app's secret is never available")
 }
 
-func TestDeletePublisherApp_Success(t *testing.T) {
+func TestDeleteApp_Success(t *testing.T) {
 	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/applications":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode([]map[string]any{
-				{"id": "app-uuid-1", "name": "amp-publisher-acme", "clientId": "existing-client-id"},
+				{"id": "app-uuid-1", "name": "amp-app-acme", "clientId": "existing-client-id"},
 			})
 		case r.Method == http.MethodDelete && r.URL.Path == "/applications/app-uuid-1":
 			w.WriteHeader(http.StatusNoContent)
@@ -114,12 +114,12 @@ func TestDeletePublisherApp_Success(t *testing.T) {
 	defer srv.Close()
 
 	c := NewThunderClient(srv.URL, "sys-client", "sys-secret")
-	found, err := c.DeletePublisherApp(context.Background(), "acme")
+	found, err := c.DeleteApp(context.Background(), "amp-app-acme")
 	require.NoError(t, err)
 	assert.True(t, found)
 }
 
-func TestDeletePublisherApp_NotFound_ReturnsFalseNoError(t *testing.T) {
+func TestDeleteApp_NotFound_ReturnsFalseNoError(t *testing.T) {
 	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/applications", r.URL.Path, "must not attempt a delete when the app can't be found by name")
 		w.Header().Set("Content-Type", "application/json")
@@ -128,24 +128,24 @@ func TestDeletePublisherApp_NotFound_ReturnsFalseNoError(t *testing.T) {
 	defer srv.Close()
 
 	c := NewThunderClient(srv.URL, "sys-client", "sys-secret")
-	found, err := c.DeletePublisherApp(context.Background(), "acme")
+	found, err := c.DeleteApp(context.Background(), "amp-app-acme")
 	require.NoError(t, err)
 	assert.False(t, found)
 }
 
-func TestRegenerateClientSecret_Success(t *testing.T) {
+func TestRegenerateAppClientSecret_Success(t *testing.T) {
 	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/applications":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode([]map[string]any{
-				{"id": "app-uuid-1", "name": "amp-publisher-acme", "clientId": "existing-client-id"},
+				{"id": "app-uuid-1", "name": "amp-app-acme", "clientId": "existing-client-id"},
 			})
 		case r.Method == http.MethodGet && r.URL.Path == "/applications/app-uuid-1":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":   "app-uuid-1",
-				"name": "amp-publisher-acme",
+				"name": "amp-app-acme",
 				"inboundAuthConfig": []map[string]any{
 					{"type": "oauth2", "config": map[string]any{
 						"clientId":                "existing-client-id",
@@ -167,7 +167,7 @@ func TestRegenerateClientSecret_Success(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"id":   "app-uuid-1",
-				"name": "amp-publisher-acme",
+				"name": "amp-app-acme",
 				"inboundAuthConfig": []map[string]any{
 					{"type": "oauth2", "config": map[string]any{
 						"clientId":     "existing-client-id",
@@ -182,13 +182,13 @@ func TestRegenerateClientSecret_Success(t *testing.T) {
 	defer srv.Close()
 
 	c := NewThunderClient(srv.URL, "sys-client", "sys-secret")
-	newSecret, err := c.RegenerateClientSecret(context.Background(), "acme")
+	newSecret, err := c.RegenerateAppClientSecret(context.Background(), "amp-app-acme")
 	require.NoError(t, err)
 	assert.NotEmpty(t, newSecret)
 	assert.Len(t, newSecret, 64, "must use the same 384-bit random secret generator as the /agents path")
 }
 
-func TestRegenerateClientSecret_AppNotFound(t *testing.T) {
+func TestRegenerateAppClientSecret_AppNotFound(t *testing.T) {
 	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "/applications", r.URL.Path)
 		w.Header().Set("Content-Type", "application/json")
@@ -197,12 +197,12 @@ func TestRegenerateClientSecret_AppNotFound(t *testing.T) {
 	defer srv.Close()
 
 	c := NewThunderClient(srv.URL, "sys-client", "sys-secret")
-	_, err := c.RegenerateClientSecret(context.Background(), "acme")
+	_, err := c.RegenerateAppClientSecret(context.Background(), "amp-app-acme")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
 }
 
-// EnsureApp must work for any app name, not just "amp-publisher-*".
+// EnsureApp must work for any app name.
 func TestEnsureApp_CreatesNewApp_WithArbitraryName(t *testing.T) {
 	var createdBody map[string]any
 	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
@@ -238,39 +238,4 @@ func TestEnsureApp_CreatesNewApp_WithArbitraryName(t *testing.T) {
 	assert.Equal(t, "amp-scheduler-acme", clientID)
 	assert.Equal(t, "generated-scheduler-secret", clientSecret)
 	assert.Equal(t, "amp-scheduler-acme", createdBody["name"])
-}
-
-// Pins down that the EnsureApp refactor didn't change the app name EnsurePublisherApp constructs.
-func TestEnsurePublisherApp_StillUsesAmpPublisherPrefix(t *testing.T) {
-	var createdBody map[string]any
-	srv := newTestThunderServer(t, func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && r.URL.Path == "/applications":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]map[string]any{})
-		case r.Method == http.MethodPost && r.URL.Path == "/applications":
-			require.NoError(t, json.NewDecoder(r.Body).Decode(&createdBody))
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id":   "app-uuid-3",
-				"name": createdBody["name"],
-				"inboundAuthConfig": []map[string]any{
-					{"type": "oauth2", "config": map[string]any{
-						"clientId":     "amp-publisher-widgetco",
-						"clientSecret": "widgetco-secret",
-					}},
-				},
-			})
-		default:
-			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
-		}
-	})
-	defer srv.Close()
-
-	c := NewThunderClient(srv.URL, "sys-client", "sys-secret")
-	_, _, _, err := c.EnsurePublisherApp(context.Background(), "widgetco", "ou-1")
-
-	require.NoError(t, err)
-	assert.Equal(t, "amp-publisher-widgetco", createdBody["name"])
 }

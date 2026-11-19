@@ -1,0 +1,18 @@
+module: testmod
+tables:
+  # A tag per agent, written by the agent apply hook from extensions.testmod.
+  - name: mod_testmod_agent_tags
+    columns:
+      - {name: agent_id, type: id}
+      - {name: org_id, type: id}
+      - {name: tag, type: text, size: 64}
+    primary_key: [agent_id]
+
+  # Every event the module received, for tests to read back.
+  - name: mod_testmod_received
+    columns:
+      - {name: event_id, type: text, size: 128}
+      - {name: event_type, type: text, size: 128}
+      - {name: org_id, type: id}
+      - {name: subject, type: text, size: 255, nullable: true}
+    primary_key: [event_id, event_type]

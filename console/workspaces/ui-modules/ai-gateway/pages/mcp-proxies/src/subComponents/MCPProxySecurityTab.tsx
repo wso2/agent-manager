@@ -26,7 +26,7 @@ import {
   type ScopeToolUpdate,
   useConfirmationDialog,
 } from "@agent-management-platform/shared-component";
-import { TextInput } from "@agent-management-platform/views";
+import { TextInput, useIsUIModuleInstalled } from "@agent-management-platform/views";
 import {
   type APIKeyLocation,
   type Environment,
@@ -159,6 +159,10 @@ export function MCPProxySecurityTab({
   onDirtyChange,
 }: MCPProxySecurityTabProps) {
   const { canWrite } = useResourceAccess("mcp_server");
+  // OAuth (AgentID) security issues tokens through Agent Identity. Only a
+  // module known to be off blocks it; while it is still being detected the
+  // option stays as it was.
+  const identityInstalled = useIsUIModuleInstalled("agent-identity") !== false;
   const [authenticationType, setAuthenticationType] =
     useState<AuthenticationType>("apiKey");
   const [keyValue, setKeyValue] = useState("");
@@ -542,7 +546,9 @@ export function MCPProxySecurityTab({
             helperText={
               isOnSelfHostedGateway
                 ? "OAuth isn't available on self-hosted gateways yet. Use API key security."
-                : undefined
+                : !identityInstalled
+                  ? "OAuth (AgentID) needs the Agent Identity module, which is off."
+                  : undefined
             }
             size="small"
             value={authenticationType || ""}
@@ -554,7 +560,7 @@ export function MCPProxySecurityTab({
               <MenuItem
                 key={type || "none"}
                 value={type}
-                disabled={type === "identity" && isOnSelfHostedGateway}
+                disabled={type === "identity" && (isOnSelfHostedGateway || !identityInstalled)}
               >
                 {getAuthenticationTypeLabel(type)}
               </MenuItem>

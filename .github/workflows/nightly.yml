@@ -79,7 +79,8 @@ jobs:
             name: .name,
             "service-dir": .dir,
             dockerfile: (.dir + "/Dockerfile"),
-            context: (.context // "")
+            context: (.context // ""),
+            "build-contexts": (.buildContexts // "")
           }]' "$CONFIG_FILE")
 
           echo "images=$IMAGES" >> "$GITHUB_OUTPUT"
@@ -134,6 +135,7 @@ jobs:
           registry-org: ${{ env.REGISTRY_ORG }}
           tag: ${{ needs.compute-version.outputs.dev-version }}
           context: ${{ matrix.image.context }}
+          build-contexts: ${{ matrix.image.build-contexts }}
 
   e2e:
     name: E2E
@@ -174,7 +176,7 @@ jobs:
           bash .github/scripts/pin-standalone-images.sh "${VERSION}" "${REGISTRY}/${REGISTRY_ORG}"
           cd deployments/standalone
           cp .env.example .env
-          docker compose up -d --wait --wait-timeout 600 --scale amp-console=0
+          docker compose up -d --wait --wait-timeout 600
 
       - name: Run e2e tests
         id: e2e-tests
@@ -355,7 +357,6 @@ jobs:
         package:
           - amp-api
           - amp-console
-          - amp-observer
     steps:
       # Skip packages that do not exist yet.
       - name: Check if package ${{ matrix.package }} exists

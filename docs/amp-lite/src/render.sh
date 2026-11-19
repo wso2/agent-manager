@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Regenerates the AMP Lite diagrams (draw.io, HTML and PNG) in docs/amp-lite.
+# Regenerates the AMP Lite diagrams (draw.io, HTML and PNG) in docs/amp-lite, and the core
+# ER diagram in agent-manager-service/docs/database-er.md from the schema's lite.yaml.
 # Needs python3 and Google Chrome (set CHROME to its binary on non-macOS hosts).
 set -euo pipefail
 
@@ -20,5 +21,9 @@ shot "$OUT/architecture.html" "$OUT/architecture.png" 2330 1090 2
 
 size="$(python3 "$SRC/data_model_gen.py" "$OUT/data-model.html" | head -1)"
 shot "$OUT/data-model.html" "$OUT/data-model.png" "${size%x*}" "${size#*x}" 1
+
+REPO="$(cd "$OUT/../.." && pwd)"
+python3 "$SRC/er_gen.py" "$REPO/agent-manager-service/db_migrations/schema/lite.yaml" \
+  "$REPO/agent-manager-service/docs/database-er.md" >/dev/null
 
 echo "Wrote architecture.{drawio,html,png} and data-model.{html,png} to $OUT"

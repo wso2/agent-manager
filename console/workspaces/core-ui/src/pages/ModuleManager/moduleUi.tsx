@@ -24,7 +24,6 @@
 
 import { useCallback } from "react";
 import {
-  Activity,
   BookOpenText,
   Box as BoxIcon,
   IdCard,
@@ -51,7 +50,6 @@ const MOCK_LISTINGS: Record<string, MarketplaceListing> = {
   "acp-core": { icon: BoxIcon, category: "Platform", publisher: "WSO2", version: "1.0.0" },
   "agent-runtime": { icon: Rocket, category: "Runtime", publisher: "WSO2", version: "1.0.0" },
   "ai-gateway": { icon: Network, category: "Gateway", publisher: "WSO2", version: "1.0.0" },
-  "ai-observability": { icon: Activity, category: "Observability", publisher: "WSO2", version: "1.0.0" },
   "agent-identity": { icon: IdCard, category: "Security", publisher: "WSO2", version: "1.0.0" },
   "agent-portal": { icon: BookOpenText, category: "Catalog", publisher: "WSO2", version: "1.0.0" },
 };
@@ -80,7 +78,7 @@ export type MarketplaceState =
 
 export function marketplaceState(module: UIModuleStatus): MarketplaceState {
   if (module.core) return "built-in";
-  // Turned off by the deployment (public/ui-modules.js): the AI module manager must not
+  // Left out by the server (its UI manifest): the AI module manager must not
   // switch it back on.
   if (!module.enabled) return "turned-off";
   if (module.installPhase === "installing") return "installing";

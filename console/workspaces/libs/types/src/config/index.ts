@@ -85,15 +85,6 @@ export interface AppConfig {
    * `disableAuth`, which is still honoured when authMode is unset.
    */
   authMode?: ConfiguredAuthMode;
-  instrumentationUrl: string;
-  /**
-   * When true, the OTEL endpoint shown in the Setup Agent panel is
-   * `instrumentationUrl` as-is. Enable this in deployments where one endpoint
-   * fronts every environment, or where the gateway vhost is not externally
-   * reachable. Defaults to false: the endpoint is derived per environment from
-   * the vhost of the gateway mapped to that environment.
-   */
-  useConfiguredInstrumentationUrl?: boolean;
   /**
    * Base URL the API Platform Gateway uses to reach Agent Manager from inside
    * the cluster. The add-environment.sh script appends /api/v1 and
@@ -167,6 +158,12 @@ export interface AppConfig {
      * preview that deploys nothing.
      */
     marketplace?: boolean;
+    /**
+     * UI modules ("agent-runtime") or pages ("agent-portal/agent-kind") the
+     * deployment turns on besides what the server's UI manifest lists, from
+     * CONSOLE_UI_MODULES_ENABLE (comma- or space-separated).
+     */
+    enable?: string[];
   };
 }
 
@@ -183,30 +180,14 @@ export type GuardrailCapabilities = {
   semanticGuardrails?: boolean;
 };
 
-/**
- * Default UI modules, from public/ui-modules.js: module id → on/off. A key may
- * also be "<module>/<plugin>" ("ai-observability/logs") or a bare plugin id
- * ("logs") to turn off one page plugin. A turned-off plugin's routes, nav
- * items and panels are not registered, its activation hooks never run, and its
- * page chunks are never loaded. Unlisted modules are on.
- */
-export type UIModuleDefaults = Record<string, boolean>;
-
 // Extend the Window interface to include our config
 declare global {
   interface Window {
     __RUNTIME_CONFIG__: AppConfig;
-    __UI_MODULES__?: UIModuleDefaults;
   }
 }
 
 export const globalConfig: AppConfig = window.__RUNTIME_CONFIG__;
-
-/** Module ids and plugin keys public/ui-modules.js turns off. */
-export const getDisabledUIModules = (): string[] =>
-  Object.entries(window.__UI_MODULES__ ?? {})
-    .filter(([, on]) => on === false)
-    .map(([id]) => id);
 
 /**
  * Normalised base path: no trailing slash, leading slash when non-empty.

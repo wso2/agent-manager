@@ -17,8 +17,8 @@
  */
 
 // AI Observability UI module. Lists the module's page plugins; the console registers
-// modules, and operators turn a whole module or a single page off in
-// public/ui-modules.js (apps/web-ui).
+// modules, and the server turns a whole module or a single page on or
+// off (GET /api/v1/ui-manifest).
 //
 // Import only each page package's `/plugin` entry: the package root pulls in
 // its page components and would put them in the shell's main chunk.
@@ -27,21 +27,19 @@ import {
   type UIModuleInstallState,
   type UIModuleManifest,
 } from "@agent-management-platform/types";
-import { useRuntimeConfig } from "@agent-management-platform/api-client";
+import { isObserverConfigured } from "@agent-management-platform/api-client";
 import { tracesPlugin } from "@agent-management-platform/traces/plugin";
 import { logsPlugin } from "@agent-management-platform/logs/plugin";
 import { metricsPlugin } from "@agent-management-platform/metrics/plugin";
 import { evalPlugin } from "@agent-management-platform/eval/plugin";
 
 /**
- * Installed when the agent manager service reports an observer URL in
- * /api/v1/config (it does once AM_OBSERVER_PUBLIC_URL is set).
+ * Installed once something sets the observer URL (setObserverBaseUrl). The
+ * console no longer registers this module and nothing sets the URL: the
+ * source stays for the observability module that will replace it.
  */
 function useDetectObserver(): UIModuleInstallState | undefined {
-  const { data, isLoading, isError } = useRuntimeConfig();
-  if (isLoading) return undefined;
-  if (isError) return "not-installed";
-  return data?.observerBaseUrl?.trim() ? "installed" : "not-installed";
+  return isObserverConfigured() ? "installed" : "not-installed";
 }
 
 export const aiObservabilityModule: UIModuleManifest = {
@@ -61,12 +59,6 @@ export const aiObservabilityModule: UIModuleManifest = {
           "helm upgrade --install wso2-amp-observability-extension " +
           "oci://{chartRegistry}/wso2-amp-observability-extension --version {chartVersion} " +
           "--namespace openchoreo-observability-plane --create-namespace",
-      },
-      {
-        title: "Point the agent manager service at the observer",
-        description:
-          "Set AM_OBSERVER_PUBLIC_URL on the agent-manager service to the observer's public " +
-          "URL and restart it. The console discovers the observer through /api/v1/config.",
       },
       {
         title: "Install the evaluation extension (optional)",

@@ -15,7 +15,7 @@ Coverage comes from two tiers:
 | Coverage | A middleware installed once in `middleware.RouteRegistrar`, and `addTool` on the MCP surface | Every registered route and tool: actor, org, action, outcome, source. Cannot be forgotten for a new endpoint. |
 | Semantic | Explicit `audit.Record` / `audit.Begin` calls | The domain effect: which entity, which permissions were granted, which environment. |
 
-Five surfaces are covered, and the `surface` field on every record says which one produced it:
+Four surfaces are covered, and the `surface` field on every record says which one produced it:
 
 | Surface | What it covers | Actor |
 |---|---|---|
@@ -23,7 +23,6 @@ Five surfaces are covered, and the `surface` field on every record says which on
 | `mcp` | MCP tool invocations | The token subject; `details.tool` names the tool |
 | `internal` | The gateway-facing internal server (no JWT, `api-key` header) | The gateway |
 | `system` | Reconcilers and schedulers, plus startup posture | `system:<component>`, with `onBehalfOf` when a user requested the work earlier |
-| `publisher` | The evaluation job publishing monitor scores | The `amp-publisher-*` audience |
 
 When a semantic event describes a successful request, the coverage tier stands down so the trail carries one record rather than two. On failure the coverage record is always kept — a request rejected before it reached the service emits nothing semantic, and that rejection is exactly what must not go unrecorded.
 
@@ -83,13 +82,13 @@ Every record carries these fields where they apply; empty fields are omitted.
 | `severity` | `1` info · `2` notice · `3` warning · `4` critical. |
 | `outcome` | `success`, `failure`, `deny`, or `unknown` for an intent record whose outcome never arrived. |
 | `actorType` | `user` · `service` · `agent` · `gateway` · `system` · `anonymous`. |
-| `actorId` | Who did it. For a user, the token subject — a Thunder user id, not an email or username (resolve it with `GET /api/v1/orgs/{orgName}/identities/users/{userId}`). For other actors: a gateway id, a publisher audience, or `system:<component>`. |
+| `actorId` | Who did it. For a user, the token subject — a Thunder user id, not an email or username (resolve it with `GET /api/v1/orgs/{orgName}/identities/users/{userId}`). For other actors: a gateway id or `system:<component>`. |
 | `actorOuId` | The actor's organization unit, from the token. |
 | `actorTokenId` | The token's `jti` — the join key to Thunder's login records (see [The authentication gap](#the-authentication-gap)). |
 | `actorDisplay` | Reserved for a human-readable name. No emit site populates it today, so records carry the id alone. |
 | `onBehalfOf` | Delegation — a reconciler applying what a user asked for earlier. Also a user id. |
 | `authMethod` | How the caller authenticated, e.g. `jwt-bearer`. |
-| `surface` | Entry point: `api` · `mcp` · `internal` · `system` · `publisher`. |
+| `surface` | Entry point: `api` · `mcp` · `internal` · `system`. |
 | `sourceIp` | The leftmost `X-Forwarded-For` hop, falling back to `X-Real-IP` and then the peer address (`utils.ClientIP`). |
 | `userAgent` | Distinguishes the console from `amctl` from a script. |
 | `correlationId` | Ties the record to the request logs; matches the `x-correlation-id` response header. |
@@ -311,6 +310,8 @@ The operations below emit a record describing what actually changed, not just th
 | Git secrets | `git-secret:create` / `:delete` | Fail-closed |
 | Gateway tokens | `gateway-token:rotate` / `:revoke` | Fail-closed |
 | Agent tokens | `agent-token:mint`, `agent-token:regenerate-tracing` | Fail-closed |
+| Module workloads | `workload-credential:issue`, `workload-token:exchange` | Fail-closed |
+| Module workloads | `workload-credential:revoke` | Fail-open |
 | Agent OAuth identity | `agent-identity:provision` / `:regenerate-secret` / `:revoke-secret` / `:retry-provisioning` | Fail-closed |
 | Agent OAuth identity | `system:agent-identity-provisioned` / `system:agent-identity-exhausted` (reconciler, system actor) | Fail-open |
 | Env identity credential | `service-account:configure` / `:remove` | Fail-closed |
@@ -329,8 +330,6 @@ The operations below emit a record describing what actually changed, not just th
 | A2A card source | `agent:set-card-source` / `agent:remove-card-source` | Fail-open |
 | A2A proxy | `agent:set-a2a-proxy` / `agent:remove-a2a-proxy` | Fail-closed |
 | Per-config API keys | `api-key:create` / `:rotate` / `:revoke` (model-config, mcp-config) | Fail-closed |
-| Monitors | `monitor:create` / `:update` / `:delete` / `:start` / `:stop` / `:rerun` | Fail-open |
-| Monitors | `monitor:run-failed` (scheduler, system actor) | Fail-open |
 
 Three of these carry detail worth calling out:
 
@@ -355,6 +354,9 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `agent-token:mint` | credential | 4 critical | `agentName`, `expiresIn` |
 | `agent-token:regenerate-tracing` | credential | 4 critical | `agentName` |
 | `agent:build` | deployment | 2 notice | `agentName`, `buildName`, `commitId` |
+| `workload-credential:issue` | credential | 4 critical | `module`, `subject`, `scopes` |
+| `workload-credential:revoke` | credential | 4 critical | `module` |
+| `workload-token:exchange` | credential | 4 critical | `module`, `credentialId`, `expiresIn` |
 | `agent:change-deployment-state` | deployment | 3 warning | `agentName`, `environment`, `toState` |
 | `agent:create` | config | 2 notice | `agentName`, `agentType` |
 | `agent:delete` | config | 3 warning | `agentName` |
@@ -398,14 +400,6 @@ The registry is the source of truth (`audit/actions.go`, `audit/actions_domain.g
 | `git-secret:delete` | credential | 4 critical | — |
 | `group:add-member` | identity | 4 critical | `groupName`, `memberCount`, `memberTypes`, `members` |
 | `group:remove-member` | identity | 4 critical | `groupName`, `memberCount`, `memberTypes`, `members` |
-| `monitor-score:publish` | config | 1 info | `monitorId`, `runId`, `scoreCount` |
-| `monitor:create` | config | 1 info | `agentName`, `evaluators`, `monitorName`, `monitorType` |
-| `monitor:delete` | config | 2 notice | `agentName`, `evaluators`, `monitorName`, `monitorType` |
-| `monitor:rerun` | config | 2 notice | `agentName`, `monitorName`, `runId` |
-| `monitor:run-failed` | system | 3 warning | `agentName`, `monitorName`, `reason`, `runId` |
-| `monitor:start` | config | 2 notice | `agentName`, `evaluators`, `monitorName`, `monitorType` |
-| `monitor:stop` | config | 2 notice | `agentName`, `evaluators`, `monitorName`, `monitorType` |
-| `monitor:update` | config | 1 info | `agentName`, `evaluators`, `monitorName`, `monitorType` |
 | `project:create` | config | 2 notice | `projectName` |
 | `project:delete` | config | 3 warning | `projectName` |
 | `project:read` | read | 1 info | — |
@@ -1961,337 +1955,6 @@ REST scope denial. MCP denials (`mcp/tools/authz.go`) carry `tool` and no `grant
       "members": [
         "2b7d9e41-0c3a-4f6e-8d1b-7a9c5e3f2d10"
       ]
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>monitor-score:publish</code> — Record · `controllers/monitor_scores_publisher_controller.go:89`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "monitor-score:publish",
-    "actionClass": "config",
-    "severity": 1,
-    "actorType": "service",
-    "actorId": "amp-publisher-eval",
-    "authMethod": "publisher-client",
-    "actorTokenId": "jti-51ab",
-    "surface": "publisher",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amp-evaluation-job/1.0",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/publisher/monitors/{monitorId}/runs/{runId}/scores",
-    "resourceType": "monitor-run",
-    "resourceId": "run-8d21",
-    "resourceName": "run-8d21",
-    "outcome": "success",
-    "details": {
-      "monitorId": "mon-6b3f",
-      "runId": "run-8d21",
-      "scoreCount": 24
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>monitor:create</code> — Record · `services/monitor_manager.go:344`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "monitor:create",
-    "actionClass": "config",
-    "severity": 1,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "monitor",
-    "resourceId": "mon-6b3f",
-    "resourceName": "latency-slo",
-    "projectName": "payments",
-    "outcome": "success",
-    "requiredPermission": "amp:monitor:create",
-    "details": {
-      "agentName": "checkout-agent",
-      "monitorName": "latency-slo",
-      "monitorType": "scheduled"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>monitor:delete</code> — Record · `services/monitor_manager.go:800`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "monitor:delete",
-    "actionClass": "config",
-    "severity": 2,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "DELETE",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "monitor",
-    "resourceId": "mon-6b3f",
-    "resourceName": "latency-slo",
-    "projectName": "payments",
-    "outcome": "success",
-    "requiredPermission": "amp:monitor:delete",
-    "details": {
-      "agentName": "checkout-agent",
-      "monitorName": "latency-slo"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>monitor:rerun</code> — Record · `services/monitor_manager.go:1064`</summary>
-
-The route derives `monitor:execute`, so a failed request's envelope is labelled `monitor:execute`.
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "monitor:rerun",
-    "actionClass": "config",
-    "severity": 2,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/runs/{runId}/rerun",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "monitor",
-    "resourceId": "mon-6b3f",
-    "resourceName": "latency-slo",
-    "projectName": "payments",
-    "outcome": "success",
-    "requiredPermission": "amp:monitor:execute",
-    "details": {
-      "agentName": "checkout-agent",
-      "monitorName": "latency-slo",
-      "runId": "run-8d21"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>monitor:run-failed</code> — Record · `services/monitor_scheduler.go:226`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "monitor:run-failed",
-    "actionClass": "system",
-    "severity": 3,
-    "actorType": "system",
-    "actorId": "system:monitor-scheduler",
-    "surface": "system",
-    "correlationId": "-",
-    "ouId": "ou-9f2",
-    "resourceType": "monitor",
-    "resourceId": "mon-6b3f",
-    "resourceName": "latency-slo",
-    "outcome": "failure",
-    "errorMessage": "evaluation job could not be scheduled",
-    "details": {
-      "monitorName": "latency-slo",
-      "reason": "execute-failed"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>monitor:start</code> — Record · `services/monitor_manager.go:931`</summary>
-
-The route derives `monitor:execute`, so a failed request's envelope is labelled `monitor:execute`.
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "monitor:start",
-    "actionClass": "config",
-    "severity": 2,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/start",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "monitor",
-    "resourceId": "mon-6b3f",
-    "resourceName": "latency-slo",
-    "projectName": "payments",
-    "outcome": "success",
-    "requiredPermission": "amp:monitor:execute",
-    "details": {
-      "agentName": "checkout-agent",
-      "monitorName": "latency-slo"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>monitor:stop</code> — Record · `services/monitor_manager.go:875`</summary>
-
-The route derives `monitor:execute`, so a failed request's envelope is labelled `monitor:execute`.
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "monitor:stop",
-    "actionClass": "config",
-    "severity": 2,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "POST",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}/stop",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "monitor",
-    "resourceId": "mon-6b3f",
-    "resourceName": "latency-slo",
-    "projectName": "payments",
-    "outcome": "success",
-    "requiredPermission": "amp:monitor:execute",
-    "details": {
-      "agentName": "checkout-agent",
-      "monitorName": "latency-slo"
-    }
-  }
-}
-```
-
-</details>
-
-<details>
-<summary><code>monitor:update</code> — Record · `services/monitor_manager.go:723`</summary>
-
-```json
-{
-  "log_type": "audit",
-  "event": {
-    "eventId": "87b3970f-c1e4-4df4-befd-9dc02834dcfc",
-    "schemaVersion": 1,
-    "occurredAt": "2026-09-25T08:13:37Z",
-    "action": "monitor:update",
-    "actionClass": "config",
-    "severity": 1,
-    "actorType": "user",
-    "actorId": "8c1f04b2-7e39-4a6d-9f5b-2d0ae83c1147",
-    "actorOuId": "ou-9f2",
-    "authMethod": "jwt-bearer",
-    "actorTokenId": "jti-7c1e",
-    "surface": "api",
-    "sourceIp": "203.0.113.77",
-    "userAgent": "amctl/1.2.3",
-    "correlationId": "c0ffee-4d2a-9b1e",
-    "requestMethod": "PATCH",
-    "requestPath": "/orgs/{orgName}/projects/{projName}/agents/{agentName}/monitors/{monitorName}",
-    "ouId": "ou-9f2",
-    "orgHandle": "acme",
-    "resourceType": "monitor",
-    "resourceId": "mon-6b3f",
-    "resourceName": "latency-slo",
-    "projectName": "payments",
-    "outcome": "success",
-    "requiredPermission": "amp:monitor:update",
-    "details": {
-      "agentName": "checkout-agent",
-      "monitorName": "latency-slo"
     }
   }
 }

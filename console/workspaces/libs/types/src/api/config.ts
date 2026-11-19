@@ -19,7 +19,6 @@
 // Response for the unauthenticated runtime discovery endpoint served by
 // agent-manager: GET /api/v1/config.
 export interface ConfigResponse {
-  observerBaseUrl: string;
   /**
    * Whether this deployment accepts console usage analytics, from the
    * service's CONSOLE_ANALYTICS_ENABLED. The console has no flag of its own —
@@ -32,4 +31,32 @@ export interface ConfigResponse {
    * false. Absent is treated as false.
    */
   eventsEnabled?: boolean;
+}
+
+// GET /api/v1/ui-manifest: the console UI the core and its active modules
+// offer, filtered by the caller's permissions.
+export interface UIManifestNavItem {
+  label: string;
+  page: string;
+}
+
+export interface UIManifestSlot {
+  slot: string;
+  component: string;
+}
+
+export interface UIManifestModule {
+  /** "core", or the name of an active backend module. */
+  name: string;
+  version?: string;
+  /** Pages of the console's built-in UI modules, as "<console module>/<page>". */
+  pages: string[];
+  nav: UIManifestNavItem[];
+  slots: UIManifestSlot[];
+}
+
+export interface UIManifestResponse {
+  modules: UIManifestModule[];
+  /** Every page the caller may open, as "<console module>/<page>". */
+  pages: string[];
 }

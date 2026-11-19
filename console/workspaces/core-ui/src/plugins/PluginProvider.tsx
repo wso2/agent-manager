@@ -44,8 +44,9 @@ import {
 } from "react";
 import {
   absoluteRouteMap,
-  getDisabledUIModules,
+  globalConfig,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginActivationHook,
   type PluginActivationState,
   type PluginComponentLoader,
@@ -57,13 +58,18 @@ import {
   type UIModuleManifest,
 } from "@agent-management-platform/types";
 import {
+  AgentTypesProvider,
   ExternalModuleProvider,
+  ResourceSummariesProvider,
+  type ResourceSummaryOption,
   UIModuleStatusProvider,
+  type AgentTypeOption,
   type ExternalComponentModule,
   type ExternalModule,
   type UIModuleStatusMap,
 } from "@agent-management-platform/views";
 import { useLocation } from "react-router-dom";
+import { useUIManifest } from "@agent-management-platform/api-client";
 
 export interface ActivePluginRoute {
   key: string;
@@ -103,7 +109,20 @@ interface PluginHostValue {
   /** Install phases set on setup pages; in memory only for now. */
   installOverrides: Record<string, UIModuleInstallPhase>;
   setInstallPhase: (moduleId: string, phase: UIModuleInstallPhase | undefined) => void;
+  /** Modules and "<module>/<plugin>" keys the server's UI manifest leaves out. */
+  disabled: Set<string>;
+  /** True until the UI manifest has loaded: non-core plugins wait for it. */
+  manifestPending: boolean;
+  /** Ids of plugins of non-core modules (which the UI manifest decides). */
+  gatedPlugins: Set<string>;
+  setServerPages: (pages: ServerPages) => void;
 }
+
+/**
+ * The pages the server's UI manifest lists: undefined while it loads. When
+ * it cannot be read the set is empty, so only core modules show.
+ */
+type ServerPages = Set<string> | undefined;
 
 const PluginHostContext = createContext<PluginHostValue>({
   catalog: [],
@@ -114,6 +133,10 @@ const PluginHostContext = createContext<PluginHostValue>({
   phases: {},
   installOverrides: {},
   setInstallPhase: () => {},
+  disabled: new Set(),
+  manifestPending: false,
+  gatedPlugins: new Set(),
+  setServerPages: () => {},
 });
 
 // lazy() must return the same component on every render, or React remounts the
@@ -197,9 +220,31 @@ function buildCatalog(modules: UIModuleManifest[]): CatalogEntry[] {
 /** Key for a plugin in the disabled list: "<module>/<plugin>". */
 export const pluginKey = (moduleId: string, pluginId: string) => `${moduleId}/${pluginId}`;
 
-/** What public/ui-modules.js turns off: module ids, "<module>/<plugin>" or plugin ids. */
-function configDisabled(): Set<string> {
-  return new Set(getDisabledUIModules());
+/**
+ * What the server's UI manifest leaves out: a non-core module none of whose
+ * pages it lists, and each page it does not list. Core modules are always on.
+ */
+function manifestDisabled(
+  catalog: CatalogEntry[],
+  pages: ServerPages,
+  operatorOn: string[],
+): Set<string> {
+  const disabled = new Set<string>();
+  if (!pages) return disabled;
+  // The deployment's own additions (uiModules.enable in config.js, from
+  // CONSOLE_UI_MODULES_ENABLE): a module id turns on all its pages.
+  const on = new Set(operatorOn);
+  for (const { module, plugins } of catalog) {
+    if (module.core) continue;
+    let any = false;
+    for (const plugin of plugins) {
+      const key = pluginKey(module.id, plugin.id);
+      if (pages.has(key) || on.has(key) || on.has(module.id)) any = true;
+      else disabled.add(pluginKey(module.id, plugin.id));
+    }
+    if (!any) disabled.add(module.id);
+  }
+  return disabled;
 }
 
 function moduleEnabledByConfig(disabled: Set<string>, moduleId: string) {
@@ -217,8 +262,10 @@ function installPhaseOf(
   module: UIModuleManifest,
   states: Record<string, PluginActivationState>,
   installOverrides: Record<string, UIModuleInstallPhase>,
+  manifestPending: boolean,
 ): UIModuleInstallPhase {
   if (module.core) return "installed";
+  if (manifestPending) return "checking";
   const override = installOverrides[module.id];
   if (override) return override;
   if (!module.installation?.useDetect) return "installed";
@@ -261,22 +308,28 @@ interface ActiveContribution<T> {
 
 /** Every contribution of the usable plugins with its combined activation state. */
 function useContributions() {
-  const { plugins, states } = useContext(PluginHostContext);
+  const { plugins, states, manifestPending, gatedPlugins } = useContext(PluginHostContext);
   return useMemo(() => {
     const result: ActiveContribution<PluginManifest["contributions"][number]>[] = [];
     for (const plugin of plugins) {
+      // Until the UI manifest says which pages this deployment has, plugins of
+      // non-core modules are pending: their routes answer deep links, but
+      // nothing of theirs is shown yet.
+      const waiting = manifestPending && gatedPlugins.has(plugin.id);
       for (const contribution of plugin.contributions) {
         const key = contributionKey(plugin.id, contribution.id);
-        const state = combine(
-          states,
-          plugin.useActivation ? plugin.id : null,
-          contribution.useActivation ? key : null,
-        );
+        const state = waiting
+          ? undefined
+          : combine(
+              states,
+              plugin.useActivation ? plugin.id : null,
+              contribution.useActivation ? key : null,
+            );
         result.push({ plugin, contribution, key, state });
       }
     }
     return result;
-  }, [plugins, states]);
+  }, [plugins, states, manifestPending, gatedPlugins]);
 }
 
 export interface PluginProviderProps {
@@ -294,6 +347,20 @@ export function PluginProvider({
   children,
 }: PluginProviderProps) {
   const catalog = useMemo(() => buildCatalog(modules), [modules]);
+
+  const [serverPages, setServerPages] = useState<ServerPages>(undefined);
+  const manifestPending = serverPages === undefined;
+  const disabled = useMemo(
+    () => manifestDisabled(catalog, serverPages, globalConfig?.uiModules?.enable ?? []),
+    [catalog, serverPages],
+  );
+  const gatedPlugins = useMemo(() => {
+    const ids = new Set<string>();
+    for (const { module, plugins } of catalog) {
+      if (!module.core) for (const plugin of plugins) ids.add(plugin.id);
+    }
+    return ids;
+  }, [catalog]);
 
   const [installOverrides, setInstallOverrides] = useState<
     Record<string, UIModuleInstallPhase>
@@ -338,27 +405,25 @@ export function PluginProvider({
   const phases = useMemo(() => {
     const result: Record<string, UIModuleInstallPhase> = {};
     for (const { module } of catalog) {
-      result[module.id] = installPhaseOf(module, states, installOverrides);
+      result[module.id] = installPhaseOf(module, states, installOverrides, manifestPending);
     }
     return result;
-  }, [catalog, states, installOverrides]);
+  }, [catalog, states, installOverrides, manifestPending]);
 
   // Install status for pages in other modules (useIsUIModuleInstalled). A module
-  // the runtime config turns off counts as not installed.
+  // the UI manifest leaves out counts as not installed.
   const moduleStatus = useMemo<UIModuleStatusMap>(() => {
-    const disabled = configDisabled();
     const result: UIModuleStatusMap = {};
     for (const { module } of catalog) {
       const enabled = !!module.core || moduleEnabledByConfig(disabled, module.id);
       result[module.id] = enabled ? phases[module.id] ?? "installed" : "not-installed";
     }
     return result;
-  }, [catalog, phases]);
+  }, [catalog, phases, disabled]);
 
-  // What the runtime config turns off stays off for the page's lifetime; the
+  // What the UI manifest leaves out stays off for the page's lifetime; the
   // AI module manager cannot switch it back on.
   const usable = useMemo(() => {
-    const disabled = configDisabled();
     const list: PluginManifest[] = [];
     for (const { module, plugins } of catalog) {
       if (!pagesMayRun(phases[module.id] ?? "installed")) continue;
@@ -369,7 +434,7 @@ export function PluginProvider({
       }
     }
     return list;
-  }, [catalog, phases]);
+  }, [catalog, phases, disabled]);
 
   const probes = useMemo(() => {
     const list: ActivationProbeSpec[] = [...installProbes];
@@ -413,6 +478,10 @@ export function PluginProvider({
       phases,
       installOverrides,
       setInstallPhase,
+      disabled,
+      manifestPending,
+      gatedPlugins,
+      setServerPages,
     }),
     [
       catalog,
@@ -423,13 +492,18 @@ export function PluginProvider({
       phases,
       installOverrides,
       setInstallPhase,
+      disabled,
+      manifestPending,
+      gatedPlugins,
     ],
   );
 
   return (
     <PluginHostContext.Provider value={value}>
       <UIModuleStatusProvider value={moduleStatus}>
-        <PanelModules externalModules={externalModules}>{children}</PanelModules>
+        <PanelModules externalModules={externalModules}>
+          <PageContributions>{children}</PageContributions>
+        </PanelModules>
       </UIModuleStatusProvider>
     </PluginHostContext.Provider>
   );
@@ -453,15 +527,78 @@ function PanelModules({
           mountPoint: contribution.mountPoint,
           moduleName: key,
           component: panelComponentFor(contribution),
+          order: contribution.order,
+          width: contribution.width,
         });
       }
     }
+    // Stable sort: equal orders keep module registration order.
+    panels.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     return panels.length ? [...externalModules, ...panels] : externalModules;
   }, [contributions, externalModules]);
   return (
     <ExternalModuleProvider externalPageModules={modules}>
       {children}
     </ExternalModuleProvider>
+  );
+}
+
+/**
+ * Feeds page-level contributions to the pages that list them: agent types to
+ * the "Add a New Agent" page (useAgentTypes), resource summaries to the
+ * organization overview (useResourceSummaries).
+ *
+ * Agent types: one is listed once it is settled: its activation has
+ * answered and its module's install detection is done. `isPending` says the
+ * page's content may still change: a type or a panel at the page's mount point
+ * is unsettled, so the page must not act on what it has yet (e.g. redirect).
+ */
+function PageContributions({ children }: { children: ReactNode }) {
+  const contributions = useContributions();
+  const { catalog, phases } = useContext(PluginHostContext);
+  // Plugins of modules whose install detection is still running: they run
+  // meanwhile (no flicker), but may turn out not installed.
+  const checkingPlugins = useMemo(() => {
+    const ids = new Set<string>();
+    for (const { module, plugins } of catalog) {
+      if (phases[module.id] !== "checking") continue;
+      for (const plugin of plugins) ids.add(plugin.id);
+    }
+    return ids;
+  }, [catalog, phases]);
+  const value = useMemo(() => {
+    const agentTypes: AgentTypeOption[] = [];
+    let isPending = false;
+    for (const { plugin, contribution, key, state } of contributions) {
+      const isAgentType = contribution.type === "agent-type";
+      const isPickerPanel =
+        contribution.type === "panel" &&
+        contribution.mountPoint === PLUGIN_MOUNT_POINTS.addNewAgentOptions;
+      if (!isAgentType && !isPickerPanel) continue;
+      if (state === undefined || checkingPlugins.has(plugin.id)) {
+        isPending = true;
+      } else if (isAgentType && state === true) {
+        agentTypes.push({ ...contribution, key, pluginId: plugin.id });
+      }
+    }
+    agentTypes.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return { agentTypes, isPending };
+  }, [contributions, checkingPlugins]);
+  // Resource cards on the organization overview: active ones only. A pending
+  // card joins once settled; the overview reflows, so nothing waits for it.
+  const resourceSummaries = useMemo(() => {
+    const list: ResourceSummaryOption[] = [];
+    for (const { plugin, contribution, key, state } of contributions) {
+      if (contribution.type === "resource-summary" && state === true) {
+        list.push({ ...contribution, key, pluginId: plugin.id });
+      }
+    }
+    return list.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+  }, [contributions]);
+  return (
+    <AgentTypesProvider value={value}>
+      <ResourceSummariesProvider value={resourceSummaries}>{children}</ResourceSummariesProvider>
+    </AgentTypesProvider>
   );
 }
 
@@ -527,8 +664,21 @@ class ActivationBoundary extends Component<
  * read the current org/project/agent params and call authenticated APIs.
  */
 export function PluginActivators() {
-  const { probes, report } = useContext(PluginHostContext);
+  const { probes, report, setServerPages } = useContext(PluginHostContext);
   const { pathname } = useLocation();
+  const manifest = useUIManifest();
+  useEffect(() => {
+    if (manifest.data) {
+      setServerPages(new Set(manifest.data.pages));
+    } else if (manifest.isError) {
+      // The query reports the error to the user; show the core pages only.
+      warn("Could not read the UI manifest (/api/v1/ui-manifest); showing the core pages only.");
+      setServerPages(new Set());
+    } else if (manifest.isPending) {
+      // A new sign-in: wait for this user's manifest.
+      setServerPages(undefined);
+    }
+  }, [manifest.data, manifest.isError, manifest.isPending, setServerPages]);
   return (
     <>
       {probes.map(({ key, useActivation }) => (
@@ -634,7 +784,7 @@ export interface UIModuleStatus {
   description: string;
   /** Core modules are always installed and cannot be turned off as a whole. */
   core: boolean;
-  /** False when public/ui-modules.js turns the module off. */
+  /** False when the server's UI manifest lists none of the module's pages. */
   enabled: boolean;
   /** Where the module is in its install lifecycle. */
   installPhase: UIModuleInstallPhase;
@@ -649,11 +799,10 @@ export interface UIModuleStatus {
  * (kept in memory until the page reloads).
  */
 export function useUIModuleManager() {
-  const { catalog, phases, installOverrides, setInstallPhase } =
+  const { catalog, phases, installOverrides, setInstallPhase, disabled } =
     useContext(PluginHostContext);
 
   const modules = useMemo<UIModuleStatus[]>(() => {
-    const disabled = configDisabled();
     return catalog.map(({ module, plugins }) => ({
       id: module.id,
       name: module.name,
@@ -675,7 +824,7 @@ export function useUIModuleManager() {
         };
       }),
     }));
-  }, [catalog, phases]);
+  }, [catalog, phases, disabled]);
 
   const resetChanges = useCallback(() => {
     for (const moduleId of Object.keys(installOverrides)) {

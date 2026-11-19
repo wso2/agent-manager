@@ -27,7 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
 )
 
 const (
@@ -270,7 +270,7 @@ func (w *Worker) driftLoop(ctx context.Context) {
 
 // CheckDrift runs one drift scan if no other worker holds this interval's lease. scanned is false when one does.
 func (w *Worker) CheckDrift(ctx context.Context) (scanned bool, err error) {
-	locked, err := repositories.TryLockDriftScan(ctx, w.core.db, w.owner)
+	locked, err := gwrepo.TryLockDriftScan(ctx, w.core.db, w.owner)
 	if err != nil || !locked {
 		return false, err
 	}
@@ -283,7 +283,7 @@ func (w *Worker) CheckDrift(ctx context.Context) (scanned bool, err error) {
 func (w *Worker) unlockDriftScan(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), driftUnlockTimeout)
 	defer cancel()
-	if err := repositories.UnlockDriftScan(ctx, w.core.db, w.owner); err != nil {
+	if err := gwrepo.UnlockDriftScan(ctx, w.core.db, w.owner); err != nil {
 		w.logger.Warn("Failed to release the drift scan lock; it is held until its lease runs out", "error", err)
 	}
 }
@@ -328,7 +328,7 @@ func (w *Worker) checkDrift(ctx context.Context, checker DriftChecker, artifactK
 				continue
 			}
 			if _, err := w.core.repo.QueueRender(ctx, nil, p.OUID, p.ArtifactUUID, []uuid.UUID{p.GatewayUUID}, reason,
-				repositories.QueueScopePlaced); err != nil {
+				gwrepo.QueueScopePlaced); err != nil {
 				return drifted, err
 			}
 			drifted++
@@ -336,6 +336,6 @@ func (w *Worker) checkDrift(ctx context.Context, checker DriftChecker, artifactK
 		if len(placements) < driftBatch {
 			return drifted, nil
 		}
-		afterKey = repositories.DriftKey(placements[len(placements)-1])
+		afterKey = gwrepo.DriftKey(placements[len(placements)-1])
 	}
 }

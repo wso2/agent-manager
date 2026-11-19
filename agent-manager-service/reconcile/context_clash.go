@@ -27,7 +27,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -137,7 +137,7 @@ func Clash(self uuid.UUID, next Route, deployed []models.GatewayDeploymentConten
 // artifact's there. It reads what the gateway is told to hold, its desired-deployed deployments, so an artifact
 // placed but never sent is not seen. The caller holds the gateway lock for the check to be decisive.
 func CheckContext(
-	ctx context.Context, deployments repositories.DeploymentRepository, ouID string, gateway *models.Gateway,
+	ctx context.Context, deployments gwrepo.DeploymentRepository, ouID string, gateway *models.Gateway,
 	self uuid.UUID, next Route,
 ) error {
 	if next.Context == "" {

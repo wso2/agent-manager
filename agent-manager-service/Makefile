@@ -23,6 +23,7 @@ run: gen-keys ## Run development server with hot-reloading.
 wire: ## Run wire code gen.
 	@echo "Running wire code gen"
 	@(cd wiring && wire)
+	@(cd modules/gateway/gwwire && wire)
 	@echo "Wire code gen done"
 
 .PHONY: schema
@@ -85,6 +86,19 @@ test: gen-keys ## Run all tests (unit + integration) against the main database. 
 test-coverage: gen-keys ## Run unit + integration tests and produce a merged HTML coverage report.
 	bash scripts/run_coverage.sh
 
+.PHONY: console-embed
+console-embed: ## Build the console (../console, needs pnpm) and copy it here for `go build -tags console`.
+	cd ../console && pnpm install --frozen-lockfile && NODE_OPTIONS=--max-old-space-size=3072 pnpm build
+	rm -rf webconsole/dist
+	mkdir -p webconsole/dist
+	cp -r ../console/apps/web-ui/dist/. webconsole/dist/
+
+.PHONY: build
+build: ## Build bin/amp and bin/amp-core, with the console when `make console-embed` has run.
+	@tags=; [ -f webconsole/dist/index.html ] && tags=console; \
+	for d in amp amp-core; do go build -tags "$$tags" -o bin/$$d ./cmd/$$d || exit 1; done; \
+	echo "built bin/amp and bin/amp-core (tags: $${tags:-none})"
+
 .PHONY: lint
 lint: ## Lint code.
 	bash scripts/lint.sh
@@ -126,25 +140,8 @@ codegenfmt-check:
       exit 1; \
     fi
 
-.PHONY: gen-evaluators-dev
-gen-evaluators-dev: ## Generate builtin evaluators using local amp-evaluation SDK
-	@echo "Generating builtin evaluators (dev mode)..."
-	@bash scripts/generate-builtin-evaluators.sh --dev --output $(PROJECT_ROOT)/catalog/builtin_evaluators.go
-	@echo "✅ Generated: catalog/builtin_evaluators.go"
-
-.PHONY: gen-evaluators
-gen-evaluators: ## Generate builtin evaluators using PyPI amp-evaluation SDK
-	@echo "Generating builtin evaluators (prod mode)..."
-	@if [ -z "$(AMP_EVALUATION_VERSION)" ]; then \
-		echo "❌ AMP_EVALUATION_VERSION must be set"; \
-		echo "   Usage: make gen-evaluators AMP_EVALUATION_VERSION=0.0.1"; \
-		exit 1; \
-	fi
-	@bash scripts/generate-builtin-evaluators.sh --amp-eval-version $(AMP_EVALUATION_VERSION) --output $(PROJECT_ROOT)/catalog/builtin_evaluators.go
-	@echo "✅ Generated: catalog/builtin_evaluators.go (using amp-evaluation $(AMP_EVALUATION_VERSION))"
-
 .PHONY: dev-migrate
 dev-migrate: ## Run database migrations (in the compose container, which holds the SQLite volume)
 	@echo "🗄️  Running database migrations..."
-	@docker exec agent-manager-service sh -c 'go build -mod=readonly -o /tmp/amp-migrate . && su-exec 1000:1000 /tmp/amp-migrate -migrate -server=false'
+	@docker exec agent-manager-service sh -c 'go build -mod=readonly -o /tmp/amp-migrate ./cmd/amp && su-exec 1000:1000 /tmp/amp-migrate migrate'
 	@echo "✅ Migrations completed"

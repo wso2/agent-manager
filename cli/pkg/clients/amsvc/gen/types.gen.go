@@ -178,33 +178,6 @@ func (e AgentThunderStatus) Valid() bool {
 	}
 }
 
-// Defines values for BatchTimeSeriesResponseGranularity.
-const (
-	BatchTimeSeriesResponseGranularityDay    BatchTimeSeriesResponseGranularity = "day"
-	BatchTimeSeriesResponseGranularityHour   BatchTimeSeriesResponseGranularity = "hour"
-	BatchTimeSeriesResponseGranularityMinute BatchTimeSeriesResponseGranularity = "minute"
-	BatchTimeSeriesResponseGranularityTrace  BatchTimeSeriesResponseGranularity = "trace"
-	BatchTimeSeriesResponseGranularityWeek   BatchTimeSeriesResponseGranularity = "week"
-)
-
-// Valid indicates whether the value is a known member of the BatchTimeSeriesResponseGranularity enum.
-func (e BatchTimeSeriesResponseGranularity) Valid() bool {
-	switch e {
-	case BatchTimeSeriesResponseGranularityDay:
-		return true
-	case BatchTimeSeriesResponseGranularityHour:
-		return true
-	case BatchTimeSeriesResponseGranularityMinute:
-		return true
-	case BatchTimeSeriesResponseGranularityTrace:
-		return true
-	case BatchTimeSeriesResponseGranularityWeek:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for BuildDetailsResponseStatus.
 const (
 	BuildDetailsResponseStatusCompleted BuildDetailsResponseStatus = "Completed"
@@ -363,58 +336,19 @@ func (e CatalogLLMProviderEntryKind) Valid() bool {
 
 // Defines values for CreateAgentModelConfigRequestType.
 const (
-	CreateAgentModelConfigRequestTypeLlm   CreateAgentModelConfigRequestType = "llm"
-	CreateAgentModelConfigRequestTypeMcp   CreateAgentModelConfigRequestType = "mcp"
-	CreateAgentModelConfigRequestTypeOther CreateAgentModelConfigRequestType = "other"
+	Llm   CreateAgentModelConfigRequestType = "llm"
+	Mcp   CreateAgentModelConfigRequestType = "mcp"
+	Other CreateAgentModelConfigRequestType = "other"
 )
 
 // Valid indicates whether the value is a known member of the CreateAgentModelConfigRequestType enum.
 func (e CreateAgentModelConfigRequestType) Valid() bool {
 	switch e {
-	case CreateAgentModelConfigRequestTypeLlm:
+	case Llm:
 		return true
-	case CreateAgentModelConfigRequestTypeMcp:
+	case Mcp:
 		return true
-	case CreateAgentModelConfigRequestTypeOther:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateCustomEvaluatorRequestLevel.
-const (
-	CreateCustomEvaluatorRequestLevelAgent CreateCustomEvaluatorRequestLevel = "agent"
-	CreateCustomEvaluatorRequestLevelLlm   CreateCustomEvaluatorRequestLevel = "llm"
-	CreateCustomEvaluatorRequestLevelTrace CreateCustomEvaluatorRequestLevel = "trace"
-)
-
-// Valid indicates whether the value is a known member of the CreateCustomEvaluatorRequestLevel enum.
-func (e CreateCustomEvaluatorRequestLevel) Valid() bool {
-	switch e {
-	case CreateCustomEvaluatorRequestLevelAgent:
-		return true
-	case CreateCustomEvaluatorRequestLevelLlm:
-		return true
-	case CreateCustomEvaluatorRequestLevelTrace:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateCustomEvaluatorRequestType.
-const (
-	CreateCustomEvaluatorRequestTypeCode     CreateCustomEvaluatorRequestType = "code"
-	CreateCustomEvaluatorRequestTypeLlmJudge CreateCustomEvaluatorRequestType = "llm_judge"
-)
-
-// Valid indicates whether the value is a known member of the CreateCustomEvaluatorRequestType enum.
-func (e CreateCustomEvaluatorRequestType) Valid() bool {
-	switch e {
-	case CreateCustomEvaluatorRequestTypeCode:
-		return true
-	case CreateCustomEvaluatorRequestTypeLlmJudge:
+	case Other:
 		return true
 	default:
 		return false
@@ -448,24 +382,6 @@ const (
 func (e CreateGitSecretRequestType) Valid() bool {
 	switch e {
 	case Basic:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateMonitorRequestType.
-const (
-	CreateMonitorRequestTypeFuture CreateMonitorRequestType = "future"
-	CreateMonitorRequestTypePast   CreateMonitorRequestType = "past"
-)
-
-// Valid indicates whether the value is a known member of the CreateMonitorRequestType enum.
-func (e CreateMonitorRequestType) Valid() bool {
-	switch e {
-	case CreateMonitorRequestTypeFuture:
-		return true
-	case CreateMonitorRequestTypePast:
 		return true
 	default:
 		return false
@@ -556,99 +472,6 @@ const (
 func (e DockerBuildType) Valid() bool {
 	switch e {
 	case Docker:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for EvaluatorConfigParamType.
-const (
-	Array   EvaluatorConfigParamType = "array"
-	Boolean EvaluatorConfigParamType = "boolean"
-	Enum    EvaluatorConfigParamType = "enum"
-	Float   EvaluatorConfigParamType = "float"
-	Integer EvaluatorConfigParamType = "integer"
-	String  EvaluatorConfigParamType = "string"
-)
-
-// Valid indicates whether the value is a known member of the EvaluatorConfigParamType enum.
-func (e EvaluatorConfigParamType) Valid() bool {
-	switch e {
-	case Array:
-		return true
-	case Boolean:
-		return true
-	case Enum:
-		return true
-	case Float:
-		return true
-	case Integer:
-		return true
-	case String:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for EvaluatorResponseLevel.
-const (
-	EvaluatorResponseLevelAgent EvaluatorResponseLevel = "agent"
-	EvaluatorResponseLevelLlm   EvaluatorResponseLevel = "llm"
-	EvaluatorResponseLevelTrace EvaluatorResponseLevel = "trace"
-)
-
-// Valid indicates whether the value is a known member of the EvaluatorResponseLevel enum.
-func (e EvaluatorResponseLevel) Valid() bool {
-	switch e {
-	case EvaluatorResponseLevelAgent:
-		return true
-	case EvaluatorResponseLevelLlm:
-		return true
-	case EvaluatorResponseLevelTrace:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for EvaluatorResponseType.
-const (
-	EvaluatorResponseTypeCode     EvaluatorResponseType = "code"
-	EvaluatorResponseTypeEmpty    EvaluatorResponseType = ""
-	EvaluatorResponseTypeLlmJudge EvaluatorResponseType = "llm_judge"
-)
-
-// Valid indicates whether the value is a known member of the EvaluatorResponseType enum.
-func (e EvaluatorResponseType) Valid() bool {
-	switch e {
-	case EvaluatorResponseTypeCode:
-		return true
-	case EvaluatorResponseTypeEmpty:
-		return true
-	case EvaluatorResponseTypeLlmJudge:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for EvaluatorScoreSummaryLevel.
-const (
-	EvaluatorScoreSummaryLevelAgent EvaluatorScoreSummaryLevel = "agent"
-	EvaluatorScoreSummaryLevelLlm   EvaluatorScoreSummaryLevel = "llm"
-	EvaluatorScoreSummaryLevelTrace EvaluatorScoreSummaryLevel = "trace"
-)
-
-// Valid indicates whether the value is a known member of the EvaluatorScoreSummaryLevel enum.
-func (e EvaluatorScoreSummaryLevel) Valid() bool {
-	switch e {
-	case EvaluatorScoreSummaryLevelAgent:
-		return true
-	case EvaluatorScoreSummaryLevelLlm:
-		return true
-	case EvaluatorScoreSummaryLevelTrace:
 		return true
 	default:
 		return false
@@ -976,24 +799,6 @@ func (e GatewayTypeInput) Valid() bool {
 	}
 }
 
-// Defines values for GroupedScoresResponseLevel.
-const (
-	GroupedScoresResponseLevelAgent GroupedScoresResponseLevel = "agent"
-	GroupedScoresResponseLevelLlm   GroupedScoresResponseLevel = "llm"
-)
-
-// Valid indicates whether the value is a known member of the GroupedScoresResponseLevel enum.
-func (e GroupedScoresResponseLevel) Valid() bool {
-	switch e {
-	case GroupedScoresResponseLevelAgent:
-		return true
-	case GroupedScoresResponseLevelLlm:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for HealthCheckType.
 const (
 	HTTP HealthCheckType = "HTTP"
@@ -1134,16 +939,13 @@ func (e LLMDeploymentResponseStatusDesired) Valid() bool {
 
 // Defines values for LLMProviderConsumerItemConsumerType.
 const (
-	LLMProviderConsumerItemConsumerTypeAgent   LLMProviderConsumerItemConsumerType = "agent"
-	LLMProviderConsumerItemConsumerTypeMonitor LLMProviderConsumerItemConsumerType = "monitor"
+	LLMProviderConsumerItemConsumerTypeAgent LLMProviderConsumerItemConsumerType = "agent"
 )
 
 // Valid indicates whether the value is a known member of the LLMProviderConsumerItemConsumerType enum.
 func (e LLMProviderConsumerItemConsumerType) Valid() bool {
 	switch e {
 	case LLMProviderConsumerItemConsumerTypeAgent:
-		return true
-	case LLMProviderConsumerItemConsumerTypeMonitor:
 		return true
 	default:
 		return false
@@ -1186,30 +988,6 @@ func (e LLMProviderResponseStatus) Valid() bool {
 	case LLMProviderResponseStatusFailed:
 		return true
 	case LLMProviderResponseStatusPending:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for LogEntryLogLevel.
-const (
-	LogEntryLogLevelDEBUG LogEntryLogLevel = "DEBUG"
-	LogEntryLogLevelERROR LogEntryLogLevel = "ERROR"
-	LogEntryLogLevelINFO  LogEntryLogLevel = "INFO"
-	LogEntryLogLevelWARN  LogEntryLogLevel = "WARN"
-)
-
-// Valid indicates whether the value is a known member of the LogEntryLogLevel enum.
-func (e LogEntryLogLevel) Valid() bool {
-	switch e {
-	case LogEntryLogLevelDEBUG:
-		return true
-	case LogEntryLogLevelERROR:
-		return true
-	case LogEntryLogLevelINFO:
-		return true
-	case LogEntryLogLevelWARN:
 		return true
 	default:
 		return false
@@ -1294,105 +1072,6 @@ func (e MCPProxyEnvironmentUpstreamAuthRedactedType) Valid() bool {
 	case MCPProxyEnvironmentUpstreamAuthRedactedTypeApiKey:
 		return true
 	case MCPProxyEnvironmentUpstreamAuthRedactedTypeNone:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MonitorResponseStatus.
-const (
-	MonitorResponseStatusActive    MonitorResponseStatus = "Active"
-	MonitorResponseStatusFailed    MonitorResponseStatus = "Failed"
-	MonitorResponseStatusSuspended MonitorResponseStatus = "Suspended"
-	MonitorResponseStatusUnknown   MonitorResponseStatus = "Unknown"
-)
-
-// Valid indicates whether the value is a known member of the MonitorResponseStatus enum.
-func (e MonitorResponseStatus) Valid() bool {
-	switch e {
-	case MonitorResponseStatusActive:
-		return true
-	case MonitorResponseStatusFailed:
-		return true
-	case MonitorResponseStatusSuspended:
-		return true
-	case MonitorResponseStatusUnknown:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MonitorResponseType.
-const (
-	MonitorResponseTypeFuture MonitorResponseType = "future"
-	MonitorResponseTypePast   MonitorResponseType = "past"
-)
-
-// Valid indicates whether the value is a known member of the MonitorResponseType enum.
-func (e MonitorResponseType) Valid() bool {
-	switch e {
-	case MonitorResponseTypeFuture:
-		return true
-	case MonitorResponseTypePast:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MonitorRunResponseStatus.
-const (
-	MonitorRunResponseStatusFailed  MonitorRunResponseStatus = "failed"
-	MonitorRunResponseStatusPending MonitorRunResponseStatus = "pending"
-	MonitorRunResponseStatusRunning MonitorRunResponseStatus = "running"
-	MonitorRunResponseStatusSuccess MonitorRunResponseStatus = "success"
-)
-
-// Valid indicates whether the value is a known member of the MonitorRunResponseStatus enum.
-func (e MonitorRunResponseStatus) Valid() bool {
-	switch e {
-	case MonitorRunResponseStatusFailed:
-		return true
-	case MonitorRunResponseStatusPending:
-		return true
-	case MonitorRunResponseStatusRunning:
-		return true
-	case MonitorRunResponseStatusSuccess:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MonitorScoreThresholdAggregation.
-const (
-	Mean MonitorScoreThresholdAggregation = "mean"
-)
-
-// Valid indicates whether the value is a known member of the MonitorScoreThresholdAggregation enum.
-func (e MonitorScoreThresholdAggregation) Valid() bool {
-	switch e {
-	case Mean:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for MonitorScoreThresholdOperator.
-const (
-	Above MonitorScoreThresholdOperator = "above"
-	Below MonitorScoreThresholdOperator = "below"
-)
-
-// Valid indicates whether the value is a known member of the MonitorScoreThresholdOperator enum.
-func (e MonitorScoreThresholdOperator) Valid() bool {
-	switch e {
-	case Above:
-		return true
-	case Below:
 		return true
 	default:
 		return false
@@ -1497,16 +1176,16 @@ func (e UpdateDeploymentStateRequestState) Valid() bool {
 
 // Defines values for UpdateDeploymentStateResponseState.
 const (
-	UpdateDeploymentStateResponseStateActive   UpdateDeploymentStateResponseState = "Active"
-	UpdateDeploymentStateResponseStateUndeploy UpdateDeploymentStateResponseState = "Undeploy"
+	Active   UpdateDeploymentStateResponseState = "Active"
+	Undeploy UpdateDeploymentStateResponseState = "Undeploy"
 )
 
 // Valid indicates whether the value is a known member of the UpdateDeploymentStateResponseState enum.
 func (e UpdateDeploymentStateResponseState) Valid() bool {
 	switch e {
-	case UpdateDeploymentStateResponseStateActive:
+	case Active:
 		return true
-	case UpdateDeploymentStateResponseStateUndeploy:
+	case Undeploy:
 		return true
 	default:
 		return false
@@ -1581,19 +1260,19 @@ func (e ListOrgEventDeliveriesParamsStatus) Valid() bool {
 
 // Defines values for ListEventTypesParamsScope.
 const (
-	ListEventTypesParamsScopeAgent   ListEventTypesParamsScope = "agent"
-	ListEventTypesParamsScopeOrg     ListEventTypesParamsScope = "org"
-	ListEventTypesParamsScopeProject ListEventTypesParamsScope = "project"
+	Agent   ListEventTypesParamsScope = "agent"
+	Org     ListEventTypesParamsScope = "org"
+	Project ListEventTypesParamsScope = "project"
 )
 
 // Valid indicates whether the value is a known member of the ListEventTypesParamsScope enum.
 func (e ListEventTypesParamsScope) Valid() bool {
 	switch e {
-	case ListEventTypesParamsScopeAgent:
+	case Agent:
 		return true
-	case ListEventTypesParamsScopeOrg:
+	case Org:
 		return true
-	case ListEventTypesParamsScopeProject:
+	case Project:
 		return true
 	default:
 		return false
@@ -1602,22 +1281,22 @@ func (e ListEventTypesParamsScope) Valid() bool {
 
 // Defines values for ListGatewaysParamsStatus.
 const (
-	ACTIVE       ListGatewaysParamsStatus = "ACTIVE"
-	ERROR        ListGatewaysParamsStatus = "ERROR"
-	INACTIVE     ListGatewaysParamsStatus = "INACTIVE"
-	PROVISIONING ListGatewaysParamsStatus = "PROVISIONING"
+	ListGatewaysParamsStatusACTIVE       ListGatewaysParamsStatus = "ACTIVE"
+	ListGatewaysParamsStatusERROR        ListGatewaysParamsStatus = "ERROR"
+	ListGatewaysParamsStatusINACTIVE     ListGatewaysParamsStatus = "INACTIVE"
+	ListGatewaysParamsStatusPROVISIONING ListGatewaysParamsStatus = "PROVISIONING"
 )
 
 // Valid indicates whether the value is a known member of the ListGatewaysParamsStatus enum.
 func (e ListGatewaysParamsStatus) Valid() bool {
 	switch e {
-	case ACTIVE:
+	case ListGatewaysParamsStatusACTIVE:
 		return true
-	case ERROR:
+	case ListGatewaysParamsStatusERROR:
 		return true
-	case INACTIVE:
+	case ListGatewaysParamsStatusINACTIVE:
 		return true
-	case PROVISIONING:
+	case ListGatewaysParamsStatusPROVISIONING:
 		return true
 	default:
 		return false
@@ -1678,81 +1357,24 @@ func (e ListAgentEventDeliveriesParamsStatus) Valid() bool {
 	}
 }
 
-// Defines values for GetMonitorScoresParamsLevel.
-const (
-	GetMonitorScoresParamsLevelAgent GetMonitorScoresParamsLevel = "agent"
-	GetMonitorScoresParamsLevelLlm   GetMonitorScoresParamsLevel = "llm"
-	GetMonitorScoresParamsLevelTrace GetMonitorScoresParamsLevel = "trace"
-)
-
-// Valid indicates whether the value is a known member of the GetMonitorScoresParamsLevel enum.
-func (e GetMonitorScoresParamsLevel) Valid() bool {
-	switch e {
-	case GetMonitorScoresParamsLevelAgent:
-		return true
-	case GetMonitorScoresParamsLevelLlm:
-		return true
-	case GetMonitorScoresParamsLevelTrace:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetGroupedScoresParamsLevel.
-const (
-	Agent GetGroupedScoresParamsLevel = "agent"
-	Llm   GetGroupedScoresParamsLevel = "llm"
-)
-
-// Valid indicates whether the value is a known member of the GetGroupedScoresParamsLevel enum.
-func (e GetGroupedScoresParamsLevel) Valid() bool {
-	switch e {
-	case Agent:
-		return true
-	case Llm:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GetAgentTraceScoresParamsSortOrder.
-const (
-	Asc  GetAgentTraceScoresParamsSortOrder = "asc"
-	Desc GetAgentTraceScoresParamsSortOrder = "desc"
-)
-
-// Valid indicates whether the value is a known member of the GetAgentTraceScoresParamsSortOrder enum.
-func (e GetAgentTraceScoresParamsSortOrder) Valid() bool {
-	switch e {
-	case Asc:
-		return true
-	case Desc:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ListProjectEventDeliveriesParamsStatus.
 const (
-	ListProjectEventDeliveriesParamsStatusDelivered ListProjectEventDeliveriesParamsStatus = "delivered"
-	ListProjectEventDeliveriesParamsStatusFailed    ListProjectEventDeliveriesParamsStatus = "failed"
-	ListProjectEventDeliveriesParamsStatusPending   ListProjectEventDeliveriesParamsStatus = "pending"
-	ListProjectEventDeliveriesParamsStatusSkipped   ListProjectEventDeliveriesParamsStatus = "skipped"
+	Delivered ListProjectEventDeliveriesParamsStatus = "delivered"
+	Failed    ListProjectEventDeliveriesParamsStatus = "failed"
+	Pending   ListProjectEventDeliveriesParamsStatus = "pending"
+	Skipped   ListProjectEventDeliveriesParamsStatus = "skipped"
 )
 
 // Valid indicates whether the value is a known member of the ListProjectEventDeliveriesParamsStatus enum.
 func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
 	switch e {
-	case ListProjectEventDeliveriesParamsStatusDelivered:
+	case Delivered:
 		return true
-	case ListProjectEventDeliveriesParamsStatusFailed:
+	case Failed:
 		return true
-	case ListProjectEventDeliveriesParamsStatusPending:
+	case Pending:
 		return true
-	case ListProjectEventDeliveriesParamsStatusSkipped:
+	case Skipped:
 		return true
 	default:
 		return false
@@ -2304,13 +1926,6 @@ type AgentSummaryListResponse struct {
 // retries (5 attempts over about 15 minutes).
 type AgentThunderStatus string
 
-// AgentTraceScoresResponse defines model for AgentTraceScoresResponse.
-type AgentTraceScoresResponse struct {
-	// TotalCount Total number of traces with scores in the time range
-	TotalCount int                 `json:"totalCount"`
-	Traces     []TraceScoreSummary `json:"traces"`
-}
-
 // AgentType defines model for AgentType.
 type AgentType struct {
 	// SubType Sub-type of the agent
@@ -2346,27 +1961,6 @@ type AutoScalingConfig struct {
 	// MinReplicas Minimum number of replicas
 	MinReplicas *int32 `json:"minReplicas,omitempty"`
 }
-
-// BatchTimeSeriesEvaluatorSeries defines model for BatchTimeSeriesEvaluatorSeries.
-type BatchTimeSeriesEvaluatorSeries struct {
-	// EvaluatorName Display name of the evaluator
-	EvaluatorName string            `json:"evaluatorName"`
-	Points        []TimeSeriesPoint `json:"points"`
-}
-
-// BatchTimeSeriesResponse defines model for BatchTimeSeriesResponse.
-type BatchTimeSeriesResponse struct {
-	Evaluators []BatchTimeSeriesEvaluatorSeries `json:"evaluators"`
-
-	// Granularity Shared time-bucket granularity for all evaluators (automatically selected by the server)
-	Granularity BatchTimeSeriesResponseGranularity `json:"granularity"`
-
-	// MonitorName Name of the monitor
-	MonitorName string `json:"monitorName"`
-}
-
-// BatchTimeSeriesResponseGranularity Shared time-bucket granularity for all evaluators (automatically selected by the server)
-type BatchTimeSeriesResponseGranularity string
 
 // Branch Git branch information
 type Branch struct {
@@ -2696,9 +2290,6 @@ type ConfigResponse struct {
 	// not off). The console hides Events when false. Absent is treated as
 	// false.
 	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
-
-	// ObserverBaseUrl Base URL for the agent-manager-observer service
-	ObserverBaseUrl string `json:"observerBaseUrl"`
 }
 
 // ConfigurationItem defines model for ConfigurationItem.
@@ -2889,6 +2480,9 @@ type CreateAgentRequest struct {
 	// DisplayName Display name of the agent
 	DisplayName string `json:"displayName"`
 
+	// Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
+	Extensions *Extensions `json:"extensions,omitempty"`
+
 	// GithubApp Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it. When omitted, public-repository and PAT-backed behavior is unchanged.
 	GithubApp *GitHubAppSource `json:"githubApp,omitempty"`
 
@@ -2911,36 +2505,6 @@ type CreateAgentRequest struct {
 	Name         string       `json:"name"`
 	Provisioning Provisioning `json:"provisioning"`
 }
-
-// CreateCustomEvaluatorRequest defines model for CreateCustomEvaluatorRequest.
-type CreateCustomEvaluatorRequest struct {
-	ConfigSchema *[]EvaluatorConfigParam `json:"configSchema,omitempty"`
-
-	// Description Description of the evaluator
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// Identifier Optional identifier slug (auto-generated from displayName if omitted)
-	Identifier *string `json:"identifier,omitempty"`
-
-	// Level Evaluation granularity level
-	Level CreateCustomEvaluatorRequestLevel `json:"level"`
-
-	// Source Python source code or prompt template
-	Source string    `json:"source"`
-	Tags   *[]string `json:"tags,omitempty"`
-
-	// Type Evaluator type
-	Type CreateCustomEvaluatorRequestType `json:"type"`
-}
-
-// CreateCustomEvaluatorRequestLevel Evaluation granularity level
-type CreateCustomEvaluatorRequestLevel string
-
-// CreateCustomEvaluatorRequestType Evaluator type
-type CreateCustomEvaluatorRequestType string
 
 // CreateDeploymentPipelineRequest defines model for CreateDeploymentPipelineRequest.
 type CreateDeploymentPipelineRequest struct {
@@ -3151,43 +2715,6 @@ type CreateLLMProxyRequest struct {
 	// ProviderUuid UUID of the LLM provider
 	ProviderUuid openapi_types.UUID `json:"providerUuid"`
 }
-
-// CreateMonitorRequest defines model for CreateMonitorRequest.
-type CreateMonitorRequest struct {
-	// Description Optional description for the monitor
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// EnvironmentName Name of the environment to monitor
-	EnvironmentName string `json:"environmentName"`
-
-	// Evaluators List of evaluators with optional configuration
-	Evaluators []MonitorEvaluator `json:"evaluators"`
-
-	// IntervalMinutes Interval in minutes for continuous monitoring (required for 'future' type, default 60)
-	IntervalMinutes *int                   `json:"intervalMinutes,omitempty"`
-	LlmProvider     *MonitorLLMProviderRef `json:"llmProvider,omitempty"`
-
-	// Name Unique DNS-compatible name for the monitor (lowercase, alphanumeric, hyphens only)
-	Name string `json:"name"`
-
-	// SamplingRate Sampling rate for trace collection (0.0 to 1.0, default 1.0)
-	SamplingRate *float32 `json:"samplingRate,omitempty"`
-
-	// TraceEnd End time for trace collection (required for 'past' type)
-	TraceEnd *time.Time `json:"traceEnd,omitempty"`
-
-	// TraceStart Start time for trace collection (required for 'past' type)
-	TraceStart *time.Time `json:"traceStart,omitempty"`
-
-	// Type Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
-	Type CreateMonitorRequestType `json:"type"`
-}
-
-// CreateMonitorRequestType Monitor type - 'future' for continuous monitoring, 'past' for one-time historical analysis
-type CreateMonitorRequestType string
 
 // CreateOrganizationRequest defines model for CreateOrganizationRequest.
 type CreateOrganizationRequest struct {
@@ -3533,117 +3060,6 @@ type ErrorResponse struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
-// EvaluatorConfigParam defines model for EvaluatorConfigParam.
-type EvaluatorConfigParam struct {
-	// Default Default value for the parameter
-	Default interface{} `json:"default,omitempty"`
-
-	// Description Parameter description
-	Description string `json:"description"`
-
-	// EnumValues Possible values (for enum type)
-	EnumValues *[]string `json:"enumValues,omitempty"`
-
-	// Key Parameter key/name
-	Key string `json:"key"`
-
-	// Max Maximum value (for numeric types)
-	Max *float64 `json:"max,omitempty"`
-
-	// Min Minimum value (for numeric types)
-	Min *float64 `json:"min,omitempty"`
-
-	// Required Whether this parameter is required
-	Required bool `json:"required"`
-
-	// Type Parameter type
-	Type EvaluatorConfigParamType `json:"type"`
-}
-
-// EvaluatorConfigParamType Parameter type
-type EvaluatorConfigParamType string
-
-// EvaluatorListResponse defines model for EvaluatorListResponse.
-type EvaluatorListResponse struct {
-	// Evaluators List of evaluators
-	Evaluators []EvaluatorResponse `json:"evaluators"`
-
-	// Limit Number of evaluators per page
-	Limit int32 `json:"limit"`
-
-	// Offset Number of evaluators to skip
-	Offset int32 `json:"offset"`
-
-	// Total Total number of evaluators
-	Total int `json:"total"`
-}
-
-// EvaluatorResponse defines model for EvaluatorResponse.
-type EvaluatorResponse struct {
-	// ConfigSchema Configuration schema for the evaluator
-	ConfigSchema []EvaluatorConfigParam `json:"configSchema"`
-
-	// Description Description of what the evaluator does
-	Description string `json:"description"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// Id Unique evaluator ID
-	Id string `json:"id"`
-
-	// Identifier Evaluator identifier (e.g., groundedness)
-	Identifier string `json:"identifier"`
-
-	// IsBuiltin Whether this is a platform-provided builtin evaluator
-	IsBuiltin bool `json:"isBuiltin"`
-
-	// Level Evaluation granularity level
-	Level EvaluatorResponseLevel `json:"level"`
-
-	// Provider SDK binding provider
-	Provider string `json:"provider"`
-
-	// Source Source code (code type) or prompt template (llm_judge type)
-	Source *string `json:"source,omitempty"`
-
-	// Tags Classification tags
-	Tags []string `json:"tags"`
-
-	// Type Custom evaluator type (empty for built-in)
-	Type *EvaluatorResponseType `json:"type,omitempty"`
-
-	// Version Evaluator version
-	Version string `json:"version"`
-}
-
-// EvaluatorResponseLevel Evaluation granularity level
-type EvaluatorResponseLevel string
-
-// EvaluatorResponseType Custom evaluator type (empty for built-in)
-type EvaluatorResponseType string
-
-// EvaluatorScoreSummary defines model for EvaluatorScoreSummary.
-type EvaluatorScoreSummary struct {
-	// Aggregations Flexible aggregation data. The "mean" key is always present: a number (0–1) when scored data exists, or null when all evaluations were skipped.
-	Aggregations map[string]interface{} `json:"aggregations"`
-
-	// Count Total number of scores
-	Count int `json:"count"`
-
-	// EvaluatorName Display name of the evaluator
-	EvaluatorName string `json:"evaluatorName"`
-
-	// Level Evaluation level
-	Level EvaluatorScoreSummaryLevel `json:"level"`
-
-	// SkippedCount Number of evaluations skipped
-	SkippedCount int `json:"skippedCount"`
-}
-
-// EvaluatorScoreSummaryLevel Evaluation level
-type EvaluatorScoreSummaryLevel string
-
 // EventDeliveryCounts defines model for EventDeliveryCounts.
 type EventDeliveryCounts struct {
 	Delivered int `json:"delivered"`
@@ -3917,6 +3333,9 @@ type EventTypeScope string
 type EventTypeListResponse struct {
 	EventTypes []EventType `json:"eventTypes"`
 }
+
+// Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
+type Extensions map[string]map[string]interface{}
 
 // ExtractionIdentifier defines model for ExtractionIdentifier.
 type ExtractionIdentifier struct {
@@ -4250,17 +3669,6 @@ type GroupResponse struct {
 	OuId *string `json:"ouId,omitempty"`
 }
 
-// GroupedScoresResponse defines model for GroupedScoresResponse.
-type GroupedScoresResponse struct {
-	Groups      []ScoreLabelGroup          `json:"groups"`
-	Level       GroupedScoresResponseLevel `json:"level"`
-	MonitorName string                     `json:"monitorName"`
-	TimeRange   TimeRange                  `json:"timeRange"`
-}
-
-// GroupedScoresResponseLevel defines model for GroupedScoresResponse.Level.
-type GroupedScoresResponseLevel string
-
 // HealthCheck One health check. A field that is not set uses its default value.
 type HealthCheck struct {
 	// Enabled Whether the check runs. Defaults to true.
@@ -4571,10 +3979,10 @@ type LLMPolicyPath struct {
 
 // LLMProviderConsumerItem defines model for LLMProviderConsumerItem.
 type LLMProviderConsumerItem struct {
-	// ConsumerName Name (handle) of the agent or monitor consuming the proxy
+	// ConsumerName Name (handle) of the agent consuming the proxy
 	ConsumerName string `json:"consumerName"`
 
-	// ConsumerType Whether the consumer is an agent or a monitor
+	// ConsumerType The kind of consumer; always an agent
 	ConsumerType LLMProviderConsumerItemConsumerType `json:"consumerType"`
 
 	// ProjectName Name of the project the proxy belongs to
@@ -4587,7 +3995,7 @@ type LLMProviderConsumerItem struct {
 	ProxyName string `json:"proxyName"`
 }
 
-// LLMProviderConsumerItemConsumerType Whether the consumer is an agent or a monitor
+// LLMProviderConsumerItemConsumerType The kind of consumer; always an agent
 type LLMProviderConsumerItemConsumerType string
 
 // LLMProviderConsumerListResponse defines model for LLMProviderConsumerListResponse.
@@ -4835,19 +4243,6 @@ type LLMRateLimitingConfig struct {
 	ProviderLevel *RateLimitingScopeConfig `json:"providerLevel,omitempty"`
 }
 
-// LabelEvaluatorSummary defines model for LabelEvaluatorSummary.
-type LabelEvaluatorSummary struct {
-	// Count Total number of evaluations
-	Count         int32  `json:"count"`
-	EvaluatorName string `json:"evaluatorName"`
-
-	// Mean Mean score (0-1), null if all evaluations were skipped
-	Mean *float64 `json:"mean"`
-
-	// SkippedCount Number of skipped evaluations
-	SkippedCount int32 `json:"skippedCount"`
-}
-
 // Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 type Labels map[string]string
 
@@ -4933,23 +4328,6 @@ type ListCommitsResponse struct {
 
 	// Offset Number of results skipped
 	Offset int `json:"offset"`
-}
-
-// LogEntry defines model for LogEntry.
-type LogEntry struct {
-	Log       string           `json:"log"`
-	LogLevel  LogEntryLogLevel `json:"logLevel"`
-	Timestamp time.Time        `json:"timestamp"`
-}
-
-// LogEntryLogLevel defines model for LogEntry.LogLevel.
-type LogEntryLogLevel string
-
-// LogsResponse defines model for LogsResponse.
-type LogsResponse struct {
-	Logs       []LogEntry `json:"logs"`
-	TookMs     float32    `json:"tookMs"`
-	TotalCount int        `json:"totalCount"`
 }
 
 // MCPConfigRequest defines model for MCPConfigRequest.
@@ -5333,218 +4711,6 @@ type ModelConfigRequest struct {
 
 	// ProviderName Handle of an already-configured LLM provider. Applied to the component's initial (lowest) environment.
 	ProviderName string `json:"providerName"`
-}
-
-// MonitorAlertRequest defines model for MonitorAlertRequest.
-type MonitorAlertRequest struct {
-	// DestinationIds Organization destinations available to this monitor's project.
-	DestinationIds []openapi_types.UUID `json:"destinationIds"`
-
-	// NotifyOnFailure Notify when a run fails or cannot start.
-	NotifyOnFailure bool `json:"notifyOnFailure"`
-
-	// NotifyOnSuccess Notify when a run completes.
-	NotifyOnSuccess bool                    `json:"notifyOnSuccess"`
-	Thresholds      []MonitorScoreThreshold `json:"thresholds"`
-}
-
-// MonitorAlertResponse defines model for MonitorAlertResponse.
-type MonitorAlertResponse struct {
-	// Breached The thresholds the latest evaluated run breached.
-	Breached *[]MonitorScoreThreshold `json:"breached,omitempty"`
-
-	// DestinationIds Organization destinations available to this monitor's project.
-	DestinationIds []openapi_types.UUID `json:"destinationIds"`
-
-	// Enabled Whether shared monitor alerting is enabled.
-	Enabled         bool                    `json:"enabled"`
-	NotifyOnFailure bool                    `json:"notifyOnFailure"`
-	NotifyOnSuccess bool                    `json:"notifyOnSuccess"`
-	Thresholds      []MonitorScoreThreshold `json:"thresholds"`
-	UpdatedAt       *time.Time              `json:"updatedAt,omitempty"`
-}
-
-// MonitorEvaluator defines model for MonitorEvaluator.
-type MonitorEvaluator struct {
-	// Config Evaluator-specific configuration parameters (includes 'level' for evaluation granularity)
-	Config *map[string]interface{} `json:"config,omitempty"`
-
-	// DisplayName User-facing name, unique per monitor (e.g., "Latency Check", "Customer Query Latency")
-	DisplayName string `json:"displayName"`
-
-	// Identifier Evaluator type/definition key for catalog lookup (e.g., "latency_performance", "answer_relevancy", "deepeval/plan-quality")
-	Identifier string `json:"identifier"`
-}
-
-// MonitorLLMProviderInfo defines model for MonitorLLMProviderInfo.
-type MonitorLLMProviderInfo struct {
-	// DisplayName Human-readable name of the provider
-	DisplayName string `json:"displayName"`
-
-	// ProviderName Handle of the org-level LLM provider
-	ProviderName string `json:"providerName"`
-
-	// TemplateHandle Template handle (e.g. openai, anthropic)
-	TemplateHandle *string `json:"templateHandle,omitempty"`
-}
-
-// MonitorLLMProviderRef defines model for MonitorLLMProviderRef.
-type MonitorLLMProviderRef struct {
-	// ProviderName Handle of the org-level LLM provider to use for LLM-judge evaluators
-	ProviderName string `json:"providerName"`
-}
-
-// MonitorListResponse defines model for MonitorListResponse.
-type MonitorListResponse struct {
-	// Monitors List of monitors
-	Monitors []MonitorResponse `json:"monitors"`
-
-	// Total Total number of monitors
-	Total int `json:"total"`
-}
-
-// MonitorResponse defines model for MonitorResponse.
-type MonitorResponse struct {
-	// AgentName Agent name
-	AgentName string `json:"agentName"`
-
-	// CreatedAt Creation timestamp
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Description Optional description for the monitor
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Display name
-	DisplayName string `json:"displayName"`
-
-	// EnvironmentName Environment name
-	EnvironmentName string `json:"environmentName"`
-
-	// Evaluators List of evaluators with configuration
-	Evaluators []MonitorEvaluator `json:"evaluators"`
-
-	// Id Unique identifier for the monitor
-	Id string `json:"id"`
-
-	// IntervalMinutes Interval in minutes (only for 'future' type)
-	IntervalMinutes *int                    `json:"intervalMinutes,omitempty"`
-	LatestRun       *MonitorRunResponse     `json:"latestRun,omitempty"`
-	LlmProvider     *MonitorLLMProviderInfo `json:"llmProvider,omitempty"`
-
-	// Name Monitor name
-	Name string `json:"name"`
-
-	// NextRunTime Next scheduled run time (only for 'future' type)
-	NextRunTime *time.Time `json:"nextRunTime,omitempty"`
-
-	// ProjectName Project name
-	ProjectName string `json:"projectName"`
-
-	// SamplingRate Sampling rate for trace collection
-	SamplingRate float32 `json:"samplingRate"`
-
-	// Status Current monitor status
-	Status MonitorResponseStatus `json:"status"`
-
-	// TraceEnd End time for traces (only for 'past' type)
-	TraceEnd *time.Time `json:"traceEnd,omitempty"`
-
-	// TraceStart Start time for traces (only for 'past' type)
-	TraceStart *time.Time `json:"traceStart,omitempty"`
-
-	// Type Monitor type
-	Type MonitorResponseType `json:"type"`
-}
-
-// MonitorResponseStatus Current monitor status
-type MonitorResponseStatus string
-
-// MonitorResponseType Monitor type
-type MonitorResponseType string
-
-// MonitorRunListResponse defines model for MonitorRunListResponse.
-type MonitorRunListResponse struct {
-	// Runs List of monitor runs
-	Runs []MonitorRunResponse `json:"runs"`
-
-	// Total Total number of runs
-	Total int `json:"total"`
-}
-
-// MonitorRunResponse defines model for MonitorRunResponse.
-type MonitorRunResponse struct {
-	// CompletedAt When the run execution completed
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
-
-	// ErrorMessage Error message if status is 'failed'
-	ErrorMessage *string `json:"errorMessage,omitempty"`
-
-	// Evaluators Evaluators used in this run (snapshot at run time)
-	Evaluators []MonitorEvaluator `json:"evaluators"`
-
-	// Id Unique identifier for the run
-	Id string `json:"id"`
-
-	// MonitorName Name of the monitor
-	MonitorName *string `json:"monitorName,omitempty"`
-
-	// Scores Evaluator score summaries (included when includeScores=true)
-	Scores *[]EvaluatorScoreSummary `json:"scores,omitempty"`
-
-	// StartedAt When the run execution started
-	StartedAt *time.Time `json:"startedAt,omitempty"`
-
-	// Status Run execution status
-	Status MonitorRunResponseStatus `json:"status"`
-
-	// TraceEnd Trace collection end time
-	TraceEnd time.Time `json:"traceEnd"`
-
-	// TraceStart Trace collection start time
-	TraceStart time.Time `json:"traceStart"`
-}
-
-// MonitorRunResponseStatus Run execution status
-type MonitorRunResponseStatus string
-
-// MonitorRunScoresResponse defines model for MonitorRunScoresResponse.
-type MonitorRunScoresResponse struct {
-	Evaluators []EvaluatorScoreSummary `json:"evaluators"`
-
-	// MonitorName Name of the monitor
-	MonitorName string `json:"monitorName"`
-
-	// RunId Monitor run UUID
-	RunId openapi_types.UUID `json:"runId"`
-}
-
-// MonitorScoreThreshold Sends an alert when a score of the monitor's runs crosses a
-// value, and again when it crosses back.
-type MonitorScoreThreshold struct {
-	// Aggregation Which of the run's aggregated scores to compare.
-	Aggregation MonitorScoreThresholdAggregation `json:"aggregation"`
-
-	// Evaluator Display name of one of the monitor's evaluators.
-	Evaluator string `json:"evaluator"`
-
-	// Operator The score is breached when it is below (or above) value.
-	Operator MonitorScoreThresholdOperator `json:"operator"`
-	Value    float64                       `json:"value"`
-}
-
-// MonitorScoreThresholdAggregation Which of the run's aggregated scores to compare.
-type MonitorScoreThresholdAggregation string
-
-// MonitorScoreThresholdOperator The score is breached when it is below (or above) value.
-type MonitorScoreThresholdOperator string
-
-// MonitorScoresResponse defines model for MonitorScoresResponse.
-type MonitorScoresResponse struct {
-	Evaluators []EvaluatorScoreSummary `json:"evaluators"`
-
-	// MonitorName Name of the monitor
-	MonitorName string    `json:"monitorName"`
-	TimeRange   TimeRange `json:"timeRange"`
 }
 
 // OAuthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
@@ -6156,14 +5322,6 @@ type RouteException struct {
 	Path string `json:"path"`
 }
 
-// ScoreLabelGroup defines model for ScoreLabelGroup.
-type ScoreLabelGroup struct {
-	Evaluators []LabelEvaluatorSummary `json:"evaluators"`
-
-	// Label Span label (agent name or vendor/model)
-	Label string `json:"label"`
-}
-
 // SecurityConfig Security configuration. Exactly one variant is active: apiKey or identity (both omitted / enabled=false means no security).
 type SecurityConfig struct {
 	ApiKey *APIKeySecurity `json:"apiKey,omitempty"`
@@ -6323,30 +5481,6 @@ type ThunderUrlResponse struct {
 	Url    string  `json:"url"`
 }
 
-// TimeRange defines model for TimeRange.
-type TimeRange struct {
-	// End End time of the range
-	End time.Time `json:"end"`
-
-	// Start Start time of the range
-	Start time.Time `json:"start"`
-}
-
-// TimeSeriesPoint defines model for TimeSeriesPoint.
-type TimeSeriesPoint struct {
-	// Aggregations Flexible aggregation data. The "mean" key is always present: a number (0–1) when scored data exists, or null when all evaluations were skipped.
-	Aggregations map[string]interface{} `json:"aggregations"`
-
-	// Count Total number of scores in this bucket
-	Count int `json:"count"`
-
-	// SkippedCount Number of evaluations skipped in this bucket
-	SkippedCount int `json:"skippedCount"`
-
-	// Timestamp Timestamp of the bucket
-	Timestamp time.Time `json:"timestamp"`
-}
-
 // TokenRateLimit defines model for TokenRateLimit.
 type TokenRateLimit struct {
 	// Count Maximum number of tokens
@@ -6379,68 +5513,6 @@ type TokenResponse struct {
 	TokenType string `json:"token_type"`
 }
 
-// TraceEvaluatorScore defines model for TraceEvaluatorScore.
-type TraceEvaluatorScore struct {
-	// EvaluatorName Display name of the evaluator
-	EvaluatorName string `json:"evaluatorName"`
-
-	// Explanation Explanation of the score
-	Explanation *string `json:"explanation,omitempty"`
-
-	// Score Numeric score (null when skipped)
-	Score *float32 `json:"score,omitempty"`
-
-	// SkipReason Reason the evaluator skipped this trace
-	SkipReason *string `json:"skipReason,omitempty"`
-}
-
-// TraceMonitorGroup defines model for TraceMonitorGroup.
-type TraceMonitorGroup struct {
-	// Evaluators Trace-level evaluator scores
-	Evaluators []TraceEvaluatorScore `json:"evaluators"`
-
-	// MonitorName Name of the monitor
-	MonitorName string `json:"monitorName"`
-
-	// Spans Span-level evaluator scores grouped by span
-	Spans []TraceSpanGroup `json:"spans"`
-}
-
-// TraceScoreSummary defines model for TraceScoreSummary.
-type TraceScoreSummary struct {
-	// Score Mean score across all non-skipped evaluations (null if all skipped)
-	Score *float32 `json:"score"`
-
-	// SkippedCount Number of skipped evaluations
-	SkippedCount int `json:"skippedCount"`
-
-	// TotalCount Total number of evaluations for this trace
-	TotalCount int `json:"totalCount"`
-
-	// TraceId Trace ID
-	TraceId string `json:"traceId"`
-}
-
-// TraceScoresResponse defines model for TraceScoresResponse.
-type TraceScoresResponse struct {
-	Monitors []TraceMonitorGroup `json:"monitors"`
-
-	// TraceId Trace ID
-	TraceId string `json:"traceId"`
-}
-
-// TraceSpanGroup defines model for TraceSpanGroup.
-type TraceSpanGroup struct {
-	// Evaluators Evaluator scores for this span
-	Evaluators []TraceEvaluatorScore `json:"evaluators"`
-
-	// SpanId The span ID this score applies to
-	SpanId string `json:"spanId"`
-
-	// SpanLabel Human-readable label (agent name or vendor/model)
-	SpanLabel *string `json:"spanLabel,omitempty"`
-}
-
 // TracingTokenRegenerateRequest defines model for TracingTokenRegenerateRequest.
 type TracingTokenRegenerateRequest struct {
 	// EnvironmentName Environment in which to rotate the agent's tracing token
@@ -6463,6 +5535,38 @@ type TracingTokenRegenerateResponse struct {
 	RotatedAt int64 `json:"rotatedAt"`
 }
 
+// UIManifestModule defines model for UIManifestModule.
+type UIManifestModule struct {
+	Name string              `json:"name"`
+	Nav  []UIManifestNavItem `json:"nav"`
+
+	// Pages Pages of the console's built-in UI modules, as "<console module>/<page>".
+	Pages   []string         `json:"pages"`
+	Slots   []UIManifestSlot `json:"slots"`
+	Version *string          `json:"version,omitempty"`
+}
+
+// UIManifestNavItem defines model for UIManifestNavItem.
+type UIManifestNavItem struct {
+	Label string `json:"label"`
+	Page  string `json:"page"`
+}
+
+// UIManifestResponse defines model for UIManifestResponse.
+type UIManifestResponse struct {
+	// Modules The core (name "core") and each active module with console UI, in activation order.
+	Modules []UIManifestModule `json:"modules"`
+
+	// Pages Every page of the console's built-in UI modules the caller may open, as "<console module>/<page>".
+	Pages []string `json:"pages"`
+}
+
+// UIManifestSlot defines model for UIManifestSlot.
+type UIManifestSlot struct {
+	Component string `json:"component"`
+	Slot      string `json:"slot"`
+}
+
 // UpdateAgentBasicInfoRequest defines model for UpdateAgentBasicInfoRequest.
 type UpdateAgentBasicInfoRequest struct {
 	// Description Description of the agent
@@ -6470,6 +5574,9 @@ type UpdateAgentBasicInfoRequest struct {
 
 	// DisplayName Display name of the agent
 	DisplayName string `json:"displayName"`
+
+	// Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
+	Extensions *Extensions `json:"extensions,omitempty"`
 
 	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 	Labels *Labels `json:"labels,omitempty"`
@@ -6566,21 +5673,6 @@ type UpdateAgentResourceConfigsRequest struct {
 	// Replicas Number of replicas to run (only used when autoscaling is disabled)
 	Replicas  int32          `json:"replicas"`
 	Resources ResourceConfig `json:"resources"`
-}
-
-// UpdateCustomEvaluatorRequest defines model for UpdateCustomEvaluatorRequest.
-type UpdateCustomEvaluatorRequest struct {
-	ConfigSchema *[]EvaluatorConfigParam `json:"configSchema,omitempty"`
-
-	// Description Description of the evaluator
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable display name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// Source Python source code or prompt template
-	Source *string   `json:"source,omitempty"`
-	Tags   *[]string `json:"tags,omitempty"`
 }
 
 // UpdateDeploymentPipelineRequest defines model for UpdateDeploymentPipelineRequest.
@@ -6740,32 +5832,6 @@ type UpdateLLMProxyRequest struct {
 
 	// ProviderUuid Updated provider UUID
 	ProviderUuid *openapi_types.UUID `json:"providerUuid,omitempty"`
-}
-
-// UpdateMonitorRequest defines model for UpdateMonitorRequest.
-type UpdateMonitorRequest struct {
-	// DisplayName Human-readable display name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// Evaluators List of evaluators with optional configuration
-	Evaluators *[]MonitorEvaluator `json:"evaluators,omitempty"`
-
-	// IntervalMinutes Interval in minutes for continuous monitoring (only for 'future' type)
-	IntervalMinutes *int `json:"intervalMinutes,omitempty"`
-
-	// LlmProvider Organization-level LLM provider reference for evaluator routing.
-	// Omit this field to keep the current mapping unchanged (no-op).
-	// Set this field to null to explicitly clear the current mapping.
-	LlmProvider *MonitorLLMProviderRef `json:"llmProvider,omitempty"`
-
-	// SamplingRate Sampling rate for trace collection (0.0 to 1.0)
-	SamplingRate *float32 `json:"samplingRate,omitempty"`
-
-	// TraceEnd End of the trace window (only for 'past' type)
-	TraceEnd *time.Time `json:"traceEnd,omitempty"`
-
-	// TraceStart Start of the trace window (only for 'past' type)
-	TraceStart *time.Time `json:"traceStart,omitempty"`
 }
 
 // UpdateProjectRequest defines model for UpdateProjectRequest.
@@ -7256,69 +6322,6 @@ type ListAgentModelConfigsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
-// ListMonitorsParams defines parameters for ListMonitors.
-type ListMonitorsParams struct {
-	// Environment Filter monitors by environment name
-	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
-}
-
-// ListMonitorRunsParams defines parameters for ListMonitorRuns.
-type ListMonitorRunsParams struct {
-	// Limit Maximum number of runs to return (max 100)
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of runs to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// IncludeScores When true, each run includes evaluator score summaries
-	IncludeScores *bool `form:"includeScores,omitempty" json:"includeScores,omitempty"`
-}
-
-// GetMonitorScoresParams defines parameters for GetMonitorScores.
-type GetMonitorScoresParams struct {
-	// StartTime Start time for the query window (RFC3339 format)
-	StartTime time.Time `form:"startTime" json:"startTime"`
-
-	// EndTime End time for the query window (RFC3339 format)
-	EndTime time.Time `form:"endTime" json:"endTime"`
-
-	// Evaluator Filter by evaluator displayName (unique within this monitor). This is the user-visible name defined on the monitor, not the catalog identifier.
-	Evaluator *string `form:"evaluator,omitempty" json:"evaluator,omitempty"`
-
-	// Level Filter by evaluation level
-	Level *GetMonitorScoresParamsLevel `form:"level,omitempty" json:"level,omitempty"`
-}
-
-// GetMonitorScoresParamsLevel defines parameters for GetMonitorScores.
-type GetMonitorScoresParamsLevel string
-
-// GetGroupedScoresParams defines parameters for GetGroupedScores.
-type GetGroupedScoresParams struct {
-	// StartTime Start time for the query window (RFC3339 format)
-	StartTime time.Time `form:"startTime" json:"startTime"`
-
-	// EndTime End time for the query window (RFC3339 format)
-	EndTime time.Time `form:"endTime" json:"endTime"`
-
-	// Level Evaluation level to group by (agent or llm)
-	Level GetGroupedScoresParamsLevel `form:"level" json:"level"`
-}
-
-// GetGroupedScoresParamsLevel defines parameters for GetGroupedScores.
-type GetGroupedScoresParamsLevel string
-
-// GetMonitorScoresTimeSeriesParams defines parameters for GetMonitorScoresTimeSeries.
-type GetMonitorScoresTimeSeriesParams struct {
-	// StartTime Start time for the query window (RFC3339 format)
-	StartTime time.Time `form:"startTime" json:"startTime"`
-
-	// EndTime End time for the query window (RFC3339 format)
-	EndTime time.Time `form:"endTime" json:"endTime"`
-
-	// Evaluators Comma-separated list of evaluator display names (e.g. "groundedness,relevance,coherence"). Returns time-series data for all specified evaluators grouped in a single response.
-	Evaluators string `form:"evaluators" json:"evaluators"`
-}
-
 // GetAgentResourceConfigsParams defines parameters for GetAgentResourceConfigs.
 type GetAgentResourceConfigsParams struct {
 	// Environment Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific resource configurations.
@@ -7336,27 +6339,6 @@ type GetAgentRolesParams struct {
 	// Environment Environment name to read the agent's roles for
 	Environment string `form:"environment" json:"environment"`
 }
-
-// GetAgentTraceScoresParams defines parameters for GetAgentTraceScores.
-type GetAgentTraceScoresParams struct {
-	// StartTime Start time for the query window (RFC3339 format)
-	StartTime time.Time `form:"startTime" json:"startTime"`
-
-	// EndTime End time for the query window (RFC3339 format)
-	EndTime time.Time `form:"endTime" json:"endTime"`
-
-	// Limit Maximum number of trace score summaries to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of trace score summaries to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// SortOrder Sort order for traces by start time (asc or desc)
-	SortOrder *GetAgentTraceScoresParamsSortOrder `form:"sortOrder,omitempty" json:"sortOrder,omitempty"`
-}
-
-// GetAgentTraceScoresParamsSortOrder defines parameters for GetAgentTraceScores.
-type GetAgentTraceScoresParamsSortOrder string
 
 // GenerateAgentTokenParams defines parameters for GenerateAgentToken.
 type GenerateAgentTokenParams struct {
@@ -7562,12 +6544,6 @@ type AddAgentIdentityRoleAssigneesJSONRequestBody = AgentIdentityAssignmentsRequ
 // RemoveAgentIdentityRoleAssigneesJSONRequestBody defines body for RemoveAgentIdentityRoleAssignees for application/json ContentType.
 type RemoveAgentIdentityRoleAssigneesJSONRequestBody = AgentIdentityAssignmentsRequest
 
-// CreateCustomEvaluatorJSONRequestBody defines body for CreateCustomEvaluator for application/json ContentType.
-type CreateCustomEvaluatorJSONRequestBody = CreateCustomEvaluatorRequest
-
-// UpdateCustomEvaluatorJSONRequestBody defines body for UpdateCustomEvaluator for application/json ContentType.
-type UpdateCustomEvaluatorJSONRequestBody = UpdateCustomEvaluatorRequest
-
 // CreateEventDestinationJSONRequestBody defines body for CreateEventDestination for application/json ContentType.
 type CreateEventDestinationJSONRequestBody = EventDestinationRequest
 
@@ -7729,15 +6705,6 @@ type CreateLLMConfigAPIKeyJSONRequestBody = CreateLLMAPIKeyRequest
 
 // RotateLLMConfigAPIKeyJSONRequestBody defines body for RotateLLMConfigAPIKey for application/json ContentType.
 type RotateLLMConfigAPIKeyJSONRequestBody = RotateLLMAPIKeyRequest
-
-// CreateMonitorJSONRequestBody defines body for CreateMonitor for application/json ContentType.
-type CreateMonitorJSONRequestBody = CreateMonitorRequest
-
-// UpdateMonitorJSONRequestBody defines body for UpdateMonitor for application/json ContentType.
-type UpdateMonitorJSONRequestBody = UpdateMonitorRequest
-
-// PutMonitorAlertJSONRequestBody defines body for PutMonitorAlert for application/json ContentType.
-type PutMonitorAlertJSONRequestBody = MonitorAlertRequest
 
 // PromoteAgentJSONRequestBody defines body for PromoteAgent for application/json ContentType.
 type PromoteAgentJSONRequestBody = PromoteAgentRequest

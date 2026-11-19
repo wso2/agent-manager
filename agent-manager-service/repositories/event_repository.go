@@ -83,7 +83,6 @@ type SubscriptionCounts map[uuid.UUID]map[string]int
 //
 //go:generate moq -rm -fmt goimports -skip-ensure -pkg repomocks -out repomocks/event_repository_mock.go . EventRepository:EventRepositoryMock
 type EventRepository interface {
-	MonitorAlertWants(ctx context.Context, ouID string, alertID, destinationID uuid.UUID, project, agent string) (bool, error)
 	ListDestinations(ctx context.Context, ouID string) ([]models.EventDestination, error)
 	// GetDestination returns the org's destination with id, or
 	// gorm.ErrRecordNotFound.
@@ -346,7 +345,7 @@ func (r *eventRepository) GetDestination(ctx context.Context, ouID string, id uu
 }
 
 func (r *eventRepository) LoadDestinationSecret(ctx context.Context, d *models.EventDestination) error {
-	value, err := r.secrets.get(r.db.WithContext(ctx), d.SecretID)
+	value, err := r.secrets.Get(r.db.WithContext(ctx), d.SecretID)
 	if err != nil {
 		return err
 	}
@@ -379,10 +378,10 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 	now := dbx.Now()
 	d.CreatedAt, d.UpdatedAt = now, now
 	if d.ID == uuid.Nil {
-		d.ID = newID()
+		d.ID = NewID()
 	}
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := ensureOrg(ctx, tx, d.OUID); err != nil {
+		if _, err := EnsureOrg(ctx, tx, d.OUID); err != nil {
 			return err
 		}
 		if taken, err := nameTaken(tx, d); err != nil || taken {
@@ -391,7 +390,7 @@ func (r *eventRepository) CreateDestination(ctx context.Context, d *models.Event
 			}
 			return err
 		}
-		secretID, err := r.secrets.put(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, d.Secret)
+		secretID, err := r.secrets.Put(tx, d.OUID, eventDestinationSecretOwner, d.ID, nil, d.Secret)
 		if err != nil {
 			return err
 		}
@@ -445,7 +444,7 @@ func (r *eventRepository) UpdateDestination(
 		}
 		d.SecretID = locked.SecretID
 		if d.Secret != "" {
-			secretID, err := r.secrets.put(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, d.Secret)
+			secretID, err := r.secrets.Put(tx, d.OUID, eventDestinationSecretOwner, d.ID, locked.SecretID, d.Secret)
 			if err != nil {
 				return err
 			}
@@ -487,7 +486,7 @@ func (r *eventRepository) DeleteDestination(ctx context.Context, ouID string, id
 			return res.Error
 		}
 		deleted = res.RowsAffected > 0
-		return r.secrets.delete(tx, destination.SecretID)
+		return ReleaseSecret(tx, destination.SecretID)
 	})
 	if dberr.IsForeignKeyViolation(err) {
 		return false, utils.ErrEventDestinationInUse
@@ -821,7 +820,7 @@ func (r *eventRepository) CreateSubscription(
 		now := dbx.Now()
 		s.CreatedAt, s.UpdatedAt = now, now
 		if s.ID == uuid.Nil {
-			s.ID = newID()
+			s.ID = NewID()
 		}
 		if err := tx.Create(s).Error; err != nil {
 			return err
@@ -958,7 +957,7 @@ func resolveDelivery(tx *gorm.DB, d *models.EventDelivery) error {
 // insertDelivery inserts the delivery and its subscription rows unless it exists, and reports whether it did.
 func insertDelivery(tx *gorm.DB, d *models.EventDelivery) (bool, error) {
 	if d.ID == uuid.Nil {
-		d.ID = newID()
+		d.ID = NewID()
 	}
 	if err := resolveDelivery(tx, d); err != nil {
 		return false, err
@@ -1138,9 +1137,4 @@ func (r *eventRepository) FailStaleDeliveries(ctx context.Context, cutoff time.T
 func (r *eventRepository) PruneDeliveries(ctx context.Context, cutoff time.Time) (int64, error) {
 	res := r.db.WithContext(ctx).Where("created_at < ?", cutoff.UTC()).Delete(&models.EventDelivery{})
 	return res.RowsAffected, res.Error
-}
-
-// MonitorAlertWants is always false: Lite runs no monitors, so no alert sends to a destination.
-func (r *eventRepository) MonitorAlertWants(context.Context, string, uuid.UUID, uuid.UUID, string, string) (bool, error) {
-	return false, nil
 }

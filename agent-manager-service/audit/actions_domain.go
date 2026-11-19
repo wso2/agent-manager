@@ -47,7 +47,13 @@ const (
 	// from failure into two actions makes that query a union of two.
 	ActionAuthLogin Action = "authn:login"
 
-	ActionAgentTokenMint              Action = "agent-token:mint"
+	ActionAgentTokenMint Action = "agent-token:mint"
+
+	// A module's workload credentials, and the tokens its workloads exchange
+	// them for.
+	ActionWorkloadCredentialIssue     Action = "workload-credential:issue"
+	ActionWorkloadCredentialRevoke    Action = "workload-credential:revoke"
+	ActionWorkloadTokenExchange       Action = "workload-token:exchange"
 	ActionAgentTokenRegenerateTracing Action = "agent-token:regenerate-tracing"
 
 	ActionAgentIdentityProvision         Action = "agent-identity:provision"
@@ -142,19 +148,6 @@ const (
 	// asking which artifacts still exist.
 	ActionDeploymentSync      Action = "deployment:sync"
 	ActionArtifactCheckExists Action = "artifact:check-exists"
-
-	// Score publishing by the evaluation job.
-	ActionMonitorScorePublish Action = "monitor-score:publish"
-
-	// Monitors: scheduled evaluations that read agent traces and call an LLM
-	// judge, so starting or rerunning one spends money and reads data.
-	ActionMonitorCreate  Action = "monitor:create"
-	ActionMonitorUpdate  Action = "monitor:update"
-	ActionMonitorDelete  Action = "monitor:delete"
-	ActionMonitorStart   Action = "monitor:start"
-	ActionMonitorStop    Action = "monitor:stop"
-	ActionMonitorRerun   Action = "monitor:rerun"
-	ActionMonitorRunFail Action = "monitor:run-failed"
 
 	// System-initiated work. Recorded when it changes state, not on every tick.
 	ActionSystemAgentIdentityProvisioned Action = "system:agent-identity-provisioned"
@@ -271,6 +264,19 @@ func init() {
 	registerCredential(ActionAgentTokenMint, map[string]FieldKind{
 		"agentName": KindName,
 		"expiresIn": KindCount,
+	})
+	registerCredential(ActionWorkloadCredentialIssue, map[string]FieldKind{
+		"module":  KindName,
+		"subject": KindIdentifier,
+		"scopes":  KindNameList,
+	})
+	registerCredential(ActionWorkloadCredentialRevoke, map[string]FieldKind{
+		"module": KindName,
+	})
+	registerCredential(ActionWorkloadTokenExchange, map[string]FieldKind{
+		"module":       KindName,
+		"credentialId": KindIdentifier,
+		"expiresIn":    KindCount,
 	})
 	registerCredential(ActionAgentTokenRegenerateTracing, map[string]FieldKind{
 		"agentName": KindName,
@@ -555,53 +561,10 @@ func init() {
 	Register(ActionArtifactCheckExists, ClassRead, SeverityInfo)
 	RegisterDetailSchema(ActionArtifactCheckExists, map[string]FieldKind{})
 
-	// The evaluation job publishing monitor scores. This route carries no RBAC
-	// permission at all, so its record is the only account of who wrote scores.
-	Register(ActionMonitorScorePublish, ClassConfig, SeverityInfo)
-	RegisterDetailSchema(ActionMonitorScorePublish, map[string]FieldKind{
-		"monitorId":  KindIdentifier,
-		"runId":      KindIdentifier,
-		"scoreCount": KindCount,
-	})
-
 	// The provisioning reconciler issues real credentials with no request
 	// behind it, so its outcomes are recorded with a system actor. The user who
 	// originally asked for the agent is carried as OnBehalfOf, which is what the
 	// requested_by column on the binding was captured for.
-	monitorFields := map[string]FieldKind{
-		"monitorName": KindName,
-		"agentName":   KindName,
-		"monitorType": KindEnum,
-		"evaluators":  KindNameList,
-	}
-	Register(ActionMonitorCreate, ClassConfig, SeverityInfo)
-	RegisterDetailSchema(ActionMonitorCreate, monitorFields)
-	Register(ActionMonitorUpdate, ClassConfig, SeverityInfo)
-	RegisterDetailSchema(ActionMonitorUpdate, monitorFields)
-	Register(ActionMonitorDelete, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionMonitorDelete, monitorFields)
-	// Start and stop decide whether an evaluation keeps spending against the
-	// org's LLM provider, so they rank above ordinary configuration edits.
-	Register(ActionMonitorStart, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionMonitorStart, monitorFields)
-	Register(ActionMonitorStop, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionMonitorStop, monitorFields)
-	Register(ActionMonitorRerun, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionMonitorRerun, map[string]FieldKind{
-		"monitorName": KindName,
-		"agentName":   KindName,
-		"runId":       KindIdentifier,
-	})
-	// A scheduled run that failed. Recorded by the executor with a system actor;
-	// successful runs are not, since their scores are the record.
-	Register(ActionMonitorRunFail, ClassSystem, SeverityWarning)
-	RegisterDetailSchema(ActionMonitorRunFail, map[string]FieldKind{
-		"monitorName": KindName,
-		"agentName":   KindName,
-		"runId":       KindIdentifier,
-		"reason":      KindName,
-	})
-
 	Register(ActionSystemAgentIdentityProvisioned, ClassCredential, SeverityNotice)
 	RegisterDetailSchema(ActionSystemAgentIdentityProvisioned, map[string]FieldKind{
 		"agentName":   KindName,

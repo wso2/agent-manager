@@ -32,15 +32,17 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/resources"
 	"github.com/wso2/agent-manager/agent-manager-service/server"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/signals"
@@ -76,11 +78,6 @@ type Options struct {
 	// ExtraAPIRoutes registers additional routes onto the authenticated /api/v1 sub-mux.
 	// Use this to inject deployment-specific routes without modifying the core handler.
 	ExtraAPIRoutes func(mux *http.ServeMux, params *wiring.AppParams)
-	// GatewayConfigApplier patches the gateway runtime config when an identity provider
-	// changes, keeping the gateway and the AMS mirror in sync. nil (the open-source
-	// default) preserves the script-driven behavior; cloud deployments inject an
-	// implementation. See services.GatewayConfigApplier.
-	GatewayConfigApplier services.GatewayConfigApplier
 	// EnvThunderEndpointResolver optionally separates environment-Thunder
 	// management and OAuth endpoints. nil preserves on-premises behavior. Run
 	// automatically applies it to endpoint-aware provisioning implementations.
@@ -88,12 +85,6 @@ type Options struct {
 	// ProjectAgentIdentityProvider enables project-scoped AgentID creation in
 	// CP_MANAGED mode. nil is the safe default for LEGACY_DIRECT deployments.
 	ProjectAgentIdentityProvider services.ProjectAgentIdentityProvider
-	// MCPResourceServerProvider registers MCP resource servers through an identity
-	// control plane. It is used only when IDENTITY_MANAGEMENT_MODE is CP_MANAGED; in
-	// LEGACY_DIRECT mode (the default) MCP resource servers are registered in each
-	// environment's own Thunder and this is ignored. CP_MANAGED without it reports
-	// MCP resource servers as unavailable and never uses the per-environment Thunder.
-	MCPResourceServerProvider services.MCPResourceServerProvider
 	// IdentityRoleProvider keeps agent identity roles, and the MCP scopes assigned to them, on an
 	// identity control plane. It is used only when IDENTITY_MANAGEMENT_MODE is CP_MANAGED; in
 	// LEGACY_DIRECT mode (the default) roles are in each environment's own Thunder and this is
@@ -149,9 +140,24 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
+	// The modules compiled into this binary. Their tables are migrated with the
+	// core's, whether or not they are installed. Built on first use, so a run
+	// that does nothing never opens the database.
+	var modules *modhost.Host
+	moduleHost := func() *modhost.Host {
+		if modules == nil {
+			modules = modhost.New(db.GetDB(), cfg.Database.Driver, slog.Default())
+		}
+		return modules
+	}
+
 	if opts.Migrate {
 		if err := dbmigrations.Migrate(); err != nil {
 			slog.Error("error occurred while migrating", "error", err)
+			os.Exit(1)
+		}
+		if _, err := moduleHost().Migrate(context.Background()); err != nil {
+			slog.Error("error occurred while migrating modules", "error", err)
 			os.Exit(1)
 		}
 	}
@@ -159,6 +165,9 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	if opts.WaitForMigrations {
 		ctx, cancel := context.WithTimeout(context.Background(), migrationWaitTimeout)
 		err := dbmigrations.WaitForLatest(ctx, migrationWaitInterval)
+		if err == nil {
+			err = waitForModuleSchema(ctx, moduleHost())
+		}
 		cancel()
 		if err != nil {
 			slog.Error("database migrations did not complete; check that the migration job runs the same image version as this server",
@@ -170,27 +179,17 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	if !opts.Server {
 		return
 	}
+
 	if cfg.IdentityManagementMode == string(thundersvc.IdentityManagementCPManaged) && opts.AgentThunderProvisioning == nil {
 		slog.Error("CP_MANAGED identity mode requires an AgentID provisioning implementation")
 		os.Exit(1)
 	}
 
-	services.SetMCPResourceServerProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.MCPResourceServerProvider)
 	services.SetIdentityRoleProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityRoleProvider)
 	services.SetIdentityGroupProvider(thundersvc.IdentityManagementMode(cfg.IdentityManagementMode), opts.IdentityGroupProvider)
 
 	// Get the raw DB instance without context - repositories will add context per-operation
 	database := db.GetDB()
-
-	// Select the gateway-manifest cache backend before anything reads or writes it —
-	// see services.SetGatewayManifestCacheBackend's doc comment for why this is a
-	// direct call rather than part of the wire dependency graph below.
-	manifestCacheBackend, err := wiring.ProvideGatewayManifestCacheBackend(*cfg)
-	if err != nil {
-		slog.Error("failed to initialize gateway manifest cache backend", "error", err)
-		os.Exit(1)
-	}
-	services.SetGatewayManifestCacheBackend(manifestCacheBackend)
 
 	// Deployment-specific AgentID provisioning; nil disables it.
 	var agentThunderProvisioning services.AgentThunderProvisioningService
@@ -232,18 +231,45 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
-	dependencies, err := wiring.InitializeAppParamsWithEnvThunderEndpoints(cfg, database, secretProvider, opts.GatewayConfigApplier, agentThunderProvisioning, opts.EnvThunderEndpointResolver)
+	dependencies, err := wiring.InitializeAppParamsWithEnvThunderEndpoints(cfg, database, secretProvider, agentThunderProvisioning, opts.EnvThunderEndpointResolver)
 	if err != nil {
 		slog.Error("failed to initialize app dependencies", "error", err)
 		os.Exit(1)
 	}
 
-	// Registers the gateway named in configuration before any gateway can connect.
-	seedCtx, seedCancel := context.WithTimeout(context.Background(), time.Minute)
-	err = dependencies.DefaultGatewaySeeder.Seed(seedCtx)
-	seedCancel()
+	// Build the features linked into this binary on the core's services (the
+	// AI Gateway in the full distribution), before the module host boots, so
+	// their modules can provide what was built.
+	bundles, err := builtin.Build(context.Background(), dependencies)
 	if err != nil {
-		slog.Error("failed to register the default gateway", "error", err)
+		slog.Error("failed to build the built-in features", "error", err)
+		os.Exit(1)
+	}
+
+	// Load the active modules and follow lifecycle changes made elsewhere. The
+	// host gets the core services modules use first, so the snapshot it
+	// builds carries their routes.
+	modulesCtx, modulesCancel := context.WithCancel(context.Background())
+	defer modulesCancel()
+	stopModules, err := StartModules(modulesCtx, moduleHost(), database, dependencies)
+	if err != nil {
+		slog.Error("failed to start the module host", "error", err)
+		os.Exit(1)
+	}
+	if err := ReconcileModules(modulesCtx, moduleHost()); err != nil {
+		slog.Error("failed to apply the configured modules list", "error", err)
+		os.Exit(1)
+	}
+	warnGatewayStateWithoutProvider(modulesCtx, database, slog.Default())
+	if err := ensureDefaultOrg(audit.WithRecorder(modulesCtx, dependencies.AuditRecorder), database, cfg.DefaultOrg); err != nil {
+		slog.Error("failed to create the default organization", "error", err)
+		os.Exit(1)
+	}
+
+	// For the AI Gateway, registers the gateway named in configuration before
+	// any gateway can connect.
+	if err := bundles.Init(context.Background()); err != nil {
+		slog.Error("failed to initialize the built-in features", "error", err)
 		os.Exit(1)
 	}
 
@@ -267,8 +293,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
-	// Lite runs no evaluation monitors, so the monitor scheduler is never started.
-
 	// Start the AgentID provisioning retry reconciler, but only when provisioning
 	// is enabled — otherwise there is nothing to reconcile.
 	agentThunderReconcilerCtx, agentThunderReconcilerCancel := context.WithCancel(backgroundCtx)
@@ -279,19 +303,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
-	// Started unconditionally: it is a no-op for an org with no A2A agents.
-	a2aCardReconcilerCtx, a2aCardReconcilerCancel := context.WithCancel(backgroundCtx)
-	if err := dependencies.A2ACardReconciler.Start(a2aCardReconcilerCtx); err != nil {
-		slog.Error("failed to start A2A card reconciler", "error", err)
-		os.Exit(1)
-	}
-
-	deploymentTimeoutSweeperCtx, deploymentTimeoutSweeperCancel := context.WithCancel(backgroundCtx)
-	if err := dependencies.DeploymentTimeoutSweeper.Start(deploymentTimeoutSweeperCtx); err != nil {
-		slog.Error("failed to start deployment timeout sweeper", "error", err)
-		os.Exit(1)
-	}
-
 	// Promotes secret values to an external vault and removes replaced ones, once the change needing it commits.
 	secretJobWorkerCtx, secretJobWorkerCancel := context.WithCancel(backgroundCtx)
 	if err := dependencies.SecretJobWorker.Start(secretJobWorkerCtx); err != nil {
@@ -299,27 +310,24 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		os.Exit(1)
 	}
 
-	reconcileWorkerCtx, reconcileWorkerCancel := context.WithCancel(backgroundCtx)
-	if err := dependencies.ReconcileWorker.Start(reconcileWorkerCtx); err != nil {
-		slog.Error("failed to start reconcile worker", "error", err)
+	// The built-in features' workers: for the AI Gateway, the A2A card
+	// reconciler, the deployment timeout sweeper, the reconcile worker and the
+	// built-in LLM provider templates.
+	if err := bundles.Start(backgroundCtx); err != nil {
+		slog.Error("failed to start the built-in features", "error", err)
 		os.Exit(1)
 	}
+
 	// Start publishing events. The bus is set up in the background, so a NATS
 	// server that is still starting does not hold up the API; events raised
 	// meanwhile wait in the durable outbox.
 	eventsCtx, eventsCancel := context.WithCancel(backgroundCtx)
 	eventsStarted := startEvents(eventsCtx, dependencies)
 
-	// Load built-in LLM provider templates into memory
-	if err := loadBuiltInLLMTemplates(dependencies); err != nil {
-		slog.Error("Failed to load built-in LLM provider templates", "error", err)
-		// Don't exit - templates can still be created via API
-	}
-
 	recordStartupPosture(dependencies.AuditRecorder)
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandlerWithMiddleware(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware)
+	handler := api.MakeHTTPHandlerWithModules(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, moduleHost(), bundles)
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,
@@ -329,8 +337,9 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		MaxHeaderBytes: cfg.MaxHeaderBytes,
 	}
 
-	// Create internal HTTPS server for WebSocket and gateway internal APIs
-	internalHandler := api.MakeInternalHTTPHandler(dependencies)
+	// Create internal HTTPS server for module workloads and built-in features
+	// (the gateway WebSocket and internal APIs)
+	internalHandler := api.MakeInternalHTTPHandlerWithModules(dependencies, moduleHost(), bundles)
 	internalServer := server.NewInternalServer(&cfg.InternalServer, internalHandler)
 
 	stopCh := signals.SetupSignalHandler()
@@ -347,10 +356,8 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		defer shutdownCancel()
 
 		// Drain both servers before stopping anything an in-flight request
-		// calls into: the reconcile worker (nudges, placement requests), the
-		// EventHub, the audit recorder.
-		// Gateway WebSockets are hijacked connections, which Shutdown neither
-		// waits for nor closes; the WebSocket manager closes them below.
+		// calls into: the built-in features' workers (the gateway's reconcile
+		// worker, EventHub and WebSocket manager), the audit recorder.
 		if err := mainServer.Shutdown(shutdownCtx); err != nil {
 			slog.Error("Main server forced shutdown after timeout", "error", err)
 		}
@@ -360,6 +367,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 
 		stopBackground()
+		modulesCancel()
 		agentThunderReconcilerCancel()
 		if agentThunderProvisioning != nil {
 			if err := dependencies.AgentThunderReconciler.Stop(); err != nil {
@@ -367,59 +375,17 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 			}
 		}
 
-		a2aCardReconcilerCancel()
-		if err := dependencies.A2ACardReconciler.Stop(); err != nil {
-			slog.Error("error stopping A2A card reconciler", "error", err)
-		}
-
-		deploymentTimeoutSweeperCancel()
-		if err := dependencies.DeploymentTimeoutSweeper.Stop(); err != nil {
-			slog.Error("error stopping deployment timeout sweeper", "error", err)
-		}
-
-		reconcileWorkerCancel()
-		if err := dependencies.ReconcileWorker.Stop(); err != nil {
-			slog.Error("error stopping reconcile worker", "error", err)
-		}
+		bundles.Stop(shutdownCtx)
 
 		secretJobWorkerCancel()
 		if err := dependencies.SecretJobWorker.Stop(); err != nil {
 			slog.Error("error stopping secret vault job worker", "error", err)
 		}
 
-		// Shutdown WebSocket manager in a goroutine since it blocks
-		wsDone := make(chan struct{})
-		if dependencies.WebSocketManager != nil {
-			go func() {
-				slog.Info("Shutting down WebSocket manager")
-				dependencies.WebSocketManager.Shutdown()
-				close(wsDone)
-			}()
-		} else {
-			close(wsDone)
-		}
-
-		// Wait for WebSocket shutdown or timeout
-		select {
-		case <-wsDone:
-			slog.Info("WebSocket manager shutdown complete")
-		case <-shutdownCtx.Done():
-			slog.Warn("WebSocket manager shutdown timed out")
-		}
-
-		// Close EventHub after the servers drain, so events published by
-		// draining requests are still polled and delivered and the gateway
-		// registration prepared statement stays open, and after the WebSocket
-		// manager, so in-flight events are not dropped.
-		if dependencies.EventHub != nil {
-			if err := dependencies.EventHub.Close(); err != nil {
-				slog.Error("error closing EventHub", "error", err)
-			}
-		}
-
 		eventsCancel()
 		<-eventsStarted
 		stopEvents(dependencies)
+		stopModules()
 
 		// Flush the audit buffer last. The servers have drained and the
 		// background workers have stopped, so no further events can be
@@ -461,6 +427,66 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	// Wait for graceful shutdown to complete
 	wg.Wait()
 	slog.Info("All servers shut down successfully")
+}
+
+// StartModules attaches the core services to the module host, boots it, and
+// makes the core's resource code run module hooks. The host drains module
+// events itself. The returned function detaches the host from the core.
+func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, deps *wiring.AppParams) (func(), error) {
+	attach := modhost.Deps{
+		Mount: api.ModuleMounter(deps),
+		Core:  repositories.NewCoreReadAPI(database),
+	}
+	if signer, ok := deps.AgentTokenManagerService.(services.WorkloadTokenSigner); ok {
+		attach.Tokens = signer
+	}
+	host.Attach(attach)
+	if err := host.Boot(ctx); err != nil {
+		return func() {}, err
+	}
+	coreext.Set(host)
+	return func() { coreext.Set(nil) }, nil
+}
+
+// ReconcileModules applies the declarative modules list (amp.yaml `modules:`
+// or AMP_MODULES), if one is configured: listed modules are installed and
+// enabled or disabled as listed; others are disabled. Every replica runs it at
+// boot; it changes nothing once the database matches.
+func ReconcileModules(ctx context.Context, host *modhost.Host) error {
+	mods, err := config.GetModules()
+	if err != nil || !mods.Declared {
+		return err
+	}
+	want := make([]modhost.Desired, 0, len(mods.List))
+	for _, m := range mods.List {
+		want = append(want, modhost.Desired{Name: m.Name, Enabled: m.Enabled})
+	}
+	slog.Info("applying the configured modules list", "modules", want)
+	steps, err := host.Reconcile(ctx, want)
+	for _, s := range steps {
+		slog.Info("modules list applied", "module", s.Module, "action", s.Action)
+	}
+	if err == nil && len(steps) == 0 {
+		slog.Info("modules already match the configured list")
+	}
+	return err
+}
+
+// waitForModuleSchema waits until another process has applied the migrations
+// of every module compiled into this binary.
+func waitForModuleSchema(ctx context.Context, modules *modhost.Host) error {
+	for {
+		err := modules.CheckSchema(ctx)
+		if err == nil {
+			return nil
+		}
+		slog.Info("waiting for module migrations", "reason", err.Error())
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("waiting for module migrations: %w (last: %w)", ctx.Err(), err)
+		case <-time.After(migrationWaitInterval):
+		}
+	}
 }
 
 // recordStartupPosture writes the audit trail's own opening bookend. The record
@@ -507,26 +533,8 @@ func setupLogger(cfg *config.Config) {
 		"level", level.String())
 }
 
-// loadBuiltInLLMTemplates loads built-in LLM provider templates into in-memory store
-func loadBuiltInLLMTemplates(dependencies *wiring.AppParams) error {
-	// Get built-in templates from Go structs
-	templates := resources.BuiltInLLMProviderTemplates
-
-	if len(templates) == 0 {
-		slog.Warn("No built-in LLM templates defined")
-		return nil
-	}
-
-	// Load into in-memory store
-	dependencies.LLMTemplateStore.Load(templates)
-
-	slog.Info("Loaded built-in LLM provider templates into memory", "count", len(templates))
-	return nil
-}
-
 // startEvents sets up the event bus, retrying until it answers, then starts
-// the publisher and the event dispatcher. Lite runs no monitors, so monitor
-// alerting is not started. A no-op with events off.
+// the publisher and the event dispatcher. A no-op with events off.
 func startEvents(ctx context.Context, deps *wiring.AppParams) <-chan struct{} {
 	done := make(chan struct{})
 	if deps.EventBus == nil {

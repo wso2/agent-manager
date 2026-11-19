@@ -34,8 +34,10 @@ var Dialects = []string{DialectSQLite, DialectPostgres}
 // StatementSeparator ends every statement in rendered DDL, so a runner can split a file without parsing SQL.
 const StatementSeparator = ";\n"
 
-// Header starts every rendered file.
-const Header = "-- Code generated from db_migrations/schema/lite.yaml by `make schema`. DO NOT EDIT.\n"
+// header starts every rendered file.
+func header(source string) string {
+	return "-- Code generated from " + source + " by `make schema`. DO NOT EDIT.\n"
+}
 
 type dialect struct {
 	columnType func(c Column) string
@@ -130,7 +132,7 @@ func (s *Schema) RenderMigration(dialectName, id string) (string, error) {
 		return "", err
 	}
 	var b strings.Builder
-	b.WriteString(Header)
+	b.WriteString(header(s.source))
 	for _, t := range tables {
 		if s.migrationIndex(t.Migration) != s.migrationIndex(id) {
 			continue
@@ -191,13 +193,34 @@ func renderSeed(b *strings.Builder, d dialect, t *Table, row Row) {
 	vals := make([]string, len(cols))
 	for i, c := range cols {
 		v := row[c]
-		if t.column(c).Type == TypeBool {
+		switch t.column(c).Type {
+		case TypeBool:
 			vals[i] = d.boolLiteral(v)
-		} else {
+		case TypeInt, TypeBigInt:
+			vals[i] = v
+		default:
 			vals[i] = "'" + strings.ReplaceAll(v, "'", "''") + "'"
 		}
 	}
 	fmt.Fprintf(b, "INSERT INTO %s (%s) VALUES (%s)%s", t.Name, strings.Join(cols, ", "), strings.Join(vals, ", "), StatementSeparator)
+}
+
+// Statements splits rendered DDL on StatementSeparator, dropping comment lines and empty chunks. Hand-written
+// migrations follow the same layout: each statement ends with ";" at the end of a line.
+func Statements(body string) []string {
+	var out []string
+	for _, chunk := range strings.Split(body, StatementSeparator) {
+		var lines []string
+		for _, line := range strings.Split(chunk, "\n") {
+			if t := strings.TrimSpace(line); t != "" && !strings.HasPrefix(t, "--") {
+				lines = append(lines, line)
+			}
+		}
+		if len(lines) > 0 {
+			out = append(out, strings.Join(lines, "\n"))
+		}
+	}
+	return out
 }
 
 // BaselinePath is where the rendered baseline for a dialect lives, relative to the module root.

@@ -26,13 +26,15 @@ import type {
 } from "@agent-management-platform/types";
 import { addAgentMCPProxy, listAgentMCPProxies } from "../apis/agent-mcp-proxies";
 import { useApiMutation, useApiQuery } from "../../shared/react-query-notifications";
+import { useUIModulePresent } from "../../shared/useUIModulePresent";
 
 export function useListAgentMCPProxies(params: ListAgentMCPProxiesPathParams) {
+  const gatewayPresent = useUIModulePresent("ai-gateway");
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentMCPProxyListResponse>({
     queryKey: ["agent-mcp-proxies", params],
     queryFn: () => listAgentMCPProxies(params, getToken),
-    enabled: !!params.orgName && !!params.projName && !!params.agentName,
+    enabled: gatewayPresent && !!params.orgName && !!params.projName && !!params.agentName,
   });
 }
 

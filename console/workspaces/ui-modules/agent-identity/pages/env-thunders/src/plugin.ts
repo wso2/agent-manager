@@ -25,8 +25,12 @@ import { thunderInstancesMetadata } from "./metadata";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
+  PLUGIN_MOUNT_POINTS,
   type PluginManifest,
+  type ResourceSummaryState,
 } from "@agent-management-platform/types";
+import { generatePath, useParams } from "react-router-dom";
+import { Shield, Users } from "@wso2/oxygen-ui-icons-react";
 
 // Route-map shorthands (absolute paths, used for both routes and links).
 const orgNav = absoluteRouteMap.children.org.children;
@@ -37,6 +41,28 @@ const thunderInstances = orgNav.thunderInstances;
 /** Agent identities are listed for users who can read them. */
 const useAgentIdentitiesNav = () => useFeatureAccess("agent_identity_read");
 
+const identityRoutes = absoluteRouteMap.children.org.children.thunderInstances.children;
+
+/** The organization overview's Agent Identity Groups card (not counted). */
+const useIdentityGroupsSummary = (): ResourceSummaryState => {
+  const { orgId = "" } = useParams();
+  return {
+    countless: true,
+    actionLabel: "Manage groups",
+    to: generatePath(identityRoutes.groups.path, { orgId }),
+  };
+};
+
+/** The organization overview's Agent Identity Roles card (not counted). */
+const useIdentityRolesSummary = (): ResourceSummaryState => {
+  const { orgId = "" } = useParams();
+  return {
+    countless: true,
+    actionLabel: "Manage roles",
+    to: generatePath(identityRoutes.roles.path, { orgId }),
+  };
+};
+
 export const agentIdentityPlugin: PluginManifest = {
   id: "agent-identity",
   name: "Agent identity",
@@ -44,6 +70,34 @@ export const agentIdentityPlugin: PluginManifest = {
   // No feature-flag check here: the Agent Identity module's install detection
   // (enableAgentIdentity) already keeps these pages off until it is installed.
   contributions: [
+    {
+      // Organization overview: the Agent Identity Groups and Roles cards.
+      type: "resource-summary",
+      id: "identity-groups-summary",
+      order: 50,
+      title: "Agent Identity Groups",
+      description: "Groups that collect agent identities so access is granted together.",
+      icon: Users,
+      useSummary: useIdentityGroupsSummary,
+    },
+    {
+      type: "resource-summary",
+      id: "identity-roles-summary",
+      order: 60,
+      title: "Agent Identity Roles",
+      description: "Roles that decide what each agent identity is allowed to do.",
+      icon: Shield,
+      useSummary: useIdentityRolesSummary,
+    },
+    {
+      // Agent overview, per environment: the agent's identity, roles and groups.
+      type: "panel",
+      id: "overview-roles-groups",
+      mountPoint: PLUGIN_MOUNT_POINTS.agentOverviewEnvironment,
+      order: 30,
+      width: "half",
+      load: () => import("./index").then((m) => ({ default: m.EnvAgentRolesGroupsSection as ComponentType })),
+    },
     {
       type: "route",
       id: "org-page",

@@ -656,7 +656,7 @@ func (r ApiListLLMProviderConsumersRequest) Execute() (*LLMProviderConsumerListR
 /*
 ListLLMProviderConsumers List consumers of an LLM provider
 
-Returns a flat list of agents and monitors that consume any LLM proxy pointing to this provider. Each item identifies the proxy, the project it belongs to, and the agent or monitor that is using it.
+Returns a flat list of agents that consume any LLM proxy pointing to this provider. Each item identifies the proxy, the project it belongs to, and the agent that is using it.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName Organization name/handle

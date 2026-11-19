@@ -51,6 +51,15 @@ const (
 	controllersDir = "../../controllers"
 )
 
+// routeDirs pairs each package of routes with the package of the controllers
+// they call: the core's, and those of the built-in modules the full
+// distribution links. The legacy module's routes only answer 501 and track
+// nothing.
+var routeDirs = [][2]string{
+	{apiRoutesDir, controllersDir},
+	{"../../modules/gateway/gwapi", "../../modules/gateway/gwctl"},
+}
+
 // The structs mirror the skeleton field for field. Decoding with KnownFields
 // rejects any key the skeleton does not define.
 type taxonomyFile struct {
@@ -454,7 +463,7 @@ var notEmittedFeatures = map[string]bool{
 	"amp.discovery.manage-kind":               true,
 	"amp.discovery.manage-kind.add-version":   true,
 	"amp.source-control.manage-git-secret":    true,
-	// Evaluation features: Lite runs no monitors or custom evaluators, so their routes answer 501.
+	// Evaluation features: Lite has no monitors or custom evaluators, so nothing emits them.
 	"amp.observability.create-monitor":            true,
 	"amp.observability.create-monitor.start-stop": true,
 	"amp.observability.create-monitor.rerun":      true,
@@ -492,7 +501,11 @@ func TestTaxonomyFeaturesHaveEmitters(t *testing.T) {
 // their string-literal arguments for the parameters they use.
 func findTrackCalls(t *testing.T) []emittedEvent {
 	t.Helper()
-	return findTrackCallsIn(t, apiRoutesDir, controllersDir)
+	var events []emittedEvent
+	for _, d := range routeDirs {
+		events = append(events, findTrackCallsIn(t, d[0], d[1])...)
+	}
+	return events
 }
 
 // TestFindTrackCallsRetainsAllValues covers repeated assignments, conditional

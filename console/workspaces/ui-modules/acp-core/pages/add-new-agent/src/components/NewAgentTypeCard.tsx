@@ -23,23 +23,19 @@ import {
 } from "@wso2/oxygen-ui";
 
 interface NewAgentTypeCardProps {
-  type: string;
   title: string;
   subheader: string;
   icon: React.ReactNode;
   ctaLabel: string;
-  onClick: (type: string) => void;
+  onClick: () => void;
 }
 
 export const NewAgentTypeCard = (props: NewAgentTypeCardProps) => {
-  const { type, title, subheader, icon, ctaLabel, onClick } = props;
-  const handleClick = () => {
-    onClick(type);
-  };
+  const { title, subheader, icon, ctaLabel, onClick } = props;
 
   return (
     <Form.CardButton
-      onClick={handleClick}
+      onClick={onClick}
       sx={{
         width: { xs: "100%", sm: 450 },
         py: 2,

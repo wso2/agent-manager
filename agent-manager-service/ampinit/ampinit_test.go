@@ -25,24 +25,22 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 func setThunderEnv(t *testing.T) {
 	t.Helper()
 	for k, v := range map[string]string{
-		"THUNDER_PUBLIC_URL":          "https://id.example.com",
-		"THUNDER_PORT":                "8090",
-		"AMP_PUBLIC_URL":              "https://api.example.com/",
-		"OBSERVER_PUBLIC_URL":         "https://traces.example.com",
-		"CONSOLE_URL":                 "https://console.example.com",
-		"AMP_API_CLIENT_SECRET":       "s1",
-		"AMP_CONSOLE_CLIENT_SECRET":   "s2",
-		"AMP_PUBLISHER_CLIENT_SECRET": "s3",
-		"AMP_SYSTEM_CLIENT_SECRET":    "s4",
-		"AMP_API_CLIENT_ID":           "custom-api",
-		"AMP_DEFAULT_USERS":           "dev:pw1, ops:pw2:admin",
+		"THUNDER_PUBLIC_URL":        "https://id.example.com",
+		"THUNDER_PORT":              "8090",
+		"AMP_PUBLIC_URL":            "https://api.example.com/",
+		"CONSOLE_URL":               "https://console.example.com",
+		"AMP_API_CLIENT_SECRET":     "s1",
+		"AMP_CONSOLE_CLIENT_SECRET": "s2",
+		"AMP_SYSTEM_CLIENT_SECRET":  "s4",
+		"AMP_API_CLIENT_ID":         "custom-api",
+		"AMP_DEFAULT_USERS":         "dev:pw1, ops:pw2:admin",
 	} {
 		t.Setenv(k, v)
 	}
@@ -134,17 +132,19 @@ func TestRenderThunderUsesConfigAndCatalog(t *testing.T) {
 		} `yaml:"permissions"`
 	}
 	mustYAML(t, files["bootstrap/63-amp-role-ai-lead.yaml"], &role)
+	servers := make([]string, 0, len(role.Permissions))
+	for _, block := range role.Permissions {
+		servers = append(servers, block.ResourceServerID)
+	}
+	if want := []string{"amp-resource-server", "amp-agent-manager-mcp-resource-srv"}; !slices.Equal(servers, want) {
+		t.Fatalf("AI Lead grants on resource servers %v, want %v", servers, want)
+	}
 	want := make([]string, 0)
 	for _, p := range rbac.PredefinedRolePermissions[rbac.RoleAILead] {
 		want = append(want, p.Scope())
 	}
 	if !slices.Equal(role.Permissions[0].Permissions, want) {
 		t.Errorf("AI Lead grants %v, want %v", role.Permissions[0].Permissions, want)
-	}
-	for _, p := range role.Permissions[2].Permissions {
-		if !strings.HasPrefix(p, "amp:observability:") {
-			t.Errorf("observer MCP block grants %q", p)
-		}
 	}
 
 	for name, want := range map[string]string{
@@ -202,70 +202,6 @@ func TestWriteThunderStampFollowsBootstrap(t *testing.T) {
 	}
 	if info, _ := os.Stat(filepath.Join(dir, "bootstrap", "50-amp-api-client.yaml")); info.Mode().Perm() != 0o600 {
 		t.Errorf("bootstrap file mode = %v, want 0600", info.Mode().Perm())
-	}
-}
-
-func gatewayConfig() *GatewayConfig {
-	return &GatewayConfig{
-		ControlPlaneHost: "amp-api:9243", AdminPassword: "pw", AMPJWKSURL: "http://amp-api:8080/jwks",
-		ThunderIssuer: "http://thunder.amp.localhost:8080", ThunderJWKSURL: "http://thunder:8080/oauth2/jwks",
-		Host: "default-default.gateway.localhost", ListenerPort: 19080,
-	}
-}
-
-func TestWriteGatewayKeepsGeneratedMaterial(t *testing.T) {
-	dir := t.TempDir()
-	if err := WriteGateway(gatewayConfig(), dir); err != nil {
-		t.Fatal(err)
-	}
-	token := readFile(t, filepath.Join(dir, RegistrationTokenFile))
-	if _, err := gatewaytoken.Prefix(token); err != nil {
-		t.Fatalf("generated token %q: %v", token, err)
-	}
-	key := readFile(t, filepath.Join(dir, gatewayAESKeyFile))
-	cert := readFile(t, filepath.Join(dir, gatewayCertFile))
-	if len(key) != 32 || !strings.Contains(cert, "BEGIN CERTIFICATE") {
-		t.Fatalf("key length %d, cert %q", len(key), cert)
-	}
-	conf := readFile(t, filepath.Join(dir, GatewayConfigFile))
-	for _, want := range []string{`token = "` + token + `"`, `host = "amp-api:9243"`, "listener_port = 19080", `gatewayhost = "default-default.gateway.localhost"`} {
-		if !strings.Contains(conf, want) {
-			t.Errorf("config.toml lacks %q", want)
-		}
-	}
-
-	if err := WriteGateway(gatewayConfig(), dir); err != nil {
-		t.Fatal(err)
-	}
-	if readFile(t, filepath.Join(dir, RegistrationTokenFile)) != token ||
-		readFile(t, filepath.Join(dir, gatewayAESKeyFile)) != key ||
-		readFile(t, filepath.Join(dir, gatewayCertFile)) != cert {
-		t.Error("a rerun replaced generated material")
-	}
-
-	configured, _ := gatewaytoken.New()
-	cfg := gatewayConfig()
-	cfg.RegistrationToken = configured
-	if err := WriteGateway(cfg, dir); err != nil {
-		t.Fatal(err)
-	}
-	if readFile(t, filepath.Join(dir, RegistrationTokenFile)) != configured ||
-		!strings.Contains(readFile(t, filepath.Join(dir, GatewayConfigFile)), configured) {
-		t.Error("a configured token did not replace the kept one")
-	}
-}
-
-func TestLoadGatewayConfigRejectsMalformedToken(t *testing.T) {
-	for k, v := range map[string]string{
-		"GATEWAY_CONTROLPLANE_HOST": "amp-api:9243", "GATEWAY_ADMIN_PASSWORD": "pw",
-		"GATEWAY_AMP_JWKS_URL": "http://a/jwks", "THUNDER_PUBLIC_URL": "http://t:8080",
-		"GATEWAY_THUNDER_JWKS_URL": "http://t/jwks", "GATEWAY_HOST": "gw.localhost",
-		"DEFAULT_GATEWAY_TOKEN": "too-short",
-	} {
-		t.Setenv(k, v)
-	}
-	if _, err := LoadGatewayConfig(); err == nil || !strings.Contains(err.Error(), "DEFAULT_GATEWAY_TOKEN") {
-		t.Fatalf("err = %v", err)
 	}
 }
 
@@ -342,5 +278,71 @@ func TestFileAuthExplicitAdminWins(t *testing.T) {
 	}
 	if cfg.Users[0].Password != "chosen" {
 		t.Errorf("admin password = %q, want the explicit one", cfg.Users[0].Password)
+	}
+}
+
+// In ThunderID mode the roles come from these files, so a module's
+// permissions must reach the resource server, the API client and the roles
+// its manifest grants them to, or its routes would refuse everyone.
+func TestRenderThunderGrantsModulePermissions(t *testing.T) {
+	setThunderEnv(t)
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Modules = append(cfg.Modules, modkit.Manifest{
+		Name:        "widgets",
+		Permissions: []modkit.Permission{{Name: "widget-read", Description: "Read widgets"}, {Name: "widget-write"}},
+		RoleGrants:  map[string][]string{rbac.RoleDeveloper: {"widget-read"}},
+	})
+	files, err := RenderThunder(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(files["bootstrap/60-amp-resource-server.yaml"]), "handle: widgets") {
+		t.Error("the resource server has no resource for the module")
+	}
+	var app struct {
+		InboundAuthConfig []struct {
+			Config struct {
+				Scopes []string `yaml:"scopes"`
+			} `yaml:"config"`
+		} `yaml:"inboundAuthConfig"`
+	}
+	mustYAML(t, files["bootstrap/50-amp-api-client.yaml"], &app)
+	for _, scope := range []string{"amp:widgets:widget-read", "amp:widgets:widget-write"} {
+		if !slices.Contains(app.InboundAuthConfig[0].Config.Scopes, scope) {
+			t.Errorf("the API client cannot request %s", scope)
+		}
+	}
+	grants := func(file string) []string {
+		var role struct {
+			Permissions []struct {
+				ResourceServerID string   `yaml:"resourceServerId"`
+				Permissions      []string `yaml:"permissions"`
+			} `yaml:"permissions"`
+		}
+		mustYAML(t, files[file], &role)
+		return role.Permissions[0].Permissions
+	}
+	if !slices.Contains(grants("bootstrap/62-amp-role-developer.yaml"), "amp:widgets:widget-read") {
+		t.Error("the Developer role does not hold the permission the module grants it")
+	}
+	if slices.Contains(grants("bootstrap/63-amp-role-ai-lead.yaml"), "amp:widgets:widget-read") {
+		t.Error("the AI Lead role holds a permission the module does not grant it")
+	}
+}
+
+// A module named after a core resource would add a second "gateway" (or
+// "agent", ...) resource to the resource server; rendering refuses it.
+func TestRenderThunderRefusesAModuleNamedAfterACoreResource(t *testing.T) {
+	setThunderEnv(t)
+	cfg, err := LoadThunderConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Modules = append(cfg.Modules, modkit.Manifest{Name: "gateway", Permissions: []modkit.Permission{{Name: "manage"}}})
+	if _, err := RenderThunder(cfg); err == nil || !strings.Contains(err.Error(), "gateway") {
+		t.Fatalf("RenderThunder = %v, want a refusal naming the module", err)
 	}
 }

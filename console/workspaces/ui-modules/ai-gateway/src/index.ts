@@ -17,8 +17,8 @@
  */
 
 // AI Gateway UI module. Lists the module's page plugins; the console registers
-// modules, and operators turn a whole module or a single page off in
-// public/ui-modules.js (apps/web-ui).
+// modules, and the server turns a whole module or a single page on or
+// off (GET /api/v1/ui-manifest).
 //
 // Import only each page package's `/plugin` entry: the package root pulls in
 // its page components and would put them in the shell's main chunk.
@@ -31,13 +31,14 @@ import { llmProvidersPlugin } from "@agent-management-platform/llm-providers/plu
 import { mcpProxiesPlugin } from "@agent-management-platform/mcp-proxies/plugin";
 import { agentSecurityPlugin } from "@agent-management-platform/agent-security/plugin";
 import { configureAgentPlugin } from "@agent-management-platform/configure-agent/plugin";
+import { externalAgentPlugin } from "@agent-management-platform/external-agent/plugin";
 
 export const aiGatewayModule: UIModuleManifest = {
   id: "ai-gateway",
   name: "AI Gateway",
   description:
-    "Gateways, LLM service providers, MCP servers, agent credentials, and each agent's " +
-    "LLM, MCP and A2A configuration.",
+    "Gateways, LLM service providers, MCP servers, agent credentials, externally-hosted " +
+    "agents, and each agent's LLM, MCP and A2A configuration.",
   apiVersion: PLUGIN_API_VERSION,
   installation: {
     chart: "wso2-amp-api-platform-gateway-extension",
@@ -60,5 +61,6 @@ export const aiGatewayModule: UIModuleManifest = {
     mcpProxiesPlugin,
     agentSecurityPlugin,
     configureAgentPlugin,
+    externalAgentPlugin,
   ],
 };
