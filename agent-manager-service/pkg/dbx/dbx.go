@@ -199,14 +199,15 @@ func ClaimRows(ctx context.Context, db *gorm.DB, c Claim) (Claimed, error) {
 	return out, nil
 }
 
-// ErrLockNotSeeded means a singleton lease names a locks row no migration created.
+// ErrLockNotSeeded means a singleton lease names a lease row no migration created.
 var ErrLockNotSeeded = errors.New("lock row does not exist")
 
-// TryLock takes the singleton lease name for owner until now+ttl. It succeeds when the lease is free, expired or
-// already owner's (which renews it). Rows are seeded by migrations, so this never inserts.
-func TryLock(ctx context.Context, db *gorm.DB, name, owner string, now time.Time, ttl time.Duration) (bool, error) {
+// TryLock takes the singleton lease name, a row of table (columns name, owner, expires_at), for owner until
+// now+ttl. It succeeds when the lease is free, expired or already owner's (which renews it). Rows are seeded by
+// migrations, so this never inserts.
+func TryLock(ctx context.Context, db *gorm.DB, table, name, owner string, now time.Time, ttl time.Duration) (bool, error) {
 	db = db.WithContext(ctx)
-	res := db.Table("locks").
+	res := db.Table(table).
 		Where("name = ? AND (owner IS NULL OR owner = ? OR expires_at < ?)", name, owner, now).
 		Updates(map[string]any{"owner": owner, "expires_at": now.Add(ttl)})
 	if res.Error != nil {
@@ -216,7 +217,7 @@ func TryLock(ctx context.Context, db *gorm.DB, name, owner string, now time.Time
 		return true, nil
 	}
 	var n int64
-	if err := db.Table("locks").Where("name = ?", name).Count(&n).Error; err != nil {
+	if err := db.Table(table).Where("name = ?", name).Count(&n).Error; err != nil {
 		return false, err
 	}
 	if n == 0 {
@@ -225,9 +226,9 @@ func TryLock(ctx context.Context, db *gorm.DB, name, owner string, now time.Time
 	return false, nil
 }
 
-// Unlock frees name if owner holds it.
-func Unlock(ctx context.Context, db *gorm.DB, name, owner string) error {
-	return db.WithContext(ctx).Table("locks").Where("name = ? AND owner = ?", name, owner).
+// Unlock frees the lease name in table if owner holds it.
+func Unlock(ctx context.Context, db *gorm.DB, table, name, owner string) error {
+	return db.WithContext(ctx).Table(table).Where("name = ? AND owner = ?", name, owner).
 		Updates(map[string]any{"owner": nil, "expires_at": nil}).Error
 }
 

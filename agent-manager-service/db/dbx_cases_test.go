@@ -165,24 +165,24 @@ func runCompositeKeyClaim(t *testing.T, db *gorm.DB) {
 
 func runLocks(t *testing.T, db *gorm.DB) {
 	ctx, now := context.Background(), dbx.Now()
-	ok, err := dbx.TryLock(ctx, db, "gateway.drift_scan", "a", now, time.Minute)
+	ok, err := dbx.TryLock(ctx, db, "locks", "agent_identity.reconciler", "a", now, time.Minute)
 	require.NoError(t, err)
 	assert.True(t, ok)
-	ok, err = dbx.TryLock(ctx, db, "gateway.drift_scan", "b", now, time.Minute)
+	ok, err = dbx.TryLock(ctx, db, "locks", "agent_identity.reconciler", "b", now, time.Minute)
 	require.NoError(t, err)
 	assert.False(t, ok, "held by a")
-	ok, err = dbx.TryLock(ctx, db, "gateway.drift_scan", "a", now.Add(30*time.Second), time.Minute)
+	ok, err = dbx.TryLock(ctx, db, "locks", "agent_identity.reconciler", "a", now.Add(30*time.Second), time.Minute)
 	require.NoError(t, err)
 	assert.True(t, ok, "the owner renews")
-	ok, err = dbx.TryLock(ctx, db, "gateway.drift_scan", "b", now.Add(5*time.Minute), time.Minute)
+	ok, err = dbx.TryLock(ctx, db, "locks", "agent_identity.reconciler", "b", now.Add(5*time.Minute), time.Minute)
 	require.NoError(t, err)
 	assert.True(t, ok, "an expired lease is taken over")
-	require.NoError(t, dbx.Unlock(ctx, db, "gateway.drift_scan", "b"))
-	ok, err = dbx.TryLock(ctx, db, "gateway.drift_scan", "c", now, time.Minute)
+	require.NoError(t, dbx.Unlock(ctx, db, "locks", "agent_identity.reconciler", "b"))
+	ok, err = dbx.TryLock(ctx, db, "locks", "agent_identity.reconciler", "c", now, time.Minute)
 	require.NoError(t, err)
 	assert.True(t, ok, "free after unlock")
 
-	_, err = dbx.TryLock(ctx, db, "no.such.lock", "a", now, time.Minute)
+	_, err = dbx.TryLock(ctx, db, "locks", "no.such.lock", "a", now, time.Minute)
 	assert.ErrorIs(t, err, dbx.ErrLockNotSeeded)
 }
 

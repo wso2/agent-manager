@@ -65,7 +65,7 @@ func TestFinalizeHooksCoverEveryReference(t *testing.T) {
 	g := migrated(t)
 	var tables []string
 	require.NoError(t, g.Raw(`SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'mod_ai_gateway_%'`).Scan(&tables).Error)
-	require.Len(t, tables, 32)
+	require.Len(t, tables, 33)
 	cascadesFrom := func(table string) []string {
 		var fks []struct {
 			Table    string `gorm:"column:table"`

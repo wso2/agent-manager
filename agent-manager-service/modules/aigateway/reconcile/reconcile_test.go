@@ -1127,12 +1127,11 @@ func TestDriftScanHoldsNoTransactionOpen(t *testing.T) {
 	var writeErr error
 	kind.drifted = func(got gwmodels.Placement) bool {
 		if got == p {
-			db.GetDB().Raw(`SELECT owner FROM locks WHERE name = ?`, gwrepo.DriftScanLock).Scan(&owner)
+			db.GetDB().Raw(`SELECT owner FROM mod_ai_gateway_locks WHERE name = 'drift_scan'`).Scan(&owner)
 			// Another connection can still write while the scan runs: it holds a lease, not a transaction.
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			writeErr = db.GetDB().WithContext(ctx).Exec(`UPDATE locks SET name = name WHERE name = ?`,
-				gwrepo.DriftScanLock).Error
+			writeErr = db.GetDB().WithContext(ctx).Exec(`UPDATE mod_ai_gateway_locks SET name = name WHERE name = 'drift_scan'`).Error
 		}
 		return false
 	}

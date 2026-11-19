@@ -297,7 +297,6 @@ CREATE TABLE locks (
     CONSTRAINT pk_locks PRIMARY KEY (name)
 );
 INSERT INTO locks (name) VALUES ('agent_identity.reconciler');
-INSERT INTO locks (name) VALUES ('gateway.drift_scan');
 
 CREATE TABLE modules (
     name VARCHAR(63) NOT NULL,

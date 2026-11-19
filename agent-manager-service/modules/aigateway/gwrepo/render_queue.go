@@ -270,8 +270,11 @@ func (r *DeploymentRepo) ListDeployedForDrift(ctx context.Context, kind string, 
 	return placements, nil
 }
 
-// DriftScanLock names the drift scan's row in the locks table.
-const DriftScanLock = "gateway.drift_scan"
+// The drift scan's lease is the drift_scan row of the module's own lease table.
+const (
+	driftScanLockTable = "mod_ai_gateway_locks"
+	driftScanLock      = "drift_scan"
+)
 
 // driftScanLease bounds how long a replica that died mid-scan keeps the scan from the others.
 const driftScanLease = 10 * time.Minute
@@ -279,7 +282,7 @@ const driftScanLease = 10 * time.Minute
 // TryLockDriftScan claims this interval's drift scan for owner until UnlockDriftScan or the lease runs out. false
 // means another worker holds it.
 func TryLockDriftScan(ctx context.Context, db *gorm.DB, owner string) (bool, error) {
-	locked, err := dbx.TryLock(ctx, db, DriftScanLock, owner, dbx.Now(), driftScanLease)
+	locked, err := dbx.TryLock(ctx, db, driftScanLockTable, driftScanLock, owner, dbx.Now(), driftScanLease)
 	if err != nil {
 		return false, fmt.Errorf("failed to try the drift scan lock: %w", err)
 	}
@@ -288,7 +291,7 @@ func TryLockDriftScan(ctx context.Context, db *gorm.DB, owner string) (bool, err
 
 // UnlockDriftScan releases the scan owner claimed.
 func UnlockDriftScan(ctx context.Context, db *gorm.DB, owner string) error {
-	if err := dbx.Unlock(ctx, db, DriftScanLock, owner); err != nil {
+	if err := dbx.Unlock(ctx, db, driftScanLockTable, driftScanLock, owner); err != nil {
 		return fmt.Errorf("failed to release the drift scan lock: %w", err)
 	}
 	return nil

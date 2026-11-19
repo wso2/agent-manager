@@ -359,7 +359,7 @@ card("usage", "audit", RX + 390, 0, 380, "Usage event", "usage_events",
       ("dimensions", "JSON")])
 card("locks", "internal", RX, 0, 360, "Lock", "locks",
      "A lease that lets only one instance run a singleton worker.",
-     [("name", "e.g. gateway.drift_scan"), ("owner", "empty = free"), ("expires_at", "")])
+     [("name", "e.g. agent_identity.reconciler"), ("owner", "empty = free"), ("expires_at", "")])
 card("queues", "internal", RX + 390, 0, 380, "Queue columns", "claimed_by, claimed_until",
      "Rows a worker claims carry a lease instead of a lock: agent identities, agent cards, deployment status, event outbox, event deliveries, module event deliveries.",
      [], chips=["queue"])

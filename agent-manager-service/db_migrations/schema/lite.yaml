@@ -327,7 +327,6 @@ tables:
     primary_key: [name]
     seed:
       - {name: agent_identity.reconciler}
-      - {name: gateway.drift_scan}
 
   # --- Modules ------------------------------------------------------------------------------
   # Lifecycle state of compiled-in modules, and the migrations each module has applied. Module

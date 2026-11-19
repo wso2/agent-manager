@@ -54,11 +54,11 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 
 ### locks
 
-Replaces Postgres advisory locks for the reconcilers, the drift scan and gateway serialization.
+Replaces Postgres advisory locks for the core's workers. A module that needs a lease keeps its own table with the same columns (the `ai-gateway` module's drift scan uses `mod_ai_gateway_locks`).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| name | short text (128) | no | PK, e.g. `reconciler.gateway` |
+| name | short text (128) | no | PK, e.g. `agent_identity.reconciler` |
 | owner | short text (255) | yes | Instance holding it. NULL = free. |
 | expires_at | time | yes | Lease end; an expired lease can be taken over. |
 
@@ -422,13 +422,15 @@ Workload instances that heartbeated. A row is refreshed on every heartbeat; an i
 
 ### Gateway module tables
 
-The `ai-gateway` module (`modules/aigateway`) creates its tables with its own migrations, rendered from `modules/aigateway/schema/001_init.yaml` by `make schema`: `mod_ai_gateway_` followed by `agent_gateway_settings`, `gateways`, `gateway_environments`, `environment_default_gateways`, `gateway_tokens`, `gateway_identity_providers`, `gateway_event_states`, `gateway_events`, `artifacts`, `artifact_deployments`, `artifact_gateway_status`, `llm_provider_templates`, `llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`, `mcp_proxy_scopes`, `mcp_proxy_scope_tools`, `mcp_proxy_endpoints`, `mcp_proxy_endpoint_environments`, `agent_model_configs`, `agent_model_config_llm`, `agent_model_config_mcp`, `agent_model_config_mcp_envs`, `agent_model_config_vars`, `ai_applications`, `api_keys`, `agent_exposures`, `agent_cards`, `a2a_proxies`, `agent_bindings` and `agent_teardowns`. Foreign keys between them stay; there are none into core tables. It also uses the `gateway.drift_scan` lock in `locks`.
+The `ai-gateway` module (`modules/aigateway`) creates its tables with its own migrations, rendered from `modules/aigateway/schema/*.yaml` by `make schema`: `mod_ai_gateway_` followed by `agent_gateway_settings`, `gateways`, `gateway_environments`, `environment_default_gateways`, `gateway_tokens`, `gateway_identity_providers`, `gateway_event_states`, `gateway_events`, `artifacts`, `artifact_deployments`, `artifact_gateway_status`, `llm_provider_templates`, `llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`, `mcp_proxy_scopes`, `mcp_proxy_scope_tools`, `mcp_proxy_endpoints`, `mcp_proxy_endpoint_environments`, `agent_model_configs`, `agent_model_config_llm`, `agent_model_config_mcp`, `agent_model_config_mcp_envs`, `agent_model_config_vars`, `ai_applications`, `api_keys`, `agent_exposures`, `agent_cards`, `a2a_proxies`, `agent_bindings`, `agent_teardowns` and `locks`. Foreign keys between them stay; there are none into core tables.
 
 Its finalize hooks do what the dropped keys did, in the core's delete transaction:
 
 - **Agent deleted:** its `agent_bindings` and `agent_gateway_settings` rows are deleted, and an `agent_teardowns` row records the agent's organization, project and name. Its `agent_model_configs` (and, through their keys, the per-config tables), `ai_applications`, `agent_exposures`, `agent_cards` and `a2a_proxies` rows stay until the `agent.deleted` handler has revoked their credentials and withdrawn them from the gateways; it then deletes them and the teardown row. While the teardown row exists, an agent with the same name in that project cannot be created (409).
 - **Project deleted:** refused (409) while the project has LLM proxies or MCP servers.
 - **Environment deleted:** refused (409) while a gateway mapped to it serves artifacts; otherwise its rows in the module's per-environment tables are deleted.
+
+`locks` (from `002_drift_scan_lock.yaml`) holds the drift scan's lease, row `drift_scan`, with the columns of the core's [locks](#locks) table, so only one replica scans at a time.
 
 Two of its tables track agent bindings:
 

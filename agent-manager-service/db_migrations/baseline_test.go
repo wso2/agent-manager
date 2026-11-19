@@ -77,7 +77,7 @@ func TestSQLiteBaselineAppliesOnce(t *testing.T) {
 
 	var locks []string
 	require.NoError(t, gormDB.Raw("SELECT name FROM locks ORDER BY name").Scan(&locks).Error)
-	assert.Equal(t, []string{"agent_identity.reconciler", "gateway.drift_scan"}, locks)
+	assert.Equal(t, []string{"agent_identity.reconciler"}, locks)
 }
 
 func TestSQLiteBaselineEnforcesKeys(t *testing.T) {
