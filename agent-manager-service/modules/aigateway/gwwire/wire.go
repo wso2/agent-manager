@@ -229,8 +229,9 @@ func ProvideReconcileCore(
 // refuses to remove a mapping while the gateway serves the environment's artifacts.
 func ProvidePlatformGatewayService(
 	gatewayRepo gwrepo.GatewayRepository, worker *reconcile.Worker, core *reconcile.Core, s gwconfig.Settings,
+	events *gwsvc.GatewayEventsService,
 ) *gwsvc.PlatformGatewayService {
-	return gwsvc.NewPlatformGatewayService(gatewayRepo).WithEnvironmentPlacer(worker).
+	return gwsvc.NewPlatformGatewayService(gatewayRepo).WithTokenEvents(events).WithEnvironmentPlacer(worker).
 		WithEnvironmentGuard(core).WithFailureSettings(s.Failure)
 }
 

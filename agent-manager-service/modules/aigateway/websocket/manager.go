@@ -27,6 +27,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
 )
 
 // Manager handles the lifecycle of gateway WebSocket connections.
@@ -171,6 +172,10 @@ func (m *Manager) Register(gatewayID string, transport Transport, authToken stri
 	return conn, nil
 }
 
+// TokenRevokedEvent is published on a gateway's event stream, with the
+// revoked token's prefix as its entity id, when one of its tokens is revoked.
+const TokenRevokedEvent = "gateway_token.revoked"
+
 // forwardEvents reads events from the EventHub subscription channel and sends
 // them to the WebSocket connection. It exits when the channel is closed or
 // the connection is closed.
@@ -184,6 +189,17 @@ func (m *Manager) forwardEvents(conn *Connection, ch <-chan eventhub.Event) {
 			}
 			if conn.IsClosed() {
 				return
+			}
+			if evt.EventType == TokenRevokedEvent {
+				// Not for the controller: the replica holding the gateway's
+				// socket closes it if it authenticated with the revoked token.
+				if prefix, err := gatewaytoken.Prefix(conn.AuthToken); err == nil && prefix == evt.EntityID {
+					slog.Info("Closing gateway connection: its token was revoked",
+						"gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID)
+					go m.Unregister(conn.GatewayID, conn.ConnectionID)
+					return
+				}
+				continue
 			}
 			// EventData already holds the full gateway envelope built by
 			// eventhub.NewGatewayEvent — send it directly.

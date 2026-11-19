@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
 )
 
 // GatewayEventsService handles broadcasting events to connected gateways.
@@ -59,6 +60,12 @@ func (s *GatewayEventsService) publish(gatewayID string, eventType string, actio
 	}
 	slog.Debug("Event published to EventHub", "gatewayID", gatewayID, "type", eventType)
 	return nil
+}
+
+// BroadcastGatewayTokenRevoked tells the replica holding the gateway's
+// WebSocket to close it if it authenticated with the revoked token.
+func (s *GatewayEventsService) BroadcastGatewayTokenRevoked(gatewayID, tokenPrefix string) error {
+	return s.broadcastEvent(gatewayID, websocket.TokenRevokedEvent, "revoke", tokenPrefix, map[string]string{})
 }
 
 // API key events use a unique ID per event — they are not deduplicated on replay

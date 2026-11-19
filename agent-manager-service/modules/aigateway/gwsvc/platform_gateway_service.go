@@ -57,6 +57,8 @@ type PlatformGatewayService struct {
 	guard EnvironmentGuard
 	// failure sets the platform gateway failure summary.
 	failure gwconfig.Failure
+	// tokenEvents closes a gateway's socket when the token it uses is revoked.
+	tokenEvents GatewayTokenEvents
 	// verifyTokenSfg serializes the DB lookup in VerifyToken per tokenPrefix, so a
 	// burst of concurrent requests for the same (often forged) prefix triggers one
 	// repository call instead of one per request. Different prefixes still run
@@ -97,6 +99,18 @@ type EnvironmentGuard interface {
 // WithEnvironmentGuard refuses to unmap a gateway from an environment while guard says it serves it.
 func (s *PlatformGatewayService) WithEnvironmentGuard(guard EnvironmentGuard) *PlatformGatewayService {
 	s.guard = guard
+	return s
+}
+
+// GatewayTokenEvents tells the replica holding a gateway's socket that one of
+// its tokens was revoked.
+type GatewayTokenEvents interface {
+	BroadcastGatewayTokenRevoked(gatewayID, tokenPrefix string) error
+}
+
+// WithTokenEvents makes revoking a token close the gateway's socket that uses it.
+func (s *PlatformGatewayService) WithTokenEvents(e GatewayTokenEvents) *PlatformGatewayService {
+	s.tokenEvents = e
 	return s
 }
 
@@ -838,6 +852,15 @@ func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, ouID string
 	// 4. Invalidate from cache using token prefix
 	s.tokenCache.Invalidate(token.TokenPrefix)
 	slog.Info("token revoked and cache invalidated", "tokenID", tokenID, "tokenPrefix", token.TokenPrefix, "gatewayID", gatewayID)
+
+	// 5. Close the gateway's live socket if it uses the token. The token is
+	// already revoked, so a failure here only delays the close until the
+	// controller next reconnects.
+	if s.tokenEvents != nil {
+		if err := s.tokenEvents.BroadcastGatewayTokenRevoked(gatewayID, token.TokenPrefix); err != nil {
+			slog.Warn("failed to publish the token revocation to the gateway's socket", "gatewayID", gatewayID, "error", err)
+		}
+	}
 
 	return nil
 }

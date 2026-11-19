@@ -52,7 +52,7 @@ func Initialize(db *gorm.DB, logger *slog.Logger, coreAPI modkit.CoreAPI, settin
 	kinds := ProvideReconcileKinds(llmProviderKind, llmProxyKind, mcpProxyKind, a2AAgentKind)
 	core := ProvideReconcileCore(db, deploymentRepository, gatewayRepository, eventHub, kinds, settings, logger)
 	worker := reconcile.NewWorker(core, logger)
-	platformGatewayService := ProvidePlatformGatewayService(gatewayRepository, worker, core, settings)
+	platformGatewayService := ProvidePlatformGatewayService(gatewayRepository, worker, core, settings, gatewayEventsService)
 	agentConfigurationRepository := gwrepo.NewAgentConfigurationRepository(db)
 	envAgentModelMappingRepository := gwrepo.NewEnvAgentModelMappingRepository(db, coreAPI)
 	envAgentMCPMappingRepository := gwrepo.NewEnvAgentMCPMappingRepository(db)
@@ -275,8 +275,9 @@ func ProvideReconcileCore(
 // refuses to remove a mapping while the gateway serves the environment's artifacts.
 func ProvidePlatformGatewayService(
 	gatewayRepo gwrepo.GatewayRepository, worker *reconcile.Worker, core *reconcile.Core, s gwconfig.Settings,
+	events *gwsvc.GatewayEventsService,
 ) *gwsvc.PlatformGatewayService {
-	return gwsvc.NewPlatformGatewayService(gatewayRepo).WithEnvironmentPlacer(worker).
+	return gwsvc.NewPlatformGatewayService(gatewayRepo).WithTokenEvents(events).WithEnvironmentPlacer(worker).
 		WithEnvironmentGuard(core).WithFailureSettings(s.Failure)
 }
 
