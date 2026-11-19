@@ -16,7 +16,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package gwsvc
 
 import (
 	"testing"
@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
@@ -38,7 +37,7 @@ func TestUpdateGatewayPersistsRuntimeURLColumn(t *testing.T) {
 	id := seedRuntimeURLGateway(t, tx, "api-platform-acme-dev")
 	require.False(t, runtimeURLOf(t, tx, id).Valid, "fixture must start from the NULL state")
 
-	svc := gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx), nil)
+	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx), nil)
 	want := "http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893"
 
 	resp, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &want)
@@ -55,7 +54,7 @@ func TestUpdateGatewayRejectsInvalidRuntimeURL(t *testing.T) {
 	tx := runtimeURLTestTx(t)
 	id := seedRuntimeURLGateway(t, tx, "api-platform-acme-dev")
 
-	svc := gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx), nil)
+	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(tx), nil)
 	bad := "http://exfil.dev:53"
 
 	_, err := svc.UpdateGateway(id.String(), gatewayOrgOf(t, tx, id), nil, nil, nil, nil, &bad)

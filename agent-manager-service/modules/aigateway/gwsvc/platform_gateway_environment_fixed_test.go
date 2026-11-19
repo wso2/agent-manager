@@ -16,7 +16,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-package tests
+package gwsvc
 
 import (
 	"context"
@@ -30,7 +30,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 )
 
 // Two concurrent assigns of one gateway to different environments take different environment
@@ -40,7 +39,7 @@ func TestAssignGatewayConcurrentEnvironmentsRefused(t *testing.T) {
 	gdb := db.DB(context.Background())
 	id := seedRuntimeURLGateway(t, gdb, "env-fixed-"+uuid.NewString()[:8])
 	org := gatewayOrgOf(t, gdb, id)
-	svc := gwsvc.NewPlatformGatewayService(gwrepo.NewGatewayRepo(gdb), nil)
+	svc := NewPlatformGatewayService(gwrepo.NewGatewayRepo(gdb), nil)
 
 	environments := []string{uuid.NewString(), uuid.NewString()}
 	for _, env := range environments {
