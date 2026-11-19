@@ -31,6 +31,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/clickhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/memory"
 )
 
@@ -178,5 +179,28 @@ func TestCapabilityRefusesAnotherOrganization(t *testing.T) {
 	own := tracesv1.Scope{OrgID: "org-a", Names: tracesv1.Names{Org: "acme"}}
 	if _, err := q.QueryTraces(ctx, own, tracesv1.TraceQuery{}); err != nil {
 		t.Errorf("QueryTraces of the caller's org = %v, want nil", err)
+	}
+}
+
+// configRuntime answers Config from a map; nothing else is used.
+type configRuntime struct {
+	modkit.Runtime
+	cfg map[string]string
+}
+
+func (r configRuntime) Config(key string) string { return r.cfg[key] }
+func (configRuntime) Logger() *slog.Logger       { return slog.New(slog.DiscardHandler) }
+
+func TestOpenStore(t *testing.T) {
+	s, err := openStore(configRuntime{cfg: map[string]string{}})
+	if _, ok := s.(*memory.Store); err != nil || !ok {
+		t.Errorf("no ClickHouse configured: openStore = %T, %v; want the memory store", s, err)
+	}
+	s, err = openStore(configRuntime{cfg: map[string]string{"clickhouse.url": "http://clickhouse:8123", "clickhouse.user": "amp_reader"}})
+	if _, ok := s.(*clickhouse.Store); err != nil || !ok {
+		t.Errorf("ClickHouse configured: openStore = %T, %v; want the ClickHouse store", s, err)
+	}
+	if _, err := openStore(configRuntime{cfg: map[string]string{"clickhouse.url": "clickhouse:8123"}}); err == nil {
+		t.Error("openStore with a bad URL succeeded, want an error")
 	}
 }

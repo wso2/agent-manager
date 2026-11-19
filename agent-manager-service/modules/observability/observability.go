@@ -28,6 +28,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/tracesv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/clickhouse"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/observability/store/memory"
 )
 
@@ -39,13 +40,14 @@ const (
 )
 
 func init() {
-	modkit.Register(New(memory.New()))
+	modkit.Register(module{})
 }
 
 //go:embed api/openapi.yaml
 var openAPI []byte
 
-// New returns the module serving traces from traces.
+// New returns the module serving traces from traces; nil picks the store from
+// config each time the module activates.
 func New(traces store.TraceStore) modkit.Module {
 	return module{traces: traces}
 }
@@ -82,13 +84,41 @@ func (module) UI() fs.FS         { return nil }
 func (module) OpenAPI() []byte { return openAPI }
 
 func (m module) Activate(_ context.Context, rt modkit.Runtime) error {
-	q := guarded(m)
+	traces := m.traces
+	if traces == nil {
+		var err error
+		if traces, err = openStore(rt); err != nil {
+			return err
+		}
+	}
+	q := guarded{traces: traces}
 	rt.Provide(tracesv1.ID, q)
 	h := handlers{core: rt.Core(), traces: q, log: rt.Logger()}
 	rt.Handle(http.MethodGet, "/api/v1/traces", PermTracesRead, h.listTraces)
 	rt.Handle(http.MethodGet, "/api/v1/traces/{traceId}/spans", PermTracesRead, h.listSpans)
 	rt.Handle(http.MethodGet, "/api/v1/traces/{traceId}/spans/{spanId}", PermTracesRead, h.getSpan)
 	return nil
+}
+
+// openStore returns the ClickHouse store when clickhouse.url is set, else an
+// empty in-memory store. It does not connect.
+func openStore(rt modkit.Runtime) (store.TraceStore, error) {
+	url := rt.Config("clickhouse.url")
+	if url == "" {
+		rt.Logger().Warn("observability: no ClickHouse configured (MODULE_OBSERVABILITY_CLICKHOUSE_URL); serving traces from an empty in-memory store")
+		return memory.New(), nil
+	}
+	s, err := clickhouse.New(clickhouse.Config{
+		URL:      url,
+		Database: rt.Config("clickhouse.database"),
+		User:     rt.Config("clickhouse.user"),
+		Password: rt.Config("clickhouse.password"),
+	})
+	if err != nil {
+		return nil, err
+	}
+	rt.Logger().Info("observability: reading traces from ClickHouse", "url", url)
+	return s, nil
 }
 
 // guarded is the traces.query/v1 implementation: it refuses a Scope of
