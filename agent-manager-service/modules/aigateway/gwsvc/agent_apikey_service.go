@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
@@ -36,7 +38,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // GatewayConnectionChecker reports live websocket connections for a gateway.
@@ -161,7 +162,7 @@ func (s *AgentAPIKeyService) resolveEnvGateways(envUUID string) ([]*gwmodels.Gat
 		return nil, fmt.Errorf("failed to list ingress gateways for environment %s: %w", envUUID, err)
 	}
 	if len(gateways) == 0 {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	return gateways, nil
 }

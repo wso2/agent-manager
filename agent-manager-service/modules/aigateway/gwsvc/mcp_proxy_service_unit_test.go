@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
@@ -41,7 +43,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // testMCPEnvUUID is a valid environment UUID used as an endpoint's target environment.
@@ -124,7 +125,7 @@ func TestValidateMCPEndpoints_RejectsDuplicateEnvironmentAcrossEndpoints(t *test
 	second := endpointWith("https://93.184.216.35", nil)
 	second.ID = "secondary"
 	err := validateMCPEndpoints([]gwmodels.MCPProxyEndpointDTO{first, second})
-	assert.ErrorIs(t, err, utils.ErrMCPEnvAlreadyBound)
+	assert.ErrorIs(t, err, gwerr.ErrMCPEnvAlreadyBound)
 }
 
 func TestValidateMCPEndpointSecurity_IdentityNeedsGatewayPolicies(t *testing.T) {
@@ -627,7 +628,7 @@ func TestMapMCPProxyWriteError_ProxyEnvSingleViolation(t *testing.T) {
 
 	mapped := svc.mapMCPProxyWriteError(err, "some-handle", "org-uuid")
 
-	assert.ErrorIs(t, mapped, utils.ErrMCPEnvAlreadyBound)
+	assert.ErrorIs(t, mapped, gwerr.ErrMCPEnvAlreadyBound)
 }
 
 func TestMapMCPProxyWriteError_EndpointEnvViolation(t *testing.T) {
@@ -636,7 +637,7 @@ func TestMapMCPProxyWriteError_EndpointEnvViolation(t *testing.T) {
 
 	mapped := svc.mapMCPProxyWriteError(err, "some-handle", "org-uuid")
 
-	assert.ErrorIs(t, mapped, utils.ErrMCPEnvAlreadyBound)
+	assert.ErrorIs(t, mapped, gwerr.ErrMCPEnvAlreadyBound)
 }
 
 func TestMapMCPProxyWriteError_HandleConflictWithMCPProxy(t *testing.T) {
@@ -651,7 +652,7 @@ func TestMapMCPProxyWriteError_HandleConflictWithMCPProxy(t *testing.T) {
 
 	mapped := svc.mapMCPProxyWriteError(err, "some-handle", "org-uuid")
 
-	assert.ErrorIs(t, mapped, utils.ErrMCPProxyExists)
+	assert.ErrorIs(t, mapped, gwerr.ErrMCPProxyExists)
 }
 
 func TestMapMCPProxyWriteError_HandleConflictWithNonMCPArtifact(t *testing.T) {
@@ -668,8 +669,8 @@ func TestMapMCPProxyWriteError_HandleConflictWithNonMCPArtifact(t *testing.T) {
 
 	// The conflicting artifact is an LLM provider, not an MCP proxy: must not
 	// falsely report "MCP proxy already exists".
-	assert.ErrorIs(t, mapped, utils.ErrArtifactExists)
-	assert.NotErrorIs(t, mapped, utils.ErrMCPProxyExists)
+	assert.ErrorIs(t, mapped, gwerr.ErrArtifactExists)
+	assert.NotErrorIs(t, mapped, gwerr.ErrMCPProxyExists)
 }
 
 func TestMapMCPProxyWriteError_HandleConflictLookupFailureFallsBackToMCPProxyExists(t *testing.T) {
@@ -684,7 +685,7 @@ func TestMapMCPProxyWriteError_HandleConflictLookupFailureFallsBackToMCPProxyExi
 
 	mapped := svc.mapMCPProxyWriteError(err, "some-handle", "org-uuid")
 
-	assert.ErrorIs(t, mapped, utils.ErrMCPProxyExists)
+	assert.ErrorIs(t, mapped, gwerr.ErrMCPProxyExists)
 }
 
 func TestMapMCPProxyWriteError_NameVersionConflict(t *testing.T) {
@@ -966,7 +967,7 @@ func TestFetchMCPServerInfo_WhenToFallBackToInitialize(t *testing.T) {
 		{name: "400 with an old server's own JSON-RPC error refuses the method", discoverStatus: 400, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"Bad Request: Server not initialized"}}`, wantFallBack: true},
 		{name: "400 unsupported protocol version (-32022) is reported", discoverStatus: 400, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32022,"message":"Unsupported protocol version","data":{"supported":["2027-03-01"],"requested":"2026-07-28"}}}`},
 		{name: "400 header mismatch (-32020) is reported", discoverStatus: 400, discoverBody: `{"jsonrpc":"2.0","id":1,"error":{"code":-32020,"message":"Header mismatch"}}`},
-		{name: "401 is reported", discoverStatus: 401, discoverBody: "unauthorized", wantErrorIs: utils.ErrMCPServerUnauthorized},
+		{name: "401 is reported", discoverStatus: 401, discoverBody: "unauthorized", wantErrorIs: gwerr.ErrMCPServerUnauthorized},
 		{name: "403 is reported", discoverStatus: 403, discoverBody: "forbidden"},
 		{name: "429 is reported", discoverStatus: 429, discoverBody: "slow down"},
 		{name: "500 without JSON-RPC is reported", discoverStatus: 500, discoverBody: "internal error"},
@@ -1006,7 +1007,7 @@ func TestFetchMCPServerInfo_UnreachableServerIsReported(t *testing.T) {
 	svc := &MCPProxyService{client: client, logger: discardLogger()}
 	_, err := svc.fetchMCPServerInfo(context.Background(), srv.URL, "", "")
 
-	assert.ErrorIs(t, err, utils.ErrURLUnreachable)
+	assert.ErrorIs(t, err, gwerr.ErrURLUnreachable)
 }
 
 // slowListsMCPServerForTest answers server/discover like a new server, then holds every list
@@ -1035,7 +1036,7 @@ func TestFetchMCPServerInfo_DeadlineDuringListsIsAnError(t *testing.T) {
 	resp, err := svc.fetchMCPServerInfo(ctx, srv.URL, "", "")
 
 	assert.Nil(t, resp)
-	assert.ErrorIs(t, err, utils.ErrURLUnreachable)
+	assert.ErrorIs(t, err, gwerr.ErrURLUnreachable)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
@@ -1051,7 +1052,7 @@ func TestFetchMCPServerInfo_CancelDuringListsIsNotUnreachable(t *testing.T) {
 
 	assert.Nil(t, resp)
 	assert.ErrorIs(t, err, context.Canceled)
-	assert.NotErrorIs(t, err, utils.ErrURLUnreachable)
+	assert.NotErrorIs(t, err, gwerr.ErrURLUnreachable)
 }
 
 // The status error keeps the text it had before it became a type.

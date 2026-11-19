@@ -24,6 +24,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -31,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Every public route that changes an LLM proxy refuses one AMS created for an agent or monitor. The mutating
@@ -108,8 +110,8 @@ func TestLLMProxyMutatingRoutes_RefuseAgentOrMonitorProxy(t *testing.T) {
 			req := httptest.NewRequest(tt.method, "/llm-proxies/"+proxyHandle+tt.query, strings.NewReader(tt.body))
 			req.SetPathValue("id", proxyHandle)
 			req.SetPathValue("deploymentId", "00000000-0000-0000-0000-000000000002")
-			req.SetPathValue(utils.PathParamProxyId, proxyHandle)
-			req.SetPathValue(utils.PathParamProjName, "checkout")
+			req.SetPathValue(gwutil.PathParamProxyId, proxyHandle)
+			req.SetPathValue(gwutil.PathParamProjName, "checkout")
 			req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: ouID}))
 			recorder := httptest.NewRecorder()
 
@@ -120,7 +122,7 @@ func TestLLMProxyMutatingRoutes_RefuseAgentOrMonitorProxy(t *testing.T) {
 				Message string `json:"message"`
 			}
 			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-			require.Equal(t, utils.ErrLLMProxyManagedByAMS.Error(), response.Message)
+			require.Equal(t, gwerr.ErrLLMProxyManagedByAMS.Error(), response.Message)
 			require.Len(t, proxyRepo.IsAgentOrMonitorProxyCalls(), 1)
 		})
 	}

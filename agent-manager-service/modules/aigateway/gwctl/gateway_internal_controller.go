@@ -23,6 +23,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -32,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // GatewayInternalController defines interface for gateway internal API HTTP handlers
@@ -95,11 +97,11 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 
 	provider, err := c.gatewayInternalService.GetActiveLLMProviderDeploymentByGateway(ctx, providerID, ouID, gatewayID)
 	if err != nil {
-		if errors.Is(err, utils.ErrDeploymentNotActive) {
+		if errors.Is(err, gwerr.ErrDeploymentNotActive) {
 			http.Error(w, "No active deployment found for this LLM provider on this gateway", http.StatusNotFound)
 			return
 		}
-		if errors.Is(err, utils.ErrLLMProviderNotFound) {
+		if errors.Is(err, gwerr.ErrLLMProviderNotFound) {
 			http.Error(w, "LLM provider not found", http.StatusNotFound)
 			return
 		}
@@ -109,7 +111,7 @@ func (c *gatewayInternalController) GetLLMProvider(w http.ResponseWriter, r *htt
 	}
 
 	// Create ZIP file from LLM provider YAML file
-	zipData, err := utils.CreateLLMProviderYamlZip(provider)
+	zipData, err := gwutil.CreateLLMProviderYamlZip(provider)
 	if err != nil {
 		log.Error("Failed to create ZIP file for LLM provider", "providerID", providerID, "error", err)
 		http.Error(w, "Failed to create LLM provider package", http.StatusInternalServerError)
@@ -148,11 +150,11 @@ func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.R
 
 	proxy, err := c.gatewayInternalService.GetActiveLLMProxyDeploymentByGateway(ctx, proxyID, ouID, gatewayID)
 	if err != nil {
-		if errors.Is(err, utils.ErrDeploymentNotActive) {
+		if errors.Is(err, gwerr.ErrDeploymentNotActive) {
 			http.Error(w, "No active deployment found for this LLM proxy on this gateway", http.StatusNotFound)
 			return
 		}
-		if errors.Is(err, utils.ErrLLMProxyNotFound) {
+		if errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 			http.Error(w, "LLM proxy not found", http.StatusNotFound)
 			return
 		}
@@ -162,7 +164,7 @@ func (c *gatewayInternalController) GetLLMProxy(w http.ResponseWriter, r *http.R
 	}
 
 	// Create ZIP file from LLM proxy YAML file
-	zipData, err := utils.CreateLLMProxyYamlZip(proxy)
+	zipData, err := gwutil.CreateLLMProxyYamlZip(proxy)
 	if err != nil {
 		log.Error("Failed to create ZIP file for LLM proxy", "proxyID", proxyID, "error", err)
 		http.Error(w, "Failed to create LLM proxy package", http.StatusInternalServerError)
@@ -204,7 +206,7 @@ func (c *gatewayInternalController) GetMCPProxy(w http.ResponseWriter, r *http.R
 
 	proxy, err := c.gatewayInternalService.GetActiveMCPProxyDeploymentByGateway(ctx, proxyID, ouID, gatewayID)
 	if err != nil {
-		if errors.Is(err, utils.ErrMCPProxyNotFound) {
+		if errors.Is(err, gwerr.ErrMCPProxyNotFound) {
 			http.Error(w, "MCP proxy not found", http.StatusNotFound)
 			return
 		}
@@ -213,7 +215,7 @@ func (c *gatewayInternalController) GetMCPProxy(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	zipData, err := utils.CreateMCPProxyYamlZip(proxy)
+	zipData, err := gwutil.CreateMCPProxyYamlZip(proxy)
 	if err != nil {
 		log.Error("Failed to create ZIP file for MCP proxy", "proxyID", proxyID, "error", err)
 		http.Error(w, "Failed to create MCP proxy package", http.StatusInternalServerError)
@@ -256,7 +258,7 @@ func (c *gatewayInternalController) GetAgent(w http.ResponseWriter, r *http.Requ
 
 	agent, err := c.gatewayInternalService.GetActiveAgentDeploymentByGateway(ctx, agentID, ouID, gatewayID)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentArtifactNotFound) {
+		if errors.Is(err, gwerr.ErrAgentArtifactNotFound) {
 			http.Error(w, "No active deployment found for this agent on this gateway", http.StatusNotFound)
 			return
 		}
@@ -265,7 +267,7 @@ func (c *gatewayInternalController) GetAgent(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	zipData, err := utils.CreateAgentYamlZip(agent)
+	zipData, err := gwutil.CreateAgentYamlZip(agent)
 	if err != nil {
 		log.Error("Failed to create ZIP file for agent", "agentID", agentID, "error", err)
 		http.Error(w, "Failed to create agent package", http.StatusInternalServerError)
@@ -306,7 +308,7 @@ func (c *gatewayInternalController) GetAPI(w http.ResponseWriter, r *http.Reques
 
 	api, err := c.gatewayInternalService.GetActiveRestAPIDeploymentByGateway(ctx, apiID, identity.OUID, identity.ID)
 	if err != nil {
-		if errors.Is(err, utils.ErrAPINotFound) {
+		if errors.Is(err, gwerr.ErrAPINotFound) {
 			http.Error(w, "No active deployment found for this API on this gateway", http.StatusNotFound)
 			return
 		}
@@ -315,7 +317,7 @@ func (c *gatewayInternalController) GetAPI(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	zipData, err := utils.CreateAPIYamlZip(api)
+	zipData, err := gwutil.CreateAPIYamlZip(api)
 	if err != nil {
 		log.Error("Failed to create ZIP file for API", "apiID", apiID, "error", err)
 		http.Error(w, "Failed to create API package", http.StatusInternalServerError)
@@ -563,7 +565,7 @@ func (c *gatewayInternalController) PushGatewayManifest(w http.ResponseWriter, r
 	modkit.AuditResource(r.Context(), gwaudit.ResourceGateway, gatewayID, "")
 	modkit.AuditDetail(r.Context(), "policyCount", len(manifest))
 	if err != nil {
-		if errors.Is(err, utils.ErrGatewayNotFound) {
+		if errors.Is(err, gwerr.ErrGatewayNotFound) {
 			http.Error(w, "Gateway not found", http.StatusNotFound)
 			return
 		}

@@ -459,7 +459,8 @@ Everything else under `agent-manager-service/` is the core (`services`, `reposit
 
 | Package | What it is |
 |---|---|
-| `pkg/httpx` | JSON success and error responses, `ValidationError`, the classification errors (`ErrInvalidInput`, `ErrNotFound`, ...) and the generic error codes. |
+| `pkg/httpx` | JSON success and error responses, `ValidationError`, the classification errors (`ErrInvalidInput`, `ErrNotFound`, ...), the generic error codes, and `ClientIP` (the caller's address, leftmost `X-Forwarded-For` hop). |
+| `pkg/aesgcm` | `Encrypt` and `Decrypt` bytes with AES-256-GCM under a 32-byte key you pass in. |
 | `pkg/dbx` | Portable SQL helpers on a `*gorm.DB` you pass in: `InsertIfAbsent`, `Upsert`, `ClaimRows`, `TryLock` (a lease row in a table you name, such as your module's own `mod_<module>_locks`), `LockRow(s)`, keyset pages (`After`), `Chunks`, `JSON`, `Now`. |
 | `pkg/dberr` | Classifies driver errors (duplicate key, foreign key, ...) the same way on SQLite and PostgreSQL. |
 | `pkg/sqlitedialect` | The GORM SQLite dialect the core opens databases with. |

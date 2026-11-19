@@ -21,13 +21,14 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProviderAPIKeyController handles API key operations for LLM providers
@@ -64,7 +65,7 @@ func (c *llmProviderAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http
 	response, err := c.apiKeyService.ListAPIKeys(ctx, ouID, providerID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("ListLLMProviderAPIKeys: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
@@ -125,11 +126,11 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 			log.Warn("CreateLLMProviderAPIKey: invalid request", "ouID", ouID, "providerID", providerID, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("CreateLLMProviderAPIKey: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("CreateLLMProviderAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
@@ -158,11 +159,11 @@ func (c *llmProviderAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *htt
 
 	if err := c.apiKeyService.RevokeAPIKey(ctx, ouID, providerID, keyName); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("RevokeLLMProviderAPIKey: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("RevokeLLMProviderAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
@@ -201,11 +202,11 @@ func (c *llmProviderAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *htt
 	response, err := c.apiKeyService.RotateAPIKey(ctx, ouID, providerID, keyName, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("RotateLLMProviderAPIKey: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("RotateLLMProviderAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return

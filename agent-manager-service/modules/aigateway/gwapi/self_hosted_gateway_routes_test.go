@@ -24,6 +24,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +43,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const selfHostedTestOU = "ou-1"
@@ -107,9 +108,9 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 			if gw, ok := byUUID[id]; ok {
 				return gw, nil
 			}
-			return nil, utils.ErrGatewayNotFound
+			return nil, gwerr.ErrGatewayNotFound
 		},
-		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return nil, utils.ErrGatewayNotFound },
+		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) { return nil, gwerr.ErrGatewayNotFound },
 		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
 			return []gwmodels.GatewayEnvironmentMapping{}, nil
 		},

@@ -22,6 +22,9 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -30,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // A2AAgentCardController serves an A2A agent's stored card per environment.
@@ -100,26 +102,26 @@ func (c *a2aAgentCardController) DeleteAgentCardSource(w http.ResponseWriter, r 
 
 func agentCardPath(r *http.Request) (ouID, projName, agentName, envName string) {
 	return middleware.OUIDFromRequest(r),
-		r.PathValue(utils.PathParamProjName),
-		r.PathValue(utils.PathParamAgentName),
-		r.PathValue(utils.PathParamEnvID)
+		r.PathValue(gwutil.PathParamProjName),
+		r.PathValue(gwutil.PathParamAgentName),
+		r.PathValue(gwutil.PathParamEnvID)
 }
 
 // writeAgentCardError maps the card sentinels, then defers to handleCommonErrors.
 func writeAgentCardError(w http.ResponseWriter, r *http.Request, err error, fallback string) {
 	logger.GetLogger(r.Context()).Warn("Agent card request failed", "path", r.URL.Path, "error", err)
 	switch {
-	case errors.Is(err, utils.ErrAgentCardNotFound):
+	case errors.Is(err, gwerr.ErrAgentCardNotFound):
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent card not found")
-	case errors.Is(err, utils.ErrAgentNotDeployedInEnvironment):
+	case errors.Is(err, gwerr.ErrAgentNotDeployedInEnvironment):
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent is not deployed in this environment")
-	case errors.Is(err, utils.ErrAgentNotA2A),
-		errors.Is(err, utils.ErrAgentCardSourceNotExternal),
+	case errors.Is(err, gwerr.ErrAgentNotA2A),
+		errors.Is(err, gwerr.ErrAgentCardSourceNotExternal),
 		errors.Is(err, ssrf.ErrInvalidURL),
-		errors.Is(err, utils.ErrA2ACardURLNotProxyable):
+		errors.Is(err, gwerr.ErrA2ACardURLNotProxyable):
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, utils.ErrA2AProxyOriginChangeNeedsAuthReset):
-		httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrA2AProxyOriginChangeNeedsAuthReset.Error())
+	case errors.Is(err, gwerr.ErrA2AProxyOriginChangeNeedsAuthReset):
+		httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrA2AProxyOriginChangeNeedsAuthReset.Error())
 	default:
 		controllers.HandleCommonErrors(w, err, fallback)
 	}

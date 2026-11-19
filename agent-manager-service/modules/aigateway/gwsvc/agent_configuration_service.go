@@ -29,6 +29,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -262,19 +266,19 @@ func mcpMappingProxyName(projectName, agentID, configName, envName string) strin
 // user-managed for external agents (see placementPolicy.apiKeyPurpose); managed/internal
 // agents have the platform inject console-managed keys, so user-driven actions must
 // not proceed. When the agent backing the config is not external it returns
-// utils.ErrAgentConfigNotExternal, which the controller maps to a 403. The check
+// gwerr.ErrAgentConfigNotExternal, which the controller maps to a 403. The check
 // fails closed: if the agent type cannot be resolved the underlying error is
 // returned and the action is rejected.
 func (s *agentConfigurationService) ensureExternalAgentForAPIKey(ctx context.Context, ouID, projectName, agentName string) error {
 	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		if errors.Is(err, utils.ErrAgentNotFound) {
-			return utils.ErrAgentConfigNotFound
+			return gwerr.ErrAgentConfigNotFound
 		}
 		return fmt.Errorf("failed to determine agent type: %w", err)
 	}
-	if agent.Provisioning.Type != string(utils.ExternalAgent) {
-		return utils.ErrAgentConfigNotExternal
+	if agent.Provisioning.Type != string(gwutil.ExternalAgent) {
+		return gwerr.ErrAgentConfigNotExternal
 	}
 	return nil
 }
@@ -543,12 +547,12 @@ func (s *agentConfigurationService) resolveConfigAndEnvUUID(
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, "", utils.ErrAgentConfigNotFound
+			return nil, "", gwerr.ErrAgentConfigNotFound
 		}
 		return nil, "", fmt.Errorf("failed to get agent configuration: %w", err)
 	}
 	if config == nil || config.AgentID != agentName || config.ProjectName != projectName {
-		return nil, "", utils.ErrAgentConfigNotFound
+		return nil, "", gwerr.ErrAgentConfigNotFound
 	}
 
 	envs, err := s.infraResourceManager.ListOrgEnvironments(ctx, ouID)
@@ -560,7 +564,7 @@ func (s *agentConfigurationService) resolveConfigAndEnvUUID(
 			return config, env.UUID, nil
 		}
 	}
-	return nil, "", utils.ErrAgentConfigNotFound
+	return nil, "", gwerr.ErrAgentConfigNotFound
 }
 
 // resolveMCPMappingArtifactUUID resolves the env mapping artifact UUID that backs
@@ -579,7 +583,7 @@ func (s *agentConfigurationService) resolveMCPMappingArtifactUUID(
 			return mapping.ArtifactUUID, nil
 		}
 	}
-	return uuid.Nil, utils.ErrAgentConfigNotFound
+	return uuid.Nil, gwerr.ErrAgentConfigNotFound
 }
 
 // resolveMCPMappingKeyBinding resolves both the per-agent key-holder artifact UUID
@@ -603,7 +607,7 @@ func (s *agentConfigurationService) resolveMCPMappingKeyBinding(
 			return mapping.ArtifactUUID, apiID, nil
 		}
 	}
-	return uuid.Nil, uuid.Nil, utils.ErrAgentConfigNotFound
+	return uuid.Nil, uuid.Nil, gwerr.ErrAgentConfigNotFound
 }
 
 // ListMCPConfigAPIKeys returns the masked, user-managed API key(s) for an external
@@ -695,7 +699,7 @@ func (s *agentConfigurationService) resolveLLMProxyHandleForConfig(
 			return mapping.LLMProxy.Handle, nil
 		}
 	}
-	return "", utils.ErrAgentConfigNotFound
+	return "", gwerr.ErrAgentConfigNotFound
 }
 
 // ListLLMConfigAPIKeys returns the masked, user-managed API key(s) for an external
@@ -860,7 +864,7 @@ func (s *agentConfigurationService) ValidateProvidersInCatalog(
 		provider, err := s.llmProviderRepo.GetByHandle(handle, ouID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("provider %s not found: %w", handle, utils.ErrLLMProviderNotFound)
+				return fmt.Errorf("provider %s not found: %w", handle, gwerr.ErrLLMProviderNotFound)
 			}
 			return fmt.Errorf("failed to validate provider %s: %w", handle, err)
 		}
@@ -894,7 +898,7 @@ func (s *agentConfigurationService) ValidateMCPProxiesInCatalog(
 		proxy, err := s.mcpProxyRepo.GetByHandle(ctx, handle, ouID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("MCP proxy %s not found: %w", handle, utils.ErrMCPProxyNotFound)
+				return fmt.Errorf("MCP proxy %s not found: %w", handle, gwerr.ErrMCPProxyNotFound)
 			}
 			return fmt.Errorf("failed to validate MCP proxy %s: %w", handle, err)
 		}
@@ -997,15 +1001,15 @@ func (s *agentConfigurationService) createLLMConfig(ctx context.Context, ouID, p
 	// Phase 1 — Short TX: persist config row only.
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := s.agentConfigRepo.Create(ctx, tx, config); err != nil {
-			if errors.Is(err, utils.ErrAgentConfigAlreadyExists) {
+			if errors.Is(err, gwerr.ErrAgentConfigAlreadyExists) {
 				return err
 			}
 			return fmt.Errorf("failed to create configuration: %w", err)
 		}
 		return nil
 	}); err != nil {
-		if errors.Is(err, utils.ErrAgentConfigAlreadyExists) {
-			return nil, utils.ErrAgentConfigAlreadyExists
+		if errors.Is(err, gwerr.ErrAgentConfigAlreadyExists) {
+			return nil, gwerr.ErrAgentConfigAlreadyExists
 		}
 		return nil, err
 	}
@@ -1244,7 +1248,7 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 		proxy, err := s.mcpProxyRepo.GetByHandle(ctx, proxyHandle, ouID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("MCP proxy for environment %s not found: %w", envName, utils.ErrMCPProxyNotFound)
+				return nil, fmt.Errorf("MCP proxy for environment %s not found: %w", envName, gwerr.ErrMCPProxyNotFound)
 			}
 			return nil, fmt.Errorf("failed to validate MCP proxy for environment %s: %w", envName, err)
 		}
@@ -1287,8 +1291,8 @@ func (s *agentConfigurationService) createMCPConfig(ctx context.Context, ouID, p
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		return s.agentConfigRepo.Create(ctx, tx, config)
 	}); err != nil {
-		if errors.Is(err, utils.ErrAgentConfigAlreadyExists) {
-			return nil, utils.ErrAgentConfigAlreadyExists
+		if errors.Is(err, gwerr.ErrAgentConfigAlreadyExists) {
+			return nil, gwerr.ErrAgentConfigAlreadyExists
 		}
 		return nil, fmt.Errorf("failed to create MCP configuration: %w", err)
 	}
@@ -1504,14 +1508,14 @@ func (s *agentConfigurationService) Get(ctx context.Context, configUUID uuid.UUI
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrAgentConfigNotFound
+			return nil, gwerr.ErrAgentConfigNotFound
 		}
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
 	}
 
 	// Validate project and agent scoping
 	if config.ProjectName != projectName || config.AgentID != agentName {
-		return nil, utils.ErrAgentConfigNotFound
+		return nil, gwerr.ErrAgentConfigNotFound
 	}
 
 	// Check if agent is external
@@ -1531,12 +1535,12 @@ func (s *agentConfigurationService) GetMCP(ctx context.Context, configUUID uuid.
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrAgentConfigNotFound
+			return nil, gwerr.ErrAgentConfigNotFound
 		}
 		return nil, fmt.Errorf("failed to get MCP configuration: %w", err)
 	}
 	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != gwmodels.AgentConfigTypeIDMCP {
-		return nil, utils.ErrAgentConfigNotFound
+		return nil, gwerr.ErrAgentConfigNotFound
 	}
 
 	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
@@ -2154,7 +2158,7 @@ func (s *agentConfigurationService) updateMCPConfig(ctx context.Context, existin
 		proxy, err := s.mcpProxyRepo.GetByHandle(ctx, proxyHandle, ouID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, fmt.Errorf("MCP proxy for environment %s not found: %w", envName, utils.ErrMCPProxyNotFound)
+				return nil, fmt.Errorf("MCP proxy for environment %s not found: %w", envName, gwerr.ErrMCPProxyNotFound)
 			}
 			return nil, fmt.Errorf("failed to validate MCP proxy for environment %s: %w", envName, err)
 		}
@@ -2573,12 +2577,12 @@ func (s *agentConfigurationService) UpdateMCP(ctx context.Context, configUUID uu
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrAgentConfigNotFound
+			return nil, gwerr.ErrAgentConfigNotFound
 		}
 		return nil, fmt.Errorf("failed to get MCP configuration: %w", err)
 	}
 	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != gwmodels.AgentConfigTypeIDMCP {
-		return nil, utils.ErrAgentConfigNotFound
+		return nil, gwerr.ErrAgentConfigNotFound
 	}
 
 	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
@@ -2605,14 +2609,14 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 	existingConfig, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrAgentConfigNotFound
+			return nil, gwerr.ErrAgentConfigNotFound
 		}
 		return nil, fmt.Errorf("failed to get configuration: %w", err)
 	}
 
 	// Validate project and agent scoping
 	if existingConfig.ProjectName != projectName || existingConfig.AgentID != agentName {
-		return nil, utils.ErrAgentConfigNotFound
+		return nil, gwerr.ErrAgentConfigNotFound
 	}
 
 	agent, err := s.ocClient.GetAgent(ctx, ouID, projectName, agentName)
@@ -2663,7 +2667,7 @@ func (s *agentConfigurationService) Update(ctx context.Context, configUUID uuid.
 			if err != nil {
 				if errors.Is(err, gorm.ErrRecordNotFound) {
 					s.logger.Warn("Provider not found", "env", envName, "error", err)
-					return nil, fmt.Errorf("provider for environment %s not found: %w", envName, utils.ErrLLMProviderNotFound)
+					return nil, fmt.Errorf("provider for environment %s not found: %w", envName, gwerr.ErrLLMProviderNotFound)
 				}
 				return nil, fmt.Errorf("failed to validate provider for environment %s: %w", envName, err)
 			}
@@ -2973,12 +2977,12 @@ func (s *agentConfigurationService) DeleteMCP(ctx context.Context, configUUID uu
 	config, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrAgentConfigNotFound
+			return gwerr.ErrAgentConfigNotFound
 		}
 		return fmt.Errorf("failed to get MCP configuration: %w", err)
 	}
 	if config.ProjectName != projectName || config.AgentID != agentName || config.TypeID != gwmodels.AgentConfigTypeIDMCP {
-		return utils.ErrAgentConfigNotFound
+		return gwerr.ErrAgentConfigNotFound
 	}
 	return s.deleteMCPConfig(ctx, config, ouID, projectName, agentName)
 }
@@ -2989,14 +2993,14 @@ func (s *agentConfigurationService) Delete(ctx context.Context, configUUID uuid.
 	existingConfig, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrAgentConfigNotFound
+			return gwerr.ErrAgentConfigNotFound
 		}
 		return fmt.Errorf("failed to get configuration: %w", err)
 	}
 
 	// Validate project and agent scoping
 	if existingConfig.ProjectName != projectName || existingConfig.AgentID != agentName {
-		return utils.ErrAgentConfigNotFound
+		return gwerr.ErrAgentConfigNotFound
 	}
 
 	switch existingConfig.TypeID {
@@ -3106,7 +3110,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 		)
 
 		if err := s.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil {
-			if errors.Is(err, utils.ErrLLMProxyNotFound) {
+			if errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 				// Proxy already gone — skip deployment cleanup for this mapping.
 				s.logger.Info(
 					"Proxy already deleted, skipping deployment cleanup",
@@ -3124,7 +3128,7 @@ func (s *agentConfigurationService) deleteLLMConfig(ctx context.Context, existin
 		// Step 3: Delete proxy record.
 		if err := s.llmProxyService.Delete(ctx, proxyHandle, ouID, s.llmProxyDeploymentService); err != nil {
 			// ErrLLMProxyNotFound means already deleted — treat as success.
-			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
+			if !errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 				return fmt.Errorf("failed to delete proxy %q: %w", proxyHandle, err)
 			}
 			s.logger.Info("Proxy already deleted, skipping", "proxyHandle", proxyHandle)
@@ -3188,13 +3192,13 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 	existingConfig, err := s.agentConfigRepo.GetByUUID(ctx, configUUID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrAgentConfigNotFound
+			return gwerr.ErrAgentConfigNotFound
 		}
 		return fmt.Errorf("failed to get configuration: %w", err)
 	}
 
 	if existingConfig.ProjectName != projectName || existingConfig.AgentID != agentName {
-		return utils.ErrAgentConfigNotFound
+		return gwerr.ErrAgentConfigNotFound
 	}
 
 	if existingConfig.TypeID == gwmodels.AgentConfigTypeIDMCP {
@@ -3234,7 +3238,7 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 
 		// Step 1: Revoke proxy API key. ErrLLMProxyNotFound means already gone — idempotent.
 		if err := s.llmProxyAPIKeyService.RevokeAPIKey(ctx, ouID, proxyHandle, proxyKeyName); err != nil {
-			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
+			if !errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 				s.logger.Warn("Failed to revoke proxy API key during agent deletion",
 					"proxyHandle", proxyHandle, "keyName", proxyKeyName, "error", err)
 				cleanupErrs = append(cleanupErrs, fmt.Sprintf("revoke proxy key %s: %v", proxyKeyName, err))
@@ -3246,7 +3250,7 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 		if mapping.LLMProxy.Configuration.UpstreamAuth != nil {
 			providerUUID := mapping.LLMProxy.ProviderUUID.String()
 			if err := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, ouID, providerUUID, providerKeyName); err != nil {
-				if !errors.Is(err, utils.ErrLLMProviderNotFound) {
+				if !errors.Is(err, gwerr.ErrLLMProviderNotFound) {
 					s.logger.Warn("Failed to revoke provider API key during agent deletion",
 						"providerUUID", providerUUID, "keyName", providerKeyName, "error", err)
 					cleanupErrs = append(cleanupErrs, fmt.Sprintf("revoke provider key %s: %v", providerKeyName, err))
@@ -3256,7 +3260,7 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 
 		// Step 3: Undeploy proxy deployments.
 		if err := s.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil &&
-			!errors.Is(err, utils.ErrLLMProxyNotFound) {
+			!errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 			s.logger.Warn("Failed to undeploy proxy during agent deletion",
 				"proxyHandle", proxyHandle, "error", err)
 			cleanupErrs = append(cleanupErrs, fmt.Sprintf("undeploy proxy %s: %v", proxyHandle, err))
@@ -3264,7 +3268,7 @@ func (s *agentConfigurationService) DeleteForAgentDeletion(ctx context.Context, 
 
 		// Step 4: Delete proxy record.
 		if err := s.llmProxyService.Delete(ctx, proxyHandle, ouID, s.llmProxyDeploymentService); err != nil {
-			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
+			if !errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 				s.logger.Warn("Failed to delete proxy record during agent deletion",
 					"proxyHandle", proxyHandle, "error", err)
 				cleanupErrs = append(cleanupErrs, fmt.Sprintf("delete proxy %s: %v", proxyHandle, err))
@@ -3423,7 +3427,7 @@ func (s *agentConfigurationService) ProviderEnvironments(
 	provider, err := s.llmProviderRepo.GetByHandle(providerHandle, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("provider %s not found: %w", providerHandle, utils.ErrLLMProviderNotFound)
+			return nil, fmt.Errorf("provider %s not found: %w", providerHandle, gwerr.ErrLLMProviderNotFound)
 		}
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
@@ -3511,7 +3515,7 @@ func (s *agentConfigurationService) llmProxyGateway(
 // placedGatewaysOfProxy is the gateways the LLM proxy is placed on; none when the proxy is gone.
 func (s *agentConfigurationService) placedGatewaysOfProxy(ctx context.Context, proxyHandle, ouID string) ([]string, error) {
 	placed, err := s.llmProxyDeploymentService.PlacedGatewaysOfProxy(ctx, proxyHandle, ouID)
-	if err != nil && !errors.Is(err, utils.ErrLLMProxyNotFound) {
+	if err != nil && !errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 		return nil, fmt.Errorf("failed to list the gateways proxy %s is placed on: %w", proxyHandle, err)
 	}
 	return placed, nil
@@ -3729,7 +3733,7 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 			apiKeyId = apiKey.KeyID
 
 			// Encrypt the provider API key for storage in UpstreamAuth.SecretRef
-			encrypted, err := utils.EncryptBytes([]byte(apiKey.APIKey), s.encryptionKey)
+			encrypted, err := aesgcm.Encrypt([]byte(apiKey.APIKey), s.encryptionKey)
 			if err != nil {
 				// revoke created api key
 				if revokeErr := s.llmProviderAPIKeyService.RevokeAPIKey(ctx, config.OUID, provider.UUID.String(), proxyName); revokeErr != nil {
@@ -3743,8 +3747,8 @@ func (s *agentConfigurationService) buildLLMProxyConfig(
 				return nil, "", "", nil, "", fmt.Errorf("failed to encrypt provider API key: %w", err)
 			}
 			encoded := base64.StdEncoding.EncodeToString(encrypted)
-			upstreamAuthConfig.Type = utils.StrAsStrPointer(gwmodels.AuthTypeAPIKey)
-			upstreamAuthConfig.Header = utils.StrAsStrPointer(upstreamHeader)
+			upstreamAuthConfig.Type = gwutil.StrAsStrPointer(gwmodels.AuthTypeAPIKey)
+			upstreamAuthConfig.Header = gwutil.StrAsStrPointer(upstreamHeader)
 			upstreamAuthConfig.SecretRef = &encoded // Store encrypted value instead of plaintext
 			upstreamAuthConfig.Value = nil          // No plaintext in DB
 			proxyConfig.Configuration.UpstreamAuth = &upstreamAuthConfig
@@ -3841,7 +3845,7 @@ func (s *agentConfigurationService) buildEnvironmentVariables(configName string,
 		if customName, ok := overrideMap[key]; ok {
 			name = customName
 		}
-		if err := utils.ValidateEnvironmentVariableName(name); err != nil {
+		if err := gwutil.ValidateEnvironmentVariableName(name); err != nil {
 			return nil, fmt.Errorf("invalid environment variable name %q for key %q: %w", name, key, err)
 		}
 		if conflictKey, exists := usedNames[name]; exists {
@@ -3903,7 +3907,7 @@ func (s *agentConfigurationService) buildMCPMappingEnvironmentVariables(mappingN
 		if customName, ok := overrideMap[key]; ok {
 			name = customName
 		}
-		if err := utils.ValidateEnvironmentVariableName(name); err != nil {
+		if err := gwutil.ValidateEnvironmentVariableName(name); err != nil {
 			return nil, fmt.Errorf("invalid environment variable name %q for key %q: %w", name, key, err)
 		}
 		if conflictKey, exists := usedNames[name]; exists {
@@ -4391,7 +4395,7 @@ func (s *agentConfigurationService) dedupeEnvVariablesByKey(configUUID uuid.UUID
 func (s *agentConfigurationService) undeployAndDeleteDeployment(ctx context.Context, proxyHandle string, deploymentID uuid.UUID, gatewayID, ouID string) {
 	if gatewayID != "" {
 		if _, err := s.llmProxyDeploymentService.UndeployLLMProxyDeployment(ctx, proxyHandle, deploymentID.String(), gatewayID, ouID); err != nil &&
-			!errors.Is(err, utils.ErrDeploymentNotActive) {
+			!errors.Is(err, gwerr.ErrDeploymentNotActive) {
 			s.logger.Error(
 				"Failed to undeploy deployment during rollback",
 				"proxyHandle", proxyHandle,
@@ -4419,7 +4423,7 @@ func (s *agentConfigurationService) restorePriorDeployment(res rollbackResource,
 	_, err := s.llmProxyDeploymentService.RestoreLLMProxyDeployment(
 		res.proxyHandle, res.restoreDeploymentID.String(), res.gatewayID, ouID,
 	)
-	if err != nil && !errors.Is(err, utils.ErrDeploymentAlreadyDeployed) {
+	if err != nil && !errors.Is(err, gwerr.ErrDeploymentAlreadyDeployed) {
 		s.logger.Error("Failed to restore prior deployment during rollback",
 			"proxyHandle", res.proxyHandle, "deploymentID", res.restoreDeploymentID,
 			"supersededDeploymentID", res.supersededDeploymentID, "error", err)
@@ -4611,17 +4615,17 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 			providerUUID := mapping.LLMProxy.ProviderUUID.String()
 			authName, authIn := llmProxyAPIKeySecurity(mapping.LLMProxy)
 			proxyInfo = &gwmodels.LLMProxyInfo{
-				ProxyUUID:      utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
-				ProxyName:      utils.StrAsStrPointer(mapping.LLMProxy.Handle),
-				ProviderUUID:   utils.StrAsStrPointer(providerUUID),
-				AuthHeaderName: utils.StrAsStrPointer(authName),
-				AuthIn:         utils.StrAsStrPointer(authIn),
+				ProxyUUID:      gwutil.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
+				ProxyName:      gwutil.StrAsStrPointer(mapping.LLMProxy.Handle),
+				ProviderUUID:   gwutil.StrAsStrPointer(providerUUID),
+				AuthHeaderName: gwutil.StrAsStrPointer(authName),
+				AuthIn:         gwutil.StrAsStrPointer(authIn),
 				Policies:       mapping.PolicyConfiguration,
 				Resilience:     mapping.LLMProxy.Configuration.Resilience,
 			}
 			if provider, err := s.llmProviderRepo.GetByUUID(providerUUID, config.OUID); err == nil {
 				if provider.Artifact != nil {
-					proxyInfo.ProviderName = utils.StrAsStrPointer(provider.Artifact.Handle)
+					proxyInfo.ProviderName = gwutil.StrAsStrPointer(provider.Artifact.Handle)
 				}
 				proxyInfo.ProviderPolicies = provider.Configuration.Policies
 			}
@@ -4656,9 +4660,9 @@ func (s *agentConfigurationService) buildConfigResponse(ctx context.Context, con
 				proxyName = mapping.MCPProxy.Configuration.Name
 			}
 			proxyInfo = &gwmodels.LLMProxyInfo{
-				ProxyUUID:      utils.StrAsStrPointer(mapping.ArtifactUUID.String()),
-				ProviderName:   utils.StrAsStrPointer(proxyName),
-				AuthHeaderName: utils.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
+				ProxyUUID:      gwutil.StrAsStrPointer(mapping.ArtifactUUID.String()),
+				ProviderName:   gwutil.StrAsStrPointer(proxyName),
+				AuthHeaderName: gwutil.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
 			}
 			sharedArtifactUUID := s.resolveMCPMappingAPIID(ctx, &mapping, config.OUID)
 			if gateway, err := s.mcpArtifactGateway(ctx, policy, mapping.MCPProxy, sharedArtifactUUID, config.OUID, mapping.EnvironmentUUID); err == nil && sharedArtifactUUID != uuid.Nil {
@@ -4745,17 +4749,17 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 			providerUUID := mapping.LLMProxy.ProviderUUID.String()
 			authName, authIn := llmProxyAPIKeySecurity(mapping.LLMProxy)
 			proxyInfo = &gwmodels.LLMProxyInfo{
-				ProxyUUID:      utils.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
-				ProxyName:      utils.StrAsStrPointer(mapping.LLMProxy.Handle),
-				ProviderUUID:   utils.StrAsStrPointer(providerUUID),
-				AuthHeaderName: utils.StrAsStrPointer(authName),
-				AuthIn:         utils.StrAsStrPointer(authIn),
+				ProxyUUID:      gwutil.StrAsStrPointer(mapping.LLMProxy.UUID.String()),
+				ProxyName:      gwutil.StrAsStrPointer(mapping.LLMProxy.Handle),
+				ProviderUUID:   gwutil.StrAsStrPointer(providerUUID),
+				AuthHeaderName: gwutil.StrAsStrPointer(authName),
+				AuthIn:         gwutil.StrAsStrPointer(authIn),
 				Policies:       mapping.PolicyConfiguration,
 				Resilience:     mapping.LLMProxy.Configuration.Resilience,
 			}
 			if provider, err := s.llmProviderRepo.GetByUUID(providerUUID, config.OUID); err == nil {
 				if provider.Artifact != nil {
-					proxyInfo.ProviderName = utils.StrAsStrPointer(provider.Artifact.Handle)
+					proxyInfo.ProviderName = gwutil.StrAsStrPointer(provider.Artifact.Handle)
 				}
 				proxyInfo.ProviderPolicies = provider.Configuration.Policies
 			}
@@ -4801,9 +4805,9 @@ func (s *agentConfigurationService) buildExternalAgentConfigResponse(
 				proxyName = mapping.MCPProxy.Configuration.Name
 			}
 			proxyInfo = &gwmodels.LLMProxyInfo{
-				ProxyUUID:      utils.StrAsStrPointer(mapping.ArtifactUUID.String()),
-				ProviderName:   utils.StrAsStrPointer(proxyName),
-				AuthHeaderName: utils.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
+				ProxyUUID:      gwutil.StrAsStrPointer(mapping.ArtifactUUID.String()),
+				ProviderName:   gwutil.StrAsStrPointer(proxyName),
+				AuthHeaderName: gwutil.StrAsStrPointer(mcpProxyAPIKeyHeaderName(mapping.MCPProxy, mapping.EnvironmentUUID.String())),
 			}
 			sharedArtifactUUID := s.resolveMCPMappingAPIID(ctx, &mapping, config.OUID)
 			var gateway *gwmodels.Gateway
@@ -4895,7 +4899,7 @@ func (s *agentConfigurationService) cleanupMCPConfig(ctx context.Context, config
 func mcpProxyBindableFromProject(proxy *gwmodels.MCPProxy, agentProjectUUID string) error {
 	if proxy.ProjectUUID != nil {
 		if *proxy.ProjectUUID != agentProjectUUID {
-			return fmt.Errorf("MCP proxy %s not found: %w", proxyHandleOf(proxy), utils.ErrMCPProxyNotFound)
+			return fmt.Errorf("MCP proxy %s not found: %w", proxyHandleOf(proxy), gwerr.ErrMCPProxyNotFound)
 		}
 		return nil
 	}

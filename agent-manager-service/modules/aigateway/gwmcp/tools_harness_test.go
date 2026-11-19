@@ -24,13 +24,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -72,7 +73,7 @@ func (m *MockToolsetHandler) GetAgentByName(_ context.Context, orgID, projectNam
 	if name != testAgentName {
 		return modkit.Agent{}, modkit.ErrNotFound
 	}
-	return modkit.Agent{ID: "agent-1", OrgID: orgID, ProjectName: projectName, Name: name, Provisioning: string(utils.InternalAgent)}, nil
+	return modkit.Agent{ID: "agent-1", OrgID: orgID, ProjectName: projectName, Name: name, Provisioning: string(gwutil.InternalAgent)}, nil
 }
 
 func (m *MockToolsetHandler) GetAgentDeployments(

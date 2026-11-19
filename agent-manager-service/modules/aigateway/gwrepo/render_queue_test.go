@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const testLease = 2 * time.Minute
@@ -152,7 +153,7 @@ func TestInsertPendingRacingBeginUndeploy(t *testing.T) {
 			assert.Equal(t, gwmodels.DeploymentStatusUndeployed, row.Status, "the undeploy saw the PENDING row")
 			assertQueueClear(t, row)
 		} else {
-			assert.ErrorIs(t, undeployErr, utils.ErrDeploymentNotActive)
+			assert.ErrorIs(t, undeployErr, gwerr.ErrDeploymentNotActive)
 			assert.Equal(t, gwmodels.DeploymentStatusPending, row.Status,
 				"the undeploy ran first; the render's record re-check undeploys this row")
 		}

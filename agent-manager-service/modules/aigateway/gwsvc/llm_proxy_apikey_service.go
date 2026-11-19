@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
@@ -81,12 +83,12 @@ func (s *LLMProxyAPIKeyService) resolveProjectScopedProxy(
 	proxy, err := s.proxyRepo.GetByIDAndProject(proxyID, orgID, project.UUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
 	if proxy == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 	return proxy, nil
 }
@@ -119,12 +121,12 @@ func (s *LLMProxyAPIKeyService) CreateAPIKey(
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
 	if proxy == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{
@@ -146,12 +148,12 @@ func (s *LLMProxyAPIKeyService) RevokeAPIKey(
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrLLMProxyNotFound
+			return gwerr.ErrLLMProxyNotFound
 		}
 		return fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
 	if proxy == nil {
-		return utils.ErrLLMProxyNotFound
+		return gwerr.ErrLLMProxyNotFound
 	}
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{
@@ -175,12 +177,12 @@ func (s *LLMProxyAPIKeyService) RotateAPIKey(
 	proxy, err := s.proxyRepo.GetByID(proxyID, orgID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
 	if proxy == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{

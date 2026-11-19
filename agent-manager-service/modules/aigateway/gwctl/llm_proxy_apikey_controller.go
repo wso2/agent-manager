@@ -21,6 +21,9 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -57,7 +60,7 @@ func (c *llmProxyAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Re
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
+	projName := r.PathValue(gwutil.PathParamProjName)
 	proxyID := r.PathValue("id")
 
 	log.Info("ListLLMProxyAPIKeys: starting", "ouID", ouID, "projName", projName, "proxyID", proxyID)
@@ -69,7 +72,7 @@ func (c *llmProxyAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Re
 			log.Warn("ListLLMProxyAPIKeys: project not found", "ouID", ouID, "projName", projName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
-		case errors.Is(err, utils.ErrLLMProxyNotFound):
+		case errors.Is(err, gwerr.ErrLLMProxyNotFound):
 			log.Warn("ListLLMProxyAPIKeys: proxy not found", "ouID", ouID, "projName", projName, "proxyID", proxyID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
@@ -130,11 +133,11 @@ func (c *llmProxyAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.R
 			log.Warn("CreateLLMProxyAPIKey: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
-		case errors.Is(err, utils.ErrLLMProxyNotFound):
+		case errors.Is(err, gwerr.ErrLLMProxyNotFound):
 			log.Warn("CreateLLMProxyAPIKey: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("CreateLLMProxyAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
@@ -163,11 +166,11 @@ func (c *llmProxyAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.R
 
 	if err := c.apiKeyService.RevokeAPIKey(ctx, ouID, proxyID, keyName); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProxyNotFound):
+		case errors.Is(err, gwerr.ErrLLMProxyNotFound):
 			log.Warn("RevokeLLMProxyAPIKey: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("RevokeLLMProxyAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
@@ -206,11 +209,11 @@ func (c *llmProxyAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.R
 	response, err := c.apiKeyService.RotateAPIKey(ctx, ouID, proxyID, keyName, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProxyNotFound):
+		case errors.Is(err, gwerr.ErrLLMProxyNotFound):
 			log.Warn("RotateLLMProxyAPIKey: proxy not found", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("RotateLLMProxyAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return

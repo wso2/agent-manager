@@ -23,6 +23,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -33,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // a2aAgentEnv is the agent and environment a per-environment Agent artifact exposes.
@@ -239,7 +240,7 @@ func (k *A2AAgentKind) originCardHeader(proxy *gwmodels.A2AProxy) (*A2ACardFetch
 	if proxy.UpstreamAuthHeader == "" || proxy.UpstreamAuthSecret == "" {
 		return nil, nil //nolint:nilnil // A proxy without a stored credential fetches the card unauthenticated.
 	}
-	value, err := utils.DecryptSecretRef(proxy.UpstreamAuthSecret, k.encryptionKey)
+	value, err := gwutil.DecryptSecretRef(proxy.UpstreamAuthSecret, k.encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt the upstream secret: %w", err)
 	}

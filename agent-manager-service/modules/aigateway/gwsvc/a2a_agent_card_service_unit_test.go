@@ -22,6 +22,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -111,7 +113,7 @@ func TestGetA2AAgentCardIsNotFoundForAPlatformAgentWithNoRow(t *testing.T) {
 	}
 
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, utils.ErrAgentCardNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrAgentCardNotFound)
 	assert.Empty(t, repo.EnqueueCalls(), "a read never queues a fetch")
 }
 
@@ -121,7 +123,7 @@ func TestGetA2AAgentCardIsNotFoundForAnExternalAgentWithNoSource(t *testing.T) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, utils.ErrAgentCardNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrAgentCardNotFound)
 }
 
 func TestGetA2AAgentCardIsNotFoundForANonA2AAgent(t *testing.T) {
@@ -130,7 +132,7 @@ func TestGetA2AAgentCardIsNotFoundForANonA2AAgent(t *testing.T) {
 		return nil, gwrepo.ErrA2AAgentCardNotFound
 	}
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, utils.ErrAgentCardNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrAgentCardNotFound)
 }
 
 func TestGetA2AAgentCardDoesNotMaskRealErrors(t *testing.T) {
@@ -140,7 +142,7 @@ func TestGetA2AAgentCardDoesNotMaskRealErrors(t *testing.T) {
 	}
 	_, err := svc.GetA2AAgentCard(context.Background(), "org", "proj", "agent", "dev")
 	assert.ErrorIs(t, err, assert.AnError)
-	assert.NotErrorIs(t, err, utils.ErrAgentCardNotFound)
+	assert.NotErrorIs(t, err, gwerr.ErrAgentCardNotFound)
 }
 
 func TestGetA2AAgentCardMapsAMissingAgent(t *testing.T) {
@@ -162,7 +164,7 @@ func TestRefreshA2AAgentCardRefusesAPlatformAgent(t *testing.T) {
 	repo.EnqueueFunc = nil
 
 	err := svc.RefreshA2AAgentCard(tierGrantedCtx(t), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, utils.ErrAgentNotDeployedInEnvironment)
+	assert.ErrorIs(t, err, gwerr.ErrAgentNotDeployedInEnvironment)
 }
 
 // The proxy service requeues or republishes under its lock; a plain requeue here could un-park a proxied card.
@@ -184,7 +186,7 @@ func TestRefreshA2AAgentCardDoesNotMaskAProxyServiceFailure(t *testing.T) {
 func TestRefreshA2AAgentCardRejectsANonA2AAgent(t *testing.T) {
 	svc, repo, _ := cardServiceFor("internal", "custom-api")
 	err := svc.RefreshA2AAgentCard(tierGrantedCtx(t), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, utils.ErrAgentNotA2A)
+	assert.ErrorIs(t, err, gwerr.ErrAgentNotA2A)
 	assert.Empty(t, repo.EnqueueCalls())
 }
 
@@ -228,7 +230,7 @@ func TestSetA2ACardSourceRejects(t *testing.T) {
 		name, provisioning, subType, url string
 		want                             error
 	}{
-		{"platform agent", "internal", "a2a-agent", "https://93.184.215.14/c", utils.ErrAgentCardSourceNotExternal},
+		{"platform agent", "internal", "a2a-agent", "https://93.184.215.14/c", gwerr.ErrAgentCardSourceNotExternal},
 		{"loopback URL", "external", "a2a-agent", "http://127.0.0.1/c", ssrf.ErrInvalidURL},
 		{"non-http scheme", "external", "a2a-agent", "ftp://93.184.215.14/c", ssrf.ErrInvalidURL},
 		{"empty URL", "external", "a2a-agent", "   ", ssrf.ErrInvalidURL},
@@ -268,7 +270,7 @@ func TestDeleteA2ACardSourceRejectsAPlatformAgent(t *testing.T) {
 	hooks := &proxyHooksStub{}
 	svc, _, _ := cardServiceWithHooks("internal", "a2a-agent", hooks)
 	err := svc.DeleteA2ACardSource(tierGrantedCtx(t), "org", "proj", "agent", "dev")
-	assert.ErrorIs(t, err, utils.ErrAgentCardSourceNotExternal)
+	assert.ErrorIs(t, err, gwerr.ErrAgentCardSourceNotExternal)
 	assert.Zero(t, hooks.removed)
 }
 

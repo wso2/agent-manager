@@ -24,7 +24,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // WithAudit returns a middleware that records one audit event per request for
@@ -52,7 +51,7 @@ func WithAudit(recorder audit.Recorder, meta audit.RouteMeta) func(http.HandlerF
 			ctx := audit.WithRecorder(r.Context(), recorder)
 			ctx = audit.WithSource(ctx, audit.Source{
 				Surface:   meta.Surface,
-				IP:        utils.ClientIP(r),
+				IP:        httpx.ClientIP(r),
 				UserAgent: r.UserAgent(),
 				Method:    meta.Method,
 				Pattern:   meta.Path,
@@ -115,7 +114,7 @@ func WithAuditRecorder(recorder audit.Recorder, surface audit.Surface) func(http
 			ctx := audit.WithRecorder(r.Context(), recorder)
 			ctx = audit.WithSource(ctx, audit.Source{
 				Surface:   surface,
-				IP:        utils.ClientIP(r),
+				IP:        httpx.ClientIP(r),
 				UserAgent: r.UserAgent(),
 				Method:    r.Method,
 				// Surfaces without a registrar have no route pattern, so the

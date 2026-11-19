@@ -22,13 +22,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Gateways is what the core reads and locks gateways through: the gateway repository.
@@ -133,7 +134,7 @@ func Clash(self uuid.UUID, next Route, deployed []gwmodels.GatewayDeploymentCont
 	return Route{}, false
 }
 
-// CheckContext returns an error wrapping utils.ErrContextInUse when next, self's route on gateway, overlaps another
+// CheckContext returns an error wrapping gwerr.ErrContextInUse when next, self's route on gateway, overlaps another
 // artifact's there. It reads what the gateway is told to hold, its desired-deployed deployments, so an artifact
 // placed but never sent is not seen. The caller holds the gateway lock for the check to be decisive.
 func CheckContext(
@@ -164,7 +165,7 @@ func CheckContext(
 		return fmt.Errorf("failed to read the gateway's artifacts: %w", err)
 	}
 	if other, clash := Clash(self, next, contents, gateway.Vhost); clash {
-		return fmt.Errorf("%w: %s overlaps %s on gateway %s", utils.ErrContextInUse, next.Context, other.Context, gateway.UUID)
+		return fmt.Errorf("%w: %s overlaps %s on gateway %s", gwerr.ErrContextInUse, next.Context, other.Context, gateway.UUID)
 	}
 	return nil
 }
@@ -183,7 +184,7 @@ func (c *Core) checkContext(ctx context.Context, tx *gorm.DB, p gwmodels.Placeme
 		return fmt.Errorf("failed to read gateway %s: %w", p.GatewayUUID, err)
 	}
 	if err := CheckContext(ctx, c.repo.WithTx(tx), p.OUID, gateway, p.ArtifactUUID, RouteOf(content, gateway.Vhost)); err != nil {
-		if errors.Is(err, utils.ErrContextInUse) {
+		if errors.Is(err, gwerr.ErrContextInUse) {
 			return Permanent(err)
 		}
 		return err

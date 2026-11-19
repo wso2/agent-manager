@@ -23,12 +23,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type attachLLMProviderInput struct {
@@ -198,7 +199,7 @@ func attachConfig(
 	if configName == "" {
 		configName = target
 	}
-	if err := utils.ValidateConfigName(configName); err != nil {
+	if err := gwutil.ValidateConfigName(configName); err != nil {
 		return nil, fmt.Errorf("%s: invalid config_name: %w", toolName, err)
 	}
 
@@ -344,7 +345,7 @@ func isExternalAgent(ctx context.Context, agents CoreReader, ouID, projectName, 
 	if err != nil {
 		return false, err
 	}
-	return agent.Provisioning == string(utils.ExternalAgent), nil
+	return agent.Provisioning == string(gwutil.ExternalAgent), nil
 }
 
 // revokeIssuedKeys revokes the key the create issued in each of an external

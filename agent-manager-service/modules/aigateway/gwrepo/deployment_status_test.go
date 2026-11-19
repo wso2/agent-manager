@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // seedPlacement writes a gateway and an artifact of kind in a fresh org, with no status row.
@@ -312,7 +313,7 @@ func TestBeginUndeploy(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = beginUndeploy(t, p)
-		assert.ErrorIs(t, err, utils.ErrDeploymentNotActive)
+		assert.ErrorIs(t, err, gwerr.ErrDeploymentNotActive)
 	})
 	t.Run("an undeployed row with a deploy owed only loses its queue", func(t *testing.T) {
 		p := seedPlacement(t, gwmodels.KindLLMProxy)
@@ -332,11 +333,11 @@ func TestBeginUndeploy(t *testing.T) {
 		assertQueueClear(t, row)
 
 		_, err = beginUndeploy(t, p)
-		assert.ErrorIs(t, err, utils.ErrDeploymentNotActive, "with no queue left there is nothing to undeploy")
+		assert.ErrorIs(t, err, gwerr.ErrDeploymentNotActive, "with no queue left there is nothing to undeploy")
 	})
 	t.Run("no row is not active", func(t *testing.T) {
 		_, err := beginUndeploy(t, seedPlacement(t, gwmodels.KindLLMProxy))
-		assert.ErrorIs(t, err, utils.ErrDeploymentNotActive)
+		assert.ErrorIs(t, err, gwerr.ErrDeploymentNotActive)
 	})
 }
 
@@ -647,7 +648,7 @@ func TestDeleteKeepsTheStatusRow(t *testing.T) {
 	deployment := startDeploy(t, p)
 	id, artifact := deployment.DeploymentID.String(), p.ArtifactUUID.String()
 
-	assert.ErrorIs(t, repo.Delete(id, artifact, p.OUID), utils.ErrDeploymentIsDeployed)
+	assert.ErrorIs(t, repo.Delete(id, artifact, p.OUID), gwerr.ErrDeploymentIsDeployed)
 	assert.Equal(t, deployment.DeploymentID, *statusRow(t, p).DeploymentID)
 
 	_, err := beginUndeploy(t, p)

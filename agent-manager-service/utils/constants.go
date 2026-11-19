@@ -65,14 +65,7 @@ const (
 	PathParamAgentName    = "agentName"
 	PathParamBuildName    = "buildName"
 	PathParamTraceId      = "traceId"
-	PathParamProviderId   = "providerId"
-	PathParamTemplateId   = "templateId"
-	PathParamProxyId      = "proxyId"
-	PathParamConfigId     = "configId"
-	PathParamGatewayId    = "gatewayId"
 	PathParamPipelineName = "pipelineName"
-	PathParamEnvID        = "envID"
-	PathParamDeploymentId = "deploymentId"
 	PathParamSecretName   = "secretName"
 	PathParamUserID       = "userID"
 	PathParamGroupID      = "groupID"
@@ -80,7 +73,6 @@ const (
 	PathParamKindName     = "kindName"
 	PathParamVersionTag   = "versionTag"
 	PathParamScopeName    = "scopeName"
-	PathParamScopeAction  = "scopeAction"
 )
 
 // Pagination constants

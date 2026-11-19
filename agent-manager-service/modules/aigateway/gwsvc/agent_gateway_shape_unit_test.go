@@ -19,6 +19,9 @@ package gwsvc
 import (
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,11 +30,10 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestAgentGatewayShapeTable(t *testing.T) {
-	shape, ok := agentGatewayShapeFor(string(utils.AgentSubTypeA2A))
+	shape, ok := agentGatewayShapeFor(string(gwutil.AgentSubTypeA2A))
 	require.True(t, ok)
 	assert.Equal(t, a2aAgentShape, shape)
 	byProtocol, ok := agentGatewayShapeForProtocol(shape.Protocol)
@@ -39,7 +41,7 @@ func TestAgentGatewayShapeTable(t *testing.T) {
 	assert.Equal(t, shape, byProtocol)
 	assert.Equal(t, gwmodels.KindAgent, a2aAgentShape.ArtifactKind)
 
-	for _, subType := range []string{string(utils.AgentSubTypeChatAPI), "unknown"} {
+	for _, subType := range []string{string(gwutil.AgentSubTypeChatAPI), "unknown"} {
 		_, ok = agentGatewayShapeFor(subType)
 		assert.False(t, ok, "subtype %s has no shape", subType)
 	}
@@ -48,20 +50,20 @@ func TestAgentGatewayShapeTable(t *testing.T) {
 }
 
 func TestAgentGatewayShapeOf(t *testing.T) {
-	agentOf := func(provisioning utils.AgentProvisioningType, subType utils.AgentSubType) *models.AgentResponse {
+	agentOf := func(provisioning gwutil.AgentProvisioningType, subType gwutil.AgentSubType) *models.AgentResponse {
 		return &models.AgentResponse{
 			Provisioning: models.Provisioning{Type: string(provisioning)},
-			Type:         models.AgentType{Type: string(utils.AgentTypeAPI), SubType: string(subType)},
+			Type:         models.AgentType{Type: string(gwutil.AgentTypeAPI), SubType: string(subType)},
 		}
 	}
 
 	t.Run("an external agent is always A2A", func(t *testing.T) {
-		shape, ok := agentGatewayShapeOf(agentOf(utils.ExternalAgent, utils.AgentSubTypeChatAPI))
+		shape, ok := agentGatewayShapeOf(agentOf(gwutil.ExternalAgent, gwutil.AgentSubTypeChatAPI))
 		require.True(t, ok)
 		assert.Equal(t, a2aAgentShape, shape)
 	})
 	t.Run("a platform agent of a REST subtype has none", func(t *testing.T) {
-		_, ok := agentGatewayShapeOf(agentOf(utils.InternalAgent, utils.AgentSubTypeCustomAPI))
+		_, ok := agentGatewayShapeOf(agentOf(gwutil.InternalAgent, gwutil.AgentSubTypeCustomAPI))
 		assert.False(t, ok)
 	})
 }
@@ -78,7 +80,7 @@ func TestAgentEnvAPIArtifactKinds(t *testing.T) {
 	assert.Equal(t, gwmodels.KindRestAPI, found.Kind)
 
 	_, err = agentEnvAPIArtifact(repo, "ou", "proj", "agent", "env", gwmodels.KindAgent)
-	assert.ErrorIs(t, err, utils.ErrArtifactNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrArtifactNotFound)
 
 	_, err = agentEnvAPIArtifact(repo, "ou", "proj", "agent", "env", gwmodels.AgentArtifactKinds...)
 	assert.NoError(t, err)

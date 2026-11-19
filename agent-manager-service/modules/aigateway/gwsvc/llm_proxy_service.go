@@ -23,6 +23,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -30,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProxyService handles LLM proxy business logic
@@ -82,19 +84,19 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 	providerModel, err := s.providerRepo.GetByUUID(provider, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProviderNotFound
+			return nil, gwerr.ErrLLMProviderNotFound
 		}
 		return nil, fmt.Errorf("failed to validate provider: %w", err)
 	}
 	if providerModel == nil {
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 	// Whether the provider is mid-delete is deliberately NOT checked here: reading
 	// providerModel.Status now and inserting later would itself be a TOCTOU race
 	// against LLMProviderService.Delete's MarkDeleting. Instead proxyRepo.Create
 	// locks and rechecks the provider's status inside the same transaction as the
 	// insert (see LLMProxyRepo.Create / IsDeletingForUpdate), returning
-	// utils.ErrLLMProviderBeingDeleted atomically with the insert decision.
+	// gwerr.ErrLLMProviderBeingDeleted atomically with the insert decision.
 
 	// Check if proxy already exists
 	exists, err := s.proxyRepo.Exists(handle, ouID)
@@ -102,7 +104,7 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 		return nil, fmt.Errorf("failed to check proxy exists: %w", err)
 	}
 	if exists {
-		return nil, utils.ErrLLMProxyExists
+		return nil, gwerr.ErrLLMProxyExists
 	}
 
 	// Set default values
@@ -120,7 +122,7 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 	// Encrypt upstream auth value if provided
 	if proxy.Configuration.UpstreamAuth != nil &&
 		proxy.Configuration.UpstreamAuth.Value != nil {
-		encoded, err := utils.EncryptSecretRef(*proxy.Configuration.UpstreamAuth.Value, s.encryptionKey)
+		encoded, err := gwutil.EncryptSecretRef(*proxy.Configuration.UpstreamAuth.Value, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
 		}
@@ -130,8 +132,8 @@ func (s *LLMProxyService) Create(ctx context.Context, ouID, createdBy string, pr
 
 	// Create proxy
 	if err := s.proxyRepo.Create(ctx, proxy, handle, name, version, ouID); err != nil {
-		if errors.Is(err, utils.ErrLLMProviderBeingDeleted) {
-			return nil, utils.ErrLLMProviderBeingDeleted
+		if errors.Is(err, gwerr.ErrLLMProviderBeingDeleted) {
+			return nil, gwerr.ErrLLMProviderBeingDeleted
 		}
 		return nil, fmt.Errorf("failed to create proxy: %w", err)
 	}
@@ -185,12 +187,12 @@ func (s *LLMProxyService) Get(proxyID, ouID string) (*gwmodels.LLMProxy, error) 
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	return proxy, nil
@@ -206,12 +208,12 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProx
 	existing, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get existing proxy: %w", err)
 	}
 	if existing == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	// Validate provider if specified
@@ -220,12 +222,12 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProx
 		providerModel, err := s.providerRepo.GetByUUID(provider, ouID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, utils.ErrLLMProviderNotFound
+				return nil, gwerr.ErrLLMProviderNotFound
 			}
 			return nil, fmt.Errorf("failed to validate provider: %w", err)
 		}
 		if providerModel == nil {
-			return nil, utils.ErrLLMProviderNotFound
+			return nil, gwerr.ErrLLMProviderNotFound
 		}
 		updates.ProviderUUID = providerModel.UUID
 	}
@@ -251,7 +253,7 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProx
 	// Encrypt upstream auth value if a new value is provided
 	if updates.Configuration.UpstreamAuth != nil &&
 		updates.Configuration.UpstreamAuth.Value != nil {
-		encoded, err := utils.EncryptSecretRef(*updates.Configuration.UpstreamAuth.Value, s.encryptionKey)
+		encoded, err := gwutil.EncryptSecretRef(*updates.Configuration.UpstreamAuth.Value, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
 		}
@@ -262,7 +264,7 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProx
 	// Update proxy
 	if err := s.proxyRepo.Update(updates, proxyID, ouID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to update proxy: %w", err)
 	}
@@ -273,7 +275,7 @@ func (s *LLMProxyService) Update(proxyID, ouID string, updates *gwmodels.LLMProx
 		return nil, fmt.Errorf("failed to fetch updated proxy: %w", err)
 	}
 	if updated == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	return updated, nil
@@ -324,16 +326,16 @@ func (s *LLMProxyService) deleteProxy(ctx context.Context, proxyID, ouID, projec
 	}
 	proxy, err := s.proxyRepo.GetByIDCtx(ctx, proxyID, ouID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return utils.ErrLLMProxyNotFound
+		return gwerr.ErrLLMProxyNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("resolve proxy for deletion: %w", err)
 	}
 	if proxy == nil {
-		return utils.ErrLLMProxyNotFound
+		return gwerr.ErrLLMProxyNotFound
 	}
 	if projectUUID != "" && proxy.ProjectUUID.String() != projectUUID {
-		return utils.ErrLLMProxyNotFound
+		return gwerr.ErrLLMProxyNotFound
 	}
 	if deploymentService == nil {
 		return proxyDeleteError(s.proxyRepo.DeleteInProject(ctx, proxyID, ouID, proxy.ProjectUUID.String()))
@@ -355,7 +357,7 @@ func (s *LLMProxyService) deleteProxy(ctx context.Context, proxyID, ouID, projec
 
 func proxyDeleteError(err error) error {
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return utils.ErrLLMProxyNotFound
+		return gwerr.ErrLLMProxyNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("delete proxy: %w", err)
@@ -373,12 +375,12 @@ func (s *LLMProxyService) ListByProvider(ouID, providerID string, limit, offset 
 	provider, err := s.providerRepo.GetByUUID(providerID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, 0, utils.ErrLLMProviderNotFound
+			return nil, 0, gwerr.ErrLLMProviderNotFound
 		}
 		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
-		return nil, 0, utils.ErrLLMProviderNotFound
+		return nil, 0, gwerr.ErrLLMProviderNotFound
 	}
 
 	// List proxies by provider UUID

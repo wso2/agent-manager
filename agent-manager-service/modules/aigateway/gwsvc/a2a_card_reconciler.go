@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -325,7 +327,7 @@ func (s *a2aCardReconcilerService) logSuperseded(row gwmodels.A2AAgentCard) {
 
 // a2aCardRetryIn is min(5s · 2^attempt, 60s).
 func a2aCardRetryIn(attempt int) time.Duration {
-	return utils.ExponentialBackoff(attempt, a2aCardBaseBackoff, a2aCardMaxBackoff)
+	return gwutil.ExponentialBackoff(attempt, a2aCardBaseBackoff, a2aCardMaxBackoff)
 }
 
 // a2aCardHash is SHA-256 over the card re-encoded with sorted keys, so reformatting is not a change.

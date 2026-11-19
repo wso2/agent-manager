@@ -19,12 +19,13 @@ package gwsvc
 import (
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func mappedTo(env uuid.UUID, gw *gwmodels.Gateway) []gwmodels.GatewayEnvironmentMapping {
@@ -47,7 +48,7 @@ func TestAssignGatewaySecondEnvironmentRefused(t *testing.T) {
 
 			err := svc.AssignGatewayToEnvironment(gw.UUID.String(), uuid.NewString())
 
-			require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
+			require.ErrorIs(t, err, gwerr.ErrGatewayEnvironmentFixed)
 		})
 	}
 }
@@ -96,5 +97,5 @@ func TestRegisterGatewayWithTwoEnvironmentsRefused(t *testing.T) {
 	_, err := svc.RegisterGateway("ou-1", "gw1", "GW", "", "https://ext.example.com", "", false, "EGRESS", nil,
 		[]string{uuid.NewString(), uuid.NewString()}, gwmodels.GatewayHostingManaged)
 
-	require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
+	require.ErrorIs(t, err, gwerr.ErrGatewayEnvironmentFixed)
 }

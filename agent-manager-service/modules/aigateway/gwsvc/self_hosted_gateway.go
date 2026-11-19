@@ -20,12 +20,13 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // SelfHostedGatewayInput is the registration request for a self-hosted gateway.
@@ -67,14 +68,14 @@ func (s *PlatformGatewayService) ListSelfHostedGateways(ouID string, limit, offs
 // so a self-hosted route never reveals or touches a managed gateway.
 func (s *PlatformGatewayService) RequireSelfHosted(gatewayID, ouID string) (*gwmodels.Gateway, error) {
 	if _, err := uuid.Parse(gatewayID); err != nil {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	gateway, err := normalizeGatewayLookup(s.gatewayRepo.GetByUUID(gatewayID))
 	if err != nil {
 		return nil, err
 	}
 	if gateway.OUID != ouID || gateway.IsManaged() {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	return gateway, nil
 }

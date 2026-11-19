@@ -28,12 +28,15 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ProxySecretContext holds optional KV path fields for secret storage.
@@ -218,15 +221,15 @@ func (p *LLMProxyProvisioner) ProvisionProxy(ctx context.Context, params Provisi
 				return nil, fmt.Errorf("provider %s has no artifact handle", provider.UUID.String())
 			}
 
-			encrypted, err := utils.EncryptBytes([]byte(apiKey.APIKey), p.encryptionKey)
+			encrypted, err := aesgcm.Encrypt([]byte(apiKey.APIKey), p.encryptionKey)
 			if err != nil {
 				p.RollbackProxy(ctx, rb, params.OrgName)
 				return nil, fmt.Errorf("failed to encrypt provider API key: %w", err)
 			}
 			encoded := base64.StdEncoding.EncodeToString(encrypted)
 			proxyConfig.Configuration.UpstreamAuth = &gwmodels.UpstreamAuth{
-				Type:      utils.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
-				Header:    utils.StrAsStrPointer(upstreamHeader),
+				Type:      gwutil.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
+				Header:    gwutil.StrAsStrPointer(upstreamHeader),
 				SecretRef: &encoded,
 				Value:     nil,
 			}
@@ -336,7 +339,7 @@ func (p *LLMProxyProvisioner) RollbackProxy(ctx context.Context, state ProxyRoll
 	}
 	if state.ProxyHandle != "" {
 		if err := p.llmProxyService.Delete(ctx, state.ProxyHandle, ouID, p.llmProxyDeploymentService); err != nil {
-			if !errors.Is(err, utils.ErrLLMProxyNotFound) {
+			if !errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 				p.logger.Error("Failed to delete proxy during rollback", "proxyHandle", state.ProxyHandle, "error", err)
 			}
 		}
@@ -380,7 +383,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *gwmodels.
 
 	// Undeploy the proxy wherever it is placed.
 	if err := p.llmProxyDeploymentService.UndeployEverywhere(ctx, proxyHandle, ouID); err != nil {
-		if !errors.Is(err, utils.ErrLLMProxyNotFound) {
+		if !errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 			p.logger.Error("Failed to undeploy proxy during cleanup", "proxyHandle", proxyHandle, "error", err)
 			cleanupErrs = append(cleanupErrs, fmt.Errorf("undeploy proxy: %w", err))
 		} else {
@@ -396,7 +399,7 @@ func (p *LLMProxyProvisioner) CleanupProxy(ctx context.Context, proxy *gwmodels.
 
 	// Delete proxy record.
 	if err := p.llmProxyService.Delete(ctx, proxyHandle, ouID, p.llmProxyDeploymentService); err != nil {
-		if !errors.Is(err, utils.ErrLLMProxyNotFound) {
+		if !errors.Is(err, gwerr.ErrLLMProxyNotFound) {
 			return fmt.Errorf("failed to delete proxy %q: %w", proxyHandle, err)
 		}
 	}

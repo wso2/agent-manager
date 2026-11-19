@@ -24,6 +24,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
@@ -84,7 +87,7 @@ func (s *a2aAgentCardService) GetA2AAgentCard(
 		return nil, err
 	}
 	// No row means no fetch is queued; a synthetic pending would never resolve.
-	return nil, utils.ErrAgentCardNotFound
+	return nil, gwerr.ErrAgentCardNotFound
 }
 
 func (s *a2aAgentCardService) RefreshA2AAgentCard(
@@ -111,13 +114,13 @@ func (s *a2aAgentCardService) RefreshA2AAgentCard(
 // requireDeployed refuses a platform fetch the card worker could only wait out and fail.
 func (s *a2aAgentCardService) requireDeployed(ctx context.Context, ouID, agentName, envName string) error {
 	// Only platform-hosted agents have a deployment, and there is no agent runtime.
-	return utils.ErrAgentNotDeployedInEnvironment
+	return gwerr.ErrAgentNotDeployedInEnvironment
 }
 
 func (s *a2aAgentCardService) SetA2ACardSource(
 	ctx context.Context, ouID, projectName, agentName, envName, sourceURL string,
 ) error {
-	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrAgentCardSourceNotExternal)
+	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, gwerr.ErrAgentCardSourceNotExternal)
 	if err != nil {
 		return err
 	}
@@ -137,7 +140,7 @@ func (s *a2aAgentCardService) SetA2ACardSource(
 func (s *a2aAgentCardService) DeleteA2ACardSource(
 	ctx context.Context, ouID, projectName, agentName, envName string,
 ) error {
-	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrAgentCardSourceNotExternal)
+	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, gwerr.ErrAgentCardSourceNotExternal)
 	if err != nil {
 		return err
 	}
@@ -191,14 +194,14 @@ func (s *a2aAgentCardService) dropIfAgentGone(
 	return utils.ErrAgentNotFound
 }
 
-// getA2AAgent is GetProjectAgent refusing an agent that cannot serve A2A with utils.ErrAgentNotA2A.
+// getA2AAgent is GetProjectAgent refusing an agent that cannot serve A2A with gwerr.ErrAgentNotA2A.
 func getA2AAgent(ctx context.Context, oc repositories.PlatformRepository, ouID, projectName, agentName string) (*models.AgentResponse, error) {
 	agent, err := services.GetProjectAgent(ctx, oc, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
 	}
 	if !a2aCapable(agent) {
-		return nil, utils.ErrAgentNotA2A
+		return nil, gwerr.ErrAgentNotA2A
 	}
 	return agent, nil
 }
@@ -230,13 +233,13 @@ func agentGoneOrReplaced(ctx context.Context, oc repositories.PlatformRepository
 }
 
 func isExternalProvisioned(agent *models.AgentResponse) bool {
-	return agent.Provisioning.Type == string(utils.ExternalAgent)
+	return agent.Provisioning.Type == string(gwutil.ExternalAgent)
 }
 
 // a2aCapable is true for every external agent, which serves A2A wherever it registers a card URL, and for an
 // internal agent built as an A2A agent.
 func a2aCapable(agent *models.AgentResponse) bool {
-	return isExternalProvisioned(agent) || utils.IsA2AAgentSubType(agent.Type.SubType)
+	return isExternalProvisioned(agent) || gwutil.IsA2AAgentSubType(agent.Type.SubType)
 }
 
 // validateCardSourceURL wraps every rejection in ssrf.ErrInvalidURL.

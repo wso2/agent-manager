@@ -24,10 +24,11 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ListGatewayDeployments is the gateway's startup sync list: what it should hold, as it stored it. It only reads.
@@ -77,7 +78,7 @@ func syncEtag(artifactID, deploymentID string, deployedAt time.Time) string {
 // can't be resolved, so one bad deployment doesn't fail the gateway's whole batch.
 func (s *GatewayInternalAPIService) FetchDeploymentBatch(
 	ctx context.Context, ouID, gatewayID string, deploymentIDs []string,
-) ([]utils.BatchDeployment, error) {
+) ([]gwutil.BatchDeployment, error) {
 	ids := make([]uuid.UUID, 0, len(deploymentIDs))
 	for _, id := range deploymentIDs {
 		if parsed, err := uuid.Parse(id); err == nil {
@@ -91,7 +92,7 @@ func (s *GatewayInternalAPIService) FetchDeploymentBatch(
 	if err != nil {
 		return nil, err
 	}
-	batch := make([]utils.BatchDeployment, 0, len(contents))
+	batch := make([]gwutil.BatchDeployment, 0, len(contents))
 	for _, c := range contents {
 		kind, artifactID, ok := s.artifacts.GatewayArtifact(c.ArtifactRef)
 		if !ok {
@@ -103,7 +104,7 @@ func (s *GatewayInternalAPIService) FetchDeploymentBatch(
 				"deploymentID", c.DeploymentID, "artifactUUID", c.ArtifactUUID, "gatewayID", gatewayID, "error", err)
 			continue
 		}
-		batch = append(batch, utils.BatchDeployment{
+		batch = append(batch, gwutil.BatchDeployment{
 			DeploymentID: c.DeploymentID.String(), Kind: kind, ArtifactID: artifactID, Content: []byte(resolved),
 		})
 	}

@@ -19,6 +19,8 @@ package gwsvc
 import (
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -26,7 +28,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const testRuntimeURL = "http://api-platform-acme-dev-gw-gateway-gateway-runtime.acme-dev:22893"
@@ -38,7 +39,7 @@ func TestRegisterGateway_PersistsTrimmedRuntimeURL(t *testing.T) {
 	var created *gwmodels.Gateway
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) {
-			return nil, utils.ErrGatewayNotFound
+			return nil, gwerr.ErrGatewayNotFound
 		},
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error { return fn(nil) },
 		CreateTxFunc: func(_ *gorm.DB, gw *gwmodels.Gateway) error {

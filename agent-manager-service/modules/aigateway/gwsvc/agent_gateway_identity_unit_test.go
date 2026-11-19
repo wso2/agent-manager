@@ -21,9 +21,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/stretchr/testify/assert"
 )
 
 const testGatewayEnvUUID = "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f"
@@ -46,7 +46,7 @@ func TestAgentGatewayNameGatewayRules(t *testing.T) {
 	shape := regexp.MustCompile(`^[a-z0-9-]+-[0-9a-f]{16}$`)
 	for _, agentName := range []string{
 		"trip-planner",
-		strings.Repeat("a", utils.MaxResourceNameLength),
+		strings.Repeat("a", gwutil.MaxResourceNameLength),
 		"abcdefghi-jklmn", // the 10th character is the one the prefix cut lands on
 	} {
 		t.Run(agentName, func(t *testing.T) {

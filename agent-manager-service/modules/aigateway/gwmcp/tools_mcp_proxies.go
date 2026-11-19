@@ -21,10 +21,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type listMCPProxiesInput struct {
@@ -71,8 +72,8 @@ func (t *Tools) registerMCPProxyTools(reg Registrar) {
 		Description: "List the MCP proxies in your organization. An MCP proxy publishes an external MCP server through the AI gateway " +
 			"so agents can call its tools with a gateway-issued key. Use a proxy's `id` as the `proxy_id` argument of attach_mcp_proxy_to_agent.",
 		InputSchema: createSchema(map[string]any{
-			"limit":  intProperty(fmt.Sprintf("Optional. Max proxies to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
-			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
+			"limit":  intProperty(fmt.Sprintf("Optional. Max proxies to return (default %d, min %d, max %d).", gwutil.DefaultLimit, gwutil.MinLimit, gwutil.MaxLimit)),
+			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", gwutil.DefaultOffset, gwutil.MinOffset)),
 		}, nil),
 	}, gwaudit.MCPServerRead, listMCPProxies(t.MCPProxies), gwperm.MCPServerRead)
 
@@ -102,10 +103,10 @@ func listMCPProxies(handler MCPProxyToolsetHandler) func(context.Context, listMC
 			out.Total = resp.Pagination.Count
 			for _, p := range resp.List {
 				out.Proxies = append(out.Proxies, mcpProxyItem{
-					ID:      utils.StrPointerAsStr(p.ID, ""),
-					Name:    utils.StrPointerAsStr(p.Name, ""),
-					Version: utils.StrPointerAsStr(p.Version, ""),
-					Status:  utils.StrPointerAsStr(p.Status, ""),
+					ID:      gwutil.StrPointerAsStr(p.ID, ""),
+					Name:    gwutil.StrPointerAsStr(p.Name, ""),
+					Version: gwutil.StrPointerAsStr(p.Version, ""),
+					Status:  gwutil.StrPointerAsStr(p.Status, ""),
 				})
 			}
 		}
@@ -132,7 +133,7 @@ func getMCPProxy(handler MCPProxyToolsetHandler, core CoreReader) func(context.C
 		out := getMCPProxyOutput{
 			ID:          proxy.ID,
 			Name:        proxy.Name,
-			Description: utils.StrPointerAsStr(proxy.Description, ""),
+			Description: gwutil.StrPointerAsStr(proxy.Description, ""),
 			Version:     proxy.Version,
 			Endpoints:   []mcpProxyEndpointItem{},
 		}

@@ -23,6 +23,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
@@ -31,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -110,7 +111,7 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *gwmodels
 	}
 	if req.GatewayID == "" {
 		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: gateway ID is required", "proxyID", proxyID)
-		return nil, utils.ErrDeploymentGatewayIDRequired
+		return nil, gwerr.ErrDeploymentGatewayIDRequired
 	}
 
 	// Parse UUIDs
@@ -129,7 +130,7 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *gwmodels
 	}
 	if gateway == nil || gateway.OUID != ouID {
 		slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: gateway not found or org mismatch", "proxyID", proxyID, "gatewayID", req.GatewayID, "ouID", ouID)
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 
 	// Get LLM proxy
@@ -138,14 +139,14 @@ func (s *LLMProxyDeploymentService) DeployLLMProxy(proxyID string, req *gwmodels
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: proxy not found", "proxyID", proxyID, "ouID", ouID)
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		slog.Error("LLMProxyDeploymentService.DeployLLMProxy: failed to get proxy", "proxyID", proxyID, "ouID", ouID, "error", err)
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
 		slog.Warn("LLMProxyDeploymentService.DeployLLMProxy: proxy not found", "proxyID", proxyID, "ouID", ouID)
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	slog.Info("LLMProxyDeploymentService.DeployLLMProxy: proxy retrieved", "proxyID", proxyID, "proxyUUID", proxy.UUID)
@@ -257,14 +258,14 @@ func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(ctx context.Conte
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: proxy not found", "proxyID", proxyID)
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: failed to get proxy", "proxyID", proxyID, "error", err)
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
 		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: proxy not found", "proxyID", proxyID)
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	// Get deployment
@@ -276,22 +277,22 @@ func (s *LLMProxyDeploymentService) UndeployLLMProxyDeployment(ctx context.Conte
 	}
 	if deployment == nil {
 		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not found", "proxyID", proxyID, "deploymentID", deploymentID)
-		return nil, utils.ErrDeploymentNotFound
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 	if deployment.GatewayUUID.String() != gatewayID {
 		slog.Error("LLMProxyDeploymentService.UndeployLLMProxyDeployment: gateway ID mismatch", "proxyID", proxyID,
 			"deploymentID", deploymentID, "expectedGatewayID", gatewayID, "actualGatewayID", deployment.GatewayUUID.String())
-		return nil, utils.ErrGatewayIDMismatch
+		return nil, gwerr.ErrGatewayIDMismatch
 	}
 	if deployment.Status == nil || *deployment.Status == gwmodels.DeploymentStatusArchived {
 		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not current", "proxyID", proxyID,
 			"deploymentID", deploymentID, "status", deployment.Status)
-		return nil, utils.ErrDeploymentNotActive
+		return nil, gwerr.ErrDeploymentNotActive
 	}
 
 	placement := proxyPlacement(proxy, proxyID, ouID, deployment.GatewayUUID)
 	row, err := undeployAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement)
-	if errors.Is(err, utils.ErrDeploymentNotActive) {
+	if errors.Is(err, gwerr.ErrDeploymentNotActive) {
 		slog.Warn("LLMProxyDeploymentService.UndeployLLMProxyDeployment: deployment not active", "proxyID", proxyID,
 			"deploymentID", deploymentID, "status", deployment.Status)
 		return nil, err
@@ -313,12 +314,12 @@ func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymen
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	deployment, err := getRestorableDeployment(s.deploymentRepo, deploymentID, proxy.UUID.String(), ouID)
@@ -326,7 +327,7 @@ func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymen
 		return nil, err
 	}
 	if deployment.GatewayUUID.String() != gatewayID {
-		return nil, utils.ErrGatewayIDMismatch
+		return nil, gwerr.ErrGatewayIDMismatch
 	}
 
 	ctx := context.Background()
@@ -336,7 +337,7 @@ func (s *LLMProxyDeploymentService) RestoreLLMProxyDeployment(proxyID, deploymen
 		return nil, fmt.Errorf("failed to get deployment status: %w", err)
 	}
 	if restoresItself(current, deployment.DeploymentID) {
-		return nil, utils.ErrDeploymentAlreadyDeployed
+		return nil, gwerr.ErrDeploymentAlreadyDeployed
 	}
 
 	row, err := restoreAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement, deployment.DeploymentID)
@@ -364,7 +365,7 @@ func (s *LLMProxyDeploymentService) PlacedGatewaysOfProxy(ctx context.Context, p
 }
 
 // UndeployEverywhere undeploys the proxy from every gateway it is placed on, whatever the placement's status, in one
-// transaction. utils.ErrLLMProxyNotFound when the proxy is gone.
+// transaction. gwerr.ErrLLMProxyNotFound when the proxy is gone.
 func (s *LLMProxyDeploymentService) UndeployEverywhere(ctx context.Context, proxyHandle, ouID string) error {
 	proxy, err := s.proxyByID(proxyHandle, ouID)
 	if err != nil {
@@ -397,16 +398,16 @@ func (s *LLMProxyDeploymentService) RequireUserManaged(ctx context.Context, prox
 		return fmt.Errorf("check LLM proxy ownership: %w", err)
 	}
 	if owned {
-		return utils.ErrLLMProxyManagedByAMS
+		return gwerr.ErrLLMProxyManagedByAMS
 	}
 	return nil
 }
 
-// proxyByID is the proxy with the id or handle; utils.ErrLLMProxyNotFound when there is none.
+// proxyByID is the proxy with the id or handle; gwerr.ErrLLMProxyNotFound when there is none.
 func (s *LLMProxyDeploymentService) proxyByID(proxyID, ouID string) (*gwmodels.LLMProxy, error) {
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && proxy == nil) {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
@@ -420,16 +421,16 @@ func (s *LLMProxyDeploymentService) GetLLMProxyDeployments(proxyID, ouID string,
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	if status != nil && !gwmodels.IsDeploymentStatusFilter(*status) {
-		return nil, utils.ErrInvalidDeploymentStatus
+		return nil, gwerr.ErrInvalidDeploymentStatus
 	}
 
 	// Get deployments
@@ -447,12 +448,12 @@ func (s *LLMProxyDeploymentService) GetLLMProxyDeployment(proxyID, deploymentID,
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	// Get deployment
@@ -461,7 +462,7 @@ func (s *LLMProxyDeploymentService) GetLLMProxyDeployment(proxyID, deploymentID,
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		return nil, utils.ErrDeploymentNotFound
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 
 	return deployment, nil
@@ -473,12 +474,12 @@ func (s *LLMProxyDeploymentService) DeleteLLMProxyDeployment(proxyID, deployment
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrLLMProxyNotFound
+			return gwerr.ErrLLMProxyNotFound
 		}
 		return fmt.Errorf("failed to get proxy: %w", err)
 	}
 	if proxy == nil {
-		return utils.ErrLLMProxyNotFound
+		return gwerr.ErrLLMProxyNotFound
 	}
 
 	// Get deployment
@@ -487,12 +488,12 @@ func (s *LLMProxyDeploymentService) DeleteLLMProxyDeployment(proxyID, deployment
 		return fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		return utils.ErrDeploymentNotFound
+		return gwerr.ErrDeploymentNotFound
 	}
 	// The gateway is to serve the current deployment, or may still hold it; deleting it would drop its status row
 	// and orphan it there.
 	if deployment.Current() {
-		return utils.ErrDeploymentIsDeployed
+		return gwerr.ErrDeploymentIsDeployed
 	}
 
 	// Delete deployment
@@ -523,7 +524,7 @@ func (s *LLMProxyDeploymentService) generateLLMProxyDeploymentYAML(proxy *gwmode
 // renderLLMProxy is the proxy's gateway configuration; provider is the one it fronts.
 func renderLLMProxy(proxy *gwmodels.LLMProxy, provider *gwmodels.LLMProvider) (string, error) {
 	if provider == nil {
-		return "", utils.ErrLLMProviderNotFound
+		return "", gwerr.ErrLLMProviderNotFound
 	}
 
 	// Set default context if not provided

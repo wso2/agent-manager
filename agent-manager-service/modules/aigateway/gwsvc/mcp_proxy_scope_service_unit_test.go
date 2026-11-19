@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +40,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // stubInfraManager overrides only ListOrgEnvironments; any other call panics
@@ -210,7 +211,7 @@ func TestMCPProxyScopeCreate_UnknownProxy404(t *testing.T) {
 	svc := newScopeSvcForTest(&gwrepomocks.MCPProxyScopeRepositoryMock{}, nil)
 	_, err := svc.Create(context.Background(), "org-uuid", "org", "ghost",
 		gwmodels.MCPProxyScopeInput{Action: "read", Tools: []string{"t"}})
-	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyNotFound)
 }
 
 func TestMCPProxyScopeDelete_MissingIsNotFound(t *testing.T) {
@@ -219,7 +220,7 @@ func TestMCPProxyScopeDelete_MissingIsNotFound(t *testing.T) {
 	}
 	svc := newScopeSvcForTest(scopeRepo, scopeTestProxy("gh-proxy"))
 	err := svc.Delete(context.Background(), "org-uuid", "org", "gh-proxy", "read")
-	assert.ErrorIs(t, err, utils.ErrScopeNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrScopeNotFound)
 }
 
 func TestMCPProxyScopeCreate_TriggersReEmit(t *testing.T) {

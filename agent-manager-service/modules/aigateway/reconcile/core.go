@@ -25,6 +25,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -32,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Config sets the worker's intervals, the render claim's lease and the render attempt budget.
@@ -207,7 +208,7 @@ func (c *Core) ServesEnvironment(ctx context.Context, tx *gorm.DB, env, gateway 
 }
 
 // deployTo renders an inline kind in tx and sends it, or leaves the render to the worker. A render whose context
-// clashes with another artifact's on the gateway is refused (utils.ErrContextInUse) with nothing written.
+// clashes with another artifact's on the gateway is refused (gwerr.ErrContextInUse) with nothing written.
 func (c *Core) deployTo(ctx context.Context, tx *gorm.DB, kind Kind, p gwmodels.Placement) (*Applied, error) {
 	if err := c.lockGateway(tx, p.GatewayUUID); err != nil {
 		return nil, err
@@ -265,7 +266,7 @@ func (c *Core) Undeploy(ctx context.Context, tx *gorm.DB, p gwmodels.Placement) 
 
 // Restore points the gateway back at an earlier deployment of the artifact. It clears the render queue, so a
 // waiting redeploy can't overwrite it. An earlier deployment whose context now clashes on the gateway is refused
-// (utils.ErrContextInUse).
+// (gwerr.ErrContextInUse).
 func (c *Core) Restore(ctx context.Context, tx *gorm.DB, p gwmodels.Placement, deploymentID uuid.UUID) error {
 	kind, err := c.kindOf(p.Kind)
 	if err != nil {
@@ -442,7 +443,7 @@ func (c *Core) renderClaim(ctx context.Context, claim gwmodels.ClaimedRender) er
 	cancel()
 	if err == nil {
 		err = c.writeBack(ctx, kind, claim, rendered)
-		if !errors.Is(err, utils.ErrContextInUse) {
+		if !errors.Is(err, gwerr.ErrContextInUse) {
 			return c.superseded(log, err)
 		}
 	}

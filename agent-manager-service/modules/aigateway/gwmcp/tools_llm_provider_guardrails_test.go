@@ -22,11 +22,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // policiesMock serves a provider holding the given guardrails, as the console's
@@ -223,7 +224,7 @@ type failingUpdateMock struct{ *MockToolsetHandler }
 func (failingUpdateMock) UpdateLLMProviderGuardrails(
 	context.Context, string, string, func([]gwmodels.LLMPolicy) ([]gwmodels.LLMPolicy, error),
 ) (*gwmodels.LLMProvider, []gwmodels.GatewayDeploymentResult, error) {
-	return nil, nil, utils.ErrLLMProviderNotFound
+	return nil, nil, gwerr.ErrLLMProviderNotFound
 }
 
 // change's errors already say what to do and reach the model unchanged; the

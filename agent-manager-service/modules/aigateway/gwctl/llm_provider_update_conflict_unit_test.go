@@ -26,6 +26,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
@@ -35,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Exercise the real service through the handler: both layers must map a wrapped
@@ -115,7 +116,7 @@ func TestUpdateLLMProvider_UpdateErrors(t *testing.T) {
 				ctrl := NewLLMController(nil, svc, nil, nil, nil, nil, nil)
 				req := httptest.NewRequest(http.MethodPut, "/orgs/acme/llm-providers/"+providerUUID.String(),
 					strings.NewReader(`{"name":"Provider A"`+gateways.json+`}`))
-				req.SetPathValue(utils.PathParamProviderId, providerUUID.String())
+				req.SetPathValue(gwutil.PathParamProviderId, providerUUID.String())
 				req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: ouID}))
 				recorder := httptest.NewRecorder()
 

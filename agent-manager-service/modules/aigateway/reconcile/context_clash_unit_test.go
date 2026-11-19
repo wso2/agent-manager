@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func content(context, vhost string) []byte {
@@ -195,8 +196,8 @@ func TestDeployRefusesAnOverlappingContext(t *testing.T) {
 
 	_, err := core.Deploy(context.Background(), &gorm.DB{}, p)
 
-	require.ErrorIs(t, err, utils.ErrContextInUse)
-	require.ErrorIs(t, err, utils.ErrMCPContextInUse)
+	require.ErrorIs(t, err, gwerr.ErrContextInUse)
+	require.ErrorIs(t, err, gwerr.ErrMCPContextInUse)
 	assert.True(t, IsPermanent(err))
 	assert.Zero(t, *starts, "nothing is deployed")
 	assert.Equal(t, []string{p.GatewayUUID.String()}, gateways.locks, "the check runs under the gateway lock")
@@ -214,5 +215,5 @@ func TestDeployAllowsASiblingContext(t *testing.T) {
 }
 
 func TestRenderReasonOfAClashIsContextInUse(t *testing.T) {
-	assert.Equal(t, utils.ErrCodeContextInUse, renderReason(stubKind{}, Permanent(utils.ErrContextInUse)))
+	assert.Equal(t, gwerr.ErrCodeContextInUse, renderReason(stubKind{}, Permanent(gwerr.ErrContextInUse)))
 }

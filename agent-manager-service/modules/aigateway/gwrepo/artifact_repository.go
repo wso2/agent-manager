@@ -22,13 +22,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ArtifactRepository defines the interface for artifact data access
@@ -194,7 +195,7 @@ func (r *ArtifactRepo) GetByHandle(handle, orgUUID string) (*gwmodels.Artifact, 
 		First(&artifact).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrArtifactNotFound
+			return nil, gwerr.ErrArtifactNotFound
 		}
 		return nil, err
 	}
@@ -202,14 +203,14 @@ func (r *ArtifactRepo) GetByHandle(handle, orgUUID string) (*gwmodels.Artifact, 
 }
 
 // GetByUUID retrieves an artifact by its stable UUID and organization. Returns
-// utils.ErrArtifactNotFound when no matching row exists.
+// gwerr.ErrArtifactNotFound when no matching row exists.
 func (r *ArtifactRepo) GetByUUID(artifactUUID, orgUUID string) (*gwmodels.Artifact, error) {
 	var artifact gwmodels.Artifact
 	err := r.db.Where("id = ? AND org_id = ?", artifactUUID, orgUUID).
 		First(&artifact).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrArtifactNotFound
+			return nil, gwerr.ErrArtifactNotFound
 		}
 		return nil, err
 	}

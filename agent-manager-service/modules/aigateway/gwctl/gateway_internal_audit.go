@@ -19,10 +19,11 @@ package gwctl
 import (
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // recordGatewayAuthFailure records a rejected gateway api-key.
@@ -51,7 +52,7 @@ func (c *gatewayInternalController) authenticateGateway(
 	operation string,
 ) (gatewayIdentity, bool) {
 	log := logger.GetLogger(r.Context())
-	clientIP := utils.ClientIP(r)
+	clientIP := httpx.ClientIP(r)
 
 	apiKey := r.Header.Get("api-key")
 	if apiKey == "" {

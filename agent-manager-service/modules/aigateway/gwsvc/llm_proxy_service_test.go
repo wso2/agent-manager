@@ -20,13 +20,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // A provider mid-delete (LLMProviderService.Delete has claimed it via MarkDeleting)
@@ -46,7 +47,7 @@ func TestLLMProxyService_Create_PropagatesProviderBeingDeletedFromRepo(t *testin
 	proxyRepo := &gwrepomocks.LLMProxyRepositoryMock{
 		ExistsFunc: func(_, _ string) (bool, error) { return false, nil },
 		CreateFunc: func(_ context.Context, _ *gwmodels.LLMProxy, _, _, _, _ string) error {
-			return utils.ErrLLMProviderBeingDeleted
+			return gwerr.ErrLLMProviderBeingDeleted
 		},
 	}
 	svc := NewLLMProxyService(proxyRepo, providerRepo, make([]byte, 32))
@@ -63,5 +64,5 @@ func TestLLMProxyService_Create_PropagatesProviderBeingDeletedFromRepo(t *testin
 	_, err := svc.Create(context.Background(), "ou-acme", "creator", proxy)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, utils.ErrLLMProviderBeingDeleted)
+	assert.ErrorIs(t, err, gwerr.ErrLLMProviderBeingDeleted)
 }

@@ -20,6 +20,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -29,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func projectScopedProxy(projectUUID, projectName string) *gwmodels.MCPProxy {
@@ -53,7 +54,7 @@ func TestMCPProxyBindableFromProject(t *testing.T) {
 	})
 	t.Run("project proxy of another project is not found", func(t *testing.T) {
 		err := mcpProxyBindableFromProject(projectScopedProxy("p-2", "p2"), "p-1")
-		require.ErrorIs(t, err, utils.ErrMCPProxyNotFound)
+		require.ErrorIs(t, err, gwerr.ErrMCPProxyNotFound)
 	})
 }
 
@@ -81,8 +82,8 @@ func TestValidateMCPProxiesInCatalog_ProjectScope(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, s.ValidateMCPProxiesInCatalog(ctx, "org1", "p1", []string{"weather", "org"}))
-	require.ErrorIs(t, s.ValidateMCPProxiesInCatalog(ctx, "org1", "p1", []string{"other"}), utils.ErrMCPProxyNotFound)
-	require.ErrorIs(t, s.ValidateMCPProxiesInCatalog(ctx, "org1", "p1", []string{"missing"}), utils.ErrMCPProxyNotFound)
+	require.ErrorIs(t, s.ValidateMCPProxiesInCatalog(ctx, "org1", "p1", []string{"other"}), gwerr.ErrMCPProxyNotFound)
+	require.ErrorIs(t, s.ValidateMCPProxiesInCatalog(ctx, "org1", "p1", []string{"missing"}), gwerr.ErrMCPProxyNotFound)
 }
 
 // agentMCPURL is the URL an agent bound to proxy gets injected, built the way every

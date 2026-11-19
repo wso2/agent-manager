@@ -25,6 +25,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +36,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // proxyServiceStub stands in for the proxy service; the hooks are nil, so calling one would panic.
@@ -63,9 +65,9 @@ func (s *proxyServiceStub) RefreshA2AProxy(context.Context, string, string, stri
 func agentEnvRequest(method, resource, body string) *http.Request {
 	req := httptest.NewRequest(method, "/orgs/default/projects/checkout/agents/weather/environments/dev/"+resource,
 		strings.NewReader(body))
-	req.SetPathValue(utils.PathParamProjName, "checkout")
-	req.SetPathValue(utils.PathParamAgentName, "weather")
-	req.SetPathValue(utils.PathParamEnvID, "dev")
+	req.SetPathValue(gwutil.PathParamProjName, "checkout")
+	req.SetPathValue(gwutil.PathParamAgentName, "weather")
+	req.SetPathValue(gwutil.PathParamEnvID, "dev")
 	return req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
 }
 
@@ -117,13 +119,13 @@ func TestSetA2AProxyKeepsTheThreeAuthCasesApart(t *testing.T) {
 
 func TestA2AProxyErrorsMapToStatusCodes(t *testing.T) {
 	for sentinel, code := range map[error]int{
-		utils.ErrEnvironmentNotProxied:          http.StatusNotFound,
-		utils.ErrA2AProxyNeedsCardSource:        http.StatusConflict,
-		utils.ErrA2ACardURLNotProxyable:         http.StatusBadRequest,
-		utils.ErrA2AProxyUpstreamAuthNeedsHTTPS: http.StatusBadRequest,
-		utils.ErrInvalidUpstreamAuth:            http.StatusBadRequest,
-		utils.ErrA2AProxyAgentNotExternal:       http.StatusBadRequest,
-		utils.ErrAgentNotA2A:                    http.StatusBadRequest,
+		gwerr.ErrEnvironmentNotProxied:          http.StatusNotFound,
+		gwerr.ErrA2AProxyNeedsCardSource:        http.StatusConflict,
+		gwerr.ErrA2ACardURLNotProxyable:         http.StatusBadRequest,
+		gwerr.ErrA2AProxyUpstreamAuthNeedsHTTPS: http.StatusBadRequest,
+		gwerr.ErrInvalidUpstreamAuth:            http.StatusBadRequest,
+		gwerr.ErrA2AProxyAgentNotExternal:       http.StatusBadRequest,
+		gwerr.ErrAgentNotA2A:                    http.StatusBadRequest,
 		httpx.ErrForbidden:                      http.StatusForbidden,
 		audit.ErrRecorderUnavailable:            http.StatusServiceUnavailable,
 	} {

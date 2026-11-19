@@ -25,6 +25,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -37,7 +39,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // AgentIdentityController exposes group/role management for agent identities.
@@ -260,7 +261,7 @@ func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetGroup(w http.ResponseWriter, r *http.Request) {
-	groupID := r.PathValue(utils.PathParamGroupID)
+	groupID := r.PathValue(gwutil.PathParamGroupID)
 
 	client, ok := c.envClient(w, r)
 	if !ok {
@@ -276,7 +277,7 @@ func (c *agentIdentityController) GetGroup(w http.ResponseWriter, r *http.Reques
 func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	groupID := r.PathValue(utils.PathParamGroupID)
+	groupID := r.PathValue(gwutil.PathParamGroupID)
 
 	var body gwspec.AgentIdentityGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -317,7 +318,7 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	groupID := r.PathValue(utils.PathParamGroupID)
+	groupID := r.PathValue(gwutil.PathParamGroupID)
 
 	client, ok := c.envClient(w, r)
 	if !ok {
@@ -341,7 +342,7 @@ func (c *agentIdentityController) DeleteGroup(w http.ResponseWriter, r *http.Req
 func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	groupID := r.PathValue(utils.PathParamGroupID)
+	groupID := r.PathValue(gwutil.PathParamGroupID)
 
 	client, ok := c.envClient(w, r)
 	if !ok {
@@ -365,7 +366,7 @@ func (c *agentIdentityController) GetGroupMembers(w http.ResponseWriter, r *http
 func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	groupID := r.PathValue(utils.PathParamGroupID)
+	groupID := r.PathValue(gwutil.PathParamGroupID)
 
 	var body gwspec.AgentIdentityMembersRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -395,7 +396,7 @@ func (c *agentIdentityController) AddGroupMembers(w http.ResponseWriter, r *http
 func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	groupID := r.PathValue(utils.PathParamGroupID)
+	groupID := r.PathValue(gwutil.PathParamGroupID)
 
 	var body gwspec.AgentIdentityMembersRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -425,7 +426,7 @@ func (c *agentIdentityController) RemoveGroupMembers(w http.ResponseWriter, r *h
 func (c *agentIdentityController) GetGroupRoles(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	groupID := r.PathValue(utils.PathParamGroupID)
+	groupID := r.PathValue(gwutil.PathParamGroupID)
 
 	client, ok := c.envClient(w, r)
 	if !ok {
@@ -595,7 +596,7 @@ func (c *agentIdentityController) managedRole(w http.ResponseWriter, r *http.Req
 }
 
 func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request) {
-	roleID := r.PathValue(utils.PathParamRoleID)
+	roleID := r.PathValue(gwutil.PathParamRoleID)
 
 	client, ok := c.envClient(w, r)
 	if !ok {
@@ -616,7 +617,7 @@ func (c *agentIdentityController) GetRole(w http.ResponseWriter, r *http.Request
 func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	roleID := r.PathValue(utils.PathParamRoleID)
+	roleID := r.PathValue(gwutil.PathParamRoleID)
 
 	var body gwspec.AgentIdentityRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -738,7 +739,7 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	roleID := r.PathValue(utils.PathParamRoleID)
+	roleID := r.PathValue(gwutil.PathParamRoleID)
 
 	client, ok := c.envClient(w, r)
 	if !ok {
@@ -762,7 +763,7 @@ func (c *agentIdentityController) DeleteRole(w http.ResponseWriter, r *http.Requ
 func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	roleID := r.PathValue(utils.PathParamRoleID)
+	roleID := r.PathValue(gwutil.PathParamRoleID)
 
 	client, ok := c.envClient(w, r)
 	if !ok {
@@ -784,7 +785,7 @@ func (c *agentIdentityController) GetRoleAssignments(w http.ResponseWriter, r *h
 func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	roleID := r.PathValue(utils.PathParamRoleID)
+	roleID := r.PathValue(gwutil.PathParamRoleID)
 
 	assignments, err := decodeAgentIdentityAssignments(r)
 	if err != nil {
@@ -810,7 +811,7 @@ func (c *agentIdentityController) AddRoleAssignees(w http.ResponseWriter, r *htt
 func (c *agentIdentityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	roleID := r.PathValue(utils.PathParamRoleID)
+	roleID := r.PathValue(gwutil.PathParamRoleID)
 
 	assignments, err := decodeAgentIdentityAssignments(r)
 	if err != nil {

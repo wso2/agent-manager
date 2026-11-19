@@ -33,6 +33,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"golang.org/x/sync/singleflight"
 	"gorm.io/gorm"
@@ -43,7 +45,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // PlatformGatewayService handles gateway business logic for API Platform integration
@@ -268,11 +269,11 @@ func (s *PlatformGatewayService) RegisterGateway(
 
 	// 3. Check gateway name uniqueness within organization
 	existing, err := s.gatewayRepo.GetByNameAndOrgID(name, ouID)
-	if err != nil && !errors.Is(err, utils.ErrGatewayNotFound) {
+	if err != nil && !errors.Is(err, gwerr.ErrGatewayNotFound) {
 		return nil, fmt.Errorf("failed to check gateway name uniqueness: %w", err)
 	}
 	if existing != nil {
-		return nil, utils.ErrGatewayAlreadyExists
+		return nil, gwerr.ErrGatewayAlreadyExists
 	}
 
 	// 4. Generate UUID for gateway
@@ -319,7 +320,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 
 	if len(uniqueEnvIDs) > 1 {
 		return nil, fmt.Errorf("%w: a gateway serves exactly one environment, got %d",
-			utils.ErrGatewayEnvironmentFixed, len(uniqueEnvIDs))
+			gwerr.ErrGatewayEnvironmentFixed, len(uniqueEnvIDs))
 	}
 
 	if err := s.gatewayRepo.Transaction(func(tx *gorm.DB) error {
@@ -426,13 +427,13 @@ func (s *PlatformGatewayService) resolveGateway(identifier, ouID string) (*gwmod
 // error is dereferenced by GetGateway.
 func normalizeGatewayLookup(gateway *gwmodels.Gateway, err error) (*gwmodels.Gateway, error) {
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, utils.ErrGatewayNotFound) {
-			return nil, utils.ErrGatewayNotFound
+		if errors.Is(err, gorm.ErrRecordNotFound) || errors.Is(err, gwerr.ErrGatewayNotFound) {
+			return nil, gwerr.ErrGatewayNotFound
 		}
 		return nil, fmt.Errorf("failed to get gateway: %w", err)
 	}
 	if gateway == nil {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	return gateway, nil
 }
@@ -446,7 +447,7 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 	}
 
 	if gateway.OUID != ouID {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 
 	return toGatewayResponse(gateway), nil
@@ -463,7 +464,7 @@ func (s *PlatformGatewayService) SaveGatewayPolicyManifest(ctx context.Context, 
 		return err
 	}
 	if gateway == nil {
-		return utils.ErrGatewayNotFound
+		return gwerr.ErrGatewayNotFound
 	}
 	slog.Info("Saving gateway policy manifest for gateway", "gatewayID", gatewayID)
 
@@ -484,10 +485,10 @@ func (s *PlatformGatewayService) UpdateGateway(
 		return nil, err
 	}
 	if gateway == nil {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	if gateway.OUID != ouID {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 
 	if description != nil {
@@ -540,10 +541,10 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, ouID string) error {
 		return err
 	}
 	if gateway == nil {
-		return utils.ErrGatewayNotFound
+		return gwerr.ErrGatewayNotFound
 	}
 	if gateway.OUID != ouID {
-		return utils.ErrGatewayNotFound
+		return gwerr.ErrGatewayNotFound
 	}
 
 	// Reject deletion if the gateway has active deployments (LLM providers/proxies)
@@ -552,7 +553,7 @@ func (s *PlatformGatewayService) DeleteGateway(gatewayID, ouID string) error {
 		return fmt.Errorf("failed to check gateway deployments: %w", err)
 	}
 	if hasDeployments {
-		return utils.ErrGatewayHasDeployments
+		return gwerr.ErrGatewayHasDeployments
 	}
 
 	err = s.gatewayRepo.Delete(gatewayID, ouID)
@@ -684,7 +685,7 @@ func (s *PlatformGatewayService) VerifyToken(ctx context.Context, plainToken str
 
 		if gateway == nil {
 			slog.Warn("gateway not found for valid token", "gatewayUUID", token.GatewayUUID)
-			return nil, utils.ErrGatewayNotFound
+			return nil, gwerr.ErrGatewayNotFound
 		}
 
 		// Step 7: Cache the valid token using prefix as key (stores full gateway + hash + salt)
@@ -709,10 +710,10 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 		return nil, fmt.Errorf("failed to query gateway: %w", err)
 	}
 	if gateway == nil {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	if gateway.OUID != ouID {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 
 	// 2. Count active tokens
@@ -723,7 +724,7 @@ func (s *PlatformGatewayService) RotateToken(gatewayID, ouID string) (*TokenRota
 
 	// 3. Check max 2 active tokens limit
 	if activeCount >= 2 {
-		return nil, utils.ErrGatewayTokenLimitReached
+		return nil, gwerr.ErrGatewayTokenLimitReached
 	}
 
 	// 4. Generate new plain-text token with unique prefix and salt
@@ -778,10 +779,10 @@ func (s *PlatformGatewayService) ListTokens(gatewayID, ouID string) (*GatewayTok
 		return nil, fmt.Errorf("failed to query gateway: %w", err)
 	}
 	if gateway == nil {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	if gateway.OUID != ouID {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 
 	// 2. Fetch all active tokens for the gateway
@@ -815,30 +816,30 @@ func (s *PlatformGatewayService) RevokeTokenByID(tokenID, gatewayID, ouID string
 		return fmt.Errorf("failed to query gateway: %w", err)
 	}
 	if gateway == nil {
-		return utils.ErrGatewayNotFound
+		return gwerr.ErrGatewayNotFound
 	}
 	if gateway.OUID != ouID {
-		return utils.ErrGatewayNotFound
+		return gwerr.ErrGatewayNotFound
 	}
 
 	// 2. Get token details before revocation (for cache invalidation)
 	token, err := s.gatewayRepo.GetTokenByUUID(tokenID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrGatewayTokenNotFound
+			return gwerr.ErrGatewayTokenNotFound
 		}
 		return fmt.Errorf("failed to get token: %w", err)
 	}
 
 	// Verify token belongs to the specified gateway
 	if token.GatewayUUID.String() != gatewayID {
-		return utils.ErrGatewayTokenNotFound
+		return gwerr.ErrGatewayTokenNotFound
 	}
 
 	// 3. Revoke the token in database
 	if err := s.gatewayRepo.RevokeToken(tokenID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrGatewayTokenNotFound
+			return gwerr.ErrGatewayTokenNotFound
 		}
 		return fmt.Errorf("failed to revoke token: %w", err)
 	}
@@ -873,11 +874,11 @@ func (s *PlatformGatewayService) GetGatewayStatus(ctx context.Context, ouID stri
 			return nil, fmt.Errorf("failed to get gateway: %w", err)
 		}
 		if gateway == nil {
-			return nil, utils.ErrGatewayNotFound
+			return nil, gwerr.ErrGatewayNotFound
 		}
 		// Check organization access
 		if gateway.OUID != ouID {
-			return nil, utils.ErrGatewayNotFound
+			return nil, gwerr.ErrGatewayNotFound
 		}
 		gateways = []*gwmodels.Gateway{gateway}
 	} else {
@@ -936,7 +937,7 @@ func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID strin
 		return "", err
 	}
 	if !gw.IsManaged() {
-		return "", utils.ErrGatewayNotFound
+		return "", gwerr.ErrGatewayNotFound
 	}
 	return gw.UUID.String(), nil
 }
@@ -947,10 +948,10 @@ func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*gw
 	}
 	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
 	if err != nil {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	if gw.OUID != ouID {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	return gw, nil
 }
@@ -973,7 +974,7 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 	}
 	gwUUID, err := uuid.Parse(gwUUIDStr)
 	if err != nil {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	providerType := gwmodels.IdentityProviderTypeCustom
 	if models.IsSystemIdentityProvider(name) {
@@ -1077,7 +1078,7 @@ func (s *PlatformGatewayService) AssignGatewayToEnvironment(gatewayID, environme
 		return err
 	}
 	if gateway == nil {
-		return utils.ErrGatewayNotFound
+		return gwerr.ErrGatewayNotFound
 	}
 	if !gateway.IsManaged() {
 		if err := s.refuseSelfHostedNewEnvironment(gateway, environmentID); err != nil {
@@ -1153,7 +1154,7 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 	}
 	if len(mappings) > 0 {
 		return fmt.Errorf("%w: gateway %s is already mapped to environment %s",
-			utils.ErrGatewayEnvironmentFixed, gateway.UUID, mappings[0].EnvironmentUUID)
+			gwerr.ErrGatewayEnvironmentFixed, gateway.UUID, mappings[0].EnvironmentUUID)
 	}
 
 	if gateway.IsIngressCapable() {
@@ -1163,7 +1164,7 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 		}
 		if count > 0 {
 			return fmt.Errorf("%w: environment %s already has an ingress gateway; "+
-				"register this gateway with gatewayType EGRESS instead", utils.ErrGatewayIngressCapExceeded, envIDStr)
+				"register this gateway with gatewayType EGRESS instead", gwerr.ErrGatewayIngressCapExceeded, envIDStr)
 		}
 	}
 
@@ -1178,7 +1179,7 @@ func (s *PlatformGatewayService) assignGatewayToEnvironmentTx(
 }
 
 // RemoveGatewayFromEnvironment deletes a mapping between a gateway and an environment. It is refused with
-// utils.ErrGatewayServesEnvironment while any of the environment's agents, MCP proxies or LLM proxies is placed on
+// gwerr.ErrGatewayServesEnvironment while any of the environment's agents, MCP proxies or LLM proxies is placed on
 // the gateway: nothing would move them to another gateway.
 func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(ctx context.Context, gatewayID, environmentID string) error {
 	gateway, err := uuid.Parse(gatewayID)
@@ -1207,12 +1208,12 @@ func (s *PlatformGatewayService) RemoveGatewayFromEnvironment(ctx context.Contex
 }
 
 var errSelfHostedEnvironmentFixed = fmt.Errorf("%w: a self-hosted gateway stays in the environment it was registered for",
-	utils.ErrGatewayEnvironmentFixed)
+	gwerr.ErrGatewayEnvironmentFixed)
 
 // refuseSelfHostedEnvironmentChange keeps a self-hosted gateway in the one environment it was registered for.
 func (s *PlatformGatewayService) refuseSelfHostedEnvironmentChange(gatewayID string) error {
 	gw, err := s.gatewayRepo.GetByUUID(gatewayID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) && !errors.Is(err, utils.ErrGatewayNotFound) {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) && !errors.Is(err, gwerr.ErrGatewayNotFound) {
 		return fmt.Errorf("failed to get gateway: %w", err)
 	}
 	if gw != nil && !gw.IsManaged() {
@@ -1230,7 +1231,7 @@ func (s *PlatformGatewayService) refuseWhileServing(ctx context.Context, tx *gor
 		return fmt.Errorf("failed to check the gateway's deployments in the environment: %w", err)
 	}
 	if serves {
-		return utils.ErrGatewayServesEnvironment
+		return gwerr.ErrGatewayServesEnvironment
 	}
 	return nil
 }

@@ -32,6 +32,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
@@ -203,7 +206,7 @@ func mcpDeployRejection(err error) error {
 	switch {
 	case mcpDeployErrorIsFatal(err):
 		return fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
-	case errors.Is(err, httpx.ErrInvalidInput), errors.Is(err, utils.ErrContextInUse):
+	case errors.Is(err, httpx.ErrInvalidInput), errors.Is(err, gwerr.ErrContextInUse):
 		return err
 	}
 	return nil
@@ -271,7 +274,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 		return nil, fmt.Errorf("failed to check MCP proxy existence: %w", err)
 	}
 	if exists {
-		return nil, fmt.Errorf("%w: proxy id %q is already in use", utils.ErrMCPProxyExists, handle)
+		return nil, fmt.Errorf("%w: proxy id %q is already in use", gwerr.ErrMCPProxyExists, handle)
 	}
 
 	proxy := &gwmodels.MCPProxy{
@@ -312,7 +315,7 @@ func (s *MCPProxyService) Create(ctx context.Context, orgUUID, createdBy string,
 	created, err := s.repo.GetByHandle(ctx, handle, orgUUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrMCPProxyNotFound
+			return nil, gwerr.ErrMCPProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to retrieve MCP proxy: %w", err)
 	}
@@ -422,7 +425,7 @@ func (s *MCPProxyService) Get(ctx context.Context, orgUUID, proxyID string) (*gw
 	proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrMCPProxyNotFound
+			return nil, gwerr.ErrMCPProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get MCP proxy: %w", err)
 	}
@@ -511,7 +514,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	// Refuse a project proxy before any validation or network work; it is re-checked on
 	// the locked row below.
 	if existing, err := s.repo.GetByHandle(ctx, handle, orgUUID); err == nil && existing != nil && existing.ProjectUUID != nil {
-		return nil, utils.ErrMCPProxyProjectOwned
+		return nil, gwerr.ErrMCPProxyProjectOwned
 	}
 
 	// Validate the endpoints outside the transaction so the placement check's DB reads and
@@ -561,12 +564,12 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		proxy, err := s.repo.GetByHandleForUpdate(ctx, tx, handle, orgUUID)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return utils.ErrMCPProxyNotFound
+				return gwerr.ErrMCPProxyNotFound
 			}
 			return fmt.Errorf("failed to get MCP proxy before update: %w", err)
 		}
 		if proxy.ProjectUUID != nil {
-			return utils.ErrMCPProxyProjectOwned
+			return gwerr.ErrMCPProxyProjectOwned
 		}
 
 		// Index the existing graph so buildMCPEndpointsForStorage can preserve per-env
@@ -619,7 +622,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		if rejected := mcpDeployRejection(err); rejected != nil {
 			return nil, rejected
 		}
-		if errors.Is(err, utils.ErrMCPProxyNotFound) {
+		if errors.Is(err, gwerr.ErrMCPProxyNotFound) {
 			return nil, err
 		}
 		if mapped := s.mapMCPProxyWriteError(err, handle, orgUUID); mapped != nil {
@@ -631,7 +634,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 	updated, err := s.repo.GetByHandle(ctx, handle, orgUUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrMCPProxyNotFound
+			return nil, gwerr.ErrMCPProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to retrieve MCP proxy: %w", err)
 	}
@@ -663,7 +666,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 
 // Delete removes an MCP proxy by handle. MCP proxy mappings are deployable artifacts
 // derived from an MCP proxy, so the source proxy cannot be deleted while mappings exist.
-// A project proxy is refused (utils.ErrMCPProxyProjectOwned) unless the platform store no longer
+// A project proxy is refused (gwerr.ErrMCPProxyProjectOwned) unless the platform store no longer
 // has its project.
 func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID string) error {
 	_ = orgName // unused: cleanup now resolves env-Thunder by orgUUID (ouID), not orgName
@@ -676,7 +679,7 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 	proxy, err := s.repo.GetByHandle(ctx, handle, orgUUID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrMCPProxyNotFound
+			return gwerr.ErrMCPProxyNotFound
 		}
 		return fmt.Errorf("failed to get MCP proxy before delete: %w", err)
 	}
@@ -688,7 +691,7 @@ func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID 
 			return err
 		}
 		if !gone {
-			return utils.ErrMCPProxyProjectOwned
+			return gwerr.ErrMCPProxyProjectOwned
 		}
 	}
 
@@ -717,7 +720,7 @@ func (s *MCPProxyService) projectGone(ctx context.Context, orgUUID string, proxy
 	return project != nil && proxy.ProjectUUID != nil && project.UUID != *proxy.ProjectUUID, nil
 }
 
-// ensureMCPProxyNotInUse refuses (utils.ErrMCPProxyHasMappings) while an agent still
+// ensureMCPProxyNotInUse refuses (gwerr.ErrMCPProxyHasMappings) while an agent still
 // references the proxy. Shared by the org and project delete paths.
 func (s *MCPProxyService) ensureMCPProxyNotInUse(ctx context.Context, orgUUID string, proxy *gwmodels.MCPProxy) error {
 	var mappings []gwmodels.EnvAgentMCPMapping
@@ -729,7 +732,7 @@ func (s *MCPProxyService) ensureMCPProxyNotInUse(ctx context.Context, orgUUID st
 		}
 	}
 	if len(mappings) > 0 {
-		return utils.ErrMCPProxyHasMappings
+		return gwerr.ErrMCPProxyHasMappings
 	}
 
 	// An agent's MCP connection references a proxy in two places: a mapping row per
@@ -753,7 +756,7 @@ func (s *MCPProxyService) ensureMCPProxyNotInUse(ctx context.Context, orgUUID st
 			return fmt.Errorf("failed to list agent configurations before delete: %w", cfgErr)
 		}
 		if len(configs) > 0 {
-			return utils.ErrMCPProxyHasMappings
+			return gwerr.ErrMCPProxyHasMappings
 		}
 	}
 	return nil
@@ -786,7 +789,7 @@ func (s *MCPProxyService) deleteLoadedMCPProxy(ctx context.Context, orgUUID, han
 
 	if err := s.repo.Delete(ctx, handle, orgUUID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrMCPProxyNotFound
+			return gwerr.ErrMCPProxyNotFound
 		}
 		return fmt.Errorf("failed to delete MCP proxy: %w", err)
 	}
@@ -1001,7 +1004,7 @@ func (s *MCPProxyService) prepareMCPUpstreamAuthForStorage(existing, updated *gw
 	}
 
 	if auth.Value != nil {
-		encoded, err := utils.EncryptSecretRef(*auth.Value, s.encryptionKey)
+		encoded, err := gwutil.EncryptSecretRef(*auth.Value, s.encryptionKey)
 		if err != nil {
 			return nil, fmt.Errorf("failed to encrypt upstream auth: %w", err)
 		}
@@ -1024,7 +1027,7 @@ func (s *MCPProxyService) FetchServerInfo(ctx context.Context, orgUUID, userID s
 
 	release, ok := mcpServerInfoLimiter.tryAcquire(mcpServerInfoLimiterKey(orgUUID, userID))
 	if !ok {
-		return nil, utils.ErrTooManyRequests
+		return nil, gwerr.ErrTooManyRequests
 	}
 	defer release()
 
@@ -1402,7 +1405,7 @@ func validateMCPEndpoints(endpoints []gwmodels.MCPProxyEndpointDTO) error {
 			}
 			seenEnvsInEndpoint[envUUID] = struct{}{}
 			if owner, bound := envToEndpoint[envUUID]; bound {
-				return fmt.Errorf("%w: environment %q is targeted by endpoints %q and %q", utils.ErrMCPEnvAlreadyBound, envUUID, owner, handle)
+				return fmt.Errorf("%w: environment %q is targeted by endpoints %q and %q", gwerr.ErrMCPEnvAlreadyBound, envUUID, owner, handle)
 			}
 			envToEndpoint[envUUID] = handle
 		}
@@ -1957,7 +1960,7 @@ func (s *MCPProxyService) persistMCPEndpoints(ctx context.Context, tx *gorm.DB, 
 			// whose environment remapped to a different endpoint (new handle) is still
 			// found, avoiding a primary-key collision on re-create.
 			artifactHandle := mcpProxyEnvArtifactHandle(proxyHandle, endpoint.handle, envUUIDStr)
-			if _, err := s.artifactRepo.GetByUUID(artifactUUID.String(), ouID); errors.Is(err, utils.ErrArtifactNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
+			if _, err := s.artifactRepo.GetByUUID(artifactUUID.String(), ouID); errors.Is(err, gwerr.ErrArtifactNotFound) || errors.Is(err, gorm.ErrRecordNotFound) {
 				if err := s.artifactRepo.Create(tx.WithContext(ctx), &gwmodels.Artifact{
 					UUID:      artifactUUID,
 					Handle:    artifactHandle,
@@ -2005,15 +2008,15 @@ func (s *MCPProxyService) mapMCPProxyWriteError(err error, handle, orgUUID strin
 	}
 	switch pgErr.ConstraintName {
 	case "uq_proxy_env_single", "uq_endpoint_env":
-		return fmt.Errorf("%w", utils.ErrMCPEnvAlreadyBound)
+		return fmt.Errorf("%w", gwerr.ErrMCPEnvAlreadyBound)
 	case "uq_mcp_endpoint_handle":
 		return fmt.Errorf("%w: duplicate endpoint id", httpx.ErrInvalidInput)
 	case "uq_artifact_handle_ou_id":
 		if conflicting, getErr := s.artifactRepo.GetByHandle(handle, orgUUID); getErr == nil &&
 			conflicting != nil && conflicting.Kind != gwmodels.KindMCPProxy {
-			return fmt.Errorf("%w: handle already in use by another artifact: %w", utils.ErrArtifactExists, utils.ErrMCPProxyHandleInUse)
+			return fmt.Errorf("%w: handle already in use by another artifact: %w", gwerr.ErrArtifactExists, gwerr.ErrMCPProxyHandleInUse)
 		}
-		return fmt.Errorf("%w: handle already in use: %w", utils.ErrMCPProxyExists, utils.ErrMCPProxyHandleInUse)
+		return fmt.Errorf("%w: handle already in use: %w", gwerr.ErrMCPProxyExists, gwerr.ErrMCPProxyHandleInUse)
 	case "uq_artifact_name_version_ou_id":
 		return fmt.Errorf("%w: another artifact already uses this name and version", httpx.ErrInvalidInput)
 	default:
@@ -2134,7 +2137,7 @@ func (s *MCPProxyService) fetchToolsPromptsAndResources(ctx context.Context, end
 	if err := ctx.Err(); err != nil {
 		// Only the deadline says the server was too slow; a cancel means the caller left.
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, fmt.Errorf("%w: MCP server did not answer in time: %w", utils.ErrURLUnreachable, err)
+			return nil, fmt.Errorf("%w: MCP server did not answer in time: %w", gwerr.ErrURLUnreachable, err)
 		}
 		return nil, err
 	}
@@ -2378,7 +2381,7 @@ func (s *MCPProxyService) postJSONRPC(ctx context.Context, endpointURL string, p
 		if errors.Is(err, ssrf.ErrInvalidURL) {
 			return nil, nil, err
 		}
-		return nil, nil, fmt.Errorf("%w: failed to reach MCP server: %w", utils.ErrURLUnreachable, err)
+		return nil, nil, fmt.Errorf("%w: failed to reach MCP server: %w", gwerr.ErrURLUnreachable, err)
 	}
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
@@ -2391,10 +2394,10 @@ func (s *MCPProxyService) postJSONRPC(ctx context.Context, endpointURL string, p
 		return nil, nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 	if len(body) > maxMCPResponseBody {
-		return nil, nil, fmt.Errorf("%w: response body exceeds %d bytes", utils.ErrMCPResponseTooLarge, maxMCPResponseBody)
+		return nil, nil, fmt.Errorf("%w: response body exceeds %d bytes", gwerr.ErrMCPResponseTooLarge, maxMCPResponseBody)
 	}
 	if resp.StatusCode == http.StatusUnauthorized {
-		return nil, nil, utils.ErrMCPServerUnauthorized
+		return nil, nil, gwerr.ErrMCPServerUnauthorized
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, nil, &mcpHTTPStatusError{StatusCode: resp.StatusCode, Body: string(body)}
@@ -2503,7 +2506,7 @@ func isMCPJuly2026Error(rpcErr *mcpJSONRPCError) bool {
 }
 
 // mcpHTTPStatusError is a non-2xx answer from an MCP server, other than 401 (which is
-// utils.ErrMCPServerUnauthorized). It keeps the status code so callers can decide what to do with it.
+// gwerr.ErrMCPServerUnauthorized). It keeps the status code so callers can decide what to do with it.
 type mcpHTTPStatusError struct {
 	StatusCode int
 	Body       string

@@ -23,6 +23,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -32,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type servingGuard struct{}
@@ -98,7 +99,7 @@ func TestRemoveGatewayFromEnvironment_SelfHostedIsAConflict(t *testing.T) {
 	if w.Code != http.StatusConflict {
 		t.Fatalf("status = %d, want 409; body=%s", w.Code, w.Body.String())
 	}
-	if !strings.Contains(w.Body.String(), utils.ErrCodeGatewayEnvironmentFixed) {
-		t.Errorf("body = %s, want reason code %s", w.Body.String(), utils.ErrCodeGatewayEnvironmentFixed)
+	if !strings.Contains(w.Body.String(), gwerr.ErrCodeGatewayEnvironmentFixed) {
+		t.Errorf("body = %s, want reason code %s", w.Body.String(), gwerr.ErrCodeGatewayEnvironmentFixed)
 	}
 }

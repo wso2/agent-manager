@@ -32,6 +32,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,7 +45,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations/webhook"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // queueBus is a Bus with no transport behind it, to drive the dispatcher's
@@ -573,7 +574,7 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 	defer receiver.Close()
 
 	secret := webhook.SecretPrefix + base64.StdEncoding.EncodeToString([]byte("test-signing-key-for-unit-tests!"))
-	encrypted, err := utils.EncryptBytes([]byte(secret), testEventKey)
+	encrypted, err := aesgcm.Encrypt([]byte(secret), testEventKey)
 	require.NoError(t, err)
 	ou := "ou-" + uuid.NewString()[:8]
 	cfgJSON, _ := json.Marshal(webhook.Config{URL: receiver.URL})

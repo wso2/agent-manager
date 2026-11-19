@@ -27,6 +27,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -468,7 +470,7 @@ func (s *eventDestinationService) Resolve(
 	}
 	dest := eventdestinations.Destination{Config: d.Config}
 	if len(d.SecretEncrypted) > 0 {
-		secret, err := utils.DecryptBytes(d.SecretEncrypted, s.encryptionKey)
+		secret, err := aesgcm.Decrypt(d.SecretEncrypted, s.encryptionKey)
 		if err != nil {
 			return nil, eventdestinations.Destination{}, fmt.Errorf("failed to decrypt event destination secret: %w", err)
 		}
@@ -533,7 +535,7 @@ func (s *eventDestinationService) newSecret(driver eventdestinations.Driver) (st
 }
 
 func (s *eventDestinationService) encrypt(secret string) ([]byte, error) {
-	encrypted, err := utils.EncryptBytes([]byte(secret), s.encryptionKey)
+	encrypted, err := aesgcm.Encrypt([]byte(secret), s.encryptionKey)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encrypt event destination secret: %w", err)
 	}

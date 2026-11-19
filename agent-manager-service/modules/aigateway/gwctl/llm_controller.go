@@ -23,6 +23,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -137,10 +140,10 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 	created, err := c.templateService.Create(ouID, "system", template)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrSystemTemplateOverride):
+		case errors.Is(err, gwerr.ErrSystemTemplateOverride):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "Cannot use handle of built-in template")
 			return
-		case errors.Is(err, utils.ErrLLMProviderTemplateExists):
+		case errors.Is(err, gwerr.ErrLLMProviderTemplateExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM provider template already exists")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -204,12 +207,12 @@ func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	templateID := r.PathValue(utils.PathParamTemplateId)
+	templateID := r.PathValue(gwutil.PathParamTemplateId)
 
 	template, err := c.templateService.Get(ouID, templateID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -231,7 +234,7 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	templateID := r.PathValue(utils.PathParamTemplateId)
+	templateID := r.PathValue(gwutil.PathParamTemplateId)
 
 	var req gwspec.UpdateLLMProviderTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -258,10 +261,10 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 	updated, err := c.templateService.Update(ouID, templateID, modelTemplate)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrSystemTemplateImmutable):
+		case errors.Is(err, gwerr.ErrSystemTemplateImmutable):
 			httpx.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be modified")
 			return
-		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -283,14 +286,14 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	templateID := r.PathValue(utils.PathParamTemplateId)
+	templateID := r.PathValue(gwutil.PathParamTemplateId)
 
 	if err := c.templateService.Delete(ouID, templateID); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrSystemTemplateImmutable):
+		case errors.Is(err, gwerr.ErrSystemTemplateImmutable):
 			httpx.WriteErrorResponse(w, http.StatusForbidden, "System templates cannot be deleted")
 			return
-		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider template not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -313,7 +316,7 @@ func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http
 func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, ouID, templateHandle, providerName, providerHandle string, err error) {
 	log := logger.GetLogger(r.Context())
 	switch {
-	case errors.Is(err, utils.ErrLLMProviderExists):
+	case errors.Is(err, gwerr.ErrLLMProviderExists):
 		log.Warn("CreateLLMProvider: provider already exists", "ouID", ouID, "providerName", providerName, "providerHandle", providerHandle)
 		// The ID is auto-generated from the name and is what's actually unique (not the
 		// display name, which can be reused) — renaming a provider never changes its ID,
@@ -322,7 +325,7 @@ func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, ouID, t
 			"A provider with the ID %q already exists (auto-generated from the name). Try a different name, or rename/delete the existing provider first.",
 			providerHandle,
 		))
-	case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+	case errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound):
 		log.Error("CreateLLMProvider: template not found", "ouID", ouID, "templateHandle", templateHandle, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 	case errors.Is(err, httpx.ErrInvalidInput):
@@ -419,7 +422,7 @@ func (c *llmController) ListAvailableLLMPolicies(w http.ResponseWriter, r *http.
 
 	resp, err := c.providerService.ListAvailableLLMPolicies(ctx, ouID, providerID)
 	if err != nil {
-		if errors.Is(err, utils.ErrLLMProviderNotFound) {
+		if errors.Is(err, gwerr.ErrLLMProviderNotFound) {
 			log.Warn("ListAvailableLLMPolicies: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
@@ -485,7 +488,7 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("GetLLMProvider: starting", "ouID", ouID, "providerID", providerID)
 
@@ -494,7 +497,7 @@ func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	provider, err := c.providerService.Get(providerID, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("GetLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
@@ -567,7 +570,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("UpdateLLMProvider: starting", "ouID", ouID, "providerID", providerID)
 
@@ -589,7 +592,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 	existing, err := c.providerService.Get(providerID, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("UpdateLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
@@ -677,15 +680,15 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		resp, err := c.providerService.UpdateAndSync(ctx, providerID, ouID, provider, req.Gateways, c.deploymentService)
 		if err != nil {
 			switch {
-			case errors.Is(err, utils.ErrLLMProviderExists):
+			case errors.Is(err, gwerr.ErrLLMProviderExists):
 				log.Warn("UpdateLLMProvider: provider name and version already exist", "ouID", ouID, "providerID", providerID)
 				httpx.WriteErrorResponse(w, http.StatusConflict, "Another LLM provider already uses this name and version")
 				return
-			case errors.Is(err, utils.ErrLLMProviderNotFound):
+			case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 				log.Warn("UpdateLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 				httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 				return
-			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+			case errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound):
 				log.Error("UpdateLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
 				httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
@@ -733,15 +736,15 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 		updated, err = c.providerService.Update(ctx, providerID, ouID, provider)
 		if err != nil {
 			switch {
-			case errors.Is(err, utils.ErrLLMProviderExists):
+			case errors.Is(err, gwerr.ErrLLMProviderExists):
 				log.Warn("UpdateLLMProvider: provider name and version already exist", "ouID", ouID, "providerID", providerID)
 				httpx.WriteErrorResponse(w, http.StatusConflict, "Another LLM provider already uses this name and version")
 				return
-			case errors.Is(err, utils.ErrLLMProviderNotFound):
+			case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 				log.Warn("UpdateLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 				httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 				return
-			case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+			case errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound):
 				log.Error("UpdateLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
 				httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 				return
@@ -790,7 +793,7 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("DeleteLLMProvider: starting", "ouID", ouID, "providerID", providerID)
 
@@ -798,7 +801,7 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 
 	if err := c.providerService.Delete(ctx, providerID, ouID, c.deploymentService); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("DeleteLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
@@ -806,17 +809,17 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 			log.Error("DeleteLLMProvider: invalid provider id", "ouID", ouID, "providerID", providerID, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid provider id")
 			return
-		case errors.Is(err, utils.ErrLLMProviderHasProxies):
+		case errors.Is(err, gwerr.ErrLLMProviderHasProxies):
 			log.Warn("DeleteLLMProvider: provider has associated proxies", "ouID", ouID, "providerID", providerID)
-			httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderHasProxies.Error())
+			httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrLLMProviderHasProxies.Error())
 			return
-		case errors.Is(err, utils.ErrLLMProviderUndeployFailed):
+		case errors.Is(err, gwerr.ErrLLMProviderUndeployFailed):
 			log.Error("DeleteLLMProvider: undeployment failed", "ouID", ouID, "providerID", providerID, "error", err)
-			httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderUndeployFailed.Error())
+			httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrLLMProviderUndeployFailed.Error())
 			return
-		case errors.Is(err, utils.ErrLLMProviderDeleteInProgress):
+		case errors.Is(err, gwerr.ErrLLMProviderDeleteInProgress):
 			log.Warn("DeleteLLMProvider: delete already in progress", "ouID", ouID, "providerID", providerID)
-			httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderDeleteInProgress.Error())
+			httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrLLMProviderDeleteInProgress.Error())
 			return
 		default:
 			log.Error("DeleteLLMProvider: failed to delete provider", "ouID", ouID, "providerID", providerID, "error", err)
@@ -836,7 +839,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
+	projectName := r.PathValue(gwutil.PathParamProjName)
 
 	// Resolve project name to UUID
 	projectUUID, err := c.resolveProjectUUID(ctx, ouID, projectName)
@@ -869,14 +872,14 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	created, err := c.proxyService.Create(ctx, ouID, "system", proxy)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProxyExists):
+		case errors.Is(err, gwerr.ErrLLMProxyExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM proxy already exists")
 			return
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced provider not found")
 			return
-		case errors.Is(err, utils.ErrLLMProviderBeingDeleted):
-			httpx.WriteErrorResponse(w, http.StatusConflict, utils.ErrLLMProviderBeingDeleted.Error())
+		case errors.Is(err, gwerr.ErrLLMProviderBeingDeleted):
+			httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrLLMProviderBeingDeleted.Error())
 			return
 		case errors.Is(err, utils.ErrProjectNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
@@ -900,7 +903,7 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
+	projectName := r.PathValue(gwutil.PathParamProjName)
 
 	// Resolve project name to UUID
 	projectUUID, err := c.resolveProjectUUID(ctx, ouID, projectName)
@@ -960,7 +963,7 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Parse pagination parameters
 	limit := getIntQueryParam(r, "limit", 20)
@@ -980,7 +983,7 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 	proxies, totalCount, err := c.proxyService.ListByProvider(ouID, providerID, limit, offset)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -1012,8 +1015,8 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue(utils.PathParamProxyId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	_, err := c.resolveProjectUUID(ctx, ouID, projectName)
@@ -1031,7 +1034,7 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	proxy, err := c.proxyService.Get(proxyID, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProxyNotFound):
+		case errors.Is(err, gwerr.ErrLLMProxyNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -1053,8 +1056,8 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue(utils.PathParamProxyId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	projectUUID, err := c.resolveProjectUUID(ctx, ouID, projectName)
@@ -1098,10 +1101,10 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	updated, err := c.proxyService.Update(proxyID, ouID, proxy)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProxyNotFound):
+		case errors.Is(err, gwerr.ErrLLMProxyNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced provider not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -1123,8 +1126,8 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	proxyID := r.PathValue(utils.PathParamProxyId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
 	// Resolve project name to UUID (validates project exists)
 	projectUUID, err := c.resolveProjectUUID(ctx, ouID, projectName)
@@ -1146,7 +1149,7 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 
 	if err := c.proxyService.DeleteInProject(ctx, proxyID, ouID, projectUUID, c.proxyDeploymentService); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProxyNotFound):
+		case errors.Is(err, gwerr.ErrLLMProxyNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM proxy not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -1167,12 +1170,12 @@ func (c *llmController) ListLLMProviderConsumers(w http.ResponseWriter, r *http.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	consumers, err := c.providerService.ListConsumers(ctx, providerID, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -1209,7 +1212,7 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Decode request body
 	var req gwspec.UpdateLLMProviderCatalogRequest
@@ -1223,7 +1226,7 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	provider, err := c.providerService.UpdateCatalogStatus(providerID, ouID, req.InCatalog)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):

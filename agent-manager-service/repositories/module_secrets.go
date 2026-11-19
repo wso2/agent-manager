@@ -19,12 +19,13 @@ package repositories
 import (
 	"context"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // ModuleSecretStore keeps module secrets in the secrets table, one row per
@@ -53,7 +54,7 @@ func ownerCond(orgID, kind string, owner uuid.UUID) (string, []any) {
 
 // Put stores value, rewriting the owner's secret or creating it.
 func (s *ModuleSecretStore) Put(ctx context.Context, tx *gorm.DB, orgID, kind string, owner uuid.UUID, value string) error {
-	ciphertext, err := utils.EncryptBytes([]byte(value), s.key)
+	ciphertext, err := aesgcm.Encrypt([]byte(value), s.key)
 	if err != nil {
 		return err
 	}
@@ -85,7 +86,7 @@ func (s *ModuleSecretStore) Get(ctx context.Context, tx *gorm.DB, orgID, kind st
 	if len(rows) == 0 {
 		return "", false, nil
 	}
-	plain, err := utils.DecryptBytes(rows[0].Ciphertext, s.key)
+	plain, err := aesgcm.Decrypt(rows[0].Ciphertext, s.key)
 	if err != nil {
 		return "", false, err
 	}

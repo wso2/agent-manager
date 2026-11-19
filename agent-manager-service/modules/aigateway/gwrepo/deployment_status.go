@@ -24,12 +24,13 @@ import (
 	"sort"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // deploymentHardLimit is how many deployments an artifact keeps per gateway before the oldest archived ones go.
@@ -193,7 +194,7 @@ func (r *DeploymentRepo) BeginUndeploy(ctx context.Context, tx *gorm.DB, p gwmod
 		return false, fmt.Errorf("failed to cancel the owed deploy: %w", cancelled.Error)
 	}
 	if cancelled.RowsAffected == 0 {
-		return false, utils.ErrDeploymentNotActive
+		return false, gwerr.ErrDeploymentNotActive
 	}
 	return false, nil
 }

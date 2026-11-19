@@ -25,6 +25,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 
 	"github.com/google/uuid"
@@ -80,8 +83,8 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 
 	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
 
 	// The token subject, not a hardcoded literal. This column previously
 	// recorded "system" for every config a user created, so it attributed real
@@ -97,7 +100,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 		return
 	}
 
-	if err := utils.ValidateConfigName(specReq.Name); err != nil {
+	if err := gwutil.ValidateConfigName(specReq.Name); err != nil {
 		log.Warn("CreateAgentModelConfig: invalid name", "error", err)
 		httpx.WriteValidationErrorResponse(w, err)
 		return
@@ -121,16 +124,16 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	response, err := c.agentConfigService.Create(ctx, ouID, projectName, agentName, req, createdBy)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
+		case errors.Is(err, gwerr.ErrAgentConfigAlreadyExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "Agent configuration already exists")
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrMCPProxyNotFound):
+		case errors.Is(err, gwerr.ErrMCPProxyNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -142,7 +145,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 		case errors.Is(err, httpx.ErrForbidden):
 			httpx.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
 			return
-		case errors.Is(err, utils.ErrLLMProxyExists):
+		case errors.Is(err, gwerr.ErrLLMProxyExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
 			return
 		default:
@@ -166,9 +169,9 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue(utils.PathParamConfigId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	configID := r.PathValue(gwutil.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
@@ -179,7 +182,7 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 
 	response, err := c.agentConfigService.Get(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -207,8 +210,8 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
 	limit := getIntQueryParam(r, "limit", 20)
 	offset := getIntQueryParam(r, "offset", 0)
 
@@ -244,9 +247,9 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue(utils.PathParamConfigId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	configID := r.PathValue(gwutil.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
@@ -264,7 +267,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	}
 
 	if specReq.Name != nil {
-		if err := utils.ValidateConfigName(*specReq.Name); err != nil {
+		if err := gwutil.ValidateConfigName(*specReq.Name); err != nil {
 			log.Warn("UpdateAgentModelConfig: invalid name", "error", err)
 			httpx.WriteValidationErrorResponse(w, err)
 			return
@@ -281,7 +284,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 
 	existing, err := c.agentConfigService.Get(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -300,16 +303,16 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	response, err := c.agentConfigService.Update(ctx, configUUID, ouID, projectName, agentName, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrAgentConfigNotFound):
+		case errors.Is(err, gwerr.ErrAgentConfigNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrMCPProxyNotFound):
+		case errors.Is(err, gwerr.ErrMCPProxyNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -321,7 +324,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 		case errors.Is(err, httpx.ErrForbidden):
 			httpx.WriteErrorResponse(w, http.StatusForbidden, "Forbidden")
 			return
-		case errors.Is(err, utils.ErrLLMProxyExists):
+		case errors.Is(err, gwerr.ErrLLMProxyExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "LLM proxy name collision: another agent in this org already uses the same model-config name")
 			return
 		default:
@@ -345,9 +348,9 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue(utils.PathParamConfigId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	configID := r.PathValue(gwutil.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
@@ -358,7 +361,7 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 
 	existing, err := c.agentConfigService.Get(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -375,7 +378,7 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 	}
 
 	if err := c.agentConfigService.Delete(ctx, configUUID, ouID, projectName, agentName); err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -396,8 +399,8 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
 	createdBy := callerSubject(ctx)
 
 	r.Body = http.MaxBytesReader(w, r.Body, 1<<20) // 1MB limit
@@ -409,7 +412,7 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	}
 	specReq.Type = gwmodels.AgentConfigTypeMCP
 
-	if err := utils.ValidateConfigName(specReq.Name); err != nil {
+	if err := gwutil.ValidateConfigName(specReq.Name); err != nil {
 		log.Warn("CreateAgentMCPConfig: invalid name", "error", err)
 		httpx.WriteValidationErrorResponse(w, err)
 		return
@@ -425,13 +428,13 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	response, err := c.agentConfigService.Create(ctx, ouID, projectName, agentName, req, createdBy)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
+		case errors.Is(err, gwerr.ErrAgentConfigAlreadyExists):
 			httpx.WriteErrorResponse(w, http.StatusConflict, "Agent MCP configuration already exists")
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrMCPProxyNotFound):
+		case errors.Is(err, gwerr.ErrMCPProxyNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -463,9 +466,9 @@ func (c *agentConfigurationController) GetAgentMCPConfig(w http.ResponseWriter, 
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue(utils.PathParamConfigId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	configID := r.PathValue(gwutil.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
@@ -476,7 +479,7 @@ func (c *agentConfigurationController) GetAgentMCPConfig(w http.ResponseWriter, 
 
 	response, err := c.agentConfigService.GetMCP(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -497,8 +500,8 @@ func (c *agentConfigurationController) ListAgentMCPConfigs(w http.ResponseWriter
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
 	limit := getIntQueryParam(r, "limit", 20)
 	offset := getIntQueryParam(r, "offset", 0)
 
@@ -532,9 +535,9 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue(utils.PathParamConfigId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	configID := r.PathValue(gwutil.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
@@ -545,7 +548,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 
 	_, err = c.agentConfigService.GetMCP(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -565,7 +568,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 	}
 
 	if specReq.Name != nil {
-		if err := utils.ValidateConfigName(*specReq.Name); err != nil {
+		if err := gwutil.ValidateConfigName(*specReq.Name); err != nil {
 			log.Warn("UpdateAgentMCPConfig: invalid name", "error", err)
 			httpx.WriteValidationErrorResponse(w, err)
 			return
@@ -582,13 +585,13 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 	response, err := c.agentConfigService.UpdateMCP(ctx, configUUID, ouID, projectName, agentName, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrAgentConfigNotFound):
+		case errors.Is(err, gwerr.ErrAgentConfigNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		case errors.Is(err, utils.ErrAgentNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
-		case errors.Is(err, utils.ErrMCPProxyNotFound):
+		case errors.Is(err, gwerr.ErrMCPProxyNotFound):
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 			return
 		case errors.Is(err, httpx.ErrInvalidInput):
@@ -620,9 +623,9 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projectName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	configID := r.PathValue(utils.PathParamConfigId)
+	projectName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	configID := r.PathValue(gwutil.PathParamConfigId)
 
 	configUUID, err := uuid.Parse(configID)
 	if err != nil {
@@ -633,7 +636,7 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 
 	_, err = c.agentConfigService.GetMCP(ctx, configUUID, ouID, projectName, agentName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -645,7 +648,7 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 		return
 	}
 	if err := c.agentConfigService.DeleteMCP(ctx, configUUID, ouID, projectName, agentName); err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -946,10 +949,10 @@ func getStringPtr(s string) *string {
 // passing the path handle would never match and every call would 404.
 func (c *agentConfigurationController) configEnvAPIKeyParams(w http.ResponseWriter, r *http.Request) (ouID, projName, agentName, envName string, configUUID uuid.UUID, ok bool) {
 	ouID = middleware.OUIDFromRequest(r)
-	projName = r.PathValue(utils.PathParamProjName)
-	agentName = r.PathValue(utils.PathParamAgentName)
+	projName = r.PathValue(gwutil.PathParamProjName)
+	agentName = r.PathValue(gwutil.PathParamAgentName)
 	envName = r.PathValue("envName")
-	configID := r.PathValue(utils.PathParamConfigId)
+	configID := r.PathValue(gwutil.PathParamConfigId)
 	parsed, err := uuid.Parse(configID)
 	if err != nil {
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid configuration ID")
@@ -964,11 +967,11 @@ func (c *agentConfigurationController) writeConfigAPIKeyError(w http.ResponseWri
 	switch {
 	case errors.Is(err, httpx.ErrBadRequest):
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
-	case errors.Is(err, utils.ErrAgentConfigNotFound):
+	case errors.Is(err, gwerr.ErrAgentConfigNotFound):
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
-	case errors.Is(err, utils.ErrAgentConfigNotExternal):
+	case errors.Is(err, gwerr.ErrAgentConfigNotExternal):
 		httpx.WriteErrorResponse(w, http.StatusForbidden, "API key management is only available for external agents")
-	case errors.Is(err, utils.ErrGatewayNotFound):
+	case errors.Is(err, gwerr.ErrGatewayNotFound):
 		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 	default:
 		log.Error(operation+": failed", "error", err)
@@ -1010,7 +1013,7 @@ func (c *agentConfigurationController) ListMCPConfigAPIKeys(w http.ResponseWrite
 
 	response, err := c.agentConfigService.ListMCPConfigAPIKeys(ctx, ouID, projName, agentName, configUUID, envName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}
@@ -1131,7 +1134,7 @@ func (c *agentConfigurationController) ListLLMConfigAPIKeys(w http.ResponseWrite
 
 	response, err := c.agentConfigService.ListLLMConfigAPIKeys(ctx, ouID, projName, agentName, configUUID, envName)
 	if err != nil {
-		if errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Configuration not found")
 			return
 		}

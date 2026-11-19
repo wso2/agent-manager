@@ -22,6 +22,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // createMCPProxyForTest inserts a proxy through the repository and removes it afterwards.
@@ -155,9 +156,9 @@ func TestGetInProjectRejectsOtherProject(t *testing.T) {
 	assert.Equal(t, "p1-a", got.Artifact.Handle)
 
 	_, err = repo.GetInProject(ctx, "p1-a", ou, p2)
-	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound, "the proxy lives in another project")
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyNotFound, "the proxy lives in another project")
 	_, err = repo.GetInProject(ctx, "org-a", ou, p1)
-	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound, "an organization proxy is not in any project")
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyNotFound, "an organization proxy is not in any project")
 	_, err = repo.GetInProject(ctx, "p1-a", uuid.NewString(), p1)
-	assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound, "other organizations are invisible")
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyNotFound, "other organizations are invisible")
 }

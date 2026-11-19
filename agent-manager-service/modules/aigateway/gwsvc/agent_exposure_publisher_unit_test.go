@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // exposurePublisher is the shared publisher inside m.publisher(), on a core over m's deployments and hub.
@@ -163,7 +164,7 @@ func TestAgentExposurePublisherResolveURLWithoutAnArtifactIsOwedItsDeploy(t *tes
 	m.gateways.ListWithFiltersFunc = func(gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
 		return []*gwmodels.Gateway{{UUID: uuid.New()}}, nil
 	}
-	m.artifacts.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) { return nil, utils.ErrArtifactNotFound }
+	m.artifacts.GetByHandleFunc = func(string, string) (*gwmodels.Artifact, error) { return nil, gwerr.ErrArtifactNotFound }
 	m.exposures.GetFunc = exposedAgent
 
 	url, err := m.exposurePublisher().ResolveURL(context.Background(), testA2AKey())

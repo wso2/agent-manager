@@ -25,6 +25,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	gomcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -269,17 +271,17 @@ func TestAttachNoteFollowsTheAgentKind(t *testing.T) {
 		want, notWant            []string
 	}{
 		{
-			"platform agent", "attach_llm_provider_to_agent", string(utils.InternalAgent), llm,
+			"platform agent", "attach_llm_provider_to_agent", string(gwutil.InternalAgent), llm,
 			[]string{"restart it"},
 			[]string{"external agent", "deploy_agent"},
 		},
 		{
-			"external agent, LLM", "attach_llm_provider_to_agent", string(utils.ExternalAgent), llm,
+			"external agent, LLM", "attach_llm_provider_to_agent", string(gwutil.ExternalAgent), llm,
 			[]string{"external agent", `Connect to LLM Provider`, "revoked", "generates a key"},
 			[]string{"deploy_agent", "build_agent"},
 		},
 		{
-			"external agent, MCP", "attach_mcp_proxy_to_agent", string(utils.ExternalAgent), mcp,
+			"external agent, MCP", "attach_mcp_proxy_to_agent", string(gwutil.ExternalAgent), mcp,
 			[]string{"external agent", `Connect to MCP Server`, "API key security"},
 			[]string{"deploy_agent", "build_agent"},
 		},
@@ -476,7 +478,7 @@ func TestAttachRevokesTheWithheldKeyOfAnExternalAgent(t *testing.T) {
 	}
 
 	t.Run("external agent: every environment's key is revoked", func(t *testing.T) {
-		mock := newMock(string(utils.ExternalAgent), "dev", "staging")
+		mock := newMock(string(gwutil.ExternalAgent), "dev", "staging")
 		if failed, text := callAttachAs(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID}); failed {
 			t.Fatalf("tool failed: %s", text)
 		}
@@ -496,7 +498,7 @@ func TestAttachRevokesTheWithheldKeyOfAnExternalAgent(t *testing.T) {
 	})
 
 	t.Run("platform agent: nothing is revoked", func(t *testing.T) {
-		mock := newMock(string(utils.InternalAgent), "dev")
+		mock := newMock(string(gwutil.InternalAgent), "dev")
 		if failed, text := callAttachAs(t, mock, "attach_llm_provider_to_agent", map[string]any{"provider_id": testProviderID}); failed {
 			t.Fatalf("tool failed: %s", text)
 		}
@@ -506,7 +508,7 @@ func TestAttachRevokesTheWithheldKeyOfAnExternalAgent(t *testing.T) {
 	})
 
 	t.Run("a failed revoke is reported, not fatal", func(t *testing.T) {
-		mock := failingRevokeMock{agentKindMock: newMock(string(utils.ExternalAgent), "dev", "staging"), failEnv: "staging"}
+		mock := failingRevokeMock{agentKindMock: newMock(string(gwutil.ExternalAgent), "dev", "staging"), failEnv: "staging"}
 		session := setupTestServerWithToolsets(t, &Tools{AgentConfigs: mock, Core: mock})
 		res, err := session.CallTool(context.Background(), &gomcp.CallToolParams{Name: "attach_llm_provider_to_agent", Arguments: map[string]any{
 			"project_name": testProjectName, "agent_name": testAgentName, "provider_id": testProviderID,

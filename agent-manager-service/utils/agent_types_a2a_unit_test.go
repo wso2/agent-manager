@@ -25,15 +25,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
 
-func TestIsA2AAgentSubType(t *testing.T) {
-	assert.True(t, IsA2AAgentSubType("a2a-agent"))
-	assert.False(t, IsA2AAgentSubType("chat-api"))
-	assert.False(t, IsA2AAgentSubType("custom-api"))
-	assert.False(t, IsA2AAgentSubType(""))
-}
-
 func TestValidateAgentTypeAcceptsA2A(t *testing.T) {
-	subType := string(AgentSubTypeA2A)
+	subType := "a2a-agent"
 	err := validateAgentType(spec.AgentType{Type: string(AgentTypeAPI), SubType: &subType}, string(InternalAgent))
 	assert.NoError(t, err)
 }

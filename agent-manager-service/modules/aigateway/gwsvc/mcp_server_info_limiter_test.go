@@ -20,11 +20,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestConcurrencyLimiter_PerKeyLimit(t *testing.T) {
@@ -76,7 +77,7 @@ func TestFetchServerInfo_RefusedWhenUserOverLimit(t *testing.T) {
 
 	url := "https://example.com/mcp"
 	_, err := (&MCPProxyService{}).FetchServerInfo(context.Background(), orgUUID, userID, &gwmodels.MCPServerInfoFetchRequest{URL: &url})
-	assert.ErrorIs(t, err, utils.ErrTooManyRequests)
+	assert.ErrorIs(t, err, gwerr.ErrTooManyRequests)
 }
 
 func TestMCPServerInfoLimiterKey_SeparatesUsersAndOrgs(t *testing.T) {

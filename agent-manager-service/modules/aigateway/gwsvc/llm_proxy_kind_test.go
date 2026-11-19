@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +40,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // proxyFixture is an org with a provider and the LLM proxy services over the real repositories.
@@ -203,7 +204,7 @@ func TestUndeployEverywhereUndeploysEveryPlacedRow(t *testing.T) {
 		assert.Equal(t, gwmodels.DeploymentStatusUndeployed, row.StatusDesired)
 	}
 	assert.ErrorIs(t, f.proxies.UndeployEverywhere(context.Background(), "no-such-proxy", f.sync.ouID),
-		utils.ErrLLMProxyNotFound)
+		gwerr.ErrLLMProxyNotFound)
 }
 
 // The placement pass places an agent's proxy from its record alone, on its environment's egress gateway.

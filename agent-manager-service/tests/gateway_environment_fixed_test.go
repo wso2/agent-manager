@@ -28,9 +28,9 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Two concurrent assigns of one gateway to different environments take different environment
@@ -60,7 +60,7 @@ func TestAssignGatewayConcurrentEnvironmentsRefused(t *testing.T) {
 	refused := 0
 	for _, err := range errs {
 		if err != nil {
-			require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
+			require.ErrorIs(t, err, gwerr.ErrGatewayEnvironmentFixed)
 			refused++
 		}
 	}

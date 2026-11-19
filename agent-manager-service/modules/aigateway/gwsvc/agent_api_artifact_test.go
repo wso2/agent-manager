@@ -23,6 +23,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 var errRollback = errors.New("roll back the test transaction")
@@ -57,7 +58,7 @@ func lostInsertRace(t *testing.T) (ouID, envID string, winner *gwmodels.Artifact
 		GetByHandleFunc: func(handle, ouID string) (*gwmodels.Artifact, error) {
 			lookups++
 			if lookups == 1 {
-				return nil, utils.ErrArtifactNotFound
+				return nil, gwerr.ErrArtifactNotFound
 			}
 			return reads.GetByHandle(handle, ouID)
 		},

@@ -21,12 +21,14 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProviderTemplateService handles LLM provider template business logic
@@ -56,13 +58,13 @@ func (s *LLMProviderTemplateService) Create(ouID, createdBy string, template *gw
 	}
 
 	// Validate template handle format
-	if err := utils.ValidateTemplateHandle(template.Handle); err != nil {
+	if err := gwutil.ValidateTemplateHandle(template.Handle); err != nil {
 		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	// Check if handle conflicts with built-in template
 	if s.templateStore.Exists(template.Handle) {
-		return nil, utils.ErrSystemTemplateOverride
+		return nil, gwerr.ErrSystemTemplateOverride
 	}
 
 	// Check if template already exists
@@ -71,7 +73,7 @@ func (s *LLMProviderTemplateService) Create(ouID, createdBy string, template *gw
 		return nil, fmt.Errorf("failed to check template exists: %w", err)
 	}
 	if exists {
-		return nil, utils.ErrLLMProviderTemplateExists
+		return nil, gwerr.ErrLLMProviderTemplateExists
 	}
 
 	// Set metadata - user templates are never system templates
@@ -93,7 +95,7 @@ func (s *LLMProviderTemplateService) Create(ouID, createdBy string, template *gw
 	created, err := s.templateRepo.GetByHandle(template.Handle, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProviderTemplateNotFound
+			return nil, gwerr.ErrLLMProviderTemplateNotFound
 		}
 		return nil, fmt.Errorf("failed to fetch created template: %w", err)
 	}
@@ -147,7 +149,7 @@ func (s *LLMProviderTemplateService) Get(ouID, templateID string) (*gwmodels.LLM
 	}
 
 	// Validate template handle format
-	if err := utils.ValidateTemplateHandle(templateID); err != nil {
+	if err := gwutil.ValidateTemplateHandle(templateID); err != nil {
 		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
@@ -160,7 +162,7 @@ func (s *LLMProviderTemplateService) Get(ouID, templateID string) (*gwmodels.LLM
 	template, err := s.templateRepo.GetByHandle(templateID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProviderTemplateNotFound
+			return nil, gwerr.ErrLLMProviderTemplateNotFound
 		}
 		return nil, fmt.Errorf("failed to get template: %w", err)
 	}
@@ -183,13 +185,13 @@ func (s *LLMProviderTemplateService) Update(ouID, templateID string, updates *gw
 	}
 
 	// Validate template handle format
-	if err := utils.ValidateTemplateHandle(templateID); err != nil {
+	if err := gwutil.ValidateTemplateHandle(templateID); err != nil {
 		return nil, errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	// Check if this is a system template (cannot be modified)
 	if s.templateStore.Exists(templateID) {
-		return nil, utils.ErrSystemTemplateImmutable
+		return nil, gwerr.ErrSystemTemplateImmutable
 	}
 
 	// Set metadata for update
@@ -205,7 +207,7 @@ func (s *LLMProviderTemplateService) Update(ouID, templateID string, updates *gw
 	// Update template
 	if err := s.templateRepo.Update(updates); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProviderTemplateNotFound
+			return nil, gwerr.ErrLLMProviderTemplateNotFound
 		}
 		return nil, fmt.Errorf("failed to update template: %w", err)
 	}
@@ -214,7 +216,7 @@ func (s *LLMProviderTemplateService) Update(ouID, templateID string, updates *gw
 	updated, err := s.templateRepo.GetByHandle(templateID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProviderTemplateNotFound
+			return nil, gwerr.ErrLLMProviderTemplateNotFound
 		}
 		return nil, fmt.Errorf("failed to fetch updated template: %w", err)
 	}
@@ -234,18 +236,18 @@ func (s *LLMProviderTemplateService) Delete(ouID, templateID string) error {
 	}
 
 	// Validate template handle format
-	if err := utils.ValidateTemplateHandle(templateID); err != nil {
+	if err := gwutil.ValidateTemplateHandle(templateID); err != nil {
 		return errors.Join(httpx.ErrInvalidInput, err)
 	}
 
 	// Check if this is a system template (cannot be deleted)
 	if s.templateStore.Exists(templateID) {
-		return utils.ErrSystemTemplateImmutable
+		return gwerr.ErrSystemTemplateImmutable
 	}
 
 	if err := s.templateRepo.Delete(templateID, ouID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrLLMProviderTemplateNotFound
+			return gwerr.ErrLLMProviderTemplateNotFound
 		}
 		return fmt.Errorf("failed to delete template: %w", err)
 	}

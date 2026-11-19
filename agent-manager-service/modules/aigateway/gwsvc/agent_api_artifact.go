@@ -21,12 +21,13 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func agentEnvAPIArtifactHandle(projectName, agentName, environmentID string) string {
@@ -38,7 +39,7 @@ func agentAPIArtifactHandlePrefix(projectName, agentName string) string {
 }
 
 // agentEnvAPIArtifact reads the agent's API artifact for the environment; a missing row, or one whose kind is not
-// in kinds, is utils.ErrArtifactNotFound.
+// in kinds, is gwerr.ErrArtifactNotFound.
 func agentEnvAPIArtifact(
 	artifactRepo gwrepo.ArtifactRepository, ouID, projectName, agentName, environmentID string, kinds ...string,
 ) (*gwmodels.Artifact, error) {
@@ -47,7 +48,7 @@ func agentEnvAPIArtifact(
 		return nil, err
 	}
 	if !slices.Contains(kinds, artifact.Kind) {
-		return nil, utils.ErrArtifactNotFound
+		return nil, gwerr.ErrArtifactNotFound
 	}
 	return artifact, nil
 }
@@ -65,7 +66,7 @@ func ensureAgentEnvAPIArtifact(
 	if err == nil {
 		return requireArtifactKind(artifact, kind)
 	}
-	if !errors.Is(err, utils.ErrArtifactNotFound) {
+	if !errors.Is(err, gwerr.ErrArtifactNotFound) {
 		return nil, err
 	}
 

@@ -21,6 +21,8 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const seedOUID = "01900000-0000-7000-8000-000000000001"
@@ -133,7 +134,7 @@ func TestDefaultGatewaySeederRegistersMissingGateway(t *testing.T) {
 			lookups++
 			// The seeder's lookup and RegisterGateway's uniqueness check find nothing; the read-back finds it.
 			if lookups <= 2 {
-				return nil, utils.ErrGatewayNotFound
+				return nil, gwerr.ErrGatewayNotFound
 			}
 			return registered, nil
 		},

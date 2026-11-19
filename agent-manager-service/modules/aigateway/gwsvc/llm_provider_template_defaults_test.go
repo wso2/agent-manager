@@ -20,6 +20,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -27,7 +29,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // mistralaiLikeTemplate mirrors the shape the built-in templates actually serve, as
@@ -211,7 +212,7 @@ func TestResolveTemplate_UnknownHandleIsTemplateNotFound(t *testing.T) {
 
 	_, err := svc.resolveTemplate("ghost", "ou-acme")
 
-	assert.ErrorIs(t, err, utils.ErrLLMProviderTemplateNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrLLMProviderTemplateNotFound)
 }
 
 func TestResolveTemplate_RepositoryErrorIsNotMaskedAsNotFound(t *testing.T) {
@@ -223,7 +224,7 @@ func TestResolveTemplate_RepositoryErrorIsNotMaskedAsNotFound(t *testing.T) {
 	_, err := svc.resolveTemplate("inhouse", "ou-acme")
 
 	assert.ErrorIs(t, err, boom)
-	assert.NotErrorIs(t, err, utils.ErrLLMProviderTemplateNotFound)
+	assert.NotErrorIs(t, err, gwerr.ErrLLMProviderTemplateNotFound)
 }
 
 // The built-in templates live in one process-wide store whose Get copies only one

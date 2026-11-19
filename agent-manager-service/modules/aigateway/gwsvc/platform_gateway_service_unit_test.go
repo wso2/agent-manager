@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const gatewayTestOUID = "ou-acme"
@@ -119,14 +120,14 @@ func TestGetGateway_ResolvesByUUID(t *testing.T) {
 func TestGetGateway_UnknownNameIsNotFound(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		GetByNameAndOrgIDFunc: func(_, _ string) (*gwmodels.Gateway, error) {
-			return nil, utils.ErrGatewayNotFound
+			return nil, gwerr.ErrGatewayNotFound
 		},
 	}
 	svc := NewPlatformGatewayService(repo, nil)
 
 	_, err := svc.GetGateway("ghost", gatewayTestOUID)
 
-	assert.ErrorIs(t, err, utils.ErrGatewayNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 }
 
 func TestGetGateway_UnknownUUIDIsNotFound(t *testing.T) {
@@ -139,7 +140,7 @@ func TestGetGateway_UnknownUUIDIsNotFound(t *testing.T) {
 
 	_, err := svc.GetGateway(uuid.New().String(), gatewayTestOUID)
 
-	assert.ErrorIs(t, err, utils.ErrGatewayNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 }
 
 // The name branch used to return the repository error verbatim, so a bare failure
@@ -154,7 +155,7 @@ func TestGetGateway_UnknownNameFromGormIsNotFound(t *testing.T) {
 
 	_, err := svc.GetGateway("ghost", gatewayTestOUID)
 
-	assert.ErrorIs(t, err, utils.ErrGatewayNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 }
 
 // A nil gateway with no error reached GetGateway's OUID check and panicked.
@@ -168,7 +169,7 @@ func TestGetGateway_NilGatewayWithoutErrorIsNotFound(t *testing.T) {
 
 	_, err := svc.GetGateway("ghost", gatewayTestOUID)
 
-	assert.ErrorIs(t, err, utils.ErrGatewayNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 }
 
 // A real repository failure must not be flattened into not-found.
@@ -184,7 +185,7 @@ func TestGetGateway_RepositoryErrorIsNotMaskedAsNotFound(t *testing.T) {
 	_, err := svc.GetGateway(uuid.New().String(), gatewayTestOUID)
 
 	assert.ErrorIs(t, err, boom)
-	assert.NotErrorIs(t, err, utils.ErrGatewayNotFound)
+	assert.NotErrorIs(t, err, gwerr.ErrGatewayNotFound)
 }
 
 // Org isolation: a gateway UUID from another org reads as absent, not forbidden.
@@ -200,7 +201,7 @@ func TestGetGateway_OtherOrgGatewayIsNotFound(t *testing.T) {
 
 	_, err := svc.GetGateway(gateway.UUID.String(), gatewayTestOUID)
 
-	assert.ErrorIs(t, err, utils.ErrGatewayNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 }
 
 // fakeButValidShapedToken builds a token string that passes VerifyToken's
@@ -308,7 +309,7 @@ func TestRotateToken_ThirdTokenIsLimitError(t *testing.T) {
 
 	_, err := svc.RotateToken(gateway.UUID.String(), gatewayTestOUID)
 
-	assert.ErrorIs(t, err, utils.ErrGatewayTokenLimitReached)
+	assert.ErrorIs(t, err, gwerr.ErrGatewayTokenLimitReached)
 }
 
 func TestRevokeToken_UnknownIsNotFound(t *testing.T) {
@@ -321,7 +322,7 @@ func TestRevokeToken_UnknownIsNotFound(t *testing.T) {
 
 	err := svc.RevokeTokenByID(uuid.New().String(), gateway.UUID.String(), gatewayTestOUID)
 
-	assert.ErrorIs(t, err, utils.ErrGatewayTokenNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrGatewayTokenNotFound)
 }
 
 func TestRevokeToken_OtherGatewaysTokenIsNotFound(t *testing.T) {
@@ -336,7 +337,7 @@ func TestRevokeToken_OtherGatewaysTokenIsNotFound(t *testing.T) {
 
 	err := svc.RevokeTokenByID(uuid.New().String(), gateway.UUID.String(), gatewayTestOUID)
 
-	assert.ErrorIs(t, err, utils.ErrGatewayTokenNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrGatewayTokenNotFound)
 }
 
 func TestValidateGatewayInput_IsInvalidInput(t *testing.T) {
@@ -419,7 +420,7 @@ func TestAssignGatewayToEnvironment_RefusesSelfHostedToAnotherEnvironment(t *tes
 
 	err := svc.AssignGatewayToEnvironment(gw.UUID.String(), uuid.NewString())
 
-	require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
+	require.ErrorIs(t, err, gwerr.ErrGatewayEnvironmentFixed)
 	assert.Empty(t, repo.CreateEnvironmentMappingTxCalls())
 }
 

@@ -22,6 +22,9 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type activeDeploymentLookup func(s *GatewayInternalAPIService, ctx context.Context, id, ouID, gatewayID string) (map[string]string, error)
@@ -45,20 +47,20 @@ var activeDeploymentLookups = []struct {
 	{
 		name:        "agent",
 		lookup:      (*GatewayInternalAPIService).GetActiveAgentDeploymentByGateway,
-		notFound:    utils.ErrAgentArtifactNotFound,
-		notNotFound: utils.ErrMCPProxyNotFound,
+		notFound:    gwerr.ErrAgentArtifactNotFound,
+		notNotFound: gwerr.ErrMCPProxyNotFound,
 	},
 	{
 		name:        "mcp proxy",
 		lookup:      (*GatewayInternalAPIService).GetActiveMCPProxyDeploymentByGateway,
-		notFound:    utils.ErrMCPProxyNotFound,
-		notNotFound: utils.ErrAgentArtifactNotFound,
+		notFound:    gwerr.ErrMCPProxyNotFound,
+		notNotFound: gwerr.ErrAgentArtifactNotFound,
 	},
 	{
 		name:        "rest api",
 		lookup:      (*GatewayInternalAPIService).GetActiveRestAPIDeploymentByGateway,
-		notFound:    utils.ErrAPINotFound,
-		notNotFound: utils.ErrAgentArtifactNotFound,
+		notFound:    gwerr.ErrAPINotFound,
+		notNotFound: gwerr.ErrAgentArtifactNotFound,
 	},
 }
 
@@ -104,7 +106,7 @@ func TestActiveArtifactDeploymentByGatewayNotDeployed(t *testing.T) {
 			assert.ErrorIs(t, err, tt.notFound)
 			assert.NotErrorIs(t, err, tt.notNotFound)
 			// The gateway controllers rely on this: they map only the kind's own sentinel to 404.
-			assert.NotErrorIs(t, err, utils.ErrDeploymentNotActive)
+			assert.NotErrorIs(t, err, gwerr.ErrDeploymentNotActive)
 		})
 	}
 }
@@ -139,7 +141,7 @@ func TestActiveArtifactDeploymentByGatewayRepoErrorIsNotNotFound(t *testing.T) {
 // The stored Agent YAML holds the proxy's upstream secret only as secretRef; the gateway is served the value.
 func TestActiveAgentDeploymentDecryptsTheUpstreamSecret(t *testing.T) {
 	key := make([]byte, 32)
-	ciphertext, err := utils.EncryptBytes([]byte("s3cret"), key)
+	ciphertext, err := aesgcm.Encrypt([]byte("s3cret"), key)
 	require.NoError(t, err)
 	in := proxiedA2AInput()
 	secretRef := base64.StdEncoding.EncodeToString(ciphertext)

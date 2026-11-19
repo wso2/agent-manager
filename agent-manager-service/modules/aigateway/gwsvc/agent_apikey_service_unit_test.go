@@ -23,6 +23,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +39,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // stubEventHub is a hand-written EventHub stub (no generated mock exists for
@@ -328,7 +329,7 @@ func TestResolveEnvGateways_IngressOnly(t *testing.T) {
 	t.Run("egress-only environment yields ErrGatewayNotFound", func(t *testing.T) {
 		svc := &AgentAPIKeyService{gatewayRepo: gatewayFixtureRepo(t, env, []*gwmodels.Gateway{egress})}
 		_, err := svc.resolveEnvGateways(env)
-		require.ErrorIs(t, err, utils.ErrGatewayNotFound)
+		require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 	})
 }
 

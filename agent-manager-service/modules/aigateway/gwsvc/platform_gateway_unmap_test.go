@@ -23,6 +23,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // unmapCase is one environment-addressed kind's record in env, its artifact deployed on gateway, which is mapped to
@@ -122,16 +123,16 @@ func TestUnmappingAGatewayThatServesTheEnvironment(t *testing.T) {
 				gwmodels.DeploymentStatusDeployed, gwmodels.DeploymentStatusFailed,
 			} {
 				c.setRow(t, status, gwmodels.DeploymentStatusDeployed)
-				require.ErrorIs(t, c.unmap(t, c.env), utils.ErrGatewayServesEnvironment, "a %s row blocks", status)
+				require.ErrorIs(t, c.unmap(t, c.env), gwerr.ErrGatewayServesEnvironment, "a %s row blocks", status)
 				assert.True(t, c.mapped(t, c.env), "the mapping stays after a refused unmap")
 			}
 
 			c.setRow(t, gwmodels.DeploymentStatusUndeployed, gwmodels.DeploymentStatusUndeployed)
 			c.queueRedeploy(t)
-			require.ErrorIs(t, c.unmap(t, c.env), utils.ErrGatewayServesEnvironment, "a redeploy owed on an undeployed row blocks")
+			require.ErrorIs(t, c.unmap(t, c.env), gwerr.ErrGatewayServesEnvironment, "a redeploy owed on an undeployed row blocks")
 			c.setRow(t, gwmodels.DeploymentStatusFailed, gwmodels.DeploymentStatusUndeployed)
 			c.queueRedeploy(t)
-			require.ErrorIs(t, c.unmap(t, c.env), utils.ErrGatewayServesEnvironment, "a redeploy owed on a failed undeploy blocks")
+			require.ErrorIs(t, c.unmap(t, c.env), gwerr.ErrGatewayServesEnvironment, "a redeploy owed on a failed undeploy blocks")
 
 			other := uuid.New()
 			c.mapTo(t, other)

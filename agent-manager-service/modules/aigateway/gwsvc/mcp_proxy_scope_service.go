@@ -26,6 +26,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -35,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // MCPProxyScopeService manages per-proxy MCP scopes: validation, CRUD, and
@@ -103,7 +104,7 @@ func (s *mcpProxyScopeService) resolveProxy(ctx context.Context, ouID, proxyHand
 	proxy, err := s.proxyRepo.GetByHandle(ctx, proxyHandle, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("%w: proxy handle %q", utils.ErrMCPProxyNotFound, proxyHandle)
+			return nil, fmt.Errorf("%w: proxy handle %q", gwerr.ErrMCPProxyNotFound, proxyHandle)
 		}
 		return nil, fmt.Errorf("failed to resolve MCP proxy %q: %w", proxyHandle, err)
 	}
@@ -111,14 +112,14 @@ func (s *mcpProxyScopeService) resolveProxy(ctx context.Context, ouID, proxyHand
 }
 
 // resolveOrgOwnedProxy is resolveProxy for mutations: a project-scoped proxy is managed
-// only through the project routes, so it yields utils.ErrMCPProxyProjectOwned.
+// only through the project routes, so it yields gwerr.ErrMCPProxyProjectOwned.
 func (s *mcpProxyScopeService) resolveOrgOwnedProxy(ctx context.Context, ouID, proxyHandle string) (*gwmodels.MCPProxy, error) {
 	proxy, err := s.resolveProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return nil, err
 	}
 	if proxy.ProjectUUID != nil {
-		return nil, utils.ErrMCPProxyProjectOwned
+		return nil, gwerr.ErrMCPProxyProjectOwned
 	}
 	return proxy, nil
 }
@@ -235,7 +236,7 @@ func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyH
 	existing, err := s.scopeRepo.Get(ctx, proxy.UUID, action)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrScopeNotFound
+			return nil, gwerr.ErrScopeNotFound
 		}
 		return nil, fmt.Errorf("failed to load scope: %w", err)
 	}
@@ -254,7 +255,7 @@ func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyH
 
 	if err := s.scopeRepo.Update(ctx, existing); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrScopeNotFound
+			return nil, gwerr.ErrScopeNotFound
 		}
 		return nil, fmt.Errorf("failed to update mcp proxy scope: %w", err)
 	}
@@ -281,7 +282,7 @@ func (s *mcpProxyScopeService) Delete(ctx context.Context, ouID, orgName, proxyH
 
 	if err := s.scopeRepo.Delete(ctx, proxy.UUID, action); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return utils.ErrScopeNotFound
+			return gwerr.ErrScopeNotFound
 		}
 		return fmt.Errorf("failed to delete mcp proxy scope: %w", err)
 	}

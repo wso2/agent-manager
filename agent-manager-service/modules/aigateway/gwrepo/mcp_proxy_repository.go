@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -29,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // MCPProxyRepository defines the interface for MCP proxy persistence.
@@ -48,17 +49,17 @@ type MCPProxyRepository interface {
 	// ignoring Limit/Offset. The zero filter returns organization-level proxies only.
 	List(ctx context.Context, orgUUID string, f MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error)
 	// GetInProject returns the proxy only when it belongs to the project;
-	// utils.ErrMCPProxyNotFound when it is in another project or is org-owned.
+	// gwerr.ErrMCPProxyNotFound when it is in another project or is org-owned.
 	GetInProject(ctx context.Context, handle, orgUUID, projectUUID string) (*gwmodels.MCPProxy, error)
 	// GetInProjectByName returns the project proxy stored under projectName, whatever project
 	// UUID it carries: the lookup for a project that no longer exists, whose
-	// proxies keep the UUID of the deleted project. utils.ErrMCPProxyNotFound when there is
+	// proxies keep the UUID of the deleted project. gwerr.ErrMCPProxyNotFound when there is
 	// none, or the handle is an org proxy or another project's.
 	GetInProjectByName(ctx context.Context, handle, orgUUID, projectName string) (*gwmodels.MCPProxy, error)
 	// ReassignProject moves a project proxy stored under projectName from fromProjectUUID to
 	// toProjectUUID: a re-created project (same name, new UUID) adopting the proxy its
 	// deleted predecessor left. A proxy already on toProjectUUID is left as is.
-	// utils.ErrMCPProxyNotFound when no such proxy is in the organization.
+	// gwerr.ErrMCPProxyNotFound when no such proxy is in the organization.
 	ReassignProject(ctx context.Context, tx *gorm.DB, proxyUUID uuid.UUID, orgUUID, projectName, fromProjectUUID, toProjectUUID string) error
 	Delete(ctx context.Context, handle, orgUUID string) error
 	Count(ctx context.Context, orgUUID string) (int, error)
@@ -283,7 +284,7 @@ func (r *MCPProxyRepo) GetInProject(ctx context.Context, handle, orgUUID, projec
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrMCPProxyNotFound
+			return nil, gwerr.ErrMCPProxyNotFound
 		}
 		return nil, err
 	}
@@ -295,7 +296,7 @@ func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, 
 	project, err := r.core.GetProjectByName(ctx, orgUUID, projectName)
 	if err != nil {
 		if errors.Is(err, modkit.ErrNotFound) {
-			return nil, utils.ErrMCPProxyNotFound
+			return nil, gwerr.ErrMCPProxyNotFound
 		}
 		return nil, err
 	}
@@ -310,7 +311,7 @@ func (r *MCPProxyRepo) GetInProjectByName(ctx context.Context, handle, orgUUID, 
 		First(&proxy).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrMCPProxyNotFound
+			return nil, gwerr.ErrMCPProxyNotFound
 		}
 		return nil, err
 	}
@@ -332,7 +333,7 @@ func (r *MCPProxyRepo) ReassignProject(
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return utils.ErrMCPProxyNotFound
+		return gwerr.ErrMCPProxyNotFound
 	}
 	return nil
 }
@@ -359,7 +360,7 @@ func (r *MCPProxyRepo) Delete(ctx context.Context, handle, orgUUID string) error
 		}
 		if err := tx.Where("id = ?", proxy.UUID).Delete(&gwmodels.MCPProxy{}).Error; err != nil {
 			if dberr.IsForeignKeyViolation(err) {
-				return utils.ErrMCPProxyHasMappings
+				return gwerr.ErrMCPProxyHasMappings
 			}
 			return err
 		}

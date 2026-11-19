@@ -24,11 +24,12 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -160,8 +161,8 @@ func (t *Tools) registerLLMProviderTools(reg Registrar) {
 			"An LLM provider is an org-level connection to a model vendor (for example OpenAI) that agents reach through the AI gateway. " +
 			"Use a provider's `id` as the `provider_id` argument of attach_llm_provider_to_agent; only providers with `in_catalog` true can be attached.",
 		InputSchema: createSchema(map[string]any{
-			"limit":  intProperty(fmt.Sprintf("Optional. Max providers to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
-			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
+			"limit":  intProperty(fmt.Sprintf("Optional. Max providers to return (default %d, min %d, max %d).", gwutil.DefaultLimit, gwutil.MinLimit, gwutil.MaxLimit)),
+			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", gwutil.DefaultOffset, gwutil.MinOffset)),
 		}, nil),
 	}, gwaudit.LLMProviderRead, listLLMProviders(t.LLMProviders), gwperm.LLMProviderRead)
 

@@ -27,6 +27,9 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -145,7 +148,7 @@ func (s *a2aProxyService) GetA2AProxy(ctx context.Context, ouID, projectName, ag
 	}
 	proxy, err := s.proxyRepo.GetByEnvUUID(ctx, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.key.EnvironmentUUID)
 	if errors.Is(err, gwrepo.ErrA2AProxyNotFound) {
-		return nil, utils.ErrEnvironmentNotProxied
+		return nil, gwerr.ErrEnvironmentNotProxied
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to read the A2A proxy: %w", err)
@@ -303,7 +306,7 @@ func (s *a2aProxyService) RefreshCardSource(
 
 // target resolves an external agent and an environment the caller may act on.
 func (s *a2aProxyService) target(ctx context.Context, ouID, projectName, agentName, envName string) (a2aProxyTarget, error) {
-	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, utils.ErrA2AProxyAgentNotExternal)
+	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, gwerr.ErrA2AProxyAgentNotExternal)
 	if err != nil {
 		return a2aProxyTarget{}, err
 	}
@@ -338,7 +341,7 @@ func (s *a2aProxyService) requireCardSource(ctx context.Context, tx *gorm.DB, t 
 	case err != nil:
 		return "", err
 	case card == nil || card.Source != gwmodels.A2AAgentCardSourceExternal || card.SourceURL == "":
-		return "", utils.ErrA2AProxyNeedsCardSource
+		return "", gwerr.ErrA2AProxyNeedsCardSource
 	}
 	if err := requireProxyableCardURL(card.SourceURL); err != nil {
 		return "", err
@@ -353,7 +356,7 @@ func requireHTTPSForSecret(cardURL, secret string) error {
 	}
 	u, err := url.Parse(cardURL)
 	if err != nil || !strings.EqualFold(u.Scheme, "https") {
-		return utils.ErrA2AProxyUpstreamAuthNeedsHTTPS
+		return gwerr.ErrA2AProxyUpstreamAuthNeedsHTTPS
 	}
 	return nil
 }
@@ -370,12 +373,12 @@ func (s *a2aProxyService) requireSecretStaysOnOrigin(
 	case err != nil:
 		return err
 	case card == nil:
-		return utils.ErrA2AProxyOriginChangeNeedsAuthReset
+		return gwerr.ErrA2AProxyOriginChangeNeedsAuthReset
 	}
 	registered, regErr := url.Parse(card.SourceURL)
 	next, nextErr := url.Parse(sourceURL)
 	if regErr != nil || nextErr != nil || !isSameOrigin(registered, next) {
-		return utils.ErrA2AProxyOriginChangeNeedsAuthReset
+		return gwerr.ErrA2AProxyOriginChangeNeedsAuthReset
 	}
 	return nil
 }
@@ -393,12 +396,12 @@ func (s *a2aProxyService) proxyRow(
 	case auth == nil:
 		return row, stored, nil
 	case auth.Value == nil && !stored:
-		return nil, false, fmt.Errorf("%w: a value is required, since no secret is stored", utils.ErrInvalidUpstreamAuth)
+		return nil, false, fmt.Errorf("%w: a value is required, since no secret is stored", gwerr.ErrInvalidUpstreamAuth)
 	case auth.Value == nil:
 		row.UpstreamAuthHeader, row.UpstreamAuthSecret = auth.Header, existing.UpstreamAuthSecret
 		return row, auth.Header != existing.UpstreamAuthHeader, nil
 	}
-	secret, err := utils.EncryptSecretRef(*auth.Value, s.encryptionKey)
+	secret, err := gwutil.EncryptSecretRef(*auth.Value, s.encryptionKey)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to encrypt the upstream secret: %w", err)
 	}
@@ -413,7 +416,7 @@ func (s *a2aProxyService) switchFromDirect(ctx context.Context, tx *gorm.DB, t a
 	}
 	err := s.cardRepo.WithTx(tx).ClearCard(ctx, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.key.EnvironmentUUID)
 	if errors.Is(err, gwrepo.ErrA2AAgentCardNotFound) {
-		return utils.ErrA2AProxyNeedsCardSource
+		return gwerr.ErrA2AProxyNeedsCardSource
 	}
 	if err != nil {
 		return fmt.Errorf("failed to park the agent card: %w", err)
@@ -481,7 +484,7 @@ func requeueDirectCardFetch(ctx context.Context, cards gwrepo.A2AAgentCardReposi
 func requeueCardFetch(ctx context.Context, cards gwrepo.A2AAgentCardRepository, key agentExposureKey) error {
 	err := cards.Requeue(ctx, key.OUID, key.ProjectName, key.AgentName, key.EnvironmentName)
 	if errors.Is(err, gwrepo.ErrA2AAgentCardNotFound) {
-		return utils.ErrAgentCardNotFound
+		return gwerr.ErrAgentCardNotFound
 	}
 	if err != nil {
 		return fmt.Errorf("failed to queue agent card fetch: %w", err)
@@ -489,10 +492,10 @@ func requeueCardFetch(ctx context.Context, cards gwrepo.A2AAgentCardRepository, 
 	return nil
 }
 
-// onDirect applies step to a direct environment's card row, or refuses with utils.ErrEnvironmentNotProxied.
+// onDirect applies step to a direct environment's card row, or refuses with gwerr.ErrEnvironmentNotProxied.
 func onDirect(ctx context.Context, tx *gorm.DB, cards gwrepo.A2AAgentCardRepository, t a2aProxyTarget, step a2aCardStep) error {
 	if step == nil {
-		return utils.ErrEnvironmentNotProxied
+		return gwerr.ErrEnvironmentNotProxied
 	}
 	return step(ctx, cards.WithTx(tx), t.key)
 }
@@ -542,7 +545,7 @@ func (s *a2aProxyService) switchToDirect(ctx context.Context, tx *gorm.DB, t a2a
 // artifact is the environment's agent artifact; its ArtifactUUID is uuid.Nil when it has none.
 func (s *a2aProxyService) artifact(t a2aProxyTarget) (gwmodels.ArtifactRef, error) {
 	artifact, err := agentEnvAPIArtifact(s.artifactRepo, t.key.OUID, t.key.ProjectName, t.key.AgentName, t.env.UUID, gwmodels.KindAgent)
-	if errors.Is(err, utils.ErrArtifactNotFound) {
+	if errors.Is(err, gwerr.ErrArtifactNotFound) {
 		return gwmodels.ArtifactRef{OUID: t.key.OUID, Kind: gwmodels.KindAgent}, nil
 	}
 	if err != nil {
@@ -625,11 +628,11 @@ func validateA2AUpstreamAuth(auth *gwmodels.A2AProxyAuthUpdate) error {
 	}
 	switch {
 	case !a2aUpstreamHeaderPattern.MatchString(auth.Header):
-		return fmt.Errorf("%w: header may contain only letters, digits, '-' and '_'", utils.ErrInvalidUpstreamAuth)
+		return fmt.Errorf("%w: header may contain only letters, digits, '-' and '_'", gwerr.ErrInvalidUpstreamAuth)
 	case len(auth.Header) > a2aUpstreamHeaderMaxLen:
-		return fmt.Errorf("%w: header must be at most %d characters", utils.ErrInvalidUpstreamAuth, a2aUpstreamHeaderMaxLen)
+		return fmt.Errorf("%w: header must be at most %d characters", gwerr.ErrInvalidUpstreamAuth, a2aUpstreamHeaderMaxLen)
 	case isReservedUpstreamHeader(auth.Header):
-		return fmt.Errorf("%w: the %s header cannot be set upstream", utils.ErrInvalidUpstreamAuth, auth.Header)
+		return fmt.Errorf("%w: the %s header cannot be set upstream", gwerr.ErrInvalidUpstreamAuth, auth.Header)
 	}
 	if auth.Value == nil {
 		return nil
@@ -637,17 +640,17 @@ func validateA2AUpstreamAuth(auth *gwmodels.A2AProxyAuthUpdate) error {
 	value := *auth.Value
 	switch {
 	case value == "":
-		return fmt.Errorf("%w: value must not be empty; omit upstreamAuth to clear it", utils.ErrInvalidUpstreamAuth)
+		return fmt.Errorf("%w: value must not be empty; omit upstreamAuth to clear it", gwerr.ErrInvalidUpstreamAuth)
 	case len(value) > a2aUpstreamValueMaxLen:
-		return fmt.Errorf("%w: value must be at most %d bytes", utils.ErrInvalidUpstreamAuth, a2aUpstreamValueMaxLen)
+		return fmt.Errorf("%w: value must be at most %d bytes", gwerr.ErrInvalidUpstreamAuth, a2aUpstreamValueMaxLen)
 	case strings.ContainsAny(value, "'\r\n"):
-		return fmt.Errorf("%w: value must not contain quotes or line breaks", utils.ErrInvalidUpstreamAuth)
+		return fmt.Errorf("%w: value must not contain quotes or line breaks", gwerr.ErrInvalidUpstreamAuth)
 	case strings.Contains(value, "%"):
-		return fmt.Errorf("%w: value must not contain '%%'", utils.ErrInvalidUpstreamAuth)
+		return fmt.Errorf("%w: value must not contain '%%'", gwerr.ErrInvalidUpstreamAuth)
 	case strings.IndexFunc(value, unicode.IsControl) >= 0:
-		return fmt.Errorf("%w: value must not contain control characters", utils.ErrInvalidUpstreamAuth)
+		return fmt.Errorf("%w: value must not contain control characters", gwerr.ErrInvalidUpstreamAuth)
 	case strings.Contains(value, "{{"):
-		return fmt.Errorf("%w: value must not contain '{{'", utils.ErrInvalidUpstreamAuth)
+		return fmt.Errorf("%w: value must not contain '{{'", gwerr.ErrInvalidUpstreamAuth)
 	}
 	return nil
 }

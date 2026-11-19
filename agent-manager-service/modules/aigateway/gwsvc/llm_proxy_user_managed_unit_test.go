@@ -21,11 +21,12 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestRequireUserManaged(t *testing.T) {
@@ -36,7 +37,7 @@ func TestRequireUserManaged(t *testing.T) {
 		repoErr error
 		wantErr error
 	}{
-		{name: "agent or monitor proxy", owned: true, wantErr: utils.ErrLLMProxyManagedByAMS},
+		{name: "agent or monitor proxy", owned: true, wantErr: gwerr.ErrLLMProxyManagedByAMS},
 		{name: "user proxy", owned: false},
 		{name: "repository error", repoErr: dbErr, wantErr: dbErr},
 	}
@@ -59,7 +60,7 @@ func TestRequireUserManaged(t *testing.T) {
 			}
 			require.ErrorIs(t, err, tt.wantErr)
 			if tt.repoErr != nil {
-				assert.NotErrorIs(t, err, utils.ErrLLMProxyManagedByAMS, "a lookup failure must not read as AMS-owned")
+				assert.NotErrorIs(t, err, gwerr.ErrLLMProxyManagedByAMS, "a lookup failure must not read as AMS-owned")
 			}
 		})
 	}

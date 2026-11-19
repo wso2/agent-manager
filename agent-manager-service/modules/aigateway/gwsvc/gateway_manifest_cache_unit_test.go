@@ -21,12 +21,13 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // clearGatewayManifestCache resets the process-wide backend to a fresh in-memory
@@ -165,7 +166,7 @@ func TestSaveGatewayPolicyManifestUnknownGateway(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, nil)
 
 	err := svc.SaveGatewayPolicyManifest(context.Background(), unknownID, map[string]interface{}{})
-	require.ErrorIs(t, err, utils.ErrGatewayNotFound)
+	require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 
 	_, ok, getErr := gatewayManifestCache.Get(context.Background(), unknownID)
 	require.NoError(t, getErr)

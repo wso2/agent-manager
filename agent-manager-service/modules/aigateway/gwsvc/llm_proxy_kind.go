@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -32,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProxyKind deploys LLM proxies. Gateways store a proxy under its handle. A proxy is deployed to a gateway the
@@ -63,7 +64,7 @@ func loadLLMProxy(ctx context.Context, tx *gorm.DB, artifact gwmodels.ArtifactRe
 	}
 	provider, err := gwrepo.NewLLMProviderRepo(tx).GetByUUID(proxy.Configuration.Provider, artifact.OUID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil, reconcile.Permanent(utils.ErrLLMProviderNotFound)
+		return nil, nil, reconcile.Permanent(gwerr.ErrLLMProviderNotFound)
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get provider: %w", err)

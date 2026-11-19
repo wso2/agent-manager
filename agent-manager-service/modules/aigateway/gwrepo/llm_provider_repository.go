@@ -22,13 +22,14 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProviderRepository defines the interface for LLM provider persistence
@@ -270,7 +271,7 @@ func (r *LLMProviderRepo) HasAssociatedProxies(ctx context.Context, providerUUID
 func (r *LLMProviderRepo) IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, providerUUID uuid.UUID) (bool, error) {
 	if err := dbx.LockRow(tx.WithContext(ctx), "mod_ai_gateway_llm_providers", "status", "id = ?", providerUUID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, utils.ErrLLMProviderNotFound
+			return false, gwerr.ErrLLMProviderNotFound
 		}
 		return false, err
 	}
@@ -281,7 +282,7 @@ func (r *LLMProviderRepo) IsDeletingForUpdate(ctx context.Context, tx *gorm.DB, 
 		Take(&provider).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, utils.ErrLLMProviderNotFound
+			return false, gwerr.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderRepo.IsDeletingForUpdate: failed to lock provider row", "providerUUID", providerUUID, "error", err)
 		return false, err
@@ -372,7 +373,7 @@ func (r *LLMProviderRepo) deleteIn(tx *gorm.DB, providerUUID uuid.UUID, provider
 	if err := tx.Where("id = ?", providerUUID).Delete(&gwmodels.LLMProvider{}).Error; err != nil {
 		if dberr.IsForeignKeyViolation(err) {
 			slog.Warn("LLMProviderRepo.Delete: provider has associated proxies", "providerID", providerID, "uuid", providerUUID, "error", err)
-			return utils.ErrLLMProviderHasProxies
+			return gwerr.ErrLLMProviderHasProxies
 		}
 		slog.Error("LLMProviderRepo.Delete: failed to delete provider", "providerID", providerID, "uuid", providerUUID, "error", err)
 		return err

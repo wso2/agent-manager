@@ -20,9 +20,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // The render retry backoff: the A2A card reconciler's 5 s doubling, with a longer cap. AMS's own agent deploy or
@@ -43,7 +45,7 @@ func renderOutcome(err error, reason string, claim gwmodels.ClaimedRender, budge
 	case IsPermanent(err) || claim.AttemptCount+1 >= budget:
 		return gwrepo.RenderOutcome{Outcome: gwrepo.RenderGiveUp, Reason: reason}
 	default:
-		next := claim.ClaimedAt.Add(utils.ExponentialBackoff(claim.AttemptCount, baseBackoff, maxBackoff))
+		next := claim.ClaimedAt.Add(gwutil.ExponentialBackoff(claim.AttemptCount, baseBackoff, maxBackoff))
 		return gwrepo.RenderOutcome{Outcome: gwrepo.RenderRetry, Reason: reason, NextAttemptAt: &next}
 	}
 }
@@ -55,8 +57,8 @@ func renderReason(kind Kind, err error) string {
 	if errors.As(err, &waiting) {
 		return waiting.reason
 	}
-	if errors.Is(err, utils.ErrContextInUse) {
-		return utils.ErrCodeContextInUse
+	if errors.Is(err, gwerr.ErrContextInUse) {
+		return gwerr.ErrCodeContextInUse
 	}
 	if describer, ok := kind.(ErrorDescriber); ok {
 		return describer.DescribeRenderError(err)

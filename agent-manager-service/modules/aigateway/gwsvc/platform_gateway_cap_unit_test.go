@@ -19,6 +19,8 @@ package gwsvc
 import (
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -26,7 +28,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestNormalizeGatewayRole(t *testing.T) {
@@ -80,7 +81,7 @@ func TestAssignGatewayToEnvironment_SecondIngressRejected(t *testing.T) {
 
 	err := svc.AssignGatewayToEnvironment(gw.UUID.String(), envID)
 
-	require.ErrorIs(t, err, utils.ErrGatewayIngressCapExceeded)
+	require.ErrorIs(t, err, gwerr.ErrGatewayIngressCapExceeded)
 }
 
 // A second EGRESS gateway is allowed. This is the supported both+egress shape and the
@@ -154,7 +155,7 @@ func TestRegisterGateway_CapRejectionRollsBackGatewayRow(t *testing.T) {
 	var createdInTx bool
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		GetByNameAndOrgIDFunc: func(string, string) (*gwmodels.Gateway, error) {
-			return nil, utils.ErrGatewayNotFound
+			return nil, gwerr.ErrGatewayNotFound
 		},
 		TransactionFunc: func(fn func(tx *gorm.DB) error) error {
 			// Real gorm rolls back on error; emulate by discarding the side effect.
@@ -179,6 +180,6 @@ func TestRegisterGateway_CapRejectionRollsBackGatewayRow(t *testing.T) {
 	_, err := svc.RegisterGateway("org", "gw1", "GW", "", "http://x", "", false, "BOTH", nil,
 		[]string{uuid.New().String()}, gwmodels.GatewayHostingManaged)
 
-	require.ErrorIs(t, err, utils.ErrGatewayIngressCapExceeded)
+	require.ErrorIs(t, err, gwerr.ErrGatewayIngressCapExceeded)
 	require.False(t, createdInTx, "gateway row must not survive a cap rejection")
 }

@@ -26,6 +26,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -160,20 +163,20 @@ func isRead[S ~string](action S) bool {
 
 // resolvePagination applies the standard limit/offset defaults and bounds.
 func resolvePagination(limitPtr *int, offsetPtr *int) (int, int, error) {
-	limit := utils.DefaultLimit
+	limit := gwutil.DefaultLimit
 	if limitPtr != nil {
 		limit = *limitPtr
 	}
-	if limit < utils.MinLimit || limit > utils.MaxLimit {
-		return 0, 0, fmt.Errorf("limit must be between %d and %d", utils.MinLimit, utils.MaxLimit)
+	if limit < gwutil.MinLimit || limit > gwutil.MaxLimit {
+		return 0, 0, fmt.Errorf("limit must be between %d and %d", gwutil.MinLimit, gwutil.MaxLimit)
 	}
-	offset := utils.DefaultOffset
+	offset := gwutil.DefaultOffset
 	if offsetPtr != nil {
 		offset = *offsetPtr
 	}
 	// Services take the offset as an int32 and add the limit to it.
-	if offset < utils.MinOffset || offset > math.MaxInt32 {
-		return 0, 0, fmt.Errorf("offset must be between %d and %d", utils.MinOffset, math.MaxInt32)
+	if offset < gwutil.MinOffset || offset > math.MaxInt32 {
+		return 0, 0, fmt.Errorf("offset must be between %d and %d", gwutil.MinOffset, math.MaxInt32)
 	}
 	return limit, offset, nil
 }
@@ -219,11 +222,11 @@ func wrapToolError(toolName string, err error) error {
 		return fmt.Errorf("%s: invalid agent name. Call list_agents or list_project_agent_pairs to see valid agents", toolName)
 	case errors.Is(err, utils.ErrEnvironmentNotFound):
 		return fmt.Errorf("%s: invalid environment name. Call list_environments to see valid environments", toolName)
-	case errors.Is(err, utils.ErrLLMProviderNotFound):
+	case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 		return fmt.Errorf("%s: LLM provider not found. Call list_llm_providers to see valid providers", toolName)
-	case errors.Is(err, utils.ErrMCPProxyNotFound):
+	case errors.Is(err, gwerr.ErrMCPProxyNotFound):
 		return fmt.Errorf("%s: MCP proxy not found. Call list_mcp_proxies to see valid proxies", toolName)
-	case errors.Is(err, utils.ErrAgentConfigAlreadyExists):
+	case errors.Is(err, gwerr.ErrAgentConfigAlreadyExists):
 		return fmt.Errorf("%s: the agent already has a configuration with this name. Pass a different config_name", toolName)
 	case errors.Is(err, httpx.ErrNotFound):
 		msg := strings.ToLower(err.Error())

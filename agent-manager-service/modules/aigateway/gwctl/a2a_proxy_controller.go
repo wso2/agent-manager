@@ -21,13 +21,14 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // A2AProxyController routes an external agent through an environment's gateway.
@@ -105,15 +106,15 @@ func toA2AProxyAuthUpdate(auth *gwspec.A2AProxyUpstreamAuth) *gwmodels.A2AProxyA
 func writeA2AProxyError(w http.ResponseWriter, r *http.Request, err error, fallback string) {
 	logger.GetLogger(r.Context()).Warn("A2A proxy request failed", "path", r.URL.Path, "error", err)
 	switch {
-	case errors.Is(err, utils.ErrEnvironmentNotProxied):
+	case errors.Is(err, gwerr.ErrEnvironmentNotProxied):
 		httpx.WriteErrorResponse(w, http.StatusNotFound, err.Error())
-	case errors.Is(err, utils.ErrA2AProxyNeedsCardSource):
+	case errors.Is(err, gwerr.ErrA2AProxyNeedsCardSource):
 		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
-	case errors.Is(err, utils.ErrAgentNotA2A),
-		errors.Is(err, utils.ErrA2AProxyAgentNotExternal),
-		errors.Is(err, utils.ErrInvalidUpstreamAuth),
-		errors.Is(err, utils.ErrA2AProxyUpstreamAuthNeedsHTTPS),
-		errors.Is(err, utils.ErrA2ACardURLNotProxyable):
+	case errors.Is(err, gwerr.ErrAgentNotA2A),
+		errors.Is(err, gwerr.ErrA2AProxyAgentNotExternal),
+		errors.Is(err, gwerr.ErrInvalidUpstreamAuth),
+		errors.Is(err, gwerr.ErrA2AProxyUpstreamAuthNeedsHTTPS),
+		errors.Is(err, gwerr.ErrA2ACardURLNotProxyable):
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	default:
 		controllers.HandleCommonErrors(w, err, fallback)

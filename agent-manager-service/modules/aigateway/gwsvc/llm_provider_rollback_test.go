@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +36,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // providerCore reconciles LLM providers against repo and hub.
@@ -138,7 +139,7 @@ func TestDelete_RejectsWithoutUndeployingWhenProviderHasAssociatedProxies(t *tes
 	err := svc.Delete(context.Background(), created.UUID.String(), "ou-acme", deploymentSvc)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, utils.ErrLLMProviderHasProxies)
+	assert.ErrorIs(t, err, gwerr.ErrLLMProviderHasProxies)
 	assert.False(t, undeployCalled, "Delete must check for associated proxies before touching any gateway")
 	assert.True(t, clearCalled, "Delete must release its deleting claim when rejected for associated proxies")
 }
@@ -165,7 +166,7 @@ func TestDelete_RejectsWhenAlreadyMarkedDeleting(t *testing.T) {
 	err := svc.Delete(context.Background(), created.UUID.String(), "ou-acme", deploymentSvc)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, utils.ErrLLMProviderDeleteInProgress)
+	assert.ErrorIs(t, err, gwerr.ErrLLMProviderDeleteInProgress)
 	assert.False(t, undeployCalled, "Delete must not undeploy again once another delete already claimed the provider")
 }
 
@@ -198,7 +199,7 @@ func TestDelete_ClearsDeletingFlagWhenUndeployFails(t *testing.T) {
 	err := svc.Delete(context.Background(), created.UUID.String(), "ou-acme", deploymentSvc)
 
 	require.Error(t, err)
-	assert.ErrorIs(t, err, utils.ErrLLMProviderUndeployFailed)
+	assert.ErrorIs(t, err, gwerr.ErrLLMProviderUndeployFailed)
 	assert.True(t, clearCalled, "Delete must clear the deleting flag when it bails out without deleting the provider")
 }
 

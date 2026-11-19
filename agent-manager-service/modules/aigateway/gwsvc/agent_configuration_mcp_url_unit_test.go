@@ -21,6 +21,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // mcpURLTestFixture bundles the UUIDs and mocks shared by the three regression tests below:
@@ -249,7 +250,7 @@ func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpU
 	}
 	svc.ocClient = &repomocks.PlatformRepositoryMock{
 		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
-			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(utils.InternalAgent)}}, nil
+			return &models.AgentResponse{Provisioning: models.Provisioning{Type: string(gwutil.InternalAgent)}}, nil
 		},
 	}
 	return svc, f
@@ -359,7 +360,7 @@ func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
 	})
 
 	t.Run("the reconcile does not bind an internal agent there", func(t *testing.T) {
-		svc, proxy, configUUID, activated := selfHostedBackfillService(t, utils.InternalAgent)
+		svc, proxy, configUUID, activated := selfHostedBackfillService(t, gwutil.InternalAgent)
 		require.NoError(t, svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil))
 		assert.Empty(t, *activated)
 	})
@@ -369,7 +370,7 @@ func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
 // deployable on a self-hosted gateway in an environment the connection is configured for. It records each
 // environment an activation starts in, and stops that activation at its first read.
 func selfHostedBackfillService(
-	t *testing.T, provisioning utils.AgentProvisioningType,
+	t *testing.T, provisioning gwutil.AgentProvisioningType,
 ) (svc *agentConfigurationService, proxy *gwmodels.MCPProxy, configUUID uuid.UUID, activated *[]uuid.UUID) {
 	t.Helper()
 	f := newMCPURLTestFixture()
@@ -411,7 +412,7 @@ func selfHostedBackfillService(
 // An external agent runs outside the platform, so a proxy that became deployable on a self-hosted gateway is
 // one it can use: the reconcile binds it there.
 func TestDeployableMCPEnvs_IncludesSelfHostedForExternalAgent(t *testing.T) {
-	svc, proxy, configUUID, activated := selfHostedBackfillService(t, utils.ExternalAgent)
+	svc, proxy, configUUID, activated := selfHostedBackfillService(t, gwutil.ExternalAgent)
 	err := svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil)
 	require.ErrorContains(t, err, "activation stopped by the test")
 	require.Len(t, *activated, 1)
@@ -421,7 +422,7 @@ func TestDeployableMCPEnvs_IncludesSelfHostedForExternalAgent(t *testing.T) {
 // A self-hosted gateway cannot validate Agent Identity tokens, so the reconcile leaves an external agent
 // unbound where its proxy uses identity on a self-hosted gateway, as create and update refuse it there.
 func TestReconcileMCPBindings_SkipsIdentityProxyOnSelfHostedForExternalAgent(t *testing.T) {
-	svc, proxy, configUUID, activated := selfHostedBackfillService(t, utils.ExternalAgent)
+	svc, proxy, configUUID, activated := selfHostedBackfillService(t, gwutil.ExternalAgent)
 	on := true
 	proxy.Endpoints[0].Configuration.Security = &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}
 

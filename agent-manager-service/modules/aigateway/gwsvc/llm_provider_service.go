@@ -27,6 +27,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -35,7 +38,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // DeploymentResult captures the outcome of deploying to a single gateway.
@@ -152,12 +154,12 @@ func (s *LLMProviderService) resolveTemplate(handle, ouID string) (*gwmodels.LLM
 	userTemplate, err := s.templateRepo.GetByHandle(handle, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProviderTemplateNotFound
+			return nil, gwerr.ErrLLMProviderTemplateNotFound
 		}
 		return nil, fmt.Errorf("failed to validate template: %w", err)
 	}
 	if userTemplate == nil {
-		return nil, utils.ErrLLMProviderTemplateNotFound
+		return nil, gwerr.ErrLLMProviderTemplateNotFound
 	}
 	return userTemplate, nil
 }
@@ -204,11 +206,11 @@ func applyTemplateAuthDefaults(auth *gwmodels.UpstreamAuth, templateAuth *gwmode
 	// Copied rather than aliased: for a built-in handle templateAuth points into the
 	// process-wide template store, so handing out &templateAuth.Type would let a write
 	// through the provider corrupt the template for every organization.
-	if utils.StrPointerAsStr(auth.Type, "") == "" && templateAuth.Type != "" {
+	if gwutil.StrPointerAsStr(auth.Type, "") == "" && templateAuth.Type != "" {
 		authType := templateAuth.Type
 		auth.Type = &authType
 	}
-	if utils.StrPointerAsStr(auth.Header, "") == "" && templateAuth.Header != "" {
+	if gwutil.StrPointerAsStr(auth.Header, "") == "" && templateAuth.Header != "" {
 		header := templateAuth.Header
 		auth.Header = &header
 	}
@@ -294,7 +296,7 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 	// Fail fast if a provider with this handle already exists, before touching KV.
 	if _, err := s.providerRepo.GetByHandle(handle, ouID); err == nil {
 		slog.Warn("LLMProviderService.Create: provider already exists", "ouID", ouID, "handle", handle)
-		return utils.ErrLLMProviderExists
+		return gwerr.ErrLLMProviderExists
 	}
 
 	// Validate template exists
@@ -369,7 +371,7 @@ func (s *LLMProviderService) prepareProvider(ouID, createdBy string, provider *g
 		provider.Configuration.Upstream.Main.Auth != nil &&
 		provider.Configuration.Upstream.Main.Auth.Value != nil {
 
-		encoded, err := utils.EncryptSecretRef(*provider.Configuration.Upstream.Main.Auth.Value, s.encryptionKey)
+		encoded, err := gwutil.EncryptSecretRef(*provider.Configuration.Upstream.Main.Auth.Value, s.encryptionKey)
 		if err != nil {
 			slog.Error("LLMProviderService.Create: failed to encrypt upstream key",
 				"ouID", ouID, "handle", handle, "error", err)
@@ -401,10 +403,10 @@ func (s *LLMProviderService) insertProvider(ouID string, provider *gwmodels.LLMP
 	if err != nil {
 		if dberr.IsDuplicateKey(err) {
 			slog.Warn("LLMProviderService.Create: provider already exists (unique constraint)", "ouID", ouID, "handle", handle)
-			return nil, utils.ErrLLMProviderExists
+			return nil, gwerr.ErrLLMProviderExists
 		}
 		var deployFailure *providerDeployFailure
-		if errors.Is(err, utils.ErrLLMProviderTemplateNotFound) || errors.As(err, &deployFailure) {
+		if errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound) || errors.As(err, &deployFailure) {
 			return nil, err
 		}
 		slog.Error("LLMProviderService.Create: failed to create provider", "ouID", ouID, "handle", handle, "error", err)
@@ -477,12 +479,12 @@ func (s *LLMProviderService) ListAvailableLLMPolicies(ctx context.Context, ouID,
 		provider, resolveErr := s.resolveProvider(providerID, ouID)
 		if resolveErr != nil {
 			if errors.Is(resolveErr, gorm.ErrRecordNotFound) {
-				return nil, utils.ErrLLMProviderNotFound
+				return nil, gwerr.ErrLLMProviderNotFound
 			}
 			return nil, fmt.Errorf("failed to resolve provider: %w", resolveErr)
 		}
 		if provider == nil {
-			return nil, utils.ErrLLMProviderNotFound
+			return nil, gwerr.ErrLLMProviderNotFound
 		}
 		available, err = intersectDeployedGatewayLLMPolicies(ctx, s.gatewayRepo, s.deploymentRepo, provider.UUID, ouID)
 	} else {
@@ -524,14 +526,14 @@ func (s *LLMProviderService) Get(providerID, ouID string) (*gwmodels.LLMProvider
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProviderService.Get: provider not found", "ouID", ouID, "providerID", providerID)
-			return nil, utils.ErrLLMProviderNotFound
+			return nil, gwerr.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderService.Get: failed to get provider", "ouID", ouID, "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
 		slog.Warn("LLMProviderService.Get: provider not found", "ouID", ouID, "providerID", providerID)
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	// Parse model providers from ModelList
@@ -570,7 +572,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 			}
 			if !userTemplateExists {
 				slog.Warn("LLMProviderService.Update: template not found", "ouID", ouID, "providerID", providerID, "template", template)
-				return nil, utils.ErrLLMProviderTemplateNotFound
+				return nil, gwerr.ErrLLMProviderTemplateNotFound
 			}
 		}
 		// Set template handle in updates
@@ -606,7 +608,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 		updates.Configuration.Upstream.Main.Auth != nil &&
 		updates.Configuration.Upstream.Main.Auth.Value != nil {
 
-		encoded, err := utils.EncryptSecretRef(*updates.Configuration.Upstream.Main.Auth.Value, s.encryptionKey)
+		encoded, err := gwutil.EncryptSecretRef(*updates.Configuration.Upstream.Main.Auth.Value, s.encryptionKey)
 		if err != nil {
 			slog.Error("LLMProviderService.Update: failed to encrypt upstream key",
 				"ouID", ouID, "providerID", providerID, "error", err)
@@ -625,14 +627,14 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProviderService.Update: provider not found", "ouID", ouID, "providerID", providerID)
-			return nil, utils.ErrLLMProviderNotFound
+			return nil, gwerr.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderService.Update: failed to read provider before update", "ouID", ouID, "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to read provider before update: %w", err)
 	}
 	if existing == nil {
 		slog.Warn("LLMProviderService.Update: provider not found", "ouID", ouID, "providerID", providerID)
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 	apiKeyAuthWasEnabled := isAPIKeyAuthEnabled(existing.Configuration.Security)
 
@@ -653,11 +655,11 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 		// name/version constraint is a caller conflict; other DB failures remain errors.
 		if dberr.IsDuplicateKey(err) {
 			slog.Warn("LLMProviderService.Update: provider name and version already exist", "ouID", ouID, "providerID", providerID)
-			return nil, utils.ErrLLMProviderExists
+			return nil, gwerr.ErrLLMProviderExists
 		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProviderService.Update: provider not found", "ouID", ouID, "providerID", providerID)
-			return nil, utils.ErrLLMProviderNotFound
+			return nil, gwerr.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderService.Update: failed to update provider", "ouID", ouID, "providerID", providerID, "error", err)
 		return nil, fmt.Errorf("failed to update provider: %w", err)
@@ -672,7 +674,7 @@ func (s *LLMProviderService) Update(ctx context.Context, providerID, ouID string
 	}
 	if updated == nil {
 		slog.Warn("LLMProviderService.Update: updated provider not found", "ouID", ouID, "providerID", providerID)
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	// Parse model providers from ModelList
@@ -711,14 +713,14 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProviderService.Delete: provider not found", "ouID", ouID, "providerID", providerID)
-			return utils.ErrLLMProviderNotFound
+			return gwerr.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderService.Delete: failed to get provider", "ouID", ouID, "providerID", providerID, "error", err)
 		return fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
 		slog.Warn("LLMProviderService.Delete: provider not found", "ouID", ouID, "providerID", providerID)
-		return utils.ErrLLMProviderNotFound
+		return gwerr.ErrLLMProviderNotFound
 	}
 
 	// Get all deployed gateways for this provider. providerID may be a handle, so
@@ -739,7 +741,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 	}
 	if !marked {
 		slog.Warn("LLMProviderService.Delete: provider already has a delete in progress", "ouID", ouID, "providerID", providerID)
-		return utils.ErrLLMProviderDeleteInProgress
+		return gwerr.ErrLLMProviderDeleteInProgress
 	}
 	// Cleared on any early return so a failed/aborted delete leaves the provider
 	// usable again; deleteCommitted suppresses this once providerRepo.Delete below
@@ -764,7 +766,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 	}
 	if hasProxies {
 		slog.Warn("LLMProviderService.Delete: provider has associated proxies", "ouID", ouID, "providerID", providerID)
-		return utils.ErrLLMProviderHasProxies
+		return gwerr.ErrLLMProviderHasProxies
 	}
 
 	deployedGatewayIDs, err := deploymentService.deploymentRepo.PlacedGateways(ctx, ouID, providerUUID)
@@ -801,7 +803,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 		// caller-fixable condition into an opaque 500.
 		if len(undeploymentErrors) > 0 && successfulUndeployments == 0 {
 			slog.Error("LLMProviderService.Delete: all undeployments failed", "ouID", ouID, "providerID", providerID, "errors", undeploymentErrors)
-			return fmt.Errorf("%w: %d of %d gateways: %s", utils.ErrLLMProviderUndeployFailed,
+			return fmt.Errorf("%w: %d of %d gateways: %s", gwerr.ErrLLMProviderUndeployFailed,
 				len(undeploymentErrors), len(deployedGatewayIDs), strings.Join(undeploymentErrors, "; "))
 		}
 
@@ -835,7 +837,7 @@ func (s *LLMProviderService) Delete(ctx context.Context, providerID, ouID string
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Warn("LLMProviderService.Delete: provider not found", "ouID", ouID, "providerID", providerID)
-			return utils.ErrLLMProviderNotFound
+			return gwerr.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderService.Delete: failed to delete provider", "ouID", ouID, "providerID", providerID, "error", err)
 		return fmt.Errorf("failed to delete provider: %w", err)
@@ -1267,7 +1269,7 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 	switch action {
 	case upstreamAuthRename:
 		renamed := *proxy.Configuration.UpstreamAuth
-		renamed.Header = utils.StrAsStrPointer(upstreamHeader)
+		renamed.Header = gwutil.StrAsStrPointer(upstreamHeader)
 		return &renamed, nil
 
 	case upstreamAuthProvision:
@@ -1286,7 +1288,7 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 		if err != nil {
 			return nil, fmt.Errorf("failed to mint upstream api key for proxy %s: %w", proxy.Handle, err)
 		}
-		encoded, err := utils.EncryptSecretRef(apiKey.APIKey, s.encryptionKey)
+		encoded, err := gwutil.EncryptSecretRef(apiKey.APIKey, s.encryptionKey)
 		if err != nil {
 			if revokeErr := s.apiKeyService.RevokeAPIKey(ctx, ouID, provider.UUID.String(), keyName); revokeErr != nil {
 				slog.Error("nextProxyUpstreamAuth: failed to revoke api key after encryption failure",
@@ -1295,8 +1297,8 @@ func (s *LLMProviderService) nextProxyUpstreamAuth(
 			return nil, fmt.Errorf("failed to encrypt upstream api key for proxy %s: %w", proxy.Handle, err)
 		}
 		return &gwmodels.UpstreamAuth{
-			Type:      utils.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
-			Header:    utils.StrAsStrPointer(upstreamHeader),
+			Type:      gwutil.StrAsStrPointer(gwmodels.AuthTypeAPIKey),
+			Header:    gwutil.StrAsStrPointer(upstreamHeader),
 			SecretRef: &encoded,
 		}, nil
 	}
@@ -1403,7 +1405,7 @@ func (s *LLMProviderService) ListProxiesByProvider(providerID, ouID string, limi
 		return nil, 0, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
-		return nil, 0, utils.ErrLLMProviderNotFound
+		return nil, 0, gwerr.ErrLLMProviderNotFound
 	}
 
 	// List proxies by provider UUID
@@ -1574,14 +1576,14 @@ func (s *LLMProviderService) UpdateCatalogStatus(providerID, ouID string, inCata
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			slog.Error("LLMProviderService.UpdateCatalogStatus: provider not found", "providerID", providerID, "ouID", ouID)
-			return nil, utils.ErrLLMProviderNotFound
+			return nil, gwerr.ErrLLMProviderNotFound
 		}
 		slog.Error("LLMProviderService.UpdateCatalogStatus: failed to get provider", "providerID", providerID, "error", err)
 		return nil, err
 	}
 	if provider == nil {
 		slog.Warn("LLMProviderService.UpdateCatalogStatus: provider not found", "providerID", providerID, "ouID", ouID)
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	// Update artifact catalog status within transaction
@@ -1623,7 +1625,7 @@ func (s *LLMProviderService) ListConsumers(ctx context.Context, providerID, ouID
 	provider, err := s.resolveProvider(providerID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProviderNotFound
+			return nil, gwerr.ErrLLMProviderNotFound
 		}
 		return nil, fmt.Errorf("resolveProvider: %w", err)
 	}

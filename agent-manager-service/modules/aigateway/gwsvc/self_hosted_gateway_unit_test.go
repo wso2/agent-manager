@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -29,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestSelfHostedVhost(t *testing.T) {
@@ -68,7 +69,7 @@ func registerRepo(created **gwmodels.Gateway, nameTaken bool) *gwrepomocks.Gatew
 		if nameTaken {
 			return existing, nil
 		}
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	repo.CreateTxFunc = func(_ *gorm.DB, gw *gwmodels.Gateway) error {
 		*created = gw
@@ -140,7 +141,7 @@ func TestRegisterSelfHostedGateway(t *testing.T) {
 
 		_, err := svc.RegisterSelfHostedGateway("org", input("ai"))
 
-		require.ErrorIs(t, err, utils.ErrGatewayAlreadyExists)
+		require.ErrorIs(t, err, gwerr.ErrGatewayAlreadyExists)
 		require.Nil(t, created)
 	})
 }
@@ -190,7 +191,7 @@ func TestRequireSelfHosted(t *testing.T) {
 			repo := &gwrepomocks.GatewayRepositoryMock{
 				GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) {
 					if tt.stored == nil {
-						return nil, utils.ErrGatewayNotFound
+						return nil, gwerr.ErrGatewayNotFound
 					}
 					return tt.stored, nil
 				},
@@ -200,7 +201,7 @@ func TestRequireSelfHosted(t *testing.T) {
 			got, err := svc.RequireSelfHosted(uuid.NewString(), "org")
 
 			if tt.wantErr {
-				require.ErrorIs(t, err, utils.ErrGatewayNotFound)
+				require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 				return
 			}
 			require.NoError(t, err)
@@ -219,7 +220,7 @@ func TestRemoveGatewayFromEnvironment_SelfHostedRefused(t *testing.T) {
 
 	err := svc.RemoveGatewayFromEnvironment(context.Background(), gw.UUID.String(), uuid.NewString())
 
-	require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
+	require.ErrorIs(t, err, gwerr.ErrGatewayEnvironmentFixed)
 }
 
 // panickingApplier fails the test by panicking on any call.
@@ -242,8 +243,8 @@ func TestIdentityProvider_SelfHostedIsNotFound(t *testing.T) {
 	svc := NewPlatformGatewayService(repo, panickingApplier{})
 
 	_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp", "https://issuer", "https://issuer/jwks", "", false)
-	require.ErrorIs(t, err, utils.ErrGatewayNotFound)
+	require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 
 	err = svc.DeleteIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp")
-	require.ErrorIs(t, err, utils.ErrGatewayNotFound)
+	require.ErrorIs(t, err, gwerr.ErrGatewayNotFound)
 }

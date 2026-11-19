@@ -21,6 +21,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // -----------------------------------------------------------------------------
@@ -149,7 +150,7 @@ func TestLLMProviderService_ListAvailableLLMPolicies_UnknownProviderReturnsNotFo
 
 	_, err := svc.ListAvailableLLMPolicies(context.Background(), "org-uuid", uuid.New().String())
 
-	assert.ErrorIs(t, err, utils.ErrLLMProviderNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrLLMProviderNotFound)
 }
 
 // -----------------------------------------------------------------------------

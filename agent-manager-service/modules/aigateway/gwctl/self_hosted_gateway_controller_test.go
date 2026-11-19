@@ -25,6 +25,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,7 +40,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func selfHostedRequest(method, body, gatewayID string) *http.Request {
@@ -123,7 +124,7 @@ func TestSelfHostedGatewayRoutes_ManagedGatewayIsNotFound(t *testing.T) {
 // request's spelling of them.
 func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T) {
 	repo := &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc:                 func(string, string) (*gwmodels.Gateway, error) { return nil, utils.ErrGatewayNotFound },
+		GetByNameAndOrgIDFunc:                 func(string, string) (*gwmodels.Gateway, error) { return nil, gwerr.ErrGatewayNotFound },
 		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
 		CreateTxFunc:                          func(*gorm.DB, *gwmodels.Gateway) error { return nil },
 		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },

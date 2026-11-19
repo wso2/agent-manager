@@ -19,13 +19,14 @@ package gwrepo
 import (
 	"context"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // AgentConfigurationRepository defines data access for agent configurations
@@ -131,7 +132,7 @@ func (r *agentConfigurationRepository) Create(ctx context.Context, tx *gorm.DB, 
 		return err
 	}
 	if !inserted {
-		return utils.ErrAgentConfigAlreadyExists
+		return gwerr.ErrAgentConfigAlreadyExists
 	}
 	return nil
 }

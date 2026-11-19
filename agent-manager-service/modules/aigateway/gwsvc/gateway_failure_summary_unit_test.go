@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // failureSummarySvc builds the service under test over repo. gatewayApplier is
@@ -210,7 +211,7 @@ func TestGatewayFailureSummary_PropagatesCountError(t *testing.T) {
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, sentinel, "the underlying error must stay unwrappable")
-	assert.NotErrorIs(t, err, utils.ErrGatewayNotFound, "a real error must not be flattened into not-found")
+	assert.NotErrorIs(t, err, gwerr.ErrGatewayNotFound, "a real error must not be flattened into not-found")
 	assert.Nil(t, resp)
 }
 

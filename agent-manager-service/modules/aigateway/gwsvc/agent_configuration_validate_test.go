@@ -20,13 +20,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // fakeLLMProviderRepo implements LLMProviderRepository for unit tests; only GetByHandle is used.
@@ -54,7 +55,7 @@ func TestValidateProvidersInCatalog(t *testing.T) {
 	require.NoError(t, s.ValidateProvidersInCatalog(ctx, "org", []string{"good", "good"}),
 		"valid handle (deduped) passes")
 	require.ErrorIs(t, s.ValidateProvidersInCatalog(ctx, "org", []string{"missing"}),
-		utils.ErrLLMProviderNotFound)
+		gwerr.ErrLLMProviderNotFound)
 	require.ErrorIs(t, s.ValidateProvidersInCatalog(ctx, "org", []string{"notcat"}),
 		httpx.ErrInvalidInput)
 	require.ErrorIs(t, s.ValidateProvidersInCatalog(ctx, "org", []string{""}),

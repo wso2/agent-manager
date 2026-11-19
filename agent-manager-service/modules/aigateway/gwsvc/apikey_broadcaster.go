@@ -25,12 +25,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // apiKeyBroadcaster encapsulates the shared create/revoke/rotate broadcast pattern
@@ -50,7 +52,7 @@ func (b *apiKeyBroadcaster) broadcastCreate(ctx context.Context, orgID, apiID, a
 		return nil, fmt.Errorf("failed to get gateways: %w", err)
 	}
 	if len(gateways) == 0 {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	return b.broadcastCreateToGateways(gateways, orgID, apiID, artifactUUID, req)
 }
@@ -63,7 +65,7 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*gwmodels.Gatew
 	keyName := req.Name
 	if keyName == "" {
 		var err error
-		keyName, err = utils.GenerateHandle(req.DisplayName)
+		keyName, err = gwutil.GenerateHandle(req.DisplayName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate API key name: %w", err)
 		}
@@ -73,7 +75,7 @@ func (b *apiKeyBroadcaster) broadcastCreateToGateways(gateways []*gwmodels.Gatew
 			httpx.ErrBadRequest, keyName, gwmodels.MinAPIKeyNameLength)
 	}
 
-	apiKey, err := utils.GenerateAPIKey()
+	apiKey, err := gwutil.GenerateAPIKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate API key: %w", err)
 	}
@@ -163,7 +165,7 @@ func (b *apiKeyBroadcaster) broadcastRevoke(ctx context.Context, orgID, apiID, a
 		return fmt.Errorf("failed to get gateways: %w", err)
 	}
 	if len(gateways) == 0 {
-		return utils.ErrGatewayNotFound
+		return gwerr.ErrGatewayNotFound
 	}
 	return b.broadcastRevokeToGateways(ctx, gateways, apiID, artifactUUID, keyName)
 }
@@ -245,7 +247,7 @@ func (b *apiKeyBroadcaster) broadcastRotate(ctx context.Context, orgID, apiID, a
 		return nil, fmt.Errorf("failed to get gateways: %w", err)
 	}
 	if len(gateways) == 0 {
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 	return b.broadcastRotateToGateways(gateways, orgID, apiID, artifactUUID, keyName, req)
 }
@@ -255,7 +257,7 @@ func (b *apiKeyBroadcaster) broadcastRotateToGateways(gateways []*gwmodels.Gatew
 	if req == nil {
 		return nil, fmt.Errorf("nil request")
 	}
-	newAPIKey, err := utils.GenerateAPIKey()
+	newAPIKey, err := gwutil.GenerateAPIKey()
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate API key: %w", err)
 	}

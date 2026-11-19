@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
@@ -33,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const (
@@ -132,7 +133,7 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	}
 	if req.GatewayID == "" {
 		slog.Error("LLMProviderDeploymentService.DeployLLMProvider: gateway ID is required", "providerID", providerID)
-		return nil, utils.ErrDeploymentGatewayIDRequired
+		return nil, gwerr.ErrDeploymentGatewayIDRequired
 	}
 
 	gatewayUUID, err := uuid.Parse(req.GatewayID)
@@ -148,7 +149,7 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	}
 	if gateway == nil || gateway.OUID != ouID {
 		slog.Warn("LLMProviderDeploymentService.DeployLLMProvider: gateway not found or org mismatch", "providerID", providerID, "gatewayID", req.GatewayID, "ouID", ouID)
-		return nil, utils.ErrGatewayNotFound
+		return nil, gwerr.ErrGatewayNotFound
 	}
 
 	provider, err := s.resolveProvider(providerID, ouID)
@@ -158,7 +159,7 @@ func (s *LLMProviderDeploymentService) DeployLLMProvider(providerID string, req 
 	}
 	if provider == nil {
 		slog.Warn("LLMProviderDeploymentService.DeployLLMProvider: provider not found", "providerID", providerID, "ouID", ouID)
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	ctx := context.Background()
@@ -190,7 +191,7 @@ func validateDeployBase(base string) error {
 	if base == "" || base == "current" {
 		return nil
 	}
-	return utils.ErrDeploymentBaseNotCurrent
+	return gwerr.ErrDeploymentBaseNotCurrent
 }
 
 // providerPlacement is the provider's artifact on the gateway.
@@ -228,7 +229,7 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 	}
 	if provider == nil {
 		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: provider not found", "providerID", providerID)
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	deployment, err := s.deploymentRepo.GetWithState(deploymentID, provider.UUID.String(), ouID)
@@ -238,23 +239,23 @@ func (s *LLMProviderDeploymentService) UndeployLLMProviderDeployment(providerID,
 	}
 	if deployment == nil {
 		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not found", "providerID", providerID, "deploymentID", deploymentID)
-		return nil, utils.ErrDeploymentNotFound
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 	if deployment.GatewayUUID.String() != gatewayID {
 		slog.Error("LLMProviderDeploymentService.UndeployLLMProviderDeployment: gateway ID mismatch", "providerID", providerID,
 			"deploymentID", deploymentID, "expectedGatewayID", gatewayID, "actualGatewayID", deployment.GatewayUUID.String())
-		return nil, utils.ErrGatewayIDMismatch
+		return nil, gwerr.ErrGatewayIDMismatch
 	}
 	if deployment.Status == nil || *deployment.Status == gwmodels.DeploymentStatusArchived {
 		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not current", "providerID", providerID,
 			"deploymentID", deploymentID, "status", deployment.Status)
-		return nil, utils.ErrDeploymentNotActive
+		return nil, gwerr.ErrDeploymentNotActive
 	}
 
 	ctx := context.Background()
 	placement := providerPlacement(provider, ouID, deployment.GatewayUUID)
 	row, err := undeployAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement)
-	if errors.Is(err, utils.ErrDeploymentNotActive) {
+	if errors.Is(err, gwerr.ErrDeploymentNotActive) {
 		slog.Warn("LLMProviderDeploymentService.UndeployLLMProviderDeployment: deployment not active", "providerID", providerID,
 			"deploymentID", deploymentID, "status", deployment.Status)
 		return nil, err
@@ -321,7 +322,7 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	deployment, err := s.restorableDeployment(deploymentID, provider.UUID.String(), ouID)
@@ -329,7 +330,7 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 		return nil, err
 	}
 	if deployment.GatewayUUID.String() != gatewayID {
-		return nil, utils.ErrGatewayIDMismatch
+		return nil, gwerr.ErrGatewayIDMismatch
 	}
 
 	ctx := context.Background()
@@ -339,7 +340,7 @@ func (s *LLMProviderDeploymentService) RestoreLLMProviderDeployment(providerID, 
 		return nil, fmt.Errorf("failed to get deployment status: %w", err)
 	}
 	if restoresItself(current, deployment.DeploymentID) {
-		return nil, utils.ErrDeploymentAlreadyDeployed
+		return nil, gwerr.ErrDeploymentAlreadyDeployed
 	}
 
 	row, err := restoreAndRead(ctx, s.tx, s.core, s.deploymentRepo, placement, deployment.DeploymentID)
@@ -369,11 +370,11 @@ func (s *LLMProviderDeploymentService) restorableDeployment(deploymentID, artifa
 
 func getRestorableDeployment(repo gwrepo.DeploymentRepository, deploymentID, artifactUUID, ouID string) (*gwmodels.Deployment, error) {
 	if _, err := uuid.Parse(deploymentID); err != nil {
-		return nil, utils.ErrDeploymentNotFound
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 	deployment, err := repo.GetWithContent(deploymentID, artifactUUID, ouID)
-	if errors.Is(err, utils.ErrDeploymentNotFound) || (err == nil && deployment == nil) {
-		return nil, utils.ErrDeploymentNotFound
+	if errors.Is(err, gwerr.ErrDeploymentNotFound) || (err == nil && deployment == nil) {
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
@@ -389,11 +390,11 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployments(providerID, ouI
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	if status != nil && !gwmodels.IsDeploymentStatusFilter(*status) {
-		return nil, utils.ErrInvalidDeploymentStatus
+		return nil, gwerr.ErrInvalidDeploymentStatus
 	}
 
 	// Get deployments
@@ -413,7 +414,7 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, depl
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	// Get deployment
@@ -422,7 +423,7 @@ func (s *LLMProviderDeploymentService) GetLLMProviderDeployment(providerID, depl
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		return nil, utils.ErrDeploymentNotFound
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 
 	return deployment, nil
@@ -436,7 +437,7 @@ func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, d
 		return fmt.Errorf("failed to get provider: %w", err)
 	}
 	if provider == nil {
-		return utils.ErrLLMProviderNotFound
+		return gwerr.ErrLLMProviderNotFound
 	}
 
 	// Get deployment
@@ -445,12 +446,12 @@ func (s *LLMProviderDeploymentService) DeleteLLMProviderDeployment(providerID, d
 		return fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		return utils.ErrDeploymentNotFound
+		return gwerr.ErrDeploymentNotFound
 	}
 	// The gateway is to serve the current deployment, or may still hold it; deleting it would drop its status row
 	// and orphan it there.
 	if deployment.Current() {
-		return utils.ErrDeploymentIsDeployed
+		return gwerr.ErrDeploymentIsDeployed
 	}
 
 	// Delete deployment
@@ -474,7 +475,7 @@ func renderLLMProvider(provider *gwmodels.LLMProvider) (string, error) {
 
 	// Validate template handle exists
 	if provider.TemplateHandle == "" {
-		return "", utils.ErrLLMProviderTemplateNotFound
+		return "", gwerr.ErrLLMProviderTemplateNotFound
 	}
 
 	// Enhanced upstream validation (check both Upstream and Main are non-nil)

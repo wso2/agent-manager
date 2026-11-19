@@ -23,11 +23,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // cardServiceStub stands in for the card service; only SetA2ACardSource is wired.
@@ -42,10 +43,10 @@ func (s *cardServiceStub) SetA2ACardSource(ctx context.Context, ouID, projectNam
 
 func TestSetAgentCardSourceErrorsMapToStatusCodes(t *testing.T) {
 	for sentinel, code := range map[error]int{
-		utils.ErrA2AProxyOriginChangeNeedsAuthReset: http.StatusConflict,
-		utils.ErrA2ACardURLNotProxyable:             http.StatusBadRequest,
+		gwerr.ErrA2AProxyOriginChangeNeedsAuthReset: http.StatusConflict,
+		gwerr.ErrA2ACardURLNotProxyable:             http.StatusBadRequest,
 		ssrf.ErrInvalidURL:                          http.StatusBadRequest,
-		utils.ErrAgentCardSourceNotExternal:         http.StatusBadRequest,
+		gwerr.ErrAgentCardSourceNotExternal:         http.StatusBadRequest,
 	} {
 		t.Run(sentinel.Error(), func(t *testing.T) {
 			stub := &cardServiceStub{SetSourceFunc: func(context.Context, string, string, string, string, string) error {

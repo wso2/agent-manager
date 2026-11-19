@@ -22,6 +22,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 const orgPickerUpstream = "https://internal.example.com/mcp"
@@ -67,7 +68,7 @@ func orgPickerSvc(filter *gwrepo.MCPProxyListFilter, proxies ...*gwmodels.MCPPro
 						return p, nil
 					}
 				}
-				return nil, utils.ErrMCPProxyNotFound
+				return nil, gwerr.ErrMCPProxyNotFound
 			},
 			ListFunc: func(_ context.Context, _ string, f gwrepo.MCPProxyListFilter) ([]*gwmodels.MCPProxy, int64, error) {
 				if filter != nil {
@@ -159,14 +160,14 @@ func TestOrgUpdateProjectProxy_409ProjectOwned(t *testing.T) {
 	svc := orgPickerSvc(nil, orgPickerProjectProxy())
 
 	_, err := svc.Update(context.Background(), "org", "p1-mcp", &gwmodels.MCPProxyDTO{ID: "p1-mcp", Name: "x", Version: "v1"})
-	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
 }
 
 func TestOrgDeleteProjectProxy_409ProjectOwned(t *testing.T) {
 	svc := orgPickerSvc(nil, orgPickerProjectProxy())
 
 	err := svc.Delete(context.Background(), "org", "org-name", "p1-mcp")
-	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
 }
 
 func TestScopeMutationsOnProjectProxy_ProjectOwned(t *testing.T) {
@@ -176,11 +177,11 @@ func TestScopeMutationsOnProjectProxy_ProjectOwned(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := svc.Create(ctx, "org", "org-name", "p1-mcp", gwmodels.MCPProxyScopeInput{Action: "read"})
-	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
 	_, err = svc.Update(ctx, "org", "org-name", "p1-mcp", "read", gwmodels.MCPProxyScopeUpdateInput{})
-	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
 	err = svc.Delete(ctx, "org", "org-name", "p1-mcp", "read")
-	assert.ErrorIs(t, err, utils.ErrMCPProxyProjectOwned)
+	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
 }
 
 func TestListEnvironmentScopesExcludesProjectProxies(t *testing.T) {

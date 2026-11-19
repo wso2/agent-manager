@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -29,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // CatalogController defines the interface for catalog HTTP handlers
@@ -59,13 +60,13 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	kind := r.URL.Query().Get("kind")
 	name := r.URL.Query().Get("name")
 	environmentUUID := r.URL.Query().Get("environmentId") // Changed from environmentName to environmentId
-	limit := getIntQueryParam(r, "limit", utils.DefaultLimit)
-	offset := getIntQueryParam(r, "offset", utils.DefaultOffset)
+	limit := getIntQueryParam(r, "limit", gwutil.DefaultLimit)
+	offset := getIntQueryParam(r, "offset", gwutil.DefaultOffset)
 
 	// Validate parameters
-	if limit < utils.MinLimit || limit > utils.MaxLimit {
+	if limit < gwutil.MinLimit || limit > gwutil.MaxLimit {
 		httpx.WriteErrorResponse(w, http.StatusBadRequest,
-			fmt.Sprintf("Invalid limit parameter. Must be between %d and %d", utils.MinLimit, utils.MaxLimit))
+			fmt.Sprintf("Invalid limit parameter. Must be between %d and %d", gwutil.MinLimit, gwutil.MaxLimit))
 		return
 	}
 	if offset < 0 {

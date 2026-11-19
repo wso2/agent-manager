@@ -23,6 +23,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -181,7 +184,7 @@ var proxyTestGateway = uuid.New()
 
 func decryptForTest(t *testing.T, secretRef string) string {
 	t.Helper()
-	plaintext, err := utils.DecryptSecretRef(secretRef, proxyTestKey)
+	plaintext, err := gwutil.DecryptSecretRef(secretRef, proxyTestKey)
 	require.NoError(t, err)
 	return plaintext
 }
@@ -230,7 +233,7 @@ func TestSetA2AProxyNeedsARegisteredCardURL(t *testing.T) {
 
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
 
-	assert.ErrorIs(t, err, utils.ErrA2AProxyNeedsCardSource)
+	assert.ErrorIs(t, err, gwerr.ErrA2AProxyNeedsCardSource)
 	h.assertNothingWritten(t)
 }
 
@@ -243,7 +246,7 @@ func TestSetA2AProxyRefusesACardURLTheGatewayCannotFront(t *testing.T) {
 
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil)
 
-	require.ErrorIs(t, err, utils.ErrA2ACardURLNotProxyable)
+	require.ErrorIs(t, err, gwerr.ErrA2ACardURLNotProxyable)
 	assert.Contains(t, err.Error(), "/.well-known/agent-card.json")
 	h.assertNothingWritten(t)
 }
@@ -257,7 +260,7 @@ func TestSetA2AProxyRefusesACredentialForAnHTTPCardURL(t *testing.T) {
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev",
 		&gwmodels.A2AProxyAuthUpdate{Header: "X-Upstream-Key", Value: &value})
 
-	assert.ErrorIs(t, err, utils.ErrA2AProxyUpstreamAuthNeedsHTTPS)
+	assert.ErrorIs(t, err, gwerr.ErrA2AProxyUpstreamAuthNeedsHTTPS)
 	h.assertNothingWritten(t)
 }
 
@@ -269,7 +272,7 @@ func TestSetA2AProxyRefusesToKeepAStoredSecretOnAnHTTPCardURL(t *testing.T) {
 
 	err := h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", &gwmodels.A2AProxyAuthUpdate{Header: "X-New"})
 
-	assert.ErrorIs(t, err, utils.ErrA2AProxyUpstreamAuthNeedsHTTPS)
+	assert.ErrorIs(t, err, gwerr.ErrA2AProxyUpstreamAuthNeedsHTTPS)
 	h.assertNothingWritten(t)
 }
 
@@ -324,11 +327,11 @@ func TestSetA2AProxySecretSemantics(t *testing.T) {
 		},
 		{
 			name: "an empty value is rejected", stored: "b2xk",
-			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key", Value: &empty}, wantErr: utils.ErrInvalidUpstreamAuth,
+			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key", Value: &empty}, wantErr: gwerr.ErrInvalidUpstreamAuth,
 		},
 		{
 			name: "a header alone needs a stored secret",
-			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key"}, wantErr: utils.ErrInvalidUpstreamAuth,
+			auth: &gwmodels.A2AProxyAuthUpdate{Header: "X-Key"}, wantErr: gwerr.ErrInvalidUpstreamAuth,
 		},
 	}
 	for _, tc := range cases {
@@ -395,7 +398,7 @@ func TestValidateA2AUpstreamAuth(t *testing.T) {
 		"template syntax": {Header: "X-Key", Value: value(`{{ secret "openai" }}`)},
 	} {
 		t.Run(name, func(t *testing.T) {
-			assert.ErrorIs(t, validateA2AUpstreamAuth(auth), utils.ErrInvalidUpstreamAuth)
+			assert.ErrorIs(t, validateA2AUpstreamAuth(auth), gwerr.ErrInvalidUpstreamAuth)
 		})
 	}
 }
@@ -404,9 +407,9 @@ func TestA2AProxyOnADirectEnvironmentIsNotFound(t *testing.T) {
 	h := newProxyHarness(t)
 
 	_, err := h.svc.GetA2AProxy(tierOnlyCtx(), "org-1", "checkout", "weather", "dev")
-	assert.ErrorIs(t, err, utils.ErrEnvironmentNotProxied)
-	assert.ErrorIs(t, h.svc.DeleteA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev"), utils.ErrEnvironmentNotProxied)
-	assert.ErrorIs(t, h.svc.RefreshA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev"), utils.ErrEnvironmentNotProxied)
+	assert.ErrorIs(t, err, gwerr.ErrEnvironmentNotProxied)
+	assert.ErrorIs(t, h.svc.DeleteA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev"), gwerr.ErrEnvironmentNotProxied)
+	assert.ErrorIs(t, h.svc.RefreshA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev"), gwerr.ErrEnvironmentNotProxied)
 	h.assertNothingWritten(t)
 }
 
@@ -623,7 +626,7 @@ func TestSetA2AProxyRejectsAnInternalAgent(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			h := newProxyHarness(t)
 			h.oc.GetAgentFunc = func(context.Context, string, string, string) (*models.AgentResponse, error) { return agent, nil }
-			assert.ErrorIs(t, h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil), utils.ErrA2AProxyAgentNotExternal)
+			assert.ErrorIs(t, h.svc.SetA2AProxy(tierGrantedCtx(t), "org-1", "checkout", "weather", "dev", nil), gwerr.ErrA2AProxyAgentNotExternal)
 		})
 	}
 }
@@ -732,7 +735,7 @@ func TestStoreCardSourceRefusesACardURLTheGatewayCannotFront(t *testing.T) {
 
 			err := h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(), newURL)
 
-			require.ErrorIs(t, err, utils.ErrA2ACardURLNotProxyable)
+			require.ErrorIs(t, err, gwerr.ErrA2ACardURLNotProxyable)
 			h.assertNothingWritten(t)
 		})
 	}
@@ -751,7 +754,7 @@ func TestStoreCardSourceRefusesToMoveAStoredSecretToAnotherOrigin(t *testing.T) 
 
 			err := h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(), newURL)
 
-			require.ErrorIs(t, err, utils.ErrA2AProxyOriginChangeNeedsAuthReset)
+			require.ErrorIs(t, err, gwerr.ErrA2AProxyOriginChangeNeedsAuthReset)
 			assert.Len(t, h.txProxies.GetByEnvUUIDCalls(), 1, "the proxy is read inside the transaction")
 			assert.Len(t, h.txCards.GetCalls(), 1, "the registered URL is read inside the transaction")
 			assert.Empty(t, h.txCards.EnqueueCalls())
@@ -772,7 +775,7 @@ func TestStoreCardSourceRefusesWhenNoRegisteredURLVouchesForTheSecret(t *testing
 	err := h.svc.StoreCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv(),
 		"https://agent.example/.well-known/agent-card.json")
 
-	require.ErrorIs(t, err, utils.ErrA2AProxyOriginChangeNeedsAuthReset)
+	require.ErrorIs(t, err, gwerr.ErrA2AProxyOriginChangeNeedsAuthReset)
 	assert.Empty(t, h.txCards.EnqueueCalls())
 }
 
@@ -835,7 +838,7 @@ func TestRefreshCardSource(t *testing.T) {
 
 		err := h.svc.RefreshCardSource(context.Background(), externalAgent(), "org-1", "checkout", devEnv())
 
-		assert.ErrorIs(t, err, utils.ErrAgentCardNotFound)
+		assert.ErrorIs(t, err, gwerr.ErrAgentCardNotFound)
 	})
 	t.Run("a proxied environment republishes and leaves the card parked", func(t *testing.T) {
 		h := newProxyHarness(t)

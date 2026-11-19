@@ -24,10 +24,11 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // The gateway runs these routes once per process start (pkg/controlplane/sync.go at gateway/v2026.09.24): it lists
@@ -101,7 +102,7 @@ func (c *gatewayInternalController) FetchDeploymentBatch(w http.ResponseWriter, 
 		http.Error(w, "Failed to fetch deployments", http.StatusInternalServerError)
 		return
 	}
-	archive, err := utils.CreateBatchDeploymentTarGz(batch)
+	archive, err := gwutil.CreateBatchDeploymentTarGz(batch)
 	if err != nil {
 		log.Error("Failed to package gateway deployments", "gatewayID", identity.ID, "error", err)
 		http.Error(w, "Failed to package deployments", http.StatusInternalServerError)

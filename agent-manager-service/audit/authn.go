@@ -22,8 +22,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // authnFailureWindow is the per-source bucket over which failures are counted.
@@ -115,7 +116,7 @@ func AuthFailureRecorder(recorder Recorder) func(r *http.Request, reason string)
 		if recorder == nil || r == nil {
 			return
 		}
-		ip := utils.ClientIP(r)
+		ip := httpx.ClientIP(r)
 		emit, suppressed := limiter.allow(ip, time.Now())
 		if !emit {
 			return

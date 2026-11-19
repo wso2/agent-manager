@@ -25,7 +25,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 )
 
 // errA2ANotProxyable means the card cannot be fronted by the gateway; retrying cannot help.
@@ -76,7 +76,7 @@ func deriveA2AProxyRoutes(cardURL string, card json.RawMessage) (upstreamURL str
 // requireProxyableCardURL is the 400 for a card URL the gateway could never front.
 func requireProxyableCardURL(cardURL string) error {
 	if _, reason := cardURLUpstream(cardURL); reason != "" {
-		return fmt.Errorf("%w: %s", utils.ErrA2ACardURLNotProxyable, reason)
+		return fmt.Errorf("%w: %s", gwerr.ErrA2ACardURLNotProxyable, reason)
 	}
 	return nil
 }

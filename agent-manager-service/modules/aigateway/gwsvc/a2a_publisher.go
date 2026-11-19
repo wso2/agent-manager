@@ -22,13 +22,15 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // A2APublisher holds the A2A gateway-publication steps agentManagerService and a2aProxyService share, on top of
@@ -76,7 +78,7 @@ func (p *A2APublisher) ShouldPublish(
 	ctx context.Context, tx *gorm.DB, agent *models.AgentResponse, ouID, projectName string, envUUID uuid.UUID,
 ) (bool, error) {
 	if !isExternalProvisioned(agent) {
-		return utils.IsA2AAgentSubType(agent.Type.SubType), nil
+		return gwutil.IsA2AAgentSubType(agent.Type.SubType), nil
 	}
 	_, err := p.proxies(tx).GetByEnvUUID(ctx, ouID, projectName, agent.Name, envUUID)
 	switch {
@@ -279,7 +281,7 @@ func (p *A2APublisher) dropAgentsArtifacts(
 	var errs []error
 	for _, agent := range agents {
 		artifact, err := agentEnvAPIArtifact(p.artifactRepo, ouID, agent.projectName, agent.agentName, envUUID.String(), gwmodels.AgentArtifactKinds...)
-		if errors.Is(err, utils.ErrArtifactNotFound) {
+		if errors.Is(err, gwerr.ErrArtifactNotFound) {
 			continue
 		}
 		if err != nil {

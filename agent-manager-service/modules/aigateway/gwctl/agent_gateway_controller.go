@@ -20,6 +20,8 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -29,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // AgentGatewayController serves the agent routes that only exist with a
@@ -48,8 +49,8 @@ func (c *AgentGatewayController) UpdateAgentDeploySettings(w http.ResponseWriter
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
+	projName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
 
 	var payload gwspec.UpdateAgentDeploySettingsRequest
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
@@ -77,8 +78,8 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 
 	// Extract path parameters
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
+	projName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
 
 	deployments, err := c.agentService.GetAgentDeployments(ctx, ouID, projName, agentName)
 	if err != nil {
@@ -96,8 +97,8 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 func (c *AgentGatewayController) GetAgentConfigurations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
+	projName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
 	environment := r.URL.Query().Get("environment")
 	if environment == "" {
 		environment = models.DefaultEnvironmentName
@@ -118,7 +119,7 @@ func (c *AgentGatewayController) GetAgentConfigurations(w http.ResponseWriter, r
 	for _, b := range bindings {
 		item := gwspec.AgentBinding{Kind: b.Kind, Position: int32(b.Position), Target: b.Target, State: b.State, LastError: b.LastError}
 		if b.ConfigID != nil {
-			item.ConfigId = utils.StrAsStrPointer(b.ConfigID.String())
+			item.ConfigId = gwutil.StrAsStrPointer(b.ConfigID.String())
 		}
 		resp.Bindings = append(resp.Bindings, item)
 	}

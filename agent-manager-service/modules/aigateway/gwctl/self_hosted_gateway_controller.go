@@ -22,6 +22,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
@@ -30,7 +32,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // requireSelfHostedThen runs next only when the {gatewayID} path value names a
@@ -55,7 +56,7 @@ func (c *gatewayController) requireSelfHostedThen(next http.HandlerFunc) http.Ha
 // of the route (a managed or unknown gateway), anything else is a fault.
 func logSelfHostedLookupFailure(r *http.Request, msg string, err error) {
 	log := logger.GetLogger(r.Context())
-	if errors.Is(err, utils.ErrGatewayNotFound) {
+	if errors.Is(err, gwerr.ErrGatewayNotFound) {
 		log.Warn(msg, "error", err)
 		return
 	}

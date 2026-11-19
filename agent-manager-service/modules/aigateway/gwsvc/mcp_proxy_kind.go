@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -33,7 +35,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // mcpArtifact is what one (endpoint, environment) artifact of an MCP proxy renders from.
@@ -141,8 +142,8 @@ func (k *MCPProxyKind) Render(ctx context.Context, artifact gwmodels.ArtifactRef
 // DescribeRenderError is the reason a binding shows for a failed render: CONTEXT_IN_USE for a context clash, the
 // error itself otherwise.
 func (k *MCPProxyKind) DescribeRenderError(err error) string {
-	if errors.Is(err, utils.ErrMCPContextInUse) {
-		return utils.ErrCodeContextInUse
+	if errors.Is(err, gwerr.ErrMCPContextInUse) {
+		return gwerr.ErrCodeContextInUse
 	}
 	return err.Error()
 }

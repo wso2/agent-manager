@@ -24,6 +24,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // noopScopeRedeployer stands in for the gateway re-emission the scope service
@@ -71,9 +72,9 @@ func updateScopeRequest(t *testing.T, body string) *http.Request {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPut,
 		"/orgs/default/mcp-proxies/t4-deepwiki/scopes/write-only", strings.NewReader(body))
-	req.SetPathValue(utils.PathParamOrgName, "default")
-	req.SetPathValue(utils.PathParamProxyId, "t4-deepwiki")
-	req.SetPathValue(utils.PathParamScopeAction, "write-only")
+	req.SetPathValue(gwutil.PathParamOrgName, "default")
+	req.SetPathValue(gwutil.PathParamProxyId, "t4-deepwiki")
+	req.SetPathValue(gwutil.PathParamScopeAction, "write-only")
 	return req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
 }
 

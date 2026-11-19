@@ -21,6 +21,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // stubGuard answers ServesEnvironment with serves and err, and records the gateway and environment it was asked about.
@@ -67,7 +68,7 @@ func TestRemoveGatewayFromEnvironmentIsRefusedWhileTheGatewayServesTheEnvironmen
 
 	err := svc.RemoveGatewayFromEnvironment(context.Background(), gateway.String(), env.String())
 
-	require.ErrorIs(t, err, utils.ErrGatewayServesEnvironment)
+	require.ErrorIs(t, err, gwerr.ErrGatewayServesEnvironment)
 	assert.True(t, rolledBack, "the mapping delete is rolled back")
 	assert.Equal(t, env, guard.env)
 	assert.Equal(t, gateway, guard.gateway)
@@ -91,6 +92,6 @@ func TestRemoveGatewayFromEnvironmentDoesNotReportAFailedCheckAsServing(t *testi
 	err := svc.RemoveGatewayFromEnvironment(context.Background(), uuid.NewString(), uuid.NewString())
 
 	require.ErrorIs(t, err, checkErr)
-	assert.NotErrorIs(t, err, utils.ErrGatewayServesEnvironment)
+	assert.NotErrorIs(t, err, gwerr.ErrGatewayServesEnvironment)
 	assert.True(t, rolledBack)
 }

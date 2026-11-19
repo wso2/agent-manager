@@ -23,13 +23,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/aesgcm"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func syncRow(kind, handle, state, deploymentID string, deployedAt time.Time) gwmodels.GatewaySyncRow {
@@ -126,7 +128,7 @@ func TestSyncEtagChangesWithTheDeploymentAndItsTime(t *testing.T) {
 
 func TestFetchDeploymentBatch(t *testing.T) {
 	key := make([]byte, 32)
-	ciphertext, err := utils.EncryptBytes([]byte("s3cret"), key)
+	ciphertext, err := aesgcm.Encrypt([]byte("s3cret"), key)
 	require.NoError(t, err)
 	secretRef := base64.StdEncoding.EncodeToString(ciphertext)
 
@@ -168,7 +170,7 @@ func TestFetchDeploymentBatch(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, got, 2, "a deployment whose secret can't be resolved, or of a kind AMS doesn't deploy, is left out")
-	assert.Equal(t, utils.BatchDeployment{
+	assert.Equal(t, gwutil.BatchDeployment{
 		DeploymentID: provider.DeploymentID.String(), Kind: "LlmProvider", ArtifactID: provider.ArtifactUUID.String(),
 		Content: []byte("spec:\n    upstream:\n        auth:\n            header: X-Key\n            value: s3cret\n"),
 	}, got[0])

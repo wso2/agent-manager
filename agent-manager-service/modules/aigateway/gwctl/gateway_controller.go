@@ -26,6 +26,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -175,19 +177,19 @@ func (c *gatewayController) resolveEnvironment(ctx context.Context, ouID, envIde
 
 func handleGatewayErrors(w http.ResponseWriter, err error, fallbackMsg string) {
 	switch {
-	case errors.Is(err, utils.ErrGatewayNotFound):
+	case errors.Is(err, gwerr.ErrGatewayNotFound):
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
-	case errors.Is(err, utils.ErrGatewayAlreadyExists):
+	case errors.Is(err, gwerr.ErrGatewayAlreadyExists):
 		httpx.WriteErrorResponse(w, http.StatusConflict, "A gateway with this name already exists")
-	case errors.Is(err, utils.ErrGatewayHasDeployments):
+	case errors.Is(err, gwerr.ErrGatewayHasDeployments):
 		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
-	case errors.Is(err, utils.ErrGatewayIngressCapExceeded):
+	case errors.Is(err, gwerr.ErrGatewayIngressCapExceeded):
 		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
-	case errors.Is(err, utils.ErrGatewayEnvironmentFixed):
-		httpx.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", utils.ErrCodeGatewayEnvironmentFixed)
-	case errors.Is(err, utils.ErrGatewayTokenLimitReached):
+	case errors.Is(err, gwerr.ErrGatewayEnvironmentFixed):
+		httpx.WriteErrorResponseWithReason(w, http.StatusConflict, err.Error(), "", gwerr.ErrCodeGatewayEnvironmentFixed)
+	case errors.Is(err, gwerr.ErrGatewayTokenLimitReached):
 		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
-	case errors.Is(err, utils.ErrGatewayTokenNotFound):
+	case errors.Is(err, gwerr.ErrGatewayTokenNotFound):
 		httpx.WriteErrorResponse(w, http.StatusNotFound, "Token not found")
 	case errors.Is(err, httpx.ErrBadRequest):
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
@@ -590,12 +592,12 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 	modkit.AuditDetail(ctx, "environment", resolvedEnvID)
 	if err := removeErr; err != nil {
 		log.Error("RemoveGatewayFromEnvironment: failed to remove mapping", "error", err)
-		if errors.Is(err, utils.ErrGatewayServesEnvironment) {
+		if errors.Is(err, gwerr.ErrGatewayServesEnvironment) {
 			httpx.WriteErrorResponse(w, http.StatusConflict,
 				"The gateway still serves this environment's agents or proxies; undeploy them from this gateway, or remove the LLM configuration from the agents and monitors in this environment, first")
 			return
 		}
-		if errors.Is(err, utils.ErrGatewayEnvironmentFixed) {
+		if errors.Is(err, gwerr.ErrGatewayEnvironmentFixed) {
 			handleGatewayErrors(w, err, "Failed to remove gateway from environment")
 			return
 		}

@@ -22,16 +22,17 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestHandleGatewayErrorsEnvironmentFixedIs409WithItsCode(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	handleGatewayErrors(w, fmt.Errorf("%w: gateway is mapped to another environment", utils.ErrGatewayEnvironmentFixed), "fallback")
+	handleGatewayErrors(w, fmt.Errorf("%w: gateway is mapped to another environment", gwerr.ErrGatewayEnvironmentFixed), "fallback")
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"GATEWAY_ENVIRONMENT_FIXED"`)
@@ -44,8 +45,8 @@ func TestHandleGatewayErrors_Status(t *testing.T) {
 		wantStatus int
 		wantBody   string
 	}{
-		{"token limit", fmt.Errorf("rotate: %w", utils.ErrGatewayTokenLimitReached), http.StatusConflict, "Revoke"},
-		{"token not found", utils.ErrGatewayTokenNotFound, http.StatusNotFound, "Token not found"},
+		{"token limit", fmt.Errorf("rotate: %w", gwerr.ErrGatewayTokenLimitReached), http.StatusConflict, "Revoke"},
+		{"token not found", gwerr.ErrGatewayTokenNotFound, http.StatusNotFound, "Token not found"},
 		{
 			"validation error",
 			httpx.NewInvalidInputError("Gateway name must be 3 to 64 characters", "gateway name must not exceed 64 characters"),

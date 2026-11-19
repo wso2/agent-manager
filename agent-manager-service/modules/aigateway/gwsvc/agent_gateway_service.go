@@ -23,6 +23,8 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -35,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // AgentGatewayService is the gateway's side of an agent: the LLM and MCP
@@ -318,7 +319,7 @@ func (s *AgentGatewayService) revokeAgentConfigurations(ctx context.Context, ouI
 			continue
 		}
 		// Lite registers external agents only.
-		if err := s.agentConfigurationService.DeleteForAgentDeletion(ctx, configUUID, ouID, projectName, agentName, true); err != nil && !errors.Is(err, utils.ErrAgentConfigNotFound) {
+		if err := s.agentConfigurationService.DeleteForAgentDeletion(ctx, configUUID, ouID, projectName, agentName, true); err != nil && !errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 			errs = append(errs, fmt.Errorf("revoke configuration %s: %w", cfg.Name, err))
 		}
 	}

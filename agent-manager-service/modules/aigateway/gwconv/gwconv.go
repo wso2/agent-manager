@@ -21,11 +21,12 @@ package gwconv
 import (
 	"fmt"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // Helper function to convert *string to string
@@ -582,7 +583,7 @@ func ConvertModelToSpecUpstreamConfig(config gwmodels.UpstreamConfig) gwspec.Ups
 func maskedSpecUpstreamAuth(auth *gwmodels.UpstreamAuth) *gwspec.UpstreamAuth {
 	masked := redactedMarker
 	return &gwspec.UpstreamAuth{
-		Type:   utils.StrPointerAsStr(auth.Type, ""),
+		Type:   gwutil.StrPointerAsStr(auth.Type, ""),
 		Header: auth.Header,
 		Value:  &masked,
 	}

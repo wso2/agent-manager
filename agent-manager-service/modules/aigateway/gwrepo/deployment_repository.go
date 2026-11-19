@@ -22,12 +22,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // DeploymentRepository defines the interface for deployment data operations
@@ -169,14 +170,14 @@ func (r *DeploymentRepo) GetWithContent(deploymentID, artifactUUID, orgUUID stri
 		First(&deployment).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrDeploymentNotFound
+			return nil, gwerr.ErrDeploymentNotFound
 		}
 		return nil, err
 	}
 	return &deployment, nil
 }
 
-// Delete deletes a deployment that isn't current (utils.ErrDeploymentIsDeployed otherwise). An UNDEPLOYED status
+// Delete deletes a deployment that isn't current (gwerr.ErrDeploymentIsDeployed otherwise). An UNDEPLOYED status
 // row pointing at it is detached and kept: cascading it away would let the placement pass re-place an artifact the
 // user undeployed.
 func (r *DeploymentRepo) Delete(deploymentID, artifactUUID, orgUUID string) error {
@@ -193,7 +194,7 @@ func (r *DeploymentRepo) Delete(deploymentID, artifactUUID, orgUUID string) erro
 			var pointedAt gwmodels.Deployment
 			pointedAt.SetStatusRow(&rows[i])
 			if pointedAt.Current() {
-				return utils.ErrDeploymentIsDeployed
+				return gwerr.ErrDeploymentIsDeployed
 			}
 		}
 		if err := tx.Model(&gwmodels.DeploymentStatusRecord{}).

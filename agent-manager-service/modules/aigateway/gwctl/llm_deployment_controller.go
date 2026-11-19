@@ -21,13 +21,15 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMDeploymentController defines interface for LLM deployment HTTP handlers
@@ -57,7 +59,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("DeployLLMProvider: starting", "ouID", ouID, "providerID", providerID)
 
@@ -91,28 +93,28 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 	deployment, err := c.deploymentService.DeployLLMProvider(providerID, &req, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrContextInUse):
+		case errors.Is(err, gwerr.ErrContextInUse):
 			log.Warn("DeployLLMProvider: context in use on the gateway", "ouID", ouID, "error", err)
-			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
-				utils.ErrCodeContextInUse)
+			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, gwerr.ErrContextInUse.Error(), err.Error(),
+				gwerr.ErrCodeContextInUse)
 			return
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("DeployLLMProvider: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Warn("DeployLLMProvider: gateway not found", "ouID", ouID, "providerID", providerID, "gatewayID", req.GatewayID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
-		case errors.Is(err, utils.ErrDeploymentBaseNotCurrent):
+		case errors.Is(err, gwerr.ErrDeploymentBaseNotCurrent):
 			log.Warn("DeployLLMProvider: base is not current", "ouID", ouID, "providerID", providerID, "base", req.Base)
-			httpx.WriteErrorResponse(w, http.StatusBadRequest, utils.ErrDeploymentBaseNotCurrent.Error())
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, gwerr.ErrDeploymentBaseNotCurrent.Error())
 			return
-		case errors.Is(err, utils.ErrDeploymentGatewayIDRequired):
+		case errors.Is(err, gwerr.ErrDeploymentGatewayIDRequired):
 			log.Error("DeployLLMProvider: gateway ID required", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Gateway ID is required")
 			return
-		case errors.Is(err, utils.ErrLLMProviderTemplateNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderTemplateNotFound):
 			log.Error("DeployLLMProvider: template not found", "ouID", ouID, "providerID", providerID, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Referenced template not found")
 			return
@@ -137,11 +139,11 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Parse query parameters
-	deploymentID := r.URL.Query().Get(utils.PathParamDeploymentId)
-	gatewayID := r.URL.Query().Get(utils.PathParamGatewayId)
+	deploymentID := r.URL.Query().Get(gwutil.PathParamDeploymentId)
+	gatewayID := r.URL.Query().Get(gwutil.PathParamGatewayId)
 
 	log.Info("UndeployLLMProviderDeployment: starting", "ouID", ouID, "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
@@ -170,23 +172,23 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 	_, err := c.deploymentService.UndeployLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("UndeployLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrDeploymentNotFound):
+		case errors.Is(err, gwerr.ErrDeploymentNotFound):
 			log.Warn("UndeployLLMProviderDeployment: deployment not found", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Warn("UndeployLLMProviderDeployment: gateway not found", "ouID", ouID, "gatewayID", gatewayID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
-		case errors.Is(err, utils.ErrDeploymentNotActive):
+		case errors.Is(err, gwerr.ErrDeploymentNotActive):
 			log.Warn("UndeployLLMProviderDeployment: deployment not active", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 			httpx.WriteErrorResponse(w, http.StatusConflict, "The deployment isn't the gateway's current deployment, or it is already undeployed or being undeployed")
 			return
-		case errors.Is(err, utils.ErrGatewayIDMismatch):
+		case errors.Is(err, gwerr.ErrGatewayIDMismatch):
 			log.Error("UndeployLLMProviderDeployment: gateway ID mismatch", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Deployment is bound to a different gateway")
 			return
@@ -207,11 +209,11 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Parse query parameters
-	deploymentID := r.URL.Query().Get(utils.PathParamDeploymentId)
-	gatewayID := r.URL.Query().Get(utils.PathParamGatewayId)
+	deploymentID := r.URL.Query().Get(gwutil.PathParamDeploymentId)
+	gatewayID := r.URL.Query().Get(gwutil.PathParamGatewayId)
 
 	log.Info("RestoreLLMProviderDeployment: starting", "ouID", ouID, "providerID", providerID,
 		"deploymentID", deploymentID, "gatewayID", gatewayID)
@@ -240,28 +242,28 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 	deployment, err := c.deploymentService.RestoreLLMProviderDeployment(providerID, deploymentID, gatewayID, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrContextInUse):
+		case errors.Is(err, gwerr.ErrContextInUse):
 			log.Warn("RestoreLLMProviderDeployment: context in use on the gateway", "ouID", ouID, "error", err)
-			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, utils.ErrContextInUse.Error(), err.Error(),
-				utils.ErrCodeContextInUse)
+			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, gwerr.ErrContextInUse.Error(), err.Error(),
+				gwerr.ErrCodeContextInUse)
 			return
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("RestoreLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrDeploymentNotFound):
+		case errors.Is(err, gwerr.ErrDeploymentNotFound):
 			log.Warn("RestoreLLMProviderDeployment: deployment not found", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Warn("RestoreLLMProviderDeployment: gateway not found", "ouID", ouID, "gatewayID", gatewayID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Gateway not found")
 			return
-		case errors.Is(err, utils.ErrDeploymentAlreadyDeployed):
+		case errors.Is(err, gwerr.ErrDeploymentAlreadyDeployed):
 			log.Warn("RestoreLLMProviderDeployment: deployment already deployed", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 			httpx.WriteErrorResponse(w, http.StatusConflict, "Cannot restore the deployment the gateway is already deploying or serving")
 			return
-		case errors.Is(err, utils.ErrGatewayIDMismatch):
+		case errors.Is(err, gwerr.ErrGatewayIDMismatch):
 			log.Error("RestoreLLMProviderDeployment: gateway ID mismatch", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID, "gatewayID", gatewayID)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Deployment is bound to a different gateway")
 			return
@@ -281,8 +283,8 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
-	deploymentID := r.PathValue(utils.PathParamDeploymentId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
+	deploymentID := r.PathValue(gwutil.PathParamDeploymentId)
 
 	log.Info("DeleteLLMProviderDeployment: starting", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
@@ -304,15 +306,15 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 	err := c.deploymentService.DeleteLLMProviderDeployment(providerID, deploymentID, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("DeleteLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrDeploymentNotFound):
+		case errors.Is(err, gwerr.ErrDeploymentNotFound):
 			log.Warn("DeleteLLMProviderDeployment: deployment not found", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
-		case errors.Is(err, utils.ErrDeploymentIsDeployed):
+		case errors.Is(err, gwerr.ErrDeploymentIsDeployed):
 			log.Warn("DeleteLLMProviderDeployment: deployment is active", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 			httpx.WriteErrorResponse(w, http.StatusConflict, "Cannot delete the gateway's current deployment - undeploy it and wait until it is UNDEPLOYED")
 			return
@@ -332,8 +334,8 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
-	deploymentID := r.PathValue(utils.PathParamDeploymentId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
+	deploymentID := r.PathValue(gwutil.PathParamDeploymentId)
 
 	log.Info("GetLLMProviderDeployment: starting", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 
@@ -355,11 +357,11 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 	deployment, err := c.deploymentService.GetLLMProviderDeployment(providerID, deploymentID, ouID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("GetLLMProviderDeployment: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrDeploymentNotFound):
+		case errors.Is(err, gwerr.ErrDeploymentNotFound):
 			log.Warn("GetLLMProviderDeployment: deployment not found", "ouID", ouID, "providerID", providerID, "deploymentID", deploymentID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Deployment not found")
 			return
@@ -379,10 +381,10 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-	providerID := r.PathValue(utils.PathParamProviderId)
+	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Parse optional query parameters
-	gatewayID := r.URL.Query().Get(utils.PathParamGatewayId)
+	gatewayID := r.URL.Query().Get(gwutil.PathParamGatewayId)
 	status := r.URL.Query().Get("status")
 
 	log.Info("GetLLMProviderDeployments: starting", "ouID", ouID, "providerID", providerID,
@@ -411,11 +413,11 @@ func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWrite
 	deployments, err := c.deploymentService.GetLLMProviderDeployments(providerID, ouID, gatewayIDPtr, statusPtr)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrLLMProviderNotFound):
+		case errors.Is(err, gwerr.ErrLLMProviderNotFound):
 			log.Warn("GetLLMProviderDeployments: provider not found", "ouID", ouID, "providerID", providerID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "LLM provider not found")
 			return
-		case errors.Is(err, utils.ErrInvalidDeploymentStatus):
+		case errors.Is(err, gwerr.ErrInvalidDeploymentStatus):
 			log.Error("GetLLMProviderDeployments: invalid status", "ouID", ouID, "providerID", providerID, "status", status)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid deployment status")
 			return

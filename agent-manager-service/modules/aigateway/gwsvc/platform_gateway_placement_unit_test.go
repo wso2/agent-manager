@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +32,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type placedEnv struct {
@@ -61,7 +62,7 @@ func (p recordingPlacer) placed(t *testing.T, n int) []placedEnv {
 
 func mappingRepo(gw *gwmodels.Gateway, ingressInEnv int64) *gwrepomocks.GatewayRepositoryMock {
 	return &gwrepomocks.GatewayRepositoryMock{
-		GetByNameAndOrgIDFunc:                 func(string, string) (*gwmodels.Gateway, error) { return nil, utils.ErrGatewayNotFound },
+		GetByNameAndOrgIDFunc:                 func(string, string) (*gwmodels.Gateway, error) { return nil, gwerr.ErrGatewayNotFound },
 		GetByUUIDFunc:                         func(string) (*gwmodels.Gateway, error) { return gw, nil },
 		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
 		CreateTxFunc:                          func(*gorm.DB, *gwmodels.Gateway) error { return nil },
@@ -90,7 +91,7 @@ func TestAssignGatewayToEnvironmentPlacesNothingWhenTheMappingFails(t *testing.T
 	placer := make(recordingPlacer, 1)
 	svc := NewPlatformGatewayService(mappingRepo(gw, 1), nil).WithEnvironmentPlacer(placer)
 
-	require.ErrorIs(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), uuid.NewString()), utils.ErrGatewayIngressCapExceeded)
+	require.ErrorIs(t, svc.AssignGatewayToEnvironment(gw.UUID.String(), uuid.NewString()), gwerr.ErrGatewayIngressCapExceeded)
 
 	select {
 	case placed := <-placer:

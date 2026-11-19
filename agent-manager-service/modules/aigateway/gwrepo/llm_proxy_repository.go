@@ -21,12 +21,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProxyRepository defines the interface for LLM proxy persistence
@@ -137,7 +138,7 @@ func (r *LLMProxyRepo) Create(ctx context.Context, p *gwmodels.LLMProxy, handle,
 			return fmt.Errorf("failed to check provider deleting status: %w", err)
 		}
 		if deleting {
-			return utils.ErrLLMProviderBeingDeleted
+			return gwerr.ErrLLMProviderBeingDeleted
 		}
 
 		if p.UUID == uuid.Nil {

@@ -24,6 +24,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +36,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // statusPathFixture is one artifact on one egress gateway, with a deployment repository that records the
@@ -216,7 +217,7 @@ func TestDeployLLMProviderAcceptsOnlyTheCurrentBase(t *testing.T) {
 		_, err := f.providerService(provider).DeployLLMProvider("provider-handle", &gwmodels.DeployAPIRequest{
 			Base: base, GatewayID: f.gateway.UUID.String(),
 		}, "ou-1")
-		assert.ErrorIs(t, err, utils.ErrDeploymentBaseNotCurrent, "base %q", base)
+		assert.ErrorIs(t, err, gwerr.ErrDeploymentBaseNotCurrent, "base %q", base)
 		assert.Empty(t, f.repo.StartDeployCalls())
 	}
 }
@@ -225,14 +226,14 @@ func TestRestoreOfAnUnknownDeploymentIsNotFound(t *testing.T) {
 	provider := renderableProvider()
 	f := newStatusPathFixture(t, provider.UUID)
 	f.repo.GetWithContentFunc = func(string, string, string) (*gwmodels.Deployment, error) {
-		return nil, utils.ErrDeploymentNotFound
+		return nil, gwerr.ErrDeploymentNotFound
 	}
 	svc := f.providerService(provider)
 
 	_, err := svc.RestoreLLMProviderDeployment("provider-handle", uuid.NewString(), f.gateway.UUID.String(), "ou-1")
-	assert.ErrorIs(t, err, utils.ErrDeploymentNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrDeploymentNotFound)
 	_, err = svc.RestoreLLMProviderDeployment("provider-handle", "not-a-uuid", f.gateway.UUID.String(), "ou-1")
-	assert.ErrorIs(t, err, utils.ErrDeploymentNotFound)
+	assert.ErrorIs(t, err, gwerr.ErrDeploymentNotFound)
 	assert.Empty(t, f.repo.StartRestoreCalls())
 }
 
@@ -265,7 +266,7 @@ func TestUndeployOfAnArchivedDeploymentIsNotActive(t *testing.T) {
 	_, err := f.providerService(provider).UndeployLLMProviderDeployment("provider-handle",
 		f.deployment.DeploymentID.String(), f.gateway.UUID.String(), "ou-1")
 
-	assert.ErrorIs(t, err, utils.ErrDeploymentNotActive)
+	assert.ErrorIs(t, err, gwerr.ErrDeploymentNotActive)
 	assert.Empty(t, f.repo.BeginUndeployCalls())
 }
 
@@ -419,8 +420,8 @@ func TestDeleteRefusesThePlacedOrHeldDeployment(t *testing.T) {
 	for name, shape := range placed {
 		t.Run(name, func(t *testing.T) {
 			deletes, providerErr, proxyErr := deleteBoth(t, shape)
-			assert.ErrorIs(t, providerErr, utils.ErrDeploymentIsDeployed)
-			assert.ErrorIs(t, proxyErr, utils.ErrDeploymentIsDeployed)
+			assert.ErrorIs(t, providerErr, gwerr.ErrDeploymentIsDeployed)
+			assert.ErrorIs(t, proxyErr, gwerr.ErrDeploymentIsDeployed)
 			assert.Zero(t, deletes)
 		})
 	}
@@ -459,7 +460,7 @@ func TestRestoreOfTheCurrentDeployment(t *testing.T) {
 				f.deployment.DeploymentID.String(), f.gateway.UUID.String(), "ou-1")
 
 			if tc.refused {
-				assert.ErrorIs(t, err, utils.ErrDeploymentAlreadyDeployed)
+				assert.ErrorIs(t, err, gwerr.ErrDeploymentAlreadyDeployed)
 				assert.Empty(t, f.repo.StartRestoreCalls())
 				return
 			}

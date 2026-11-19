@@ -25,6 +25,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -211,7 +213,7 @@ func (s *AgentGatewayService) ValidateAgentExtension(ctx context.Context, tx *go
 // rejectBinding turns a refusal of a requested provider or proxy into a 400;
 // any other error stays a server error.
 func rejectBinding(field string, err error) error {
-	for _, want := range []error{httpx.ErrInvalidInput, utils.ErrLLMProviderNotFound, utils.ErrMCPProxyNotFound} {
+	for _, want := range []error{httpx.ErrInvalidInput, gwerr.ErrLLMProviderNotFound, gwerr.ErrMCPProxyNotFound} {
 		if errors.Is(err, want) {
 			return modkit.Reject("extensions.ai-gateway.%s: %v", field, err)
 		}
@@ -474,7 +476,7 @@ func (s *AgentGatewayService) findConfig(ctx context.Context, orgID, projectName
 
 func (s *AgentGatewayService) deleteConfig(ctx context.Context, orgID, projectName, agentName string, configID uuid.UUID) error {
 	err := s.agentConfigurationService.Delete(ctx, configID, orgID, projectName, agentName)
-	if errors.Is(err, utils.ErrAgentConfigNotFound) {
+	if errors.Is(err, gwerr.ErrAgentConfigNotFound) {
 		return nil
 	}
 	return err

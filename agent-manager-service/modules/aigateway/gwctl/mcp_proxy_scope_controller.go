@@ -21,6 +21,9 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -55,14 +58,14 @@ func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *h
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 	orgName := middleware.OrgHandleFromRequest(r)
-	proxyID := r.PathValue(utils.PathParamProxyId)
+	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
 	log.Info("ListMCPProxyScopes: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID)
 
 	result, err := c.svc.List(ctx, ouID, proxyID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrMCPProxyNotFound):
+		case errors.Is(err, gwerr.ErrMCPProxyNotFound):
 			log.Warn("ListMCPProxyScopes: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		default:
@@ -87,7 +90,7 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 	orgName := middleware.OrgHandleFromRequest(r)
-	proxyID := r.PathValue(utils.PathParamProxyId)
+	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
 	log.Info("CreateMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID)
 
@@ -113,11 +116,11 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 		case errors.Is(err, httpx.ErrInvalidInput):
 			log.Error("CreateMCPProxyScope: invalid request", "ouID", ouID, "proxyID", proxyID, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
-		case errors.Is(err, utils.ErrMCPProxyProjectOwned):
+		case errors.Is(err, gwerr.ErrMCPProxyProjectOwned):
 			log.Warn("CreateMCPProxyScope: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, "MCP proxy belongs to a project",
-				err.Error(), utils.ErrCodeProjectOwned)
-		case errors.Is(err, utils.ErrMCPProxyNotFound):
+				err.Error(), gwerr.ErrCodeProjectOwned)
+		case errors.Is(err, gwerr.ErrMCPProxyNotFound):
 			log.Warn("CreateMCPProxyScope: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy not found")
 		case errors.Is(err, httpx.ErrConflict):
@@ -140,8 +143,8 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 	orgName := middleware.OrgHandleFromRequest(r)
-	proxyID := r.PathValue(utils.PathParamProxyId)
-	action := r.PathValue(utils.PathParamScopeAction)
+	proxyID := r.PathValue(gwutil.PathParamProxyId)
+	action := r.PathValue(gwutil.PathParamScopeAction)
 
 	log.Info("UpdateMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID, "action", action)
 
@@ -161,11 +164,11 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 		case errors.Is(err, httpx.ErrInvalidInput):
 			log.Error("UpdateMCPProxyScope: invalid request", "ouID", ouID, "proxyID", proxyID, "action", action, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
-		case errors.Is(err, utils.ErrMCPProxyProjectOwned):
+		case errors.Is(err, gwerr.ErrMCPProxyProjectOwned):
 			log.Warn("UpdateMCPProxyScope: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, "MCP proxy belongs to a project",
-				err.Error(), utils.ErrCodeProjectOwned)
-		case errors.Is(err, utils.ErrMCPProxyNotFound), errors.Is(err, utils.ErrScopeNotFound):
+				err.Error(), gwerr.ErrCodeProjectOwned)
+		case errors.Is(err, gwerr.ErrMCPProxyNotFound), errors.Is(err, gwerr.ErrScopeNotFound):
 			log.Warn("UpdateMCPProxyScope: not found", "ouID", ouID, "proxyID", proxyID, "action", action)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy or scope not found")
 		default:
@@ -185,18 +188,18 @@ func (c *mcpProxyScopeController) DeleteMCPProxyScope(w http.ResponseWriter, r *
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 	orgName := middleware.OrgHandleFromRequest(r)
-	proxyID := r.PathValue(utils.PathParamProxyId)
-	action := r.PathValue(utils.PathParamScopeAction)
+	proxyID := r.PathValue(gwutil.PathParamProxyId)
+	action := r.PathValue(gwutil.PathParamScopeAction)
 
 	log.Info("DeleteMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID, "action", action)
 
 	if err := c.svc.Delete(ctx, ouID, orgName, proxyID, action); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrMCPProxyProjectOwned):
+		case errors.Is(err, gwerr.ErrMCPProxyProjectOwned):
 			log.Warn("DeleteMCPProxyScope: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
 			httpx.WriteErrorResponseWithReason(w, http.StatusConflict, "MCP proxy belongs to a project",
-				err.Error(), utils.ErrCodeProjectOwned)
-		case errors.Is(err, utils.ErrMCPProxyNotFound), errors.Is(err, utils.ErrScopeNotFound):
+				err.Error(), gwerr.ErrCodeProjectOwned)
+		case errors.Is(err, gwerr.ErrMCPProxyNotFound), errors.Is(err, gwerr.ErrScopeNotFound):
 			log.Warn("DeleteMCPProxyScope: not found", "ouID", ouID, "proxyID", proxyID, "action", action)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "MCP proxy or scope not found")
 		default:

@@ -22,6 +22,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"gorm.io/gorm"
 
 	"github.com/google/uuid"
@@ -31,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // IdentityProviderWithContext is an identity provider mirror row enriched with the
@@ -205,7 +206,7 @@ func (r *GatewayRepo) GetByNameAndOrgID(name, ouID string) (*gwmodels.Gateway, e
 	err := r.db.Where("name = ? AND org_id = ?", name, ouID).First(&gateway).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrGatewayNotFound
+			return nil, gwerr.ErrGatewayNotFound
 		}
 		return nil, err
 	}
@@ -313,7 +314,7 @@ func (r *GatewayRepo) Delete(gatewayID, ouID string) error {
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
-			return utils.ErrGatewayNotFound
+			return gwerr.ErrGatewayNotFound
 		}
 		return nil
 	})

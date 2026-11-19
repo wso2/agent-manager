@@ -20,10 +20,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // LLMProviderAPIKeyService handles API key management for LLM providers
@@ -62,7 +63,7 @@ func (s *LLMProviderAPIKeyService) ListAPIKeys(
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
 	if provider == nil {
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	stored, err := s.apiKeyRepo.ListByArtifact(ctx, providerID)
@@ -84,7 +85,7 @@ func (s *LLMProviderAPIKeyService) CreateAPIKey(
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
 	if provider == nil {
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{
@@ -108,7 +109,7 @@ func (s *LLMProviderAPIKeyService) RevokeAPIKey(
 		return fmt.Errorf("failed to get LLM provider: %w", err)
 	}
 	if provider == nil {
-		return utils.ErrLLMProviderNotFound
+		return gwerr.ErrLLMProviderNotFound
 	}
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{
@@ -133,7 +134,7 @@ func (s *LLMProviderAPIKeyService) RevokeAllUserManagedKeys(
 		return fmt.Errorf("failed to get LLM provider: %w", err)
 	}
 	if provider == nil {
-		return utils.ErrLLMProviderNotFound
+		return gwerr.ErrLLMProviderNotFound
 	}
 
 	// A bulk revocation, triggered when API-key security is turned off. Recorded
@@ -162,7 +163,7 @@ func (s *LLMProviderAPIKeyService) RotateAPIKey(
 		return nil, fmt.Errorf("failed to get LLM provider: %w", err)
 	}
 	if provider == nil {
-		return nil, utils.ErrLLMProviderNotFound
+		return nil, gwerr.ErrLLMProviderNotFound
 	}
 
 	annotateAPIKey(ctx, apiKeyAuditTarget{

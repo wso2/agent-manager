@@ -25,6 +25,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
@@ -35,7 +37,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // DefaultGatewaySeeder registers the gateway named in configuration, with the registration token the
@@ -81,7 +82,7 @@ func (s *DefaultGatewaySeeder) Seed(ctx context.Context) error {
 
 	gateway, err := s.repo.GetByNameAndOrgID(s.cfg.Name, ouID)
 	switch {
-	case errors.Is(err, utils.ErrGatewayNotFound) || (err == nil && gateway == nil):
+	case errors.Is(err, gwerr.ErrGatewayNotFound) || (err == nil && gateway == nil):
 		created, regErr := s.gateways.RegisterGateway(ouID, s.cfg.Name, s.cfg.DisplayName, "", s.cfg.Vhost, "",
 			false, s.cfg.FunctionalityType, nil, []string{env.UUID}, gwmodels.GatewayHostingManaged)
 		if regErr != nil {

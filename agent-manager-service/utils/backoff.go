@@ -15,14 +15,3 @@
 // under the License.
 
 package utils
-
-import "time"
-
-// ExponentialBackoff is min(base · 2^attempt, maxDelay).
-func ExponentialBackoff(attempt int, base, maxDelay time.Duration) time.Duration {
-	delay := base
-	for i := 0; i < attempt && delay < maxDelay; i++ {
-		delay *= 2
-	}
-	return min(delay, maxDelay)
-}

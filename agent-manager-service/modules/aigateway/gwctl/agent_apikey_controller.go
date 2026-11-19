@@ -23,6 +23,9 @@ import (
 	"net/http"
 	"regexp"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
@@ -68,9 +71,9 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.PathValue(utils.PathParamEnvID)
+	projName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	envID := r.PathValue(gwutil.PathParamEnvID)
 
 	log.Info("CreateAgentAPIKey: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
 
@@ -92,7 +95,7 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 
 	// If a caller supplies an explicit name, validate it against the gateway
 	// regex up front. When name is empty, the broadcaster falls back to
-	// utils.GenerateHandle(displayName) and rejects a handle that is too short.
+	// gwutil.GenerateHandle(displayName) and rejects a handle that is too short.
 	if name != "" && !apiKeyNameRegex.MatchString(name) {
 		log.Warn("CreateAgentAPIKey: invalid name", "name", name)
 		httpx.WriteErrorResponse(w, http.StatusBadRequest,
@@ -113,7 +116,7 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("CreateAgentAPIKey: invalid request", "ouID", ouID, "agentName", agentName, "error", err)
 			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
-		case errors.Is(err, utils.ErrArtifactNotFound):
+		case errors.Is(err, gwerr.ErrArtifactNotFound):
 			log.Warn("CreateAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
@@ -121,7 +124,7 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("CreateAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("CreateAgentAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
@@ -142,16 +145,16 @@ func (c *agentAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Reque
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.PathValue(utils.PathParamEnvID)
+	projName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	envID := r.PathValue(gwutil.PathParamEnvID)
 
 	log.Info("ListAgentAPIKeys: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
 
 	keys, err := c.apiKeyService.ListAPIKeys(ctx, ouID, projName, agentName, envID)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrArtifactNotFound):
+		case errors.Is(err, gwerr.ErrArtifactNotFound):
 			log.Warn("ListAgentAPIKeys: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
@@ -178,16 +181,16 @@ func (c *agentAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.PathValue(utils.PathParamEnvID)
+	projName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	envID := r.PathValue(gwutil.PathParamEnvID)
 	keyName := r.PathValue("keyName")
 
 	log.Info("RevokeAgentAPIKey: starting", "ouID", ouID, "agentName", agentName, "envID", envID, "keyName", keyName)
 
 	if err := c.apiKeyService.RevokeAPIKey(ctx, ouID, projName, agentName, envID, keyName); err != nil {
 		switch {
-		case errors.Is(err, utils.ErrArtifactNotFound):
+		case errors.Is(err, gwerr.ErrArtifactNotFound):
 			log.Warn("RevokeAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
@@ -195,7 +198,7 @@ func (c *agentAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("RevokeAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("RevokeAgentAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
@@ -216,9 +219,9 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.PathValue(utils.PathParamEnvID)
+	projName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	envID := r.PathValue(gwutil.PathParamEnvID)
 	keyName := r.PathValue("keyName")
 
 	log.Info("RotateAgentAPIKey: starting", "ouID", ouID, "agentName", agentName, "envID", envID, "keyName", keyName)
@@ -239,7 +242,7 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 	response, err := c.apiKeyService.RotateAPIKey(ctx, ouID, projName, agentName, envID, keyName, req)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrArtifactNotFound):
+		case errors.Is(err, gwerr.ErrArtifactNotFound):
 			log.Warn("RotateAgentAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
@@ -247,7 +250,7 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 			log.Warn("RotateAgentAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("RotateAgentAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return
@@ -272,9 +275,9 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 	log := logger.GetLogger(ctx)
 
 	ouID := middleware.OUIDFromRequest(r)
-	projName := r.PathValue(utils.PathParamProjName)
-	agentName := r.PathValue(utils.PathParamAgentName)
-	envID := r.PathValue(utils.PathParamEnvID)
+	projName := r.PathValue(gwutil.PathParamProjName)
+	agentName := r.PathValue(gwutil.PathParamAgentName)
+	envID := r.PathValue(gwutil.PathParamEnvID)
 
 	log.Info("IssueTestAPIKey: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
 
@@ -288,7 +291,7 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 	response, err := c.apiKeyService.IssueTestAPIKey(ctx, ouID, projName, agentName, envID, caller)
 	if err != nil {
 		switch {
-		case errors.Is(err, utils.ErrArtifactNotFound):
+		case errors.Is(err, gwerr.ErrArtifactNotFound):
 			log.Warn("IssueTestAPIKey: agent not found", "ouID", ouID, "agentName", agentName)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
@@ -296,7 +299,7 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 			log.Warn("IssueTestAPIKey: environment not found", "ouID", ouID, "agentName", agentName, "envID", envID)
 			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
-		case errors.Is(err, utils.ErrGatewayNotFound):
+		case errors.Is(err, gwerr.ErrGatewayNotFound):
 			log.Error("IssueTestAPIKey: no gateways found", "ouID", ouID)
 			httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "No gateway connections available")
 			return

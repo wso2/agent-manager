@@ -22,6 +22,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 func TestProxyDelete_RejectsWrongProjectBeforeCleanup(t *testing.T) {
@@ -40,7 +41,7 @@ func TestProxyDelete_RejectsWrongProjectBeforeCleanup(t *testing.T) {
 	repo := &gwrepomocks.LLMProxyRepositoryMock{GetByIDCtxFunc: func(context.Context, string, string) (*gwmodels.LLMProxy, error) { return proxy, nil }}
 	svc := NewLLMProxyService(repo, nil, nil)
 	err := svc.DeleteInProject(context.Background(), "proxy", "org", uuid.NewString(), &LLMProxyDeploymentService{})
-	require.ErrorIs(t, err, utils.ErrLLMProxyNotFound)
+	require.ErrorIs(t, err, gwerr.ErrLLMProxyNotFound)
 	assert.Empty(t, repo.DeleteInProjectCalls())
 }
 
@@ -51,10 +52,10 @@ func TestProxyDelete_PropagatesLookupErrors(t *testing.T) {
 			svc := NewLLMProxyService(repo, nil, nil)
 			err := svc.Delete(context.Background(), "proxy", "org", nil)
 			if errors.Is(cause, gorm.ErrRecordNotFound) {
-				require.ErrorIs(t, err, utils.ErrLLMProxyNotFound)
+				require.ErrorIs(t, err, gwerr.ErrLLMProxyNotFound)
 			} else {
 				require.ErrorIs(t, err, cause)
-				assert.NotErrorIs(t, err, utils.ErrLLMProxyNotFound)
+				assert.NotErrorIs(t, err, gwerr.ErrLLMProxyNotFound)
 			}
 			assert.Empty(t, repo.DeleteInProjectCalls())
 		})

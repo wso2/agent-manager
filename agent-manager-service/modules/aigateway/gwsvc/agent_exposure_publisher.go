@@ -23,13 +23,14 @@ import (
 	"log/slog"
 	"slices"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // agentExposureKey names one agent-environment gateway exposure.
@@ -243,7 +244,7 @@ func (p *AgentExposurePublisher) statusRecords(ctx context.Context, key agentExp
 	switch {
 	case err == nil:
 		return p.deploymentRepo.StatusRecords(ctx, key.OUID, artifact.UUID)
-	case errors.Is(err, utils.ErrArtifactNotFound):
+	case errors.Is(err, gwerr.ErrArtifactNotFound):
 		return nil, nil
 	default:
 		return nil, fmt.Errorf("failed to read the agent's artifact: %w", err)

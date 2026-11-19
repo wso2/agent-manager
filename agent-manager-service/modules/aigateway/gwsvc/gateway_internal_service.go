@@ -23,6 +23,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 	"gorm.io/gorm"
@@ -30,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // GatewayInternalAPIService handles internal gateway API operations
@@ -92,7 +94,7 @@ func NewGatewayInternalAPIService(
 // agent-scoped mapping artifact (artifacts); both live in the deployments table keyed by
 // artifact_uuid, so a single lookup handles both cases.
 func (s *GatewayInternalAPIService) GetActiveMCPProxyDeploymentByGateway(ctx context.Context, proxyID, ouID, gatewayID string) (map[string]string, error) {
-	return s.getActiveArtifactDeploymentByGateway(ctx, proxyID, ouID, gatewayID, kindMCPProxy, utils.ErrMCPProxyNotFound)
+	return s.getActiveArtifactDeploymentByGateway(ctx, proxyID, ouID, gatewayID, kindMCPProxy, gwerr.ErrMCPProxyNotFound)
 }
 
 // GetActiveAgentDeploymentByGateway retrieves the currently deployed A2A Agent
@@ -102,7 +104,7 @@ func (s *GatewayInternalAPIService) GetActiveMCPProxyDeploymentByGateway(ctx con
 // what the agent's API keys are bound to — so the gateway resolves the Agent
 // and its keys through the same identity.
 func (s *GatewayInternalAPIService) GetActiveAgentDeploymentByGateway(ctx context.Context, agentID, ouID, gatewayID string) (map[string]string, error) {
-	return s.getActiveArtifactDeploymentByGateway(ctx, agentID, ouID, gatewayID, gwmodels.KindAgent, utils.ErrAgentArtifactNotFound)
+	return s.getActiveArtifactDeploymentByGateway(ctx, agentID, ouID, gatewayID, gwmodels.KindAgent, gwerr.ErrAgentArtifactNotFound)
 }
 
 // getActiveArtifactDeploymentByGateway returns the artifact's deployed YAML with secrets resolved, or notFound.
@@ -133,7 +135,7 @@ func (s *GatewayInternalAPIService) getActiveArtifactDeploymentByGateway(
 
 // GetActiveRestAPIDeploymentByGateway returns the deployed RestApi YAML of a REST agent's per-environment artifact.
 func (s *GatewayInternalAPIService) GetActiveRestAPIDeploymentByGateway(ctx context.Context, apiID, ouID, gatewayID string) (map[string]string, error) {
-	return s.getActiveArtifactDeploymentByGateway(ctx, apiID, ouID, gatewayID, gwmodels.KindRestAPI, utils.ErrAPINotFound)
+	return s.getActiveArtifactDeploymentByGateway(ctx, apiID, ouID, gatewayID, gwmodels.KindRestAPI, gwerr.ErrAPINotFound)
 }
 
 // GetActiveLLMProviderDeploymentByGateway retrieves the currently deployed LLM provider artifact
@@ -151,7 +153,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProviderDeploymentByGateway(ctx 
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		return nil, utils.ErrDeploymentNotActive
+		return nil, gwerr.ErrDeploymentNotActive
 	}
 
 	providerYaml := string(deployment.Content)
@@ -175,12 +177,12 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 	proxy, err := s.proxyRepo.GetByID(proxyID, ouID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, utils.ErrLLMProxyNotFound
+			return nil, gwerr.ErrLLMProxyNotFound
 		}
 		return nil, fmt.Errorf("failed to get LLM proxy: %w", err)
 	}
 	if proxy == nil {
-		return nil, utils.ErrLLMProxyNotFound
+		return nil, gwerr.ErrLLMProxyNotFound
 	}
 
 	deployment, err := s.deploymentRepo.GetPullable(ctx, ouID, proxy.UUID, gatewayID)
@@ -188,7 +190,7 @@ func (s *GatewayInternalAPIService) GetActiveLLMProxyDeploymentByGateway(ctx con
 		return nil, fmt.Errorf("failed to get deployment: %w", err)
 	}
 	if deployment == nil {
-		return nil, utils.ErrDeploymentNotActive
+		return nil, gwerr.ErrDeploymentNotActive
 	}
 
 	proxyYaml := string(deployment.Content)
@@ -340,7 +342,7 @@ func (s *GatewayInternalAPIService) decryptSecretRefsIn(v interface{}) (bool, er
 }
 
 func (s *GatewayInternalAPIService) decryptSecretRef(secretRef string) (string, error) {
-	plaintext, err := utils.DecryptSecretRef(secretRef, s.encryptionKey)
+	plaintext, err := gwutil.DecryptSecretRef(secretRef, s.encryptionKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt secretRef: %w", err)
 	}

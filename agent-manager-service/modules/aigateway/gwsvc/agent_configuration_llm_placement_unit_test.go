@@ -22,6 +22,9 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +36,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // llmPlacementFixture is an org whose providers are placed on one managed or one self-hosted gateway; every
@@ -244,7 +246,7 @@ func externalAgentComponent() *repomocks.PlatformRepositoryMock {
 	return &repomocks.PlatformRepositoryMock{
 		GetAgentFunc: func(context.Context, string, string, string) (*models.AgentResponse, error) {
 			return &models.AgentResponse{
-				Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)},
+				Provisioning: models.Provisioning{Type: string(gwutil.ExternalAgent)},
 			}, nil
 		},
 	}
@@ -456,7 +458,7 @@ func (f *llmPlacementFixture) agent(provisioning string) {
 // environments Create's placement check accepts: a provider deployed only to dev is offered in dev alone.
 func TestProviderEnvironments_OnlyEnvironmentsTheProviderIsPlacedIn(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev", "prod")
-	f.agent(string(utils.InternalAgent))
+	f.agent(string(gwutil.InternalAgent))
 	f.provider("dev-only", gwmodels.GatewayHostingManaged)
 	devUUID := f.envs["dev"].UUID
 	f.gatewayRepo.EnvironmentMappingExistsFunc = func(_ string, envUUID string) (bool, error) { return envUUID == devUUID, nil }
@@ -474,12 +476,12 @@ func TestProviderEnvironments_FollowsTheAgentsPlacementPolicy(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev", "prod")
 	f.provider("self-p", gwmodels.GatewayHostingSelfHosted)
 
-	f.agent(string(utils.InternalAgent))
+	f.agent(string(gwutil.InternalAgent))
 	got, err := f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "self-p")
 	require.NoError(t, err)
 	assert.Empty(t, got, "a platform-hosted agent cannot use a provider placed only on a self-hosted gateway")
 
-	f.agent(string(utils.ExternalAgent))
+	f.agent(string(gwutil.ExternalAgent))
 	got, err = f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "self-p")
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"dev", "prod"}, got)
@@ -487,9 +489,9 @@ func TestProviderEnvironments_FollowsTheAgentsPlacementPolicy(t *testing.T) {
 
 func TestProviderEnvironments_UnknownProvider(t *testing.T) {
 	f := newLLMPlacementFixture(t, "dev")
-	f.agent(string(utils.InternalAgent))
+	f.agent(string(gwutil.InternalAgent))
 
 	_, err := f.svc.ProviderEnvironments(context.Background(), llmPlacementOU, "proj", "agent", "missing")
 
-	require.ErrorIs(t, err, utils.ErrLLMProviderNotFound)
+	require.ErrorIs(t, err, gwerr.ErrLLMProviderNotFound)
 }

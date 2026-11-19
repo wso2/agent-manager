@@ -296,7 +296,7 @@ func JWTAuthMiddlewareWithResourceMetadataResolver(
 					"error", err,
 					"reason", classifyAuthFailure(err),
 					"path", utils.SanitizeForLog(r.URL.Path),
-					"clientIp", utils.ClientIP(r))
+					"clientIp", httpx.ClientIP(r))
 				notifyAuthFailure(r, classifyAuthFailure(err))
 				w.Header().Set("WWW-Authenticate", buildBearerChallenge(metadataURL, "invalid_token"))
 				httpx.WriteErrorResponse(w, http.StatusUnauthorized, "invalid jwt")
