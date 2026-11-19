@@ -87,7 +87,9 @@ type EventRepository interface {
 	// GetDestination returns the org's destination with id, or
 	// gorm.ErrRecordNotFound.
 	GetDestination(ctx context.Context, ouID string, id uuid.UUID) (*models.EventDestination, error)
-	// LoadDestinationSecret opens the credential only when preparing delivery.
+	// LoadDestinationSecret opens the credential only when preparing delivery. It returns
+	// ErrEventDestinationChanged when the destination was updated after d was read, so the
+	// caller never pairs d's settings with a secret written for newer ones.
 	LoadDestinationSecret(ctx context.Context, d *models.EventDestination) error
 	// DestinationsByID returns those of ids that are the org's destinations.
 	DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error)
@@ -344,13 +346,35 @@ func (r *eventRepository) GetDestination(ctx context.Context, ouID string, id uu
 	return &ds[0], nil
 }
 
+// ErrEventDestinationChanged is a destination updated between reading its settings and its secret.
+var ErrEventDestinationChanged = errors.New("event destination changed while its credential was read")
+
 func (r *eventRepository) LoadDestinationSecret(ctx context.Context, d *models.EventDestination) error {
-	value, err := r.secrets.Get(r.db.WithContext(ctx), d.SecretID)
+	db := r.db.WithContext(ctx)
+	value, err := r.secrets.Get(db, d.SecretID)
 	if err != nil {
 		return err
 	}
+	// An update rewrites the settings and the secret row together and always moves updated_at forward. Check the
+	// revision after the secret is read: an update that committed since d was read means value may belong to the
+	// newer settings. The vault read stays outside any transaction.
+	var current []models.EventDestination
+	if err := db.Select("id", "secret_id", "updated_at").Where("org_id = ? AND id = ?", d.OUID, d.ID).
+		Find(&current).Error; err != nil {
+		return err
+	}
+	if len(current) == 0 || !current[0].UpdatedAt.Equal(d.UpdatedAt) || !sameSecretID(current[0].SecretID, d.SecretID) {
+		return ErrEventDestinationChanged
+	}
 	d.Secret = value
 	return nil
+}
+
+func sameSecretID(a, b *uuid.UUID) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 func (r *eventRepository) DestinationsByID(ctx context.Context, ouID string, ids []uuid.UUID) ([]models.EventDestination, error) {

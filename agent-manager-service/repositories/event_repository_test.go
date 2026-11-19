@@ -71,6 +71,36 @@ func TestEventDestinationMetadataAndEditsSurviveUnreadableCredential(t *testing.
 	assert.Equal(t, "replacement", fresh.Secret)
 }
 
+func TestEventDestinationSecretIsNotPairedWithOlderSettings(t *testing.T) {
+	ctx := context.Background()
+	repo := NewEventRepository(db.GetDB(), testSecrets(t))
+	d := &models.EventDestination{
+		ID: uuid.New(), OUID: newOrg(t), Name: "webhook",
+		Kind: models.DestinationKindWebhook, Config: json.RawMessage(`{"url":"https://old.example.com"}`),
+		Secret: "old-signing-secret", Availability: models.DestinationAvailableAll, Projects: []string{},
+	}
+	require.NoError(t, repo.CreateDestination(ctx, d))
+	t.Cleanup(func() { _, err := repo.DeleteDestination(ctx, d.OUID, d.ID); assert.NoError(t, err) })
+
+	// A delivery reads the settings, then an update commits new settings and a new secret before it reads the secret.
+	delivery, err := repo.GetDestination(ctx, d.OUID, d.ID)
+	require.NoError(t, err)
+	edit, err := repo.GetDestination(ctx, d.OUID, d.ID)
+	require.NoError(t, err)
+	edit.Config = json.RawMessage(`{"url":"https://new.example.com"}`)
+	edit.Secret = "new-signing-secret"
+	require.NoError(t, repo.UpdateDestination(ctx, edit, nil))
+
+	require.ErrorIs(t, repo.LoadDestinationSecret(ctx, delivery), ErrEventDestinationChanged)
+	assert.Empty(t, delivery.Secret, "the new secret must not be handed out with the old settings")
+
+	fresh, err := repo.GetDestination(ctx, d.OUID, d.ID)
+	require.NoError(t, err)
+	require.NoError(t, repo.LoadDestinationSecret(ctx, fresh))
+	assert.Equal(t, "new-signing-secret", fresh.Secret)
+	assert.JSONEq(t, `{"url":"https://new.example.com"}`, string(fresh.Config))
+}
+
 func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 	for _, first := range []string{"rotation", "settings"} {
 		t.Run(first+" wins", func(t *testing.T) {
