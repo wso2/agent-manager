@@ -33,7 +33,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtx"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
-	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 )
 
 // a2aAgentEnv is the agent and environment a per-environment Agent artifact exposes.
@@ -113,7 +112,6 @@ type resolvedUpstream struct {
 
 // Render finds the artifact's exposure, else its proxy; neither means the record is gone.
 func (k *A2AAgentKind) Render(ctx context.Context, artifact gwmodels.ArtifactRef) (reconcile.Rendered, error) {
-	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: artifact.OUID})
 	exposure, err := k.exposures.exposure(ctx, nil, artifact)
 	switch {
 	case err == nil:
