@@ -2,7 +2,7 @@
 
 Go control-plane API. Layered **controller → service → repository**, wired with `wire`. Request/response types and mocks are **generated** — never hand-edited.
 
-The core (orgs, projects, environments, agents, identity, tokens, events) lives in the top-level packages below and imports no module. The AI Gateway (gateways, LLM and MCP proxies, A2A, agent API keys, agent identities) is the built-in `ai-gateway` module under `modules/aigateway/`, with the same layers in `gwapi/`, `gwctl/`, `gwsvc/`, `gwrepo/` and `gwwire/`; it plugs into the server through `builtin/` and reaches the core's agent lifecycle through the capabilities in `modkit/contracts/`. Routes this version does not serve answer 404; the `legacy` module (`modules/legacy/`) holds only the permissions no module owns yet. `cmd/amp` links every module; `cmd/amp-core` links none.
+The core (orgs, projects, environments, agents, identity, tokens, events) lives in the top-level packages below and imports no module. The AI Gateway (gateways, LLM and MCP proxies, A2A, agent API keys, agent identities) is the built-in `ai-gateway` module under `modules/aigateway/`, with the same layers in `gwapi/`, `gwctl/`, `gwsvc/`, `gwrepo/` and `gwwire/`; it runs on `modkit.Runtime` like any module and reaches the core's agent lifecycle through the capabilities in `modkit/contracts/`. Routes this version does not serve answer 404; the `legacy` module (`modules/legacy/`) holds only the permissions no module owns yet. `cmd/amp` links every module; `cmd/amp-core` links none.
 
 ## File map
 
@@ -34,7 +34,7 @@ The core (orgs, projects, environments, agents, identity, tokens, events) lives 
 
 ## Add a module
 
-Follow [docs/amp-lite/modules.md](../docs/amp-lite/modules.md): what belongs in the core, the manifest, migrations, the `Runtime` surfaces (routes, hooks, events, capabilities), console pages, tests and operation. `tests/modules/testmod` is a small complete example. A new module never imports core packages or touches core tables, and does not copy the gateway's `builtin.Bundle` route.
+Follow [docs/amp-lite/modules.md](../docs/amp-lite/modules.md): what belongs in the core, the manifest, migrations, the `Runtime` surfaces (routes, hooks, events, capabilities), console pages, tests and operation. `tests/modules/testmod` is a small complete example. A module never imports core packages (depguard checks its non-test files) or touches core tables.
 
 ## Golden path: add or change an API resource
 

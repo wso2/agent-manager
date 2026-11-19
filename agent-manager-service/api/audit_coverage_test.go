@@ -124,7 +124,7 @@ func registerAllRoutesForAudit(t *testing.T) *middleware.RouteRegistrar {
 
 	rr := middleware.NewRouteRegistrar(http.NewServeMux(), nil, audit.NewNoopRecorder())
 	params := stubAppParams(t)
-	registerAPIRoutes(rr, params, nil)
+	registerAPIRoutes(rr, params)
 	return rr
 }
 

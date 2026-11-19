@@ -24,7 +24,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
 	"github.com/wso2/agent-manager/agent-manager-service/app"
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
@@ -42,12 +41,6 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 	appParams, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), db, authMiddleware, testClients)
 	if err != nil {
 		t.Fatalf("failed to initialize test app params: %v", err)
-	}
-	// The full distribution's features, built on the core as the server
-	// builds them; their workers are not started.
-	bundles, err := builtin.Build(context.Background(), appParams)
-	if err != nil {
-		t.Fatalf("failed to build the built-in features: %v", err)
 	}
 	// The built-in modules run on a module host, as in the server: their
 	// routes, capabilities and hooks (the gateway's finalize hooks remove
@@ -69,7 +62,7 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 	t.Cleanup(func() { stop(); cancel() })
 
 	// Create HTTP handler
-	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, host, bundles)
+	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, host)
 
 	// Return the handler instance
 	return handler

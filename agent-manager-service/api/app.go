@@ -20,7 +20,6 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
@@ -39,7 +38,7 @@ import (
 // registration with a bare registrar and assert that no mutating route shipped
 // unaudited. Keeping the list in one function is what makes that check total
 // rather than a sample.
-func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams, bundles builtin.Built) {
+func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams) {
 	registerAgentRoutes(rr, params.AgentController)
 	registerAgentTokenRoutes(rr, params.AgentTokenController)
 	registerInfraRoutes(rr, params.InfraResourceController)
@@ -47,7 +46,6 @@ func registerAPIRoutes(rr *middleware.RouteRegistrar, params *wiring.AppParams, 
 	registerEventsRoutes(rr, params.EventsController)
 	registerIdentityRoutes(rr, params.IdentityController)
 	registerTelemetryRoutes(rr)
-	bundles.Routes(rr)
 }
 
 // MakeHTTPHandler creates a new HTTP handler with middleware and routes.
@@ -60,7 +58,7 @@ func MakeHTTPHandler(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMu
 // MakeHTTPHandlerWithMiddleware is MakeHTTPHandler with apiMiddleware, if non-nil,
 // wrapping the authenticated API mux before dispatch.
 func MakeHTTPHandlerWithMiddleware(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler) http.Handler {
-	return MakeHTTPHandlerWithModules(params, extraAPIRoutes, apiMiddleware, nil, nil)
+	return MakeHTTPHandlerWithModules(params, extraAPIRoutes, apiMiddleware, nil)
 }
 
 // Modules serves the routes of the active modules.
@@ -124,7 +122,7 @@ func modulePolicy(r modhost.Route) middleware.ModuleRoutePolicy {
 
 // MakeHTTPHandlerWithModules is MakeHTTPHandlerWithMiddleware that also serves
 // the active modules' routes; modules may be nil.
-func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler, modules Modules, bundles builtin.Built) http.Handler {
+func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*http.ServeMux, *wiring.AppParams), apiMiddleware func(*http.ServeMux) http.Handler, modules Modules) http.Handler {
 	mux := http.NewServeMux()
 
 	// Register health check
@@ -167,10 +165,6 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	}
 	mcp.RegisterRoute(mux, mcpDeps, mcpMiddleware)
 
-	// Other routes of built-in bundles that live at the root authenticate
-	// themselves.
-	bundles.RootRoutes(mux, params)
-
 	// Authentication is rejected before route matching, so the audit middleware
 	// installed per route never sees it. This hook is how a failed token
 	// reaches the trail; it is set once because the auth middleware is global.
@@ -180,7 +174,7 @@ func MakeHTTPHandlerWithModules(params *wiring.AppParams, extraAPIRoutes func(*h
 	apiMux := http.NewServeMux()
 	rr := middleware.NewRouteRegistrar(apiMux, params.OrgResolver, params.AuditRecorder)
 	rr.SetEventPublisher(params.EventPublisher)
-	registerAPIRoutes(rr, params, bundles)
+	registerAPIRoutes(rr, params)
 	var ui UISource
 	if src, ok := modules.(UISource); ok {
 		ui = src

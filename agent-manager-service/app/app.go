@@ -32,7 +32,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
@@ -194,15 +193,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		os.Exit(1)
 	}
 
-	// Build the features linked into this binary on the core's services (the
-	// AI Gateway in the full distribution), before the module host boots, so
-	// their modules can provide what was built.
-	bundles, err := builtin.Build(context.Background(), dependencies)
-	if err != nil {
-		slog.Error("failed to build the built-in features", "error", err)
-		os.Exit(1)
-	}
-
 	// Load the active modules and follow lifecycle changes made elsewhere. The
 	// host gets the core services modules use first, so the snapshot it
 	// builds carries their routes. The default organization is created first,
@@ -253,14 +243,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		}
 	}
 
-	// The built-in features' workers: for the AI Gateway, the A2A card
-	// reconciler, the deployment timeout sweeper, the reconcile worker and the
-	// built-in LLM provider templates.
-	if err := bundles.Start(backgroundCtx); err != nil {
-		slog.Error("failed to start the built-in features", "error", err)
-		os.Exit(1)
-	}
-
 	// Start publishing events. The bus is set up in the background, so a NATS
 	// server that is still starting does not hold up the API; events raised
 	// meanwhile wait in the durable outbox.
@@ -270,7 +252,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 	recordStartupPosture(dependencies.AuditRecorder)
 
 	// Create main API server handler
-	handler := api.MakeHTTPHandlerWithModules(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, moduleHost(), bundles)
+	handler := api.MakeHTTPHandlerWithModules(dependencies, opts.ExtraAPIRoutes, opts.APIMiddleware, moduleHost())
 	mainServer := &http.Server{
 		Addr:           fmt.Sprintf("%s:%d", cfg.ServerHost, cfg.ServerPort),
 		Handler:        handler,
@@ -317,8 +299,6 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 				slog.Error("error stopping agent thunder provisioning reconciler", "error", err)
 			}
 		}
-
-		bundles.Stop(shutdownCtx)
 
 		eventsCancel()
 		<-eventsStarted

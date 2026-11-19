@@ -412,7 +412,7 @@ A module must not:
 
 ### Where the gateway stands
 
-The `ai-gateway` module (`modules/aigateway`) is moving onto the contract and doesn't follow it fully yet.
+The `ai-gateway` module (`modules/aigateway`) runs on the contract alone; its non-test packages import no core package. Where it still differs (its controllers' fixed internal paths, its first activation) is noted below.
 
 What it already does as a module:
 
@@ -442,7 +442,7 @@ What it already does as a module:
 
   `amp init ai-gateway DIR` reads its own keys from the same place: `CONTROLPLANE_HOST`, `ADMIN_PASSWORD`, `AMP_JWKS_URL`, `THUNDER_ISSUER`, `THUNDER_JWKS_URL`, `HOST`, `LISTENER_PORT` and `FILE_OWNER` for the controller's `config.toml`, and `DEFAULT_GATEWAY_TOKEN` as the registration token it writes (it generates and keeps one when unset).
 
-Its write routes call `rt.Core().EnsureOrg` before the handler, so an organization's first gateway rows never precede the organization. What is left: its test helpers (`gwtest`) use the core's test database. Don't copy this for a new module.
+Its write routes call `rt.Core().EnsureOrg` before the handler, so an organization's first gateway rows never precede the organization. Its test helpers (`gwtest`) use the core's test database, as module tests may.
 
 ## Module boundaries
 
@@ -457,7 +457,7 @@ A module talks to the core only through the contract. The import rules make that
 | Its own packages (`modules/<name>/...`) | The module's code. |
 | The standard library and third-party modules in `go.mod` | |
 
-Everything else under `agent-manager-service/` is the core (`services`, `repositories`, `controllers`, `models`, `utils`, `config`, `db`, `middleware`, `audit`, `rbac`, ...) and is off limits, in tests too. Another module's packages are off limits as well; use its capability.
+Everything else under `agent-manager-service/` is the core (`services`, `repositories`, `controllers`, `models`, `utils`, `config`, `db`, `middleware`, `audit`, `rbac`, ...) and is off limits. Another module's packages are off limits as well; use its capability. The `depguard` linter (`.github/linters/.golangci.yaml`) refuses a core import in a module's non-test files; module tests, the gateway's test helpers (`gwtest`) and the `legacy` module, which declares the core's leftover permission catalog from `rbac` until those permissions find their modules, are exempt.
 
 ### Leaf libraries (`pkg/`)
 
@@ -620,6 +620,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [Workload tokens](#heartbeat) are RS256 with the core's agent-token key, not EdDSA | The runtimes already trust that key. |
 | [Modules may import `pkg/`](#leaf-libraries-pkg) as well as `modkit` | `pkg/` holds domain-free libraries with no core imports and no state, so they cannot bypass the contract; copying them into every module would let them drift. |
 | [The import rule](#what-a-module-may-import) applies to non-test files only | Module tests may use the core's test harnesses (`db/dbtest`, `internal/modhost`). |
+| [`legacy`](#what-a-module-may-import) imports the core's `rbac` | It only republishes, under their old names, the permissions no module owns yet; it goes once they do. |
 | Module permissions and audit actions may be `<resource>.<action>` (`ai-gateway:llm-providers.read`) | A module with many resources groups its permissions by resource; ThunderID accepts the dots. |
 | [A refusal only the module can check](#audit-records) (the gateway's environment tier) is recorded on the route's own record, as a denial with `reason` and `missingScope`, not as a separate `authz:deny` record | The route's record already carries the caller and the outcome; a second record would need the core's audit package in the module. |
 | [Module records take the project and environment from the path](#audit-records) | Handlers name only what they acted on; the path already says where. |

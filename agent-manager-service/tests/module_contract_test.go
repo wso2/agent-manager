@@ -142,14 +142,14 @@ func newModuleWorld(t *testing.T) moduleWorld {
 	})
 	return moduleWorld{
 		host:     host,
-		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host, nil),
-		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host, nil),
+		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host),
+		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host),
 		internal: api.MakeInternalHTTPHandlerWithModules(full, host),
 		signer:   full.AgentTokenManagerService.(services.WorkloadTokenSigner),
 		freshOrg: func() (http.Handler, string) {
 			id := uuid.Must(uuid.NewV7()).String()
 			h := "mod-" + id[len(id)-8:]
-			return api.MakeHTTPHandlerWithModules(params(moduleAuth(id, h)), nil, nil, host, nil), h
+			return api.MakeHTTPHandlerWithModules(params(moduleAuth(id, h)), nil, nil, host), h
 		},
 		org:    org,
 		handle: handle,
