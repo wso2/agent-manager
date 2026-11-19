@@ -66,9 +66,9 @@ func (module) Manifest() modkit.Manifest {
 		Version:     "1.0.0",
 		Description: "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
 		CoreAPI:     modkit.CoreAPIVersion,
-		// Plan changes, pushed to each organization's gateways; and the plans the gateways pull, from the module
-		// that owns them when it is active.
-		Provides:     []string{llmv1.ID, mcpv1.ID, subplanv1.GatewayID},
+		// The subscription plans its gateways pull, and whose changes it pushes to them, from the module that
+		// owns them when it is active.
+		Provides:     []string{llmv1.ID, mcpv1.ID},
 		Requires:     []string{identityv1.ID},
 		Optional:     []string{subplanv1.ID},
 		Permissions:  perms,
@@ -166,11 +166,15 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	gw.Secrets.Use(rt.Secrets())
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
-	rt.Provide(subplanv1.GatewayID, gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()),
-		gwsvc.NewGatewayEventsService(gw.EventHub)))
-	gwctl.UseSubscriptionPlans(func() (subplanv1.Source, bool) {
-		return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID)
-	})
+	plans := func() (subplanv1.Source, bool) { return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID) }
+	gwctl.UseSubscriptionPlans(plans)
+	// Plan changes are pushed while the plans module is active. Activate runs again whenever the set of
+	// active modules changes (providers first), so enabling that module later subscribes then; meanwhile
+	// gateways pull every plan when they reconnect.
+	if _, ok := plans(); ok {
+		rt.Subscribe(subplanv1.EventPlanChanged, gwsvc.PlanChangeHandler(plans,
+			gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()), gwsvc.NewGatewayEventsService(gw.EventHub))))
+	}
 	registerHooks(rt, gw.AgentGateway)
 	gwapi.RegisterRoutes(gwapi.NewModuleRouter(rt), gw)
 	gwapi.RegisterInternalRoutes(gwapi.NewModuleInternalRouter(rt), gw)

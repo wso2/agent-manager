@@ -42,8 +42,9 @@ import (
 // its tables are mod_aihub_*, and its permissions are aihub:plan-<verb>.
 const Name = "aihub"
 
-// EventPlanChanged is published, in the same transaction, when a plan is created, updated or deleted.
-const EventPlanChanged = "aihub.plan_changed"
+// EventPlanChanged is published, in the same transaction, when a plan is created, updated or deleted. The AI
+// Gateway subscribes to it and pushes the change to the organization's gateways.
+const EventPlanChanged = subplanv1.EventPlanChanged
 
 // Permissions, by their short names: the host names them aihub:<name>, and each action
 // has its own, so the audit trail names it.
@@ -71,9 +72,9 @@ func (module) Manifest() modkit.Manifest {
 		Version:     "0.1.0",
 		Description: "AI Hub: subscription plans for MCP servers and agents",
 		CoreAPI:     modkit.CoreAPIVersion,
-		// Its plans, for gateways to pull; and the gateway, when there is one, to push plan changes to.
+		// Its plans, for gateways to pull. It depends on no gateway: the AI Gateway reads the plans and
+		// subscribes to EventPlanChanged, so the dependency runs one way only.
 		Provides: []string{subplanv1.ID},
-		Optional: []string{subplanv1.GatewayID},
 		Permissions: []modkit.Permission{
 			{Name: PermPlanRead, DisplayName: "View Subscription Plans", Description: "View subscription plans"},
 			{Name: PermPlanCreate, DisplayName: "Create Subscription Plans", Description: "Create subscription plans"},
@@ -139,9 +140,8 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		cfg: webhookConfigFrom(rt.Config, log), plans: plans, core: rt.Core(),
 		log: log.With("component", "plan-webhook"), now: time.Now,
 	}).ServeHTTP, modkit.Audit(ActionPlanSync))
-	// Gateways pull the plans when they connect, and get each change pushed once it is committed.
+	// Gateways pull the plans when they connect; the AI Gateway pushes each change on EventPlanChanged.
 	rt.Provide(subplanv1.ID, planSource{plans: plans})
-	rt.Subscribe(EventPlanChanged, syncPlanChange(rt))
 	// The subscription plans API, under /m/aihub.
 	rt.Handle(http.MethodPost, "/subscription-plans", aihubperm.PlanCreate, a.createPlan)
 	rt.Handle(http.MethodGet, "/subscription-plans", aihubperm.PlanRead, a.listPlans)

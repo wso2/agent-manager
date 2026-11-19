@@ -15,9 +15,9 @@
 // under the License.
 
 // Package subplanv1 is the subscription plan capabilities between the module that owns plans and the
-// gateway: "subscription.plans/v1" lists an organization's plans, for gateways to pull when they connect,
-// and "gateway.plans/v1" pushes a plan change to the organization's gateways as it happens. Neither module
-// imports the other.
+// gateway: "subscription.plans/v1" lists an organization's plans, for gateways to pull when they connect, and
+// the owner's EventPlanChanged event tells the gateway module a plan changed, so it pushes the change to the
+// organization's gateways. Only the gateway depends on the owner (optionally), and neither imports the other.
 package subplanv1
 
 import (
@@ -29,8 +29,18 @@ import (
 // ID is the capability of the module that owns subscription plans: Source.
 const ID = "subscription.plans/v1"
 
-// GatewayID is the gateway's capability: Gateways.
-const GatewayID = "gateway.plans/v1"
+// EventPlanChanged is published by the module that owns plans, in the transaction that creates, changes or
+// deletes a plan, so subscribers get it only once the change commits. Its data is a PlanChange.
+const EventPlanChanged = "aihub.plan_changed"
+
+// PlanChange is what EventPlanChanged carries about the plan.
+type PlanChange struct {
+	OrgID    string `json:"orgId"`
+	PlanID   string `json:"planId"`
+	Handle   string `json:"handle"`
+	PlanName string `json:"planName"`
+	Action   Action `json:"action"`
+}
 
 // Action is what happened to a plan.
 type Action string
@@ -71,8 +81,8 @@ type Source interface {
 	ListPlans(ctx context.Context, orgID string) ([]Plan, error)
 }
 
-// Gateways sends a plan change to every gateway of the organization. For a deleted plan only its ID,
-// Handle and Name are read.
+// Gateways sends a plan change to every gateway of the organization, as the gateway module does on
+// EventPlanChanged. For a deleted plan only its ID, Handle and Name are read.
 type Gateways interface {
 	PlanChanged(ctx context.Context, orgID string, action Action, plan Plan) error
 }

@@ -19,17 +19,15 @@ package aihub
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 )
 
 // Gateway sync, as the gateways expect it from any control plane: a gateway pulls every plan of its
 // organization when it connects (planSource, the "subscription.plans/v1" capability), and each plan change is
-// pushed to the organization's gateways once it is committed (syncPlanChange, on the module's own
-// plan-changed event, through the gateway's "gateway.plans/v1" capability).
+// pushed to the organization's gateways once it is committed (the AI Gateway subscribes to the module's
+// plan-changed event, subplanv1.EventPlanChanged).
 
 // gatewayUnits are the throttle units a gateway takes for its single limit.
 var gatewayUnits = map[string]bool{"MINUTE": true, "HOUR": true, "DAY": true, "MONTH": true}
@@ -91,36 +89,4 @@ func throttleLimit(conditions []Condition) (count int, unit string, stop bool, o
 		return 0, "", false, false
 	}
 	return 0, "", false, false
-}
-
-// syncPlanChange pushes a committed plan change to the organization's gateways. Without the gateway (a
-// distribution or set of modules that has none) there is nothing to push to.
-func syncPlanChange(rt modkit.Runtime) modkit.EventHandler {
-	return func(ctx context.Context, e modkit.Event) error {
-		impl, ok := rt.Capability(subplanv1.GatewayID)
-		if !ok {
-			return nil
-		}
-		gateways, ok := impl.(subplanv1.Gateways)
-		if !ok {
-			return fmt.Errorf("%s is not a subplanv1.Gateways", subplanv1.GatewayID)
-		}
-		var ch planChanged
-		if err := json.Unmarshal(e.Data, &ch); err != nil {
-			return fmt.Errorf("decoding %s: %w", e.Type, err)
-		}
-		action := subplanv1.Action(ch.Action)
-		switch action {
-		case subplanv1.Created, subplanv1.Updated, subplanv1.Deleted:
-		default:
-			return fmt.Errorf("plan change %q has an unknown action %q", ch.Handle, ch.Action)
-		}
-		p := gatewayPlan(ch.PlanID, ch.Handle, ch.PlanName, ch.Status, ch.Conditions, nil)
-		p.ExpiryTime = ch.ExpiryTime
-		orgID := ch.OrgID
-		if orgID == "" {
-			orgID = e.OrgID
-		}
-		return gateways.PlanChanged(ctx, orgID, action, p)
-	}
 }

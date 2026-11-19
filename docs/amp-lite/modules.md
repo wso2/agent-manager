@@ -531,8 +531,7 @@ Capabilities today:
 | `identity.directory/v1` (`modkit/contracts/identityv1`) | 1 | the core | `For(org, environment)` opens an environment's directory; the client lists, gets, creates, updates and deletes groups and roles, changes group members, role permissions and role assignments, and ensures or removes MCP resource servers. `ListProvisionedAgents(org, environment)` lists the agents the core provisions identities for there, from the core's own records. In Lite only the default environment has one (the platform ThunderID); any other answers `ErrNotProvisioned`. | `ai-gateway` (agent-identity pages, MCP proxy scopes) |
 | `llm.proxy/v1` (`modkit/contracts/llmv1`) | 1 | `ai-gateway` | `ValidateProviders` | none in this repository |
 | `mcp.proxy/v1` (`modkit/contracts/mcpv1`) | 1 | `ai-gateway` | `ValidateProxies` | none in this repository |
-| `subscription.plans/v1` (`modkit/contracts/subplanv1`) | 1 | `aihub` | `ListPlans(org)`: every plan of an organization, with its conditions and the single throttle limit older gateways read | `ai-gateway` (the plans its controllers pull on connect) |
-| `gateway.plans/v1` (`modkit/contracts/subplanv1`) | 1 | `ai-gateway` | `PlanChanged(org, action, plan)`: sends a plan's creation, change or deletion to every gateway of the organization | `aihub` (after each plan change commits, from its `aihub.plan_changed` event) |
+| `subscription.plans/v1` (`modkit/contracts/subplanv1`) | 1 | `aihub` | `ListPlans(org)`: every plan of an organization, with its conditions and the single throttle limit older gateways read | `ai-gateway`: the plans its controllers pull on connect, and, on the `aihub.plan_changed` event it subscribes to, the plan it pushes to the organization's gateways. The dependency runs one way (the gateway lists it as `Optional`); AI Hub depends on no gateway, since two modules that list each other's capabilities form a cycle the host refuses. |
 
 ## Testing
 

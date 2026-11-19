@@ -43,6 +43,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aihub"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
@@ -59,7 +60,7 @@ type plansWorld struct {
 	gateways    *planGateways // what the stand-in gateway module was sent, once installed
 }
 
-// planGateways records the plan changes sent to the organization's gateways ("gateway.plans/v1").
+// planGateways records the plan changes the gateway handler would send to the organization's gateways.
 type planGateways struct {
 	mu   sync.Mutex
 	sent []sentPlan
@@ -90,21 +91,30 @@ func (g *planGateways) find(handle string, action subplanv1.Action) (sentPlan, b
 	return sentPlan{}, false
 }
 
-// planGatewayModule stands in for the gateway module: it provides "gateway.plans/v1".
+// planGatewayModule stands in for the AI Gateway: it subscribes to the plans module's event with the gateway's
+// own handler (gwsvc.PlanChangeHandler) and records what it would send to the organization's gateways. It
+// provides planGatewayReady so a test can wait for it.
 type planGatewayModule struct{ gateways *planGateways }
 
-const planGatewayModuleName = "plangw"
+const (
+	planGatewayModuleName = "plangw"
+	planGatewayReady      = "plangw.ready/v1"
+)
 
 func (m planGatewayModule) Manifest() modkit.Manifest {
 	return modkit.Manifest{
 		Name: planGatewayModuleName, Version: "0.1.0", CoreAPI: modkit.CoreAPIVersion,
-		Provides: []string{subplanv1.GatewayID},
+		Provides: []string{planGatewayReady},
+		Optional: []string{subplanv1.ID},
 	}
 }
 func (planGatewayModule) Migrations() fs.FS { return nil }
 func (planGatewayModule) UI() fs.FS         { return nil }
 func (m planGatewayModule) Activate(_ context.Context, rt modkit.Runtime) error {
-	rt.Provide(subplanv1.GatewayID, subplanv1.Gateways(m.gateways))
+	rt.Provide(planGatewayReady, true)
+	rt.Subscribe(subplanv1.EventPlanChanged, gwsvc.PlanChangeHandler(func() (subplanv1.Source, bool) {
+		return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID)
+	}, m.gateways))
 	return nil
 }
 
@@ -557,7 +567,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 	installPlans(ctx, t, w)
 	_, err := w.host.Install(ctx, planGatewayModuleName, false)
 	require.NoError(t, err)
-	eventually(t, "the gateway capability", func() bool { _, ok := coreext.Capability(subplanv1.GatewayID); return ok })
+	eventually(t, "the stand-in gateway", func() bool { _, ok := coreext.Capability(planGatewayReady); return ok })
 
 	sent := func(handle string, action subplanv1.Action) sentPlan {
 		t.Helper()
@@ -654,7 +664,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 
 	t.Run("without the gateway, plan changes still succeed", func(t *testing.T) {
 		require.NoError(t, w.host.Disable(ctx, planGatewayModuleName))
-		eventually(t, "the gateway capability to go", func() bool { _, ok := coreext.Capability(subplanv1.GatewayID); return !ok })
+		eventually(t, "the stand-in gateway to go", func() bool { _, ok := coreext.Capability(planGatewayReady); return !ok })
 		lone := "lone-" + uuid.NewString()[:8]
 		code, body := w.call(t, w.full, http.MethodPost, plansPath, map[string]any{"id": lone, "displayName": "Lone"})
 		require.Equal(t, http.StatusCreated, code, string(body))
