@@ -15,7 +15,7 @@
  * under the License.
  */
 
-import React, { useEffect } from "react";
+import React from "react";
 import {
   formatRelativeTime,
   GatewayTypeChip,
@@ -43,7 +43,7 @@ import { GatewayIdentityProvidersCard } from "./GatewayIdentityProvidersCard";
 import { identityProviderConfigMode } from "./ManageIdentityProviderDialog";
 import { SelfHostedGatewayTokensCard } from "./SelfHostedGatewayTokensCard";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
-import { forgetNewGatewayToken, newGatewayToken } from "./newGatewayToken";
+import { useForgetNewGatewayTokenOnLeave } from "./newGatewayToken";
 
 export const ViewGateway: React.FC = () => {
   const { gatewayId, orgId } = useParams<{
@@ -64,16 +64,10 @@ export const ViewGateway: React.FC = () => {
 
   const isSelfHosted = gateway !== undefined && isSelfHostedGateway(gateway);
 
-  // The add page keeps the new gateway's token in memory. If the user left that page
-  // before it could open setup, this page is where they find the gateway again: give
-  // the steps that token, so they need not Reconfigure, which would revoke it.
-  const gatewayUuid = gateway?.uuid;
-  const retainedToken = gatewayUuid ? newGatewayToken(gatewayUuid) : null;
-  // As on the setup page, leaving forgets the token: it may be revoked afterwards.
-  useEffect(() => {
-    if (!gatewayUuid) return undefined;
-    return () => forgetNewGatewayToken(gatewayUuid);
-  }, [gatewayUuid]);
+  // The setup steps show the gateway's one-time token while this session holds it:
+  // the user may have left the add page before it could open setup, and this page is
+  // where they find the gateway again. As on the setup page, leaving forgets it.
+  useForgetNewGatewayTokenOnLeave(gateway?.uuid);
 
   const displayName = gateway?.displayName ?? gateway?.name ?? gatewayId ?? "";
   const isActive = isGatewayActive(gateway);
@@ -188,10 +182,12 @@ export const ViewGateway: React.FC = () => {
                       {/* The steps poll by UUID; this page may have been opened by
                           name, so it re-reads its own copy once they see the
                           gateway connect. */}
+                      {/* Keyed by gateway: moving to another gateway's page starts the
+                          steps afresh, so no reconfigure state carries over. */}
                       <SelfHostedSetupSteps
+                        key={gateway.uuid}
                         orgName={orgId ?? ""}
                         gatewayId={gateway.uuid}
-                        initialToken={retainedToken}
                         onConnected={() => void refetch()}
                       />
                     </Stack>

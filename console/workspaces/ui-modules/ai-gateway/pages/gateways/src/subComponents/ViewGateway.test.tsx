@@ -16,7 +16,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import {
   FeatureManagementProvider,
@@ -78,14 +78,18 @@ vi.mock("./SelfHostedGatewayTokensCard", () => ({
   SelfHostedGatewayTokensCard: () => <div>tokens card</div>,
 }));
 
-vi.mock("./SelfHostedSetupSteps", () => ({
-  SelfHostedSetupSteps: ({ initialToken }: { initialToken?: string | null }) => (
-    <div>
-      <span>setup steps</span>
-      <span>token={initialToken ?? "none"}</span>
-    </div>
-  ),
-}));
+// Like the real steps, the stand-in reads the token from the store.
+vi.mock("./SelfHostedSetupSteps", async () => {
+  const { useNewGatewayToken } = await import("./newGatewayToken");
+  return {
+    SelfHostedSetupSteps: ({ gatewayId }: { gatewayId: string }) => (
+      <div>
+        <span>setup steps</span>
+        <span>token={useNewGatewayToken(gatewayId) ?? "none"}</span>
+      </div>
+    ),
+  };
+});
 
 let featureFlags: Partial<FeatureFlags> = {};
 let canWrite = true;
@@ -149,19 +153,22 @@ describe("ViewGateway with enableSelfHostedGateways off", () => {
     expect(screen.getByText("self-hosted identity providers card")).toBeInTheDocument();
   });
 
-  it("gives the steps a token the add page left behind, and forgets it on leaving", () => {
+  it("shows the steps a token the add page left behind, and forgets it on leaving", async () => {
     keepNewGatewayToken("gw-1", "secret");
     renderGateway("SELF_HOSTED", "INACTIVE");
 
     expect(screen.getByText("token=secret")).toBeInTheDocument();
     cleanup();
-    expect(newGatewayToken("gw-1")).toBeNull();
+    await waitFor(() => expect(newGatewayToken("gw-1")).toBeNull());
   });
 
-  it("gives the steps no token when none was left", () => {
+  it("shows the steps a token that arrives after the page opened", () => {
     renderGateway("SELF_HOSTED", "INACTIVE");
-
     expect(screen.getByText("token=none")).toBeInTheDocument();
+
+    act(() => keepNewGatewayToken("gw-1", "late"));
+
+    expect(screen.getByText("token=late")).toBeInTheDocument();
   });
 
   it("hides the setup steps of a connected self-hosted gateway, keeping its tokens", () => {
