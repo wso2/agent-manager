@@ -146,8 +146,11 @@ const (
 
 	// A gateway's startup sync: fetching its deployments, secrets resolved, and
 	// asking which artifacts still exist.
-	ActionDeploymentSync      Action = "deployment:sync"
-	ActionArtifactCheckExists Action = "artifact:check-exists"
+	ActionDeploymentSync Action = "deployment:sync"
+	// ActionSubscriptionPlanSync is a subscription plan created, changed or deleted elsewhere and
+	// copied in by a signed webhook delivery.
+	ActionSubscriptionPlanSync Action = "aihub:plan-sync"
+	ActionArtifactCheckExists  Action = "artifact:check-exists"
 
 	// System-initiated work. Recorded when it changes state, not on every tick.
 	ActionSystemAgentIdentityProvisioned Action = "system:agent-identity-provisioned"
@@ -558,6 +561,11 @@ func init() {
 	// like ActionAPIKeySync. Runs once per gateway process start.
 	Register(ActionDeploymentSync, ClassRead, SeverityNotice)
 	RegisterDetailSchema(ActionDeploymentSync, map[string]FieldKind{})
+
+	// A subscription plan copied in by webhook: a change to the organization's configuration, made
+	// on the unauthenticated internal server (the delivery's signature authenticates it).
+	Register(ActionSubscriptionPlanSync, ClassConfig, SeverityInfo)
+	RegisterDetailSchema(ActionSubscriptionPlanSync, map[string]FieldKind{})
 	Register(ActionArtifactCheckExists, ClassRead, SeverityInfo)
 	RegisterDetailSchema(ActionArtifactCheckExists, map[string]FieldKind{})
 

@@ -39,6 +39,7 @@ console:
 # active.
 modules:
   - gateway
+  - aihub                         # AI Hub (subscription plans); on by default
   # - name: widgets
   #   enabled: true
   #   config:                     # MODULE_WIDGETS_<KEY>, read with Runtime.Config

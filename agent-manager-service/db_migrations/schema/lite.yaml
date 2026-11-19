@@ -496,6 +496,41 @@ tables:
       - {columns: [org_id, environment_id], references: environments, ref_columns: [org_id, id]}
       - {columns: [org_id, artifact_id], references: artifacts, ref_columns: [org_id, id]}
 
+  # --- Subscription plans (aihub module) ---------------------------------------
+  # Plans an organization defines: named sets of conditions that MCP proxies offer and agents subscribe to.
+
+  - name: subscription_plans
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: handle, type: text, size: 40}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1023, nullable: true}
+      - {name: status, type: text, size: 16}
+      - {name: expiry_time, type: time, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: updated_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, handle], [org_id, id]]
+    foreign_keys:
+      - {columns: [org_id], references: organizations, ref_columns: [id]}
+
+  # The conditions of a plan, in order. A built-in condition (request-count, tool-call-count, token-count) has a
+  # fixed id; a custom condition has its own.
+  - name: subscription_plan_conditions
+    columns:
+      - {name: org_id, type: id}
+      - {name: plan_id, type: id}
+      - {name: condition_id, type: text, size: 63}
+      - {name: condition_type, type: text, size: 32}
+      - {name: params, type: json}
+      - {name: sort_order, type: int}
+    primary_key: [plan_id, condition_id]
+    foreign_keys:
+      - {columns: [org_id, plan_id], references: subscription_plans, ref_columns: [org_id, id], on_delete: cascade}
+
   # --- Agent model and MCP configurations -----------------------------------------------------
 
   - name: agent_model_configs

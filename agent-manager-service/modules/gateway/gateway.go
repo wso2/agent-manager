@@ -40,9 +40,11 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/agentgwv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwapi"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwinit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwwire"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -72,7 +74,7 @@ func (module) Manifest() modkit.Manifest {
 		Description: "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
 		CoreAPI:     modkit.CoreAPIVersion,
 		Builtin:     true,
-		Provides:    []string{llmv1.ID, mcpv1.ID, agentgwv1.ID},
+		Provides:    []string{llmv1.ID, mcpv1.ID, agentgwv1.ID, subplanv1.GatewayID},
 		Permissions: perms,
 		RoleGrants:  gwperm.RoleGrants,
 		UI:          &ui,
@@ -107,6 +109,9 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
 	rt.Provide(agentgwv1.ID, gw.AgentGateway)
+	// Subscription plan changes, sent to the organization's gateways over their connection.
+	rt.Provide(subplanv1.GatewayID, gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()),
+		gwsvc.NewGatewayEventsService(gw.EventHub)))
 	return nil
 }
 

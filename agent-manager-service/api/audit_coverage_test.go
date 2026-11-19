@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aihub"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwwire"
@@ -95,6 +96,7 @@ func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
 	return builtin.Built{
 		gateway.Parts(gw, params),
 		legacy.Parts(),
+		aihub.Parts(),
 	}
 }
 

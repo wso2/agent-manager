@@ -137,8 +137,9 @@ check ui-manifest-needs-token 401 "$(code "$API/api/v1/ui-manifest")"
 check ui-manifest 200 "$(code "${A[@]}" "$API/api/v1/ui-manifest")"
 CORE_PAGES=ai-gateway/external-agent
 GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity
-check ui-manifest-pages "$(pick "$CORE_PAGES,$GW_PAGES" "$CORE_PAGES")" "$(jq -r '.pages | join(",")' "$BODY")"
-check ui-manifest-modules "$(pick core,gateway core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
+PLAN_PAGES=aihub/subscription-plans
+check ui-manifest-pages "$(pick "$CORE_PAGES,$GW_PAGES,$PLAN_PAGES" "$CORE_PAGES")" "$(jq -r '.pages | join(",")' "$BODY")"
+check ui-manifest-modules "$(pick core,gateway,aihub core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
 
 echo "== $DIST: $pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]

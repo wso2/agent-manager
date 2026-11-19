@@ -135,6 +135,9 @@ services:
       - "${AMP_API_PORT}:8080"
       - "${AMP_INTERNAL_PORT}:9243"
     environment:
+      # The modules to run besides the built-in ones, applied at every boot
+      # (see amp.example.yaml). AI Hub (subscription plans) is on by default.
+      AMP_MODULES: ${AMP_MODULES:-aihub}
       DB_DRIVER: ${AMP_DB_DRIVER:-sqlite}
       DB_PATH: /var/lib/agent-manager/agent-manager.db
       DB_HOST: postgres

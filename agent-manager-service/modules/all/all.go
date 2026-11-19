@@ -19,6 +19,7 @@
 package all
 
 import (
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aihub"   // AI Hub: subscription plans (installable)
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/gateway" // the AI Gateway
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy"  // what no module owns yet
 )

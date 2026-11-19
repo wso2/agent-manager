@@ -365,6 +365,9 @@ var actionOverrides = map[string]Action{
 	// pulls.
 	"POST /deployments/fetch-batch": "deployment:sync",
 	"POST /artifacts/exists":        "artifact:check-exists",
+	// Subscription plans made elsewhere, copied in by a signed webhook delivery; the receiver checks
+	// the signature itself.
+	"POST /webhook/events": "aihub:plan-sync",
 
 	// Reads expressed as POST because they carry a request body.
 	"POST /orgs/{orgName}/repositories/branches":         "repository:list-branches",
