@@ -17,11 +17,16 @@
  */
 
 import type {
+  AgentRegistryA2ASkill,
   AgentRegistryEntry,
   AgentRegistryEnvironment,
+  AgentRegistryFindingSignal,
   AgentRegistryListResponse,
+  AgentRegistryMcpServerRef,
+  AgentRegistryMonitorRef,
   AgentRegistryResourceRef,
   GetAgentRegistryEntryPathParams,
+  GetUnregisteredAgentPathParams,
   ListAgentRegistryPathParams,
 } from "@agent-management-platform/types";
 
@@ -38,12 +43,54 @@ const LLM = {
 } satisfies Record<string, AgentRegistryResourceRef>;
 
 const MCP = {
-  payments: { id: "payments-mcp", displayName: "Payments" },
-  github: { id: "github-mcp", displayName: "GitHub" },
-  jira: { id: "jira-mcp", displayName: "Jira" },
-  hotels: { id: "hotel-search-mcp", displayName: "Hotel search" },
-  hr: { id: "hr-records-mcp", displayName: "HR records" },
-} satisfies Record<string, AgentRegistryResourceRef>;
+  payments: {
+    id: "payments-mcp",
+    displayName: "Payments",
+    tools: ["get_invoice", "create_refund"],
+  },
+  github: {
+    id: "github-mcp",
+    displayName: "GitHub",
+    tools: ["search_issues", "get_pull_request"],
+  },
+  jira: {
+    id: "jira-mcp",
+    displayName: "Jira",
+    tools: ["search_issues", "create_issue"],
+  },
+  hotels: {
+    id: "hotel-search-mcp",
+    displayName: "Hotel search",
+    tools: ["search_hotels", "book_room"],
+  },
+  hr: {
+    id: "hr-records-mcp",
+    displayName: "HR records",
+    tools: ["get_leave_balance"],
+  },
+} satisfies Record<string, AgentRegistryMcpServerRef>;
+
+const BOOKING_SKILLS: AgentRegistryA2ASkill[] = [
+  {
+    id: "book-hotel",
+    name: "Book a hotel",
+    description: "Finds and books a hotel.",
+    tags: ["travel", "hotel"],
+  },
+  { id: "book-flight", name: "Book a flight", tags: ["travel"] },
+];
+
+/** Governance config of one environment; anything left out is empty. */
+interface Governance {
+  /** Defaults to "completed" once deployed, else null. */
+  agentId?: AgentRegistryEnvironment["agentIdStatus"];
+  guardrails?: string[];
+  monitors?: AgentRegistryMonitorRef[];
+  /** Defaults to an API key and no OAuth. */
+  inboundSecurity?: AgentRegistryEnvironment["inboundSecurity"];
+  /** The A2A card's skills fetched in this environment. */
+  a2aSkills?: AgentRegistryA2ASkill[];
+}
 
 function minutesAgo(minutes: number): string {
   return new Date(Date.now() - minutes * 60_000).toISOString();
@@ -52,8 +99,9 @@ function minutesAgo(minutes: number): string {
 function dev(
   status: AgentRegistryEnvironment["deploymentStatus"],
   llmProviders: AgentRegistryResourceRef[],
-  mcpServers: AgentRegistryResourceRef[],
+  mcpServers: AgentRegistryMcpServerRef[],
   deployedMinutesAgo?: number,
+  governance: Governance = {},
 ): AgentRegistryEnvironment {
   return {
     name: "development",
@@ -65,16 +113,32 @@ function dev(
       status === "not-deployed" || deployedMinutesAgo === undefined
         ? null
         : minutesAgo(deployedMinutesAgo),
+    agentIdStatus:
+      governance.agentId !== undefined
+        ? governance.agentId
+        : status === "not-deployed"
+          ? null
+          : "completed",
     llmProviders,
+    guardrails: governance.guardrails ?? [],
     mcpServers,
+    monitors: governance.monitors ?? [],
+    inboundSecurity: governance.inboundSecurity ?? {
+      apiKey: true,
+      oauth: false,
+    },
+    a2aCard: governance.a2aSkills
+      ? { skills: governance.a2aSkills }
+      : undefined,
   };
 }
 
 function prod(
   status: AgentRegistryEnvironment["deploymentStatus"],
   llmProviders: AgentRegistryResourceRef[],
-  mcpServers: AgentRegistryResourceRef[],
+  mcpServers: AgentRegistryMcpServerRef[],
   deployedMinutesAgo?: number,
+  governance: Governance = {},
 ): AgentRegistryEnvironment {
   return {
     name: "production",
@@ -86,8 +150,93 @@ function prod(
       status === "not-deployed" || deployedMinutesAgo === undefined
         ? null
         : minutesAgo(deployedMinutesAgo),
+    agentIdStatus:
+      governance.agentId !== undefined
+        ? governance.agentId
+        : status === "not-deployed"
+          ? null
+          : "completed",
     llmProviders,
+    guardrails: governance.guardrails ?? [],
     mcpServers,
+    monitors: governance.monitors ?? [],
+    inboundSecurity: governance.inboundSecurity ?? {
+      apiKey: true,
+      oauth: false,
+    },
+    a2aCard: governance.a2aSkills
+      ? { skills: governance.a2aSkills }
+      : undefined,
+  };
+}
+
+// Connection and finding IDs are UUIDs in the API (ShadowFinding.ID, ConnectionID).
+const OPENAI_PROD = "5b1c7e2a-3f4d-4a8e-9c61-2d7f0b9e4a13";
+const AWS_PROD = "8e2d4f61-7a3b-4c9d-b5e0-1f6a2c8d7e94";
+const GOOGLE_PROD = "c4a91d37-2e5f-4b80-8d1c-6f3e9a7b2c05";
+
+interface ShadowSample {
+  findingId: string;
+  displayName: string;
+  provider: string;
+  providerDisplayName: string;
+  connection: { id: string; name: string };
+  kind: "platform_agent" | "runtime";
+  externalId: string;
+  scope: string;
+  state: string;
+  providerCreatedAt?: string;
+  attributes: Record<string, unknown>;
+  signal: Omit<AgentRegistryFindingSignal, "detectedAt">;
+  firstSeenMinutesAgo: number;
+  lastSeenMinutesAgo: number;
+  present?: boolean;
+  onboarded?: boolean;
+}
+
+/** A registry entry for one Shadow Agent Discovery finding. */
+function shadowAgent(f: ShadowSample): AgentRegistryEntry {
+  const present = f.present ?? true;
+  // One connection per sample: nothing on the branch shows these agents found twice.
+  const foundBy = [
+    {
+      findingId: f.findingId,
+      connectionId: f.connection.id,
+      connectionName: f.connection.name,
+      present,
+    },
+  ];
+  return {
+    name: f.findingId,
+    displayName: f.displayName,
+    registration: "unregistered",
+    discovery: {
+      findingId: f.findingId,
+      provider: f.provider,
+      providerDisplayName: f.providerDisplayName,
+      scope: f.scope,
+      ownerHint: {},
+      firstSeenAt: minutesAgo(f.firstSeenMinutesAgo),
+      lastSeenAt: minutesAgo(f.lastSeenMinutesAgo),
+      present,
+      onboarded: f.onboarded ?? false,
+      connectionName: f.connection.name,
+      kind: f.kind,
+      externalId: f.externalId,
+      state: f.state,
+      providerCreatedAt: f.providerCreatedAt,
+      foundBy,
+      attributes: f.attributes,
+      signals: [{ ...f.signal, detectedAt: minutesAgo(f.lastSeenMinutesAgo) }],
+    },
+    projectName: "",
+    projectDisplayName: "",
+    hosting: "external",
+    interface: null,
+    createdBy: null,
+    labels: {},
+    environments: [],
+    createdAt: minutesAgo(f.firstSeenMinutesAgo),
   };
 }
 
@@ -105,8 +254,28 @@ function sampleAgents(): AgentRegistryEntry[] {
       createdBy: { id: "u-sanduni", displayName: "Sanduni Jayasuriya" },
       labels: { team: "travel", "data-class": "confidential" },
       environments: [
-        dev("active", [LLM.openai], [MCP.hotels, MCP.payments], 1200),
-        prod("active", [LLM.openai], [MCP.hotels, MCP.payments], 2880),
+        dev("active", [LLM.openai], [MCP.hotels, MCP.payments], 1200, {
+          guardrails: ["pii-masking"],
+          a2aSkills: [
+            ...BOOKING_SKILLS,
+            {
+              id: "cancel-booking",
+              name: "Cancel a booking",
+              tags: ["travel"],
+            },
+          ],
+        }),
+        prod("active", [LLM.openai], [MCP.hotels, MCP.payments], 2880, {
+          guardrails: ["pii-masking", "word-count-guardrail"],
+          monitors: [
+            {
+              name: "booking-quality",
+              displayName: "Booking quality",
+              status: "Active",
+            },
+          ],
+          a2aSkills: BOOKING_SKILLS,
+        }),
       ],
       createdAt: minutesAgo(60 * 24 * 120),
     },
@@ -125,7 +294,9 @@ function sampleAgents(): AgentRegistryEntry[] {
       labels: { team: "finance" },
       environments: [
         dev("active", [LLM.azure], [MCP.payments], 300),
-        prod("active", [LLM.azure], [MCP.payments], 8640),
+        prod("active", [LLM.azure], [MCP.payments], 8640, {
+          guardrails: ["content-length-guardrail"],
+        }),
       ],
       createdAt: minutesAgo(60 * 24 * 90),
     },
@@ -142,7 +313,9 @@ function sampleAgents(): AgentRegistryEntry[] {
       labels: {},
       environments: [
         dev("active", [LLM.anthropic], []),
-        prod("active", [LLM.anthropic], []),
+        prod("active", [LLM.anthropic], [], undefined, {
+          inboundSecurity: { apiKey: false, oauth: false },
+        }),
       ],
       createdAt: minutesAgo(60 * 24 * 200),
     },
@@ -159,7 +332,17 @@ function sampleAgents(): AgentRegistryEntry[] {
       labels: { team: "support", channel: "web" },
       environments: [
         dev("active", [LLM.anthropic], [MCP.jira], 120),
-        prod("active", [LLM.anthropic], [MCP.jira], 1440),
+        prod("active", [LLM.anthropic], [MCP.jira], 1440, {
+          guardrails: ["word-count-guardrail"],
+          monitors: [
+            {
+              name: "support-answer-quality",
+              displayName: "Answer quality",
+              status: "Active",
+            },
+          ],
+          inboundSecurity: { apiKey: true, oauth: true },
+        }),
       ],
       createdAt: minutesAgo(60 * 24 * 300),
     },
@@ -176,7 +359,15 @@ function sampleAgents(): AgentRegistryEntry[] {
       labels: { team: "support" },
       environments: [
         dev("suspended", [LLM.openai], [MCP.jira], 43200),
-        prod("active", [LLM.openai], [MCP.jira], 57600),
+        prod("active", [LLM.openai], [MCP.jira], 57600, {
+          monitors: [
+            {
+              name: "triage-accuracy",
+              displayName: "Triage accuracy",
+              status: "Suspended",
+            },
+          ],
+        }),
       ],
       createdAt: minutesAgo(60 * 24 * 400),
     },
@@ -211,7 +402,12 @@ function sampleAgents(): AgentRegistryEntry[] {
       createdBy: { id: "u-kasun", displayName: "Kasun Fernando" },
       labels: { team: "devex" },
       environments: [
-        dev("in-progress", [LLM.anthropic], [MCP.github], 30),
+        dev("in-progress", [LLM.anthropic], [MCP.github], 30, {
+          agentId: "in_progress",
+          a2aSkills: [
+            { id: "review-pr", name: "Review a pull request", tags: ["code"] },
+          ],
+        }),
         prod("not-deployed", [], []),
       ],
       createdAt: minutesAgo(60 * 5),
@@ -246,7 +442,10 @@ function sampleAgents(): AgentRegistryEntry[] {
       labels: { team: "hr", "data-class": "personal" },
       environments: [
         dev("active", [LLM.azure], [MCP.hr], 180),
-        prod("failed", [LLM.azure], [MCP.hr], 540),
+        prod("failed", [LLM.azure], [MCP.hr], 540, {
+          agentId: "failed",
+          guardrails: ["pii-masking"],
+        }),
       ],
       createdAt: minutesAgo(60 * 24 * 60),
     },
@@ -267,130 +466,166 @@ function sampleAgents(): AgentRegistryEntry[] {
       ],
       createdAt: minutesAgo(60 * 24 * 2),
     },
-    // Unregistered: shadow agents that Shadow Agent Discovery found outside Agent Manager.
-    {
-      name: "openai-support-assistant",
-      displayName: "Support assistant (OpenAI)",
-      registration: "unregistered",
-      discovery: {
-        findingId: "f-openai-1",
-        provider: "openai",
-        providerDisplayName: "OpenAI",
-        scope: "proj_customer-success",
-        ownerHint: { name: "Dilini Rajapaksha", email: "dilini@example.com" },
-        firstSeenAt: minutesAgo(60 * 24 * 20),
-        lastSeenAt: minutesAgo(60 * 6),
-        present: true,
-        onboarded: false,
+    // Unregistered: shadow agents found by Shadow Agent Discovery (issue #71). Every
+    // value comes from the shadow-agent-registry branch: its connectors' test data
+    // (connectors/*/testdata), signal catalog (signals.go), provider names (catalog.go)
+    // and the connection names its console tests use. No connector sets an owner hint
+    // yet, so ownerHint is empty throughout.
+    shadowAgent({
+      findingId: "0f6c2b8e-4d1a-4e7b-a3c9-5e2f8d1b6a47",
+      displayName: "Support agent",
+      provider: "openai",
+      providerDisplayName: "OpenAI",
+      connection: { id: OPENAI_PROD, name: "OpenAI prod" },
+      kind: "platform_agent",
+      externalId: "agent_alpha",
+      scope: "proj_alpha",
+      state: "active",
+      providerCreatedAt: "2026-10-31T00:00:00Z",
+      attributes: {
+        model: "gpt-x",
+        toolCount: 4,
+        tools: [
+          { type: "function", name: "lookup_order" },
+          { type: "mcp", name: "github" },
+          { type: "mcp", name: "docs" },
+          { type: "web_search" },
+        ],
+        mcpServers: [
+          { label: "github", origin: "https://mcp.example.com" },
+          { label: "docs" },
+        ],
       },
-      projectName: "",
-      projectDisplayName: "",
-      hosting: "external",
-      interface: null,
-      createdBy: null,
-      labels: {},
-      environments: [],
-      createdAt: minutesAgo(60 * 24 * 20),
-    },
-    {
-      name: "claims-runtime",
-      displayName: "claims-runtime",
-      registration: "unregistered",
-      discovery: {
-        findingId: "f-bedrock-1",
-        provider: "bedrock",
-        providerDisplayName: "Amazon Bedrock",
-        scope: "us-east-1",
-        // Bedrock's listing doesn't say who created it.
-        ownerHint: {},
-        firstSeenAt: minutesAgo(60 * 24 * 3),
-        lastSeenAt: minutesAgo(60 * 6),
-        present: true,
-        onboarded: false,
+      signal: {
+        code: "openai.agent_object",
+        name: "Agent object",
+        source: "GET /v1/agents",
+        condition:
+          "GET /v1/agents (OpenAI-Beta: agents=v1, project key): an item in data",
+        observed: { toolCount: 4, mcpServerCount: 2 },
       },
-      projectName: "",
-      projectDisplayName: "",
-      hosting: "external",
-      interface: null,
-      createdBy: null,
-      labels: {},
-      environments: [],
-      createdAt: minutesAgo(60 * 24 * 3),
-    },
-    {
-      name: "campaign-writer",
-      displayName: "Campaign writer",
-      registration: "unregistered",
-      discovery: {
-        findingId: "f-google-1",
-        provider: "google",
-        providerDisplayName: "Google Vertex AI",
-        scope: "projects/marketing-prod/locations/europe-west1",
-        ownerHint: { email: "marketing-ops@example.com" },
-        firstSeenAt: minutesAgo(60 * 24 * 45),
-        lastSeenAt: minutesAgo(60 * 30),
-        present: true,
-        onboarded: false,
+      firstSeenMinutesAgo: 60 * 24 * 14,
+      lastSeenMinutesAgo: 60 * 6,
+    }),
+    shadowAgent({
+      findingId: "3a9e5d17-8b2c-4f60-9e4a-7c1d3b5f8e22",
+      displayName: "billing-helper",
+      provider: "bedrock",
+      providerDisplayName: "Amazon Bedrock",
+      connection: { id: AWS_PROD, name: "AWS prod" },
+      kind: "platform_agent",
+      externalId: "bedrock:us-east-1:agent/AB12CD34EF",
+      scope: "us-east-1",
+      state: "PREPARED",
+      providerCreatedAt: "2026-10-01T12:00:00Z",
+      attributes: {
+        region: "us-east-1",
+        status: "PREPARED",
+        agentVersion: "2",
+        resourceId: "arn:aws:bedrock:us-east-1:123456789012:agent/AB12CD34EF",
+        model: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+        orchestrationType: "DEFAULT",
+        roleArn:
+          "arn:aws:iam::123456789012:role/service-role/AmazonBedrockExecutionRoleForAgents_billing",
+        tools: [
+          { type: "action_group", name: "lookup_invoice" },
+          { type: "action_group", name: "UserInputAction" },
+        ],
+        toolCount: 2,
       },
-      projectName: "",
-      projectDisplayName: "",
-      hosting: "external",
-      interface: null,
-      createdBy: null,
-      labels: {},
-      environments: [],
-      createdAt: minutesAgo(60 * 24 * 45),
-    },
-    // Two findings the registry must not list: one onboarded (it is now the
-    // registered external agent "Invoice reader"), and one its platform no longer lists.
-    {
-      name: "invoice-reader-openai",
-      displayName: "Invoice reader (OpenAI)",
-      registration: "unregistered",
-      discovery: {
-        findingId: "f-openai-2",
-        provider: "openai",
-        providerDisplayName: "OpenAI",
-        scope: "proj_finance",
-        ownerHint: { email: "finance-dev@example.com" },
-        firstSeenAt: minutesAgo(60 * 24 * 210),
-        lastSeenAt: minutesAgo(60 * 4),
-        present: true,
-        onboarded: true,
+      signal: {
+        code: "bedrock.classic_agent",
+        name: "Classic Bedrock agent",
+        source: "Bedrock Agents ListAgents",
+        condition: "bedrock-agent ListAgents: an item in agentSummaries",
+        observed: { agentStatus: "PREPARED" },
       },
-      projectName: "",
-      projectDisplayName: "",
-      hosting: "external",
-      interface: null,
-      createdBy: null,
-      labels: {},
-      environments: [],
-      createdAt: minutesAgo(60 * 24 * 210),
-    },
-    {
-      name: "old-faq-bot",
-      displayName: "Old FAQ bot",
-      registration: "unregistered",
-      discovery: {
-        findingId: "f-google-2",
-        provider: "google",
-        providerDisplayName: "Google Vertex AI",
-        scope: "projects/support-sandbox/locations/us-central1",
-        ownerHint: {},
-        firstSeenAt: minutesAgo(60 * 24 * 90),
-        lastSeenAt: minutesAgo(60 * 24 * 12),
-        present: false,
-        onboarded: false,
+      firstSeenMinutesAgo: 60 * 24 * 3,
+      lastSeenMinutesAgo: 60 * 6,
+    }),
+    shadowAgent({
+      findingId: "9d4b7e2c-1f8a-4c35-b6d0-2e7a9c4f1b58",
+      displayName: "support-agent",
+      provider: "google",
+      providerDisplayName: "Google Agent Platform",
+      // The branch's tests name no Google connection; this one name is a placeholder.
+      connection: { id: GOOGLE_PROD, name: "Google prod" },
+      kind: "runtime",
+      externalId:
+        "projects/123456789012/locations/us-central1/reasoningEngines/1234567890123456789",
+      scope: "projects/my-agents-project/locations/us-central1",
+      // The Google connector does not set a state for engines.
+      state: "",
+      providerCreatedAt: "2026-10-01T10:00:00.123456Z",
+      attributes: {
+        project: "my-agents-project",
+        location: "us-central1",
+        labels: { team: "cx" },
+        framework: "google-adk",
+        serviceAccount:
+          "agents.global.org-111111111111.system.id.goog/resources/aiplatform/projects/123456789012/locations/us-central1/reasoningEngines/1234567890123456789",
       },
-      projectName: "",
-      projectDisplayName: "",
-      hosting: "external",
-      interface: null,
-      createdBy: null,
-      labels: {},
-      environments: [],
-      createdAt: minutesAgo(60 * 24 * 90),
-    },
+      signal: {
+        code: "google.agent_runtime_engine",
+        name: "Agent Runtime engine",
+        source:
+          "GET /v1/projects/{project}/locations/{location}/reasoningEngines",
+        condition:
+          "reasoningEngines.list: an item in reasoningEngines; spec.agentFramework names the framework",
+        observed: { frameworkSet: true, gitSource: false },
+      },
+      firstSeenMinutesAgo: 60 * 24 * 40,
+      lastSeenMinutesAgo: 60 * 30,
+    }),
+    // Not listed: onboarded as an external agent, so it shows under Registered.
+    shadowAgent({
+      findingId: "6e1f3a9c-5b7d-4280-8c2e-4a9d1f7b3e60",
+      displayName: "Beta one",
+      provider: "openai",
+      providerDisplayName: "OpenAI",
+      connection: { id: OPENAI_PROD, name: "OpenAI prod" },
+      kind: "platform_agent",
+      externalId: "agent_b1",
+      scope: "proj_beta",
+      state: "active",
+      providerCreatedAt: "2026-10-31T00:00:00Z",
+      attributes: { model: "gpt-y" },
+      signal: {
+        code: "openai.agent_object",
+        name: "Agent object",
+        source: "GET /v1/agents",
+        condition:
+          "GET /v1/agents (OpenAI-Beta: agents=v1, project key): an item in data",
+        observed: { toolCount: 0, mcpServerCount: 0 },
+      },
+      firstSeenMinutesAgo: 60 * 24 * 14,
+      lastSeenMinutesAgo: 60 * 6,
+      onboarded: true,
+    }),
+    // Not listed: its platform no longer lists it.
+    shadowAgent({
+      findingId: "b2c8e4f1-9a3d-4d76-a1e5-8f2b6c9d4a31",
+      displayName: "hr-bot",
+      provider: "bedrock",
+      providerDisplayName: "Amazon Bedrock",
+      connection: { id: AWS_PROD, name: "AWS prod" },
+      kind: "platform_agent",
+      externalId: "bedrock:us-east-1:agent/XY98ZW76VU",
+      scope: "us-east-1",
+      state: "NOT_PREPARED",
+      providerCreatedAt: "2026-10-02T12:00:00Z",
+      attributes: { region: "us-east-1", status: "NOT_PREPARED" },
+      signal: {
+        code: "bedrock.classic_agent",
+        name: "Classic Bedrock agent",
+        source: "Bedrock Agents ListAgents",
+        condition: "bedrock-agent ListAgents: an item in agentSummaries",
+        observed: { agentStatus: "NOT_PREPARED" },
+      },
+      firstSeenMinutesAgo: 60 * 24 * 30,
+      lastSeenMinutesAgo: 60 * 24 * 10,
+      present: false,
+    }),
   ];
 }
 
@@ -419,6 +654,23 @@ export async function getAgentRegistryEntry(
       a.registration === "registered" &&
       a.projectName === params.projName &&
       a.name === params.agentName,
+  );
+  return agent ?? null;
+}
+
+/**
+ * One unregistered agent by its finding ID, or null when there is none. Returns sample
+ * data for now; it will read the Shadow Agent Discovery finding.
+ */
+export async function getUnregisteredAgent(
+  params: GetUnregisteredAgentPathParams,
+  getToken?: () => Promise<string>,
+): Promise<AgentRegistryEntry | null> {
+  void getToken;
+  const agent = sampleAgents().find(
+    (a) =>
+      a.registration === "unregistered" &&
+      a.discovery?.findingId === params.findingId,
   );
   return agent ?? null;
 }

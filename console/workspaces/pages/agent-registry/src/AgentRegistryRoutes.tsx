@@ -20,15 +20,20 @@ import { Route, Routes } from "react-router-dom";
 import { relativeRouteMap } from "@agent-management-platform/types";
 import { AgentRegistry } from "./AgentRegistry/AgentRegistry";
 import { AgentRegistryOverview } from "./AgentRegistryOverview/AgentRegistryOverview";
+import { UnregisteredAgentOverview } from "./UnregisteredAgentOverview/UnregisteredAgentOverview";
 
 const registryRoutes = relativeRouteMap.children.org.children.agentRegistry.children;
 
-/** The registry's pages under /agent-registry: the list, and one agent's overview. */
+/** The registry's pages under /agent-registry: the list, and each kind of agent's overview. */
 export function AgentRegistryRoutes() {
   return (
     <Routes>
       <Route index element={<AgentRegistry />} />
       <Route path={registryRoutes.agent.path} element={<AgentRegistryOverview />} />
+      <Route
+        path={registryRoutes.unregisteredAgent.path}
+        element={<UnregisteredAgentOverview />}
+      />
     </Routes>
   );
 }

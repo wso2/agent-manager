@@ -21,8 +21,8 @@ import { Box, ListingCard, Stack, TablePagination, Typography } from "@wso2/oxyg
 import { Bot } from "@wso2/oxygen-ui-icons-react";
 import { formatRelativeTime } from "@agent-management-platform/shared-component";
 import type { AgentRegistryEntry } from "@agent-management-platform/types";
-import { lastDeployedAt, ownerHintText } from "../agentRegistryFilters";
-import { agentTypeText, useOpenAgent } from "./agentRow";
+import { lastDeployedAt } from "../agentRegistryFilters";
+import { agentTypeText, shadowSourceText, useOpenAgent } from "./agentRow";
 import { UnknownOwnerLabel } from "./UnknownOwnerLabel";
 
 // Multiples of the columns at each breakpoint, so a full page has no ragged last row.
@@ -84,27 +84,26 @@ function RegisteredTile({ orgId, agent }: { orgId: string; agent: AgentRegistryE
   );
 }
 
-/** An unregistered (shadow) agent: who made it, where it was found, when it was last seen. */
-function UnregisteredTile({ agent }: { agent: AgentRegistryEntry }) {
+/** An unregistered (shadow) agent: its platform and source, its scope, when last seen. */
+function UnregisteredTile({ orgId, agent }: { orgId: string; agent: AgentRegistryEntry }) {
+  const openAgent = useOpenAgent(orgId);
   const discovery = agent.discovery;
-  const ownerHint = ownerHintText(discovery?.ownerHint);
-  const foundOn = discovery
-    ? [discovery.providerDisplayName, discovery.scope].filter(Boolean).join(" · ")
-    : "Found outside Agent Manager";
   return (
-    // Not clickable yet: it will open its Shadow Agent Discovery page.
     <ListingCard
       title={agent.displayName}
       description={
-        <TileLines
-          first={ownerHint ? `Owner hint: ${ownerHint}` : "No owner hint"}
-          second={foundOn}
-        />
+        discovery ? (
+          <TileLines
+            first={`${discovery.providerDisplayName} · ${shadowSourceText(discovery)}`}
+            second={discovery.scope}
+          />
+        ) : undefined
       }
       icon={<Bot size={20} />}
       updatedLabel="Last seen"
       updatedTime={discovery ? formatRelativeTime(discovery.lastSeenAt) : "—"}
       updatedDateTime={discovery?.lastSeenAt}
+      onClick={() => openAgent(agent)}
     />
   );
 }
@@ -136,7 +135,11 @@ export function AgentRegistryTiles({ orgId, agents }: AgentRegistryTilesProps) {
           agent.registration === "registered" ? (
             <RegisteredTile key={`${agent.projectName}/${agent.name}`} orgId={orgId} agent={agent} />
           ) : (
-            <UnregisteredTile key={agent.discovery?.findingId ?? agent.name} agent={agent} />
+            <UnregisteredTile
+              key={agent.discovery?.findingId ?? agent.name}
+              orgId={orgId}
+              agent={agent}
+            />
           ),
         )}
       </Box>

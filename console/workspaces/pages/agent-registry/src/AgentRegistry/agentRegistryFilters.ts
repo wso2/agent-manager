@@ -103,7 +103,7 @@ export const PANEL_FILTER_NAMES: Record<PanelFilterKey, string> = {
   status: "Status",
   llmProvider: "LLM provider",
   mcpServer: "MCP server",
-  foundOn: "Found on",
+  foundOn: "Platform",
 };
 
 /** The option that filters nothing. */
@@ -120,10 +120,14 @@ export const ALL_LABELS: Record<PanelFilterKey, string> = {
   foundOn: "All platforms",
 };
 
+/**
+ * The project pages' labels for each deployment status (EnvironmentCard), so a status
+ * reads the same in the registry; "Not deployed" in sentence case, as the UX guidelines ask.
+ */
 export const DEPLOYMENT_STATUS_LABELS: Record<AgentRegistryDeploymentStatus, string> = {
-  active: "Active",
+  active: "Deployed",
   suspended: "Suspended",
-  failed: "Failed",
+  failed: "Error",
   "in-progress": "Deploying",
   "not-deployed": "Not deployed",
 };
@@ -408,8 +412,7 @@ function matchesUnregistered(agent: AgentRegistryEntry, filters: AgentRegistryFi
     agent.name,
     agent.discovery?.providerDisplayName ?? "",
     agent.discovery?.scope ?? "",
-    agent.discovery?.ownerHint.name ?? "",
-    agent.discovery?.ownerHint.email ?? "",
+    ...(agent.discovery?.foundBy.map((s) => s.connectionName) ?? []),
   ];
   return (
     (!term || searchable.some((text) => text.toLowerCase().includes(term))) &&
