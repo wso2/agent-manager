@@ -24,7 +24,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -39,7 +39,7 @@ var gatewayTypes = []string{"INGRESS", "EGRESS", "BOTH"}
 
 type ListOptions struct {
 	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj string) render.Scope
 
@@ -54,7 +54,7 @@ type ListOptions struct {
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListOptions{
 		IO:           f.IOStreams,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
 	}
@@ -112,18 +112,18 @@ func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 // normalizeGatewayType upper-cases the --type value and rejects anything outside
 // the canonical roles, so a typo fails locally instead of being sent as a filter
 // the server may not honour.
-func normalizeGatewayType(value string) (amsvc.GatewayTypeInput, error) {
+func normalizeGatewayType(value string) (aigateway.GatewayTypeInput, error) {
 	normalized := strings.ToUpper(strings.TrimSpace(value))
 	for _, known := range gatewayTypes {
 		if normalized == known {
-			return amsvc.GatewayTypeInput(normalized), nil
+			return aigateway.GatewayTypeInput(normalized), nil
 		}
 	}
 	return "", cmdutil.FlagErrorf("--type must be one of %s", strings.Join(gatewayTypes, ", "))
 }
 
 func runList(ctx context.Context, o *ListOptions) error {
-	params := &amsvc.ListGatewaysParams{
+	params := &aigateway.ListGatewaysParams{
 		Limit:  o.Limit,
 		Offset: o.Offset,
 	}

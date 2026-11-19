@@ -73,7 +73,9 @@ func NewAPICmd(f *cmdutil.Factory) *cobra.Command {
 
 			The endpoint is resolved relative to the current instance's API base, so
 			"/api/v1" may be omitted: "amctl api /orgs" and "amctl api /api/v1/orgs"
-			are equivalent. The current instance's access token is attached automatically.
+			are equivalent. A module's API is reached at its own root, which is kept as
+			given: "amctl api /m/ai-gateway/orgs/{org}/llm-providers". The current
+			instance's access token is attached automatically.
 
 			Resources are scoped under /orgs/{org}/projects/{project}/...; there are no
 			flat top-level resources. The {org} and {project} placeholders are filled from
@@ -102,6 +104,9 @@ func NewAPICmd(f *cmdutil.Factory) *cobra.Command {
 
 			# Get one agent (org/project spelled out explicitly)
 			$ amctl api /orgs/default/projects/default/agents/it-helpdesk-agent
+
+			# List LLM providers, from the AI Gateway module's API
+			$ amctl api /m/ai-gateway/orgs/{org}/llm-providers
 
 			# Filter with query parameters (explicit GET keeps fields in the query)
 			$ amctl api -X GET /orgs/{org}/projects/{project}/agents -f limit=10
@@ -367,7 +372,8 @@ func supportedPlaceholders(vals map[string]string) string {
 }
 
 // resolveURL joins the instance base URL with a user-supplied endpoint,
-// prefixing /api/v1 unless the endpoint already carries it.
+// prefixing /api/v1 unless the endpoint already carries it or names a
+// module's API (/m/<module>/...).
 func resolveURL(baseURL, endpoint string) (string, error) {
 	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
 	if base == "" {
@@ -377,7 +383,7 @@ func resolveURL(baseURL, endpoint string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("an endpoint path is required")
 	}
-	if path != apiBasePath && !strings.HasPrefix(path, apiBasePath+"/") {
+	if path != apiBasePath && !strings.HasPrefix(path, apiBasePath+"/") && !strings.HasPrefix(path, "m/") {
 		path = apiBasePath + "/" + path
 	}
 	return base + "/" + path, nil

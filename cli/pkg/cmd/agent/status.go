@@ -23,7 +23,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -33,7 +33,7 @@ import (
 
 type StatusOptions struct {
 	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj, agent string) render.Scope
 	ResolveAgent func([]string) (string, []string, error)
@@ -63,7 +63,7 @@ const notDeployed = "not-deployed"
 func NewStatusCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &StatusOptions{
 		IO:           f.IOStreams,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.AgentScope,
 		ResolveAgent: f.ResolveAgent,
@@ -129,7 +129,7 @@ func runStatus(ctx context.Context, o *StatusOptions) error {
 	return renderStatusTable(o.IO, result)
 }
 
-func buildStatusResult(agent string, d amsvc.DeploymentDetailsResponse) StatusResult {
+func buildStatusResult(agent string, d aigateway.DeploymentDetailsResponse) StatusResult {
 	out := StatusResult{
 		Agent:     agent,
 		Status:    d.Status,

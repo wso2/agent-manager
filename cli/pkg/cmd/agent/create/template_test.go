@@ -72,7 +72,7 @@ func TestAgentTemplate_DocumentsVariants(t *testing.T) {
 		"dockerfilePath:",
 		"external",
 		"secretRef:",
-		"isSensitive:",
+		"ai-gateway:",
 		"modelConfig:",
 		"basePath:",
 	} {

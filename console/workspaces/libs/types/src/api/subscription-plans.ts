@@ -17,7 +17,7 @@
  */
 
 // Subscription plans, served by the backend `aihub` module at
-// /api/v1/m/aihub/subscription-plans (GET/POST /subscription-plans, GET/PUT/DELETE
+// /m/aihub/subscription-plans (GET/POST /subscription-plans, GET/PUT/DELETE
 // /subscription-plans/{subscriptionPlanId}).
 
 export type SubscriptionPlanStatus = "ACTIVE" | "INACTIVE";

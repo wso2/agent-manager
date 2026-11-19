@@ -1,0 +1,369 @@
+//go:build integration
+
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+)
+
+// mcpFixture is an org with an MCP proxy whose one endpoint is bound to env, and the MCP service over the real
+// repositories.
+type mcpFixture struct {
+	*proxyFixture
+	svc      *MCPProxyService
+	proxy    *gwmodels.MCPProxy
+	env      uuid.UUID
+	artifact uuid.UUID
+}
+
+func newMCPFixture(t *testing.T) *mcpFixture {
+	t.Helper()
+	f := &mcpFixture{proxyFixture: newProxyFixture(t)}
+	gormDB := db.GetDB()
+	gateways := gwrepo.NewGatewayRepo(gormDB)
+	kind := NewMCPProxyKind(gormDB, gateways, f.sync.repo)
+	core := reconcile.NewCore(gormDB, f.sync.repo, f.hub, reconcile.Kinds{kind},
+		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
+	f.worker = reconcile.NewWorker(core, slog.New(slog.DiscardHandler))
+	f.svc = &MCPProxyService{
+		db: gormDB, tx: NewTxRunner(gormDB), repo: gwrepo.NewMCPProxyRepo(gormDB, repositories.NewCoreReadAPI(gormDB), gwtest.NewSecrets()), deploymentRepo: f.sync.repo,
+		gatewayRepo: gateways, artifactRepo: gwrepo.NewArtifactRepo(gormDB, gwtest.NewSecrets()),
+		mcpProxyScopeRepo: gwrepo.NewMCPProxyScopeRepository(gormDB), logger: slog.New(slog.DiscardHandler),
+		endpointRepo: gwrepo.NewMCPProxyEndpointRepository(gormDB), core: core, kind: kind,
+		envMCPMappingRepo: gwrepo.NewEnvAgentMCPMappingRepository(gormDB), secrets: gwtest.NewSecrets(),
+	}
+
+	proxy, _ := goldenMCPProxy()
+	proxy.UUID = uuid.New()
+	proxy.Handle = "mcp-" + proxy.UUID.String()[:8]
+	f.env, f.artifact = uuid.New(), uuid.New()
+	dbtest.EnvironmentWithID(t, gormDB, f.sync.ouID, f.env)
+	proxy.Endpoints[0].UUID = uuid.New()
+	// A public address the placement pass's private-upstream check accepts without a DNS lookup.
+	proxy.Endpoints[0].Configuration.Upstream.URL = "https://1.1.1.1/mcp"
+	proxy.Endpoints[0].Environments[0].EnvironmentUUID = f.env
+	proxy.Endpoints[0].Environments[0].ArtifactUUID = f.artifact
+	proxy.Endpoints[0].Environments[0].MCPProxyUUID = proxy.UUID
+	// The stored credential lives where the proxy's endpoint keeps it.
+	ref := gwsecret.MCPEndpoint(proxy.UUID, proxy.Endpoints[0].Handle)
+	proxy.Endpoints[0].Configuration.Upstream.Auth.SecretRef = &ref
+	require.NoError(t, gormDB.Transaction(func(tx *gorm.DB) error {
+		handle := mcpProxyEnvArtifactHandle(proxy.Handle, "primary", f.env.String())
+		if err := gwrepo.NewArtifactRepo(tx, gwtest.NewSecrets()).Create(tx, &gwmodels.Artifact{
+			UUID: f.artifact, Handle: handle, Name: handle, Version: "v1.0", Kind: gwmodels.KindMCPMapping, OUID: f.sync.ouID,
+		}); err != nil {
+			return err
+		}
+		return gwrepo.NewMCPProxyRepo(gormDB, repositories.NewCoreReadAPI(gormDB), gwtest.NewSecrets()).Create(context.Background(), tx, proxy, proxy.Handle, proxy.Handle,
+			"v1.0", f.sync.ouID, nil, nil)
+	}))
+	loaded, err := f.svc.repo.GetByUUID(context.Background(), proxy.UUID.String(), f.sync.ouID)
+	require.NoError(t, err)
+	f.proxy = loaded
+	return f
+}
+
+// deploy deploys the fixture proxy's bindings as a save does, in one transaction.
+func (f *mcpFixture) deploy(t *testing.T) error {
+	t.Helper()
+	return NewTxRunner(db.GetDB())(context.Background(), func(tx *gorm.DB) error {
+		return f.svc.deployMCPProxyEndpoints(context.Background(), tx, f.proxy, f.sync.ouID)
+	})
+}
+
+func (f *mcpFixture) mcpRow(t *testing.T, gateway uuid.UUID) *gwmodels.DeploymentStatusRecord {
+	t.Helper()
+	return f.row(t, &gwmodels.LLMProxy{UUID: f.artifact}, gateway)
+}
+
+// A request's explicit gateway is the row's gateway, even with a second egress gateway in the environment.
+func TestMCPRequestedGatewayBecomesTheRowsGateway(t *testing.T) {
+	f := newMCPFixture(t)
+	f.mapGateway(t, f.env)
+	requested := f.mapGateway(t, f.env)
+	requestedID := requested.String()
+	f.proxy.Endpoints[0].Environments[0].RequestedGatewayUUID = &requestedID
+
+	require.NoError(t, f.deploy(t))
+
+	row := f.mcpRow(t, requested)
+	require.NotNil(t, row)
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, row.Status)
+	placed, err := f.sync.repo.PlacedGateways(context.Background(), f.sync.ouID, f.artifact)
+	require.NoError(t, err)
+	assert.Equal(t, []string{requestedID}, placed)
+}
+
+// A scope change re-renders the proxy's placed artifacts before the request returns.
+func TestMCPScopeChangeReRendersInline(t *testing.T) {
+	f := newMCPFixture(t)
+	gateway := f.mapGateway(t, f.env)
+	require.NoError(t, f.deploy(t))
+	before := *f.mcpRow(t, gateway).DeploymentID
+	require.NoError(t, gwrepo.NewMCPProxyScopeRepository(db.GetDB()).Create(context.Background(), &gwmodels.MCPProxyScope{
+		MCPProxyUUID: f.proxy.UUID, Action: "read", Tools: []string{"get_forecast"},
+	}))
+	enabled := true
+	f.proxy.Endpoints[0].Configuration.Security = &gwmodels.SecurityConfig{
+		Enabled:  &enabled,
+		Identity: &gwmodels.IdentitySecurity{Enabled: &enabled},
+	}
+	require.NoError(t, db.GetDB().Model(&gwmodels.MCPProxyEndpoint{}).Where("id = ?", f.proxy.Endpoints[0].UUID).
+		Update("configuration", dbx.JSON(f.proxy.Endpoints[0].Configuration)).Error)
+
+	require.NoError(t, f.svc.RedeployMCPProxy(context.Background(), f.proxy, f.sync.ouID))
+
+	row := f.mcpRow(t, gateway)
+	assert.NotEqual(t, before, *row.DeploymentID, "the scope change rendered a new deployment")
+	assert.Nil(t, row.NextAttemptAt, "rendered inline, nothing left owed")
+	pulled, err := f.sync.repo.GetPullable(context.Background(), f.sync.ouID, f.artifact, gateway.String())
+	require.NoError(t, err)
+	assert.Contains(t, string(pulled.Content), "get_forecast")
+}
+
+// A scope change whose configuration doesn't render reaches the caller, and no gateway is sent anything.
+func TestMCPScopeChangeThatFailsToRenderReachesTheCaller(t *testing.T) {
+	f := newMCPFixture(t)
+	gateway := f.mapGateway(t, f.env)
+	require.NoError(t, f.deploy(t))
+	before := *f.mcpRow(t, gateway).DeploymentID
+	published := len(f.hub.published)
+	f.proxy.Endpoints[0].Configuration.Upstream = nil
+	require.NoError(t, db.GetDB().Model(&gwmodels.MCPProxyEndpoint{}).Where("id = ?", f.proxy.Endpoints[0].UUID).
+		Update("configuration", dbx.JSON(f.proxy.Endpoints[0].Configuration)).Error)
+
+	err := f.svc.RedeployMCPProxy(context.Background(), f.proxy, f.sync.ouID)
+
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
+	row := f.mcpRow(t, gateway)
+	assert.Equal(t, before, *row.DeploymentID, "no deployment was written")
+	assert.Nil(t, row.NextAttemptAt, "no redeploy was queued")
+	assert.Len(t, f.hub.published, published, "no event was written")
+}
+
+// The placement pass places a binding whose environment gains a gateway, and a deleted binding's artifact sends its
+// delete event in the deleting transaction.
+func TestMCPPlacementAndDelete(t *testing.T) {
+	f := newMCPFixture(t)
+	require.NoError(t, f.deploy(t))
+	gateway := f.mapGateway(t, f.env)
+	assert.Nil(t, f.mcpRow(t, gateway), "no gateway, no row")
+
+	require.NoError(t, f.worker.PlaceEnv(context.Background(), f.sync.ouID, f.env))
+	require.NotNil(t, f.mcpRow(t, gateway))
+	assert.Equal(t, gwmodels.DeploymentStatusDeploying, f.mcpRow(t, gateway).Status)
+
+	require.NoError(t, f.svc.deleteMCPProxyEnvironmentArtifacts(context.Background(), []uuid.UUID{f.artifact}, f.sync.ouID))
+
+	deletedOn := map[string]bool{}
+	for _, evt := range f.hub.published {
+		if evt.EventType == "mcpproxy.deleted" {
+			deletedOn[evt.GatewayID] = true
+		}
+	}
+	assert.True(t, deletedOn[gateway.String()], "the gateway it was placed on is told")
+	assert.Nil(t, f.mcpRow(t, gateway))
+}
+
+// Tearing an agent's MCP binding down writes its delete events last in the transaction that deletes its artifact.
+func TestAgentMCPBindingTeardownDeletesInTheDeletingTransaction(t *testing.T) {
+	f := newMCPFixture(t)
+	gateway := f.mapGateway(t, f.env)
+	require.NoError(t, f.deploy(t))
+	published := len(f.hub.published)
+	var artifactsSeen []int64
+	f.hub.onPublish = func() {
+		tx := f.hub.txs[len(f.hub.txs)-1]
+		require.NotNil(t, tx)
+		var count int64
+		require.NoError(t, tx.Raw(`SELECT count(*) FROM mod_ai_gateway_artifacts WHERE id = ?`, f.artifact).Scan(&count).Error)
+		artifactsSeen = append(artifactsSeen, count)
+	}
+	svc := &agentConfigurationService{db: db.GetDB(), mcpProxyService: f.svc, logger: slog.New(slog.DiscardHandler)}
+
+	svc.cleanupNewMCPMapping(context.Background(), &gwmodels.AgentConfiguration{},
+		&gwmodels.EnvAgentMCPMapping{EnvironmentUUID: f.env, ArtifactUUID: f.artifact}, "", f.sync.ouID, false)
+
+	deletedOn := map[string]bool{}
+	for _, evt := range f.hub.published[published:] {
+		assert.Equal(t, "mcpproxy.deleted", string(evt.EventType))
+		deletedOn[evt.GatewayID] = true
+	}
+	assert.True(t, deletedOn[gateway.String()], "the gateway it was placed on is told")
+	require.NotEmpty(t, artifactsSeen)
+	for _, seen := range artifactsSeen {
+		assert.Zero(t, seen, "the events are written after the artifact is deleted, in its transaction")
+	}
+	assert.Nil(t, f.mcpRow(t, gateway))
+}
+
+// invalidMCPRequest is a proxy whose one endpoint, bound to env, takes its API key from a cookie: it only fails
+// when rendered.
+func invalidMCPRequest(handle string, env uuid.UUID) *gwmodels.MCPProxyDTO {
+	enabled := true
+	return &gwmodels.MCPProxyDTO{
+		ID: handle, Name: handle, Version: "v1.0",
+		Endpoints: []gwmodels.MCPProxyEndpointDTO{{
+			ID:           "primary",
+			Upstream:     gwmodels.UpstreamConfig{Main: &gwmodels.UpstreamEndpoint{URL: "https://1.1.1.1/mcp"}},
+			Security:     &gwmodels.SecurityConfig{Enabled: &enabled, APIKey: &gwmodels.APIKeySecurity{Enabled: &enabled, In: "cookie"}},
+			Environments: []gwmodels.MCPEndpointEnvironmentDTO{{EnvironmentUUID: env.String()}},
+		}},
+	}
+}
+
+// An MCP save whose artifact can't render is refused with a 4xx and commits nothing, with or without a gateway.
+func TestMCPSaveThatCannotRenderCommitsNothing(t *testing.T) {
+	for _, withGateway := range []bool{false, true} {
+		name := map[bool]string{false: "without a gateway", true: "with a gateway"}[withGateway]
+		t.Run("create "+name, func(t *testing.T) {
+			f := newMCPFixture(t)
+			env := uuid.New()
+			dbtest.EnvironmentWithID(t, db.GetDB(), f.sync.ouID, env)
+			if withGateway {
+				f.mapGateway(t, env)
+			}
+			handle := "bad-" + uuid.NewString()[:8]
+			published := len(f.hub.published)
+
+			_, err := f.svc.Create(context.Background(), f.sync.ouID, "me", invalidMCPRequest(handle, env))
+
+			assert.ErrorIs(t, err, httpx.ErrInvalidInput)
+			var artifacts int64
+			require.NoError(t, db.GetDB().Table("mod_ai_gateway_artifacts").Where("handle LIKE ?", handle+"%").Count(&artifacts).Error)
+			assert.Zero(t, artifacts, "neither the proxy nor its environment artifact is committed")
+			assert.Len(t, f.hub.published, published, "no event")
+		})
+		t.Run("update "+name, func(t *testing.T) {
+			f := newMCPFixture(t)
+			if withGateway {
+				f.mapGateway(t, f.env)
+			}
+			published := len(f.hub.published)
+
+			handle := mcpSourceHandle(f.proxy)
+			_, err := f.svc.Update(context.Background(), f.sync.ouID, handle, invalidMCPRequest(handle, f.env))
+
+			assert.ErrorIs(t, err, httpx.ErrInvalidInput)
+			stored, err := f.svc.repo.GetByUUID(context.Background(), f.proxy.UUID.String(), f.sync.ouID)
+			require.NoError(t, err)
+			require.Len(t, stored.Endpoints, 1)
+			assert.Equal(t, f.proxy.Endpoints[0].UUID, stored.Endpoints[0].UUID, "the endpoint set is not replaced")
+			var rows int64
+			require.NoError(t, db.GetDB().Model(&gwmodels.DeploymentStatusRecord{}).
+				Where("artifact_id = ?", f.artifact).Count(&rows).Error)
+			assert.Zero(t, rows)
+			assert.Len(t, f.hub.published, published, "no event")
+		})
+	}
+}
+
+// A binding shows MCP's word for the derived status: a fresh deploy is Deploying until the gateway acks it, and the
+// binding names its placed gateway at once.
+func TestMCPBindingShowsDeployingUntilTheGatewayAcks(t *testing.T) {
+	f := newMCPFixture(t)
+	gateway := f.mapGateway(t, f.env)
+	binding := func() gwmodels.MCPEndpointEnvironmentDTO {
+		t.Helper()
+		dto, err := f.svc.Get(context.Background(), f.sync.ouID, proxyHandleOf(f.proxy))
+		require.NoError(t, err)
+		require.Len(t, dto.Endpoints, 1)
+		require.Len(t, dto.Endpoints[0].Environments, 1)
+		return dto.Endpoints[0].Environments[0]
+	}
+	assert.Equal(t, gwmodels.MCPDeploymentStatusUndeployed, binding().DeploymentStatus, "nothing placed yet")
+
+	require.NoError(t, f.deploy(t))
+
+	got := binding()
+	assert.Equal(t, gwmodels.MCPDeploymentStatusDeploying, got.DeploymentStatus)
+	require.NotNil(t, got.GatewayID)
+	assert.Equal(t, gateway.String(), *got.GatewayID)
+
+	row := f.mcpRow(t, gateway)
+	_, err := f.sync.repo.ApplyAck(context.Background(), gateway.String(), gwmodels.DeploymentAck{
+		DeploymentID: row.DeploymentID.String(), Action: gwmodels.DeploymentAckActionDeploy,
+		Status: gwmodels.DeploymentAckStatusSuccess,
+	}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, gwmodels.MCPDeploymentStatusDeployed, binding().DeploymentStatus)
+}
+
+// bindingRows counts the fixture proxy's (endpoint, environment) rows and endpoint rows still stored.
+func (f *mcpFixture) bindingRows(t *testing.T) (environments, endpoints int64) {
+	t.Helper()
+	gormDB := db.GetDB()
+	require.NoError(t, gormDB.Table("mod_ai_gateway_mcp_proxy_endpoint_environments").
+		Where("artifact_id = ?", f.artifact).Count(&environments).Error)
+	require.NoError(t, gormDB.Table("mod_ai_gateway_mcp_proxy_endpoints").
+		Where("id = ?", f.proxy.Endpoints[0].UUID).Count(&endpoints).Error)
+	return environments, endpoints
+}
+
+// When an environment goes and its gateway artifact can't be deleted yet, a project proxy keeps the binding and its
+// endpoint, so the retry still finds the artifact; once the artifact is gone, both go.
+func TestRemoveEnvironmentFromEndpoints_ProjectProxyKeepsBindingUntilArtifactGone(t *testing.T) {
+	f := newMCPFixture(t)
+	project := uuid.NewString()
+	f.proxy.ProjectUUID = &project
+	tx := f.svc.tx
+	f.svc.tx = func(context.Context, func(*gorm.DB) error) error { return errors.New("gateway unreachable") }
+
+	require.Error(t, f.svc.RemoveEnvironmentFromEndpoints(context.Background(), f.proxy, f.env, f.sync.ouID))
+	environments, endpoints := f.bindingRows(t)
+	assert.EqualValues(t, 1, environments, "the binding stays, so a retry can find the artifact")
+	assert.EqualValues(t, 1, endpoints)
+
+	f.svc.tx = tx
+	require.NoError(t, f.svc.RemoveEnvironmentFromEndpoints(context.Background(), f.proxy, f.env, f.sync.ouID))
+	environments, endpoints = f.bindingRows(t)
+	assert.Zero(t, environments, "the retry removes the binding")
+	assert.Zero(t, endpoints, "and the project binding's endpoint")
+}
+
+// An org proxy removes the binding even when its artifact can't be deleted yet, and keeps the endpoint, as before.
+func TestRemoveEnvironmentFromEndpoints_OrgProxyUnchanged(t *testing.T) {
+	f := newMCPFixture(t)
+	f.svc.tx = func(context.Context, func(*gorm.DB) error) error { return errors.New("gateway unreachable") }
+
+	require.Error(t, f.svc.RemoveEnvironmentFromEndpoints(context.Background(), f.proxy, f.env, f.sync.ouID))
+	environments, endpoints := f.bindingRows(t)
+	assert.Zero(t, environments)
+	assert.EqualValues(t, 1, endpoints)
+}

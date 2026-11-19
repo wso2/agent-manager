@@ -27,9 +27,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // A service that returns its own short user-facing message (a ValidationError)
@@ -40,7 +39,7 @@ import (
 func TestHandleCommonErrors_ValidationErrorWithSentinel_KeepsItsOwnMessage(t *testing.T) {
 	rr := httptest.NewRecorder()
 
-	HandleCommonErrors(rr, utils.NewInvalidInputError(
+	HandleCommonErrors(rr, httpx.NewInvalidInputError(
 		"Promotion blocked: the agent identity for \"staging\" is still being provisioned",
 		"retry once provisioning completes",
 	), "Failed to promote agent")
@@ -51,19 +50,7 @@ func TestHandleCommonErrors_ValidationErrorWithSentinel_KeepsItsOwnMessage(t *te
 	assert.Equal(t, "Promotion blocked: the agent identity for \"staging\" is still being provisioned", body.Message)
 	require.NotNil(t, body.Reason)
 	assert.Equal(t, "retry once provisioning completes", *body.Reason)
-	assert.Equal(t, utils.ErrCodeValidation, body.Code)
-}
-
-func TestHandleCommonErrors_AgentIdentityDefaultEnvironmentOnly_Is409(t *testing.T) {
-	rr := httptest.NewRecorder()
-
-	HandleCommonErrors(rr, fmt.Errorf("%w: staging", services.ErrProjectAgentIdentityDefaultEnvironmentOnly),
-		"Failed to provision agent identity")
-
-	assert.Equal(t, http.StatusConflict, rr.Code)
-	var body spec.ErrorResponse
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, utils.ErrCodeConflict, body.Code)
+	assert.Equal(t, httpx.ErrCodeValidation, body.Code)
 }
 
 // A fail-closed service that refuses to act unrecorded answers 503 on every route, not only the proxy's.
@@ -75,6 +62,6 @@ func TestHandleCommonErrors_AuditRecorderUnavailable_Is503(t *testing.T) {
 	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
 	var body spec.ErrorResponse
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
-	assert.Equal(t, utils.ErrCodeServiceUnavailable, body.Code)
+	assert.Equal(t, httpx.ErrCodeServiceUnavailable, body.Code)
 	assert.Nil(t, body.Reason, "the sink's error stays in the log")
 }

@@ -36,11 +36,11 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/sqlitedialect"
 	dbmigrations "github.com/wso2/agent-manager/agent-manager-service/db_migrations"
 	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/sqlitedialect"
 )
 
 // testModule is a module that exists only in these tests.
@@ -118,8 +118,8 @@ func (s store) Count() (int64, error) {
 
 // world is the set of modules one test binary links.
 type world struct {
-	store, consumer, builtin *testModule
-	consumed                 chan store
+	store, consumer *testModule
+	consumed        chan store
 }
 
 func newWorld(t *testing.T) *world {
@@ -150,12 +150,11 @@ tables:
 			return nil
 		},
 	}
-	w.builtin = &testModule{manifest: modkit.Manifest{Name: "t-builtin", Version: "1.0.0", CoreAPI: modkit.CoreAPIVersion, Builtin: true}}
 	return w
 }
 
 func (w *world) modules() []modkit.Module {
-	return []modkit.Module{w.store, w.consumer, w.builtin}
+	return []modkit.Module{w.store, w.consumer}
 }
 
 type database struct {
@@ -239,16 +238,9 @@ func lifecycle(t *testing.T, d database) {
 		assert.True(t, g.Migrator().HasTable("mod_t_consumer_notes"))
 		assert.EqualValues(t, 2, migrationRows())
 		assert.EqualValues(t, 2, count(t, g, `SELECT count(*) FROM mod_t_store_items`))
-		// Only the built-in module is recorded; nothing is installed.
-		assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM modules`))
-		assert.Equal(t, []string{"t-builtin"}, h1.Active())
-	})
-
-	t.Run("built-in modules are always active", func(t *testing.T) {
-		assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-builtin' AND state = 'active'`))
-		for _, err := range []error{h1.Disable(ctx, "t-builtin"), h1.Uninstall(ctx, "t-builtin"), h1.Enable(ctx, "t-builtin")} {
-			assert.True(t, modhost.IsResolveError(err), "got %v", err)
-		}
+		// Nothing is installed.
+		assert.Zero(t, count(t, g, `SELECT count(*) FROM modules`))
+		assert.Empty(t, h1.Active())
 	})
 
 	t.Run("required capability must be present", func(t *testing.T) {
@@ -264,7 +256,7 @@ func lifecycle(t *testing.T, d database) {
 		require.NoError(t, err)
 		assert.Equal(t, []modhost.Step{{Module: "t-store", Action: "install"}, {Module: "t-consumer", Action: "install"}}, steps)
 		assert.Equal(t, before, migrationRows())
-		assert.Equal(t, []string{"t-builtin", "t-store", "t-consumer"}, h1.Active())
+		assert.Equal(t, []string{"t-store", "t-consumer"}, h1.Active())
 		// The consumer resolved the store's capability while activating.
 		s := <-w.consumed
 		n, err := s.Count()
@@ -297,14 +289,14 @@ func lifecycle(t *testing.T, d database) {
 
 	t.Run("a provider cannot go while a consumer needs it", func(t *testing.T) {
 		assert.True(t, modhost.IsResolveError(h1.Disable(ctx, "t-store")))
-		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-store")))
+		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-store", false)))
 	})
 
 	t.Run("a disabled module stops and keeps its data", func(t *testing.T) {
 		require.NoError(t, g.Exec(`INSERT INTO mod_t_consumer_notes (id, body) VALUES (?, 'mine')`, uuid.NewString()).Error)
 		require.NoError(t, h1.Disable(ctx, "t-consumer"))
 		require.NoError(t, h1.Disable(ctx, "t-store"))
-		assert.Equal(t, []string{"t-builtin"}, h1.Active())
+		assert.Empty(t, h1.Active())
 		// Installing a disabled module with its dependencies re-enables both.
 		steps, err := h1.Install(ctx, "t-consumer", true)
 		require.NoError(t, err)
@@ -314,13 +306,33 @@ func lifecycle(t *testing.T, d database) {
 
 	t.Run("uninstall keeps the tables and data; reinstall needs no migration", func(t *testing.T) {
 		before := migrationRows()
-		require.NoError(t, h1.Uninstall(ctx, "t-consumer"))
+		require.NoError(t, h1.Uninstall(ctx, "t-consumer", false))
 		assert.NotContains(t, h1.Active(), "t-consumer")
-		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-consumer")))
+		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-consumer", false)))
 		steps, err := h1.Install(ctx, "t-consumer", false)
 		require.NoError(t, err)
 		assert.Equal(t, []modhost.Step{{Module: "t-consumer", Action: "install"}}, steps)
 		assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM mod_t_consumer_notes`))
+		assert.Equal(t, before, migrationRows())
+	})
+
+	t.Run("purge empties the tables and secrets; reinstall needs no migration", func(t *testing.T) {
+		before := migrationRows()
+		org := uuid.NewString()
+		require.NoError(t, g.Exec(`INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			org, "purge-org", "purge-org", time.Now(), time.Now()).Error)
+		require.NoError(t, g.Exec(`INSERT INTO secrets (id, org_id, owner_kind, owner_id, provider, ciphertext, version, created_at, updated_at)
+			VALUES (?, ?, 'mod:t-consumer', ?, 'db', ?, 1, ?, ?)`, uuid.NewString(), org, uuid.NewString(), []byte("x"), time.Now(), time.Now()).Error)
+		require.NoError(t, h1.Uninstall(ctx, "t-consumer", false))
+		// An uninstalled module can still be purged.
+		require.NoError(t, h1.Uninstall(ctx, "t-consumer", true))
+		assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM mod_t_consumer_notes`))
+		assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM secrets WHERE owner_kind = 'mod:t-consumer'`))
+		assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-consumer'`))
+		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-consumer", true)), "a purged module is not installed")
+		steps, err := h1.Install(ctx, "t-consumer", false)
+		require.NoError(t, err)
+		assert.Equal(t, []modhost.Step{{Module: "t-consumer", Action: "install"}}, steps)
 		assert.Equal(t, before, migrationRows())
 	})
 
@@ -329,7 +341,6 @@ func lifecycle(t *testing.T, d database) {
 		for _, m := range h1.List() {
 			got[m.Name] = m
 		}
-		assert.Equal(t, modhost.StateActive, got["t-builtin"].State)
 		assert.Equal(t, modhost.StateActive, got["t-store"].State)
 		assert.Equal(t, []string{"t-consumer"}, got["t-store"].RequiredBy)
 		assert.True(t, got["t-consumer"].Loaded)
@@ -533,7 +544,7 @@ func TestPassiveHostActivatesNothingToList(t *testing.T) {
 	ctx := context.Background()
 	var calls atomic.Int32
 	m := &testModule{
-		manifest: modkit.Manifest{Name: "t-counted", Version: "1.0.0", CoreAPI: modkit.CoreAPIVersion, Builtin: true},
+		manifest: modkit.Manifest{Name: "t-counted", Version: "1.0.0", CoreAPI: modkit.CoreAPIVersion},
 		activate: func(modkit.Runtime) error { calls.Add(1); return nil },
 	}
 	d := databases(t)[0]
@@ -543,6 +554,10 @@ func TestPassiveHostActivatesNothingToList(t *testing.T) {
 	h.Passive = true
 	_, err := h.Migrate(ctx)
 	require.NoError(t, err)
+	require.NoError(t, h.Reload(ctx))
+	_, err = h.Install(ctx, "t-counted", false)
+	require.NoError(t, err)
+	calls.Store(0) // installing checks the module activates; listing must not
 	require.NoError(t, h.Reload(ctx))
 	list := h.List()
 	require.Len(t, list, 1)
@@ -559,6 +574,47 @@ func TestMigrationNamesCarryAVersion(t *testing.T) {
 			m := &testModule{manifest: manifest("t-named", nil, nil), migrations: rawSQL(map[string]string{name: "CREATE TABLE mod_t_named_x (id INTEGER);\n"})}
 			_, err := modhost.NewWith(g, d.driver, quiet, []modkit.Module{m}).Migrate(context.Background())
 			assert.ErrorContains(t, err, "NNN_description.sql")
+		})
+	}
+}
+
+// A distribution's defaults are installed, with their providers, only when
+// never installed: a default an operator disabled or uninstalled stays so.
+func TestInstallDefaults(t *testing.T) {
+	for _, d := range databases(t) {
+		t.Run(d.driver, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			w := newWorld(t)
+			h, _ := replica(t, ctx, d, w.modules())
+
+			steps, err := h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Equal(t, []modhost.Step{{Module: "t-store", Action: "install"}, {Module: "t-consumer", Action: "install"}}, steps)
+			assert.Equal(t, []string{"t-store", "t-consumer"}, h.Active())
+
+			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Empty(t, steps, "an installed default is left alone")
+
+			require.NoError(t, h.Disable(ctx, "t-consumer"))
+			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Empty(t, steps, "a disabled default stays disabled")
+			assert.NotContains(t, h.Active(), "t-consumer")
+
+			require.NoError(t, h.Uninstall(ctx, "t-consumer", false))
+			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Empty(t, steps, "an uninstalled default stays uninstalled")
+
+			require.NoError(t, h.Uninstall(ctx, "t-consumer", true))
+			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Equal(t, []modhost.Step{{Module: "t-consumer", Action: "install"}}, steps, "a purged default is installed again")
+
+			_, err = h.InstallDefaults(ctx, []string{"nosuch"})
+			assert.True(t, modhost.IsResolveError(err))
 		})
 	}
 }

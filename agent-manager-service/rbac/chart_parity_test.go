@@ -152,14 +152,16 @@ func TestAdvertisedScopesMatchCatalog(t *testing.T) {
 	diffScopeSets(t, "OAUTH_SCOPES_SUPPORTED", catalogScopes(t), withoutModuleOwned(chartSide))
 }
 
-// withoutModuleOwned drops the permissions of resources a module owns (the
-// gateway module's gateway:*): the bootstrap and the full distribution's
-// configuration declare them, and the module, not this package, does.
+// distributionModules are the modules the full distribution's configuration
+// advertises scopes for; their manifests, not this package, declare them.
+var distributionModules = []string{"ai-gateway", "aihub"}
+
+// withoutModuleOwned drops the permissions of the distribution's modules.
 func withoutModuleOwned(chartSide map[Permission]bool) map[Permission]bool {
 	out := make(map[Permission]bool, len(chartSide))
 	for perm := range chartSide {
 		resource, _, _ := strings.Cut(string(perm), ":")
-		if !slices.Contains(moduleOwnedResources, resource) {
+		if !slices.Contains(distributionModules, resource) {
 			out[perm] = true
 		}
 	}

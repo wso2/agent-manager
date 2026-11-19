@@ -19,24 +19,28 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"text/tabwriter"
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/app"
+	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/secretmanagersvc/providers/unsupported"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
 // errUsage asks for the usage text and exit code 2.
@@ -54,7 +58,12 @@ const usage = `Usage: %[1]s [--config amp.yaml] <command>
   %[1]s module install <name> [--with-deps]          install a module (and the providers it needs)
   %[1]s module enable <name>
   %[1]s module disable <name>
-  %[1]s module uninstall <name>                      deactivate a module; its data is kept
+  %[1]s module uninstall <name> [--purge]            deactivate a module; its data is kept, or with
+                                                     --purge emptied (tables, secrets, workload credentials)
+  %[1]s module credential <name> <workload> [--subject S] [--out FILE]
+                                                     mint a credential for a module's service workload; it is
+                                                     printed once, or written to FILE (kept if FILE exists)
+  %[1]s module health [<name>]                       report ok, degraded or inactive, with connected workloads
   %[1]s version
 
 Module changes take effect on running servers within seconds, without a restart.
@@ -64,8 +73,11 @@ A modules: list there (or $AMP_MODULES) is applied by the server at boot.
 The flags of earlier releases (-migrate, -server=false, -init-thunder=DIR, ...) still work.
 `
 
-// Main runs the command line. distribution names the binary.
-func Main(distribution string) {
+// Main runs the command line. distribution names the binary; defaultModules
+// are its modules the server installs at boot when no modules list is
+// declared, unless they were installed before.
+func Main(distribution string, defaultModules ...string) {
+	defaults = defaultModules
 	err := run(distribution, os.Args[1:])
 	if errors.Is(err, errUsage) {
 		fmt.Fprintf(os.Stderr, usage, distribution)
@@ -150,7 +162,7 @@ func legacy(args []string) error {
 	if *initThunderDir != "" || *initGatewayDir != "" || *initFileAuthDir != "" {
 		others := map[string]string{}
 		if *initGatewayDir != "" {
-			others["gateway"] = *initGatewayDir
+			others["ai-gateway"] = *initGatewayDir
 		}
 		return writeConfig(*initThunderDir, *initFileAuthDir, others)
 	}
@@ -169,7 +181,11 @@ func serve(args []string) error {
 	return nil
 }
 
+// defaults are the distribution's default modules.
+var defaults []string
+
 func runApp(opts app.Options) {
+	opts.DefaultModules = defaults
 	// No secret store is bundled yet; secret writes report ErrNotSupported.
 	secretProvider := unsupported.NewProvider()
 	// DB-backed AgentID provisioning: the environment Thunder credential is
@@ -203,33 +219,70 @@ func writeConfig(thunderDir, fileAuthDir string, others map[string]string) error
 	return nil
 }
 
+// moduleArgs are the arguments of a module command: positional ones, and
+// the flags each command takes.
+type moduleArgs struct {
+	pos      []string
+	withDeps bool
+	purge    bool
+	subject  string
+	out      string
+}
+
+func parseModuleArgs(cmd string, args []string) (moduleArgs, error) {
+	var a moduleArgs
+	for i := 0; i < len(args); i++ {
+		name, value, hasValue := strings.Cut(args[i], "=")
+		value = strings.TrimSpace(value)
+		takeValue := func() (string, error) {
+			if hasValue {
+				return value, nil
+			}
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+				return "", errUsage
+			}
+			i++
+			return args[i], nil
+		}
+		var err error
+		switch {
+		case (name == "--with-deps" || name == "-with-deps") && !hasValue && cmd == "install":
+			a.withDeps = true
+		case (name == "--purge" || name == "-purge") && !hasValue && cmd == "uninstall":
+			a.purge = true
+		case name == "--subject" && cmd == "credential":
+			a.subject, err = takeValue()
+		case name == "--out" && cmd == "credential":
+			a.out, err = takeValue()
+		case strings.HasPrefix(args[i], "-"):
+			return a, errUsage
+		default:
+			a.pos = append(a.pos, args[i])
+		}
+		if err != nil {
+			return a, err
+		}
+	}
+	want := map[string][2]int{"list": {0, 0}, "health": {0, 1}, "credential": {2, 2}}
+	n, ok := want[cmd]
+	if !ok {
+		n = [2]int{1, 1}
+	}
+	if len(a.pos) < n[0] || len(a.pos) > n[1] {
+		return a, errUsage
+	}
+	return a, nil
+}
+
 func moduleCmd(args []string) error {
 	if len(args) == 0 {
 		return errUsage
 	}
-	withDeps := false
-	var pos []string
-	for _, a := range args[1:] {
-		switch a {
-		case "--with-deps", "-with-deps":
-			withDeps = true
-		default:
-			if strings.HasPrefix(a, "-") {
-				return errUsage
-			}
-			pos = append(pos, a)
-		}
+	a, err := parseModuleArgs(args[0], args[1:])
+	if err != nil {
+		return err
 	}
-	if withDeps && args[0] != "install" {
-		return errUsage
-	}
-	want := 1
-	if args[0] == "list" {
-		want = 0
-	}
-	if len(pos) != want {
-		return errUsage
-	}
+	pos := a.pos
 
 	// Lifecycle progress is printed below; keep the host's own logs to warnings.
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})))
@@ -247,7 +300,7 @@ func moduleCmd(args []string) error {
 	case "list":
 		return list(os.Stdout, h.List())
 	case "install":
-		steps, err := h.Install(ctx, pos[0], withDeps)
+		steps, err := h.Install(ctx, pos[0], a.withDeps)
 		// A failed catch-up still installs: report the steps, then the error.
 		for _, s := range steps {
 			fmt.Printf("%sed %s\n", strings.TrimSuffix(s.Action, "e"), s.Module)
@@ -258,10 +311,128 @@ func moduleCmd(args []string) error {
 	case "disable":
 		return report(h.Disable(ctx, pos[0]), "disabled", pos[0])
 	case "uninstall":
-		return report(h.Uninstall(ctx, pos[0]), "uninstalled", pos[0])
+		if a.purge {
+			return report(h.Uninstall(ctx, pos[0], true), "uninstalled and purged", pos[0])
+		}
+		return report(h.Uninstall(ctx, pos[0], false), "uninstalled", pos[0])
+	case "credential":
+		return credential(ctx, h, pos[0], pos[1], a)
+	case "health":
+		return health(ctx, os.Stdout, h, pos)
 	default:
 		return errUsage
 	}
+}
+
+// credential mints a workload credential and prints it once, or writes it
+// to --out. An --out file that already holds a credential is kept, so a
+// bootstrap step can run on every start.
+func credential(ctx context.Context, h *modhost.Host, module, workload string, a moduleArgs) error {
+	if a.out != "" {
+		if st, err := os.Stat(a.out); err == nil && st.Size() > 0 {
+			fmt.Fprintf(os.Stderr, "kept the credential already in %s\n", a.out)
+			return nil
+		}
+	}
+	subject := a.subject
+	if subject == "" {
+		subject = workload
+	}
+	recorder := wiring.ProvideAuditRecorder(*config.GetConfig(), slog.Default())
+	defer func() { _ = recorder.Close(context.Background()) }()
+	ctx = audit.WithRecorder(ctx, recorder)
+	ctx, _ = audit.NewRequestScope(ctx)
+	ctx = audit.WithSource(ctx, audit.Source{Surface: audit.SurfaceSystem, ActorType: audit.ActorSystem, ActorID: "cli:amp module credential"})
+	cred, err := h.IssueCredential(ctx, module, workload, subject)
+	if err != nil {
+		return err
+	}
+	if a.out == "" {
+		fmt.Fprintf(os.Stderr, "credential %s for %s/%s (subject %s); it is shown only once:\n", cred.ID, module, workload, subject)
+		fmt.Println(cred.Secret)
+		return nil
+	}
+	if err := writeSecret(a.out, cred.Secret+"\n"); err != nil {
+		if rerr := h.RevokeCredential(ctx, module, cred.ID); rerr != nil {
+			err = errors.Join(err, rerr)
+		}
+		return err
+	}
+	fmt.Fprintf(os.Stderr, "wrote credential %s for %s/%s (subject %s) to %s\n", cred.ID, module, workload, subject, a.out)
+	return nil
+}
+
+// writeSecret writes a file only its owner can read, atomically.
+func writeSecret(path, data string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer func() { _ = os.Remove(tmp.Name()) }()
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if _, err := tmp.WriteString(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
+}
+
+// health prints the health of one module, or of every installed one.
+func health(ctx context.Context, w io.Writer, h *modhost.Host, names []string) error {
+	if len(names) == 0 {
+		for _, m := range h.List() {
+			if m.State != modhost.StateAvailable {
+				names = append(names, m.Name)
+			}
+		}
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	_, _ = fmt.Fprintln(tw, "MODULE\tSTATUS\tWORKLOAD\tINSTANCES\tREASONS")
+	var details []modhost.Health
+	for _, n := range names {
+		hl, err := h.Health(ctx, n)
+		if err != nil {
+			return err
+		}
+		reasons := dash(strings.Join(hl.Reasons, "; "))
+		if len(hl.Workloads) == 0 {
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t-\t-\t%s\n", n, hl.Status, reasons)
+		}
+		for i, wl := range hl.Workloads {
+			var inst []string
+			for _, in := range wl.Instances {
+				inst = append(inst, in.Instance+"@"+in.Subject+" ("+in.Protocol+")")
+			}
+			label := wl.Name
+			if wl.Required {
+				label += " (required)"
+			}
+			if i > 0 {
+				reasons = ""
+			}
+			_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", n, hl.Status, label, dash(strings.Join(inst, ", ")), reasons)
+		}
+		if len(hl.Detail) > 0 {
+			details = append(details, hl)
+		}
+	}
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+	for _, hl := range details {
+		buf, err := json.MarshalIndent(hl.Detail, "", "  ")
+		if err != nil {
+			return err
+		}
+		_, _ = fmt.Fprintf(w, "\n%s reports:\n%s\n", hl.Module, buf)
+	}
+	return nil
 }
 
 func report(err error, done, name string) error {
@@ -275,13 +446,9 @@ func report(err error, done, name string) error {
 func list(w io.Writer, mods []modhost.ModuleInfo) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	// Errors surface from Flush: the tabwriter buffers every line until then.
-	_, _ = fmt.Fprintln(tw, "NAME\tVERSION\tSTATE\tBUILTIN\tPROVIDES\tREQUIRES")
+	_, _ = fmt.Fprintln(tw, "NAME\tVERSION\tSTATE\tPROVIDES\tREQUIRES")
 	for _, m := range mods {
-		builtin := ""
-		if m.Builtin {
-			builtin = "yes"
-		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", m.Name, m.Version, m.State, builtin,
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, m.Version, m.State,
 			dash(strings.Join(m.Provides, ",")), dash(strings.Join(m.Requires, ",")))
 	}
 	return tw.Flush()

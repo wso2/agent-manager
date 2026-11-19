@@ -41,7 +41,7 @@ func TestReconcileMatchesTheDeclaredList(t *testing.T) {
 			steps, err := h.Reconcile(ctx, []modhost.Desired{{Name: "t-consumer", Enabled: true}})
 			require.NoError(t, err)
 			assert.Equal(t, []modhost.Step{{Module: "t-store", Action: "install"}, {Module: "t-consumer", Action: "install"}}, steps)
-			assert.Equal(t, []string{"t-builtin", "t-store", "t-consumer"}, h.Active())
+			assert.Equal(t, []string{"t-store", "t-consumer"}, h.Active())
 
 			// Running it again changes nothing.
 			steps, err = h.Reconcile(ctx, []modhost.Desired{{Name: "t-consumer", Enabled: true}})
@@ -52,12 +52,12 @@ func TestReconcileMatchesTheDeclaredList(t *testing.T) {
 			steps, err = h.Reconcile(ctx, nil)
 			require.NoError(t, err)
 			assert.Equal(t, []modhost.Step{{Module: "t-consumer", Action: "disable"}, {Module: "t-store", Action: "disable"}}, steps)
-			assert.Equal(t, []string{"t-builtin"}, h.Active())
+			assert.Empty(t, h.Active())
 
 			// Listed disabled: the store stays installed but off; enabled again on request.
 			_, err = h.Reconcile(ctx, []modhost.Desired{{Name: "t-store", Enabled: false}})
 			require.NoError(t, err)
-			assert.Equal(t, []string{"t-builtin"}, h.Active())
+			assert.Empty(t, h.Active())
 			steps, err = h.Reconcile(ctx, []modhost.Desired{{Name: "t-store", Enabled: true}})
 			require.NoError(t, err)
 			assert.Equal(t, []modhost.Step{{Module: "t-store", Action: "enable"}}, steps)
@@ -72,7 +72,6 @@ func TestReconcileMatchesTheDeclaredList(t *testing.T) {
 			assert.True(t, modhost.IsResolveError(err), "got %v", err)
 
 			for _, bad := range [][]modhost.Desired{
-				{{Name: "t-builtin", Enabled: false}},
 				{{Name: "nosuch", Enabled: true}},
 			} {
 				_, err := h.Reconcile(ctx, bad)
@@ -146,7 +145,7 @@ func TestReplicasReconcileTogether(t *testing.T) {
 				require.NoError(t, errs[0], "%v", list)
 				require.NoError(t, errs[1], "%v", list)
 			}
-			assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM modules WHERE state = 'active' AND name <> 't-builtin'`))
+			assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM modules WHERE state = 'active' `))
 		})
 	}
 }

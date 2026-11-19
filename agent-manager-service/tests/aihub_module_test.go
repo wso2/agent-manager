@@ -36,7 +36,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
 	"github.com/wso2/agent-manager/agent-manager-service/app"
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
@@ -50,7 +49,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
-const plansPath = "/api/v1/m/aihub/subscription-plans"
+const plansPath = "/m/aihub/subscription-plans"
 
 type plansWorld struct {
 	moduleWorld
@@ -145,21 +144,12 @@ func newPlansWorld(t *testing.T) plansWorld {
 		coreext.Set(nil)
 		rbac.SetCurrent(rbac.NewRegistry())
 	})
-	handler := func(p *wiring.AppParams) http.Handler { return api.MakeHTTPHandlerWithModules(p, nil, nil, host, nil) }
-	// The internal server, with this module's bundle (the plan webhook) only. The module is not installed: tests
-	// install it (installPlans).
-	var parts builtin.Built
-	for _, b := range builtin.Registered() {
-		if b.Name == aihub.Name {
-			p, err := b.Build(ctx, full)
-			require.NoError(t, err)
-			parts = append(parts, p)
-		}
-	}
+	handler := func(p *wiring.AppParams) http.Handler { return api.MakeHTTPHandlerWithModules(p, nil, nil, host) }
+	// The module is not installed: tests install it (installPlans).
 	return plansWorld{
 		moduleWorld: moduleWorld{
 			host: host, full: handler(full), limited: handler(limited), org: org, handle: handle,
-			internal: api.MakeInternalHTTPHandlerWithModules(full, host, parts),
+			internal: api.MakeInternalHTTPHandlerWithModules(full, host),
 		},
 		reader:      handler(reader),
 		other:       handler(other),
@@ -385,8 +375,8 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/legacy", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		var left int64
-		require.NoError(t, db.DB(ctx).Raw(`SELECT COUNT(*) FROM subscription_plan_conditions c `+
-			`WHERE NOT EXISTS (SELECT 1 FROM subscription_plans p WHERE p.id = c.plan_id)`).Scan(&left).Error)
+		require.NoError(t, db.DB(ctx).Raw(`SELECT COUNT(*) FROM mod_aihub_subscription_plan_conditions c `+
+			`WHERE NOT EXISTS (SELECT 1 FROM mod_aihub_subscription_plans p WHERE p.id = c.plan_id)`).Scan(&left).Error)
 		assert.Zero(t, left)
 	})
 }
@@ -402,7 +392,7 @@ func delivery(t *testing.T, org, eventType string, data map[string]any, occurred
 		"secret_hash": aihub.SecretHash(webhookSecret), "encrypted_fields": []string{}, "data": data,
 	})
 	require.NoError(t, err)
-	req := httptest.NewRequest(http.MethodPost, "/api/internal/v1"+aihub.WebhookRoutePath, bytes.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, aihub.WebhookRoutePath, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(aihub.DefaultWebhookSignatureHeader, aihub.Sign(webhookSecret, body, signedAt))
 	return req
@@ -427,7 +417,8 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 	gone := map[string]any{"handle": "never-copied", "display_name": "Never copied"}
 	deactivatePlans(context.Background(), t, w)
 	code, refused := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", gone, now, now))
-	require.Equal(t, http.StatusUnauthorized, code, "a module that isn't active answers no delivery: "+refused)
+	// The host serves a module's fixed internal route only while the module is active.
+	require.Equal(t, http.StatusNotFound, code, "a module that isn't active answers no delivery: "+refused)
 	installPlans(context.Background(), t, w)
 	mcpPlan := map[string]any{
 		"handle": "mcp-gold", "display_name": "MCP Gold", "description": "From the MCP hub",
@@ -528,7 +519,7 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 			return code == http.StatusNotFound
 		})
 		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", gone, time.Now(), time.Now()))
-		assert.Equal(t, http.StatusUnauthorized, code, body)
+		assert.Equal(t, http.StatusNotFound, code, body)
 	})
 }
 

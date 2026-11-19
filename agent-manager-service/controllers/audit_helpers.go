@@ -20,8 +20,8 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 )
 
 // BeginAuditOrFail starts a fail-closed audit attempt and, when the trail
@@ -46,7 +46,7 @@ func BeginAuditOrFail(
 	if err != nil {
 		logger.GetLogger(ctx).Error(operation+": refusing, audit record could not be written",
 			"action", string(action), "error", err)
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, failureMessage)
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, failureMessage)
 		return nil, false
 	}
 	return attempt, true

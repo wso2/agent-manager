@@ -1,0 +1,157 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwctl
+
+import (
+	"bytes"
+	"context"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/audit"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
+)
+
+func selfHostedRequest(method, body, gatewayID string) *http.Request {
+	req := httptest.NewRequest(method, "/orgs/acme/self-hosted-gateways/"+gatewayID, strings.NewReader(body))
+	req.SetPathValue("gatewayID", gatewayID)
+	return req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))
+}
+
+func TestUpdateSelfHostedGateway_ChangesOnlyEditableFields(t *testing.T) {
+	gateway := &gwmodels.Gateway{
+		UUID: uuid.New(), OUID: "ou-1", Name: "dev-edge", DisplayName: "Edge", Vhost: "https://edge.example.com",
+		Hosting: gwmodels.GatewayHostingSelfHosted, GatewayFunctionalityType: gwmodels.GatewayRoleEgress,
+	}
+	var saved *gwmodels.Gateway
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return gateway, nil },
+		UpdateGatewayFunc: func(gw *gwmodels.Gateway) error {
+			saved = gw
+			return nil
+		},
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) {
+			return []gwmodels.GatewayEnvironmentMapping{}, nil
+		},
+	}
+	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo), nil, nil)
+	body := `{"displayName":"Edge 2","description":"rack 4","isCritical":true,"properties":{"site":"berlin"}}`
+	w := httptest.NewRecorder()
+
+	ctrl.UpdateSelfHostedGateway(w, selfHostedRequest(http.MethodPut, body, gateway.UUID.String()))
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.NotNil(t, saved)
+	assert.Equal(t, "Edge 2", saved.DisplayName)
+	assert.Equal(t, "rack 4", saved.Description)
+	assert.True(t, saved.IsCritical)
+	assert.Equal(t, map[string]interface{}{"site": "berlin"}, saved.Properties)
+	assert.Equal(t, "dev-edge", saved.Name)
+	assert.Equal(t, "https://edge.example.com", saved.Vhost)
+	assert.Equal(t, gwmodels.GatewayHostingSelfHosted, saved.Hosting)
+}
+
+func TestSelfHostedGatewayRoutes_ANameIsNotFound(t *testing.T) {
+	gateway := &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", Name: "dev-edge", Hosting: gwmodels.GatewayHostingSelfHosted}
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByNameAndOrgIDFunc:     func(string, string) (*gwmodels.Gateway, error) { return gateway, nil },
+		GetByUUIDFunc:             func(string) (*gwmodels.Gateway, error) { return gateway, nil },
+		HasGatewayDeploymentsFunc: func(string, string) (bool, error) { return false, nil },
+		DeleteFunc:                func(string, string) error { return nil },
+	}
+	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo), nil, nil)
+	req := selfHostedRequest(http.MethodDelete, "", "dev-edge")
+	req = req.WithContext(audit.WithRecorder(req.Context(), audit.NewNoopRecorder()))
+	w := httptest.NewRecorder()
+
+	ctrl.DeleteSelfHostedGateway(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code, w.Body.String())
+	assert.Empty(t, repo.GetByNameAndOrgIDCalls())
+	assert.Empty(t, repo.DeleteCalls())
+}
+
+func TestSelfHostedGatewayRoutes_ManagedGatewayIsNotFound(t *testing.T) {
+	managed := &gwmodels.Gateway{UUID: uuid.New(), OUID: "ou-1", Name: "dev-managed", Hosting: gwmodels.GatewayHostingManaged}
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*gwmodels.Gateway, error) { return managed, nil },
+	}
+	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo), nil, nil)
+	w := httptest.NewRecorder()
+	var logs bytes.Buffer
+	req := selfHostedRequest(http.MethodGet, "", managed.UUID.String())
+	req = req.WithContext(logger.WithLogger(req.Context(), slog.New(slog.NewTextHandler(&logs, nil))))
+
+	ctrl.GetSelfHostedGateway(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.NotContains(t, w.Body.String(), managed.Name)
+	assert.Contains(t, logs.String(), "level=WARN", "an expected 404 is not an error")
+	assert.NotContains(t, logs.String(), "level=ERROR")
+}
+
+// The create event records what was registered: the normalised kind and the stored (trimmed) vhost, not the
+// request's spelling of them.
+func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T) {
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByNameAndOrgIDFunc:                 func(string, string) (*gwmodels.Gateway, error) { return nil, gwerr.ErrGatewayNotFound },
+		TransactionFunc:                       func(fn func(tx *gorm.DB) error) error { return fn(nil) },
+		CreateTxFunc:                          func(*gorm.DB, *gwmodels.Gateway) error { return nil },
+		AcquireGatewayLockFunc:                func(*gorm.DB, string) error { return nil },
+		EnvironmentMappingExistsFunc:          func(string, string) (bool, error) { return false, nil },
+		AcquireEnvironmentLockFunc:            func(*gorm.DB, string) error { return nil },
+		CountIngressCapableInEnvironmentFunc:  func(*gorm.DB, string) (int64, error) { return 0, nil },
+		CreateEnvironmentMappingTxFunc:        func(*gorm.DB, *gwmodels.GatewayEnvironmentMapping) error { return nil },
+		GetEnvironmentMappingsByGatewayIDFunc: func(string) ([]gwmodels.GatewayEnvironmentMapping, error) { return nil, nil },
+	}
+	envs := &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: uuid.NewString(), Name: "dev"}}, nil
+		},
+	}
+	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo), envs, nil)
+	body := `{"displayName":"Edge","handle":"edge","environment":"dev","functionalityType":"AI","endpoints":["  https://edge.example.com "]}`
+	req := httptest.NewRequest(http.MethodPost, "/orgs/acme/self-hosted-gateways", strings.NewReader(body))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))
+	ctx, _ := audit.NewRequestScope(req.Context())
+	req = req.WithContext(ctx)
+	w := httptest.NewRecorder()
+
+	ctrl.RegisterSelfHostedGateway(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	event := audit.BuildEvent(ctx, "ai-gateway:gateways.create")
+	assert.Equal(t, "ai", event.Details["gatewayType"])
+	assert.Equal(t, "https://edge.example.com", event.Details["vhost"])
+}

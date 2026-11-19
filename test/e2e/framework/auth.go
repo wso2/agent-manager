@@ -38,29 +38,32 @@ type tokenResponse struct {
 // token that are EXPLICITLY requested (it returns requested ∩ allowed), so
 // omitting these yields an unscoped token and every guarded route returns 403. Scopes are amp:-prefixed to match what Thunder
 // (v0.44+) issues and what RBAC checks — i.e. Permission.Scope() in
-// agent-manager-service/rbac/permissions.go; the IDP grants only the ones the
+// agent-manager-service/rbac/permissions.go and the AI Gateway module's
+// modules/aigateway/gwperm; the IDP grants only the ones the
 // client app is actually allowed, so requesting the superset is safe.
-const ampScopes = "amp:agent-identity:create amp:agent-identity:delete amp:agent-identity:read amp:agent-identity:update " +
-	"amp:agent-kind:create amp:agent-kind:delete amp:agent-kind:read amp:agent-kind:update " +
-	"amp:agent:api-key-manage amp:agent:build amp:agent:create amp:agent:delete " +
-	"amp:agent:env-non-production amp:agent:env-production amp:agent:read amp:agent:rollback amp:agent:suspend " +
-	"amp:agent:token-manage amp:agent:update amp:catalog:read amp:data-plane:read " +
-	"amp:deployment-pipeline:create amp:deployment-pipeline:delete amp:deployment-pipeline:read amp:deployment-pipeline:update " +
+const ampScopes = "amp:agent:build amp:agent:create amp:agent:delete amp:agent:read amp:agent:suspend " +
+	"amp:agent:token-manage amp:agent:update " +
 	"amp:environment:create amp:environment:delete amp:environment:read amp:environment:update " +
-	"amp:gateway:create amp:gateway:delete amp:gateway:read amp:gateway:token-manage amp:gateway:update " +
-	"amp:git-secret:create amp:git-secret:delete amp:git-secret:read " +
 	"amp:group:create amp:group:delete amp:group:read amp:group:update " +
-	"amp:llm-provider-template:create amp:llm-provider-template:delete amp:llm-provider-template:read amp:llm-provider-template:update " +
-	"amp:llm-provider:api-key-manage amp:llm-provider:configure-guardrail amp:llm-provider:connect amp:llm-provider:create " +
-	"amp:llm-provider:delete amp:llm-provider:deploy amp:llm-provider:read amp:llm-provider:update " +
-	"amp:llm-proxy:api-key-manage amp:llm-proxy:create amp:llm-proxy:delete amp:llm-proxy:deploy amp:llm-proxy:read amp:llm-proxy:update " +
-	"amp:mcp-server:api-key-manage amp:mcp-server:configure-guardrail amp:mcp-server:connect amp:mcp-server:create amp:mcp-server:delete amp:mcp-server:read amp:mcp-server:update " +
 	"amp:events:read amp:events:manage " +
 	"amp:org:assign-role amp:org:invite-member amp:org:manage-idp amp:org:manage-service-account amp:org:modify-settings amp:org:remove-member amp:org:view " +
-	"amp:project:create amp:project:delete amp:project:read amp:project:update amp:repository:read " +
+	"amp:project:create amp:project:delete amp:project:read amp:project:update " +
 	"amp:role:create amp:role:delete amp:role:read amp:role:update " +
-	"amp:scope:create amp:scope:delete amp:scope:read amp:scope:update " +
-	"amp:profile:read amp:profile:update-attributes"
+	"amp:profile:read amp:profile:update-attributes " +
+	// The AI Gateway module's permissions.
+	"amp:ai-gateway:gateways.create amp:ai-gateway:gateways.read amp:ai-gateway:gateways.update amp:ai-gateway:gateways.delete amp:ai-gateway:gateways.token-manage " +
+	"amp:ai-gateway:llm-providers.create amp:ai-gateway:llm-providers.read amp:ai-gateway:llm-providers.update amp:ai-gateway:llm-providers.delete " +
+	"amp:ai-gateway:llm-providers.configure-guardrail amp:ai-gateway:llm-providers.connect amp:ai-gateway:llm-providers.deploy amp:ai-gateway:llm-providers.api-key-manage " +
+	"amp:ai-gateway:llm-provider-templates.create amp:ai-gateway:llm-provider-templates.read amp:ai-gateway:llm-provider-templates.update amp:ai-gateway:llm-provider-templates.delete " +
+	"amp:ai-gateway:llm-proxies.create amp:ai-gateway:llm-proxies.read amp:ai-gateway:llm-proxies.update amp:ai-gateway:llm-proxies.delete " +
+	"amp:ai-gateway:llm-proxies.deploy amp:ai-gateway:llm-proxies.api-key-manage " +
+	"amp:ai-gateway:mcp-servers.create amp:ai-gateway:mcp-servers.read amp:ai-gateway:mcp-servers.update amp:ai-gateway:mcp-servers.delete " +
+	"amp:ai-gateway:mcp-servers.configure-guardrail amp:ai-gateway:mcp-servers.connect amp:ai-gateway:mcp-servers.api-key-manage " +
+	"amp:ai-gateway:scopes.create amp:ai-gateway:scopes.read amp:ai-gateway:scopes.update amp:ai-gateway:scopes.delete " +
+	"amp:ai-gateway:catalog.read " +
+	"amp:ai-gateway:agent-identities.create amp:ai-gateway:agent-identities.read amp:ai-gateway:agent-identities.update amp:ai-gateway:agent-identities.delete " +
+	"amp:ai-gateway:agent-api-keys.manage amp:ai-gateway:deploy.non-production amp:ai-gateway:deploy.production " +
+	"amp:aihub:plan-read amp:aihub:plan-create amp:aihub:plan-update amp:aihub:plan-delete"
 
 // FetchToken obtains an OAuth2 access token from the Thunder IDP using the
 // client_credentials grant type, carrying the full ampScopes superset. It

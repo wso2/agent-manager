@@ -25,7 +25,8 @@
     "@agent-management-platform/level-resource-listing": "workspace:*",
     "@agent-management-platform/add-new-project": "workspace:*",
     "@agent-management-platform/add-new-agent": "workspace:*",
-    "@agent-management-platform/settings": "workspace:*"
+    "@agent-management-platform/settings": "workspace:*",
+    "@agent-management-platform/external-agent": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.6.0",

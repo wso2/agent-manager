@@ -137,19 +137,19 @@ func newModuleWorld(t *testing.T) moduleWorld {
 		rbac.SetCurrent(rbac.NewRegistry())
 		// Leave the shared database as the core binary expects it.
 		for _, m := range []string{testmod.ConsumerName, testmod.Name} {
-			_ = host.Uninstall(context.Background(), m)
+			_ = host.Uninstall(context.Background(), m, false)
 		}
 	})
 	return moduleWorld{
 		host:     host,
-		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host, nil),
-		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host, nil),
-		internal: api.MakeInternalHTTPHandlerWithModules(full, host, nil),
+		full:     api.MakeHTTPHandlerWithModules(full, nil, nil, host),
+		limited:  api.MakeHTTPHandlerWithModules(limited, nil, nil, host),
+		internal: api.MakeInternalHTTPHandlerWithModules(full, host),
 		signer:   full.AgentTokenManagerService.(services.WorkloadTokenSigner),
 		freshOrg: func() (http.Handler, string) {
 			id := uuid.Must(uuid.NewV7()).String()
 			h := "mod-" + id[len(id)-8:]
-			return api.MakeHTTPHandlerWithModules(params(moduleAuth(id, h)), nil, nil, host, nil), h
+			return api.MakeHTTPHandlerWithModules(params(moduleAuth(id, h)), nil, nil, host), h
 		},
 		org:    org,
 		handle: handle,
@@ -187,7 +187,7 @@ func TestModuleContract(t *testing.T) {
 	}
 
 	t.Run("routes of an uninstalled module are not found", func(t *testing.T) {
-		code, _ := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		code, _ := w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 	})
 
@@ -208,7 +208,7 @@ func TestModuleContract(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("routes need sign-in and the module's permission", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		code, body := w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		var who map[string]any
 		require.NoError(t, json.Unmarshal(body, &who))
@@ -219,14 +219,35 @@ func TestModuleContract(t *testing.T) {
 		assert.Equal(t, []any{project}, who["projects"])
 		assert.Equal(t, true, who["foreignNotFound"])
 
-		code, body = w.call(t, w.limited, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		code, body = w.call(t, w.limited, http.MethodGet, "/m/testmod/whoami", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		require.NoError(t, json.Unmarshal(body, &who))
 		assert.Equal(t, false, who["canWrite"])
 
-		code, _ = w.call(t, w.limited, http.MethodGet, "/api/v1/m/testmod/tags", nil)
+		code, _ = w.call(t, w.limited, http.MethodGet, "/m/testmod/tags", nil)
 		assert.Equal(t, http.StatusForbidden, code)
-		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/nosuch", nil)
+		// A route can need several permissions, any of several, or the
+		// platform-admin organization.
+		for _, c := range []struct {
+			method, path  string
+			full, limited int
+		}{
+			{http.MethodPost, "/m/testmod/widgets/w1/stamp", http.StatusOK, http.StatusForbidden},
+			{http.MethodGet, "/m/testmod/either", http.StatusOK, http.StatusForbidden},
+			{http.MethodGet, "/m/testmod/platform/widgets", http.StatusForbidden, http.StatusForbidden},
+		} {
+			code, body = w.call(t, w.full, c.method, c.path, nil)
+			assert.Equal(t, c.full, code, "%s %s: %s", c.method, c.path, body)
+			code, _ = w.call(t, w.limited, c.method, c.path, nil)
+			assert.Equal(t, c.limited, code, "%s %s without the module's permissions", c.method, c.path)
+		}
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/nosuch", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+		// Module APIs live at the root, with no alias under the core's prefix,
+		// and workload routes only on the internal server.
+		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/internal/ping", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 	})
 
@@ -244,9 +265,111 @@ func TestModuleContract(t *testing.T) {
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("tagged",
 			map[string]any{"testmod": map[string]any{"tag": "blue", "announce": true}}))
 		require.Equal(t, http.StatusAccepted, code, string(body))
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/tags", nil)
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/tags", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.JSONEq(t, `[{"agent":"tagged","tag":"blue"}]`, string(body))
+	})
+
+	t.Run("the core looks resources up by name and can lock an agent from a hook", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, agentsPath, agentBody("locked",
+			map[string]any{"testmod": map[string]any{"tag": "green", "lock": true}}))
+		require.Equal(t, http.StatusAccepted, code, string(body))
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/lookup?project="+project+"&agent=locked&environment=default", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var ids map[string]string
+		require.NoError(t, json.Unmarshal(body, &ids))
+		for _, k := range []string{"project", "agent", "environment"} {
+			_, err := uuid.Parse(ids[k])
+			assert.NoError(t, err, "%s looked up by name", k)
+		}
+		// (Lite has one environment: a route's environment parameter always
+		// names it, so only the project and agent can miss.)
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/lookup?project=nosuch&agent=locked", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.NotContains(t, string(body), `"project"`)
+		assert.NotContains(t, string(body), `"agent"`)
+		code, body = w.call(t, w.full, http.MethodDelete, agentsPath+"/locked", nil)
+		require.Equal(t, http.StatusNoContent, code, string(body))
+	})
+
+	t.Run("a module can create the caller's organization", func(t *testing.T) {
+		h, _ := w.freshOrg()
+		code, body := w.call(t, h, http.MethodPost, "/m/testmod/org", nil)
+		// The fresh org's token has no testmod permission.
+		require.Equal(t, http.StatusForbidden, code, string(body))
+		code, body = w.call(t, w.full, http.MethodPost, "/m/testmod/org", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var org map[string]string
+		require.NoError(t, json.Unmarshal(body, &org))
+		assert.Equal(t, w.org, org["id"])
+		assert.Equal(t, w.handle, org["handle"])
+	})
+
+	t.Run("secrets stay within the module and the organization", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPut, "/m/testmod/secrets/n1", map[string]string{"value": "v1"})
+		require.Equal(t, http.StatusNoContent, code, string(body))
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/secrets/n1", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.JSONEq(t, `{"value":"v1"}`, string(body))
+		code, _ = w.call(t, w.full, http.MethodPut, "/m/testmod/secrets/n1", map[string]string{"value": "v", "org": uuid.NewString()})
+		assert.Equal(t, http.StatusNotFound, code, "a module cannot write another organization's secret from a request")
+		code, _ = w.call(t, w.full, http.MethodPut, "/m/testmod/secrets/..", map[string]string{"value": "v"})
+		assert.NotEqual(t, http.StatusNoContent, code)
+		code, _ = w.call(t, w.full, http.MethodDelete, "/m/testmod/secrets/n1", nil)
+		require.Equal(t, http.StatusNoContent, code)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/secrets/n1", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+	})
+
+	t.Run("a project finalize hook can refuse a project delete", func(t *testing.T) {
+		projects := "/api/v1/orgs/" + w.handle + "/projects"
+		code, body := w.call(t, w.full, http.MethodPost, projects, map[string]any{"name": "pinned", "displayName": "Pinned"})
+		require.Equal(t, http.StatusAccepted, code, string(body))
+		code, body = w.call(t, w.full, http.MethodPost, "/m/testmod/projects/pinned/pin", nil)
+		require.Equal(t, http.StatusNoContent, code, string(body))
+		code, body = w.call(t, w.full, http.MethodDelete, projects+"/pinned", nil)
+		assert.Equal(t, http.StatusConflict, code, string(body))
+		assert.Contains(t, string(body), "pinned by testmod")
+		code, _ = w.call(t, w.full, http.MethodGet, projects+"/pinned", nil)
+		assert.Equal(t, http.StatusOK, code, "the refused delete keeps the project")
+		// The hook's own cleanup was rolled back with the delete: the pin is
+		// still there and still refuses.
+		code, _ = w.call(t, w.full, http.MethodDelete, projects+"/pinned", nil)
+		assert.Equal(t, http.StatusConflict, code)
+
+		code, _ = w.call(t, w.full, http.MethodDelete, "/m/testmod/projects/pinned/pin", nil)
+		require.Equal(t, http.StatusNoContent, code)
+		code, body = w.call(t, w.full, http.MethodDelete, projects+"/pinned", nil)
+		assert.Less(t, code, 300, string(body))
+		code, _ = w.call(t, w.full, http.MethodGet, projects+"/pinned", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+	})
+
+	t.Run("route options name the audit action and the webhook event", func(t *testing.T) {
+		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/widgets/w1/archive", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.Contains(t, string(body), testmod.WidgetArchived, "a module's webhook event is in the catalog while it is active")
+		assert.NotContains(t, string(body), testmod.WidgetCreated, "an event without a scope is not")
+	})
+
+	t.Run("workers, MCP tools and fixed internal routes run while the module is active", func(t *testing.T) {
+		eventually(t, "the worker", func() bool { return testmod.WorkerRunning.Load() == 1 })
+		var tools []string
+		for _, tool := range w.host.MCPTools() {
+			tools = append(tools, tool.Tool.Name)
+		}
+		assert.Contains(t, tools, testmod.Tool)
+
+		code, _ := w.call(t, w.internal, http.MethodGet, testmod.LegacyPath, nil)
+		assert.Equal(t, http.StatusUnauthorized, code, "the route checks its own credential")
+		code, body := w.call(t, w.internal, http.MethodGet, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
+		require.Equal(t, http.StatusOK, code, string(body))
+		code, body = w.call(t, w.internal, http.MethodPost, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
+		require.Equal(t, http.StatusOK, code, string(body))
+		code, _ = w.call(t, w.full, http.MethodGet, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
+		assert.Equal(t, http.StatusNotFound, code, "only on the internal server")
 	})
 
 	t.Run("a module refuses a delete before anything is torn down", func(t *testing.T) {
@@ -257,7 +380,7 @@ func TestModuleContract(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, code, string(body))
 		code, _ = w.call(t, w.full, http.MethodGet, agentsPath+"/tagged", nil)
 		assert.Equal(t, http.StatusOK, code, "a refused delete keeps the agent")
-		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/tags", nil)
+		code, body = w.call(t, w.full, http.MethodGet, "/m/testmod/tags", nil)
 		require.Equal(t, http.StatusOK, code)
 		assert.JSONEq(t, `[{"agent":"tagged","tag":"undeletable"}]`, string(body), "and everything it owns")
 	})
@@ -314,7 +437,7 @@ func TestModuleContract(t *testing.T) {
 
 	t.Run("events reach every subscriber after commit, with retries", func(t *testing.T) {
 		for _, name := range []string{"w1", "flaky"} {
-			code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/widgets", map[string]any{"name": name})
+			code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/widgets", map[string]any{"name": name})
 			require.Equal(t, http.StatusCreated, code, string(body))
 		}
 		want := map[string]bool{
@@ -324,7 +447,7 @@ func TestModuleContract(t *testing.T) {
 			testmod.WidgetCreated + "/flaky": false,
 		}
 		eventually(t, "module events", func() bool {
-			code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/received", nil)
+			code, body := w.call(t, w.full, http.MethodGet, "/m/testmod/received", nil)
 			if code != http.StatusOK {
 				return false
 			}
@@ -374,30 +497,30 @@ func TestModuleContract(t *testing.T) {
 	}
 
 	t.Run("a capability resolves through the provider", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodGet, "/api/v1/m/testcap/echo?s=hi", nil)
+		code, body := w.call(t, w.full, http.MethodGet, "/m/testcap/echo?s=hi", nil)
 		require.Equal(t, http.StatusOK, code, string(body))
 		assert.JSONEq(t, `{"echo":"echo:hi"}`, string(body))
 	})
 
 	t.Run("workload tokens open the module's internal routes", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/workloads", nil)
+		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/workloads", nil)
 		require.Equal(t, http.StatusCreated, code, string(body))
 		var issued struct{ Token, CredentialID, Secret string }
 		require.NoError(t, json.Unmarshal(body, &issued))
 		ping := func(token string) (int, []byte) {
 			if token == "" {
-				return w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil)
+				return w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil)
 			}
-			return w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer "+token)
+			return w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil, "Authorization", "Bearer "+token)
 		}
-		exchange := func(id, secret string) (int, []byte) {
-			return w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
-				map[string]string{"credentialId": id, "secret": secret})
+		heartbeat := func(credential, protocol string) (int, []byte) {
+			return w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workloads/heartbeat",
+				map[string]string{"credential": credential, "protocol": protocol, "instance": "pinger-0", "version": "test"})
 		}
 
 		code, body = ping(issued.Token)
 		require.Equal(t, http.StatusOK, code, string(body))
-		assert.JSONEq(t, fmt.Sprintf(`{"subject":"run:direct","orgId":%q}`, w.org), string(body))
+		assert.JSONEq(t, fmt.Sprintf(`{"subject":"run:direct","orgId":%q,"workload":"","instance":""}`, w.org), string(body))
 
 		code, _ = ping("")
 		assert.Equal(t, http.StatusUnauthorized, code)
@@ -426,44 +549,72 @@ func TestModuleContract(t *testing.T) {
 		code, _ = ping(agentToken.Token)
 		assert.Equal(t, http.StatusUnauthorized, code, "an agent token")
 
-		code, _ = exchange(issued.CredentialID, "wrong")
+		code, body = heartbeat(issued.CredentialID+".wrong", testmod.PingerProtocol)
 		assert.Equal(t, http.StatusUnauthorized, code)
-		code, body = exchange(issued.CredentialID, issued.Secret)
+		assert.Contains(t, string(body), `"error":"invalid_credential"`)
+		code, body = heartbeat(issued.Secret, "testmod-ping/v0")
+		assert.Equal(t, http.StatusConflict, code, "a protocol the module does not accept")
+		assert.Contains(t, string(body), `"error":"unsupported_protocol"`)
+		code, body = heartbeat(issued.Secret, testmod.OldPingerProtocol)
 		require.Equal(t, http.StatusOK, code, string(body))
-		var exchanged modhost.TokenExchangeResponse
-		require.NoError(t, json.Unmarshal(body, &exchanged))
-		code, body = ping(exchanged.Token)
+		var hb modhost.HeartbeatResponse
+		require.NoError(t, json.Unmarshal(body, &hb))
+		assert.Equal(t, testmod.Name, hb.Module)
+		assert.Equal(t, testmod.Pinger, hb.Workload)
+		assert.Equal(t, map[string]string{
+			"rest":   "http://example.com/m/testmod/internal",
+			"events": "ws://example.com/m/testmod/internal/events",
+		}, hb.Endpoints)
+		code, body = ping(hb.Token)
 		require.Equal(t, http.StatusOK, code, string(body))
-		assert.Contains(t, string(body), "run:exchanged")
+		assert.JSONEq(t, `{"subject":"pinger:issued","orgId":"`+w.org+`","workload":"pinger","instance":"pinger-0"}`, string(body))
 
-		code, body = w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/workloads/revoke", map[string]string{"credentialId": issued.CredentialID})
+		hl, err := w.host.Health(ctx, testmod.Name)
+		require.NoError(t, err)
+		assert.Equal(t, modhost.HealthOK, hl.Status, hl.Reasons)
+		assert.Equal(t, map[string]any{"pings": "counted elsewhere"}, hl.Detail)
+
+		code, body = w.call(t, w.full, http.MethodPost, "/m/testmod/workloads/revoke", map[string]string{"credentialId": issued.CredentialID})
 		require.Equal(t, http.StatusNoContent, code, string(body))
-		code, _ = exchange(issued.CredentialID, issued.Secret)
+		code, body = heartbeat(issued.Secret, testmod.PingerProtocol)
 		assert.Equal(t, http.StatusUnauthorized, code, "a revoked credential")
+		assert.Contains(t, string(body), `"error":"invalid_credential"`)
+		hl, err = w.host.Health(ctx, testmod.Name)
+		require.NoError(t, err)
+		assert.Equal(t, modhost.HealthDegraded, hl.Status, "the required pinger is gone")
 
-		assertIssuerSeparation(t, w, exchanged.Token)
+		assertIssuerSeparation(t, w, hb.Token)
 	})
 
 	t.Run("disabling a module removes its routes at once", func(t *testing.T) {
-		code, body := w.call(t, w.full, http.MethodPost, "/api/v1/m/testmod/workloads", nil)
+		code, body := w.call(t, w.full, http.MethodPost, "/m/testmod/workloads", nil)
 		require.Equal(t, http.StatusCreated, code, string(body))
 		var issued struct{ Token, CredentialID, Secret string }
 		require.NoError(t, json.Unmarshal(body, &issued))
 
 		require.NoError(t, w.host.Disable(ctx, testmod.ConsumerName))
-		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testcap/echo?s=hi", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testcap/echo?s=hi", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		require.NoError(t, w.host.Disable(ctx, testmod.Name))
-		code, _ = w.call(t, w.full, http.MethodGet, "/api/v1/m/testmod/whoami", nil)
+		code, _ = w.call(t, w.full, http.MethodGet, "/m/testmod/whoami", nil)
 		assert.Equal(t, http.StatusNotFound, code)
 		code, body = w.call(t, w.full, http.MethodPost, agentsPath, agentBody("late", map[string]any{"testmod": map[string]any{"tag": "x"}}))
 		assert.Equal(t, http.StatusBadRequest, code, string(body))
 
-		code, _ = w.call(t, w.internal, http.MethodGet, "/api/internal/v1/m/testmod/ping", nil, "Authorization", "Bearer "+issued.Token)
-		assert.Equal(t, http.StatusNotFound, code)
-		code, _ = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workload-tokens",
-			map[string]string{"credentialId": issued.CredentialID, "secret": issued.Secret})
+		code, body = w.call(t, w.internal, http.MethodGet, "/m/testmod/internal/ping", nil, "Authorization", "Bearer "+issued.Token)
+		assert.Equal(t, http.StatusUnauthorized, code, "workloads of an inactive module stand by")
+		assert.Contains(t, string(body), `"error":"module_inactive"`)
+		code, _ = w.call(t, w.internal, http.MethodGet, testmod.LegacyPath, nil, "api-key", testmod.LegacyKey)
+		assert.Equal(t, http.StatusNotFound, code, "a disabled module's fixed internal routes are gone")
+		assert.Zero(t, testmod.WorkerRunning.Load(), "and its workers stopped")
+		assert.Empty(t, w.host.MCPTools(), "and its MCP tools")
+		code, body = w.call(t, w.full, http.MethodGet, "/api/v1/orgs/"+w.handle+"/events/event-types", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		assert.NotContains(t, string(body), testmod.WidgetArchived, "and its webhook events")
+		code, body = w.call(t, w.internal, http.MethodPost, "/api/internal/v1/workloads/heartbeat",
+			map[string]string{"credential": issued.Secret, "protocol": testmod.PingerProtocol})
 		assert.Equal(t, http.StatusUnauthorized, code, "a credential of an inactive module")
+		assert.Contains(t, string(body), `"error":"module_inactive"`)
 	})
 }
 

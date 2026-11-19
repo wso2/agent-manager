@@ -27,8 +27,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
@@ -95,7 +96,7 @@ func (c *eventsController) ListEventTypes(w http.ResponseWriter, r *http.Request
 			Type: t.Name, Scope: string(t.Scope), Category: t.Category, Description: t.Description,
 		})
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *eventsController) ListDestinationKinds(w http.ResponseWriter, _ *http.Request) {
@@ -115,7 +116,7 @@ func (c *eventsController) ListDestinationKinds(w http.ResponseWriter, _ *http.R
 		}
 		resp.Kinds = append(resp.Kinds, kind)
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 // canManageDestinations reports whether the caller may change destinations,
@@ -136,7 +137,7 @@ func (c *eventsController) ListDestinations(w http.ResponseWriter, r *http.Reque
 	for i := range list {
 		resp.Destinations = append(resp.Destinations, c.toDestinationResponse(&list[i], stats[list[i].ID], full))
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *eventsController) CreateDestination(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +154,7 @@ func (c *eventsController) CreateDestination(w http.ResponseWriter, r *http.Requ
 	if secret != "" {
 		resp.Secret = &secret
 	}
-	utils.WriteSuccessResponse(w, http.StatusCreated, resp)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, resp)
 }
 
 // destinationID parses the destination path parameter, answering 404 when
@@ -161,7 +162,7 @@ func (c *eventsController) CreateDestination(w http.ResponseWriter, r *http.Requ
 func destinationID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	id, err := uuid.Parse(r.PathValue(PathParamEventDestinationID))
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Event destination not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Event destination not found")
 		return uuid.Nil, false
 	}
 	return id, true
@@ -193,7 +194,7 @@ func (c *eventsController) GetDestination(w http.ResponseWriter, r *http.Request
 	for i := range using {
 		resp.Subscriptions = append(resp.Subscriptions, toSubscriptionRef(&using[i]))
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *eventsController) UpdateDestination(w http.ResponseWriter, r *http.Request) {
@@ -216,7 +217,7 @@ func (c *eventsController) UpdateDestination(w http.ResponseWriter, r *http.Requ
 		writeEventsError(w, r, err, "Failed to update event destination")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, c.toDestinationResponse(d, stats, true))
+	httpx.WriteSuccessResponse(w, http.StatusOK, c.toDestinationResponse(d, stats, true))
 }
 
 func (c *eventsController) DeleteDestination(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +242,7 @@ func (c *eventsController) RotateDestinationSecret(w http.ResponseWriter, r *htt
 		writeEventsError(w, r, err, "Failed to rotate event destination secret")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, spec.EventDestinationSecretResponse{Secret: secret})
+	httpx.WriteSuccessResponse(w, http.StatusOK, spec.EventDestinationSecretResponse{Secret: secret})
 }
 
 func (c *eventsController) TestDestination(w http.ResponseWriter, r *http.Request) {
@@ -262,7 +263,7 @@ func (c *eventsController) TestDestination(w http.ResponseWriter, r *http.Reques
 	if result.Error != "" {
 		resp.Error = &result.Error
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, resp)
+	httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 }
 
 func (c *eventsController) ForScope(scope string) EventScopeHandlers {
@@ -280,7 +281,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 		return func(w http.ResponseWriter, r *http.Request) {
 			id, err := uuid.Parse(r.PathValue(PathParamEventSubscriptionID))
 			if err != nil {
-				utils.WriteErrorResponse(w, http.StatusNotFound, "Event subscription not found")
+				httpx.WriteErrorResponse(w, http.StatusNotFound, "Event subscription not found")
 				return
 			}
 			fn(w, r, target(r), id)
@@ -307,7 +308,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 		if detail.Destination != nil {
 			stats[detail.Destination.ID] = detail.DestinationStats
 		}
-		utils.WriteSuccessResponse(w, status, c.toSubscriptionResponse(sub, detail.Destination, stats, detail.Counts))
+		httpx.WriteSuccessResponse(w, status, c.toSubscriptionResponse(sub, detail.Destination, stats, detail.Counts))
 	}
 
 	h := EventScopeHandlers{
@@ -333,7 +334,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 					s, list.Destinations[s.DestinationID], list.DestinationStats, list.Counts[s.ID],
 				))
 			}
-			utils.WriteSuccessResponse(w, http.StatusOK, resp)
+			httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 		},
 		CreateSubscription: func(w http.ResponseWriter, r *http.Request) {
 			in, ok := decodeSubscriptionRequest(w, r)
@@ -392,7 +393,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 			for i := range log.Deliveries {
 				resp.Deliveries = append(resp.Deliveries, c.toDeliveryResponse(&log.Deliveries[i], log))
 			}
-			utils.WriteSuccessResponse(w, http.StatusOK, resp)
+			httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 		},
 	}
 	if scope != models.EventScopeOrg {
@@ -409,7 +410,7 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 			for i := range list {
 				resp.Destinations = append(resp.Destinations, c.toDestinationSummary(&list[i], stats[list[i].ID]))
 			}
-			utils.WriteSuccessResponse(w, http.StatusOK, resp)
+			httpx.WriteSuccessResponse(w, http.StatusOK, resp)
 		}
 	}
 	return h
@@ -418,12 +419,12 @@ func (c *eventsController) ForScope(scope string) EventScopeHandlers {
 func decodeDestinationRequest(w http.ResponseWriter, r *http.Request) (services.EventDestinationInput, bool) {
 	var req spec.EventDestinationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return services.EventDestinationInput{}, false
 	}
 	cfg, err := json.Marshal(req.Config)
 	if err != nil || req.Config == nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "config must be an object")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "config must be an object")
 		return services.EventDestinationInput{}, false
 	}
 	in := services.EventDestinationInput{
@@ -445,12 +446,12 @@ func decodeDestinationRequest(w http.ResponseWriter, r *http.Request) (services.
 func decodeSubscriptionRequest(w http.ResponseWriter, r *http.Request) (services.EventSubscriptionInput, bool) {
 	var req spec.EventSubscriptionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return services.EventSubscriptionInput{}, false
 	}
 	destination, err := uuid.Parse(req.DestinationId)
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "destinationId must be the ID of an event destination")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "destinationId must be the ID of an event destination")
 		return services.EventSubscriptionInput{}, false
 	}
 	in := services.EventSubscriptionInput{
@@ -483,7 +484,7 @@ func parseDeliveryQuery(w http.ResponseWriter, r *http.Request) (services.Delive
 		}
 		n, err := strconv.Atoi(raw)
 		if err != nil || n < 0 || (name == "limit" && n < 1) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, name+" must be a non-negative integer, and limit at least 1")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, name+" must be a non-negative integer, and limit at least 1")
 			return q, false
 		}
 		*dst = n
@@ -495,7 +496,7 @@ func parseDeliveryQuery(w http.ResponseWriter, r *http.Request) (services.Delive
 		}
 		id, err := uuid.Parse(raw)
 		if err != nil {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, name+" must be an ID")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, name+" must be an ID")
 			return q, false
 		}
 		*dst = &id
@@ -506,27 +507,27 @@ func parseDeliveryQuery(w http.ResponseWriter, r *http.Request) (services.Delive
 func writeEventsError(w http.ResponseWriter, r *http.Request, err error, fallback string) {
 	switch {
 	case errors.Is(err, utils.ErrEventDestinationNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Event destination not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Event destination not found")
 	case errors.Is(err, utils.ErrEventSubscriptionNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Event subscription not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Event subscription not found")
 	case errors.Is(err, utils.ErrProjectNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 	case errors.Is(err, utils.ErrAgentNotFound):
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
-	case errors.Is(err, utils.ErrConflict):
-		utils.WriteErrorResponse(w, http.StatusConflict, "Destination changed concurrently; reload and retry")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+	case errors.Is(err, httpx.ErrConflict):
+		httpx.WriteErrorResponse(w, http.StatusConflict, "Destination changed concurrently; reload and retry")
 	case errors.Is(err, utils.ErrEventDestinationInUse):
-		utils.WriteErrorResponse(w, http.StatusConflict, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusConflict, err.Error())
 	case errors.Is(err, utils.ErrEventDestinationNameTaken):
-		utils.WriteErrorResponse(w, http.StatusConflict, "An event destination with this name already exists")
-	case errors.Is(err, utils.ErrInvalidInput):
-		utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		httpx.WriteErrorResponse(w, http.StatusConflict, "An event destination with this name already exists")
+	case errors.Is(err, httpx.ErrInvalidInput):
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, audit.ErrRecorderUnavailable):
 		logger.GetLogger(r.Context()).Error(fallback, "error", err)
-		utils.WriteErrorResponse(w, http.StatusServiceUnavailable, "Audit trail unavailable; the change was not applied")
+		httpx.WriteErrorResponse(w, http.StatusServiceUnavailable, "Audit trail unavailable; the change was not applied")
 	default:
 		logger.GetLogger(r.Context()).Error(fallback, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, fallback)
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, fallback)
 	}
 }
 

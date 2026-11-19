@@ -1,0 +1,154 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+)
+
+// recordingEventHub captures what would be published, so the event's wire shape
+// can be asserted without a live hub. Only publication is exercised; the rest of
+// the EventHub surface is present to satisfy the interface.
+type recordingEventHub struct {
+	published []eventhub.Event
+	contexts  []context.Context
+	txs       []*gorm.DB // the caller's transaction per event; nil for PublishEvent
+	onPublish func()
+	// fail, when set, is the error publishing evt returns; nothing is recorded then.
+	fail func(evt eventhub.Event) error
+}
+
+func (h *recordingEventHub) PublishEvent(ctx context.Context, gatewayID string, evt eventhub.Event) error {
+	return h.PublishEventTx(ctx, nil, gatewayID, evt)
+}
+
+func (h *recordingEventHub) PublishEventTx(ctx context.Context, tx *gorm.DB, gatewayID string, evt eventhub.Event) error {
+	if h.fail != nil {
+		if err := h.fail(evt); err != nil {
+			return err
+		}
+	}
+	h.published = append(h.published, evt)
+	h.contexts = append(h.contexts, ctx)
+	h.txs = append(h.txs, tx)
+	if h.onPublish != nil {
+		h.onPublish()
+	}
+	return nil
+}
+
+func (h *recordingEventHub) Initialize() error                      { return nil }
+func (h *recordingEventHub) RegisterGateway(gatewayID string) error { return nil }
+
+func (h *recordingEventHub) Subscribe(gatewayID string) (<-chan eventhub.Event, error) {
+	return nil, nil //nolint:nilnil // the recorder never delivers; only PublishEvent is exercised
+}
+
+func (h *recordingEventHub) Unsubscribe(gatewayID string, subscriber <-chan eventhub.Event) error {
+	return nil
+}
+func (h *recordingEventHub) UnsubscribeAll(gatewayID string) error { return nil }
+func (h *recordingEventHub) CleanUpEvents() error                  { return nil }
+func (h *recordingEventHub) Close() error                          { return nil }
+
+// The gateway parses these names and payloads verbatim
+// (pkg/controlplane/events.go and client.go's dispatch switch); they are fixed
+// by that code, not chosen here.
+func TestA2AAgentKindDeployEvent(t *testing.T) {
+	performedAt := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
+	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
+	evt := (&A2AAgentKind{}).DeployEvent(reconcile.EventRef{
+		Placement:    gwmodels.Placement{ArtifactRef: gwmodels.ArtifactRef{ArtifactUUID: agentUUID}},
+		DeploymentID: "dep-1",
+		PerformedAt:  performedAt,
+	})
+
+	assert.Equal(t, eventhub.EventType("agent.deployed"), evt.EventType)
+	assert.Equal(t, "CREATE", evt.Action)
+	assert.Equal(t, agentUUID.String(), evt.EntityID)
+
+	var envelope struct {
+		Type    string `json:"type"`
+		Payload struct {
+			AgentID      string    `json:"proxyId"`
+			DeploymentID string    `json:"deploymentId"`
+			PerformedAt  time.Time `json:"performedAt"`
+		} `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
+	assert.Equal(t, "agent.deployed", envelope.Type)
+	assert.Equal(t, agentUUID.String(), envelope.Payload.AgentID)
+	assert.Equal(t, "dep-1", envelope.Payload.DeploymentID)
+	assert.True(t, performedAt.Equal(envelope.Payload.PerformedAt))
+}
+
+func TestA2AAgentKindDeleteEvent(t *testing.T) {
+	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
+	evt := (&A2AAgentKind{}).DeleteEvent(gwmodels.ArtifactRef{ArtifactUUID: agentUUID})
+
+	assert.Equal(t, eventhub.EventType("agent.deleted"), evt.EventType)
+	assert.Equal(t, "DELETE", evt.Action)
+
+	var envelope struct {
+		Type    string `json:"type"`
+		Payload struct {
+			AgentID string `json:"proxyId"`
+		} `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
+	assert.Equal(t, "agent.deleted", envelope.Type)
+	assert.Equal(t, agentUUID.String(), envelope.Payload.AgentID)
+}
+
+func TestA2AAgentKindUndeployEvent(t *testing.T) {
+	performedAt := time.Date(2026, 10, 13, 9, 30, 0, 0, time.UTC)
+	agentUUID := uuid.MustParse("0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f")
+	evt := (&A2AAgentKind{}).UndeployEvent(reconcile.EventRef{
+		Placement:   gwmodels.Placement{ArtifactRef: gwmodels.ArtifactRef{ArtifactUUID: agentUUID}},
+		PerformedAt: performedAt,
+	})
+
+	assert.Equal(t, eventhub.EventType("agent.undeployed"), evt.EventType)
+	assert.Equal(t, "DELETE", evt.Action)
+
+	var envelope struct {
+		Type    string `json:"type"`
+		Payload struct {
+			AgentID      string    `json:"proxyId"`
+			DeploymentID *string   `json:"deploymentId"`
+			PerformedAt  time.Time `json:"performedAt"`
+		} `json:"payload"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(evt.EventData), &envelope))
+	assert.Equal(t, "agent.undeployed", envelope.Type)
+	assert.Equal(t, agentUUID.String(), envelope.Payload.AgentID)
+	require.NotNil(t, envelope.Payload.DeploymentID)
+	assert.Empty(t, *envelope.Payload.DeploymentID, "an empty ID passes the gateway's deployment-ID guard")
+	assert.True(t, performedAt.Equal(envelope.Payload.PerformedAt))
+}

@@ -105,7 +105,7 @@ func (s *planService) deleteFromWebhook(ctx context.Context, orgID, handle strin
 				"orgId", orgID, "plan", handle)
 			return nil
 		}
-		if err := tx.Exec(`DELETE FROM subscription_plans WHERE org_id = ? AND id = ?`, orgID, existing.UUID).Error; err != nil {
+		if err := tx.Exec(`DELETE FROM mod_aihub_subscription_plans WHERE org_id = ? AND id = ?`, orgID, existing.UUID).Error; err != nil {
 			return fmt.Errorf("delete plan %s: %w", handle, err)
 		}
 		deleted = existing

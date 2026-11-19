@@ -22,12 +22,12 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
 func TestGet_SuccessJSON(t *testing.T) {
 	io, out, _ := newTestIO()
-	gw := sampleGateway("edge", "11111111-1111-1111-1111-111111111111", amsvc.GatewayTypeBOTH, "default")
+	gw := sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH, "default")
 	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, gw)
 	defer closeFn()
 
@@ -52,7 +52,7 @@ func TestGet_AcceptsUUIDAndName(t *testing.T) {
 	for _, identifier := range []string{"edge", "11111111-1111-1111-1111-111111111111"} {
 		io, _, _ := newTestIO()
 		clientFn, captured, closeFn := newTestClient(t, http.StatusOK,
-			sampleGateway("edge", "11111111-1111-1111-1111-111111111111", amsvc.GatewayTypeBOTH))
+			sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH))
 
 		err := runGet(context.Background(), &GetOptions{
 			IO: io, Client: clientFn, Org: "acme", Scope: baseScope(), Gateway: identifier,
@@ -70,7 +70,7 @@ func TestGet_AcceptsUUIDAndName(t *testing.T) {
 func TestGet_TextOutputShowsUUIDAndType(t *testing.T) {
 	io, out, _ := newTextTestIO(true)
 	clientFn, _, closeFn := newTestClient(t, http.StatusOK,
-		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", amsvc.GatewayTypeEGRESS, "default"))
+		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeEGRESS, "default"))
 	defer closeFn()
 
 	if err := runGet(context.Background(), &GetOptions{

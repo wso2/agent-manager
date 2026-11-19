@@ -1,0 +1,302 @@
+openapi: 3.0.3
+info:
+  title: AI Hub API
+  version: 0.1.0
+  description: >-
+    Subscription plans of the AI Hub module. A plan is a set of conditions (request, tool call, token and custom
+    limits) that MCP servers offer and agents subscribe to. The caller's organization comes from the token.
+  x-amp-module: aihub
+servers:
+  - url: /m/aihub
+security:
+  - BearerAuth: []
+paths:
+  /subscription-plans:
+    get:
+      operationId: listSubscriptionPlans
+      summary: List the organization's subscription plans, newest first
+      parameters:
+        - name: query
+          in: query
+          description: Case-insensitive match on the plan's name or id.
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/SubscriptionPlanStatus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlanListResponse"
+        default:
+          $ref: "#/components/responses/Error"
+    post:
+      operationId: createSubscriptionPlan
+      summary: Create a subscription plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionPlanCreateRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlan"
+        default:
+          $ref: "#/components/responses/Error"
+  /subscription-plans/{subscriptionPlanId}:
+    parameters:
+      - name: subscriptionPlanId
+        in: path
+        required: true
+        description: The plan's id (its handle).
+        schema:
+          type: string
+    get:
+      operationId: getSubscriptionPlan
+      summary: Get a subscription plan, with what offers or uses it
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlan"
+        default:
+          $ref: "#/components/responses/Error"
+    put:
+      operationId: updateSubscriptionPlan
+      summary: Update a subscription plan
+      description: >-
+        Fields left out are kept. `expiryTime: null` clears the expiry. A plan in use keeps its name and conditions
+        (409).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscriptionPlanUpdateRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionPlan"
+        default:
+          $ref: "#/components/responses/Error"
+    delete:
+      operationId: deleteSubscriptionPlan
+      summary: Delete a subscription plan
+      description: A plan in use can't be deleted (409).
+      responses:
+        "204":
+          description: Deleted
+        default:
+          $ref: "#/components/responses/Error"
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    SubscriptionPlanStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    SubscriptionPlanCondition:
+      type: object
+      description: >-
+        One condition of a plan. A built-in type (request-count, tool-call-count, token-count) has a fixed id and
+        `params` of limit windows and `onExceed`; a custom condition has its own id and the params its policy reads.
+      required: [type]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [request-count, tool-call-count, token-count, custom]
+        params:
+          type: object
+          additionalProperties: true
+    SubscriptionPlanLimit:
+      type: object
+      description: The older single-limit form, read as a request-count condition.
+      required: [timeUnit, limitCount]
+      properties:
+        limitType:
+          type: string
+        timeUnit:
+          type: string
+        timeAmount:
+          type: integer
+        limitCount:
+          type: integer
+        limitCountUnit:
+          type: string
+        stopOnQuotaReach:
+          type: boolean
+    SubscriptionPlanCreateRequest:
+      type: object
+      required: [id, displayName]
+      properties:
+        id:
+          type: string
+          maxLength: 40
+        displayName:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1023
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionPlanCondition"
+        limits:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionPlanLimit"
+        expiryTime:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/SubscriptionPlanStatus"
+    SubscriptionPlanUpdateRequest:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1023
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionPlanCondition"
+        limits:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionPlanLimit"
+        expiryTime:
+          type: string
+          format: date-time
+          nullable: true
+        status:
+          $ref: "#/components/schemas/SubscriptionPlanStatus"
+    SubscriptionPlanUsage:
+      type: object
+      description: What offers or uses the plan. A plan in use can't be deleted, renamed or have its conditions changed.
+      properties:
+        inUse:
+          type: boolean
+        restApis:
+          type: integer
+        mcpProxies:
+          type: integer
+        drafts:
+          type: integer
+        publications:
+          type: integer
+        subscriptions:
+          type: integer
+    SubscriptionPlan:
+      type: object
+      required: [id, displayName, conditions, organizationId, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        description:
+          type: string
+        conditions:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionPlanCondition"
+        limits:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        expiryTime:
+          type: string
+          format: date-time
+        organizationId:
+          type: string
+          description: The organization's handle.
+        status:
+          $ref: "#/components/schemas/SubscriptionPlanStatus"
+        createdBy:
+          type: string
+        updatedBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        usage:
+          $ref: "#/components/schemas/SubscriptionPlanUsage"
+    SubscriptionPlanListResponse:
+      type: object
+      required: [list, count, pagination]
+      properties:
+        list:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionPlan"
+        count:
+          type: integer
+        pagination:
+          type: object
+          required: [total, offset, limit]
+          properties:
+            total:
+              type: integer
+            offset:
+              type: integer
+            limit:
+              type: integer
+    ErrorResponse:
+      type: object
+      required: [status, code, message]
+      properties:
+        status:
+          type: string
+        code:
+          type: string
+        message:
+          type: string
+        trackingId:
+          type: string

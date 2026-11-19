@@ -44,8 +44,8 @@ func serveAllPermissions(t *testing.T, grantedScopes string, perms ...rbac.Permi
 // TestRequireAllPermissions_AllowsWhenEveryScopeHeld is the passing case: the
 // caller holds both independent axes the route is gated on.
 func TestRequireAllPermissions_AllowsWhenEveryScopeHeld(t *testing.T) {
-	granted := rbac.AgentSuspend.Scope() + " " + rbac.AgentEnvNonProduction.Scope()
-	status, ran := serveAllPermissions(t, granted, rbac.AgentSuspend, rbac.AgentEnvNonProduction)
+	granted := rbac.AgentSuspend.Scope() + " " + rbac.AgentUpdate.Scope()
+	status, ran := serveAllPermissions(t, granted, rbac.AgentSuspend, rbac.AgentUpdate)
 	if !ran {
 		t.Error("handler did not run despite the token holding every required scope")
 	}
@@ -57,8 +57,8 @@ func TestRequireAllPermissions_AllowsWhenEveryScopeHeld(t *testing.T) {
 // TestRequireAllPermissions_DeniesOnPartialScopes is the whole reason this
 // helper is not RequireAnyPermission: holding one axis must not admit the other.
 func TestRequireAllPermissions_DeniesOnPartialScopes(t *testing.T) {
-	for _, held := range []rbac.Permission{rbac.AgentSuspend, rbac.AgentEnvNonProduction} {
-		status, ran := serveAllPermissions(t, held.Scope(), rbac.AgentSuspend, rbac.AgentEnvNonProduction)
+	for _, held := range []rbac.Permission{rbac.AgentSuspend, rbac.AgentUpdate} {
+		status, ran := serveAllPermissions(t, held.Scope(), rbac.AgentSuspend, rbac.AgentUpdate)
 		if ran {
 			t.Errorf("handler ran with only %s held", held.Scope())
 		}
@@ -71,7 +71,7 @@ func TestRequireAllPermissions_DeniesOnPartialScopes(t *testing.T) {
 // TestRequireAllPermissions_DeniesWhenNoScopeHeld pins the unauthenticated-in-
 // effect case: a token carrying no amp scopes reaches nothing.
 func TestRequireAllPermissions_DeniesWhenNoScopeHeld(t *testing.T) {
-	status, ran := serveAllPermissions(t, "", rbac.AgentSuspend, rbac.AgentEnvNonProduction)
+	status, ran := serveAllPermissions(t, "", rbac.AgentSuspend, rbac.AgentUpdate)
 	if ran {
 		t.Error("handler ran for a token holding no scopes")
 	}

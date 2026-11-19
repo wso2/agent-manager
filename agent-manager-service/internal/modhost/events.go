@@ -28,8 +28,8 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
 // Module events live in module_events, with one module_event_deliveries row
@@ -76,7 +76,7 @@ func (h *Host) knownEvent(t string) bool {
 		return true
 	}
 	for _, mf := range h.manifests {
-		if slices.Contains(mf.Events, t) {
+		if _, ok := mf.Event(t); ok {
 			return true
 		}
 	}

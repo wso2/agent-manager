@@ -30,6 +30,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clients/observersvc"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
@@ -129,6 +130,14 @@ func testCreateCmd(t *testing.T, ios *iostreams.IOStreams, clientFn func(context
 	f := &cmdutil.Factory{
 		IOStreams:    ios,
 		AgentManager: clientFn,
+		// The gateway's routes are served by the same test router.
+		AIGateway: func(ctx context.Context) (*aigateway.ClientWithResponses, error) {
+			core, err := clientFn(ctx)
+			if err != nil {
+				return nil, err
+			}
+			return aigateway.NewClientWithResponses(core.ClientInterface.(*amsvc.Client).Server)
+		},
 		Observer: func(context.Context) (*observersvc.Client, error) {
 			if observerURL == "" {
 				return nil, nil
@@ -556,7 +565,7 @@ func TestCreate_External_Text(t *testing.T) {
 				DisplayName:  "Testing",
 				Description:  "dssdf",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "uuid-ext",
 				CreatedAt:    time.Date(2026, 5, 19, 12, 0, 0, 0, time.UTC),
@@ -630,7 +639,7 @@ func TestCreate_External_JSON(t *testing.T) {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "u",
 			},
@@ -680,7 +689,7 @@ func TestCreate_External_NoTraceService(t *testing.T) {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "u",
 			},
@@ -749,7 +758,7 @@ func TestCreate_External_TokenWithoutEnvironment(t *testing.T) {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "u",
 			},
@@ -793,7 +802,7 @@ func TestCreate_External_TokenFailure_WarnsAndSucceeds(t *testing.T) {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "u",
 			},
@@ -847,7 +856,7 @@ func TestCreate_External_TokenFailure_TextMode(t *testing.T) {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "u",
 			},
@@ -891,7 +900,7 @@ func externalA2AAgentRoutes() map[string]routeResponse {
 				Name:         "testing",
 				DisplayName:  "Testing",
 				AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-				Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+				Provisioning: amsvc.Provisioning{Type: amsvc.External},
 				ProjectName:  "triage",
 				Uuid:         "u",
 			},

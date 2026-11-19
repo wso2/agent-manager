@@ -56,14 +56,13 @@ var ErrNotImplemented = errors.New("modkit: not implemented by this core")
 // Manifest describes a module: what it needs, what it offers and what it adds
 // to the API and the console.
 type Manifest struct {
-	Name        string `json:"name"`
+	Name string `json:"name"`
+	// DisplayName names the module to people, such as its permissions'
+	// resource in the identity provider; empty means Name.
+	DisplayName string `json:"displayName,omitempty"`
 	Version     string `json:"version"`
 	Description string `json:"description,omitempty"`
 	CoreAPI     int    `json:"coreApi"`
-
-	// Builtin modules are part of the core: always active, and they cannot
-	// be disabled or uninstalled.
-	Builtin bool `json:"builtin,omitempty"`
 
 	// Capabilities are versioned contracts such as "llm.proxy/v1".
 	// Dependencies name capabilities, not modules, so a provider can be
@@ -73,33 +72,102 @@ type Manifest struct {
 	Provides []string `json:"provides,omitempty"`
 
 	// Permissions are namespaced by the core as "<module>:<name>" and carried
-	// in tokens as the scope "amp:<module>:<name>". A name is one segment of
-	// lowercase letters, digits and dashes ("widget-read"). Built-in modules
-	// may also declare permissions that predate modules by their full names
-	// ("llm-provider:read"), which are used as written.
+	// in tokens as the scope "amp:<module>:<name>". A name is an action
+	// ("widget-read") or a resource and an action ("widgets.read"), each of
+	// lowercase letters, digits and dashes.
 	Permissions []Permission `json:"permissions,omitempty"`
 	// RoleGrants gives the module's permissions (by the names in Permissions)
 	// to the predefined roles while the module is active.
 	RoleGrants map[string][]string `json:"roleGrants,omitempty"`
 
 	// Events lists the event types this module publishes.
-	Events []string `json:"events,omitempty"`
+	Events []EventType `json:"events,omitempty"`
+	// AuditActions lists the audit actions the module's routes and tools
+	// name with Audit, and classifies any of its permissions that name one.
+	AuditActions []AuditAction `json:"auditActions,omitempty"`
 
 	UI *UI `json:"ui,omitempty"`
+
+	// Workloads are the parts of the module that run outside the core
+	// binary, such as a gateway runtime or a worker pool. They talk to the
+	// module only over its internal routes (HandleInternal), with tokens
+	// the core issues.
+	Workloads []WorkloadSpec `json:"workloads,omitempty"`
+}
+
+// WorkloadKind says how a workload runs.
+type WorkloadKind string
+
+const (
+	// WorkloadService is long-running. Its instances heartbeat to the core,
+	// which records them for module health and hands each a fresh token.
+	WorkloadService WorkloadKind = "service"
+	// WorkloadJob runs once per unit of work, started by the module or
+	// another workload. Jobs get tokens from IssueToken, not credentials.
+	WorkloadJob WorkloadKind = "job"
+)
+
+// WorkloadSpec declares one of the module's workloads. (Workload is the
+// caller of an internal route.)
+type WorkloadSpec struct {
+	// Name is lowercase letters, digits and dashes ("gateway-controller").
+	Name string       `json:"name"`
+	Kind WorkloadKind `json:"kind"`
+	// Trusted workloads run first-party code only; untrusted ones run user
+	// code and must be isolated by the platform.
+	Trusted bool `json:"trusted"`
+	// Image is the image this module version expects, if it ships one.
+	Image string `json:"image,omitempty"`
+	// Scopes are the module-local scopes the workload's tokens carry.
+	Scopes []string `json:"scopes"`
+	// Protocols this module version accepts in the workload's heartbeats,
+	// newest first. A service names at least one.
+	Protocols []string `json:"protocols,omitempty"`
+	// Required services make the module "degraded" while no instance is
+	// connected.
+	Required bool `json:"required,omitempty"`
+	// Endpoints are internal routes of the module the workload uses, besides
+	// "rest", the module's internal root, which is reported whenever the
+	// module has internal routes. The heartbeat response gives each as an
+	// absolute URL, so a workload is configured with only the heartbeat URL
+	// and its credential.
+	Endpoints   []Endpoint `json:"endpoints,omitempty"`
+	Description string     `json:"description,omitempty"`
+}
+
+// Endpoint is a named internal route of the module.
+type Endpoint struct {
+	// Name is lowercase letters, digits and dashes; "rest" is reserved.
+	Name string `json:"name"`
+	// Path is a route path the module registers with HandleInternal
+	// ("/ws/gateways/connect").
+	Path string `json:"path"`
+	// WebSocket endpoints are reported with a ws or wss scheme.
+	WebSocket bool `json:"websocket,omitempty"`
 }
 
 // PermissionName is the full name of one of the module's permissions:
-// "<module>:<name>", or a built-in module's full name as written.
+// "<module>:<name>".
 func (m Manifest) PermissionName(name string) string {
-	if m.Builtin && strings.Contains(name, ":") {
-		return name
-	}
 	return m.Name + ":" + name
+}
+
+// Event returns the manifest's event type named name.
+func (m Manifest) Event(name string) (EventType, bool) {
+	for _, e := range m.Events {
+		if e.Name == name {
+			return e, true
+		}
+	}
+	return EventType{}, false
 }
 
 // Permission is a module-defined permission.
 type Permission struct {
-	Name        string `json:"name"`
+	Name string `json:"name"`
+	// DisplayName names the permission to people, such as its action in the
+	// identity provider; empty means Name.
+	DisplayName string `json:"displayName,omitempty"`
 	Description string `json:"description"`
 }
 
@@ -165,6 +233,26 @@ type Installer interface {
 	OnInstall(ctx context.Context, rt Runtime) error
 }
 
+// InitComponent is a Module that writes files of its own when an installation
+// is set up: "amp init <module> DIR" calls Init, before any server runs, so
+// it has no Runtime and no database. Init reads the module's settings
+// through req.Config and writes only into req.Dir; it runs on every
+// "amp init" and must keep what an earlier run generated.
+type InitComponent interface {
+	Init(ctx context.Context, req InitRequest) error
+}
+
+// InitRequest is what "amp init" gives an InitComponent.
+type InitRequest struct {
+	// Dir is the directory the module's files go into.
+	Dir string
+	// Config reads the module's settings, as Runtime.Config does.
+	Config func(key string) string
+	// CoreOwner is the "uid:gid" the core's processes run as, for files the
+	// module reads back when it serves; "" leaves files as created.
+	CoreOwner string
+}
+
 // HealthReporter is implemented by modules that report their own health.
 type HealthReporter interface {
 	Health(ctx context.Context, rt Runtime) map[string]any
@@ -193,15 +281,20 @@ const (
 	// written, in activation order. An error rolls the change back.
 	Apply Phase = "apply"
 	// Finalize runs inside the core transaction that deletes a resource, in
-	// reverse activation order, to clean up the module's own rows. It cannot
-	// refuse the delete: an error is logged. Refuse a delete in Validate.
+	// reverse activation order, to clean up the module's own rows. On agents
+	// and environments it cannot refuse the delete: an error is logged, and
+	// a delete is refused in Validate. On projects, which take no other hook,
+	// it is how a module refuses: an error rolls the delete back, as a
+	// foreign key from the module's rows would.
 	Finalize Phase = "finalize"
 )
 
-// Resources that take hooks, and the actions they report.
+// Resources that take hooks, and the actions they report. Projects take only
+// Finalize, on delete.
 const (
 	ResourceAgent       = "agent"
 	ResourceEnvironment = "environment"
+	ResourceProject     = "project"
 
 	ActionCreate = "create"
 	ActionUpdate = "update"
@@ -216,7 +309,7 @@ const OperationTimeout = 10 * time.Second
 
 // HookRequest is passed to a hook.
 type HookRequest struct {
-	Resource string `json:"resource"` // ResourceAgent or ResourceEnvironment
+	Resource string `json:"resource"` // ResourceAgent, ResourceEnvironment or ResourceProject
 	Action   string `json:"action"`   // ActionCreate, ActionUpdate or ActionDelete
 	OrgID    string `json:"orgId,omitempty"`
 	// ID is the resource id. It is empty in the validate phase of a create.
@@ -331,6 +424,11 @@ type Environment struct {
 // it answers only for that ctx's organization (OrgID).
 type CoreAPI interface {
 	GetOrg(ctx context.Context, orgID string) (Org, error)
+	// GetOrgByHandle looks an organization up by its handle, for a caller that
+	// knows only that, such as a signed webhook delivery from another product.
+	// Called with the ctx of a request, hook or event, it finds only that ctx's
+	// organization.
+	GetOrgByHandle(ctx context.Context, handle string) (Org, error)
 	ListProjects(ctx context.Context, orgID string) ([]Project, error)
 	GetProject(ctx context.Context, orgID, projectID string) (Project, error)
 	// ListAgents lists the agents of an organization; projectID, when not
@@ -338,6 +436,21 @@ type CoreAPI interface {
 	ListAgents(ctx context.Context, orgID, projectID string) ([]Agent, error)
 	GetAgent(ctx context.Context, orgID, agentID string) (Agent, error)
 	ListEnvironments(ctx context.Context, orgID string) ([]Environment, error)
+
+	// GetProjectByName, GetAgentByName and GetEnvironmentByName look a
+	// resource up by the name the API addresses it with.
+	GetProjectByName(ctx context.Context, orgID, name string) (Project, error)
+	GetAgentByName(ctx context.Context, orgID, projectName, name string) (Agent, error)
+	GetEnvironmentByName(ctx context.Context, orgID, name string) (Environment, error)
+	// LockAgent locks an agent's row inside tx, a hook's Tx or the module's
+	// own transaction, until tx ends, so that changes to the agent made
+	// meanwhile wait; it returns the agent, or ErrNotFound.
+	LockAgent(ctx context.Context, tx *gorm.DB, orgID, agentID string) (Agent, error)
+	// EnsureOrg returns the organization, creating it, with its default
+	// environment, if it does not exist yet. An organization exists in the
+	// core from its first request; a module's route that writes rows of an
+	// organization before any core route ran calls it first.
+	EnsureOrg(ctx context.Context, orgID string) (Org, error)
 }
 
 // OrgID is the organization of the request ctx belongs to, set on every module
@@ -354,6 +467,30 @@ func WithOrgID(ctx context.Context, orgID string) context.Context {
 	return context.WithValue(ctx, orgKey{}, orgID)
 }
 
+// Principal is the caller of an API request or MCP tool call.
+type Principal struct {
+	// User is the subject of the caller's token: the signed-in user, or the
+	// client of a client-credentials token.
+	User string `json:"user"`
+	// ClientID is the OAuth client the token was issued to.
+	ClientID string `json:"clientId,omitempty"`
+}
+
+type principalKey struct{}
+
+// WithPrincipal returns ctx carrying p, for the core to set on module
+// requests and tool calls.
+func WithPrincipal(ctx context.Context, p Principal) context.Context {
+	return context.WithValue(ctx, principalKey{}, p)
+}
+
+// PrincipalFrom returns the caller of the current request or tool call; the
+// zero Principal outside one.
+func PrincipalFrom(ctx context.Context) Principal {
+	p, _ := ctx.Value(principalKey{}).(Principal)
+	return p
+}
+
 // Runtime is what the core gives a module when it activates it.
 type Runtime interface {
 	Name() string
@@ -368,19 +505,35 @@ type Runtime interface {
 	// joined with "." ("limits.max"); "" when unset.
 	Config(key string) string
 
-	// Handle mounts an API route at /api/v1/m/<module><path>, behind the same
-	// sign-in, permission check and audit trail as the core's routes. path is
-	// a net/http pattern path ("/widgets/{id}"). perm is one of the module's
-	// permissions (as named in its manifest) or a core permission; "" means
-	// any signed-in user of the organization, which only reads may use.
-	Handle(method, path, perm string, h http.HandlerFunc)
+	// Handle mounts an API route at /m/<module><path> on the API port, beside
+	// the core's /api/v1, behind the same sign-in, permission check and audit
+	// trail as the core's routes. path is a net/http pattern path
+	// ("/widgets/{id}"); paths under /internal are the workload routes'. perm
+	// is one of the module's permissions (as named in its manifest) or a core
+	// permission; "" means any signed-in user of the organization, which only
+	// reads may use. Every route that changes state is audited, under the
+	// permission's name unless an Audit option names the action.
+	Handle(method, path, perm string, h http.HandlerFunc, opts ...RouteOption)
 	// HandleInternal mounts a route for the module's workloads at
-	// /api/internal/v1/m/<module><path> on the internal server. Callers
-	// present a token from IssueToken (or exchanged for a workload
-	// credential) that carries scope.
-	HandleInternal(method, path, scope string, h http.HandlerFunc)
-	// Hook registers a synchronous hook on a core resource (ResourceAgent or
-	// ResourceEnvironment).
+	// /m/<module>/internal<path> on the internal server. Callers present a
+	// token from IssueToken or from a heartbeat that carries scope. While
+	// the module is inactive they answer 401.
+	HandleInternal(method, path, scope string, h http.HandlerFunc, opts ...RouteOption)
+	// HandleInternalAt mounts a route at a fixed path under /api/internal/v1
+	// on the internal server ("/api/internal/v1/things"), served only while
+	// the module is active. The core does not authenticate its callers: the
+	// handler does. A route that changes state names its audit action with
+	// Audit. It exists only so the AI Gateway can keep the paths its released
+	// controllers call until they can register as workloads
+	// (wso2/agent-manager#2493), and goes away then; new modules use
+	// HandleInternal.
+	HandleInternalAt(method, absPath string, h http.HandlerFunc, opts ...RouteOption)
+	// MCPTool adds a tool to the core's MCP server at /mcp while the module
+	// is active. perm is the permission a caller needs, as for Handle; the
+	// call is audited under its name unless an Audit option names the action.
+	MCPTool(tool MCPTool, perm string, h MCPToolHandler, opts ...RouteOption)
+	// Hook registers a synchronous hook on a core resource (ResourceAgent,
+	// ResourceEnvironment or ResourceProject).
 	Hook(resource string, phase Phase, h HookFunc)
 	// Subscribe registers an asynchronous event handler for an event type:
 	// a core event, or one a module declares in its manifest.
@@ -394,14 +547,36 @@ type Runtime interface {
 
 	// Can reports whether the caller of the current request holds perm.
 	Can(ctx context.Context, perm string) bool
+	// Track reports the current API request as feature usage named event,
+	// with props as its dimensions, once the response is written. A second
+	// call in the same request adds to props, later values winning. It does
+	// nothing outside a request to one of the module's routes, or when the
+	// installation does not report feature usage.
+	Track(ctx context.Context, event string, props map[string]any)
 	// IssueToken mints a short-lived token for one of the module's workloads,
 	// signed with the core's key and verifiable with its JWKS.
 	IssueToken(ctx context.Context, req TokenRequest) (string, error)
-	// IssueCredential creates a credential a workload exchanges for a token at
-	// POST /api/internal/v1/workload-tokens. The secret is returned only here.
+	// IssueCredential creates a credential for one of the module's service
+	// workloads, which presents it in its heartbeats to
+	// POST /api/internal/v1/workloads/heartbeat. The secret is returned only
+	// here.
 	IssueCredential(ctx context.Context, req CredentialRequest) (Credential, error)
 	// RevokeCredential revokes one of the module's credentials.
 	RevokeCredential(ctx context.Context, id string) error
+
+	// Go runs fn in the background while the module is active on this
+	// replica: from when the activation that registered it is in effect until
+	// the module is disabled or uninstalled, or the server stops. Then fn's
+	// ctx is cancelled and fn must return; a worker that does not return in
+	// time is abandoned. A module that stays active keeps its running
+	// workers when the module set changes. Workers run on every replica where
+	// the module is active, so work that must happen once needs its own claim
+	// (a row lock or a lease). A worker that returns an error or panics is
+	// restarted with backoff; one that returns nil is done. name identifies
+	// it in logs and is unique within the module.
+	Go(name string, fn func(ctx context.Context) error)
+	// Secrets is the core's secret store, limited to the module's own paths.
+	Secrets() Secrets
 
 	// Provide registers the implementation of a capability listed in Provides.
 	Provide(capability string, impl any)
@@ -419,29 +594,35 @@ type TokenRequest struct {
 	Claims  map[string]string // extra string claims
 }
 
-// CredentialRequest describes a workload credential. Tokens exchanged for it
-// carry its subject, organization and scopes.
+// CredentialRequest describes a workload credential. Tokens issued on its
+// heartbeats carry its subject and organization, and the scopes the
+// workload declares.
 type CredentialRequest struct {
-	Subject string
-	OrgID   string
-	Scopes  []string
-	// TTL of each exchanged token; zero means the default.
-	TokenTTL time.Duration
+	// Workload is a service workload the manifest declares.
+	Workload string
+	Subject  string
+	OrgID    string
 }
 
-// Credential is a workload credential: the id and secret a workload presents.
+// Credential is a workload credential.
 type Credential struct {
-	ID     string `json:"id"`
+	ID string `json:"id"`
+	// Secret is what the workload presents as "credential" in its
+	// heartbeats. Only a hash of it is stored.
 	Secret string `json:"secret"`
 }
 
 // Workload is the caller of an internal route, from its verified token.
 type Workload struct {
-	Module  string
-	Subject string
-	OrgID   string
-	Scopes  []string
-	Claims  map[string]string
+	Module string
+	// Name and Instance are the declared workload and the instance that
+	// heartbeated; both are empty in a token from IssueToken.
+	Name     string
+	Instance string
+	Subject  string
+	OrgID    string
+	Scopes   []string
+	Claims   map[string]string
 }
 
 type workloadKey struct{}

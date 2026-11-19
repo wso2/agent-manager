@@ -187,11 +187,11 @@ func (s *planService) list(ctx context.Context, orgID string, opts listOptions) 
 	db := s.db().WithContext(ctx)
 	where, args := listFilter(orgID, opts)
 	var total int64
-	if err := db.Raw(`SELECT COUNT(*) FROM subscription_plans`+where, args...).Scan(&total).Error; err != nil {
+	if err := db.Raw(`SELECT COUNT(*) FROM mod_aihub_subscription_plans`+where, args...).Scan(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("count plans: %w", err)
 	}
 	var rows []planRow
-	if err := db.Raw(`SELECT `+planColumns+` FROM subscription_plans`+where+
+	if err := db.Raw(`SELECT `+planColumns+` FROM mod_aihub_subscription_plans`+where+
 		` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, append(args, opts.Limit, opts.Offset)...).
 		Scan(&rows).Error; err != nil {
 		return nil, 0, fmt.Errorf("list plans: %w", err)
@@ -213,7 +213,7 @@ func (s *planService) get(ctx context.Context, orgID, handle string) (*plan, err
 
 func (s *planService) getTx(tx *gorm.DB, orgID, handle string) (*plan, error) {
 	var rows []planRow
-	if err := tx.Raw(`SELECT `+planColumns+` FROM subscription_plans WHERE org_id = ? AND handle = ?`,
+	if err := tx.Raw(`SELECT `+planColumns+` FROM mod_aihub_subscription_plans WHERE org_id = ? AND handle = ?`,
 		orgID, handle).Scan(&rows).Error; err != nil {
 		return nil, fmt.Errorf("get plan %s: %w", handle, err)
 	}
@@ -228,7 +228,7 @@ func (s *planService) getTx(tx *gorm.DB, orgID, handle string) (*plan, error) {
 // longer validates is kept as it is.
 func (s *planService) withConditions(tx *gorm.DB, r planRow) (*plan, error) {
 	var conds []conditionRow
-	if err := tx.Raw(`SELECT plan_id, condition_id, condition_type, params FROM subscription_plan_conditions `+
+	if err := tx.Raw(`SELECT plan_id, condition_id, condition_type, params FROM mod_aihub_subscription_plan_conditions `+
 		`WHERE org_id = ? AND plan_id = ? ORDER BY sort_order`, r.OrgID, r.ID).Scan(&conds).Error; err != nil {
 		return nil, fmt.Errorf("get conditions of plan %s: %w", r.Handle, err)
 	}
@@ -297,7 +297,7 @@ func (s *planService) create(ctx context.Context, orgID, actor string, p *plan) 
 		} else if !errors.Is(err, errPlanNotFound) {
 			return err
 		}
-		if err := tx.Exec(`INSERT INTO subscription_plans (`+planColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		if err := tx.Exec(`INSERT INTO mod_aihub_subscription_plans (`+planColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			id.String(), orgID, p.Handle, p.Name, nullable(p.Description), p.Status, p.ExpiryTime,
 			nullable(actor), nullable(actor), createdAt, now).Error; err != nil {
 			return fmt.Errorf("insert plan %s: %w", p.Handle, err)
@@ -375,14 +375,14 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 			}
 		}
 		now := s.now().UTC()
-		if err := tx.Exec(`UPDATE subscription_plans SET display_name = ?, description = ?, status = ?, `+
+		if err := tx.Exec(`UPDATE mod_aihub_subscription_plans SET display_name = ?, description = ?, status = ?, `+
 			`expiry_time = ?, updated_by = ?, updated_at = ? WHERE org_id = ? AND id = ?`,
 			existing.Name, nullable(existing.Description), existing.Status, existing.ExpiryTime, nullable(actor), now,
 			orgID, existing.UUID).Error; err != nil {
 			return fmt.Errorf("update plan %s: %w", handle, err)
 		}
 		if !sameConditions(existing.Conditions, conditions) {
-			if err := tx.Exec(`DELETE FROM subscription_plan_conditions WHERE org_id = ? AND plan_id = ?`,
+			if err := tx.Exec(`DELETE FROM mod_aihub_subscription_plan_conditions WHERE org_id = ? AND plan_id = ?`,
 				orgID, existing.UUID).Error; err != nil {
 				return fmt.Errorf("replace conditions of plan %s: %w", handle, err)
 			}
@@ -419,7 +419,7 @@ func (s *planService) delete(ctx context.Context, orgID, handle, actor string) e
 			return planInUse(existing.Name)
 		}
 		// The conditions go with the plan (ON DELETE CASCADE).
-		if err := tx.Exec(`DELETE FROM subscription_plans WHERE org_id = ? AND id = ?`, orgID, existing.UUID).Error; err != nil {
+		if err := tx.Exec(`DELETE FROM mod_aihub_subscription_plans WHERE org_id = ? AND id = ?`, orgID, existing.UUID).Error; err != nil {
 			return fmt.Errorf("delete plan %s: %w", handle, err)
 		}
 		deleted = existing
@@ -496,7 +496,7 @@ func checkDescription(description string) error {
 
 func insertConditions(tx *gorm.DB, orgID, planID string, conditions []Condition) error {
 	for i, c := range conditions {
-		if err := tx.Exec(`INSERT INTO subscription_plan_conditions (org_id, plan_id, condition_id, condition_type, `+
+		if err := tx.Exec(`INSERT INTO mod_aihub_subscription_plan_conditions (org_id, plan_id, condition_id, condition_type, `+
 			`params, sort_order) VALUES (?, ?, ?, ?, ?, ?)`, orgID, planID, c.ID, c.Type, string(c.Params), i).Error; err != nil {
 			return fmt.Errorf("insert condition %s: %w", c.ID, err)
 		}

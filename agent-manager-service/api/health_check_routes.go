@@ -23,7 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 func registerHealthCheck(mux *http.ServeMux) {
@@ -33,13 +33,13 @@ func registerHealthCheck(mux *http.ServeMux) {
 
 		var dbRes *int
 		if result := db.DB(ctx).Raw("SELECT 1").Scan(&dbRes); result.Error != nil {
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "database connection error")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "database connection error")
 			return
 		}
 		response := map[string]interface{}{
 			"message":   "agent-manager-service is healthy",
 			"timestamp": time.Now(),
 		}
-		utils.WriteSuccessResponse(w, http.StatusOK, response)
+		httpx.WriteSuccessResponse(w, http.StatusOK, response)
 	})
 }

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # smoke.sh — smoke-test a running standalone stack.
 #
-#   scripts/smoke.sh amp|amp-core [--no-console]
+#   scripts/smoke.sh amp|amp-core|amp-off [--no-console]
 #
 # amp is the full stack (`make up`), amp-core the core binary without the AI
-# Gateway (`make up-core`). The checks cover sign-in, the core API, which
+# Gateway (`make up-core`), and amp-off the full stack with the ai-gateway
+# module disabled (`amp module disable ai-gateway`), which must look like
+# amp-core. The checks cover sign-in, the core API, which
 # routes each distribution serves, the console the API serves and the UI
 # manifest. --no-console skips the console files, for an
 # image built with CONSOLE=none.
@@ -19,8 +21,8 @@ DIST=${1:-}
 CONSOLE=yes
 [ "${2:-}" = "--no-console" ] && CONSOLE=no
 case "$DIST" in
-  amp | amp-core) ;;
-  *) echo "usage: $0 amp|amp-core [--no-console]" >&2; exit 2 ;;
+  amp | amp-core | amp-off) ;;
+  *) echo "usage: $0 amp|amp-core|amp-off [--no-console]" >&2; exit 2 ;;
 esac
 for tool in curl jq; do
   command -v "$tool" >/dev/null || { echo "$tool is required" >&2; exit 2; }
@@ -49,7 +51,7 @@ skip() { echo "SKIP $1"; skipped=$((skipped + 1)); }
 BODY=$(mktemp)
 trap 'rm -f "$BODY"' EXIT
 code() { curl -s -o "$BODY" -w '%{http_code}' "$@"; }
-# The value for amp, or for amp-core.
+# The value for amp, or for amp-core (and amp-off).
 pick() { if [ "$DIST" = amp ]; then echo "$1"; else echo "$2"; fi; }
 has() { if grep -q "$1" "$BODY"; then echo yes; else echo no; fi; }
 
@@ -70,6 +72,8 @@ ORG=$(jq -r '.organizations[0].name // empty' "$BODY" 2>/dev/null)
 if [ -n "$ORG" ]; then check orgs-listed ok ok; else check orgs-listed ok "none"; fi
 ORG=${ORG:-default}
 B=$API/api/v1/orgs/$ORG
+# The AI Gateway module's API.
+GW=$API/m/ai-gateway/orgs/$ORG
 P=smoke-$RANDOM
 AG=ext-$RANDOM
 EXT='"provisioning":{"type":"external"},"agentType":{"type":"external-agent-api","subType":"custom-api"}'
@@ -79,33 +83,47 @@ check agent-create 202 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"
 check agent-get 200 "$(code "${A[@]}" "$B/projects/$P/agents/$AG")"
 check agent-list 200 "$(code "${A[@]}" "$B/projects/$P/agents")"
 check agent-update 200 "$(code "${A[@]}" -X PUT "$B/projects/$P/agents/$AG" -d '{"displayName":"Renamed","description":"smoke"}')"
-check agent-config 200 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/configurations?environment=default")"
 check agent-token 200 "$(code "${A[@]}" -X POST "$B/projects/$P/agents/$AG/token" -d '{}')"
 if jq -e '.token | type == "string" and length > 0' "$BODY" >/dev/null 2>&1; then check agent-token-issued yes yes
 else check agent-token-issued yes no; fi
 check unknown-extension 400 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"x$AG\",\"displayName\":\"X\",$EXT,\"extensions\":{\"nosuch\":{}}}")"
-# An LLM binding names a provider: amp has none by that name, amp-core no LLM support.
-check agent-with-llm-config-refused "$(pick 404 400)" "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"llm$AG\",\"displayName\":\"L\",$EXT,\"modelConfig\":[{\"providerName\":\"nosuch-provider\"}]}")"
+# An LLM binding goes in the AI Gateway's extension block: amp has no provider by
+# that name, and amp-core no ai-gateway module.
+check agent-with-llm-config-refused 400 "$(code "${A[@]}" -X POST "$B/projects/$P/agents" -d "{\"name\":\"llm$AG\",\"displayName\":\"L\",$EXT,\"extensions\":{\"ai-gateway\":{\"modelConfig\":[{\"providerName\":\"nosuch-provider\"}]}}}")"
 check agent-llm-not-created 404 "$(code "${A[@]}" "$B/projects/$P/agents/llm$AG")"
 check environments 200 "$(code "${A[@]}" "$B/environments")"
 check identity-roles 200 "$(code "${A[@]}" "$B/identities/roles")"
 check events-types 200 "$(code "${A[@]}" "$B/events/event-types")"
 
 # --- Gateway routes: served by amp, absent from amp-core -----------------------------------
-check gateways "$(pick 200 404)" "$(code "${A[@]}" "$B/gateways")"
-check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$B/llm-providers")"
-check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$B/environments/default/gateways")"
-check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$B/projects/$P/agents/$AG/deployments")"
-check catalog "$(pick 200 404)" "$(code "${A[@]}" "$B/catalog")"
+check gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/gateways")"
+check llm-providers "$(pick 200 404)" "$(code "${A[@]}" "$GW/llm-providers")"
+check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default/gateways")"
+check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/deployments")"
+check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/configurations?environment=default")"
+check catalog "$(pick 200 404)" "$(code "${A[@]}" "$GW/catalog")"
+# The bundled gateway's controller connects over the internal WebSocket.
+if [ "$DIST" = amp ]; then
+  connected=no
+  for _ in $(seq 30); do
+    code "${A[@]}" "$GW/gateways" >/dev/null
+    connected=$(has '"status":"ACTIVE"')
+    [ "$connected" = yes ] && break
+    sleep 2
+  done
+  check gateway-connected yes "$connected"
+fi
+# No alias under the core's API.
+check gateways-old-path 404 "$(code "${A[@]}" "$B/gateways")"
 check mcp-endpoint 401 "$(code -X POST "$API/mcp" -d '{}')"
 check ws-internal "$(pick 401 404)" "$(code -k "$INT/api/internal/v1/ws/gateways/connect")"
-# Not-yet-implemented routes: answered 501 by amp's legacy bundle, absent from amp-core.
-check agent-kinds "$(pick 501 404)" "$(code "${A[@]}" "$B/agent-kinds")"
+# Routes of features Lite does not serve are absent from both distributions.
+check agent-kinds 404 "$(code "${A[@]}" "$B/agent-kinds")"
 # Evaluation is not part of either distribution.
 check monitors 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/monitors")"
 check evaluators 404 "$(code "${A[@]}" "$B/evaluators")"
-check module-route-404 404 "$(code "${A[@]}" "$API/api/v1/m/testmod/whoami")"
-check workload-exchange-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workload-tokens" -d '{"credentialId":"x","secret":"y"}')"
+check module-route-404 404 "$(code "${A[@]}" "$API/m/testmod/whoami")"
+check workload-heartbeat-bad 401 "$(code -k -X POST "$INT/api/internal/v1/workloads/heartbeat" -d '{"credential":"x.y","protocol":"p/v1"}')"
 
 check agent-delete 204 "$(code "${A[@]}" -X DELETE "$B/projects/$P/agents/$AG")"
 check agent-gone 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG")"
@@ -126,8 +144,9 @@ if [ "$CONSOLE" = yes ]; then
   check config-authmode yes "$(has "authMode: 'file'")"
   check config-apibase yes "$(has "apiBaseUrl: '$API'")"
   check config-console-env yes "$(has "gatewayVersion: 'v")"
-  check config-scopes-gateway "$(pick yes no)" "$(has 'amp:gateway:read')"
+  check config-scopes-gateway "$(pick yes no)" "$(has 'amp:ai-gateway:gateways.read')"
   check config-scopes-core yes "$(has 'amp:agent:create')"
+  check config-scopes-aihub "$([ "$DIST" = amp-core ] && echo no || echo yes)" "$(has 'amp:aihub:plan-read')"
 else
   skip "console files (--no-console)"
 fi
@@ -135,11 +154,18 @@ fi
 # --- UI manifest -------------------------------------------------------------------------
 check ui-manifest-needs-token 401 "$(code "$API/api/v1/ui-manifest")"
 check ui-manifest 200 "$(code "${A[@]}" "$API/api/v1/ui-manifest")"
-CORE_PAGES=ai-gateway/external-agent
+CORE_PAGES=acp-core/external-agent
 GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity
+# The AI Hub (subscription plans) is on in both amp and amp-off; amp-core links no module.
 PLAN_PAGES=aihub/subscription-plans
-check ui-manifest-pages "$(pick "$CORE_PAGES,$GW_PAGES,$PLAN_PAGES" "$CORE_PAGES")" "$(jq -r '.pages | join(",")' "$BODY")"
-check ui-manifest-modules "$(pick core,gateway,aihub core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
+case "$DIST" in
+  amp) PAGES="$CORE_PAGES,$GW_PAGES,$PLAN_PAGES" MODS=core,ai-gateway,aihub ;;
+  amp-off) PAGES="$CORE_PAGES,$PLAN_PAGES" MODS=core,aihub ;;
+  *) PAGES="$CORE_PAGES" MODS=core ;;
+esac
+check ui-manifest-pages "$PAGES" "$(jq -r '.pages | join(",")' "$BODY")"
+check ui-manifest-modules "$MODS" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
+check aihub-plans "$([ "$DIST" = amp-core ] && echo 404 || echo 200)" "$(code "${A[@]}" "$API/m/aihub/subscription-plans")"
 
 echo "== $DIST: $pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]

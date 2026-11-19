@@ -250,20 +250,20 @@ func TestAuditMiddlewareIsPassThroughForUnauditedRoutes(t *testing.T) {
 }
 
 func TestAuditMiddlewareRecordsSensitiveRead(t *testing.T) {
-	pattern := "GET /orgs/{orgName}/git-secrets"
-	meta := audit.NewRouteMeta(pattern, audit.ExtractPathParams(pattern), []rbac.Permission{rbac.GitSecretRead})
+	pattern := "GET /orgs/{orgName}/identities/permissions"
+	meta := audit.NewRouteMeta(pattern, audit.ExtractPathParams(pattern), []rbac.Permission{rbac.RoleRead})
 
 	rec := &captureRecorder{}
 	wrapped := WithAudit(rec, meta)(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
-	wrapped(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/orgs/acme/git-secrets", nil))
+	wrapped(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/orgs/acme/identities/permissions", nil))
 
 	if len(rec.events) != 1 {
 		t.Fatalf("recorded %d events, want 1 for a credential-disclosing read", len(rec.events))
 	}
-	if rec.events[0].Action != "git-secret:list" {
-		t.Errorf("Action = %q, want git-secret:list", rec.events[0].Action)
+	if rec.events[0].Action != "permission:list" {
+		t.Errorf("Action = %q, want permission:list", rec.events[0].Action)
 	}
 }
 

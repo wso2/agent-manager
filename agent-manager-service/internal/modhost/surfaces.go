@@ -18,7 +18,6 @@ package modhost
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -28,8 +27,10 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -41,13 +42,45 @@ type Route struct {
 	// Permission guards a public route; empty means any signed-in user.
 	Permission rbac.Permission
 	// Scope guards an internal route.
-	Scope   string
+	Scope string
+	// At is the fixed path of a route mounted with HandleInternalAt, below
+	// /api/internal/v1; the route authenticates its callers itself.
+	At      string
 	Handler http.HandlerFunc
+
+	// AuditAction, when set, is the full name of the route's audit action;
+	// otherwise the permission names it. AuditRead records a read route.
+	AuditAction   string
+	AuditRead     bool
+	AuditCoalesce time.Duration
+	// AuditFailClosed refuses the request when its intent record cannot be
+	// written.
+	AuditFailClosed bool
+	// Event, of EventScope, is the webhook event the route emits after a 2xx
+	// response.
+	Event            string
+	EventScope       string
+	EventWithoutData bool
+
+	// AlsoRequires are permissions needed besides Permission; AnyOf, on a
+	// route without one, admits a caller holding any of them. PlatformAdmin
+	// admits only the platform-admin organization.
+	AlsoRequires  []rbac.Permission
+	AnyOf         []rbac.Permission
+	PlatformAdmin bool
+	// AllowOrgOverride lets a trusted caller act on another organization.
+	AllowOrgOverride bool
 }
 
-// Pattern is the route's net/http pattern on the API mux, below /api/v1 or
-// /api/internal/v1.
+// Pattern is the route's net/http pattern: /m/<module><path> on the API port,
+// or /m/<module>/internal<path> on the internal server.
 func (r Route) Pattern() string {
+	if r.At != "" {
+		return r.Method + " " + r.At
+	}
+	if r.Scope != "" {
+		return r.Method + " /m/" + r.Module + "/internal" + r.Path
+	}
 	return r.Method + " /m/" + r.Module + r.Path
 }
 
@@ -77,13 +110,26 @@ type Deps struct {
 	// Mount registers a module's public route on mux behind the core's
 	// route middleware (permission check, audit, org resolution). It may
 	// panic on a route the middleware refuses.
-	Mount  func(mux *http.ServeMux, r Route)
-	Core   modkit.CoreAPI
-	Tokens Tokens
+	Mount func(mux *http.ServeMux, r Route)
+	// MountInternal registers a module's HandleInternalAt route on mux
+	// behind the core's internal route middleware (audit). It may panic on a
+	// route the middleware refuses.
+	MountInternal func(mux *http.ServeMux, r Route)
+	Core          modkit.CoreAPI
+	Tokens        Tokens
+	// Secrets is the core's secret store.
+	Secrets SecretStore
+	// InternalURL is the origin workloads reach the internal server at,
+	// for the endpoints a heartbeat returns; empty means the origin each
+	// heartbeat arrived on.
+	InternalURL string
+	// Capabilities are the core's implementations of CoreCapabilities, by id.
+	Capabilities map[string]any
 }
 
 // Attach supplies the core services modules use. Call it before Boot.
 func (h *Host) Attach(d Deps) {
+	checkCoreCapabilities(d.Capabilities)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.d = d
@@ -100,27 +146,18 @@ var _ coreext.Extensions = (*Host)(nil)
 // ---- permissions ----
 
 // permission resolves a permission a module names: one of its own, by its
-// manifest name, or a core permission (including those of built-in modules).
+// manifest name, or a core permission.
 func (h *Host) permission(module, name string) (rbac.Permission, error) {
 	mf := h.manifests[module]
 	for _, p := range mf.Permissions {
-		if p.Name == name {
-			return permissionName(mf, name), nil
+		// By its short name, or its full name (<module>:<name>), as a module's permission constants spell it.
+		if p.Name == name || string(permissionName(mf, p.Name)) == name {
+			return permissionName(mf, p.Name), nil
 		}
 	}
 	p := rbac.Permission(name)
 	if slices.Contains(rbac.CorePermissions, p) {
 		return p, nil
-	}
-	for _, other := range h.manifests {
-		if !other.Builtin {
-			continue
-		}
-		for _, q := range other.Permissions {
-			if other.PermissionName(q.Name) == name {
-				return p, nil
-			}
-		}
 	}
 	return "", fmt.Errorf("permission %q is neither declared in the manifest nor a core permission", name)
 }
@@ -131,22 +168,19 @@ func permissionName(mf modkit.Manifest, name string) rbac.Permission {
 	return rbac.Permission(mf.PermissionName(name))
 }
 
-var permissionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
+// A permission is <action> or <resource>.<action>.
+var permissionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-]*)?$`)
 
 // declare adds a module's permissions and role grants to the registry being
 // built for a snapshot.
 func declare(reg *rbac.Registry, mf modkit.Manifest) error {
 	perms := make([]rbac.Permission, 0, len(mf.Permissions))
 	for _, p := range mf.Permissions {
-		written := mf.Builtin && strings.Contains(p.Name, ":")
-		if written && strings.ContainsAny(p.Name, " \t") {
-			return fmt.Errorf("permission name %q is not valid", p.Name)
-		}
-		// One segment, so an identity provider that builds scopes as
+		// No colon, so an identity provider that builds scopes as
 		// <resource>:<action> gives "<module>:<name>" with the module as the
 		// resource.
-		if !written && !permissionNamePattern.MatchString(p.Name) {
-			return fmt.Errorf("permission name %q must be lowercase letters, digits and dashes, starting with a letter", p.Name)
+		if !permissionNamePattern.MatchString(p.Name) {
+			return fmt.Errorf("permission name %q must be <action> or <resource>.<action>, each lowercase letters, digits and dashes, starting with a letter", p.Name)
 		}
 		perms = append(perms, permissionName(mf, p.Name))
 	}
@@ -177,8 +211,8 @@ func moduleOf(path string) string {
 	return name
 }
 
-// ServeAPI serves module routes, mounted at /m/ on the API mux (below
-// /api/v1, behind sign-in). It resolves the module against the current
+// ServeAPI serves module routes, mounted at /m/ on the API port, behind
+// sign-in. It resolves the module against the current
 // snapshot on every request, so a disabled module's routes are gone at once.
 func (h *Host) ServeAPI() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -191,11 +225,13 @@ func (h *Host) ServeAPI() http.Handler {
 	})
 }
 
-// ServeInternal serves module workload routes, mounted at /m/ on the internal
-// API mux (below /api/internal/v1).
-func (h *Host) ServeInternal() http.Handler {
+// ServeInternalAt serves the routes modules mount at fixed paths with
+// HandleInternalAt, below /api/internal/v1 on the internal server. Like the
+// other module routes, they are looked up in the current snapshot on every
+// request, so they are gone as soon as their module is disabled.
+func (h *Host) ServeInternalAt() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mux := h.current().internal[moduleOf(r.URL.Path)]
+		mux := h.current().internalAt
 		if mux == nil {
 			writeNotFound(w)
 			return
@@ -204,14 +240,69 @@ func (h *Host) ServeInternal() http.Handler {
 	})
 }
 
-// withOrg puts the caller's organization on a public module request.
+// mountInternalAt builds the mux of every HandleInternalAt route in a
+// snapshot. Two modules claiming one pattern refuse the second.
+func mountInternalAt(mount func(*http.ServeMux, Route), routes []Route) (mux *http.ServeMux, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			err = fmt.Errorf("route refused: %v", p)
+		}
+	}()
+	mux = http.NewServeMux()
+	for _, rt := range routes {
+		if mount != nil {
+			mount(mux, rt)
+		} else {
+			mux.HandleFunc(rt.Pattern(), rt.Handler)
+		}
+	}
+	return mux, nil
+}
+
+// ServeInternal serves module workload routes, mounted at /m/ on the internal
+// server: /m/<module>/internal/... A compiled-in module that is not active
+// answers 401 module_inactive, which tells its workloads to stand by.
+func (h *Host) ServeInternal() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		name := moduleOf(r.URL.Path)
+		v := h.current()
+		mux := v.internal[name]
+		if mux == nil {
+			if _, compiled := h.mods[name]; compiled && !slices.Contains(v.active, name) {
+				writeWorkloadError(w, http.StatusUnauthorized, WorkloadError{
+					Error:   ErrModuleInactive,
+					Message: name + " is not active; stand by and retry",
+				})
+				return
+			}
+			writeNotFound(w)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	})
+}
+
+// withOrg puts the caller and their organization on a public module request.
 func withOrg(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if c := jwtassertion.GetTokenClaims(r.Context()); c != nil && c.OuId != "" {
-			r = r.WithContext(modkit.WithOrgID(r.Context(), c.OuId))
+		if c := jwtassertion.GetTokenClaims(r.Context()); c != nil {
+			ctx := modkit.WithPrincipal(r.Context(), principalOf(c))
+			// The organization the core resolved: the token's, or the one an
+			// allowed org override switched to.
+			if org, ok := orgctx.GetResolvedOrg(ctx); ok && org.OUID != "" {
+				ctx = modkit.WithOrgID(ctx, org.OUID)
+			} else if c.OuId != "" {
+				ctx = modkit.WithOrgID(ctx, c.OuId)
+			}
+			r = r.WithContext(ctx)
 		}
 		next(w, r)
 	}
+}
+
+// principalOf is the caller a verified token names.
+func principalOf(c *jwtassertion.TokenClaims) modkit.Principal {
+	return modkit.Principal{User: c.Sub, ClientID: c.ClientID}
 }
 
 // mountPublic builds a module's public mux. The core middleware panics on a
@@ -224,7 +315,7 @@ func mountPublic(mount func(*http.ServeMux, Route), routes []Route) (mux *http.S
 	}()
 	mux = http.NewServeMux()
 	for _, rt := range routes {
-		rt.Handler = withOrg(rt.Handler)
+		rt.Handler = withOrg(growthanalytics.Trackable(rt.Handler))
 		mount(mux, rt)
 	}
 	return mux, nil
@@ -245,32 +336,25 @@ func (h *Host) mountInternal(module string, routes []Route) (mux *http.ServeMux,
 	return mux, nil
 }
 
-func writeUnauthorized(w http.ResponseWriter, status int, msg string) {
-	w.Header().Set("Content-Type", "application/json")
-	if status == http.StatusUnauthorized {
-		w.Header().Set("WWW-Authenticate", `Bearer error="invalid_token"`)
-	}
-	w.WriteHeader(status)
-	body, _ := json.Marshal(map[string]string{"message": msg})
-	_, _ = w.Write(body)
-}
-
 func (h *Host) requireWorkload(module, scope string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		tokens := h.deps().Tokens
 		raw, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if tokens == nil || !ok || raw == "" {
-			writeUnauthorized(w, http.StatusUnauthorized, "a workload token is required")
+			writeWorkloadError(w, http.StatusUnauthorized, WorkloadError{Error: ErrInvalidToken, Message: "a workload token is required"})
 			return
 		}
 		wl, err := tokens.VerifyWorkload(strings.TrimSpace(raw))
 		if err != nil {
 			h.log.Debug("modhost:rejected workload token", "module", module, "error", err)
-			writeUnauthorized(w, http.StatusUnauthorized, "invalid workload token")
+			writeWorkloadError(w, http.StatusUnauthorized, WorkloadError{Error: ErrInvalidToken, Message: "invalid workload token"})
 			return
 		}
 		if wl.Module != module || !slices.Contains(wl.Scopes, scope) {
-			writeUnauthorized(w, http.StatusForbidden, "the workload token does not grant this route")
+			writeWorkloadError(w, http.StatusForbidden, WorkloadError{
+				Error:   ErrInsufficientScope,
+				Message: "the workload token does not grant this route",
+			})
 			return
 		}
 		ctx := modkit.WithWorkload(r.Context(), wl)
@@ -338,7 +422,6 @@ func (h *Host) issueToken(ctx context.Context, module string, req modkit.TokenRe
 type ModuleUI struct {
 	Name    string
 	Version string
-	Builtin bool
 	Pages   []UIEntry
 	Nav     []UIEntry
 	Slots   []UIEntry
@@ -364,7 +447,7 @@ func (h *Host) UI() []ModuleUI {
 		if mf.UI == nil {
 			continue
 		}
-		m := ModuleUI{Name: name, Version: mf.Version, Builtin: mf.Builtin}
+		m := ModuleUI{Name: name, Version: mf.Version}
 		add := func(list *[]UIEntry, e UIEntry, perm string) {
 			if perm != "" {
 				p, err := h.permission(name, perm)

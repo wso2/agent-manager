@@ -34,12 +34,13 @@ console:
 # and enabled (or disabled with `enabled: false`); other installed modules are
 # disabled unless a listed one requires them. Omit the key (or leave every
 # entry commented out) to manage modules with `amp module …` instead; `[]`
-# disables every module that is not built in. AMP_MODULES (`gateway,widgets=off`,
-# or `none`) overrides the list. Built-in modules (gateway, legacy) are always
-# active.
+# disables every module. AMP_MODULES (`ai-gateway,widgets=off`,
+# or `none`) overrides the list.
+# With no list, amp installs ai-gateway and aihub at boot if they were never
+# installed.
 modules:
-  - gateway
-  - aihub                         # AI Hub (subscription plans); on by default
+  - ai-gateway
+  - aihub                         # AI Hub: subscription plans
   # - name: widgets
   #   enabled: true
   #   config:                     # MODULE_WIDGETS_<KEY>, read with Runtime.Config

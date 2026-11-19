@@ -232,7 +232,7 @@ card("acard", "agents", 640, 0, 250, "Agent card", "agent_cards",
      [("source_url", ""), ("card", "JSON"), ("card_hash", ""), ("status", "")], chips=["env", "queue", "gwmod"])
 card("a2a", "agents", 640, 0, 250, "A2A proxy", "a2a_proxies",
      "Gateway route to an A2A agent's upstream.",
-     [("upstream_auth_header", ""), ("upstream_auth_secret_id", "")], chips=["env", "secret", "gwmod"])
+     [("upstream_auth_header", "")], chips=["env", "secret", "gwmod"])
 card("mconf", "agents", 60, 0, 250, "Agent model config", "agent_model_configs",
      "A named LLM or MCP connection the agent uses.",
      [("name", "unique per agent"), ("type", "llm | mcp")], chips=["gwmod"])
@@ -291,12 +291,12 @@ TY = cards["status"].y + cards["status"].h + 80
 TW = 210
 card("prov", "gateway", 975, TY, TW, "LLM provider", "llm_providers",
      "An org-wide connection to an LLM service.",
-     [("template_handle", ""), ("model_list", ""), ("configuration", "JSON"), ("upstream_secret_id", "")],
+     [("template_handle", ""), ("model_list", ""), ("configuration", "JSON")],
      chips=["secret"])
 card("lproxy", "gateway", 1235, TY, TW, "LLM proxy", "llm_proxies",
      "A project's governed route to a provider. What agents call.",
-     [("project_id", "owning project"), ("provider_id", "LLM provider"), ("configuration", "policies"),
-      ("upstream_secret_id", "")], chips=["secret"])
+     [("project_id", "owning project"), ("provider_id", "LLM provider"), ("configuration", "policies")],
+     chips=["secret"])
 card("mproxy", "gateway", 1495, TY, TW, "MCP proxy", "mcp_proxies",
      "Gateway front for an MCP server.",
      [("project_id", "empty = org-level"), ("configuration", "JSON"), ("status", "")])
@@ -312,14 +312,14 @@ card("scopes", "gateway", 1495, BY, TW, "MCP scope", "mcp_proxy_scopes, mcp_prox
      [("action", "unique per proxy"), ("tool_name", "one row per tool")])
 card("endpoint", "gateway", 1755, BY, 232, "MCP endpoint", "mcp_proxy_endpoints, mcp_proxy_endpoint_environments",
      "The upstream MCP server. One per proxy in Lite, placed in the default environment.",
-     [("configuration", "upstream, policies"), ("upstream_secret_id", ""), ("artifact_id", "per env")],
+     [("configuration", "upstream, policies"), ("artifact_id", "per env")],
      chips=["env", "secret"])
 
 # ---------------------------------------------------------------- Right column
 RX = 2050
 card("secret", "secrets", RX, TOP, 300, "Secret", "secrets",
      "Every credential, encrypted in this database or held in an external vault.",
-     [("owner_kind, owner_id", "who uses it"), ("provider", "db | vault name"),
+     [("owner_kind, owner_id", "who uses it; mod:<module> for modules"), ("provider", "db | vault name"),
       ("ciphertext", "AES-256-GCM"), ("key_id", "for key rotation"), ("external_ref", "vault path")])
 
 EY = cards["secret"].y + cards["secret"].h + 36 + 22 + 58 + 40
@@ -359,13 +359,13 @@ card("usage", "audit", RX + 390, 0, 380, "Usage event", "usage_events",
       ("dimensions", "JSON")])
 card("locks", "internal", RX, 0, 360, "Lock", "locks",
      "A lease that lets only one instance run a singleton worker.",
-     [("name", "e.g. gateway.drift_scan"), ("owner", "empty = free"), ("expires_at", "")])
+     [("name", "e.g. agent_identity.reconciler"), ("owner", "empty = free"), ("expires_at", "")])
 card("queues", "internal", RX + 390, 0, 380, "Queue columns", "claimed_by, claimed_until",
      "Rows a worker claims carry a lease instead of a lock: agent identities, agent cards, deployment status, event outbox, event deliveries, module event deliveries.",
      [], chips=["queue"])
 
 card("modules", "modules", RX, 0, 240, "Module", "modules, module_generation",
-     "Install and enable state of each compiled-in module. Every change bumps the generation; replicas poll it.",
+     "Install and enable state of each compiled-in module; no row = available (purge deletes it). Every change bumps the generation; replicas poll it.",
      [("name", ""), ("version", ""), ("state", "active | disabled | uninstalled")])
 card("modmig", "modules", RX + 265, 0, 240, "Module migration", "module_migrations",
      "Each module's applied migrations. Module tables are named mod_<module>_<table>.",
@@ -373,9 +373,9 @@ card("modmig", "modules", RX + 265, 0, 240, "Module migration", "module_migratio
 card("modev", "modules", RX + 530, 0, 240, "Module event", "module_events, module_event_deliveries",
      "Events for modules, one delivery per subscribing module, retried with backoff.",
      [("type", "e.g. agent.created"), ("source", "core or a module"), ("attempts", "")], chips=["queue"])
-card("wlcred", "modules", RX, 0, 240, "Workload credential", "workload_credentials",
-     "A module workload's credential, exchanged for short-lived tokens. Only a hash is kept.",
-     [("module", ""), ("subject", ""), ("scopes", ""), ("revoked_at", "")])
+card("wlcred", "modules", RX, 0, 240, "Workload credential", "workload_credentials, workload_instances",
+     "A module workload's credential, presented in heartbeats for short-lived tokens, and the instances that heartbeat. Only a hash is kept.",
+     [("module, workload", ""), ("subject", ""), ("revoked_at", ""), ("last_seen", "per instance")])
 
 # ---------------------------------------------------------------- Deferred strip
 DW = 360
@@ -635,7 +635,7 @@ def render_svg(viewbox=None, width=None):
     for i, (key, desc) in enumerate([("env", "one row per environment; in Lite always the hidden default"),
                                      ("secret", "credential lives in Secrets, not in this row"),
                                      ("queue", "workers claim rows with a lease"),
-                                     ("gwmod", "used only by the gateway module; keeps its name for now")]):
+                                     ("gwmod", "belongs to the gateway module (mod_ai_gateway_ table)")]):
         label, bg, fg = CHIPS[key]
         yy = ly0 + 10 + i * 22
         cw = len(label) * 6.1 + 16
@@ -661,18 +661,20 @@ def render_svg(viewbox=None, width=None):
     for i, ln in enumerate(tnotes):
         out.append(f'<text x="{tb[0] + 290}" y="{tb[3] - 84 + i * 18 + (8 if i >= 2 else 0)}" class="anote">{esc(ln)}</text>')
     gb = area_boxes["gateway"]
-    for i, ln in enumerate(["The gateway module is built in to amp and absent from amp-core.",
-                            "Its tables keep their names for now (no mod_gateway_ prefix)."]):
+    for i, ln in enumerate(["amp installs the gateway module by default; amp-core lacks it.",
+                            "Its tables are named mod_ai_gateway_<table>."]):
         out.append(f'<text x="{gb[0] + 30}" y="{cards["apikeys"].y - 110 + i * 18}" class="anote">{esc(ln)}</text>')
     mb = area_boxes["modules"]
     out.append(f'<text x="{mb[0] + 180}" y="{mb[1] + 30}" class="anote">Core tables; module-owned tables are mod_&lt;module&gt;_&lt;table&gt;.</text>')
     ab = area_boxes["audit"]
     out.append(f'<text x="{ab[0] + 380}" y="{ab[1] + 30}" class="anote">No foreign keys: rows outlive what they describe.</text>')
     sc = cards["secret"]
-    notes = ["Referenced by secret_id from LLM providers,",
-             "LLM proxies, MCP endpoints, A2A proxies and",
-             "event destinations. The service deletes a",
-             "secret after its owner.",
+    notes = ["Referenced by secret_id from event",
+             "destinations. Modules keep theirs by path",
+             "(the AI Gateway's LLM providers, LLM proxies,",
+             "MCP endpoints and A2A proxies, owner kind",
+             "mod:ai-gateway), deleted with the owning row",
+             "or when the module is purged.",
              "",
              "Production can keep values in an external",
              "vault instead (provider + external_ref)."]

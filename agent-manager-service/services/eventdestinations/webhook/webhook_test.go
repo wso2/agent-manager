@@ -32,8 +32,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // specVectorKey is the base64 key of the Standard Webhooks specification's
@@ -52,13 +52,13 @@ func TestNormalizeConfig(t *testing.T) {
 	ctx := context.Background()
 
 	_, err := d.NormalizeConfig(ctx, json.RawMessage(`{"url":"http://hooks.example.com/x"}`))
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "plain http is refused")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "plain http is refused")
 
 	_, err = d.NormalizeConfig(ctx, json.RawMessage(`{"url":"https://127.0.0.1/x"}`))
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "a loopback address is refused")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "a loopback address is refused")
 
 	_, err = d.NormalizeConfig(ctx, json.RawMessage(`[]`))
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "config must be an object")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "config must be an object")
 
 	local := New(true)
 	cfg, err := local.NormalizeConfig(ctx, json.RawMessage(`{"url":"  http://localhost:8787/hook ", "extra": 1}`))

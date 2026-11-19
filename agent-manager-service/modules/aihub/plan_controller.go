@@ -30,7 +30,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
@@ -497,10 +496,7 @@ func (a *planController) caller(w http.ResponseWriter, r *http.Request) (org, ac
 		a.writeError(w, http.StatusUnauthorized, codeUnauthorized, "Invalid or expired credentials.")
 		return "", "", false
 	}
-	if claims := jwtassertion.GetTokenClaims(r.Context()); claims != nil {
-		actor = claims.Sub
-	}
-	return org, actor, true
+	return org, modkit.PrincipalFrom(r.Context()).User, true
 }
 
 func (a *planController) readBody(w http.ResponseWriter, r *http.Request) ([]byte, bool) {

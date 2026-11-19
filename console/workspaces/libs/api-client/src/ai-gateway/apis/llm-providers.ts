@@ -76,14 +76,7 @@ import type {
   UpdateLLMProxyPathParams,
   UpdateLLMProxyRequest,
 } from "@agent-management-platform/types";
-import {
-  encodeRequired,
-  httpDELETE,
-  httpGET,
-  httpPOST,
-  httpPUT,
-  SERVICE_BASE,
-} from "../../shared/utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 
 interface PaginationQuery {
   limit?: number;
@@ -107,7 +100,7 @@ export async function listLLMProviderTemplates(
   }
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/llm-provider-templates`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates`,
     {
       token,
       searchParams: Object.keys(searchParams).length ? searchParams : undefined,
@@ -126,7 +119,7 @@ export async function createLLMProviderTemplate(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/llm-provider-templates`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates`,
     body,
     { token },
   );
@@ -143,7 +136,7 @@ export async function getLLMProviderTemplate(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/llm-provider-templates/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates/${id}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -160,7 +153,7 @@ export async function updateLLMProviderTemplate(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/llm-provider-templates/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates/${id}`,
     body,
     { token },
   );
@@ -177,7 +170,7 @@ export async function deleteLLMProviderTemplate(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/llm-provider-templates/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-provider-templates/${id}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -199,7 +192,7 @@ export async function listLLMProviders(
     searchParams.offset = String(query.offset);
   }
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/llm-providers`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/llm-providers`, {
     token,
     searchParams: Object.keys(searchParams).length ? searchParams : undefined,
   });
@@ -221,7 +214,7 @@ export async function listAvailableLLMPolicies(
   }
 
   // httpGET already throws on a non-OK response, so no !res.ok branch is needed.
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/llm-providers/policies`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/llm-providers/policies`, {
     token,
     searchParams: Object.keys(searchParams).length ? searchParams : undefined,
   });
@@ -236,7 +229,7 @@ export async function createLLMProvider(
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPOST(`${SERVICE_BASE}/orgs/${org}/llm-providers`, body, {
+  const res = await httpPOST(`${GATEWAY_BASE}/orgs/${org}/llm-providers`, body, {
     token,
   });
   if (!res.ok) throw await res.json();
@@ -251,7 +244,7 @@ export async function getLLMProvider(
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/llm-providers/${id}`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}`, {
     token,
   });
   if (!res.ok) throw await res.json();
@@ -268,7 +261,7 @@ export async function updateLLMProvider(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}`,
     body,
     { token },
   );
@@ -284,7 +277,7 @@ export async function deleteLLMProvider(
   const id = encodeRequired(params.providerId, "providerId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpDELETE(`${SERVICE_BASE}/orgs/${org}/llm-providers/${id}`, {
+  const res = await httpDELETE(`${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}`, {
     token,
   });
   if (!res.ok) throw await res.json();
@@ -300,7 +293,7 @@ export async function updateLLMProviderCatalog(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/catalog`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/catalog`,
     body,
     { token },
   );
@@ -325,7 +318,7 @@ export async function listLLMProviderProxies(
   }
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/llm-proxies`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/llm-proxies`,
     {
       token,
       searchParams: Object.keys(searchParams).length ? searchParams : undefined,
@@ -353,7 +346,7 @@ export async function listLLMProxies(
   }
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies`,
     {
       token,
       searchParams: Object.keys(searchParams).length ? searchParams : undefined,
@@ -373,7 +366,7 @@ export async function createLLMProxy(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies`,
     body,
     { token },
   );
@@ -391,7 +384,7 @@ export async function getLLMProxy(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -409,7 +402,7 @@ export async function updateLLMProxy(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}`,
     body,
     { token },
   );
@@ -427,7 +420,7 @@ export async function deleteLLMProxy(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -451,7 +444,7 @@ export async function listLLMDeployments(
   }
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
     {
       token,
       searchParams: Object.keys(searchParams).length ? searchParams : undefined,
@@ -471,7 +464,7 @@ export async function createLLMDeployment(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments`,
     body,
     { token },
   );
@@ -494,7 +487,7 @@ export async function undeployLLMProvider(
   };
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments/undeploy`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments/undeploy`,
     {},
     { token, searchParams },
   );
@@ -516,7 +509,7 @@ export async function restoreLLMDeployment(
   };
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments/restore`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments/restore`,
     {},
     { token, searchParams },
   );
@@ -534,7 +527,7 @@ export async function getLLMDeployment(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments/${deploymentId}`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments/${deploymentId}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -551,7 +544,7 @@ export async function deleteLLMDeployment(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/deployments/${deploymentId}`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/deployments/${deploymentId}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -570,7 +563,7 @@ export async function listLLMProviderAPIKeys(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/api-keys`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/api-keys`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -587,7 +580,7 @@ export async function createLLMProviderAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/api-keys`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/api-keys`,
     body,
     { token },
   );
@@ -606,7 +599,7 @@ export async function rotateLLMProviderAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/api-keys/${keyName}`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/api-keys/${keyName}`,
     body,
     { token },
   );
@@ -624,7 +617,7 @@ export async function revokeLLMProviderAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/api-keys/${keyName}`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/api-keys/${keyName}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -644,7 +637,7 @@ export async function listLLMProxyAPIKeys(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}/api-keys`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}/api-keys`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -662,7 +655,7 @@ export async function createLLMProxyAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}/api-keys`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}/api-keys`,
     body,
     { token },
   );
@@ -682,7 +675,7 @@ export async function rotateLLMProxyAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}/api-keys/${keyName}`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}/api-keys/${keyName}`,
     body,
     { token },
   );
@@ -701,7 +694,7 @@ export async function revokeLLMProxyAPIKey(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}/api-keys/${keyName}`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/llm-proxies/${id}/api-keys/${keyName}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -716,7 +709,7 @@ export async function listLLMProviderConsumers(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/llm-providers/${id}/consumers`,
+    `${GATEWAY_BASE}/orgs/${org}/llm-providers/${id}/consumers`,
     { token },
   );
   if (!res.ok) throw await res.json();

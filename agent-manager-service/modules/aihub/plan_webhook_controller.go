@@ -33,7 +33,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"gorm.io/gorm"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
 // The webhook receiver for subscription plans made, changed or deleted elsewhere (including an MCP
@@ -51,8 +51,9 @@ import (
 // Every failure is answered alike (401), so a caller learns nothing from the response; the reason is
 // logged. The secret is the module setting webhook_secret (MODULE_AIHUB_WEBHOOK_SECRET).
 
-// WebhookRoutePath is the receiver's route on the internal server (under /api/internal/v1).
-const WebhookRoutePath = "/webhook/events"
+// WebhookRoutePath is the receiver's route on the internal server, the fixed path developer portals are
+// configured with.
+const WebhookRoutePath = "/api/internal/v1/webhook/events"
 
 // Subscription plan event types.
 const (
@@ -302,9 +303,17 @@ func (d *planEventData) requireHandle() error {
 type webhookReceiver struct {
 	cfg   webhookConfig
 	plans *planService
-	db    func() *gorm.DB
+	core  modkit.CoreAPI
 	log   *slog.Logger
 	now   func() time.Time
+}
+
+// webhookCaller is how the audit record names the sender: no user signs in, the signature authenticates it.
+func webhookCaller(refused string, signed bool) modkit.InternalCaller {
+	return modkit.InternalCaller{
+		Kind: "developer-portal", AuthMethod: "webhook-signature",
+		Refused: refused, CredentialPresent: signed,
+	}
 }
 
 // ServeHTTP runs the flow: size-limited read, signature check, envelope, organization, dispatch.
@@ -322,6 +331,10 @@ func (r *webhookReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			level = slog.LevelError
 		}
 		r.log.Log(req.Context(), level, "webhook delivery rejected", "error", err, "clientIp", req.RemoteAddr)
+		if errors.Is(err, errSignatureInvalid) {
+			modkit.AuditInternalCaller(req.Context(),
+				webhookCaller("invalid-signature", req.Header.Get(r.cfg.SignatureHeader) != ""))
+		}
 		reject(w)
 	}
 }
@@ -338,6 +351,7 @@ func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) erro
 	if err := r.authenticate(req.Header.Get(r.cfg.SignatureHeader), body); err != nil {
 		return err
 	}
+	modkit.AuditInternalCaller(req.Context(), webhookCaller("", true))
 	// 2. The envelope.
 	env, err := decodeEnvelope(body)
 	if err == nil {
@@ -379,18 +393,16 @@ func (r *webhookReceiver) authenticate(header string, body []byte) error {
 	return verifySignature(r.cfg.Secret, header, body, r.cfg.SignatureTolerance, r.now())
 }
 
-// orgIDByHandle resolves the organization handle a delivery names (org.ref_id) to its id. The module
-// is built in, so it reads the core's organizations table, as the gateway module does.
+// orgIDByHandle resolves the organization handle a delivery names (org.ref_id) to its id, through the core.
 func (r *webhookReceiver) orgIDByHandle(ctx context.Context, handle string) (string, error) {
-	var ids []string
-	if err := r.db().WithContext(ctx).Raw(`SELECT id FROM organizations WHERE handle = ?`, handle).
-		Scan(&ids).Error; err != nil {
-		return "", fmt.Errorf("look up organization %s: %w", handle, err)
-	}
-	if len(ids) == 0 {
+	org, err := r.core.GetOrgByHandle(ctx, handle)
+	if errors.Is(err, modkit.ErrNotFound) {
 		return "", fmt.Errorf("%w: %s", errOrganizationNotFound, handle)
 	}
-	return ids[0], nil
+	if err != nil {
+		return "", fmt.Errorf("look up organization %s: %w", handle, err)
+	}
+	return org.ID, nil
 }
 
 func (r *webhookReceiver) dispatch(ctx context.Context, orgID string, env *envelope) error {

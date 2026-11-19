@@ -30,7 +30,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 func TestEventDestinationRejectsStaleWrites(t *testing.T) {
@@ -62,7 +62,7 @@ func TestEventDestinationRejectsStaleWrites(t *testing.T) {
 			require.NoError(t, repo.UpdateDestination(ctx, current, nil))
 			checked := false
 			err = repo.UpdateDestination(ctx, stale, func([]models.EventSubscription) error { checked = true; return nil })
-			require.ErrorIs(t, err, utils.ErrConflict)
+			require.ErrorIs(t, err, httpx.ErrConflict)
 			assert.False(t, checked, "stale input is rejected before availability checks")
 			saved, err := repo.GetDestination(ctx, d.OUID, d.ID)
 			require.NoError(t, err)

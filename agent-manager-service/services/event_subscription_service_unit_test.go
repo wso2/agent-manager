@@ -31,6 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -130,12 +131,12 @@ func TestEventSubscriptionService_RefusesUnknownTargetsAndEnvironments(t *testin
 	typo := subscriptionInput(all.ID, "agent.deployed")
 	typo.Environments = []string{"prodution"}
 	_, err = svc.Create(ctx, agentTarget, typo)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "an environment the org lacks would never match")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "an environment the org lacks would never match")
 
 	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
 	require.NoError(t, err)
 	_, err = svc.Update(ctx, agentTarget, sub.ID, typo)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	assert.Len(t, store.subscriptions, 1, "nothing refused was saved")
 }
 
@@ -183,7 +184,7 @@ func TestEventSubscriptionService_EventTypesFollowTheScope(t *testing.T) {
 		{orgTarget, []string{"project.created", "agent.deployed", "agent.created"}, true},
 		{projectTarget, []string{"agent.created", "agent.deployed"}, true},
 		{projectTarget, []string{"project.deleted"}, false}, // an org event
-		{agentTarget, []string{"agent.deployed", "agent.api_key_revoked"}, true},
+		{agentTarget, []string{"agent.deployed", "agent.configuration_updated"}, true},
 		{agentTarget, []string{"agent.created"}, false}, // a project event
 		{agentTarget, []string{"agent.teleported"}, false},
 		{agentTarget, []string{events.TypeDestinationTest}, false},
@@ -198,7 +199,7 @@ func TestEventSubscriptionService_EventTypesFollowTheScope(t *testing.T) {
 			if tc.ok {
 				assert.NoError(t, err)
 			} else {
-				assert.ErrorIs(t, err, utils.ErrInvalidInput)
+				assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 			}
 		})
 	}
@@ -219,16 +220,16 @@ func TestEventSubscriptionService_DestinationAvailability(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, err = svc.Create(ctx, projectTarget, subscriptionInput(adminOnly.ID, "agent.created"))
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "org-only destinations are closed to projects")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "org-only destinations are closed to projects")
 	_, err = svc.Create(ctx, agentTarget, subscriptionInput(claims.ID, "agent.deployed"))
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "an agent uses its project's availability")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "an agent uses its project's availability")
 	_, err = svc.Create(ctx, agentTarget, subscriptionInput(payments.ID, "agent.deployed"))
 	assert.NoError(t, err)
 
 	_, err = svc.Create(ctx, orgTarget, subscriptionInput(elsewhere.ID, "project.created"))
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "another org's destination does not exist here")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "another org's destination does not exist here")
 	_, err = svc.Create(ctx, orgTarget, subscriptionInput(uuid.Nil, "project.created"))
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 }
 
 func TestEventSubscriptionService_ScopeIsolation(t *testing.T) {
@@ -277,7 +278,7 @@ func TestEventSubscriptionService_Limit(t *testing.T) {
 		putSubscription(store, agentTarget, fmt.Sprintf("s%d", i), all.ID)
 	}
 	_, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	_, err = svc.Create(ctx, projectTarget, subscriptionInput(all.ID, "agent.deployed"))
 	assert.NoError(t, err, "the limit is per owner")
 }
@@ -373,9 +374,9 @@ func TestEventSubscriptionService_DeliveriesAreScopedToTheLevel(t *testing.T) {
 	assert.Equal(t, maxEventDeliveryLimit, filters[0].Limit, "the page size is capped")
 
 	_, err := svc.Deliveries(context.Background(), orgTarget, DeliveryQuery{Status: "lost"})
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 	_, err = svc.Deliveries(context.Background(), orgTarget, DeliveryQuery{Offset: -1})
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 }
 
 func TestEventSubscriptionService_RemoveForProjectAndAgent(t *testing.T) {
@@ -447,5 +448,5 @@ func TestEventSubscriptionService_EventTypes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, orgTypes, len(all), "an org subscription can name every type")
 	_, err = svc.EventTypes("galaxy")
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 }

@@ -48,8 +48,8 @@ type Operation interface {
 	// active or takes no hooks on the resource.
 	Check(ext map[string]json.RawMessage) error
 	// Run runs the hooks of one phase, inside tx when tx is not nil. It
-	// returns the first validate or apply error; finalize errors are only
-	// logged.
+	// returns the first validate or apply error, and on projects the first
+	// finalize error; other finalize errors are only logged.
 	Run(ctx context.Context, tx *gorm.DB, phase modkit.Phase, req modkit.HookRequest, ext map[string]json.RawMessage) error
 	// Emit records a core event for the modules subscribed to it, inside tx.
 	Emit(ctx context.Context, tx *gorm.DB, e modkit.Event) error

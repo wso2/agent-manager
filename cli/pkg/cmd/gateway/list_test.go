@@ -23,32 +23,32 @@ import (
 	"testing"
 	"time"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
-func sampleGateway(name, uuid string, gwType amsvc.GatewayType, envs ...string) amsvc.GatewayResponse {
-	g := amsvc.GatewayResponse{
+func sampleGateway(name, uuid string, gwType aigateway.GatewayType, envs ...string) aigateway.GatewayResponse {
+	g := aigateway.GatewayResponse{
 		Name:        name,
 		DisplayName: strings.ToUpper(name),
 		Uuid:        uuid,
 		GatewayType: gwType,
-		Status:      amsvc.GatewayStatus("ACTIVE"),
+		Status:      aigateway.GatewayStatus("ACTIVE"),
 		Vhost:       name + ".example.com",
 		CreatedAt:   time.Unix(0, 0).UTC(),
 		UpdatedAt:   time.Unix(0, 0).UTC(),
 	}
 	if len(envs) > 0 {
-		bindings := make([]amsvc.GatewayEnvironmentResponse, 0, len(envs))
+		bindings := make([]aigateway.GatewayEnvironmentResponse, 0, len(envs))
 		for _, env := range envs {
-			bindings = append(bindings, amsvc.GatewayEnvironmentResponse{Name: env})
+			bindings = append(bindings, aigateway.GatewayEnvironmentResponse{Name: env})
 		}
 		g.Environments = &bindings
 	}
 	return g
 }
 
-func sampleListResponse(gateways ...amsvc.GatewayResponse) amsvc.GatewayListResponse {
-	return amsvc.GatewayListResponse{
+func sampleListResponse(gateways ...aigateway.GatewayResponse) aigateway.GatewayListResponse {
+	return aigateway.GatewayListResponse{
 		Gateways: gateways,
 		Total:    int32(len(gateways)),
 		Limit:    100,
@@ -59,7 +59,7 @@ func sampleListResponse(gateways ...amsvc.GatewayResponse) amsvc.GatewayListResp
 func TestList_SuccessJSON(t *testing.T) {
 	io, out, _ := newTestIO()
 	clientFn, captured, closeFn := newTestClient(t, http.StatusOK, sampleListResponse(
-		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", amsvc.GatewayTypeBOTH, "default"),
+		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH, "default"),
 	))
 	defer closeFn()
 
@@ -205,8 +205,8 @@ func TestList_EmptyStaysSilentWhenPiped(t *testing.T) {
 func TestList_TableShowsUUID(t *testing.T) {
 	io, out, _ := newTextTestIO(true)
 	clientFn, _, closeFn := newTestClient(t, http.StatusOK, sampleListResponse(
-		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", amsvc.GatewayTypeBOTH, "prod", "default"),
-		sampleGateway("inbound", "22222222-2222-2222-2222-222222222222", amsvc.GatewayTypeINGRESS),
+		sampleGateway("edge", "11111111-1111-1111-1111-111111111111", aigateway.GatewayTypeBOTH, "prod", "default"),
+		sampleGateway("inbound", "22222222-2222-2222-2222-222222222222", aigateway.GatewayTypeINGRESS),
 	))
 	defer closeFn()
 
@@ -284,13 +284,13 @@ func TestListCmd_RejectsOutOfRangePagination(t *testing.T) {
 func TestNormalizeGatewayType(t *testing.T) {
 	for _, tc := range []struct {
 		in      string
-		want    amsvc.GatewayTypeInput
+		want    aigateway.GatewayTypeInput
 		wantErr bool
 	}{
-		{in: "EGRESS", want: amsvc.GatewayTypeInputEGRESS},
-		{in: "egress", want: amsvc.GatewayTypeInputEGRESS},
-		{in: " both ", want: amsvc.GatewayTypeInputBOTH},
-		{in: "INGRESS", want: amsvc.GatewayTypeInputINGRESS},
+		{in: "EGRESS", want: aigateway.GatewayTypeInputEGRESS},
+		{in: "egress", want: aigateway.GatewayTypeInputEGRESS},
+		{in: " both ", want: aigateway.GatewayTypeInputBOTH},
+		{in: "INGRESS", want: aigateway.GatewayTypeInputINGRESS},
 		// Deprecated server-side aliases are deliberately not advertised.
 		{in: "REGULAR", wantErr: true},
 		{in: "AI", wantErr: true},

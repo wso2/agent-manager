@@ -44,20 +44,13 @@ func (tools *Toolsets) register(server *gomcp.Server) *toolRegistry {
 	if tools.AgentToolset != nil {
 		tools.registerAgentTools(server, reg)
 	}
-	if tools.DeploymentToolset != nil {
-		tools.registerDeploymentTools(server, reg)
-	}
 	if tools.EnvironmentToolset != nil {
 		tools.registerEnvironmentTools(server, reg)
 	}
-	if tools.LLMProviderToolset != nil {
-		tools.registerLLMProviderTools(server, reg)
-	}
-	if tools.MCPProxyToolset != nil {
-		tools.registerMCPProxyTools(server, reg)
-	}
-	if tools.AgentConfigToolset != nil {
-		tools.registerAgentConfigTools(server, reg)
+	if tools.Modules != nil {
+		// Added last, so it runs first: module tool calls never reach the
+		// core's authorization middleware, which would deny them as unknown.
+		server.AddReceivingMiddleware(reg.moduleToolsMiddleware(tools.Modules))
 	}
 	return reg
 }

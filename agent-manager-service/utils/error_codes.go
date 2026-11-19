@@ -20,31 +20,15 @@ package utils
 // These codes are stable and should not change once defined.
 const (
 	// Client error codes (4xx)
-	ErrCodeValidation     = "VALIDATION_ERROR"
-	ErrCodeNotFound       = "NOT_FOUND"
-	ErrCodeConflict       = "CONFLICT"
-	ErrCodeBadRequest     = "BAD_REQUEST"
-	ErrCodeUnauthorized   = "UNAUTHORIZED"
-	ErrCodeForbidden      = "FORBIDDEN"
 	ErrCodeImmutableField = "IMMUTABLE_FIELD"
-	ErrCodeInvalidInput   = "INVALID_INPUT"
 	// ErrCodeHandleInUse: the MCP proxy handle belongs to an org-level or another project's proxy.
 	ErrCodeHandleInUse = "HANDLE_IN_USE"
-	// ErrCodeProjectOwned: an org route tried to mutate a project-scoped MCP proxy.
-	ErrCodeProjectOwned = "PROJECT_OWNED"
 	// ErrCodeMCPProxyInUse: AM agents still use the MCP proxy, so it cannot be deleted.
 	ErrCodeMCPProxyInUse = "MCP_PROXY_IN_USE"
 	// ErrCodeUpstreamNotReady: the project MCP proxy's source component isn't deployed in the environment yet.
 	ErrCodeUpstreamNotReady = "UPSTREAM_NOT_READY"
-	// ErrCodeContextInUse: an artifact's gateway context overlaps another artifact's on that gateway.
-	ErrCodeContextInUse = "CONTEXT_IN_USE"
 	// ErrCodeAmbiguousGateway: the binding's environment has several egress gateways and no gatewayId was given.
 	ErrCodeAmbiguousGateway = "AMBIGUOUS_GATEWAY"
-
-	// Server error codes (5xx)
-	ErrCodeInternalError      = "INTERNAL_ERROR"
-	ErrCodeServiceUnavailable = "SERVICE_UNAVAILABLE"
-	ErrCodeNotImplemented     = "NOT_IMPLEMENTED"
 
 	// Resource-specific error codes
 	ErrCodeAgentNotFound           = "AGENT_NOT_FOUND"
@@ -55,9 +39,7 @@ const (
 	ErrCodeEnvironmentNotFound     = "ENVIRONMENT_NOT_FOUND"
 	ErrCodeGatewayNotFound         = "GATEWAY_NOT_FOUND"
 	ErrCodeGatewayAlreadyExists    = "GATEWAY_ALREADY_EXISTS"
-	ErrCodeGatewayEnvironmentFixed = "GATEWAY_ENVIRONMENT_FIXED"
 	ErrCodeEnvironmentHasNoGateway = "ENVIRONMENT_HAS_NO_GATEWAY"
-	ErrCodeProviderNotFound        = "PROVIDER_NOT_FOUND"
 	ErrCodeProviderAlreadyExists   = "PROVIDER_ALREADY_EXISTS"
 	ErrCodeDeploymentNotFound      = "DEPLOYMENT_NOT_FOUND"
 	ErrCodeAPINotFound             = "API_NOT_FOUND"

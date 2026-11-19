@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
@@ -32,7 +32,7 @@ import (
 
 type SetOptions struct {
 	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj, agent string) render.Scope
 	ResolveAgent func([]string) (string, []string, error)
@@ -52,7 +52,7 @@ type SetOptions struct {
 func NewSetCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &SetOptions{
 		IO:           f.IOStreams,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.AgentScope,
 		ResolveAgent: f.ResolveAgent,
@@ -111,16 +111,16 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	mapping := amsvc.EnvModelConfigRequest{ProviderName: modelconfig.StringPtr(o.Provider)}
+	mapping := aigateway.EnvModelConfigRequest{ProviderName: modelconfig.StringPtr(o.Provider)}
 	envVars := modelconfig.BuildEnvVars(o.URLEnv, o.APIKeyEnv)
 
-	var result *amsvc.AgentModelConfigResponse
+	var result *aigateway.AgentModelConfigResponse
 	var verb string
 	if !found {
-		body := amsvc.CreateAgentModelConfigRequest{
+		body := aigateway.CreateAgentModelConfigRequest{
 			Name:                 o.Name,
-			Type:                 amsvc.Llm,
-			EnvMappings:          map[string]amsvc.EnvModelConfigRequest{cmdutil.DefaultEnvironment: mapping},
+			Type:                 aigateway.Llm,
+			EnvMappings:          map[string]aigateway.EnvModelConfigRequest{cmdutil.DefaultEnvironment: mapping},
 			EnvironmentVariables: envVars,
 			Description:          modelconfig.OptionalString(o.Description),
 		}
@@ -146,7 +146,7 @@ func runSet(ctx context.Context, o *SetOptions) error {
 		merged := modelconfig.MergeExistingEnvMappings(current.JSON200, toEnvModelConfigRequest)
 		merged[cmdutil.DefaultEnvironment] = mapping
 
-		body := amsvc.UpdateAgentModelConfigRequest{EnvMappings: &merged}
+		body := aigateway.UpdateAgentModelConfigRequest{EnvMappings: &merged}
 		if envVars != nil {
 			body.EnvironmentVariables = envVars
 		}

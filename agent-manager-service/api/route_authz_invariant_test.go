@@ -32,7 +32,9 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/gateway" // the full distribution's routes
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the full distribution's routes
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aihub/aihubperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -87,8 +89,10 @@ func (r routeRegistration) String() string {
 // and pattern: replacing an exempt route while keeping the same number of raw
 // registrations must not silently inherit the old exemption.
 var unguardedRouteAllowlist = map[routeKey]string{
-	{"RegisterWebSocketRoutes", "HandleFunc", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is on internalMux and authenticates the gateway with an " +
-		"api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
+	{"RegisterWebSocketRoutes", "HandleFuncWithValidation", "GET /ws/gateways/connect"}: "GET /ws/gateways/connect is a HandleInternalAt route of the " +
+		"AI Gateway and authenticates the gateway with an api-key header verified in the handler (gatewayService.VerifyToken), not a user JWT.",
+	{"handle", "Handle", "method"}: "the AI Gateway's adapter onto modkit.Runtime.Handle: the module host registers each route through " +
+		"RouteRegistrar.HandleModuleRoute, which applies the permission the route names.",
 	{"registerJWKSRoute", "HandleFunc", "GET /auth/external/jwks.json"}: "publishes public signing keys and must be unauthenticated.",
 	{"registerFileAuthRoutes", "Handle", "POST /auth/login"}: "file-mode sign-in: this is where a caller goes to obtain a token, so it cannot " +
 		"require one. It verifies a bcrypt password against the configured user file and answers 404 when file mode is off; both outcomes are " +
@@ -107,7 +111,7 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"so MCP clients can discover how to authenticate.",
 	{"registerConfigRoutes", "Handle", "/api/v1/config"}: "public console/CLI discovery endpoint; exposes only deployment feature switches.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/"}: "the console's static files and config.js (public settings only); paths under " +
-		"/api/, /auth/ and /mcp are refused there, so it never answers for an API route.",
+		"/api/, /m/, /auth/ and /mcp are refused there, so it never answers for an API route.",
 	{"MakeHTTPHandlerWithModules", "Handle", "/api/v1/"}:                  "mount point for the JWT-authenticated API sub-router, not a leaf endpoint.",
 	{"MakeInternalHTTPHandlerWithModules", "HandleFunc", "/health"}:       "internal-listener liveness probe.",
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/api/internal/v1/"}: "mount point for the separately exposed internal API sub-router.",
@@ -115,8 +119,11 @@ var unguardedRouteAllowlist = map[routeKey]string{
 		"RouteRegistrar.HandleModuleRoute, which applies the permission check.",
 	{"MakeInternalHTTPHandlerWithModules", "Handle", "/m/"}: "mount point for module workload routes; the module host requires a " +
 		"workload token issued for that module and carrying the route's scope.",
-	{"MakeInternalHTTPHandlerWithModules", "Handle", "POST /workload-tokens"}: "workload credential exchange: the caller " +
-		"authenticates with the credential's secret in the body; the exchange is audited fail-closed.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "/"}: "routes modules mount at fixed internal paths with " +
+		"HandleInternalAt (time-boxed to wso2/agent-manager#2493); each authenticates its callers itself, as the " +
+		"gateway's internal routes do, and is audited through the internal route registrar.",
+	{"MakeInternalHTTPHandlerWithModules", "Handle", "POST /workloads/heartbeat"}: "workload heartbeat: the caller " +
+		"authenticates with the credential's secret in the body; a new instance is audited fail-closed before its first token.",
 	{"RegisterRoute", "Handle", "/mcp"}:  "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
 	{"RegisterRoute", "Handle", "/mcp/"}: "MCP endpoint wrapped by JWT authentication and MCP per-tool scope authorization.",
 }
@@ -157,6 +164,10 @@ func TestSecurityInvariantEveryRouteIsAuthorized(t *testing.T) {
 		if authzBearingRegistrars[route.registrar] {
 			return
 		}
+		// A module route (rt.Handle) names its permission, which the core checks before the handler.
+		if route.registrar == "Handle" && len(route.permissions) > 0 {
+			return
+		}
 		found[route.key()] = true
 		if _, ok := unguardedRouteAllowlist[route.key()]; !ok {
 			t.Errorf("%s has no RouteRegistrar permission check and is not allowlisted.\n\n"+
@@ -186,20 +197,26 @@ var declaredButUnenforcedPermissions = map[string]string{
 	// rbac/predefined_roles.go and what the API actually checks. Removing an
 	// entry from this map (because the route now enforces it) is the fix; this
 	// map exists to stop the list growing silently.
-	"AgentEnvProduction": "NOT ENFORCED BY A ROUTE REGISTRAR: the tier a deploy/promote/config-update " +
+	"gwperm.DeployProduction": "NOT ENFORCED BY A ROUTE REGISTRAR: the tier a deploy/promote/config-update " +
 		"lands in is only known once the request body or pipeline is resolved, so no route can " +
-		"declare it statically. services.requireEnvTier checks it dynamically in the service layer " +
+		"declare it statically. gwsvc.RequireEnvironmentTier checks it dynamically in the service layer " +
 		"once the target environment's IsProduction flag is known.",
-	"AgentRollback": "NOT ENFORCED: no rollback route consults it",
 	"OrgAssignRole": "NOT ENFORCED: role assignment goes through " +
 		"POST /identities/roles/{roleID}/assignees/add, which requires RoleUpdate instead",
-	"OrgManageIDP":                  "NOT ENFORCED: no route consults it",
-	"OrgModifySettings":             "NOT ENFORCED: no route consults it",
-	"LLMProviderConfigureGuardrail": "NOT ENFORCED: guardrail config routes require LLMProviderUpdate instead",
-	"LLMProviderConnect":            "NOT ENFORCED: no route consults it",
-	"MCPServerConfigureGuardrail":   "NOT ENFORCED: no route consults it",
-	"MCPServerAPIKeyManage":         "NOT ENFORCED: no route consults it",
+	"OrgManageIDP":                         "NOT ENFORCED: no route consults it",
+	"OrgModifySettings":                    "NOT ENFORCED: no route consults it",
+	"gwperm.LLMProviderConfigureGuardrail": "NOT ENFORCED: guardrail config routes require LLMProviderUpdate instead",
+	"gwperm.LLMProviderConnect":            "NOT ENFORCED: no route consults it",
+	"gwperm.MCPServerConfigureGuardrail":   "NOT ENFORCED: no route consults it",
+	"gwperm.MCPServerAPIKeyManage":         "NOT ENFORCED: no route consults it",
+
+	// --- NOT SERVED --------------------------------------------------------
+	// Lite does not serve these features; their placeholder routes are gone.
+	"AgentBuild":   notServed,
+	"AgentSuspend": notServed,
 }
+
+const notServed = "NOT SERVED: Lite has no route for this feature; both distributions answer 404"
 
 // TestSecurityInvariantEveryPermissionIsEnforced fails when a declared
 // rbac.Permission gates no route and is not accounted for above — and equally
@@ -368,8 +385,7 @@ func TestSecurityInvariantNamingConventionHolds(t *testing.T) {
 // from the URL. Relative to this package's directory.
 var orgScopedPackages = []string{
 	".", filepath.Join("..", "controllers"),
-	filepath.Join("..", "modules", "gateway", "gwapi"), filepath.Join("..", "modules", "gateway", "gwctl"),
-	filepath.Join("..", "modules", "legacy", "legacyapi"),
+	filepath.Join("..", "modules", "aigateway", "gwapi"), filepath.Join("..", "modules", "aigateway", "gwctl"),
 }
 
 // TestSecurityInvariantHandlersNeverReadOrgFromPath enforces the token-trust model: the org a
@@ -446,13 +462,16 @@ func TestSecurityInvariantHandlersNeverReadOrgFromPath(t *testing.T) {
 // full distribution links.
 var routePackages = []string{
 	".", filepath.Join("..", "mcp"),
-	filepath.Join("..", "modules", "gateway", "gwapi"),
-	filepath.Join("..", "modules", "legacy", "legacyapi"),
+	filepath.Join("..", "modules", "aigateway", "gwapi"),
+	filepath.Join("..", "modules", "aihub"),
 }
 
 // modulePermissionPackages declare permissions of built-in modules, as
 // <package>.<Name> constants of type rbac.Permission.
-var modulePermissionPackages = []string{filepath.Join("..", "modules", "gateway", "gwperm")}
+var modulePermissionPackages = []string{
+	filepath.Join("..", "modules", "aigateway", "gwperm"),
+	filepath.Join("..", "modules", "aihub", "aihubperm"),
+}
 
 // forEachRouteRegistration walks every production Go file in routePackages and
 // invokes fn for every net/http or RouteRegistrar registration call. Permission
@@ -462,6 +481,7 @@ var modulePermissionPackages = []string{filepath.Join("..", "modules", "gateway"
 func forEachRouteRegistration(t *testing.T, fn func(routeRegistration)) {
 	t.Helper()
 
+	aliases := corePermissionAliases(t)
 	seen := 0
 	for _, dir := range routePackages {
 		forEachFile(t, dir, func(_ *token.FileSet, file *ast.File) {
@@ -488,6 +508,11 @@ func forEachRouteRegistration(t *testing.T, fn func(routeRegistration)) {
 						route.pattern = renderExpr(call.Args[0])
 					}
 					route.permissions = registrarPermissions(call)
+					for i, p := range route.permissions {
+						if core, ok := aliases[p]; ok {
+							route.permissions[i] = core
+						}
+					}
 					seen++
 					fn(route)
 					return true
@@ -524,6 +549,11 @@ func registrarPermissions(call *ast.CallExpr) []string {
 	case "HandleFuncWithValidationAndAnyAuthz", "HandleFuncWithValidationAndAllAuthz":
 		if len(call.Args) > 2 {
 			args = call.Args[2:]
+		}
+	case "Handle":
+		// A module route: rt.Handle(method, path, perm, h, opts...).
+		if len(call.Args) >= 4 {
+			args = call.Args[2:3]
 		}
 	}
 
@@ -562,10 +592,45 @@ func declaredPermissionScopes(t *testing.T) map[string]string {
 
 	scopes := map[string]string{}
 	collectPermissionConsts(t, filepath.Join("..", "rbac"), "", scopes)
+	core := map[string]string{}
+	for name, scope := range scopes {
+		core[scope] = name
+	}
 	for _, dir := range modulePermissionPackages {
-		collectPermissionConsts(t, dir, filepath.Base(dir)+".", scopes)
+		module := map[string]string{}
+		collectPermissionConsts(t, dir, filepath.Base(dir)+".", module)
+		for name, scope := range module {
+			if _, ok := core[scope]; !ok {
+				scopes[name] = scope
+			}
+		}
 	}
 	return scopes
+}
+
+// corePermissionAliases maps the constants of a module's permission package
+// that name a core permission (gwperm.AgentRead) to the core's constant
+// (AgentRead).
+func corePermissionAliases(t *testing.T) map[string]string {
+	t.Helper()
+
+	core := map[string]string{}
+	rbacScopes := map[string]string{}
+	collectPermissionConsts(t, filepath.Join("..", "rbac"), "", rbacScopes)
+	for name, scope := range rbacScopes {
+		core[scope] = name
+	}
+	aliases := map[string]string{}
+	for _, dir := range modulePermissionPackages {
+		module := map[string]string{}
+		collectPermissionConsts(t, dir, filepath.Base(dir)+".", module)
+		for name, scope := range module {
+			if c, ok := core[scope]; ok {
+				aliases[name] = c
+			}
+		}
+	}
+	return aliases
 }
 
 // collectPermissionConsts adds the Permission constants declared in dir to
@@ -583,7 +648,9 @@ func collectPermissionConsts(t *testing.T, dir, prefix string, scopes map[string
 				if !ok {
 					continue
 				}
-				if !isPermissionType(valueSpec.Type) {
+				// A module's permission constants are untyped strings
+				// naming a permission ("<resource>:<action>").
+				if !isPermissionType(valueSpec.Type) && (prefix == "" || valueSpec.Type != nil || !isPermissionValue(valueSpec)) {
 					continue
 				}
 				for i, name := range valueSpec.Names {
@@ -615,6 +682,25 @@ func isPermissionType(e ast.Expr) bool {
 		return ok && pkg.Name == "rbac" && e.Sel.Name == "Permission"
 	}
 	return false
+}
+
+// isPermissionValue is true when every value of spec is a string literal
+// naming a permission.
+func isPermissionValue(spec *ast.ValueSpec) bool {
+	if len(spec.Values) == 0 {
+		return false
+	}
+	for _, v := range spec.Values {
+		lit, ok := v.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return false
+		}
+		value, err := strconv.Unquote(lit.Value)
+		if err != nil || !strings.Contains(value, ":") || strings.Contains(value, " ") {
+			return false
+		}
+	}
+	return true
 }
 
 // moduleGrants is true when a compiled-in module grants the scope to a
@@ -743,6 +829,21 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 			t.Errorf("reviewed role mapping %s -> %s has no entry in rbac.PredefinedRolePermissions", roleConstant, handle)
 		}
 	}
+	// The default modules (the AI Gateway and the AI Hub) grant their own
+	// permissions, as the bootstrap renders them (see thunderBootstrap).
+	byName := map[string]string{
+		rbac.RoleAdmin: "admin", rbac.RoleDeveloper: "developer",
+		rbac.RoleAILead: "ai-lead", rbac.RolePlatformEngineer: "platform-engineer",
+	}
+	for _, m := range modkit.Registered() {
+		if mf := m.Manifest(); mf.Name == gwperm.Module || mf.Name == aihubperm.Module {
+			for role, names := range mf.RoleGrants {
+				for _, n := range names {
+					roles[byName[role]][rbac.Permission(mf.PermissionName(n)).Scope()] = true
+				}
+			}
+		}
+	}
 	return roles
 }
 
@@ -750,7 +851,15 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 // install generates.
 func thunderBootstrap(t *testing.T) map[string][]byte {
 	t.Helper()
-	files, err := ampinit.RenderThunder(ampinit.SampleThunderConfig())
+	// The full distribution's bootstrap: the core's resources and those of its
+	// default modules, the AI Gateway and the AI Hub.
+	cfg := ampinit.SampleThunderConfig()
+	for _, m := range modkit.Registered() {
+		if name := m.Manifest().Name; name == gwperm.Module || name == aihubperm.Module {
+			cfg.Modules = append(cfg.Modules, m.Manifest())
+		}
+	}
+	files, err := ampinit.RenderThunder(cfg)
 	if err != nil {
 		t.Fatalf("render Thunder bootstrap: %v", err)
 	}

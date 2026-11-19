@@ -23,7 +23,7 @@ import (
 
 	openapi_types "github.com/oapi-codegen/runtime/types"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
@@ -52,7 +52,7 @@ const configType = "mcp"
 // mapping. The server mirrors the proxy handle into providerName and the
 // proxy*-named fields for MCP configs; this prefers the proxy-specific fields
 // and falls back to providerName.
-func proxyNameFromConfig(c *amsvc.ProviderConfig) string {
+func proxyNameFromConfig(c *aigateway.ProviderConfig) string {
 	if c == nil {
 		return ""
 	}
@@ -68,19 +68,19 @@ func proxyNameFromConfig(c *amsvc.ProviderConfig) string {
 // toEnvModelConfigRequest translates a GET-response env mapping into the shape
 // the PUT/POST request body expects. Server-managed fields (URL, status, auth
 // info, proxy UUID) are dropped; only the proxy handle and policies survive.
-func toEnvModelConfigRequest(m amsvc.EnvProviderConfigMappings) amsvc.EnvModelConfigRequest {
-	req := amsvc.EnvModelConfigRequest{}
+func toEnvModelConfigRequest(m aigateway.EnvProviderConfigMappings) aigateway.EnvModelConfigRequest {
+	req := aigateway.EnvModelConfigRequest{}
 	if m.Configuration != nil {
 		req.ProxyName = modelconfig.StringPtr(proxyNameFromConfig(m.Configuration))
-		req.Configuration = amsvc.EnvProviderConfiguration{Policies: m.Configuration.Policies}
+		req.Configuration = aigateway.EnvProviderConfiguration{Policies: m.Configuration.Policies}
 	}
 	return req
 }
 
 // findMCPConfigByName resolves a config name to its UUID via List, considering
 // only mcp-typed configs. found is false when no mcp config matches the name.
-func findMCPConfigByName(ctx context.Context, client *amsvc.ClientWithResponses, org, proj, agent, name string) (openapi_types.UUID, bool, error) {
-	resp, err := client.ListAgentMCPConfigsWithResponse(ctx, org, proj, agent, &amsvc.ListAgentMCPConfigsParams{})
+func findMCPConfigByName(ctx context.Context, client *aigateway.ClientWithResponses, org, proj, agent, name string) (openapi_types.UUID, bool, error) {
+	resp, err := client.ListAgentMCPConfigsWithResponse(ctx, org, proj, agent, &aigateway.ListAgentMCPConfigsParams{})
 	if err != nil {
 		return openapi_types.UUID{}, false, clierr.Newf(clierr.Transport, "%v", err)
 	}

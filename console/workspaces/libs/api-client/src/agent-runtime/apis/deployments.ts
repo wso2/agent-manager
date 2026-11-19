@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { httpGET, httpPOST, httpPUT, httpDELETE, SERVICE_BASE } from '../../shared/utils';
+import { httpGET, httpPOST, httpPUT, httpDELETE, SERVICE_BASE, GATEWAY_BASE } from '../../shared/utils';
 import type {
   DeployAgentPathParams,
   DeployAgentRequest,
@@ -99,7 +99,7 @@ export async function updateAgentDeploySettings(params: UpdateAgentDeploySetting
 
     const token = getToken ? await getToken() : undefined;
     const res = await httpPUT(
-        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/deploy-settings`,
+        `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/deploy-settings`,
         body,
         { token },
     );
@@ -154,7 +154,7 @@ export async function listAgentDeployments(params: ListAgentDeploymentsPathParam
     
     const token = getToken ? await getToken() : undefined;
     const res = await httpGET(
-        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/deployments`,
+        `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/deployments`,
         { token },
     );
     if (!res.ok) throw await res.json();
@@ -192,7 +192,7 @@ export async function getAgentConfigurations(params: GetAgentConfigurationsPathP
     const token = getToken ? await getToken() : undefined;
     const search = { environment: query.environment };
     const res = await httpGET(
-        `${SERVICE_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/configurations`,
+        `${GATEWAY_BASE}/orgs/${encodeURIComponent(orgName)}/projects/${encodeURIComponent(projName)}/agents/${encodeURIComponent(agentName)}/configurations`,
         { searchParams: search, token },
     );
     if (!res.ok) throw await res.json();

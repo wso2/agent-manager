@@ -18,7 +18,7 @@ API (2xx) ─► events middleware ─► Publisher ─► events.Bus ─► AMP
                                    webhook · notify (Slack, Teams, email, PagerDuty, …)
 ```
 
-- **Events** are CloudEvents 1.0 (`type` = `com.wso2.agentmanager.<name>`), with extension attributes `orgid`, `scope`, `project`, `agent`, `environment`, `actortype` and `actorid`. The catalog in `events/catalog.go` maps API routes to event types and scopes. Route events fire when a request succeeds.
+- **Events** are CloudEvents 1.0 (`type` = `com.wso2.agentmanager.<name>`), with extension attributes `orgid`, `scope`, `project`, `agent`, `environment`, `actortype` and `actorid`. The catalog in `events/catalog.go` maps the core's API routes to event types and scopes; a module's routes raise the event types its manifest declares, named `<module>.<event>` and listed in the catalog only while the module is active (the AI Gateway's are `ai-gateway.gateway.created`, `ai-gateway.llm_provider.deployed`, `ai-gateway.mcp_server.updated`, `ai-gateway.agent.api_key_rotated` and the like, in `modules/aigateway/gwaudit`). Route events fire when a request succeeds.
 - **The event bus** sits behind the `events.Bus` interface. NATS JetStream is the implementation shipped, as a server (`nats`) or embedded in the process (`embedded`).
 - **Destinations** belong to the org. Only org admins register them. Each has a **kind** that decides how events are delivered, with a driver behind `eventdestinations.Driver`:
   - `webhook` POSTs the CloudEvent signed per [Standard Webhooks](https://www.standardwebhooks.com) (`webhook-id`, `webhook-timestamp`, `webhook-signature`), refusing private addresses.

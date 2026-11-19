@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
@@ -39,15 +40,15 @@ func a2aAgent(provisioning amsvc.ProvisioningType) amsvc.AgentResponse {
 func a2aExternal() amsvc.AgentResponse {
 	return amsvc.AgentResponse{
 		AgentType:    amsvc.AgentType{Type: "external-agent-api"},
-		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeExternal},
+		Provisioning: amsvc.Provisioning{Type: amsvc.External},
 	}
 }
-func a2aInternal() amsvc.AgentResponse { return a2aAgent(amsvc.ProvisioningTypeInternal) }
+func a2aInternal() amsvc.AgentResponse { return a2aAgent(amsvc.Internal) }
 
-func getOpts(client func(context.Context) (*amsvc.ClientWithResponses, error), jsonMode bool) (*GetOptions, func() string) {
+func getOpts(client func(context.Context) (*aigateway.ClientWithResponses, error), jsonMode bool) (*GetOptions, func() string) {
 	ios, out, _ := newTestIO(jsonMode)
 	return &GetOptions{
-			IO: ios, Client: client, Scope: baseScope(),
+			IO: ios, Client: client, AgentManager: coreClientOf(client), Scope: baseScope(),
 			Org: "acme", Proj: "triage", AgentName: "order-bot",
 		},
 		out.String
@@ -65,7 +66,7 @@ func Test_runGet_direct(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
 		proxyKey: notFound,
-		cardKey: okJSON(amsvc.AgentCardResponse{
+		cardKey: okJSON(aigateway.AgentCardResponse{
 			Status: "fetched", SourceUrl: "https://agent.example/card",
 			Card: &map[string]interface{}{"name": "Echo"},
 		}),
@@ -84,7 +85,7 @@ func Test_runGet_directJSON(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
 		proxyKey: notFound,
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched"}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "fetched"}),
 	}), true)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -98,8 +99,8 @@ func Test_runGet_directJSON(t *testing.T) {
 func Test_runGet_proxied(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
-		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: amsvc.A2AProxyResponseStatusDEPLOYED, GatewayUrl: "https://gw.example/order-bot"}),
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched"}),
+		proxyKey: okJSON(aigateway.A2AProxyResponse{Status: aigateway.A2AProxyResponseStatusDEPLOYED, GatewayUrl: "https://gw.example/order-bot"}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "fetched"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -114,8 +115,8 @@ func Test_runGet_proxied(t *testing.T) {
 func Test_runGet_proxiedWithoutGateway(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
-		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: amsvc.A2AProxyResponseStatusDEPLOYED}),
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched"}),
+		proxyKey: okJSON(aigateway.A2AProxyResponse{Status: aigateway.A2AProxyResponseStatusDEPLOYED}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "fetched"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -128,8 +129,8 @@ func Test_runGet_proxiedWithoutGateway(t *testing.T) {
 func Test_runGet_proxyFailedShowsStatusReason(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
-		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: amsvc.A2AProxyResponseStatusFAILED, StatusReason: "DEPLOYMENT_TIMEOUT"}),
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "pending"}),
+		proxyKey: okJSON(aigateway.A2AProxyResponse{Status: aigateway.A2AProxyResponseStatusFAILED, StatusReason: "DEPLOYMENT_TIMEOUT"}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "pending"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -142,8 +143,8 @@ func Test_runGet_proxyFailedShowsStatusReason(t *testing.T) {
 func Test_runGet_pendingWithoutCard(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
-		proxyKey: okJSON(amsvc.A2AProxyResponse{Status: amsvc.A2AProxyResponseStatusDEPLOYED}),
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "pending", SourceUrl: "https://agent.example/card"}),
+		proxyKey: okJSON(aigateway.A2AProxyResponse{Status: aigateway.A2AProxyResponseStatusDEPLOYED}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "pending", SourceUrl: "https://agent.example/card"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -157,7 +158,7 @@ func Test_runGet_pendingShowsLastError(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
 		proxyKey: notFound,
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "pending", LastError: "connection refused"}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "pending", LastError: "connection refused"}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -170,7 +171,7 @@ func Test_runGet_pendingShowsLastError(t *testing.T) {
 func Test_runGet_internalSkipsProxy(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aInternal()),
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched", Card: &map[string]interface{}{"name": "Echo"}}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "fetched", Card: &map[string]interface{}{"name": "Echo"}}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -226,7 +227,7 @@ func Test_runGet_notA2A(t *testing.T) {
 	sub := "chat-api"
 	agent := amsvc.AgentResponse{
 		AgentType:    amsvc.AgentType{Type: "agent-api", SubType: &sub},
-		Provisioning: amsvc.Provisioning{Type: amsvc.ProvisioningTypeInternal},
+		Provisioning: amsvc.Provisioning{Type: amsvc.Internal},
 	}
 	o, _ := getOpts(newClient(t, map[string]route{agentKey: okJSON(agent)}), true)
 	err := runGet(context.Background(), o)
@@ -242,7 +243,7 @@ func Test_runGet_notA2A(t *testing.T) {
 func Test_runGet_untypedCardFields(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aInternal()),
-		cardKey: okJSON(amsvc.AgentCardResponse{
+		cardKey: okJSON(aigateway.AgentCardResponse{
 			Status: "fetched",
 			Card:   &map[string]interface{}{"name": 42, "version": "v1.2"},
 		}),
@@ -258,7 +259,7 @@ func Test_runGet_untypedCardFields(t *testing.T) {
 func Test_runGet_stripsControlCharsFromCardText(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aInternal()),
-		cardKey: okJSON(amsvc.AgentCardResponse{
+		cardKey: okJSON(aigateway.AgentCardResponse{
 			Status: "fetched",
 			Card:   &map[string]interface{}{"name": "Echo", "description": "\x1b[31mred\u009b"},
 		}),
@@ -275,7 +276,7 @@ func Test_runGet_proxyForbiddenShowsCard(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
 		proxyKey: {status: http.StatusForbidden, body: map[string]any{"code": "FORBIDDEN", "message": "missing scope"}},
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched", Card: &map[string]interface{}{"name": "Echo"}}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "fetched", Card: &map[string]interface{}{"name": "Echo"}}),
 	}), false)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -291,7 +292,7 @@ func Test_runGet_proxyForbiddenJSON(t *testing.T) {
 	o, got := getOpts(newClient(t, map[string]route{
 		agentKey: okJSON(a2aExternal()),
 		proxyKey: {status: http.StatusForbidden, body: map[string]any{"code": "FORBIDDEN", "message": "missing scope"}},
-		cardKey:  okJSON(amsvc.AgentCardResponse{Status: "fetched"}),
+		cardKey:  okJSON(aigateway.AgentCardResponse{Status: "fetched"}),
 	}), true)
 	if err := runGet(context.Background(), o); err != nil {
 		t.Fatalf("runGet: %v", err)
@@ -299,5 +300,17 @@ func Test_runGet_proxyForbiddenJSON(t *testing.T) {
 	data := decodeEnvelope(t, got())["data"].(map[string]any)
 	if data["routingUnknown"] != true || data["proxy"] != nil {
 		t.Errorf("data = %v, want routingUnknown true and proxy null", data)
+	}
+}
+
+// coreClientOf is a core API client on the same test server as client: the
+// agent is read from the core, its card and proxy from the gateway.
+func coreClientOf(client func(context.Context) (*aigateway.ClientWithResponses, error)) func(context.Context) (*amsvc.ClientWithResponses, error) {
+	return func(ctx context.Context) (*amsvc.ClientWithResponses, error) {
+		gw, err := client(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return amsvc.NewClientWithResponses(gw.ClientInterface.(*aigateway.Client).Server)
 	}
 }

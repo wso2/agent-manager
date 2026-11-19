@@ -28,9 +28,10 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -237,22 +238,23 @@ func (r *platformRepo) DeleteProject(ctx context.Context, ouID, projectName stri
 	if err != nil {
 		return err
 	}
+	op := coreext.Begin(ctx, modkit.ResourceProject)
+	req := modkit.HookRequest{
+		Action: modkit.ActionDelete, OrgID: org.ID.String(), ID: p.ID.String(),
+		Object: map[string]any{"id": p.ID.String(), "orgId": org.ID.String(), "name": p.Name, "displayName": p.DisplayName},
+	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var left []string
-		for _, owned := range []struct {
-			model any
-			what  string
-		}{{&models.Agent{}, "agent(s)"}, {&models.LLMProxy{}, "LLM proxy(ies)"}, {&models.MCPProxy{}, "MCP server(s)"}} {
-			var count int64
-			if err := tx.Model(owned.model).Where("org_id = ? AND project_id = ?", org.ID, p.ID).Count(&count).Error; err != nil {
-				return err
-			}
-			if count > 0 {
-				left = append(left, fmt.Sprintf("%d %s", count, owned.what))
-			}
+		var agents int64
+		if err := tx.Model(&models.Agent{}).Where("org_id = ? AND project_id = ?", org.ID, p.ID).Count(&agents).Error; err != nil {
+			return err
 		}
-		if len(left) > 0 {
-			return fmt.Errorf("%w: project %q still has %s", utils.ErrConflict, projectName, strings.Join(left, ", "))
+		if agents > 0 {
+			return fmt.Errorf("%w: project %q still has %d agent(s)", httpx.ErrConflict, projectName, agents)
+		}
+		// Modules clean up their rows of the project, or refuse the delete
+		// while they still hold some, as a foreign key would.
+		if err := op.Run(ctx, tx, modkit.Finalize, req, nil); err != nil {
+			return err
 		}
 		// Event settings scoped to the project go with it.
 		if err := tx.Where("org_id = ? AND project_id = ?", org.ID, p.ID).Delete(&models.EventSubscription{}).Error; err != nil {

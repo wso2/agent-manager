@@ -41,9 +41,9 @@ import (
 	"github.com/nicholas-fedor/shoutrrr/pkg/types"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
 )
 
 const (
@@ -153,13 +153,13 @@ func (d *Driver) Services() []eventdestinations.Service {
 func (d *Driver) NormalizeConfig(ctx context.Context, raw json.RawMessage) (json.RawMessage, error) {
 	cfg, err := parseConfig(raw)
 	if err != nil {
-		return nil, fmt.Errorf("%w: notify config must be an object with a service", utils.ErrInvalidInput)
+		return nil, fmt.Errorf("%w: notify config must be an object with a service", httpx.ErrInvalidInput)
 	}
 	cfg.Service = strings.TrimSpace(cfg.Service)
 	cfg.URL = strings.TrimSpace(cfg.URL)
 	s, ok := lookup(cfg.Service)
 	if !ok {
-		return nil, fmt.Errorf("%w: service must be one of %s", utils.ErrInvalidInput, strings.Join(serviceIDs(), ", "))
+		return nil, fmt.Errorf("%w: service must be one of %s", httpx.ErrInvalidInput, strings.Join(serviceIDs(), ", "))
 	}
 	if cfg.URL != "" {
 		if err := d.validateURL(ctx, s, cfg.URL); err != nil {
@@ -271,19 +271,19 @@ func (d *Driver) locate(rawURL string) (types.Service, error) {
 func (d *Driver) validateURL(ctx context.Context, s service, rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
-		return fmt.Errorf("%w: url is not a valid %s URL", utils.ErrInvalidInput, s.Label)
+		return fmt.Errorf("%w: url is not a valid %s URL", httpx.ErrInvalidInput, s.Label)
 	}
 	// "discord+https://…" is Shoutrrr's form for pasting the service's own
 	// webhook URL; the part before "+" names the service.
 	if scheme, _, _ := strings.Cut(u.Scheme, "+"); scheme != s.ID {
-		return fmt.Errorf("%w: a %s URL starts with %s://", utils.ErrInvalidInput, s.Label, s.ID)
+		return fmt.Errorf("%w: a %s URL starts with %s://", httpx.ErrInvalidInput, s.Label, s.ID)
 	}
 	if _, err := d.locate(rawURL); err != nil {
-		return fmt.Errorf("%w: url is not a valid %s URL: %s", utils.ErrInvalidInput, s.Label, scrub(err, rawURL))
+		return fmt.Errorf("%w: url is not a valid %s URL: %s", httpx.ErrInvalidInput, s.Label, scrub(err, rawURL))
 	}
 	if s.networkHost && !strings.Contains(u.Scheme, "+") {
 		if err := d.checkHost(ctx, rawURL); err != nil {
-			return fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+			return fmt.Errorf("%w: %w", httpx.ErrInvalidInput, err)
 		}
 	}
 	return nil

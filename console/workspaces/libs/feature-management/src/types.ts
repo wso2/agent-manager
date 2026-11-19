@@ -72,8 +72,6 @@ export interface FeatureAccessConfig {
   gateway_token_write: boolean;
   pipeline_read: boolean;
   pipeline_write: boolean;
-  git_secret_read: boolean;
-  git_secret_write: boolean;
   llm_provider_read: boolean;
   llm_provider_write: boolean;
   /** Create, rotate and revoke an LLM provider's API keys. */

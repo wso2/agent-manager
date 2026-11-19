@@ -93,7 +93,7 @@ func TestWants(t *testing.T) {
 	assert.True(t, Wants(ScopeAgent, []string{"agent.deployed"}, "agent.deployed"))
 	assert.False(t, Wants(ScopeAgent, []string{"agent.updated"}, "agent.deployed"))
 	assert.True(t, Wants(ScopeAgent, []string{AllEvents}, "agent.deployed"))
-	assert.True(t, Wants(ScopeAgent, []string{AllEvents}, "agent.api_key_revoked"))
+	assert.True(t, Wants(ScopeAgent, []string{AllEvents}, "agent.configuration_updated"))
 	assert.False(t, Wants(ScopeAgent, []string{AllEvents}, "agent.created"), "outside the agent's catalog")
 	assert.False(t, Wants(ScopeOrg, []string{AllEvents}, TypeDestinationTest))
 	assert.False(t, Wants(ScopeOrg, []string{AllEvents, "agent.deployed"}, "project.created"),

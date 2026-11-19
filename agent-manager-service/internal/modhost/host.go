@@ -36,8 +36,9 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -69,6 +70,13 @@ type Host struct {
 	// DefaultEventDeliveryTimeout. Set it before Boot.
 	EventDeliveryTimeout time.Duration
 
+	// WorkerDrainTimeout is how long a stopping module worker gets to return;
+	// zero means DefaultWorkerDrainTimeout. WorkerRetryBase is the first delay
+	// before a failed worker restarts; zero means DefaultWorkerRetryBase. Set
+	// them before Boot.
+	WorkerDrainTimeout time.Duration
+	WorkerRetryBase    time.Duration
+
 	// Passive hosts track module state without activating anything, for
 	// commands that change module state on behalf of running servers.
 	// Install and Enable still trial-activate the module set they produce.
@@ -89,6 +97,12 @@ type Host struct {
 	failed map[string]error
 	// d holds the core services the server attached.
 	d Deps
+
+	// workMu guards the running module workers. runCtx is Boot's ctx, which
+	// workers run under; nil before Boot.
+	workMu  sync.Mutex
+	runCtx  context.Context
+	running map[string]*moduleWorkers
 }
 
 // view is an immutable snapshot of what the active modules registered.
@@ -105,6 +119,15 @@ type view struct {
 	// hooks are by resource and phase, in activation order.
 	hooks map[string]map[modkit.Phase][]hookEntry
 	subs  map[string][]subEntry
+	// workers are each active module's background workers.
+	workers map[string][]workerEntry
+	// at holds every HandleInternalAt route, served by internalAt.
+	at         []Route
+	internalAt *http.ServeMux
+	// tools are the active modules' MCP tools, in activation order.
+	tools []toolEntry
+	// routes are each active module's public routes, as registered.
+	routes map[string][]Route
 }
 
 func newView() *view {
@@ -112,6 +135,7 @@ func newView() *view {
 		caps: map[string]any{}, capBy: map[string]string{}, perms: rbac.NewRegistry(),
 		public: map[string]*http.ServeMux{}, internal: map[string]*http.ServeMux{},
 		hooks: map[string]map[modkit.Phase][]hookEntry{}, subs: map[string][]subEntry{},
+		workers: map[string][]workerEntry{}, routes: map[string][]Route{},
 	}
 }
 
@@ -141,6 +165,7 @@ func NewWith(db *gorm.DB, driver string, log *slog.Logger, mods []modkit.Module)
 		db: db, driver: driver, log: log,
 		mods: map[string]modkit.Module{}, manifests: map[string]modkit.Manifest{},
 		states: map[string]string{}, dbVer: map[string]string{}, v: newView(),
+		running: map[string]*moduleWorkers{},
 	}
 	for _, m := range mods {
 		mf := m.Manifest()
@@ -156,11 +181,15 @@ func NewWith(db *gorm.DB, driver string, log *slog.Logger, mods []modkit.Module)
 	return h
 }
 
-// checkReserved refuses a module named after a core permission resource; a
-// built-in module is part of the core and may.
+// checkReserved refuses a module named after a core permission resource.
 func checkReserved(mf modkit.Manifest) error {
-	if !mf.Builtin && slices.Contains(rbac.ReservedResources(), mf.Name) {
+	if slices.Contains(rbac.ReservedResources(), mf.Name) {
 		return fmt.Errorf("modhost: module name %q is reserved for the core's %s:* permissions", mf.Name, mf.Name)
+	}
+	for _, c := range mf.Provides {
+		if isCoreCapability(c) {
+			return fmt.Errorf("modhost: module %q provides %s, which the core provides", mf.Name, c)
+		}
 	}
 	return nil
 }
@@ -199,6 +228,11 @@ func (h *Host) Boot(ctx context.Context) error {
 	if err := h.CheckSchema(ctx); err != nil {
 		return err
 	}
+	if !h.Passive {
+		h.workMu.Lock()
+		h.runCtx = ctx
+		h.workMu.Unlock()
+	}
 	if err := h.Reload(ctx); err != nil {
 		return err
 	}
@@ -227,17 +261,11 @@ func loadRows(db *gorm.DB) (map[string]moduleRow, error) {
 	return out, nil
 }
 
-// effectiveStates is the recorded state of every module, with built-in
-// modules always active.
+// effectiveStates is the recorded state of every module.
 func (h *Host) effectiveStates(rows map[string]moduleRow) map[string]string {
 	out := make(map[string]string, len(rows))
 	for n, r := range rows {
 		out[n] = r.State
-	}
-	for n, mf := range h.manifests {
-		if mf.Builtin {
-			out[n] = StateActive
-		}
 	}
 	return out
 }
@@ -355,6 +383,8 @@ func (h *Host) Reload(ctx context.Context) error {
 	h.mu.Unlock()
 	if !h.Passive {
 		h.log.Info("modhost:modules loaded", "generation", gen, "active", v.active)
+		h.publishCatalogs(v)
+		h.syncWorkers(v)
 	}
 	return nil
 }
@@ -375,7 +405,7 @@ func (h *Host) buildView(ctx context.Context, states map[string]string) (*view, 
 		}
 		active = append(active, name)
 	}
-	v, failed := newView(), map[string]error{}
+	v, failed := h.seedCore(newView()), map[string]error{}
 	order, cycles := ActivationOrder(active, h.manifests)
 	for _, c := range cycles {
 		for _, name := range c[:len(c)-1] {
@@ -400,8 +430,11 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 	if mf.CoreAPI != modkit.CoreAPIVersion {
 		return fmt.Errorf("targets core API v%d, this core implements v%d", mf.CoreAPI, modkit.CoreAPIVersion)
 	}
+	if err := checkWorkloads(mf); err != nil {
+		return err
+	}
 	for _, c := range mf.Requires {
-		if _, ok := v.caps[c]; !ok {
+		if _, ok := v.caps[c]; !ok && !isCoreCapability(c) {
 			return fmt.Errorf("required capability %s is not provided by an active module", c)
 		}
 	}
@@ -434,7 +467,13 @@ func (h *Host) activate(ctx context.Context, name string, v *view) error {
 // added unless all of it is accepted.
 func (h *Host) commit(rt *runtime, v *view) error {
 	name := rt.name
+	if err := checkManifest(rt.mf); err != nil {
+		return err
+	}
 	if err := declare(v.perms.Clone(), rt.mf); err != nil {
+		return err
+	}
+	if err := checkEndpoints(rt.mf, rt.internal); err != nil {
 		return err
 	}
 	d := h.deps()
@@ -451,8 +490,29 @@ func (h *Host) commit(rt *runtime, v *view) error {
 			return err
 		}
 	}
+	var at *http.ServeMux
+	if len(rt.at) > 0 {
+		var err error
+		if at, err = mountInternalAt(d.MountInternal, append(slices.Clone(v.at), rt.at...)); err != nil {
+			return err
+		}
+	}
+	for _, t := range rt.tools {
+		for _, other := range v.tools {
+			if other.tool.Name == t.tool.Name {
+				return fmt.Errorf("MCP tool %s is already added by %s", t.tool.Name, other.module)
+			}
+		}
+	}
 	if err := declare(v.perms, rt.mf); err != nil {
 		return err
+	}
+	if at != nil {
+		v.at, v.internalAt = append(v.at, rt.at...), at
+	}
+	v.tools = append(v.tools, rt.tools...)
+	if len(rt.routes) > 0 {
+		v.routes[name] = rt.routes
 	}
 	if pub != nil {
 		v.public[name] = pub
@@ -469,6 +529,9 @@ func (h *Host) commit(rt *runtime, v *view) error {
 	for _, s := range rt.subs {
 		v.subs[s.event] = append(v.subs[s.event], s)
 	}
+	if len(rt.workers) > 0 {
+		v.workers[name] = rt.workers
+	}
 	return nil
 }
 
@@ -480,6 +543,13 @@ func (h *Host) trial(ctx context.Context, next map[string]string, targets []stri
 	for _, name := range targets {
 		if err := failed[name]; err != nil {
 			return nil, &ResolveError{Msg: fmt.Sprintf("%s failed to activate: %v", name, err)}
+		}
+	}
+	// Nor may it stop a module that runs now, as a newcomer claiming an MCP
+	// tool name or an internal path it holds would.
+	for _, name := range h.current().active {
+		if err := failed[name]; err != nil {
+			return nil, &ResolveError{Msg: fmt.Sprintf("%s would stop %s: %v", strings.Join(targets, ", "), name, err)}
 		}
 	}
 	return v, nil
@@ -518,13 +588,6 @@ func (h *Host) change(ctx context.Context, fn func(tx *gorm.DB, states map[strin
 	return h.Reload(ctx)
 }
 
-func (h *Host) refuseBuiltin(name string) error {
-	if h.manifests[name].Builtin {
-		return &ResolveError{Msg: name + " is built in: it is always active"}
-	}
-	return nil
-}
-
 // setState records a module's version and state, and reports whether that
 // changed anything. Callers hold the generation row lock, so the read and the
 // write cannot race another lifecycle change.
@@ -552,9 +615,6 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 	var steps []Step
 	var trial *view
 	err := h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
-		if err := h.refuseBuiltin(name); err != nil {
-			return err
-		}
 		if states[name] == StateActive {
 			return &ResolveError{Msg: name + " is already installed and active"}
 		}
@@ -599,9 +659,6 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 // Enable re-activates a disabled module.
 func (h *Host) Enable(ctx context.Context, name string) error {
 	return h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
-		if err := h.refuseBuiltin(name); err != nil {
-			return err
-		}
 		if states[name] != StateDisabled {
 			return &ResolveError{Msg: fmt.Sprintf("%s is %s, not disabled", name, stateOf(name, states))}
 		}
@@ -625,9 +682,6 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 // Disable deactivates a module and keeps its data.
 func (h *Host) Disable(ctx context.Context, name string) error {
 	return h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
-		if err := h.refuseBuiltin(name); err != nil {
-			return err
-		}
 		if states[name] != StateActive {
 			return &ResolveError{Msg: fmt.Sprintf("%s is %s, not active", name, stateOf(name, states))}
 		}
@@ -644,15 +698,17 @@ func (h *Host) Disable(ctx context.Context, name string) error {
 	})
 }
 
-// Uninstall marks a module uninstalled. Its tables and data stay, because
-// they belong to the binary's schema, so installing it again picks up where it
-// left off.
-func (h *Host) Uninstall(ctx context.Context, name string) error {
-	return h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
-		if err := h.refuseBuiltin(name); err != nil {
-			return err
-		}
-		if st := stateOf(name, states); st == StateAvailable || st == StateUninstalled {
+// Uninstall marks a module uninstalled. Without purge its tables and data
+// stay, because they belong to the binary's schema, so installing it again
+// picks up where it left off. With purge its tables are emptied, its secrets
+// deleted and its workload credentials revoked, and it is forgotten: the
+// tables themselves stay, so installing it again needs no migration and its
+// OnInstall restores any reference data. An uninstalled module can still be
+// purged.
+func (h *Host) Uninstall(ctx context.Context, name string, purge bool) error {
+	var revoked []string
+	err := h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
+		if st := stateOf(name, states); st == StateAvailable || (st == StateUninstalled && !purge) {
 			return &ResolveError{Msg: name + " is not installed"}
 		}
 		if deps := Dependents(name, h.manifests, states, true); len(deps) > 0 {
@@ -662,8 +718,64 @@ func (h *Host) Uninstall(ctx context.Context, name string) error {
 		if err := dropDeliveries(tx, name, time.Time{}); err != nil {
 			return err
 		}
-		return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateUninstalled, dbx.Now(), name).Error
+		if !purge {
+			return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateUninstalled, dbx.Now(), name).Error
+		}
+		var err error
+		if revoked, err = h.purge(tx, name); err != nil {
+			return err
+		}
+		return tx.Exec(`DELETE FROM modules WHERE name = ?`, name).Error
 	})
+	recordRevoked(ctx, name, revoked, err)
+	return err
+}
+
+// purge empties a module's tables, deletes its secrets and revokes its
+// workload credentials inside tx, and returns the revoked credential ids.
+func (h *Host) purge(tx *gorm.DB, name string) ([]string, error) {
+	tables, err := moduleTables(tx, h.driver, name)
+	if err != nil {
+		return nil, err
+	}
+	if len(tables) > 0 {
+		if h.driver == "postgres" {
+			// One statement, so foreign keys between the module's tables hold.
+			if err := tx.Exec(`TRUNCATE TABLE ` + strings.Join(tables, ", ")).Error; err != nil {
+				return nil, fmt.Errorf("emptying %s's tables: %w", name, err)
+			}
+		} else {
+			if err := tx.Exec(`PRAGMA defer_foreign_keys = ON`).Error; err != nil {
+				return nil, err
+			}
+			for _, t := range tables {
+				if err := tx.Exec(`DELETE FROM ` + t).Error; err != nil {
+					return nil, fmt.Errorf("emptying %s: %w", t, err)
+				}
+			}
+		}
+	}
+	if err := tx.Exec(`DELETE FROM secrets WHERE owner_kind = ?`, "mod:"+name).Error; err != nil {
+		return nil, fmt.Errorf("deleting %s's secrets: %w", name, err)
+	}
+	return revokeAllTx(tx, name)
+}
+
+// moduleTables lists a module's tables (mod_<name>_*), quoted for SQL.
+func moduleTables(tx *gorm.DB, driver, module string) ([]string, error) {
+	pattern := strings.ReplaceAll(schema.ModuleTablePrefix(module), "_", `\_`) + "%"
+	q := `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ? ESCAPE '\' ORDER BY name`
+	if driver == "postgres" {
+		q = `SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename LIKE ? ESCAPE '\' ORDER BY tablename`
+	}
+	var names []string
+	if err := tx.Raw(q, pattern).Scan(&names).Error; err != nil {
+		return nil, fmt.Errorf("listing %s's tables: %w", module, err)
+	}
+	for i, n := range names {
+		names[i] = `"` + n + `"`
+	}
+	return names, nil
 }
 
 // ---- listing ----

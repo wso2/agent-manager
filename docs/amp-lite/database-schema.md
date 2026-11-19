@@ -11,12 +11,12 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 ## Decisions that shape the schema
 
 - Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) are deferred, and evaluation (evaluators, monitors, runs, scores, alerts) is removed from Lite; if they come back, they come as modules with their own tables.
-- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>`. The built-in `gateway` module still uses the tables listed under [Gateway module tables](#gateway-module-tables) with their original names; `amp-core` (no modules) leaves them empty.
+- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's tables are listed under [Gateway module tables](#gateway-module-tables) and the AI Hub's under [AI Hub module tables](#ai-hub-module-tables); `amp-core` (no modules) doesn't have them.
 - Multi-tenant. `organizations` is the root.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
 - Console login is file-based to start with: a default username and password belong to a default org; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
 - Thunder ships with Lite and gives every external agent its agent ID. Thunder keeps its own separate database; ours stores only IDs returned by Thunder's API.
-- Gateways belong to an org, with no limit per org, and are managed by the gateway module. With `amp`, the default org's bundled gateway is running out of the box; users add more (managed or self-hosted).
+- Gateways belong to an org, with no limit per org, and are managed by the `ai-gateway` module. With `amp`, the default org's bundled gateway is running out of the box; users add more (managed or self-hosted).
 - Secrets live in our database, encrypted. Production can plug in an external vault.
 - Audit log (console actions) and console usage tracking are stored in our database.
 - Traces, runtime logs, build logs and metrics are not stored in Lite; they come back with an observability module and its own store.
@@ -54,11 +54,11 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 
 ### locks
 
-Replaces Postgres advisory locks for the reconcilers, the drift scan and gateway serialization.
+Replaces Postgres advisory locks for the core's workers. A module that needs a lease keeps its own table with the same columns (the `ai-gateway` module's drift scan uses `mod_ai_gateway_locks`).
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| name | short text (128) | no | PK, e.g. `reconciler.gateway` |
+| name | short text (128) | no | PK, e.g. `agent_identity.reconciler` |
 | owner | short text (255) | yes | Instance holding it. NULL = free. |
 | expires_at | time | yes | Lease end; an expired lease can be taken over. |
 
@@ -98,7 +98,7 @@ Unique: (org_id, name); (org_id, id) for child composite keys.
 
 ### Behaviour
 
-- Every start makes sure the default org exists (`DEFAULT_ORG_HANDLE`, `DEFAULT_ORG_OU_ID`) with its `default` environment; the core does this after the module host boots, so it works with or without modules. With `amp`, the gateway module then seeds the configured default gateway with its registration token, attached to the default environment, and keeps an existing gateway and token.
+- Every start makes sure the default org exists (`DEFAULT_ORG_HANDLE`, `DEFAULT_ORG_OU_ID`) with its `default` environment; the core does this before modules activate, so it works with or without modules and modules can rely on it. With `amp`, the gateway module then seeds the configured default gateway with its registration token, attached to the default environment, and keeps an existing gateway and token.
 - Orgs are never renamed or deleted. Creating an org creates its `default` environment in the same transaction, and its Thunder org unit; if Thunder fails, the org is not saved.
 - Deleting a project is refused while it still has agents, LLM proxies or MCP servers; the conflict names what is left. Its event subscriptions and its entries in event destinations' project lists are removed in the same transaction, before the project row.
 - Dropped from today's API: org `namespace`, project `deploymentPipeline`. There is no pipeline table.
@@ -176,7 +176,7 @@ External agents' client secrets are never stored, as today: regenerate creates a
 
 ### agent_gateway_settings
 
-One row per agent per environment. Replaces `agent_configs`. PK (agent_id, environment_id). FK (org_id, agent_id) → agents CASCADE; FK (org_id, environment_id) → environments.
+One row per agent per environment, in the `ai-gateway` module (`mod_ai_gateway_agent_gateway_settings`). Replaces `agent_configs`. PK (agent_id, environment_id). Removed with its agent by the module's agent finalize hook.
 
 - Yes/no: api_key_security, oauth_enabled, oauth_forward_token, cors_enabled, cors_allow_credentials
 - JSON: oauth_issuers, oauth_audiences, cors_allow_origins, cors_allow_methods, cors_allow_headers
@@ -190,8 +190,8 @@ One row per agent per environment. Replaces `agent_configs`. PK (agent_id, envir
 |---|---|---|---|
 | id | ID | no | PK |
 | org_id | ID | no | FK → organizations, no cascade |
-| owner_kind | short text (32) | no | What uses it (llm_provider, event_destination, a2a_proxy, ...). For cleanup; not an FK. |
-| owner_id | ID | no | |
+| owner_kind | short text (32) | no | What uses it: a core kind (`event_destination`, ...), or `mod:<module>` for a module's secrets (`mod:ai-gateway`). For cleanup; not an FK. |
+| owner_id | ID | no | For a module secret, derived from the module and its path (`llm-providers/<id>/upstream-auth`), so a module only reaches its own. |
 | provider | short text (16) | no | `db`, or an external vault's name |
 | ciphertext | binary | yes | `db` only. AES-256-GCM, nonce stored with it. |
 | key_id | short text (64) | yes | Master key that encrypted it, for rotation. |
@@ -199,11 +199,11 @@ One row per agent per environment. Replaces `agent_configs`. PK (agent_id, envir
 | version | whole number | no | |
 | created_at, updated_at | time | no | |
 
-Index (org_id, owner_kind, owner_id). Owning tables reference a secret by `secret_id` (FK, no action); the service deletes the secret after the owner. Every value encrypted inline today moves here: LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth, A2A upstream auth, event destination secrets.
+Index (org_id, owner_kind, owner_id). Core tables reference a secret by `secret_id` (FK, no action) and the service deletes it after the owner (event destination secrets). Modules reach theirs only through `rt.Secrets()` by path: the AI Gateway keeps its LLM provider and LLM proxy upstream auth, MCP endpoint upstream auth and A2A upstream auth there, each written and deleted in its row's transaction, and the row's configuration carries the path as its `secretRef`; its rows hold no secret columns. `amp module uninstall --purge` deletes a module's secrets.
 
 ## Gateways, LLM, MCP and A2A
 
-Everything in this section is used only by the gateway module (see [Gateway module tables](#gateway-module-tables)).
+Everything in this section, and `agent_gateway_settings` above, belongs to the `ai-gateway` module: each table is created by the module's migrations as `mod_ai_gateway_<name>` (see [Gateway module tables](#gateway-module-tables)), and its references to core rows (organizations, projects, agents, environments, secrets) have no foreign keys. The descriptions below use the short names.
 
 Common changes to every existing table here: `ou_id` becomes `org_id` (FK); leftover `organization_name` / `org_name` / `project_name` / `agent_name` columns and `deleted_at` go (rows point at the owner's id instead); `environment_name` + `environment_uuid` become one `environment_id` FK. Columns not mentioned keep today's meaning and get the portable types.
 
@@ -219,17 +219,16 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 
 ### Artifacts and gateway deployments
 
-- `artifacts`: base row for every gateway-deployable item (kind: RestApi, WebSubAPI, LlmProvider, LlmProxy, Agent, McpProxy, McpProxyMapping, OtelIngest). Unique (org_id, handle), (org_id, name, version).
+- `artifacts`: base row for every gateway-deployable item (kind: RestApi, WebSubAPI, LlmProvider, LlmProxy, Agent, McpProxy, McpProxyMapping). Unique (org_id, handle), (org_id, name, version).
 - `artifact_deployments` (was `deployments`): artifact_id cascade; gateway_id and base_deployment_id no action (SQL Server rejects multiple cascade paths and self-referencing SET NULL; the service clears them). content binary, metadata JSON.
 - `artifact_gateway_status` (was `deployment_status`): PK (artifact_id, gateway_id), org_id. Cascade from artifact only; deleting a gateway clears its rows in the service. Status CHECK constraints kept. claimed_by, claimed_until for the render queue.
 - Typed rows share the artifact's id (`llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`): FK id → artifacts(id) ON DELETE CASCADE, so deleting the artifact deletes the typed row and everything under it. Their project FK has no action, so a project that still has LLM proxies or MCP servers can't be deleted.
-- `OtelIngest`: the built-in trace-ingest API (`/otel`), published only when `OTEL_INGEST_UPSTREAM_URL` is set; the Lite stack leaves it empty, so no gateway serves it. One artifact per org (handle `amp-otel-ingest`), created when a gateway first connects and deployed to each gateway on connect unless it already serves the current version. Gateways receive it as a RestApi. It has no typed row.
 
 ### LLM
 
-- `llm_provider_templates`: org templates only (built-ins ship in code, `resources/builtin_llm_templates.go`). org_id NOT NULL, unique (org_id, handle). `is_system` dropped.
-- `llm_providers`: id = artifact id. Upstream API key moves out of `configuration` JSON into `secrets` (`upstream_secret_id`).
-- `llm_proxies`: id = artifact id. (org_id, project_id) FK → projects. provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth moves out of `configuration` JSON into `secrets` (`upstream_secret_id`); this includes the key minted on the provider for a proxy.
+- `llm_provider_templates`: org templates only (built-ins ship in code, `modules/aigateway/resources/builtin_llm_templates.go`). org_id NOT NULL, unique (org_id, handle). `is_system` dropped.
+- `llm_providers`: id = artifact id. The upstream API key is in the module's secret store; `configuration` carries its path as `secretRef` ([modules.md](modules.md#where-the-gateway-stands)).
+- `llm_proxies`: id = artifact id. (org_id, project_id) FK → projects. provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth, including the key minted on the provider for a proxy, is in the module's secret store; `configuration` carries its path as `secretRef`.
 
 ### Agent model and MCP configs
 
@@ -248,7 +247,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 - `mcp_proxy_mappings`: unchanged apart from common changes.
 - `mcp_proxy_scopes`: unique (mcp_proxy_id, action), description.
 - `mcp_proxy_scope_tools`: (scope_id, tool_name) PK; replaces the JSON tools list because agent-identity screens look scopes up by tool.
-- `mcp_proxy_endpoints`: kept as today (cascade from the proxy): upstream, capabilities, security and policies per endpoint. Upstream auth moves into `secrets` (`upstream_secret_id`). Unique (mcp_proxy_id, id) for the child key below. Lite creates one endpoint per proxy.
+- `mcp_proxy_endpoints`: kept as today (cascade from the proxy): upstream, capabilities, security and policies per endpoint. Upstream auth is in the module's secret store, under the proxy and the endpoint's handle. Unique (mcp_proxy_id, id) for the child key below. Lite creates one endpoint per proxy.
 - `mcp_proxy_endpoint_environments`: PK (endpoint_id, environment_id), mcp_proxy_id, artifact_id (not null, unique, no action), status. One FK (mcp_proxy_id, endpoint_id) → mcp_proxy_endpoints(mcp_proxy_id, id) cascade, so there is one cascade path; deleting the proxy deletes these artifacts in the service. Unique (mcp_proxy_id, environment_id) keeps "one endpoint per environment per proxy". Lite has one row: the single endpoint in the default environment.
 - Project MCP proxies (expose a hosted agent's MCP endpoint) are deferred.
 
@@ -258,7 +257,7 @@ One row per agent per environment each, unique (agent_id, environment_id), casca
 
 - `agent_exposures` (was `platform_agent_exposures`): protocol (a2a | rest), artifact_id unique.
 - `agent_cards`: source, source_url, card JSON, card_hash, fetched_at, status, attempt_count, last_error, next_attempt_at, claimed_by, claimed_until. OpenChoreo release-name columns dropped.
-- `a2a_proxies`: upstream_auth_header; the value moves to `secrets` (`upstream_auth_secret_id`).
+- `a2a_proxies`: upstream_auth_header; the value is in the module's secret store while the header is set.
 
 ### Per-environment Thunder
 
@@ -366,7 +365,7 @@ Modules are compiled into the binary (`cmd/amp` links them, `cmd/amp-core` links
 | state | short text (16) | no | CHECK `active`, `disabled` or `uninstalled`. |
 | created_at, updated_at | time | no | |
 
-Built-in modules (`gateway`, `legacy`) are always `active` and can't be disabled. A compiled-in module with no row is available but not installed.
+A compiled-in module with no row is available but not installed; `amp` installs `ai-gateway` at boot while it has no row and no modules list is declared. `amp module uninstall --purge` empties the module's `mod_<name>_*` tables, deletes its rows in `secrets` (owner kind `mod:<name>`), revokes its `workload_credentials` and deletes its row, in one transaction.
 
 ### module_generation
 
@@ -393,38 +392,64 @@ Events for modules: core events (`agent.created`, `agent.deleted`, `environment.
 
 ### workload_credentials
 
-Credentials a module's workloads exchange for short-lived workload tokens (`POST /workload-tokens`).
+Credentials a module's service workloads present in their heartbeats (`POST /api/internal/v1/workloads/heartbeat`), which return short-lived workload tokens. Tokens carry the scopes the workload declares in the module's manifest.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | ID | no | PK |
-| module | short text (63) | no | Indexed. |
+| module | short text (63) | no | Indexed with workload. |
+| workload | short text (63) | no | A service workload the module declares. |
 | org_id | ID | yes | FK → organizations, cascade. |
-| subject | short text (255) | no | |
-| scopes | short text (1024) | no | |
-| token_ttl_seconds | whole number | no | |
-| secret_hash | short text (64) | no | sha256 of the secret; the secret itself is returned once. |
+| subject | short text (255) | no | Who uses it, e.g. `default` or `gateway:<id>`. |
+| secret_hash | short text (64) | no | sha256 of the secret; the credential (`<id>.<secret>`) is shown once. |
 | created_at | time | no | |
 | revoked_at | time | yes | |
 
+### workload_instances
+
+Workload instances that heartbeated. A row is refreshed on every heartbeat; an instance seen in the last 30 seconds counts as connected for module health.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| credential_id | ID | no | PK part 1. FK → workload_credentials, cascade. Revoking the credential deletes its rows. |
+| instance | short text (255) | no | PK part 2. The name the instance reports. |
+| module | short text (63) | no | Indexed with workload and last_seen. |
+| workload | short text (63) | no | |
+| protocol | short text (63) | no | From the last heartbeat. |
+| version | short text (63) | no | From the last heartbeat. |
+| first_seen | time | no | |
+| last_seen | time | no | Rows not seen for 24 hours are deleted on the credential's next new instance. |
+
 ### Gateway module tables
 
-The gateway module is built in to `amp`. It reads and writes these tables, which still carry their original names (no `mod_gateway_` prefix) and live in the core migrations for now: `gateways`, `gateway_environments`, `environment_default_gateways`, `gateway_tokens`, `gateway_identity_providers`, `gateway_event_states`, `gateway_events`, `artifacts`, `artifact_deployments`, `artifact_gateway_status`, `llm_provider_templates`, `llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`, `mcp_proxy_scopes`, `mcp_proxy_scope_tools`, `mcp_proxy_endpoints`, `mcp_proxy_endpoint_environments`, `agent_model_configs`, `agent_model_config_llm`, `agent_model_config_mcp`, `agent_model_config_mcp_envs`, `agent_model_config_vars`, `ai_applications`, `api_keys`, `agent_exposures`, `agent_cards` and `a2a_proxies`. It also uses the `gateway.drift_scan` lock.
+The `ai-gateway` module (`modules/aigateway`) creates its tables with its own migrations, rendered from `modules/aigateway/schema/*.yaml` by `make schema`: `mod_ai_gateway_` followed by `agent_gateway_settings`, `gateways`, `gateway_environments`, `environment_default_gateways`, `gateway_tokens`, `gateway_identity_providers`, `gateway_event_states`, `gateway_events`, `artifacts`, `artifact_deployments`, `artifact_gateway_status`, `llm_provider_templates`, `llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`, `mcp_proxy_scopes`, `mcp_proxy_scope_tools`, `mcp_proxy_endpoints`, `mcp_proxy_endpoint_environments`, `agent_model_configs`, `agent_model_config_llm`, `agent_model_config_mcp`, `agent_model_config_mcp_envs`, `agent_model_config_vars`, `ai_applications`, `api_keys`, `agent_exposures`, `agent_cards`, `a2a_proxies`, `agent_bindings`, `agent_teardowns` and `locks`. Foreign keys between them stay; there are none into core tables.
 
-`agent_gateway_settings` is still written by the core's agent service and read by the gateway. With `amp-core` all of these tables stay empty. If an `amp-core` install finds rows in `gateways` or `agent_model_configs` at startup, it logs one warning: deleting agents will not revoke their LLM or MCP proxy credentials.
+Its finalize hooks do what the dropped keys did, in the core's delete transaction:
 
-The `legacy` module has no tables.
+- **Agent deleted:** its `agent_bindings` and `agent_gateway_settings` rows are deleted, and an `agent_teardowns` row records the agent's organization, project and name. Its `agent_model_configs` (and, through their keys, the per-config tables), `ai_applications`, `agent_exposures`, `agent_cards` and `a2a_proxies` rows stay until the `agent.deleted` handler has revoked their credentials and withdrawn them from the gateways; it then deletes them and the teardown row. While the teardown row exists, an agent with the same name in that project cannot be created (409).
+- **Project deleted:** refused (409) while the project has LLM proxies or MCP servers.
+- **Environment deleted:** refused (409) while a gateway mapped to it serves artifacts; otherwise its rows in the module's per-environment tables are deleted.
+
+`locks` (from `002_drift_scan_lock.yaml`) holds the drift scan's lease, row `drift_scan`, with the columns of the core's [locks](#locks) table, so only one replica scans at a time.
+
+Two of its tables track agent bindings:
+
+- **`agent_bindings`:** one row per LLM provider or MCP proxy an agent's `extensions.ai-gateway` block asked for: `kind` (`llm | mcp`), `position` in the request list, `target` (the provider or proxy handle), the stored `request`, `state` (`pending | ready | failed | removing`), `last_error` and the `config_id` it provisioned. The apply hook writes them in the agent's transaction; the background handler moves them to `ready` or `failed`.
+- **`agent_teardowns`:** one row per deleted agent whose gateway side effects are not yet undone (PK agent_id; unique org, project and name), with the last error.
+
+Organizations are not deleted in Lite.
+
 
 ### AI Hub module tables
 
-The `aihub` module is installable. Its two tables live in the core migrations with plain names: they exist even while the module is off, and stay empty then.
+The `aihub` module (`modules/aihub`) creates its two tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them.
 
-**subscription_plans**: one row per plan of an organization.
+**mod_aihub_subscription_plans**: one row per plan of an organization.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | id | ID | no | PK. Gateways key plans by it. |
-| org_id | ID | no | FK → organizations |
+| org_id | ID | no | The organization's id (no foreign key) |
 | handle | short text (40) | no | The API's `id`. Unique per organization. |
 | display_name | short text (255) | no | |
 | description | short text (1023) | yes | |
@@ -435,11 +460,11 @@ The `aihub` module is installable. Its two tables live in the core migrations wi
 
 Unique (org_id, handle) and (org_id, id).
 
-**subscription_plan_conditions**: the plan's conditions, in order.
+**mod_aihub_subscription_plan_conditions**: the plan's conditions, in order.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
-| org_id, plan_id | ID | no | FK (org_id, plan_id) → subscription_plans(org_id, id) ON DELETE CASCADE |
+| org_id, plan_id | ID | no | FK (org_id, plan_id) → mod_aihub_subscription_plans(org_id, id) ON DELETE CASCADE |
 | condition_id | short text (63) | no | `requests`, `tool-calls`, `tokens`, or a custom id |
 | condition_type | short text (32) | no | `request-count`, `tool-call-count`, `token-count` or `custom` |
 | params | JSON | no | Limit windows and `onExceed` for built-in types; the values of a custom condition |

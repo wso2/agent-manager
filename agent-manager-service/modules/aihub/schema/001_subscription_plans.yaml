@@ -1,0 +1,34 @@
+module: aihub
+tables:
+  # Subscription plans, one row per plan of an organization. The handle is the plan's id in the API,
+  # unique in its organization. org_id is the core organization's id; modules hold no foreign keys into
+  # the core, so a plan outlives nothing it points at.
+  - name: mod_aihub_subscription_plans
+    columns:
+      - {name: id, type: id}
+      - {name: org_id, type: id}
+      - {name: handle, type: text, size: 40}
+      - {name: display_name, type: text, size: 255}
+      - {name: description, type: text, size: 1023, nullable: true}
+      - {name: status, type: text, size: 16}
+      - {name: expiry_time, type: time, nullable: true}
+      - {name: created_by, type: text, size: 255, nullable: true}
+      - {name: updated_by, type: text, size: 255, nullable: true}
+      - {name: created_at, type: time}
+      - {name: updated_at, type: time}
+    primary_key: [id]
+    unique: [[org_id, handle], [org_id, id]]
+
+  # The conditions of a plan, in order. A built-in condition (request-count, tool-call-count, token-count) has a
+  # fixed id; a custom condition has its own.
+  - name: mod_aihub_subscription_plan_conditions
+    columns:
+      - {name: org_id, type: id}
+      - {name: plan_id, type: id}
+      - {name: condition_id, type: text, size: 63}
+      - {name: condition_type, type: text, size: 32}
+      - {name: params, type: json}
+      - {name: sort_order, type: int}
+    primary_key: [plan_id, condition_id]
+    foreign_keys:
+      - {columns: [org_id, plan_id], references: mod_aihub_subscription_plans, ref_columns: [org_id, id], on_delete: cascade}

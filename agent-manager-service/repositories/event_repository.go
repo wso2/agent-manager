@@ -26,9 +26,10 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/db/dberr"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
@@ -415,7 +416,7 @@ func (r *eventRepository) UpdateDestination(
 		// The caller loaded d before this transaction. A row lock alone does
 		// not prevent its stale settings or secret from undoing another write.
 		if !locked.UpdatedAt.Equal(d.UpdatedAt) {
-			return fmt.Errorf("%w: destination changed; reload it before saving", utils.ErrConflict)
+			return fmt.Errorf("%w: destination changed; reload it before saving", httpx.ErrConflict)
 		}
 		using, err := subscriptionsUsing(tx, d.OUID, d.ID)
 		if err != nil {

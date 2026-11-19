@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../../shared/utils";
+import { httpDELETE, httpGET, httpPOST, httpPUT, moduleBase } from "../../shared/utils";
 import type {
   CreateSubscriptionPlanRequest,
   ListSubscriptionPlansPathParams,
@@ -29,7 +29,7 @@ import type {
 
 // The backend `aihub` module's routes. The organization comes from the caller's token, so
 // the path has none.
-const PLANS_BASE = `${SERVICE_BASE}/m/aihub/subscription-plans`;
+const PLANS_BASE = `${moduleBase("aihub")}/subscription-plans`;
 
 async function throwHttpError(res: Response): Promise<never> {
   const body = await res.json().catch(() => undefined);

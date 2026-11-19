@@ -21,7 +21,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 )
 
 func RecovererOnPanic() func(http.Handler) http.Handler {
@@ -30,7 +31,7 @@ func RecovererOnPanic() func(http.Handler) http.Handler {
 			defer func() {
 				if rec := recover(); rec != nil {
 					correlationId := "unknown"
-					if id := r.Context().Value(utils.CorrelationIdCtxKey()); id != nil {
+					if id := r.Context().Value(logger.CorrelationIdCtxKey()); id != nil {
 						if idStr, ok := id.(string); ok {
 							correlationId = idStr
 						}
@@ -50,7 +51,7 @@ func RecovererOnPanic() func(http.Handler) http.Handler {
 						"panic", rec,
 						"stack", string(debug.Stack()))
 
-					utils.WriteErrorResponse(w, http.StatusInternalServerError, "internal server error")
+					httpx.WriteErrorResponse(w, http.StatusInternalServerError, "internal server error")
 				}
 			}()
 			next.ServeHTTP(w, r)

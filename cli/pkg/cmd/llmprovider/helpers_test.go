@@ -28,7 +28,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/config"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -44,7 +44,7 @@ type capturedRequest struct {
 	body        []byte
 }
 
-func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*amsvc.ClientWithResponses, error), *capturedRequest, func()) {
+func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*aigateway.ClientWithResponses, error), *capturedRequest, func()) {
 	t.Helper()
 	captured := &capturedRequest{}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,15 +69,15 @@ func newTestClient(t *testing.T, status int, body any) (func(context.Context) (*
 			}
 		}
 	}))
-	client, err := amsvc.NewClientWithResponses(server.URL)
+	client, err := aigateway.NewClientWithResponses(server.URL)
 	if err != nil {
 		server.Close()
 		t.Fatalf("new client: %v", err)
 	}
-	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }, captured, server.Close
+	return func(context.Context) (*aigateway.ClientWithResponses, error) { return client, nil }, captured, server.Close
 }
 
-func unreachableClient(context.Context) (*amsvc.ClientWithResponses, error) {
+func unreachableClient(context.Context) (*aigateway.ClientWithResponses, error) {
 	return nil, errors.New("client should not be constructed")
 }
 
@@ -127,12 +127,12 @@ func baseScope() render.Scope {
 
 // testLLMProviderCmd builds a root → llm-provider cobra tree for integration
 // tests that exercise flag parsing and validation via the RunE path.
-func testLLMProviderCmd(t *testing.T, ios *iostreams.IOStreams, clientFn func(context.Context) (*amsvc.ClientWithResponses, error)) *cobra.Command {
+func testLLMProviderCmd(t *testing.T, ios *iostreams.IOStreams, clientFn func(context.Context) (*aigateway.ClientWithResponses, error)) *cobra.Command {
 	t.Helper()
 	f := &cmdutil.Factory{
-		IOStreams:    ios,
-		Prompter:     &fakePrompter{},
-		AgentManager: clientFn,
+		IOStreams: ios,
+		Prompter:  &fakePrompter{},
+		AIGateway: clientFn,
 		Config: func() (*config.Config, error) {
 			return &config.Config{
 				CurrentInstance: "default",

@@ -22,7 +22,7 @@ import (
 	"net/http"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
@@ -113,7 +113,7 @@ func TestDelete_NonTTYWithoutYes(t *testing.T) {
 
 func TestDelete_NotFound(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	clientFn, _, closeFn := newTestClient(t, http.StatusNotFound, amsvc.ErrorResponse{
+	clientFn, _, closeFn := newTestClient(t, http.StatusNotFound, aigateway.ErrorResponse{
 		Code:    "LLM_PROVIDER_NOT_FOUND",
 		Message: "LLM provider not found",
 	})

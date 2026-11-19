@@ -31,11 +31,14 @@ import { resourceListingPlugin } from "@agent-management-platform/level-resource
 import { addNewProjectPlugin } from "@agent-management-platform/add-new-project/plugin";
 import { addNewAgentPlugin } from "@agent-management-platform/add-new-agent/plugin";
 import { settingsPlugin } from "@agent-management-platform/settings/plugin";
+import { externalAgentPlugin } from "@agent-management-platform/external-agent/plugin";
 
 export const acpCoreModule: UIModuleManifest = {
   id: "acp-core",
   name: "ACP Core",
-  description: "Overview, project and agent listings, create flows, settings and events.",
+  description:
+    "Overview, project and agent listings, create flows (including externally-hosted " +
+    "agents), settings and events.",
   apiVersion: PLUGIN_API_VERSION,
   // Always on: the server's UI manifest gates the other modules only.
   core: true,
@@ -45,5 +48,6 @@ export const acpCoreModule: UIModuleManifest = {
     addNewProjectPlugin,
     addNewAgentPlugin,
     settingsPlugin,
+    externalAgentPlugin,
   ],
 };

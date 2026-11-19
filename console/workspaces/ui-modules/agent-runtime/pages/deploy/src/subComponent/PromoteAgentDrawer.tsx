@@ -220,15 +220,10 @@ export function PromoteAgentDrawer({
     if (!open) return;
     const target = formState.targetEnvironment;
     if (!target || filledForTarget === target || !targetConfigLoaded) return;
-    const cfg = targetConfigs?.configurations;
-    const displayEnv = sortSystemLast((cfg?.env ?? []).map((e) => ({
-      key: e.key,
-      value: e.value ?? "",
-      isSensitive: e.isSensitive,
-      secretRef: e.secretRef,
-      isSystem: e.isSystem,
-    })));
-    const seededFiles = seedFileMountRows(cfg?.files);
+    // The gateway's configuration read carries no env vars or file mounts,
+    // so the target starts empty.
+    const displayEnv: EnvironmentVariable[] = [];
+    const seededFiles = seedFileMountRows(undefined);
     setFormState((prev) => ({
       ...prev,
       env: displayEnv,
@@ -257,7 +252,7 @@ export function PromoteAgentDrawer({
       if (inSet) return prev;
       const seed = pickInstrumentationVersion(
         compatibleInstrumentation,
-        agent?.configurations?.instrumentationVersion,
+        targetConfigs?.instrumentationVersion,
         buildOptions.instrumentation.defaultVersion,
       );
       return { ...prev, instrumentationVersion: seed };
@@ -267,6 +262,7 @@ export function PromoteAgentDrawer({
     buildOptions,
     agent,
     compatibleInstrumentation,
+    targetConfigs?.instrumentationVersion,
   ]);
 
   // Env/files edited for the current target; re-seeded (and so lost) when the

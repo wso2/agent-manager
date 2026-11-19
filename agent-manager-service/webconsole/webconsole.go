@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/internal/reqorigin"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -44,7 +45,7 @@ func Embedded() bool { return dist() != nil }
 
 // reserved paths belong to the API; the console never answers them, so a
 // typo in an API path is a 404 rather than the console's index page.
-var reserved = []string{"/api/", "/auth/", "/mcp", "/.well-known/", "/healthz"}
+var reserved = []string{"/api/", "/m/", "/auth/", "/mcp", "/.well-known/", "/healthz"}
 
 // Handler serves the console: files from the build, config.js rendered from
 // the configuration, and index.html for every other path (client-side routes).
@@ -154,7 +155,7 @@ func defaultValues(r *http.Request) map[string]string {
 	cfg := config.GetConfig()
 	origin := strings.TrimRight(cfg.ServerPublicURL, "/")
 	if origin == "" {
-		origin = requestOrigin(r)
+		origin = reqorigin.Of(r)
 	}
 	return map[string]string{
 		"API_BASE_URL":          origin,
@@ -168,37 +169,6 @@ func defaultValues(r *http.Request) map[string]string {
 		"AMP_VERSION":           cfg.PackageVersion,
 		"DOCS_URL":              "https://wso2.com/agent-platform/docs/next",
 	}
-}
-
-// requestOrigin is the origin the browser used, for a server that does not
-// know its public URL (SERVER_PUBLIC_URL, which should be set behind a proxy).
-// A TLS-terminating proxy or ingress reports the original scheme and host in
-// X-Forwarded-Proto and X-Forwarded-Host; they only shape this caller's own
-// config.js, which is never cached.
-func requestOrigin(r *http.Request) string {
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	if p := firstForwarded(r.Header.Get("X-Forwarded-Proto")); p == "http" || p == "https" {
-		scheme = p
-	}
-	host := r.Host
-	if h := firstForwarded(r.Header.Get("X-Forwarded-Host")); h != "" && validHost.MatchString(h) {
-		host = h
-	}
-	return scheme + "://" + host
-}
-
-// validHost is a host[:port]: letters, digits, dots, dashes, and an IPv6
-// literal's brackets and colons.
-var validHost = regexp.MustCompile(`^[A-Za-z0-9.\-\[\]:]+$`)
-
-// firstForwarded is the first value of a comma-separated forwarded header
-// (the one the outermost proxy set), lower-cased for the scheme check.
-func firstForwarded(v string) string {
-	first, _, _ := strings.Cut(v, ",")
-	return strings.ToLower(strings.TrimSpace(first))
 }
 
 // Scopes is the scope list the console asks for when it signs in: the OIDC

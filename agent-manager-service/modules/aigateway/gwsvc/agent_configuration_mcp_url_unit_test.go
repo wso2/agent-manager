@@ -1,0 +1,580 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+)
+
+// mcpURLTestFixture bundles the UUIDs and mocks shared by the three regression tests below:
+// a mapping whose per-agent key-holder artifact (ArtifactUUID) never gets a deployment_status
+// row, and whose MCP proxy carries the shared per-environment artifact that the gateway
+// actually deployed against.
+type mcpURLTestFixture struct {
+	envUUID            uuid.UUID
+	sharedArtifactUUID uuid.UUID
+	keyHolderUUID      uuid.UUID
+	gatewayUUID        uuid.UUID
+	ouID               string
+	mapping            gwmodels.EnvAgentMCPMapping
+	gatewayRepo        *gwrepomocks.GatewayRepositoryMock
+	deploymentRepo     *gwrepomocks.DeploymentRepositoryMock
+}
+
+func newMCPURLTestFixture() *mcpURLTestFixture {
+	envUUID := uuid.New()
+	sharedArtifactUUID := uuid.New()
+	keyHolderUUID := uuid.New()
+	gatewayUUID := uuid.New()
+	ouID := "org1"
+
+	proxyContext := "/proxy-ctx"
+	proxy := &gwmodels.MCPProxy{
+		UUID:          uuid.New(),
+		Configuration: gwmodels.MCPProxyConfig{Name: "proxy1", Context: &proxyContext},
+		Endpoints: []gwmodels.MCPProxyEndpoint{
+			{
+				UUID: uuid.New(),
+				Environments: []gwmodels.MCPProxyEndpointEnvironment{
+					{EnvironmentUUID: envUUID, ArtifactUUID: sharedArtifactUUID},
+				},
+			},
+		},
+	}
+
+	mapping := gwmodels.EnvAgentMCPMapping{
+		EnvironmentUUID: envUUID,
+		MCPProxyUUID:    proxy.UUID,
+		ArtifactUUID:    keyHolderUUID, // the per-agent key-holder artifact; never has a deployment row
+		MCPProxy:        proxy,
+	}
+
+	deploymentRepo := &gwrepomocks.DeploymentRepositoryMock{
+		PlacedGatewaysFunc: func(_ context.Context, orgUUID string, artifactUUID uuid.UUID) ([]string, error) {
+			// Only the shared artifact has a deployment row.
+			if artifactUUID == sharedArtifactUUID {
+				return []string{gatewayUUID.String()}, nil
+			}
+			return nil, nil
+		},
+	}
+
+	gatewayRepo := &gwrepomocks.GatewayRepositoryMock{
+		EnvironmentMappingExistsFunc: func(gatewayID string, environmentID string) (bool, error) {
+			return gatewayID == gatewayUUID.String() && environmentID == envUUID.String(), nil
+		},
+		GetByUUIDFunc: func(gatewayId string) (*gwmodels.Gateway, error) {
+			if gatewayId == gatewayUUID.String() {
+				return &gwmodels.Gateway{UUID: gatewayUUID, Vhost: "https://gw.example.com"}, nil
+			}
+			return nil, gorm.ErrRecordNotFound
+		},
+		// No fallback gateway for the environment: forces resolveEgressGatewayForEnvironment
+		// to fail when the deployment-row lookup above didn't already resolve a gateway.
+		ListWithFiltersFunc: func(filters gwrepo.GatewayFilterOptions) ([]*gwmodels.Gateway, error) {
+			return nil, nil
+		},
+	}
+
+	return &mcpURLTestFixture{
+		envUUID:            envUUID,
+		sharedArtifactUUID: sharedArtifactUUID,
+		keyHolderUUID:      keyHolderUUID,
+		gatewayUUID:        gatewayUUID,
+		ouID:               ouID,
+		mapping:            mapping,
+		gatewayRepo:        gatewayRepo,
+		deploymentRepo:     deploymentRepo,
+	}
+}
+
+func (f *mcpURLTestFixture) newService() *agentConfigurationService {
+	return &agentConfigurationService{
+		gatewayRepo:     f.gatewayRepo,
+		mcpProxyService: &MCPProxyService{deploymentRepo: f.deploymentRepo},
+		logger:          discardLogger(),
+	}
+}
+
+// buildConfigResponse must populate the MCP proxy URL from the proxy's shared
+// per-environment artifact, not the per-agent key-holder artifact — the latter has
+// no deployment_status row, so the gateway lookup silently returns no URL.
+func TestBuildConfigResponse_MCPURLUsesSharedArtifact(t *testing.T) {
+	f := newMCPURLTestFixture()
+	svc := f.newService()
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(ctx context.Context, ouID string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
+		},
+	})
+
+	config := &gwmodels.AgentConfiguration{
+		UUID:           uuid.New(),
+		OUID:           f.ouID,
+		ProjectName:    "proj1",
+		AgentID:        "agent1",
+		Name:           "cfg1",
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
+	}
+
+	resp, err := svc.buildConfigResponse(context.Background(), config, externalAgentPolicy)
+
+	require.NoError(t, err)
+	got := resp.EnvModelConfig["dev"].LLMProxy
+	require.NotNil(t, got)
+	require.NotNil(t, got.URL, "MCP URL must be populated; passing the key-holder artifact leaves it nil")
+}
+
+// buildExternalAgentConfigResponse must resolve the gateway from the shared artifact for
+// external agents too, when no one-time credential URL was already provided.
+func TestExternalAgentConfig_MCPURLUsesSharedArtifact(t *testing.T) {
+	f := newMCPURLTestFixture()
+	svc := f.newService()
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(ctx context.Context, ouID string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
+		},
+	})
+
+	config := &gwmodels.AgentConfiguration{
+		UUID:        uuid.New(),
+		OUID:        f.ouID,
+		ProjectName: "proj1",
+		AgentID:     "agent1",
+		Name:        "cfg1",
+	}
+	reloadedConfig := &gwmodels.AgentConfiguration{
+		UUID:           config.UUID,
+		OUID:           config.OUID,
+		ProjectName:    config.ProjectName,
+		AgentID:        config.AgentID,
+		Name:           config.Name,
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
+	}
+	svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
+		GetByUUIDFunc: func(ctx context.Context, configUUID uuid.UUID, ouID string) (*gwmodels.AgentConfiguration, error) {
+			return reloadedConfig, nil
+		},
+	}
+
+	resp, err := svc.buildExternalAgentConfigResponse(context.Background(), config, map[string]envCredentialData{})
+
+	require.NoError(t, err)
+	got := resp.EnvModelConfig["dev"].LLMProxy
+	require.NotNil(t, got)
+	require.NotNil(t, got.URL, "MCP URL must be populated; passing the key-holder artifact leaves it nil")
+}
+
+// TestPhase1bReinjection_MCPURLUsesSharedArtifact drives the resolution the Phase 1b MCP
+// re-injection branch performs at agent_configuration_service.go:3086. That branch lives
+// inside Update(), which returns early to updateMCPConfig for TypeID == MCP before ever
+// reaching it — so it cannot be driven end-to-end through any public entry point. This test
+// exercises the same resolveMCPMappingAPIID + mcpArtifactGateway composition used
+// at that line directly, at the closest available seam.
+func TestPhase1bReinjection_MCPURLUsesSharedArtifact(t *testing.T) {
+	f := newMCPURLTestFixture()
+	svc := f.newService()
+
+	sharedArtifactUUID := svc.resolveMCPMappingAPIID(context.Background(), &f.mapping, f.ouID)
+	require.Equal(t, f.sharedArtifactUUID, sharedArtifactUUID, "resolveMCPMappingAPIID must resolve the proxy's shared artifact, not the key-holder artifact")
+
+	gateway, err := svc.mcpArtifactGateway(context.Background(), platformAgentPolicy, f.mapping.MCPProxy, sharedArtifactUUID, f.ouID, f.envUUID)
+	require.NoError(t, err)
+	require.NotNil(t, gateway)
+	require.Equal(t, f.gatewayUUID, gateway.UUID)
+}
+
+// selfHostedMCPConfigService wires the services the MCP create/update binding checks read, with the
+// fixture's proxy placed on a self-hosted gateway.
+func selfHostedMCPConfigService(t *testing.T) (*agentConfigurationService, *mcpURLTestFixture) {
+	t.Helper()
+	f := newMCPURLTestFixture()
+	proxy := f.mapping.MCPProxy
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+		return &gwmodels.Gateway{UUID: f.gatewayUUID, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
+	}
+	svc := f.newService()
+	svc.mcpProxyRepo = &gwrepomocks.MCPProxyRepositoryMock{
+		GetByHandleFunc: func(context.Context, string, string) (*gwmodels.MCPProxy, error) { return proxy, nil },
+	}
+	svc.envMCPMappingRepo = &gwrepomocks.EnvAgentMCPMappingRepositoryMock{
+		ListByConfigFunc: func(context.Context, uuid.UUID) ([]gwmodels.EnvAgentMCPMapping, error) { return nil, nil },
+	}
+	svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
+		CreateFunc:         func(context.Context, *gorm.DB, *gwmodels.AgentConfiguration) error { return nil },
+		SetMCPProxyRefFunc: func(context.Context, *gorm.DB, uuid.UUID, uuid.UUID) error { return nil },
+		SetMCPEnvScopeFunc: func(context.Context, *gorm.DB, uuid.UUID, []uuid.UUID, []uuid.UUID) error { return nil },
+		DeleteFunc:         func(context.Context, *gorm.DB, uuid.UUID, string) error { return nil },
+	}
+	database, err := gorm.Open(postgres.New(postgres.Config{Conn: &noopTxPool{}}), &gorm.Config{DisableAutomaticPing: true})
+	require.NoError(t, err)
+	svc.db = database
+	svc.envVariableRepo = &gwrepomocks.AgentEnvConfigVariableRepositoryMock{
+		ListByConfigFunc: func(context.Context, uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) { return nil, nil },
+	}
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
+		},
+	})
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
+			return &modkit.Agent{Provisioning: string(gwutil.InternalAgent)}, nil
+		},
+	})
+	return svc, f
+}
+
+// A refusal for one self-hosted environment must leave the whole request unapplied: the per-environment steps
+// commit one by one, so nothing may have run for the managed environment either.
+func TestMCPConfig_SelfHostedRefusalAppliesNothing(t *testing.T) {
+	svc, f := selfHostedMCPConfigService(t)
+	managedEnv, managedArtifact, managedGateway := uuid.New(), uuid.New(), uuid.New()
+	proxy := f.mapping.MCPProxy
+	proxy.Endpoints[0].Environments = append(proxy.Endpoints[0].Environments,
+		gwmodels.MCPProxyEndpointEnvironment{EnvironmentUUID: managedEnv, ArtifactUUID: managedArtifact})
+	selfHostedGateway := f.gatewayUUID
+	f.deploymentRepo.PlacedGatewaysFunc = func(_ context.Context, _ string, artifact uuid.UUID) ([]string, error) {
+		if artifact == managedArtifact {
+			return []string{managedGateway.String()}, nil
+		}
+		return []string{selfHostedGateway.String()}, nil
+	}
+	f.gatewayRepo.EnvironmentMappingExistsFunc = func(string, string) (bool, error) { return true, nil }
+	f.gatewayRepo.GetByUUIDFunc = func(id string) (*gwmodels.Gateway, error) {
+		if id == managedGateway.String() {
+			return &gwmodels.Gateway{UUID: managedGateway}, nil
+		}
+		return &gwmodels.Gateway{UUID: selfHostedGateway, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
+	}
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{
+				{ID: managedEnv.String(), Name: "managed"}, {ID: f.envUUID.String(), Name: "selfhosted"},
+			}, nil
+		},
+	})
+	scopeRecorded := false
+	repo := svc.agentConfigRepo.(*gwrepomocks.AgentConfigurationRepositoryMock)
+	repo.SetMCPEnvScopeFunc = func(context.Context, *gorm.DB, uuid.UUID, []uuid.UUID, []uuid.UUID) error {
+		scopeRecorded = true
+		return nil
+	}
+	// Any mapping write or OpenChoreo env-var update panics: those mocks have no funcs set.
+	existing := &gwmodels.AgentConfiguration{
+		UUID: uuid.New(), OUID: f.ouID, Name: "cfg1",
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{{EnvironmentUUID: managedEnv, MCPProxyUUID: proxy.UUID, MCPProxy: proxy}},
+	}
+
+	_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1", gwmodels.UpdateAgentModelConfigRequest{
+		EnvMappings: map[string]gwmodels.EnvModelConfigRequest{"managed": {ProviderName: "proxy1"}, "selfhosted": {ProviderName: "proxy1"}},
+	})
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
+	require.ErrorContains(t, err, "self-hosted gateway in environment selfhosted")
+	assert.False(t, scopeRecorded, "the connection scope must not be recorded for a refused update")
+}
+
+func TestMCPConfig_RefusesSelfHostedProxy(t *testing.T) {
+	mappings := map[string]gwmodels.EnvModelConfigRequest{"dev": {ProviderName: "proxy1"}}
+
+	t.Run("create", func(t *testing.T) {
+		svc, f := selfHostedMCPConfigService(t)
+		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
+			gwmodels.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings}, "user", platformAgentPolicy)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
+		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
+	})
+
+	t.Run("create with unbindable environments deferred still refuses", func(t *testing.T) {
+		svc, f := selfHostedMCPConfigService(t)
+		_, err := svc.createMCPConfig(context.Background(), f.ouID, "proj1", "agent1",
+			gwmodels.CreateAgentModelConfigRequest{Name: "cfg1", Type: "mcp", EnvMappings: mappings, DeferUnbindableMCPEnvs: true}, "user", platformAgentPolicy)
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
+	})
+
+	t.Run("update", func(t *testing.T) {
+		svc, f := selfHostedMCPConfigService(t)
+		existing := &gwmodels.AgentConfiguration{UUID: uuid.New(), OUID: f.ouID, Name: "cfg1"}
+		_, err := svc.updateMCPConfig(context.Background(), existing, f.ouID, "proj1", "agent1",
+			gwmodels.UpdateAgentModelConfigRequest{EnvMappings: mappings})
+		require.ErrorIs(t, err, httpx.ErrInvalidInput)
+		require.ErrorContains(t, err, "self-hosted gateway in environment dev")
+	})
+}
+
+// A deferred binding becomes deployable later, when the proxy is updated onto a self-hosted gateway in the
+// environment. The reconcile must not bind the agent there.
+func TestDeployableMCPEnvs_SkipsSelfHostedGateway(t *testing.T) {
+	f := newMCPURLTestFixture()
+	proxy := f.mapping.MCPProxy
+
+	t.Run("self-hosted gateway is not bindable", func(t *testing.T) {
+		f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+			return &gwmodels.Gateway{UUID: f.gatewayUUID, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
+		}
+		targets := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
+		require.Len(t, targets, 1)
+		assert.Equal(t, f.envUUID, targets[0].envUUID)
+		assert.False(t, targets[0].gateway.IsManaged())
+	})
+
+	t.Run("managed gateway is bindable", func(t *testing.T) {
+		f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+			return &gwmodels.Gateway{UUID: f.gatewayUUID}, nil
+		}
+		targets := f.newService().deployableMCPEnvs(context.Background(), proxy, f.ouID, []uuid.UUID{f.envUUID})
+		require.Len(t, targets, 1)
+		assert.Equal(t, f.envUUID, targets[0].envUUID)
+		assert.True(t, targets[0].gateway.IsManaged())
+	})
+
+	t.Run("the reconcile does not bind an internal agent there", func(t *testing.T) {
+		svc, proxy, configUUID, activated := selfHostedBackfillService(t, gwutil.InternalAgent)
+		require.NoError(t, svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil))
+		assert.Empty(t, *activated)
+	})
+}
+
+// selfHostedBackfillService wires reconcileConfigMCPBindings for one MCP connection whose proxy has become
+// deployable on a self-hosted gateway in an environment the connection is configured for. It records each
+// environment an activation starts in, and stops that activation at its first read.
+func selfHostedBackfillService(
+	t *testing.T, provisioning gwutil.AgentProvisioningType,
+) (svc *agentConfigurationService, proxy *gwmodels.MCPProxy, configUUID uuid.UUID, activated *[]uuid.UUID) {
+	t.Helper()
+	f := newMCPURLTestFixture()
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+		return &gwmodels.Gateway{UUID: f.gatewayUUID, Hosting: gwmodels.GatewayHostingSelfHosted}, nil
+	}
+	proxy = f.mapping.MCPProxy
+	configUUID = uuid.New()
+	config := &gwmodels.AgentConfiguration{
+		UUID: configUUID, OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
+		TypeID:       gwmodels.AgentConfigTypeIDMCP,
+		MCPProxyRef:  mcpProxyRef(configUUID, proxy.UUID),
+		EnvVariables: mcpVarRows(configUUID, f.envUUID),
+	}
+	svc = f.newService()
+	svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
+		GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
+	}
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		GetAgentFunc: func(context.Context, string, string, string) (*modkit.Agent, error) {
+			return &modkit.Agent{Provisioning: string(provisioning)}, nil
+		},
+	})
+	svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+		ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+			return []*modkit.Environment{{ID: f.envUUID.String(), Name: gwmodels.DefaultEnvironmentName}}, nil
+		},
+	})
+	activated = &[]uuid.UUID{}
+	svc.envVariableRepo = &gwrepomocks.AgentEnvConfigVariableRepositoryMock{
+		ListByConfigAndEnvFunc: func(_ context.Context, _ uuid.UUID, envUUID uuid.UUID) ([]gwmodels.AgentEnvConfigVariable, error) {
+			*activated = append(*activated, envUUID)
+			return nil, errors.New("activation stopped by the test")
+		},
+	}
+	return svc, proxy, configUUID, activated
+}
+
+// An external agent runs outside the platform, so a proxy that became deployable on a self-hosted gateway is
+// one it can use: the reconcile binds it there.
+func TestDeployableMCPEnvs_IncludesSelfHostedForExternalAgent(t *testing.T) {
+	svc, proxy, configUUID, activated := selfHostedBackfillService(t, gwutil.ExternalAgent)
+	err := svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil)
+	require.ErrorContains(t, err, "activation stopped by the test")
+	require.Len(t, *activated, 1)
+	assert.Equal(t, proxy.Endpoints[0].Environments[0].EnvironmentUUID, (*activated)[0])
+}
+
+// A self-hosted gateway cannot validate Agent Identity tokens, so the reconcile leaves an external agent
+// unbound where its proxy uses identity on a self-hosted gateway, as create and update refuse it there.
+func TestReconcileMCPBindings_SkipsIdentityProxyOnSelfHostedForExternalAgent(t *testing.T) {
+	svc, proxy, configUUID, activated := selfHostedBackfillService(t, gwutil.ExternalAgent)
+	on := true
+	proxy.Endpoints[0].Configuration.Security = &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}
+
+	err := svc.reconcileConfigMCPBindings(context.Background(), svc.newMCPReconcileScope(context.Background(), "org1"), proxy, configUUID, nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, *activated)
+}
+
+// An external agent may bind to an MCP proxy on a self-hosted gateway: create and update both resolve the
+// requested environments through resolveMCPEnvGateways, which accepts the gateway for it.
+func TestMCPConfig_ExternalAgentBindsToSelfHostedProxy(t *testing.T) {
+	svc, f := selfHostedMCPConfigService(t)
+	envMap := map[string]*modkit.Environment{"dev": {ID: f.envUUID.String(), Name: "dev"}}
+	proxiesByEnv := map[string]*gwmodels.MCPProxy{"dev": f.mapping.MCPProxy}
+
+	resolved, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, proxiesByEnv, envMap, externalAgentPolicy)
+
+	require.NoError(t, err)
+	require.NoError(t, resolved["dev"].err)
+	require.NotNil(t, resolved["dev"].gateway)
+	assert.Equal(t, f.gatewayUUID, resolved["dev"].gateway.UUID)
+	assert.False(t, resolved["dev"].gateway.IsManaged())
+}
+
+// A self-hosted gateway has no ThunderKeyManager, so an Agent Identity proxy there would reject every token
+// the external agent sends. The binding is refused rather than made unusable.
+func TestMCPConfig_ExternalAgentRefusedForIdentityProxyOnSelfHosted(t *testing.T) {
+	svc, f := selfHostedMCPConfigService(t)
+	on := true
+	proxy := f.mapping.MCPProxy
+	proxy.Endpoints[0].Configuration.Security = &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}
+	envMap := map[string]*modkit.Environment{"dev": {ID: f.envUUID.String(), Name: "dev"}}
+
+	_, err := svc.resolveMCPEnvGateways(context.Background(), f.ouID, map[string]*gwmodels.MCPProxy{"dev": proxy}, envMap, externalAgentPolicy)
+
+	require.ErrorIs(t, err, errMCPIdentityOnSelfHostedGateway)
+	require.ErrorIs(t, err, httpx.ErrInvalidInput)
+	require.ErrorContains(t, err, "environment dev")
+}
+
+// An external agent reaches its MCP proxy from outside the platform, so its URL points at the self-hosted
+// gateway the proxy is placed on.
+func TestExternalAgentMCPURL_UsesSelfHostedGateway(t *testing.T) {
+	f := newMCPURLTestFixture()
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+		return &gwmodels.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: gwmodels.GatewayHostingSelfHosted}, nil
+	}
+	ctx := context.Background()
+	config := &gwmodels.AgentConfiguration{
+		UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
+	}
+	newService := func() *agentConfigurationService {
+		svc := f.newService()
+		svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+			ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+				return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
+			},
+		})
+		svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
+			GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
+		}
+		return svc
+	}
+	const wantURL = "https://customer.example.com/proxy-ctx/mcp"
+
+	t.Run("config response", func(t *testing.T) {
+		resp, err := newService().buildConfigResponse(ctx, config, externalAgentPolicy)
+		require.NoError(t, err)
+		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
+		assert.Equal(t, wantURL, *resp.EnvModelConfig["dev"].LLMProxy.URL)
+	})
+
+	t.Run("external agent config response", func(t *testing.T) {
+		resp, err := newService().buildExternalAgentConfigResponse(ctx, config, map[string]envCredentialData{})
+		require.NoError(t, err)
+		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
+		assert.Equal(t, wantURL, *resp.EnvModelConfig["dev"].LLMProxy.URL)
+	})
+}
+
+// A self-hosted gateway cannot validate Agent Identity tokens, so an external agent gets no MCP URL where its
+// proxy uses identity on a self-hosted gateway, as binding refuses it there. An API key proxy keeps its URL.
+func TestExternalAgentMCPURL_SelfHostedGatewayBySecurity(t *testing.T) {
+	on := true
+	cases := []struct {
+		name     string
+		security *gwmodels.SecurityConfig
+		wantURL  bool
+	}{
+		{"agent identity gets no URL", &gwmodels.SecurityConfig{Enabled: &on, Identity: &gwmodels.IdentitySecurity{Enabled: &on}}, false},
+		{"API key keeps the URL", &gwmodels.SecurityConfig{Enabled: &on, APIKey: &gwmodels.APIKeySecurity{Enabled: &on, Key: "X-API-Key"}}, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newMCPURLTestFixture()
+			f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+				return &gwmodels.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: gwmodels.GatewayHostingSelfHosted}, nil
+			}
+			f.mapping.MCPProxy.Endpoints[0].Configuration.Security = tc.security
+			config := &gwmodels.AgentConfiguration{
+				UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
+				EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
+			}
+			svc := f.newService()
+			svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+				ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+					return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
+				},
+			})
+			svc.agentConfigRepo = &gwrepomocks.AgentConfigurationRepositoryMock{
+				GetByUUIDFunc: func(context.Context, uuid.UUID, string) (*gwmodels.AgentConfiguration, error) { return config, nil },
+			}
+
+			resp, err := svc.buildConfigResponse(context.Background(), config, externalAgentPolicy)
+			require.NoError(t, err)
+			require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
+			assert.Equal(t, tc.wantURL, resp.EnvModelConfig["dev"].LLMProxy.URL != nil, "config response")
+
+			resp, err = svc.buildExternalAgentConfigResponse(context.Background(), config, map[string]envCredentialData{})
+			require.NoError(t, err)
+			require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
+			assert.Equal(t, tc.wantURL, resp.EnvModelConfig["dev"].LLMProxy.URL != nil, "external agent config response")
+		})
+	}
+}
+
+// An agent bound to a proxy whose artifact ended up on a self-hosted gateway anyway (the proxy-side
+// checks refuse the ways there) gets no URL for it: an OpenChoreo agent must never be pointed at the
+// customer's gateway, neither as its MCP URL nor as its AgentID token audience.
+func TestAgentMCPURLs_EmptyOnSelfHostedGateway(t *testing.T) {
+	f := newMCPURLTestFixture()
+	f.gatewayRepo.GetByUUIDFunc = func(string) (*gwmodels.Gateway, error) {
+		return &gwmodels.Gateway{UUID: f.gatewayUUID, Vhost: "https://customer.example.com", Hosting: gwmodels.GatewayHostingSelfHosted}, nil
+	}
+	ctx := context.Background()
+	config := &gwmodels.AgentConfiguration{
+		UUID: uuid.New(), OUID: f.ouID, ProjectName: "proj1", AgentID: "agent1", Name: "cfg1",
+		EnvMCPMappings: []gwmodels.EnvAgentMCPMapping{f.mapping},
+	}
+
+	t.Run("config response", func(t *testing.T) {
+		svc := f.newService()
+		svc.ocClient = gwtest.Merge(svc.ocClient, &gwtest.Core{
+			ListEnvironmentsFunc: func(context.Context, string) ([]*modkit.Environment, error) {
+				return []*modkit.Environment{{ID: f.envUUID.String(), Name: "dev"}}, nil
+			},
+		})
+		resp, err := svc.buildConfigResponse(ctx, config, platformAgentPolicy)
+		require.NoError(t, err)
+		require.NotNil(t, resp.EnvModelConfig["dev"].LLMProxy)
+		assert.Nil(t, resp.EnvModelConfig["dev"].LLMProxy.URL)
+	})
+}

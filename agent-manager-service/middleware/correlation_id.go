@@ -22,7 +22,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 )
 
 const (
@@ -43,7 +43,7 @@ func AddCorrelationID() func(http.Handler) http.Handler {
 			w.Header().Set(CorrelationIDHeader, correlationID)
 
 			// Add to request context
-			ctx := context.WithValue(r.Context(), utils.CorrelationIdCtxKey(), correlationID)
+			ctx := context.WithValue(r.Context(), logger.CorrelationIdCtxKey(), correlationID)
 			r = r.WithContext(ctx)
 
 			next.ServeHTTP(w, r)

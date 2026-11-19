@@ -51,10 +51,12 @@ var _ WorkloadTokenSigner = (*agentTokenManagerService)(nil)
 
 type workloadClaims struct {
 	jwt.RegisteredClaims
-	Module string            `json:"mod"`
-	OrgID  string            `json:"org_id,omitempty"`
-	Scope  string            `json:"scope"`
-	Extra  map[string]string `json:"ext,omitempty"`
+	Module   string            `json:"mod"`
+	Name     string            `json:"wl,omitempty"`
+	Instance string            `json:"inst,omitempty"`
+	OrgID    string            `json:"org_id,omitempty"`
+	Scope    string            `json:"scope"`
+	Extra    map[string]string `json:"ext,omitempty"`
 }
 
 func (s *agentTokenManagerService) IssueWorkload(w modkit.Workload, ttl time.Duration) (string, time.Time, error) {
@@ -73,7 +75,8 @@ func (s *agentTokenManagerService) IssueWorkload(w modkit.Workload, ttl time.Dur
 			NotBefore: jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(exp),
 		},
-		Module: w.Module, OrgID: w.OrgID, Scope: strings.Join(w.Scopes, " "), Extra: w.Claims,
+		Module: w.Module, Name: w.Name, Instance: w.Instance, OrgID: w.OrgID,
+		Scope: strings.Join(w.Scopes, " "), Extra: w.Claims,
 	}
 	s.keyPairMutex.RLock()
 	keyPair, ok := s.keyPairs[s.activeKeyID]
@@ -115,7 +118,7 @@ func (s *agentTokenManagerService) VerifyWorkload(token string) (modkit.Workload
 		return modkit.Workload{}, errors.New("malformed workload token")
 	}
 	return modkit.Workload{
-		Module: claims.Module, Subject: claims.Subject, OrgID: claims.OrgID,
+		Module: claims.Module, Name: claims.Name, Instance: claims.Instance, Subject: claims.Subject, OrgID: claims.OrgID,
 		Scopes: strings.Fields(claims.Scope), Claims: claims.Extra,
 	}, nil
 }

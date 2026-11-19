@@ -37,23 +37,23 @@ func TestUIManifestFiltersByPermission(t *testing.T) {
 		Name: "gateway", Version: "1.0.0",
 		Pages: []modhost.UIEntry{
 			{ID: "ai-gateway/gateways", Permission: "gateway:read"},
-			{ID: "ai-gateway/external-agent"}, // also the core's: listed once
-			{ID: "ai-gateway/llm-providers", Permission: rbac.LLMProviderRead},
+			{ID: "acp-core/external-agent"}, // also the core's: listed once
+			{ID: "ai-gateway/llm-providers", Permission: rbac.EventsRead},
 		},
 		Nav:   []modhost.UIEntry{{ID: "gateways", Label: "Gateways", Permission: "gateway:read"}},
-		Slots: []modhost.UIEntry{{ID: "agent.overview", Component: "Card", Permission: rbac.LLMProviderRead}},
+		Slots: []modhost.UIEntry{{ID: "agent.overview", Component: "Card", Permission: rbac.EventsRead}},
 	}}
 	req := httptest.NewRequest("GET", "/ui-manifest", nil)
 	scopes := []string{rbac.AgentCreate.Scope(), "amp:gateway:read"}
 	req = req.WithContext(jwtassertion.ContextWithScopeList(req.Context(), scopes))
 
 	got := uiManifest(req, src)
-	assert.Equal(t, []string{"ai-gateway/external-agent", "ai-gateway/gateways"}, got.Pages)
+	assert.Equal(t, []string{"acp-core/external-agent", "ai-gateway/gateways"}, got.Pages)
 	assert.Len(t, got.Modules, 2)
 	assert.Equal(t, "core", got.Modules[0].Name)
-	assert.Equal(t, []string{"ai-gateway/external-agent"}, got.Modules[0].Pages)
+	assert.Equal(t, []string{"acp-core/external-agent"}, got.Modules[0].Pages)
 	gw := got.Modules[1]
-	assert.Equal(t, []string{"ai-gateway/gateways", "ai-gateway/external-agent"}, gw.Pages)
+	assert.Equal(t, []string{"ai-gateway/gateways", "acp-core/external-agent"}, gw.Pages)
 	assert.Len(t, gw.Nav, 1)
 	assert.Empty(t, gw.Slots)
 }
@@ -72,7 +72,7 @@ func TestUIManifestRootOUSeesEverything(t *testing.T) {
 	ctx := jwtassertion.ContextWithScopeList(req.Context(), nil)
 	ctx = jwtassertion.ContextWithTokenClaims(ctx, &jwtassertion.TokenClaims{OuHandle: config.GetConfig().RootOUHandle})
 	got := uiManifest(req.WithContext(ctx), src)
-	assert.Equal(t, []string{"ai-gateway/external-agent", "ai-gateway/gateways"}, got.Pages)
+	assert.Equal(t, []string{"acp-core/external-agent", "ai-gateway/gateways"}, got.Pages)
 
 	ctx = jwtassertion.ContextWithTokenClaims(req.Context(), &jwtassertion.TokenClaims{OuHandle: "default"})
 	ctx = jwtassertion.ContextWithScopeList(ctx, nil)

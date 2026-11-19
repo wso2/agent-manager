@@ -96,7 +96,7 @@ AMP_DEFAULT_USERS=dev:dev-password, lead:lead-password:admin
 | Entry | Role | Scopes |
 | --- | --- | --- |
 | `dev:dev-password` | Developer | 45 |
-| `lead:lead-password:admin` | Agent Manager Admin | 90 |
+| `lead:lead-password:admin` | Agent Manager Admin | 89 |
 
 Developer covers day-to-day work: full control of projects, agents and LLM
 proxies, plus git secrets. It can read and
@@ -145,6 +145,22 @@ The [samples](../samples) folder has ready-to-run agents. Their tracing steps ne
 
 Add LLM providers and MCP servers in the console, then attach them to an agent. The agent calls them through the AI Gateway, which checks the agent's key, applies guardrails and token or cost limits, and keeps the provider keys out of your agent.
 
+Providers and servers you pick while registering an agent are attached in the background, so the agent appears before they are ready. The agent's **Configure** page says while they are being set up, and shows the error if setting one up fails; the gateway keeps retrying. Over the API, send them in the agent create body as `extensions.ai-gateway.modelConfig` and `extensions.ai-gateway.mcpConfig`, and read each one's state (`pending`, `ready` or `failed`) from `GET /m/ai-gateway/orgs/{org}/projects/{project}/agents/{agent}/configurations`. Deleting an agent also removes its gateway keys and routes in the background; until that is done, a new agent with the same name in the project is refused.
+
+The gateway is the `ai-gateway` module. Its API is at `/m/ai-gateway/orgs/{org}/...` (for example `GET /m/ai-gateway/orgs/{org}/llm-providers`), beside the core's `/api/v1`, and its permissions are the `amp:ai-gateway:<resource>.<action>` scopes, such as `amp:ai-gateway:llm-providers.read`.
+
+### Turn the gateway off
+
+The gateway is installed when the stack first starts, and you can switch it off and on without a restart:
+
+```bash
+docker compose exec amp-api /go/bin/amp module disable ai-gateway
+docker compose exec amp-api /go/bin/amp module enable ai-gateway
+docker compose exec amp-api /go/bin/amp module health ai-gateway
+```
+
+While it is off, its console pages, API and scopes are gone, an agent registered with LLM providers or MCP servers is refused, and its data is kept; your choice survives restarts. `amp module uninstall ai-gateway --purge` deletes its data. In this preview the bundled `gateway-controller` container restarts in a loop while the gateway is off, and the gateway runtime keeps serving its last configuration; after `enable` it connects again on its next restart. `amp module health ai-gateway` lists each gateway and whether it is connected.
+
 ## Command line
 
 `amctl` is the command-line client for the Agent Manager API. See [cli](../cli).
@@ -182,7 +198,7 @@ The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `am
 
 ## Limits of this preview
 
-- Only external agents are supported. Hosted agents (builds and deployments) are not available; their API routes answer `501 Not Implemented`. Evaluation (evaluators, monitors, scores and alerts) is not part of Lite and has no API routes. No traces are stored.
+- Only external agents are supported. Hosted agents (builds and deployments) are not available; they have no API routes. Evaluation (evaluators, monitors, scores and alerts) is not part of Lite and has no API routes. No traces are stored.
 - Each organization has one internal environment, which the console doesn't show.
 - It is not production-ready: there is no high availability, and TLS is up to you.
 - Sign-in is file-based by default, which suits local and single-operator installs. Use `AUTH_MODE=idp` for anything shared; see [How sign-in works](#how-sign-in-works).

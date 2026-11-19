@@ -29,7 +29,7 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -62,7 +62,7 @@ var versionRegex = regexp.MustCompile(`^v\d+\.\d+$`)
 
 type CreateOptions struct {
 	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj string) render.Scope
 
@@ -282,7 +282,7 @@ func parseGateways(raw []string, nameToUUID map[string]openapi_types.UUID) ([]op
 func NewCreateCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &CreateOptions{
 		IO:           f.IOStreams,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
 	}
@@ -395,7 +395,7 @@ func runCreate(ctx context.Context, o *CreateOptions) error {
 // the org's gateways. Returns nil without calling the server when every value is
 // already a UUID, so the common scripted case costs no extra request.
 func resolveGatewayNames(
-	ctx context.Context, client *amsvc.ClientWithResponses, org string, raw []string,
+	ctx context.Context, client *aigateway.ClientWithResponses, org string, raw []string,
 ) (map[string]openapi_types.UUID, error) {
 	names := gatewayNames(raw)
 	if len(names) == 0 {
@@ -426,8 +426,8 @@ func resolveGatewayNames(
 // so a bare `create <id> --display-name --template` defers entirely to the template.
 func buildCreateRequest(
 	o *CreateOptions, key string, gatewayUUIDs map[string]openapi_types.UUID,
-) (amsvc.CreateLLMProviderRequest, error) {
-	req := amsvc.CreateLLMProviderRequest{
+) (aigateway.CreateLLMProviderRequest, error) {
+	req := aigateway.CreateLLMProviderRequest{
 		Id:       o.ID,
 		Name:     o.DisplayName,
 		Version:  o.Version,
@@ -441,12 +441,12 @@ func buildCreateRequest(
 	keyProvided := key != ""
 	attachAuth := keyProvided || o.AuthTypeSet || o.AuthHeaderSet
 	if attachAuth || o.UpstreamURL != "" {
-		main := &amsvc.UpstreamEndpoint{}
+		main := &aigateway.UpstreamEndpoint{}
 		if o.UpstreamURL != "" {
 			main.Url = &o.UpstreamURL
 		}
 		if attachAuth {
-			auth := &amsvc.UpstreamAuth{Type: amsvc.UpstreamAuthType(o.AuthType)}
+			auth := &aigateway.UpstreamAuth{Type: aigateway.UpstreamAuthType(o.AuthType)}
 			if o.AuthHeader != "" {
 				auth.Header = &o.AuthHeader
 			}
@@ -455,7 +455,7 @@ func buildCreateRequest(
 			}
 			main.Auth = auth
 		}
-		req.Upstream = amsvc.UpstreamConfig{Main: main}
+		req.Upstream = aigateway.UpstreamConfig{Main: main}
 	}
 
 	gws, err := parseGateways(o.Gateways, gatewayUUIDs)
@@ -468,15 +468,15 @@ func buildCreateRequest(
 
 	// Sent unconditionally: a deployed proxy defaults to deny_all server-side, so a
 	// provider created without an access control block is unreachable.
-	req.AccessControl = &amsvc.LLMAccessControl{
-		Mode:       amsvc.LLMAccessControlMode(o.accessMode()),
-		Exceptions: &[]amsvc.RouteException{},
+	req.AccessControl = &aigateway.LLMAccessControl{
+		Mode:       aigateway.LLMAccessControlMode(o.accessMode()),
+		Exceptions: &[]aigateway.RouteException{},
 	}
 
 	return req, nil
 }
 
-func printProviderSummary(ios *iostreams.IOStreams, p *amsvc.LLMProviderResponse) {
+func printProviderSummary(ios *iostreams.IOStreams, p *aigateway.LLMProviderResponse) {
 	cs := ios.StderrColorScheme()
 	fmt.Fprintf(ios.ErrOut, "%s Created LLM provider %s\n\n", cs.SuccessIcon(), p.Id)
 	fmt.Fprintf(ios.ErrOut, "  Name:     %s\n", p.Name)

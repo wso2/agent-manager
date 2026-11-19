@@ -11,12 +11,12 @@ import (
 	"strconv"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
 // pagedGatewayServer serves `total` synthetic gateways, honouring the limit and
 // offset the client asks for, and records each offset it was called with.
-func pagedGatewayServer(t *testing.T, total int) (*amsvc.ClientWithResponses, *[]string) {
+func pagedGatewayServer(t *testing.T, total int) (*aigateway.ClientWithResponses, *[]string) {
 	t.Helper()
 	var offsets []string
 
@@ -26,15 +26,15 @@ func pagedGatewayServer(t *testing.T, total int) (*amsvc.ClientWithResponses, *[
 		offset, _ := strconv.Atoi(query.Get("offset"))
 		limit, _ := strconv.Atoi(query.Get("limit"))
 
-		page := []amsvc.GatewayResponse{}
+		page := []aigateway.GatewayResponse{}
 		for i := offset; i < offset+limit && i < total; i++ {
-			page = append(page, amsvc.GatewayResponse{
+			page = append(page, aigateway.GatewayResponse{
 				Name: "gw-" + strconv.Itoa(i),
 				Uuid: "id-" + strconv.Itoa(i),
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(amsvc.GatewayListResponse{
+		_ = json.NewEncoder(w).Encode(aigateway.GatewayListResponse{
 			Gateways: page,
 			Total:    int32(total),
 			Limit:    int32(limit),
@@ -43,7 +43,7 @@ func pagedGatewayServer(t *testing.T, total int) (*amsvc.ClientWithResponses, *[
 	}))
 	t.Cleanup(srv.Close)
 
-	client, err := amsvc.NewClientWithResponses(srv.URL)
+	client, err := aigateway.NewClientWithResponses(srv.URL)
 	if err != nil {
 		t.Fatalf("NewClientWithResponses: %v", err)
 	}
@@ -114,14 +114,14 @@ func TestListAllGateways_StopsOnEmptyPageDespiteOverstatedTotal(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls++
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(amsvc.GatewayListResponse{
-			Gateways: []amsvc.GatewayResponse{},
+		_ = json.NewEncoder(w).Encode(aigateway.GatewayListResponse{
+			Gateways: []aigateway.GatewayResponse{},
 			Total:    99,
 		})
 	}))
 	defer srv.Close()
 
-	client, err := amsvc.NewClientWithResponses(srv.URL)
+	client, err := aigateway.NewClientWithResponses(srv.URL)
 	if err != nil {
 		t.Fatalf("NewClientWithResponses: %v", err)
 	}
@@ -149,19 +149,19 @@ func TestListAllGateways_ReturnsPagesGatheredBeforeAFailure(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		page := make([]amsvc.GatewayResponse, 0, int(gatewayPageLimit))
+		page := make([]aigateway.GatewayResponse, 0, int(gatewayPageLimit))
 		for i := range int(gatewayPageLimit) {
-			page = append(page, amsvc.GatewayResponse{Name: "gw-" + strconv.Itoa(i)})
+			page = append(page, aigateway.GatewayResponse{Name: "gw-" + strconv.Itoa(i)})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(amsvc.GatewayListResponse{
+		_ = json.NewEncoder(w).Encode(aigateway.GatewayListResponse{
 			Gateways: page,
 			Total:    gatewayPageLimit * 2,
 		})
 	}))
 	defer srv.Close()
 
-	client, err := amsvc.NewClientWithResponses(srv.URL)
+	client, err := aigateway.NewClientWithResponses(srv.URL)
 	if err != nil {
 		t.Fatalf("NewClientWithResponses: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestListAllGateways_ServerErrorIsSurfaced(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client, err := amsvc.NewClientWithResponses(srv.URL)
+	client, err := aigateway.NewClientWithResponses(srv.URL)
 	if err != nil {
 		t.Fatalf("NewClientWithResponses: %v", err)
 	}
