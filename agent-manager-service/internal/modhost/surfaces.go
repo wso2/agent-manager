@@ -30,6 +30,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -67,6 +68,8 @@ type Route struct {
 	AlsoRequires  []rbac.Permission
 	AnyOf         []rbac.Permission
 	PlatformAdmin bool
+	// AllowOrgOverride lets a trusted caller act on another organization.
+	AllowOrgOverride bool
 }
 
 // Pattern is the route's net/http pattern: /m/<module><path> on the API port,
@@ -297,7 +300,11 @@ func withOrg(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if c := jwtassertion.GetTokenClaims(r.Context()); c != nil {
 			ctx := modkit.WithPrincipal(r.Context(), principalOf(c))
-			if c.OuId != "" {
+			// The organization the core resolved: the token's, or the one an
+			// allowed org override switched to.
+			if org, ok := orgctx.GetResolvedOrg(ctx); ok && org.OUID != "" {
+				ctx = modkit.WithOrgID(ctx, org.OUID)
+			} else if c.OuId != "" {
 				ctx = modkit.WithOrgID(ctx, c.OuId)
 			}
 			r = r.WithContext(ctx)

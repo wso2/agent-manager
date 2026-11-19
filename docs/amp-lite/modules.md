@@ -161,7 +161,7 @@ rt.Handle(http.MethodGet, "/tags", "widget-read", func(w http.ResponseWriter, r 
 
 Inside a handler or MCP tool:
 
-- `modkit.OrgID(ctx)` is the caller's organization and `modkit.PrincipalFrom(ctx)` the caller: `User` is the token subject (the signed-in user, or the client of a client-credentials token) and `ClientID` the OAuth client the token was issued to. The PoC's `Principal` also has a `Role`; Lite grants scopes rather than one role, so it is left out, and `rt.Can` answers permission questions.
+- `modkit.OrgID(ctx)` is the organization the request acts on (the caller's, or the one an [allowed org override](#routes) switched to) and `modkit.PrincipalFrom(ctx)` the caller: `User` is the token subject (the signed-in user, or the client of a client-credentials token) and `ClientID` the OAuth client the token was issued to. The PoC's `Principal` also has a `Role`; Lite grants scopes rather than one role, so it is left out, and `rt.Can` answers permission questions.
 - `rt.Track(ctx, event, props)` reports the request as feature usage named `event`, with `props` as its dimensions, after the response is written and with its status. A second call in the same request adds to `props`, later values winning, for dimensions a handler learns as it runs. It does nothing outside a request to one of the module's routes, or when the installation does not report feature usage (`MOESIF_ENABLED`). Feature names follow the product's feature-usage taxonomy, which `middleware/growthanalytics/taxonomy_test.go` checks for the gateway's routes.
 
 `HandleInternal(method, path, scope, h, opts...)` mounts `/m/<name>/internal<path>` on the internal server (:9243) for the module's own workloads. Callers present a workload token carrying `scope` as `Authorization: Bearer`; `modkit.WorkloadFrom(ctx)` returns who they are (module, workload, instance, subject, organization, scopes). While the module is inactive these routes answer `401 {"error":"module_inactive"}`. A workload gets its tokens from:
@@ -188,6 +188,7 @@ rt.Handle(http.MethodGet, "/secrets/{name}", "widget-read", read, modkit.Audit("
 - `modkit.AlsoRequires(perms...)` makes the route need these permissions too, all of them (an environment tier on top of the capability); the route's own permission still names its audit action.
 - `modkit.AnyPermission(perms...)` lets in a caller holding any one of them, on a route registered with no permission of its own; a route that changes state also names its action with `modkit.Audit`.
 - `modkit.PlatformAdmin()` admits only callers from the platform-admin organization, for a route that reads across every organization. Its path must not name an organization.
+- `modkit.AllowOrgOverride()` lets a deployment's control plane drive an org-scoped route on a tenant's behalf. A request with the `X-Impersonate-Org` header acts on that organization when the deployment's override resolver (`app.Options.OrgOverrideResolver`) allows it, and is refused with 403 otherwise; the path must name the target organization, and `modkit.OrgID` returns it. Without a resolver, a request with the header is refused and one without it is unaffected. Only public routes whose path names `{orgName}` may use it.
 
 A route naming an action or event its manifest doesn't declare keeps the module from activating.
 
@@ -584,6 +585,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`modkit.AuditInternalCaller`](#fixed-internal-paths-temporary) | Time-boxed, with `HandleInternalAt`: those routes authenticate their callers themselves, so only the handler can name the caller or report a refused credential. |
 | [Scoped `Manifest.Events`](#events) and the route options `modkit.Emits`, `EmitsWithoutData` | Module events can be offered as webhooks, which needs a scope and a description per event. |
 | Route options [`AlsoRequires`, `AnyPermission`, `PlatformAdmin`](#routes) | Some gateway routes need several permissions, one of several, or the platform-admin organization; one permission per route could not express them. |
+| Route option [`AllowOrgOverride`](#routes) | A deployment's control plane lists gateways and sets gateway identity providers on a tenant's behalf. The core already lets its own routes opt into the org override; the gateway did the same inside its handlers, which bypassed the core's checks (path must name the target, a refused override is a 403) and its audit record. |
 | [`Runtime.Go`](#background-workers) | Modules need workers (reconcilers, sweepers) that start and stop with the module on every replica. |
 | [`Runtime.MCPTool`](#mcp-tools) | Modules contribute tools to the core's `/mcp` server, authorized and audited like core tools. |
 | [`Runtime.Secrets`](#data) | Modules keep secret values encrypted with the core's key without their own key handling. |

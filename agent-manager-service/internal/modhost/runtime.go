@@ -167,6 +167,10 @@ func (r *runtime) options(rt *Route, opts []modkit.RouteOption) error {
 		return errors.New("a PlatformAdmin route reads across organizations and must not name one")
 	}
 	rt.PlatformAdmin = o.PlatformAdmin
+	if o.AllowOrgOverride && (rt.Scope != "" || rt.At != "" || !strings.Contains(rt.Path, "{orgName}")) {
+		return errors.New("AllowOrgOverride applies to public routes whose path names {orgName}")
+	}
+	rt.AllowOrgOverride = o.AllowOrgOverride
 	return nil
 }
 

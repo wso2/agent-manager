@@ -85,7 +85,7 @@ func ModuleMounter(params *wiring.AppParams) func(*http.ServeMux, modhost.Route)
 	return func(mux *http.ServeMux, r modhost.Route) {
 		rr := middleware.NewRouteRegistrar(mux, params.OrgResolver, params.AuditRecorder)
 		rr.SetEventPublisher(params.EventPublisher)
-		mountModuleRoute(rr, r)
+		mountModuleRoute(rr, r, params.OUHandleLookup)
 	}
 }
 
@@ -98,8 +98,12 @@ func ModuleInternalMounter(params *wiring.AppParams) func(*http.ServeMux, modhos
 	}
 }
 
-func mountModuleRoute(rr *middleware.RouteRegistrar, r modhost.Route) {
-	rr.HandleModuleRoute(r.Pattern(), r.Permission, modulePolicy(r), r.Handler)
+func mountModuleRoute(rr *middleware.RouteRegistrar, r modhost.Route, lookup middleware.OUHandleLookup) {
+	policy := modulePolicy(r)
+	if r.AllowOrgOverride {
+		policy.OrgOverride = middleware.ApplyOrgOverride(lookup)
+	}
+	rr.HandleModuleRoute(r.Pattern(), r.Permission, policy, r.Handler)
 }
 
 // modulePolicy is what a module route declared for the audit trail and

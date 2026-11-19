@@ -29,8 +29,11 @@ import (
 // routes that raise one. A route not listed records under its permission (a
 // change) or not at all (a read). Routes that mint, rotate or revoke
 // credentials, or change what a gateway trusts, are fail-closed: their effect
-// lands outside the database, so they refuse to run unrecorded.
+// lands outside the database, so they refuse to run unrecorded. The routes a
+// deployment's control plane drives on a tenant's behalf allow an org
+// override.
 var routeOptions = map[string][]modkit.RouteOption{
+	"GET /orgs/{orgName}/gateways": {modkit.AllowOrgOverride()},
 	"DELETE /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}":                                                  {modkit.Audit("agent-identities.delete")},
 	"DELETE /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}":                                                    {modkit.Audit("agent-identities.delete")},
 	"DELETE /orgs/{orgName}/gateways/{gatewayID}":                                                                                      {modkit.Audit("gateways.delete"), modkit.Emits(gwaudit.GatewayDeleted), modkit.AuditFailClosed()},
@@ -101,7 +104,7 @@ var routeOptions = map[string][]modkit.RouteOption{
 	"PUT /orgs/{orgName}/environments/{envName}/agent-identities/groups/{groupID}":                                                     {modkit.Audit("agent-identities.update")},
 	"PUT /orgs/{orgName}/environments/{envName}/agent-identities/roles/{roleID}":                                                       {modkit.Audit("agent-identities.update")},
 	"PUT /orgs/{orgName}/gateways/{gatewayID}":                                                                                         {modkit.Audit("gateways.update"), modkit.Emits(gwaudit.GatewayUpdated)},
-	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":                                                               {modkit.Audit("gateways.set-identity-provider"), modkit.AuditFailClosed()},
+	"PUT /orgs/{orgName}/gateways/{gatewayID}/identity-providers/{name}":                                                               {modkit.Audit("gateways.set-identity-provider"), modkit.AuditFailClosed(), modkit.AllowOrgOverride()},
 	"PUT /orgs/{orgName}/llm-provider-templates/{templateId}":                                                                          {modkit.Audit("llm-provider-templates.update")},
 	"PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}":                                                                        {modkit.Audit("api-keys.rotate"), modkit.AuditFailClosed()},
 	"PUT /orgs/{orgName}/llm-providers/{providerId}":                                                                                   {modkit.Audit("llm-providers.update"), modkit.Emits(gwaudit.LLMProviderUpdated)},

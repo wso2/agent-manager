@@ -40,6 +40,9 @@ type ModuleRoutePolicy struct {
 	AlsoRequires  []rbac.Permission
 	AnyOf         []rbac.Permission
 	PlatformAdmin bool
+	// OrgOverride, when set (ApplyOrgOverride), runs after org resolution
+	// and before the permission check.
+	OrgOverride func(http.HandlerFunc) http.HandlerFunc
 }
 
 // HandleModuleRoute registers a module's route with the same middleware as a
@@ -86,6 +89,12 @@ func (rr *RouteRegistrar) HandleModuleRoute(pattern string, perm rbac.Permission
 	}
 	if authz != nil {
 		handler = authz(handler)
+	}
+	if policy.OrgOverride != nil {
+		if !strings.Contains(pattern, orgNamePlaceholder) {
+			panic("middleware: an org-override route must be org-scoped: " + pattern)
+		}
+		handler = policy.OrgOverride(handler)
 	}
 	handler = resolveOrgFromToken()(handler)
 	if strings.Contains(pattern, orgNamePlaceholder) {

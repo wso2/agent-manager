@@ -72,7 +72,7 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 	host.Attach(modhost.Deps{
 		Mount: func(mux *http.ServeMux, r modhost.Route) {
 			rr := middleware.NewRouteRegistrar(mux, nil, nil)
-			mountModuleRoute(rr, r)
+			mountModuleRoute(rr, r, func(context.Context, string) (string, error) { return "", nil })
 			for _, meta := range rr.Routes() {
 				public[meta.Pattern] = meta
 			}

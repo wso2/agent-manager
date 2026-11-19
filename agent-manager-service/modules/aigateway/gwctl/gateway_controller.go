@@ -327,31 +327,10 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
-// impersonatedOUID returns the organization a trusted caller asked to act on
-// instead of its token's, as decided by the deployment's OrgOverrideResolver.
-// With no resolver installed (the open-source default) it never overrides, so
-// the token stays the sole source of org identity. Only the handlers a
-// deployment's control plane drives on a tenant's behalf consult it.
-func impersonatedOUID(r *http.Request) (string, bool) {
-	return middleware.OrgOverride(r)
-}
-
 func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
-
-	// A trusted control-plane caller may act on a tenant's behalf (see
-	// impersonatedOUID); its override wins over the token, and the context is
-	// rewritten too. Without a deployment-installed resolver this never fires.
-	if impersonated, ok := impersonatedOUID(r); ok && impersonated != ouID {
-		log.Warn("ListGateways: org impersonation header overrides token org",
-			"tokenOuID", ouID, "impersonatedOuID", impersonated)
-		ouID = impersonated
-		org, _ := middleware.GetResolvedOrg(ctx)
-		org.OUID = impersonated
-		ctx = middleware.WithResolvedOrg(ctx, org)
-	}
 
 	limit, offset := gatewayPagination(r)
 

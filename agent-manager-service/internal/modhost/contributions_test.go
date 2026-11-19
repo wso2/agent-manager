@@ -454,6 +454,12 @@ func TestRegistrationsThatFailActivationG1(t *testing.T) {
 		"platform-admin on a workload route": func(rt modkit.Runtime) {
 			rt.HandleInternal(http.MethodGet, "/x", "s", ok, modkit.PlatformAdmin())
 		},
+		"org override on a path without an org": func(rt modkit.Runtime) {
+			rt.Handle(http.MethodGet, "/x", "p", ok, modkit.AllowOrgOverride())
+		},
+		"org override on a workload route": func(rt modkit.Runtime) {
+			rt.HandleInternal(http.MethodGet, "/orgs/{orgName}/x", "s", ok, modkit.AllowOrgOverride())
+		},
 	}
 	for name, register := range cases {
 		t.Run(name, func(t *testing.T) {

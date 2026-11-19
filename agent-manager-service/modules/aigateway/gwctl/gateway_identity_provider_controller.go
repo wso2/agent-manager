@@ -143,19 +143,6 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	name := strings.TrimSpace(r.PathValue("name"))
 
-	// A deployment's control plane may provision the environment Thunder
-	// identity provider on a tenant's behalf (see impersonatedOUID); its
-	// override wins over the token, matching the Thunder URL and system-client
-	// endpoints. Without a deployment-installed resolver this never fires.
-	if impersonated, ok := impersonatedOUID(r); ok && impersonated != ouID {
-		log.Warn("UpsertGatewayIdentityProvider: org impersonation header overrides token org",
-			"tokenOuID", ouID, "impersonatedOuID", impersonated)
-		ouID = impersonated
-		org, _ := middleware.GetResolvedOrg(ctx)
-		org.OUID = impersonated
-		ctx = middleware.WithResolvedOrg(ctx, org)
-	}
-
 	var req gwspec.UpsertIdentityProviderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		log.Error("UpsertGatewayIdentityProvider: failed to decode request", "error", err)

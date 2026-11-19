@@ -23,6 +23,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 )
 
 func TestWithOrgSetsTheCaller(t *testing.T) {
@@ -36,5 +37,19 @@ func TestWithOrgSetsTheCaller(t *testing.T) {
 	h(httptest.NewRecorder(), r)
 	if got != (modkit.Principal{User: "user-1", ClientID: "console"}) || org != "org-1" {
 		t.Errorf("principal %+v org %q, want user-1/console in org-1", got, org)
+	}
+}
+
+// OrgID is the organization the core resolved, which an allowed org override
+// may have switched from the token's.
+func TestWithOrgPrefersTheResolvedOrg(t *testing.T) {
+	var org string
+	h := withOrg(func(_ http.ResponseWriter, r *http.Request) { org = modkit.OrgID(r.Context()) })
+	r := httptest.NewRequest(http.MethodGet, "/m/x/things", nil)
+	ctx := jwtassertion.ContextWithTokenClaims(r.Context(), &jwtassertion.TokenClaims{Sub: "svc", OuId: "org-1"})
+	ctx = orgctx.WithResolvedOrg(ctx, orgctx.ResolvedOrg{OUID: "org-2", OuHandle: "b"})
+	h(httptest.NewRecorder(), r.WithContext(ctx))
+	if org != "org-2" {
+		t.Errorf("org %q, want the resolved org-2", org)
 	}
 }

@@ -58,6 +58,9 @@ type RouteOptions struct {
 	// PlatformAdmin admits only callers from the platform-admin
 	// organization, for a route that reads across organizations.
 	PlatformAdmin bool
+	// AllowOrgOverride lets a caller the deployment trusts act on another
+	// organization than its token's, named in the X-Impersonate-Org header.
+	AllowOrgOverride bool
 }
 
 // Audit names the audit action a route or tool is recorded under, when its
@@ -118,6 +121,16 @@ func AnyPermission(perms ...string) RouteOption {
 // must not name an organization.
 func PlatformAdmin() RouteOption {
 	return func(o *RouteOptions) { o.PlatformAdmin = true }
+}
+
+// AllowOrgOverride lets a deployment's control plane drive an org-scoped
+// public route on a tenant's behalf: a request with the X-Impersonate-Org
+// header acts on that organization when the deployment's override resolver
+// allows it, and is refused with 403 otherwise. The path must name the
+// target organization, and OrgID returns it. Without a resolver installed, a
+// request with the header is refused and one without it is unaffected.
+func AllowOrgOverride() RouteOption {
+	return func(o *RouteOptions) { o.AllowOrgOverride = true }
 }
 
 // Options applies opts.
