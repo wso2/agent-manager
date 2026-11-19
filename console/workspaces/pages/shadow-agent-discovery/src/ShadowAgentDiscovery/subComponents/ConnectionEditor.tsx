@@ -34,7 +34,7 @@ import {
   Tooltip,
   Typography,
 } from "@wso2/oxygen-ui";
-import { ChevronDown, ChevronRight, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
+import { ChevronDown, ChevronRight, Download, Plus, Trash2 } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, useNavigate, useParams } from "react-router-dom";
 import { PageLayout, TextInput, useReturnTo } from "@agent-management-platform/views";
 import {
@@ -702,6 +702,21 @@ function EndpointInput({
 }
 
 /** Create (connections/new) or edit (connections/:connectionId/edit) a provider connection. */
+/** The file name of the Custom platform's OpenAPI contract download. */
+export const CUSTOM_CONTRACT_FILE = "agent-manager-custom-platform-openapi.yaml";
+
+/** Saves the Custom platform's OpenAPI contract as a file. */
+export function downloadContract(contract: string) {
+  const url = URL.createObjectURL(new Blob([contract], { type: "application/yaml" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = CUSTOM_CONTRACT_FILE;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function ConnectionEditor({
   orgName,
   listPath,
@@ -898,16 +913,47 @@ export function ConnectionEditor({
         </Stack>
       ) : (
         <Grid container spacing={3}>
-          <Grid size={{ xs: 12, lg: 7 }}>
+          {/* One field per row. An agent platform's form spans the page; a source host keeps
+              its scan command panel beside the form. */}
+          <Grid size={{ xs: 12, lg: spec.sourceHost ? 7 : 12 }}>
             <Stack spacing={2.5}>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Typography variant="subtitle1">{spec.displayName}</Typography>
                 {spec.sourceHost && <SourceScanGuide spec={spec} />}
               </Stack>
+              {spec.apiContract && (
+                <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1, p: 2 }}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.5}
+                    alignItems={{ sm: "center" }}
+                    justifyContent="space-between"
+                  >
+                    <Box>
+                      <Typography variant="subtitle2">Build your agent inventory API</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Implement the OpenAPI contract in a service you run, then enter its Agents
+                        URL and API key below.
+                      </Typography>
+                    </Box>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Download size={16} />}
+                      onClick={() => downloadContract(spec.apiContract ?? "")}
+                      sx={{ flexShrink: 0 }}
+                    >
+                      Download contract
+                    </Button>
+                  </Stack>
+                </Box>
+              )}
               <AnalyzeSection
                 providerName={spec.displayName}
                 statuses={statuses}
                 notListed={spec.notListed}
+                setupSteps={spec.setupSteps}
+                apiContract={spec.apiContract}
                 sourceHost={!!spec.sourceHost}
               />
               {/* Locked while saving, and once a source host is saved. */}

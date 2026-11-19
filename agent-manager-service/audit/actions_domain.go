@@ -74,6 +74,7 @@ const (
 	ActionShadowScanCreate       Action = "shadow-scan:create"
 	ActionShadowScanClear        Action = "shadow-scan:clear"
 	ActionShadowFindingOnboard   Action = "shadow-finding:onboard"
+	ActionShadowFindingHide      Action = "shadow-finding:hide"
 	ActionShadowFindingDelete    Action = "shadow-finding:delete"
 	ActionShadowFindingClear     Action = "shadow-finding:clear"
 	// A source code scan command: a pending scan and the organization-scoped
@@ -351,6 +352,8 @@ func init() {
 	RegisterDetailSchema(ActionShadowScanClear, nil)
 	Register(ActionShadowFindingOnboard, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionShadowFindingOnboard, nil)
+	Register(ActionShadowFindingHide, ClassConfig, SeverityNotice)
+	RegisterDetailSchema(ActionShadowFindingHide, nil)
 	Register(ActionShadowFindingDelete, ClassConfig, SeverityNotice)
 	RegisterDetailSchema(ActionShadowFindingDelete, nil)
 	Register(ActionShadowFindingClear, ClassConfig, SeverityNotice)

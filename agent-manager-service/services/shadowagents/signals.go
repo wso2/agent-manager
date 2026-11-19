@@ -45,6 +45,8 @@ const (
 	SigFoundryAgentObject   = "foundry.agent_object"
 	SigFoundryClassicAgent  = "foundry.classic_agent"
 	SigFoundryPossibleDupOf = "foundry.external_possible_duplicate"
+
+	SigCustomAgent = "custom.agent"
 )
 
 // defs is the evidence catalog, in display order: the platform listings,
@@ -89,6 +91,10 @@ var defs = append([]SignalDef{
 	{
 		Code: SigFoundryPossibleDupOf, Provider: models.ShadowProviderFoundry, Name: "Possibly registered elsewhere",
 		Condition: `definition.kind == "external": Foundry stores no endpoint for external agents, so an agent from another connection with the same name is flagged as a possible duplicate`,
+	},
+	{
+		Code: SigCustomAgent, Provider: models.ShadowProviderCustom, Name: "Agent in your inventory",
+		Condition: `GET {Agents URL}?limit=100 (Authorization: Bearer <API key>): an item in agents with an id and a name`,
 	},
 }, sourceDefs()...)
 

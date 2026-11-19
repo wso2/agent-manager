@@ -48,13 +48,15 @@ type ShadowFindingSummary struct {
 	// The name of the external agent it was onboarded as.
 	LinkedAgent *string    `json:"linkedAgent,omitempty"`
 	OnboardedAt *time.Time `json:"onboardedAt,omitempty"`
+	// The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can still be opened by its ID.
+	Hidden bool `json:"hidden"`
 }
 
 // NewShadowFindingSummary instantiates a new ShadowFindingSummary object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewShadowFindingSummary(id string, connectionId string, connectionName string, provider string, kind string, externalId string, displayName string, scope string, state string, ownerHint ShadowOwnerHint, firstSeenAt time.Time, lastSeenAt time.Time, present bool, foundBy []ShadowFindingSource, onboarded bool) *ShadowFindingSummary {
+func NewShadowFindingSummary(id string, connectionId string, connectionName string, provider string, kind string, externalId string, displayName string, scope string, state string, ownerHint ShadowOwnerHint, firstSeenAt time.Time, lastSeenAt time.Time, present bool, foundBy []ShadowFindingSource, onboarded bool, hidden bool) *ShadowFindingSummary {
 	this := ShadowFindingSummary{}
 	this.Id = id
 	this.ConnectionId = connectionId
@@ -71,6 +73,7 @@ func NewShadowFindingSummary(id string, connectionId string, connectionName stri
 	this.Present = present
 	this.FoundBy = foundBy
 	this.Onboarded = onboarded
+	this.Hidden = hidden
 	return &this
 }
 
@@ -570,6 +573,30 @@ func (o *ShadowFindingSummary) SetOnboardedAt(v time.Time) {
 	o.OnboardedAt = &v
 }
 
+// GetHidden returns the Hidden field value
+func (o *ShadowFindingSummary) GetHidden() bool {
+	if o == nil {
+		var ret bool
+		return ret
+	}
+
+	return o.Hidden
+}
+
+// GetHiddenOk returns a tuple with the Hidden field value
+// and a boolean to check if the value has been set.
+func (o *ShadowFindingSummary) GetHiddenOk() (*bool, bool) {
+	if o == nil {
+		return nil, false
+	}
+	return &o.Hidden, true
+}
+
+// SetHidden sets field value
+func (o *ShadowFindingSummary) SetHidden(v bool) {
+	o.Hidden = v
+}
+
 func (o ShadowFindingSummary) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -607,6 +634,7 @@ func (o ShadowFindingSummary) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.OnboardedAt) {
 		toSerialize["onboardedAt"] = o.OnboardedAt
 	}
+	toSerialize["hidden"] = o.Hidden
 	return toSerialize, nil
 }
 

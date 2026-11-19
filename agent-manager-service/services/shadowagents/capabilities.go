@@ -125,6 +125,16 @@ var providerCapabilities = map[string][]CapabilitySpec{
 	},
 }
 
+// customCapabilities is what a Custom platform's scan lists.
+var customCapabilities = []CapabilitySpec{
+	{
+		Key: "custom.agents", Title: "Agents in your inventory",
+		Description: "Lists the agents your service returns via GET {Agents URL} (Authorization: Bearer <API key>), " +
+			"100 per page, following nextCursor.",
+		Signals: []string{SigCustomAgent},
+	},
+}
+
 // providerCredentialChoices are the platforms whose required credential is
 // one of several fields.
 var providerCredentialChoices = map[string]CredentialChoice{
@@ -187,6 +197,7 @@ func sourceCapabilities(provider, prefix string) []CapabilitySpec {
 }
 
 func init() {
+	providerCapabilities[models.ShadowProviderCustom] = customCapabilities
 	providerCapabilities[models.ShadowProviderGitHub] = sourceCapabilities(models.ShadowProviderGitHub, "github")
 	providerCapabilities[models.ShadowProviderAzureDevOps] = sourceCapabilities(models.ShadowProviderAzureDevOps, "azureDevOps")
 }

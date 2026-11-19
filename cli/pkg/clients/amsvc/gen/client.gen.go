@@ -1185,6 +1185,11 @@ type ClientInterface interface {
 	// GetShadowFinding request
 	GetShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// SetShadowFindingHiddenWithBody request with any body
+	SetShadowFindingHiddenWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	SetShadowFindingHidden(ctx context.Context, orgName string, findingId openapi_types.UUID, body SetShadowFindingHiddenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// OnboardShadowFindingWithBody request with any body
 	OnboardShadowFindingWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -6002,6 +6007,30 @@ func (c *Client) DeleteShadowFinding(ctx context.Context, orgName string, findin
 
 func (c *Client) GetShadowFinding(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetShadowFindingRequest(c.Server, orgName, findingId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SetShadowFindingHiddenWithBody(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetShadowFindingHiddenRequestWithBody(c.Server, orgName, findingId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) SetShadowFindingHidden(ctx context.Context, orgName string, findingId openapi_types.UUID, body SetShadowFindingHiddenJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetShadowFindingHiddenRequest(c.Server, orgName, findingId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -23397,6 +23426,60 @@ func NewGetShadowFindingRequest(server string, orgName string, findingId openapi
 	return req, nil
 }
 
+// NewSetShadowFindingHiddenRequest calls the generic SetShadowFindingHidden builder with application/json body
+func NewSetShadowFindingHiddenRequest(server string, orgName string, findingId openapi_types.UUID, body SetShadowFindingHiddenJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetShadowFindingHiddenRequestWithBody(server, orgName, findingId, "application/json", bodyReader)
+}
+
+// NewSetShadowFindingHiddenRequestWithBody generates requests for SetShadowFindingHidden with any type of body
+func NewSetShadowFindingHiddenRequestWithBody(server string, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "orgName", orgName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "findingId", findingId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/orgs/%s/shadow-agents/findings/%s/hidden", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("PUT", queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewOnboardShadowFindingRequest calls the generic OnboardShadowFinding builder with application/json body
 func NewOnboardShadowFindingRequest(server string, orgName string, findingId openapi_types.UUID, body OnboardShadowFindingJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -24973,6 +25056,11 @@ type ClientWithResponsesInterface interface {
 
 	// GetShadowFindingWithResponse request
 	GetShadowFindingWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, reqEditors ...RequestEditorFn) (*GetShadowFindingResp, error)
+
+	// SetShadowFindingHiddenWithBodyWithResponse request with any body
+	SetShadowFindingHiddenWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetShadowFindingHiddenResp, error)
+
+	SetShadowFindingHiddenWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body SetShadowFindingHiddenJSONRequestBody, reqEditors ...RequestEditorFn) (*SetShadowFindingHiddenResp, error)
 
 	// OnboardShadowFindingWithBodyWithResponse request with any body
 	OnboardShadowFindingWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*OnboardShadowFindingResp, error)
@@ -32403,6 +32491,31 @@ func (r GetShadowFindingResp) StatusCode() int {
 	return 0
 }
 
+type SetShadowFindingHiddenResp struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ShadowFindingDetail
+	JSON400      *ErrorResponse
+	JSON404      *ErrorResponse
+	JSON500      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r SetShadowFindingHiddenResp) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetShadowFindingHiddenResp) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type OnboardShadowFindingResp struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -36133,6 +36246,23 @@ func (c *ClientWithResponses) GetShadowFindingWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseGetShadowFindingResp(rsp)
+}
+
+// SetShadowFindingHiddenWithBodyWithResponse request with arbitrary body returning *SetShadowFindingHiddenResp
+func (c *ClientWithResponses) SetShadowFindingHiddenWithBodyWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetShadowFindingHiddenResp, error) {
+	rsp, err := c.SetShadowFindingHiddenWithBody(ctx, orgName, findingId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetShadowFindingHiddenResp(rsp)
+}
+
+func (c *ClientWithResponses) SetShadowFindingHiddenWithResponse(ctx context.Context, orgName string, findingId openapi_types.UUID, body SetShadowFindingHiddenJSONRequestBody, reqEditors ...RequestEditorFn) (*SetShadowFindingHiddenResp, error) {
+	rsp, err := c.SetShadowFindingHidden(ctx, orgName, findingId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetShadowFindingHiddenResp(rsp)
 }
 
 // OnboardShadowFindingWithBodyWithResponse request with arbitrary body returning *OnboardShadowFindingResp
@@ -49843,6 +49973,53 @@ func ParseGetShadowFindingResp(rsp *http.Response) (*GetShadowFindingResp, error
 			return nil, err
 		}
 		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetShadowFindingHiddenResp parses an HTTP response from a SetShadowFindingHiddenWithResponse call
+func ParseSetShadowFindingHiddenResp(rsp *http.Response) (*SetShadowFindingHiddenResp, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetShadowFindingHiddenResp{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ShadowFindingDetail
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse

@@ -25,6 +25,7 @@ import type {
   ShadowConnectionTest,
   ShadowFindingClearResponse,
   ShadowFindingDetail,
+  ShadowFindingHiddenRequest,
   ShadowFindingListQuery,
   ShadowFindingListResponse,
   ShadowOnboardingRequest,
@@ -240,6 +241,21 @@ export async function deleteShadowFindings(
 }
 
 /** Links the agent to the external agent registered for it (on every connection). */
+export async function setShadowFindingHidden(
+  orgName: string | undefined,
+  findingId: string,
+  body: ShadowFindingHiddenRequest,
+  getToken?: () => Promise<string>,
+): Promise<ShadowFindingDetail> {
+  const token = await tokenOf(getToken);
+  const res = await httpPUT(
+    `${shadowBase(orgName)}/findings/${encodeURIComponent(findingId)}/hidden`,
+    body,
+    { token },
+  );
+  return res.json();
+}
+
 export async function onboardShadowFinding(
   orgName: string | undefined,
   findingId: string,

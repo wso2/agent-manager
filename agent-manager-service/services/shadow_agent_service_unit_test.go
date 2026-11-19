@@ -1205,3 +1205,92 @@ func TestShadowGoogleProjectIDs(t *testing.T) {
 		assert.Contains(t, err.Error(), "is not a Google Cloud project ID", bad)
 	}
 }
+
+// An onboarded agent can be removed from the Unregistered Agents list and put
+// back; an agent that is not onboarded cannot be removed.
+func TestShadowSetFindingHidden(t *testing.T) {
+	id := uuid.New()
+	row := &repositories.ShadowFindingRow{ShadowFinding: models.ShadowFinding{
+		ID: id, OUID: shadowTestOU, Provider: models.ShadowProviderCustom, Kind: models.ShadowKindPlatformAgent, ExternalID: "inv-1",
+	}}
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		GetFindingFunc: func(_ context.Context, ou string, got uuid.UUID) (*repositories.ShadowFindingRow, error) {
+			if ou != shadowTestOU || got != id {
+				return nil, gorm.ErrRecordNotFound
+			}
+			r := *row
+			return &r, nil
+		},
+		ListSignalsFunc: func(context.Context, string, uuid.UUID) ([]models.ShadowFindingSignal, error) { return nil, nil },
+		SetFindingHiddenFunc: func(_ context.Context, ou string, got uuid.UUID, hidden bool, _ string, at time.Time) error {
+			if ou != shadowTestOU || got != id {
+				return gorm.ErrRecordNotFound
+			}
+			if hidden && row.LinkedAgent == "" {
+				return utils.ErrShadowNotOnboarded
+			}
+			row.HiddenAt = nil
+			if hidden {
+				row.HiddenAt = &at
+			}
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	ctx := auditableCtx(t)
+
+	_, err := svc.SetFindingHidden(ctx, shadowTestOU, id, true)
+	assert.ErrorIs(t, err, utils.ErrShadowNotOnboarded, "only an onboarded agent can be removed from the list")
+	_, err = svc.SetFindingHidden(ctx, shadowTestOU, uuid.New(), true)
+	assert.ErrorIs(t, err, utils.ErrShadowFindingNotFound)
+
+	row.LinkedProject, row.LinkedAgent = "default", "support-agent"
+	v, err := svc.SetFindingHidden(ctx, shadowTestOU, id, true)
+	require.NoError(t, err)
+	assert.NotNil(t, v.Row.HiddenAt, "removed from the list")
+	v, err = svc.SetFindingHidden(ctx, shadowTestOU, id, false)
+	require.NoError(t, err)
+	assert.Nil(t, v.Row.HiddenAt, "back in the list")
+}
+
+// A Custom platform is saved with an http(s) Agents URL without a query
+// string, and an API key that is stored as a secret, never in the config.
+func TestShadowCustomPlatformSettings(t *testing.T) {
+	var saved *models.ShadowConnection
+	repo := &repomocks.ShadowAgentRepositoryMock{
+		ListConnectionsFunc: func(context.Context, string) ([]models.ShadowConnection, error) {
+			return []models.ShadowConnection{}, nil
+		},
+		CreateConnectionFunc: func(_ context.Context, c *models.ShadowConnection) error {
+			saved = c
+			return nil
+		},
+	}
+	svc := newShadowSvc(repo)
+	create := func(name, agentsURL, key string) error {
+		settings := map[string]any{"agentsUrl": agentsURL}
+		if key != "" {
+			settings["apiKey"] = key
+		}
+		_, err := svc.CreateConnection(auditableCtx(t), shadowTestOU, ShadowConnectionInput{
+			Name: name, Provider: models.ShadowProviderCustom, Settings: settings,
+		})
+		return err
+	}
+	for _, bad := range []string{
+		"ftp://agents.example.com/agents", "https://agents.example.com/agents?team=a",
+		"https://agents.example.com/agents#x", "https://user:pw@agents.example.com/agents", "agents.example.com/agents",
+	} {
+		assert.ErrorIs(t, create("bad", bad, "k-123"), utils.ErrInvalidInput, bad)
+	}
+	assert.ErrorIs(t, create("no key", "https://agents.example.com/agents", ""), utils.ErrInvalidInput,
+		"the API key is required")
+
+	require.NoError(t, create("inventory", " https://agents.example.com/v1/agents ", "k-1234567890"))
+	require.NotNil(t, saved)
+	assert.Equal(t, "https://agents.example.com/v1/agents", saved.Config.AgentsURL)
+	cfg, _ := json.Marshal(saved.Config)
+	assert.NotContains(t, string(cfg), "k-1234567890", "the key is not in the config")
+	assert.NotEmpty(t, saved.SecretEncrypted, "the key is stored encrypted")
+	assert.Contains(t, saved.SecretHints, "apiKey")
+}

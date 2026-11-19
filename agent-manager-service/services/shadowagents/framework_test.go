@@ -45,6 +45,7 @@ func TestEvidenceCatalog(t *testing.T) {
 		SigBedrockAgentCoreRuntime, SigBedrockRegistryAgent, SigBedrockClassicAgent,
 		SigGoogleAgentEngine, SigGoogleRegistryAgent,
 		SigFoundryAgentObject, SigFoundryClassicAgent, SigFoundryPossibleDupOf,
+		SigCustomAgent,
 	}
 	sourceSlugs := []string{
 		"d1_agent_dependency", "d2_agent_import", "d3_mcp_client_config", "d4_mcp_client_code",
@@ -98,7 +99,10 @@ func TestCatalogIsConsistent(t *testing.T) {
 	}
 	for _, p := range Providers() {
 		assert.True(t, providers[p.Provider], p.Provider)
-		assert.NotEmpty(t, p.Endpoints, p.Provider)
+		// A Custom platform has no official endpoint: its Agents URL is a field.
+		if p.Provider != models.ShadowProviderCustom {
+			assert.NotEmpty(t, p.Endpoints, p.Provider)
+		}
 		assert.NotEmpty(t, p.Permissions, p.Provider)
 		fields := map[string]FieldSpec{}
 		for _, f := range p.Fields {

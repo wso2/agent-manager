@@ -111,6 +111,12 @@ type ProviderSpec struct {
 	Docs        []string
 	// NotListed is what a scan of the platform never reads or lists.
 	NotListed []string
+	// SetupSteps are the steps to make the platform listable, shown with
+	// what it lists (Custom platform).
+	SetupSteps []string
+	// APIContract is the OpenAPI document of the API the customer
+	// implements (Custom platform); the console offers it for download.
+	APIContract string
 	// SourceHost marks a source repository host (GitHub, Azure DevOps). Its
 	// connection holds no credential and no cloud scan reads it: the source
 	// code scan runs on the customer's machine.
@@ -552,7 +558,55 @@ func Providers() []ProviderSpec {
 	return allProviderSpecs
 }
 
-var allProviderSpecs = append(append([]ProviderSpec{}, providerSpecs...), sourceHostSpecs...)
+var allProviderSpecs = append(append(append([]ProviderSpec{}, providerSpecs...), customPlatformSpec), sourceHostSpecs...)
+
+// customPlatformSpec is the customer's own agent inventory: a REST API built
+// to CustomPlatformOpenAPI. It has no official endpoint: the Agents URL is
+// a field.
+var customPlatformSpec = ProviderSpec{
+	Provider:    models.ShadowProviderCustom,
+	DisplayName: "Custom platform",
+	Description: "Your own REST API that lists your agents, built to the Agent Manager contract: an Agents URL and an API key.",
+	Fields: []FieldSpec{
+		{
+			Key: FieldAgentsURL, Label: "Agents URL", Kind: FieldText, Required: true,
+			Placeholder: "e.g. https://agents.example.com/v1/agents",
+			Help: "Your service's agent list. Agent Manager calls GET on this URL, adding only limit and cursor, " +
+				"so it must not have a query string.",
+		},
+		{
+			Key: FieldAPIKey, Label: "API key", Kind: FieldSecret, Required: true, Placeholder: "API key",
+			Help: "Sent as Authorization: Bearer <API key>, to the Agents URL only.",
+		},
+	},
+	Permissions: []PermissionSpec{
+		{
+			Title:   "API key",
+			Summary: "Agent Manager sends the key as a bearer token to your Agents URL, and calls nothing else.",
+			Items: []string{
+				"Create a key that can only read the agent list.",
+				"The key is stored encrypted and never shown again.",
+			},
+		},
+	},
+	Docs: []string{},
+	NotListed: []string{
+		"Any field your service returns that is not in the contract: it is ignored and never stored.",
+		"Anything else on your server: only GET on the Agents URL is called.",
+	},
+	SetupSteps: []string{
+		"Download the OpenAPI contract and implement its one call: GET on your Agents URL, returning your agents " +
+			"page by page. Each agent needs an id and a name; source, url, framework, model, owner and the other " +
+			"fields are optional.",
+		"Run the service where the Agent Manager server can reach it, preferably over https, and give it an API " +
+			"key that can only read the agent list.",
+		"Enter the Agents URL (for example https://agents.example.com/v1/agents) and the API key below, and add " +
+			"the platform.",
+		"Test the connection (Agent Manager reads one agent), then run a scan: the agents your service returns " +
+			"show up under Unregistered Agents.",
+	},
+	APIContract: CustomPlatformOpenAPI,
+}
 
 // Field returns a provider's field spec.
 func (p ProviderSpec) Field(key string) (FieldSpec, bool) {

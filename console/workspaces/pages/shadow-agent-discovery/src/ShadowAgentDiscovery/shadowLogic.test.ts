@@ -255,7 +255,7 @@ describe("labels", () => {
   });
 
   it("has only the review statuses, and the five agent platforms", () => {
-    expect(AGENT_PLATFORMS).toEqual(["openai", "anthropic", "bedrock", "google", "foundry"]);
+    expect(AGENT_PLATFORMS).toEqual(["openai", "anthropic", "bedrock", "google", "foundry", "custom"]);
     for (const host of SOURCE_HOSTS) expect(AGENT_PLATFORMS).not.toContain(host);
     expect(Object.keys(PROVIDER_LABELS).sort()).toEqual(
       [...AGENT_PLATFORMS, ...SOURCE_HOSTS].sort(),
