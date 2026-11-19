@@ -131,6 +131,9 @@ func (reg *toolRegistry) authzMiddleware() gomcp.Middleware {
 					audit.Detail("missingScope", missing.Scope()))
 				return denyResult(fmt.Sprintf("insufficient permissions: this tool requires the %s scope", missing.Scope())), nil
 			}
+			if refusedWhileSuspended(ctx, call.Params.Name, resolveOUID(ctx)) {
+				return denyResult(subscriptionSuspendedMessage), nil
+			}
 			return next(ctx, method, req)
 		}
 	}
