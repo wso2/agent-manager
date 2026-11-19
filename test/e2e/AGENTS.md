@@ -187,11 +187,11 @@ picked up automatically with no CI change.
 ## Rules of thumb
 
 - **HTTP operations** go in `operations/<resource>/`; **CLI operations** go in
-  `operations/cli/<resource>/`. The `agent` suite covers agent CRUD. Every e2e
-  run executes all suites together. The `agent mcp` specs additionally require a
-  running AI gateway in `DefaultEnv` and reachability of
-  `framework.TestMCPServerURL`, since an mcp config can only bind a
-  gateway-deployed catalog proxy.
+  `operations/cli/<resource>/`. The `agent` suite covers agent CRUD. The default
+  run executes all suites together; `SUITE=<name>` and the focused package
+  commands run only the suites they select, so they are not a full e2e run. The
+  `mcp-proxy` specs (`tests/mcpproxy`) additionally require a running AI gateway
+  in `DefaultEnv` and reachability of `framework.TestMCPServerURL`.
 - Keep `framework/amctl` resource-agnostic. Never add project/agent/etc.
   knowledge to the harness.
 - CLI specs assert exit codes and JSON envelopes, not human-readable text.

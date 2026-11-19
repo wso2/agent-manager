@@ -220,8 +220,8 @@ asyncio.run(main())
   either: `extendedAgentCard` is false.
 - **Observability comes from `amp-instrument`.** Run under it, the OpenAI
   calls emit traces to `AMP_OTEL_ENDPOINT`. An agent pinned to `a2a-sdk` below
-  1.1.5 has to give that up; point `amp-instrumentation` at the exporter yourself
-  in that case — see the `manual-instrumentation-agent` sample for that path.
+  1.1.5 has to run without it, because `amp-instrumentation` needs `protobuf`
+  7.x either way; upgrade the SDK to 1.1.5 or newer to keep tracing.
 - **Set `AGENT_PUBLIC_BASE_URL` when clients reach the agent elsewhere.** The
   card advertises `http://localhost:9099` by default, and A2A clients dial the
   URLs in the card.

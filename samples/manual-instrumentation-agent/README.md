@@ -103,7 +103,9 @@ You run the agent yourself; Agent Manager registers it and issues its API key.
 
 Set the two AMP environment variables yourself and run the agent.
 `AMP_OTEL_ENDPOINT` is the OTLP/HTTP base URL of your own OpenTelemetry
-collector, without `/v1/traces`:
+collector, without `/v1/traces`. The exporter sends `AMP_AGENT_API_KEY` to it
+in the `x-amp-api-key` header, so use a collector you control, and an
+`https://` URL when it is remote:
 
 ```bash
 cd samples/manual-instrumentation-agent
