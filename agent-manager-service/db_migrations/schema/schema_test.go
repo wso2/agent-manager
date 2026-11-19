@@ -233,6 +233,14 @@ tables: [{name: mod_ai_gateway_items, columns: [{name: id, type: id}], primary_k
 		"file name without a version": file("items.yaml", `
 module: ai-gateway
 tables: [{name: mod_ai_gateway_more, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"a migrations list": file("002_x.yaml", `
+module: ai-gateway
+migrations: [{id: "002", name: later}]
+tables: [{name: mod_ai_gateway_more, columns: [{name: id, type: id}], primary_key: [id]}]`),
+		"a table assigned to a later migration": file("002_x.yaml", `
+module: ai-gateway
+migrations: []
+tables: [{name: mod_ai_gateway_more, migration: "002", columns: [{name: id, type: id}], primary_key: [id]}]`),
 		"non-integer seed for an int column": file("002_x.yaml", `
 module: ai-gateway
 tables: [{name: mod_ai_gateway_more, columns: [{name: n, type: int}], primary_key: [n], seed: [{n: "1; DROP TABLE agents"}]}]`),
