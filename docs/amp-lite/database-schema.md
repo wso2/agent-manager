@@ -365,7 +365,7 @@ Modules are compiled into the binary (`cmd/amp` links them, `cmd/amp-core` links
 | state | short text (16) | no | CHECK `active`, `disabled` or `uninstalled`. |
 | created_at, updated_at | time | no | |
 
-Built-in modules (none today) are always `active` and can't be disabled. A compiled-in module with no row is available but not installed; `amp` installs `ai-gateway` at boot while it has no row and no modules list is declared. `amp module uninstall --purge` empties the module's `mod_<name>_*` tables, deletes its rows in `secrets` (owner kind `mod:<name>`), revokes its `workload_credentials` and deletes its row, in one transaction.
+A compiled-in module with no row is available but not installed; `amp` installs `ai-gateway` at boot while it has no row and no modules list is declared. `amp module uninstall --purge` empties the module's `mod_<name>_*` tables, deletes its rows in `secrets` (owner kind `mod:<name>`), revokes its `workload_credentials` and deletes its row, in one transaction.
 
 ### module_generation
 

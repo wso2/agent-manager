@@ -64,10 +64,6 @@ type Manifest struct {
 	Description string `json:"description,omitempty"`
 	CoreAPI     int    `json:"coreApi"`
 
-	// Builtin modules are part of the core: always active, and they cannot
-	// be disabled or uninstalled.
-	Builtin bool `json:"builtin,omitempty"`
-
 	// Capabilities are versioned contracts such as "llm.proxy/v1".
 	// Dependencies name capabilities, not modules, so a provider can be
 	// replaced without touching its consumers.
@@ -78,9 +74,7 @@ type Manifest struct {
 	// Permissions are namespaced by the core as "<module>:<name>" and carried
 	// in tokens as the scope "amp:<module>:<name>". A name is an action
 	// ("widget-read") or a resource and an action ("widgets.read"), each of
-	// lowercase letters, digits and dashes. Built-in modules may also declare
-	// permissions that predate modules by their full names ("git-secret:read"),
-	// which are used as written.
+	// lowercase letters, digits and dashes.
 	Permissions []Permission `json:"permissions,omitempty"`
 	// RoleGrants gives the module's permissions (by the names in Permissions)
 	// to the predefined roles while the module is active.
@@ -153,11 +147,8 @@ type Endpoint struct {
 }
 
 // PermissionName is the full name of one of the module's permissions:
-// "<module>:<name>", or a built-in module's full name as written.
+// "<module>:<name>".
 func (m Manifest) PermissionName(name string) string {
-	if m.Builtin && strings.Contains(name, ":") {
-		return name
-	}
 	return m.Name + ":" + name
 }
 

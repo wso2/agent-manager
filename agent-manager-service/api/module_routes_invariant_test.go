@@ -89,10 +89,8 @@ func mountedModule(t *testing.T, m modkit.Module) (*modhost.Host, []audit.RouteM
 	_, err = host.Migrate(ctx)
 	require.NoError(t, err)
 	require.NoError(t, host.Boot(ctx))
-	if !m.Manifest().Builtin { // built-in modules are active after Boot
-		_, err = host.Install(ctx, m.Manifest().Name, false)
-		require.NoError(t, err)
-	}
+	_, err = host.Install(ctx, m.Manifest().Name, false)
+	require.NoError(t, err)
 	require.Equal(t, []string{m.Manifest().Name}, host.Active())
 	values := func(m map[string]audit.RouteMeta) []audit.RouteMeta {
 		out := make([]audit.RouteMeta, 0, len(m))

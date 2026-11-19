@@ -170,11 +170,6 @@ func TestModulesCannotTakeCoreResourceNames(t *testing.T) {
 	assert.NotPanics(t, func() {
 		modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest("ai-gateway", nil, nil)}})
 	})
-	builtin := manifest("agent", nil, nil)
-	builtin.Builtin = true
-	assert.NotPanics(t, func() {
-		modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: builtin}})
-	}, "a built-in module is part of the core")
 }
 
 // bootWith migrates and boots a host for mods on g, after configure.

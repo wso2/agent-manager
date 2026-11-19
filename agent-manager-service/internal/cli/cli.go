@@ -446,13 +446,9 @@ func report(err error, done, name string) error {
 func list(w io.Writer, mods []modhost.ModuleInfo) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	// Errors surface from Flush: the tabwriter buffers every line until then.
-	_, _ = fmt.Fprintln(tw, "NAME\tVERSION\tSTATE\tBUILTIN\tPROVIDES\tREQUIRES")
+	_, _ = fmt.Fprintln(tw, "NAME\tVERSION\tSTATE\tPROVIDES\tREQUIRES")
 	for _, m := range mods {
-		builtin := ""
-		if m.Builtin {
-			builtin = "yes"
-		}
-		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\n", m.Name, m.Version, m.State, builtin,
+		_, _ = fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", m.Name, m.Version, m.State,
 			dash(strings.Join(m.Provides, ",")), dash(strings.Join(m.Requires, ",")))
 	}
 	return tw.Flush()

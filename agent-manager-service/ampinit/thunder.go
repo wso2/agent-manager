@@ -36,7 +36,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/initfiles"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
@@ -338,15 +337,11 @@ func (r *thunderRenderer) declaresResource(handle string) bool {
 }
 
 // moduleResources lists the resources of the modules compiled into this
-// binary. A built-in module's permissions that predate modules (written with
-// their resource, as the legacy module's are) are in the resource server
-// template already and are left out.
+// binary.
 func (r *thunderRenderer) moduleResources() []moduleResource {
 	var out []moduleResource
 	for _, mf := range r.cfg.Modules {
-		perms := slices.DeleteFunc(slices.Clone(mf.Permissions), func(p modkit.Permission) bool {
-			return mf.Builtin && strings.Contains(p.Name, ":")
-		})
+		perms := mf.Permissions
 		if len(perms) == 0 {
 			continue
 		}
@@ -378,11 +373,6 @@ func (r *thunderRenderer) moduleGrants(role string) []rbac.Permission {
 	var out []rbac.Permission
 	for _, mf := range r.cfg.Modules {
 		for _, name := range mf.RoleGrants[role] {
-			// A built-in module's grants of permissions that predate modules
-			// are in PredefinedRolePermissions already.
-			if mf.Builtin && strings.Contains(name, ":") {
-				continue
-			}
 			out = append(out, rbac.Permission(mf.PermissionName(name)))
 		}
 	}

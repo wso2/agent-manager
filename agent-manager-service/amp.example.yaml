@@ -34,8 +34,8 @@ console:
 # and enabled (or disabled with `enabled: false`); other installed modules are
 # disabled unless a listed one requires them. Omit the key (or leave every
 # entry commented out) to manage modules with `amp module …` instead; `[]`
-# disables every module that is not built in. AMP_MODULES (`ai-gateway,widgets=off`,
-# or `none`) overrides the list. The built-in legacy module is always active.
+# disables every module. AMP_MODULES (`ai-gateway,widgets=off`,
+# or `none`) overrides the list.
 # With no list, amp installs ai-gateway at boot if it was never installed.
 modules:
   - ai-gateway

@@ -14,8 +14,7 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Built-in modules** set `Builtin: true` in their manifest. They are always active and can't be disabled or uninstalled. There are none in this repository.
-- **Installable modules** start as *available* and are installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one; `tests/modules/testmod` is another, used only by tests.
+- **Every module** starts as *available* and are installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one; `tests/modules/testmod` is another, used only by tests.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
 A distribution is a `main` package that chooses its modules with blank imports:
@@ -109,7 +108,7 @@ return modkit.Manifest{
 - **CoreAPI:** `modkit.CoreAPIVersion` (currently `1`). The core refuses a module written against another version.
 - **Requires, Optional, Provides:** capability ids, versioned like `llm.proxy/v1`. Dependencies name capabilities, not modules, so a provider can be replaced without touching its consumers. `Requires` must be satisfied for the module to install or enable; `Optional` is used when present.
 - **DisplayName:** how people see the module, such as the name of its resource in ThunderID; `Name` when empty.
-- **Permissions:** an action (`widget-read`) or a resource and an action (`widgets.read`), each lowercase letters, digits and dashes. `widget-read` in module `testmod` becomes the permission `testmod:widget-read` and the token scope `amp:testmod:widget-read`; the AI Gateway's `llm-providers.read` becomes `ai-gateway:llm-providers.read` and `amp:ai-gateway:llm-providers.read`. Built-in modules may also declare older full names (`git-secret:read`), which are used as written. A permission's `DisplayName` names its action in ThunderID (`Name` when empty).
+- **Permissions:** an action (`widget-read`) or a resource and an action (`widgets.read`), each lowercase letters, digits and dashes. `widget-read` in module `testmod` becomes the permission `testmod:widget-read` and the token scope `amp:testmod:widget-read`; the AI Gateway's `llm-providers.read` becomes `ai-gateway:llm-providers.read` and `amp:ai-gateway:llm-providers.read`. A permission's `DisplayName` names its action in ThunderID (`Name` when empty).
 - **RoleGrants:** predefined role name (`rbac.RoleAdmin` is `"Agent Manager Admin"`, also `Developer`, `AI Lead`, `Platform Engineer`) to the module's permission names. File sign-in grants them while the module is active. ThunderID roles are rendered by `amp init thunder` from every compiled-in module, so a new module's permissions reach ThunderID on the next `amp init`.
 - **Events:** the event types the module publishes, named `<module>.<event>`, each with a description. An event with a `Scope` (`org`, `project` or `agent`, the narrowest resource it is about) is also a webhook event: while the module is active it is listed in the event catalog (`GET /api/v1/orgs/{org}/events/event-types`) and organizations can subscribe to it. Routes raise it with `modkit.Emits` (see [Route options](#route-options)). An event without a scope only reaches module subscribers.
 - **AuditActions:** the audit actions the module's routes and tools name with `modkit.Audit`, each recorded as `<module>:<name>`, with a class (`credential`, `identity`, `deployment`, `config` or `read`; `config` when empty) and a severity (`info`, `notice`, `warning` or `critical`; `critical` for credential and identity actions and `info` otherwise when empty). An entry named after one of the module's permissions classifies the action that permission names. `Details` lists the detail keys the action's records may carry, each with its kind (see [Audit records](#audit-records)).
@@ -427,7 +426,7 @@ A module must not:
 
 - import the core's packages (`services`, `repositories`, `controllers`, `models`, ...): see [Module boundaries](#module-boundaries) for what it may import (`tests/modules/testmod` uses every surface above with `modkit` alone);
 - read or write core tables, or another module's tables; use `rt.Core()`, a capability or an event instead;
-- be named after a core permission resource, or declare permissions outside its own namespace (only built-in modules keep older full names);
+- be named after a core permission resource, or declare permissions outside its own namespace;
 - do work in `Activate` beyond registering: it runs on every replica on every module change.
 
 ### Where the gateway stands
@@ -560,7 +559,7 @@ After sign-in the console reads `GET /api/v1/ui-manifest`. A UI module with no l
 ## Operating modules
 
 ```bash
-amp module list                       # NAME VERSION STATE BUILTIN PROVIDES REQUIRES
+amp module list                       # NAME VERSION STATE PROVIDES REQUIRES
 amp module install <name> [--with-deps]
 amp module enable <name>
 amp module disable <name>
@@ -569,7 +568,7 @@ amp module credential <name> <workload> [--subject S] [--out FILE]
 amp module health [<name>]
 ```
 
-In the Compose stack, run them in the API container (for example `docker compose exec amp-api /go/bin/amp module list`). Changes reach running servers within seconds. `install --with-deps` also installs the modules that provide what it `Requires`; disable and uninstall are refused while an active module requires it. Built-in modules can't be changed.
+In the Compose stack, run them in the API container (for example `docker compose exec amp-api /go/bin/amp module list`). Changes reach running servers within seconds. `install --with-deps` also installs the modules that provide what it `Requires`; disable and uninstall are refused while an active module requires it.
 
 To declare the set instead, list it in `amp.yaml`; the server reconciles it at every boot:
 
@@ -586,7 +585,7 @@ modules:
 - Installed modules that aren't listed are disabled, unless a listed one requires them.
 - No `modules:` key, or one whose entries are all commented out, means no reconcile: manage modules with `amp module` instead; the server only installs the distribution's defaults that were never installed. `modules: []` declares an empty set.
 - `AMP_MODULES` overrides the list: `AMP_MODULES=widgets,reports=off`, or `AMP_MODULES=none` for the empty set.
-- Listing a built-in module as disabled, or a module the binary doesn't have, stops the server at boot.
+- Listing a module the binary doesn't have stops the server at boot.
 
 `CONSOLE_UI_MODULES_ENABLE` turns on extra console UI modules or pages whatever the manifest says (`agent-runtime agent-portal`, or `<module>/<page>`), for pages that need no backend module.
 

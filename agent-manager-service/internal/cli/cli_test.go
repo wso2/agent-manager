@@ -84,14 +84,14 @@ func TestInitRejectsUnknownComponent(t *testing.T) {
 func TestList(t *testing.T) {
 	var b bytes.Buffer
 	err := list(&b, []modhost.ModuleInfo{
-		{Manifest: modkit.Manifest{Name: "legacy", Version: "1.0.0", Builtin: true}, State: modhost.StateActive},
+		{Manifest: modkit.Manifest{Name: "widgets", Version: "1.0.0"}, State: modhost.StateActive},
 		{Manifest: modkit.Manifest{Name: "ai-gateway", Version: "1.2.0", Provides: []string{"llm.proxy/v1"}}, State: modhost.StateAvailable},
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, ""+
-		"NAME        VERSION  STATE      BUILTIN  PROVIDES      REQUIRES\n"+
-		"legacy      1.0.0    active     yes      -             -\n"+
-		"ai-gateway  1.2.0    available           llm.proxy/v1  -\n", b.String())
+		"NAME        VERSION  STATE      PROVIDES      REQUIRES\n"+
+		"widgets     1.0.0    active     -             -\n"+
+		"ai-gateway  1.2.0    available  llm.proxy/v1  -\n", b.String())
 }
 
 func TestConfigFlag(t *testing.T) {

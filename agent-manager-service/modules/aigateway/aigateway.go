@@ -14,13 +14,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package gateway registers the AI Gateway as a built-in module: gateways,
-// LLM providers and proxies, MCP proxies, A2A, agent API keys and agent
-// identities, with their routes, workers, agent hooks and the capabilities
-// llm.proxy/v1 and mcp.proxy/v1. The module is
-// always active. Its code is built on the core's services through package
-// builtin; the core imports none of it, so a binary that does not link this
-// package (cmd/amp-core) has no gateway.
+// Package aigateway is the AI Gateway module: gateways, LLM providers and
+// proxies, MCP proxies, A2A, agent API keys and agent identities, with their
+// routes, workers, agent hooks and the capabilities llm.proxy/v1 and
+// mcp.proxy/v1. It runs on modkit.Runtime alone; cmd/amp installs it by
+// default, and a binary that does not link it (cmd/amp-core) has no gateway.
 package aigateway
 
 import (
@@ -65,7 +63,6 @@ func (module) Manifest() modkit.Manifest {
 		Version:      "1.0.0",
 		Description:  "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
 		CoreAPI:      modkit.CoreAPIVersion,
-		Builtin:      false,
 		Provides:     []string{llmv1.ID, mcpv1.ID},
 		Requires:     []string{identityv1.ID},
 		Permissions:  perms,

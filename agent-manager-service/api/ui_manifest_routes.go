@@ -52,7 +52,7 @@ func registerUIManifestRoute(rr *middleware.RouteRegistrar, src UISource) {
 }
 
 func uiManifest(r *http.Request, src UISource) spec.UIManifestResponse {
-	mods := []modhost.ModuleUI{{Name: "core", Builtin: true, Pages: CoreUI}}
+	mods := []modhost.ModuleUI{{Name: "core", Pages: CoreUI}}
 	if src != nil {
 		mods = append(mods, src.UI()...)
 	}

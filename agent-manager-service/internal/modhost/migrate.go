@@ -224,25 +224,16 @@ func (h *Host) migrateModule(ctx context.Context, name string) (MigrationResult,
 	return res, err
 }
 
-// recordVersion records a built-in module as active, and moves an installed
-// module's version to the compiled one. Either bumps the generation.
+// recordVersion moves an installed module's version to the compiled one, and
+// bumps the generation when it changed.
 func (h *Host) recordVersion(tx *gorm.DB, name string) error {
 	mf := h.manifests[name]
-	var changed bool
-	if mf.Builtin {
-		var err error
-		if changed, err = setState(tx, name, mf.Version, StateActive); err != nil {
-			return err
-		}
-	} else {
-		r := tx.Exec(`UPDATE modules SET version = ?, updated_at = ? WHERE name = ? AND version <> ? AND state <> 'uninstalled'`,
-			mf.Version, dbx.Now(), name, mf.Version)
-		if r.Error != nil {
-			return r.Error
-		}
-		changed = r.RowsAffected > 0
+	r := tx.Exec(`UPDATE modules SET version = ?, updated_at = ? WHERE name = ? AND version <> ? AND state <> 'uninstalled'`,
+		mf.Version, dbx.Now(), name, mf.Version)
+	if r.Error != nil {
+		return r.Error
 	}
-	if !changed {
+	if r.RowsAffected == 0 {
 		return nil
 	}
 	h.log.Info("modhost:module version recorded", "module", name, "version", mf.Version)

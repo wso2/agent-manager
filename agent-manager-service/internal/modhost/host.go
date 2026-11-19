@@ -181,10 +181,9 @@ func NewWith(db *gorm.DB, driver string, log *slog.Logger, mods []modkit.Module)
 	return h
 }
 
-// checkReserved refuses a module named after a core permission resource; a
-// built-in module is part of the core and may.
+// checkReserved refuses a module named after a core permission resource.
 func checkReserved(mf modkit.Manifest) error {
-	if !mf.Builtin && slices.Contains(rbac.ReservedResources(), mf.Name) {
+	if slices.Contains(rbac.ReservedResources(), mf.Name) {
 		return fmt.Errorf("modhost: module name %q is reserved for the core's %s:* permissions", mf.Name, mf.Name)
 	}
 	for _, c := range mf.Provides {
@@ -262,17 +261,11 @@ func loadRows(db *gorm.DB) (map[string]moduleRow, error) {
 	return out, nil
 }
 
-// effectiveStates is the recorded state of every module, with built-in
-// modules always active.
+// effectiveStates is the recorded state of every module.
 func (h *Host) effectiveStates(rows map[string]moduleRow) map[string]string {
 	out := make(map[string]string, len(rows))
 	for n, r := range rows {
 		out[n] = r.State
-	}
-	for n, mf := range h.manifests {
-		if mf.Builtin {
-			out[n] = StateActive
-		}
 	}
 	return out
 }
@@ -595,13 +588,6 @@ func (h *Host) change(ctx context.Context, fn func(tx *gorm.DB, states map[strin
 	return h.Reload(ctx)
 }
 
-func (h *Host) refuseBuiltin(name string) error {
-	if h.manifests[name].Builtin {
-		return &ResolveError{Msg: name + " is built in: it is always active"}
-	}
-	return nil
-}
-
 // setState records a module's version and state, and reports whether that
 // changed anything. Callers hold the generation row lock, so the read and the
 // write cannot race another lifecycle change.
@@ -629,9 +615,6 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 	var steps []Step
 	var trial *view
 	err := h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
-		if err := h.refuseBuiltin(name); err != nil {
-			return err
-		}
 		if states[name] == StateActive {
 			return &ResolveError{Msg: name + " is already installed and active"}
 		}
@@ -676,9 +659,6 @@ func (h *Host) Install(ctx context.Context, name string, withDeps bool) ([]Step,
 // Enable re-activates a disabled module.
 func (h *Host) Enable(ctx context.Context, name string) error {
 	return h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
-		if err := h.refuseBuiltin(name); err != nil {
-			return err
-		}
 		if states[name] != StateDisabled {
 			return &ResolveError{Msg: fmt.Sprintf("%s is %s, not disabled", name, stateOf(name, states))}
 		}
@@ -702,9 +682,6 @@ func (h *Host) Enable(ctx context.Context, name string) error {
 // Disable deactivates a module and keeps its data.
 func (h *Host) Disable(ctx context.Context, name string) error {
 	return h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
-		if err := h.refuseBuiltin(name); err != nil {
-			return err
-		}
 		if states[name] != StateActive {
 			return &ResolveError{Msg: fmt.Sprintf("%s is %s, not active", name, stateOf(name, states))}
 		}
@@ -731,9 +708,6 @@ func (h *Host) Disable(ctx context.Context, name string) error {
 func (h *Host) Uninstall(ctx context.Context, name string, purge bool) error {
 	var revoked []string
 	err := h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
-		if err := h.refuseBuiltin(name); err != nil {
-			return err
-		}
 		if st := stateOf(name, states); st == StateAvailable || (st == StateUninstalled && !purge) {
 			return &ResolveError{Msg: name + " is not installed"}
 		}

@@ -146,7 +146,7 @@ var _ coreext.Extensions = (*Host)(nil)
 // ---- permissions ----
 
 // permission resolves a permission a module names: one of its own, by its
-// manifest name, or a core permission (including those of built-in modules).
+// manifest name, or a core permission.
 func (h *Host) permission(module, name string) (rbac.Permission, error) {
 	mf := h.manifests[module]
 	for _, p := range mf.Permissions {
@@ -157,16 +157,6 @@ func (h *Host) permission(module, name string) (rbac.Permission, error) {
 	p := rbac.Permission(name)
 	if slices.Contains(rbac.CorePermissions, p) {
 		return p, nil
-	}
-	for _, other := range h.manifests {
-		if !other.Builtin {
-			continue
-		}
-		for _, q := range other.Permissions {
-			if other.PermissionName(q.Name) == name {
-				return p, nil
-			}
-		}
 	}
 	return "", fmt.Errorf("permission %q is neither declared in the manifest nor a core permission", name)
 }
@@ -185,14 +175,10 @@ var permissionNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*(\.[a-z][a-z0-9-
 func declare(reg *rbac.Registry, mf modkit.Manifest) error {
 	perms := make([]rbac.Permission, 0, len(mf.Permissions))
 	for _, p := range mf.Permissions {
-		written := mf.Builtin && strings.Contains(p.Name, ":")
-		if written && strings.ContainsAny(p.Name, " \t") {
-			return fmt.Errorf("permission name %q is not valid", p.Name)
-		}
 		// No colon, so an identity provider that builds scopes as
 		// <resource>:<action> gives "<module>:<name>" with the module as the
 		// resource.
-		if !written && !permissionNamePattern.MatchString(p.Name) {
+		if !permissionNamePattern.MatchString(p.Name) {
 			return fmt.Errorf("permission name %q must be <action> or <resource>.<action>, each lowercase letters, digits and dashes, starting with a letter", p.Name)
 		}
 		perms = append(perms, permissionName(mf, p.Name))
@@ -435,7 +421,6 @@ func (h *Host) issueToken(ctx context.Context, module string, req modkit.TokenRe
 type ModuleUI struct {
 	Name    string
 	Version string
-	Builtin bool
 	Pages   []UIEntry
 	Nav     []UIEntry
 	Slots   []UIEntry
@@ -461,7 +446,7 @@ func (h *Host) UI() []ModuleUI {
 		if mf.UI == nil {
 			continue
 		}
-		m := ModuleUI{Name: name, Version: mf.Version, Builtin: mf.Builtin}
+		m := ModuleUI{Name: name, Version: mf.Version}
 		add := func(list *[]UIEntry, e UIEntry, perm string) {
 			if perm != "" {
 				p, err := h.permission(name, perm)

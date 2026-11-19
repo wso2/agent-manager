@@ -118,8 +118,8 @@ func (s store) Count() (int64, error) {
 
 // world is the set of modules one test binary links.
 type world struct {
-	store, consumer, builtin *testModule
-	consumed                 chan store
+	store, consumer *testModule
+	consumed        chan store
 }
 
 func newWorld(t *testing.T) *world {
@@ -150,12 +150,11 @@ tables:
 			return nil
 		},
 	}
-	w.builtin = &testModule{manifest: modkit.Manifest{Name: "t-builtin", Version: "1.0.0", CoreAPI: modkit.CoreAPIVersion, Builtin: true}}
 	return w
 }
 
 func (w *world) modules() []modkit.Module {
-	return []modkit.Module{w.store, w.consumer, w.builtin}
+	return []modkit.Module{w.store, w.consumer}
 }
 
 type database struct {
@@ -239,16 +238,9 @@ func lifecycle(t *testing.T, d database) {
 		assert.True(t, g.Migrator().HasTable("mod_t_consumer_notes"))
 		assert.EqualValues(t, 2, migrationRows())
 		assert.EqualValues(t, 2, count(t, g, `SELECT count(*) FROM mod_t_store_items`))
-		// Only the built-in module is recorded; nothing is installed.
-		assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM modules`))
-		assert.Equal(t, []string{"t-builtin"}, h1.Active())
-	})
-
-	t.Run("built-in modules are always active", func(t *testing.T) {
-		assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-builtin' AND state = 'active'`))
-		for _, err := range []error{h1.Disable(ctx, "t-builtin"), h1.Uninstall(ctx, "t-builtin", false), h1.Enable(ctx, "t-builtin")} {
-			assert.True(t, modhost.IsResolveError(err), "got %v", err)
-		}
+		// Nothing is installed.
+		assert.Zero(t, count(t, g, `SELECT count(*) FROM modules`))
+		assert.Empty(t, h1.Active())
 	})
 
 	t.Run("required capability must be present", func(t *testing.T) {
@@ -264,7 +256,7 @@ func lifecycle(t *testing.T, d database) {
 		require.NoError(t, err)
 		assert.Equal(t, []modhost.Step{{Module: "t-store", Action: "install"}, {Module: "t-consumer", Action: "install"}}, steps)
 		assert.Equal(t, before, migrationRows())
-		assert.Equal(t, []string{"t-builtin", "t-store", "t-consumer"}, h1.Active())
+		assert.Equal(t, []string{"t-store", "t-consumer"}, h1.Active())
 		// The consumer resolved the store's capability while activating.
 		s := <-w.consumed
 		n, err := s.Count()
@@ -304,7 +296,7 @@ func lifecycle(t *testing.T, d database) {
 		require.NoError(t, g.Exec(`INSERT INTO mod_t_consumer_notes (id, body) VALUES (?, 'mine')`, uuid.NewString()).Error)
 		require.NoError(t, h1.Disable(ctx, "t-consumer"))
 		require.NoError(t, h1.Disable(ctx, "t-store"))
-		assert.Equal(t, []string{"t-builtin"}, h1.Active())
+		assert.Empty(t, h1.Active())
 		// Installing a disabled module with its dependencies re-enables both.
 		steps, err := h1.Install(ctx, "t-consumer", true)
 		require.NoError(t, err)
@@ -349,7 +341,6 @@ func lifecycle(t *testing.T, d database) {
 		for _, m := range h1.List() {
 			got[m.Name] = m
 		}
-		assert.Equal(t, modhost.StateActive, got["t-builtin"].State)
 		assert.Equal(t, modhost.StateActive, got["t-store"].State)
 		assert.Equal(t, []string{"t-consumer"}, got["t-store"].RequiredBy)
 		assert.True(t, got["t-consumer"].Loaded)
@@ -553,7 +544,7 @@ func TestPassiveHostActivatesNothingToList(t *testing.T) {
 	ctx := context.Background()
 	var calls atomic.Int32
 	m := &testModule{
-		manifest: modkit.Manifest{Name: "t-counted", Version: "1.0.0", CoreAPI: modkit.CoreAPIVersion, Builtin: true},
+		manifest: modkit.Manifest{Name: "t-counted", Version: "1.0.0", CoreAPI: modkit.CoreAPIVersion},
 		activate: func(modkit.Runtime) error { calls.Add(1); return nil },
 	}
 	d := databases(t)[0]
@@ -563,6 +554,10 @@ func TestPassiveHostActivatesNothingToList(t *testing.T) {
 	h.Passive = true
 	_, err := h.Migrate(ctx)
 	require.NoError(t, err)
+	require.NoError(t, h.Reload(ctx))
+	_, err = h.Install(ctx, "t-counted", false)
+	require.NoError(t, err)
+	calls.Store(0) // installing checks the module activates; listing must not
 	require.NoError(t, h.Reload(ctx))
 	list := h.List()
 	require.Len(t, list, 1)
@@ -596,7 +591,7 @@ func TestInstallDefaults(t *testing.T) {
 			steps, err := h.InstallDefaults(ctx, []string{"t-consumer"})
 			require.NoError(t, err)
 			assert.Equal(t, []modhost.Step{{Module: "t-store", Action: "install"}, {Module: "t-consumer", Action: "install"}}, steps)
-			assert.Equal(t, []string{"t-builtin", "t-store", "t-consumer"}, h.Active())
+			assert.Equal(t, []string{"t-store", "t-consumer"}, h.Active())
 
 			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
 			require.NoError(t, err)

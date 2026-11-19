@@ -54,7 +54,7 @@ func MakeAppClientWithHost(t *testing.T, testClients wiring.TestClients, authMid
 	// its rows of a deleted agent).
 	var mods []modkit.Module
 	for _, m := range modkit.Registered() {
-		if mf := m.Manifest(); mf.Builtin || mf.Name == aigateway.Name {
+		if m.Manifest().Name == aigateway.Name {
 			mods = append(mods, m)
 		}
 	}
