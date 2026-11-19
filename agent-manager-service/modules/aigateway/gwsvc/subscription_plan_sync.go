@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
@@ -38,10 +39,11 @@ type PlanGateways interface {
 // is inactive nothing is pushed, and gateways pull every plan when they reconnect. A deleted plan is sent by its
 // id, handle and name.
 //
-// Deliveries for one plan run one at a time on a replica: each reads the plan and sends it under the plan's
-// lock, so of two overlapping deliveries the later one reads, and sends, the later state.
+// Deliveries can overlap, so a delivery that read an older state of a plan than one already sent from this
+// replica sends nothing: the newer state is on the gateways. The check holds no lock across I/O. Every pushed
+// plan carries its updatedAt, so a gateway can also drop an older state sent by another replica.
 func PlanChangeHandler(plans func() (subplanv1.Source, bool), gateways PlanGateways) modkit.EventHandler {
-	var locks planLocks
+	var sent sentVersions
 	return func(ctx context.Context, e modkit.Event) error {
 		var ch subplanv1.PlanChange
 		if err := json.Unmarshal(e.Data, &ch); err != nil {
@@ -51,16 +53,15 @@ func PlanChangeHandler(plans func() (subplanv1.Source, bool), gateways PlanGatew
 		if orgID == "" {
 			orgID = e.OrgID
 		}
+		key := orgID + "/" + ch.PlanID
 		switch ch.Action {
-		case subplanv1.Deleted, subplanv1.Created, subplanv1.Updated:
-		default:
-			return fmt.Errorf("plan change %q has an unknown action %q", ch.Handle, ch.Action)
-		}
-		unlock := locks.lock(orgID + "/" + ch.Handle)
-		defer unlock()
-		if ch.Action == subplanv1.Deleted {
+		case subplanv1.Deleted:
+			sent.forget(key)
 			return gateways.PlanChanged(ctx, orgID, ch.Action,
 				subplanv1.Plan{ID: ch.PlanID, Handle: ch.Handle, Name: ch.PlanName})
+		case subplanv1.Created, subplanv1.Updated:
+		default:
+			return fmt.Errorf("plan change %q has an unknown action %q", ch.Handle, ch.Action)
 		}
 		source, ok := plans()
 		if !ok {
@@ -71,45 +72,43 @@ func PlanChangeHandler(plans func() (subplanv1.Source, bool), gateways PlanGatew
 			return fmt.Errorf("reading plan %s: %w", ch.Handle, err)
 		}
 		for _, p := range list {
-			if p.ID == ch.PlanID {
-				return gateways.PlanChanged(ctx, orgID, ch.Action, p)
+			if p.ID != ch.PlanID {
+				continue
 			}
+			if !sent.claim(key, p.UpdatedAt) {
+				return nil
+			}
+			return gateways.PlanChanged(ctx, orgID, ch.Action, p)
 		}
 		// Deleted since: its own deletion event follows.
 		return nil
 	}
 }
 
-// planLocks holds a lock per plan while a delivery for it runs.
-type planLocks struct {
-	mu    sync.Mutex
-	locks map[string]*planLock
+// sentVersions remembers, per plan, the newest state this replica has sent (its updatedAt).
+type sentVersions struct {
+	mu   sync.Mutex
+	last map[string]time.Time
 }
 
-type planLock struct {
-	sync.Mutex
-	users int
+// claim records at as the plan's newest sent state and reports true, unless a newer state was sent already.
+// An equal state is sent again, so a redelivered event still reaches the gateways.
+func (v *sentVersions) claim(key string, at time.Time) bool {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if v.last == nil {
+		v.last = map[string]time.Time{}
+	}
+	if prev, ok := v.last[key]; ok && at.Before(prev) {
+		return false
+	}
+	v.last[key] = at
+	return true
 }
 
-func (l *planLocks) lock(key string) (unlock func()) {
-	l.mu.Lock()
-	if l.locks == nil {
-		l.locks = map[string]*planLock{}
-	}
-	pl := l.locks[key]
-	if pl == nil {
-		pl = &planLock{}
-		l.locks[key] = pl
-	}
-	pl.users++
-	l.mu.Unlock()
-	pl.Lock()
-	return func() {
-		pl.Unlock()
-		l.mu.Lock()
-		if pl.users--; pl.users == 0 {
-			delete(l.locks, key)
-		}
-		l.mu.Unlock()
-	}
+// forget drops a deleted plan, so the map holds only plans that exist.
+func (v *sentVersions) forget(key string) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	delete(v.last, key)
 }

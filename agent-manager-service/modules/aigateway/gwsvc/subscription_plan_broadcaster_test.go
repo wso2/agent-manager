@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -61,6 +62,7 @@ func TestSubscriptionPlanBroadcasterSendsToEveryGatewayOfTheOrg(t *testing.T) {
 	plan := subplanv1.Plan{
 		ID: "11111111-1111-1111-1111-111111111111", Handle: "gold", Name: "Gold", Status: "ACTIVE",
 		StopOnQuotaReach: true, ThrottleLimitCount: &count, ThrottleLimitUnit: "HOUR",
+		UpdatedAt: time.Date(2026, 11, 20, 8, 0, 0, 0, time.UTC),
 		Conditions: []subplanv1.Condition{{
 			ID: "requests", Type: "request-count",
 			Params: json.RawMessage(`{"limits":[{"count":1000,"timeAmount":1,"timeUnit":"HOUR"}],"onExceed":"reject"}`),
@@ -82,6 +84,7 @@ func TestSubscriptionPlanBroadcasterSendsToEveryGatewayOfTheOrg(t *testing.T) {
 	assert.Equal(t, "HOUR", payload["throttleLimitUnit"])
 	assert.Equal(t, "ACTIVE", payload["status"])
 	assert.Len(t, payload["conditions"], 1, "the conditions travel with the legacy limit")
+	assert.Equal(t, "2026-11-20T08:00:00Z", payload["updatedAt"], "so a gateway can drop an older state")
 
 	hub.published = nil
 	require.NoError(t, b.PlanChanged(context.Background(), "org-1", subplanv1.Updated, plan))

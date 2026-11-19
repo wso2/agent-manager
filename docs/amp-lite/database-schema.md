@@ -77,7 +77,7 @@ Every table a worker claims rows from carries `claimed_by` (short text (255), nu
 | id | ID | no | PK |
 | handle | short text (63) | no | Unique. URL name. `^[a-z0-9]+(-[a-z0-9]+)*$`, checked by the app. |
 | display_name | short text (255) | no | |
-| display_name_folded | short text (255) | no | The name case-folded (Unicode), which the list's search matches: SQLite's `LOWER` folds ASCII only. |
+| display_name_folded | short text (765) | no | The name case-folded (Unicode), which the list’s search matches: SQLite’s `LOWER` folds ASCII only. Folding can lengthen a name up to three times. |
 | description | short text (1000) | yes | |
 | thunder_ou_id | short text (64) | yes | Thunder org unit holding this org's agent identities. Not unique (rule 8); Thunder guarantees it. |
 | created_by | short text (255) | yes | Username. NULL for system-created rows. |

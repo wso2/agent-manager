@@ -43,6 +43,9 @@ type SubscriptionPlanEvent struct {
 	ExpiryTime         *time.Time            `json:"expiryTime,omitempty"`
 	Status             string                `json:"status"`
 	Conditions         []subplanv1.Condition `json:"conditions,omitempty"`
+	// UpdatedAt is when the plan last changed, as in the pull response, so a gateway can drop an older state
+	// that arrives after a newer one.
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 // SubscriptionPlanDeletedEvent is the payload of a subscriptionPlan.deleted gateway event.
@@ -107,7 +110,7 @@ func planEvent(action subplanv1.Action, p subplanv1.Plan) (string, string, any, 
 			PlanID: p.ID, Handle: p.Handle, PlanName: p.Name, BillingPlan: defaultBillingPlan,
 			StopOnQuotaReach: p.StopOnQuotaReach, ThrottleLimitCount: p.ThrottleLimitCount,
 			ThrottleLimitUnit: p.ThrottleLimitUnit, ExpiryTime: p.ExpiryTime, Status: p.Status,
-			Conditions: p.Conditions,
+			Conditions: p.Conditions, UpdatedAt: p.UpdatedAt,
 		}
 		if action == subplanv1.Created {
 			return "subscriptionPlan.created", "CREATE", payload, nil

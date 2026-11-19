@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -84,6 +85,24 @@ func TestPlanChangeHandler(t *testing.T) {
 		gone := PlanChangeHandler(owner, rec)
 		require.NoError(t, gone(ctx, planChangeEvent(t, subplanv1.PlanChange{PlanID: "p2", Action: subplanv1.Updated})))
 		assert.Empty(t, rec.sent)
+	})
+
+	t.Run("a delivery that read an older state than one already sent sends nothing", func(t *testing.T) {
+		now := time.Now()
+		newer, older := gold, gold
+		newer.UpdatedAt, older.Name, older.UpdatedAt = now, "Gold (older)", now.Add(-time.Minute)
+		current := newer
+		rec := &changeRecorder{}
+		h := PlanChangeHandler(func() (subplanv1.Source, bool) { return planList{current}, true }, rec)
+		ch := subplanv1.PlanChange{PlanID: "p1", Handle: "gold", Action: subplanv1.Updated}
+		require.NoError(t, h(ctx, planChangeEvent(t, ch)))
+		current = older // an overlapping delivery that read the plan before the newer change committed
+		require.NoError(t, h(ctx, planChangeEvent(t, ch)))
+		current = newer // a redelivery of the newer state is sent again
+		require.NoError(t, h(ctx, planChangeEvent(t, ch)))
+		require.Len(t, rec.sent, 2)
+		assert.Equal(t, "Gold", rec.sent[0].plan.Name)
+		assert.Equal(t, "Gold", rec.sent[1].plan.Name)
 	})
 
 	t.Run("an unknown action is an error", func(t *testing.T) {

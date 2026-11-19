@@ -5,7 +5,7 @@ CREATE TABLE mod_aihub_subscription_plans (
     org_id UUID NOT NULL,
     handle VARCHAR(40) NOT NULL,
     display_name VARCHAR(255) NOT NULL,
-    display_name_folded VARCHAR(255) NOT NULL,
+    display_name_folded VARCHAR(765) NOT NULL,
     description VARCHAR(1023),
     status VARCHAR(16) NOT NULL,
     expiry_time TIMESTAMPTZ,

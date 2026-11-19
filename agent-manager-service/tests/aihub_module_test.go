@@ -26,6 +26,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -381,6 +382,28 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		assert.Equal(t, http.StatusCreated, code, "the same handle in another org: "+string(body))
 		code, _ = w.call(t, w.other, http.MethodDelete, plansPath+"/legacy", nil)
 		assert.Equal(t, http.StatusNotFound, code)
+	})
+
+	t.Run("search folds case beyond ASCII, even where folding lengthens the name", func(t *testing.T) {
+		long := strings.Repeat("ß", 200) // folds to 400 characters
+		code, body := w.call(t, w.full, http.MethodPost, plansPath, map[string]any{"id": "strasse", "displayName": long})
+		require.Equal(t, http.StatusCreated, code, string(body))
+		code, body = w.call(t, w.full, http.MethodPost, plansPath, map[string]any{"id": "equipe", "displayName": "Équipe"})
+		require.Equal(t, http.StatusCreated, code, string(body))
+		for query, want := range map[string]string{"SSSS": "strasse", "%C3%A9QUIPE": "equipe"} {
+			code, body = w.call(t, w.full, http.MethodGet, plansPath+"?query="+query, nil)
+			require.Equal(t, http.StatusOK, code, string(body))
+			var found struct {
+				List []planBody `json:"list"`
+			}
+			require.NoError(t, json.Unmarshal(body, &found))
+			require.Len(t, found.List, 1, query)
+			assert.Equal(t, want, found.List[0].ID, query)
+		}
+		for _, id := range []string{"strasse", "equipe"} {
+			code, _ = w.call(t, w.full, http.MethodDelete, plansPath+"/"+id, nil)
+			require.Equal(t, http.StatusNoContent, code)
+		}
 	})
 
 	t.Run("delete removes the plan and its conditions", func(t *testing.T) {
