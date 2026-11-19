@@ -65,7 +65,7 @@ def test_repository_lines() -> None:
     assert _lines(write) == [
         "[1/3] support-bot: downloading",
         "[1/3] support-bot: scanning",
-        "[1/3] support-bot: done, 2 agents, 120 files scanned, 2 skipped (1 more in test code)",
+        "[1/3] support-bot: done, 2 agents (1 more in test code), 120 files scanned, 2 skipped",
         "[2/3] tiny: done, 1 agent, 1 file scanned",
         "[3/3] legacy?[31m: failed: download failed (HTTP 502)",
     ]

@@ -321,7 +321,10 @@ def _print_listing(say: Callable[[str], None], config: ScanConfig, listing: Repo
 
 
 def _print_unpublished(say: Callable[[str], None], config: ScanConfig, report: Report) -> None:
-    unconfirmed = sum(f.verdict == Verdict.NOT_SURE and reviewed_by(f) is None for f in report.findings)
+    # Test code is never published, so its not-sure agents are not counted here (as in the summary).
+    unconfirmed = sum(
+        f.verdict == Verdict.NOT_SURE and f.tag != "test" and reviewed_by(f) is None for f in report.findings
+    )
     if not unconfirmed:
         return
     count = f"{_plural(unconfirmed, 'not-sure agent')} {'is' if unconfirmed == 1 else 'are'} not published"

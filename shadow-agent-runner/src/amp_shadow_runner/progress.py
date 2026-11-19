@@ -57,12 +57,14 @@ class Progress:
 
     def scanned(self, index: int, total: int, name: str, result: ScanResult) -> None:
         agents = sum(f.tag != "test" for f in result.findings)
-        text = f"done, {_plural(agents, 'agent')}, {_plural(result.files_scanned, 'file')} scanned"
-        if result.files_skipped:
-            text += f", {result.files_skipped} skipped"
+        text = f"done, {_plural(agents, 'agent')}"
         tagged = len(result.findings) - agents
         if tagged:
+            # Next to the agent count, so it reads as agents, not files.
             text += f" ({tagged} more in test code)"
+        text += f", {_plural(result.files_scanned, 'file')} scanned"
+        if result.files_skipped:
+            text += f", {result.files_skipped} skipped"
         self._repo(index, total, name, text)
 
     def failed(self, index: int, total: int, name: str, reason: str) -> None:

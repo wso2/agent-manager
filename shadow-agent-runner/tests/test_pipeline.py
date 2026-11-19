@@ -369,6 +369,25 @@ def test_not_sure_agents_are_not_published(
     assert run.body["agents"] == []
 
 
+def test_not_sure_agents_in_test_code_are_not_counted_as_unpublished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from amp_shadow_runner import report as report_module
+    from amp_shadow_runner.engine.classify import Verdict
+
+    original = report_module.RepositoryReport.scanned
+
+    def not_sure_in_tests(name: str, result: Any) -> Any:
+        findings = tuple(dataclasses.replace(f, verdict=Verdict.NOT_SURE, tag="test") for f in result.findings)
+        return original(name, dataclasses.replace(result, findings=findings))
+
+    monkeypatch.setattr(report_module.RepositoryReport, "scanned", staticmethod(not_sure_in_tests))
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}))
+    assert run(_config()) == ExitCode.OK
+    assert "not-sure agent" not in run.text.lower()
+    assert "1 more in test code, not published" in run.text
+
+
 def test_secrets_are_never_printed_or_saved(tmp_path: Path) -> None:
     source = FakeSource(
         RepositoryList((_repo("a"), _repo("b"))),
