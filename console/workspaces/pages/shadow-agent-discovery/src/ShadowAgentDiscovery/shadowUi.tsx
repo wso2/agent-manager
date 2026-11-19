@@ -33,6 +33,7 @@ export const PROVIDER_LABELS: Record<ShadowProvider, string> = {
   bedrock: "Amazon Bedrock",
   google: "Google Agent Platform",
   foundry: "Microsoft Foundry",
+  custom: "Custom platform",
   github: "GitHub",
   azure_devops: "Azure DevOps",
 };
@@ -47,6 +48,7 @@ export const AGENT_PLATFORMS: ShadowProvider[] = [
   "bedrock",
   "google",
   "foundry",
+  "custom",
 ];
 
 export function providerLabel(p: string): string {
@@ -93,6 +95,7 @@ const PLATFORM_KIND_LABELS: Record<string, Partial<Record<ShadowFindingKind, str
   bedrock: { runtime: "AgentCore runtime", platform_agent: "Bedrock agent" },
   google: { runtime: "Agent Runtime engine", platform_agent: "Agent Registry agent" },
   foundry: { platform_agent: "Foundry agent" },
+  custom: { platform_agent: "Agent in your inventory" },
 };
 
 /** The kind's label for the agent's platform. */

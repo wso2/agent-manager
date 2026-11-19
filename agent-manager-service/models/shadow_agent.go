@@ -30,6 +30,10 @@ const (
 	ShadowProviderBedrock   = "bedrock"
 	ShadowProviderGoogle    = "google"
 	ShadowProviderFoundry   = "foundry"
+	// ShadowProviderCustom is the customer's own agent inventory: a REST API
+	// the customer implements to the published contract, called with an API
+	// key.
+	ShadowProviderCustom = "custom"
 	// Source repository hosts (Method 2). Their connections hold no
 	// credential: the source code scan runs on the customer's machine and asks
 	// for the Git token there.
@@ -40,7 +44,7 @@ const (
 // ShadowProviders lists every supported platform, in display order.
 var ShadowProviders = []string{
 	ShadowProviderOpenAI, ShadowProviderAnthropic,
-	ShadowProviderBedrock, ShadowProviderGoogle, ShadowProviderFoundry,
+	ShadowProviderBedrock, ShadowProviderGoogle, ShadowProviderFoundry, ShadowProviderCustom,
 	ShadowProviderGitHub, ShadowProviderAzureDevOps,
 }
 
@@ -163,6 +167,8 @@ type ShadowConnectionConfig struct {
 	// GitHub, Azure DevOps: also read CI pipeline definitions.
 	ReadCIFiles bool `json:"readCiFiles,omitempty"`
 
+	// Custom platform: the URL of the customer's agent list (GET).
+	AgentsURL string `json:"agentsUrl,omitempty"`
 	// DisabledServices are the optional services (Bedrock, Google) the user
 	// unticked: the scan does not call them. Listing the disabled ones keeps
 	// every service on for connections saved before the option existed.
@@ -178,6 +184,10 @@ type ShadowConnectionSecret struct {
 	// (An Admin API key stored by an earlier version is not decoded, so it is
 	// dropped when the platform is next saved.)
 	ScopedKeys map[string]string `json:"scopedKeys,omitempty"`
+	// APIKey is the Custom platform's API key, sent as a bearer token. It is
+	// stored as customApiKey: "apiKey" held an OpenAI Admin API key in an
+	// earlier version, which must stay undecoded so it is dropped.
+	APIKey string `json:"customApiKey,omitempty"`
 	// ClientSecret is the Entra app's client secret (Foundry).
 	ClientSecret string `json:"clientSecret,omitempty"`
 	// SecretAccessKey and SessionToken complete the AWS access key.
@@ -321,8 +331,13 @@ type ShadowFinding struct {
 	LinkedAgent   string     `gorm:"column:linked_agent;not null"`
 	OnboardedAt   *time.Time `gorm:"column:onboarded_at"`
 	OnboardedBy   string     `gorm:"column:onboarded_by;not null"`
-	CreatedAt     time.Time  `gorm:"column:created_at;not null;default:NOW()"`
-	UpdatedAt     time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
+	// HiddenAt is when the onboarded agent was removed from the Unregistered
+	// Agents list (nil while it is listed), and HiddenBy who removed it.
+	// Every connection's finding of the agent carries it, and scans keep it.
+	HiddenAt  *time.Time `gorm:"column:hidden_at"`
+	HiddenBy  string     `gorm:"column:hidden_by;not null"`
+	CreatedAt time.Time  `gorm:"column:created_at;not null;default:NOW()"`
+	UpdatedAt time.Time  `gorm:"column:updated_at;not null;default:NOW()"`
 }
 
 func (ShadowFinding) TableName() string { return "shadow_findings" }

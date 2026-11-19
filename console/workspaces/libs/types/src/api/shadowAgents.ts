@@ -26,6 +26,8 @@ export type ShadowProvider =
   | "bedrock"
   | "google"
   | "foundry"
+  /** The customer's own agent inventory: a REST API built to the published contract. */
+  | "custom"
   /** Source repository hosts: scanned by the scan command on the customer's machine. */
   | "github"
   | "azure_devops";
@@ -136,6 +138,12 @@ export interface ShadowProviderSpec {
    */
   sourceHost?: boolean;
   capabilities: ShadowCapabilitySpec[];
+  /** What a scan of the platform never reads or lists. */
+  notListed?: string[];
+  /** The steps to make the platform listable (Custom platform). */
+  setupSteps?: string[];
+  /** The OpenAPI document (YAML) the customer implements (Custom platform). */
+  apiContract?: string;
 }
 
 /** One kind of evidence that a platform lists an agent. */
@@ -334,6 +342,8 @@ export interface ShadowFindingSummary {
   linkedProject?: string;
   linkedAgent?: string;
   onboardedAt?: string;
+  /** The onboarded agent was removed from the Unregistered Agents list. */
+  hidden: boolean;
 }
 
 export interface ShadowFindingListResponse {
@@ -382,6 +392,11 @@ export interface ShadowFindingDetail extends ShadowFindingSummary {
   signals: ShadowFindingSignal[];
   /** Who onboarded the agent. */
   onboardedBy?: string;
+}
+
+/** PUT .../findings/{findingId}/hidden: remove an onboarded agent from the list, or put it back. */
+export interface ShadowFindingHiddenRequest {
+  hidden: boolean;
 }
 
 /** POST .../findings/{findingId}/onboarding: the registered external agent. */

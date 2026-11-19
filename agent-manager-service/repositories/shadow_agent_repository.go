@@ -188,6 +188,12 @@ type ShadowAgentRepository interface {
 	// with utils.ErrShadowAlreadyOnboarded when the agent is already linked,
 	// and gorm.ErrRecordNotFound when the org has no such finding.
 	OnboardFinding(ctx context.Context, ouID string, id uuid.UUID, project, agent, by string, at time.Time) error
+	// SetFindingHidden removes an onboarded agent from the Unregistered Agents
+	// list (hidden true) or puts it back (false), on every connection's
+	// finding of it. Hiding fails with utils.ErrShadowNotOnboarded when the
+	// agent is not onboarded, and both fail with gorm.ErrRecordNotFound when
+	// the org has no such finding.
+	SetFindingHidden(ctx context.Context, ouID string, id uuid.UUID, hidden bool, by string, at time.Time) error
 	// DeleteFinding deletes an agent: every row of it (one per connection
 	// that found it) with its evidence and its per-scan links. It returns
 	// false when the org has no finding with that ID.
@@ -567,8 +573,8 @@ func upsertShadowFinding(tx *gorm.DB, in ShadowConnectionApply, f *models.Shadow
 	err = tx.Raw(`
 		INSERT INTO shadow_findings (ou_id, connection_id, provider, kind, external_id, display_name, scope, state,
 			owner_hint, attributes, provider_created_at, first_seen_at, last_seen_at, last_scan_id, present, related,
-			linked_project, linked_agent, onboarded_at, onboarded_by)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, TRUE, '[]'::jsonb, ?, ?, ?, ?)
+			linked_project, linked_agent, onboarded_at, onboarded_by, hidden_at, hidden_by)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, TRUE, '[]'::jsonb, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (ou_id, connection_id, kind, external_id) DO UPDATE SET
 			display_name = EXCLUDED.display_name,
 			scope = EXCLUDED.scope,
@@ -583,7 +589,7 @@ func upsertShadowFinding(tx *gorm.DB, in ShadowConnectionApply, f *models.Shadow
 		RETURNING id`,
 		in.OUID, in.ConnectionID, f.Provider, f.Kind, f.ExternalID, f.DisplayName, f.Scope, f.State,
 		owner, attrs, f.ProviderCreatedAt, now, now, in.ScanID,
-		link.LinkedProject, link.LinkedAgent, link.OnboardedAt, link.OnboardedBy,
+		link.LinkedProject, link.LinkedAgent, link.OnboardedAt, link.OnboardedBy, link.HiddenAt, link.HiddenBy,
 	).Scan(&row).Error
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("writing finding: %w", err)
@@ -593,10 +599,11 @@ func upsertShadowFinding(tx *gorm.DB, in ShadowConnectionApply, f *models.Shadow
 
 // shadowAgentOnboarding is the onboarding link a new finding starts with:
 // the link the same agent already has through another connection, so an
-// onboarded agent stays onboarded when another connection finds it.
+// onboarded agent stays onboarded (and out of the list, when it was removed
+// from it) when another connection finds it.
 func shadowAgentOnboarding(tx *gorm.DB, ouID string, f *models.ShadowFinding) (models.ShadowFinding, error) {
 	var link models.ShadowFinding
-	err := tx.Raw(`SELECT linked_project, linked_agent, onboarded_at, onboarded_by FROM shadow_findings
+	err := tx.Raw(`SELECT linked_project, linked_agent, onboarded_at, onboarded_by, hidden_at, hidden_by FROM shadow_findings
 		WHERE ou_id = ? AND provider = ? AND kind = ? AND external_id = ? AND linked_agent <> ''
 		ORDER BY onboarded_at LIMIT 1`, ouID, f.Provider, f.Kind, f.ExternalID).Scan(&link).Error
 	return link, err
@@ -691,7 +698,9 @@ func (r *shadowAgentRepository) ListFindings(
 		where = append(where, "EXISTS (SELECT 1 FROM shadow_scan_findings sf WHERE sf.finding_id = f.id AND sf.scan_id = ?)")
 		args = append(args, *flt.ScanID)
 	} else {
-		where = append(where, "f.present")
+		// The agents their platforms still list, less the onboarded agents
+		// removed from the list.
+		where = append(where, "f.present", "f.hidden_at IS NULL")
 	}
 	if flt.Provider != "" {
 		where = append(where, "f.provider = ?")
@@ -829,6 +838,34 @@ func (r *shadowAgentRepository) OnboardFinding(
 			return utils.ErrShadowAlreadyOnboarded
 		}
 		return nil
+	})
+}
+
+func (r *shadowAgentRepository) SetFindingHidden(
+	ctx context.Context, ouID string, id uuid.UUID, hidden bool, by string, at time.Time,
+) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var f models.ShadowFinding
+		if err := tx.Select("id", "linked_agent").Where("ou_id = ? AND id = ?", ouID, id).First(&f).Error; err != nil {
+			return err
+		}
+		if hidden && f.LinkedAgent == "" {
+			return utils.ErrShadowNotOnboarded
+		}
+		var hiddenAt *time.Time
+		if hidden {
+			hiddenAt = &at
+		} else {
+			by = ""
+		}
+		// Every connection's finding of the agent (one link per agent, see
+		// OnboardFinding).
+		return tx.Exec(`
+			UPDATE shadow_findings f SET hidden_at = ?, hidden_by = ?, updated_at = NOW()
+			FROM shadow_findings o
+			WHERE o.ou_id = ? AND o.id = ?
+				AND f.ou_id = o.ou_id AND f.provider = o.provider AND f.kind = o.kind AND f.external_id = o.external_id`,
+			hiddenAt, by, ouID, id).Error
 	})
 }
 

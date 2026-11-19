@@ -27,7 +27,14 @@ import {
   Stack,
   Typography,
 } from "@wso2/oxygen-ui";
-import { CheckCircle, ListChecks, XCircle } from "@wso2/oxygen-ui-icons-react";
+import {
+  CheckCircle,
+  CircleSlash,
+  Download,
+  ListChecks,
+  XCircle,
+} from "@wso2/oxygen-ui-icons-react";
+import { downloadContract } from "./ConnectionEditor";
 import type { CapabilityStatus } from "../capabilities";
 
 function CapabilityRow({ status }: { status: CapabilityStatus }) {
@@ -78,17 +85,27 @@ function ListedRow({ title, description }: { title: string; description: string 
 
 /**
  * "What does Agent Manager list?": a short description of what a scan of the
- * platform lists, and a dialog with each listing. For a source repository
+ * platform lists, and a dialog with each listing and the API it calls, ending
+ * with what is never read or listed. For a source repository
  * host ("What does the scan look for?"), how many capabilities the form's
  * options unlock, each with what it still needs.
  */
 export function AnalyzeSection({
   providerName,
   statuses,
+  notListed = [],
+  setupSteps = [],
+  apiContract,
   sourceHost = false,
 }: {
   providerName: string;
   statuses: CapabilityStatus[];
+  /** What a scan of the platform never reads or lists. */
+  notListed?: string[];
+  /** The steps to make the platform listable (Custom platform), shown first. */
+  setupSteps?: string[];
+  /** The OpenAPI contract to implement (Custom platform), offered for download. */
+  apiContract?: string;
   /** GitHub, Azure DevOps: what the scan command looks for in the repositories. */
   sourceHost?: boolean;
 }) {
@@ -118,9 +135,39 @@ export function AnalyzeSection({
           <DialogTitle>What Agent Manager lists</DialogTitle>
           <DialogContent>
             <Stack spacing={2.5}>
-              <Typography variant="body2" color="text.secondary">
-                A scan calls only {providerName}&apos;s agent listings, read-only. Instructions,
-                prompts and secrets are never stored.
+              {setupSteps.length > 0 && (
+                <Box>
+                  <Typography variant="subtitle2">How to set it up</Typography>
+                  <Stack component="ol" spacing={1} sx={{ m: 0, mt: 1, pl: 2.5 }}>
+                    {setupSteps.map((step) => (
+                      <Typography key={step} component="li" variant="body2" color="text.secondary">
+                        {step}
+                      </Typography>
+                    ))}
+                  </Stack>
+                  {apiContract && (
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<Download size={16} />}
+                      onClick={() => downloadContract(apiContract)}
+                      sx={{ mt: 1.5 }}
+                    >
+                      Download contract
+                    </Button>
+                  )}
+                </Box>
+              )}
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={
+                  setupSteps.length > 0
+                    ? { borderTop: 1, borderColor: "divider", pt: 2 }
+                    : undefined
+                }
+              >
+                A scan makes only these read-only calls to {providerName}.
               </Typography>
               <Stack spacing={1.75}>
                 {statuses.map((s) => (
@@ -131,6 +178,29 @@ export function AnalyzeSection({
                   />
                 ))}
               </Stack>
+              {notListed.length > 0 && (
+                <Box sx={{ borderTop: 1, borderColor: "divider", pt: 2 }}>
+                  <Typography variant="subtitle2">Not read or listed</Typography>
+                  <Stack component="ul" spacing={0.75} sx={{ m: 0, mt: 1, p: 0, listStyle: "none" }}>
+                    {notListed.map((item) => (
+                      <Stack
+                        component="li"
+                        key={item}
+                        direction="row"
+                        spacing={1.5}
+                        alignItems="flex-start"
+                      >
+                        <Box sx={{ mt: "2px", color: "text.disabled", display: "flex" }} aria-hidden>
+                          <CircleSlash size={16} />
+                        </Box>
+                        <Typography variant="body2" color="text.secondary">
+                          {item}
+                        </Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Box>
+              )}
             </Stack>
           </DialogContent>
           <DialogActions sx={{ justifyContent: "flex-start", px: 3, pb: 2 }}>

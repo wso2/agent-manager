@@ -116,6 +116,9 @@ type ShadowAgentService interface {
 	// Onboard links the agent to the externally-hosted agent registered for
 	// it (projectName/agentName, which must exist in the org).
 	Onboard(ctx context.Context, ouID string, id uuid.UUID, projectName, agentName string) (*ShadowFindingView, error)
+	// SetFindingHidden removes an onboarded agent from the Unregistered
+	// Agents list (hidden true), or puts it back. Later scans keep the choice.
+	SetFindingHidden(ctx context.Context, ouID string, id uuid.UUID, hidden bool) (*ShadowFindingView, error)
 	// DeleteFinding deletes an agent, on every connection that found it. A
 	// later scan lists it again if a platform still has it.
 	DeleteFinding(ctx context.Context, ouID string, id uuid.UUID) error
@@ -615,6 +618,7 @@ func secretHints(secret models.ShadowConnectionSecret) map[string]string {
 		}
 	}
 	add("clientSecret", secret.ClientSecret)
+	add(sa.FieldAPIKey, secret.APIKey)
 	add("secretAccessKey", secret.SecretAccessKey)
 	add("sessionToken", secret.SessionToken)
 	if strings.TrimSpace(secret.ServiceAccountJSON) != "" {
@@ -727,6 +731,8 @@ func shadowSecretHas(secret models.ShadowConnectionSecret, key string) bool {
 		return false
 	case "clientSecret":
 		return strings.TrimSpace(secret.ClientSecret) != ""
+	case sa.FieldAPIKey:
+		return strings.TrimSpace(secret.APIKey) != ""
 	case "secretAccessKey":
 		return strings.TrimSpace(secret.SecretAccessKey) != ""
 	case "sessionToken":
@@ -904,6 +910,10 @@ func validateSourceHostSettings(spec sa.ProviderSpec, cfg *models.ShadowConnecti
 				return fmt.Errorf("%w: %q is not an AWS region code, such as us-east-1", utils.ErrInvalidInput, r)
 			}
 		}
+	case models.ShadowProviderCustom:
+		if err := sa.ValidateAgentsURL(cfg.AgentsURL); err != nil {
+			return fmt.Errorf("%w: %s", utils.ErrInvalidInput, err.Error())
+		}
 	case models.ShadowProviderGitHub:
 		if !githubOwnerPattern.MatchString(cfg.Organization) {
 			return fmt.Errorf("%w: Organization or user account must be a GitHub account name, such as my-org", utils.ErrInvalidInput)
@@ -1018,6 +1028,8 @@ func setShadowText(cfg *models.ShadowConnectionConfig, key, v string) {
 		cfg.AccessKeyID = v
 	case "organization":
 		cfg.Organization = v
+	case sa.FieldAgentsURL:
+		cfg.AgentsURL = v
 	}
 }
 
@@ -1042,6 +1054,8 @@ func setShadowSecret(secret *models.ShadowConnectionSecret, key, v string) {
 	switch key {
 	case "clientSecret":
 		secret.ClientSecret = v
+	case sa.FieldAPIKey:
+		secret.APIKey = v
 	case "secretAccessKey":
 		secret.SecretAccessKey = v
 	case "sessionToken":
@@ -1061,7 +1075,7 @@ func shadowSettingsOf(provider string, cfg models.ShadowConnectionConfig) map[st
 	}
 	text := map[string]string{
 		"tenantId": cfg.TenantID, "clientId": cfg.ClientID, "roleArn": cfg.RoleARN, "externalId": cfg.ExternalID,
-		"accessKeyId": cfg.AccessKeyID, "organization": cfg.Organization,
+		"accessKeyId": cfg.AccessKeyID, "organization": cfg.Organization, sa.FieldAgentsURL: cfg.AgentsURL,
 	}
 	lists := map[string][]string{
 		"subscriptionIds": cfg.SubscriptionIDs, "regions": cfg.Regions, "projectIds": cfg.ProjectIDs,
@@ -1290,6 +1304,25 @@ func (s *shadowAgentService) DeleteFinding(ctx context.Context, ouID string, id 
 		return utils.ErrShadowFindingNotFound
 	}
 	return nil
+}
+
+// SetFindingHidden removes an onboarded agent from the Unregistered Agents
+// list, or puts it back, on every connection that found it.
+func (s *shadowAgentService) SetFindingHidden(
+	ctx context.Context, ouID string, id uuid.UUID, hidden bool,
+) (*ShadowFindingView, error) {
+	by := audit.BuildEvent(ctx, audit.ActionShadowFindingHide).ActorID
+	if err := s.repo.SetFindingHidden(ctx, ouID, id, hidden, by, s.now().UTC()); err != nil {
+		switch {
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			return nil, utils.ErrShadowFindingNotFound
+		case errors.Is(err, utils.ErrShadowNotOnboarded):
+			return nil, err
+		default:
+			return nil, fmt.Errorf("failed to change the agent's listing: %w", err)
+		}
+	}
+	return s.GetFinding(ctx, ouID, id)
 }
 
 func (s *shadowAgentService) DeleteFindings(ctx context.Context, ouID string) (int, error) {

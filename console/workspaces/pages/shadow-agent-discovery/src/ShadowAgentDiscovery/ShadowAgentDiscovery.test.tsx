@@ -46,6 +46,7 @@ const finding = (over: Partial<ShadowFindingSummary> = {}): ShadowFindingSummary
   present: true,
   foundBy: [{ findingId: "f1", connectionId: "c1", connectionName: "OpenAI prod", present: true }],
   onboarded: false,
+  hidden: false,
   ...over,
 });
 
@@ -116,6 +117,7 @@ const hoisted = vi.hoisted(() => ({
   scanError: null as unknown,
   createAgent: vi.fn(),
   onboard: vi.fn(),
+  setHidden: vi.fn(),
   start: vi.fn(),
   clear: vi.fn(),
   deleteAgent: vi.fn(),
@@ -140,6 +142,7 @@ vi.mock("@agent-management-platform/api-client", () => ({
   },
   useShadowFinding: () => ({ data: hoisted.detail, isLoading: false, error: null }),
   useOnboardShadowFinding: () => ({ mutate: hoisted.onboard, isPending: false }),
+  useSetShadowFindingHidden: () => ({ mutate: hoisted.setHidden, isPending: false }),
   useCreateAgent: () => ({ mutate: hoisted.createAgent, isPending: false }),
   useListProjects: () => ({
     data: { projects: [{ name: "default", displayName: "Default" }] },
@@ -230,7 +233,7 @@ import { ScanStatusChip } from "./shadowUi";
 import { SourceScanGuide } from "./subComponents/SourceScanGuide";
 import { DocLinks } from "./subComponents/PermissionsPanel";
 import { GenerateCommandDialog } from "./subComponents/GenerateCommandDialog";
-import { ConnectionEditor } from "./subComponents/ConnectionEditor";
+import { CUSTOM_CONTRACT_FILE, ConnectionEditor } from "./subComponents/ConnectionEditor";
 
 function ShowLocation() {
   const l = useLocation();
@@ -382,7 +385,7 @@ describe("OverviewPanel", () => {
 });
 
 describe("FindingsTab", () => {
-  it("lists each agent with its platform, source, state and onboarding", () => {
+  it("lists each agent with its platform, source and onboarding status", () => {
     hoisted.findings = [
       finding(),
       finding({
@@ -403,15 +406,19 @@ describe("FindingsTab", () => {
     ];
     router(<FindingsTab orgName="acme" />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual(["Agent", "Platform", "Source", "State", "Last seen", "Onboarding"]);
+    expect(headers).toEqual(["Agent", "Platform", "Source", "Last seen", "Onboarding status"]);
+    expect(lastQuery()).toMatchObject({ onboarded: "false" });
     expect(screen.getByText("Support Bot")).toBeInTheDocument();
-    expect(screen.getByText("AgentCore runtime · us-east-1")).toBeInTheDocument();
+    // The second line is the type only; the scope, state and IDs are on the agent's page.
+    expect(screen.getByText("AgentCore runtime")).toBeInTheDocument();
+    expect(screen.queryByText(/us-east-1/)).not.toBeInTheDocument();
+    expect(screen.queryByText("READY")).not.toBeInTheDocument();
     expect(screen.getByText("Amazon Bedrock")).toBeInTheDocument();
     expect(screen.getByText("AWS prod, AWS audit")).toBeInTheDocument();
-    expect(screen.getByText("READY")).toBeInTheDocument();
     expect(screen.getByText("Onboarded")).toBeInTheDocument();
-    expect(screen.getByText("Not onboarded")).toBeInTheDocument();
-    expect(screen.queryByText(/Reviewed|Dismissed|Status/)).not.toBeInTheDocument();
+    // The default filter and the support bot's chip.
+    expect(screen.getAllByText("Not onboarded")).toHaveLength(2);
+    expect(screen.queryByText(/Reviewed|Dismissed/)).not.toBeInTheDocument();
     expect(screen.queryByText("No longer listed")).not.toBeInTheDocument();
   });
 
@@ -442,15 +449,8 @@ describe("FindingsTab", () => {
     hoisted.findings = [finding()];
     router(<FindingsTab orgName="acme" canManage />);
     const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
-    expect(headers).toEqual([
-      "Agent",
-      "Platform",
-      "Source",
-      "State",
-      "Last seen",
-      "Onboarding",
-      "Actions",
-    ]);
+    // The delete column has no title; each row keeps its delete button.
+    expect(headers).toEqual(["Agent", "Platform", "Source", "Last seen", "Onboarding status", ""]);
     fireEvent.click(screen.getByRole("button", { name: "Delete Support Bot" }));
     expect(screen.getByTestId("location")).toHaveTextContent("/");
     expect(screen.getByTestId("location")).not.toHaveTextContent("/agents/");
@@ -487,7 +487,7 @@ describe("FindingsTab", () => {
   it("marks an agent its platform no longer lists, and opens an agent", () => {
     hoisted.findings = [finding({ present: false })];
     router(<FindingsTab orgName="acme" scanId="s1" />);
-    expect(lastQuery()).toMatchObject({ scanId: "s1" });
+    expect(lastQuery()).toMatchObject({ scanId: "s1", onboarded: undefined });
     expect(screen.getByText("No longer listed")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Support Bot"));
     expect(screen.getByTestId("location")).toHaveTextContent(
@@ -505,14 +505,18 @@ describe("FindingsTab", () => {
       "Amazon Bedrock",
       "Google Agent Platform",
       "Microsoft Foundry",
+      "Custom platform",
       "GitHub",
       "Azure DevOps",
     ]);
     fireEvent.click(screen.getByRole("option", { name: "Microsoft Foundry" }));
-    expect(lastQuery()).toMatchObject({ provider: "foundry", offset: 0 });
-    expect(openSelect("Onboarding")).toEqual(["All agents", "Not onboarded", "Onboarded"]);
-    fireEvent.click(screen.getByRole("option", { name: "Not onboarded" }));
-    expect(lastQuery()).toMatchObject({ provider: "foundry", onboarded: "false" });
+    expect(lastQuery()).toMatchObject({ provider: "foundry", offset: 0, onboarded: "false" });
+    expect(openSelect("Onboarding status")).toEqual(["All agents", "Not onboarded", "Onboarded"]);
+    fireEvent.click(screen.getByRole("option", { name: "All agents" }));
+    expect(lastQuery()).toMatchObject({ provider: "foundry", onboarded: undefined });
+    openSelect("Onboarding status");
+    fireEvent.click(screen.getByRole("option", { name: "Onboarded" }));
+    expect(lastQuery()).toMatchObject({ provider: "foundry", onboarded: "true" });
   });
 
   it("shows the empty state, not an error, when there are no agents", () => {
@@ -558,7 +562,7 @@ describe("FindingDetail", () => {
     expect(screen.getByRole("heading", { name: /^Support Bot/ })).toBeInTheDocument();
     expect(screen.getByText("Agent on OpenAI")).toBeInTheDocument();
     expect(screen.getByText("Not onboarded")).toBeInTheDocument();
-    for (const section of ["Details", "Source", "Activity", "Evidence"]) {
+    for (const section of ["Overview", "Details", "Evidence", "Source"]) {
       expect(screen.getByText(section)).toBeInTheDocument();
     }
     expect(screen.getByText("Agent object")).toBeInTheDocument();
@@ -568,7 +572,10 @@ describe("FindingDetail", () => {
     expect(screen.getByText("function · lookup_order")).toBeInTheDocument();
     expect(screen.getByText("github · https://mcp.example.com")).toBeInTheDocument();
     expect(screen.getByText("agent_abc")).toBeInTheDocument();
-    expect(screen.getByText("Listed")).toBeInTheDocument();
+    expect(screen.getByText("OpenAI prod · Listed")).toBeInTheDocument();
+    expect(screen.getByText("Platform")).toBeInTheDocument();
+    expect(screen.getByText("active")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /from list|in list/ })).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Onboard as external agent" })).toHaveAttribute(
       "href",
       "/organizations/acme/shadow-agent-discovery/agents/f1/onboard",
@@ -644,9 +651,9 @@ describe("FindingDetail", () => {
     expect(screen.getAllByRole("alert")).toHaveLength(2);
     expect(screen.getByText(/no longer found this agent/)).toBeInTheDocument();
     expect(screen.queryByText(/no longer listed this agent/)).not.toBeInTheDocument();
-    expect(screen.getByText("No longer found")).toBeInTheDocument();
-    expect(screen.queryByText("No longer listed")).not.toBeInTheDocument();
-    expect(screen.getByText("Found")).toBeInTheDocument();
+    expect(screen.getByText("WSO2 GitHub · No longer found")).toBeInTheDocument();
+    expect(screen.queryByText(/No longer listed/)).not.toBeInTheDocument();
+    expect(screen.getByText("WSO2 mirror · Found")).toBeInTheDocument();
     expect(screen.getByText(/found through 2 connections/)).toBeInTheDocument();
     expect(screen.queryByText("State at the platform")).not.toBeInTheDocument();
     expect(screen.queryByText("Created at the platform")).not.toBeInTheDocument();
@@ -688,9 +695,8 @@ describe("FindingDetail", () => {
       ],
     });
     renderDetail();
-    expect(screen.getByText("OpenAI audit")).toBeInTheDocument();
+    expect(screen.getByText("OpenAI audit · No longer listed")).toBeInTheDocument();
     expect(screen.getByText(/found through 2 connections/)).toBeInTheDocument();
-    expect(screen.getByText("No longer listed")).toBeInTheDocument();
     expect(screen.getByText(/Created by/)).toBeInTheDocument();
     expect(screen.getByText("alice@acme.com")).toBeInTheDocument();
   });
@@ -1065,7 +1071,13 @@ describe("AnalyzeSection", () => {
   ];
 
   it("simply says what an agent platform's scan lists", () => {
-    render(<AnalyzeSection providerName="Amazon Bedrock" statuses={statuses} />);
+    render(
+      <AnalyzeSection
+        providerName="Amazon Bedrock"
+        statuses={statuses}
+        notListed={["Classic agent instructions and prompt overrides."]}
+      />,
+    );
     expect(screen.getByText("What does Agent Manager list?")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -1075,9 +1087,10 @@ describe("AnalyzeSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "See what it lists" }));
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("What Agent Manager lists");
-    expect(dialog).toHaveTextContent("A scan calls only Amazon Bedrock's agent listings");
+    expect(dialog).toHaveTextContent("A scan makes only these read-only calls to Amazon Bedrock.");
     expect(dialog).toHaveTextContent("Agent records in each registry.");
     expect(dialog).toHaveTextContent("Agent runtimes in each region.");
+    expect(dialog).toHaveTextContent("Not read or listedClassic agent instructions and prompt overrides.");
     expect(dialog).not.toHaveTextContent(/Available|Not available|Needs:/);
   });
 
@@ -1456,6 +1469,17 @@ describe("OnboardFinding", () => {
       { projectName: "default", agentName: "support-bot" },
       expect.anything(),
     );
+    // Once linked, it asks whether the agent stays in the Unregistered Agents list.
+    expect(hoisted.addConfirmation).not.toHaveBeenCalled();
+    act(() => hoisted.onboard.mock.calls[0][1].onSuccess());
+    const prompt = hoisted.addConfirmation.mock.calls[0][0];
+    expect(prompt.title).toBe("Remove Support Bot from Unregistered Agents?");
+    expect(prompt.description).toContain("onboarded as default / support-bot");
+    expect(prompt.confirmButtonText).toBe("Remove from list");
+    expect(prompt.cancelButtonText).toBe("Keep in list");
+    expect(hoisted.setHidden).not.toHaveBeenCalled();
+    prompt.onConfirm();
+    expect(hoisted.setHidden).toHaveBeenCalledWith(true);
   });
 
   it("refuses an invalid agent name before calling anything", () => {
@@ -1464,5 +1488,123 @@ describe("OnboardFinding", () => {
     fireEvent.change(screen.getByLabelText(/^Name/), { target: { value: "9bad" } });
     fireEvent.click(screen.getByRole("button", { name: "Register" }));
     expect(hoisted.createAgent).not.toHaveBeenCalled();
+  });
+});
+
+describe("FindingDetail (listing and identifiers)", () => {
+  const renderDetail = () =>
+    router(
+      <Routes>
+        <Route
+          path="/organizations/:orgId/shadow-agent-discovery/agents/:findingId"
+          element={
+            <FindingDetail
+              orgName="acme"
+              canManage
+              listPath="/organizations/acme/shadow-agent-discovery"
+            />
+          }
+        />
+      </Routes>,
+      "/organizations/acme/shadow-agent-discovery/agents/f1",
+    );
+  const onboarded = (hidden: boolean) =>
+    detail({ onboarded: true, linkedProject: "default", linkedAgent: "support-bot", hidden });
+
+  it("removes an onboarded agent from the list", () => {
+    hoisted.detail = onboarded(false);
+    renderDetail();
+    fireEvent.click(screen.getByRole("button", { name: "Remove from list" }));
+    expect(hoisted.setHidden).toHaveBeenCalledWith(true);
+  });
+
+  it("puts a removed agent back in the list, and says it was removed", () => {
+    hoisted.detail = onboarded(true);
+    renderDetail();
+    expect(screen.getByText(/removed from the Unregistered Agents list/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show in list" }));
+    expect(hoisted.setHidden).toHaveBeenCalledWith(false);
+  });
+
+  it("shows long identifiers with a copy button, and a Custom platform's labels", () => {
+    hoisted.detail = detail({
+      provider: "custom",
+      attributes: {
+        source: "LangGraph Platform",
+        agentUrl: "https://agents.example.com/invoice",
+        description: "Sorts invoices",
+      },
+    });
+    renderDetail();
+    expect(screen.getByText("Identifiers")).toBeInTheDocument();
+    expect(screen.getByText("Agent URL")).toBeInTheDocument();
+    expect(screen.getByText("https://agents.example.com/invoice")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Copy Agent URL" })).toBeInTheDocument();
+    expect(screen.getByText("Runs on")).toBeInTheDocument();
+    expect(screen.getByText("LangGraph Platform")).toBeInTheDocument();
+    expect(screen.getByText("Agent in your inventory on Custom platform")).toBeInTheDocument();
+    expect(screen.queryByText("agentUrl")).not.toBeInTheDocument();
+  });
+});
+
+describe("ConnectionEditor (Custom platform)", () => {
+  const customSpec = (): ShadowProviderSpec => ({
+    provider: "custom",
+    displayName: "Custom platform",
+    description: "Your own REST API that lists your agents.",
+    endpoints: [],
+    fields: [
+      { key: "agentsUrl", label: "Agents URL", kind: "text", required: true },
+      { key: "apiKey", label: "API key", kind: "secret", required: true },
+    ],
+    permissions: [],
+    docs: [],
+    capabilities: [
+      {
+        key: "custom.agents",
+        title: "Agents in your inventory",
+        description: "Lists the agents your service returns via GET {Agents URL}.",
+        signals: ["custom.agent"],
+        needs: [],
+      },
+    ],
+    notListed: ["Anything else on your server: only GET on the Agents URL is called."],
+    setupSteps: ["Download the OpenAPI contract and implement its one call.", "Run the service."],
+    apiContract: "openapi: 3.0.3\n",
+  });
+  const openNew = () => {
+    hoisted.providers = [customSpec()];
+    router(
+      <Routes>
+        <Route path="/new" element={<ConnectionEditor orgName="acme" listPath="/list" />} />
+      </Routes>,
+      "/new",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Connect Custom platform" }));
+  };
+
+  it("offers the OpenAPI contract and explains the steps in See what it lists", () => {
+    const createObjectURL = vi.fn(() => "blob:contract");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    openNew();
+    expect(screen.getByText("Build your agent inventory API")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Download contract" }));
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect((click.mock.instances[0] as unknown as HTMLAnchorElement).download).toBe(
+      CUSTOM_CONTRACT_FILE,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "See what it lists" }));
+    const dialog = screen.getByRole("dialog");
+    expect(dialog).toHaveTextContent("How to set it up");
+    expect(dialog).toHaveTextContent("Download the OpenAPI contract and implement its one call.");
+    expect(dialog).toHaveTextContent("Agents in your inventory");
+    expect(dialog).toHaveTextContent("Not read or listed");
+    expect(within(dialog).getByRole("button", { name: "Download contract" })).toBeInTheDocument();
+    expect(screen.getByText("Agents URL")).toBeInTheDocument();
+    expect(screen.getByText("API key")).toBeInTheDocument();
+    click.mockRestore();
   });
 });

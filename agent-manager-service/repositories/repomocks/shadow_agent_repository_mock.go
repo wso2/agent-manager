@@ -91,6 +91,9 @@ import (
 //			SaveConnectionTestFunc: func(ctx context.Context, ouID string, id uuid.UUID, at time.Time, result models.ShadowConnectionTestInfo) error {
 //				panic("mock out the SaveConnectionTest method")
 //			},
+//			SetFindingHiddenFunc: func(ctx context.Context, ouID string, id uuid.UUID, hidden bool, by string, at time.Time) error {
+//				panic("mock out the SetFindingHidden method")
+//			},
 //			SummaryFunc: func(ctx context.Context, ouID string) (repositories.ShadowSummary, error) {
 //				panic("mock out the Summary method")
 //			},
@@ -175,6 +178,9 @@ type ShadowAgentRepositoryMock struct {
 
 	// SaveConnectionTestFunc mocks the SaveConnectionTest method.
 	SaveConnectionTestFunc func(ctx context.Context, ouID string, id uuid.UUID, at time.Time, result models.ShadowConnectionTestInfo) error
+
+	// SetFindingHiddenFunc mocks the SetFindingHidden method.
+	SetFindingHiddenFunc func(ctx context.Context, ouID string, id uuid.UUID, hidden bool, by string, at time.Time) error
 
 	// SummaryFunc mocks the Summary method.
 	SummaryFunc func(ctx context.Context, ouID string) (repositories.ShadowSummary, error)
@@ -396,6 +402,21 @@ type ShadowAgentRepositoryMock struct {
 			// Result is the result argument value.
 			Result models.ShadowConnectionTestInfo
 		}
+		// SetFindingHidden holds details about calls to the SetFindingHidden method.
+		SetFindingHidden []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+			// ID is the id argument value.
+			ID uuid.UUID
+			// Hidden is the hidden argument value.
+			Hidden bool
+			// By is the by argument value.
+			By string
+			// At is the at argument value.
+			At time.Time
+		}
 		// Summary holds details about calls to the Summary method.
 		Summary []struct {
 			// Ctx is the ctx argument value.
@@ -435,6 +456,7 @@ type ShadowAgentRepositoryMock struct {
 	lockPublishScanResults    sync.RWMutex
 	lockRenewScanLease        sync.RWMutex
 	lockSaveConnectionTest    sync.RWMutex
+	lockSetFindingHidden      sync.RWMutex
 	lockSummary               sync.RWMutex
 	lockUpdateConnection      sync.RWMutex
 }
@@ -1388,6 +1410,58 @@ func (mock *ShadowAgentRepositoryMock) SaveConnectionTestCalls() []struct {
 	mock.lockSaveConnectionTest.RLock()
 	calls = mock.calls.SaveConnectionTest
 	mock.lockSaveConnectionTest.RUnlock()
+	return calls
+}
+
+// SetFindingHidden calls SetFindingHiddenFunc.
+func (mock *ShadowAgentRepositoryMock) SetFindingHidden(ctx context.Context, ouID string, id uuid.UUID, hidden bool, by string, at time.Time) error {
+	if mock.SetFindingHiddenFunc == nil {
+		panic("ShadowAgentRepositoryMock.SetFindingHiddenFunc: method is nil but ShadowAgentRepository.SetFindingHidden was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		OuID   string
+		ID     uuid.UUID
+		Hidden bool
+		By     string
+		At     time.Time
+	}{
+		Ctx:    ctx,
+		OuID:   ouID,
+		ID:     id,
+		Hidden: hidden,
+		By:     by,
+		At:     at,
+	}
+	mock.lockSetFindingHidden.Lock()
+	mock.calls.SetFindingHidden = append(mock.calls.SetFindingHidden, callInfo)
+	mock.lockSetFindingHidden.Unlock()
+	return mock.SetFindingHiddenFunc(ctx, ouID, id, hidden, by, at)
+}
+
+// SetFindingHiddenCalls gets all the calls that were made to SetFindingHidden.
+// Check the length with:
+//
+//	len(mockedShadowAgentRepository.SetFindingHiddenCalls())
+func (mock *ShadowAgentRepositoryMock) SetFindingHiddenCalls() []struct {
+	Ctx    context.Context
+	OuID   string
+	ID     uuid.UUID
+	Hidden bool
+	By     string
+	At     time.Time
+} {
+	var calls []struct {
+		Ctx    context.Context
+		OuID   string
+		ID     uuid.UUID
+		Hidden bool
+		By     string
+		At     time.Time
+	}
+	mock.lockSetFindingHidden.RLock()
+	calls = mock.calls.SetFindingHidden
+	mock.lockSetFindingHidden.RUnlock()
 	return calls
 }
 

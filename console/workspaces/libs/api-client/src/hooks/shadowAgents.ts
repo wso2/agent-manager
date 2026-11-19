@@ -34,6 +34,7 @@ import {
   listShadowProviders,
   listShadowScans,
   onboardShadowFinding,
+  setShadowFindingHidden,
   testShadowConnection,
   updateShadowConnection,
 } from "../apis";
@@ -265,6 +266,24 @@ export function useOnboardShadowFinding(
   return useApiMutation<ShadowFindingDetail, unknown, ShadowOnboardingRequest>({
     successMessage: () => "Agent onboarded",
     mutationFn: (body) => onboardShadowFinding(orgName, findingId ?? "", body, getToken),
+    onSuccess: () => invalidate(),
+  });
+}
+
+/**
+ * Removes an onboarded agent from the Unregistered Agents list (true), or
+ * puts it back (false). Later scans keep the choice.
+ */
+export function useSetShadowFindingHidden(
+  orgName: string | undefined,
+  findingId: string | undefined,
+) {
+  const { getToken } = useAuthHooks();
+  const invalidate = useInvalidateShadow();
+  return useApiMutation<ShadowFindingDetail, unknown, boolean>({
+    successMessage: (_data, hidden) =>
+      hidden ? "Removed from Unregistered Agents" : "Shown in Unregistered Agents again",
+    mutationFn: (hidden) => setShadowFindingHidden(orgName, findingId ?? "", { hidden }, getToken),
     onSuccess: () => invalidate(),
   });
 }

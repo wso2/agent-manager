@@ -200,7 +200,7 @@ export function ConnectionsTab({ orgName, canManage, onAdd, onEdit }: Connection
           illustration: <PlugZap size={64} />,
           title: "No platforms added",
           description:
-            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, or a GitHub or Azure DevOps organization to scan its source code.",
+            "Connect an AI platform (OpenAI, Anthropic, Amazon Bedrock, Google Agent Platform, Microsoft Foundry) with a read-only credential, your own agent inventory API as a Custom platform, or a GitHub or Azure DevOps organization to scan its source code.",
           action: addButton,
         }}
         searchEmptyState={{

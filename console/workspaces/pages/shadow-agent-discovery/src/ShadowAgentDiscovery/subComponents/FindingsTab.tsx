@@ -36,6 +36,7 @@ import {
   useDeleteShadowFinding,
   useDeleteShadowFindings,
   useShadowFindings,
+  useShadowSummary,
 } from "@agent-management-platform/api-client";
 import {
   formatRelativeTime,
@@ -102,7 +103,8 @@ export function FindingsTab({
   const location = useLocation();
   const [search, setSearch] = useState("");
   const [ownProvider, setOwnProvider] = useState("");
-  const [onboarded, setOnboarded] = useState<"" | "true" | "false">("");
+  // The agents still to onboard by default; a scan's agents are all shown.
+  const [onboarded, setOnboarded] = useState<"" | "true" | "false">(scanId ? "" : "false");
   const [offset, setOffset] = useState(0);
   const provider = controlledProvider ?? ownProvider;
   const deferredSearch = useDeferredValue(search.trim());
@@ -120,7 +122,14 @@ export function FindingsTab({
   const { data, isLoading, error } = useShadowFindings(orgName, query);
   const findings = useMemo(() => data?.findings ?? [], [data]);
   const total = data?.total ?? 0;
-  const isFiltered = !!(deferredSearch || provider || onboarded);
+  // "Not onboarded" is the default view, not a filter the user chose: with
+  // no agents at all the page says to add a platform. When every agent is
+  // onboarded (the summary still counts them), it says so instead.
+  const summary = useShadowSummary(scanId ? undefined : orgName);
+  const onlyNotOnboarded = !scanId && onboarded === "false" && !deferredSearch && !provider;
+  const anyAgent = (summary.data?.totalFindings ?? 0) > 0;
+  const isFiltered =
+    !!(deferredSearch || provider || onboarded) && !(onlyNotOnboarded && !anyAgent);
   // Distinct agents can share a name (a platform allows it): their rows also
   // show the platform ID, so they do not read as duplicates.
   const lookalikes = useMemo(() => {
@@ -186,14 +195,16 @@ export function FindingsTab({
       <Box sx={{ minWidth: 170 }}>
         <TextInput
           select
-          aria-label="Onboarding"
+          aria-label="Onboarding status"
           value={onboarded}
           onChange={(e) => {
             setOnboarded(e.target.value as "" | "true" | "false");
             setOffset(0);
           }}
           size="small"
-          slotProps={{ select: { displayEmpty: true, inputProps: { "aria-label": "Onboarding" } } }}
+          slotProps={{
+            select: { displayEmpty: true, inputProps: { "aria-label": "Onboarding status" } },
+          }}
         >
           <MenuItem value="">All agents</MenuItem>
           <MenuItem value="false">Not onboarded</MenuItem>
@@ -257,8 +268,10 @@ export function FindingsTab({
       }}
       searchEmptyState={{
         illustration: <ScanSearch size={64} />,
-        title: "No agents match your filters",
-        description: "Try other search keywords or clear the filters.",
+        title: onlyNotOnboarded ? "Every agent is onboarded" : "No agents match your filters",
+        description: onlyNotOnboarded
+          ? "No agent is waiting to be onboarded. Choose All agents to see the onboarded ones."
+          : "Try other search keywords or clear the filters.",
       }}
     >
       <ListingTable>
@@ -267,10 +280,9 @@ export function FindingsTab({
             <ListingTable.Cell>Agent</ListingTable.Cell>
             <ListingTable.Cell>Platform</ListingTable.Cell>
             <ListingTable.Cell>Source</ListingTable.Cell>
-            <ListingTable.Cell>State</ListingTable.Cell>
             <ListingTable.Cell>Last seen</ListingTable.Cell>
-            <ListingTable.Cell>Onboarding</ListingTable.Cell>
-            {canDelete && <ListingTable.Cell align="right">Actions</ListingTable.Cell>}
+            <ListingTable.Cell>Onboarding status</ListingTable.Cell>
+            {canDelete && <ListingTable.Cell align="right" aria-label="Delete" />}
           </ListingTable.Row>
         </ListingTable.Head>
         <ListingTable.Body>
@@ -290,43 +302,38 @@ export function FindingsTab({
                 )
               }
             >
-              <ListingTable.Cell>
+              <ListingTable.Cell sx={{ maxWidth: 360 }}>
                 <Typography variant="body2" fontWeight={500}>
                   {f.displayName}
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                {/* Only the type: scope, IDs and the rest are on the agent's page. Two agents
+                    that look alike also show their platform ID, so they do not read as one. */}
+                <Typography variant="caption" color="text.secondary" component="p" noWrap>
                   {kindLabel(f.kind, f.provider)}
-                  {f.scope ? ` · ${f.scope}` : ""}
                   {lookalikes.has(lookalikeKey(f)) ? ` · ${f.externalId}` : ""}
                 </Typography>
               </ListingTable.Cell>
               <ListingTable.Cell>
                 <Typography variant="body2">{providerLabel(f.provider)}</Typography>
               </ListingTable.Cell>
-              <ListingTable.Cell>
-                <Typography variant="body2" color="text.secondary">
+              <ListingTable.Cell sx={{ maxWidth: 240 }}>
+                <Typography variant="body2" color="text.secondary" noWrap title={sourceLabel(f)}>
                   {sourceLabel(f)}
                 </Typography>
               </ListingTable.Cell>
               <ListingTable.Cell>
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="body2" color="text.secondary">
-                    {f.state || "—"}
-                  </Typography>
-                  {!f.present && (
-                    <Chip
-                      size="small"
-                      variant="outlined"
-                      color="warning"
-                      label="No longer listed"
-                    />
-                  )}
-                </Stack>
-              </ListingTable.Cell>
-              <ListingTable.Cell>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" noWrap>
                   {formatRelativeTime(f.lastSeenAt)}
                 </Typography>
+                {!f.present && (
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    color="warning"
+                    label="No longer listed"
+                    sx={{ mt: 0.5 }}
+                  />
+                )}
               </ListingTable.Cell>
               <ListingTable.Cell>
                 <OnboardingChip onboarded={f.onboarded} />

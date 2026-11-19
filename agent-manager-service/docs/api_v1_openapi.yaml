@@ -15355,6 +15355,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /orgs/{orgName}/shadow-agents/findings/{findingId}/hidden:
+    parameters:
+      - name: orgName
+        in: path
+        required: true
+        description: Organization name
+        schema:
+          type: string
+      - name: findingId
+        in: path
+        required: true
+        description: Agent (finding) ID
+        schema:
+          type: string
+          format: uuid
+    put:
+      tags:
+        - Shadow Agent Discovery
+      summary: Remove an onboarded agent from the Unregistered Agents list, or put it back
+      description: |
+        hidden true removes an onboarded agent from the Unregistered Agents
+        list, on every connection that found it; later scans keep it out.
+        hidden false puts it back. Only an onboarded agent can be removed.
+      operationId: setShadowFindingHidden
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShadowFindingHiddenRequest"
+      responses:
+        "200":
+          description: The agent, with its new listing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShadowFindingDetail"
+        "400":
+          description: Invalid request, or the agent is not onboarded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: The agent was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -24537,7 +24593,7 @@ components:
       properties:
         provider:
           type: string
-          enum: [openai, anthropic, bedrock, google, foundry, github, azure_devops]
+          enum: [openai, anthropic, bedrock, google, foundry, custom, github, azure_devops]
         displayName:
           type: string
         description:
@@ -24570,6 +24626,21 @@ components:
           description: What a scan lists, and the fields or options each capability needs.
           items:
             $ref: "#/components/schemas/ShadowCapabilitySpec"
+        notListed:
+          type: array
+          description: What a scan of the platform never reads or lists.
+          items:
+            type: string
+        setupSteps:
+          type: array
+          description: The steps to make the platform listable (Custom platform), shown with what it lists.
+          items:
+            type: string
+        apiContract:
+          type: string
+          description: >-
+            The OpenAPI document (YAML) of the agent inventory API the customer implements for a Custom
+            platform; the console offers it for download.
 
     ShadowCredentialChoice:
       type: object
@@ -24749,7 +24820,7 @@ components:
           maxLength: 100
         provider:
           type: string
-          enum: [openai, anthropic, bedrock, google, foundry, github, azure_devops]
+          enum: [openai, anthropic, bedrock, google, foundry, custom, github, azure_devops]
         endpoints:
           type: object
           description: Base URL per endpoint key; missing keys use the official default.
@@ -25049,7 +25120,7 @@ components:
       description: >-
         One agent a platform lists. When several connections found the same agent, this is its finding in the
         connection that saw it last, and foundBy lists every connection.
-      required: [id, connectionId, connectionName, provider, kind, externalId, displayName, scope, state, ownerHint, firstSeenAt, lastSeenAt, present, foundBy, onboarded]
+      required: [id, connectionId, connectionName, provider, kind, externalId, displayName, scope, state, ownerHint, firstSeenAt, lastSeenAt, present, foundBy, onboarded, hidden]
       properties:
         id:
           type: string
@@ -25110,6 +25181,11 @@ components:
         onboardedAt:
           type: string
           format: date-time
+        hidden:
+          type: boolean
+          description: >-
+            The onboarded agent was removed from the Unregistered Agents list. The list leaves it out; it can
+            still be opened by its ID.
 
     ShadowFindingSource:
       type: object
@@ -25199,6 +25275,14 @@ components:
             onboardedBy:
               type: string
               description: Who onboarded the agent.
+
+    ShadowFindingHiddenRequest:
+      type: object
+      required: [hidden]
+      properties:
+        hidden:
+          type: boolean
+          description: true removes the onboarded agent from the Unregistered Agents list; false puts it back.
 
     ShadowOnboardingRequest:
       type: object

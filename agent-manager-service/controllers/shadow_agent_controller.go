@@ -65,6 +65,7 @@ type ShadowAgentController interface {
 	ListFindings(w http.ResponseWriter, r *http.Request)
 	GetFinding(w http.ResponseWriter, r *http.Request)
 	OnboardFinding(w http.ResponseWriter, r *http.Request)
+	SetFindingHidden(w http.ResponseWriter, r *http.Request)
 	DeleteFinding(w http.ResponseWriter, r *http.Request)
 	DeleteFindings(w http.ResponseWriter, r *http.Request)
 }
@@ -90,6 +91,16 @@ func (c *shadowAgentController) ListProviders(w http.ResponseWriter, _ *http.Req
 			Endpoints: []spec.ShadowEndpointSpec{}, Fields: []spec.ShadowFieldSpec{},
 			Permissions: []spec.ShadowPermissionSpec{}, Docs: append([]string{}, p.Docs...),
 			Capabilities: []spec.ShadowCapabilitySpec{},
+		}
+		if len(p.NotListed) > 0 {
+			ps.NotListed = append([]string{}, p.NotListed...)
+		}
+		if len(p.SetupSteps) > 0 {
+			ps.SetupSteps = append([]string{}, p.SetupSteps...)
+		}
+		if p.APIContract != "" {
+			contract := p.APIContract
+			ps.ApiContract = &contract
 		}
 		if p.SourceHost {
 			src := true
@@ -536,6 +547,26 @@ func (c *shadowAgentController) OnboardFinding(w http.ResponseWriter, r *http.Re
 	utils.WriteSuccessResponse(w, http.StatusOK, toShadowFindingDetail(v))
 }
 
+// SetFindingHidden removes an onboarded agent from the Unregistered Agents
+// list, or puts it back.
+func (c *shadowAgentController) SetFindingHidden(w http.ResponseWriter, r *http.Request) {
+	id, ok := shadowFindingID(w, r)
+	if !ok {
+		return
+	}
+	var req spec.ShadowFindingHiddenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	v, err := c.svc.SetFindingHidden(r.Context(), middleware.OUIDFromRequest(r), id, req.Hidden)
+	if err != nil {
+		writeShadowError(w, r, err, "Failed to change the agent's listing")
+		return
+	}
+	utils.WriteSuccessResponse(w, http.StatusOK, toShadowFindingDetail(v))
+}
+
 // DeleteFinding deletes an agent on every connection that found it.
 func (c *shadowAgentController) DeleteFinding(w http.ResponseWriter, r *http.Request) {
 	id, ok := shadowFindingID(w, r)
@@ -577,6 +608,8 @@ func writeShadowError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		utils.WriteErrorResponse(w, http.StatusNotFound, "The registered agent was not found in the project")
 	case errors.Is(err, utils.ErrShadowAlreadyOnboarded):
 		utils.WriteErrorResponse(w, http.StatusConflict, "The agent is already onboarded")
+	case errors.Is(err, utils.ErrShadowNotOnboarded):
+		utils.WriteErrorResponse(w, http.StatusBadRequest, "Only an onboarded agent can be removed from the list")
 	case errors.Is(err, utils.ErrShadowConnectionNameTaken):
 		utils.WriteErrorResponse(w, http.StatusConflict, "A connection with this name already exists")
 	case errors.Is(err, utils.ErrShadowScanInProgress):
@@ -704,7 +737,7 @@ func toShadowFindingSummary(row *repositories.ShadowFindingRow) spec.ShadowFindi
 		OwnerHint: toShadowOwnerHint(f.OwnerHint), ProviderCreatedAt: f.ProviderCreatedAt,
 		FirstSeenAt: f.FirstSeenAt, LastSeenAt: f.LastSeenAt, Present: f.Present, FoundBy: foundBy,
 		Onboarded: f.LinkedAgent != "", LinkedProject: optionalString(f.LinkedProject),
-		LinkedAgent: optionalString(f.LinkedAgent), OnboardedAt: f.OnboardedAt,
+		LinkedAgent: optionalString(f.LinkedAgent), OnboardedAt: f.OnboardedAt, Hidden: f.HiddenAt != nil,
 	}
 }
 
@@ -717,7 +750,7 @@ func toShadowFindingDetail(v *services.ShadowFindingView) spec.ShadowFindingDeta
 		OwnerHint: sum.OwnerHint, ProviderCreatedAt: sum.ProviderCreatedAt,
 		FirstSeenAt: sum.FirstSeenAt, LastSeenAt: sum.LastSeenAt, Present: sum.Present, FoundBy: sum.FoundBy,
 		Onboarded: sum.Onboarded, LinkedProject: sum.LinkedProject, LinkedAgent: sum.LinkedAgent,
-		OnboardedAt: sum.OnboardedAt, OnboardedBy: optionalString(f.OnboardedBy),
+		OnboardedAt: sum.OnboardedAt, OnboardedBy: optionalString(f.OnboardedBy), Hidden: sum.Hidden,
 		Attributes: sa.AllowedAttributes(f.Attributes), Related: make([]spec.ShadowFindingRelation, 0, len(v.Related)),
 		Signals: make([]spec.ShadowFindingSignal, 0, len(v.Signals)),
 	}

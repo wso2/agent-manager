@@ -976,3 +976,75 @@ func TestShadowPublishedEvidenceIsDatedByItsScan(t *testing.T) {
 	require.Len(t, signals, 1, "evidence the newer scan did not see again is removed")
 	assert.Equal(t, "github.d2_agent_import", signals[0].Code)
 }
+
+// An onboarded agent removed from the list stays out of it: on every
+// connection, after a later scan, and when another connection finds it.
+// Putting it back lists it again; an agent that is not onboarded cannot be
+// removed.
+func TestShadowOnboardedAgentRemovedFromTheList(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	a := newShadowConnection(t, repo, ou, "Alpha")
+	b := newShadowConnection(t, repo, ou, "Beta")
+	t0 := time.Now().UTC().Truncate(time.Microsecond)
+	apply := func(c *models.ShadowConnection, at time.Time, ids ...string) {
+		t.Helper()
+		in := ShadowConnectionApply{OUID: ou, ConnectionID: c.ID, ScanID: newShadowScan(t, repo, ou), ScanStartedAt: at, Complete: true}
+		for _, id := range ids {
+			in.Findings = append(in.Findings, agentInput(id, "Agent "+id, at))
+		}
+		_, err := repo.ApplyConnectionResult(ctx, in)
+		require.NoError(t, err)
+	}
+	listed := func() []string {
+		t.Helper()
+		rows, total, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{Limit: 10})
+		require.NoError(t, err)
+		out := []string{}
+		for _, r := range rows {
+			out = append(out, r.ExternalID)
+		}
+		assert.Equal(t, len(out), total)
+		return out
+	}
+	apply(a, t0, "agent_kept", "agent_removed")
+	rows, _, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{Search: "agent_removed", Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	removed := rows[0]
+
+	err = repo.SetFindingHidden(ctx, ou, removed.ID, true, "user-1", t0)
+	assert.ErrorIs(t, err, utils.ErrShadowNotOnboarded, "only an onboarded agent can be removed")
+	assert.True(t, IsShadowNotFound(repo.SetFindingHidden(ctx, ou, uuid.New(), true, "user-1", t0)))
+	assert.True(t, IsShadowNotFound(repo.SetFindingHidden(ctx, "ou-"+uuid.NewString(), removed.ID, true, "user-1", t0)),
+		"another org cannot change it")
+
+	require.NoError(t, repo.OnboardFinding(ctx, ou, removed.ID, "default", "removed-agent", "user-1", t0))
+	require.NoError(t, repo.SetFindingHidden(ctx, ou, removed.ID, true, "user-1", t0))
+	assert.ElementsMatch(t, []string{"agent_kept"}, listed())
+	got, err := repo.GetFinding(ctx, ou, removed.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.HiddenAt, "it can still be opened")
+	assert.Equal(t, "user-1", got.HiddenBy)
+	sum, err := repo.Summary(ctx, ou)
+	require.NoError(t, err)
+	assert.Equal(t, 2, sum.Total, "the summary still counts it")
+	assert.Equal(t, 1, sum.Onboarded)
+
+	// A later scan, and another connection that finds it, keep it out.
+	apply(a, t0.Add(time.Minute), "agent_kept", "agent_removed")
+	apply(b, t0.Add(2*time.Minute), "agent_removed")
+	assert.ElementsMatch(t, []string{"agent_kept"}, listed())
+	var visible int64
+	require.NoError(t, db.GetDB().Raw(`SELECT COUNT(*) FROM shadow_findings WHERE ou_id = ? AND external_id = 'agent_removed' AND hidden_at IS NULL`, ou).Scan(&visible).Error)
+	assert.Zero(t, visible, "every connection's row carries it")
+
+	// Put back: listed again, on every connection.
+	require.NoError(t, repo.SetFindingHidden(ctx, ou, removed.ID, false, "user-2", t0))
+	assert.ElementsMatch(t, []string{"agent_kept", "agent_removed"}, listed())
+	got, err = repo.GetFinding(ctx, ou, removed.ID)
+	require.NoError(t, err)
+	assert.Nil(t, got.HiddenAt)
+	assert.Empty(t, got.HiddenBy)
+}
