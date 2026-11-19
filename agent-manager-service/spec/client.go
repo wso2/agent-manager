@@ -50,8 +50,6 @@ type APIClient struct {
 
 	AgentIdentityAPI *AgentIdentityAPIService
 
-	AgentKindsAPI *AgentKindsAPIService
-
 	ConfigAPI *ConfigAPIService
 
 	DefaultAPI *DefaultAPIService
@@ -59,8 +57,6 @@ type APIClient struct {
 	EnvironmentsAPI *EnvironmentsAPIService
 
 	EventsAPI *EventsAPIService
-
-	GitSecretsAPI *GitSecretsAPIService
 
 	IdentityGroupsAPI *IdentityGroupsAPIService
 
@@ -88,12 +84,10 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 
 	// API Services
 	c.AgentIdentityAPI = (*AgentIdentityAPIService)(&c.common)
-	c.AgentKindsAPI = (*AgentKindsAPIService)(&c.common)
 	c.ConfigAPI = (*ConfigAPIService)(&c.common)
 	c.DefaultAPI = (*DefaultAPIService)(&c.common)
 	c.EnvironmentsAPI = (*EnvironmentsAPIService)(&c.common)
 	c.EventsAPI = (*EventsAPIService)(&c.common)
-	c.GitSecretsAPI = (*GitSecretsAPIService)(&c.common)
 	c.IdentityGroupsAPI = (*IdentityGroupsAPIService)(&c.common)
 	c.IdentityRolesAPI = (*IdentityRolesAPIService)(&c.common)
 	c.IdentityUsersAPI = (*IdentityUsersAPIService)(&c.common)

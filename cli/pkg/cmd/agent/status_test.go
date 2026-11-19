@@ -26,11 +26,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
-	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
@@ -97,31 +94,6 @@ func newStatusOpts(io *iostreams.IOStreams, client func(context.Context) (*aigat
 	return &StatusOptions{
 		IO: io, Client: client, Scope: baseScope(),
 		Org: "acme", Proj: "triage", AgentName: "order-bot",
-	}
-}
-
-func TestNewAgentCmd_RegistersStatusAfterDeploy(t *testing.T) {
-	wasSorting := cobra.EnableCommandSorting
-	cobra.EnableCommandSorting = false
-	defer func() { cobra.EnableCommandSorting = wasSorting }()
-
-	ios, _, _, _ := iostreams.Test()
-	cmd := NewAgentCmd(&cmdutil.Factory{IOStreams: ios})
-
-	idxDeploy, idxStatus := -1, -1
-	for i, c := range cmd.Commands() {
-		switch c.Name() {
-		case "deploy":
-			idxDeploy = i
-		case "status":
-			idxStatus = i
-		}
-	}
-	if idxDeploy == -1 {
-		t.Fatal("deploy command not registered")
-	}
-	if idxStatus != idxDeploy+1 {
-		t.Fatalf("status index = %d, want %d", idxStatus, idxDeploy+1)
 	}
 }
 

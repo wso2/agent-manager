@@ -9,48 +9,11 @@ import (
 	"time"
 
 	"github.com/oapi-codegen/runtime"
-	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
 const (
 	BearerAuthScopes = "bearerAuth.Scopes"
 )
-
-// Defines values for AgentKindResponseKind.
-const (
-	AgentKind AgentKindResponseKind = "AgentKind"
-)
-
-// Valid indicates whether the value is a known member of the AgentKindResponseKind enum.
-func (e AgentKindResponseKind) Valid() bool {
-	switch e {
-	case AgentKind:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for AgentKindVersionResponseAgentSubType.
-const (
-	A2aAgent  AgentKindVersionResponseAgentSubType = "a2a-agent"
-	ChatApi   AgentKindVersionResponseAgentSubType = "chat-api"
-	CustomApi AgentKindVersionResponseAgentSubType = "custom-api"
-)
-
-// Valid indicates whether the value is a known member of the AgentKindVersionResponseAgentSubType enum.
-func (e AgentKindVersionResponseAgentSubType) Valid() bool {
-	switch e {
-	case A2aAgent:
-		return true
-	case ChatApi:
-		return true
-	case CustomApi:
-		return true
-	default:
-		return false
-	}
-}
 
 // Defines values for AgentThunderStatus.
 const (
@@ -70,111 +33,6 @@ func (e AgentThunderStatus) Valid() bool {
 	case AgentThunderStatusInProgress:
 		return true
 	case AgentThunderStatusPending:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for BuildDetailsResponseStatus.
-const (
-	BuildDetailsResponseStatusCompleted BuildDetailsResponseStatus = "Completed"
-	BuildDetailsResponseStatusFailed    BuildDetailsResponseStatus = "Failed"
-	BuildDetailsResponseStatusPending   BuildDetailsResponseStatus = "Pending"
-	BuildDetailsResponseStatusRunning   BuildDetailsResponseStatus = "Running"
-	BuildDetailsResponseStatusSucceeded BuildDetailsResponseStatus = "Succeeded"
-)
-
-// Valid indicates whether the value is a known member of the BuildDetailsResponseStatus enum.
-func (e BuildDetailsResponseStatus) Valid() bool {
-	switch e {
-	case BuildDetailsResponseStatusCompleted:
-		return true
-	case BuildDetailsResponseStatusFailed:
-		return true
-	case BuildDetailsResponseStatusPending:
-		return true
-	case BuildDetailsResponseStatusRunning:
-		return true
-	case BuildDetailsResponseStatusSucceeded:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for BuildResponseStatus.
-const (
-	BuildResponseStatusCompleted BuildResponseStatus = "Completed"
-	BuildResponseStatusFailed    BuildResponseStatus = "Failed"
-	BuildResponseStatusPending   BuildResponseStatus = "Pending"
-	BuildResponseStatusRunning   BuildResponseStatus = "Running"
-	BuildResponseStatusSucceeded BuildResponseStatus = "Succeeded"
-)
-
-// Valid indicates whether the value is a known member of the BuildResponseStatus enum.
-func (e BuildResponseStatus) Valid() bool {
-	switch e {
-	case BuildResponseStatusCompleted:
-		return true
-	case BuildResponseStatusFailed:
-		return true
-	case BuildResponseStatusPending:
-		return true
-	case BuildResponseStatusRunning:
-		return true
-	case BuildResponseStatusSucceeded:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for BuildStepStatus.
-const (
-	BuildStepStatusFailed    BuildStepStatus = "Failed"
-	BuildStepStatusPending   BuildStepStatus = "Pending"
-	BuildStepStatusRunning   BuildStepStatus = "Running"
-	BuildStepStatusSucceeded BuildStepStatus = "Succeeded"
-)
-
-// Valid indicates whether the value is a known member of the BuildStepStatus enum.
-func (e BuildStepStatus) Valid() bool {
-	switch e {
-	case BuildStepStatusFailed:
-		return true
-	case BuildStepStatusPending:
-		return true
-	case BuildStepStatusRunning:
-		return true
-	case BuildStepStatusSucceeded:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for BuildStepType.
-const (
-	BuildCompleted  BuildStepType = "BuildCompleted"
-	BuildInitiated  BuildStepType = "BuildInitiated"
-	BuildRunning    BuildStepType = "BuildRunning"
-	BuildTriggered  BuildStepType = "BuildTriggered"
-	WorkloadUpdated BuildStepType = "WorkloadUpdated"
-)
-
-// Valid indicates whether the value is a known member of the BuildStepType enum.
-func (e BuildStepType) Valid() bool {
-	switch e {
-	case BuildCompleted:
-		return true
-	case BuildInitiated:
-		return true
-	case BuildRunning:
-		return true
-	case BuildTriggered:
-		return true
-	case WorkloadUpdated:
 		return true
 	default:
 		return false
@@ -208,21 +66,6 @@ func (e CreateEnvironmentRequestIsolationTier) Valid() bool {
 	case CreateEnvironmentRequestIsolationTierGvisor:
 		return true
 	case CreateEnvironmentRequestIsolationTierKata:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreateGitSecretRequestType.
-const (
-	Basic CreateGitSecretRequestType = "basic"
-)
-
-// Valid indicates whether the value is a known member of the CreateGitSecretRequestType enum.
-func (e CreateGitSecretRequestType) Valid() bool {
-	switch e {
-	case Basic:
 		return true
 	default:
 		return false
@@ -469,42 +312,6 @@ func (e ProvisioningType) Valid() bool {
 	}
 }
 
-// Defines values for UpdateDeploymentStateRequestState.
-const (
-	UpdateDeploymentStateRequestStateActive   UpdateDeploymentStateRequestState = "Active"
-	UpdateDeploymentStateRequestStateUndeploy UpdateDeploymentStateRequestState = "Undeploy"
-)
-
-// Valid indicates whether the value is a known member of the UpdateDeploymentStateRequestState enum.
-func (e UpdateDeploymentStateRequestState) Valid() bool {
-	switch e {
-	case UpdateDeploymentStateRequestStateActive:
-		return true
-	case UpdateDeploymentStateRequestStateUndeploy:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpdateDeploymentStateResponseState.
-const (
-	UpdateDeploymentStateResponseStateActive   UpdateDeploymentStateResponseState = "Active"
-	UpdateDeploymentStateResponseStateUndeploy UpdateDeploymentStateResponseState = "Undeploy"
-)
-
-// Valid indicates whether the value is a known member of the UpdateDeploymentStateResponseState enum.
-func (e UpdateDeploymentStateResponseState) Valid() bool {
-	switch e {
-	case UpdateDeploymentStateResponseStateActive:
-		return true
-	case UpdateDeploymentStateResponseStateUndeploy:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for ListOrgEventDeliveriesParamsStatus.
 const (
 	ListOrgEventDeliveriesParamsStatusDelivered ListOrgEventDeliveriesParamsStatus = "delivered"
@@ -576,65 +383,26 @@ func (e ListAgentEventDeliveriesParamsStatus) Valid() bool {
 
 // Defines values for ListProjectEventDeliveriesParamsStatus.
 const (
-	ListProjectEventDeliveriesParamsStatusDelivered ListProjectEventDeliveriesParamsStatus = "delivered"
-	ListProjectEventDeliveriesParamsStatusFailed    ListProjectEventDeliveriesParamsStatus = "failed"
-	ListProjectEventDeliveriesParamsStatusPending   ListProjectEventDeliveriesParamsStatus = "pending"
-	ListProjectEventDeliveriesParamsStatusSkipped   ListProjectEventDeliveriesParamsStatus = "skipped"
+	Delivered ListProjectEventDeliveriesParamsStatus = "delivered"
+	Failed    ListProjectEventDeliveriesParamsStatus = "failed"
+	Pending   ListProjectEventDeliveriesParamsStatus = "pending"
+	Skipped   ListProjectEventDeliveriesParamsStatus = "skipped"
 )
 
 // Valid indicates whether the value is a known member of the ListProjectEventDeliveriesParamsStatus enum.
 func (e ListProjectEventDeliveriesParamsStatus) Valid() bool {
 	switch e {
-	case ListProjectEventDeliveriesParamsStatusDelivered:
+	case Delivered:
 		return true
-	case ListProjectEventDeliveriesParamsStatusFailed:
+	case Failed:
 		return true
-	case ListProjectEventDeliveriesParamsStatusPending:
+	case Pending:
 		return true
-	case ListProjectEventDeliveriesParamsStatusSkipped:
+	case Skipped:
 		return true
 	default:
 		return false
 	}
-}
-
-// AddAgentKindVersionRequest defines model for AddAgentKindVersionRequest.
-type AddAgentKindVersionRequest struct {
-	// BuildName Build name from the source agent's build history
-	BuildName string `json:"buildName"`
-
-	// ConfigSchema Configuration schema for this version
-	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
-
-	// Metadata Optional interface metadata (e.g. OpenAPI spec)
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
-
-	// SourceAgentName Name of the agent the build belongs to
-	SourceAgentName string `json:"sourceAgentName"`
-
-	// SourceProjectName Project the source agent belongs to
-	SourceProjectName string `json:"sourceProjectName"`
-
-	// Version Version tag for this release. Stored as a Kubernetes label on every agent created from this version, so it must be at most 63 characters of letters, digits, '.', '_' or '-', starting and ending with a letter or digit.
-	Version string `json:"version"`
-}
-
-// AgentCardCORSConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
-type AgentCardCORSConfig struct {
-	// AllowCredentials Whether credentials are allowed. Cannot be true when allowOrigin contains "*".
-	AllowCredentials *bool `json:"allowCredentials,omitempty"`
-
-	// AllowHeaders Allowed request headers.
-	AllowHeaders *[]string `json:"allowHeaders,omitempty"`
-
-	// AllowOrigin Allowed origins. Use ["*"] to allow all (incompatible with allowCredentials).
-	AllowOrigin *[]string `json:"allowOrigin,omitempty"`
-
-	// Enabled Enable CORS on the public Agent Card route. Required on a request when inherit is false.
-	Enabled *bool `json:"enabled,omitempty"`
-
-	// Inherit When true the card follows the agent's CORS: enabled when agent CORS is, with the agent's origins and credentials setting and Content-Type as the only header. On a request, true clears any stored override and the other fields are ignored. On a response, the other fields hold the effective values.
-	Inherit *bool `json:"inherit,omitempty"`
 }
 
 // AgentCreatedBy The user who created this agent. Resolved from an audit-only
@@ -686,90 +454,6 @@ type AgentIdentityEnvironmentView struct {
 	Status AgentThunderStatus `json:"status"`
 }
 
-// AgentKindConfigSchemaItem defines model for AgentKindConfigSchemaItem.
-type AgentKindConfigSchemaItem struct {
-	// DefaultValue Default value if not provided by the user (plain text for input; for a secret item, responses never carry the real value, only a masked placeholder if a default exists, or nothing if it doesn't)
-	DefaultValue *string `json:"defaultValue,omitempty"`
-
-	// Description Description of the configuration item
-	Description *string `json:"description,omitempty"`
-
-	// IsMandatory Whether this value must be provided when creating an agent from this kind
-	IsMandatory bool `json:"isMandatory"`
-
-	// IsSecret Whether this value should be treated as a secret
-	IsSecret bool `json:"isSecret"`
-
-	// Name Configuration key name (used as env var name)
-	Name string `json:"name"`
-}
-
-// AgentKindListResponse defines model for AgentKindListResponse.
-type AgentKindListResponse struct {
-	Kinds  []AgentKindResponse `json:"kinds"`
-	Limit  int32               `json:"limit"`
-	Offset int32               `json:"offset"`
-	Total  int32               `json:"total"`
-}
-
-// AgentKindResponse defines model for AgentKindResponse.
-type AgentKindResponse struct {
-	CreatedAt   time.Time `json:"createdAt"`
-	Description *string   `json:"description,omitempty"`
-
-	// DisplayName Human-readable name
-	DisplayName string `json:"displayName"`
-
-	// Kind Resource type discriminator (always "AgentKind" for this schema)
-	Kind AgentKindResponseKind `json:"kind"`
-
-	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
-	Labels *Labels `json:"labels,omitempty"`
-
-	// LatestVersion The most recently published version tag
-	LatestVersion *string `json:"latestVersion,omitempty"`
-
-	// Name Unique slug name of the Agent Kind within the organization
-	Name      string                     `json:"name"`
-	UpdatedAt *time.Time                 `json:"updatedAt,omitempty"`
-	Uuid      openapi_types.UUID         `json:"uuid"`
-	Versions  []AgentKindVersionResponse `json:"versions"`
-}
-
-// AgentKindResponseKind Resource type discriminator (always "AgentKind" for this schema)
-type AgentKindResponseKind string
-
-// AgentKindVersionResponse defines model for AgentKindVersionResponse.
-type AgentKindVersionResponse struct {
-	// AgentSubType Agent sub-type (chat-api, custom-api or a2a-agent)
-	AgentSubType *AgentKindVersionResponseAgentSubType `json:"agentSubType,omitempty"`
-
-	// BuildName Build name from the source agent used to publish this version
-	BuildName *string `json:"buildName,omitempty"`
-
-	// ConfigSchema Configuration schema defining the parameters users must supply when creating an agent from this kind
-	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
-	CreatedAt    time.Time                   `json:"createdAt"`
-
-	// ImageId Docker image ID for this version. A kind version is only created once the source build completes successfully with an image.
-	ImageId string `json:"imageId"`
-
-	// Metadata Optional interface metadata for this version (e.g. OpenAPI spec). Only returned on single-version fetch.
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
-
-	// SourceAgentName Name of the agent this version was published from
-	SourceAgentName string `json:"sourceAgentName"`
-
-	// SourceProjectName Project the source agent belongs to
-	SourceProjectName string `json:"sourceProjectName"`
-
-	// Version Version tag
-	Version string `json:"version"`
-}
-
-// AgentKindVersionResponseAgentSubType Agent sub-type (chat-api, custom-api or a2a-agent)
-type AgentKindVersionResponseAgentSubType string
-
 // AgentListResponse defines model for AgentListResponse.
 type AgentListResponse struct {
 	Agents []AgentResponse `json:"agents"`
@@ -799,15 +483,6 @@ type AgentRegenerateSecretResponse struct {
 	// already-running workload failed. The workload keeps using the previous secret
 	// until its next deploy, promote, or rotation.
 	WorkloadRefreshWarning *string `json:"workloadRefreshWarning,omitempty"`
-}
-
-// AgentResourceConfigsResponse defines model for AgentResourceConfigsResponse.
-type AgentResourceConfigsResponse struct {
-	AutoScaling *AutoScalingConfig `json:"autoScaling,omitempty"`
-
-	// Replicas Current number of replicas
-	Replicas  *int32          `json:"replicas,omitempty"`
-	Resources *ResourceConfig `json:"resources,omitempty"`
 }
 
 // AgentResponse defines model for AgentResponse.
@@ -888,143 +563,10 @@ type AgentType struct {
 	Type string `json:"type"`
 }
 
-// AutoScalingConfig defines model for AutoScalingConfig.
-type AutoScalingConfig struct {
-	// Enabled Whether autoscaling is enabled
-	Enabled *bool `json:"enabled,omitempty"`
-
-	// MaxReplicas Maximum number of replicas
-	MaxReplicas *int32 `json:"maxReplicas,omitempty"`
-
-	// MinReplicas Minimum number of replicas
-	MinReplicas *int32 `json:"minReplicas,omitempty"`
-}
-
-// Branch Git branch information
-type Branch struct {
-	// CommitSha SHA of the latest commit on this branch
-	CommitSha string `json:"commitSha"`
-
-	// IsDefault Whether this is the default branch of the repository
-	IsDefault bool `json:"isDefault"`
-
-	// Name Branch name
-	Name string `json:"name"`
-}
-
 // Build defines model for Build.
 type Build struct {
 	union json.RawMessage
 }
-
-// BuildDetailsResponse defines model for BuildDetailsResponse.
-type BuildDetailsResponse struct {
-	AgentName string  `json:"agentName"`
-	BuildId   *string `json:"buildId,omitempty"`
-	BuildName string  `json:"buildName"`
-
-	// BuildParameters Parameters used for the build
-	BuildParameters BuildParameters `json:"buildParameters"`
-
-	// DurationSeconds Build duration in seconds
-	DurationSeconds *int       `json:"durationSeconds,omitempty"`
-	EndedAt         *time.Time `json:"endedAt,omitempty"`
-
-	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
-	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
-	ImageId      *string       `json:"imageId,omitempty"`
-
-	// InputInterface Endpoint configurations
-	InputInterface *InputInterface `json:"inputInterface,omitempty"`
-
-	// Percent Build completion percentage (0-100)
-	Percent     *float32  `json:"percent,omitempty"`
-	ProjectName string    `json:"projectName"`
-	StartedAt   time.Time `json:"startedAt"`
-
-	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
-	Status *BuildDetailsResponseStatus `json:"status,omitempty"`
-
-	// Steps Array of build steps with their status
-	Steps *[]BuildStep `json:"steps,omitempty"`
-}
-
-// BuildDetailsResponseStatus Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
-type BuildDetailsResponseStatus string
-
-// BuildParameters Parameters used for the build
-type BuildParameters struct {
-	// AppPath Path within the repository
-	AppPath string `json:"appPath"`
-
-	// Branch Branch name
-	Branch string `json:"branch"`
-
-	// CommitId Commit ID
-	CommitId string `json:"commitId"`
-
-	// DockerfilePath Path to the Dockerfile relative to the app path (docker builds only)
-	DockerfilePath *string `json:"dockerfilePath,omitempty"`
-
-	// Language Programming language
-	Language string `json:"language"`
-
-	// LanguageVersion Language version (buildpack builds only)
-	LanguageVersion string `json:"languageVersion"`
-
-	// RepoUrl Repository URL
-	RepoUrl string `json:"repoUrl"`
-
-	// RunCommand Command to run the application (buildpack builds only)
-	RunCommand string `json:"runCommand"`
-}
-
-// BuildResponse defines model for BuildResponse.
-type BuildResponse struct {
-	AgentName string  `json:"agentName"`
-	BuildId   *string `json:"buildId,omitempty"`
-	BuildName string  `json:"buildName"`
-
-	// BuildParameters Parameters used for the build
-	BuildParameters BuildParameters `json:"buildParameters"`
-	EndedAt         *time.Time      `json:"endedAt,omitempty"`
-
-	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
-	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
-	ImageId      *string       `json:"imageId,omitempty"`
-	ProjectName  string        `json:"projectName"`
-	StartedAt    time.Time     `json:"startedAt"`
-
-	// Status Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
-	Status *BuildResponseStatus `json:"status,omitempty"`
-}
-
-// BuildResponseStatus Overall build status, derived from the underlying workflow phase. Succeeded means the image was built and pushed; Completed additionally means the workload CR was updated. Per-step progress is in `steps`.
-type BuildResponseStatus string
-
-// BuildStep defines model for BuildStep.
-type BuildStep struct {
-	// FinishedAt Timestamp when the step finished
-	FinishedAt *time.Time `json:"finishedAt,omitempty"`
-
-	// Message Human-readable message about the step
-	Message string `json:"message"`
-
-	// StartedAt Timestamp when the step occurred
-	StartedAt *time.Time `json:"startedAt,omitempty"`
-
-	// Status Status of the build step
-	Status BuildStepStatus `json:"status"`
-
-	// Type Type of build step
-	Type BuildStepType `json:"type"`
-}
-
-// BuildStepStatus Status of the build step
-type BuildStepStatus string
-
-// BuildStepType Type of build step
-type BuildStepType string
 
 // BuildpackBuild defines model for BuildpackBuild.
 type BuildpackBuild struct {
@@ -1049,67 +591,6 @@ type BuildpackConfig struct {
 	RunCommand *string `json:"runCommand,omitempty"`
 }
 
-// BuildsListResponse defines model for BuildsListResponse.
-type BuildsListResponse struct {
-	Builds []BuildResponse `json:"builds"`
-	Limit  int             `json:"limit"`
-	Offset int             `json:"offset"`
-
-	// Total Total number of builds matching the query
-	Total int `json:"total"`
-}
-
-// CORSConfig defines model for CORSConfig.
-type CORSConfig struct {
-	// AllowCredentials Whether credentials are allowed. Cannot be true when allowOrigin contains "*"
-	AllowCredentials *bool `json:"allowCredentials,omitempty"`
-
-	// AllowHeaders Allowed request headers for CORS
-	AllowHeaders *[]string `json:"allowHeaders,omitempty"`
-
-	// AllowMethods Allowed HTTP methods for CORS
-	AllowMethods *[]string `json:"allowMethods,omitempty"`
-
-	// AllowOrigin Allowed origins. Use ["*"] to allow all (incompatible with allowCredentials)
-	AllowOrigin *[]string `json:"allowOrigin,omitempty"`
-
-	// Enabled Enable or disable CORS for this agent endpoint
-	Enabled *bool `json:"enabled,omitempty"`
-}
-
-// Commit Git commit information
-type Commit struct {
-	// Author Commit author information
-	Author CommitAuthor `json:"author"`
-
-	// IsLatest Whether this is the latest commit on the branch
-	IsLatest bool `json:"isLatest"`
-
-	// Message Commit message
-	Message string `json:"message"`
-
-	// Sha Full commit SHA
-	Sha string `json:"sha"`
-
-	// ShortSha Short commit SHA (first 7 characters)
-	ShortSha string `json:"shortSha"`
-
-	// Timestamp Commit timestamp
-	Timestamp time.Time `json:"timestamp"`
-}
-
-// CommitAuthor Commit author information
-type CommitAuthor struct {
-	// AvatarUrl URL to the author's avatar image
-	AvatarUrl *string `json:"avatarUrl,omitempty"`
-
-	// Email Author email
-	Email string `json:"email"`
-
-	// Name Author name
-	Name string `json:"name"`
-}
-
 // ConfigResponse defines model for ConfigResponse.
 type ConfigResponse struct {
 	// ConsoleAnalyticsEnabled Whether this deployment accepts console usage analytics. The
@@ -1123,40 +604,6 @@ type ConfigResponse struct {
 	// not off). The console hides Events when false. Absent is treated as
 	// false.
 	EventsEnabled *bool `json:"eventsEnabled,omitempty"`
-}
-
-// Configurations defines model for Configurations.
-type Configurations struct {
-	CorsConfig *CORSConfig `json:"corsConfig,omitempty"`
-
-	// EnableApiKeySecurity Enable API key security for the agent endpoint
-	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
-
-	// EnableAutoInstrumentation Enable automatic OTEL instrumentation for the agent
-	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
-
-	// EnableOAuthSecurity Enable OAuth security for the agent endpoint. Mutually exclusive with enableApiKeySecurity.
-	EnableOAuthSecurity *bool `json:"enableOAuthSecurity,omitempty"`
-
-	// Env Environment variables
-	Env *[]EnvironmentVariable `json:"env,omitempty"`
-
-	// Files File mounts
-	Files *[]FileMount `json:"files,omitempty"`
-
-	// InstrumentationVersion AMP instrumentation version to use for the agent. Selects the
-	// pre-built init-container image
-	// (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the
-	// `traceloop-sdk` it pins. Omit (or send null) to use the platform
-	// default. Must be one of the versions supported by the deployment;
-	// unknown values are rejected.
-	InstrumentationVersion *string `json:"instrumentationVersion,omitempty"`
-
-	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
-	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
-
-	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in this environment. Defaults to 30 seconds when unset.
-	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
 }
 
 // ConsoleAction One thing a user did in the console UI.
@@ -1240,21 +687,6 @@ type CreateAgentRequest struct {
 	Provisioning Provisioning `json:"provisioning"`
 }
 
-// CreateDeploymentPipelineRequest defines model for CreateDeploymentPipelineRequest.
-type CreateDeploymentPipelineRequest struct {
-	// Description Optional description
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable name for the pipeline
-	DisplayName string `json:"displayName"`
-
-	// ProjectName Optional project to associate the pipeline with
-	ProjectName *string `json:"projectName,omitempty"`
-
-	// PromotionPaths Ordered list of promotion paths
-	PromotionPaths []PromotionPath `json:"promotionPaths"`
-}
-
 // CreateEnvironmentRequest defines model for CreateEnvironmentRequest.
 type CreateEnvironmentRequest struct {
 	// DataplaneRef Optional reference to the dataplane. When omitted, the default dataplane is used.
@@ -1284,21 +716,6 @@ type CreateEnvironmentRequest struct {
 
 // CreateEnvironmentRequestIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
 type CreateEnvironmentRequestIsolationTier string
-
-// CreateGitSecretRequest defines model for CreateGitSecretRequest.
-type CreateGitSecretRequest struct {
-	// Credentials Authentication credentials for a git secret.
-	Credentials GitCredentials `json:"credentials"`
-
-	// Name User-provided name for the git secret
-	Name string `json:"name"`
-
-	// Type Authentication type
-	Type CreateGitSecretRequestType `json:"type"`
-}
-
-// CreateGitSecretRequestType Authentication type
-type CreateGitSecretRequestType string
 
 // CreateGroupRequest defines model for CreateGroupRequest.
 type CreateGroupRequest struct {
@@ -1347,88 +764,6 @@ type CreateUserRequest struct {
 	Type string `json:"type"`
 }
 
-// DataPlane defines model for DataPlane.
-type DataPlane struct {
-	// CreatedAt Timestamp when the data plane was created
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Description Description of the data plane
-	Description string `json:"description"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// Name Name of the data plane
-	Name string `json:"name"`
-}
-
-// DataPlaneListResponse List of data planes
-type DataPlaneListResponse = []DataPlane
-
-// DeployAgentRequest defines model for DeployAgentRequest.
-type DeployAgentRequest struct {
-	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
-	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
-	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
-
-	// EnableApiKeySecurity Enable API key security for the agent endpoint
-	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
-
-	// EnableAutoInstrumentation Enable auto instrumentation for observability
-	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
-
-	// EnableOAuthSecurity Enable OAuth security for the agent endpoint. Mutually exclusive with enableApiKeySecurity.
-	EnableOAuthSecurity *bool `json:"enableOAuthSecurity,omitempty"`
-
-	// Env Environment variables
-	Env *[]EnvironmentVariable `json:"env,omitempty"`
-
-	// Files File mounts
-	Files *[]FileMount `json:"files,omitempty"`
-
-	// ImageId Container image ID to deploy
-	ImageId string `json:"imageId"`
-
-	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
-	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
-}
-
-// DeploymentPipelineListResponse defines model for DeploymentPipelineListResponse.
-type DeploymentPipelineListResponse struct {
-	DeploymentPipelines []DeploymentPipelineResponse `json:"deploymentPipelines"`
-	Limit               int                          `json:"limit"`
-	Offset              int                          `json:"offset"`
-
-	// Total Total number of deployment pipelines matching the query
-	Total int `json:"total"`
-}
-
-// DeploymentPipelineResponse defines model for DeploymentPipelineResponse.
-type DeploymentPipelineResponse struct {
-	// CreatedAt Timestamp when the pipeline was created
-	CreatedAt time.Time `json:"createdAt"`
-
-	// Description Description of the deployment pipeline
-	Description string `json:"description"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// Name Name of the deployment pipeline
-	Name string `json:"name"`
-
-	// PromotionPaths List of promotion paths in the pipeline
-	PromotionPaths []PromotionPath `json:"promotionPaths"`
-}
-
-// DeploymentResponse defines model for DeploymentResponse.
-type DeploymentResponse struct {
-	AgentName   string `json:"agentName"`
-	Environment string `json:"environment"`
-	ImageId     string `json:"imageId"`
-	ProjectName string `json:"projectName"`
-}
-
 // DockerBuild defines model for DockerBuild.
 type DockerBuild struct {
 	Docker DockerConfig `json:"docker"`
@@ -1445,28 +780,6 @@ type DockerConfig struct {
 	// DockerfilePath Path to the Dockerfile relative to the app path (e.g. "Dockerfile" or "docker/Dockerfile")
 	DockerfilePath string `json:"dockerfilePath"`
 }
-
-// EndpointConfiguration defines model for EndpointConfiguration.
-type EndpointConfiguration struct {
-	// EndpointName Name of the endpoint
-	EndpointName string         `json:"endpointName"`
-	Schema       EndpointSchema `json:"schema"`
-
-	// Url URL of the endpoint
-	Url string `json:"url"`
-
-	// Visibility Visibility level of the endpoint
-	Visibility string `json:"visibility"`
-}
-
-// EndpointSchema defines model for EndpointSchema.
-type EndpointSchema struct {
-	// Content Schema content
-	Content string `json:"content"`
-}
-
-// EndpointsResponse Map of endpoint names to endpoint configurations
-type EndpointsResponse map[string]EndpointConfiguration
 
 // Environment defines model for Environment.
 type Environment struct {
@@ -1494,21 +807,6 @@ type Environment struct {
 
 // EnvironmentListResponse List of environments
 type EnvironmentListResponse = []Environment
-
-// EnvironmentVariable defines model for EnvironmentVariable.
-type EnvironmentVariable struct {
-	// IsSensitive If true, value is stored in KV and synced via ExternalSecret
-	IsSensitive *bool `json:"isSensitive,omitempty"`
-
-	// Key Environment variable name
-	Key string `json:"key"`
-
-	// SecretRef Reference to existing secret.
-	SecretRef *string `json:"secretRef,omitempty"`
-
-	// Value Value (plain text or secret value for input; omitted for secrets in responses)
-	Value *string `json:"value,omitempty"`
-}
 
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
@@ -1801,24 +1099,6 @@ type EventTypeListResponse struct {
 // Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
 type Extensions map[string]map[string]interface{}
 
-// FileMount defines model for FileMount.
-type FileMount struct {
-	// IsSensitive If true, value is stored in KV and synced via ExternalSecret
-	IsSensitive *bool `json:"isSensitive,omitempty"`
-
-	// Key File name/key identifier
-	Key string `json:"key"`
-
-	// MountPath Mount path in container (absolute path, no '..' segments)
-	MountPath string `json:"mountPath"`
-
-	// SecretRef Reference to existing secret.
-	SecretRef *string `json:"secretRef,omitempty"`
-
-	// Value File content (plain text or secret value for input; omitted for secrets in responses)
-	Value *string `json:"value,omitempty"`
-}
-
 // GatewayEndpointSpec Gateway resource endpoint configuration
 type GatewayEndpointSpec struct {
 	// Http Gateway listener configuration
@@ -1894,15 +1174,6 @@ type GatewaySpec struct {
 	Ingress *GatewayNetworkSpec `json:"ingress,omitempty"`
 }
 
-// GitCredentials Authentication credentials for a git secret.
-type GitCredentials struct {
-	// Password Password or personal access token for basic auth
-	Password string `json:"password"`
-
-	// Username Username for basic auth
-	Username string `json:"username"`
-}
-
 // GitHubAppSource Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it. When omitted, public-repository and PAT-backed behavior is unchanged.
 type GitHubAppSource struct {
 	// AppPath Source directory; defaults to provisioning.repository.appPath
@@ -1922,27 +1193,6 @@ type GitHubAppSource struct {
 
 	// RepositoryUrl Repository clone URL; defaults to provisioning.repository.url
 	RepositoryUrl *string `json:"repositoryUrl,omitempty"`
-}
-
-// GitSecretListResponse defines model for GitSecretListResponse.
-type GitSecretListResponse struct {
-	// Limit Number of results per page
-	Limit int32 `json:"limit"`
-
-	// Offset Number of results skipped
-	Offset int32 `json:"offset"`
-
-	// Secrets List of git secrets
-	Secrets []GitSecretResponse `json:"secrets"`
-
-	// Total Total number of git secrets
-	Total int32 `json:"total"`
-}
-
-// GitSecretResponse defines model for GitSecretResponse.
-type GitSecretResponse struct {
-	// Name Name of the git secret
-	Name string `json:"name"`
 }
 
 // GroupListResponse defines model for GroupListResponse.
@@ -2068,102 +1318,6 @@ type JWKS struct {
 // Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 type Labels map[string]string
 
-// ListBranchesRequest Request body for listing repository branches
-type ListBranchesRequest struct {
-	// IncludeDefault Whether to include default branch information in the response
-	IncludeDefault *bool `json:"includeDefault,omitempty"`
-
-	// Owner Repository owner (organization or user)
-	Owner string `json:"owner"`
-
-	// Repository Repository name
-	Repository string `json:"repository"`
-
-	// SecretRef Secret reference name for private repository Git credentials
-	SecretRef *string `json:"secretRef,omitempty"`
-}
-
-// ListBranchesResponse Response containing list of branches
-type ListBranchesResponse struct {
-	// Branches List of branches
-	Branches []Branch `json:"branches"`
-
-	// Limit Maximum number of results returned
-	Limit int `json:"limit"`
-
-	// NextOffset Offset to use for fetching the next page (only present when more results are available)
-	NextOffset *int `json:"nextOffset,omitempty"`
-
-	// Offset Number of results skipped
-	Offset int `json:"offset"`
-}
-
-// ListCommitsRequest Request body for listing repository commits
-type ListCommitsRequest struct {
-	// Author Filter commits by author (GitHub username or email)
-	Author *string `json:"author,omitempty"`
-
-	// Branch Branch name or SHA to list commits from (defaults to repository's default branch)
-	Branch *string `json:"branch,omitempty"`
-
-	// ComponentName Optional component name used to resolve a deployment-specific repository binding
-	ComponentName *string `json:"componentName,omitempty"`
-
-	// Owner Repository owner (organization or user)
-	Owner string `json:"owner"`
-
-	// Path Filter commits affecting this file path
-	Path *string `json:"path,omitempty"`
-
-	// ProjectName Optional project name used to resolve a deployment-specific repository binding
-	ProjectName *string `json:"projectName,omitempty"`
-
-	// Repo Repository name
-	Repo string `json:"repo"`
-
-	// SecretRef Secret reference name for private repository Git credentials
-	SecretRef *string `json:"secretRef,omitempty"`
-
-	// Since Filter commits after this date (RFC3339 format)
-	Since *time.Time `json:"since,omitempty"`
-
-	// Until Filter commits before this date (RFC3339 format)
-	Until *time.Time `json:"until,omitempty"`
-}
-
-// ListCommitsResponse Response containing list of commits
-type ListCommitsResponse struct {
-	// Commits List of commits
-	Commits []Commit `json:"commits"`
-
-	// Limit Maximum number of results returned
-	Limit int `json:"limit"`
-
-	// NextOffset Offset to use for fetching the next page (only present when more results are available)
-	NextOffset *int `json:"nextOffset,omitempty"`
-
-	// Offset Number of results skipped
-	Offset int `json:"offset"`
-}
-
-// OAuthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
-type OAuthConfig struct {
-	// Audiences Accepted token audiences (aud claim). Validation succeeds only when at least one configured audience is present in the token. Empty disables audience validation.
-	Audiences *[]string `json:"audiences,omitempty"`
-
-	// AuthHeaderPrefix Prefix before the token in the header value.
-	AuthHeaderPrefix *string `json:"authHeaderPrefix,omitempty"`
-
-	// ForwardToken When true, the original token header is forwarded to the upstream service after successful validation. When false, it is stripped before the request is proxied.
-	ForwardToken *bool `json:"forwardToken,omitempty"`
-
-	// HeaderName Request header carrying the token.
-	HeaderName *string `json:"headerName,omitempty"`
-
-	// Issuers Issuer names for token validation, referencing identity provider entries configured gateway-side. Must be non-empty when OAuth security is enabled, and every name must be one of the environment's configured identity providers.
-	Issuers *[]string `json:"issuers,omitempty"`
-}
-
 // OrganizationListItem defines model for OrganizationListItem.
 type OrganizationListItem struct {
 	// CreatedAt Timestamp when the organization was created
@@ -2255,80 +1409,6 @@ type ProjectResponse struct {
 	Uuid string `json:"uuid"`
 }
 
-// PromoteAgentRequest defines model for PromoteAgentRequest.
-type PromoteAgentRequest struct {
-	// AgentCardCorsConfig CORS for the public Agent Card route (/.well-known/agent-card.json) of an A2A agent. The card route sits outside the agent-wide policy chain, so it has its own CORS. Methods are always GET and OPTIONS. Applies only to A2A agents.
-	AgentCardCorsConfig *AgentCardCORSConfig `json:"agentCardCorsConfig,omitempty"`
-	CorsConfig          *CORSConfig          `json:"corsConfig,omitempty"`
-
-	// EnableApiKeySecurity Enable API key security for the agent endpoint in the target environment
-	EnableApiKeySecurity *bool `json:"enableApiKeySecurity,omitempty"`
-
-	// EnableAutoInstrumentation Enable auto instrumentation for observability in the target environment
-	EnableAutoInstrumentation *bool `json:"enableAutoInstrumentation,omitempty"`
-
-	// EnableOAuthSecurity Enable OAuth security for the agent endpoint in the target environment. Mutually exclusive with enableApiKeySecurity.
-	EnableOAuthSecurity *bool `json:"enableOAuthSecurity,omitempty"`
-
-	// Env Environment-specific environment variables for the target environment.
-	Env *[]EnvironmentVariable `json:"env,omitempty"`
-
-	// Files Environment-specific file mounts for the target environment.
-	Files *[]FileMount `json:"files,omitempty"`
-
-	// InstrumentationVersion AMP instrumentation version to pin for the agent in the target
-	// environment. Selects the pre-built init-container image
-	// (`amp-python-instrumentation-provider:<version>-python<X.Y>`) and the
-	// `traceloop-sdk` it bundles. Applies only to Python buildpack agents
-	// with auto-instrumentation enabled. Omit (or send null) to inherit the
-	// currently-pinned version. Must be one of the versions supported by
-	// the deployment; unknown or python-incompatible values are rejected.
-	InstrumentationVersion *string `json:"instrumentationVersion,omitempty"`
-
-	// OauthConfig OAuth security configuration for the agent endpoint. Callers authenticate with a standard Authorization Bearer token validated by the gateway.
-	OauthConfig *OAuthConfig `json:"oauthConfig,omitempty"`
-
-	// ResilienceTimeoutSeconds Max duration (seconds) the gateway keeps a response open between the agent and the client before cutting it off, for this agent's endpoint in the target environment. Omit to inherit the source environment's value.
-	ResilienceTimeoutSeconds *int `json:"resilienceTimeoutSeconds,omitempty"`
-
-	// SourceEnvironment Source environment to promote from
-	SourceEnvironment string `json:"sourceEnvironment"`
-
-	// TargetEnvironment Target environment to promote to
-	TargetEnvironment string `json:"targetEnvironment"`
-
-	// UseConfigFromSourceEnv When true, the target environment inherits BOTH its configurations
-	// AND its deploy settings from the source environment.
-	// mode — they are mutually exclusive with useConfigFromSourceEnv=true.
-	// When false or omitted, the per-environment overrides must be
-	// supplied in the request.
-	UseConfigFromSourceEnv *bool `json:"useConfigFromSourceEnv,omitempty"`
-}
-
-// PromoteAgentResponse defines model for PromoteAgentResponse.
-type PromoteAgentResponse struct {
-	// AgentName Name of the promoted agent
-	AgentName *string `json:"agentName,omitempty"`
-
-	// ProjectName Project containing the agent
-	ProjectName *string `json:"projectName,omitempty"`
-
-	// SourceEnvironment Source environment promoted from
-	SourceEnvironment *string `json:"sourceEnvironment,omitempty"`
-
-	// TargetEnvironment Target environment promoted to
-	TargetEnvironment *string `json:"targetEnvironment,omitempty"`
-}
-
-// PromotionPath defines model for PromotionPath.
-type PromotionPath struct {
-	// SourceEnvironmentRef Reference to the source environment
-	SourceEnvironmentRef string `json:"sourceEnvironmentRef"`
-
-	// TargetEnvironmentRefs List of target environment references
-	TargetEnvironmentRefs []TargetEnvironmentRef `json:"targetEnvironmentRefs"`
-}
-
 // Provisioning defines model for Provisioning.
 type Provisioning struct {
 	// AgentKind Reference to a published Agent Kind version (mutually exclusive with repository)
@@ -2350,33 +1430,6 @@ type Provisioning struct {
 // ProvisioningType Type of provisioning
 type ProvisioningType string
 
-// PublishAgentKindRequest defines model for PublishAgentKindRequest.
-type PublishAgentKindRequest struct {
-	// BuildName Build name from this agent's build history
-	BuildName string `json:"buildName"`
-
-	// ConfigSchema Configuration schema for this version
-	ConfigSchema []AgentKindConfigSchemaItem `json:"configSchema"`
-
-	// KindDescription Description — used only when creating a new kind
-	KindDescription *string `json:"kindDescription,omitempty"`
-
-	// KindDisplayName Display name — required when creating a new kind, ignored if kind already exists
-	KindDisplayName *string `json:"kindDisplayName,omitempty"`
-
-	// KindLabels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
-	KindLabels *Labels `json:"kindLabels,omitempty"`
-
-	// KindName Target Agent Kind name. Creates a new kind if it does not exist.
-	KindName string `json:"kindName"`
-
-	// Metadata Optional interface metadata (e.g. OpenAPI spec)
-	Metadata *map[string]interface{} `json:"metadata,omitempty"`
-
-	// Version Version tag for this release. Stored as a Kubernetes label on every agent created from this version, so it must be at most 63 characters of letters, digits, '.', '_' or '-', starting and ending with a letter or digit.
-	Version string `json:"version"`
-}
-
 // RepositoryConfig Git repository configuration
 type RepositoryConfig struct {
 	// AppPath Path within the repository where the source code resides
@@ -2390,21 +1443,6 @@ type RepositoryConfig struct {
 
 	// Url URL of the git repository
 	Url string `json:"url"`
-}
-
-// ResourceConfig defines model for ResourceConfig.
-type ResourceConfig struct {
-	Limits   *ResourceLimits   `json:"limits,omitempty"`
-	Requests *ResourceRequests `json:"requests,omitempty"`
-}
-
-// ResourceLimits defines model for ResourceLimits.
-type ResourceLimits struct {
-	// Cpu CPU limit (e.g., "500m", "2", "1.5")
-	Cpu *string `json:"cpu,omitempty"`
-
-	// Memory Memory limit (e.g., "512Mi", "2Gi", "1Ti", "256Ki")
-	Memory *string `json:"memory,omitempty"`
 }
 
 // ResourceNameRequest defines model for ResourceNameRequest.
@@ -2429,15 +1467,6 @@ type ResourceNameResponse struct {
 
 	// ResourceType Type of resource (e.g., agent, project)
 	ResourceType string `json:"resourceType"`
-}
-
-// ResourceRequests defines model for ResourceRequests.
-type ResourceRequests struct {
-	// Cpu CPU request (e.g., "100m", "0.5", "1.5")
-	Cpu *string `json:"cpu,omitempty"`
-
-	// Memory Memory request (e.g., "256Mi", "1Gi", "512Ki", "2Ti")
-	Memory *string `json:"memory,omitempty"`
 }
 
 // RoleListResponse defines model for RoleListResponse.
@@ -2475,12 +1504,6 @@ type RoleResponse struct {
 		Permissions      *[]string `json:"permissions,omitempty"`
 		ResourceServerId *string   `json:"resourceServerId,omitempty"`
 	} `json:"permissions,omitempty"`
-}
-
-// TargetEnvironmentRef defines model for TargetEnvironmentRef.
-type TargetEnvironmentRef struct {
-	// Name Name of the target environment
-	Name string `json:"name"`
 }
 
 // ThunderSystemClientRequest The env-Thunder system-client OAuth2 credential to store for an environment.
@@ -2560,28 +1583,6 @@ type TokenResponse struct {
 	TokenType string `json:"token_type"`
 }
 
-// TracingTokenRegenerateRequest defines model for TracingTokenRegenerateRequest.
-type TracingTokenRegenerateRequest struct {
-	// EnvironmentName Environment in which to rotate the agent's tracing token
-	EnvironmentName string `json:"environmentName"`
-
-	// ExpiresIn Optional token expiry duration in Go duration format (e.g., "2160h" for 90 days).
-	// If not provided, the default expiry from configuration is used.
-	ExpiresIn *string `json:"expiresIn,omitempty"`
-}
-
-// TracingTokenRegenerateResponse defines model for TracingTokenRegenerateResponse.
-type TracingTokenRegenerateResponse struct {
-	// EnvironmentName Environment in which the tracing API key was rotated
-	EnvironmentName string `json:"environmentName"`
-
-	// ExpiresAt Unix timestamp when the new API key expires
-	ExpiresAt int64 `json:"expiresAt"`
-
-	// RotatedAt Unix timestamp when the API key was rotated
-	RotatedAt int64 `json:"rotatedAt"`
-}
-
 // UIManifestModule defines model for UIManifestModule.
 type UIManifestModule struct {
 	Name string              `json:"name"`
@@ -2628,77 +1629,6 @@ type UpdateAgentBasicInfoRequest struct {
 	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
 	Labels *Labels `json:"labels,omitempty"`
 }
-
-// UpdateAgentBuildParametersRequest defines model for UpdateAgentBuildParametersRequest.
-type UpdateAgentBuildParametersRequest struct {
-	AgentType      AgentType       `json:"agentType"`
-	Build          Build           `json:"build"`
-	Configurations *Configurations `json:"configurations,omitempty"`
-
-	// HealthChecks Startup, readiness and liveness checks for the agent's container. A check that is not set uses the default: startup and readiness are TCP checks on the agent's port, and there is no liveness check.
-	HealthChecks *HealthChecks `json:"healthChecks,omitempty"`
-
-	// InputInterface Endpoint configurations
-	InputInterface InputInterface `json:"inputInterface"`
-	Provisioning   Provisioning   `json:"provisioning"`
-}
-
-// UpdateAgentKindRequest defines model for UpdateAgentKindRequest.
-type UpdateAgentKindRequest struct {
-	Description *string `json:"description,omitempty"`
-	DisplayName string  `json:"displayName"`
-
-	// Labels User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
-	Labels *Labels `json:"labels,omitempty"`
-}
-
-// UpdateAgentResourceConfigsRequest defines model for UpdateAgentResourceConfigsRequest.
-type UpdateAgentResourceConfigsRequest struct {
-	AutoScaling AutoScalingConfig `json:"autoScaling"`
-
-	// Replicas Number of replicas to run (only used when autoscaling is disabled)
-	Replicas  int32          `json:"replicas"`
-	Resources ResourceConfig `json:"resources"`
-}
-
-// UpdateDeploymentPipelineRequest defines model for UpdateDeploymentPipelineRequest.
-type UpdateDeploymentPipelineRequest struct {
-	// Description Updated description
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Updated display name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// PromotionPaths Updated list of promotion paths
-	PromotionPaths []PromotionPath `json:"promotionPaths"`
-}
-
-// UpdateDeploymentStateRequest Request to update the deployment state of an agent
-type UpdateDeploymentStateRequest struct {
-	// Environment Target environment name
-	Environment string `json:"environment"`
-
-	// State Desired deployment state
-	State UpdateDeploymentStateRequestState `json:"state"`
-}
-
-// UpdateDeploymentStateRequestState Desired deployment state
-type UpdateDeploymentStateRequestState string
-
-// UpdateDeploymentStateResponse Response indicating the deployment state transition request was accepted.
-type UpdateDeploymentStateResponse struct {
-	// Environment Environment where the state transition was requested
-	Environment string `json:"environment"`
-
-	// Message Confirmation message indicating the state transition request was accepted
-	Message string `json:"message"`
-
-	// State Desired deployment state that was requested (not necessarily the current state)
-	State UpdateDeploymentStateResponseState `json:"state"`
-}
-
-// UpdateDeploymentStateResponseState Desired deployment state that was requested (not necessarily the current state)
-type UpdateDeploymentStateResponseState string
 
 // UpdateEnvironmentRequest defines model for UpdateEnvironmentRequest.
 type UpdateEnvironmentRequest struct {
@@ -2790,24 +1720,6 @@ type ListOrganizationsParams struct {
 	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
 }
 
-// ListAgentKindsParams defines parameters for ListAgentKinds.
-type ListAgentKindsParams struct {
-	Limit  *int `form:"limit,omitempty" json:"limit,omitempty"`
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-
-	// Label Filter by label as key:value. Repeat the parameter to require multiple labels (AND semantics).
-	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
-}
-
-// ListDeploymentPipelinesParams defines parameters for ListDeploymentPipelines.
-type ListDeploymentPipelinesParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // ListEnvironmentsParams defines parameters for ListEnvironments.
 type ListEnvironmentsParams struct {
 	// Limit Maximum number of results to return
@@ -2848,15 +1760,6 @@ type ListEventTypesParams struct {
 
 // ListEventTypesParamsScope defines parameters for ListEventTypes.
 type ListEventTypesParamsScope string
-
-// ListGitSecretsParams defines parameters for ListGitSecrets.
-type ListGitSecretsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
 
 // ListGroupsParams defines parameters for ListGroups.
 type ListGroupsParams struct {
@@ -2906,26 +1809,6 @@ type ListAgentsParams struct {
 	Label *[]string `form:"label,omitempty" json:"label,omitempty"`
 }
 
-// GetAgentBuildsParams defines parameters for GetAgentBuilds.
-type GetAgentBuildsParams struct {
-	// Limit Maximum number of results to return
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// BuildAgentParams defines parameters for BuildAgent.
-type BuildAgentParams struct {
-	CommitId *string `form:"commitId,omitempty" json:"commitId,omitempty"`
-}
-
-// GetAgentEndpointsParams defines parameters for GetAgentEndpoints.
-type GetAgentEndpointsParams struct {
-	// Environment Environment name
-	Environment string `form:"environment" json:"environment"`
-}
-
 // ListAgentEventDeliveriesParams defines parameters for ListAgentEventDeliveries.
 type ListAgentEventDeliveriesParams struct {
 	// DestinationId Only deliveries to this destination.
@@ -2971,18 +1854,6 @@ type ProvisionAgentIdentityParams struct {
 	Environment string `form:"environment" json:"environment"`
 }
 
-// GetAgentResourceConfigsParams defines parameters for GetAgentResourceConfigs.
-type GetAgentResourceConfigsParams struct {
-	// Environment Optional environment name. If omitted, returns component-level defaults. If provided, returns environment-specific resource configurations.
-	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
-}
-
-// UpdateAgentResourceConfigsParams defines parameters for UpdateAgentResourceConfigs.
-type UpdateAgentResourceConfigsParams struct {
-	// Environment Optional environment name. If provided, updates only that environment's resource configurations via release binding componentTypeEnvOverrides. If omitted, updates component-level defaults that apply to all environments (unless overridden).
-	Environment *string `form:"environment,omitempty" json:"environment,omitempty"`
-}
-
 // GetAgentRolesParams defines parameters for GetAgentRoles.
 type GetAgentRolesParams struct {
 	// Environment Environment name to read the agent's roles for
@@ -3016,24 +1887,6 @@ type ListProjectEventDeliveriesParams struct {
 // ListProjectEventDeliveriesParamsStatus defines parameters for ListProjectEventDeliveries.
 type ListProjectEventDeliveriesParamsStatus string
 
-// ListRepositoryBranchesParams defines parameters for ListRepositoryBranches.
-type ListRepositoryBranchesParams struct {
-	// Limit Maximum number of results to return (default 30, max 100)
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip for pagination (default 0)
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
-// ListRepositoryCommitsParams defines parameters for ListRepositoryCommits.
-type ListRepositoryCommitsParams struct {
-	// Limit Maximum number of results to return (default 30, max 100)
-	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
-
-	// Offset Number of results to skip for pagination (default 0)
-	Offset *int `form:"offset,omitempty" json:"offset,omitempty"`
-}
-
 // CheckThunderUrlAvailabilityParams defines parameters for CheckThunderUrlAvailability.
 type CheckThunderUrlAvailabilityParams struct {
 	// Handle The candidate env-Thunder URL handle to check.
@@ -3042,18 +1895,6 @@ type CheckThunderUrlAvailabilityParams struct {
 
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
 type CreateOrganizationJSONRequestBody = CreateOrganizationRequest
-
-// UpdateAgentKindJSONRequestBody defines body for UpdateAgentKind for application/json ContentType.
-type UpdateAgentKindJSONRequestBody = UpdateAgentKindRequest
-
-// AddAgentKindVersionJSONRequestBody defines body for AddAgentKindVersion for application/json ContentType.
-type AddAgentKindVersionJSONRequestBody = AddAgentKindVersionRequest
-
-// CreateDeploymentPipelineJSONRequestBody defines body for CreateDeploymentPipeline for application/json ContentType.
-type CreateDeploymentPipelineJSONRequestBody = CreateDeploymentPipelineRequest
-
-// UpdateDeploymentPipelineJSONRequestBody defines body for UpdateDeploymentPipeline for application/json ContentType.
-type UpdateDeploymentPipelineJSONRequestBody = UpdateDeploymentPipelineRequest
 
 // CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
 type CreateEnvironmentJSONRequestBody = CreateEnvironmentRequest
@@ -3078,9 +1919,6 @@ type CreateOrgEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
 // UpdateOrgEventSubscriptionJSONRequestBody defines body for UpdateOrgEventSubscription for application/json ContentType.
 type UpdateOrgEventSubscriptionJSONRequestBody = EventSubscriptionRequest
-
-// CreateGitSecretJSONRequestBody defines body for CreateGitSecret for application/json ContentType.
-type CreateGitSecretJSONRequestBody = CreateGitSecretRequest
 
 // CreateGroupJSONRequestBody defines body for CreateGroup for application/json ContentType.
 type CreateGroupJSONRequestBody = CreateGroupRequest
@@ -3115,15 +1953,6 @@ type CreateAgentJSONRequestBody = CreateAgentRequest
 // UpdateAgentJSONRequestBody defines body for UpdateAgent for application/json ContentType.
 type UpdateAgentJSONRequestBody = UpdateAgentBasicInfoRequest
 
-// UpdateAgentBuildParametersJSONRequestBody defines body for UpdateAgentBuildParameters for application/json ContentType.
-type UpdateAgentBuildParametersJSONRequestBody = UpdateAgentBuildParametersRequest
-
-// DeployAgentJSONRequestBody defines body for DeployAgent for application/json ContentType.
-type DeployAgentJSONRequestBody = DeployAgentRequest
-
-// UpdateAgentDeploymentStateJSONRequestBody defines body for UpdateAgentDeploymentState for application/json ContentType.
-type UpdateAgentDeploymentStateJSONRequestBody = UpdateDeploymentStateRequest
-
 // CreateAgentEventSubscriptionJSONRequestBody defines body for CreateAgentEventSubscription for application/json ContentType.
 type CreateAgentEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
@@ -3136,32 +1965,14 @@ type RegenerateAgentIdentitySecretJSONRequestBody = AgentIdentityActionRequest
 // RetryAgentIdentityProvisioningJSONRequestBody defines body for RetryAgentIdentityProvisioning for application/json ContentType.
 type RetryAgentIdentityProvisioningJSONRequestBody = AgentIdentityActionRequest
 
-// PromoteAgentJSONRequestBody defines body for PromoteAgent for application/json ContentType.
-type PromoteAgentJSONRequestBody = PromoteAgentRequest
-
-// PublishAgentKindJSONRequestBody defines body for PublishAgentKind for application/json ContentType.
-type PublishAgentKindJSONRequestBody = PublishAgentKindRequest
-
-// UpdateAgentResourceConfigsJSONRequestBody defines body for UpdateAgentResourceConfigs for application/json ContentType.
-type UpdateAgentResourceConfigsJSONRequestBody = UpdateAgentResourceConfigsRequest
-
 // GenerateAgentTokenJSONRequestBody defines body for GenerateAgentToken for application/json ContentType.
 type GenerateAgentTokenJSONRequestBody = TokenRequest
-
-// RegenerateAgentTracingTokenJSONRequestBody defines body for RegenerateAgentTracingToken for application/json ContentType.
-type RegenerateAgentTracingTokenJSONRequestBody = TracingTokenRegenerateRequest
 
 // CreateProjectEventSubscriptionJSONRequestBody defines body for CreateProjectEventSubscription for application/json ContentType.
 type CreateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
 
 // UpdateProjectEventSubscriptionJSONRequestBody defines body for UpdateProjectEventSubscription for application/json ContentType.
 type UpdateProjectEventSubscriptionJSONRequestBody = EventSubscriptionRequest
-
-// ListRepositoryBranchesJSONRequestBody defines body for ListRepositoryBranches for application/json ContentType.
-type ListRepositoryBranchesJSONRequestBody = ListBranchesRequest
-
-// ListRepositoryCommitsJSONRequestBody defines body for ListRepositoryCommits for application/json ContentType.
-type ListRepositoryCommitsJSONRequestBody = ListCommitsRequest
 
 // GetNameByDisplayNameJSONRequestBody defines body for GetNameByDisplayName for application/json ContentType.
 type GetNameByDisplayNameJSONRequestBody = ResourceNameRequest
