@@ -23,6 +23,7 @@ import { ConfirmationDialogProvider } from "@agent-management-platform/shared-co
 import {
   SnackBarProvider,
   ExternalModuleProvider,
+  DocumentTitleProvider,
   type ExternalModule,
 } from "@agent-management-platform/views";
 import type { FeatureFlags } from "@agent-management-platform/feature-management";
@@ -35,29 +36,33 @@ export const GlobalProviders = ({
   externalPageModules = [],
   featureFlags,
   useFeatureAccess,
+  documentTitle,
 }: {
   children: React.ReactNode;
   externalPageModules?: ExternalModule[];
   featureFlags?: Partial<FeatureFlags>;
   useFeatureAccess?: UseFeatureAccess;
+  documentTitle?: string;
 }) => {
   return (
-    <OxygenUIThemeProvider theme={OxygenTheme}>
-      <SnackBarProvider>
-        <AuthProvider>
-          <ClientProvider>
-            <RuntimeConfigProvider>
-              <FeatureAccessBridge featureFlags={featureFlags} useAccess={useFeatureAccess}>
-                <ConfirmationDialogProvider>
-                  <ExternalModuleProvider externalPageModules={externalPageModules}>
-                    {children}
-                  </ExternalModuleProvider>
-                </ConfirmationDialogProvider>
-              </FeatureAccessBridge>
-            </RuntimeConfigProvider>
-          </ClientProvider>
-        </AuthProvider>
-      </SnackBarProvider>
-    </OxygenUIThemeProvider>
+    <DocumentTitleProvider baseTitle={documentTitle}>
+      <OxygenUIThemeProvider theme={OxygenTheme}>
+        <SnackBarProvider>
+          <AuthProvider>
+            <ClientProvider>
+              <RuntimeConfigProvider>
+                <FeatureAccessBridge featureFlags={featureFlags} useAccess={useFeatureAccess}>
+                  <ConfirmationDialogProvider>
+                    <ExternalModuleProvider externalPageModules={externalPageModules}>
+                      {children}
+                    </ExternalModuleProvider>
+                  </ConfirmationDialogProvider>
+                </FeatureAccessBridge>
+              </RuntimeConfigProvider>
+            </ClientProvider>
+          </AuthProvider>
+        </SnackBarProvider>
+      </OxygenUIThemeProvider>
+    </DocumentTitleProvider>
   );
 };
