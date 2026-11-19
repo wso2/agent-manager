@@ -34,7 +34,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
+	"github.com/wso2/agent-manager/agent-manager-service/mcp/handlers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/reconcile"
@@ -93,6 +95,11 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 		return "http://orders.dp-ns.svc.cluster.local:8080", nil
 	}
 	app := apitestutils.MakeAppClientWithDeps(t, wiring.TestClients{OpenChoreoClient: oc}, jwtassertion.NewMockMiddleware(t))
+	params, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), db.DB(context.Background()),
+		jwtassertion.NewMockMiddleware(t), wiring.TestClients{OpenChoreoClient: oc}, nil)
+	require.NoError(t, err)
+	// mcpProxies is the Agent Manager MCP server's get_mcp_proxy backend.
+	mcpProxies := handlers.NewMCPProxyHandler(params.MCPProxyService, params.ProjectMCPProxyService, params.InfraResourceManager)
 	h := &projectProxyHarness{t: t, app: app, org: testOrgName}
 	orgDo := func(method, path string, body any) *httptest.ResponseRecorder {
 		t.Helper()
@@ -186,6 +193,15 @@ func TestProjectMCPProxyOfDeletedProject(t *testing.T) {
 		assert.Equal(t, project, decodeProxy(t, rr).ProjectName)
 		rr = h.do(http.MethodGet, project, envPath(orders), nil)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+		// The MCP server reads it as the project route does.
+		viaMCP, err := mcpProxies.GetProjectMCPProxy(context.Background(), ouID, project, orders)
+		require.NoError(t, err)
+		assert.Equal(t, project, viaMCP.ProjectName)
+		require.Len(t, viaMCP.Environments, 1)
+		assert.Equal(t, devEnv, viaMCP.Environments[0].EnvironmentName)
+		_, err = mcpProxies.GetProjectMCPProxy(context.Background(), ouID, "px-"+suffix, orders)
+		assert.ErrorIs(t, err, utils.ErrMCPProxyNotFound, "another deleted project's name does not reach it")
 
 		rr = h.do(http.MethodPut, project, "/"+orders, body(orders))
 		require.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())

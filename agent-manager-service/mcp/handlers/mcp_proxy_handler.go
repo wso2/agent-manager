@@ -17,9 +17,11 @@ package handlers
 
 import (
 	"context"
+	"errors"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type MCPProxyHandler struct {
@@ -54,11 +56,15 @@ func (h *MCPProxyHandler) GetMCPProxy(ctx context.Context, ouID string, proxyID 
 	return h.proxySvc.Get(ctx, ouID, proxyID)
 }
 
-// GetProjectMCPProxy returns a project proxy with its environment bindings, which carry its tools.
+// GetProjectMCPProxy returns a project proxy with its environment bindings, which carry its tools. A proxy whose
+// project OpenChoreo no longer has is read by its stored project name, as the project route reads it.
 func (h *MCPProxyHandler) GetProjectMCPProxy(
 	ctx context.Context, ouID string, projectName string, proxyID string,
 ) (*models.ProjectMCPProxyResponse, error) {
 	project, err := h.infraSvc.GetProject(ctx, ouID, projectName)
+	if errors.Is(err, utils.ErrProjectNotFound) {
+		return h.projectSvc.GetInDeletedProject(ctx, ouID, projectName, proxyID)
+	}
 	if err != nil {
 		return nil, err
 	}
