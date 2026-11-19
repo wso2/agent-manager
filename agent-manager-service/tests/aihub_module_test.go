@@ -97,8 +97,10 @@ type planGatewayModule struct{ gateways *planGateways }
 const planGatewayModuleName = "plangw"
 
 func (m planGatewayModule) Manifest() modkit.Manifest {
-	return modkit.Manifest{Name: planGatewayModuleName, Version: "0.1.0", CoreAPI: modkit.CoreAPIVersion,
-		Provides: []string{subplanv1.GatewayID}}
+	return modkit.Manifest{
+		Name: planGatewayModuleName, Version: "0.1.0", CoreAPI: modkit.CoreAPIVersion,
+		Provides: []string{subplanv1.GatewayID},
+	}
 }
 func (planGatewayModule) Migrations() fs.FS { return nil }
 func (planGatewayModule) UI() fs.FS         { return nil }
@@ -155,8 +157,10 @@ func newPlansWorld(t *testing.T) plansWorld {
 		}
 	}
 	return plansWorld{
-		moduleWorld: moduleWorld{host: host, full: handler(full), limited: handler(limited), org: org, handle: handle,
-			internal: api.MakeInternalHTTPHandlerWithModules(full, host, parts)},
+		moduleWorld: moduleWorld{
+			host: host, full: handler(full), limited: handler(limited), org: org, handle: handle,
+			internal: api.MakeInternalHTTPHandlerWithModules(full, host, parts),
+		},
 		reader:      handler(reader),
 		other:       handler(other),
 		otherHandle: otherHandle,
@@ -205,9 +209,11 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		"id": "gold", "displayName": "Gold", "description": "For production agents",
 		"conditions": []any{
 			map[string]any{"type": "request-count", "params": map[string]any{"limits": []any{
-				map[string]any{"count": 1000, "timeUnit": "HOUR"}}}},
+				map[string]any{"count": 1000, "timeUnit": "HOUR"},
+			}}},
 			map[string]any{"type": "tool-call-count", "params": map[string]any{"limits": []any{
-				map[string]any{"count": 3, "timeAmount": 1, "timeUnit": "MINUTE"}}, "onExceed": "reject"}},
+				map[string]any{"count": 3, "timeAmount": 1, "timeUnit": "MINUTE"},
+			}, "onExceed": "reject"}},
 		},
 	}
 
@@ -331,7 +337,8 @@ func TestSubscriptionPlansModule(t *testing.T) {
 	t.Run("update keeps omitted fields and clears expiry on null", func(t *testing.T) {
 		expiry := "2030-01-01T00:00:00Z"
 		code, body := w.call(t, w.full, http.MethodPut, plansPath+"/gold", map[string]any{
-			"displayName": "Gold+", "expiryTime": expiry, "status": "INACTIVE"})
+			"displayName": "Gold+", "expiryTime": expiry, "status": "INACTIVE",
+		})
 		require.Equal(t, http.StatusOK, code, string(body))
 		p := decodeAs[planBody](t, body)
 		assert.Equal(t, "Gold+", p.DisplayName)
@@ -341,7 +348,8 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		assert.Equal(t, "INACTIVE", p.Status)
 
 		code, body = w.call(t, w.full, http.MethodPut, plansPath+"/gold", map[string]any{
-			"displayName": "Gold+", "expiryTime": nil, "conditions": []any{}})
+			"displayName": "Gold+", "expiryTime": nil, "conditions": []any{},
+		})
 		require.Equal(t, http.StatusOK, code, string(body))
 		p = decodeAs[planBody](t, body)
 		assert.Nil(t, p.ExpiryTime)
@@ -381,7 +389,6 @@ func TestSubscriptionPlansModule(t *testing.T) {
 			`WHERE NOT EXISTS (SELECT 1 FROM subscription_plans p WHERE p.id = c.plan_id)`).Scan(&left).Error)
 		assert.Zero(t, left)
 	})
-
 }
 
 const webhookSecret = "integration-webhook-secret"
@@ -422,10 +429,13 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 	code, refused := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", gone, now, now))
 	require.Equal(t, http.StatusUnauthorized, code, "a module that isn't active answers no delivery: "+refused)
 	installPlans(context.Background(), t, w)
-	mcpPlan := map[string]any{"handle": "mcp-gold", "display_name": "MCP Gold", "description": "From the MCP hub",
+	mcpPlan := map[string]any{
+		"handle": "mcp-gold", "display_name": "MCP Gold", "description": "From the MCP hub",
 		"conditions": []any{map[string]any{"type": "tool-call-count", "params": map[string]any{
-			"limits": []any{map[string]any{"count": 30, "timeAmount": 1, "timeUnit": "MINUTE"}}}}},
-		"pricing": nil}
+			"limits": []any{map[string]any{"count": 30, "timeAmount": 1, "timeUnit": "MINUTE"}},
+		}}},
+		"pricing": nil,
+	}
 
 	t.Run("created: the plan is copied in, dated when it was made", func(t *testing.T) {
 		made := now.Add(-time.Hour)
@@ -450,8 +460,10 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 	})
 
 	t.Run("updated: name and conditions follow; old senders' limits change only requests", func(t *testing.T) {
-		upd := map[string]any{"handle": "mcp-gold", "display_name": "MCP Gold+",
-			"limits": []any{map[string]any{"limit_type": "REQUEST_COUNT", "limit_count": 100, "time_unit": "MINUTE", "time_amount": 1}}}
+		upd := map[string]any{
+			"handle": "mcp-gold", "display_name": "MCP Gold+",
+			"limits": []any{map[string]any{"limit_type": "REQUEST_COUNT", "limit_count": 100, "time_unit": "MINUTE", "time_amount": 1}},
+		}
 		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.updated", upd, now, now))
 		require.Equal(t, http.StatusOK, code, body)
 		_, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
@@ -460,24 +472,37 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 		require.Len(t, p.Conditions, 2, "the request limit is added; the tool-call condition stays")
 	})
 
-	t.Run("refused alike: bad signature, stale signature, unknown org, paid plan, unknown event", func(t *testing.T) {
+	t.Run("refused alike: bad signature, stale signature, unknown org, unknown event", func(t *testing.T) {
 		bad := delivery(t, w.handle, "subscription_plan.created", mcpPlan, now, now)
 		bad.Header.Set(aihub.DefaultWebhookSignatureHeader, aihub.Sign("wrong-secret", []byte("x"), now))
 		stale := delivery(t, w.handle, "subscription_plan.created", mcpPlan, now, now.Add(-10*time.Minute))
 		unknownOrg := delivery(t, "no-such-org", "subscription_plan.created", mcpPlan, now, now)
-		paid := map[string]any{"handle": "paid", "display_name": "Paid", "pricing": map[string]any{"pricingType": "FLAT_RATE"}}
 		unknownEvent := delivery(t, w.handle, "meter.created", map[string]any{"handle": "m"}, now, now)
 		for name, req := range map[string]*http.Request{
 			"bad signature": bad, "stale signature": stale, "unknown org": unknownOrg,
-			"paid plan":     delivery(t, w.handle, "subscription_plan.created", paid, now, now),
 			"unknown event": unknownEvent,
 		} {
 			code, body := send(t, w.internal, req)
 			assert.Equal(t, http.StatusUnauthorized, code, name)
 			assert.JSONEq(t, `{"status":"error","code":"UNAUTHORIZED","message":"Invalid or expired credentials."}`, body, name)
 		}
-		code, _ := w.call(t, w.full, http.MethodGet, plansPath+"/paid", nil)
-		assert.Equal(t, http.StatusNotFound, code, "nothing was created")
+	})
+
+	t.Run("a priced plan is stored without its price", func(t *testing.T) {
+		paid := map[string]any{
+			"handle": "paid", "display_name": "Paid", "pricing": map[string]any{"pricingType": "FLAT_RATE"},
+			"conditions": []any{map[string]any{"type": "request-count", "params": map[string]any{
+				"limits": []any{map[string]any{"count": 10, "timeAmount": 1, "timeUnit": "MINUTE"}},
+			}}},
+		}
+		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", paid, now, now))
+		require.Equal(t, http.StatusOK, code, body)
+		code, got := w.call(t, w.full, http.MethodGet, plansPath+"/paid", nil)
+		require.Equal(t, http.StatusOK, code, string(got))
+		p := decodeAs[planBody](t, got)
+		assert.Equal(t, "Paid", p.DisplayName)
+		assert.Len(t, p.Conditions, 1, "its conditions are kept")
+		assert.NotContains(t, string(got), "pricing")
 	})
 
 	t.Run("deleted: an older deletion keeps a newer plan; a current one deletes; a repeat succeeds", func(t *testing.T) {
@@ -561,9 +586,11 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 			"conditions": []any{
 				map[string]any{"type": "request-count", "params": map[string]any{"limits": []any{
 					map[string]any{"count": 5, "timeAmount": 10, "timeUnit": "MINUTE"},
-					map[string]any{"count": 1000, "timeAmount": 1, "timeUnit": "HOUR"}}}},
+					map[string]any{"count": 1000, "timeAmount": 1, "timeUnit": "HOUR"},
+				}}},
 				map[string]any{"type": "tool-call-count", "params": map[string]any{"limits": []any{
-					map[string]any{"count": 30, "timeAmount": 1, "timeUnit": "MINUTE"}}}},
+					map[string]any{"count": 30, "timeAmount": 1, "timeUnit": "MINUTE"},
+				}}},
 			},
 		})
 		require.Equal(t, http.StatusCreated, code, string(body))
@@ -598,7 +625,8 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 
 	t.Run("a change and a deletion are pushed too", func(t *testing.T) {
 		code, body := w.call(t, w.full, http.MethodPut, plansPath+"/"+handle, map[string]any{
-			"displayName": "Gateway Gold v2", "status": "INACTIVE"})
+			"displayName": "Gateway Gold v2", "status": "INACTIVE",
+		})
 		require.Equal(t, http.StatusOK, code, string(body))
 		got := sent(handle, subplanv1.Updated)
 		assert.Equal(t, "Gateway Gold v2", got.plan.Name)
@@ -617,7 +645,8 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", map[string]any{
 			"handle": portal, "display_name": "Portal Silver",
 			"conditions": []any{map[string]any{"type": "request-count", "params": map[string]any{
-				"limits": []any{map[string]any{"count": 60, "timeAmount": 1, "timeUnit": "MINUTE"}}}}},
+				"limits": []any{map[string]any{"count": 60, "timeAmount": 1, "timeUnit": "MINUTE"}},
+			}}},
 		}, now, now))
 		require.Equal(t, http.StatusOK, code, body)
 		got := sent(portal, subplanv1.Created)

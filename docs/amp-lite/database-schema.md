@@ -430,7 +430,7 @@ The `aihub` module is installable. Its two tables live in the core migrations wi
 | description | short text (1023) | yes | |
 | status | short text (16) | no | `ACTIVE` or `INACTIVE` |
 | expiry_time | time | yes | |
-| created_by, updated_by | short text (255) | yes | `system` for default plans; empty for plans copied in by the webhook |
+| created_by, updated_by | short text (255) | yes | Empty for plans copied in by the webhook |
 | created_at, updated_at | time | no | A plan copied in by the webhook is dated when it was made at its source. |
 
 Unique (org_id, handle) and (org_id, id).

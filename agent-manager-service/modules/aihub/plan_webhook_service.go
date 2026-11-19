@@ -37,12 +37,12 @@ import (
 //     a change made here changes nothing. The in-use lock does not apply: the source made the change.
 //
 // Senders that predate conditions send only request limits (requestWindows); those change only the
-// request-count condition. Pricing is refused: Agent Manager plans are free.
+// request-count condition. A priced plan is stored without its price: Agent Manager plans are free for now.
 func (s *planService) upsertFromWebhook(ctx context.Context, orgID, handle, name, description string,
 	conditions *[]Condition, requestWindows []Window, paid bool, occurredAt time.Time,
 ) (*plan, error) {
 	if paid {
-		return nil, invalid("plan %s is a paid plan; Agent Manager plans are free", handle)
+		s.log.InfoContext(ctx, "storing a priced plan from the webhook without its price", "orgId", orgID, "plan", handle)
 	}
 	// Stored trimmed, so compare trimmed: a name with edge spaces would otherwise update on every event.
 	name = strings.TrimSpace(name)
