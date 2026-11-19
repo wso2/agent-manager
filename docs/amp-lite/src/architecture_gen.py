@@ -109,20 +109,21 @@ sub("console", 318, 404, 190, 150,
     "pages from GET /api/v1/ui-manifest",
     GREEN, "#F2FBF7")
 reg("console", 318, 404, 190, 150)
-reg("core", 520, 404, 270, 150)
-sub("core", 520, 404, 270, 150,
-    "<b>Core</b><br/>REST API and MCP server<br/>orgs, projects, external agents and their agent tokens<br/>"
-    "RBAC and audit log<br/>at startup: migrates the database and creates the default org",
+reg("core", 520, 404, 236, 150)
+sub("core", 520, 404, 236, 150,
+    "<b>Core</b><br/>REST API and MCP server<br/>orgs, projects, external agents and their tokens<br/>"
+    "RBAC, audit log, events, secrets<br/>at startup: migrates the database and creates the default org",
     GREEN, "#F2FBF7")
-sub("modhost", 802, 404, 300, 150,
-    "<b>Module host</b><br/>install · enable · disable (amp module, amp.yaml)<br/>routes · hooks · events · capabilities<br/>"
-    "modules provide llm.proxy, mcp.proxy · core provides identity.directory",
+reg("modhost", 812, 404, 290, 150)
+sub("modhost", 812, 404, 290, 150,
+    "<b>Module host</b> · install · enable · disable<br/>"
+    "modules reach the core only through modkit: rt.Core · rt.Secrets · hooks · events · capabilities",
     GREEN, "#F2FBF7")
-sub("mod_gw", 814, 476, 172, 70,
-    "<b>ai-gateway</b> · module, on by default<br/>gateways, LLM and MCP proxies; WebSocket :9243",
+sub("mod_gw", 822, 474, 176, 72,
+    "<b>ai-gateway</b> · on by default<br/>gateways, LLM and MCP proxies; provides llm.proxy, mcp.proxy",
     INDIGO, "#F5F5FF")
-sub("mod_legacy", 994, 476, 96, 70,
-    "<b>legacy</b><br/>leftover permissions",
+sub("mod_legacy", 1006, 474, 86, 72,
+    "<b>legacy</b><br/>built in; leftover permissions",
     SLATE, "#F1F5F9")
 comp("thunder", 300, 600, 820, 135, RED, "ThunderID",
      "<b>For people and services:</b> single sign-on (console, CLI, MCP); users, roles and groups<br/>"
@@ -141,8 +142,10 @@ text("dp_lbl", 1200, 298, 820, 20, "DATA PLANE", size=13, color=INDIGO, bold=Tru
 comp("gw", 1200, 330, 820, 220, INDIGO, "AI Gateway",
      "• inbound: the public entry point for agent endpoints; API keys and OAuth tokens checked here<br/>"
      "• outbound: LLM and MCP proxy, guardrails, token and cost limits; provider keys stay in the gateway<br/>"
-     "• gateway-controller pulls its config from Agent Manager; gateway-runtime (Envoy) serves the traffic",
-     logos=[IMG["gw_logo0"]], prod="amp only · the gateway module registers the default gateway at startup · more per org", prod_color=INDIGO)
+     "• gateway-controller pulls its config from Agent Manager over the controller API on /api/internal/v1 (:9243), "
+     "authenticated with its gateway token (api-key); once controllers register as module workloads (#2493), with core-issued credentials and heartbeats<br/>"
+     "• gateway-runtime (Envoy) serves the traffic; upstream credentials are kept by Agent Manager in its secrets, not in the gateway's rows",
+     logos=[IMG["gw_logo0"]], prod="amp installs the ai-gateway module by default · its worker registers the default gateway · more per org", prod_color=INDIGO)
 
 # ---------------------------------------------------------------- not in Lite
 box("later", 1180, 610, 860, 210, GREY, fill="#F8FAFC", arc=2, dashed=True)
@@ -163,7 +166,8 @@ def backing(id, x, y, w, h, sub_text=""):
 
 backing("bk_left", 40, 290, 200, 530)
 comp("sqldb", 54, 340, 172, 270, BLUE, "SQL database",
-     "core and module tables, audit log, and secrets encrypted with ENCRYPTION_KEY (AES-256-GCM)<br/><i>SQLite by default, PostgreSQL 18 with the postgres profile; SQL Server 2025 and Oracle 19c planned</i>",
+     "core tables and module tables (mod_&lt;name&gt;_*), audit log, and secrets encrypted with ENCRYPTION_KEY (AES-256-GCM), "
+     "including modules' secrets (rt.Secrets(), such as the gateway's upstream credentials)<br/><i>SQLite by default, PostgreSQL 18 with the postgres profile; SQL Server 2025 and Oracle 19c planned</i>",
      logos=[DB_ICON], logo_size=22, title_size=13)
 comp("thdb", 54, 640, 172, 160, BLUE, "ThunderID data",
      "users, agent identities and OAuth clients<br/>Thunder's own database, separate from Agent Manager's",
@@ -192,8 +196,11 @@ edge("f_eg_ag", [(1350, 221), (1350, 204), (1700, 204), (1700, 190)], INDIGO, "e
 label("l_llm", 1318, 270, 150, "LLM · MCP · to agents", INDIGO)
 
 # control plane
-edge("f_api_gwcfg", [(1120, 440), (1200, 440)], GREEN, "amapi", "gw")
-label("l_gwcfg", 1128, 406, 64, "config<br/>:9243", GREEN, align="center", fill="#FFFFFF", h=30)
+edge("f_core_mod", [(756, 470), (812, 470)], GREEN, "core", "modhost")
+edge("f_mod_core", [(812, 500), (756, 500)], GREEN, "modhost", "core")
+label("l_modkit", 758, 476, 52, "modkit<br/>rt.*", GREEN, align="center", fill="#F2FBF7", h=22)
+edge("f_api_gwcfg", [(1200, 440), (1120, 440)], GREEN, "gw", "amapi")
+label("l_gwcfg", 1124, 400, 72, "controller API<br/>:9243", GREEN, align="center", fill="#FFFFFF", h=30)
 edge("f_sso", [(420, 554), (420, 600)], RED, "console", "thunder", dashed=True)
 label("l_sso", 428, 580, 100, "single sign-on", RED)
 edge("f_api_th", [(620, 570), (620, 600)], RED, "amapi", "thunder", dashed=True)
