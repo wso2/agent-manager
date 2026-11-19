@@ -1,0 +1,41 @@
+<!--
+  ClickHouse users for the observability module's span table, otel.otel_traces.
+  The install mounts this file into /etc/clickhouse-server/users.d/ and sets
+  the three passwords in ClickHouse's environment. Users defined in a file
+  can't be changed or granted more with SQL.
+
+  amp_migrator  DDL on the otel database, for `amp migrate`. No reads or writes.
+  amp_ingest    INSERT on the span table, for the OTel collector.
+  amp_reader    SELECT on the span table, for the observability module.
+-->
+<clickhouse>
+  <users>
+    <amp_migrator>
+      <password from_env="AMP_CLICKHOUSE_MIGRATOR_PASSWORD"/>
+      <networks><ip>::/0</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <grants>
+        <query>GRANT CREATE DATABASE, CREATE TABLE, DROP TABLE, ALTER COLUMN, ALTER INDEX, ALTER TTL, ALTER MATERIALIZE TTL, ALTER SETTINGS ON otel.*</query>
+      </grants>
+    </amp_migrator>
+    <amp_ingest>
+      <password from_env="AMP_CLICKHOUSE_INGEST_PASSWORD"/>
+      <networks><ip>::/0</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <grants>
+        <query>GRANT INSERT ON otel.otel_traces</query>
+      </grants>
+    </amp_ingest>
+    <amp_reader>
+      <password from_env="AMP_CLICKHOUSE_READER_PASSWORD"/>
+      <networks><ip>::/0</ip></networks>
+      <profile>default</profile>
+      <quota>default</quota>
+      <grants>
+        <query>GRANT SELECT ON otel.otel_traces</query>
+      </grants>
+    </amp_reader>
+  </users>
+</clickhouse>
