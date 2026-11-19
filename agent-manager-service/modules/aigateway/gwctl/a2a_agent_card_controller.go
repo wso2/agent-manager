@@ -27,7 +27,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
-	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -124,7 +123,7 @@ func writeAgentCardError(w http.ResponseWriter, r *http.Request, err error, fall
 	case errors.Is(err, gwerr.ErrA2AProxyOriginChangeNeedsAuthReset):
 		httpx.WriteErrorResponse(w, http.StatusConflict, gwerr.ErrA2AProxyOriginChangeNeedsAuthReset.Error())
 	default:
-		controllers.HandleCommonErrors(w, err, fallback)
+		handleCommonErrors(w, err, fallback)
 	}
 }
 

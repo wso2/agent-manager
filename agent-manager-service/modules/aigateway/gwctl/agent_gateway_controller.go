@@ -25,7 +25,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
-	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -67,7 +66,7 @@ func (c *AgentGatewayController) UpdateAgentDeploySettings(w http.ResponseWriter
 
 	if err := c.agentService.UpdateAgentDeploySettings(ctx, ouID, projName, agentName, &payload); err != nil {
 		log.Error("UpdateAgentDeploySettings: failed to update deploy settings", "error", err)
-		controllers.HandleCommonErrors(w, err, "Failed to update deploy settings")
+		handleCommonErrors(w, err, "Failed to update deploy settings")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -85,7 +84,7 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 	deployments, err := c.agentService.GetAgentDeployments(ctx, ouID, projName, agentName)
 	if err != nil {
 		log.Error("GetAgentDeployments: failed to get deployments", "error", err)
-		controllers.HandleCommonErrors(w, err, "Failed to get deployments")
+		handleCommonErrors(w, err, "Failed to get deployments")
 		return
 	}
 
@@ -107,7 +106,7 @@ func (c *AgentGatewayController) GetAgentConfigurations(w http.ResponseWriter, r
 	cfg, bindings, err := c.agentService.AgentConfigurations(ctx, ouID, projName, agentName, environment)
 	if err != nil {
 		logger.GetLogger(ctx).Error("GetAgentConfigurations: failed to read configurations", "error", err)
-		controllers.HandleCommonErrors(w, err, "Failed to get configurations")
+		handleCommonErrors(w, err, "Failed to get configurations")
 		return
 	}
 	resp := gwspec.AgentConfigurationResponse{

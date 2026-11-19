@@ -21,7 +21,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 
-	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -50,7 +49,7 @@ func (c *EnvironmentGatewayController) GetEnvironmentGateways(w http.ResponseWri
 	gatewayList, err := c.environmentService.GetEnvironmentGateways(ctx, ouID, envID)
 	if err != nil {
 		log.Error("GetEnvironmentGateways: failed to get gateways", "error", err)
-		controllers.HandleEnvironmentErrors(w, err, "Failed to get environment gateways")
+		handleEnvironmentErrors(w, err, "Failed to get environment gateways")
 		return
 	}
 

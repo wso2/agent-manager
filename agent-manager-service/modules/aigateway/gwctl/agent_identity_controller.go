@@ -32,7 +32,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -188,7 +187,7 @@ func (c *agentIdentityController) managedGroup(w http.ResponseWriter, r *http.Re
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group")
 		return nil, false
 	}
-	if !controllers.ValidateSystemGroup(w, group.Name) {
+	if !validateSystemGroup(w, group.Name) {
 		return nil, false
 	}
 	return &group, true
@@ -234,7 +233,7 @@ func (c *agentIdentityController) CreateGroup(w http.ResponseWriter, r *http.Req
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	if !controllers.ValidateReservedGroupName(w, body.Name) {
+	if !validateReservedGroupName(w, body.Name) {
 		return
 	}
 
@@ -286,7 +285,7 @@ func (c *agentIdentityController) UpdateGroup(w http.ResponseWriter, r *http.Req
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
-	if !controllers.ValidateReservedGroupName(w, body.Name) {
+	if !validateReservedGroupName(w, body.Name) {
 		return
 	}
 
@@ -496,7 +495,7 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
 		return
 	}
-	if !controllers.ValidateReservedRoleName(w, body.Name) {
+	if !validateReservedRoleName(w, body.Name) {
 		return
 	}
 	scopes := body.Scopes
@@ -627,7 +626,7 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	// managedRole below blocks editing the native Administrator role itself.
-	if !controllers.ValidateReservedRoleName(w, body.Name) {
+	if !validateReservedRoleName(w, body.Name) {
 		return
 	}
 	// scopes, when present, fully replaces the role's permissions. Decoding tells

@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -129,7 +128,6 @@ func TestA2AProxyErrorsMapToStatusCodes(t *testing.T) {
 		gwerr.ErrA2AProxyAgentNotExternal:       http.StatusBadRequest,
 		gwerr.ErrAgentNotA2A:                    http.StatusBadRequest,
 		httpx.ErrForbidden:                      http.StatusForbidden,
-		audit.ErrRecorderUnavailable:            http.StatusServiceUnavailable,
 	} {
 		t.Run(sentinel.Error(), func(t *testing.T) {
 			stub := &proxyServiceStub{SetFunc: func(context.Context, string, string, string, string, *gwmodels.A2AProxyAuthUpdate) error {

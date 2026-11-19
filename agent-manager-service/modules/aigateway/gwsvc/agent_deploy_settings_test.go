@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
@@ -36,13 +35,13 @@ func TestResolveResilienceTimeoutSeconds(t *testing.T) {
 		want      int32
 		wantErr   bool
 	}{
-		{"nothing set, withDefaults=true falls back to default", nil, nil, true, constants.DefaultResilienceTimeoutSeconds, false},
+		{"nothing set, withDefaults=true falls back to default", nil, nil, true, DefaultResilienceTimeoutSeconds, false},
 		{"nothing set, withDefaults=false yields zero (no override)", nil, nil, false, 0, false},
 		{"existing DB value is used", &gwmodels.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, nil, false, 60, false},
 		{"request overrides existing DB value", &gwmodels.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(90), false, 90, false},
 		{"out-of-bounds request is rejected", &gwmodels.AgentConfig{ResilienceTimeoutSeconds: int32Ptr(60)}, int32Ptr(10000), false, 0, true},
-		{"minimum bound is accepted", nil, int32Ptr(constants.MinResilienceTimeoutSeconds), false, constants.MinResilienceTimeoutSeconds, false},
-		{"maximum bound is accepted", nil, int32Ptr(constants.MaxResilienceTimeoutSeconds), false, constants.MaxResilienceTimeoutSeconds, false},
+		{"minimum bound is accepted", nil, int32Ptr(MinResilienceTimeoutSeconds), false, MinResilienceTimeoutSeconds, false},
+		{"maximum bound is accepted", nil, int32Ptr(MaxResilienceTimeoutSeconds), false, MaxResilienceTimeoutSeconds, false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

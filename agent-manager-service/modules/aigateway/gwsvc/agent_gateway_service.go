@@ -29,13 +29,19 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+)
+
+// Gateway resilience timeout bounds for an agent's upstream, in seconds.
+const (
+	DefaultResilienceTimeoutSeconds int32 = 30
+	MinResilienceTimeoutSeconds     int32 = 1
+	MaxResilienceTimeoutSeconds     int32 = 3600
 )
 
 // AgentGatewayService is the gateway's side of an agent: the LLM and MCP
@@ -123,15 +129,15 @@ func (s *AgentGatewayService) requireEnvTier(ctx context.Context, ouID, envName 
 func resolveResilienceTimeoutSeconds(existingConfig *gwmodels.AgentConfig, requested *int32, withDefaults bool) (int32, error) {
 	resolved := int32(0)
 	if withDefaults {
-		resolved = constants.DefaultResilienceTimeoutSeconds
+		resolved = DefaultResilienceTimeoutSeconds
 	}
 	if existingConfig != nil && existingConfig.ResilienceTimeoutSeconds != nil {
 		resolved = *existingConfig.ResilienceTimeoutSeconds
 	}
 	if requested != nil {
-		if *requested < constants.MinResilienceTimeoutSeconds || *requested > constants.MaxResilienceTimeoutSeconds {
+		if *requested < MinResilienceTimeoutSeconds || *requested > MaxResilienceTimeoutSeconds {
 			return 0, fmt.Errorf("%w: resilienceTimeoutSeconds must be between %d and %d seconds, got %d",
-				httpx.ErrInvalidInput, constants.MinResilienceTimeoutSeconds, constants.MaxResilienceTimeoutSeconds, *requested)
+				httpx.ErrInvalidInput, MinResilienceTimeoutSeconds, MaxResilienceTimeoutSeconds, *requested)
 		}
 		resolved = *requested
 	}
