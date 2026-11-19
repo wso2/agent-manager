@@ -6897,6 +6897,13 @@ type ApiListOrgAgentsRequest struct {
 	ctx        context.Context
 	ApiService *DefaultAPIService
 	orgName    string
+	view       *string
+}
+
+// &#x60;registry&#x60; adds each agent&#39;s registry record. Leave it out for the lightweight list.
+func (r ApiListOrgAgentsRequest) View(view string) ApiListOrgAgentsRequest {
+	r.view = &view
+	return r
 }
 
 func (r ApiListOrgAgentsRequest) Execute() (*AgentSummaryListResponse, *http.Response, error) {
@@ -6906,7 +6913,7 @@ func (r ApiListOrgAgentsRequest) Execute() (*AgentSummaryListResponse, *http.Res
 /*
 ListOrgAgents List all agents in an organization
 
-Returns a lightweight, unpaginated list of every agent in the organization across all projects, containing each agent's name, display name, and the name and display name of the project it belongs to.
+Returns a lightweight, unpaginated list of every agent in the organization across all projects, containing each agent's name, display name, and the name and display name of the project it belongs to. With `view=registry`, each agent also carries its registry record (`registry`): what it is, who created it, its tags, and its deployment and LLM provider / MCP server access in each environment. Without `view` the response is unchanged.
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param orgName
@@ -6943,6 +6950,9 @@ func (a *DefaultAPIService) ListOrgAgentsExecute(r ApiListOrgAgentsRequest) (*Ag
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.view != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "view", r.view, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 

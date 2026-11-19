@@ -604,7 +604,10 @@ paths:
         Returns a lightweight, unpaginated list of every agent in the
         organization across all projects, containing each agent's name,
         display name, and the name and display name of the project it
-        belongs to.
+        belongs to. With `view=registry`, each agent also carries its
+        registry record (`registry`): what it is, who created it, its tags,
+        and its deployment and LLM provider / MCP server access in each
+        environment. Without `view` the response is unchanged.
       operationId: listOrgAgents
       parameters:
         - name: orgName
@@ -612,6 +615,16 @@ paths:
           required: true
           schema:
             type: string
+        - name: view
+          in: query
+          required: false
+          description: >-
+            `registry` adds each agent's registry record. Leave it out for
+            the lightweight list.
+          schema:
+            type: string
+            enum:
+              - registry
       responses:
         "200":
           description: List of agents in the organization
@@ -16704,11 +16717,118 @@ components:
           type: string
         projectDisplayName:
           type: string
+        registry:
+          $ref: "#/components/schemas/AgentRegistryRecord"
       required:
         - name
         - displayName
         - projectName
         - projectDisplayName
+    AgentRegistryRecord:
+      type: object
+      description: >-
+        The agent's org-level registry record, returned only with
+        `view=registry`. Read from existing data: the agent's component,
+        its AgentID record and its configurations.
+      required:
+        - hosting
+        - labels
+        - createdAt
+        - environments
+      properties:
+        description:
+          type: string
+        hosting:
+          type: string
+          description: Built and deployed by the platform, or registered from outside.
+          enum:
+            - platform
+            - external
+        interface:
+          type: string
+          description: How callers talk to the agent; absent when not recorded.
+          enum:
+            - chat-api
+            - custom-api
+            - a2a-agent
+        kindName:
+          type: string
+          description: The Agent Kind it was created from; absent for source-built agents.
+        kindVersion:
+          type: string
+        createdBy:
+          $ref: "#/components/schemas/AgentRegistryCreatedBy"
+        labels:
+          $ref: "#/components/schemas/Labels"
+        createdAt:
+          type: string
+          format: date-time
+        environments:
+          type: array
+          description: The environments of the agent's project pipeline, in pipeline order.
+          items:
+            $ref: "#/components/schemas/AgentRegistryEnvironment"
+    AgentRegistryCreatedBy:
+      type: object
+      description: >-
+        The user who created the agent, from the requester recorded on its
+        AgentID. Omitted when it could not be resolved.
+      required:
+        - id
+        - displayName
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+    AgentRegistryEnvironment:
+      type: object
+      description: The agent in one environment.
+      required:
+        - name
+        - displayName
+        - isProduction
+        - deploymentStatus
+        - llmProviders
+        - mcpServers
+      properties:
+        name:
+          type: string
+        displayName:
+          type: string
+        isProduction:
+          type: boolean
+        deploymentStatus:
+          type: string
+          enum:
+            - not-deployed
+            - in-progress
+            - active
+            - failed
+            - suspended
+        lastDeployedAt:
+          type: string
+          format: date-time
+          description: Absent when the agent was never deployed here.
+        llmProviders:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentRegistryResourceRef"
+        mcpServers:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentRegistryResourceRef"
+    AgentRegistryResourceRef:
+      type: object
+      description: An LLM provider or MCP server the agent can reach.
+      required:
+        - id
+        - displayName
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
     AgentSummaryListResponse:
       type: object
       properties:

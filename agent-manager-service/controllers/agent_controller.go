@@ -360,12 +360,28 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
+// orgAgentsViewRegistry is the ?view= value that adds each agent's registry record to
+// GET /orgs/{org}/agents.
+const orgAgentsViewRegistry = "registry"
+
 func (c *agentController) ListOrgAgents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := middleware.OUIDFromRequest(r)
 
-	agents, err := c.agentService.ListOrgAgents(ctx, ouID)
+	// view=registry adds each agent's registry record; no view keeps the lightweight list.
+	var agents []*models.AgentSummary
+	var err error
+	switch view := r.URL.Query().Get("view"); view {
+	case "":
+		agents, err = c.agentService.ListOrgAgents(ctx, ouID)
+	case orgAgentsViewRegistry:
+		agents, err = c.agentService.ListOrgAgentRegistry(ctx, ouID)
+	default:
+		utils.WriteErrorResponse(w, http.StatusBadRequest,
+			fmt.Sprintf("Invalid view %q: the only supported value is %q", view, orgAgentsViewRegistry))
+		return
+	}
 	if err != nil {
 		log.Error("ListOrgAgents: failed to list agents", "error", err)
 		handleCommonErrors(w, err, "Failed to list agents")

@@ -58,6 +58,59 @@ type AgentSummary struct {
 	DisplayName        string `json:"displayName"`
 	ProjectName        string `json:"projectName"`
 	ProjectDisplayName string `json:"projectDisplayName"`
+	// Registry is set only for the registry view (GET /orgs/{org}/agents?view=registry).
+	Registry *AgentRegistryRecord `json:"registry,omitempty"`
+}
+
+// Agent hosting in the registry: built and deployed by the platform, or registered from outside.
+const (
+	AgentRegistryHostingPlatform = "platform"
+	AgentRegistryHostingExternal = "external"
+)
+
+// AgentRegistryRecord is an agent's org-level registry record, read from existing data:
+// its component, its AgentID record and its configurations.
+type AgentRegistryRecord struct {
+	Description string
+	Hosting     string
+	// Interface is the agent sub-type (chat-api, custom-api, a2a-agent); empty when not recorded.
+	Interface   string
+	KindName    string
+	KindVersion string
+	// CreatedBy is nil when the creator could not be resolved.
+	CreatedBy    *AgentCreatedBy
+	Labels       map[string]string
+	CreatedAt    time.Time
+	Environments []AgentRegistryEnvironment
+}
+
+// AgentRegistryEnvironment is the agent in one environment of its project pipeline.
+type AgentRegistryEnvironment struct {
+	Name             string
+	DisplayName      string
+	IsProduction     bool
+	DeploymentStatus string
+	// LastDeployedAt is nil when the agent was never deployed here.
+	LastDeployedAt *time.Time
+	LLMProviders   []AgentRegistryResourceRef
+	MCPServers     []AgentRegistryResourceRef
+}
+
+// AgentDeploymentState is one agent's deployment in one environment, read from its
+// release binding: the status and when it was last deployed.
+type AgentDeploymentState struct {
+	ProjectName     string
+	AgentName       string
+	EnvironmentName string
+	Status          string
+	// LastDeployedAt is nil when the binding records no deploy and no creation time.
+	LastDeployedAt *time.Time
+}
+
+// AgentRegistryResourceRef is an LLM provider or MCP server the agent can reach.
+type AgentRegistryResourceRef struct {
+	ID          string
+	DisplayName string
 }
 
 // AgentCreatedBy identifies the user who created an agent, resolved

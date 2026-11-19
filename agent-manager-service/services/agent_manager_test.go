@@ -2489,6 +2489,78 @@ func TestListOrgAgents_AggregatesAcrossProjects(t *testing.T) {
 	assert.Equal(t, "Project Two", byName["agent-b"].ProjectDisplayName)
 }
 
+func TestListOrgAgentRegistry_FillsRecordFromComponent(t *testing.T) {
+	createdAt := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		},
+		ListProjectsFunc: func(_ context.Context, _ string) ([]*models.ProjectResponse, error) {
+			return []*models.ProjectResponse{{Name: "proj1", DisplayName: "Project One"}}, nil
+		},
+		ListComponentsFunc: func(_ context.Context, _ string, _ string) ([]*models.AgentResponse, error) {
+			return []*models.AgentResponse{
+				{
+					Name: "notes", DisplayName: "Notes", ProjectName: "proj1",
+					Description:  "Summarizes notes",
+					Provisioning: models.Provisioning{Type: string(utils.InternalAgent)},
+					Type:         models.AgentType{Type: "agent-api", SubType: "a2a-agent"},
+					KindName:     "notes-kind", KindVersion: "1.0.0",
+					Labels:    map[string]string{"team": "cx"},
+					CreatedAt: createdAt,
+				},
+				{
+					Name: "outside", DisplayName: "Outside", ProjectName: "proj1",
+					Provisioning: models.Provisioning{Type: string(utils.ExternalAgent)},
+				},
+			}, nil
+		},
+	}
+	s := &agentManagerService{ocClient: ocClient, logger: discardLogger()}
+
+	agents, err := s.ListOrgAgentRegistry(context.Background(), "acme")
+
+	require.NoError(t, err)
+	require.Len(t, agents, 2)
+	notes, outside := agents[0], agents[1]
+	assert.Equal(t, "Project One", notes.ProjectDisplayName)
+	require.NotNil(t, notes.Registry)
+	assert.Equal(t, &models.AgentRegistryRecord{
+		Description:  "Summarizes notes",
+		Hosting:      models.AgentRegistryHostingPlatform,
+		Interface:    "a2a-agent",
+		KindName:     "notes-kind",
+		KindVersion:  "1.0.0",
+		Labels:       map[string]string{"team": "cx"},
+		CreatedAt:    createdAt,
+		Environments: []models.AgentRegistryEnvironment{},
+	}, notes.Registry)
+	require.NotNil(t, outside.Registry)
+	assert.Equal(t, models.AgentRegistryHostingExternal, outside.Registry.Hosting)
+	assert.Equal(t, map[string]string{}, outside.Registry.Labels, "no labels must be an empty map, not null")
+}
+
+func TestListOrgAgents_HasNoRegistryRecord(t *testing.T) {
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		},
+		ListProjectsFunc: func(_ context.Context, _ string) ([]*models.ProjectResponse, error) {
+			return []*models.ProjectResponse{{Name: "proj1"}}, nil
+		},
+		ListComponentsFunc: func(_ context.Context, _ string, _ string) ([]*models.AgentResponse, error) {
+			return []*models.AgentResponse{{Name: "agent-a", ProjectName: "proj1"}}, nil
+		},
+	}
+	s := &agentManagerService{ocClient: ocClient, logger: discardLogger()}
+
+	agents, err := s.ListOrgAgents(context.Background(), "acme")
+
+	require.NoError(t, err)
+	require.Len(t, agents, 1)
+	assert.Nil(t, agents[0].Registry, "the lightweight list must not carry registry records")
+}
+
 func TestListOrgAgents_OrganizationNotFound(t *testing.T) {
 	ocClient := &clientmocks.OpenChoreoClientMock{
 		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {

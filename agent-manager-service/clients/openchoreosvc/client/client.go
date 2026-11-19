@@ -89,6 +89,11 @@ type OpenChoreoClient interface {
 	// across WSO2 Cloud products, so a project can also hold components another product
 	// created; those are deliberately left out (see isAgentComponentType).
 	ListComponents(ctx context.Context, ouID, projectName string) ([]*models.AgentResponse, error)
+	// ListAgentDeploymentStates returns every release binding in the organization as one
+	// agent's status and last deploy time in one environment. It reads the bindings only:
+	// unlike GetDeployments it does not fetch each binding's runtime state, so an agent
+	// whose binding is Ready but whose pods never became ready is reported active.
+	ListAgentDeploymentStates(ctx context.Context, ouID string) ([]models.AgentDeploymentState, error)
 	// CountProjectComponents counts every component in the project, including those other
 	// products created. Emptiness checks must use this rather than ListComponents, which
 	// would report a project still holding another product's components as empty.

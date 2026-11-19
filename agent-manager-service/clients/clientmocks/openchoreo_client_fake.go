@@ -186,6 +186,9 @@ import (
 //			IsSecretSyncRevisionAppliedFunc: func(ctx context.Context, ouID string, componentName string, envName string, revision string) (bool, error) {
 //				panic("mock out the IsSecretSyncRevisionApplied method")
 //			},
+//			ListAgentDeploymentStatesFunc: func(ctx context.Context, ouID string) ([]models.AgentDeploymentState, error) {
+//				panic("mock out the ListAgentDeploymentStates method")
+//			},
 //			ListBuildsFunc: func(ctx context.Context, ouID string, projectName string, componentName string) ([]*models.BuildResponse, error) {
 //				panic("mock out the ListBuilds method")
 //			},
@@ -468,6 +471,9 @@ type OpenChoreoClientMock struct {
 
 	// IsSecretSyncRevisionAppliedFunc mocks the IsSecretSyncRevisionApplied method.
 	IsSecretSyncRevisionAppliedFunc func(ctx context.Context, ouID string, componentName string, envName string, revision string) (bool, error)
+
+	// ListAgentDeploymentStatesFunc mocks the ListAgentDeploymentStates method.
+	ListAgentDeploymentStatesFunc func(ctx context.Context, ouID string) ([]models.AgentDeploymentState, error)
 
 	// ListBuildsFunc mocks the ListBuilds method.
 	ListBuildsFunc func(ctx context.Context, ouID string, projectName string, componentName string) ([]*models.BuildResponse, error)
@@ -1187,6 +1193,13 @@ type OpenChoreoClientMock struct {
 			// Revision is the revision argument value.
 			Revision string
 		}
+		// ListAgentDeploymentStates holds details about calls to the ListAgentDeploymentStates method.
+		ListAgentDeploymentStates []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// OuID is the ouID argument value.
+			OuID string
+		}
 		// ListBuilds holds details about calls to the ListBuilds method.
 		ListBuilds []struct {
 			// Ctx is the ctx argument value.
@@ -1672,6 +1685,7 @@ type OpenChoreoClientMock struct {
 	lockHasTrait                               sync.RWMutex
 	lockIsDeploymentInProgress                 sync.RWMutex
 	lockIsSecretSyncRevisionApplied            sync.RWMutex
+	lockListAgentDeploymentStates              sync.RWMutex
 	lockListBuilds                             sync.RWMutex
 	lockListComponents                         sync.RWMutex
 	lockListComponentsByKind                   sync.RWMutex
@@ -4155,6 +4169,42 @@ func (mock *OpenChoreoClientMock) IsSecretSyncRevisionAppliedCalls() []struct {
 	mock.lockIsSecretSyncRevisionApplied.RLock()
 	calls = mock.calls.IsSecretSyncRevisionApplied
 	mock.lockIsSecretSyncRevisionApplied.RUnlock()
+	return calls
+}
+
+// ListAgentDeploymentStates calls ListAgentDeploymentStatesFunc.
+func (mock *OpenChoreoClientMock) ListAgentDeploymentStates(ctx context.Context, ouID string) ([]models.AgentDeploymentState, error) {
+	if mock.ListAgentDeploymentStatesFunc == nil {
+		panic("OpenChoreoClientMock.ListAgentDeploymentStatesFunc: method is nil but OpenChoreoClient.ListAgentDeploymentStates was just called")
+	}
+	callInfo := struct {
+		Ctx  context.Context
+		OuID string
+	}{
+		Ctx:  ctx,
+		OuID: ouID,
+	}
+	mock.lockListAgentDeploymentStates.Lock()
+	mock.calls.ListAgentDeploymentStates = append(mock.calls.ListAgentDeploymentStates, callInfo)
+	mock.lockListAgentDeploymentStates.Unlock()
+	return mock.ListAgentDeploymentStatesFunc(ctx, ouID)
+}
+
+// ListAgentDeploymentStatesCalls gets all the calls that were made to ListAgentDeploymentStates.
+// Check the length with:
+//
+//	len(mockedOpenChoreoClient.ListAgentDeploymentStatesCalls())
+func (mock *OpenChoreoClientMock) ListAgentDeploymentStatesCalls() []struct {
+	Ctx  context.Context
+	OuID string
+} {
+	var calls []struct {
+		Ctx  context.Context
+		OuID string
+	}
+	mock.lockListAgentDeploymentStates.RLock()
+	calls = mock.calls.ListAgentDeploymentStates
+	mock.lockListAgentDeploymentStates.RUnlock()
 	return calls
 }
 

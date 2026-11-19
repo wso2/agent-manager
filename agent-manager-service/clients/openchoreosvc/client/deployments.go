@@ -1473,6 +1473,76 @@ func FindFirstEnvironment(promotionPaths []models.PromotionPath) string {
 // promotion order (first/dev first). Callers that must provision an agent for the whole
 // pipeline rather than just its entry point use this — configuring only the first
 // environment leaves the higher ones with no configuration to promote into.
+// ListAgentDeploymentStates lists every release binding in the organization's namespace,
+// following the cursor, and turns each into the agent's status and last deploy time in
+// that environment. The status comes from the binding alone (no runtime state lookup),
+// so the whole organization costs one paged list rather than calls per agent.
+func (c *openChoreoClient) ListAgentDeploymentStates(ctx context.Context, ouID string) ([]models.AgentDeploymentState, error) {
+	namespaceName := c.NamespaceFor(ouID)
+	states := []models.AgentDeploymentState{}
+	var cursor *gen.CursorParam
+	seen := map[string]bool{}
+	for page := 0; page < maxListPages; page++ {
+		resp, err := c.ocClient.ListReleaseBindingsWithResponse(ctx, namespaceName, &gen.ListReleaseBindingsParams{
+			Limit:  &defaultListLimit,
+			Cursor: cursor,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to list release bindings: %w", err)
+		}
+		if resp.StatusCode() != http.StatusOK {
+			return nil, handleErrorResponse(resp.StatusCode(), ErrorResponses{
+				JSON401: resp.JSON401,
+				JSON403: resp.JSON403,
+				JSON404: resp.JSON404,
+				JSON500: resp.JSON500,
+			})
+		}
+		if resp.JSON200 == nil {
+			// No list body is an empty namespace only on the first page; on a later one the
+			// list was cut short, and returning part of it would hide deployments.
+			if page == 0 {
+				return states, nil
+			}
+			return nil, fmt.Errorf("failed to list release bindings: page %d returned no binding list", page+1)
+		}
+
+		for i := range resp.JSON200.Items {
+			binding := &resp.JSON200.Items[i]
+			if binding.Spec == nil {
+				continue
+			}
+			state := models.AgentDeploymentState{
+				ProjectName:     binding.Spec.Owner.ProjectName,
+				AgentName:       binding.Spec.Owner.ComponentName,
+				EnvironmentName: binding.Spec.Environment,
+				// An empty runtime state means "not looked up": the status follows the
+				// binding's own conditions (see runtimeReplicaState).
+				Status: determineDeploymentStatus(binding, runtimeReplicaState{}),
+			}
+			if t := getLastDeployedTime(binding); !t.IsZero() {
+				state.LastDeployedAt = &t
+			}
+			states = append(states, state)
+		}
+
+		nextCursor := resp.JSON200.Pagination.NextCursor
+		if nextCursor == nil || *nextCursor == "" {
+			return states, nil
+		}
+		// A cursor already followed would list the same bindings again, round and round.
+		if seen[*nextCursor] {
+			return nil, fmt.Errorf("failed to list release bindings: pagination cursor %q repeated", *nextCursor)
+		}
+		seen[*nextCursor] = true
+		next := gen.CursorParam(*nextCursor)
+		cursor = &next
+	}
+	// Still more pages after the cap: the set is incomplete, so fail rather than show some
+	// agents as not deployed.
+	return nil, fmt.Errorf("failed to list release bindings: more than %d pages", maxListPages)
+}
+
 func PipelineEnvironments(promotionPaths []models.PromotionPath) []string {
 	return buildEnvironmentOrder(promotionPaths)
 }
