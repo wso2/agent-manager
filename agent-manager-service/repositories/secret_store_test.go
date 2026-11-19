@@ -22,6 +22,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -80,6 +82,29 @@ func TestSecretStoreSealsValuesIntoTheRow(t *testing.T) {
 }
 
 // A ciphertext copied into another row must not open there.
+func TestConcurrentFirstWritesOfASecretAllSucceed(t *testing.T) {
+	ctx, gdb, store := context.Background(), db.GetDB(), testSecrets(t)
+	org, owner, id := newOrg(t), NewID(), NewID()
+	t.Cleanup(func() { _ = store.Delete(ctx, gdb, id) })
+
+	const writers = 6
+	start := make(chan struct{})
+	results := make(chan error, writers)
+	for i := range writers {
+		go func() {
+			<-start
+			results <- gdb.Transaction(func(tx *gorm.DB) error {
+				return store.Write(ctx, tx, org, "test_owner", owner, id, []byte{byte('a' + i)})
+			})
+		}()
+	}
+	close(start)
+	for range writers {
+		require.NoError(t, <-results, "a write that loses the insert replaces the value instead of failing")
+	}
+	assert.Equal(t, writers, secretRow(t, id).Version, "every write landed, one after another")
+}
+
 func TestSecretStoreBindsACiphertextToItsRow(t *testing.T) {
 	ctx, gdb, store := context.Background(), db.GetDB(), testSecrets(t)
 	org, a, b := newOrg(t), NewID(), NewID()
@@ -379,14 +404,32 @@ func TestSecretPromotionUsesTheQueuedVaultDuringRollout(t *testing.T) {
 	assert.Equal(t, "v1", f.read(t, id))
 }
 
+// stalledSecretVault stalls whichever seal starts first until its attempt times out, and records when each seal
+// started, so a test can tell the runner went on after the timeout whatever order it took the jobs in.
 type stalledSecretVault struct {
 	*vaulttest.External
-	stalled uuid.UUID
+	mu       sync.Mutex
+	started  []uuid.UUID
+	stalled  uuid.UUID
+	resumeAt time.Time
+	resumed  time.Time
 }
 
 func (v *stalledSecretVault) Seal(ctx context.Context, ref vault.Ref, value []byte, current *vault.Sealed) (vault.Sealed, error) {
-	if ref.SecretID == v.stalled {
+	v.mu.Lock()
+	v.started = append(v.started, ref.SecretID)
+	first := len(v.started) == 1
+	if first {
+		v.stalled = ref.SecretID
+	} else if v.resumed.IsZero() {
+		v.resumed = time.Now()
+	}
+	v.mu.Unlock()
+	if first {
 		<-ctx.Done()
+		v.mu.Lock()
+		v.resumeAt = time.Now()
+		v.mu.Unlock()
 		return vault.Sealed{}, ctx.Err()
 	}
 	return v.External.Seal(ctx, ref, value, current)
@@ -394,21 +437,29 @@ func (v *stalledSecretVault) Seal(ctx context.Context, ref vault.Ref, value []by
 
 func TestSecretJobsRetryTimedOutAttemptsAndContinue(t *testing.T) {
 	f := newExternalFixture(t)
-	stalled, healthy := NewID(), NewID()
-	f.cleanup(t, stalled, healthy)
+	a, b := NewID(), NewID()
+	f.cleanup(t, a, b)
 	local, err := vault.NewLocal(vaulttest.Key)
 	require.NoError(t, err)
-	adapter := &stalledSecretVault{External: f.external, stalled: stalled}
+	adapter := &stalledSecretVault{External: f.external}
 	f.runner.vaults = vault.Of(adapter, local)
 	f.runner.attemptTimeout = 250 * time.Millisecond
-	f.write(t, stalled, "v1")
-	f.write(t, healthy, "v2")
-	require.NoError(t, db.GetDB().Model(&models.SecretJob{}).Where("secret_id = ?", stalled).
-		Update("available_at", f.now().Add(-time.Minute)).Error)
+	f.write(t, a, "v1")
+	f.write(t, b, "v2")
 
 	ran, failed := f.run(t)
 	require.Equal(t, 2, ran)
 	require.Equal(t, 1, failed)
+	adapter.mu.Lock()
+	stalled, started, resumeAt, resumed := adapter.stalled, slices.Clone(adapter.started), adapter.resumeAt, adapter.resumed
+	adapter.mu.Unlock()
+	require.Len(t, started, 2, "the second job's seal started in the same pass")
+	healthy := a
+	if stalled == a {
+		healthy = b
+	}
+	assert.False(t, resumed.Before(resumeAt), "the second seal started only once the first had timed out")
+
 	var retry models.SecretJob
 	require.NoError(t, db.GetDB().Where("secret_id = ?", stalled).Take(&retry).Error)
 	require.NotNil(t, retry.LastError)

@@ -63,62 +63,92 @@ func (s *SecretStore) Write(ctx context.Context, tx *gorm.DB, orgID, ownerKind s
 	})
 }
 
+// writeAttempts bounds how often write retries a row that was deleted between losing the insert and locking it.
+const writeAttempts = 3
+
 func (s *SecretStore) write(ctx context.Context, tx *gorm.DB, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) error {
 	local, err := s.vaults.For(vault.ProviderLocal)
 	if err != nil {
 		return err
 	}
 	db := tx.WithContext(ctx)
-	// Lock an existing row first, so concurrent writes of one secret hand its pending external value on in turn.
-	if _, err := dbx.LockRows(db, models.Secret{}.TableName(), "version", "id = ?", id); err != nil {
-		return fmt.Errorf("failed to lock secret %s: %w", id, err)
-	}
-	var rows []models.Secret
-	if err := db.Where("id = ?", id).Find(&rows).Error; err != nil {
-		return err
-	}
-	now := dbx.Now()
-
-	if len(rows) == 0 {
-		ref := vault.Ref{OrgID: orgID, SecretID: id, OwnerKind: ownerKind}
-		sealed, err := local.Seal(ctx, ref, value, nil)
-		if err != nil {
-			return fmt.Errorf("failed to seal secret: %w", err)
-		}
-		row := models.Secret{
-			ID: id, OrgID: orgID, OwnerKind: ownerKind, OwnerID: ownerID, Provider: vault.ProviderLocal,
-			Ciphertext: sealed.Ciphertext, KeyID: nilIfEmpty(sealed.KeyID), Version: 1, CreatedAt: now, UpdatedAt: now,
-		}
-		if err := db.Create(&row).Error; err != nil {
+	for range writeAttempts {
+		// Insert the row, or find it already there: an insert that treats a duplicate key as "exists" keeps two first writes of one secret from both
+		// creating it.
+		created, err := s.insert(ctx, db, local, orgID, ownerKind, ownerID, id, value)
+		if err != nil || created {
 			return err
 		}
-		return s.afterLocalWrite(db, &row, nil)
+		// The row exists. Lock it before reading it, so concurrent writes of one secret hand its pending external
+		// value on in turn.
+		err = dbx.LockRow(db, models.Secret{}.TableName(), "version", "id = ?", id)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			continue // deleted since the insert lost; insert again
+		}
+		if err != nil {
+			return fmt.Errorf("failed to lock secret %s: %w", id, err)
+		}
+		var row models.Secret
+		if err := db.Where("id = ?", id).Take(&row).Error; err != nil {
+			return fmt.Errorf("failed to read secret %s: %w", id, err)
+		}
+		return s.update(ctx, db, local, &row, orgID, value)
 	}
+	return fmt.Errorf("failed to write secret %s: it was deleted by %d concurrent writes in turn", id, writeAttempts)
+}
 
-	row := rows[0]
+// insert creates the secret's row unless one exists, and reports whether it did.
+func (s *SecretStore) insert(ctx context.Context, db *gorm.DB, local vault.Vault, orgID, ownerKind string, ownerID, id uuid.UUID, value []byte) (bool, error) {
+	ref := vault.Ref{OperationID: uuid.Nil, OrgID: orgID, SecretID: id, OwnerKind: ownerKind}
+	sealed, err := local.Seal(ctx, ref, value, nil)
+	if err != nil {
+		return false, fmt.Errorf("failed to seal secret: %w", err)
+	}
+	now := dbx.Now()
+	row := models.Secret{
+		ID: id, OrgID: orgID, OwnerKind: ownerKind, OwnerID: ownerID, Provider: vault.ProviderLocal,
+		Ciphertext: sealed.Ciphertext, KeyID: nilIfEmpty(sealed.KeyID), ExternalRef: nil, Version: 1,
+		CreatedAt: now, UpdatedAt: now,
+	}
+	inserted, err := dbx.InsertIfAbsent(db, &row)
+	if err != nil {
+		return false, fmt.Errorf("failed to create secret %s: %w", id, err)
+	}
+	if !inserted {
+		return false, nil
+	}
+	return true, s.afterLocalWrite(db, &row, nil)
+}
+
+// update replaces the value of row, which the caller has locked.
+func (s *SecretStore) update(ctx context.Context, db *gorm.DB, local vault.Vault, row *models.Secret, orgID string, value []byte) error {
 	if row.OrgID != orgID {
-		return fmt.Errorf("secret %s belongs to another organization", id)
+		return fmt.Errorf("secret %s belongs to another organization", row.ID)
 	}
 	// The external value this write replaces: the row's own, or the one a promotion still pending would replace.
-	replaced, err := supersedePromotions(db, id)
+	replaced, err := supersedePromotions(db, row.ID)
 	if err != nil {
 		return err
 	}
 	if row.ExternalRef != nil {
-		replaced = rowExternalValue(&row)
+		replaced = rowExternalValue(row)
 	}
-	sealed, err := local.Seal(ctx, secretRef(&row), value, nil)
+	sealed, err := local.Seal(ctx, secretRef(row), value, nil)
 	if err != nil {
 		return fmt.Errorf("failed to seal secret: %w", err)
 	}
-	if err := db.Model(&models.Secret{}).Where("id = ?", id).Updates(map[string]any{
+	res := db.Model(&models.Secret{}).Where("id = ?", row.ID).Updates(map[string]any{
 		"provider": vault.ProviderLocal, "ciphertext": sealed.Ciphertext, "key_id": nilIfEmpty(sealed.KeyID),
-		"external_ref": nil, "version": gorm.Expr("version + 1"), "updated_at": now,
-	}).Error; err != nil {
-		return err
+		"external_ref": nil, "version": gorm.Expr("version + 1"), "updated_at": dbx.Now(),
+	})
+	if res.Error != nil {
+		return fmt.Errorf("failed to update secret %s: %w", row.ID, res.Error)
+	}
+	if res.RowsAffected != 1 {
+		return fmt.Errorf("failed to update secret %s: the locked row is gone", row.ID)
 	}
 	row.Version++
-	return s.afterLocalWrite(db, &row, replaced)
+	return s.afterLocalWrite(db, row, replaced)
 }
 
 // afterLocalWrite queues what the external vault does once the write commits: promote the new version when an
@@ -166,7 +196,7 @@ func (s *SecretStore) Read(ctx context.Context, tx *gorm.DB, id uuid.UUID) (valu
 func (s *SecretStore) read(ctx context.Context, tx *gorm.DB, id uuid.UUID, asStored bool) ([]byte, bool, error) {
 	var rows []models.Secret
 	if err := tx.WithContext(ctx).Where("id = ?", id).Find(&rows).Error; err != nil {
-		return nil, false, err
+		return nil, false, fmt.Errorf("failed to read secret %s: %w", id, err)
 	}
 	if len(rows) == 0 {
 		return nil, false, nil
@@ -204,13 +234,13 @@ func (s *SecretStore) SnapshotUpstreamCredential(ctx context.Context, tx *gorm.D
 	if s == nil {
 		return nil, ErrNoSecretStore
 	}
-	snapshot := &UpstreamCredential{store: s}
+	snapshot := &UpstreamCredential{store: s, row: models.Secret{}}
 	err := tx.WithContext(ctx).Where("id = ?", *id).Take(&snapshot.row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, fmt.Errorf("upstream credential %s is missing", *id)
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read upstream credential %s: %w", *id, err)
 	}
 	return snapshot, nil
 }
@@ -225,7 +255,7 @@ func (s *SecretStore) SnapshotSecret(ctx context.Context, tx *gorm.DB, id *uuid.
 	}
 	var rows []models.Secret
 	if err := tx.WithContext(ctx).Where("id = ?", *id).Find(&rows).Error; err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to read secret %s: %w", *id, err)
 	}
 	if len(rows) == 0 {
 		return nil, nil //nolint:nilnil // a missing row is no secret
@@ -314,7 +344,7 @@ func ReleaseSecret(tx *gorm.DB, id *uuid.UUID) error {
 	}
 	var rows []models.Secret
 	if err := tx.Where("id = ?", *id).Find(&rows).Error; err != nil {
-		return err
+		return fmt.Errorf("failed to read secret %s for release: %w", *id, err)
 	}
 	if len(rows) == 0 {
 		return nil
@@ -325,7 +355,7 @@ func ReleaseSecret(tx *gorm.DB, id *uuid.UUID) error {
 		return err
 	}
 	if err := tx.Where("id = ?", row.ID).Delete(&models.Secret{}).Error; err != nil {
-		return err
+		return fmt.Errorf("failed to delete secret %s: %w", row.ID, err)
 	}
 	for _, value := range []*externalValue{replaced, rowExternalValue(&row)} {
 		if value == nil {
@@ -375,7 +405,8 @@ func newSecretJob(orgID string, secretID uuid.UUID, ownerKind, action string, va
 	now := dbx.Now()
 	job := models.SecretJob{
 		ID: NewID(), OrgID: orgID, SecretID: secretID, OwnerKind: ownerKind, Action: action,
-		AvailableAt: now, CreatedAt: now,
+		Provider: nil, ExternalRef: nil, StagedProvider: nil, StagedRef: nil, Version: nil,
+		Attempts: 0, LastError: nil, AvailableAt: now, ClaimedBy: nil, ClaimedUntil: nil, CreatedAt: now,
 	}
 	if value != nil {
 		provider, ref := value.provider, value.ref
@@ -399,11 +430,11 @@ func txContext(tx *gorm.DB) context.Context {
 }
 
 func secretRef(row *models.Secret) vault.Ref {
-	return vault.Ref{OrgID: row.OrgID, SecretID: row.ID, OwnerKind: row.OwnerKind}
+	return vault.Ref{OperationID: uuid.Nil, OrgID: row.OrgID, SecretID: row.ID, OwnerKind: row.OwnerKind}
 }
 
 func sealedOf(row *models.Secret) vault.Sealed {
-	sealed := vault.Sealed{Ciphertext: row.Ciphertext}
+	sealed := vault.Sealed{Ciphertext: row.Ciphertext, KeyID: "", ExternalRef: ""}
 	if row.KeyID != nil {
 		sealed.KeyID = *row.KeyID
 	}
