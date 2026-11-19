@@ -265,6 +265,51 @@ func (s *MCPProxyService) deployMCPProxyEndpoints(ctx context.Context, tx *gorm.
 	return nil
 }
 
+// lockMCPProxyGateways takes, in gateway order, the locks of every gateway the saved proxy's bindings are placed on
+// or would deploy to with the request's explicit gateways.
+func (s *MCPProxyService) lockMCPProxyGateways(
+	ctx context.Context, tx *gorm.DB, proxy *models.MCPProxy, endpoints []models.MCPProxyEndpointDTO, ouID string,
+) error {
+	if s.gatewayRepo == nil {
+		return nil
+	}
+	applyRequestedGatewayUUIDs(proxy, endpoints)
+	gateways := map[uuid.UUID]struct{}{}
+	for i := range proxy.Endpoints {
+		endpoint := &proxy.Endpoints[i]
+		for j := range endpoint.Environments {
+			ee := &endpoint.Environments[j]
+			if ee.ArtifactUUID == uuid.Nil {
+				continue
+			}
+			if s.deploymentRepo != nil {
+				placed, err := s.deploymentRepo.WithTx(tx).PlacedGateways(ctx, ouID, ee.ArtifactUUID)
+				if err != nil {
+					return fmt.Errorf("failed to list existing deployments: %w", err)
+				}
+				for _, id := range placed {
+					if gateway, err := uuid.Parse(id); err == nil {
+						gateways[gateway] = struct{}{}
+					}
+				}
+			}
+			gateway, err := s.mcpEnvGateway(ctx, tx, proxy, ee, ouID)
+			if err != nil {
+				return err
+			}
+			if gateway != nil {
+				gateways[*gateway] = struct{}{}
+			}
+		}
+	}
+	deploys := make([]mcpEnvDeploy, 0, len(gateways))
+	for gateway := range gateways {
+		deploys = append(deploys, mcpEnvDeploy{artifact: nil, env: uuid.Nil, gateway: &gateway, label: ""})
+	}
+	sort.Slice(deploys, func(i, j int) bool { return gatewayOrderKey(deploys[i].gateway) < gatewayOrderKey(deploys[j].gateway) })
+	return s.lockMCPGateways(tx, deploys)
+}
+
 // lockMCPGateways takes the gateway lock of every binding with a gateway, in gateway order (deploys is sorted), before
 // lockMCPStatusRows. A render's write-back takes its gateway's lock and then writes the status row, so a save that held
 // status rows while waiting for a gateway could deadlock with it. The deploy takes the same locks again, which a

@@ -573,6 +573,12 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 		for env, artifactUUID := range existing.artifactByEnv {
 			previousEnvArtifacts[env] = artifactUUID
 		}
+		// Take the gateway locks before the endpoint replacement adopts or releases a secret. A render's write-back
+		// locks its gateway and then the credential it rendered, so holding a secret while waiting for a gateway
+		// could deadlock with it; the deploy below takes the same locks again.
+		if err := s.lockMCPProxyGateways(ctx, tx, proxy, deployEndpoints, orgUUID); err != nil {
+			return err
+		}
 
 		endpoints, err := s.buildMCPEndpointsForStorage(req.Endpoints, &existing)
 		if err != nil {
