@@ -86,7 +86,7 @@ func TestShadowApplyConnectionResultIsIdempotent(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, total)
 	require.Len(t, rows, 2)
-	assert.Equal(t, "Bot", rows[0].DisplayName, "ordered by name")
+	assert.Equal(t, "Bot", rows[0].DisplayName, "seen at the same time, so ordered by name")
 	bot := rows[0]
 	assert.Equal(t, "conn", bot.ConnectionName)
 	assert.True(t, bot.Present)
@@ -119,6 +119,43 @@ func TestShadowApplyConnectionResultIsIdempotent(t *testing.T) {
 	assert.Zero(t, total)
 	_, err = repo.GetFinding(ctx, "ou-"+uuid.NewString(), bot.ID)
 	assert.True(t, IsShadowNotFound(err))
+}
+
+// The list shows the most recently seen agents first, and agents seen at the
+// same time by name, so pages do not overlap.
+func TestShadowListFindingsMostRecentlySeenFirst(t *testing.T) {
+	ctx := context.Background()
+	repo := NewShadowAgentRepository(db.GetDB())
+	ou := "ou-" + uuid.NewString()
+	older, newer := newShadowConnection(t, repo, ou, "older"), newShadowConnection(t, repo, ou, "newer")
+	t0 := time.Now().UTC().Truncate(time.Microsecond)
+	_, err := repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
+		OUID: ou, ConnectionID: older.ID, ScanID: newShadowScan(t, repo, ou), ScanStartedAt: t0, Complete: true,
+		Findings: []ShadowFindingInput{agentInput("agent_b", "bravo", t0), agentInput("agent_a", "Alpha", t0)},
+	})
+	require.NoError(t, err)
+	t1 := t0.Add(time.Hour)
+	_, err = repo.ApplyConnectionResult(ctx, ShadowConnectionApply{
+		OUID: ou, ConnectionID: newer.ID, ScanID: newShadowScan(t, repo, ou), ScanStartedAt: t1, Complete: true,
+		Findings: []ShadowFindingInput{agentInput("agent_z", "Zulu", t1)},
+	})
+	require.NoError(t, err)
+
+	rows, total, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, 3, total)
+	names := make([]string, 0, len(rows))
+	for _, r := range rows {
+		names = append(names, r.DisplayName)
+	}
+	assert.Equal(t, []string{"Zulu", "Alpha", "bravo"}, names, "newest first, then by name ignoring case")
+
+	for i, want := range names {
+		page, _, err := repo.ListFindings(ctx, ou, ShadowFindingFilter{Limit: 1, Offset: i})
+		require.NoError(t, err)
+		require.Len(t, page, 1)
+		assert.Equal(t, want, page[0].DisplayName, "page %d", i)
+	}
 }
 
 // An agent a complete listing no longer returns is marked as no longer

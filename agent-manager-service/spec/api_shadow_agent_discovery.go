@@ -1746,8 +1746,8 @@ func (r ApiListShadowFindingsRequest) Execute() (*ShadowFindingListResponse, *ht
 ListShadowFindings List unregistered agents
 
 The agents the platforms list, one row per agent however many
-connections found it (the same platform, kind and platform ID), by
-name. Without scanId, only the agents their connection's latest
+connections found it (the same platform, kind and platform ID), most
+recently seen first. Without scanId, only the agents their connection's latest
 complete listing still returned; with scanId, the agents that scan
 found.
 

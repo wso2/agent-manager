@@ -86,7 +86,8 @@ function sourceLabel(f: ShadowFindingSummary): string {
 
 /**
  * The unregistered agents: every agent the platforms list, once however many
- * connections found it, by name. With scanId, the agents one scan found.
+ * connections found it, most recently seen first. With scanId, the agents one
+ * scan found.
  */
 export function FindingsTab({
   orgName,

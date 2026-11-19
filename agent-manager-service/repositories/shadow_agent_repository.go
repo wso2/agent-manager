@@ -723,7 +723,9 @@ func (r *shadowAgentRepository) ListFindings(
 		return nil, 0, err
 	}
 	var rows []ShadowFindingRow
-	// One row per agent: its finding in the connection that saw it last.
+	// One row per agent: its finding in the connection that saw it last, so
+	// g.last_seen_at is the agent's latest sighting. Most recently seen
+	// first; the name, provider and ID make the order total for paging.
 	// found_by lists every connection that found the agent, whatever the
 	// filters, so a row always says where else the agent was found.
 	q := `WITH b AS (` + base + `),
@@ -735,7 +737,7 @@ func (r *shadowAgentRepository) ListFindings(
 		fb AS (` + shadowFoundByAll + `)
 		SELECT g.*, fb.found_by FROM g JOIN fb USING (provider, kind, external_id)
 		WHERE g.rn = 1
-		ORDER BY lower(g.display_name), g.provider, g.external_id
+		ORDER BY g.last_seen_at DESC, lower(g.display_name), g.provider, g.external_id
 		LIMIT ? OFFSET ?`
 	qargs := append(append([]any{}, args...), ouID, flt.Limit, flt.Offset)
 	if err := r.db.WithContext(ctx).Raw(q, qargs...).Scan(&rows).Error; err != nil {
