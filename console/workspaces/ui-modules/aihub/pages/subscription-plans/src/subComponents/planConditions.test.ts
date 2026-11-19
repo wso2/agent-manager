@@ -323,4 +323,28 @@ describe("a custom condition’s policy (params.policy)", () => {
     expect(customPolicyOf({ params: { region: "eu" }, type: "custom" })).toBeNull();
     expect(customPolicyOf({ params: { policy: { name: "g" } }, type: "request-count" })).toBeNull();
   });
+
+  it("sends a saved policy back as it was while its fields are untouched", () => {
+    const [plain, extra] = draftsFromConditions([
+      { id: "tier", type: "custom", params: { policy: "strict", region: "eu" } },
+      {
+        id: "zone",
+        type: "custom",
+        params: { policy: { name: "region-guard", version: "v1", mode: "audit" } },
+      },
+    ]);
+    const { body } = checkConditions([plain, extra]);
+    expect(body?.[0].params).toEqual({ policy: "strict", region: "eu" });
+    expect(body?.[1].params).toEqual({
+      policy: { name: "region-guard", version: "v1", mode: "audit" },
+    });
+  });
+
+  it("replaces a saved policy once its fields are edited", () => {
+    const [draft] = draftsFromConditions([
+      { id: "tier", type: "custom", params: { policy: "strict", region: "eu" } },
+    ]);
+    const { body } = checkConditions([{ ...draft, policyName: "tier-guard" }]);
+    expect(body?.[0].params).toEqual({ region: "eu", policy: { name: "tier-guard", version: "v1" } });
+  });
 });

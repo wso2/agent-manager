@@ -74,10 +74,13 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
   const [rowsPerPage, setRowsPerPage] = useState(PAGE_SIZE_OPTIONS[0]);
   const debouncedSearch = useDebouncedValue(search.trim(), SEARCH_DEBOUNCE_MS);
 
-  const { data, isLoading, error } = useListSubscriptionPlans(
+  const { data, isLoading, error, isPlaceholderData } = useListSubscriptionPlans(
     { orgName: orgId },
     { limit: rowsPerPage, offset: page * rowsPerPage, query: debouncedSearch || undefined },
   );
+  // While the next page, search or organization loads, the rows on screen are the previous ones:
+  // their actions are off, so none acts on a row that is no longer there.
+  const stale = isPlaceholderData;
   const updatePlan = useUpdateSubscriptionPlan();
   const deletePlan = useDeleteSubscriptionPlan();
   // Status switches being saved, by plan id, with the status they are being set to. Only those
@@ -223,7 +226,7 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
                         <ListingTable.Cell align="center">
                           <Switch
                             checked={status === "ACTIVE"}
-                            disabled={!canWrite || plan.id in saving}
+                            disabled={!canWrite || stale || plan.id in saving}
                             onChange={() => toggleStatus(plan)}
                             size="small"
                             slotProps={{
@@ -241,6 +244,7 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
                               <Tooltip title={`Edit ${plan.displayName}`}>
                                 <IconButton
                                   aria-label={`Edit ${plan.displayName}`}
+                                  disabled={stale}
                                   onClick={() =>
                                     navigate(editPath(plan), { state: returnToState(location) })
                                   }
@@ -252,6 +256,7 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
                               <Tooltip title={`Delete ${plan.displayName}`}>
                                 <IconButton
                                   aria-label={`Delete ${plan.displayName}`}
+                                  disabled={stale}
                                   color="error"
                                   onClick={() => setDeleteTarget(plan)}
                                   size="small"

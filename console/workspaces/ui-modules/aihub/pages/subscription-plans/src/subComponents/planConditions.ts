@@ -116,6 +116,10 @@ export type ConditionDraft = {
   /** Custom only: the policy that enforces it, sent as `params.policy`; empty when none. */
   policyName: string;
   policyVersion: string;
+  /** Custom only: the saved `params.policy`, with the name and version shown for it. While
+   * those two fields are left as shown, the saved value is sent back as it was, even a shape
+   * this editor cannot show (a plain string, or more fields than name and version). */
+  savedPolicy?: { value: unknown; name: string; version: string };
 };
 
 let nextKey = 0;
@@ -160,13 +164,23 @@ export const draftsFromConditions = (conditions: PlanCondition[] | undefined): C
       const pairs = Object.entries(params)
         .filter(([name]) => name !== CUSTOM_POLICY_KEY)
         .map(([name, value]) => newPair(name, value));
-      const policy = params[CUSTOM_POLICY_KEY] as { name?: unknown; version?: unknown } | undefined;
+      const saved = params[CUSTOM_POLICY_KEY];
+      const policy =
+        saved && typeof saved === "object"
+          ? (saved as { name?: unknown; version?: unknown })
+          : undefined;
+      const policyName = typeof policy?.name === "string" ? policy.name : "";
+      const policyVersion = typeof policy?.version === "string" ? policy.version : "";
       return {
         ...newCondition("custom"),
         id: condition.id ?? "",
         pairs: pairs.length > 0 ? pairs : [newPair()],
-        policyName: typeof policy?.name === "string" ? policy.name : "",
-        policyVersion: typeof policy?.version === "string" ? policy.version : "",
+        policyName,
+        policyVersion,
+        savedPolicy:
+          saved === undefined
+            ? undefined
+            : { value: saved, name: policyName, version: policyVersion },
       };
     }
     const limits = (params as Partial<ConditionLimits>).limits ?? [];
@@ -373,7 +387,15 @@ export const checkConditions = (drafts: ConditionDraft[]): ConditionsCheck => {
       // The optional enforcing policy, under its reserved key; left out when not given.
       const policyName = draft.policyName.trim();
       const policyVersion = draft.policyVersion.trim();
-      if (policyName || policyVersion) {
+      const savedPolicy = draft.savedPolicy;
+      if (
+        savedPolicy &&
+        policyName === savedPolicy.name.trim() &&
+        policyVersion === savedPolicy.version.trim()
+      ) {
+        // Untouched: the saved policy goes back as it was.
+        params[CUSTOM_POLICY_KEY] = savedPolicy.value;
+      } else if (policyName || policyVersion) {
         if (!POLICY_NAME.test(policyName)) {
           fail(draft.key, fieldKeys.policyName(draft.key), {
             message: messages.policyNameInvalid(),
