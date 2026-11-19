@@ -21,7 +21,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -31,7 +31,7 @@ import (
 
 type ListOptions struct {
 	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj, agent string) render.Scope
 	ResolveAgent func([]string) (string, []string, error)
@@ -44,13 +44,13 @@ type ListOptions struct {
 
 // ListResult is the JSON envelope payload for `llm list`.
 type ListResult struct {
-	Configs []amsvc.AgentModelConfigListItem `json:"configs"`
+	Configs []aigateway.AgentModelConfigListItem `json:"configs"`
 }
 
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListOptions{
 		IO:           f.IOStreams,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.AgentScope,
 		ResolveAgent: f.ResolveAgent,
@@ -86,7 +86,7 @@ func runList(ctx context.Context, o *ListOptions) error {
 	if err != nil {
 		return render.Error(o.IO, o.Scope, err)
 	}
-	resp, err := client.ListAgentModelConfigsWithResponse(ctx, o.Org, o.Proj, o.AgentName, &amsvc.ListAgentModelConfigsParams{})
+	resp, err := client.ListAgentModelConfigsWithResponse(ctx, o.Org, o.Proj, o.AgentName, &aigateway.ListAgentModelConfigsParams{})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -94,7 +94,7 @@ func runList(ctx context.Context, o *ListOptions) error {
 		return render.Error(o.IO, o.Scope, cmdutil.ErrorFromServer(resp.HTTPResponse, resp.JSON500))
 	}
 
-	configs := make([]amsvc.AgentModelConfigListItem, 0, len(resp.JSON200.Configs))
+	configs := make([]aigateway.AgentModelConfigListItem, 0, len(resp.JSON200.Configs))
 	for _, c := range resp.JSON200.Configs {
 		if c.Type == configType {
 			configs = append(configs, c)

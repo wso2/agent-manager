@@ -23,19 +23,19 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 )
 
-func sampleProviderResponse() amsvc.LLMProviderResponse {
-	return amsvc.LLMProviderResponse{
+func sampleProviderResponse() aigateway.LLMProviderResponse {
+	return aigateway.LLMProviderResponse{
 		Uuid:     "11111111-1111-1111-1111-111111111111",
 		Id:       "openai",
 		Name:     "OpenAI",
 		Version:  "v1",
 		Context:  "/",
 		Template: "openai",
-		Status:   amsvc.LLMProviderResponseStatus("pending"),
+		Status:   aigateway.LLMProviderResponseStatus("pending"),
 	}
 }
 
@@ -148,7 +148,7 @@ func TestCreate_EmptyStdinKey(t *testing.T) {
 
 func TestCreate_Conflict(t *testing.T) {
 	io, out, _ := newTestIO(true)
-	clientFn, _, closeFn := newTestClient(t, http.StatusConflict, amsvc.ErrorResponse{
+	clientFn, _, closeFn := newTestClient(t, http.StatusConflict, aigateway.ErrorResponse{
 		Code:    "LLM_PROVIDER_ALREADY_EXISTS",
 		Message: "provider 'openai' already exists",
 	})

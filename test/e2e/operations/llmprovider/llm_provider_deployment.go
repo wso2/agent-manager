@@ -24,7 +24,7 @@ type LLMDeploymentResponse struct {
 
 // DeployLLMProvider deploys an LLM provider to a gateway.
 func DeployLLMProvider(g Gomega, client *framework.AMPClient, orgName, providerID string, req DeployLLMProviderRequest) LLMDeploymentResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-providers/%s/deployments", orgName, providerID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-providers/%s/deployments", orgName, providerID)
 
 	resp, err := client.Post(path, req)
 	g.Expect(err).NotTo(HaveOccurred(), "deploy LLM provider request failed")

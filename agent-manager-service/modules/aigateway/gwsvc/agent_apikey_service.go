@@ -1,0 +1,370 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
+)
+
+// GatewayConnectionChecker reports live websocket connections for a gateway.
+// *websocket.Manager satisfies this interface.
+type GatewayConnectionChecker interface {
+	GetConnections(gatewayID string) []*websocket.Connection
+}
+
+// testKeyTTL is the validity window for a console-issued test API key.
+// The console refreshes the key at staleTime well before this elapses.
+const testKeyTTL = 10 * time.Minute
+
+// legacyTestKeyName is the pre-per-user shared test key name; still reserved
+// so user-created keys can't collide with lingering legacy rows.
+const legacyTestKeyName = "console-test"
+
+// testKeyName returns a stable, per-user key name derived from the JWT subject.
+// Hashing keeps the name within the gateway's alphanumeric-hyphen constraint
+// and avoids storing raw user identifiers as key names.
+func testKeyName(userSub string) string {
+	h := sha256.Sum256([]byte(userSub))
+	return gwmodels.APIKeyTestKeyPrefix + hex.EncodeToString(h[:])[:12]
+}
+
+// AgentAPIKeyServiceInterface defines the contract for agent API key operations
+type AgentAPIKeyServiceInterface interface {
+	CreateAPIKey(ctx context.Context, ouID, projectName, agentName, envID string, req *gwmodels.CreateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error)
+	RevokeAPIKey(ctx context.Context, ouID, projectName, agentName, envID, keyName string) error
+	RotateAPIKey(ctx context.Context, ouID, projectName, agentName, envID, keyName string, req *gwmodels.RotateAPIKeyRequest) (*gwmodels.CreateAPIKeyResponse, error)
+	ListAPIKeys(ctx context.Context, ouID, projectName, agentName, envID string) ([]gwmodels.StoredAPIKey, error)
+	IssueTestAPIKey(ctx context.Context, ouID, projectName, agentName, envID, userSub string) (*gwmodels.IssueTestAPIKeyResponse, error)
+}
+
+// AgentAPIKeyService handles API key management for agents
+type AgentAPIKeyService struct {
+	artifactRepo gwrepo.ArtifactRepository
+	ocClient     modkit.CoreAPI
+	apiKeyRepo   gwrepo.APIKeyRepository
+	gatewayRepo  gwrepo.GatewayRepository
+	broadcaster  apiKeyBroadcaster
+	connChecker  GatewayConnectionChecker
+}
+
+// NewAgentAPIKeyService creates a new agent API key service instance
+func NewAgentAPIKeyService(
+	artifactRepo gwrepo.ArtifactRepository,
+	ocClient modkit.CoreAPI,
+	gatewayRepo gwrepo.GatewayRepository,
+	gatewayService *GatewayEventsService,
+	apiKeyRepo gwrepo.APIKeyRepository,
+	connChecker GatewayConnectionChecker,
+) *AgentAPIKeyService {
+	return &AgentAPIKeyService{
+		artifactRepo: artifactRepo,
+		ocClient:     ocClient,
+		apiKeyRepo:   apiKeyRepo,
+		gatewayRepo:  gatewayRepo,
+		broadcaster: apiKeyBroadcaster{
+			gatewayRepo:    gatewayRepo,
+			gatewayService: gatewayService,
+			apiKeyRepo:     apiKeyRepo,
+		},
+		connChecker: connChecker,
+	}
+}
+
+// gatewaysConnected reports whether every given gateway currently has at
+// least one live websocket connection to this control plane. Key events for
+// a disconnected gateway are queued and only apply after it reconnects, so
+// callers surface this to warn that a fresh key is not yet usable.
+//
+// A gateway holds its websocket with exactly one replica, and the connection
+// registry is per-process, so the local registry alone cannot answer this for
+// the whole deployment: a replica that does not hold the socket would report a
+// live gateway as disconnected. is_active is the cross-replica view of the same
+// fact — the holding replica writes it on connect and clears it on disconnect —
+// so it is consulted as a fallback.
+//
+// The two are OR'd rather than the DB replacing the registry. The local
+// registry is the fresher signal when this replica does hold the socket, and
+// is_active can go stale as true if a holding pod dies without running its
+// disconnect path. OR keeps the accurate answer in the common case and can only
+// turn a false negative into a true, never the reverse.
+func (s *AgentAPIKeyService) gatewaysConnected(gateways []*gwmodels.Gateway) *bool {
+	connected := true
+	for _, gw := range gateways {
+		if len(s.connChecker.GetConnections(gw.UUID.String())) == 0 && !gw.IsActive {
+			connected = false
+			break
+		}
+	}
+	return &connected
+}
+
+func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, projectName, agentName, envID string) (*gwmodels.Artifact, string, error) {
+	environment, err := LookupEnvironment(ctx, s.ocClient, ouID, envID)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get environment: %w", err)
+	}
+	// envID may be a name or a UUID; events always carry the name.
+	modkit.EventEnvironment(ctx, environment.Name)
+
+	artifact, err := agentEnvAPIArtifact(s.artifactRepo, ouID, projectName, agentName, environment.ID, gwmodels.AgentArtifactKinds...)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to get agent API artifact: %w", err)
+	}
+	return artifact, environment.ID, nil
+}
+
+// resolveEnvGateways returns the environment's ingress-capable gateways. This is a
+// fan-out and stays one: every ingress gateway in the environment gets the key.
+//
+// No Status filter. Keys are distributed regardless of is_active today, and is_active
+// tracks WebSocket connectivity, which flaps — filtering on it would intermittently
+// starve a live gateway of keys. The role filter is the only change.
+func (s *AgentAPIKeyService) resolveEnvGateways(envUUID string) ([]*gwmodels.Gateway, error) {
+	gateways, err := s.gatewayRepo.ListWithFilters(gwrepo.GatewayFilterOptions{
+		EnvironmentID:       &envUUID,
+		FunctionalityTypeIn: gwmodels.IngressGatewayRoles,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list ingress gateways for environment %s: %w", envUUID, err)
+	}
+	if len(gateways) == 0 {
+		return nil, gwerr.ErrGatewayNotFound
+	}
+	return gateways, nil
+}
+
+// CreateAPIKey generates an API key for an agent and broadcasts it to the environment's gateways.
+func (s *AgentAPIKeyService) CreateAPIKey(
+	ctx context.Context,
+	ouID, projectName, agentName, envID string,
+	req *gwmodels.CreateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
+	if req != nil && (strings.HasPrefix(req.Name, gwmodels.APIKeyTestKeyPrefix) || req.Name == legacyTestKeyName) {
+		return nil, fmt.Errorf("%w: names starting with %q are reserved for console test keys", httpx.ErrBadRequest, gwmodels.APIKeyTestKeyPrefix)
+	}
+	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	gateways, err := s.resolveEnvGateways(envUUID)
+	if err != nil {
+		return nil, err
+	}
+	artifactUUID := artifact.UUID.String()
+
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerAgent,
+		OwnerID:   artifactUUID,
+		OwnerName: agentName,
+		KeyName:   keyNameOf(req),
+	})
+	modkit.AuditDetail(ctx, "gatewayCount", len(gateways))
+
+	resp, err := s.broadcaster.broadcastCreateToGateways(gateways, ouID, artifactUUID, artifactUUID, req)
+	if resp != nil {
+		resp.GatewayConnected = s.gatewaysConnected(gateways)
+		// The route's event omits the response, which holds the key itself,
+		// so the key name is added for the event's subject.
+		modkit.EventData(ctx, "name", resp.KeyID)
+	}
+	modkit.AuditDetail(ctx, "gatewayConnected", s.gatewaysConnected(gateways) != nil)
+	return resp, err
+}
+
+// keyNameOf returns the requested key name, tolerating a nil request so the
+// audit path cannot panic on input the caller has not validated yet.
+func keyNameOf(req *gwmodels.CreateAPIKeyRequest) string {
+	if req == nil {
+		return ""
+	}
+	return req.Name
+}
+
+// RevokeAPIKey broadcasts an API key revocation event to the environment's gateways.
+func (s *AgentAPIKeyService) RevokeAPIKey(
+	ctx context.Context,
+	ouID, projectName, agentName, envID, keyName string,
+) error {
+	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	if err != nil {
+		return err
+	}
+	gateways, err := s.resolveEnvGateways(envUUID)
+	if err != nil {
+		return err
+	}
+	artifactUUID := artifact.UUID.String()
+
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerAgent,
+		OwnerID:   artifactUUID,
+		OwnerName: agentName,
+		KeyName:   keyName,
+	})
+	modkit.AuditDetail(ctx, "gatewayCount", len(gateways))
+
+	return s.broadcaster.broadcastRevokeToGateways(ctx, gateways, artifactUUID, artifactUUID, keyName)
+}
+
+// RotateAPIKey generates a new API key value and broadcasts the update to the environment's gateways.
+// Returns the new API key (shown once) and its identifier.
+func (s *AgentAPIKeyService) RotateAPIKey(
+	ctx context.Context,
+	ouID, projectName, agentName, envID, keyName string,
+	req *gwmodels.RotateAPIKeyRequest,
+) (*gwmodels.CreateAPIKeyResponse, error) {
+	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	gateways, err := s.resolveEnvGateways(envUUID)
+	if err != nil {
+		return nil, err
+	}
+	artifactUUID := artifact.UUID.String()
+
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerAgent,
+		OwnerID:   artifactUUID,
+		OwnerName: agentName,
+		KeyName:   keyName,
+	})
+	modkit.AuditDetail(ctx, "gatewayCount", len(gateways))
+
+	resp, err := s.broadcaster.broadcastRotateToGateways(gateways, ouID, artifactUUID, artifactUUID, keyName, req)
+	if resp != nil {
+		resp.GatewayConnected = s.gatewaysConnected(gateways)
+	}
+	modkit.AuditDetail(ctx, "gatewayConnected", s.gatewaysConnected(gateways) != nil)
+	return resp, err
+}
+
+// ListAPIKeys returns API keys for the given agent (masked values only).
+func (s *AgentAPIKeyService) ListAPIKeys(
+	ctx context.Context,
+	ouID, projectName, agentName, envID string,
+) ([]gwmodels.StoredAPIKey, error) {
+	artifact, _, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	all, err := s.apiKeyRepo.ListPermanentByArtifactKinds(ouID, gwmodels.AgentArtifactKinds)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list API keys: %w", err)
+	}
+	var result []gwmodels.StoredAPIKey
+	for _, k := range all {
+		if k.ArtifactUUID == artifact.UUID {
+			result = append(result, k)
+		}
+	}
+	return result, nil
+}
+
+// IssueTestAPIKey issues (or rotates) a short-lived test API key scoped to the
+// calling user (userSub). Each user gets their own DB row, so concurrent sessions
+// across different users don't invalidate each other's keys. Used by the console
+// Try-It flow; test keys never appear in the user-facing list.
+func (s *AgentAPIKeyService) IssueTestAPIKey(
+	ctx context.Context,
+	ouID, projectName, agentName, envID, userSub string,
+) (*gwmodels.IssueTestAPIKeyResponse, error) {
+	artifact, envUUID, err := s.resolveAgentAPIArtifact(ctx, ouID, projectName, agentName, envID)
+	if err != nil {
+		return nil, err
+	}
+	gateways, err := s.resolveEnvGateways(envUUID)
+	if err != nil {
+		return nil, err
+	}
+	artifactUUID := artifact.UUID.String()
+
+	keyName := testKeyName(userSub)
+	expiresAt := time.Now().UTC().Add(testKeyTTL).Format(time.RFC3339)
+
+	existing, err := s.apiKeyRepo.GetByArtifactAndName(artifactUUID, keyName)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("failed to look up existing test key: %w", err)
+	}
+
+	log := logger.GetLogger(ctx)
+	var resp *gwmodels.CreateAPIKeyResponse
+	if existing != nil {
+		if existing.Purpose != gwmodels.APIKeyPurposeTest {
+			return nil, fmt.Errorf("%w: %q is reserved for console test keys", httpx.ErrBadRequest, keyName)
+		}
+		// Same DB row, new hash + expiry; purpose is preserved (Upsert.DoUpdates excludes it).
+		resp, err = s.broadcaster.broadcastRotateToGateways(gateways, ouID, artifactUUID, artifactUUID, keyName,
+			&gwmodels.RotateAPIKeyRequest{ExpiresAt: &expiresAt})
+		if err == nil {
+			log.Info("IssueTestAPIKey: rotated", "keyName", keyName, "org", ouID, "agent", agentName, "env", envID, "expiresAt", expiresAt)
+		}
+	} else {
+		resp, err = s.broadcaster.broadcastCreateToGateways(gateways, ouID, artifactUUID, artifactUUID,
+			&gwmodels.CreateAPIKeyRequest{
+				Name:        keyName,
+				DisplayName: "Console Try-It",
+				Purpose:     gwmodels.APIKeyPurposeTest,
+				ExpiresAt:   &expiresAt,
+			})
+		if err == nil {
+			log.Info("IssueTestAPIKey: created", "keyName", keyName, "org", ouID, "agent", agentName, "env", envID, "expiresAt", expiresAt)
+		}
+	}
+	// The route is not fail-closed: a console test key is
+	// short-lived and scoped to the requesting user, so refusing the Try-It
+	// flow when the trail is unavailable would cost more than it protects.
+	annotateAPIKey(ctx, apiKeyAuditTarget{
+		OwnerType: gwaudit.APIKeyOwnerAgent,
+		OwnerID:   artifactUUID,
+		OwnerName: agentName,
+		KeyName:   keyName,
+	})
+	modkit.AuditDetail(ctx, "expiresAt", expiresAt)
+	modkit.AuditDetail(ctx, "rotated", existing != nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &gwmodels.IssueTestAPIKeyResponse{
+		Status:           resp.Status,
+		Message:          resp.Message,
+		KeyID:            resp.KeyID,
+		APIKey:           resp.APIKey,
+		ExpiresAt:        expiresAt,
+		GatewayConnected: s.gatewaysConnected(gateways),
+	}, nil
+}

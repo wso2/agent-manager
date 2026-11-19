@@ -20,6 +20,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // MaxLabelsPerResource caps the number of user-defined labels on an agent or kind.
@@ -41,20 +43,20 @@ const maxLabelLength = 63
 // the same rules but may be empty.
 func ValidateLabels(labels map[string]string) error {
 	if len(labels) > MaxLabelsPerResource {
-		return NewValidationErrorf(
+		return httpx.NewValidationErrorf(
 			fmt.Sprintf("A resource can have at most %d labels", MaxLabelsPerResource),
 			"labels: %d labels provided, maximum is %d", len(labels), MaxLabelsPerResource,
 		)
 	}
 	for key, value := range labels {
 		if len(key) == 0 || len(key) > maxLabelLength || !labelKeyRegex.MatchString(key) {
-			return NewValidationErrorf(
+			return httpx.NewValidationErrorf(
 				"Label keys must be 1-63 characters of letters, digits, '.', '_' or '-', starting and ending with a letter or digit",
 				"labels: invalid key %q", key,
 			)
 		}
 		if len(value) > maxLabelLength || !labelValueRegex.MatchString(value) {
-			return NewValidationErrorf(
+			return httpx.NewValidationErrorf(
 				"Label values must be at most 63 characters of letters, digits, '.', '_' or '-', starting and ending with a letter or digit",
 				"labels: invalid value %q for key %q", value, key,
 			)
@@ -69,7 +71,7 @@ func ValidateLabels(labels map[string]string) error {
 // input in the detail message.
 func ValidateLabelValue(value, field string) error {
 	if len(value) > maxLabelLength || !labelValueRegex.MatchString(value) {
-		return NewValidationErrorf(
+		return httpx.NewValidationErrorf(
 			fmt.Sprintf("%s must be at most %d characters of letters, digits, '.', '_' or '-', starting and ending with a letter or digit",
 				field, maxLabelLength),
 			"%s: invalid value %q", field, value,
@@ -88,7 +90,7 @@ func ValidateLabelValue(value, field string) error {
 // so repeated identical selectors cannot bypass the limit.
 func ParseLabelSelectors(params []string) (map[string]string, error) {
 	if len(params) > MaxLabelsPerResource {
-		return nil, NewValidationErrorf(
+		return nil, httpx.NewValidationErrorf(
 			fmt.Sprintf("At most %d label filters can be specified", MaxLabelsPerResource),
 			"label: %d filters provided, maximum is %d", len(params), MaxLabelsPerResource,
 		)
@@ -97,13 +99,13 @@ func ParseLabelSelectors(params []string) (map[string]string, error) {
 	for _, param := range params {
 		key, value, found := strings.Cut(param, ":")
 		if !found {
-			return nil, NewValidationErrorf(
+			return nil, httpx.NewValidationErrorf(
 				"Label filters must be in key:value format",
 				"label: missing ':' separator in %q", param,
 			)
 		}
 		if existing, exists := selectors[key]; exists && existing != value {
-			return nil, NewValidationErrorf(
+			return nil, httpx.NewValidationErrorf(
 				"Label filter keys cannot be repeated with different values",
 				"label: key %q specified with conflicting values %q and %q", key, existing, value,
 			)

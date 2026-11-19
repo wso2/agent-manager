@@ -1,0 +1,417 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwctl
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/gorilla/websocket"
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/eventhub"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
+	ws "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/websocket"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
+)
+
+// WebSocketController defines interface for WebSocket HTTP handlers
+type WebSocketController interface {
+	Connect(w http.ResponseWriter, r *http.Request)
+	// Close stops the background cleanup goroutine. Safe to call multiple times.
+	Close()
+}
+
+type websocketController struct {
+	manager        *ws.Manager
+	hub            eventhub.EventHub
+	gatewayService *gwsvc.PlatformGatewayService
+	ackHandler     *gwsvc.DeploymentAckHandler
+	upgrader       websocket.Upgrader
+
+	// Rate limiting: track connection attempts per gateway ID
+	rateLimitMu    sync.RWMutex
+	rateLimitMap   map[string][]time.Time
+	rateLimitCount int
+
+	// done is closed by Close() to stop the background cleanup goroutine.
+	done chan struct{}
+}
+
+// ConnectionAckDTO represents the acknowledgment message sent when a gateway connects
+type ConnectionAckDTO struct {
+	Type         string `json:"type"`
+	GatewayID    string `json:"gatewayId"`
+	ConnectionID string `json:"connectionId"`
+	Timestamp    string `json:"timestamp"`
+}
+
+// NewWebSocketController creates a new WebSocket controller.
+func NewWebSocketController(
+	manager *ws.Manager,
+	hub eventhub.EventHub,
+	gatewayService *gwsvc.PlatformGatewayService,
+	ackHandler *gwsvc.DeploymentAckHandler,
+	rateLimitCount int,
+) WebSocketController {
+	ctrl := &websocketController{
+		manager:        manager,
+		hub:            hub,
+		gatewayService: gatewayService,
+		ackHandler:     ackHandler,
+		upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				// TODO: Implement proper origin checking in production
+				return true
+			},
+			HandshakeTimeout: 10 * time.Second,
+		},
+		rateLimitMap:   make(map[string][]time.Time),
+		rateLimitCount: rateLimitCount,
+		done:           make(chan struct{}),
+	}
+
+	// Start periodic cleanup goroutine to prevent memory leak
+	// Cleans up rate limit entries for gateway keys that haven't connected recently
+	go ctrl.cleanupRateLimitMap()
+
+	return ctrl
+}
+
+// Close stops the background cleanup goroutine. Safe to call multiple times.
+func (c *websocketController) Close() {
+	select {
+	case <-c.done:
+		// already closed
+	default:
+		close(c.done)
+	}
+}
+
+// Connect handles WebSocket upgrade requests
+// This is the entry point for gateway connections
+func (c *websocketController) Connect(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	log := logger.GetLogger(ctx)
+
+	clientIP := getClientIP(r)
+
+	// Extract and validate API key from header
+	apiKey := r.Header.Get("api-key")
+	if apiKey == "" {
+		log.Warn("WebSocket connection attempt without API key", "ip", clientIP)
+		http.Error(w, "API key is required. Provide 'api-key' header.", http.StatusUnauthorized)
+		return
+	}
+
+	// Authenticate gateway using API key
+	gateway, err := c.gatewayService.VerifyToken(ctx, apiKey)
+	if err != nil {
+		log.Warn("WebSocket authentication failed", "ip", clientIP, "error", err)
+		http.Error(w, "Invalid or expired API key", http.StatusUnauthorized)
+		return
+	}
+
+	gatewayID := gateway.UUID.String()
+	ouID := gateway.OUID
+	gatewayName := gateway.Name
+
+	// Ensure the gateway is registered in the EventHub (idempotent - safe to call on every connect).
+	if c.hub != nil {
+		if err := c.hub.RegisterGateway(gatewayID); err != nil {
+			log.Warn("Failed to register gateway in EventHub",
+				"gatewayID", gatewayID, "gatewayName", gatewayName,
+				"ouID", ouID, "error", err)
+		}
+	}
+
+	// Rate limit by gateway ID so that all gateways behind a shared ingress are
+	// tracked independently instead of sharing a single per-IP bucket.
+	// We use the gateway UUID (not the raw API key) to avoid storing secrets in memory.
+	if !c.checkRateLimit(gatewayID) {
+		log.Warn("Gateway connection rate limit exceeded",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"ouID", ouID, "ip", clientIP)
+		http.Error(w, "Connection rate limit exceeded. Please try again later.", http.StatusTooManyRequests)
+		return
+	}
+
+	// Upgrade HTTP connection to WebSocket
+	conn, err := c.upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Error("WebSocket upgrade failed",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"ouID", ouID, "error", err)
+		// Upgrade error is already sent by upgrader
+		return
+	}
+
+	// Create WebSocket transport
+	transport := ws.NewWebSocketTransport(conn)
+
+	// Register connection with manager
+	connection, err := c.manager.Register(gatewayID, transport, apiKey)
+	if err != nil {
+		log.Error("Connection registration failed",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"ouID", ouID, "error", err)
+		// Send error message before closing
+		errorMsg := map[string]string{
+			"type":    "error",
+			"message": err.Error(),
+		}
+		if jsonErr, _ := json.Marshal(errorMsg); jsonErr != nil {
+			if err := conn.WriteMessage(websocket.TextMessage, jsonErr); err != nil {
+				log.Error("Failed to send error message",
+					"gatewayID", gatewayID, "gatewayName", gatewayName,
+					"ouID", ouID, "error", err)
+			}
+		}
+		if err := conn.Close(); err != nil {
+			log.Debug("Connection close returned error",
+				"gatewayID", gatewayID, "gatewayName", gatewayName,
+				"ouID", ouID, "error", err)
+		}
+		return
+	}
+
+	// Send connection acknowledgment
+	ack := ConnectionAckDTO{
+		Type:         "connection.ack",
+		GatewayID:    gatewayID,
+		ConnectionID: connection.ConnectionID,
+		Timestamp:    time.Now().Format(time.RFC3339),
+	}
+
+	ackJSON, err := json.Marshal(ack)
+	if err != nil {
+		log.Error("Failed to marshal connection ACK",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"ouID", ouID, "error", err)
+	} else {
+		if err := connection.Send(ackJSON); err != nil {
+			log.Error("Failed to send connection ACK",
+				"gatewayID", gatewayID, "gatewayName", gatewayName,
+				"ouID", ouID, "connectionID", connection.ConnectionID, "error", err)
+		}
+	}
+
+	log.Info("WebSocket connection established",
+		"gatewayID", gatewayID, "gatewayName", gatewayName,
+		"ouID", ouID, "connectionID", connection.ConnectionID, "ip", clientIP)
+
+	// Update gateway active status to true when connection is established.
+	// A not-found error here means the gateway was deleted (or soft-deleted)
+	// after VerifyToken succeeded but before this point - the connection must
+	// not be allowed to proceed as if it belongs to a live gateway.
+	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, true); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Warn("Gateway no longer exists, closing connection",
+				"gatewayID", gatewayID, "gatewayName", gatewayName,
+				"ouID", ouID, "connectionID", connection.ConnectionID)
+			c.manager.Unregister(gatewayID, connection.ConnectionID)
+			if closeErr := connection.Close(websocket.CloseNormalClosure, "gateway no longer exists"); closeErr != nil {
+				log.Debug("Connection close returned error",
+					"gatewayID", gatewayID, "gatewayName", gatewayName,
+					"ouID", ouID, "error", closeErr)
+			}
+			return
+		}
+		log.Error("Failed to update gateway active status to true",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"ouID", ouID, "error", err)
+	}
+
+	// Start reading messages (blocks until connection closes)
+	// This keeps the handler goroutine alive to maintain the connection
+	c.readLoop(connection)
+
+	// Connection closed - cleanup
+	log.Info("WebSocket connection closed",
+		"gatewayID", gatewayID, "gatewayName", gatewayName,
+		"ouID", ouID, "connectionID", connection.ConnectionID)
+	c.manager.Unregister(gatewayID, connection.ConnectionID)
+
+	// Update gateway active status to false when connection is disconnected
+	if err := c.gatewayService.UpdateGatewayActiveStatus(gatewayID, false); err != nil {
+		log.Error("Failed to update gateway active status to false",
+			"gatewayID", gatewayID, "gatewayName", gatewayName,
+			"ouID", ouID, "error", err)
+	}
+}
+
+// readLoop reads messages from the WebSocket connection.
+// This is primarily for handling control frames (ping/pong) and detecting disconnections.
+// Gateways are not expected to send application messages to the platform.
+func (c *websocketController) readLoop(conn *ws.Connection) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.GetLogger(context.TODO()).Error("Panic in WebSocket read loop", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "panic", r)
+		}
+	}()
+
+	// Read messages until connection closes
+	// The gorilla/websocket library handles ping/pong automatically via SetPongHandler
+	for {
+		// Check if connection is closed
+		if conn.IsClosed() {
+			return
+		}
+
+		// Read next message (blocks until message or error)
+		// We don't expect gateways to send messages, but we need to read
+		// to detect disconnections and handle control frames
+		wsTransport, ok := conn.Transport.(*ws.WebSocketTransport)
+		if !ok {
+			logger.GetLogger(context.TODO()).Error("Invalid transport type for connection", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID)
+			return
+		}
+
+		_, msg, err := wsTransport.ReadMessage()
+		if err != nil {
+			// Connection closed or error occurred
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+				logger.GetLogger(context.TODO()).Error("WebSocket read error", "gatewayID", conn.GatewayID, "connectionID", conn.ConnectionID, "error", err)
+			}
+			return
+		}
+
+		// Dispatch message to ack handler
+		if c.ackHandler != nil && len(msg) > 0 {
+			c.ackHandler.HandleMessage(conn.GatewayID, msg)
+		}
+	}
+}
+
+// checkRateLimit verifies if the given key is within rate limits.
+// Returns true if connection is allowed, false if rate limit exceeded.
+//
+// Rate limit: rateLimitCount connections per minute per key.
+// The key should be the gateway UUID so that each gateway is tracked
+// independently, even when multiple gateways share the same source IP
+// (e.g., behind a shared ingress gateway).
+func (c *websocketController) checkRateLimit(key string) bool {
+	c.rateLimitMu.Lock()
+	defer c.rateLimitMu.Unlock()
+
+	now := time.Now()
+	oneMinuteAgo := now.Add(-1 * time.Minute)
+
+	// Get recent connection attempts for this key
+	attempts, exists := c.rateLimitMap[key]
+	if !exists {
+		attempts = []time.Time{}
+	}
+
+	// Filter out attempts older than 1 minute
+	var recentAttempts []time.Time
+	for _, t := range attempts {
+		if t.After(oneMinuteAgo) {
+			recentAttempts = append(recentAttempts, t)
+		}
+	}
+
+	// Check if rate limit exceeded
+	if len(recentAttempts) >= c.rateLimitCount {
+		return false // Rate limit exceeded
+	}
+
+	// Add current attempt
+	recentAttempts = append(recentAttempts, now)
+	c.rateLimitMap[key] = recentAttempts
+
+	return true // Connection allowed
+}
+
+// cleanupRateLimitMap periodically removes stale entries from the rate limit map
+// to prevent memory leaks from gateway keys that never reconnect.
+// Runs every 5 minutes and removes entries with no recent activity (>1 minute old).
+// Exits when the done channel is closed.
+func (c *websocketController) cleanupRateLimitMap() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.done:
+			return
+		case <-ticker.C:
+		}
+
+		c.rateLimitMu.Lock()
+
+		cutoff := time.Now().Add(-1 * time.Minute)
+		cleanedCount := 0
+
+		for key, attempts := range c.rateLimitMap {
+			// Filter attempts to keep only recent ones
+			var recent []time.Time
+			for _, t := range attempts {
+				if t.After(cutoff) {
+					recent = append(recent, t)
+				}
+			}
+
+			// If no recent attempts, remove the entry entirely
+			if len(recent) == 0 {
+				delete(c.rateLimitMap, key)
+				cleanedCount++
+			} else if len(recent) < len(attempts) {
+				// Update with only recent attempts if we filtered some out
+				c.rateLimitMap[key] = recent
+			}
+		}
+
+		if cleanedCount > 0 {
+			slog.Info("cleaned up stale rate limit entries",
+				"removedCount", cleanedCount,
+				"remainingCount", len(c.rateLimitMap))
+		}
+
+		c.rateLimitMu.Unlock()
+	}
+}
+
+// getClientIP extracts the client IP address from the request
+// Properly parses X-Forwarded-For to extract only the first (leftmost) IP
+// to prevent rate limit bypass via header manipulation
+func getClientIP(r *http.Request) string {
+	// Check X-Forwarded-For header first (parse only first IP)
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		// X-Forwarded-For format: "client, proxy1, proxy2"
+		// Only trust the leftmost IP (actual client)
+		if idx := strings.Index(xff, ","); idx != -1 {
+			return strings.TrimSpace(xff[:idx])
+		}
+		return strings.TrimSpace(xff)
+	}
+	// Check X-Real-IP header
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return strings.TrimSpace(xri)
+	}
+	// Fall back to RemoteAddr (strip port if present)
+	if idx := strings.LastIndex(r.RemoteAddr, ":"); idx != -1 {
+		return r.RemoteAddr[:idx]
+	}
+	return r.RemoteAddr
+}

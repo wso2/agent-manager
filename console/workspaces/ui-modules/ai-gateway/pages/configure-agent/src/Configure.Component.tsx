@@ -43,6 +43,7 @@ import {
 } from "./Configure/subComponents/AgentConfigTableSection";
 import { AddMCPToolConfigPanel } from "./Configure/subComponents/AddMCPToolConfigPanel";
 import { A2AConfigureTab } from "./Configure/subComponents/A2AConfigureTab";
+import { BindingStateNotice } from "./Configure/subComponents/BindingStateNotice";
 import { useResourceAccess } from "@agent-management-platform/feature-management";
 import {
   CONFIGURE_TAB_KEYS,
@@ -259,6 +260,7 @@ export const ConfigureComponent: React.FC = () => {
 
   return (
     <PageLayout title="Configure Agent" disableIcon>
+      <BindingStateNotice orgName={orgId} projName={projectId} agentName={agentId} />
       <Card variant="outlined">
         <Tabs
           value={tabKey}

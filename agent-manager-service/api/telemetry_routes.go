@@ -29,9 +29,9 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // maxConsoleActionBatchBytes caps a single telemetry flush. The console sends
@@ -194,7 +194,7 @@ func handleConsoleActions(w http.ResponseWriter, r *http.Request) {
 		// The route is behind the auth middleware, so this is an upstream bug
 		// rather than an unauthenticated caller.
 		log.Error("telemetry: no token claims on console-actions request, dropping batch")
-		utils.WriteSuccessResponse(w, http.StatusAccepted, spec.ConsoleActionBatchResponse{
+		httpx.WriteSuccessResponse(w, http.StatusAccepted, spec.ConsoleActionBatchResponse{
 			Accepted: 0,
 			Dropped:  0,
 		})
@@ -217,7 +217,7 @@ func handleConsoleActions(w http.ResponseWriter, r *http.Request) {
 				"refillPerSecond", consoleActionsRefillPerSecond,
 				"burst", consoleActionsBurst)
 		}
-		utils.WriteErrorResponse(w, http.StatusTooManyRequests,
+		httpx.WriteErrorResponse(w, http.StatusTooManyRequests,
 			"console action reporting rate limit exceeded")
 		return
 	}
@@ -226,25 +226,25 @@ func handleConsoleActions(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		var maxErr *http.MaxBytesError
 		if errors.As(err, &maxErr) {
-			utils.WriteErrorResponse(w, http.StatusRequestEntityTooLarge,
+			httpx.WriteErrorResponse(w, http.StatusRequestEntityTooLarge,
 				"console action batch exceeds the accepted size")
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "failed to read console action batch")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "failed to read console action batch")
 		return
 	}
 
 	var req spec.ConsoleActionBatchRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "malformed console action batch")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "malformed console action batch")
 		return
 	}
 	if len(req.Actions) == 0 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "console action batch contains no actions")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "console action batch contains no actions")
 		return
 	}
 	if len(req.Actions) > maxConsoleActionsPerBatch {
-		utils.WriteErrorResponse(w, http.StatusRequestEntityTooLarge,
+		httpx.WriteErrorResponse(w, http.StatusRequestEntityTooLarge,
 			"console action batch contains too many actions")
 		return
 	}
@@ -254,7 +254,7 @@ func handleConsoleActions(w http.ResponseWriter, r *http.Request) {
 	if !enabled {
 		// Accepted and discarded: the client's contract is unchanged whether
 		// or not this deployment reports anything.
-		utils.WriteSuccessResponse(w, http.StatusAccepted, spec.ConsoleActionBatchResponse{
+		httpx.WriteSuccessResponse(w, http.StatusAccepted, spec.ConsoleActionBatchResponse{
 			Accepted: 0,
 			Dropped:  int32(len(req.Actions)),
 		})
@@ -302,7 +302,7 @@ func handleConsoleActions(w http.ResponseWriter, r *http.Request) {
 
 	growthanalytics.ReportConsoleActions(r.Context(), ga, jwtassertion.GetJWTFromContext(r.Context()), actions)
 
-	utils.WriteSuccessResponse(w, http.StatusAccepted, spec.ConsoleActionBatchResponse{
+	httpx.WriteSuccessResponse(w, http.StatusAccepted, spec.ConsoleActionBatchResponse{
 		Accepted: int32(len(actions)),
 		Dropped:  int32(dropped),
 	})

@@ -30,7 +30,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
@@ -93,7 +94,7 @@ func (c *identityController) ListUsers(w http.ResponseWriter, r *http.Request) {
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
@@ -109,7 +110,7 @@ func (c *identityController) ListUsers(w http.ResponseWriter, r *http.Request) {
 	users, total, err := c.client.ListUsersByOUId(ctx, resolvedOrg.OUID, offset, limit)
 	if err != nil {
 		log.Error("ListUsers failed", "ouID", resolvedOrg.OUID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list users")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list users")
 		return
 	}
 
@@ -121,7 +122,7 @@ func (c *identityController) ListUsers(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"users": users, "total": total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"users": users, "total": total, "offset": offset, "limit": limit})
 }
 
 func (c *identityController) GetUser(w http.ResponseWriter, r *http.Request) {
@@ -131,25 +132,25 @@ func (c *identityController) GetUser(w http.ResponseWriter, r *http.Request) {
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	user, err := c.client.GetUser(ctx, userID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("GetUser failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user")
 		return
 	}
 
 	if !validateUserOwnership(w, ctx, user, resolvedOrg.OUID) {
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, user)
+	httpx.WriteSuccessResponse(w, http.StatusOK, user)
 }
 
 func (c *identityController) CreateUser(w http.ResponseWriter, r *http.Request) {
@@ -158,26 +159,26 @@ func (c *identityController) CreateUser(w http.ResponseWriter, r *http.Request) 
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	var body spec.CreateUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if body.Type == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "type is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "type is required")
 		return
 	}
 	if body.Attributes == nil || body.Attributes["username"] == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "username in attributes is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "username in attributes is required")
 		return
 	}
 	password, ok := body.Attributes["password"]
 	if !ok || strings.TrimSpace(password) == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "password in attributes is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "password in attributes is required")
 		return
 	}
 
@@ -213,11 +214,11 @@ func (c *identityController) CreateUser(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("CreateUser failed", "username", body.Attributes["username"], "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create user")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create user")
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusCreated, user)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, user)
 }
 
 func (c *identityController) UpdateUser(w http.ResponseWriter, r *http.Request) {
@@ -227,18 +228,18 @@ func (c *identityController) UpdateUser(w http.ResponseWriter, r *http.Request) 
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	user, err := c.client.GetUser(ctx, userID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("UpdateUser failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user")
 		return
 	}
 
@@ -248,7 +249,7 @@ func (c *identityController) UpdateUser(w http.ResponseWriter, r *http.Request) 
 
 	var body spec.UpdateUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -269,14 +270,14 @@ func (c *identityController) UpdateUser(w http.ResponseWriter, r *http.Request) 
 	updatedUser, err := c.client.UpdateUser(ctx, userID, req)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("UpdateUser failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, updatedUser)
+	httpx.WriteSuccessResponse(w, http.StatusOK, updatedUser)
 }
 
 func (c *identityController) DeleteUser(w http.ResponseWriter, r *http.Request) {
@@ -286,18 +287,18 @@ func (c *identityController) DeleteUser(w http.ResponseWriter, r *http.Request) 
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	user, err := c.client.GetUser(ctx, userID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("DeleteUser failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete user")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete user")
 		return
 	}
 
@@ -318,11 +319,11 @@ func (c *identityController) DeleteUser(w http.ResponseWriter, r *http.Request) 
 	if err := c.client.DeleteUser(ctx, userID); err != nil {
 		attempt.Complete(ctx, err)
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("DeleteUser failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete user")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete user")
 		return
 	}
 	attempt.Complete(ctx, nil)
@@ -336,18 +337,18 @@ func (c *identityController) GetUserGroups(w http.ResponseWriter, r *http.Reques
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	user, err := c.client.GetUser(ctx, userID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("GetUserGroups failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user groups")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user groups")
 		return
 	}
 
@@ -358,10 +359,10 @@ func (c *identityController) GetUserGroups(w http.ResponseWriter, r *http.Reques
 	groups, err := c.client.GetUserGroups(ctx, userID)
 	if err != nil {
 		log.Error("GetUserGroups failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user groups")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user groups")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups})
 }
 
 func (c *identityController) GetUserRoles(w http.ResponseWriter, r *http.Request) {
@@ -371,18 +372,18 @@ func (c *identityController) GetUserRoles(w http.ResponseWriter, r *http.Request
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	user, err := c.client.GetUser(ctx, userID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("GetUserRoles failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user roles")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user roles")
 		return
 	}
 
@@ -393,13 +394,13 @@ func (c *identityController) GetUserRoles(w http.ResponseWriter, r *http.Request
 	roles, err := c.client.GetUserRoles(ctx, userID)
 	if err != nil {
 		log.Error("GetUserRoles failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user roles")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user roles")
 		return
 	}
 	for i := range roles {
 		roles[i].IsReadOnly = constants.IsPredefinedRole(roles[i].Name)
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
 }
 
 func (c *identityController) InviteUser(w http.ResponseWriter, r *http.Request) {
@@ -408,7 +409,7 @@ func (c *identityController) InviteUser(w http.ResponseWriter, r *http.Request) 
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
@@ -416,11 +417,11 @@ func (c *identityController) InviteUser(w http.ResponseWriter, r *http.Request) 
 		Email string `json:"email"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if body.Email == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "email is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "email is required")
 		return
 	}
 
@@ -447,11 +448,11 @@ func (c *identityController) InviteUser(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("InviteUser failed", "ouID", resolvedOrg.OUID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to invite user")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to invite user")
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]string{"inviteLink": inviteLink})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]string{"inviteLink": inviteLink})
 }
 
 // --- Groups ---
@@ -462,7 +463,7 @@ func (c *identityController) ListGroups(w http.ResponseWriter, r *http.Request) 
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
@@ -478,7 +479,7 @@ func (c *identityController) ListGroups(w http.ResponseWriter, r *http.Request) 
 	groups, total, err := c.client.ListGroupsByOUId(ctx, resolvedOrg.OUID, offset, limit)
 	if err != nil {
 		log.Error("ListGroups failed", "ouID", resolvedOrg.OUID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list groups")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list groups")
 		return
 	}
 
@@ -492,7 +493,7 @@ func (c *identityController) ListGroups(w http.ResponseWriter, r *http.Request) 
 	// The OU-scoped group listing already hides Thunder's native Administrators
 	// group (thundersvc.NativeAdministratorsGroupName) and paginates after that
 	// exclusion, so offset/limit/total need no adjustment here.
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups, "total": total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"groups": groups, "total": total, "offset": offset, "limit": limit})
 }
 
 func (c *identityController) GetGroup(w http.ResponseWriter, r *http.Request) {
@@ -502,18 +503,18 @@ func (c *identityController) GetGroup(w http.ResponseWriter, r *http.Request) {
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	group, err := c.client.GetGroup(ctx, groupID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("GetGroup failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group")
 		return
 	}
 
@@ -525,7 +526,7 @@ func (c *identityController) GetGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, group)
+	httpx.WriteSuccessResponse(w, http.StatusOK, group)
 }
 
 func (c *identityController) CreateGroup(w http.ResponseWriter, r *http.Request) {
@@ -534,17 +535,17 @@ func (c *identityController) CreateGroup(w http.ResponseWriter, r *http.Request)
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	var body spec.CreateGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if body.Name == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	if !ValidateReservedGroupName(w, body.Name) {
@@ -567,10 +568,10 @@ func (c *identityController) CreateGroup(w http.ResponseWriter, r *http.Request)
 	group, err := c.client.CreateGroup(ctx, req)
 	if err != nil {
 		log.Error("CreateGroup failed", "name", req.Name, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create group")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create group")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusCreated, group)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, group)
 }
 
 func (c *identityController) UpdateGroup(w http.ResponseWriter, r *http.Request) {
@@ -580,18 +581,18 @@ func (c *identityController) UpdateGroup(w http.ResponseWriter, r *http.Request)
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	group, err := c.client.GetGroup(ctx, groupID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("UpdateGroup failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
 		return
 	}
 
@@ -605,7 +606,7 @@ func (c *identityController) UpdateGroup(w http.ResponseWriter, r *http.Request)
 
 	var body spec.UpdateGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if !ValidateReservedGroupName(w, derefString(body.Name)) {
@@ -619,14 +620,14 @@ func (c *identityController) UpdateGroup(w http.ResponseWriter, r *http.Request)
 	updatedGroup, err := c.client.UpdateGroup(ctx, groupID, req)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("UpdateGroup failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update group")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, updatedGroup)
+	httpx.WriteSuccessResponse(w, http.StatusOK, updatedGroup)
 }
 
 func (c *identityController) DeleteGroup(w http.ResponseWriter, r *http.Request) {
@@ -636,18 +637,18 @@ func (c *identityController) DeleteGroup(w http.ResponseWriter, r *http.Request)
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	group, err := c.client.GetGroup(ctx, groupID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("DeleteGroup failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete group")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete group")
 		return
 	}
 
@@ -661,11 +662,11 @@ func (c *identityController) DeleteGroup(w http.ResponseWriter, r *http.Request)
 
 	if err := c.client.DeleteGroup(ctx, groupID); err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("DeleteGroup failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete group")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete group")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -678,18 +679,18 @@ func (c *identityController) AddGroupMembers(w http.ResponseWriter, r *http.Requ
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	group, err := c.client.GetGroup(ctx, groupID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("AddGroupMembers failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
 		return
 	}
 
@@ -705,11 +706,11 @@ func (c *identityController) AddGroupMembers(w http.ResponseWriter, r *http.Requ
 		UserIDs []string `json:"userIds"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if len(req.UserIDs) == 0 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "userIds must not be empty")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "userIds must not be empty")
 		return
 	}
 
@@ -728,11 +729,11 @@ func (c *identityController) AddGroupMembers(w http.ResponseWriter, r *http.Requ
 	if err := c.client.AddGroupMembers(ctx, groupID, req.UserIDs); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("AddGroupMembers failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add group members")
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 func (c *identityController) RemoveGroupMembers(w http.ResponseWriter, r *http.Request) {
@@ -742,18 +743,18 @@ func (c *identityController) RemoveGroupMembers(w http.ResponseWriter, r *http.R
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	group, err := c.client.GetGroup(ctx, groupID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("RemoveGroupMembers failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
 		return
 	}
 
@@ -769,11 +770,11 @@ func (c *identityController) RemoveGroupMembers(w http.ResponseWriter, r *http.R
 		UserIDs []string `json:"userIds"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if len(req.UserIDs) == 0 {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "userIds must not be empty")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "userIds must not be empty")
 		return
 	}
 
@@ -792,11 +793,11 @@ func (c *identityController) RemoveGroupMembers(w http.ResponseWriter, r *http.R
 	if err := c.client.RemoveGroupMembers(ctx, groupID, req.UserIDs); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("RemoveGroupMembers failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove group members")
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 func (c *identityController) GetGroupMembers(w http.ResponseWriter, r *http.Request) {
@@ -806,18 +807,18 @@ func (c *identityController) GetGroupMembers(w http.ResponseWriter, r *http.Requ
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	group, err := c.client.GetGroup(ctx, groupID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("GetGroupMembers failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
 		return
 	}
 
@@ -838,10 +839,10 @@ func (c *identityController) GetGroupMembers(w http.ResponseWriter, r *http.Requ
 	members, total, err := c.client.GetGroupMembers(ctx, groupID, offset, limit)
 	if err != nil {
 		log.Error("GetGroupMembers failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group members")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"users": members, "total": total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"users": members, "total": total, "offset": offset, "limit": limit})
 }
 
 func (c *identityController) GetGroupRoles(w http.ResponseWriter, r *http.Request) {
@@ -851,18 +852,18 @@ func (c *identityController) GetGroupRoles(w http.ResponseWriter, r *http.Reques
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	group, err := c.client.GetGroup(ctx, groupID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 			return
 		}
 		log.Error("GetGroupRoles failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group roles")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group roles")
 		return
 	}
 
@@ -877,13 +878,13 @@ func (c *identityController) GetGroupRoles(w http.ResponseWriter, r *http.Reques
 	roles, err := c.client.GetGroupRoles(ctx, groupID)
 	if err != nil {
 		log.Error("GetGroupRoles failed", "groupID", groupID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group roles")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get group roles")
 		return
 	}
 	for i := range roles {
 		roles[i].IsReadOnly = constants.IsPredefinedRole(roles[i].Name)
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles})
 }
 
 // --- Roles ---
@@ -894,7 +895,7 @@ func (c *identityController) ListRoles(w http.ResponseWriter, r *http.Request) {
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
@@ -907,7 +908,7 @@ func (c *identityController) ListRoles(w http.ResponseWriter, r *http.Request) {
 	roles, total, err := c.client.ListRoles(ctx, resolvedOrg.OUID, offset, limit)
 	if err != nil {
 		log.Error("ListRoles failed", "ouID", resolvedOrg.OUID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list roles")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list roles")
 		return
 	}
 
@@ -920,7 +921,7 @@ func (c *identityController) ListRoles(w http.ResponseWriter, r *http.Request) {
 		roles[i].IsReadOnly = constants.IsPredefinedRole(roles[i].Name)
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles, "total": total, "offset": offset, "limit": limit})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"roles": roles, "total": total, "offset": offset, "limit": limit})
 }
 
 func (c *identityController) GetRole(w http.ResponseWriter, r *http.Request) {
@@ -930,18 +931,18 @@ func (c *identityController) GetRole(w http.ResponseWriter, r *http.Request) {
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	role, err := c.client.GetRole(ctx, roleID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("GetRole failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role")
 		return
 	}
 
@@ -950,7 +951,7 @@ func (c *identityController) GetRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	role.IsReadOnly = constants.IsPredefinedRole(role.Name)
-	utils.WriteSuccessResponse(w, http.StatusOK, role)
+	httpx.WriteSuccessResponse(w, http.StatusOK, role)
 }
 
 func (c *identityController) CreateRole(w http.ResponseWriter, r *http.Request) {
@@ -959,17 +960,17 @@ func (c *identityController) CreateRole(w http.ResponseWriter, r *http.Request) 
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	var body spec.CreateRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if body.Name == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	if !ValidateReservedRoleName(w, body.Name) {
@@ -992,11 +993,11 @@ func (c *identityController) CreateRole(w http.ResponseWriter, r *http.Request) 
 	role, err := c.client.CreateRole(ctx, req)
 	if err != nil {
 		log.Error("CreateRole failed", "name", req.Name, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create role")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to create role")
 		return
 	}
 	role.IsReadOnly = constants.IsPredefinedRole(role.Name)
-	utils.WriteSuccessResponse(w, http.StatusCreated, role)
+	httpx.WriteSuccessResponse(w, http.StatusCreated, role)
 }
 
 func (c *identityController) UpdateRole(w http.ResponseWriter, r *http.Request) {
@@ -1006,18 +1007,18 @@ func (c *identityController) UpdateRole(w http.ResponseWriter, r *http.Request) 
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	role, err := c.client.GetRole(ctx, roleID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("UpdateRole failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role")
 		return
 	}
 
@@ -1031,7 +1032,7 @@ func (c *identityController) UpdateRole(w http.ResponseWriter, r *http.Request) 
 
 	var body spec.UpdateRoleRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if !ValidateReservedRoleName(w, derefString(body.Name)) {
@@ -1046,15 +1047,15 @@ func (c *identityController) UpdateRole(w http.ResponseWriter, r *http.Request) 
 	updatedRole, err := c.client.UpdateRole(ctx, roleID, req)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("UpdateRole failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update role")
 		return
 	}
 	updatedRole.IsReadOnly = constants.IsPredefinedRole(updatedRole.Name)
-	utils.WriteSuccessResponse(w, http.StatusOK, updatedRole)
+	httpx.WriteSuccessResponse(w, http.StatusOK, updatedRole)
 }
 
 func (c *identityController) DeleteRole(w http.ResponseWriter, r *http.Request) {
@@ -1064,18 +1065,18 @@ func (c *identityController) DeleteRole(w http.ResponseWriter, r *http.Request) 
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	role, err := c.client.GetRole(ctx, roleID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("DeleteRole failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete role")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete role")
 		return
 	}
 
@@ -1089,11 +1090,11 @@ func (c *identityController) DeleteRole(w http.ResponseWriter, r *http.Request) 
 
 	if err := c.client.DeleteRole(ctx, roleID); err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("DeleteRole failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete role")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to delete role")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -1106,18 +1107,18 @@ func (c *identityController) GetRoleAssignments(w http.ResponseWriter, r *http.R
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	role, err := c.client.GetRole(ctx, roleID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("GetRoleAssignments failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role assignments")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role assignments")
 		return
 	}
 
@@ -1128,10 +1129,10 @@ func (c *identityController) GetRoleAssignments(w http.ResponseWriter, r *http.R
 	assignments, err := c.client.GetRoleAssignments(ctx, roleID)
 	if err != nil {
 		log.Error("GetRoleAssignments failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role assignments")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get role assignments")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, assignments)
+	httpx.WriteSuccessResponse(w, http.StatusOK, assignments)
 }
 
 func (c *identityController) AddRolePermissions(w http.ResponseWriter, r *http.Request) {
@@ -1141,18 +1142,18 @@ func (c *identityController) AddRolePermissions(w http.ResponseWriter, r *http.R
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	role, err := c.client.GetRole(ctx, roleID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("AddRolePermissions failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role permissions")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role permissions")
 		return
 	}
 
@@ -1166,7 +1167,7 @@ func (c *identityController) AddRolePermissions(w http.ResponseWriter, r *http.R
 
 	var req thundersvc.RolePermissionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1189,11 +1190,11 @@ func (c *identityController) AddRolePermissions(w http.ResponseWriter, r *http.R
 	if err := c.client.AddRolePermissions(ctx, roleID, req); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("AddRolePermissions failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role permissions")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role permissions")
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 func (c *identityController) RemoveRolePermissions(w http.ResponseWriter, r *http.Request) {
@@ -1203,18 +1204,18 @@ func (c *identityController) RemoveRolePermissions(w http.ResponseWriter, r *htt
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	role, err := c.client.GetRole(ctx, roleID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("RemoveRolePermissions failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role permissions")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role permissions")
 		return
 	}
 
@@ -1228,7 +1229,7 @@ func (c *identityController) RemoveRolePermissions(w http.ResponseWriter, r *htt
 
 	var req thundersvc.RolePermissionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1248,11 +1249,11 @@ func (c *identityController) RemoveRolePermissions(w http.ResponseWriter, r *htt
 	if err := c.client.RemoveRolePermissions(ctx, roleID, req); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("RemoveRolePermissions failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role permissions")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role permissions")
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 func (c *identityController) AddRoleAssignees(w http.ResponseWriter, r *http.Request) {
@@ -1262,18 +1263,18 @@ func (c *identityController) AddRoleAssignees(w http.ResponseWriter, r *http.Req
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	role, err := c.client.GetRole(ctx, roleID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("AddRoleAssignees failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role assignees")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role assignees")
 		return
 	}
 
@@ -1283,7 +1284,7 @@ func (c *identityController) AddRoleAssignees(w http.ResponseWriter, r *http.Req
 
 	req, err := decodeRoleAssigneeRequest(r)
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1304,11 +1305,11 @@ func (c *identityController) AddRoleAssignees(w http.ResponseWriter, r *http.Req
 	if err := c.client.AddRoleAssignees(ctx, roleID, req); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("AddRoleAssignees failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role assignees")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to add role assignees")
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 func (c *identityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.Request) {
@@ -1318,18 +1319,18 @@ func (c *identityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	role, err := c.client.GetRole(ctx, roleID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Role not found")
 			return
 		}
 		log.Error("RemoveRoleAssignees failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role assignees")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role assignees")
 		return
 	}
 
@@ -1339,7 +1340,7 @@ func (c *identityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.
 
 	req, err := decodeRoleAssigneeRequest(r)
 	if err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1360,11 +1361,11 @@ func (c *identityController) RemoveRoleAssignees(w http.ResponseWriter, r *http.
 	if err := c.client.RemoveRoleAssignees(ctx, roleID, req); err != nil {
 		attempt.Complete(ctx, err)
 		log.Error("RemoveRoleAssignees failed", "roleID", roleID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role assignees")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to remove role assignees")
 		return
 	}
 	attempt.Complete(ctx, nil)
-	utils.WriteSuccessResponse(w, http.StatusOK, struct{}{})
+	httpx.WriteSuccessResponse(w, http.StatusOK, struct{}{})
 }
 
 // decodeRoleAssigneeRequest converts the frontend { userIds, groupIds } payload
@@ -1399,10 +1400,10 @@ func (c *identityController) ListAMPPermissions(w http.ResponseWriter, r *http.R
 	perms, rsID, err := c.client.ListAMPPermissions(ctx)
 	if err != nil {
 		log.Error("ListAMPPermissions failed", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list AMP permissions")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list AMP permissions")
 		return
 	}
-	utils.WriteSuccessResponse(w, http.StatusOK, map[string]any{"permissions": perms, "resourceServerId": rsID})
+	httpx.WriteSuccessResponse(w, http.StatusOK, map[string]any{"permissions": perms, "resourceServerId": rsID})
 }
 
 // GetUserProfile retrieves a user's profile information
@@ -1412,35 +1413,35 @@ func (c *identityController) GetUserProfile(w http.ResponseWriter, r *http.Reque
 
 	_, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	userID := r.PathValue(utils.PathParamUserID)
 	if userID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "User ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "User ID is required")
 		return
 	}
 
 	// Enforce self-check: caller can only read their own profile
 	claims := jwtassertion.GetTokenClaims(ctx)
 	if claims == nil || claims.Sub != userID {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "You can only view your own profile")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "You can only view your own profile")
 		return
 	}
 
 	user, err := c.client.GetUser(ctx, userID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("GetUserProfile failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user profile")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to get user profile")
 		return
 	}
 
-	utils.WriteSuccessResponse(w, http.StatusOK, user)
+	httpx.WriteSuccessResponse(w, http.StatusOK, user)
 }
 
 // UpdateCurrentUserProfile updates the current user's profile information
@@ -1450,26 +1451,26 @@ func (c *identityController) UpdateCurrentUserProfile(w http.ResponseWriter, r *
 
 	resolvedOrg, ok := middleware.GetResolvedOrg(ctx)
 	if !ok {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing org context")
 		return
 	}
 
 	userID := r.PathValue(utils.PathParamUserID)
 	if userID == "" {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "User ID is required")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "User ID is required")
 		return
 	}
 
 	// Enforce self-check: caller can only update their own profile
 	claims := jwtassertion.GetTokenClaims(ctx)
 	if claims == nil || claims.Sub != userID {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "You can only update your own profile")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "You can only update your own profile")
 		return
 	}
 
 	var body spec.UpdateUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
@@ -1480,11 +1481,11 @@ func (c *identityController) UpdateCurrentUserProfile(w http.ResponseWriter, r *
 	currentUser, err := c.client.GetUser(ctx, userID)
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("Failed to fetch current user", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user profile")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user profile")
 		return
 	}
 
@@ -1533,31 +1534,31 @@ func (c *identityController) UpdateCurrentUserProfile(w http.ResponseWriter, r *
 	})
 	if err != nil {
 		if thundersvc.IsNotFound(err) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "User not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "User not found")
 			return
 		}
 		log.Error("UpdateCurrentUserProfile failed", "userID", userID, "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user profile")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to update user profile")
 		return
 	}
 
 	if newPassword != "" {
 		if err := c.client.UpdateUserCredentials(ctx, userID, newPassword); err != nil {
 			log.Error("UpdateCurrentUserProfile: password update failed", "userID", userID, "ouID", resolvedOrg.OUID, "error", err)
-			utils.WriteErrorResponse(w, http.StatusInternalServerError, "Profile updated, but password change failed")
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Profile updated, but password change failed")
 			return
 		}
 	}
 
 	sanitizedResponse := sanitizeAttributesForLogging(updatedUser.Attributes)
 	log.Info("UpdateCurrentUserProfile - response from Thunder", "userID", userID, "attributes", sanitizedResponse)
-	utils.WriteSuccessResponse(w, http.StatusOK, updatedUser)
+	httpx.WriteSuccessResponse(w, http.StatusOK, updatedUser)
 }
 
 // validateUserOwnership checks if a user belongs to the caller's OU
 func validateUserOwnership(w http.ResponseWriter, ctx context.Context, user *thundersvc.ThunderUser, callerOuID string) bool {
 	if user.OuID != "" && user.OuID != callerOuID {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "User does not belong to your organization")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "User does not belong to your organization")
 		return false
 	}
 	return true
@@ -1566,7 +1567,7 @@ func validateUserOwnership(w http.ResponseWriter, ctx context.Context, user *thu
 // validateGroupOwnership checks if a group belongs to the caller's OU
 func validateGroupOwnership(w http.ResponseWriter, ctx context.Context, group *thundersvc.ThunderGroup, callerOuID string) bool {
 	if group.OuID != "" && group.OuID != callerOuID {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "Group does not belong to your organization")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "Group does not belong to your organization")
 		return false
 	}
 	return true
@@ -1575,7 +1576,7 @@ func validateGroupOwnership(w http.ResponseWriter, ctx context.Context, group *t
 // validateRoleOwnership checks if a role belongs to the caller's OU
 func validateRoleOwnership(w http.ResponseWriter, ctx context.Context, role *thundersvc.ThunderRole, callerOuID string) bool {
 	if role.OuID != "" && role.OuID != callerOuID {
-		utils.WriteErrorResponse(w, http.StatusForbidden, "Role does not belong to your organization")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "Role does not belong to your organization")
 		return false
 	}
 	return true
@@ -1618,7 +1619,7 @@ func isPredefinedRole(roleName string) bool {
 
 func validatePredefinedRole(w http.ResponseWriter, roleName string) bool {
 	if isPredefinedRole(roleName) {
-		utils.WriteErrorResponse(w, http.StatusBadRequest, "Predefined roles cannot be edited or deleted")
+		httpx.WriteErrorResponse(w, http.StatusBadRequest, "Predefined roles cannot be edited or deleted")
 		return false
 	}
 	return true
@@ -1627,7 +1628,7 @@ func validatePredefinedRole(w http.ResponseWriter, roleName string) bool {
 // ValidateSystemGroup checks if a group is a system group and blocks access if so
 func ValidateSystemGroup(w http.ResponseWriter, groupName string) bool {
 	if groupName == thundersvc.NativeAdministratorsGroupName {
-		utils.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
+		httpx.WriteErrorResponse(w, http.StatusNotFound, "Group not found")
 		return false
 	}
 	return true
@@ -1643,7 +1644,7 @@ func ValidateSystemGroup(w http.ResponseWriter, groupName string) bool {
 func validateReservedName(w http.ResponseWriter, requested string, reserved []string, kind string) bool {
 	for _, r := range reserved {
 		if requested == r {
-			utils.WriteErrorResponse(w, http.StatusBadRequest,
+			httpx.WriteErrorResponse(w, http.StatusBadRequest,
 				fmt.Sprintf("%q is a reserved %s name", r, kind))
 			return false
 		}

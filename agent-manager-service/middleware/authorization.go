@@ -23,8 +23,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 // RecordAuthzDeny records a refused authorization decision. Handlers that
@@ -87,13 +87,13 @@ func resolveOrgFromToken() func(http.HandlerFunc) http.HandlerFunc {
 			if claims == nil {
 				slog.Warn("RequireOrgMatch rejected", "reason", "missing token claims", "path", r.URL.Path)
 				RecordAuthzDeny(r, "missing-token-claims")
-				utils.WriteErrorResponse(w, http.StatusForbidden, "missing token claims")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "missing token claims")
 				return
 			}
 			if claims.OuId == "" || claims.OuHandle == "" {
 				slog.Warn("RequireOrgMatch rejected", "reason", "missing ou identity in token", "sub", claims.Sub, "path", r.URL.Path)
 				RecordAuthzDeny(r, "missing-ou-identity")
-				utils.WriteErrorResponse(w, http.StatusForbidden, "missing ou identity in token")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "missing ou identity in token")
 				return
 			}
 
@@ -211,7 +211,7 @@ func requireScopes(mode scopeMode, allowRootOU bool, perms ...rbac.Permission) f
 				opts = append(opts, audit.Detail("missingScope", missing.Scope()))
 			}
 			RecordAuthzDeny(r, reason, opts...)
-			utils.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
+			httpx.WriteErrorResponse(w, http.StatusForbidden, "insufficient permissions")
 		}
 	}
 }

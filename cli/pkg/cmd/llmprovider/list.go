@@ -22,7 +22,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
@@ -35,7 +35,7 @@ const defaultListLimit = 50
 
 type ListOptions struct {
 	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	MakeScope    func(org, proj string) render.Scope
 
@@ -46,7 +46,7 @@ type ListOptions struct {
 func NewListCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &ListOptions{
 		IO:           f.IOStreams,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
 		ResolveScope: f.ResolveOrgProject,
 		MakeScope:    f.Scope,
 	}
@@ -75,7 +75,7 @@ func runList(ctx context.Context, o *ListOptions) error {
 	// Request a 50-item page to match `project list`; --limit/--offset paging
 	// is not exposed yet.
 	limit := int32(defaultListLimit)
-	resp, err := client.ListLLMProvidersWithResponse(ctx, o.Org, &amsvc.ListLLMProvidersParams{Limit: &limit})
+	resp, err := client.ListLLMProvidersWithResponse(ctx, o.Org, &aigateway.ListLLMProvidersParams{Limit: &limit})
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}

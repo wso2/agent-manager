@@ -31,6 +31,16 @@ export interface MCPConfigRequest {
   environmentVariables?: EnvironmentVariableConfig[];
 }
 
+/** The extensions.ai-gateway block of an agent create request. */
+export interface AgentGatewayExtension {
+  modelConfig?: ModelConfigRequest[];
+  mcpConfig?: MCPConfigRequest[];
+}
+
+export interface AgentExtensions {
+  'ai-gateway'?: AgentGatewayExtension;
+}
+
 // Requests
 interface AgentRequestBase {
   name: string;
@@ -39,12 +49,11 @@ interface AgentRequestBase {
   provisioning: Provisioning;
   agentType?: AgentType;
   build?: Build;
-  configurations?: Configurations;
   inputInterface?: InputInterface;
   /** Health checks for the agent's builds. Omitted checks use the defaults. */
   healthChecks?: HealthChecks;
-  modelConfig?: ModelConfigRequest[];
-  mcpConfig?: MCPConfigRequest[];
+  /** Module blocks keyed by module name; see AgentGatewayExtension. */
+  extensions?: AgentExtensions;
   labels?: Record<string, string>;
   /** Optional GitHub App source binding. Omitted by the built-in PAT flow. */
   githubApp?: GitHubAppSource;
@@ -161,7 +170,6 @@ export interface AgentResponse {
   provisioning: Provisioning;
   agentType?: AgentType;
   build?: Build;
-  configurations?: Configurations;
   inputInterface?: InputInterface;
   /** Health checks saved in the build settings, which the next build records. */
   healthChecks?: HealthChecks;

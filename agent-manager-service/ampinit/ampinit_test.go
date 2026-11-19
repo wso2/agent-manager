@@ -292,14 +292,43 @@ func TestRenderThunderGrantsModulePermissions(t *testing.T) {
 	}
 	cfg.Modules = append(cfg.Modules, modkit.Manifest{
 		Name:        "widgets",
-		Permissions: []modkit.Permission{{Name: "widget-read", Description: "Read widgets"}, {Name: "widget-write"}},
+		DisplayName: "Widget Shop",
+		Permissions: []modkit.Permission{{Name: "widget-read", DisplayName: "Read Widgets", Description: "Read widgets"}, {Name: "widget-write"}},
 		RoleGrants:  map[string][]string{rbac.RoleDeveloper: {"widget-read"}},
 	})
 	files, err := RenderThunder(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(files["bootstrap/60-amp-resource-server.yaml"]), "handle: widgets") {
+	var server struct {
+		Resources []struct {
+			Name    string `yaml:"name"`
+			Handle  string `yaml:"handle"`
+			Actions []struct {
+				Name   string `yaml:"name"`
+				Handle string `yaml:"handle"`
+			} `yaml:"actions"`
+		} `yaml:"resources"`
+	}
+	mustYAML(t, files["bootstrap/60-amp-resource-server.yaml"], &server)
+	found := false
+	for _, r := range server.Resources {
+		if r.Handle != "widgets" {
+			continue
+		}
+		found = true
+		if r.Name != "Widget Shop" {
+			t.Errorf("the module's resource is named %q, not its display name", r.Name)
+		}
+		names := map[string]string{}
+		for _, a := range r.Actions {
+			names[a.Handle] = a.Name
+		}
+		if names["widget-read"] != "Read Widgets" || names["widget-write"] != "widget-write" {
+			t.Errorf("actions are named %v: a display name, or the handle when there is none", names)
+		}
+	}
+	if !found {
 		t.Error("the resource server has no resource for the module")
 	}
 	var app struct {
@@ -333,16 +362,16 @@ func TestRenderThunderGrantsModulePermissions(t *testing.T) {
 	}
 }
 
-// A module named after a core resource would add a second "gateway" (or
-// "agent", ...) resource to the resource server; rendering refuses it.
+// A module named after a core resource would add a second "agent" (or
+// "events", ...) resource to the resource server; rendering refuses it.
 func TestRenderThunderRefusesAModuleNamedAfterACoreResource(t *testing.T) {
 	setThunderEnv(t)
 	cfg, err := LoadThunderConfig()
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Modules = append(cfg.Modules, modkit.Manifest{Name: "gateway", Permissions: []modkit.Permission{{Name: "manage"}}})
-	if _, err := RenderThunder(cfg); err == nil || !strings.Contains(err.Error(), "gateway") {
+	cfg.Modules = append(cfg.Modules, modkit.Manifest{Name: "events", Permissions: []modkit.Permission{{Name: "manage"}}})
+	if _, err := RenderThunder(cfg); err == nil || !strings.Contains(err.Error(), "events") {
 		t.Fatalf("RenderThunder = %v, want a refusal naming the module", err)
 	}
 }

@@ -239,61 +239,6 @@ func TestBuildInterface_ChatAPI(t *testing.T) {
 	}
 }
 
-func TestBuildConfig_None(t *testing.T) {
-	opts := &CreateOptions{}
-	cfg, _ := buildConfig(opts)
-	if cfg != nil {
-		t.Errorf("expected nil, got %+v", cfg)
-	}
-}
-
-func TestBuildConfig_DisableAutoInstrumentation(t *testing.T) {
-	opts := &CreateOptions{DisableAutoInstrumentation: true}
-	cfg, _ := buildConfig(opts)
-	if cfg == nil {
-		t.Fatal("expected non-nil config")
-	}
-	if cfg.EnableAutoInstrumentation == nil || *cfg.EnableAutoInstrumentation != false {
-		t.Errorf("EnableAutoInstrumentation = %v, want false", cfg.EnableAutoInstrumentation)
-	}
-}
-
-func TestBuildConfig_EnvVariables(t *testing.T) {
-	opts := &CreateOptions{
-		Env:           []string{"FOO=bar", "BAZ=qux"},
-		EnvSecret:     []string{"SECRET=hunter2"},
-		EnvFromSecret: []string{"DB_PASS=my-secret"},
-	}
-	cfg, _ := buildConfig(opts)
-	if cfg == nil {
-		t.Fatal("expected non-nil config")
-	}
-	if cfg.Env == nil {
-		t.Fatal("Env is nil")
-	}
-	envs := *cfg.Env
-	if len(envs) != 4 {
-		t.Fatalf("len(Env) = %d, want 4", len(envs))
-	}
-
-	// --env FOO=bar (IsSensitive omitted — server default)
-	assertEnvVar(t, envs[0], "FOO", strPtr("bar"), nil, nil)
-	// --env BAZ=qux
-	assertEnvVar(t, envs[1], "BAZ", strPtr("qux"), nil, nil)
-	// --env-secret SECRET=hunter2
-	assertEnvVar(t, envs[2], "SECRET", strPtr("hunter2"), nil, boolPtr(true))
-	// --env-from-secret DB_PASS=my-secret
-	assertEnvVar(t, envs[3], "DB_PASS", nil, strPtr("my-secret"), nil)
-}
-
-func TestBuildConfig_EnvAutoInstrumentationOmittedByDefault(t *testing.T) {
-	opts := &CreateOptions{Env: []string{"A=1"}}
-	cfg, _ := buildConfig(opts)
-	if cfg.EnableAutoInstrumentation != nil {
-		t.Errorf("EnableAutoInstrumentation = %v, want nil", cfg.EnableAutoInstrumentation)
-	}
-}
-
 func TestBuild_FullBuildpack(t *testing.T) {
 	opts := &CreateOptions{
 		Name:         "my-agent",
@@ -397,6 +342,24 @@ func TestBuild_FullDocker(t *testing.T) {
 	}
 }
 
+// gatewayModelConfig returns the single modelConfig entry the builder put in
+// the request's ai-gateway extension block.
+func gatewayModelConfig(t *testing.T, req *amsvc.CreateAgentRequest) map[string]any {
+	t.Helper()
+	if req.Extensions == nil {
+		t.Fatal("Extensions is nil, want an ai-gateway block")
+	}
+	block, ok := (*req.Extensions)["ai-gateway"]
+	if !ok {
+		t.Fatalf("Extensions = %v, want an ai-gateway block", *req.Extensions)
+	}
+	mcs, ok := block["modelConfig"].([]any)
+	if !ok || len(mcs) != 1 {
+		t.Fatalf("modelConfig = %v, want 1 entry", block["modelConfig"])
+	}
+	return mcs[0].(map[string]any)
+}
+
 func TestBuild_ModelConfig_ProviderOnly(t *testing.T) {
 	opts := validBuildpackOpts()
 	opts.LLMProvider = "openai"
@@ -404,15 +367,12 @@ func TestBuild_ModelConfig_ProviderOnly(t *testing.T) {
 	if len(v) != 0 {
 		t.Fatalf("unexpected violations: %v", v)
 	}
-	if req.ModelConfig == nil || len(*req.ModelConfig) != 1 {
-		t.Fatalf("ModelConfig = %v, want 1 entry", req.ModelConfig)
+	mc := gatewayModelConfig(t, &req)
+	if mc["providerName"] != "openai" {
+		t.Errorf("providerName = %v, want openai", mc["providerName"])
 	}
-	mc := (*req.ModelConfig)[0]
-	if mc.ProviderName != "openai" {
-		t.Errorf("ProviderName = %q, want openai", mc.ProviderName)
-	}
-	if mc.EnvironmentVariables != nil {
-		t.Errorf("EnvironmentVariables = %v, want nil (no overrides)", mc.EnvironmentVariables)
+	if _, ok := mc["environmentVariables"]; ok {
+		t.Errorf("environmentVariables = %v, want absent (no overrides)", mc["environmentVariables"])
 	}
 }
 
@@ -425,46 +385,34 @@ func TestBuild_ModelConfig_WithEnvOverrides(t *testing.T) {
 	if len(v) != 0 {
 		t.Fatalf("unexpected violations: %v", v)
 	}
-	mc := (*req.ModelConfig)[0]
-	if mc.EnvironmentVariables == nil {
-		t.Fatal("EnvironmentVariables is nil, want 2 entries")
+	evs, ok := gatewayModelConfig(t, &req)["environmentVariables"].([]map[string]string)
+	if !ok {
+		t.Fatal("environmentVariables missing, want 2 entries")
 	}
 	got := map[string]string{}
-	for _, ev := range *mc.EnvironmentVariables {
-		got[ev.Key] = ev.Name
+	for _, ev := range evs {
+		got[ev["key"]] = ev["name"]
 	}
 	if got["url"] != "MY_URL" || got["apikey"] != "MY_KEY" {
 		t.Errorf("env overrides = %v, want url=MY_URL apikey=MY_KEY", got)
 	}
 }
 
-func TestBuild_ModelConfig_OmittedWhenNoProvider(t *testing.T) {
-	opts := validBuildpackOpts()
-	req, v := Build(opts)
+func TestBuild_NoProvider_NoExtension(t *testing.T) {
+	req, v := Build(validBuildpackOpts())
 	if len(v) != 0 {
 		t.Fatalf("unexpected violations: %v", v)
 	}
-	if req.ModelConfig != nil {
-		t.Errorf("ModelConfig = %v, want nil when --llm-provider unset", req.ModelConfig)
-	}
-}
-
-func TestBuild_NoConfigWhenUnset(t *testing.T) {
-	opts := validBuildpackOpts()
-	req, v := Build(opts)
-	if len(v) != 0 {
-		t.Fatalf("unexpected violations: %v", v)
-	}
-	if req.Configurations != nil {
-		t.Errorf("Configurations = %v, want nil", req.Configurations)
+	if req.Extensions != nil {
+		t.Errorf("Extensions = %v, want nil without --llm-provider", *req.Extensions)
 	}
 }
 
 func TestBuildProvisioning_External(t *testing.T) {
 	opts := &CreateOptions{Provisioning: "external"}
 	p := buildProvisioning(opts)
-	if p.Type != amsvc.ProvisioningTypeExternal {
-		t.Errorf("Type = %q, want %q", p.Type, amsvc.ProvisioningTypeExternal)
+	if p.Type != amsvc.External {
+		t.Errorf("Type = %q, want %q", p.Type, amsvc.External)
 	}
 	if p.Repository != nil {
 		t.Errorf("Repository = %v, want nil", p.Repository)
@@ -494,7 +442,7 @@ func TestBuild_External(t *testing.T) {
 	if req.AgentType.SubType != nil {
 		t.Errorf("AgentType.SubType should be nil for external, got %v", *req.AgentType.SubType)
 	}
-	if req.Provisioning.Type != amsvc.ProvisioningTypeExternal {
+	if req.Provisioning.Type != amsvc.External {
 		t.Errorf("Provisioning.Type = %q, want external", req.Provisioning.Type)
 	}
 	if req.Provisioning.Repository != nil {
@@ -506,8 +454,8 @@ func TestBuild_External(t *testing.T) {
 	if req.InputInterface != nil {
 		t.Errorf("InputInterface should be nil for external, got %+v", req.InputInterface)
 	}
-	if req.Configurations != nil {
-		t.Errorf("Configurations should be nil for external, got %+v", req.Configurations)
+	if req.Extensions != nil {
+		t.Errorf("Extensions should be nil for external, got %+v", *req.Extensions)
 	}
 }
 
@@ -542,19 +490,6 @@ func TestBuildBuild_EmptyTypeReturnsNil(t *testing.T) {
 	}
 }
 
-// Entries without '=' are reported and skipped — they must not be smuggled
-// into the request as KEY="".
-func TestBuildConfig_MissingSeparatorSkipsEntry(t *testing.T) {
-	opts := &CreateOptions{Env: []string{"NOEQUALS", "GOOD=1"}}
-	cfg, v := buildConfig(opts)
-	if len(v) != 1 {
-		t.Fatalf("violations = %v, want exactly one", v)
-	}
-	if cfg == nil || cfg.Env == nil || len(*cfg.Env) != 1 || (*cfg.Env)[0].Key != "GOOD" {
-		t.Errorf("Env = %+v, want only GOOD", cfg.Env)
-	}
-}
-
 // An unknown --provisioning passes through so validateRequest reports it;
 // internal-only sections are not built for it.
 func TestBuild_UnknownProvisioningPassesThrough(t *testing.T) {
@@ -578,20 +513,3 @@ func TestBuild_UnknownProvisioningPassesThrough(t *testing.T) {
 // --- helpers ---
 
 func strPtr(s string) *string { return &s }
-func boolPtr(b bool) *bool    { return &b }
-
-func assertEnvVar(t *testing.T, ev amsvc.EnvironmentVariable, key string, value, secretRef *string, isSensitive *bool) {
-	t.Helper()
-	if ev.Key != key {
-		t.Errorf("Key = %q, want %q", ev.Key, key)
-	}
-	if (ev.Value == nil) != (value == nil) || (ev.Value != nil && *ev.Value != *value) {
-		t.Errorf("Value = %v, want %v", ev.Value, value)
-	}
-	if (ev.SecretRef == nil) != (secretRef == nil) || (ev.SecretRef != nil && *ev.SecretRef != *secretRef) {
-		t.Errorf("SecretRef = %v, want %v", ev.SecretRef, secretRef)
-	}
-	if (ev.IsSensitive == nil) != (isSensitive == nil) || (ev.IsSensitive != nil && *ev.IsSensitive != *isSensitive) {
-		t.Errorf("IsSensitive = %v, want %v", ev.IsSensitive, isSensitive)
-	}
-}

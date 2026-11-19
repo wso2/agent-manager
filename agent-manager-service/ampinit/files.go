@@ -17,80 +17,17 @@
 package ampinit
 
 import (
-	"bytes"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/initfiles"
 )
 
-// owner is a uid:gid the written files are handed to; nil leaves them as created.
-type owner struct{ uid, gid int }
-
 // parseOwner reads "uid:gid" from the environment variable key.
-func parseOwner(key string) (*owner, error) {
-	v := strings.TrimSpace(config.Value(key))
-	if v == "" {
-		return nil, nil //nolint:nilnil // unset means "do not chown"
-	}
-	u, g, ok := strings.Cut(v, ":")
-	uid, err1 := strconv.Atoi(u)
-	gid, err2 := strconv.Atoi(g)
-	if !ok || err1 != nil || err2 != nil {
-		return nil, fmt.Errorf("%s: %q is not uid:gid", key, v)
-	}
-	return &owner{uid: uid, gid: gid}, nil
-}
-
-// writeFile replaces path with data unless it already holds exactly that, then applies mode and owner.
-func writeFile(path string, data []byte, mode os.FileMode, o *owner) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	if current, err := os.ReadFile(path); err != nil || !bytes.Equal(current, data) {
-		tmp := path + ".tmp"
-		if err := os.WriteFile(tmp, data, mode); err != nil {
-			return err
-		}
-		if err := os.Rename(tmp, path); err != nil {
-			return err
-		}
-	}
-	return settle(path, mode, o)
-}
-
-// writeOnce creates path with what gen returns unless it already exists, and returns its content.
-func writeOnce(path string, mode os.FileMode, o *owner, gen func() ([]byte, error)) ([]byte, error) {
-	if data, err := os.ReadFile(path); err == nil && len(data) > 0 {
-		return data, settle(path, mode, o)
-	}
-	data, err := gen()
+func parseOwner(key string) (*initfiles.Owner, error) {
+	o, err := initfiles.ParseOwner(config.Value(key))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%s: %w", key, err)
 	}
-	return data, writeFile(path, data, mode, o)
-}
-
-func settle(path string, mode os.FileMode, o *owner) error {
-	if err := os.Chmod(path, mode); err != nil {
-		return err
-	}
-	if o != nil {
-		return os.Lchown(path, o.uid, o.gid)
-	}
-	return nil
-}
-
-// chownDir hands a directory the files are written into to their owner.
-func chownDir(dir string, o *owner) error {
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-	if o != nil {
-		return os.Chown(dir, o.uid, o.gid)
-	}
-	return nil
+	return o, nil
 }

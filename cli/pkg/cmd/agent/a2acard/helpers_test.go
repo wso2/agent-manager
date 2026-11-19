@@ -23,7 +23,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
 // route describes one stubbed HTTP response keyed by "METHOD /path".
@@ -35,7 +35,7 @@ type route struct {
 }
 
 // newClient serves routes keyed by "METHOD /path"; unrouted requests get a 500.
-func newClient(t *testing.T, routes map[string]route) *amsvc.ClientWithResponses {
+func newClient(t *testing.T, routes map[string]route) *aigateway.ClientWithResponses {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Method + " " + r.URL.Path
@@ -58,7 +58,7 @@ func newClient(t *testing.T, routes map[string]route) *amsvc.ClientWithResponses
 		}
 	}))
 	t.Cleanup(srv.Close)
-	client, err := amsvc.NewClientWithResponses(srv.URL)
+	client, err := aigateway.NewClientWithResponses(srv.URL)
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}

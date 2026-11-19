@@ -26,7 +26,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
@@ -37,7 +37,7 @@ func envPath(env, suffix string) string {
 	return agentPath + "/environments/" + env + "/" + suffix
 }
 
-func unreachableClient(context.Context) (*amsvc.ClientWithResponses, error) {
+func unreachableClient(context.Context) (*aigateway.ClientWithResponses, error) {
 	return nil, errors.New("client should not be constructed")
 }
 
@@ -50,7 +50,7 @@ type route struct {
 func okJSON(body any) route { return route{status: http.StatusOK, body: body} }
 
 // newClient serves routes keyed by "METHOD /path"; unrouted requests get a 500.
-func newClient(t *testing.T, routes map[string]route) func(context.Context) (*amsvc.ClientWithResponses, error) {
+func newClient(t *testing.T, routes map[string]route) func(context.Context) (*aigateway.ClientWithResponses, error) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Method + " " + r.URL.Path
@@ -68,11 +68,11 @@ func newClient(t *testing.T, routes map[string]route) func(context.Context) (*am
 		}
 	}))
 	t.Cleanup(srv.Close)
-	client, err := amsvc.NewClientWithResponses(srv.URL)
+	client, err := aigateway.NewClientWithResponses(srv.URL)
 	if err != nil {
 		t.Fatalf("new client: %v", err)
 	}
-	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }
+	return func(context.Context) (*aigateway.ClientWithResponses, error) { return client, nil }
 }
 
 func baseScope() render.Scope {

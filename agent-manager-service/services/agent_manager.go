@@ -26,23 +26,18 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"gorm.io/gorm"
+
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
-	"github.com/wso2/agent-manager/agent-manager-service/constants"
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts"
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/agentgwv1"
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/llmv1"
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/mcpv1"
-	"github.com/wso2/agent-manager/agent-manager-service/rbac"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
-	"gorm.io/gorm"
 )
 
 type AgentManagerService interface {
@@ -52,7 +47,6 @@ type AgentManagerService interface {
 	UpdateAgentBasicInfo(ctx context.Context, ouID string, projectName string, agentName string, req *spec.UpdateAgentBasicInfoRequest) (*models.AgentResponse, error)
 	DeleteAgent(ctx context.Context, ouID string, projectName string, agentName string) error
 	GetAgent(ctx context.Context, ouID string, projectName string, agentName string) (*models.AgentResponse, error)
-	GetAgentEnvConfig(ctx context.Context, ouID string, projectName string, agentName string, environment string) (*models.AgentConfig, error)
 	GenerateName(ctx context.Context, ouID string, payload spec.ResourceNameRequest) (string, error)
 	GetAgentIdentity(ctx context.Context, ouID string, projectName string, agentName string) ([]models.AgentIdentityEnvironmentView, error)
 	RegenerateAgentIdentitySecret(ctx context.Context, ouID string, projectName string, agentName string, environmentName string) (*models.AgentRegenerateSecretResponse, error)
@@ -67,21 +61,18 @@ type agentManagerService struct {
 	db                       *gorm.DB
 	platform                 repositories.PlatformRepository
 	tokenManagerService      AgentTokenManagerService
-	agentConfigRepo          repositories.AgentConfigRepository
 	agentThunderProvisioning AgentThunderProvisioningService
 	identityClient           thundersvc.IdentityClient
 	logger                   *slog.Logger
 }
 
-// NewAgentManagerService creates the core's agent service. What a gateway adds
-// to an agent's lifecycle (LLM and MCP bindings, exposure) is reached through
-// the capabilities of the active modules; with none active, agents are
-// registered without it.
+// NewAgentManagerService creates the core's agent service. Modules add to an
+// agent's lifecycle through their hooks and event handlers, with the
+// extensions block of the request.
 func NewAgentManagerService(
 	db *gorm.DB,
 	platform repositories.PlatformRepository,
 	tokenManagerService AgentTokenManagerService,
-	agentConfigRepo repositories.AgentConfigRepository,
 	agentThunderProvisioning AgentThunderProvisioningService,
 	identityClient thundersvc.IdentityClient,
 	logger *slog.Logger,
@@ -90,7 +81,6 @@ func NewAgentManagerService(
 		db:                       db,
 		platform:                 platform,
 		tokenManagerService:      tokenManagerService,
-		agentConfigRepo:          agentConfigRepo,
 		agentThunderProvisioning: agentThunderProvisioning,
 		identityClient:           identityClient,
 		logger:                   logger,
@@ -111,46 +101,6 @@ func (s *agentManagerService) GetAgent(ctx context.Context, ouID string, project
 	agent, err := s.platform.GetAgent(ctx, ouID, projectName, agentName)
 	if err != nil {
 		return nil, err
-	}
-	agentConfig, configErr := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, models.DefaultEnvironmentName)
-	switch {
-	case errors.Is(configErr, repositories.ErrAgentConfigNotFound):
-		defaultEnabled := true
-		defaultCORSEnabled := true
-		defaultOAuthDisabled := false
-		defCORS := config.GetAgentWorkloadConfig().CORS
-		defaultResilience := constants.DefaultResilienceTimeoutSeconds
-		agent.Configurations = &models.Configurations{
-			EnableAutoInstrumentation: &defaultEnabled,
-			EnableApiKeySecurity:      &defaultEnabled,
-			CorsConfig: &models.CorsConfig{
-				Enabled:          &defaultCORSEnabled,
-				AllowOrigin:      strings.Split(defCORS.AllowOrigin, ","),
-				AllowMethods:     strings.Split(defCORS.AllowMethods, ","),
-				AllowHeaders:     strings.Split(defCORS.AllowHeaders, ","),
-				AllowCredentials: &defCORS.AllowCredentials,
-			},
-			EnableOAuthSecurity:      &defaultOAuthDisabled,
-			ResilienceTimeoutSeconds: &defaultResilience,
-		}
-	case configErr != nil:
-		return nil, fmt.Errorf("failed to read agent config: %w", configErr)
-	default:
-		agent.Configurations = &models.Configurations{
-			EnableAutoInstrumentation: &agentConfig.EnableAutoInstrumentation,
-			InstrumentationVersion:    agentConfig.InstrumentationVersion,
-			EnableApiKeySecurity:      &agentConfig.EnableApiKeySecurity,
-			CorsConfig: &models.CorsConfig{
-				Enabled:          &agentConfig.CORSEnabled,
-				AllowOrigin:      agentConfig.CORSAllowOrigins,
-				AllowMethods:     agentConfig.CORSAllowMethods,
-				AllowHeaders:     agentConfig.CORSAllowHeaders,
-				AllowCredentials: &agentConfig.CORSAllowCredentials,
-			},
-			EnableOAuthSecurity:      &agentConfig.EnableOAuthSecurity,
-			OAuthConfig:              oauthConfigFromAgentConfig(agentConfig),
-			ResilienceTimeoutSeconds: agentConfig.ResilienceTimeoutSeconds,
-		}
 	}
 	s.populateCreatedBy(ctx, ouID, projectName, agentName, agent)
 	return agent, nil
@@ -345,46 +295,7 @@ func paginateSlice[T any](items []T, offset, limit int32) []T {
 // agent runtime, which this control plane does not provide.
 func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, projectName string, req *spec.CreateAgentRequest) error {
 	if req.Provisioning.Type != string(utils.ExternalAgent) {
-		return fmt.Errorf("%w: only external agents can be created", utils.ErrNotImplemented)
-	}
-	ref := contracts.AgentRef{OrgID: ouID, Project: projectName, Name: req.Name}
-	gateway, hasGateway := coreext.Lookup[agentgwv1.Gateway](agentgwv1.ID)
-	if hasGateway {
-		if err := gateway.CheckCreate(ctx, ref); err != nil {
-			return err
-		}
-	}
-	env, err := s.platform.GetEnvironment(ctx, ouID, models.DefaultEnvironmentName)
-	if err != nil {
-		return err
-	}
-	var llm llmv1.Proxy
-	if len(req.ModelConfig) > 0 {
-		var ok bool
-		if llm, ok = coreext.Lookup[llmv1.Proxy](llmv1.ID); !ok {
-			return missingCapability("modelConfig", llmv1.ID)
-		}
-		handles := make([]string, 0, len(req.ModelConfig))
-		for _, mc := range req.ModelConfig {
-			handles = append(handles, mc.ProviderName)
-		}
-		if err := llm.ValidateProviders(ctx, ouID, handles); err != nil {
-			return err
-		}
-	}
-	var mcp mcpv1.Proxy
-	if len(req.McpConfig) > 0 {
-		var ok bool
-		if mcp, ok = coreext.Lookup[mcpv1.Proxy](mcpv1.ID); !ok {
-			return missingCapability("mcpConfig", mcpv1.ID)
-		}
-		handles := make([]string, 0, len(req.McpConfig))
-		for _, mc := range req.McpConfig {
-			handles = append(handles, mc.ProxyName)
-		}
-		if err := mcp.ValidateProxies(ctx, ouID, projectName, handles); err != nil {
-			return err
-		}
+		return fmt.Errorf("%w: only external agents can be created", httpx.ErrNotImplemented)
 	}
 
 	in := repositories.CreateAgentInput{
@@ -408,49 +319,9 @@ func (s *agentManagerService) CreateAgent(ctx context.Context, ouID string, proj
 		return err
 	}
 
-	// After the create, so a duplicate-name request cannot wipe a live agent's rows.
-	if hasGateway {
-		if err := gateway.Created(ctx, ref); err != nil {
-			if errDeletion := s.platform.DeleteAgent(ctx, ouID, projectName, req.Name); errDeletion != nil {
-				s.logger.Error("Failed to roll back agent after card cleanup failure", "agentName", req.Name, "error", errDeletion)
-			}
-			return err
-		}
-	}
-
-	rollbackAgentCreate := func(reason string) {
-		if hasGateway {
-			gateway.Unbind(context.WithoutCancel(ctx), ref)
-		}
-		if errDeletion := s.platform.DeleteAgent(context.WithoutCancel(ctx), ouID, projectName, req.Name); errDeletion != nil {
-			s.logger.Error("Failed to roll back agent", "agentName", req.Name, "reason", reason, "error", errDeletion)
-		}
-	}
-	if llm != nil {
-		if err := llm.BindAgent(ctx, ref, env.Name, req.ModelConfig); err != nil {
-			rollbackAgentCreate("LLM config failure")
-			return err
-		}
-	}
-	if mcp != nil {
-		if err := mcp.BindAgent(ctx, ref, []string{env.Name}, req.McpConfig); err != nil {
-			rollbackAgentCreate("MCP config failure")
-			return err
-		}
-	}
-
 	s.provisionAgentIdentities(ctx, ouID, projectName, req, "")
 	s.logger.Info("Agent created", "agentName", req.Name, "ouID", ouID, "projectName", projectName)
 	return nil
-}
-
-// missingCapability refuses a request field that needs a capability no active
-// module provides.
-func missingCapability(field, capability string) error {
-	return utils.NewInvalidInputError(
-		fmt.Sprintf("%s is not supported: no active module provides %s", field, capability),
-		fmt.Sprintf("%s needs the %s capability", field, capability),
-	)
 }
 
 // provisionAgentIdentities starts AgentID provisioning for the agent: one Thunder
@@ -566,7 +437,7 @@ func (s *agentManagerService) GenerateName(ctx context.Context, ouID string, pay
 		return uniqueName, nil
 	}
 	if payload.ResourceType == string(utils.ResourceTypeEnvironment) {
-		return "", fmt.Errorf("%w: environments cannot be created", utils.ErrNotImplemented)
+		return "", fmt.Errorf("%w: environments cannot be created", httpx.ErrNotImplemented)
 	}
 	return "", errors.New("invalid resource type for name generation")
 }
@@ -652,25 +523,12 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		return auditErr
 	}
 
-	// Teardown runs before the agent row goes: every agent-owned row cascades
-	// from it, and the cleanups find what to revoke (proxy credentials,
-	// identities, secrets) through those rows.
+	// Identities are revoked before the agent row goes, while their rows still
+	// name what to revoke. Modules revoke theirs in agent.deleted handlers.
 	cleanupCtx, cancel := detachedCleanupContext(ctx)
 	defer cancel()
-	ref := contracts.AgentRef{OrgID: ouID, Project: projectName, Name: agentName}
-	gateway, hasGateway := coreext.Lookup[agentgwv1.Gateway](agentgwv1.ID)
-	if hasGateway {
-		gateway.Unbind(cleanupCtx, ref)
-	}
 	if s.agentThunderProvisioning != nil {
 		s.agentThunderProvisioning.DeleteAllBindings(cleanupCtx, ouID, projectName, agentName)
-	}
-	if configErr := s.agentConfigRepo.DeleteAllByAgent(ctx, ouID, projectName, agentName); configErr != nil {
-		s.logger.Warn("Failed to delete agent configs from database", "agentName", agentName, "error", configErr)
-	}
-	var artifactErr error
-	if hasGateway {
-		artifactErr = gateway.Deleting(ctx, ref)
 	}
 
 	err := s.platform.DeleteAgent(ctx, ouID, projectName, agentName)
@@ -679,12 +537,10 @@ func (s *agentManagerService) DeleteAgent(ctx context.Context, ouID string, proj
 		s.logger.Error("Failed to delete agent", "agentName", agentName, "error", err)
 		return err
 	}
-	return artifactErr
+	return nil
 }
 
-// agentCleanupTimeout bounds the detached cleanup. A gateway's revocations retry with backoff
-// per configuration, so a many-config agent could otherwise keep the cleanup alive
-// indefinitely if a gateway stops answering.
+// agentCleanupTimeout bounds the detached cleanup of the agent's identities.
 // Generous on purpose: the ceiling exists to stop a wedged call from pinning the goroutine for
 // the process lifetime, not to cut short revocations that are still making progress.
 const agentCleanupTimeout = 10 * time.Minute
@@ -694,63 +550,6 @@ const agentCleanupTimeout = 10 * time.Minute
 // work is not cancelled when the HTTP handler returns; the timeout then puts a ceiling back on.
 func detachedCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.WithoutCancel(ctx), agentCleanupTimeout)
-}
-
-// oauthConfigFromAgentConfig builds the response OAuth config from a persisted
-// agent config row. Issuers are returned as persisted (no silent default); empty
-// header fields fall back to the gateway-compatible defaults.
-func oauthConfigFromAgentConfig(cfg *models.AgentConfig) *models.OAuthConfig {
-	issuers := cfg.OAuthIssuers
-	headerName := cfg.OAuthHeaderName
-	if headerName == "" {
-		headerName = models.DefaultOAuthHeaderName
-	}
-	authHeaderPrefix := cfg.OAuthAuthHeaderPrefix
-	if authHeaderPrefix == "" {
-		authHeaderPrefix = models.DefaultOAuthAuthHeaderPrefix
-	}
-	return &models.OAuthConfig{
-		Issuers:          issuers,
-		Audiences:        cfg.OAuthAudiences,
-		HeaderName:       headerName,
-		AuthHeaderPrefix: authHeaderPrefix,
-		ForwardToken:     cfg.OAuthForwardToken,
-	}
-}
-
-// requireEnvTier authorizes the caller to act on the named environment and
-// returns it.
-//
-// The environment tier is an authorization axis of its own, about *where* an
-// action lands rather than what it is: agent:env-non-production is the floor,
-// and agent:env-production is held in addition to it to reach the environments
-// flagged as production. A production environment requires both — the production
-// grant is an extra permission stacked on the floor, not a wider substitute for
-// it. That is not a free choice: the REST routes and the two MCP tools declare
-// the floor statically and deny before this method is reached, so a rule of
-// "production grant alone is sufficient" could never fire and would leave the
-// two layers describing the same decision differently.
-//
-// The check lives here rather than in route middleware because the MCP surface
-// declares tool permissions statically (mcp/tools/authz.go addTool) and has no
-// HTTP request to read a target environment from. This is the one place both
-// surfaces pass through, and mcp/tools/authz.go's withEffectiveScopes is what
-// guarantees ctx carries the same scopes the tool gate used.
-//
-// The environment is returned even on a denial, because the caller wants the
-// production flag for its audit record and this call has already paid for the
-// lookup; it is nil only when the lookup itself failed. The cost is that an
-// unresolvable environment fails the operation outright — deliberate, and
-// called out in Task 5.
-//
-// Nothing here allows on failure. There is deliberately no fallback for an
-// installation where no environment carries the flag: every environment is then
-// non-production, which is what the model says and what the release notes must
-// say too.
-func (s *agentManagerService) requireEnvTier(
-	ctx context.Context, ouID, envName string,
-) (*models.EnvironmentResponse, error) {
-	return RequireEnvironmentTier(ctx, s.platform, s.logger, ouID, envName)
 }
 
 // GetAgentIdentity returns the agent's AgentID binding for every environment in
@@ -905,7 +704,7 @@ func (s *agentManagerService) ProvisionAgentIdentity(ctx context.Context, ouID s
 	default:
 		return models.AgentIdentityEnvironmentView{}, false, fmt.Errorf(
 			"%w: agent %q has unsupported provisioning type %q",
-			utils.ErrInvalidInput, agentName, agent.Provisioning.Type,
+			httpx.ErrInvalidInput, agentName, agent.Provisioning.Type,
 		)
 	}
 
@@ -947,68 +746,6 @@ func (s *agentManagerService) RetryAgentIdentityProvisioning(ctx context.Context
 		return models.AgentIdentityEnvironmentView{}, utils.ErrAgentIdentityNotProvisioned
 	}
 	return s.agentThunderProvisioning.RetryProvisioning(ctx, ouID, projectName, agentName, environmentName)
-}
-
-// GetAgentEnvConfig returns the full per-environment agent_configs row for (agent, environment)
-// — tracing/instrumentation plus CORS and endpoint-authentication settings — or nil when none is
-// persisted yet. Unlike GetAgent (which reads only the lowest environment's config), this is scoped
-// to the requested environment so the console seeds the correct per-env values.
-func (s *agentManagerService) GetAgentEnvConfig(ctx context.Context, ouID, projectName, agentName, environment string) (*models.AgentConfig, error) {
-	cfg, err := s.agentConfigRepo.Get(ctx, ouID, projectName, agentName, environment)
-	if errors.Is(err, repositories.ErrAgentConfigNotFound) {
-		return nil, nil //nolint:nilnil // "no config yet" is a valid, expected state distinct from an error
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get agent env config: %w", err)
-	}
-	return cfg, nil
-}
-
-// RequireEnvironmentTier is requireEnvTier without the service receiver, shared by other services.
-func RequireEnvironmentTier(
-	ctx context.Context, platform repositories.PlatformRepository, logger *slog.Logger, ouID, envName string,
-) (*models.EnvironmentResponse, error) {
-	env, err := platform.GetEnvironment(ctx, ouID, envName)
-	if err != nil {
-		logger.Error("Failed to resolve environment for the tier check",
-			"ouID", ouID, "environment", envName, "error", err)
-		return nil, err
-	}
-	// The floor is always required. Production adds to it rather than replacing
-	// it, so the missing scope reported is the first one the caller lacks —
-	// naming the production grant to someone who is also missing the floor would
-	// send them after the wrong permission.
-	required := []rbac.Permission{rbac.AgentEnvNonProduction}
-	if env.IsProduction {
-		required = append(required, rbac.AgentEnvProduction)
-	}
-	if perm, short := jwtassertion.FirstMissingScope(ctx, required...); short {
-		// A middleware denial reaches the trail through recordAuthzDeny, which
-		// uses audit.Record plus audit.Skip: the deny event *replaces* the
-		// envelope, because the request never reached a handler. This denial is
-		// different — the caller did reach the service layer, and on the
-		// change-deployment-state path the controller has already opened an
-		// attempt. RecordAncillary is therefore correct here (audit/emit.go:63-71:
-		// facts about how a request was handled, envelope preserved), and the
-		// consequence is deliberate: a tier refusal writes an authz:deny
-		// alongside the envelope rather than in place of it, so "what was
-		// attempted" survives. Status is left to the envelope for the same
-		// reason. grantedScopes is set because every middleware authz:deny
-		// carries it and anything alerting on the action reads it.
-		audit.RecordAncillary(
-			ctx, audit.ActionAuthzDeny,
-			audit.Org(ouID),
-			audit.Environment(envName),
-			audit.OutcomeOpt(audit.OutcomeDeny),
-			audit.RequiredPermissions(required...),
-			audit.Detail("reason", "missing-environment-tier-scope"),
-			audit.Detail("missingScope", perm.Scope()),
-			audit.Detail("grantedScopes", jwtassertion.GrantedScopeCount(ctx)),
-		)
-		return env, fmt.Errorf("%w: %s is required to act on environment %q",
-			utils.ErrForbidden, perm.Scope(), envName)
-	}
-	return env, nil
 }
 
 // IsLegacySecretRefPath reports whether a stored secret reference is a KV path

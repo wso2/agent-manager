@@ -48,19 +48,7 @@ type APIClient struct {
 
 	// API Services
 
-	A2AProxyAPI *A2AProxyAPIService
-
-	AgentAPIKeysAPI *AgentAPIKeysAPIService
-
-	AgentCardAPI *AgentCardAPIService
-
-	AgentIdentitiesAPI *AgentIdentitiesAPIService
-
 	AgentIdentityAPI *AgentIdentityAPIService
-
-	AgentKindsAPI *AgentKindsAPIService
-
-	CatalogAPI *CatalogAPIService
 
 	ConfigAPI *ConfigAPIService
 
@@ -70,45 +58,11 @@ type APIClient struct {
 
 	EventsAPI *EventsAPIService
 
-	GatewayEnvironmentMappingsAPI *GatewayEnvironmentMappingsAPIService
-
-	GatewayIdentityProvidersAPI *GatewayIdentityProvidersAPIService
-
-	GatewayTokensAPI *GatewayTokensAPIService
-
-	GatewaysAPI *GatewaysAPIService
-
-	GitSecretsAPI *GitSecretsAPIService
-
-	HealthAPI *HealthAPIService
-
 	IdentityGroupsAPI *IdentityGroupsAPIService
 
 	IdentityRolesAPI *IdentityRolesAPIService
 
 	IdentityUsersAPI *IdentityUsersAPIService
-
-	LLMAPIKeysAPI *LLMAPIKeysAPIService
-
-	LLMDeploymentsAPI *LLMDeploymentsAPIService
-
-	LLMProviderTemplatesAPI *LLMProviderTemplatesAPIService
-
-	LLMProvidersAPI *LLMProvidersAPIService
-
-	LLMProxiesAPI *LLMProxiesAPIService
-
-	MCPAPIKeysAPI *MCPAPIKeysAPIService
-
-	MCPProxiesAPI *MCPProxiesAPIService
-
-	MCPProxyScopesAPI *MCPProxyScopesAPIService
-
-	ProjectMCPProxiesAPI *ProjectMCPProxiesAPIService
-
-	ProjectMCPProxyEnvironmentsAPI *ProjectMCPProxyEnvironmentsAPIService
-
-	SelfHostedGatewaysAPI *SelfHostedGatewaysAPIService
 
 	TelemetryAPI *TelemetryAPIService
 }
@@ -129,37 +83,14 @@ func NewAPIClient(cfg *Configuration) *APIClient {
 	c.common.client = c
 
 	// API Services
-	c.A2AProxyAPI = (*A2AProxyAPIService)(&c.common)
-	c.AgentAPIKeysAPI = (*AgentAPIKeysAPIService)(&c.common)
-	c.AgentCardAPI = (*AgentCardAPIService)(&c.common)
-	c.AgentIdentitiesAPI = (*AgentIdentitiesAPIService)(&c.common)
 	c.AgentIdentityAPI = (*AgentIdentityAPIService)(&c.common)
-	c.AgentKindsAPI = (*AgentKindsAPIService)(&c.common)
-	c.CatalogAPI = (*CatalogAPIService)(&c.common)
 	c.ConfigAPI = (*ConfigAPIService)(&c.common)
 	c.DefaultAPI = (*DefaultAPIService)(&c.common)
 	c.EnvironmentsAPI = (*EnvironmentsAPIService)(&c.common)
 	c.EventsAPI = (*EventsAPIService)(&c.common)
-	c.GatewayEnvironmentMappingsAPI = (*GatewayEnvironmentMappingsAPIService)(&c.common)
-	c.GatewayIdentityProvidersAPI = (*GatewayIdentityProvidersAPIService)(&c.common)
-	c.GatewayTokensAPI = (*GatewayTokensAPIService)(&c.common)
-	c.GatewaysAPI = (*GatewaysAPIService)(&c.common)
-	c.GitSecretsAPI = (*GitSecretsAPIService)(&c.common)
-	c.HealthAPI = (*HealthAPIService)(&c.common)
 	c.IdentityGroupsAPI = (*IdentityGroupsAPIService)(&c.common)
 	c.IdentityRolesAPI = (*IdentityRolesAPIService)(&c.common)
 	c.IdentityUsersAPI = (*IdentityUsersAPIService)(&c.common)
-	c.LLMAPIKeysAPI = (*LLMAPIKeysAPIService)(&c.common)
-	c.LLMDeploymentsAPI = (*LLMDeploymentsAPIService)(&c.common)
-	c.LLMProviderTemplatesAPI = (*LLMProviderTemplatesAPIService)(&c.common)
-	c.LLMProvidersAPI = (*LLMProvidersAPIService)(&c.common)
-	c.LLMProxiesAPI = (*LLMProxiesAPIService)(&c.common)
-	c.MCPAPIKeysAPI = (*MCPAPIKeysAPIService)(&c.common)
-	c.MCPProxiesAPI = (*MCPProxiesAPIService)(&c.common)
-	c.MCPProxyScopesAPI = (*MCPProxyScopesAPIService)(&c.common)
-	c.ProjectMCPProxiesAPI = (*ProjectMCPProxiesAPIService)(&c.common)
-	c.ProjectMCPProxyEnvironmentsAPI = (*ProjectMCPProxyEnvironmentsAPIService)(&c.common)
-	c.SelfHostedGatewaysAPI = (*SelfHostedGatewaysAPIService)(&c.common)
 	c.TelemetryAPI = (*TelemetryAPIService)(&c.common)
 
 	return c

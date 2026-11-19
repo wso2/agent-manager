@@ -141,6 +141,9 @@ func Plan(target string, mods map[string]modkit.Manifest, states map[string]stri
 }
 
 func activeProvider(capability string, mods map[string]modkit.Manifest, states map[string]string, planned map[string]bool) string {
+	if isCoreCapability(capability) {
+		return coreProvider
+	}
 	for _, p := range providersOf(capability, mods) {
 		if states[p] == StateActive || planned[p] {
 			return p

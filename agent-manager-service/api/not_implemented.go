@@ -19,11 +19,11 @@ package api
 import (
 	"net/http"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
 // notImplemented answers routes whose feature needs a hosted agent runtime,
 // which this control plane does not provide.
 func notImplemented(w http.ResponseWriter, _ *http.Request) {
-	utils.WriteErrorResponse(w, http.StatusNotImplemented, "This operation is not available in this version")
+	httpx.WriteErrorResponse(w, http.StatusNotImplemented, "This operation is not available in this version")
 }

@@ -24,13 +24,20 @@ concurrency:
 
 jobs:
   smoke:
-    name: Smoke (${{ matrix.distribution }})
+    name: Smoke (${{ matrix.smoke }})
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        distribution: [amp, amp-core]
+        include:
+          - distribution: amp
+            smoke: amp
+          - distribution: amp-core
+            smoke: amp-core
+          # The full stack with the gateway module switched off at runtime.
+          - distribution: amp
+            smoke: amp-off
     steps:
       - uses: actions/checkout@v6
         with:
@@ -45,8 +52,15 @@ jobs:
           auth_mode: file
           distribution: ${{ matrix.distribution }}
 
+      - name: Disable the AI Gateway
+        if: matrix.smoke == 'amp-off'
+        working-directory: deployments/standalone
+        run: |
+          docker compose exec -T amp-api /go/bin/amp module disable ai-gateway
+          sleep 5 # every replica reloads within 2 seconds
+
       - name: Smoke checks
-        run: deployments/standalone/scripts/smoke.sh ${{ matrix.distribution }} --no-console
+        run: deployments/standalone/scripts/smoke.sh ${{ matrix.smoke }} --no-console
 
       - name: Capture stack logs on failure
         if: failure()

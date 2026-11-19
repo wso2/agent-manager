@@ -2,7 +2,7 @@
 
 Core tables of AMP Lite, rendered from [`db_migrations/schema/lite.yaml`](../db_migrations/schema/lite.yaml) by `docs/amp-lite/src/er_gen.py` (run through `docs/amp-lite/src/render.sh`). "owns" means the child is deleted with its parent.
 
-The 29 tables the gateway module uses, module tables (`mod_<module>_<table>`), column rules and decisions are in the [AMP Lite database schema](../../docs/amp-lite/database-schema.md).
+The 0 tables the gateway module uses, module tables (`mod_<module>_<table>`), column rules and decisions are in the [AMP Lite database schema](../../docs/amp-lite/database-schema.md).
 
 ```mermaid
 erDiagram
@@ -67,30 +67,6 @@ erDiagram
         text claimed_by "nullable"
         time claimed_until "nullable"
         text requested_by "nullable"
-        time created_at
-        time updated_at
-    }
-    agent_gateway_settings {
-        id agent_id PK,FK
-        id org_id FK
-        id environment_id PK,FK
-        bool api_key_security
-        bool oauth_enabled
-        json oauth_issuers
-        json oauth_audiences
-        text oauth_header_name
-        text oauth_header_prefix
-        bool oauth_forward_token
-        bool cors_enabled
-        json cors_allow_origins
-        json cors_allow_methods
-        json cors_allow_headers
-        bool cors_allow_credentials
-        int timeout_seconds "nullable"
-        bool card_cors_enabled "nullable"
-        json card_cors_allow_origins "nullable"
-        json card_cors_allow_headers "nullable"
-        bool card_cors_allow_credentials "nullable"
         time created_at
         time updated_at
     }
@@ -269,13 +245,22 @@ erDiagram
     workload_credentials {
         id id PK
         text module
+        text workload
         id org_id FK "nullable"
         text subject
-        text scopes
-        int token_ttl_seconds
         text secret_hash
         time created_at
         time revoked_at "nullable"
+    }
+    workload_instances {
+        id credential_id PK,FK
+        text instance PK
+        text module
+        text workload
+        text protocol
+        text version
+        time first_seen
+        time last_seen
     }
     organizations ||--o{ projects : has
     organizations ||--o{ environments : has
@@ -283,8 +268,6 @@ erDiagram
     agents ||--o{ agent_labels : owns
     agents ||--o{ agent_identities : owns
     environments ||--o{ agent_identities : has
-    agents ||--o{ agent_gateway_settings : owns
-    environments ||--o{ agent_gateway_settings : has
     organizations ||--o{ secrets : has
     organizations ||--o{ event_destinations : has
     secrets ||--o{ event_destinations : has
@@ -302,4 +285,5 @@ erDiagram
     organizations ||--o{ module_events : owns
     module_events ||--o{ module_event_deliveries : owns
     organizations ||--o{ workload_credentials : owns
+    workload_credentials ||--o{ workload_instances : owns
 ```

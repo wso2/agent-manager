@@ -1,5 +1,0 @@
-# PostgreSQL-only lines per file (schema rule 10). Only ever lowered: go test ./db/dbx -update-portability
-db/dberr/dberr.go 1
-modules/gateway/gwsvc/a2a_card_reconciler.go 1
-modules/gateway/gwsvc/mcp_proxy_service.go 1
-tests/modules/testmod/testmod.go 1

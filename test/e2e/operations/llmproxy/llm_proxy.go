@@ -10,7 +10,7 @@ import (
 
 // CreateLLMProxy creates a project-level LLM proxy linked to an org-level provider.
 func CreateLLMProxy(g Gomega, client *framework.AMPClient, orgName, projName string, req framework.CreateLLMProxyRequest) framework.LLMProxyResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/llm-proxies", orgName, projName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/llm-proxies", orgName, projName)
 
 	resp, err := client.Post(path, req)
 	g.Expect(err).NotTo(HaveOccurred(), "create LLM proxy request failed")
@@ -22,7 +22,7 @@ func CreateLLMProxy(g Gomega, client *framework.AMPClient, orgName, projName str
 
 // GetLLMProxy retrieves an LLM proxy by ID.
 func GetLLMProxy(g Gomega, client *framework.AMPClient, orgName, projName, proxyID string) framework.LLMProxyResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/llm-proxies/%s", orgName, projName, proxyID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/llm-proxies/%s", orgName, projName, proxyID)
 
 	resp, err := client.Get(path)
 	g.Expect(err).NotTo(HaveOccurred(), "get LLM proxy request failed")
@@ -34,7 +34,7 @@ func GetLLMProxy(g Gomega, client *framework.AMPClient, orgName, projName, proxy
 
 // UpdateLLMProxy updates an LLM proxy.
 func UpdateLLMProxy(g Gomega, client *framework.AMPClient, orgName, projName, proxyID string, req framework.UpdateLLMProxyRequest) framework.LLMProxyResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/llm-proxies/%s", orgName, projName, proxyID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/llm-proxies/%s", orgName, projName, proxyID)
 
 	resp, err := client.Put(path, req)
 	g.Expect(err).NotTo(HaveOccurred(), "update LLM proxy request failed")
@@ -46,7 +46,7 @@ func UpdateLLMProxy(g Gomega, client *framework.AMPClient, orgName, projName, pr
 
 // DeleteLLMProxy deletes an LLM proxy.
 func DeleteLLMProxy(g Gomega, client *framework.AMPClient, orgName, projName, proxyID string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/llm-proxies/%s", orgName, projName, proxyID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/llm-proxies/%s", orgName, projName, proxyID)
 
 	resp, err := client.Delete(path)
 	g.Expect(err).NotTo(HaveOccurred(), "delete LLM proxy request failed")

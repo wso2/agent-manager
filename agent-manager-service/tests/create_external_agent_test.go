@@ -33,6 +33,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
@@ -271,7 +272,7 @@ func TestCreateExternalAgent(t *testing.T) {
 			name: "return 401 on missing authentication for external agent",
 			authMiddleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					utils.WriteErrorResponse(w, http.StatusUnauthorized, "missing header: Authorization")
+					httpx.WriteErrorResponse(w, http.StatusUnauthorized, "missing header: Authorization")
 				})
 			},
 			payload: map[string]interface{}{

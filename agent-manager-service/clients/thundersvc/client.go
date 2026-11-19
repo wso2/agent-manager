@@ -34,7 +34,7 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/wso2/agent-manager/agent-manager-service/utils/ssrf"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
 )
 
 // ThunderClient encapsulates the Thunder API calls needed to create OAuth2 applications.
@@ -85,9 +85,6 @@ type thunderClient struct {
 	systemResource  string
 	httpClient      *http.Client
 	tokenHTTPClient *http.Client
-	// cpManaged marks a client whose requests are authorized by its transport
-	// against the control plane. It never mints a DP system token.
-	cpManaged bool
 
 	mu          sync.RWMutex
 	cachedToken string
@@ -249,9 +246,6 @@ func thunderEndpointHTTPClient(endpoint, resolveToHost string, trusted bool) (st
 // Uses RWMutex for the cache-hit fast path and singleflight for the fetch
 // so concurrent callers share a single network round-trip instead of blocking.
 func (c *thunderClient) getSystemToken(ctx context.Context) (string, error) {
-	if c.cpManaged {
-		return cpManagedPlaceholderToken, nil
-	}
 	// Fast path: read lock for cache hit
 	c.mu.RLock()
 	if c.cachedToken != "" && time.Now().Before(c.tokenExpiry) {

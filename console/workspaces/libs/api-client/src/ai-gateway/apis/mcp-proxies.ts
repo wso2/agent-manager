@@ -32,14 +32,7 @@ import type {
   ProjectMCPProxy,
   UpdateMCPProxyPathParams,
 } from "@agent-management-platform/types";
-import {
-  encodeRequired,
-  httpDELETE,
-  httpGET,
-  httpPOST,
-  httpPUT,
-  SERVICE_BASE,
-} from "../../shared/utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 
 export async function listMCPProxies(
   params: ListMCPProxiesPathParams,
@@ -60,7 +53,7 @@ export async function listMCPProxies(
     searchParams.project = query.project;
   }
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/mcp-proxies`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/mcp-proxies`, {
     token,
     searchParams: Object.keys(searchParams).length ? searchParams : undefined,
   });
@@ -75,7 +68,7 @@ export async function listAvailableMCPPolicies(
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/mcp-proxies/policies`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/mcp-proxies/policies`, {
     token,
   });
   if (!res.ok) throw await res.json();
@@ -90,7 +83,7 @@ export async function createMCPProxy(
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpPOST(`${SERVICE_BASE}/orgs/${org}/mcp-proxies`, body, {
+  const res = await httpPOST(`${GATEWAY_BASE}/orgs/${org}/mcp-proxies`, body, {
     token,
   });
   if (!res.ok) throw await res.json();
@@ -105,7 +98,7 @@ export async function getMCPProxy(
   const proxyId = encodeRequired(params.proxyId, "proxyId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/mcp-proxies/${proxyId}`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/mcp-proxies/${proxyId}`, {
     token,
   });
   if (!res.ok) throw await res.json();
@@ -123,7 +116,7 @@ export async function getProjectMCPProxy(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}`,
+    `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/mcp-proxies/${proxyId}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -140,7 +133,7 @@ export async function updateMCPProxy(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/mcp-proxies/${proxyId}`,
+    `${GATEWAY_BASE}/orgs/${org}/mcp-proxies/${proxyId}`,
     body,
     { token },
   );
@@ -156,7 +149,7 @@ export async function deleteMCPProxy(
   const proxyId = encodeRequired(params.proxyId, "proxyId");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpDELETE(`${SERVICE_BASE}/orgs/${org}/mcp-proxies/${proxyId}`, {
+  const res = await httpDELETE(`${GATEWAY_BASE}/orgs/${org}/mcp-proxies/${proxyId}`, {
     token,
   });
   if (!res.ok) throw await res.json();
@@ -172,7 +165,7 @@ export async function fetchMCPProxyServerInfo(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/mcp-proxies/fetch-server-info`,
+    `${GATEWAY_BASE}/orgs/${org}/mcp-proxies/fetch-server-info`,
     body,
     { token, signal },
   );

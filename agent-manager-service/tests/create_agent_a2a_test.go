@@ -32,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -65,7 +66,7 @@ func TestCreateExternalAgentWithA2ASubTypeGetsNoGatewayPublication(t *testing.T)
 
 	var queued int64
 	gdb := db.GetDB()
-	require.NoError(t, gdb.Model(&models.PlatformAgentExposure{}).
+	require.NoError(t, gdb.Model(&gwmodels.PlatformAgentExposure{}).
 		Where("agent_id IN (?)", models.AgentIDQuery(gdb, jwtassertion.MockOUID, testProjName, agentName)).Count(&queued).Error)
 	require.Zero(t, queued, "an external agent is never exposed as a platform agent")
 }

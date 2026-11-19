@@ -21,14 +21,14 @@ import type {
   AgentCardResponse,
   SetAgentCardSourceRequest,
 } from "@agent-management-platform/types";
-import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, SERVICE_BASE } from "../../shared/utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 
 function agentCardPath(params: AgentCardPathParams): string {
   const org = encodeRequired(params.orgName, "orgName");
   const proj = encodeRequired(params.projName, "projName");
   const agent = encodeRequired(params.agentName, "agentName");
   const env = encodeRequired(params.envId, "envId");
-  return `${SERVICE_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/agent-card`;
+  return `${GATEWAY_BASE}/orgs/${org}/projects/${proj}/agents/${agent}/environments/${env}/agent-card`;
 }
 
 // The http helpers throw on non-2xx, so a 404 surfaces as an error with status 404.

@@ -24,13 +24,9 @@ import (
 	"testing"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwctl"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/gateway/gwwire"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
@@ -86,18 +82,6 @@ func stubAppParams(t *testing.T) *wiring.AppParams {
 	return params
 }
 
-// stubBundles is the built-in modules of the full distribution, with
-// controllers that are never called.
-func stubBundles(t *testing.T, params *wiring.AppParams) builtin.Built {
-	t.Helper()
-	gw := &gwwire.Gateway{}
-	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
-	return builtin.Built{
-		gateway.Parts(gw, params),
-		legacy.Parts(),
-	}
-}
-
 // fillControllers calls each constructor with zero arguments and assigns its
 // result to the target's field of that type.
 func fillControllers(t *testing.T, target reflect.Value, ctors []any) {
@@ -140,28 +124,26 @@ func registerAllRoutesForAudit(t *testing.T) *middleware.RouteRegistrar {
 
 	rr := middleware.NewRouteRegistrar(http.NewServeMux(), nil, audit.NewNoopRecorder())
 	params := stubAppParams(t)
-	registerAPIRoutes(rr, params, stubBundles(t, params))
+	registerAPIRoutes(rr, params)
 	return rr
 }
 
-// registerInternalRoutesForAudit drives the gateway-facing internal server's
-// registration.
-//
-// That surface has no JWT and was previously registered on a bare mux, which
-// put it outside the ledger every assertion below reads — so its one mutating
-// route was audited only by hand, and nothing would have caught the next one.
-func registerInternalRoutesForAudit(t *testing.T) *middleware.RouteRegistrar {
+// registerInternalRoutesForAudit mounts the AI Gateway module's routes on the
+// gateway-facing internal server (HandleInternalAt), as the server does.
+func registerInternalRoutesForAudit(t *testing.T) internalRoutes {
 	t.Helper()
-
-	rr := middleware.NewInternalRouteRegistrar(http.NewServeMux(), audit.NewNoopRecorder())
-	params := stubAppParams(t)
-	stubBundles(t, params).InternalRoutes(rr, http.NewServeMux())
-	return rr
+	_, _, internal := mountedGateway(t)
+	return internal
 }
+
+// internalRoutes are the audit ledgers of the internal server's routes.
+type internalRoutes []audit.RouteMeta
+
+func (r internalRoutes) Routes() []audit.RouteMeta { return r }
 
 // TestInternalMutatingRoutesAreAudited extends the coverage guarantee to the
-// internal server. Its routes carry no permission, so each audited one needs an
-// explicit actionOverrides entry; without one, registration panics.
+// internal server. Its routes carry no permission, so each audited one names
+// its action with modkit.Audit; without one, activation fails.
 func TestInternalMutatingRoutesAreAudited(t *testing.T) {
 	routes := registerInternalRoutesForAudit(t)
 	if len(routes.Routes()) == 0 {

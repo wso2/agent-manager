@@ -1,0 +1,255 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
+
+	"github.com/google/uuid"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/ssrf"
+)
+
+const a2aCardSourceURLMaxLen = 2048
+
+// a2aCardHostNotPublicMsg replaces DNS detail that would reveal internal hosts and resolvers.
+const a2aCardHostNotPublicMsg = "url host must be publicly reachable"
+
+// A2AAgentCardService reads and manages stored A2A agent cards.
+type A2AAgentCardService interface {
+	GetA2AAgentCard(ctx context.Context, ouID, projectName, agentName, envName string) (*gwmodels.A2AAgentCard, error)
+	RefreshA2AAgentCard(ctx context.Context, ouID, projectName, agentName, envName string) error
+	SetA2ACardSource(ctx context.Context, ouID, projectName, agentName, envName, sourceURL string) error
+	DeleteA2ACardSource(ctx context.Context, ouID, projectName, agentName, envName string) error
+}
+
+type a2aAgentCardService struct {
+	ocClient   modkit.CoreAPI
+	cardRepo   gwrepo.A2AAgentCardRepository
+	proxyHooks A2AProxyHooks
+	logger     *slog.Logger
+	perms      *Permissions
+}
+
+// NewA2AAgentCardService creates an A2AAgentCardService.
+func NewA2AAgentCardService(
+	ocClient modkit.CoreAPI,
+	cardRepo gwrepo.A2AAgentCardRepository,
+	proxyHooks A2AProxyHooks,
+	logger *slog.Logger,
+	perms *Permissions,
+) A2AAgentCardService {
+	return &a2aAgentCardService{ocClient: ocClient, cardRepo: cardRepo, proxyHooks: proxyHooks, logger: logger, perms: perms}
+}
+
+func (s *a2aAgentCardService) GetA2AAgentCard(
+	ctx context.Context, ouID, projectName, agentName, envName string,
+) (*gwmodels.A2AAgentCard, error) {
+	// Rows exist only for live A2A agents, so the platform store is asked only on a miss.
+	row, err := s.cardRepo.Get(ctx, ouID, projectName, agentName, envName)
+	if err == nil {
+		return row, nil
+	}
+	if !errors.Is(err, gwrepo.ErrA2AAgentCardNotFound) {
+		return nil, fmt.Errorf("failed to read agent card: %w", err)
+	}
+	if _, err := LookupAgent(ctx, s.ocClient, ouID, projectName, agentName); err != nil {
+		return nil, err
+	}
+	// No row means no fetch is queued; a synthetic pending would never resolve.
+	return nil, gwerr.ErrAgentCardNotFound
+}
+
+func (s *a2aAgentCardService) RefreshA2AAgentCard(
+	ctx context.Context, ouID, projectName, agentName, envName string,
+) error {
+	agent, err := getA2AAgent(ctx, s.ocClient, ouID, projectName, agentName)
+	if err != nil {
+		return err
+	}
+	env, err := RequireEnvironmentTier(ctx, s.perms, s.ocClient, s.logger, ouID, envName)
+	if err != nil {
+		return err
+	}
+	if !isExternalProvisioned(agent) {
+		if err := s.requireDeployed(ctx, ouID, agent.Name, envName); err != nil {
+			return err
+		}
+		return s.enqueuePlatform(ctx, agent, ouID, projectName, env)
+	}
+	// A plain requeue would un-park a proxied card before the gateway has the republished Agent.
+	return s.proxyHooks.RefreshCardSource(ctx, agent, ouID, projectName, env)
+}
+
+// requireDeployed refuses a platform fetch the card worker could only wait out and fail.
+func (s *a2aAgentCardService) requireDeployed(ctx context.Context, ouID, agentName, envName string) error {
+	// Only platform-hosted agents have a deployment, and there is no agent runtime.
+	return gwerr.ErrAgentNotDeployedInEnvironment
+}
+
+func (s *a2aAgentCardService) SetA2ACardSource(
+	ctx context.Context, ouID, projectName, agentName, envName, sourceURL string,
+) error {
+	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, gwerr.ErrAgentCardSourceNotExternal)
+	if err != nil {
+		return err
+	}
+	env, err := RequireEnvironmentTier(ctx, s.perms, s.ocClient, s.logger, ouID, envName)
+	if err != nil {
+		return err
+	}
+	sourceURL = strings.TrimSpace(sourceURL)
+	if err := validateCardSourceURL(ctx, sourceURL); err != nil {
+		return err
+	}
+	annotateAgent(ctx, agent)
+	modkit.AuditDetail(ctx, "sourceUrl", sourceURL)
+	return s.proxyHooks.StoreCardSource(ctx, agent, ouID, projectName, env, sourceURL)
+}
+
+func (s *a2aAgentCardService) DeleteA2ACardSource(
+	ctx context.Context, ouID, projectName, agentName, envName string,
+) error {
+	agent, err := getExternalAgent(ctx, s.ocClient, ouID, projectName, agentName, gwerr.ErrAgentCardSourceNotExternal)
+	if err != nil {
+		return err
+	}
+	env, err := RequireEnvironmentTier(ctx, s.perms, s.ocClient, s.logger, ouID, envName)
+	if err != nil {
+		return err
+	}
+	annotateAgent(ctx, agent)
+	return s.proxyHooks.RemoveCardSource(ctx, agent, ouID, projectName, env)
+}
+
+// annotateAgent names the agent the request's audit record is about.
+func annotateAgent(ctx context.Context, agent *modkit.Agent) {
+	modkit.AuditResource(ctx, gwaudit.ResourceAgent, agent.ID, agent.Name)
+	modkit.AuditDetail(ctx, "agentName", agent.Name)
+}
+
+// enqueuePlatform queues a fetch of a platform agent's card; external sources go through the proxy hooks.
+func (s *a2aAgentCardService) enqueuePlatform(
+	ctx context.Context, agent *modkit.Agent, ouID, projectName string, env *modkit.Environment,
+) error {
+	envUUID, err := uuid.Parse(env.ID)
+	if err != nil {
+		return fmt.Errorf("invalid UUID for environment %s: %w", env.Name, err)
+	}
+	card := &gwmodels.A2AAgentCard{
+		OUID:            ouID,
+		ProjectName:     projectName,
+		AgentName:       agent.Name,
+		EnvironmentName: env.Name,
+		EnvironmentUUID: envUUID,
+		Source:          gwmodels.A2AAgentCardSourcePlatform,
+	}
+	if err := s.cardRepo.Enqueue(ctx, card); err != nil {
+		return fmt.Errorf("failed to queue agent card fetch: %w", err)
+	}
+	return s.dropIfAgentGone(ctx, agent, ouID, projectName, env.Name)
+}
+
+// dropIfAgentGone deletes the just-written row when the agent was deleted or replaced during the upsert.
+func (s *a2aAgentCardService) dropIfAgentGone(
+	ctx context.Context, agent *modkit.Agent, ouID, projectName, envName string,
+) error {
+	gone, err := agentGoneOrReplaced(ctx, s.ocClient, ouID, projectName, agent.Name, agent.ID)
+	if err != nil || !gone {
+		return err
+	}
+	if err := s.cardRepo.DeleteForAgentEnv(ctx, ouID, projectName, agent.Name, envName); err != nil {
+		return fmt.Errorf("failed to drop agent card of a deleted agent: %w", err)
+	}
+	return gwerr.ErrAgentNotFound
+}
+
+// getA2AAgent is GetProjectAgent refusing an agent that cannot serve A2A with gwerr.ErrAgentNotA2A.
+func getA2AAgent(ctx context.Context, oc modkit.CoreAPI, ouID, projectName, agentName string) (*modkit.Agent, error) {
+	agent, err := LookupAgent(ctx, oc, ouID, projectName, agentName)
+	if err != nil {
+		return nil, err
+	}
+	if !a2aCapable(agent) {
+		return nil, gwerr.ErrAgentNotA2A
+	}
+	return agent, nil
+}
+
+// getExternalAgent fetches an agent, refusing a platform-provisioned one with notExternalErr.
+func getExternalAgent(
+	ctx context.Context, oc modkit.CoreAPI, ouID, projectName, agentName string, notExternalErr error,
+) (*modkit.Agent, error) {
+	agent, err := LookupAgent(ctx, oc, ouID, projectName, agentName)
+	if err != nil {
+		return nil, err
+	}
+	if !isExternalProvisioned(agent) {
+		return nil, notExternalErr
+	}
+	return agent, nil
+}
+
+// agentGoneOrReplaced is true when the agent read as agentUUID was since deleted or its name reused.
+func agentGoneOrReplaced(ctx context.Context, oc modkit.CoreAPI, ouID, projectName, agentName, agentUUID string) (bool, error) {
+	current, err := LookupAgent(ctx, oc, ouID, projectName, agentName)
+	switch {
+	case errors.Is(err, gwerr.ErrAgentNotFound):
+		return true, nil
+	case err != nil:
+		return false, err
+	}
+	return current.ID != agentUUID, nil
+}
+
+func isExternalProvisioned(agent *modkit.Agent) bool {
+	return agent.Provisioning == string(gwutil.ExternalAgent)
+}
+
+// a2aCapable is true for every external agent, which serves A2A wherever it registers a card URL. Lite has no
+// platform-hosted agents.
+func a2aCapable(agent *modkit.Agent) bool {
+	return isExternalProvisioned(agent)
+}
+
+// validateCardSourceURL wraps every rejection in ssrf.ErrInvalidURL.
+func validateCardSourceURL(ctx context.Context, sourceURL string) error {
+	if sourceURL == "" {
+		return fmt.Errorf("%w: url is required", ssrf.ErrInvalidURL)
+	}
+	if utf8.RuneCountInString(sourceURL) > a2aCardSourceURLMaxLen {
+		return fmt.Errorf("%w: url must be at most %d characters", ssrf.ErrInvalidURL, a2aCardSourceURLMaxLen)
+	}
+	if err := ssrf.ValidateURL(ctx, sourceURL); errors.Is(err, ssrf.ErrHostNotPublic) {
+		return fmt.Errorf("%w: %s", ssrf.ErrInvalidURL, a2aCardHostNotPublicMsg)
+	} else if err != nil {
+		return fmt.Errorf("%w: %w", ssrf.ErrInvalidURL, err)
+	}
+	return nil
+}

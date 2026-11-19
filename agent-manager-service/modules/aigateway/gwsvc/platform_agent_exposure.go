@@ -1,0 +1,109 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+)
+
+// waitingForEndpoint is what a platform agent's row waits on until its release binding publishes a service URL.
+const waitingForEndpoint = "waiting for the agent's endpoint"
+
+// PlatformAgentExposures is what an agent kind reads of a platform agent's exposure: the row, the endpoint its
+// release binding serves, and the ingress gateway it is placed on.
+type PlatformAgentExposures struct {
+	exposureRepo gwrepo.PlatformAgentExposureRepository
+	gatewayRepo  gwrepo.GatewayRepository
+	ocClient     modkit.CoreAPI
+}
+
+// NewPlatformAgentExposures creates PlatformAgentExposures.
+func NewPlatformAgentExposures(
+	exposureRepo gwrepo.PlatformAgentExposureRepository,
+	gatewayRepo gwrepo.GatewayRepository,
+	ocClient modkit.CoreAPI,
+) *PlatformAgentExposures {
+	return &PlatformAgentExposures{exposureRepo: exposureRepo, gatewayRepo: gatewayRepo, ocClient: ocClient}
+}
+
+// exposure is the artifact's exposure, read in tx when non-nil. ErrPlatformAgentExposureNotFound passes through
+// unwrapped: each kind decides what an artifact without one means.
+func (e *PlatformAgentExposures) exposure(
+	ctx context.Context, tx *gorm.DB, artifact gwmodels.ArtifactRef,
+) (*gwmodels.PlatformAgentExposure, error) {
+	repo := e.exposureRepo
+	if tx != nil {
+		repo = repo.WithTx(tx)
+	}
+	exposure, err := repo.GetByArtifact(ctx, artifact.OUID, artifact.ArtifactUUID)
+	if errors.Is(err, gwrepo.ErrPlatformAgentExposureNotFound) {
+		return nil, err
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to read the agent's exposure: %w", err)
+	}
+	return exposure, nil
+}
+
+// serviceURL is the endpoint the agent's release binding serves; the render waits while there is none.
+func (e *PlatformAgentExposures) serviceURL(ctx context.Context, exposure *gwmodels.PlatformAgentExposure) (string, error) {
+	// Platform-hosted agents need an agent runtime, which is not available.
+	return "", fmt.Errorf("%w: agent %s has no hosted endpoint", httpx.ErrNotImplemented, exposure.AgentName)
+}
+
+// target is the record's environment's ingress gateway, read in the transaction ctx carries, if any.
+func (e *PlatformAgentExposures) target(ctx context.Context, record reconcile.Record) (uuid.UUID, bool, error) {
+	gateway, err := findIngressGateway(gatewaysIn(ctx, e.gatewayRepo), record.OUID, record.EnvironmentUUID)
+	if err != nil || gateway == nil {
+		return uuid.Nil, false, err
+	}
+	return gateway.UUID, true, nil
+}
+
+// unplacedExposureArm selects the protocol's exposures whose artifact has no row yet, in environments with an
+// ingress gateway, as one UNION arm of pageUnplacedRecords.
+func unplacedExposureArm(protocol gwmodels.AgentExposureProtocol, ouID string, env *uuid.UUID) (string, []any) {
+	condition, args := reconcile.UnplacedCondition(reconcile.RecordColumns{
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "e.environment_id",
+	}, gwmodels.IngressGatewayRoles, ouID, env)
+	arm := `SELECT a.org_id, a.id AS artifact_id, a.handle, a.kind, e.environment_id
+			FROM mod_ai_gateway_agent_exposures e JOIN mod_ai_gateway_artifacts a ON a.id = e.artifact_id
+			WHERE e.protocol = ? AND ` + condition
+	return arm, append([]any{protocol}, args...)
+}
+
+// placedExposureArm selects the protocol's exposures in env whose artifact is placed on gateway, as one UNION arm
+// of a kind's PlacedOn query.
+func placedExposureArm(protocol gwmodels.AgentExposureProtocol, env, gateway uuid.UUID) (string, []any) {
+	condition, args := reconcile.PlacedCondition(reconcile.RecordColumns{
+		OUID: "a.org_id", ArtifactUUID: "a.id", EnvironmentUUID: "e.environment_id",
+	}, env, gateway)
+	arm := `SELECT 1 AS placed FROM mod_ai_gateway_agent_exposures e JOIN mod_ai_gateway_artifacts a ON a.id = e.artifact_id
+			WHERE e.protocol = ? AND ` + condition
+	return arm, append([]any{protocol}, args...)
+}

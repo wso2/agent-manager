@@ -93,28 +93,26 @@ func TestSanitizeURLStripsCredentialBearingComponents(t *testing.T) {
 // memory — that keeps a credential out of the record.
 func TestURLFieldsAreSanitizedAtRedaction(t *testing.T) {
 	e := Event{
-		Action: ActionGatewaySetIdentityProvider,
+		Action: ActionEventDestinationCreate,
 		Details: map[string]any{
-			"identityProviderName": "corp-idp",
-			"issuer":               "https://idp.example",
-			"jwksUri":              "https://svc:p@ssw0rd@idp.example/jwks?token=abcdef123456",
-			"skipTlsVerify":        true,
+			"kind":        "webhook",
+			"destination": "https://svc:p@ssw0rd@idp.example/jwks?token=abcdef123456",
 		},
 	}
 
 	redact(&e)
 
-	got, ok := e.Details["jwksUri"].(string)
+	got, ok := e.Details["destination"].(string)
 	if !ok {
-		t.Fatalf("jwksUri missing or not a string: %#v", e.Details["jwksUri"])
+		t.Fatalf("destination missing or not a string: %#v", e.Details["destination"])
 	}
 	for _, forbidden := range []string{"p@ssw0rd", "abcdef123456", "token=", "svc:"} {
 		if strings.Contains(got, forbidden) {
-			t.Errorf("recorded jwksUri %q still contains %q", got, forbidden)
+			t.Errorf("recorded destination %q still contains %q", got, forbidden)
 		}
 	}
 	if !strings.Contains(got, "idp.example") {
-		t.Errorf("recorded jwksUri %q lost the host, which is the reason it is recorded", got)
+		t.Errorf("recorded destination %q lost the host, which is the reason it is recorded", got)
 	}
 }
 

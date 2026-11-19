@@ -47,14 +47,7 @@ import type {
   SelfHostedGatewayUpdateRequest,
   UpdateSelfHostedGatewayPathParams,
 } from "@agent-management-platform/types";
-import {
-  encodeRequired,
-  httpDELETE,
-  httpGET,
-  httpPOST,
-  httpPUT,
-  SERVICE_BASE,
-} from "../../shared/utils";
+import { encodeRequired, httpDELETE, httpGET, httpPOST, httpPUT, GATEWAY_BASE } from "../../shared/utils";
 
 export async function listGateways(
   params: ListGatewaysPathParams,
@@ -81,7 +74,7 @@ export async function listGateways(
     searchParams.environment = query.environment;
   }
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/gateways`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/gateways`, {
     token,
     searchParams: Object.keys(searchParams).length ? searchParams : undefined,
   });
@@ -98,7 +91,7 @@ export async function createGateway(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/gateways`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways`,
     body,
     { token },
   );
@@ -115,7 +108,7 @@ export async function getGateway(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -132,7 +125,7 @@ export async function updateGateway(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}`,
     body,
     { token },
   );
@@ -149,7 +142,7 @@ export async function deleteGateway(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -171,7 +164,7 @@ export async function assignGatewayToEnvironment(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${gatewayId}/environments/${envId}`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${gatewayId}/environments/${envId}`,
     {},
     { token },
   );
@@ -195,7 +188,7 @@ export async function removeGatewayFromEnvironment(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${gatewayId}/environments/${envId}`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${gatewayId}/environments/${envId}`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -215,7 +208,7 @@ export async function listGatewayTokens(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${id}/tokens`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/tokens`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -231,7 +224,7 @@ export async function rotateGatewayToken(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${id}/tokens`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/tokens`,
     {},
     { token },
   );
@@ -255,7 +248,7 @@ export async function revokeGatewayToken(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${id}/tokens/${tokenId}`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/tokens/${tokenId}`,
     { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();
@@ -268,7 +261,7 @@ export async function listIdentityProviders(
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/identity-providers`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/identity-providers`, {
     token,
   });
   if (!res.ok) throw await res.json();
@@ -283,7 +276,7 @@ export async function discoverOidc(
   const org = encodeRequired(params.orgName, "orgName");
   const token = getToken ? await getToken() : undefined;
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/identity-providers/discover`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/identity-providers/discover`, {
     token,
     searchParams: { url: query.url },
   });
@@ -300,7 +293,7 @@ export async function listEnvironmentIdentityProviders(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/environments/${envId}/identity-providers`,
+    `${GATEWAY_BASE}/orgs/${org}/environments/${envId}/identity-providers`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -318,7 +311,7 @@ export async function upsertIdentityProvider(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${id}/identity-providers/${name}`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/identity-providers/${name}`,
     body,
     { token },
   );
@@ -336,7 +329,7 @@ export async function deleteIdentityProvider(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/gateways/${id}/identity-providers/${name}`,
+    `${GATEWAY_BASE}/orgs/${org}/gateways/${id}/identity-providers/${name}`,
     { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();
@@ -351,7 +344,7 @@ export async function createSelfHostedGateway(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways`,
+    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways`,
     body,
     { token },
   );
@@ -369,7 +362,7 @@ export async function updateSelfHostedGateway(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPUT(
-    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}`,
     body,
     { token },
   );
@@ -386,7 +379,7 @@ export async function deleteSelfHostedGateway(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}`,
+    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}`,
     { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();
@@ -401,7 +394,7 @@ export async function listSelfHostedGatewayTokens(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpGET(
-    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens`,
+    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens`,
     { token },
   );
   if (!res.ok) throw await res.json();
@@ -418,7 +411,7 @@ export async function createSelfHostedGatewayToken(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpPOST(
-    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens`,
+    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens`,
     {},
     { token },
   );
@@ -436,7 +429,7 @@ export async function revokeSelfHostedGatewayToken(
   const token = getToken ? await getToken() : undefined;
 
   const res = await httpDELETE(
-    `${SERVICE_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens/${tokenId}`,
+    `${GATEWAY_BASE}/orgs/${org}/self-hosted-gateways/${id}/tokens/${tokenId}`,
     { token },
   );
   if (!res.ok && res.status !== 204) throw await res.json();

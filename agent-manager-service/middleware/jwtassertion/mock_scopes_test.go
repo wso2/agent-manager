@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/gateway" // declares gateway:*
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // declares ai-gateway:*
 )
 
 // A mocked token reaches the routes of the linked modules too, not only the
@@ -37,6 +37,6 @@ func TestMockTokenCarriesModuleScopes(t *testing.T) {
 	}))
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/orgs/acme/gateways", nil))
 	scopes := strings.Fields(scope)
-	require.Contains(t, scopes, "amp:gateway:read")
+	require.Contains(t, scopes, "amp:ai-gateway:gateways.read")
 	require.Contains(t, scopes, "amp:agent:read")
 }

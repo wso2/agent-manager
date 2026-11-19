@@ -1,0 +1,71 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwtest
+
+import (
+	"context"
+	"sync"
+
+	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+)
+
+// Secrets is an in-memory modkit.Secrets for tests, keyed by org and path.
+// It ignores transactions: a rolled-back write stays.
+type Secrets struct {
+	mu sync.Mutex
+	m  map[string]string
+}
+
+var _ modkit.Secrets = (*Secrets)(nil)
+
+// NewSecrets returns an empty store.
+func NewSecrets() *Secrets { return &Secrets{m: map[string]string{}} }
+
+func (s *Secrets) Put(_ context.Context, orgID, path, value string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.m[orgID+"|"+path] = value
+	return nil
+}
+
+func (s *Secrets) Get(_ context.Context, orgID, path string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.m[orgID+"|"+path]
+	if !ok {
+		return "", modkit.ErrNotFound
+	}
+	return v, nil
+}
+
+func (s *Secrets) Delete(_ context.Context, orgID, path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.m, orgID+"|"+path)
+	return nil
+}
+
+func (s *Secrets) In(*gorm.DB) modkit.Secrets { return s }
+
+// Len is how many values the store holds.
+func (s *Secrets) Len() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return len(s.m)
+}

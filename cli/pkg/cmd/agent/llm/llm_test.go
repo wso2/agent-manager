@@ -20,17 +20,17 @@ import (
 	"context"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/modelconfig"
 )
 
 func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
-	policies := []amsvc.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
-	resp := &amsvc.AgentModelConfigResponse{
-		EnvMappings: map[string]amsvc.EnvProviderConfigMappings{
+	policies := []aigateway.LLMPolicy{{Name: "rate-limit", Version: "v1"}}
+	resp := &aigateway.AgentModelConfigResponse{
+		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
 			"dev": {
 				EnvironmentName: "dev",
-				Configuration: &amsvc.ProviderConfig{
+				Configuration: &aigateway.ProviderConfig{
 					ProviderName: "openai",
 					Url:          "https://server-managed.example.com",
 					Policies:     &policies,
@@ -38,7 +38,7 @@ func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
 			},
 			"prod": {
 				EnvironmentName: "prod",
-				Configuration:   &amsvc.ProviderConfig{ProviderName: "anthropic"},
+				Configuration:   &aigateway.ProviderConfig{ProviderName: "anthropic"},
 			},
 		},
 	}
@@ -62,7 +62,7 @@ func Test_toEnvModelConfigRequest_mergesEveryEnv(t *testing.T) {
 }
 
 func Test_toEnvModelConfigRequest_nilConfiguration(t *testing.T) {
-	got := toEnvModelConfigRequest(amsvc.EnvProviderConfigMappings{EnvironmentName: "dev"})
+	got := toEnvModelConfigRequest(aigateway.EnvProviderConfigMappings{EnvironmentName: "dev"})
 	if got.ProviderName != nil {
 		t.Errorf("ProviderName = %q, want nil", *got.ProviderName)
 	}
@@ -71,12 +71,12 @@ func Test_toEnvModelConfigRequest_nilConfiguration(t *testing.T) {
 	}
 }
 
-func listResponse(items ...amsvc.AgentModelConfigListItem) amsvc.AgentModelConfigListResponse {
-	return amsvc.AgentModelConfigListResponse{Configs: items}
+func listResponse(items ...aigateway.AgentModelConfigListItem) aigateway.AgentModelConfigListResponse {
+	return aigateway.AgentModelConfigListResponse{Configs: items}
 }
 
-func llmItem(name, uuid string) amsvc.AgentModelConfigListItem {
-	return amsvc.AgentModelConfigListItem{Name: name, Type: "llm", Uuid: mustUUID(uuid)}
+func llmItem(name, uuid string) aigateway.AgentModelConfigListItem {
+	return aigateway.AgentModelConfigListItem{Name: name, Type: "llm", Uuid: mustUUID(uuid)}
 }
 
 func Test_findLLMConfigByName(t *testing.T) {
@@ -84,7 +84,7 @@ func Test_findLLMConfigByName(t *testing.T) {
 	t.Run("found", func(t *testing.T) {
 		client, cleanup := newClient(t, map[string]route{
 			listPath: okJSON(listResponse(
-				amsvc.AgentModelConfigListItem{Name: "shared", Type: "mcp", Uuid: mustUUID("22222222-2222-2222-2222-222222222222")},
+				aigateway.AgentModelConfigListItem{Name: "shared", Type: "mcp", Uuid: mustUUID("22222222-2222-2222-2222-222222222222")},
 				llmItem("primary", uuidA),
 			)),
 		})
@@ -105,7 +105,7 @@ func Test_findLLMConfigByName(t *testing.T) {
 	t.Run("ignores same name with non-llm type", func(t *testing.T) {
 		client, cleanup := newClient(t, map[string]route{
 			listPath: okJSON(listResponse(
-				amsvc.AgentModelConfigListItem{Name: "primary", Type: "mcp", Uuid: mustUUID(uuidA)},
+				aigateway.AgentModelConfigListItem{Name: "primary", Type: "mcp", Uuid: mustUUID(uuidA)},
 			)),
 		})
 		defer cleanup()

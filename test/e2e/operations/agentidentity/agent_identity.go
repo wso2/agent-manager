@@ -29,7 +29,7 @@ import (
 )
 
 func rolesPath(orgName, envName string) string {
-	return fmt.Sprintf("/api/v1/orgs/%s/environments/%s/agent-identities/roles", orgName, envName)
+	return fmt.Sprintf("/m/ai-gateway/orgs/%s/environments/%s/agent-identities/roles", orgName, envName)
 }
 
 func CreateRole(ctx context.Context, g Gomega, client *framework.AMPClient, orgName, envName string, request framework.AgentIdentityRoleRequest) framework.AgentIdentityRoleResponse {
@@ -76,7 +76,7 @@ func GetRoleAssignments(ctx context.Context, g Gomega, client *framework.AMPClie
 }
 
 func ListAgents(ctx context.Context, g Gomega, client *framework.AMPClient, orgName, envName string) framework.AgentIdentityAgentListResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/environments/%s/agent-identities/agents", orgName, envName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/environments/%s/agent-identities/agents", orgName, envName)
 	response, err := client.GetWithContext(ctx, path)
 	g.Expect(err).NotTo(HaveOccurred(), "list AgentID agents request failed")
 	defer response.Body.Close()

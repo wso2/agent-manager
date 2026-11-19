@@ -6,6 +6,7 @@ run:
   allow-parallel-runners: false
 linters:
   enable:
+    - depguard
     - errorlint
     - exhaustruct
     - goheader
@@ -19,6 +20,23 @@ linters:
     - revive
     - unused
   settings:
+    depguard:
+      rules:
+        # A module reaches the core only through modkit (modules.md, Module
+        # boundaries). Module tests and gwtest may use core test harnesses.
+        modules:
+          list-mode: lax
+          files:
+            - "**/modules/**/*.go"
+            - "!**/*_test.go"
+            - "!**/modules/aigateway/gwtest/**"
+          allow:
+            - github.com/wso2/agent-manager/agent-manager-service/modkit
+            - github.com/wso2/agent-manager/agent-manager-service/pkg
+            - github.com/wso2/agent-manager/agent-manager-service/modules
+          deny:
+            - pkg: github.com/wso2/agent-manager/agent-manager-service
+              desc: a module imports only modkit, pkg and its own packages
     exhaustruct:
       include:
         - .*\.Test

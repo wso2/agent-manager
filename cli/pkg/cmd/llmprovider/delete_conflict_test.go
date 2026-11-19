@@ -22,7 +22,7 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 )
 
 // TestDelete_ConflictSurfacesServerMessage is the regression test for "the provider
@@ -34,7 +34,7 @@ func TestDelete_ConflictSurfacesServerMessage(t *testing.T) {
 	ios, out, _ := newTestIO(true)
 	const serverMessage = "cannot delete LLM provider: it has associated LLM proxies. " +
 		"Please delete all proxies before deleting the provider"
-	clientFn, _, closeFn := newTestClient(t, http.StatusConflict, amsvc.ErrorResponse{
+	clientFn, _, closeFn := newTestClient(t, http.StatusConflict, aigateway.ErrorResponse{
 		Code:    "CONFLICT",
 		Message: serverMessage,
 	})
@@ -65,7 +65,7 @@ func TestDelete_ConflictSurfacesServerMessage(t *testing.T) {
 // A 403 masked identically before the spec declared it.
 func TestDelete_ForbiddenSurfacesServerMessage(t *testing.T) {
 	ios, out, _ := newTestIO(true)
-	clientFn, _, closeFn := newTestClient(t, http.StatusForbidden, amsvc.ErrorResponse{
+	clientFn, _, closeFn := newTestClient(t, http.StatusForbidden, aigateway.ErrorResponse{
 		Code:    "FORBIDDEN",
 		Message: "missing llm-provider:delete permission",
 	})

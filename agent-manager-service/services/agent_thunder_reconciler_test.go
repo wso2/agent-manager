@@ -34,8 +34,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
-	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
@@ -105,10 +105,10 @@ func TestAgentThunderReconciler_StopsOnStopChannel(t *testing.T) {
 func TestAgentThunderReconciler_AdvisoryLockBlocksConcurrentCycle(t *testing.T) {
 	ctx := context.Background()
 
-	locked, err := dbx.TryLock(ctx, db.DB(ctx), reconcilerLock, "another-instance", dbx.Now(), time.Minute)
+	locked, err := dbx.TryLock(ctx, db.DB(ctx), "locks", reconcilerLock, "another-instance", dbx.Now(), time.Minute)
 	require.NoError(t, err)
 	require.True(t, locked)
-	t.Cleanup(func() { _ = dbx.Unlock(ctx, db.DB(ctx), reconcilerLock, "another-instance") })
+	t.Cleanup(func() { _ = dbx.Unlock(ctx, db.DB(ctx), "locks", reconcilerLock, "another-instance") })
 
 	var attemptCalled atomic.Int32
 	provisioning := &fakeProvisioningService{

@@ -136,10 +136,6 @@ func TestPrepare_ExternalRejectsInternalOnlyFlags(t *testing.T) {
 	opts.Port = 9000
 	opts.BasePath = "/api"
 	opts.OpenAPISpec = "/openapi.yaml"
-	opts.Env = []string{"FOO=bar"}
-	opts.EnvSecret = []string{"BAZ=quux"}
-	opts.EnvFromSecret = []string{"QUUX=secret-name"}
-	opts.DisableAutoInstrumentation = true
 	opts.LLMProvider = "openai"
 
 	err := mustPrepareErr(t, opts)
@@ -158,10 +154,6 @@ func TestPrepare_ExternalRejectsInternalOnlyFlags(t *testing.T) {
 		"--port is not allowed for external provisioning",
 		"--base-path is not allowed for external provisioning",
 		"--openapi-spec is not allowed for external provisioning",
-		"--env is not allowed for external provisioning",
-		"--env-secret is not allowed for external provisioning",
-		"--env-from-secret is not allowed for external provisioning",
-		"--no-auto-instrumentation is not allowed for external provisioning",
 		"--llm-provider is not allowed for external provisioning",
 	} {
 		assertContains(t, details, msg)
@@ -353,68 +345,6 @@ func TestPrepare_PortRange(t *testing.T) {
 	}
 }
 
-// Missing '=' cannot survive conversion (splitEnv would smuggle the whole
-// entry through as a key), so it is reported flag-phrased at the conversion
-// layer. Key format and duplicates survive into the request and are reported
-// as field paths.
-func TestPrepare_EnvMissingSeparator(t *testing.T) {
-	tests := []struct {
-		flag    string
-		mutate  func(*CreateOptions)
-		wantSub string
-	}{
-		{"--env", func(o *CreateOptions) { o.Env = []string{"NOEQUALS"} }, `--env "NOEQUALS": missing '=' separator`},
-		{"--env-secret", func(o *CreateOptions) { o.EnvSecret = []string{"NOSEP"} }, `--env-secret "NOSEP": missing '=' separator`},
-		{"--env-from-secret", func(o *CreateOptions) { o.EnvFromSecret = []string{"NOSEP"} }, `--env-from-secret "NOSEP": missing '=' separator`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.flag, func(t *testing.T) {
-			opts := validBuildpackOpts()
-			tt.mutate(opts)
-			err := mustPrepareErr(t, opts)
-			details := mustFlagDetails(t, err)
-			assertContains(t, details, tt.wantSub)
-		})
-	}
-}
-
-func TestPrepare_EnvInvalidKey(t *testing.T) {
-	opts := validBuildpackOpts()
-	opts.Env = []string{"1BAD=val"}
-	err := mustPrepareErr(t, opts)
-	details := mustFlagDetails(t, err)
-	assertContains(t, details, `spec.configurations.env: invalid key "1BAD"`)
-}
-
-func TestPrepare_DuplicateEnvKey(t *testing.T) {
-	opts := validBuildpackOpts()
-	opts.Env = []string{"FOO=bar"}
-	opts.EnvSecret = []string{"FOO=secret"}
-	err := mustPrepareErr(t, opts)
-	details := mustFlagDetails(t, err)
-	assertContains(t, details, `spec.configurations.env: duplicate key "FOO"`)
-}
-
-func TestPrepare_DuplicateEnvKeyAcrossThreeFlags(t *testing.T) {
-	opts := validBuildpackOpts()
-	opts.Env = []string{"DB_HOST=localhost"}
-	opts.EnvSecret = []string{"API_KEY=secret"}
-	opts.EnvFromSecret = []string{"DB_HOST=my-secret"}
-	err := mustPrepareErr(t, opts)
-	details := mustFlagDetails(t, err)
-	assertContains(t, details, `spec.configurations.env: duplicate key "DB_HOST"`)
-}
-
-func TestPrepare_ValidEnv(t *testing.T) {
-	opts := validBuildpackOpts()
-	opts.Env = []string{"FOO=bar", "BAZ=qux"}
-	opts.EnvSecret = []string{"SECRET_KEY=hunter2"}
-	opts.EnvFromSecret = []string{"DB_PASS=my-secret"}
-	if _, err := prepare(opts); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestPrepare_LLMEnvFlagsRequireProvider(t *testing.T) {
 	opts := validBuildpackOpts()
 	opts.LLMURLEnv = "MY_URL"
@@ -485,12 +415,12 @@ func TestPrepare_CustomAPIWithoutSlashPasses(t *testing.T) {
 // Conversion-layer and request-layer violations surface in one aggregated error.
 func TestPrepare_MergesConversionAndRequestViolations(t *testing.T) {
 	opts := validBuildpackOpts()
-	opts.DisplayName = ""           // request layer
-	opts.Env = []string{"NOEQUALS"} // conversion layer
+	opts.DisplayName = ""     // request layer
+	opts.LLMURLEnv = "MY_URL" // flag layer
 	err := mustPrepareErr(t, opts)
 	details := mustFlagDetails(t, err)
 	assertContains(t, details, "spec.displayName is required")
-	assertContains(t, details, `--env "NOEQUALS": missing '=' separator`)
+	assertContains(t, details, "--llm-url-env/--llm-api-key-env require --llm-provider")
 }
 
 // --- helpers ---

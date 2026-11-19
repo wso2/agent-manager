@@ -19,6 +19,7 @@ package events
 import (
 	"slices"
 	"sort"
+	"sync/atomic"
 )
 
 // Type describes one event type subscriptions can name.
@@ -49,50 +50,29 @@ type routeEvent struct {
 	// (an API key, a token, a client secret) that must never leave the
 	// platform in an event.
 	OmitData bool
-	// EnvironmentQuery declares that the route accepts ?environment=.
-	EnvironmentQuery bool
 }
 
 // routeEvents is keyed by the registrar pattern. A route not listed here
 // emits nothing. An agent event acting on an environment carries it (from
-// the path, query, response or a handler annotation) and reaches the
+// the path or a handler annotation) and reaches the
 // subscriptions whose environment filter selects it; one with no
 // environment, such as a build, reaches them whatever their filter.
 var routeEvents = map[string]routeEvent{
 	// --- Org ------------------------------------------------------------
-	"POST /orgs/{orgName}/projects":                                        {Type: "project.created"},
-	"DELETE /orgs/{orgName}/projects/{projName}":                           {Type: "project.deleted"},
-	"POST /orgs/{orgName}/mcp-proxies":                                     {Type: "mcp_server.created"},
-	"PUT /orgs/{orgName}/mcp-proxies/{proxyId}":                            {Type: "mcp_server.updated"},
-	"DELETE /orgs/{orgName}/mcp-proxies/{proxyId}":                         {Type: "mcp_server.deleted"},
-	"POST /orgs/{orgName}/llm-providers":                                   {Type: "llm_provider.created"},
-	"PUT /orgs/{orgName}/llm-providers/{providerId}":                       {Type: "llm_provider.updated"},
-	"DELETE /orgs/{orgName}/llm-providers/{providerId}":                    {Type: "llm_provider.deleted"},
-	"POST /orgs/{orgName}/llm-providers/{providerId}/deployments":          {Type: "llm_provider.deployed"},
-	"POST /orgs/{orgName}/llm-providers/{providerId}/deployments/undeploy": {Type: "llm_provider.undeployed"},
-	"POST /orgs/{orgName}/environments":                                    {Type: "environment.created"},
-	"PUT /orgs/{orgName}/environments/{envID}":                             {Type: "environment.updated"},
-	"DELETE /orgs/{orgName}/environments/{envID}":                          {Type: "environment.deleted"},
-	"POST /orgs/{orgName}/gateways":                                        {Type: "gateway.created", OmitData: true},
-	"PUT /orgs/{orgName}/gateways/{gatewayID}":                             {Type: "gateway.updated"},
-	"DELETE /orgs/{orgName}/gateways/{gatewayID}":                          {Type: "gateway.deleted"},
-	"POST /orgs/{orgName}/deployment-pipelines":                            {Type: "deployment_pipeline.created"},
-	"PUT /orgs/{orgName}/deployment-pipelines/{pipelineName}":              {Type: "deployment_pipeline.updated"},
-	"DELETE /orgs/{orgName}/deployment-pipelines/{pipelineName}":           {Type: "deployment_pipeline.deleted"},
-	"POST /orgs/{orgName}/agent-kinds/{kindName}/versions":                 {Type: "agent_kind.version_added"},
-	"PUT /orgs/{orgName}/agent-kinds/{kindName}":                           {Type: "agent_kind.updated"},
-	"DELETE /orgs/{orgName}/agent-kinds/{kindName}":                        {Type: "agent_kind.deleted"},
-	"POST /orgs/{orgName}/git-secrets":                                     {Type: "git_secret.created", OmitData: true},
-	"DELETE /orgs/{orgName}/git-secrets/{secretName}":                      {Type: "git_secret.deleted"},
-	"POST /orgs/{orgName}/identities/users/invite":                         {Type: "user.invited", OmitData: true},
-	"POST /orgs/{orgName}/identities/users":                                {Type: "user.created", OmitData: true},
-	"DELETE /orgs/{orgName}/identities/users/{userID}":                     {Type: "user.deleted"},
-	"POST /orgs/{orgName}/identities/roles":                                {Type: "role.created"},
-	"PUT /orgs/{orgName}/identities/roles/{roleID}":                        {Type: "role.updated"},
-	"DELETE /orgs/{orgName}/identities/roles/{roleID}":                     {Type: "role.deleted"},
-	"POST /orgs/{orgName}/identities/groups":                               {Type: "group.created"},
-	"PUT /orgs/{orgName}/identities/groups/{groupID}":                      {Type: "group.updated"},
-	"DELETE /orgs/{orgName}/identities/groups/{groupID}":                   {Type: "group.deleted"},
+	"POST /orgs/{orgName}/projects":                      {Type: "project.created"},
+	"DELETE /orgs/{orgName}/projects/{projName}":         {Type: "project.deleted"},
+	"POST /orgs/{orgName}/environments":                  {Type: "environment.created"},
+	"PUT /orgs/{orgName}/environments/{envID}":           {Type: "environment.updated"},
+	"DELETE /orgs/{orgName}/environments/{envID}":        {Type: "environment.deleted"},
+	"POST /orgs/{orgName}/identities/users/invite":       {Type: "user.invited", OmitData: true},
+	"POST /orgs/{orgName}/identities/users":              {Type: "user.created", OmitData: true},
+	"DELETE /orgs/{orgName}/identities/users/{userID}":   {Type: "user.deleted"},
+	"POST /orgs/{orgName}/identities/roles":              {Type: "role.created"},
+	"PUT /orgs/{orgName}/identities/roles/{roleID}":      {Type: "role.updated"},
+	"DELETE /orgs/{orgName}/identities/roles/{roleID}":   {Type: "role.deleted"},
+	"POST /orgs/{orgName}/identities/groups":             {Type: "group.created"},
+	"PUT /orgs/{orgName}/identities/groups/{groupID}":    {Type: "group.updated"},
+	"DELETE /orgs/{orgName}/identities/groups/{groupID}": {Type: "group.deleted"},
 
 	// --- Project --------------------------------------------------------
 	"PUT /orgs/{orgName}/projects/{projName}":                       {Type: "project.updated"},
@@ -100,19 +80,7 @@ var routeEvents = map[string]routeEvent{
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}": {Type: "agent.deleted"},
 
 	// --- Agent ----------------------------------------------------------
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}":                                            {Type: "agent.updated"},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters":                           {Type: "agent.build_parameters_updated"},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations":                             {Type: "agent.configuration_updated"},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings":                            {Type: "agent.configuration_updated"},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs":                           {Type: "agent.configuration_updated", EnvironmentQuery: true},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds":                                    {Type: "agent.build_triggered"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments":                               {Type: "agent.deployed"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote":                                   {Type: "agent.promoted"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state":                         {Type: "agent.deployment_state_changed"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind":                              {Type: "agent.kind_published"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys":             {Type: "agent.api_key_created", OmitData: true},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}":    {Type: "agent.api_key_rotated", OmitData: true},
-	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}": {Type: "agent.api_key_revoked"},
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}": {Type: "agent.updated"},
 }
 
 // types is the catalog of every event subscriptions can name.
@@ -120,20 +88,9 @@ var types = []Type{
 	// Org
 	{"project.created", ScopeOrg, "Projects", "A project was created."},
 	{"project.deleted", ScopeOrg, "Projects", "A project was deleted."},
-	{"mcp_server.created", ScopeOrg, "MCP servers", "An MCP server was added."},
-	{"mcp_server.updated", ScopeOrg, "MCP servers", "An MCP server was updated."},
-	{"mcp_server.deleted", ScopeOrg, "MCP servers", "An MCP server was deleted."},
-	{"llm_provider.created", ScopeOrg, "LLM providers", "An LLM provider was added."},
-	{"llm_provider.updated", ScopeOrg, "LLM providers", "An LLM provider was updated."},
-	{"llm_provider.deleted", ScopeOrg, "LLM providers", "An LLM provider was deleted."},
-	{"llm_provider.deployed", ScopeOrg, "LLM providers", "An LLM provider was deployed to a gateway."},
-	{"llm_provider.undeployed", ScopeOrg, "LLM providers", "An LLM provider was undeployed from a gateway."},
 	{"environment.created", ScopeOrg, "Environments", "An environment was created."},
 	{"environment.updated", ScopeOrg, "Environments", "An environment was updated."},
 	{"environment.deleted", ScopeOrg, "Environments", "An environment was deleted."},
-	{"gateway.created", ScopeOrg, "Gateways", "A gateway was registered."},
-	{"gateway.updated", ScopeOrg, "Gateways", "A gateway was updated."},
-	{"gateway.deleted", ScopeOrg, "Gateways", "A gateway was deleted."},
 	{"deployment_pipeline.created", ScopeOrg, "Deployment pipelines", "A deployment pipeline was created."},
 	{"deployment_pipeline.updated", ScopeOrg, "Deployment pipelines", "A deployment pipeline was updated."},
 	{"deployment_pipeline.deleted", ScopeOrg, "Deployment pipelines", "A deployment pipeline was deleted."},
@@ -166,9 +123,6 @@ var types = []Type{
 	{"agent.deployed", ScopeAgent, "Builds and deployments", "A deployment to an environment was accepted. The rollout runs afterwards and can still fail."},
 	{"agent.promoted", ScopeAgent, "Builds and deployments", "A promotion into an environment was accepted. The rollout runs afterwards and can still fail."},
 	{"agent.deployment_state_changed", ScopeAgent, "Builds and deployments", "A request to start or stop a deployment was accepted. The change rolls out afterwards and can still fail."},
-	{"agent.api_key_created", ScopeAgent, "API keys", "An API key was created for the agent."},
-	{"agent.api_key_rotated", ScopeAgent, "API keys", "An API key was rotated."},
-	{"agent.api_key_revoked", ScopeAgent, "API keys", "An API key was revoked."},
 }
 
 var typesByName = func() map[string]Type {
@@ -179,11 +133,41 @@ var typesByName = func() map[string]Type {
 	return m
 }()
 
+// moduleTypes are the webhook event types the active modules declare. The
+// module host replaces them whenever the set of active modules changes.
+var moduleTypes atomic.Pointer[map[string]Type]
+
+// SetModuleTypes replaces the event types the active modules declare. A type
+// that clashes with a core type is ignored.
+func SetModuleTypes(ts []Type) {
+	m := make(map[string]Type, len(ts))
+	for _, t := range ts {
+		if _, core := typesByName[t.Name]; !core {
+			m[t.Name] = t
+		}
+	}
+	moduleTypes.Store(&m)
+}
+
+// all is the core catalog and the active modules' types.
+func all() []Type {
+	m := moduleTypes.Load()
+	if m == nil || len(*m) == 0 {
+		return types
+	}
+	out := slices.Clone(types)
+	for _, t := range *m {
+		out = append(out, t)
+	}
+	return out
+}
+
 // Types returns the catalog for a scope, or every scope when scope is empty,
 // ordered by category then name.
 func Types(scope Scope) []Type {
-	out := make([]Type, 0, len(types))
-	for _, t := range types {
+	cat := all()
+	out := make([]Type, 0, len(cat))
+	for _, t := range cat {
 		if scope == "" || t.Scope == scope {
 			out = append(out, t)
 		}
@@ -202,8 +186,14 @@ func Types(scope Scope) []Type {
 
 // Lookup returns the catalog entry for an event type.
 func Lookup(name string) (Type, bool) {
-	t, ok := typesByName[name]
-	return t, ok
+	if t, ok := typesByName[name]; ok {
+		return t, true
+	}
+	if m := moduleTypes.Load(); m != nil {
+		t, ok := (*m)[name]
+		return t, ok
+	}
+	return Type{}, false
 }
 
 // rank orders scopes from the widest to the narrowest: an org holds
@@ -229,7 +219,7 @@ func Subscribable(scope Scope) []Type {
 	if !scope.Valid() {
 		return []Type{}
 	}
-	out := make([]Type, 0, len(types))
+	out := []Type{}
 	for _, t := range Types("") {
 		if t.Scope.rank() >= scope.rank() {
 			out = append(out, t)
@@ -242,7 +232,7 @@ func Subscribable(scope Scope) []Type {
 // type name. Types outside the catalog, such as TypeDestinationTest, never
 // qualify.
 func CanSubscribe(scope Scope, name string) bool {
-	t, ok := typesByName[name]
+	t, ok := Lookup(name)
 	return ok && scope.Valid() && t.Scope.rank() >= scope.rank()
 }
 
@@ -303,9 +293,4 @@ func RoutePatterns() []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// RouteUsesEnvironmentQuery reports whether the route declares an environment query parameter.
-func RouteUsesEnvironmentQuery(pattern string) bool {
-	return routeEvents[pattern].EnvironmentQuery
 }

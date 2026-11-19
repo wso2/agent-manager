@@ -76,13 +76,12 @@ type AppParams struct {
 	// PlatformRepository stores organizations, projects, environments and agents.
 	PlatformRepository repositories.PlatformRepository
 
-	// What features built on the core (see package builtin) take from it.
+	// Settings and clients the core services use.
 	Config                       *config.Config
 	EncryptionKey                []byte
 	SecretManagementClient       secretmanagersvc.SecretManagementClient
 	IdentityClient               thundersvc.IdentityClient
 	EnvThunderResolver           thundersvc.EnvThunderResolver
-	AgentConfigRepository        repositories.AgentConfigRepository
 	AgentThunderClientRepository repositories.AgentThunderClientRepository
 	AgentThunderProvisioning     services.AgentThunderProvisioningService
 

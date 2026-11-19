@@ -17,8 +17,6 @@
 package utils
 
 import (
-	"slices"
-
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 )
@@ -68,43 +66,6 @@ func convertToCreatedBy(createdBy *models.AgentCreatedBy) *spec.AgentCreatedBy {
 	return result
 }
 
-// PopulateConfigurationResponseFromAgentConfig fills the per-environment tracing, CORS, and
-// endpoint-authentication fields on a ConfigurationResponse from the agent_configs row. Unlike
-// GetAgent (lowest-environment only), this lets the console seed the drawer per environment. No-op
-// when cfg is nil ("no config persisted yet").
-func PopulateConfigurationResponseFromAgentConfig(resp *spec.ConfigurationResponse, cfg *models.AgentConfig) {
-	if resp == nil || cfg == nil {
-		return
-	}
-	resp.EnableAutoInstrumentation = spec.PtrBool(cfg.EnableAutoInstrumentation)
-	resp.InstrumentationVersion = cfg.InstrumentationVersion
-	resp.EnableApiKeySecurity = spec.PtrBool(cfg.EnableApiKeySecurity)
-	resp.EnableOAuthSecurity = spec.PtrBool(cfg.EnableOAuthSecurity)
-	resp.ResilienceTimeoutSeconds = cfg.ResilienceTimeoutSeconds
-	resp.CorsConfig = &spec.CORSConfig{
-		Enabled:          spec.PtrBool(cfg.CORSEnabled),
-		AllowOrigin:      cfg.CORSAllowOrigins,
-		AllowMethods:     cfg.CORSAllowMethods,
-		AllowHeaders:     cfg.CORSAllowHeaders,
-		AllowCredentials: spec.PtrBool(cfg.CORSAllowCredentials),
-	}
-	resp.OauthConfig = &spec.OAuthConfig{
-		Issuers:          cfg.OAuthIssuers,
-		Audiences:        cfg.OAuthAudiences,
-		HeaderName:       &cfg.OAuthHeaderName,
-		AuthHeaderPrefix: &cfg.OAuthAuthHeaderPrefix,
-		ForwardToken:     &cfg.OAuthForwardToken,
-	}
-	card := cfg.EffectiveCardCORS()
-	resp.AgentCardCorsConfig = &spec.AgentCardCORSConfig{
-		Inherit:          spec.PtrBool(card.Inherited),
-		Enabled:          spec.PtrBool(card.Enabled),
-		AllowOrigin:      card.AllowOrigins,
-		AllowHeaders:     card.AllowHeaders,
-		AllowCredentials: spec.PtrBool(card.AllowCredentials),
-	}
-}
-
 func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentResponse {
 	response := spec.AgentResponse{
 		Uuid:        component.UUID,
@@ -126,45 +87,6 @@ func convertToExternalAgentResponse(component *models.AgentResponse) spec.AgentR
 		response.SetLabels(component.Labels)
 	}
 	return response
-}
-
-func ConvertToDeploymentDetailsResponse(deploymentDetails []*models.DeploymentResponse) map[string]spec.DeploymentDetailsResponse {
-	result := make(map[string]spec.DeploymentDetailsResponse)
-
-	if len(deploymentDetails) == 0 {
-		return result
-	}
-
-	for _, deployment := range deploymentDetails {
-		// Convert model endpoints to spec endpoints
-		endpoints := make([]spec.DeploymentEndpoint, len(deployment.Endpoints))
-		for i, endpoint := range deployment.Endpoints {
-			endpoints[i] = spec.DeploymentEndpoint{
-				Name:       endpoint.Name,
-				Visibility: endpoint.Visibility,
-				Url:        endpoint.URL,
-			}
-		}
-
-		// Create the deployment details response
-		var envDisplayName *string
-		if deployment.EnvironmentDisplayName != "" {
-			envDisplayName = &deployment.EnvironmentDisplayName
-		}
-
-		deploymentResponse := spec.DeploymentDetailsResponse{
-			Status:                 deployment.Status,
-			Endpoints:              endpoints,
-			EnvironmentDisplayName: envDisplayName,
-			GatewayStatus:          stringToPtr(deployment.GatewayStatus),
-			GatewayStatusReason:    stringToPtr(deployment.GatewayStatusReason),
-		}
-
-		// Add to result map with environment name as key
-		result[deployment.Environment] = deploymentResponse
-	}
-
-	return result
 }
 
 func ConvertToEnvironmentListResponse(environments []*models.EnvironmentResponse) []spec.Environment {
@@ -277,41 +199,9 @@ func ConvertToProjectListResponse(projects []*models.ProjectResponse) []spec.Pro
 	return responses
 }
 
-// RedactSecretConfigValues returns a copy of cfg with the value of every sensitive
-// env var and file mount omitted, so a secret submitted on create is never
-// serialized back out. Mirrors the read path in GetAgentConfigurations, which
-// blanks the same fields.
-//
-// The copy is not incidental: cfg points into the decoded request body, and for
-// kind-based agents ApplySecretConfigDefaults has already written the kind's stored
-// secret defaults into the backing slices. Redacting in place would make
-// correctness depend on the order in which the service and the handler run.
-func RedactSecretConfigValues(cfg *spec.Configurations) *spec.Configurations {
-	if cfg == nil {
+func stringToPtr(s string) *string {
+	if s == "" {
 		return nil
 	}
-	redacted := *cfg
-	redacted.Env = redactSensitiveEnvValues(cfg.Env)
-	redacted.Files = redactSensitiveFileValues(cfg.Files)
-	return &redacted
-}
-
-func redactSensitiveEnvValues(env []spec.EnvironmentVariable) []spec.EnvironmentVariable {
-	redacted := slices.Clone(env)
-	for i := range redacted {
-		if BoolPointerAsBool(redacted[i].IsSensitive, false) {
-			redacted[i].Value = nil
-		}
-	}
-	return redacted
-}
-
-func redactSensitiveFileValues(files []spec.FileMount) []spec.FileMount {
-	redacted := slices.Clone(files)
-	for i := range redacted {
-		if BoolPointerAsBool(redacted[i].IsSensitive, false) {
-			redacted[i].Value = nil
-		}
-	}
-	return redacted
+	return &s
 }

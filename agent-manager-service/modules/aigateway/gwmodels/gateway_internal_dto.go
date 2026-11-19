@@ -1,0 +1,129 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwmodels
+
+import (
+	"encoding/json"
+	"time"
+)
+
+// DeploymentNotification represents the request body for gateway API deployment registration
+type DeploymentNotification struct {
+	ID                string           `json:"id" binding:"required"`
+	Configuration     APIConfiguration `json:"configuration" binding:"required"`
+	Status            string           `json:"status" binding:"required"`
+	CreatedAt         time.Time        `json:"createdAt" binding:"required"`
+	UpdatedAt         time.Time        `json:"updatedAt" binding:"required"`
+	DeployedAt        *time.Time       `json:"deployedAt,omitempty"`
+	DeployedVersion   *int             `json:"deployedVersion,omitempty"`
+	ProjectIdentifier string           `json:"projectIdentifier" binding:"required"`
+}
+
+// APIConfiguration represents the API configuration
+type APIConfiguration struct {
+	Version string        `json:"version" yaml:"version" binding:"required"`
+	Kind    string        `json:"kind" yaml:"kind" binding:"required"`
+	Spec    APIConfigData `json:"spec" yaml:"spec" binding:"required"`
+}
+
+// APIConfigData represents the detailed API configuration
+type APIConfigData struct {
+	Name        string           `json:"name" yaml:"name" binding:"required"`
+	Version     string           `json:"version" yaml:"version" binding:"required"`
+	Context     string           `json:"context" yaml:"context" binding:"required"`
+	ProjectName string           `json:"projectName,omitempty" yaml:"projectName,omitempty"`
+	Upstreams   []UpstreamSimple `json:"upstreams" yaml:"upstream" binding:"required"`
+	Operations  []BasicOperation `json:"operations" yaml:"operations" binding:"required"`
+}
+
+// UpstreamSimple represents basic backend service configuration for internal DTOs
+type UpstreamSimple struct {
+	URL string `json:"url" binding:"required"`
+}
+
+// BasicOperation represents API basic operation configuration
+type BasicOperation struct {
+	Method string `json:"method" binding:"required"`
+	Path   string `json:"path" binding:"required"`
+}
+
+// GatewayDeploymentResponse represents the response for successful API deployment registration
+type GatewayDeploymentResponse struct {
+	APIId        string `json:"apiId"`
+	DeploymentId int64  `json:"deploymentId"`
+	Message      string `json:"message"`
+	Created      bool   `json:"created"`
+}
+
+// DeployAPIRequest represents the request to deploy an API. Name and Metadata are accepted and ignored: the
+// deployment is named by its kind.
+type DeployAPIRequest struct {
+	Name       string                 `json:"name,omitempty"`
+	Base       string                 `json:"base,omitempty"` // omitted or "current"
+	GatewayID  string                 `json:"gatewayId" binding:"required"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
+	Properties map[string]interface{} `json:"properties,omitempty"`
+}
+
+// ConnectionAckDTO represents WebSocket connection acknowledgment
+type ConnectionAckDTO struct {
+	Type      string `json:"type"`
+	Message   string `json:"message"`
+	GatewayID string `json:"gatewayId"`
+}
+
+// GatewayMessage represents a generic typed message received from the gateway via WebSocket
+type GatewayMessage struct {
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+// Deployment ack actions and outcomes, as the gateway sends them.
+const (
+	DeploymentAckActionDeploy   = "deploy"
+	DeploymentAckActionUndeploy = "undeploy"
+	DeploymentAckStatusSuccess  = "success"
+	DeploymentAckStatusFailed   = "failed"
+)
+
+// DeploymentAck is the payload of a deployment acknowledgment from the gateway. The gateway echoes the event's
+// deploymentId, so an undeploy ack carries an empty one.
+type DeploymentAck struct {
+	DeploymentID string    `json:"deploymentId"`
+	ArtifactID   string    `json:"artifactId"`
+	ResourceType string    `json:"resourceType"` // "api", "llmprovider", "llmproxy", "mcpproxy", "agentproxy", "Agent"
+	Action       string    `json:"action"`       // "deploy" or "undeploy"
+	Status       string    `json:"status"`       // "success" or "failed"
+	PerformedAt  time.Time `json:"performedAt"`
+	ErrorCode    string    `json:"errorCode,omitempty"`
+}
+
+// ControlPlaneDeployment is one GET /api/internal/v1/deployments entry, in the gateway's shape.
+type ControlPlaneDeployment struct {
+	ArtifactID   string    `json:"artifactId"`
+	DeploymentID string    `json:"deploymentId"`
+	Kind         string    `json:"kind"`
+	State        string    `json:"state"`
+	DeployedAt   time.Time `json:"deployedAt"`
+	Etag         string    `json:"etag"`
+}
+
+// ArtifactExistence answers POST /api/internal/v1/artifacts/exists for one artifact id.
+type ArtifactExistence struct {
+	ArtifactID string `json:"artifactId"`
+	Exists     bool   `json:"exists"`
+}

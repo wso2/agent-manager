@@ -12,7 +12,7 @@ import (
 
 // CreateAgentModelConfig creates a model configuration for an agent.
 func CreateAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName string, req framework.CreateAgentModelConfigRequest) framework.AgentModelConfigResponse {
-	basePath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs",
+	basePath := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs",
 		orgName, projName, agentName)
 
 	resp, err := client.Post(basePath, req)
@@ -27,7 +27,7 @@ func CreateAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, proj
 // mcp-configs endpoint. The server forces the config type to "mcp", so the
 // request's env mappings should reference an MCP proxy via MCPProxyName.
 func CreateAgentMCPConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName string, req framework.CreateAgentModelConfigRequest) framework.AgentModelConfigResponse {
-	basePath := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/mcp-configs",
+	basePath := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs",
 		orgName, projName, agentName)
 
 	resp, err := client.Post(basePath, req)
@@ -46,7 +46,7 @@ func DeleteAgentMCPConfigBestEffort(ctx context.Context, client *framework.AMPCl
 	if configID == "" {
 		return
 	}
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/mcp-configs/%s",
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/mcp-configs/%s",
 		orgName, projName, agentName, configID)
 	response, err := client.DeleteWithContext(ctx, path)
 	if err != nil {
@@ -59,7 +59,7 @@ func DeleteAgentMCPConfigBestEffort(ctx context.Context, client *framework.AMPCl
 
 // ListAgentModelConfigs returns all model configurations for an agent.
 func ListAgentModelConfigs(g Gomega, client *framework.AMPClient, orgName, projName, agentName string) framework.AgentModelConfigListResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs",
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs",
 		orgName, projName, agentName)
 
 	resp, err := client.Get(path)
@@ -72,7 +72,7 @@ func ListAgentModelConfigs(g Gomega, client *framework.AMPClient, orgName, projN
 
 // GetAgentModelConfig retrieves a specific model configuration by ID.
 func GetAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string) framework.AgentModelConfigResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs/%s",
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs/%s",
 		orgName, projName, agentName, configID)
 
 	resp, err := client.Get(path)
@@ -85,7 +85,7 @@ func GetAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projNam
 
 // UpdateAgentModelConfig updates a model configuration.
 func UpdateAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string, req framework.UpdateAgentModelConfigRequest) framework.AgentModelConfigResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs/%s",
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs/%s",
 		orgName, projName, agentName, configID)
 
 	resp, err := client.Put(path, req)
@@ -98,7 +98,7 @@ func UpdateAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, proj
 
 // DeleteAgentModelConfig deletes a model configuration.
 func DeleteAgentModelConfig(g Gomega, client *framework.AMPClient, orgName, projName, agentName, configID string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/projects/%s/agents/%s/model-configs/%s",
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/projects/%s/agents/%s/model-configs/%s",
 		orgName, projName, agentName, configID)
 
 	resp, err := client.Delete(path)

@@ -17,7 +17,6 @@
 package utils
 
 import (
-	"net/http"
 	"strings"
 	"unicode"
 )
@@ -56,26 +55,4 @@ func TruncateForLog(s string, max int) string {
 		return s
 	}
 	return string(runes[:max]) + "…"
-}
-
-// ClientIP extracts the client IP address from the request. X-Forwarded-For is
-// parsed for only the leftmost (actual client) hop, so a caller cannot spoof
-// their apparent origin — and therefore cannot evade per-IP rate limiting or
-// forge the source recorded in an audit event — by prepending entries.
-func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// X-Forwarded-For format: "client, proxy1, proxy2" — trust only the leftmost IP.
-		if idx := strings.Index(xff, ","); idx != -1 {
-			return strings.TrimSpace(xff[:idx])
-		}
-		return strings.TrimSpace(xff)
-	}
-	if xri := r.Header.Get("X-Real-IP"); xri != "" {
-		return strings.TrimSpace(xri)
-	}
-	// Fall back to RemoteAddr (strip port if present).
-	if idx := strings.LastIndex(r.RemoteAddr, ":"); idx != -1 {
-		return r.RemoteAddr[:idx]
-	}
-	return r.RemoteAddr
 }

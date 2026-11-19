@@ -142,3 +142,13 @@ type Repository struct {
 	Branch    string `json:"branch"`
 	SecretRef string `json:"secretRef,omitempty"`
 }
+
+// EnvVars represents environment variables
+type EnvVars struct {
+	Key         string `json:"key"`
+	Value       string `json:"value"`
+	IsSensitive bool   `json:"isSensitive,omitempty"`
+	SecretRef   string `json:"secretRef,omitempty"`
+	SecretKey   string `json:"secretKey,omitempty"` // The key within the secret (e.g., "api-key")
+	IsSystem    bool   `json:"isSystem,omitempty"`  // Platform-injected (e.g. LLM_PROVIDER_URL); read-only for users
+}

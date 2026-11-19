@@ -10,7 +10,6 @@ The Agent Manager Service is the Agent Manager API, its MCP server and the conso
 agent-manager-service/
 ├── ampinit/                    # `amp init`: ThunderID and file sign-in configuration
 ├── api/                        # HTTP API layer with HTTP handlers and routing
-├── builtin/                   # How built-in modules plug their routes and workers into the server
 ├── clients/                   # External service clients
 ├── cmd/                       # Binaries: amp (core and every module) and amp-core (core only)
 ├── config/                    # Configuration management

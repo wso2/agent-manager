@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 )
@@ -82,34 +81,6 @@ func Agent(t *testing.T, db *gorm.DB, orgID string, projectID uuid.UUID, name st
 	return a.ID
 }
 
-// Gateway creates an active gateway with the given role, maps it to the organization's default environment, and
-// returns it.
-func Gateway(t *testing.T, db *gorm.DB, orgID, role string) *models.Gateway {
-	t.Helper()
-	return GatewayIn(t, db, orgID, role, Environment(t, db, orgID))
-}
-
-// GatewayIn creates an active gateway with the given role mapped to exactly envs, creating any of them the
-// organization does not have yet, and returns it.
-func GatewayIn(t *testing.T, db *gorm.DB, orgID, role string, envs ...uuid.UUID) *models.Gateway {
-	t.Helper()
-	ts := now()
-	id := uuid.Must(uuid.NewV7())
-	gw := &models.Gateway{
-		UUID: id, OUID: orgID, Name: "gw-" + id.String()[24:], DisplayName: "Test gateway", Properties: map[string]any{},
-		Vhost: "gw.example.com", RuntimeURL: "http://gw.example.com:22893", GatewayFunctionalityType: role,
-		IsActive: true, Hosting: models.GatewayHostingManaged, CreatedAt: ts, UpdatedAt: ts,
-	}
-	require.NoError(t, db.Create(gw).Error)
-	for _, env := range envs {
-		EnvironmentWithID(t, db, orgID, env)
-		require.NoError(t, db.Create(&models.GatewayEnvironmentMapping{
-			GatewayUUID: id, EnvironmentUUID: env, OrgID: uuid.MustParse(orgID), CreatedAt: ts,
-		}).Error)
-	}
-	return gw
-}
-
 // EnvironmentWithID makes sure the organization has an environment with id, creating one named after it if not.
 func EnvironmentWithID(t *testing.T, db *gorm.DB, orgID string, id uuid.UUID) {
 	t.Helper()
@@ -151,29 +122,4 @@ func EnsureAgent(t *testing.T, db *gorm.DB, orgID, project, agent string) uuid.U
 		return a.ID
 	}
 	return Agent(t, db, orgID, projectID, agent)
-}
-
-// MapGateway maps the gateway to env, creating env if the organization does not have it.
-func MapGateway(t *testing.T, db *gorm.DB, orgID string, gateway, env uuid.UUID) {
-	t.Helper()
-	EnvironmentWithID(t, db, orgID, env)
-	require.NoError(t, db.Create(&models.GatewayEnvironmentMapping{
-		GatewayUUID: gateway, EnvironmentUUID: env, OrgID: uuid.MustParse(orgID), CreatedAt: now(),
-	}).Error)
-}
-
-// LLMConfig gives the agent an LLM configuration that uses proxy in env, and returns the configuration's id.
-func LLMConfig(t *testing.T, db *gorm.DB, orgID string, agentID, env, proxy uuid.UUID) uuid.UUID {
-	t.Helper()
-	EnvironmentWithID(t, db, orgID, env)
-	ts := now()
-	cfg := models.AgentConfiguration{
-		UUID: uuid.Must(uuid.NewV7()), Name: "c-" + uuid.NewString()[:8], OUID: orgID, AgentUUID: agentID, Type: "llm",
-		CreatedAt: ts, UpdatedAt: ts,
-	}
-	require.NoError(t, db.Omit(clause.Associations).Create(&cfg).Error)
-	require.NoError(t, db.Omit(clause.Associations).Create(&models.EnvAgentModelMapping{
-		ConfigUUID: cfg.UUID, EnvironmentUUID: env, OrgID: orgID, LLMProxyUUID: proxy, CreatedAt: ts,
-	}).Error)
-	return cfg.UUID
 }

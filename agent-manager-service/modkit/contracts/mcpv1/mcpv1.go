@@ -18,21 +18,13 @@
 // servers through a gateway's MCP proxies.
 package mcpv1
 
-import (
-	"context"
-
-	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts"
-	"github.com/wso2/agent-manager/agent-manager-service/spec"
-)
+import "context"
 
 // ID is the capability id.
 const ID = "mcp.proxy/v1"
 
-// Proxy binds agents to MCP proxies.
+// Proxy answers for the MCP proxies a project can use.
 type Proxy interface {
 	// ValidateProxies refuses MCP proxies the project cannot use.
 	ValidateProxies(ctx context.Context, orgID, project string, proxies []string) error
-	// BindAgent gives an agent the MCP proxies it asked for at creation, in
-	// each of the environments.
-	BindAgent(ctx context.Context, agent contracts.AgentRef, environments []string, configs []spec.MCPConfigRequest) error
 }

@@ -23,7 +23,8 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
 	"github.com/wso2/agent-manager/agent-manager-service/spec"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -69,7 +70,7 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 	callerClaims := jwtassertion.GetTokenClaims(ctx)
 	if callerClaims == nil || callerClaims.OuId == "" {
 		log.Error("GenerateToken: missing organization identity in caller token")
-		utils.WriteErrorResponse(w, http.StatusForbidden, "missing organization identity")
+		httpx.WriteErrorResponse(w, http.StatusForbidden, "missing organization identity")
 		return
 	}
 
@@ -81,7 +82,7 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 	if r.Body != nil && r.ContentLength > 0 {
 		if err := json.NewDecoder(r.Body).Decode(&tokenRequest); err != nil {
 			log.Error("GenerateToken: failed to parse request body", "error", err)
-			utils.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, "Invalid request body")
 			return
 		}
 	}
@@ -107,26 +108,26 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 		log.Error("GenerateToken: failed to generate token", "error", err)
 		// Check for specific error types using errors.Is()
 		if errors.Is(err, utils.ErrOrganizationNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Organization not found")
 			return
 		}
 		if errors.Is(err, utils.ErrProjectNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Project not found")
 			return
 		}
 		if errors.Is(err, utils.ErrAgentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Agent not found")
 			return
 		}
 		if errors.Is(err, utils.ErrEnvironmentNotFound) {
-			utils.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
+			httpx.WriteErrorResponse(w, http.StatusNotFound, "Environment not found")
 			return
 		}
-		if errors.Is(err, utils.ErrInvalidInput) {
-			utils.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
+		if errors.Is(err, httpx.ErrInvalidInput) {
+			httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to generate token")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to generate token")
 		return
 	}
 
@@ -136,7 +137,7 @@ func (c *agentTokenController) GenerateToken(w http.ResponseWriter, r *http.Requ
 		"expiresAt", tokenResponse.ExpiresAt,
 	)
 
-	utils.WriteSuccessResponse(w, http.StatusOK, tokenResponse)
+	httpx.WriteSuccessResponse(w, http.StatusOK, tokenResponse)
 }
 
 // GetJWKS handles GET /auth/external/jwks.json
@@ -149,11 +150,11 @@ func (c *agentTokenController) GetJWKS(w http.ResponseWriter, r *http.Request) {
 	jwks, err := c.tokenService.GetJWKS(ctx)
 	if err != nil {
 		log.Error("GetJWKS: failed to get JWKS", "error", err)
-		utils.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve JWKS")
+		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to retrieve JWKS")
 		return
 	}
 
 	log.Info("GetJWKS: JWKS retrieved successfully", "keyCount", len(jwks.Keys))
 
-	utils.WriteSuccessResponse(w, http.StatusOK, jwks)
+	httpx.WriteSuccessResponse(w, http.StatusOK, jwks)
 }

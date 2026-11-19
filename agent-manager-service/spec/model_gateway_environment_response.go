@@ -35,8 +35,7 @@ type GatewayEnvironmentResponse struct {
 	// DNS prefix for the environment
 	DnsPrefix string `json:"dnsPrefix"`
 	// Whether this is a production environment
-	IsProduction bool         `json:"isProduction"`
-	Gateway      *GatewaySpec `json:"gateway,omitempty"`
+	IsProduction bool `json:"isProduction"`
 	// Timestamp when the environment was created
 	CreatedAt time.Time `json:"createdAt"`
 	// Timestamp when the environment was last updated
@@ -276,38 +275,6 @@ func (o *GatewayEnvironmentResponse) SetIsProduction(v bool) {
 	o.IsProduction = v
 }
 
-// GetGateway returns the Gateway field value if set, zero value otherwise.
-func (o *GatewayEnvironmentResponse) GetGateway() GatewaySpec {
-	if o == nil || IsNil(o.Gateway) {
-		var ret GatewaySpec
-		return ret
-	}
-	return *o.Gateway
-}
-
-// GetGatewayOk returns a tuple with the Gateway field value if set, nil otherwise
-// and a boolean to check if the value has been set.
-func (o *GatewayEnvironmentResponse) GetGatewayOk() (*GatewaySpec, bool) {
-	if o == nil || IsNil(o.Gateway) {
-		return nil, false
-	}
-	return o.Gateway, true
-}
-
-// HasGateway returns a boolean if a field has been set.
-func (o *GatewayEnvironmentResponse) HasGateway() bool {
-	if o != nil && !IsNil(o.Gateway) {
-		return true
-	}
-
-	return false
-}
-
-// SetGateway gets a reference to the given GatewaySpec and assigns it to the Gateway field.
-func (o *GatewayEnvironmentResponse) SetGateway(v GatewaySpec) {
-	o.Gateway = &v
-}
-
 // GetCreatedAt returns the CreatedAt field value
 func (o *GatewayEnvironmentResponse) GetCreatedAt() time.Time {
 	if o == nil {
@@ -378,9 +345,6 @@ func (o GatewayEnvironmentResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["dataplaneRef"] = o.DataplaneRef
 	toSerialize["dnsPrefix"] = o.DnsPrefix
 	toSerialize["isProduction"] = o.IsProduction
-	if !IsNil(o.Gateway) {
-		toSerialize["gateway"] = o.Gateway
-	}
 	toSerialize["createdAt"] = o.CreatedAt
 	toSerialize["updatedAt"] = o.UpdatedAt
 	return toSerialize, nil

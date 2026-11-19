@@ -1,0 +1,186 @@
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+//
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
+package gwsvc
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+)
+
+type activeDeploymentLookup func(s *GatewayInternalAPIService, ctx context.Context, id, ouID, gatewayID string) (map[string]string, error)
+
+// Both artifact kinds share one lookup; each keeps its own not-found sentinel.
+var activeDeploymentLookups = []struct {
+	name        string
+	lookup      activeDeploymentLookup
+	notFound    error
+	notNotFound error
+}{
+	{
+		name:        "agent",
+		lookup:      (*GatewayInternalAPIService).GetActiveAgentDeploymentByGateway,
+		notFound:    gwerr.ErrAgentArtifactNotFound,
+		notNotFound: gwerr.ErrMCPProxyNotFound,
+	},
+	{
+		name:        "mcp proxy",
+		lookup:      (*GatewayInternalAPIService).GetActiveMCPProxyDeploymentByGateway,
+		notFound:    gwerr.ErrMCPProxyNotFound,
+		notNotFound: gwerr.ErrAgentArtifactNotFound,
+	},
+	{
+		name:        "rest api",
+		lookup:      (*GatewayInternalAPIService).GetActiveRestAPIDeploymentByGateway,
+		notFound:    gwerr.ErrAPINotFound,
+		notNotFound: gwerr.ErrAgentArtifactNotFound,
+	},
+}
+
+const testArtifactID = "0192f4c1-9a7d-7c3e-b4f2-1a2b3c4d5e6f"
+
+func newGatewayInternalServiceWithDeployments(repo *gwrepomocks.DeploymentRepositoryMock) *GatewayInternalAPIService {
+	return NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, nil, gatewayKinds())
+}
+
+// gatewayKinds names artifacts as the registered kinds do; naming needs none of their dependencies.
+func gatewayKinds() *reconcile.Core {
+	return reconcile.NewCore(nil, nil, nil, reconcile.Kinds{NewLLMProviderKind(nil), &LLMProxyKind{}, &MCPProxyKind{}, &A2AAgentKind{}},
+		reconcile.Config{}, discardLogger())
+}
+
+func TestActiveArtifactDeploymentByGatewayReturnsYamlKeyedByID(t *testing.T) {
+	for _, tt := range activeDeploymentLookups {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &gwrepomocks.DeploymentRepositoryMock{
+				GetPullableFunc: func(_ context.Context, ouID string, artifactUUID uuid.UUID, gatewayID string) (*gwmodels.Deployment, error) {
+					assert.Equal(t, testArtifactID, artifactUUID.String())
+					assert.Equal(t, "gw-1", gatewayID)
+					assert.Equal(t, "ou-1", ouID)
+					return &gwmodels.Deployment{Content: []byte("kind: Agent\n")}, nil
+				},
+			}
+			got, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
+			require.NoError(t, err)
+			assert.Equal(t, map[string]string{testArtifactID: "kind: Agent\n"}, got)
+		})
+	}
+}
+
+func TestActiveArtifactDeploymentByGatewayNotDeployed(t *testing.T) {
+	for _, tt := range activeDeploymentLookups {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &gwrepomocks.DeploymentRepositoryMock{
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*gwmodels.Deployment, error) {
+					return nil, nil //nolint:nilnil // the repository reports "no current deployment" this way
+				},
+			}
+			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
+			assert.ErrorIs(t, err, tt.notFound)
+			assert.NotErrorIs(t, err, tt.notNotFound)
+			// The gateway controllers rely on this: they map only the kind's own sentinel to 404.
+			assert.NotErrorIs(t, err, gwerr.ErrDeploymentNotActive)
+		})
+	}
+}
+
+// The gateway names these artifacts by UUID; anything else can't be one of ours.
+func TestActiveArtifactDeploymentByGatewayRejectsANonUUIDID(t *testing.T) {
+	for _, tt := range activeDeploymentLookups {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(&gwrepomocks.DeploymentRepositoryMock{}),
+				context.Background(), "not-a-uuid", "ou-1", "gw-1")
+			assert.ErrorIs(t, err, tt.notFound)
+		})
+	}
+}
+
+func TestActiveArtifactDeploymentByGatewayRepoErrorIsNotNotFound(t *testing.T) {
+	repoErr := errors.New("db down")
+	for _, tt := range activeDeploymentLookups {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &gwrepomocks.DeploymentRepositoryMock{
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*gwmodels.Deployment, error) {
+					return nil, repoErr
+				},
+			}
+			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
+			assert.ErrorIs(t, err, repoErr)
+			assert.NotErrorIs(t, err, tt.notFound)
+		})
+	}
+}
+
+// The stored Agent YAML holds the proxy's upstream secret only as secretRef; the gateway is served the value.
+func TestActiveAgentDeploymentResolvesTheUpstreamSecret(t *testing.T) {
+	secrets := gwtest.NewSecrets()
+	secretRef := "a2a-proxies/1/upstream-auth"
+	require.NoError(t, secrets.Put(context.Background(), "ou-1", secretRef, "s3cret"))
+	in := proxiedA2AInput()
+	in.UpstreamAuth.SecretRef = &secretRef
+	stored, err := generateA2AAgentDeploymentYAML(in)
+	require.NoError(t, err)
+	repo := &gwrepomocks.DeploymentRepositoryMock{
+		GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*gwmodels.Deployment, error) {
+			return &gwmodels.Deployment{Content: []byte(stored)}, nil
+		},
+	}
+	svc := NewGatewayInternalAPIService(nil, nil, repo, nil, nil, nil, secrets, gatewayKinds())
+
+	got, err := svc.GetActiveAgentDeploymentByGateway(context.Background(), testArtifactID, "ou-1", "gw-1")
+	require.NoError(t, err)
+
+	var doc struct {
+		Spec struct {
+			Upstream struct {
+				Auth map[string]interface{} `yaml:"auth"`
+			} `yaml:"upstream"`
+		} `yaml:"spec"`
+	}
+	require.NoError(t, yaml.Unmarshal([]byte(got[testArtifactID]), &doc))
+	assert.Equal(t, "s3cret", doc.Spec.Upstream.Auth["value"])
+	assert.Equal(t, "X-Upstream-Key", doc.Spec.Upstream.Auth["header"])
+	assert.NotContains(t, doc.Spec.Upstream.Auth, "secretRef")
+}
+
+func TestActiveArtifactDeploymentByGatewayUnparseableYaml(t *testing.T) {
+	for _, tt := range activeDeploymentLookups {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &gwrepomocks.DeploymentRepositoryMock{
+				GetPullableFunc: func(context.Context, string, uuid.UUID, string) (*gwmodels.Deployment, error) {
+					return &gwmodels.Deployment{Content: []byte("key: [unclosed")}, nil
+				},
+			}
+			_, err := tt.lookup(newGatewayInternalServiceWithDeployments(repo), context.Background(), testArtifactID, "ou-1", "gw-1")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "failed to resolve secrets")
+			assert.NotErrorIs(t, err, tt.notFound)
+		})
+	}
+}

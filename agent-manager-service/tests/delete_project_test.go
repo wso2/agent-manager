@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
@@ -151,7 +152,7 @@ func TestDeleteProject(t *testing.T) {
 			name: "return 401 on missing authentication",
 			authMiddleware: func(next http.Handler) http.Handler {
 				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					utils.WriteErrorResponse(w, http.StatusUnauthorized, "missing header: Authorization")
+					httpx.WriteErrorResponse(w, http.StatusUnauthorized, "missing header: Authorization")
 				})
 			},
 			wantStatus: 401,

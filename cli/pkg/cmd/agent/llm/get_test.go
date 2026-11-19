@@ -22,26 +22,26 @@ import (
 	"strings"
 	"testing"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 )
 
 const getUUID = "11111111-1111-1111-1111-111111111111"
 
-func getResponseFixture() amsvc.AgentModelConfigResponse {
+func getResponseFixture() aigateway.AgentModelConfigResponse {
 	active := "active"
 	desc := "primary openai binding"
-	return amsvc.AgentModelConfigResponse{
+	return aigateway.AgentModelConfigResponse{
 		Name:        "primary",
 		Type:        "llm",
 		Description: &desc,
 		Uuid:        mustUUID(getUUID),
-		EnvMappings: map[string]amsvc.EnvProviderConfigMappings{
-			"dev":  {EnvironmentName: "dev", Configuration: &amsvc.ProviderConfig{ProviderName: "openai", Url: "https://dev.llm", Status: &active}},
-			"prod": {EnvironmentName: "prod", Configuration: &amsvc.ProviderConfig{ProviderName: "anthropic", Url: "https://prod.llm"}},
+		EnvMappings: map[string]aigateway.EnvProviderConfigMappings{
+			"dev":  {EnvironmentName: "dev", Configuration: &aigateway.ProviderConfig{ProviderName: "openai", Url: "https://dev.llm", Status: &active}},
+			"prod": {EnvironmentName: "prod", Configuration: &aigateway.ProviderConfig{ProviderName: "anthropic", Url: "https://prod.llm"}},
 		},
-		EnvironmentVariables: []amsvc.EnvironmentVariableConfig{
+		EnvironmentVariables: []aigateway.EnvironmentVariableConfig{
 			{Key: "url", Name: "OPENAI_URL"},
 			{Key: "apikey", Name: "OPENAI_KEY"},
 		},

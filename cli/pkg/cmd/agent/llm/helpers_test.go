@@ -28,15 +28,15 @@ import (
 
 	"github.com/google/uuid"
 	openapi_types "github.com/oapi-codegen/runtime/types"
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/iostreams"
 	"github.com/wso2/agent-manager/cli/pkg/render"
 )
 
 // clientFn is the lazy client accessor shape every command's Options expects.
-type clientFn = func(context.Context) (*amsvc.ClientWithResponses, error)
+type clientFn = func(context.Context) (*aigateway.ClientWithResponses, error)
 
-func unreachableClient(context.Context) (*amsvc.ClientWithResponses, error) {
+func unreachableClient(context.Context) (*aigateway.ClientWithResponses, error) {
 	return nil, errors.New("client should not be constructed")
 }
 
@@ -67,7 +67,7 @@ func okJSON(body any) route { return route{status: http.StatusOK, body: body} }
 
 // newClient spins up an httptest server whose responses are keyed by
 // "METHOD /path", mirroring the agent package's status_test harness.
-func newClient(t *testing.T, routes map[string]route) (func(context.Context) (*amsvc.ClientWithResponses, error), func()) {
+func newClient(t *testing.T, routes map[string]route) (func(context.Context) (*aigateway.ClientWithResponses, error), func()) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		key := r.Method + " " + r.URL.Path
@@ -101,12 +101,12 @@ func newClient(t *testing.T, routes map[string]route) (func(context.Context) (*a
 			_ = json.NewEncoder(w).Encode(rt.body)
 		}
 	}))
-	client, err := amsvc.NewClientWithResponses(srv.URL)
+	client, err := aigateway.NewClientWithResponses(srv.URL)
 	if err != nil {
 		srv.Close()
 		t.Fatalf("new client: %v", err)
 	}
-	return func(context.Context) (*amsvc.ClientWithResponses, error) { return client, nil }, srv.Close
+	return func(context.Context) (*aigateway.ClientWithResponses, error) { return client, nil }, srv.Close
 }
 
 func baseScope() render.Scope {

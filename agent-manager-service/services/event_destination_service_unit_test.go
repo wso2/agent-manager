@@ -35,6 +35,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 	"github.com/wso2/agent-manager/agent-manager-service/repositories/repomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/services/eventdestinations"
@@ -60,7 +61,7 @@ func (f *fakeDestinationDriver) NormalizeConfig(_ context.Context, raw json.RawM
 		Dest string `json:"dest"`
 	}
 	if err := json.Unmarshal(raw, &cfg); err != nil || cfg.Dest == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 	out, _ := json.Marshal(cfg)
 	return out, nil
@@ -107,7 +108,7 @@ func (c *credentialDriver) NormalizeConfig(_ context.Context, raw json.RawMessag
 		Token string `json:"token,omitempty"`
 	}
 	if err := json.Unmarshal(raw, &cfg); err != nil || cfg.Dest == "" {
-		return nil, utils.ErrInvalidInput
+		return nil, httpx.ErrInvalidInput
 	}
 	out, _ := json.Marshal(cfg)
 	return out, nil
@@ -463,7 +464,7 @@ func TestEventDestinationService_Validation(t *testing.T) {
 			in := validDestinationInput()
 			edit(&in)
 			_, _, err := svc.Create(ctx, "ou-1", in)
-			assert.ErrorIs(t, err, utils.ErrInvalidInput)
+			assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 		})
 	}
 
@@ -498,7 +499,7 @@ func TestEventDestinationService_KindWithoutSecret(t *testing.T) {
 	assert.Empty(t, d.SecretEncrypted)
 
 	_, err = svc.RotateSecret(ctx, "ou-1", d.ID)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "nothing to rotate")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "nothing to rotate")
 }
 
 func TestEventDestinationService_RotateSecret(t *testing.T) {
@@ -526,7 +527,7 @@ func TestEventDestinationService_UpdateCannotChangeKind(t *testing.T) {
 	in := validDestinationInput()
 	in.Kind = "cred"
 	_, err = svc.Update(ctx, "ou-1", d.ID, in)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput)
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
 }
 
 func TestEventDestinationService_OrgIsolation(t *testing.T) {
@@ -663,7 +664,7 @@ func TestEventDestinationService_SuppliedCredential(t *testing.T) {
 
 	in.Config = json.RawMessage(`{"dest":"a"}`)
 	_, _, err := svc.Create(ctx, "ou-1", in)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "a new destination needs its credential")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "a new destination needs its credential")
 
 	in.Config = json.RawMessage(`{"dest":"a","token":"tok-1"}`)
 	d, secret, err := svc.Create(ctx, "ou-1", in)
@@ -684,7 +685,7 @@ func TestEventDestinationService_SuppliedCredential(t *testing.T) {
 
 	in.Config = json.RawMessage(`{"dest":"b"}`)
 	_, err = svc.Update(ctx, "ou-1", d.ID, in)
-	assert.ErrorIs(t, err, utils.ErrInvalidInput, "other settings need the credential again")
+	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "other settings need the credential again")
 
 	in.Config = json.RawMessage(`{"dest":"b","token":"tok-2"}`)
 	d, err = svc.Update(ctx, "ou-1", d.ID, in)

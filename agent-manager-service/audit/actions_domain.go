@@ -18,28 +18,14 @@ package audit
 
 // Domain actions for the operations that warrant a semantic record.
 //
+// The AI Gateway module's own actions are in modules/aigateway/gwaudit.
+//
 // These deliberately use the same names the coverage tier derives for the
 // corresponding routes (see actionOverrides in policy.go), so that "who
 // deployed agent X" is one query whether the call arrived over REST, MCP or an
 // internal API. Changing a name here without changing it there splits the trail
 // in two.
 const (
-	// Credentials.
-	ActionAPIKeyCreate    Action = "api-key:create"
-	ActionAPIKeyRotate    Action = "api-key:rotate"
-	ActionAPIKeyRevoke    Action = "api-key:revoke"
-	ActionAPIKeyIssueTest Action = "api-key:issue-test"
-	// ActionAPIKeySync is a data-plane gateway pulling the key material it is
-	// entitled to. Recorded because a compromised gateway credential harvesting
-	// keys looks exactly like a legitimate sync until you can see who pulled
-	// what and when it started.
-	ActionAPIKeySync Action = "api-key:sync"
-
-	ActionGitSecretCreate Action = "git-secret:create"
-	ActionGitSecretDelete Action = "git-secret:delete"
-
-	ActionGatewayTokenRotate Action = "gateway-token:rotate"
-	ActionGatewayTokenRevoke Action = "gateway-token:revoke"
 
 	// ActionAuthLogin covers a file-mode sign-in attempt, successful or not.
 	// One action for both outcomes: "show me every attempt on this account"
@@ -102,12 +88,6 @@ const (
 	ActionProjectRead     Action = "project:read"
 	ActionEnvironmentRead Action = "environment:read"
 
-	// Connections: LLM providers and MCP proxies. Each equals the action the
-	// REST route for the same operation derives from its gating permission.
-	ActionLLMProviderRead   Action = "llm-provider:read"
-	ActionLLMProviderUpdate Action = "llm-provider:update"
-	ActionMCPServerRead     Action = "mcp-server:read"
-
 	// Binding a model or MCP config to an agent; the REST routes are gated by
 	// agent:update alone, so that is the action they derive.
 	ActionAgentUpdate Action = "agent:update"
@@ -121,33 +101,6 @@ const (
 	ActionAgentChangeDeploymentState Action = "agent:change-deployment-state"
 	ActionAgentDelete                Action = "agent:delete"
 	ActionProjectDelete              Action = "project:delete"
-
-	// Agent configuration (model and MCP configs attached to an agent).
-	ActionAgentConfigUpdate Action = "agent-config:update"
-	ActionAgentConfigDelete Action = "agent-config:delete"
-
-	// A2A agent card source (external agents).
-	ActionAgentSetCardSource    Action = "agent:set-card-source"
-	ActionAgentRemoveCardSource Action = "agent:remove-card-source"
-
-	// A2A proxy (external agents published through the ingress gateway).
-	ActionAgentSetA2AProxy    Action = "agent:set-a2a-proxy"
-	ActionAgentRemoveA2AProxy Action = "agent:remove-a2a-proxy"
-
-	// Platform: gateways and their trust configuration.
-	ActionGatewayCreate                 Action = "gateway:create"
-	ActionGatewayUpdate                 Action = "gateway:update"
-	ActionGatewayDelete                 Action = "gateway:delete"
-	ActionGatewayAssignEnvironment      Action = "gateway:assign-environment"
-	ActionGatewayUnassignEnvironment    Action = "gateway:unassign-environment"
-	ActionGatewaySetIdentityProvider    Action = "gateway:set-identity-provider"
-	ActionGatewayRemoveIdentityProvider Action = "gateway:remove-identity-provider"
-	ActionGatewayPushManifest           Action = "gateway:push-manifest"
-
-	// A gateway's startup sync: fetching its deployments, secrets resolved, and
-	// asking which artifacts still exist.
-	ActionDeploymentSync      Action = "deployment:sync"
-	ActionArtifactCheckExists Action = "artifact:check-exists"
 
 	// System-initiated work. Recorded when it changes state, not on every tick.
 	ActionSystemAgentIdentityProvisioned Action = "system:agent-identity-provisioned"
@@ -169,7 +122,6 @@ const (
 // against one emit site matches every other.
 const (
 	ResourceAPIKey            = "api-key"
-	ResourceGitSecret         = "git-secret"
 	ResourceGateway           = "gateway"
 	ResourceGatewayToken      = "gateway-token"
 	ResourceAgent             = "agent"
@@ -191,62 +143,6 @@ const (
 //nolint:gochecknoinits // The registry is package state; declaring each action's
 func init() {
 	// Credential lifecycle. All critical: these grant or withdraw access.
-	registerCredential(ActionAPIKeyCreate, map[string]FieldKind{
-		"ownerType":        KindEnum,
-		"ownerName":        KindName,
-		"keyName":          KindName,
-		"gatewayCount":     KindCount,
-		"gatewayConnected": KindFlag,
-		"expiresAt":        KindName,
-	})
-	registerCredential(ActionAPIKeyRotate, map[string]FieldKind{
-		"ownerType":        KindEnum,
-		"ownerName":        KindName,
-		"keyName":          KindName,
-		"gatewayCount":     KindCount,
-		"gatewayConnected": KindFlag,
-		"expiresAt":        KindName,
-	})
-	registerCredential(ActionAPIKeyRevoke, map[string]FieldKind{
-		"ownerType":    KindEnum,
-		"ownerName":    KindName,
-		"keyName":      KindName,
-		"gatewayCount": KindCount,
-	})
-	// Test keys are short-lived and scoped to one console session, so they are
-	// recorded at a lower severity than a real key issue.
-	Register(ActionAPIKeyIssueTest, ClassCredential, SeverityNotice)
-	RegisterDetailSchema(ActionAPIKeyIssueTest, map[string]FieldKind{
-		"ownerType": KindEnum,
-		"ownerName": KindName,
-		"keyName":   KindName,
-		"expiresAt": KindName,
-		"rotated":   KindFlag,
-	})
-
-	// A read, not a change, so it is a notice rather than critical.
-	Register(ActionAPIKeySync, ClassRead, SeverityNotice)
-	RegisterDetailSchema(ActionAPIKeySync, map[string]FieldKind{
-		"keyCount": KindCount,
-	})
-
-	registerCredential(ActionGitSecretCreate, map[string]FieldKind{
-		"secretType": KindEnum,
-		// The username is recorded; the password never reaches this package.
-		"username": KindName,
-	})
-	registerCredential(ActionGitSecretDelete, nil)
-
-	registerCredential(ActionGatewayTokenRotate, map[string]FieldKind{
-		"gatewayName": KindName,
-		"tokenId":     KindIdentifier,
-		"expiresAt":   KindName,
-	})
-	registerCredential(ActionGatewayTokenRevoke, map[string]FieldKind{
-		"gatewayName": KindName,
-		"tokenId":     KindIdentifier,
-	})
-
 	// Credential class: a successful login hands back a bearer token carrying
 	// the full scope set of the user's roles.
 	registerCredential(ActionAuthLogin, map[string]FieldKind{
@@ -266,17 +162,23 @@ func init() {
 		"expiresIn": KindCount,
 	})
 	registerCredential(ActionWorkloadCredentialIssue, map[string]FieldKind{
-		"module":  KindName,
-		"subject": KindIdentifier,
-		"scopes":  KindNameList,
+		"module":   KindName,
+		"workload": KindName,
+		"subject":  KindIdentifier,
 	})
 	registerCredential(ActionWorkloadCredentialRevoke, map[string]FieldKind{
 		"module": KindName,
 	})
+	// A workload heartbeat: the first token of a new instance, or a refusal
+	// (reason is the error code). Refreshes of a known instance are not
+	// recorded.
 	registerCredential(ActionWorkloadTokenExchange, map[string]FieldKind{
 		"module":       KindName,
+		"workload":     KindName,
+		"instance":     KindName,
 		"credentialId": KindIdentifier,
 		"expiresIn":    KindCount,
+		"reason":       KindEnum,
 	})
 	registerCredential(ActionAgentTokenRegenerateTracing, map[string]FieldKind{
 		"agentName": KindName,
@@ -474,92 +376,6 @@ func init() {
 	RegisterDetailSchema(ActionProjectDelete, map[string]FieldKind{
 		"projectName": KindName,
 	})
-
-	// Agent configuration. These replace two log lines that were labelled as
-	// audit records but were only slog output, with no actor and no durability.
-	Register(ActionAgentConfigUpdate, ClassConfig, SeverityInfo)
-	RegisterDetailSchema(ActionAgentConfigUpdate, map[string]FieldKind{
-		"configName":    KindName,
-		"configType":    KindEnum,
-		"agentName":     KindName,
-		"updatedFields": KindNameList,
-	})
-	Register(ActionAgentSetCardSource, ClassConfig, SeverityInfo)
-	RegisterDetailSchema(ActionAgentSetCardSource, map[string]FieldKind{
-		"agentName": KindName,
-		"sourceUrl": KindURL,
-	})
-	Register(ActionAgentRemoveCardSource, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionAgentRemoveCardSource, map[string]FieldKind{
-		"agentName": KindName,
-	})
-	// A proxy holds the credential the gateway sends upstream: setting or dropping it is a credential change.
-	a2aProxyFields := map[string]FieldKind{
-		"agentName":           KindName,
-		"upstreamAuthHeader":  KindName,
-		"upstreamAuthChanged": KindFlag,
-	}
-	registerCredential(ActionAgentSetA2AProxy, a2aProxyFields)
-	registerCredential(ActionAgentRemoveA2AProxy, a2aProxyFields)
-	Register(ActionAgentConfigDelete, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionAgentConfigDelete, map[string]FieldKind{
-		"configName":       KindName,
-		"configType":       KindEnum,
-		"agentName":        KindName,
-		"environmentCount": KindCount,
-	})
-
-	// Gateway lifecycle and trust configuration.
-	gatewayFields := map[string]FieldKind{
-		"gatewayName": KindName,
-		"gatewayType": KindEnum,
-		"vhost":       KindName,
-		"environment": KindName,
-	}
-	Register(ActionGatewayCreate, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionGatewayCreate, gatewayFields)
-	Register(ActionGatewayUpdate, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionGatewayUpdate, gatewayFields)
-	Register(ActionGatewayDelete, ClassConfig, SeverityWarning)
-	RegisterDetailSchema(ActionGatewayDelete, gatewayFields)
-	Register(ActionGatewayAssignEnvironment, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionGatewayAssignEnvironment, gatewayFields)
-	Register(ActionGatewayUnassignEnvironment, ClassConfig, SeverityNotice)
-	RegisterDetailSchema(ActionGatewayUnassignEnvironment, gatewayFields)
-
-	// Changing which identity provider a gateway trusts changes who can mint
-	// tokens it will accept, so these rank with credential changes rather than
-	// with ordinary gateway configuration.
-	// jwksUri and skipTlsVerify are the trust inputs themselves: the first says
-	// where the gateway fetches signing keys from, the second lets it fetch them
-	// without validating the TLS certificate. An issuer alone does not say
-	// whether the keys behind it were obtained safely.
-	idpFields := map[string]FieldKind{
-		"gatewayName":          KindName,
-		"identityProviderName": KindName,
-		"issuer":               KindName,
-		"jwksUri":              KindURL,
-		"skipTlsVerify":        KindFlag,
-	}
-	Register(ActionGatewaySetIdentityProvider, ClassCredential, SeverityCritical)
-	RegisterDetailSchema(ActionGatewaySetIdentityProvider, idpFields)
-	Register(ActionGatewayRemoveIdentityProvider, ClassCredential, SeverityCritical)
-	RegisterDetailSchema(ActionGatewayRemoveIdentityProvider, idpFields)
-
-	// A gateway reporting the policy manifest it has installed. Routine, but
-	// recorded because it is the only mutating route on the unauthenticated
-	// internal server.
-	Register(ActionGatewayPushManifest, ClassConfig, SeverityInfo)
-	RegisterDetailSchema(ActionGatewayPushManifest, map[string]FieldKind{
-		"policyCount": KindCount,
-	})
-
-	// A read of deployment content that carries upstream secrets, so a notice
-	// like ActionAPIKeySync. Runs once per gateway process start.
-	Register(ActionDeploymentSync, ClassRead, SeverityNotice)
-	RegisterDetailSchema(ActionDeploymentSync, map[string]FieldKind{})
-	Register(ActionArtifactCheckExists, ClassRead, SeverityInfo)
-	RegisterDetailSchema(ActionArtifactCheckExists, map[string]FieldKind{})
 
 	// The provisioning reconciler issues real credentials with no request
 	// behind it, so its outcomes are recorded with a system actor. The user who

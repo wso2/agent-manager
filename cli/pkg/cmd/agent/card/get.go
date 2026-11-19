@@ -23,9 +23,11 @@ import (
 	"net/http"
 	"strings"
 
+	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+
 	"github.com/spf13/cobra"
 
-	amsvc "github.com/wso2/agent-manager/cli/pkg/clients/amsvc/gen"
+	aigateway "github.com/wso2/agent-manager/cli/pkg/clients/aigateway/gen"
 	"github.com/wso2/agent-manager/cli/pkg/clierr"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/a2acard"
 	"github.com/wso2/agent-manager/cli/pkg/cmdutil"
@@ -41,7 +43,8 @@ const (
 // GetOptions holds the dependencies and resolved inputs for card get.
 type GetOptions struct {
 	IO           *iostreams.IOStreams
-	Client       func(context.Context) (*amsvc.ClientWithResponses, error)
+	Client       func(context.Context) (*aigateway.ClientWithResponses, error)
+	AgentManager func(context.Context) (*amsvc.ClientWithResponses, error)
 	ResolveScope func(*cobra.Command, bool, bool) (string, string, error)
 	ResolveAgent func([]string) (string, []string, error)
 	MakeScope    func(org, proj, agent string) render.Scope
@@ -54,16 +57,17 @@ type GetOptions struct {
 
 // CardStatus is the --json payload of card get.
 type CardStatus struct {
-	Card           *amsvc.AgentCardResponse `json:"card"`                     // nil when no card row exists
-	Proxy          *amsvc.A2AProxyResponse  `json:"proxy"`                    // nil when direct, internal or unknown
-	RoutingUnknown bool                     `json:"routingUnknown,omitempty"` // caller may not read the routing
+	Card           *aigateway.AgentCardResponse `json:"card"`                     // nil when no card row exists
+	Proxy          *aigateway.A2AProxyResponse  `json:"proxy"`                    // nil when direct, internal or unknown
+	RoutingUnknown bool                         `json:"routingUnknown,omitempty"` // caller may not read the routing
 }
 
 // NewGetCmd returns the "agent card get" command.
 func NewGetCmd(f *cmdutil.Factory) *cobra.Command {
 	opts := &GetOptions{
 		IO:           f.IOStreams,
-		Client:       f.AgentManager,
+		Client:       f.AIGateway,
+		AgentManager: f.AgentManager,
 		ResolveScope: f.ResolveOrgProject,
 		ResolveAgent: f.ResolveAgent,
 		MakeScope:    f.AgentScope,
@@ -100,7 +104,11 @@ func runGet(ctx context.Context, o *GetOptions) error {
 		return render.Error(o.IO, o.Scope, err)
 	}
 
-	agentResp, err := client.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
+	core, err := o.AgentManager(ctx)
+	if err != nil {
+		return render.Error(o.IO, o.Scope, err)
+	}
+	agentResp, err := core.GetAgentWithResponse(ctx, o.Org, o.Proj, o.AgentName)
 	if err != nil {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Transport, "%v", err))
 	}
@@ -110,7 +118,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 	}
 	agent := agentResp.JSON200
 	// An external agent is A2A wherever it registers a card URL; an internal one only when built as a2a-agent.
-	external := agent.Provisioning.Type == amsvc.ProvisioningTypeExternal
+	external := agent.Provisioning.Type == amsvc.External
 	if !external && (agent.AgentType.SubType == nil || *agent.AgentType.SubType != a2aSubType) {
 		return render.Error(o.IO, o.Scope, clierr.Newf(clierr.Validation, "agent %q is not an A2A agent", o.AgentName))
 	}
@@ -133,7 +141,7 @@ func runGet(ctx context.Context, o *GetOptions) error {
 }
 
 // fetchProxy returns nil when the card is direct, and unknown when the caller may not read the routing.
-func fetchProxy(ctx context.Context, client *amsvc.ClientWithResponses, o *GetOptions) (proxy *amsvc.A2AProxyResponse, unknown bool, err error) {
+func fetchProxy(ctx context.Context, client *aigateway.ClientWithResponses, o *GetOptions) (proxy *aigateway.A2AProxyResponse, unknown bool, err error) {
 	resp, err := client.GetA2AProxyWithResponse(ctx, o.Org, o.Proj, o.AgentName, cmdutil.DefaultEnvironment)
 	if err != nil {
 		return nil, false, clierr.Newf(clierr.Transport, "%v", err)
@@ -151,7 +159,7 @@ func fetchProxy(ctx context.Context, client *amsvc.ClientWithResponses, o *GetOp
 }
 
 // fetchCard returns nil when no card row exists.
-func fetchCard(ctx context.Context, client *amsvc.ClientWithResponses, o *GetOptions) (*amsvc.AgentCardResponse, error) {
+func fetchCard(ctx context.Context, client *aigateway.ClientWithResponses, o *GetOptions) (*aigateway.AgentCardResponse, error) {
 	resp, err := client.GetAgentCardWithResponse(ctx, o.Org, o.Proj, o.AgentName, cmdutil.DefaultEnvironment)
 	if err != nil {
 		return nil, clierr.Newf(clierr.Transport, "%v", err)
@@ -191,7 +199,7 @@ func printCardStatus(ios *iostreams.IOStreams, o *GetOptions, external bool, s C
 	fmt.Fprintf(w, "Card: %s\n", cardSummary(s.Card.Card))
 }
 
-func printRouting(w io.Writer, proxy *amsvc.A2AProxyResponse, unknown bool) {
+func printRouting(w io.Writer, proxy *aigateway.A2AProxyResponse, unknown bool) {
 	if unknown {
 		fmt.Fprintln(w, "Routing: unknown (no permission to read gateway routing)")
 		return

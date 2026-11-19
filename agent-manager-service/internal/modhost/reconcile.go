@@ -32,8 +32,7 @@ type Desired struct {
 // Reconcile changes the modules to match a declarative list, as the server
 // does at boot: every listed module is installed (with the providers it
 // needs) and enabled or disabled as listed, and every other installed module
-// is disabled unless a module that stays active requires it. Built-in modules
-// are always active; listing one disabled is an error. A module listed
+// is disabled unless a module that stays active requires it. A module listed
 // disabled that is already installed is left alone; one that is not installed
 // yet is installed and then disabled. Replicas booting together may run it at
 // once: a change another replica already made counts as done. It returns the
@@ -41,21 +40,14 @@ type Desired struct {
 func (h *Host) Reconcile(ctx context.Context, want []Desired) ([]Step, error) {
 	listed := map[string]bool{}
 	for _, d := range want {
-		m, ok := h.manifests[d.Name]
-		if !ok {
+		if _, ok := h.manifests[d.Name]; !ok {
 			return nil, &ResolveError{Msg: fmt.Sprintf("module %s is listed but not in this binary (compiled in: %v)", d.Name, h.names())}
-		}
-		if m.Builtin && !d.Enabled {
-			return nil, &ResolveError{Msg: d.Name + " is built in: it is always active and cannot be listed disabled"}
 		}
 		listed[d.Name] = d.Enabled
 	}
 
 	var steps []Step
 	for _, d := range want {
-		if h.manifests[d.Name].Builtin {
-			continue
-		}
 		st := h.stateNow(d.Name)
 		// Enabled: anything but active needs an install (which re-enables a
 		// disabled module). Disabled: only a module never installed does.
@@ -74,7 +66,7 @@ func (h *Host) Reconcile(ctx context.Context, want []Desired) ([]Step, error) {
 	var off []string
 	for _, name := range h.names() {
 		enabled, isListed := listed[name]
-		if h.manifests[name].Builtin || (isListed && enabled) || h.stateNow(name) != StateActive {
+		if (isListed && enabled) || h.stateNow(name) != StateActive {
 			continue
 		}
 		off = append(off, name)
@@ -102,6 +94,30 @@ func (h *Host) Reconcile(ctx context.Context, want []Desired) ([]Step, error) {
 			return steps, &ResolveError{Msg: fmt.Sprintf("%s is listed disabled, but %v require it", name, deps)}
 		}
 		h.log.Info("module not listed but kept active: listed modules require it", "module", name, "requiredBy", deps)
+	}
+	return steps, nil
+}
+
+// InstallDefaults installs, with their providers, the distribution's default
+// modules that were never installed (or were purged), and leaves every other
+// module as it is, so a module an operator disabled or uninstalled stays so.
+// The server calls it at boot when no modules list is declared. Replicas
+// booting together may run it at once: an install another replica already
+// made counts as done.
+func (h *Host) InstallDefaults(ctx context.Context, names []string) ([]Step, error) {
+	var steps []Step
+	for _, name := range names {
+		if _, ok := h.manifests[name]; !ok {
+			return steps, &ResolveError{Msg: fmt.Sprintf("default module %s is not in this binary (compiled in: %v)", name, h.names())}
+		}
+		if h.stateNow(name) != StateAvailable {
+			continue
+		}
+		s, err := h.Install(ctx, name, true)
+		if err != nil && !h.settled(ctx, name, func(st string) bool { return st != StateAvailable }) {
+			return steps, fmt.Errorf("installing %s: %w", name, err)
+		}
+		steps = append(steps, s...)
 	}
 	return steps, nil
 }

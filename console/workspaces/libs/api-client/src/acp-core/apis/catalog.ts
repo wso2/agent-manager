@@ -21,7 +21,7 @@ import type {
   ListCatalogLLMProvidersQuery,
   ListCatalogLLMProvidersResponse,
 } from "@agent-management-platform/types";
-import { encodeRequired, httpGET, SERVICE_BASE } from "../../shared/utils";
+import { encodeRequired, httpGET, GATEWAY_BASE } from "../../shared/utils";
 
 export type {
   CatalogLLMProviderEntry,
@@ -54,7 +54,7 @@ export async function listCatalogLLMProviders(
     searchParams.gatewayHosting = query.gatewayHosting;
   }
 
-  const res = await httpGET(`${SERVICE_BASE}/orgs/${org}/catalog`, {
+  const res = await httpGET(`${GATEWAY_BASE}/orgs/${org}/catalog`, {
     token,
     searchParams,
   });

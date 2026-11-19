@@ -35,7 +35,7 @@ vi.mock("../../shared/utils", async (importOriginal) => ({
   httpDELETE: vi.fn(),
 }));
 
-const GW = "/api/v1/orgs/acme/self-hosted-gateways";
+const GW = "/m/ai-gateway/orgs/acme/self-hosted-gateways";
 const ID = "3f2c1a9e-0000-4000-8000-000000000001";
 const params = { orgName: "acme", gatewayId: ID };
 const getToken = async () => "jwt";

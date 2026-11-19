@@ -36,6 +36,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/initfiles"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -71,7 +72,7 @@ func WriteThunder(cfg *ThunderConfig, dir string) error {
 		return err
 	}
 	for _, sub := range resourceDirs {
-		if err := chownDir(filepath.Join(dir, sub), o); err != nil {
+		if err := initfiles.ChownDir(filepath.Join(dir, sub), o); err != nil {
 			return err
 		}
 	}
@@ -88,7 +89,7 @@ func WriteThunder(cfg *ThunderConfig, dir string) error {
 			mode = 0o600
 			_, _ = fmt.Fprintf(stamp, "%s\n%s\n", name, files[name]) // a hash never fails to write
 		}
-		if err := writeFile(filepath.Join(dir, name), files[name], mode, o); err != nil {
+		if err := initfiles.WriteFile(filepath.Join(dir, name), files[name], mode, o); err != nil {
 			return fmt.Errorf("write %s: %w", name, err)
 		}
 	}
@@ -105,7 +106,7 @@ func WriteThunder(cfg *ThunderConfig, dir string) error {
 			}
 		}
 	}
-	return writeFile(filepath.Join(dir, BootstrapStamp), []byte(hex.EncodeToString(stamp.Sum(nil))+"\n"), 0o644, o)
+	return initfiles.WriteFile(filepath.Join(dir, BootstrapStamp), []byte(hex.EncodeToString(stamp.Sum(nil))+"\n"), 0o644, o)
 }
 
 // RenderThunder renders every ThunderID file, keyed by its path relative to the output directory.
@@ -193,7 +194,7 @@ func (r *thunderRenderer) renderData(name string, data any) ([]byte, error) {
 		return nil, err
 	}
 	tmpl, err := template.New(name).Option("missingkey=error").Funcs(template.FuncMap{
-		"q":               quote,
+		"q":               initfiles.Quote,
 		"json":            toJSON,
 		"clientScopes":    r.clientScopes,
 		"rolePermissions": r.rolePermissions,
@@ -307,9 +308,8 @@ func (r *thunderRenderer) appendModuleResources(content []byte) ([]byte, error) 
 		return nil, err
 	}
 	for _, m := range mods {
-		// The template already declares the core's resources and those of the
-		// built-in modules (gateway); a second resource of the same handle
-		// would clash with it.
+		// The template already declares the core's resources; a second
+		// resource of the same handle would clash with it.
 		if slices.Contains(rbac.ReservedResources(), m.Handle) || declared.declaresResource(m.Handle) {
 			return nil, fmt.Errorf("module %q is named after a core permission resource; its permissions would clash with %s:*",
 				m.Handle, m.Handle)
@@ -337,22 +337,29 @@ func (r *thunderRenderer) declaresResource(handle string) bool {
 }
 
 // moduleResources lists the resources of the modules compiled into this
-// binary. Built-in modules declare permissions that predate modules, whose
-// resources are already in the resource server template; that includes the
-// gateway module's gateway resource, which keeps its display names there.
+// binary.
 func (r *thunderRenderer) moduleResources() []moduleResource {
 	var out []moduleResource
 	for _, mf := range r.cfg.Modules {
-		if mf.Builtin || len(mf.Permissions) == 0 {
+		perms := mf.Permissions
+		if len(perms) == 0 {
 			continue
 		}
-		res := moduleResource{Name: mf.Name, Handle: mf.Name, Parent: rbac.ResourceServer, Description: "Permissions of the " + mf.Name + " module"}
-		for _, p := range mf.Permissions {
+		name := mf.DisplayName
+		if name == "" {
+			name = mf.Name
+		}
+		res := moduleResource{Name: name, Handle: mf.Name, Parent: rbac.ResourceServer, Description: "Permissions of the " + name + " module"}
+		for _, p := range perms {
 			desc := p.Description
 			if desc == "" {
 				desc = p.Name
 			}
-			res.Actions = append(res.Actions, moduleAction{Name: p.Name, Handle: p.Name, Description: desc})
+			action := p.DisplayName
+			if action == "" {
+				action = p.Name
+			}
+			res.Actions = append(res.Actions, moduleAction{Name: action, Handle: p.Name, Description: desc})
 		}
 		out = append(out, res)
 	}
@@ -361,28 +368,15 @@ func (r *thunderRenderer) moduleResources() []moduleResource {
 
 // moduleGrants is what the compiled-in modules grant a predefined role. They
 // are granted whether or not a module is installed: an inactive module's
-// routes are not served, so the grant opens nothing until it is. A built-in
-// module's own permissions are granted the same way; their resource is in the
-// bootstrap template (see moduleResources).
+// routes are not served, so the grant opens nothing until it is.
 func (r *thunderRenderer) moduleGrants(role string) []rbac.Permission {
 	var out []rbac.Permission
 	for _, mf := range r.cfg.Modules {
 		for _, name := range mf.RoleGrants[role] {
-			// A built-in module's grants of permissions that predate modules
-			// are in PredefinedRolePermissions already.
-			if mf.Builtin && strings.Contains(name, ":") {
-				continue
-			}
 			out = append(out, rbac.Permission(mf.PermissionName(name)))
 		}
 	}
 	return out
-}
-
-// quote is a string as a double-quoted literal, valid in YAML, JavaScript and TOML.
-func quote(s string) (string, error) {
-	b, err := json.Marshal(s)
-	return string(b), err
 }
 
 func toJSON(v any) (string, error) {

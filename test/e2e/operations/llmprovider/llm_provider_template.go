@@ -10,7 +10,7 @@ import (
 
 // CreateLLMProviderTemplate creates an LLM provider template.
 func CreateLLMProviderTemplate(g Gomega, client *framework.AMPClient, orgName string, req framework.CreateLLMProviderTemplateRequest) framework.LLMProviderTemplateResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-provider-templates", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-provider-templates", orgName)
 
 	resp, err := client.Post(path, req)
 	g.Expect(err).NotTo(HaveOccurred(), "create LLM provider template request failed")
@@ -22,7 +22,7 @@ func CreateLLMProviderTemplate(g Gomega, client *framework.AMPClient, orgName st
 
 // ListLLMProviderTemplates returns all LLM provider templates.
 func ListLLMProviderTemplates(g Gomega, client *framework.AMPClient, orgName string) framework.LLMProviderTemplateListResponse {
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-provider-templates", orgName)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-provider-templates", orgName)
 
 	resp, err := client.Get(path)
 	g.Expect(err).NotTo(HaveOccurred(), "list LLM provider templates request failed")
@@ -34,7 +34,7 @@ func ListLLMProviderTemplates(g Gomega, client *framework.AMPClient, orgName str
 
 // DeleteLLMProviderTemplate deletes an LLM provider template by ID.
 func DeleteLLMProviderTemplate(g Gomega, client *framework.AMPClient, orgName, templateID string) {
-	path := fmt.Sprintf("/api/v1/orgs/%s/llm-provider-templates/%s", orgName, templateID)
+	path := fmt.Sprintf("/m/ai-gateway/orgs/%s/llm-provider-templates/%s", orgName, templateID)
 
 	resp, err := client.Delete(path)
 	g.Expect(err).NotTo(HaveOccurred(), "delete LLM provider template request failed")

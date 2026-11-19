@@ -16,7 +16,10 @@
 
 package audit
 
-import "strings"
+import (
+	"strings"
+	"sync/atomic"
+)
 
 // Action names the operation that was performed, in "<resource>:<verb>" form
 // ("agent:create", "role:grant-permission"). It is the human- and SIEM-facing
@@ -116,11 +119,39 @@ func RegisteredActions() []Action {
 	return out
 }
 
+// ModuleAction classifies an audit action an active module declares.
+type ModuleAction struct {
+	Class    ActionClass
+	Severity Severity
+	// Details are the detail keys the action's records may carry.
+	Details map[string]FieldKind
+}
+
+// moduleActions are the actions the active modules declare. The module host
+// replaces them whenever the set of active modules changes.
+var moduleActions atomic.Pointer[map[Action]ModuleAction]
+
+// SetModuleActions replaces the actions the active modules declare.
+func SetModuleActions(m map[Action]ModuleAction) {
+	moduleActions.Store(&m)
+}
+
+func moduleAction(a Action) (ModuleAction, bool) {
+	if m := moduleActions.Load(); m != nil {
+		meta, ok := (*m)[a]
+		return meta, ok
+	}
+	return ModuleAction{}, false
+}
+
 // Class returns the action's class, falling back to a heuristic for actions
 // derived from route permissions.
 func (a Action) Class() ActionClass {
 	if meta, ok := registry[a]; ok {
 		return meta.class
+	}
+	if meta, ok := moduleAction(a); ok {
+		return meta.Class
 	}
 	class, _ := classify(a)
 	return class
@@ -130,6 +161,9 @@ func (a Action) Class() ActionClass {
 func (a Action) Severity() Severity {
 	if meta, ok := registry[a]; ok {
 		return meta.severity
+	}
+	if meta, ok := moduleAction(a); ok {
+		return meta.Severity
 	}
 	_, severity := classify(a)
 	return severity
@@ -143,10 +177,15 @@ func (a Action) Resource() string {
 	return string(a)
 }
 
-// Verb returns the trailing "<verb>" segment of the action.
+// Verb returns the trailing "<verb>" segment of the action. A module's
+// action reads "<module>:<resource>.<verb>"; its verb is the last segment.
 func (a Action) Verb() string {
 	if idx := strings.Index(string(a), ":"); idx != -1 {
-		return string(a)[idx+1:]
+		verb := string(a)[idx+1:]
+		if dot := strings.LastIndex(verb, "."); dot != -1 {
+			return verb[dot+1:]
+		}
+		return verb
 	}
 	return ""
 }
@@ -155,7 +194,6 @@ func (a Action) Verb() string {
 // access. They are classified as credential events regardless of verb.
 var credentialResources = map[string]bool{
 	"api-key":         true,
-	"git-secret":      true,
 	"agent-identity":  true,
 	"gateway-token":   true,
 	"agent-token":     true,

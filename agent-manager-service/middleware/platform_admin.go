@@ -24,7 +24,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
-	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
 )
 
 type platformAdminCtxKey int
@@ -62,7 +63,7 @@ func RequirePlatformAdminOU() func(http.HandlerFunc) http.HandlerFunc {
 			// record of a refused cross-organization read outside the audit
 			// trail, and without it a 403 the caller reports cannot be tied to
 			// the request that produced it.
-			correlationID := utils.GetCorrelationId(r.Context())
+			correlationID := logger.GetCorrelationId(r.Context())
 
 			adminOUID := config.GetConfig().PlatformAdminOUID
 			if adminOUID == "" {
@@ -70,7 +71,7 @@ func RequirePlatformAdminOU() func(http.HandlerFunc) http.HandlerFunc {
 					"reason", "PLATFORM_ADMIN_OU_ID not configured",
 					"correlationId", correlationID, "path", r.URL.Path)
 				RecordAuthzDeny(r, "platform-admin-ou-not-configured")
-				utils.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
 				return
 			}
 
@@ -81,7 +82,7 @@ func RequirePlatformAdminOU() func(http.HandlerFunc) http.HandlerFunc {
 					"reason", "missing ou identity in token",
 					"correlationId", correlationID, "path", r.URL.Path)
 				RecordAuthzDeny(r, "missing-ou-identity")
-				utils.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
 				return
 			}
 
@@ -95,7 +96,7 @@ func RequirePlatformAdminOU() func(http.HandlerFunc) http.HandlerFunc {
 					"correlationId", correlationID,
 					"sub", claims.Sub, "ouId", claims.OuId, "path", r.URL.Path)
 				RecordAuthzDeny(r, "not-platform-admin-ou", audit.Detail("callerOuId", claims.OuId))
-				utils.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
+				httpx.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
 				return
 			}
 

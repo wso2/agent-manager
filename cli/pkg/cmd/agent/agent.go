@@ -19,7 +19,6 @@ package agent
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/build"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/card"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/create"
 	"github.com/wso2/agent-manager/cli/pkg/cmd/agent/llm"
@@ -37,9 +36,7 @@ func NewAgentCmd(f *cmdutil.Factory) *cobra.Command {
 	cmd.AddCommand(NewListCmd(f))
 	cmd.AddCommand(NewGetCmd(f))
 	cmd.AddCommand(NewDeleteCmd(f))
-	cmd.AddCommand(NewDeployCmd(f))
 	cmd.AddCommand(NewStatusCmd(f))
-	cmd.AddCommand(build.NewBuildCmd(f))
 	cmd.AddCommand(create.NewCreateCmd(f))
 	cmd.AddCommand(llm.NewLLMCmd(f))
 	cmd.AddCommand(mcp.NewMCPCmd(f))
