@@ -144,10 +144,10 @@ func (module) Init(_ context.Context, req modkit.InitRequest) error {
 // the lifecycle worker tears it down when the module stops.
 var current atomic.Pointer[gwwire.Gateway]
 
-func (module) Activate(ctx context.Context, rt modkit.Runtime) error {
+func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	gw := current.Load()
 	if gw == nil {
-		built, err := build(ctx, rt)
+		built, err := build(rt)
 		if err != nil {
 			return err
 		}
@@ -185,10 +185,11 @@ func Current() *gwwire.Gateway { return current.Load() }
 // tests.
 func SetCurrent(gw *gwwire.Gateway) { current.Store(gw) }
 
-// build builds the gateway on the module's runtime and registers the gateway
-// named in its settings, before its routes are mounted so no gateway can
-// connect first. The core's default organization exists by then.
-func build(ctx context.Context, rt modkit.Runtime) (*gwwire.Gateway, error) {
+// build builds the gateway on the module's runtime. It writes nothing: when a
+// module is installed, Activate runs inside the host's lifecycle transaction,
+// so a write on another connection would wait on that transaction (SQLite
+// allows one writer) and the install would fail.
+func build(rt modkit.Runtime) (*gwwire.Gateway, error) {
 	settings, err := gwconfig.Load(rt.Config)
 	if err != nil {
 		return nil, fmt.Errorf("ai-gateway settings: %w", err)
@@ -202,19 +203,24 @@ func build(ctx context.Context, rt modkit.Runtime) (*gwwire.Gateway, error) {
 		return nil, err
 	}
 	gw.LLMTemplateStore.Load(resources.BuiltInLLMProviderTemplates)
-	seedCtx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-	if err := gw.DefaultGatewaySeeder.Seed(seedCtx); err != nil {
-		gw.Close()
-		return nil, fmt.Errorf("failed to register the default gateway: %w", err)
-	}
 	return gw, nil
 }
 
-// run runs the gateway's workers until ctx ends, when the module is disabled
-// or the server stops (after its servers have drained), then closes the
-// gateway's connections; the next activation builds a new one.
+// run registers the gateway named in the module's settings, then runs the
+// gateway's workers until ctx ends, when the module is disabled or the server
+// stops (after its servers have drained), and closes the gateway's
+// connections; the next activation builds a new one. The worker starts once
+// the activation is in effect, outside any lifecycle transaction, and before
+// the server listens at boot; a controller that connects before the seed is
+// done is refused and retries. A failed seed restarts the worker with
+// backoff.
 func run(ctx context.Context, gw *gwwire.Gateway) error {
+	seedCtx, cancel := context.WithTimeout(ctx, time.Minute)
+	err := gw.DefaultGatewaySeeder.Seed(seedCtx)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("failed to register the default gateway: %w", err)
+	}
 	workers := []struct {
 		name  string
 		start func(context.Context) error

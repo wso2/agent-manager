@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
 	"github.com/wso2/agent-manager/agent-manager-service/tests/apitestutils"
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
@@ -69,11 +71,24 @@ func TestGatewayModuleSwitchesOffAndOn(t *testing.T) {
 	assert.Equal(t, http.StatusOK, list())
 	assert.NotSame(t, first, aigateway.Current(), "enabling builds a new gateway")
 
+	// With a default gateway configured, installing must not write inside
+	// the install's transaction (on SQLite that waits on itself); the worker
+	// registers it once the install is in effect.
+	token, err := gatewaytoken.New()
+	require.NoError(t, err)
+	t.Setenv("MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME", "lifecycle-gw")
+	t.Setenv("MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST", "http://lifecycle-gw.localhost:19080")
+	t.Setenv("MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN", token)
 	require.NoError(t, host.Uninstall(ctx, aigateway.Name, true))
 	assert.Equal(t, http.StatusNotFound, list())
 	assert.Zero(t, leases(), "purging empties the module's tables")
-	_, err := host.Install(ctx, aigateway.Name, true)
+	_, err = host.Install(ctx, aigateway.Name, true)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, list())
 	assert.EqualValues(t, 1, leases(), "installing again restores the drift scan lease")
+	assert.Eventually(t, func() bool {
+		var n int64
+		require.NoError(t, db.GetDB().Raw(`SELECT count(*) FROM mod_ai_gateway_gateways WHERE name = 'lifecycle-gw'`).Scan(&n).Error)
+		return n == 1
+	}, 10*time.Second, 100*time.Millisecond, "the worker registers the configured default gateway")
 }
