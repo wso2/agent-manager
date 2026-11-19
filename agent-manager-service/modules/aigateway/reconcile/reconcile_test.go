@@ -225,7 +225,7 @@ func ensureFakeRecordsTable(t *testing.T) {
 		require.NoError(t, db.GetDB().Exec(`CREATE TABLE IF NOT EXISTS reconcile_fake_records (
 			record_key TEXT PRIMARY KEY,
 			ou_id VARCHAR(255) NOT NULL,
-			artifact_uuid `+idType+` NOT NULL REFERENCES mod_ai_gateway_artifacts(id) ON DELETE CASCADE,
+			artifact_uuid `+idType+` NOT NULL,
 			handle TEXT NOT NULL,
 			environment_uuid `+idType+` NOT NULL,
 			requested_gateway `+idType+`)`).Error)

@@ -11,3 +11,5 @@ ac2019eb87004efd2034838b0c454a08dc12d232:agent-manager-service/services/eventdes
 a37d7c58c02781395f57076cbbb2f71d52545e30:deployments/standalone/.env.example:generic-api-key:41
 # Base64-encoded SVG logo in the docs site, not a credential.
 9cb6dff966d4838347ddfc55c80ec7ed71334600:docs/amp-lite/src/logos.json:generic-api-key:2
+# Dummy credentials in a URL the audit redaction test proves are stripped, not a credential.
+02725980ca4e2353dbf1701e441c1c8b3fbcdf12:agent-manager-service/audit/sanitize_url_test.go:generic-api-key:99
