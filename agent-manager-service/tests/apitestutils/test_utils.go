@@ -30,13 +30,19 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the AI Gateway
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy"    // what no module owns yet
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy" // what no module owns yet
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
 // MakeAppClientWithDeps creates an HTTP handler with the provided dependencies for testing
 func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) http.Handler {
+	h, _ := MakeAppClientWithHost(t, testClients, authMiddleware)
+	return h
+}
+
+// MakeAppClientWithHost is MakeAppClientWithDeps that also returns the module
+// host, for tests that change modules.
+func MakeAppClientWithHost(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) (http.Handler, *modhost.Host) {
 	// Use wire to initialize the app parameters with test clients
 	db := db.DB(context.Background())
 	appParams, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), db, authMiddleware, testClients)
@@ -69,6 +75,5 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 	// Create HTTP handler
 	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, host)
 
-	// Return the handler instance
-	return handler
+	return handler, host
 }
