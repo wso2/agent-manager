@@ -36,7 +36,9 @@ import (
 	sa "github.com/wso2/agent-manager/agent-manager-service/services/shadowagents"
 )
 
-// Call names, as stored in scan results and evidence sources.
+// Call names, as stored in scan results and evidence sources. A call is
+// named by the connection's Agents URL (callName); callAgents stands in when
+// the URL is not valid.
 const (
 	callAgents      = "GET {Agents URL}"
 	suffixPageLimit = " (page limit)"
@@ -48,7 +50,20 @@ const (
 	pageSize = 100
 	maxPages = 100
 	maxID    = 256
+	// maxCallName keeps a call name, with the page-limit suffix, within the
+	// 200 characters the scanner stores.
+	maxCallName = 180
 )
+
+// callName names the call by the connection's Agents URL, e.g.
+// "GET https://agents.example.com/v1/agents"; a very long URL is shortened.
+func callName(agentsURL string) string {
+	name := "GET " + agentsURL
+	if r := []rune(name); len(r) > maxCallName {
+		name = string(r[:maxCallName-1]) + "…"
+	}
+	return name
+}
 
 // Connector scans Custom platforms.
 type Connector struct {
@@ -160,8 +175,9 @@ func (c *Connector) listAgents(ctx context.Context, conn sa.Connection, calls *s
 		calls.Record(callAgents, 0, err)
 		return 0, 0
 	}
+	call := callName(u)
 	if key == "" {
-		calls.Skip(callAgents, reasonNoAPIKey)
+		calls.Skip(call, reasonNoAPIKey)
 		return 0, 0
 	}
 	api := c.api(key)
@@ -170,14 +186,14 @@ func (c *Connector) listAgents(ctx context.Context, conn sa.Connection, calls *s
 	more := true
 	for pages := 0; more && pages < maxPages; pages++ {
 		if ctx.Err() != nil {
-			calls.Record(callAgents, len(fs.All()), &sa.CallError{
+			calls.Record(call, len(fs.All()), &sa.CallError{
 				Outcome: models.ShadowCallFailed, Message: "cancelled: " + ctx.Err().Error(),
 			})
 			return read, invalid + repeated
 		}
 		p, err := c.page(ctx, api, u, pageSize, cursor)
 		if err != nil {
-			calls.Record(callAgents, len(fs.All()), err)
+			calls.Record(call, len(fs.All()), err)
 			return read, invalid + repeated
 		}
 		for _, raw := range *p.Agents {
@@ -196,40 +212,41 @@ func (c *Connector) listAgents(ctx context.Context, conn sa.Connection, calls *s
 				repeated++
 				continue
 			}
-			addAgent(fs.Get(models.ShadowKindPlatformAgent, id), a, name)
+			addAgent(fs.Get(models.ShadowKindPlatformAgent, id), a, name, call)
 		}
 		next := ""
 		if p.NextCursor != nil {
 			next = strings.TrimSpace(*p.NextCursor)
 		}
 		if next != "" && next == cursor {
-			calls.Record(callAgents, len(fs.All()), sa.Unsupported("nextCursor did not change"))
+			calls.Record(call, len(fs.All()), sa.Unsupported("nextCursor did not change"))
 			return read, invalid + repeated
 		}
 		cursor, more = next, next != ""
 	}
-	calls.Record(callAgents, len(fs.All()), nil)
+	calls.Record(call, len(fs.All()), nil)
 	if more {
 		// The listing stopped at its page bound: it is incomplete, so the
 		// call is recorded as failed.
-		calls.Record(callAgents+suffixPageLimit, 0, &sa.CallError{
+		calls.Record(call+suffixPageLimit, 0, &sa.CallError{
 			Outcome: models.ShadowCallFailed,
 			Message: fmt.Sprintf("stopped after %d pages; later pages were not read", maxPages),
 		})
 	}
 	if invalid > 0 {
-		calls.Note(callAgents, fmt.Sprintf("%d agent(s) left out: no id or name, an id longer than %d characters, "+
+		calls.Note(call, fmt.Sprintf("%d agent(s) left out: no id or name, an id longer than %d characters, "+
 			"or fields that do not match the contract.", invalid, maxID))
 	}
 	if repeated > 0 {
-		calls.Note(callAgents, fmt.Sprintf("%d repeated agent id(s) listed once.", repeated))
+		calls.Note(call, fmt.Sprintf("%d repeated agent id(s) listed once.", repeated))
 	}
 	return read, invalid + repeated
 }
 
 // addAgent fills a finding from a contract agent. Only the contract's
-// fields are read; the sanitizer cuts them to their stored lengths.
-func addAgent(f *sa.Finding, a agent, name string) {
+// fields are read; the sanitizer cuts them to their stored lengths. call is
+// the listing that returned it, the agent's evidence source.
+func addAgent(f *sa.Finding, a agent, name, call string) {
 	f.DisplayName = name
 	f.Scope = strings.TrimSpace(a.Scope)
 	f.State = strings.TrimSpace(a.Status)
@@ -254,7 +271,7 @@ func addAgent(f *sa.Finding, a agent, name string) {
 	if len(a.Labels) > 0 {
 		f.Attributes["labels"] = a.Labels
 	}
-	f.AddSignal(sa.Signal{Code: sa.SigCustomAgent, Source: callAgents})
+	f.AddSignal(sa.Signal{Code: sa.SigCustomAgent, Source: call})
 }
 
 // Test reads one agent with the API key. OK means the Agents URL returned a
