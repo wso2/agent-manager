@@ -29,6 +29,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/internal/modhost"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway"
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the AI Gateway
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy"    // what no module owns yet
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
@@ -42,12 +43,13 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 	if err != nil {
 		t.Fatalf("failed to initialize test app params: %v", err)
 	}
-	// The built-in modules run on a module host, as in the server: their
+	// The built-in modules and the AI Gateway, which the full distribution
+	// installs by default, run on a module host, as in the server: their
 	// routes, capabilities and hooks (the gateway's finalize hooks remove
 	// its rows of a deleted agent).
 	var mods []modkit.Module
 	for _, m := range modkit.Registered() {
-		if m.Manifest().Builtin {
+		if mf := m.Manifest(); mf.Builtin || mf.Name == aigateway.Name {
 			mods = append(mods, m)
 		}
 	}
@@ -60,6 +62,9 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 		t.Fatalf("failed to start the modules: %v", err)
 	}
 	t.Cleanup(func() { stop(); cancel() })
+	if _, err := host.InstallDefaults(ctx, []string{aigateway.Name}); err != nil {
+		t.Fatalf("failed to install the default modules: %v", err)
+	}
 
 	// Create HTTP handler
 	handler := api.MakeHTTPHandlerWithModules(appParams, nil, nil, host)

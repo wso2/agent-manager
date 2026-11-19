@@ -73,8 +73,11 @@ A modules: list there (or $AMP_MODULES) is applied by the server at boot.
 The flags of earlier releases (-migrate, -server=false, -init-thunder=DIR, ...) still work.
 `
 
-// Main runs the command line. distribution names the binary.
-func Main(distribution string) {
+// Main runs the command line. distribution names the binary; defaultModules
+// are its modules the server installs at boot when no modules list is
+// declared, unless they were installed before.
+func Main(distribution string, defaultModules ...string) {
+	defaults = defaultModules
 	err := run(distribution, os.Args[1:])
 	if errors.Is(err, errUsage) {
 		fmt.Fprintf(os.Stderr, usage, distribution)
@@ -178,7 +181,11 @@ func serve(args []string) error {
 	return nil
 }
 
+// defaults are the distribution's default modules.
+var defaults []string
+
 func runApp(opts app.Options) {
+	opts.DefaultModules = defaults
 	// No secret store is bundled yet; secret writes report ErrNotSupported.
 	secretProvider := unsupported.NewProvider()
 	// DB-backed AgentID provisioning: the environment Thunder credential is

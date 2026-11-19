@@ -15,7 +15,9 @@
 // under the License.
 
 // Command amp is the full distribution: the core plus every first-party
-// module. Linking a module does not install it; `amp module install` does.
+// module. Linking a module does not install it; `amp module install` does,
+// and the server installs the AI Gateway at boot unless it was installed
+// before or a modules list is declared.
 package main
 
 import (
@@ -23,4 +25,4 @@ import (
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/all" // link every module
 )
 
-func main() { cli.Main("amp") }
+func main() { cli.Main("amp", "ai-gateway") }

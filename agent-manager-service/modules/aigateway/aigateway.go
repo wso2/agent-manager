@@ -65,7 +65,7 @@ func (module) Manifest() modkit.Manifest {
 		Version:      "1.0.0",
 		Description:  "AI Gateway: gateways, LLM providers and proxies, MCP proxies, A2A and agent identities",
 		CoreAPI:      modkit.CoreAPIVersion,
-		Builtin:      true,
+		Builtin:      false,
 		Provides:     []string{llmv1.ID, mcpv1.ID},
 		Requires:     []string{identityv1.ID},
 		Permissions:  perms,

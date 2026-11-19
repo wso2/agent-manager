@@ -106,6 +106,30 @@ func (h *Host) Reconcile(ctx context.Context, want []Desired) ([]Step, error) {
 	return steps, nil
 }
 
+// InstallDefaults installs, with their providers, the distribution's default
+// modules that were never installed (or were purged), and leaves every other
+// module as it is, so a module an operator disabled or uninstalled stays so.
+// The server calls it at boot when no modules list is declared. Replicas
+// booting together may run it at once: an install another replica already
+// made counts as done.
+func (h *Host) InstallDefaults(ctx context.Context, names []string) ([]Step, error) {
+	var steps []Step
+	for _, name := range names {
+		if _, ok := h.manifests[name]; !ok {
+			return steps, &ResolveError{Msg: fmt.Sprintf("default module %s is not in this binary (compiled in: %v)", name, h.names())}
+		}
+		if h.stateNow(name) != StateAvailable {
+			continue
+		}
+		s, err := h.Install(ctx, name, true)
+		if err != nil && !h.settled(ctx, name, func(st string) bool { return st != StateAvailable }) {
+			return steps, fmt.Errorf("installing %s: %w", name, err)
+		}
+		steps = append(steps, s...)
+	}
+	return steps, nil
+}
+
 // settled reports, after a lifecycle change failed, whether the module has
 // reached the wanted state anyway (another replica made the same change).
 func (h *Host) settled(ctx context.Context, name string, ok func(state string) bool) bool {

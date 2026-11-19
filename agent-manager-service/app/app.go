@@ -62,6 +62,9 @@ const (
 // Options holds the configuration options for running the application.
 // These are typically parsed from command-line flags in main.
 type Options struct {
+	// DefaultModules are installed at boot when no modules list is declared,
+	// unless they were installed before (cmd/amp: ai-gateway).
+	DefaultModules []string
 	// APIMiddleware wraps the authenticated API mux before dispatch.
 	APIMiddleware func(*http.ServeMux) http.Handler
 	// StartBackground starts deployment-specific workers before the scheduler.
@@ -208,7 +211,7 @@ func Run(secretProvider secretmanagersvc.Provider, opts Options) {
 		slog.Error("failed to start the module host", "error", err)
 		os.Exit(1)
 	}
-	if err := ReconcileModules(modulesCtx, moduleHost()); err != nil {
+	if err := ReconcileModules(modulesCtx, moduleHost(), opts.DefaultModules); err != nil {
 		slog.Error("failed to apply the configured modules list", "error", err)
 		os.Exit(1)
 	}
@@ -373,11 +376,20 @@ func StartModules(ctx context.Context, host *modhost.Host, database *gorm.DB, de
 
 // ReconcileModules applies the declarative modules list (amp.yaml `modules:`
 // or AMP_MODULES), if one is configured: listed modules are installed and
-// enabled or disabled as listed; others are disabled. Every replica runs it at
-// boot; it changes nothing once the database matches.
-func ReconcileModules(ctx context.Context, host *modhost.Host) error {
+// enabled or disabled as listed; others are disabled. With no list, it
+// installs the distribution's default modules that were never installed and
+// changes nothing else. Every replica runs it at boot; it changes nothing once
+// the database matches.
+func ReconcileModules(ctx context.Context, host *modhost.Host, defaults []string) error {
 	mods, err := config.GetModules()
-	if err != nil || !mods.Declared {
+	if err != nil {
+		return err
+	}
+	if !mods.Declared {
+		steps, err := host.InstallDefaults(ctx, defaults)
+		for _, s := range steps {
+			slog.Info("default module installed", "module", s.Module, "action", s.Action)
+		}
 		return err
 	}
 	want := make([]modhost.Desired, 0, len(mods.List))

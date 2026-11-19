@@ -582,3 +582,44 @@ func TestMigrationNamesCarryAVersion(t *testing.T) {
 		})
 	}
 }
+
+// A distribution's defaults are installed, with their providers, only when
+// never installed: a default an operator disabled or uninstalled stays so.
+func TestInstallDefaults(t *testing.T) {
+	for _, d := range databases(t) {
+		t.Run(d.driver, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			w := newWorld(t)
+			h, _ := replica(t, ctx, d, w.modules())
+
+			steps, err := h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Equal(t, []modhost.Step{{Module: "t-store", Action: "install"}, {Module: "t-consumer", Action: "install"}}, steps)
+			assert.Equal(t, []string{"t-builtin", "t-store", "t-consumer"}, h.Active())
+
+			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Empty(t, steps, "an installed default is left alone")
+
+			require.NoError(t, h.Disable(ctx, "t-consumer"))
+			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Empty(t, steps, "a disabled default stays disabled")
+			assert.NotContains(t, h.Active(), "t-consumer")
+
+			require.NoError(t, h.Uninstall(ctx, "t-consumer", false))
+			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Empty(t, steps, "an uninstalled default stays uninstalled")
+
+			require.NoError(t, h.Uninstall(ctx, "t-consumer", true))
+			steps, err = h.InstallDefaults(ctx, []string{"t-consumer"})
+			require.NoError(t, err)
+			assert.Equal(t, []modhost.Step{{Module: "t-consumer", Action: "install"}}, steps, "a purged default is installed again")
+
+			_, err = h.InstallDefaults(ctx, []string{"nosuch"})
+			assert.True(t, modhost.IsResolveError(err))
+		})
+	}
+}

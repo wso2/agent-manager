@@ -27,8 +27,8 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
-// manifestRegistry is the permission registry of the core plus the built-in
-// modules (legacy, gateway), which together declare every permission of the
+// manifestRegistry is the permission registry of the core plus the linked
+// modules (legacy, ai-gateway), which together declare every permission of the
 // full distribution. It also returns the legacy module's manifest.
 func manifestRegistry(t *testing.T) (*rbac.Registry, modkit.Manifest) {
 	t.Helper()
@@ -36,9 +36,6 @@ func manifestRegistry(t *testing.T) (*rbac.Registry, modkit.Manifest) {
 	reg := rbac.NewRegistry()
 	for _, m := range modkit.Registered() {
 		mf := m.Manifest()
-		if !mf.Builtin {
-			continue
-		}
 		if mf.Name == legacy.Name {
 			legacyMF = mf
 		}
@@ -53,7 +50,7 @@ func manifestRegistry(t *testing.T) (*rbac.Registry, modkit.Manifest) {
 			}
 		}
 		if err := reg.Add(mf.Name, perms, grants); err != nil {
-			t.Fatalf("the core and the built-in modules declare overlapping permissions: %v", err)
+			t.Fatalf("the core and the linked modules declare overlapping permissions: %v", err)
 		}
 	}
 	if legacyMF.Name == "" {
@@ -71,7 +68,7 @@ func TestSecurityInvariantEveryPermissionHasAnOwner(t *testing.T) {
 	for ident, scope := range scopes {
 		value := strings.TrimPrefix(scope, rbac.ResourceServer+":")
 		if _, ok := reg.Owner(rbac.Permission(value)); !ok {
-			t.Errorf("rbac.%s (%q) is declared by neither rbac.CorePermissions nor a built-in module", ident, value)
+			t.Errorf("rbac.%s (%q) is declared by neither rbac.CorePermissions nor a linked module", ident, value)
 		}
 	}
 	if got := len(reg.Permissions()); got != len(scopes) {
