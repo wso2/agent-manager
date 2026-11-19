@@ -358,7 +358,7 @@ Three of these carry detail worth calling out:
 
 Every explicitly registered action this build can record — the class and severity that drive alerting, and the detail keys each is **permitted** to carry beyond the shared ones. A key not listed is dropped before the record is written. A permitted key is not necessarily set: the [sample records](#sample-records) below show what each emit site actually writes. Coverage-tier actions derived from a route's permission and not listed here are classified by `classify` in `audit/actions.go`.
 
-The registries are the source of truth: `audit/actions.go` and `audit/actions_domain.go` for the core (`audit.RegisteredActions()` enumerates them), and the AI Gateway manifest's `gwaudit.Actions` for the module. The core registry also declares `agent:build`, `agent:deploy`, `agent:promote`, `agent:change-deployment-state`, `agent-token:regenerate-tracing` and `service-account:configure` / `:remove`, which nothing in this build emits; they are left out. (The `thunder-system-client` routes are stubs that answer 501, so the only record under the `service-account:*` actions is the coverage envelope of that failure.)
+The registries are the source of truth: `audit/actions.go` and `audit/actions_domain.go` for the core (`audit.RegisteredActions()` enumerates them), and the AI Gateway manifest's `gwaudit.Actions` for the module.
 
 Core actions (`audit/actions.go`, `audit/actions_domain.go`, plus the shared keys in `audit/schema.go`):
 
@@ -374,7 +374,7 @@ Core actions (`audit/actions.go`, `audit/actions_domain.go`, plus the shared key
 | `agent:read` | read | 1 info | — |
 | `authn:failure` | authn | 3 warning | `authHeader`, `reason` |
 | `authn:login` | credential | 4 critical | `expiresIn`, `reason`, `roles`, `username` |
-| `authz:deny` | authz | 3 warning | `grantedScopes`, `imageId`, `missingScope`, `reason`, `requestedOrgId` |
+| `authz:deny` | authz | 3 warning | `grantedScopes`, `missingScope`, `reason`, `requestedOrgId` |
 | `authz:org-override` | authz | 4 critical | `clientId`, `targetOuID`, `tokenOuID` |
 | `authz:root-ou-bypass` | authz | 4 critical | `rootOUBypass` |
 | `environment:read` | read | 1 info | — |

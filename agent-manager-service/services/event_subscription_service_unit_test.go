@@ -90,7 +90,7 @@ func existingTargets() *repomocks.PlatformRepositoryMock {
 
 func subscriptionInput(destination uuid.UUID, types ...string) EventSubscriptionInput {
 	return EventSubscriptionInput{
-		Name:          "  Deploys to team channel ",
+		Name:          "  Updates to team channel ",
 		DestinationID: destination,
 		EventTypes:    types,
 		Environments:  []string{"production", " production", ""},
@@ -103,10 +103,10 @@ func TestEventSubscriptionService_CreateNormalisesAndAudits(t *testing.T) {
 	team := putDestination(store, "#payments-team", models.DestinationAvailableProjects, "payments")
 	rec := &recordingAuditor{}
 
-	sub, err := svc.Create(auditCtx(rec), agentTarget, subscriptionInput(team.ID, "agent.deployed", "agent.deployed"))
+	sub, err := svc.Create(auditCtx(rec), agentTarget, subscriptionInput(team.ID, "agent.updated", "agent.updated"))
 	require.NoError(t, err)
-	assert.Equal(t, "Deploys to team channel", sub.Name)
-	assert.Equal(t, []string{"agent.deployed"}, sub.EventTypes)
+	assert.Equal(t, "Updates to team channel", sub.Name)
+	assert.Equal(t, []string{"agent.updated"}, sub.EventTypes)
 	assert.Equal(t, []string{"production"}, sub.Environments)
 	assert.Equal(t, models.EventScopeAgent, sub.Scope)
 	assert.Equal(t, "refund-agent", sub.AgentName)
@@ -120,20 +120,20 @@ func TestEventSubscriptionService_RefusesUnknownTargetsAndEnvironments(t *testin
 
 	missingProject := projectTarget
 	missingProject.ProjectName = "missing"
-	_, err := svc.Create(ctx, missingProject, subscriptionInput(all.ID, "agent.deployed"))
+	_, err := svc.Create(ctx, missingProject, subscriptionInput(all.ID, "agent.updated"))
 	assert.ErrorIs(t, err, utils.ErrProjectNotFound, "a later project of that name must not inherit it")
 
 	missingAgent := agentTarget
 	missingAgent.AgentName = "missing"
-	_, err = svc.Create(ctx, missingAgent, subscriptionInput(all.ID, "agent.deployed"))
+	_, err = svc.Create(ctx, missingAgent, subscriptionInput(all.ID, "agent.updated"))
 	assert.ErrorIs(t, err, utils.ErrAgentNotFound)
 
-	typo := subscriptionInput(all.ID, "agent.deployed")
+	typo := subscriptionInput(all.ID, "agent.updated")
 	typo.Environments = []string{"prodution"}
 	_, err = svc.Create(ctx, agentTarget, typo)
 	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "an environment the org lacks would never match")
 
-	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
+	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.updated"))
 	require.NoError(t, err)
 	_, err = svc.Update(ctx, agentTarget, sub.ID, typo)
 	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
@@ -144,7 +144,7 @@ func TestEventSubscriptionService_DescribeLoadsOnlyItsOwnData(t *testing.T) {
 	svc, store, repo := newTestSubscriptionService()
 	ctx := auditCtx(&recordingAuditor{})
 	all := putDestination(store, "Everyone", models.DestinationAvailableAll)
-	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
+	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.updated"))
 	require.NoError(t, err)
 	repo.SubscriptionCountsFunc = func(
 		_ context.Context, _ string, ids []uuid.UUID, _ time.Time, _ repositories.DeliveryLocation,
@@ -172,6 +172,7 @@ func TestEventSubscriptionService_DescribeLoadsOnlyItsOwnData(t *testing.T) {
 }
 
 func TestEventSubscriptionService_EventTypesFollowTheScope(t *testing.T) {
+	configured := withModuleAgentType(t)
 	svc, store, _ := newTestSubscriptionService()
 	ctx := auditCtx(&recordingAuditor{})
 	all := putDestination(store, "Everyone", models.DestinationAvailableAll)
@@ -181,15 +182,15 @@ func TestEventSubscriptionService_EventTypesFollowTheScope(t *testing.T) {
 		types  []string
 		ok     bool
 	}{
-		{orgTarget, []string{"project.created", "agent.deployed", "agent.created"}, true},
-		{projectTarget, []string{"agent.created", "agent.deployed"}, true},
+		{orgTarget, []string{"project.created", "agent.updated", "agent.created"}, true},
+		{projectTarget, []string{"agent.created", "agent.updated"}, true},
 		{projectTarget, []string{"project.deleted"}, false}, // an org event
-		{agentTarget, []string{"agent.deployed", "agent.configuration_updated"}, true},
+		{agentTarget, []string{"agent.updated", configured}, true},
 		{agentTarget, []string{"agent.created"}, false}, // a project event
 		{agentTarget, []string{"agent.teleported"}, false},
 		{agentTarget, []string{events.TypeDestinationTest}, false},
 		{agentTarget, []string{events.AllEvents}, true},
-		{agentTarget, []string{events.AllEvents, "agent.deployed"}, false},
+		{agentTarget, []string{events.AllEvents, "agent.updated"}, false},
 		{agentTarget, []string{}, false},
 		{agentTarget, []string{" "}, false},
 	}
@@ -221,9 +222,9 @@ func TestEventSubscriptionService_DestinationAvailability(t *testing.T) {
 
 	_, err = svc.Create(ctx, projectTarget, subscriptionInput(adminOnly.ID, "agent.created"))
 	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "org-only destinations are closed to projects")
-	_, err = svc.Create(ctx, agentTarget, subscriptionInput(claims.ID, "agent.deployed"))
+	_, err = svc.Create(ctx, agentTarget, subscriptionInput(claims.ID, "agent.updated"))
 	assert.ErrorIs(t, err, httpx.ErrInvalidInput, "an agent uses its project's availability")
-	_, err = svc.Create(ctx, agentTarget, subscriptionInput(payments.ID, "agent.deployed"))
+	_, err = svc.Create(ctx, agentTarget, subscriptionInput(payments.ID, "agent.updated"))
 	assert.NoError(t, err)
 
 	_, err = svc.Create(ctx, orgTarget, subscriptionInput(elsewhere.ID, "project.created"))
@@ -236,7 +237,7 @@ func TestEventSubscriptionService_ScopeIsolation(t *testing.T) {
 	svc, store, _ := newTestSubscriptionService()
 	ctx := auditCtx(&recordingAuditor{})
 	all := putDestination(store, "Everyone", models.DestinationAvailableAll)
-	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
+	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.updated"))
 	require.NoError(t, err)
 
 	other := agentTarget
@@ -245,7 +246,7 @@ func TestEventSubscriptionService_ScopeIsolation(t *testing.T) {
 	assert.ErrorIs(t, err, utils.ErrEventSubscriptionNotFound)
 	_, err = svc.Get(ctx, projectTarget, sub.ID)
 	assert.ErrorIs(t, err, utils.ErrEventSubscriptionNotFound, "the project cannot edit its agent's subscription")
-	_, err = svc.Update(ctx, other, sub.ID, subscriptionInput(all.ID, "agent.deployed"))
+	_, err = svc.Update(ctx, other, sub.ID, subscriptionInput(all.ID, "agent.updated"))
 	assert.ErrorIs(t, err, utils.ErrEventSubscriptionNotFound)
 	assert.ErrorIs(t, svc.Delete(ctx, other, sub.ID), utils.ErrEventSubscriptionNotFound)
 	assert.NoError(t, svc.Delete(ctx, agentTarget, sub.ID))
@@ -256,7 +257,7 @@ func TestEventSubscriptionService_Update(t *testing.T) {
 	ctx := auditCtx(&recordingAuditor{})
 	all := putDestination(store, "Everyone", models.DestinationAvailableAll)
 	other := putDestination(store, "Payments", models.DestinationAvailableProjects, "payments")
-	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
+	sub, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.updated"))
 	require.NoError(t, err)
 
 	in := subscriptionInput(other.ID, events.AllEvents)
@@ -277,9 +278,9 @@ func TestEventSubscriptionService_Limit(t *testing.T) {
 	for i := 0; i < maxEventSubscriptionsPerOwner; i++ {
 		putSubscription(store, agentTarget, fmt.Sprintf("s%d", i), all.ID)
 	}
-	_, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.deployed"))
+	_, err := svc.Create(ctx, agentTarget, subscriptionInput(all.ID, "agent.updated"))
 	assert.ErrorIs(t, err, httpx.ErrInvalidInput)
-	_, err = svc.Create(ctx, projectTarget, subscriptionInput(all.ID, "agent.deployed"))
+	_, err = svc.Create(ctx, projectTarget, subscriptionInput(all.ID, "agent.updated"))
 	assert.NoError(t, err, "the limit is per owner")
 }
 
@@ -287,7 +288,7 @@ func TestEventSubscriptionService_AuditFailureBlocksTheChange(t *testing.T) {
 	svc, store, repo := newTestSubscriptionService()
 	all := putDestination(store, "Everyone", models.DestinationAvailableAll)
 	rec := &recordingAuditor{fail: errors.New("sink down")}
-	_, err := svc.Create(auditCtx(rec), agentTarget, subscriptionInput(all.ID, "agent.deployed"))
+	_, err := svc.Create(auditCtx(rec), agentTarget, subscriptionInput(all.ID, "agent.updated"))
 	require.Error(t, err)
 	assert.Empty(t, repo.CreateSubscriptionCalls(), "nothing is stored without an audit record")
 }
@@ -301,13 +302,13 @@ func TestEventSubscriptionService_ListInherited(t *testing.T) {
 		store.subscriptions[s.ID] = s
 		return s
 	}
-	own := put(agentTarget, "Own", "agent.deployed")
-	fromProject := put(projectTarget, "Project deploys", "agent.deployed", "agent.created")
+	own := put(agentTarget, "Own", "agent.updated")
+	fromProject := put(projectTarget, "Project updates", "agent.updated", "agent.created")
 	projectOnly := put(projectTarget, "Project agents", "agent.created")
 	fromOrg := put(orgTarget, "Audit", events.AllEvents)
-	orgMixed := put(orgTarget, "Mixed", "project.created", "agent.deployed")
+	orgMixed := put(orgTarget, "Mixed", "project.created", "agent.updated")
 	orgOnly := put(orgTarget, "Org only", "project.created")
-	put(repositories.EventTarget{OUID: "ou-1", Scope: models.EventScopeProject, ProjectName: "claims"}, "Elsewhere", "agent.deployed")
+	put(repositories.EventTarget{OUID: "ou-1", Scope: models.EventScopeProject, ProjectName: "claims"}, "Elsewhere", "agent.updated")
 
 	var countedFor []repositories.DeliveryLocation
 	repo.SubscriptionCountsFunc = func(
@@ -331,9 +332,9 @@ func TestEventSubscriptionService_ListInherited(t *testing.T) {
 		inherited[s.ID] = s.EventTypes
 	}
 	assert.Equal(t, map[uuid.UUID][]string{
-		fromProject.ID: {"agent.deployed"},
+		fromProject.ID: {"agent.updated"},
 		fromOrg.ID:     {events.AllEvents},
-		orgMixed.ID:    {"agent.deployed"},
+		orgMixed.ID:    {"agent.updated"},
 	}, inherited, "types narrowed to what reaches an agent; subscriptions that never do are hidden")
 	assert.NotContains(t, inherited, projectOnly.ID)
 	assert.NotContains(t, inherited, orgOnly.ID)

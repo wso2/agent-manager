@@ -193,12 +193,11 @@ func (a Action) Verb() string {
 // credentialResources are resources whose mutation hands out or withdraws
 // access. They are classified as credential events regardless of verb.
 var credentialResources = map[string]bool{
-	"api-key":         true,
-	"agent-identity":  true,
-	"gateway-token":   true,
-	"agent-token":     true,
-	"token":           true,
-	"service-account": true,
+	"api-key":        true,
+	"agent-identity": true,
+	"gateway-token":  true,
+	"agent-token":    true,
+	"token":          true,
 }
 
 // identityResources are the privilege-management surface.
@@ -218,8 +217,7 @@ var identityResources = map[string]bool{
 // panics instead. There is no reachable "agent:env-production" to classify.
 var deploymentVerbs = map[string]bool{
 	"deploy": true, "undeploy": true, "promote": true, "build": true,
-	"suspend": true, "resume": true, "restore": true,
-	"change-deployment-state": true, "rollback": true,
+	"suspend": true, "resume": true, "restore": true, "rollback": true,
 }
 
 // credentialVerbs mark credential handling wherever it appears — an
@@ -229,7 +227,7 @@ var credentialVerbs = map[string]bool{
 	"api-key-manage": true, "token-manage": true, "rotate": true,
 	"revoke": true, "regenerate": true, "regenerate-secret": true,
 	"revoke-secret": true, "provision": true, "manage-service-account": true,
-	"mint": true, "regenerate-tracing": true, "issue-test": true,
+	"mint": true, "issue-test": true,
 }
 
 // readVerbs name actions that disclose rather than change. They are checked
@@ -237,8 +235,7 @@ var credentialVerbs = map[string]bool{
 // ranked as loudly as rotating one — both are recorded, but only one is a change.
 var readVerbs = map[string]bool{
 	"read": true, "view": true, "list": true,
-	"list-assignments": true, "list-branches": true, "list-commits": true,
-	"list-identity-providers": true, "fetch-server-info": true,
+	"list-assignments": true, "list-identity-providers": true, "fetch-server-info": true,
 }
 
 // classify derives a class and severity for an action that was not explicitly

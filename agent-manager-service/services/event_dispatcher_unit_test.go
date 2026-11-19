@@ -112,6 +112,7 @@ func deliveryKey(destination uuid.UUID, eventID string) string {
 
 func newDispatcherFixture(t *testing.T) *dispatcherFixture {
 	t.Helper()
+	withModuleAgentType(t)
 	f := &dispatcherFixture{
 		subscriptions: map[uuid.UUID]models.EventSubscription{},
 		destinations:  map[uuid.UUID]models.EventDestination{},
@@ -230,13 +231,13 @@ func TestEventDispatcher_FanOutOncePerDestination(t *testing.T) {
 	pager := f.destination(models.DestinationAvailableProjects, "payments")
 	orgOnly := f.destination(models.DestinationAvailableOrg)
 	orgAll := f.subscription("org", "", "", slack.ID, events.AllEvents)
-	agentDeploys := f.subscription("agent", "payments", "refund-agent", slack.ID, "agent.deployed")
-	projectDeploys := f.subscription("project", "payments", "", pager.ID, "agent.deployed")
-	f.subscription("project", "payments", "", orgOnly.ID, "agent.deployed") // stranded: never sent
+	agentDeploys := f.subscription("agent", "payments", "refund-agent", slack.ID, moduleAgentEvent)
+	projectDeploys := f.subscription("project", "payments", "", pager.ID, moduleAgentEvent)
+	f.subscription("project", "payments", "", orgOnly.ID, moduleAgentEvent) // stranded: never sent
 	f.subscription("agent", "payments", "refund-agent", pager.ID, "agent.updated")
 	ctx := context.Background()
 
-	evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "production")
+	evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "production")
 	msg := publish(t, evt)
 	f.dispatcher.handleEvent(ctx, msg)
 	assert.Equal(t, "ack", msg.outcome)
@@ -281,7 +282,7 @@ func TestEventDispatcher_FanOutRetriesOnStoreErrors(t *testing.T) {
 	f.repo.CandidateSubscriptionsFunc = func(context.Context, string, string, string) ([]models.EventSubscription, error) {
 		return nil, errors.New("db down")
 	}
-	msg := publish(t, matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", ""))
+	msg := publish(t, matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", ""))
 	f.dispatcher.handleEvent(context.Background(), msg)
 	assert.Equal(t, "retry", msg.outcome)
 	assert.Equal(t, eventFanoutRetryDelay, msg.delay)
@@ -306,9 +307,9 @@ func TestEventDispatcher_FanOutRetriesOnStoreErrors(t *testing.T) {
 func TestEventDispatcher_DeliveryDecisions(t *testing.T) {
 	f := newDispatcherFixture(t)
 	dest := f.destination(models.DestinationAvailableAll)
-	sub := f.subscription("agent", "payments", "refund-agent", dest.ID, "agent.deployed")
+	sub := f.subscription("agent", "payments", "refund-agent", dest.ID, moduleAgentEvent)
 	ctx := context.Background()
-	evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "")
+	evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "")
 	f.dispatcher.handleEvent(ctx, publish(t, evt))
 	body := f.bus.enqueued[evt.ID+":"+dest.ID.String()]
 	require.NotNil(t, body)
@@ -413,9 +414,9 @@ func TestEventDispatcher_RetriesWhenOutcomeCannotBeStored(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newDispatcherFixture(t)
 			dest := f.destination(models.DestinationAvailableAll)
-			sub := f.subscription("agent", "payments", "refund-agent", dest.ID, "agent.deployed")
+			sub := f.subscription("agent", "payments", "refund-agent", dest.ID, moduleAgentEvent)
 			ctx := context.Background()
-			evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "")
+			evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "")
 			f.dispatcher.handleEvent(ctx, publish(t, evt))
 			body := f.bus.enqueued[evt.ID+":"+dest.ID.String()]
 			require.NotNil(t, body)
@@ -460,9 +461,9 @@ func TestEventDispatcher_RetriesWhenOutcomeCannotBeStored(t *testing.T) {
 func TestEventDispatcher_DeliveredButNotRecordedIsNotSentAgain(t *testing.T) {
 	f := newDispatcherFixture(t)
 	dest := f.destination(models.DestinationAvailableAll)
-	f.subscription("agent", "payments", "refund-agent", dest.ID, "agent.deployed")
+	f.subscription("agent", "payments", "refund-agent", dest.ID, moduleAgentEvent)
 	ctx := context.Background()
-	evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "")
+	evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "")
 	f.dispatcher.handleEvent(ctx, publish(t, evt))
 	body := f.bus.enqueued[evt.ID+":"+dest.ID.String()]
 	require.NotNil(t, body)
@@ -478,9 +479,9 @@ func TestEventDispatcher_DeliveredButNotRecordedIsNotSentAgain(t *testing.T) {
 func TestEventDispatcher_ClaimedDeliveryIsNotSentTwice(t *testing.T) {
 	f := newDispatcherFixture(t)
 	dest := f.destination(models.DestinationAvailableAll)
-	f.subscription("agent", "payments", "refund-agent", dest.ID, "agent.deployed")
+	f.subscription("agent", "payments", "refund-agent", dest.ID, moduleAgentEvent)
 	ctx := context.Background()
-	evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "")
+	evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "")
 	f.dispatcher.handleEvent(ctx, publish(t, evt))
 	body := f.bus.enqueued[evt.ID+":"+dest.ID.String()]
 	require.NotNil(t, body)
@@ -517,9 +518,9 @@ func TestEventDispatcher_PanicIsRetriedNotFatal(t *testing.T) {
 func TestEventDispatcher_SkipsWhenTheDestinationWasNarrowed(t *testing.T) {
 	f := newDispatcherFixture(t)
 	dest := f.destination(models.DestinationAvailableAll)
-	f.subscription("project", "payments", "", dest.ID, "agent.deployed")
+	f.subscription("project", "payments", "", dest.ID, moduleAgentEvent)
 	ctx := context.Background()
-	evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "")
+	evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "")
 	f.dispatcher.handleEvent(ctx, publish(t, evt))
 	body := f.bus.enqueued[evt.ID+":"+dest.ID.String()]
 	require.NotNil(t, body)
@@ -551,6 +552,7 @@ func TestEventBackoff(t *testing.T) {
 // delivered. Runs on the embedded in-memory server; set NATS_TEST_URL (e.g.
 // nats://localhost:4222) to use a real NATS server.
 func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
+	withModuleAgentType(t)
 	saved := eventRetryBackoff
 	eventRetryBackoff = []time.Duration{200 * time.Millisecond}
 	t.Cleanup(func() { eventRetryBackoff = saved })
@@ -585,7 +587,7 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 		SecretEncrypted: encrypted, Availability: models.DestinationAvailableAll,
 	}
 	f.destinations[dest.ID] = dest
-	match := matcherSubscription("agent", "p1", "a1", []string{"agent.deployed"}, "dev")
+	match := matcherSubscription("agent", "p1", "a1", []string{moduleAgentEvent}, "dev")
 	match.OUID, match.DestinationID = ou, dest.ID
 	orgAll := matcherSubscription("org", "", "", []string{events.AllEvents})
 	orgAll.OUID, orgAll.DestinationID = ou, dest.ID
@@ -613,7 +615,7 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 	require.NoError(t, d.Start(ctx))
 	defer func() { _ = d.Stop() }()
 
-	evt := events.New("evt_"+uuid.NewString(), "agent.deployed", events.ScopeAgent, ou, "p1", "a1", time.Now())
+	evt := events.New("evt_"+uuid.NewString(), moduleAgentEvent, events.ScopeAgent, ou, "p1", "a1", time.Now())
 	evt.Environment = "dev"
 	evt.Data = map[string]any{"imageId": "img-1"}
 	bodyBytes, err := json.Marshal(evt)
@@ -633,7 +635,7 @@ func TestEventDispatcher_EndToEndOverNATS(t *testing.T) {
 	require.Len(t, received, 1, "one delivery: two matching subscriptions share the destination")
 	req, body := received[0], bodies[0]
 	assert.Equal(t, evt.ID, req.Header.Get(webhook.HeaderID))
-	assert.Equal(t, "com.wso2.agentmanager.agent.deployed", req.Header.Get(webhook.HeaderEventType))
+	assert.Equal(t, "com.wso2.agentmanager."+moduleAgentEvent, req.Header.Get(webhook.HeaderEventType))
 	assert.Equal(t, events.MediaType, req.Header.Get("Content-Type"))
 	ts, _ := strconv.ParseInt(req.Header.Get(webhook.HeaderTimestamp), 10, 64)
 	want, err := webhook.Sign(secret, evt.ID, time.Unix(ts, 0), body)
@@ -659,8 +661,8 @@ func TestEventDispatcher_EditedFiltersCancelQueuedDelivery(t *testing.T) {
 		t.Run(field, func(t *testing.T) {
 			f := newDispatcherFixture(t)
 			dest := f.destination(models.DestinationAvailableAll)
-			sub := f.subscription("agent", "payments", "refund-agent", dest.ID, "agent.deployed")
-			evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "dev")
+			sub := f.subscription("agent", "payments", "refund-agent", dest.ID, moduleAgentEvent)
+			evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "dev")
 			f.dispatcher.handleEvent(context.Background(), publish(t, evt))
 			if field == "event type" {
 				sub.EventTypes = []string{"agent.updated"}
@@ -679,8 +681,8 @@ func TestEventDispatcher_EditedFiltersCancelQueuedDelivery(t *testing.T) {
 func TestEventDispatcher_StoreRetriesDoNotConsumeSendBudget(t *testing.T) {
 	f := newDispatcherFixture(t)
 	dest := f.destination(models.DestinationAvailableAll)
-	f.subscription("agent", "payments", "refund-agent", dest.ID, "agent.deployed")
-	evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "")
+	f.subscription("agent", "payments", "refund-agent", dest.ID, moduleAgentEvent)
+	evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "")
 	f.dispatcher.handleEvent(context.Background(), publish(t, evt))
 	body := f.bus.enqueued[evt.ID+":"+dest.ID.String()]
 	get := f.repo.GetDeliveryFunc
@@ -703,8 +705,8 @@ func TestEventDispatcherTerminalRedeliveryIsAcknowledged(t *testing.T) {
 		t.Run(status, func(t *testing.T) {
 			f := newDispatcherFixture(t)
 			dest := f.destination(models.DestinationAvailableAll)
-			f.subscription("agent", "payments", "refund-agent", dest.ID, "agent.deployed")
-			evt := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "")
+			f.subscription("agent", "payments", "refund-agent", dest.ID, moduleAgentEvent)
+			evt := matcherEvent(moduleAgentEvent, events.ScopeAgent, "payments", "refund-agent", "")
 			f.dispatcher.handleEvent(context.Background(), publish(t, evt))
 			key := deliveryKey(dest.ID, evt.ID)
 			row := f.deliveries[key]

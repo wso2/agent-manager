@@ -37,21 +37,14 @@ const (
 
 	// A module's workload credentials, and the tokens its workloads exchange
 	// them for.
-	ActionWorkloadCredentialIssue     Action = "workload-credential:issue"
-	ActionWorkloadCredentialRevoke    Action = "workload-credential:revoke"
-	ActionWorkloadTokenExchange       Action = "workload-token:exchange"
-	ActionAgentTokenRegenerateTracing Action = "agent-token:regenerate-tracing"
+	ActionWorkloadCredentialIssue  Action = "workload-credential:issue"
+	ActionWorkloadCredentialRevoke Action = "workload-credential:revoke"
+	ActionWorkloadTokenExchange    Action = "workload-token:exchange"
 
 	ActionAgentIdentityProvision         Action = "agent-identity:provision"
 	ActionAgentIdentityRegenerateSecret  Action = "agent-identity:regenerate-secret"
 	ActionAgentIdentityRevokeSecret      Action = "agent-identity:revoke-secret"
 	ActionAgentIdentityRetryProvisioning Action = "agent-identity:retry-provisioning"
-
-	ActionServiceAccountConfigure Action = "service-account:configure"
-	ActionServiceAccountRemove    Action = "service-account:remove"
-
-	ActionThunderURLSet    Action = "thunder-url:set"
-	ActionThunderURLDelete Action = "thunder-url:delete"
 
 	// An event destination decides where event data leaves the platform and
 	// may hold a secret (a webhook's signing secret, a service URL's token).
@@ -93,14 +86,10 @@ const (
 	ActionAgentUpdate Action = "agent:update"
 
 	// Agent lifecycle.
-	ActionAgentCreate                Action = "agent:create"
-	ActionProjectCreate              Action = "project:create"
-	ActionAgentBuild                 Action = "agent:build"
-	ActionAgentDeploy                Action = "agent:deploy"
-	ActionAgentPromote               Action = "agent:promote"
-	ActionAgentChangeDeploymentState Action = "agent:change-deployment-state"
-	ActionAgentDelete                Action = "agent:delete"
-	ActionProjectDelete              Action = "project:delete"
+	ActionAgentCreate   Action = "agent:create"
+	ActionProjectCreate Action = "project:create"
+	ActionAgentDelete   Action = "agent:delete"
+	ActionProjectDelete Action = "project:delete"
 
 	// System-initiated work. Recorded when it changes state, not on every tick.
 	ActionSystemAgentIdentityProvisioned Action = "system:agent-identity-provisioned"
@@ -130,11 +119,8 @@ const (
 	ResourceUser              = "user"
 	ResourceAgentIdentity     = "agent-identity"
 	ResourceEnvironment       = "environment"
-	ResourceServiceAccount    = "service-account"
-	ResourceThunderURL        = "thunder-url"
 	ResourceEventDestination  = "event-destination"
 	ResourceEventSubscription = "event-subscription"
-	ResourceBuildToken        = "build-token"
 )
 
 // class, severity and permitted detail keys next to the action itself keeps the
@@ -180,9 +166,6 @@ func init() {
 		"expiresIn":    KindCount,
 		"reason":       KindEnum,
 	})
-	registerCredential(ActionAgentTokenRegenerateTracing, map[string]FieldKind{
-		"agentName": KindName,
-	})
 
 	registerCredential(ActionAgentIdentityProvision, map[string]FieldKind{
 		"agentName":   KindName,
@@ -203,14 +186,6 @@ func init() {
 	})
 	registerCredential(ActionAgentIdentityRetryProvisioning, map[string]FieldKind{
 		"agentName":   KindName,
-		"environment": KindName,
-	})
-
-	registerCredential(ActionServiceAccountConfigure, map[string]FieldKind{
-		"environment": KindName,
-		"clientId":    KindIdentifier,
-	})
-	registerCredential(ActionServiceAccountRemove, map[string]FieldKind{
 		"environment": KindName,
 	})
 
@@ -312,10 +287,7 @@ func init() {
 		"username": KindIdentifier,
 	})
 
-	// Agent lifecycle. Deployment events carry the target environment and
-	// whether it is production, because the permission gating the deploy route
-	// says "non-production" regardless of where the agent actually lands — so
-	// the record, not the permission, is what establishes what happened.
+	// Agent lifecycle.
 	Register(ActionAgentRead, ClassRead, SeverityInfo)
 	RegisterDetailSchema(ActionAgentRead, nil)
 	Register(ActionProjectRead, ClassRead, SeverityInfo)
@@ -333,38 +305,6 @@ func init() {
 	RegisterDetailSchema(ActionProjectCreate, map[string]FieldKind{
 		"projectName": KindName,
 		"tool":        KindName,
-	})
-
-	Register(ActionAgentBuild, ClassDeployment, SeverityNotice)
-	RegisterDetailSchema(ActionAgentBuild, map[string]FieldKind{
-		"agentName": KindName,
-		"commitId":  KindIdentifier,
-		"buildName": KindName,
-	})
-
-	deployFields := map[string]FieldKind{
-		"agentName":    KindName,
-		"environment":  KindName,
-		"isProduction": KindFlag,
-		"imageId":      KindIdentifier,
-	}
-	Register(ActionAgentDeploy, ClassDeployment, SeverityNotice)
-	RegisterDetailSchema(ActionAgentDeploy, deployFields)
-	// A promotion moves an agent up the pipeline, often into production, so it
-	// is ranked above an ordinary deploy.
-	Register(ActionAgentPromote, ClassDeployment, SeverityWarning)
-	RegisterDetailSchema(ActionAgentPromote, map[string]FieldKind{
-		"agentName":    KindName,
-		"sourceEnv":    KindName,
-		"targetEnv":    KindName,
-		"isProduction": KindFlag,
-		"environment":  KindName,
-	})
-	Register(ActionAgentChangeDeploymentState, ClassDeployment, SeverityWarning)
-	RegisterDetailSchema(ActionAgentChangeDeploymentState, map[string]FieldKind{
-		"agentName":   KindName,
-		"environment": KindName,
-		"toState":     KindEnum,
 	})
 
 	// Deletions are irreversible, so they rank above other config changes.

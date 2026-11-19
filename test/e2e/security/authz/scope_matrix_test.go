@@ -148,14 +148,6 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodPut, orgBase + "/projects/" + absentName, []string{"amp:project:update"}},
 		{http.MethodDelete, orgBase + "/projects/" + absentName, []string{"amp:project:delete"}},
 
-		// --- Environments — the isolation-tier boundary ----------------------
-		// Environment carries IsolationTier, from which the service derives the
-		// pod runtimeClassName (runc / gVisor / Kata). Anyone who can update an
-		// environment can silently downgrade every agent running in it.
-		{http.MethodPost, orgBase + "/environments", []string{"amp:environment:create"}},
-		{http.MethodPut, orgBase + "/environments/" + absentName, []string{"amp:environment:update"}},
-		{http.MethodDelete, orgBase + "/environments/" + absentName, []string{"amp:environment:delete"}},
-
 		// --- Identity — privilege granting -----------------------------------
 		{http.MethodPost, identityBase + "/users/invite", []string{"amp:org:invite-member"}},
 		{http.MethodDelete, identityBase + "/users/" + absentName, []string{"amp:org:remove-member"}},
