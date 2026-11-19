@@ -115,16 +115,19 @@ export function SubscriptionPlanTable({ createAction }: SubscriptionPlanTablePro
         return next;
       });
     setSaving((current) => ({ ...current, [plan.id]: status }));
-    updatePlan.mutate(
-      {
+    // Each call's own promise releases its switch: a second toggle before this one finishes
+    // replaces `mutate`'s per-call callbacks, which would leave this switch waiting.
+    // On success the list already holds the new status; on failure the switch goes back. The
+    // failure itself is shown by the hook.
+    updatePlan
+      .mutateAsync({
         // A partial update, so a stale row can't overwrite the plan's conditions.
         body: { displayName: plan.displayName, id: plan.id, status },
         params: { orgName: orgId, planId: plan.id },
         successText: `${status === "ACTIVE" ? "Activated" : "Deactivated"} plan "${plan.displayName}".`,
-      },
-      // On success the list already holds the new status; on failure the switch goes back.
-      { onSettled: done },
-    );
+      })
+      .catch(() => undefined)
+      .finally(done);
   };
 
   // A plan in use can't be deleted: the dialog says so instead of asking to confirm.
