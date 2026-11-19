@@ -1,6 +1,6 @@
 # Platform events: destinations and subscriptions
 
-Agent Manager publishes a platform event when something happens: a project is created, an agent is deployed. **Subscriptions** pick events and send them to **destinations** — a Slack channel, a PagerDuty service, a webhook — that org admins register. The console shows this under **Events**, at the org, on each project and on each agent. This document covers how it works and how to run it.
+Agent Manager publishes a platform event when something happens: a project is created, an agent's API key is rotated. **Subscriptions** pick events and send them to **destinations** — a Slack channel, a PagerDuty service, a webhook — that org admins register. The console shows this under **Events**, at the org, on each project and on each agent. This document covers how it works and how to run it.
 
 ## How it works
 
@@ -33,7 +33,7 @@ Scopes rank org, project, agent. A subscription receives an event when all of th
 
 1. **Scope.** The event happens at the subscription's level or a narrower one, inside it. An org subscription gets the events of every project and agent; a project subscription those of the project and its agents; an agent subscription those of the agent. An event never reaches a narrower subscription, even when it names it: `project.deleted` is an org event that names the project, so the project's subscriptions do not get it, and `agent.created` is a project event, so the agent's do not.
 2. **Type.** The subscription names the event type, or names only `*`. `*` is every type the subscription's level can receive, including types added later; it never matches the destination test event.
-3. **Environment.** The filter is empty (every environment), or the event is tied to no environment (a build, say), or the event's environment is in the filter.
+3. **Environment.** The filter is empty (every environment), or the event is tied to no environment (a project change, say), or the event's environment is in the filter.
 4. **Enabled**, and its destination is still available to it.
 
 The event goes to each destination once, however many subscriptions send it there; the delivery records them all.
@@ -42,7 +42,7 @@ Lower levels see the wider levels' subscriptions that reach them, read-only and 
 
 ## Delivery guarantees
 
-- **Durable acceptance.** Events accepted by the publisher are stored in PostgreSQL's `event_outbox` before returning. A background worker leases rows, publishes to NATS, and removes them only after confirmation. Bus failures retry without a fixed attempt limit; interrupted leases expire after two minutes.
+- **Durable acceptance.** Events accepted by the publisher are stored in the database's `event_outbox` before returning. A background worker leases rows, publishes to NATS, and removes them only after confirmation. Bus failures retry without a fixed attempt limit; interrupted leases expire after two minutes.
 - **Fan-out retries.** If matching an event to its subscriptions, or queuing its deliveries, fails, the event is retried after 5s, doubling up to 5 minutes, for 20 attempts (about 75 minutes). After that it logs an error and gives up on the event.
 - **Publication boundary.** Route events are recorded after the operation completes; a crash or database failure between that operation and outbox insertion is still outside the delivery guarantee. The route logs an explicit persistence failure.
 - **At least once.** A receiver may see an event twice after a crash or a lost acknowledgement; it should drop duplicates by `webhook-id`, which is the same on every attempt.
@@ -77,7 +77,7 @@ The Standard Webhooks libraries do all of this given the `whsec_` secret. Rotati
 
 | Setting | Default | Purpose |
 |---|---|---|
-| `EVENTS_MODE` | `off` (the chart's default too) | `nats`, `embedded` or `off`. `off` runs no bus and the console hides Events. |
+| `EVENTS_MODE` | `off` (the Compose stack sets `embedded`) | `nats`, `embedded` or `off`. `off` runs no bus and the console hides Events. |
 | `EVENTS_NATS_URL` | – | NATS server for `nats` mode |
 | `EVENTS_NATS_TOKEN` | – | Token for a NATS server that requires one |
 | `EVENTS_DELIVERY_MAX_ATTEMPTS` | `6` | Attempts before a delivery is marked failed |
@@ -86,13 +86,9 @@ The Standard Webhooks libraries do all of this given the `whsec_` secret. Rotati
 
 `embedded` supports a single replica; several replicas, or autoscaling, need `nats`. The console learns whether Events is on from `GET /api/v1/config` (`eventsEnabled`).
 
-### Helm
-
-`agentManagerService.config.events.mode` is the only switch. With `nats` and no `events.natsUrl`, the chart deploys a NATS StatefulSet (`amp-nats`, JetStream on a 2Gi volume); with `natsUrl` set it uses that server instead. The bundled NATS requires a token the chart generates (Secret `amp-nats-auth`), and a NetworkPolicy (`nats.networkPolicy.enabled`) lets only the service connect: the bus carries every org's events. For an external server that requires a token, name its Secret in `events.natsToken.existingSecret`. The chart refuses `embedded` with more than one replica or with autoscaling on. `embedded` and `off` deploy no NATS. The quick-start installer uses `embedded`. `events.deliveryMaxAttempts`, `events.deliveryRetentionDays` and `events.allowPrivateDestinations` set the delivery settings.
-
 ### docker-compose
 
-`make setup` runs a NATS container and sets `EVENTS_MODE=nats`, with private destinations allowed so a receiver on your machine can be used.
+The Compose stack (`deployments/standalone`) sets `EVENTS_MODE=embedded`. To use a NATS server instead, set `EVENTS_MODE=nats` and `EVENTS_NATS_URL` (and `EVENTS_NATS_TOKEN` if it needs one) on `amp-api`; the stack ships no NATS container.
 
 ## Permissions
 
@@ -127,8 +123,6 @@ Subscription event-type and environment edits are rechecked before every pending
 Matching, queuing, retries, the delivery log and the API stay as they are.
 
 
-## Upgrading event durability
+## Event durability
 
-Migration 057 adds the outbox. It preserves existing rows. New workers coexist through expiring leases. Old application replicas still use their original publication behavior, so complete the rollout before relying on durable acceptance.
-
-Rollback leaves the additive table in place, preserving pending work for a subsequent upgrade. Start the older binary without running its migration command (its migration validator rejects newer schema versions). Do not drop pending outbox rows. Embedded mode still loses events already published into its in-memory bus on restart; use NATS mode for durable downstream delivery.
+The outbox is part of the core baseline schema, so every install has it. Workers on several replicas share it through expiring leases. Do not drop pending outbox rows. Embedded mode still loses events already published into its in-memory bus on restart; use NATS mode for durable downstream delivery.
