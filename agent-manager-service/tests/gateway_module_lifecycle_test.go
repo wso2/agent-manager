@@ -39,8 +39,10 @@ import (
 
 // The AI Gateway switches off and on at runtime: disabled, its routes answer
 // 404 and its worker closes the gateway it built; enabled, a new one is built.
-// Purging it and installing it again restores the lease row its migration
-// seeded.
+// Uninstalling and installing it again keeps its data. A purge is not tried
+// here: integration packages share one database, and emptying the gateway's
+// tables would pull rows from under the other packages' tests (the module
+// host's own tests cover purge on a database of their own).
 func TestGatewayModuleSwitchesOffAndOn(t *testing.T) {
 	ctx := context.Background()
 	app, host := apitestutils.MakeAppClientWithHost(t, wiring.TestClients{
@@ -79,13 +81,12 @@ func TestGatewayModuleSwitchesOffAndOn(t *testing.T) {
 	t.Setenv("MODULE_AI_GATEWAY_DEFAULT_GATEWAY_NAME", "lifecycle-gw")
 	t.Setenv("MODULE_AI_GATEWAY_DEFAULT_GATEWAY_VHOST", "http://lifecycle-gw.localhost:19080")
 	t.Setenv("MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN", token)
-	require.NoError(t, host.Uninstall(ctx, aigateway.Name, true))
+	require.NoError(t, host.Uninstall(ctx, aigateway.Name, false))
 	assert.Equal(t, http.StatusNotFound, list())
-	assert.Zero(t, leases(), "purging empties the module's tables")
 	_, err = host.Install(ctx, aigateway.Name, true)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, list())
-	assert.EqualValues(t, 1, leases(), "installing again restores the drift scan lease")
+	assert.EqualValues(t, 1, leases(), "uninstalling without a purge keeps the drift scan lease")
 	assert.Eventually(t, func() bool {
 		var n int64
 		require.NoError(t, db.GetDB().Raw(`SELECT count(*) FROM mod_ai_gateway_gateways WHERE name = 'lifecycle-gw'`).Scan(&n).Error)
