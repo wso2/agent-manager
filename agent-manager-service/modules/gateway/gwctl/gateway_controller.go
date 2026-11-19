@@ -714,7 +714,7 @@ func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Req
 	// Map service DTOs to spec types
 	tokenInfos := make([]spec.GatewayTokenInfo, 0, len(svcResp.List))
 	for _, t := range svcResp.List {
-		info := spec.NewGatewayTokenInfo(t.ID, t.Status, t.CreatedAt)
+		info := spec.NewGatewayTokenInfo(t.ID, t.Prefix, t.Status, t.CreatedAt)
 		if t.RevokedAt != nil {
 			info.SetRevokedAt(*t.RevokedAt)
 		} else {
@@ -953,6 +953,10 @@ func convertGatewayToSpecResponse(gw *gwsvc.GatewayResponse, ouID string, enviro
 		Status:      convertStatusToGatewayStatus(gw.IsActive),
 		CreatedAt:   gw.CreatedAt,
 		UpdatedAt:   gw.UpdatedAt,
+	}
+	if gw.IdentityProviderMode != "" {
+		mode := spec.GatewayIdentityProviderMode(gw.IdentityProviderMode)
+		response.IdentityProviderMode = &mode
 	}
 
 	// Convert environments

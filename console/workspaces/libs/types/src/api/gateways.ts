@@ -22,6 +22,14 @@ export type GatewayType = "INGRESS" | "EGRESS" | "BOTH";
 
 export type GatewayHosting = "MANAGED" | "SELF_HOSTED";
 
+/**
+ * How a change to a gateway's custom identity providers reaches the gateway, as the
+ * service reports it: it patches the gateway's config (APPLIED), the gateway's owner
+ * edits it (MANUAL), or the service only records it and does not apply it to the
+ * gateway (UNSUPPORTED).
+ */
+export type GatewayIdentityProviderMode = "APPLIED" | "MANUAL" | "UNSUPPORTED";
+
 /** A gateway without a hosting value predates self-hosted gateways: managed. */
 export const isSelfHostedGateway = (gateway: {
   hosting?: GatewayHosting;
@@ -110,6 +118,8 @@ export interface GatewayResponse {
   isCritical: boolean;
   status: GatewayStatus;
   hosting: GatewayHosting;
+  /** Absent from a service that predates the field. */
+  identityProviderMode?: GatewayIdentityProviderMode;
   createdAt: string;
   updatedAt: string;
   environments?: GatewayEnvironmentResponse[];
@@ -253,6 +263,8 @@ export interface ListEnvironmentIdentityProvidersPathParams extends OrgPathParam
 
 export interface GatewayTokenInfo {
   id: string;
+  /** The first characters of the token, to tell tokens apart; never the whole token. */
+  prefix: string;
   status: "active" | "revoked";
   createdAt: string;
   revokedAt?: string | null;

@@ -709,6 +709,27 @@ func (e GatewayHosting) Valid() bool {
 	}
 }
 
+// Defines values for GatewayIdentityProviderMode.
+const (
+	APPLIED     GatewayIdentityProviderMode = "APPLIED"
+	MANUAL      GatewayIdentityProviderMode = "MANUAL"
+	UNSUPPORTED GatewayIdentityProviderMode = "UNSUPPORTED"
+)
+
+// Valid indicates whether the value is a known member of the GatewayIdentityProviderMode enum.
+func (e GatewayIdentityProviderMode) Valid() bool {
+	switch e {
+	case APPLIED:
+		return true
+	case MANUAL:
+		return true
+	case UNSUPPORTED:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GatewayStatus.
 const (
 	GatewayStatusACTIVE       GatewayStatus = "ACTIVE"
@@ -3423,6 +3444,14 @@ type GatewayEnvironmentResponseIsolationTier string
 // - SELF_HOSTED: the customer runs it and connects it to the platform.
 type GatewayHosting string
 
+// GatewayIdentityProviderMode How a change to the gateway's custom identity providers reaches the gateway.
+//   - APPLIED: the service patches the gateway's runtime configuration.
+//   - MANUAL: the service only records the provider; the gateway's owner edits its
+//     config.toml and restarts it (a self-hosted gateway).
+//   - UNSUPPORTED: the service only records the provider and does not apply it to
+//     the gateway (a managed gateway in a deployment without a config applier).
+type GatewayIdentityProviderMode string
+
 // GatewayListResponse defines model for GatewayListResponse.
 type GatewayListResponse struct {
 	Gateways []GatewayResponse `json:"gateways"`
@@ -3482,6 +3511,14 @@ type GatewayResponse struct {
 	// - SELF_HOSTED: the customer runs it and connects it to the platform.
 	Hosting GatewayHosting `json:"hosting"`
 
+	// IdentityProviderMode How a change to the gateway's custom identity providers reaches the gateway.
+	// - APPLIED: the service patches the gateway's runtime configuration.
+	// - MANUAL: the service only records the provider; the gateway's owner edits its
+	//   config.toml and restarts it (a self-hosted gateway).
+	// - UNSUPPORTED: the service only records the provider and does not apply it to
+	//   the gateway (a managed gateway in a deployment without a config applier).
+	IdentityProviderMode *GatewayIdentityProviderMode `json:"identityProviderMode,omitempty"`
+
 	// IsCritical Flag indicating if this is a critical production gateway
 	IsCritical bool `json:"isCritical"`
 
@@ -3534,6 +3571,10 @@ type GatewayTokenInfo struct {
 
 	// Id Unique token identifier (UUID)
 	Id string `json:"id"`
+
+	// Prefix The first characters of the token itself, so a token in use can be matched
+	// to its entry. Not enough to authenticate with.
+	Prefix string `json:"prefix"`
 
 	// RevokedAt Timestamp when the token was revoked (null if still active)
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`

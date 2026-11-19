@@ -146,8 +146,8 @@ describe("isGatewayBaseUrl", () => {
 
 describe("activeTokens", () => {
   it("keeps only active tokens", () => {
-    const active = { id: "a", status: "active" as const, createdAt: "" };
-    const revoked = { id: "r", status: "revoked" as const, createdAt: "" };
+    const active = { id: "a", prefix: "a", status: "active" as const, createdAt: "" };
+    const revoked = { id: "r", prefix: "r", status: "revoked" as const, createdAt: "" };
     expect(activeTokens([active, revoked])).toEqual([active]);
   });
 });

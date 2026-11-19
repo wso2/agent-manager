@@ -25,9 +25,10 @@ type GatewayResponse struct {
 	// Unique gateway name (lowercase, alphanumeric with hyphens)
 	Name string `json:"name"`
 	// Human-readable display name
-	DisplayName string         `json:"displayName"`
-	GatewayType GatewayType    `json:"gatewayType"`
-	Hosting     GatewayHosting `json:"hosting"`
+	DisplayName          string                       `json:"displayName"`
+	GatewayType          GatewayType                  `json:"gatewayType"`
+	Hosting              GatewayHosting               `json:"hosting"`
+	IdentityProviderMode *GatewayIdentityProviderMode `json:"identityProviderMode,omitempty"`
 	// Virtual host for the gateway
 	Vhost string `json:"vhost"`
 	// In-cluster base URL of the gateway runtime, used by sandboxed platform-hosted agents. Empty means no internal address is registered and the vhost is used instead. Must carry an explicit port other than 80 or 443 and a cluster-local host.
@@ -190,6 +191,38 @@ func (o *GatewayResponse) GetHostingOk() (*GatewayHosting, bool) {
 // SetHosting sets field value
 func (o *GatewayResponse) SetHosting(v GatewayHosting) {
 	o.Hosting = v
+}
+
+// GetIdentityProviderMode returns the IdentityProviderMode field value if set, zero value otherwise.
+func (o *GatewayResponse) GetIdentityProviderMode() GatewayIdentityProviderMode {
+	if o == nil || IsNil(o.IdentityProviderMode) {
+		var ret GatewayIdentityProviderMode
+		return ret
+	}
+	return *o.IdentityProviderMode
+}
+
+// GetIdentityProviderModeOk returns a tuple with the IdentityProviderMode field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *GatewayResponse) GetIdentityProviderModeOk() (*GatewayIdentityProviderMode, bool) {
+	if o == nil || IsNil(o.IdentityProviderMode) {
+		return nil, false
+	}
+	return o.IdentityProviderMode, true
+}
+
+// HasIdentityProviderMode returns a boolean if a field has been set.
+func (o *GatewayResponse) HasIdentityProviderMode() bool {
+	if o != nil && !IsNil(o.IdentityProviderMode) {
+		return true
+	}
+
+	return false
+}
+
+// SetIdentityProviderMode gets a reference to the given GatewayIdentityProviderMode and assigns it to the IdentityProviderMode field.
+func (o *GatewayResponse) SetIdentityProviderMode(v GatewayIdentityProviderMode) {
+	o.IdentityProviderMode = &v
 }
 
 // GetVhost returns the Vhost field value
@@ -423,6 +456,9 @@ func (o GatewayResponse) ToMap() (map[string]interface{}, error) {
 	toSerialize["displayName"] = o.DisplayName
 	toSerialize["gatewayType"] = o.GatewayType
 	toSerialize["hosting"] = o.Hosting
+	if !IsNil(o.IdentityProviderMode) {
+		toSerialize["identityProviderMode"] = o.IdentityProviderMode
+	}
 	toSerialize["vhost"] = o.Vhost
 	if !IsNil(o.RuntimeUrl) {
 		toSerialize["runtimeUrl"] = o.RuntimeUrl

@@ -61,9 +61,9 @@ type PlatformGatewayService struct {
 }
 
 // NewPlatformGatewayService creates a new platform gateway service. gatewayApplier is
-// nil in open-source deployments (gateway config applied out of band by
-// manage-identity-provider.sh) and non-nil in cloud deployments, which patch the
-// gateway runtime config in the same request that writes the mirror.
+// nil in open-source deployments (the mirror only is written; key managers live in
+// the gateway's config.toml) and non-nil in cloud deployments, which patch a managed
+// gateway's runtime config in the same request that writes the mirror.
 func NewPlatformGatewayService(
 	gatewayRepo gwrepo.GatewayRepository,
 	gatewayApplier GatewayConfigApplier,
@@ -131,8 +131,11 @@ type GatewayResponse struct {
 	FunctionalityType string                 `json:"functionalityType"`
 	IsActive          bool                   `json:"isActive"`
 	Hosting           string                 `json:"hosting"`
-	CreatedAt         time.Time              `json:"createdAt"`
-	UpdatedAt         time.Time              `json:"updatedAt"`
+	// IdentityProviderMode is how a custom identity provider change reaches this
+	// gateway; see identityProviderMode.
+	IdentityProviderMode string    `json:"identityProviderMode"`
+	CreatedAt            time.Time `json:"createdAt"`
+	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
 // gatewayHostingWire is the gateway's hosting as the API emits it: uppercase, like roles.
@@ -143,23 +146,45 @@ func gatewayHostingWire(gw *models.Gateway) string {
 	return string(spec.GATEWAYHOSTING_SELF_HOSTED)
 }
 
+// Identity provider modes, as the API emits them.
+const (
+	IdentityProviderModeApplied     = "APPLIED"
+	IdentityProviderModeManual      = "MANUAL"
+	IdentityProviderModeUnsupported = "UNSUPPORTED"
+)
+
+// identityProviderMode is how a custom identity provider change reaches a gateway. It is
+// derived from the same check UpsertIdentityProvider and DeleteIdentityProvider make
+// (appliesToGateway), so what the API reports is what those calls do.
+func (s *PlatformGatewayService) identityProviderMode(gw *models.Gateway) string {
+	switch {
+	case s.appliesToGateway(gw):
+		return IdentityProviderModeApplied
+	case gw.IsManaged():
+		return IdentityProviderModeUnsupported
+	default:
+		return IdentityProviderModeManual
+	}
+}
+
 // toGatewayResponse maps a stored gateway to its DTO; the one-time token is never part of it.
-func toGatewayResponse(gw *models.Gateway) *GatewayResponse {
+func (s *PlatformGatewayService) toGatewayResponse(gw *models.Gateway) *GatewayResponse {
 	return &GatewayResponse{
-		ID:                gw.UUID.String(),
-		OrganizationID:    gw.OUID,
-		Name:              gw.Name,
-		DisplayName:       gw.DisplayName,
-		Description:       gw.Description,
-		Properties:        gw.Properties,
-		Vhost:             gw.Vhost,
-		RuntimeURL:        gw.RuntimeURL,
-		IsCritical:        gw.IsCritical,
-		FunctionalityType: gw.GatewayFunctionalityType,
-		IsActive:          gw.IsActive,
-		Hosting:           gatewayHostingWire(gw),
-		CreatedAt:         gw.CreatedAt,
-		UpdatedAt:         gw.UpdatedAt,
+		IdentityProviderMode: s.identityProviderMode(gw),
+		ID:                   gw.UUID.String(),
+		OrganizationID:       gw.OUID,
+		Name:                 gw.Name,
+		DisplayName:          gw.DisplayName,
+		Description:          gw.Description,
+		Properties:           gw.Properties,
+		Vhost:                gw.Vhost,
+		RuntimeURL:           gw.RuntimeURL,
+		IsCritical:           gw.IsCritical,
+		FunctionalityType:    gw.GatewayFunctionalityType,
+		IsActive:             gw.IsActive,
+		Hosting:              gatewayHostingWire(gw),
+		CreatedAt:            gw.CreatedAt,
+		UpdatedAt:            gw.UpdatedAt,
 	}
 }
 
@@ -180,7 +205,10 @@ type TokenRotationResponse struct {
 
 // GatewayTokenInfo represents a token's metadata (no secret values exposed)
 type GatewayTokenInfo struct {
-	ID        string     `json:"id"`
+	ID string `json:"id"`
+	// Prefix is the token's first tokenPrefixShownLen characters, enough to match a
+	// token in use to its entry but not to authenticate with.
+	Prefix    string     `json:"prefix"`
 	Status    string     `json:"status"`
 	CreatedAt time.Time  `json:"createdAt"`
 	RevokedAt *time.Time `json:"revokedAt,omitempty"`
@@ -323,7 +351,7 @@ func (s *PlatformGatewayService) RegisterGateway(
 	}
 	s.placeEnvironments(gateway.OUID, uniqueEnvIDs)
 
-	return toGatewayResponse(gateway), nil
+	return s.toGatewayResponse(gateway), nil
 }
 
 // GatewayListFilters contains optional filters for listing gateways
@@ -377,7 +405,7 @@ func (s *PlatformGatewayService) ListGateways(ouID *string, filters *GatewayList
 	// Convert to DTOs
 	responses := make([]GatewayResponse, 0, len(gateways))
 	for _, gw := range gateways {
-		responses = append(responses, *toGatewayResponse(gw))
+		responses = append(responses, *s.toGatewayResponse(gw))
 	}
 
 	// Build constitution-compliant list response with pagination metadata
@@ -435,7 +463,7 @@ func (s *PlatformGatewayService) GetGateway(gatewayID, ouID string) (*GatewayRes
 		return nil, utils.ErrGatewayNotFound
 	}
 
-	return toGatewayResponse(gateway), nil
+	return s.toGatewayResponse(gateway), nil
 }
 
 // SaveGatewayPolicyManifest stores the policy manifest a gateway pushed in the manifest
@@ -510,7 +538,7 @@ func (s *PlatformGatewayService) UpdateGateway(
 		return nil, err
 	}
 
-	return toGatewayResponse(gateway), nil
+	return s.toGatewayResponse(gateway), nil
 }
 
 // DeleteGateway deletes a gateway after verifying no active deployments exist
@@ -776,11 +804,12 @@ func (s *PlatformGatewayService) ListTokens(gatewayID, ouID string) (*GatewayTok
 		return nil, fmt.Errorf("failed to get tokens: %w", err)
 	}
 
-	// 3. Map to metadata DTOs (never expose hash/salt/prefix)
+	// 3. Map to metadata DTOs (never expose hash/salt or the full lookup prefix)
 	tokens := make([]GatewayTokenInfo, 0, len(activeTokens))
 	for _, t := range activeTokens {
 		tokens = append(tokens, GatewayTokenInfo{
 			ID:        t.UUID.String(),
+			Prefix:    shownTokenPrefix(t.TokenPrefix),
 			Status:    t.Status,
 			CreatedAt: t.CreatedAt,
 			RevokedAt: t.RevokedAt,
@@ -914,19 +943,6 @@ func (s *PlatformGatewayService) resolveGatewayUUID(gatewayID, ouID string) (str
 	return gw.UUID.String(), nil
 }
 
-// resolveManagedGatewayUUID is resolveGatewayUUID for operations a self-hosted gateway does
-// not support: a self-hosted gateway is reported as not found.
-func (s *PlatformGatewayService) resolveManagedGatewayUUID(gatewayID, ouID string) (string, error) {
-	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
-	if err != nil {
-		return "", err
-	}
-	if !gw.IsManaged() {
-		return "", utils.ErrGatewayNotFound
-	}
-	return gw.UUID.String(), nil
-}
-
 func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*models.Gateway, error) {
 	if gw, err := s.gatewayRepo.GetByNameAndOrgID(gatewayID, ouID); err == nil {
 		return gw, nil
@@ -941,26 +957,33 @@ func (s *PlatformGatewayService) lookupGatewayInOrg(gatewayID, ouID string) (*mo
 	return gw, nil
 }
 
+// appliesToGateway is whether identity-provider changes are patched into gw's runtime
+// config: only when an applier is configured (cloud) and the platform runs gw. The
+// applier never touches a self-hosted gateway, whose config its owner keeps.
+func (s *PlatformGatewayService) appliesToGateway(gw *models.Gateway) bool {
+	return s.gatewayApplier != nil && gw.IsManaged()
+}
+
 // UpsertIdentityProvider creates or updates an identity provider mirror row for a
 // gateway. System provenance is derived from the well-known provider names.
 //
 // When a gateway config applier is configured (cloud deployments), the gateway runtime
-// config is patched before the mirror is written, so the two never diverge; if the
-// apply fails the mirror is left untouched. System providers are bootstrapped into the
-// gateway out of band, so only custom providers are applied here. Open-source builds
-// (nil applier) write the mirror only and rely on manage-identity-provider.sh.
+// config is patched before the mirror is written: if the apply fails the mirror is left
+// untouched. If the apply succeeds and the mirror write then fails, the runtime change
+// is not undone, so the two differ until the call is retried (both steps are
+// idempotent). System providers are bootstrapped into the
+// gateway out of band, so only custom providers are applied here. Self-hosted gateways,
+// and every gateway in open-source builds (nil applier), get the mirror only: the
+// gateway's owner adds the key manager to its config.toml.
 func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gatewayID, ouID, name, issuer, jwksURI, description string, skipTLS bool) (*models.GatewayIdentityProvider, error) {
 	if name == models.ReservedIdentityProviderName {
 		return nil, utils.ErrInvalidInput
 	}
-	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
+	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
 	if err != nil {
 		return nil, err
 	}
-	gwUUID, err := uuid.Parse(gwUUIDStr)
-	if err != nil {
-		return nil, utils.ErrGatewayNotFound
-	}
+	gwUUID := gw.UUID
 	providerType := models.IdentityProviderTypeCustom
 	if models.IsSystemIdentityProvider(name) {
 		providerType = models.IdentityProviderTypeSystem
@@ -979,9 +1002,11 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 		UpdatedAt:         now,
 	}
 	// Patch the gateway runtime config first so a failed apply never leaves a mirror
-	// row the gateway does not honor.
+	// row the gateway does not honor. Only a managed gateway's config can be patched:
+	// a self-hosted gateway's owner adds the key manager to its config.toml (the console
+	// shows the entry) and the mirror only records it.
 	applied := false
-	if s.gatewayApplier != nil && providerType == models.IdentityProviderTypeCustom {
+	if s.appliesToGateway(gw) && providerType == models.IdentityProviderTypeCustom {
 		if err := s.gatewayApplier.ApplyIdentityProvider(ctx, gatewayID, ouID, *provider); err != nil {
 			return nil, err
 		}
@@ -1007,12 +1032,13 @@ func (s *PlatformGatewayService) UpsertIdentityProvider(ctx context.Context, gat
 // sync; if the apply fails the mirror is left untouched. System providers are skipped
 // (the repository rejects their deletion), so only custom providers are applied here.
 func (s *PlatformGatewayService) DeleteIdentityProvider(ctx context.Context, gatewayID, ouID, name string) error {
-	gwUUIDStr, err := s.resolveManagedGatewayUUID(gatewayID, ouID)
+	gw, err := s.lookupGatewayInOrg(gatewayID, ouID)
 	if err != nil {
 		return err
 	}
+	gwUUIDStr := gw.UUID.String()
 	removed := false
-	if s.gatewayApplier != nil && !models.IsSystemIdentityProvider(name) {
+	if s.appliesToGateway(gw) && !models.IsSystemIdentityProvider(name) {
 		if err := s.gatewayApplier.DeleteIdentityProvider(ctx, gatewayID, ouID, name); err != nil {
 			return err
 		}
@@ -1436,6 +1462,18 @@ func normalizeGatewayRole(functionalityType string) (string, error) {
 }
 
 // Token Generation and Hashing Utilities
+
+// tokenPrefixShownLen is how much of a token is listed: the first group of its UUID
+// prefix, enough to tell tokens apart without revealing the full lookup key.
+const tokenPrefixShownLen = 8
+
+// shownTokenPrefix returns the part of a token's prefix that may be listed.
+func shownTokenPrefix(prefix string) string {
+	if len(prefix) <= tokenPrefixShownLen {
+		return prefix
+	}
+	return prefix[:tokenPrefixShownLen]
+}
 
 // generateToken generates a cryptographically secure token with guaranteed uniqueness
 // Format: {UUID}-{32-random-bytes-base64}

@@ -3712,19 +3712,25 @@ paths:
         - Gateway Identity Providers
       summary: Upsert a gateway identity provider
       description: |
-        Create or update an identity provider in the gateway's AMS mirror.
+        Create or update an identity provider (token issuer) recorded for a gateway.
+        The console and agent OAuth configuration read this record.
 
-        This endpoint only updates the mirror used by the console and agent OAuth
-        configuration. The gateway runtime configuration (ConfigMap) is the source
-        of truth and must be patched separately via the manage-identity-provider
-        script. The console renders that command rather than calling this endpoint
-        directly.
+        Whether the gateway itself trusts the issuer depends on the deployment:
 
-        Sharp edge: writing to the mirror without also patching the gateway runtime
-        makes the two diverge. Agent OAuth deploy-time validation only checks the
-        mirror, so an agent referencing a mirror-only issuer will deploy successfully
-        while the gateway rejects every token at runtime. Use the
-        manage-identity-provider script to keep them in sync.
+        - Managed gateway in a deployment with a gateway config applier (cloud), for a
+          custom identity provider: the gateway runtime configuration is patched first,
+          then the record is written. If the patch fails, nothing is recorded. System
+          identity providers (e.g. ThunderKeyManager) are configured in the gateway
+          separately, so for those only the record is written.
+        - Self-hosted gateway, or a managed gateway in an open-source deployment: only
+          the record is written. The gateway's owner adds the matching key manager to
+          the gateway's config.toml under
+          [[policy_configurations.jwtauth_v1.keymanagers]] and restarts it.
+
+        Sharp edge: a successful response does not by itself mean the gateway trusts
+        the issuer. Agent OAuth deploy-time validation only checks the record, so an
+        agent referencing an issuer missing from the gateway's config deploys
+        successfully while the gateway rejects every token at runtime.
       operationId: upsertGatewayIdentityProvider
       requestBody:
         required: true
@@ -3769,14 +3775,16 @@ paths:
         - Gateway Identity Providers
       summary: Delete a gateway identity provider
       description: |
-        Remove an identity provider from the gateway's AMS mirror. As with upsert, the
-        gateway runtime configuration must be patched separately. System identity
-        providers (e.g. ThunderKeyManager) cannot be deleted.
+        Remove an identity provider recorded for a gateway. System identity providers
+        (e.g. ThunderKeyManager) cannot be deleted.
 
-        Sharp edge: deleting only the mirror row leaves the issuer trusted by the
-        gateway at runtime, and re-adding it elsewhere can mask the divergence. Use
-        the manage-identity-provider script (ACTION=delete) so the mirror and the
-        gateway runtime stay in sync.
+        As with upsert, a managed gateway in a deployment with a gateway config
+        applier (cloud) has the issuer removed from its runtime configuration first.
+        Otherwise only the record is removed, and the gateway's owner removes the key
+        manager from the gateway's config.toml and restarts it.
+
+        Sharp edge: removing only the record leaves the issuer trusted by the gateway
+        at runtime.
       operationId: deleteGatewayIdentityProvider
       responses:
         "204":
@@ -16383,6 +16391,20 @@ components:
         - MANAGED: the platform provisions and runs it.
         - SELF_HOSTED: the customer runs it and connects it to the platform.
 
+    GatewayIdentityProviderMode:
+      type: string
+      enum:
+        - APPLIED
+        - MANUAL
+        - UNSUPPORTED
+      description: |
+        How a change to the gateway's custom identity providers reaches the gateway.
+        - APPLIED: the service patches the gateway's runtime configuration.
+        - MANUAL: the service only records the provider; the gateway's owner edits its
+          config.toml and restarts it (a self-hosted gateway).
+        - UNSUPPORTED: the service only records the provider and does not apply it to
+          the gateway (a managed gateway in a deployment without a config applier).
+
     GatewayResponse:
       type: object
       required:
@@ -16416,6 +16438,8 @@ components:
           $ref: "#/components/schemas/GatewayType"
         hosting:
           $ref: "#/components/schemas/GatewayHosting"
+        identityProviderMode:
+          $ref: "#/components/schemas/GatewayIdentityProviderMode"
         vhost:
           type: string
           description: Virtual host for the gateway
@@ -16491,6 +16515,7 @@ components:
       type: object
       required:
         - id
+        - prefix
         - status
         - createdAt
       properties:
@@ -16498,6 +16523,12 @@ components:
           type: string
           description: Unique token identifier (UUID)
           example: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+        prefix:
+          type: string
+          description: |
+            The first characters of the token itself, so a token in use can be matched
+            to its entry. Not enough to authenticate with.
+          example: 9b2c41d0
         status:
           type: string
           enum:

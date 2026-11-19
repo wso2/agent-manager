@@ -221,6 +221,42 @@ func TestRemoveGatewayFromEnvironment_SelfHostedRefused(t *testing.T) {
 	require.ErrorIs(t, err, utils.ErrGatewayEnvironmentFixed)
 }
 
+// A token is listed with only the start of its prefix: enough to match it to the token
+// a gateway uses, never the full lookup key.
+func TestListTokens_ShowsShortPrefix(t *testing.T) {
+	gw := storedGateway(models.GatewayHostingSelfHosted, "org")
+	prefix := "9b2c41d0-5717-4562-b3fc-2c963f66afa6"
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gw, nil },
+		GetActiveTokensByGatewayUUIDFunc: func(string) ([]*models.GatewayToken, error) {
+			return []*models.GatewayToken{{UUID: uuid.New(), TokenPrefix: prefix, Status: "active"}}, nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo, nil)
+
+	resp, err := svc.ListTokens(gw.UUID.String(), "org")
+
+	require.NoError(t, err)
+	require.Len(t, resp.List, 1)
+	require.Equal(t, "9b2c41d0", resp.List[0].Prefix)
+	require.Equal(t, "", shownTokenPrefix(""))
+}
+
+// The mode a gateway reports is what an identity provider change does to it: applied
+// only where an applier patches a managed gateway.
+func TestIdentityProviderMode(t *testing.T) {
+	managed := storedGateway(models.GatewayHostingManaged, "org")
+	selfHosted := storedGateway(models.GatewayHostingSelfHosted, "org")
+	withApplier := NewPlatformGatewayService(nil, panickingApplier{})
+	withoutApplier := NewPlatformGatewayService(nil, nil)
+
+	require.Equal(t, IdentityProviderModeApplied, withApplier.toGatewayResponse(managed).IdentityProviderMode)
+	require.Equal(t, IdentityProviderModeUnsupported, withoutApplier.toGatewayResponse(managed).IdentityProviderMode)
+	for _, svc := range []*PlatformGatewayService{withApplier, withoutApplier} {
+		require.Equal(t, IdentityProviderModeManual, svc.toGatewayResponse(selfHosted).IdentityProviderMode)
+	}
+}
+
 // panickingApplier fails the test by panicking on any call.
 type panickingApplier struct{}
 
@@ -232,15 +268,49 @@ func (panickingApplier) DeleteIdentityProvider(context.Context, string, string, 
 	panic("applier called for a self-hosted gateway")
 }
 
-func TestIdentityProvider_SelfHostedIsNotFound(t *testing.T) {
+// A self-hosted gateway's identity providers are recorded in the mirror only: its owner
+// keeps the key managers in the gateway's config.toml, so the applier is never called.
+func TestIdentityProvider_SelfHostedRecordsMirrorWithoutApplier(t *testing.T) {
 	gw := storedGateway(models.GatewayHostingSelfHosted, "org")
+	var upserted *models.GatewayIdentityProvider
+	var deleted string
 	repo := &gwrepomocks.GatewayRepositoryMock{
 		GetByNameAndOrgIDFunc: func(string, string) (*models.Gateway, error) { return gw, nil },
+		UpsertIdentityProviderFunc: func(p *models.GatewayIdentityProvider) error {
+			upserted = p
+			return nil
+		},
+		DeleteIdentityProviderFunc: func(gatewayID, name string) error {
+			deleted = gatewayID + "/" + name
+			return nil
+		},
+	}
+	svc := NewPlatformGatewayService(repo, panickingApplier{})
+
+	provider, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp",
+		"https://issuer", "https://issuer/jwks", "", false)
+	require.NoError(t, err)
+	require.Equal(t, gw.UUID, provider.GatewayUUID)
+	require.Same(t, provider, upserted)
+
+	require.NoError(t, svc.DeleteIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp"))
+	require.Equal(t, gw.UUID.String()+"/idp", deleted)
+}
+
+// Another organization's gateway stays not found, whatever its hosting.
+func TestIdentityProvider_OtherOrgIsNotFound(t *testing.T) {
+	gw := storedGateway(models.GatewayHostingSelfHosted, "other")
+	repo := &gwrepomocks.GatewayRepositoryMock{
+		GetByNameAndOrgIDFunc: func(string, string) (*models.Gateway, error) {
+			return nil, utils.ErrGatewayNotFound
+		},
+		GetByUUIDFunc: func(string) (*models.Gateway, error) { return gw, nil },
 		// Every other func left nil: a repository mutation panics.
 	}
 	svc := NewPlatformGatewayService(repo, panickingApplier{})
 
-	_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp", "https://issuer", "https://issuer/jwks", "", false)
+	_, err := svc.UpsertIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp",
+		"https://issuer", "https://issuer/jwks", "", false)
 	require.ErrorIs(t, err, utils.ErrGatewayNotFound)
 
 	err = svc.DeleteIdentityProvider(context.Background(), gw.UUID.String(), "org", "idp")

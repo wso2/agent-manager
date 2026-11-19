@@ -47,6 +47,9 @@ import {
 } from "@agent-management-platform/api-client";
 import {
   isManagedGateway,
+  isSelfHostedGateway,
+  type GatewayHosting,
+  type GatewayIdentityProviderMode,
   type GatewayEnvironmentResponse,
   type IdentityProvider,
   INPUT_LIMITS,
@@ -60,7 +63,6 @@ import {
   buildKeyManagerConfig,
   type ManageIdentityProviderMode,
 } from "./gatewayKeyManagerConfig";
-import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 export type { ManageIdentityProviderMode };
 
@@ -81,6 +83,45 @@ interface ManageIdentityProviderDialogProps {
     name: string;
     environments: GatewayEnvironmentResponse[];
   } | null;
+  /** How a change reaches the gateway's config; see IdentityProviderConfigMode. */
+  configMode: IdentityProviderConfigMode;
+}
+
+/**
+ * How an identity-provider change reaches the gateway's config.toml:
+ * - "applied": the service patches it.
+ * - "manual": the gateway's owner edits it (a self-hosted gateway), so the dialog
+ *   gives the entry to copy.
+ * - "fixed": Agent Manager does not apply it (a managed gateway in a deployment
+ *   without a config applier), so the console lets a custom issuer be removed but
+ *   not added. The API still records one.
+ */
+export type IdentityProviderConfigMode = "applied" | "manual" | "fixed";
+
+/**
+ * The config mode of a gateway, as its service reports it (identityProviderMode), so
+ * the console offers only what the service will carry out.
+ *
+ * Assumption: the console is served by the service it is built with, which always
+ * reports the field. A response without it comes from an older service, and the
+ * console cannot tell whether that service applies changes to a managed gateway. It
+ * takes the cautious reading: self-hosted gateways are manual, the rest fixed, so Add
+ * is hidden there even if that service has an applier. The API is unaffected.
+ */
+export function identityProviderConfigMode(gateway: {
+  identityProviderMode?: GatewayIdentityProviderMode;
+  hosting?: GatewayHosting;
+}): IdentityProviderConfigMode {
+  switch (gateway.identityProviderMode) {
+    case "APPLIED":
+      return "applied";
+    case "MANUAL":
+      return "manual";
+    case "UNSUPPORTED":
+      return "fixed";
+    default:
+      return isSelfHostedGateway(gateway) ? "manual" : "fixed";
+  }
 }
 
 export function ManageIdentityProviderDialog({
@@ -90,6 +131,7 @@ export function ManageIdentityProviderDialog({
   mode,
   provider,
   lockedGateway,
+  configMode,
 }: ManageIdentityProviderDialogProps) {
   const isDelete = mode === "delete";
   const isGatewayLocked = !!lockedGateway;
@@ -109,10 +151,7 @@ export function ManageIdentityProviderDialog({
 
   const [copied, setCopied] = useState(false);
 
-  // Managed mode: the server patches the gateway runtime config directly. When
-  // off (self-hosted default), the operator edits the gateway's config.toml;
-  // either way the submit records the provider in Agent Manager.
-  const managedMode = useFeatureFlag("enableIdentityProviderManagedMode");
+  // Whatever the mode, the submit records the provider in Agent Manager.
   const upsertIdp = useUpsertIdentityProvider();
   const deleteIdp = useDeleteIdentityProvider();
   const isSubmitting = upsertIdp.isPending || deleteIdp.isPending;
@@ -169,7 +208,9 @@ export function ManageIdentityProviderDialog({
   const effectiveEnvName = envName || onlyEnvironment || "";
 
   // The selected environment's managed gateways populate the gateway picker (only used
-  // when no gateway is locked in): a self-hosted gateway has no identity providers here.
+  // when no gateway is locked in). Self-hosted gateways are left out because the
+  // configMode passed in describes one kind of gateway; they are reached from their own
+  // gateway page, which locks the gateway and passes the manual mode.
   const { data: gatewaysResp } = useListGateways(
     { orgName: orgId },
     effectiveEnvName ? { environment: effectiveEnvName } : undefined,
@@ -181,6 +222,7 @@ export function ManageIdentityProviderDialog({
 
 
   // Reset form when the dialog opens, seeding from the provider for delete.
+  const lockedGatewayId = lockedGateway?.uuid;
   useEffect(() => {
     if (!open) return;
     setCopied(false);
@@ -194,19 +236,18 @@ export function ManageIdentityProviderDialog({
       setJwksUri(provider.jwksUri ?? "");
       setSkipTlsVerify(provider.skipTlsVerify ?? false);
     } else {
-      // Lock the gateway and auto-select its environment when there is only one.
-      setEnvName(
-        lockedGateway && lockedGateway.environments.length === 1
-          ? lockedGateway.environments[0].name
-          : "",
-      );
-      setGatewayId(lockedGateway?.uuid ?? "");
+      // A single environment needs no selection: effectiveEnvName falls back to it,
+      // also when the environments arrive after the dialog opens.
+      setEnvName("");
+      setGatewayId(lockedGatewayId ?? "");
       setName("");
       setIssuer("");
       setJwksUri("");
       setSkipTlsVerify(false);
     }
-  }, [open, isDelete, provider, lockedGateway]);
+    // Keyed on the locked gateway's id, not the object: a refresh of its environments
+    // must not clear what the user has typed.
+  }, [open, isDelete, provider, lockedGatewayId]);
 
   // Delete mode is read-only; in upsert mode only user-entered values count.
   const isDirty =
@@ -240,7 +281,14 @@ export function ManageIdentityProviderDialog({
   }, [discoveryUrl, discover]);
 
   const keyManagerConfig = useMemo(
-    () => buildKeyManagerConfig({ name, issuer, jwksUri, skipTlsVerify }),
+    // Trimmed like the saved record, so the entry and the record carry the same values.
+    () =>
+      buildKeyManagerConfig({
+        name: name.trim(),
+        issuer: issuer.trim(),
+        jwksUri: jwksUri.trim(),
+        skipTlsVerify,
+      }),
     [name, issuer, jwksUri, skipTlsVerify],
   );
 
@@ -320,12 +368,21 @@ export function ManageIdentityProviderDialog({
       <DrawerContent>
         <Stack spacing={3}>
           <Typography variant="body2" color="text.secondary">
-            {managedMode ? (
+            {configMode === "applied" && (
               <>
                 Identity providers are owned by the gateway. Agent Manager patches the gateway
                 configuration and applies the change for you.
               </>
-            ) : (
+            )}
+            {configMode === "fixed" && (
+              <>
+                Agent Manager does not apply identity providers to this gateway, so removing
+                this one only deletes Agent Manager&apos;s record of it. If the issuer was added
+                to the gateway&apos;s configuration by hand, remove it there, then restart the
+                gateway. Until the restart, the gateway keeps accepting its tokens.
+              </>
+            )}
+            {configMode === "manual" && (
               <>
                 Identity providers are owned by the gateway: its <code>configs/config.toml</code>{" "}
                 lists the token issuers it accepts. Update that file and restart the gateway, then{" "}
@@ -429,7 +486,7 @@ export function ManageIdentityProviderDialog({
             )}
           </Stack>
 
-          {!managedMode && (
+          {configMode === "manual" && (
             <Stack spacing={1}>
               <Typography variant="body2">
                 {isDelete

@@ -38,6 +38,7 @@ import type {
 } from "@agent-management-platform/types";
 import {
   ManageIdentityProviderDialog,
+  type IdentityProviderConfigMode,
   type ManageIdentityProviderMode,
 } from "./ManageIdentityProviderDialog";
 import { useGatewayFeatures } from "@agent-management-platform/feature-management";
@@ -47,6 +48,8 @@ interface GatewayIdentityProvidersCardProps {
   gatewayId: string;
   gatewayName: string;
   environments: GatewayEnvironmentResponse[];
+  /** How a change reaches this gateway's config; see identityProviderConfigMode. */
+  configMode: IdentityProviderConfigMode;
 }
 
 export function GatewayIdentityProvidersCard({
@@ -54,9 +57,16 @@ export function GatewayIdentityProvidersCard({
   gatewayId,
   gatewayName,
   environments,
+  configMode,
 }: GatewayIdentityProvidersCardProps) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const { canWrite } = useGatewayFeatures();
+  // A custom issuer only takes effect where the gateway's config can change: its
+  // owner edits it, or the service patches it. Where neither happens an issuer added
+  // here would never reach the gateway, so adding is hidden, while removing an
+  // existing custom issuer stays possible.
+  const acceptsCustomIssuers = configMode !== "fixed";
+  const canAdd = canWrite && acceptsCustomIssuers;
   const [dialogMode, setDialogMode] =
     useState<ManageIdentityProviderMode>("upsert");
   const [dialogProvider, setDialogProvider] = useState<IdentityProvider | null>(
@@ -98,7 +108,7 @@ export function GatewayIdentityProvidersCard({
     [gatewayId, gatewayName, environments],
   );
 
-  const addButton = canWrite ? (
+  const addButton = canAdd ? (
     <Button
       variant="contained"
       color="primary"
@@ -118,6 +128,7 @@ export function GatewayIdentityProvidersCard({
       mode={dialogMode}
       provider={dialogProvider}
       lockedGateway={lockedGateway}
+      configMode={configMode}
     />
   );
 
@@ -170,7 +181,13 @@ export function GatewayIdentityProvidersCard({
           <ListingTable.EmptyState
             illustration={<KeyRound size={48} />}
             title="No identity providers configured"
-            description="Add an identity provider (token issuer) so agents on this gateway can authenticate callers with OAuth."
+            description={
+              !acceptsCustomIssuers
+                ? "No identity providers are recorded for this gateway. Issuer changes can't be applied to it from here."
+                : canAdd
+                  ? "Add an identity provider (token issuer) so agents on this gateway can authenticate callers with OAuth."
+                  : "No custom token issuers have been added to this gateway."
+            }
             action={addButton}
           />
         </ListingTable.Container>

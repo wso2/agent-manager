@@ -1036,7 +1036,12 @@ func TestAfterLive(t *testing.T) {
 		assert.True(t, ack(t, core, p, first, models.DeploymentAckStatusSuccess))
 		assert.False(t, ack(t, core, p, first, models.DeploymentAckStatusSuccess))
 		second := deploy(t, core, p).DeploymentID
-		_, err := gwrepo.NewDeploymentRepo(db.GetDB()).FailStaleTransitional(context.Background(), time.Now().Add(time.Hour))
+		// The sweep is not scoped to this test, and other packages' tests share the database: age this row past
+		// a cutoff in the past instead of sweeping with a future cutoff, which would fail their in-flight rows.
+		require.NoError(t, db.GetDB().Model(&models.DeploymentStatusRecord{}).
+			Where("artifact_id = ? AND org_id = ? AND gateway_id = ?", p.ArtifactUUID, p.OUID, p.GatewayUUID).
+			Update("performed_at", statusRow(t, p).PerformedAt.Add(-10*time.Minute)).Error)
+		_, err := gwrepo.NewDeploymentRepo(db.GetDB()).FailStaleTransitional(context.Background(), time.Now().Add(-5*time.Minute))
 		require.NoError(t, err)
 		require.Equal(t, models.DeploymentStatusFailed, statusRow(t, p).Status, "timed out")
 		assert.True(t, ack(t, core, p, second, models.DeploymentAckStatusSuccess), "the late ack lands")
