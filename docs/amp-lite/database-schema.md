@@ -11,7 +11,7 @@ AMP Lite is a version of Agent Manager that runs anywhere, with no OpenChoreo. E
 ## Decisions that shape the schema
 
 - Lite only connects external agents. Agent runtime (builds, deployments, env vars, resources, git credentials, agent kinds) are deferred, and evaluation (evaluators, monitors, runs, scores, alerts) is removed from Lite; if they come back, they come as modules with their own tables.
-- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 30 tables are listed under [Gateway module tables](#gateway-module-tables); `amp-core` (no modules) doesn't have them.
+- The schema is split between the core and modules (see [Modules](#modules)). The core owns tenancy, agents, identity, secrets, events, audit and the module host's own tables. A module's tables are named `mod_<module>_<table>` and come from the module's own migrations. The AI Gateway's 33 tables are listed under [Gateway module tables](#gateway-module-tables); `amp-core` (no modules) doesn't have them.
 - Multi-tenant. `organizations` is the root.
 - Environments are kept for a later version but hidden in Lite. Every org gets one `default` environment. Lite's API and console never show or accept an environment; the service always uses the org's default. Tables that are per-environment today keep an `environment_id`, so adding more environments later needs no table changes. No deployment pipeline or promotion.
 - Console login is file-based to start with: a default username and password belong to a default org; a file maps scopes to roles (admin, developer). No users, roles or scopes tables. Tables refer to users by username.
@@ -219,31 +219,31 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 
 ### Artifacts and gateway deployments
 
-- `artifacts`: base row for every gateway-deployable item (kind: RestApi, WebSubAPI, LlmProvider, LlmProxy, Agent, McpProxy, McpProxyMapping). Unique (org_id, handle), (org_id, name, version).
+- `artifacts`: base row for every gateway-deployable item (kind: RestApi, WebSubAPI, LlmProvider, LlmProxy, Agent, McpProxy, McpProxyMapping), in_catalog. Unique (org_id, handle), (org_id, name, version).
 - `artifact_deployments` (was `deployments`): artifact_id cascade; gateway_id and base_deployment_id no action (SQL Server rejects multiple cascade paths and self-referencing SET NULL; the service clears them). content binary, metadata JSON.
 - `artifact_gateway_status` (was `deployment_status`): PK (artifact_id, gateway_id), org_id. Cascade from artifact only; deleting a gateway clears its rows in the service. Status CHECK constraints kept. claimed_by, claimed_until for the render queue.
-- Typed rows share the artifact's id (`llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`): FK id → artifacts(id) ON DELETE CASCADE, so deleting the artifact deletes the typed row and everything under it. Their project FK has no action, so a project that still has LLM proxies or MCP servers can't be deleted.
+- Typed rows share the artifact's id (`llm_providers`, `llm_proxies`, `mcp_proxies`, `mcp_proxy_mappings`): FK (org_id, id) → artifacts(org_id, id) ON DELETE CASCADE, so deleting the artifact deletes the typed row and everything under it. They have no key into `projects`; the module's project finalize hook refuses (409) to delete a project that still has LLM proxies or MCP servers.
 
 ### LLM
 
 - `llm_provider_templates`: org templates only (built-ins ship in code, `modules/aigateway/resources/builtin_llm_templates.go`). org_id NOT NULL, unique (org_id, handle). `is_system` dropped.
 - `llm_providers`: id = artifact id. The upstream API key is in the module's secret store; `configuration` carries its path as `secretRef` ([modules.md](modules.md#where-the-gateway-stands)).
-- `llm_proxies`: id = artifact id. (org_id, project_id) FK → projects. provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth, including the key minted on the provider for a proxy, is in the module's secret store; `configuration` carries its path as `secretRef`.
+- `llm_proxies`: id = artifact id. project_id (no key into `projects`). provider_id → llm_providers, restrict (a provider in use can't be deleted). Upstream auth, including the key minted on the provider for a proxy, is in the module's secret store; `configuration` carries its path as `secretRef`.
 
 ### Agent model and MCP configs
 
-- `agent_model_configs` (was `agent_configurations`): agent_id (cascade), name unique per agent, description, type text (llm | mcp | other; was type_id).
+- `agent_model_configs` (was `agent_configurations`): agent_id (no key into `agents`), name unique per agent, description, type text (llm | mcp | agent; was type_id).
 - `agent_model_config_llm` (was `env_agent_model_mapping`): PK (config_id, environment_id), llm_proxy_id, policy_configuration JSON.
 - `agent_model_config_mcp`: config_id PK, mcp_proxy_id, scope_recorded_at (folds `agent_mcp_config_proxy` and `agent_mcp_config_scope`).
 - `agent_model_config_mcp_envs` (was `env_agent_mcp_mapping` + `agent_mcp_config_env_exclusion`): PK (config_id, environment_id), mapping_artifact_id (nullable), excluded yes/no. Same meaning as today: a connection covers every environment unless excluded, so a missing row means "included, not mapped yet" (an environment added later is picked up), and `excluded = 1` records a deliberate removal.
 - `agent_model_config_vars` (was `agent_env_config_variables_mapping`): PK (config_id, environment_id, variable_key), variable_name. `secret_reference` dropped (only fed hosted workloads).
-- `ai_applications`: one per agent per environment, unique (agent_id, environment_id), cascade from the agent; handle, name.
-- All of these cascade from the config or agent; the environment FK has no action.
+- `ai_applications`: one per agent per environment, unique (agent_id, environment_id); handle, name.
+- The per-config tables cascade from their config. None of these tables has a key into `agents` or `environments`: the agent's rows go when the `agent.deleted` handler finishes its teardown, and an environment's rows when its finalize hook runs (see [Gateway module tables](#gateway-module-tables)).
 - `api_keys`: org_id, artifact_id (cascade), name unique per artifact, display_name, key_hash (indexed), masked_key, status, purpose, expires_at. An external agent's proxy key is returned once in the response; only its hash is kept, and no copy goes to `secrets`.
 
 ### MCP
 
-- `mcp_proxies`: id = artifact id. project_id NULL = org-level (composite FK skips the check when NULL on all four databases).
+- `mcp_proxies`: id = artifact id. project_id NULL = org-level (no key into `projects`).
 - `mcp_proxy_mappings`: unchanged apart from common changes.
 - `mcp_proxy_scopes`: unique (mcp_proxy_id, action), description.
 - `mcp_proxy_scope_tools`: (scope_id, tool_name) PK; replaces the JSON tools list because agent-identity screens look scopes up by tool.
@@ -253,7 +253,7 @@ Common changes to every existing table here: `ou_id` becomes `org_id` (FK); left
 
 ### A2A
 
-One row per agent per environment each, unique (agent_id, environment_id), cascade from the agent:
+One row per agent per environment each, unique (agent_id, environment_id), removed after the `agent.deleted` handler's teardown:
 
 - `agent_exposures` (was `platform_agent_exposures`): protocol (a2a | rest), artifact_id unique.
 - `agent_cards`: source, source_url, card JSON, card_hash, fetched_at, status, attempt_count, last_error, next_attempt_at, claimed_by, claimed_until. OpenChoreo release-name columns dropped.
@@ -278,7 +278,7 @@ Today: `event_destinations`, `event_subscriptions`, `event_deliveries`, `event_o
 - `event_subscriptions`: id, org_id, scope (org | project | agent, CHECK), project_id and agent_id (nullable, composite FKs; set to match the scope, CHECK), name, description, destination_id (restrict: a destination in use can't be deleted), enabled, created_by, timestamps. Cascade from the agent; project FK has no action. Index (org_id, scope, project_id, agent_id).
 - `event_subscription_types` (was `event_types` JSON): PK (subscription_id, event_type). Index (event_type).
 - `event_subscription_environments` (was `environments` JSON): PK (subscription_id, environment_id). No rows = all environments. Lite never writes rows here.
-- `event_outbox`: id, org_id, body JSON, claimed_by (nullable; was `lease` with `''` for unset), claimed_until (nullable), available_at. Index (available_at, id). Claimed through the per-database repository (rule 10).
+- `event_outbox`: id, org_id, body JSON, claimed_by (nullable; was `lease` with `''` for unset), claimed_until (nullable), available_at. Index (available_at, id). Claimed with the same lease update as job claims (rule 10).
 - `event_deliveries`: id, org_id, destination_id (cascade), event_id, event_type, event_scope, project_id, agent_id, environment_id (all nullable, no FK: delivery history outlives deleted projects and agents), status, attempts, response_code, last_error, delivered_at, claimed_by, claimed_until, timestamps. Unique (destination_id, event_id). Indexes (org_id, created_at), (destination_id, created_at).
 - `event_delivery_subscriptions` (was `subscription_ids` JSON + GIN index): PK (delivery_id, subscription_id). Cascade from the delivery; no FK to the subscription.
 - Deliveries older than a configured age are deleted by a cleanup job.
@@ -354,7 +354,7 @@ Today usage events go to Moesif (`middleware/growthanalytics`): server-side feat
 
 ## Modules
 
-Modules are compiled into the binary (`cmd/amp` links them, `cmd/amp-core` links none) and installed, enabled and disabled at runtime. The module host keeps their state in core tables. Each module brings its own migrations under `modules/<name>/schema/`, rendered per database like the core's; every table it creates must be named `mod_<module>_<table>`, and core tables may not start with `mod_`.
+Modules are compiled into the binary (`cmd/amp` links them, `cmd/amp-core` links none) and installed, enabled and disabled at runtime. The module host keeps their state in core tables. Each module keeps its schema in `modules/<name>/schema/*.yaml`, rendered per database into `modules/<name>/migrations/{sqlite,postgres}` like the core's; every table it creates must be named `mod_<module>_<table>`, and core tables may not start with `mod_`.
 
 ### modules
 
@@ -449,4 +449,4 @@ The schema above is the target. The migrations currently differ in these places:
 - `agent_model_config_mcp_envs` has an extra `mcp_proxy_id` column, and `a2a_proxies` an extra `artifact_id`.
 - `gateways` also enforces that a self-hosted gateway is egress only.
 - `audit_events` and `usage_events` exist, but nothing writes or reads them yet.
-- `models/` still defines a table that is not in this schema: `rest_apis`.
+- The gateway's `gwmodels` (`modules/aigateway/gwmodels/rest_api.go`) still defines a table that is in no schema: `rest_apis`.
