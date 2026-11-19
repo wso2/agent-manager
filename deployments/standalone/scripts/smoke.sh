@@ -104,8 +104,8 @@ check catalog "$(pick 200 404)" "$(code "${A[@]}" "$GW/catalog")"
 check gateways-old-path 404 "$(code "${A[@]}" "$B/gateways")"
 check mcp-endpoint 401 "$(code -X POST "$API/mcp" -d '{}')"
 check ws-internal "$(pick 401 404)" "$(code -k "$INT/api/internal/v1/ws/gateways/connect")"
-# Not-yet-implemented routes: answered 501 by amp's legacy bundle, absent from amp-core.
-check agent-kinds "$(pick 501 404)" "$(code "${A[@]}" "$B/agent-kinds")"
+# Routes of features Lite does not serve are absent from both distributions.
+check agent-kinds 404 "$(code "${A[@]}" "$B/agent-kinds")"
 # Evaluation is not part of either distribution.
 check monitors 404 "$(code "${A[@]}" "$B/projects/$P/agents/$AG/monitors")"
 check evaluators 404 "$(code "${A[@]}" "$B/evaluators")"

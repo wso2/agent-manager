@@ -50,39 +50,29 @@ type routeEvent struct {
 	// (an API key, a token, a client secret) that must never leave the
 	// platform in an event.
 	OmitData bool
-	// EnvironmentQuery declares that the route accepts ?environment=.
-	EnvironmentQuery bool
 }
 
 // routeEvents is keyed by the registrar pattern. A route not listed here
 // emits nothing. An agent event acting on an environment carries it (from
-// the path, query, response or a handler annotation) and reaches the
+// the path or a handler annotation) and reaches the
 // subscriptions whose environment filter selects it; one with no
 // environment, such as a build, reaches them whatever their filter.
 var routeEvents = map[string]routeEvent{
 	// --- Org ------------------------------------------------------------
-	"POST /orgs/{orgName}/projects":                              {Type: "project.created"},
-	"DELETE /orgs/{orgName}/projects/{projName}":                 {Type: "project.deleted"},
-	"POST /orgs/{orgName}/environments":                          {Type: "environment.created"},
-	"PUT /orgs/{orgName}/environments/{envID}":                   {Type: "environment.updated"},
-	"DELETE /orgs/{orgName}/environments/{envID}":                {Type: "environment.deleted"},
-	"POST /orgs/{orgName}/deployment-pipelines":                  {Type: "deployment_pipeline.created"},
-	"PUT /orgs/{orgName}/deployment-pipelines/{pipelineName}":    {Type: "deployment_pipeline.updated"},
-	"DELETE /orgs/{orgName}/deployment-pipelines/{pipelineName}": {Type: "deployment_pipeline.deleted"},
-	"POST /orgs/{orgName}/agent-kinds/{kindName}/versions":       {Type: "agent_kind.version_added"},
-	"PUT /orgs/{orgName}/agent-kinds/{kindName}":                 {Type: "agent_kind.updated"},
-	"DELETE /orgs/{orgName}/agent-kinds/{kindName}":              {Type: "agent_kind.deleted"},
-	"POST /orgs/{orgName}/git-secrets":                           {Type: "git_secret.created", OmitData: true},
-	"DELETE /orgs/{orgName}/git-secrets/{secretName}":            {Type: "git_secret.deleted"},
-	"POST /orgs/{orgName}/identities/users/invite":               {Type: "user.invited", OmitData: true},
-	"POST /orgs/{orgName}/identities/users":                      {Type: "user.created", OmitData: true},
-	"DELETE /orgs/{orgName}/identities/users/{userID}":           {Type: "user.deleted"},
-	"POST /orgs/{orgName}/identities/roles":                      {Type: "role.created"},
-	"PUT /orgs/{orgName}/identities/roles/{roleID}":              {Type: "role.updated"},
-	"DELETE /orgs/{orgName}/identities/roles/{roleID}":           {Type: "role.deleted"},
-	"POST /orgs/{orgName}/identities/groups":                     {Type: "group.created"},
-	"PUT /orgs/{orgName}/identities/groups/{groupID}":            {Type: "group.updated"},
-	"DELETE /orgs/{orgName}/identities/groups/{groupID}":         {Type: "group.deleted"},
+	"POST /orgs/{orgName}/projects":                      {Type: "project.created"},
+	"DELETE /orgs/{orgName}/projects/{projName}":         {Type: "project.deleted"},
+	"POST /orgs/{orgName}/environments":                  {Type: "environment.created"},
+	"PUT /orgs/{orgName}/environments/{envID}":           {Type: "environment.updated"},
+	"DELETE /orgs/{orgName}/environments/{envID}":        {Type: "environment.deleted"},
+	"POST /orgs/{orgName}/identities/users/invite":       {Type: "user.invited", OmitData: true},
+	"POST /orgs/{orgName}/identities/users":              {Type: "user.created", OmitData: true},
+	"DELETE /orgs/{orgName}/identities/users/{userID}":   {Type: "user.deleted"},
+	"POST /orgs/{orgName}/identities/roles":              {Type: "role.created"},
+	"PUT /orgs/{orgName}/identities/roles/{roleID}":      {Type: "role.updated"},
+	"DELETE /orgs/{orgName}/identities/roles/{roleID}":   {Type: "role.deleted"},
+	"POST /orgs/{orgName}/identities/groups":             {Type: "group.created"},
+	"PUT /orgs/{orgName}/identities/groups/{groupID}":    {Type: "group.updated"},
+	"DELETE /orgs/{orgName}/identities/groups/{groupID}": {Type: "group.deleted"},
 
 	// --- Project --------------------------------------------------------
 	"PUT /orgs/{orgName}/projects/{projName}":                       {Type: "project.updated"},
@@ -90,15 +80,7 @@ var routeEvents = map[string]routeEvent{
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}": {Type: "agent.deleted"},
 
 	// --- Agent ----------------------------------------------------------
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}":                    {Type: "agent.updated"},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters":   {Type: "agent.build_parameters_updated"},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations":     {Type: "agent.configuration_updated"},
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs":   {Type: "agent.configuration_updated", EnvironmentQuery: true},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds":            {Type: "agent.build_triggered"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments":       {Type: "agent.deployed"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote":           {Type: "agent.promoted"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state": {Type: "agent.deployment_state_changed"},
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind":      {Type: "agent.kind_published"},
+	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}": {Type: "agent.updated"},
 }
 
 // types is the catalog of every event subscriptions can name.
@@ -311,9 +293,4 @@ func RoutePatterns() []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// RouteUsesEnvironmentQuery reports whether the route declares an environment query parameter.
-func RouteUsesEnvironmentQuery(pattern string) bool {
-	return routeEvents[pattern].EnvironmentQuery
 }

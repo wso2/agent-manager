@@ -167,16 +167,12 @@ func guardedRoutes(org string) []guardedRoute {
 		{http.MethodPost, identityBase + "/groups", []string{"amp:group:create"}},
 		{http.MethodDelete, identityBase + "/groups/" + absentName, []string{"amp:group:delete"}},
 
-		// --- Secrets and gateways --------------------------------------------
-		{http.MethodPost, orgBase + "/git-secrets", []string{"amp:git-secret:create"}},
-		{http.MethodDelete, orgBase + "/git-secrets/" + absentName, []string{"amp:git-secret:delete"}},
+		// --- Gateways --------------------------------------------------------
 		{http.MethodPost, gwOrgBase + "/gateways", []string{"amp:ai-gateway:gateways.create"}},
 		{http.MethodDelete, gwOrgBase + "/gateways/" + absentName, []string{"amp:ai-gateway:gateways.delete"}},
 		{http.MethodPost, gwOrgBase + "/gateways/" + absentName + "/tokens", []string{"amp:ai-gateway:gateways.token-manage"}},
 
-		// --- Agent kinds and catalog ------------------------------------------
-		{http.MethodPut, orgBase + "/agent-kinds/" + absentName, []string{"amp:agent-kind:update"}},
-		{http.MethodDelete, orgBase + "/agent-kinds/" + absentName, []string{"amp:agent-kind:delete"}},
+		// --- Catalog ----------------------------------------------------------
 		{http.MethodGet, gwOrgBase + "/catalog", []string{"amp:ai-gateway:catalog.read"}},
 	}
 }

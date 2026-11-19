@@ -31,7 +31,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the AI Gateway
-	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy"    // the legacy routes
+	_ "github.com/wso2/agent-manager/agent-manager-service/modules/legacy"    // what no module owns yet
 	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 

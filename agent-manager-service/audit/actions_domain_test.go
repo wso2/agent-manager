@@ -45,10 +45,6 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		{"POST /orgs/{orgName}/git-secrets", []rbac.Permission{rbac.GitSecretCreate}, ActionGitSecretCreate},
 		{"DELETE /orgs/{orgName}/git-secrets/{secretName}", []rbac.Permission{rbac.GitSecretDelete}, ActionGitSecretDelete},
 		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token", nil, ActionAgentTokenMint},
-		{
-			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/tracing-token/regenerate",
-			nil, ActionAgentTokenRegenerateTracing,
-		},
 		{"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", nil, ActionAgentIdentityProvision},
 		{
 			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities",
@@ -81,12 +77,6 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		{"POST /orgs/{orgName}/identities/users", nil, ActionUserCreate},
 		{"POST /orgs/{orgName}/identities/users/invite", nil, ActionUserInvite},
 		{"DELETE /orgs/{orgName}/identities/users/{userID}", nil, ActionUserDelete},
-		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", nil, ActionAgentDeploy},
-		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote", nil, ActionAgentPromote},
-		{
-			"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state",
-			nil, ActionAgentChangeDeploymentState,
-		},
 		{"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}", []rbac.Permission{rbac.AgentDelete}, ActionAgentDelete},
 		{"DELETE /orgs/{orgName}/projects/{projName}", []rbac.Permission{rbac.ProjectDelete}, ActionProjectDelete},
 	}

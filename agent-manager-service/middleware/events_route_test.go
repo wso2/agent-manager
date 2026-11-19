@@ -58,18 +58,18 @@ func serveEvent(t *testing.T, pattern string, pathValues map[string]string, hand
 	return pub
 }
 
-func TestWithEvents_PublishesDeployWithEnvironmentFromResponse(t *testing.T) {
-	pub := serveEvent(t, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments",
+func TestWithEvents_PublishesAgentEvent(t *testing.T) {
+	pub := serveEvent(t, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}",
 		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"},
 		func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusAccepted)
-			_, _ = w.Write([]byte(`{"agentName":"a1","environment":"dev","imageId":"img","apiKey":"sk-1"}`))
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"name":"a1","environment":"dev","imageId":"img","apiKey":"sk-1"}`))
 		})
 
 	require.Len(t, pub.got, 1)
 	e := pub.got[0]
-	assert.Equal(t, "com.wso2.agentmanager.agent.deployed", e.Type)
-	assert.Equal(t, "agent.deployed", e.Name())
+	assert.Equal(t, "com.wso2.agentmanager.agent.updated", e.Type)
+	assert.Equal(t, "agent.updated", e.Name())
 	assert.Equal(t, "1.0", e.SpecVersion)
 	assert.Equal(t, "application/json", e.DataContentType)
 	assert.Equal(t, "/agent-manager/orgs/ou-1/projects/p1/agents/a1", e.Source)
@@ -78,7 +78,7 @@ func TestWithEvents_PublishesDeployWithEnvironmentFromResponse(t *testing.T) {
 	assert.Equal(t, "acme", e.OrgHandle)
 	assert.Equal(t, "p1", e.Project)
 	assert.Equal(t, "a1", e.Agent)
-	assert.Equal(t, "dev", e.Environment, "the environment is read from the response")
+	assert.Empty(t, e.Environment, "the environment comes from the path or a handler annotation, never the response")
 	data := e.Data.(map[string]any)
 	assert.Equal(t, "img", data["imageId"])
 	assert.NotContains(t, data, "apiKey", "credential fields are removed")
@@ -152,33 +152,6 @@ func TestWithEvents_HandlerAnnotations(t *testing.T) {
 	assert.Equal(t, []string{"description"}, pub.got[0].Data.(map[string]any)["changed"])
 }
 
-func TestWithEvents_AgentEventsAreEnvironmentSpecific(t *testing.T) {
-	// The environment can come from the query string...
-	pub := serveEvent(t, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs?environment=prod",
-		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"},
-		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, "prod", pub.got[0].Environment)
-
-	// ...or from a handler annotation when it is in the request body.
-	pub = serveEvent(t, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations",
-		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"},
-		func(w http.ResponseWriter, r *http.Request) {
-			events.SetEnvironment(r.Context(), "dev")
-			w.WriteHeader(http.StatusNoContent)
-		})
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, "dev", pub.got[0].Environment)
-
-	// A build is not tied to an environment: it is an agent event with none.
-	pub = serveEvent(t, "POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds",
-		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"},
-		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusAccepted) })
-	require.Len(t, pub.got, 1)
-	assert.Equal(t, events.ScopeAgent, pub.got[0].Scope)
-	assert.Empty(t, pub.got[0].Environment)
-}
-
 func TestWithEvents_CreateEventsNameTheCreatedResource(t *testing.T) {
 	pub := serveEvent(t, "POST /orgs/{orgName}/projects/{projName}/agents",
 		map[string]string{"orgName": "acme", "projName": "p1"},
@@ -207,18 +180,12 @@ func TestWithEvents_CreateEventsNameTheCreatedResource(t *testing.T) {
 	assert.Equal(t, "/agent-manager/orgs/ou-1/projects/p2", e.Source)
 }
 
-func TestWithEventsIgnoresUndeclaredEnvironmentQuery(t *testing.T) {
-	for _, route := range []string{
-		"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}",
-		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/builds",
-		"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments",
-	} {
-		t.Run(route, func(t *testing.T) {
-			pub := serveEvent(t, route+"?environment=spoofed", map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"}, func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-			require.Len(t, pub.got, 1)
-			assert.Empty(t, pub.got[0].Environment)
-		})
-	}
+func TestWithEventsIgnoresEnvironmentQuery(t *testing.T) {
+	pub := serveEvent(t, "PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}?environment=spoofed",
+		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1"},
+		func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	require.Len(t, pub.got, 1)
+	assert.Empty(t, pub.got[0].Environment)
 }
 
 // flushCheckPublisher records whether the response had been sent when the

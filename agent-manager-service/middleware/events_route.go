@@ -38,9 +38,6 @@ const maxEventBodyBytes = 256 << 10
 // Path parameters that carry the environment an agent-scope route acts on.
 var envPathParams = []string{"envName", "envID"}
 
-// Response fields that name the environment, in the order they are tried.
-var envResponseFields = []string{"environment", "environmentName", "targetEnvironment"}
-
 // WithEvents publishes the route's catalog event after a successful response.
 //
 // It wraps the handler directly, inside org resolution and authorization, so
@@ -121,16 +118,6 @@ func withRouteEvent(publisher events.Publisher, meta audit.RouteMeta, eventType 
 			for _, p := range envPathParams {
 				if e.Environment == "" {
 					e.Environment = r.PathValue(p)
-				}
-			}
-			if e.Environment == "" && events.RouteUsesEnvironmentQuery(meta.Pattern) {
-				e.Environment = r.URL.Query().Get("environment")
-			}
-			for _, f := range envResponseFields {
-				if e.Environment == "" {
-					if s, ok := data[f].(string); ok {
-						e.Environment = s
-					}
 				}
 			}
 

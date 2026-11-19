@@ -184,9 +184,9 @@ func shouldAudit(method, path string) bool {
 // nonMutatingWritePaths are POST routes that change no state. They are excluded
 // to keep the trail signal-dense.
 //
-// Deliberately narrow: POST /repositories/* and mcp-proxies/fetch-server-info
-// are also technically reads, but both make outbound calls with caller-supplied
-// credentials, so they stay audited.
+// Deliberately narrow: mcp-proxies/fetch-server-info is also technically a
+// read, but it makes outbound calls with caller-supplied credentials, so it
+// stays audited.
 var nonMutatingWritePaths = map[string]bool{
 	// Suggests an available agent name. Pure function, no persistence.
 	"/orgs/{orgName}/utils/generate-name": true,
@@ -214,7 +214,6 @@ var coalesceWindows = map[string]time.Duration{}
 
 var sensitiveReadPaths = map[string]bool{
 	// Credential material.
-	"/orgs/{orgName}/git-secrets":                                       true,
 	"/orgs/{orgName}/projects/{projName}/agents/{agentName}/identities": true,
 
 	// Security configuration — who holds which privilege.
@@ -231,10 +230,8 @@ var sensitiveReadPaths = map[string]bool{
 //  1. One permission gates several distinct operations. Every API-key route is
 //     gated by "*:api-key-manage", so create, rotate and revoke would otherwise
 //     be indistinguishable — precisely the distinction an auditor needs.
-//  2. The permission names a different resource than the operation acts on
-//     (publish-kind is gated by agent-kind:create but acts on an agent).
-//  3. The permission is narrower or broader than the effect
-//     (deployments/state is gated by agent:suspend but also resumes).
+//  2. The permission names a different resource than the operation acts on.
+//  3. The permission is narrower or broader than the effect.
 //
 // Keys are matched against the path with the method prefix stripped, so the
 // same path under different methods maps through methodActionOverrides first.
@@ -257,15 +254,6 @@ var actionOverrides = map[string]Action{
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}":    "event-subscription:update",
 	"DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/events/subscriptions/{subscriptionId}": "event-subscription:delete",
 
-	// Gating permission names a different resource than the effect.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/publish-kind": "agent-kind:publish",
-
-	// One permission, several operations — deployment lifecycle.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments": "agent:deploy",
-	// Gated by agent:update, which does not name the operation.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/promote":           "agent:promote",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments/state": "agent:change-deployment-state",
-
 	// One permission, several operations — agent OAuth identity.
 	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":        "agent-identity:provision",
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities":       "agent-identity:regenerate-secret",
@@ -273,8 +261,7 @@ var actionOverrides = map[string]Action{
 	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities/retry": "agent-identity:retry-provisioning",
 
 	// One permission, several operations — agent tokens.
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token":                    "agent-token:mint",
-	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/tracing-token/regenerate": "agent-token:regenerate-tracing",
+	"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token": "agent-token:mint",
 
 	// The privilege-escalation path. All four are gated by role:update, and
 	// telling them apart is the whole point of an audit trail.
@@ -296,21 +283,7 @@ var actionOverrides = map[string]Action{
 	"PUT /orgs/{orgName}/environments/{envID}/thunder-system-client":    "service-account:configure",
 	"DELETE /orgs/{orgName}/environments/{envID}/thunder-system-client": "service-account:remove",
 
-	// Agent sub-resource updates, all gated by agent:update.
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/build-parameters": "agent:update-build-parameters",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations":   "agent:update-configurations",
-	"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/resource-configs": "agent:update-resource-configs",
-
-	// Agent-kind versions, gated by the coarse kind update/delete permissions.
-	"POST /orgs/{orgName}/agent-kinds/{kindName}/versions":                "agent-kind:add-version",
-	"DELETE /orgs/{orgName}/agent-kinds/{kindName}/versions/{versionTag}": "agent-kind:delete-version",
-
-	// Reads expressed as POST because they carry a request body.
-	"POST /orgs/{orgName}/repositories/branches": "repository:list-branches",
-	"POST /orgs/{orgName}/repositories/commits":  "repository:list-commits",
-
 	// Sensitive reads.
-	"GET /orgs/{orgName}/git-secrets":                                       "git-secret:list",
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities": "agent-identity:read",
 	"GET /orgs/{orgName}/identities/permissions":                            "permission:list",
 	"GET /orgs/{orgName}/identities/roles/{roleID}/assignments":             "role:list-assignments",

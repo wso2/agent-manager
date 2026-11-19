@@ -186,7 +186,7 @@ The data lives in Docker volumes named after `COMPOSE_PROJECT_NAME` (default `am
 
 ## Limits of this preview
 
-- Only external agents are supported. Hosted agents (builds and deployments) are not available; their API routes answer `501 Not Implemented`. Evaluation (evaluators, monitors, scores and alerts) is not part of Lite and has no API routes. No traces are stored.
+- Only external agents are supported. Hosted agents (builds and deployments) are not available; they have no API routes. Evaluation (evaluators, monitors, scores and alerts) is not part of Lite and has no API routes. No traces are stored.
 - Each organization has one internal environment, which the console doesn't show.
 - It is not production-ready: there is no high availability, and TLS is up to you.
 - Sign-in is file-based by default, which suits local and single-operator installs. Use `AUTH_MODE=idp` for anything shared; see [How sign-in works](#how-sign-in-works).

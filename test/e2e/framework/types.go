@@ -421,22 +421,6 @@ type DeploymentPipelineListResponse struct {
 }
 
 // ---------------------------------------------------------------------------
-// Catalog / Agent Kinds
-// ---------------------------------------------------------------------------
-
-// AgentKindListItem is one entry in the /agent-kinds list response. The /agent-kinds
-// endpoint is the source of truth for published kinds, so kind-existence checks query this.
-type AgentKindListItem struct {
-	Name          string `json:"name"`
-	LatestVersion string `json:"latestVersion"`
-}
-
-type AgentKindListResponse struct {
-	Kinds []AgentKindListItem `json:"kinds"`
-	Total int                 `json:"total"`
-}
-
-// ---------------------------------------------------------------------------
 // LLM Common Types
 // ---------------------------------------------------------------------------
 

@@ -38,7 +38,7 @@ func TestShouldAuditByMethod(t *testing.T) {
 		{"ordinary get is not audited", http.MethodGet, "/orgs/{orgName}/projects", false},
 		{"head is not audited", http.MethodHead, "/orgs/{orgName}/projects", false},
 		{"options is not audited", http.MethodOptions, "/orgs/{orgName}/projects", false},
-		{"sensitive get is audited", http.MethodGet, "/orgs/{orgName}/git-secrets", true},
+		{"sensitive get is audited", http.MethodGet, "/orgs/{orgName}/identities/permissions", true},
 		{"exempt write is not audited", http.MethodPost, "/orgs/{orgName}/utils/generate-name", false},
 	}
 

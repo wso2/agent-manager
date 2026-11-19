@@ -15,11 +15,8 @@
 // under the License.
 
 // Package legacy registers, as one built-in module, the permissions that no
-// module owns yet (LLM and MCP proxies, agent identities, hosted agents) and
-// the routes of features this version does not serve, which answer 501. It is
-// always active and owns no tables of its own. The AI Gateway's code is the gateway module's;
-// the permissions of its LLM and MCP features stay here, under their scope
-// names, until that module takes them over.
+// module owns yet, under their names from before modules. It is always
+// active, serves no routes and owns no tables.
 package legacy
 
 import (
@@ -27,11 +24,8 @@ import (
 	"io/fs"
 	"slices"
 
-	"github.com/wso2/agent-manager/agent-manager-service/builtin"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/legacy/legacyapi"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
-	"github.com/wso2/agent-manager/agent-manager-service/wiring"
 )
 
 // Name is the module's name.
@@ -41,24 +35,13 @@ type module struct{}
 
 func init() {
 	modkit.Register(module{})
-	builtin.Register(builtin.Bundle{Name: Name, Build: build})
-}
-
-// build returns the legacy routes.
-func build(context.Context, *wiring.AppParams) (*builtin.Parts, error) {
-	return Parts(), nil
-}
-
-// Parts is what the legacy module adds to the server: its routes.
-func Parts() *builtin.Parts {
-	return &builtin.Parts{Routes: legacyapi.RegisterRoutes}
 }
 
 func (module) Manifest() modkit.Manifest {
 	return modkit.Manifest{
 		Name:        Name,
 		Version:     "1.0.0",
-		Description: "Permissions no module owns yet, and the routes of features this version does not serve",
+		Description: "Permissions no module owns yet",
 		CoreAPI:     modkit.CoreAPIVersion,
 		Builtin:     true,
 		Permissions: permissions,

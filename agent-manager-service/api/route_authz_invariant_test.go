@@ -204,7 +204,28 @@ var declaredButUnenforcedPermissions = map[string]string{
 	"gwperm.LLMProviderConnect":            "NOT ENFORCED: no route consults it",
 	"gwperm.MCPServerConfigureGuardrail":   "NOT ENFORCED: no route consults it",
 	"gwperm.MCPServerAPIKeyManage":         "NOT ENFORCED: no route consults it",
+
+	// --- NOT SERVED --------------------------------------------------------
+	// Lite does not serve these features; their placeholder routes are gone,
+	// and the legacy module keeps the permissions under their old names.
+	"AgentBuild":               notServed,
+	"AgentSuspend":             notServed,
+	"AgentKindCreate":          notServed,
+	"AgentKindRead":            notServed,
+	"AgentKindUpdate":          notServed,
+	"AgentKindDelete":          notServed,
+	"DataPlaneRead":            notServed,
+	"DeploymentPipelineCreate": notServed,
+	"DeploymentPipelineRead":   notServed,
+	"DeploymentPipelineUpdate": notServed,
+	"DeploymentPipelineDelete": notServed,
+	"GitSecretCreate":          notServed,
+	"GitSecretRead":            notServed,
+	"GitSecretDelete":          notServed,
+	"RepositoryRead":           notServed,
 }
+
+const notServed = "NOT SERVED: Lite has no route for this feature; both distributions answer 404"
 
 // TestSecurityInvariantEveryPermissionIsEnforced fails when a declared
 // rbac.Permission gates no route and is not accounted for above — and equally
@@ -374,7 +395,6 @@ func TestSecurityInvariantNamingConventionHolds(t *testing.T) {
 var orgScopedPackages = []string{
 	".", filepath.Join("..", "controllers"),
 	filepath.Join("..", "modules", "aigateway", "gwapi"), filepath.Join("..", "modules", "aigateway", "gwctl"),
-	filepath.Join("..", "modules", "legacy", "legacyapi"),
 }
 
 // TestSecurityInvariantHandlersNeverReadOrgFromPath enforces the token-trust model: the org a
@@ -452,7 +472,6 @@ func TestSecurityInvariantHandlersNeverReadOrgFromPath(t *testing.T) {
 var routePackages = []string{
 	".", filepath.Join("..", "mcp"),
 	filepath.Join("..", "modules", "aigateway", "gwapi"),
-	filepath.Join("..", "modules", "legacy", "legacyapi"),
 }
 
 // modulePermissionPackages declare permissions of built-in modules, as
