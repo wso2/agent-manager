@@ -340,7 +340,7 @@ amp module credential <module> <workload> [--subject S] [--out FILE]
 - It prints the credential once on stdout (the id and subject go to stderr). With `--out`, it writes the credential to FILE, readable by its owner only; if FILE already holds one it is kept and nothing is minted, so a bootstrap step can run on every start.
 - `--subject` names who uses it (default: the workload's name). Tokens carry it as their subject.
 - The module must be active. Only a hash of the secret is stored, in `workload_credentials`.
-- A module mints its own with `rt.IssueCredential(ctx, modkit.CredentialRequest{Workload, Subject, OrgID})`, for example one per registered runtime, and revokes one with `rt.RevokeCredential`. Revoking refuses the credential's next heartbeat and drops its instances from health; tokens already issued stay valid until they expire. Purging a module's data (with uninstall, not built yet) revokes all its credentials (`Host.RevokeAllCredentials`).
+- A module mints its own with `rt.IssueCredential(ctx, modkit.CredentialRequest{Workload, Subject, OrgID})`, for example one per registered runtime, and revokes one with `rt.RevokeCredential`. Revoking refuses the credential's next heartbeat and drops its instances from health; tokens already issued stay valid until they expire. Purging a module (`amp module uninstall --purge`) revokes all its credentials.
 
 ### Heartbeat
 
@@ -541,7 +541,7 @@ amp module list                       # NAME VERSION STATE BUILTIN PROVIDES REQU
 amp module install <name> [--with-deps]
 amp module enable <name>
 amp module disable <name>
-amp module uninstall <name>
+amp module uninstall <name> [--purge]
 amp module credential <name> <workload> [--subject S] [--out FILE]
 amp module health [<name>]
 ```
@@ -574,6 +574,8 @@ When a module is disabled:
 - a request with an `extensions` block for it is a 400, and capability lookups fail (a core feature that needs it answers 400 naming the capability);
 - its pages leave the UI manifest, and its permissions leave file sign-in roles and the console's sign-in scopes;
 - its tables and data stay, and events queued for it wait up to 7 days. Uninstall keeps the data too, but drops queued events. Installing or enabling again picks up where it left off.
+
+`amp module uninstall <name> --purge` (also on a module already uninstalled) empties its `mod_<name>_*` tables, deletes its secrets, revokes its workload credentials and forgets it, in one transaction. The tables themselves stay, as in the proof of concept, so installing it again runs no migration; reference data a migration seeded is restored by the module's `OnInstall` (the gateway re-creates its drift scan lease row).
 
 ## Beyond the proof of concept
 

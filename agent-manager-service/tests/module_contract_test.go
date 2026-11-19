@@ -137,7 +137,7 @@ func newModuleWorld(t *testing.T) moduleWorld {
 		rbac.SetCurrent(rbac.NewRegistry())
 		// Leave the shared database as the core binary expects it.
 		for _, m := range []string{testmod.ConsumerName, testmod.Name} {
-			_ = host.Uninstall(context.Background(), m)
+			_ = host.Uninstall(context.Background(), m, false)
 		}
 	})
 	return moduleWorld{

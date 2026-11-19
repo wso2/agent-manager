@@ -184,24 +184,41 @@ func (h *Host) revokeCredential(ctx context.Context, module, id string) error {
 func (h *Host) RevokeAllCredentials(ctx context.Context, module string) (int, error) {
 	var ids []string
 	err := h.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Raw(`SELECT id FROM workload_credentials WHERE module = ? AND revoked_at IS NULL ORDER BY id`, module).
-			Scan(&ids).Error; err != nil {
-			return err
-		}
-		if err := tx.Exec(`UPDATE workload_credentials SET revoked_at = ? WHERE module = ? AND revoked_at IS NULL`,
-			dbx.Now(), module).Error; err != nil {
-			return err
-		}
-		return tx.Exec(`DELETE FROM workload_instances WHERE module = ?`, module).Error
+		var err error
+		ids, err = revokeAllTx(tx, module)
+		return err
 	})
-	for _, id := range ids {
-		audit.Record(ctx, audit.ActionWorkloadCredentialRevoke,
-			audit.ResourceNamed("workload-credential", id, id), audit.Detail("module", module), audit.Result(err))
-	}
+	recordRevoked(ctx, module, ids, err)
 	if err != nil {
 		return 0, err
 	}
 	return len(ids), nil
+}
+
+// revokeAllTx revokes a module's credentials and forgets its workload
+// instances inside tx, returning the revoked credential ids.
+func revokeAllTx(tx *gorm.DB, module string) ([]string, error) {
+	var ids []string
+	if err := tx.Raw(`SELECT id FROM workload_credentials WHERE module = ? AND revoked_at IS NULL ORDER BY id`, module).
+		Scan(&ids).Error; err != nil {
+		return nil, err
+	}
+	if err := tx.Exec(`UPDATE workload_credentials SET revoked_at = ? WHERE module = ? AND revoked_at IS NULL`,
+		dbx.Now(), module).Error; err != nil {
+		return nil, err
+	}
+	if err := tx.Exec(`DELETE FROM workload_instances WHERE module = ?`, module).Error; err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+// recordRevoked audits each credential revoked with a module's.
+func recordRevoked(ctx context.Context, module string, ids []string, err error) {
+	for _, id := range ids {
+		audit.Record(ctx, audit.ActionWorkloadCredentialRevoke,
+			audit.ResourceNamed("workload-credential", id, id), audit.Detail("module", module), audit.Result(err))
+	}
 }
 
 // activeModule reports whether module is active in this replica's snapshot.

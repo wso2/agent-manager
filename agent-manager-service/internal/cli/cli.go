@@ -58,7 +58,8 @@ const usage = `Usage: %[1]s [--config amp.yaml] <command>
   %[1]s module install <name> [--with-deps]          install a module (and the providers it needs)
   %[1]s module enable <name>
   %[1]s module disable <name>
-  %[1]s module uninstall <name>                      deactivate a module; its data is kept
+  %[1]s module uninstall <name> [--purge]            deactivate a module; its data is kept, or with
+                                                     --purge emptied (tables, secrets, workload credentials)
   %[1]s module credential <name> <workload> [--subject S] [--out FILE]
                                                      mint a credential for a module's service workload; it is
                                                      printed once, or written to FILE (kept if FILE exists)
@@ -216,6 +217,7 @@ func writeConfig(thunderDir, fileAuthDir string, others map[string]string) error
 type moduleArgs struct {
 	pos      []string
 	withDeps bool
+	purge    bool
 	subject  string
 	out      string
 }
@@ -239,6 +241,8 @@ func parseModuleArgs(cmd string, args []string) (moduleArgs, error) {
 		switch {
 		case (name == "--with-deps" || name == "-with-deps") && !hasValue && cmd == "install":
 			a.withDeps = true
+		case (name == "--purge" || name == "-purge") && !hasValue && cmd == "uninstall":
+			a.purge = true
 		case name == "--subject" && cmd == "credential":
 			a.subject, err = takeValue()
 		case name == "--out" && cmd == "credential":
@@ -300,7 +304,10 @@ func moduleCmd(args []string) error {
 	case "disable":
 		return report(h.Disable(ctx, pos[0]), "disabled", pos[0])
 	case "uninstall":
-		return report(h.Uninstall(ctx, pos[0]), "uninstalled", pos[0])
+		if a.purge {
+			return report(h.Uninstall(ctx, pos[0], true), "uninstalled and purged", pos[0])
+		}
+		return report(h.Uninstall(ctx, pos[0], false), "uninstalled", pos[0])
 	case "credential":
 		return credential(ctx, h, pos[0], pos[1], a)
 	case "health":

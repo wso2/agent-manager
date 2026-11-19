@@ -106,6 +106,13 @@ func (module) Migrations() fs.FS {
 }
 func (module) UI() fs.FS { return nil }
 
+// OnInstall restores the drift scan's lease row, which the module's
+// migration seeds once: a purge empties the table and runs no migration.
+func (module) OnInstall(ctx context.Context, rt modkit.Runtime) error {
+	return rt.DB().WithContext(ctx).Exec(`INSERT INTO mod_ai_gateway_locks (name)
+		SELECT 'drift_scan' WHERE NOT EXISTS (SELECT 1 FROM mod_ai_gateway_locks WHERE name = 'drift_scan')`).Error
+}
+
 // Init writes the gateway's config.toml, encryption key, listener certificate
 // and registration token at "amp init ai-gateway DIR".
 func (module) Init(_ context.Context, req modkit.InitRequest) error {

@@ -36,6 +36,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/db_migrations/schema"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -720,15 +721,20 @@ func (h *Host) Disable(ctx context.Context, name string) error {
 	})
 }
 
-// Uninstall marks a module uninstalled. Its tables and data stay, because
-// they belong to the binary's schema, so installing it again picks up where it
-// left off.
-func (h *Host) Uninstall(ctx context.Context, name string) error {
-	return h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
+// Uninstall marks a module uninstalled. Without purge its tables and data
+// stay, because they belong to the binary's schema, so installing it again
+// picks up where it left off. With purge its tables are emptied, its secrets
+// deleted and its workload credentials revoked, and it is forgotten: the
+// tables themselves stay, so installing it again needs no migration and its
+// OnInstall restores any reference data. An uninstalled module can still be
+// purged.
+func (h *Host) Uninstall(ctx context.Context, name string, purge bool) error {
+	var revoked []string
+	err := h.change(ctx, func(tx *gorm.DB, states map[string]string) error {
 		if err := h.refuseBuiltin(name); err != nil {
 			return err
 		}
-		if st := stateOf(name, states); st == StateAvailable || st == StateUninstalled {
+		if st := stateOf(name, states); st == StateAvailable || (st == StateUninstalled && !purge) {
 			return &ResolveError{Msg: name + " is not installed"}
 		}
 		if deps := Dependents(name, h.manifests, states, true); len(deps) > 0 {
@@ -738,8 +744,64 @@ func (h *Host) Uninstall(ctx context.Context, name string) error {
 		if err := dropDeliveries(tx, name, time.Time{}); err != nil {
 			return err
 		}
-		return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateUninstalled, dbx.Now(), name).Error
+		if !purge {
+			return tx.Exec(`UPDATE modules SET state = ?, updated_at = ? WHERE name = ?`, StateUninstalled, dbx.Now(), name).Error
+		}
+		var err error
+		if revoked, err = h.purge(tx, name); err != nil {
+			return err
+		}
+		return tx.Exec(`DELETE FROM modules WHERE name = ?`, name).Error
 	})
+	recordRevoked(ctx, name, revoked, err)
+	return err
+}
+
+// purge empties a module's tables, deletes its secrets and revokes its
+// workload credentials inside tx, and returns the revoked credential ids.
+func (h *Host) purge(tx *gorm.DB, name string) ([]string, error) {
+	tables, err := moduleTables(tx, h.driver, name)
+	if err != nil {
+		return nil, err
+	}
+	if len(tables) > 0 {
+		if h.driver == "postgres" {
+			// One statement, so foreign keys between the module's tables hold.
+			if err := tx.Exec(`TRUNCATE TABLE ` + strings.Join(tables, ", ")).Error; err != nil {
+				return nil, fmt.Errorf("emptying %s's tables: %w", name, err)
+			}
+		} else {
+			if err := tx.Exec(`PRAGMA defer_foreign_keys = ON`).Error; err != nil {
+				return nil, err
+			}
+			for _, t := range tables {
+				if err := tx.Exec(`DELETE FROM ` + t).Error; err != nil {
+					return nil, fmt.Errorf("emptying %s: %w", t, err)
+				}
+			}
+		}
+	}
+	if err := tx.Exec(`DELETE FROM secrets WHERE owner_kind = ?`, "mod:"+name).Error; err != nil {
+		return nil, fmt.Errorf("deleting %s's secrets: %w", name, err)
+	}
+	return revokeAllTx(tx, name)
+}
+
+// moduleTables lists a module's tables (mod_<name>_*), quoted for SQL.
+func moduleTables(tx *gorm.DB, driver, module string) ([]string, error) {
+	pattern := strings.ReplaceAll(schema.ModuleTablePrefix(module), "_", `\_`) + "%"
+	q := `SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE ? ESCAPE '\' ORDER BY name`
+	if driver == "postgres" {
+		q = `SELECT tablename FROM pg_tables WHERE schemaname = current_schema() AND tablename LIKE ? ESCAPE '\' ORDER BY tablename`
+	}
+	var names []string
+	if err := tx.Raw(q, pattern).Scan(&names).Error; err != nil {
+		return nil, fmt.Errorf("listing %s's tables: %w", module, err)
+	}
+	for i, n := range names {
+		names[i] = `"` + n + `"`
+	}
+	return names, nil
 }
 
 // ---- listing ----

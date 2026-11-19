@@ -154,7 +154,7 @@ func eventRetentionAndUninstallPurge(t *testing.T, d database) {
 	assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM module_event_deliveries WHERE module = 't-keep'`), "the expired delivery is gone")
 	assert.EqualValues(t, 2, count(t, g, `SELECT count(*) FROM module_events`), "and so is its event")
 
-	require.NoError(t, h.Uninstall(ctx, "t-gone"))
+	require.NoError(t, h.Uninstall(ctx, "t-gone", false))
 	assert.Zero(t, count(t, g, `SELECT count(*) FROM module_event_deliveries WHERE module = 't-gone'`), "an uninstalled module's deliveries are dropped")
 	assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM module_events`))
 }

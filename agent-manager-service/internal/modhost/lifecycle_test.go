@@ -246,7 +246,7 @@ func lifecycle(t *testing.T, d database) {
 
 	t.Run("built-in modules are always active", func(t *testing.T) {
 		assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-builtin' AND state = 'active'`))
-		for _, err := range []error{h1.Disable(ctx, "t-builtin"), h1.Uninstall(ctx, "t-builtin"), h1.Enable(ctx, "t-builtin")} {
+		for _, err := range []error{h1.Disable(ctx, "t-builtin"), h1.Uninstall(ctx, "t-builtin", false), h1.Enable(ctx, "t-builtin")} {
 			assert.True(t, modhost.IsResolveError(err), "got %v", err)
 		}
 	})
@@ -297,7 +297,7 @@ func lifecycle(t *testing.T, d database) {
 
 	t.Run("a provider cannot go while a consumer needs it", func(t *testing.T) {
 		assert.True(t, modhost.IsResolveError(h1.Disable(ctx, "t-store")))
-		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-store")))
+		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-store", false)))
 	})
 
 	t.Run("a disabled module stops and keeps its data", func(t *testing.T) {
@@ -314,13 +314,33 @@ func lifecycle(t *testing.T, d database) {
 
 	t.Run("uninstall keeps the tables and data; reinstall needs no migration", func(t *testing.T) {
 		before := migrationRows()
-		require.NoError(t, h1.Uninstall(ctx, "t-consumer"))
+		require.NoError(t, h1.Uninstall(ctx, "t-consumer", false))
 		assert.NotContains(t, h1.Active(), "t-consumer")
-		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-consumer")))
+		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-consumer", false)))
 		steps, err := h1.Install(ctx, "t-consumer", false)
 		require.NoError(t, err)
 		assert.Equal(t, []modhost.Step{{Module: "t-consumer", Action: "install"}}, steps)
 		assert.EqualValues(t, 1, count(t, g, `SELECT count(*) FROM mod_t_consumer_notes`))
+		assert.Equal(t, before, migrationRows())
+	})
+
+	t.Run("purge empties the tables and secrets; reinstall needs no migration", func(t *testing.T) {
+		before := migrationRows()
+		org := uuid.NewString()
+		require.NoError(t, g.Exec(`INSERT INTO organizations (id, handle, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?)`,
+			org, "purge-org", "purge-org", time.Now(), time.Now()).Error)
+		require.NoError(t, g.Exec(`INSERT INTO secrets (id, org_id, owner_kind, owner_id, provider, ciphertext, version, created_at, updated_at)
+			VALUES (?, ?, 'mod:t-consumer', ?, 'db', ?, 1, ?, ?)`, uuid.NewString(), org, uuid.NewString(), []byte("x"), time.Now(), time.Now()).Error)
+		require.NoError(t, h1.Uninstall(ctx, "t-consumer", false))
+		// An uninstalled module can still be purged.
+		require.NoError(t, h1.Uninstall(ctx, "t-consumer", true))
+		assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM mod_t_consumer_notes`))
+		assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM secrets WHERE owner_kind = 'mod:t-consumer'`))
+		assert.EqualValues(t, 0, count(t, g, `SELECT count(*) FROM modules WHERE name = 't-consumer'`))
+		assert.True(t, modhost.IsResolveError(h1.Uninstall(ctx, "t-consumer", true)), "a purged module is not installed")
+		steps, err := h1.Install(ctx, "t-consumer", false)
+		require.NoError(t, err)
+		assert.Equal(t, []modhost.Step{{Module: "t-consumer", Action: "install"}}, steps)
 		assert.Equal(t, before, migrationRows())
 	})
 
