@@ -78,7 +78,7 @@ func (c *client) do(ctx context.Context, sql string, params map[string]string) (
 		return nil, fmt.Errorf("clickhouse: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		return nil, &Error{Status: resp.StatusCode, Message: strings.TrimSpace(string(body))}
 	}
@@ -91,7 +91,7 @@ func (c *client) exec(ctx context.Context, sql string, params map[string]string)
 	if err != nil {
 		return err
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 	_, err = io.Copy(io.Discard, body)
 	return err
 }
@@ -102,7 +102,7 @@ func (c *client) query(ctx context.Context, sql string, params map[string]string
 	if err != nil {
 		return err
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 	sc := bufio.NewScanner(body)
 	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for sc.Scan() {

@@ -20,6 +20,8 @@ package clickhouse
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,8 +39,8 @@ import (
 // with users.xml mounted and its passwords set (see the service's CI
 // workflow), and skip when it is unset. They own its otel database.
 type testEnv struct {
-	url                             string
-	admin, migrator, ingest, reader *client
+	url                                      string
+	admin, migrator, ingest, reader, cleaner *client
 }
 
 func clickhouseEnv(tb testing.TB) testEnv {
@@ -60,6 +62,7 @@ func clickhouseEnv(tb testing.TB) testEnv {
 		migrator: mk("amp_migrator", os.Getenv("AMP_CLICKHOUSE_MIGRATOR_PASSWORD")),
 		ingest:   mk("amp_ingest", os.Getenv("AMP_CLICKHOUSE_INGEST_PASSWORD")),
 		reader:   mk("amp_reader", os.Getenv("AMP_CLICKHOUSE_READER_PASSWORD")),
+		cleaner:  mk("amp_cleaner", os.Getenv("AMP_CLICKHOUSE_CLEANER_PASSWORD")),
 	}
 	e.applySchema(tb)
 	if err := e.admin.exec(context.Background(), "TRUNCATE TABLE "+Table, nil); err != nil {
@@ -68,13 +71,27 @@ func clickhouseEnv(tb testing.TB) testEnv {
 	return e
 }
 
-// applySchema creates the database and table as the migrator.
+// schema returns the Schema as user logs in.
+func (e testEnv) schema(tb testing.TB, user, password string, ttlDays int) *Schema {
+	tb.Helper()
+	s, err := NewSchema(SchemaConfig{URL: e.url, User: user, Password: password, TTLDays: ttlDays}, Migrations())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return s
+}
+
+func (e testEnv) migratorSchema(tb testing.TB, ttlDays int) *Schema {
+	return e.schema(tb, "amp_migrator", os.Getenv("AMP_CLICKHOUSE_MIGRATOR_PASSWORD"), ttlDays)
+}
+
+// applySchema applies the schema files not yet recorded, as amp migrate does.
 func (e testEnv) applySchema(tb testing.TB) {
 	tb.Helper()
 	ctx := context.Background()
-	noDB := *e.migrator
-	noDB.database = ""
-	if err := noDB.exec(ctx, "CREATE DATABASE IF NOT EXISTS "+DefaultDatabase, nil); err != nil {
+	s := e.migratorSchema(tb, 0)
+	applied, err := s.Applied(ctx)
+	if err != nil {
 		tb.Fatal(err)
 	}
 	files, err := fs.Glob(Migrations(), "*.sql")
@@ -82,11 +99,16 @@ func (e testEnv) applySchema(tb testing.TB) {
 		tb.Fatal(err)
 	}
 	for _, f := range files {
+		version := strings.TrimSuffix(f, ".sql")
+		if _, ok := applied[version]; ok {
+			continue
+		}
 		body, err := fs.ReadFile(Migrations(), f)
 		if err != nil {
 			tb.Fatal(err)
 		}
-		if err := e.migrator.exec(ctx, string(body), nil); err != nil {
+		sum := sha256.Sum256(body)
+		if err := s.Apply(ctx, version, hex.EncodeToString(sum[:]), body); err != nil {
 			tb.Fatalf("%s: %v", f, err)
 		}
 	}
@@ -205,6 +227,18 @@ func TestUserGrants(t *testing.T) {
 	for _, sql := range []string{"SELECT count() FROM " + Table, insert, "DELETE FROM " + Table + " WHERE 1"} {
 		refused("migrator", e.migrator, sql)
 	}
+	for _, sql := range []string{
+		"SELECT count() FROM " + Table,
+		insert,
+		"DROP TABLE " + Table,
+		"ALTER TABLE " + Table + " UPDATE SpanName = 'x' WHERE 1",
+		"ALTER TABLE " + Table + " MODIFY TTL toDateTime(Timestamp) + toIntervalDay(1)",
+	} {
+		refused("cleaner", e.cleaner, sql)
+	}
+	historyInsert := "INSERT INTO " + HistoryTable + " (version, checksum) VALUES ('999_x', 'x')"
+	refused("reader", e.reader, historyInsert)
+	refused("reader", e.reader, "DROP TABLE "+HistoryTable)
 
 	page, err := e.readerStore(t).QueryTraces(ctx, seed("org-a", "agent-1", "").Scope, store.TraceQuery{})
 	if err != nil || page.Total != 1 {
@@ -248,7 +282,7 @@ func TestDeleteAgent(t *testing.T) {
 		seed("org-a", "agent-2", "trace-a2"),
 		seed("org-b", "agent-1", "trace-b1"),
 	}))
-	deleter := e.store(t, os.Getenv("CLICKHOUSE_TEST_ADMIN_USER"), os.Getenv("CLICKHOUSE_TEST_ADMIN_PASSWORD"))
+	deleter := e.store(t, "amp_cleaner", os.Getenv("AMP_CLICKHOUSE_CLEANER_PASSWORD"))
 
 	for range 2 { // the second delete finds nothing and succeeds
 		if err := deleter.DeleteAgent(ctx, "org-a", "agent-1"); err != nil {
@@ -272,6 +306,70 @@ func TestDeleteAgent(t *testing.T) {
 		if page.Total != tc.want {
 			t.Errorf("%s/%s: %d traces after deleting org-a/agent-1, want %d", tc.org, tc.agent, page.Total, tc.want)
 		}
+	}
+}
+
+func TestSchemaHistory(t *testing.T) {
+	e := clickhouseEnv(t)
+	ctx := context.Background()
+
+	// The migrator recorded every file; the reader reads the same record.
+	want, err := e.migratorSchema(t, 0).Applied(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := want["001_otel_traces"]; !ok {
+		t.Fatalf("migrator Applied = %v, want 001_otel_traces recorded", want)
+	}
+	got, err := e.schema(t, "amp_reader", os.Getenv("AMP_CLICKHOUSE_READER_PASSWORD"), 0).Applied(ctx)
+	if err != nil || len(got) != len(want) || got["001_otel_traces"] != want["001_otel_traces"] {
+		t.Errorf("reader Applied = %v, %v; want %v", got, err, want)
+	}
+
+	// Applying a file again is safe, and its record is not duplicated.
+	body, err := fs.ReadFile(Migrations(), "001_otel_traces.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := e.migratorSchema(t, 0).Apply(ctx, "001_otel_traces", want["001_otel_traces"], body); err != nil {
+		t.Fatalf("re-applying 001: %v", err)
+	}
+	again, err := e.migratorSchema(t, 0).Applied(ctx)
+	if err != nil || len(again) != len(want) {
+		t.Errorf("Applied after re-applying = %v, %v; want %v", again, err, want)
+	}
+}
+
+func TestSettleSetsTheTTL(t *testing.T) {
+	e := clickhouseEnv(t)
+	ctx := context.Background()
+	engine := func() string {
+		var out string
+		if err := e.admin.query(ctx, "SELECT engine_full FROM system.tables WHERE database = 'otel' AND name = '"+Table+"'", nil,
+			func(line []byte) error {
+				var r struct {
+					E string `json:"engine_full"`
+				}
+				err := json.Unmarshal(line, &r)
+				out = r.E
+				return err
+			}); err != nil {
+			t.Fatal(err)
+		}
+		return out
+	}
+	// Far-off TTLs, so the other tests' November 2026 spans never expire.
+	for _, days := range []int{3651, 3650, 3650} {
+		if err := e.migratorSchema(t, days).Settle(ctx); err != nil {
+			t.Fatalf("Settle(%d): %v", days, err)
+		}
+		if want := fmt.Sprintf("TTL toDateTime(Timestamp) + toIntervalDay(%d) ", days); !strings.Contains(engine(), want) {
+			t.Errorf("after Settle(%d) the table is %q, want %q", days, engine(), want)
+		}
+	}
+	// Zero leaves it as it is.
+	if err := e.migratorSchema(t, 0).Settle(ctx); err != nil || !strings.Contains(engine(), "toIntervalDay(3650)") {
+		t.Errorf("Settle(0) = %v, table %q; want the TTL unchanged", err, engine())
 	}
 }
 
