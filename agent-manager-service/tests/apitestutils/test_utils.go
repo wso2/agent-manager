@@ -42,8 +42,10 @@ func MakeAppClientWithDeps(t *testing.T, testClients wiring.TestClients, authMid
 // MakeAppClientWithHost is MakeAppClientWithDeps that also returns the module
 // host, for tests that change modules.
 func MakeAppClientWithHost(t *testing.T, testClients wiring.TestClients, authMiddleware jwtassertion.Middleware) (http.Handler, *modhost.Host) {
-	// Use wire to initialize the app parameters with test clients
-	db := db.DB(context.Background())
+	// Use wire to initialize the app parameters with test clients. The plain
+	// handle, as the server uses: db.DB(ctx) carries an operation timeout
+	// that starts now, which would expire under the module host's workers.
+	db := db.GetDB()
 	appParams, err := wiring.InitializeTestAppParamsWithClientMocks(config.GetConfig(), db, authMiddleware, testClients)
 	if err != nil {
 		t.Fatalf("failed to initialize test app params: %v", err)
