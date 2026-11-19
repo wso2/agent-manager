@@ -415,6 +415,38 @@ The gateway module is built in to `amp`. It reads and writes these tables, which
 
 The `legacy` module has no tables.
 
+### AI Hub module tables
+
+The `aihub` module is installable. Its two tables live in the core migrations with plain names: they exist even while the module is off, and stay empty then.
+
+**subscription_plans**: one row per plan of an organization.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| id | ID | no | PK. Gateways key plans by it. |
+| org_id | ID | no | FK → organizations |
+| handle | short text (40) | no | The API's `id`. Unique per organization. |
+| display_name | short text (255) | no | |
+| description | short text (1023) | yes | |
+| status | short text (16) | no | `ACTIVE` or `INACTIVE` |
+| expiry_time | time | yes | |
+| created_by, updated_by | short text (255) | yes | `system` for default plans; empty for plans copied in by the webhook |
+| created_at, updated_at | time | no | A plan copied in by the webhook is dated when it was made at its source. |
+
+Unique (org_id, handle) and (org_id, id).
+
+**subscription_plan_conditions**: the plan's conditions, in order.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| org_id, plan_id | ID | no | FK (org_id, plan_id) → subscription_plans(org_id, id) ON DELETE CASCADE |
+| condition_id | short text (63) | no | `requests`, `tool-calls`, `tokens`, or a custom id |
+| condition_type | short text (32) | no | `request-count`, `tool-call-count`, `token-count` or `custom` |
+| params | JSON | no | Limit windows and `onExceed` for built-in types; the values of a custom condition |
+| sort_order | whole number | no | |
+
+PK (plan_id, condition_id).
+
 ## Known differences from the code
 
 The schema above is the target. The migrations currently differ in these places:

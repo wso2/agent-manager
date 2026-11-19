@@ -15,13 +15,13 @@ func init() {
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
 - **Built-in modules** set `Builtin: true` in their manifest. They are always active and can't be disabled or uninstalled. Today these are `gateway` (the AI Gateway) and `legacy` (the routes Lite doesn't serve yet, which answer `501`).
-- **Installable modules** start as *available* and are installed by an operator (see [Operating modules](#operating-modules)). There are none in this repository yet; `tests/modules/testmod` is one, used only by tests.
+- **Installable modules** start as *available* and are installed by an operator (see [Operating modules](#operating-modules)). `aihub` (the AI Hub: subscription plans) is one; the standalone stack installs it by default through its modules list (`AMP_MODULES=aihub`). `tests/modules/testmod` is another, used only by tests.
 
 A distribution is a `main` package that chooses its modules with blank imports:
 
 | Distribution | `main` | Modules |
 |---|---|---|
-| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `gateway`, `legacy` |
+| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `gateway`, `legacy`, `aihub` |
 | `amp-core` | `cmd/amp-core/main.go` imports nothing | none |
 
 Both call `cli.Main`, so they share every command. The Dockerfile builds one or the other with `--build-arg DISTRIBUTION=amp|amp-core`.
@@ -33,7 +33,7 @@ Both call `cli.Main`, so they share every command. The Dockerfile builds one or 
 | Core | Modules |
 |---|---|
 | Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
-| Users, roles and RBAC, the permission registry | `legacy`: placeholder routes |
+| Users, roles and RBAC, the permission registry | `legacy`: placeholder routes; the AI Hub (`aihub`): subscription plans, their sync from the developer portal and to the gateways |
 | Audit log, settings, secrets, agent tokens and JWKS | Later: observability, evaluation, agent identity, A2A and other product areas as they are split out |
 | HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | |
 
