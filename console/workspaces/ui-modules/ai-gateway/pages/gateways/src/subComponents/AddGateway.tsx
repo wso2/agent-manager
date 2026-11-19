@@ -165,8 +165,8 @@ export function AddGateway() {
 
     const state: SetupGatewayState = {};
     try {
-      const { token } = await createToken({ orgName: orgId, gatewayId: gateway.uuid });
-      keepNewGatewayToken(gateway.uuid, token);
+      const { token, tokenId } = await createToken({ orgName: orgId, gatewayId: gateway.uuid });
+      keepNewGatewayToken(gateway.uuid, token, tokenId);
     } catch (err) {
       state.tokenFailed = true;
       state.tokenError = getErrorMessage(err) || undefined;

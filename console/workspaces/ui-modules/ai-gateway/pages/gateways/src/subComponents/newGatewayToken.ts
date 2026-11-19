@@ -15,23 +15,78 @@
  * under the License.
  */
 
+import { useEffect, useSyncExternalStore } from "react";
+
 /**
- * Hands a new gateway's registration token from the add page to the setup page.
+ * Holds a gateway's one-time registration token for the pages that show it: the add
+ * page leaves it for the setup page, and the setup steps leave a regenerated one.
  *
  * The token is shown only once, so it is kept in memory only: never in the URL, in
  * router state (which the browser keeps in session history), or in storage. A reload
- * loses it, and the setup page then offers Reconfigure to generate a new one.
+ * loses it, and the setup steps then offer Reconfigure to generate a new one.
  */
-const tokens = new Map<string, string>();
+interface NewGatewayToken {
+  token: string;
+  /** The token record's id, so revoking that record drops the token. */
+  tokenId?: string;
+}
 
-export function keepNewGatewayToken(gatewayId: string, token: string): void {
-  tokens.set(gatewayId, token);
+const tokens = new Map<string, NewGatewayToken>();
+/** Mounted pages showing each gateway's token; see useForgetNewGatewayTokenOnLeave. */
+const holders = new Map<string, number>();
+const listeners = new Set<() => void>();
+
+const notify = () => listeners.forEach((listener) => listener());
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+};
+
+export function keepNewGatewayToken(gatewayId: string, token: string, tokenId?: string): void {
+  tokens.set(gatewayId, { token, tokenId });
+  notify();
 }
 
 export function newGatewayToken(gatewayId: string): string | null {
-  return tokens.get(gatewayId) ?? null;
+  return tokens.get(gatewayId)?.token ?? null;
 }
 
 export function forgetNewGatewayToken(gatewayId: string): void {
-  tokens.delete(gatewayId);
+  if (tokens.delete(gatewayId)) notify();
+}
+
+/** Drops the gateway's token if it is the one just revoked; revoking another leaves it. */
+export function forgetRevokedGatewayToken(gatewayId: string, tokenId: string): void {
+  if (tokens.get(gatewayId)?.tokenId === tokenId) forgetNewGatewayToken(gatewayId);
+}
+
+/**
+ * The gateway's token, following the store: one that arrives after the page opened
+ * (the add page's request finishing late) shows up, and a revoked one goes away.
+ */
+export function useNewGatewayToken(gatewayId: string | undefined): string | null {
+  return useSyncExternalStore(subscribe, () => (gatewayId ? newGatewayToken(gatewayId) : null));
+}
+
+/**
+ * Forgets the gateway's token once no page showing it is left: it may be revoked
+ * afterwards, and a later visit must not offer it again. Moving straight from one of
+ * the gateway's pages to another (setup to view) keeps it, since the next page takes
+ * over before the check runs. So does an effect re-run that mounts again at once.
+ */
+export function useForgetNewGatewayTokenOnLeave(gatewayId: string | undefined): void {
+  useEffect(() => {
+    if (!gatewayId) return undefined;
+    holders.set(gatewayId, (holders.get(gatewayId) ?? 0) + 1);
+    return () => {
+      const remaining = (holders.get(gatewayId) ?? 1) - 1;
+      if (remaining > 0) holders.set(gatewayId, remaining);
+      else holders.delete(gatewayId);
+      queueMicrotask(() => {
+        if (!holders.has(gatewayId)) forgetNewGatewayToken(gatewayId);
+      });
+    };
+  }, [gatewayId]);
 }

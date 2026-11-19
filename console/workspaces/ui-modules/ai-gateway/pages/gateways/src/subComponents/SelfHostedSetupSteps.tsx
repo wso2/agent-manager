@@ -34,6 +34,7 @@ import {
   dockerCommands,
   reconfigureToken,
 } from "./selfHostedSetup";
+import { keepNewGatewayToken, useNewGatewayToken } from "./newGatewayToken";
 
 const DEFAULT_GATEWAY_VERSION = "v2026.09.24";
 const DEFAULT_CONTROL_PLANE_URL = "http://localhost:9243";
@@ -123,11 +124,6 @@ const StepText = ({ children }: { children: ReactNode }) => (
 interface SelfHostedSetupStepsProps {
   orgName: string;
   gatewayId: string;
-  /**
-   * The token just minted for this gateway. It lives only in memory: the
-   * server never returns it again, so without one the steps offer Reconfigure.
-   */
-  initialToken?: string | null;
   /** Called once the gateway connects, for a page that reads the gateway elsewhere. */
   onConnected?: () => void;
 }
@@ -135,10 +131,12 @@ interface SelfHostedSetupStepsProps {
 export function SelfHostedSetupSteps({
   orgName,
   gatewayId,
-  initialToken = null,
   onConnected,
 }: SelfHostedSetupStepsProps) {
-  const [token, setToken] = useState<string | null>(initialToken);
+  // The token minted for this gateway, if this session still holds it (see
+  // newGatewayToken). The server never returns it again, so without one the steps
+  // offer Reconfigure. Read from the store, so it follows a late arrival or a revoke.
+  const token = useNewGatewayToken(gatewayId);
   const [justReconfigured, setJustReconfigured] = useState(false);
   const [reconfiguring, setReconfiguring] = useState(false);
   const [reconfigureError, setReconfigureError] = useState<string | null>(null);
@@ -157,9 +155,11 @@ export function SelfHostedSetupSteps({
     isFetching: checkingStatus,
     refetch: recheckStatus,
   } = useGetGateway(params, { pollUntilActive: true });
-  // Polling stops when the gateway has never loaded, so offer a manual retry.
-  const statusFailed = Boolean(statusError) && !gateway;
   const connected = isGatewayActive(gateway);
+  // A failed check is reported even when an earlier one left gateway data: polling may
+  // go on (and a later success clears the error), but a failure that persists must not
+  // read as "still waiting". Polling stops when the gateway never loaded, hence the retry.
+  const statusFailed = Boolean(statusError) && !connected;
   useEffect(() => {
     if (connected) onConnected?.();
     // Only the connection triggers it; a new callback identity must not.
@@ -173,16 +173,21 @@ export function SelfHostedSetupSteps({
     setReconfiguring(true);
     setReconfigureError(null);
     try {
-      const minted = await reconfigureToken(
+      await reconfigureToken(
         async () => {
           // A failed list must abort before anything is revoked or minted.
           const { data } = await refetchTokens({ throwOnError: true });
           return activeTokens(data?.list ?? []).map((t) => t.id);
         },
         (tokenId) => revokeToken({ ...params, tokenId }),
-        async () => (await createToken(params)).token,
+        async () => {
+          const { token: newToken, tokenId } = await createToken(params);
+          // Kept in the store, not in this component: if the user has left by now, the
+          // gateway's page can still show the token that replaced the revoked ones.
+          keepNewGatewayToken(gatewayId, newToken, tokenId);
+          return newToken;
+        },
       );
-      setToken(minted);
       setJustReconfigured(true);
     } catch (e) {
       setReconfigureError(e instanceof Error ? e.message : "Failed to generate a new token.");

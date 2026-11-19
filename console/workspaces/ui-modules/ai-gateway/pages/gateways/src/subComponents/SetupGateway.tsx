@@ -15,14 +15,14 @@
  * under the License.
  */
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Box, Button, Stack } from "@wso2/oxygen-ui";
 import { generatePath, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { LoadErrorNotice, PageLayout } from "@agent-management-platform/views";
 import { isGatewayActive, useGetGateway } from "@agent-management-platform/api-client";
 import { absoluteRouteMap, isSelfHostedGateway } from "@agent-management-platform/types";
 import { SelfHostedSetupSteps } from "./SelfHostedSetupSteps";
-import { forgetNewGatewayToken, newGatewayToken } from "./newGatewayToken";
+import { newGatewayToken, useForgetNewGatewayTokenOnLeave } from "./newGatewayToken";
 
 /** Router state the add page leaves for this page; never carries the token itself. */
 export interface SetupGatewayState {
@@ -48,11 +48,12 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
   const { orgId = "" } = useParams<{ orgId: string }>();
   const navigate = useNavigate();
   const { state } = useLocation() as { state: SetupGatewayState | null };
-  // Read once: the steps own the token from here (Reconfigure replaces it).
+  // Whether the add page left a token, read once for the notices below. The steps
+  // read the token itself from the store.
   const [token] = useState(() => newGatewayToken(gatewayId));
-  // However the page is left (Done, Back, the sidebar), the token is forgotten: it may
-  // be revoked afterwards, and a later visit must not offer it again.
-  useEffect(() => () => forgetNewGatewayToken(gatewayId), [gatewayId]);
+  // Leaving the gateway's pages (Back, the sidebar) forgets the token: it may be
+  // revoked afterwards, and a later visit must not offer it again.
+  useForgetNewGatewayTokenOnLeave(gatewayId);
 
   // Polls until the gateway connects; step 5 of the steps shows the same status.
   const { data: gateway, error, refetch } = useGetGateway(
@@ -120,7 +121,7 @@ function SetupGatewayPage({ gatewayId }: { gatewayId: string }) {
             {state.tokenError ? ` ${state.tokenError}.` : ""} Use Reconfigure to generate one.
           </Alert>
         )}
-        <SelfHostedSetupSteps orgName={orgId} gatewayId={gatewayId} initialToken={token} />
+        <SelfHostedSetupSteps orgName={orgId} gatewayId={gatewayId} />
         <Box display="flex" justifyContent="flex-start" gap={1}>
           <Button variant="contained" onClick={finish} disabled={!connected}>
             Done

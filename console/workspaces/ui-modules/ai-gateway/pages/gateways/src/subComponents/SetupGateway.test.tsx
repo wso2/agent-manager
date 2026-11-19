@@ -16,7 +16,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { SetupGateway, type SetupGatewayState } from "./SetupGateway";
 import { keepNewGatewayToken, newGatewayToken } from "./newGatewayToken";
@@ -55,11 +55,15 @@ vi.mock("@agent-management-platform/views", async () => {
   };
 });
 
-vi.mock("./SelfHostedSetupSteps", () => ({
-  SelfHostedSetupSteps: ({ initialToken }: { initialToken: string | null }) => (
-    <div>steps token={initialToken ?? "none"}</div>
-  ),
-}));
+// Like the real steps, the stand-in reads the token from the store.
+vi.mock("./SelfHostedSetupSteps", async () => {
+  const { useNewGatewayToken } = await import("./newGatewayToken");
+  return {
+    SelfHostedSetupSteps: ({ gatewayId }: { gatewayId: string }) => (
+      <div>steps token={useNewGatewayToken(gatewayId) ?? "none"}</div>
+    ),
+  };
+});
 
 const renderSetup = (state: SetupGatewayState | null = null) =>
   render(
@@ -79,7 +83,7 @@ afterEach(() => {
 });
 
 describe("SetupGateway", () => {
-  it("passes the token left by the add page to the steps, and forgets it on leaving", () => {
+  it("shows the steps the token left by the add page, and forgets it on leaving", async () => {
     keepNewGatewayToken("gw-1", "secret");
     renderSetup();
 
@@ -87,7 +91,7 @@ describe("SetupGateway", () => {
     expect(screen.getByText("steps token=secret")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Finish later" }));
     expect(screen.getByText("gateway view")).toBeInTheDocument();
-    expect(newGatewayToken("gw-1")).toBeNull();
+    await waitFor(() => expect(newGatewayToken("gw-1")).toBeNull());
   });
 
   it("has no token after a reload, and says why when minting failed", () => {
@@ -113,12 +117,12 @@ describe("SetupGateway", () => {
     expect(screen.getByText("gateway view")).toBeInTheDocument();
   });
 
-  it("forgets the token however the page is left", () => {
+  it("forgets the token however the page is left", async () => {
     keepNewGatewayToken("gw-1", "secret");
     const { unmount } = renderSetup();
 
     unmount();
-    expect(newGatewayToken("gw-1")).toBeNull();
+    await waitFor(() => expect(newGatewayToken("gw-1")).toBeNull());
   });
 
   it("shows an error instead of the steps for a gateway that cannot be loaded", () => {

@@ -41,6 +41,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import { useGatewayFeatures } from "@agent-management-platform/feature-management";
 import { activeTokens } from "./selfHostedSetup";
+import { forgetRevokedGatewayToken } from "./newGatewayToken";
 
 const MAX_ACTIVE_TOKENS = 2;
 
@@ -86,6 +87,9 @@ export function SelfHostedGatewayTokensCard({
       confirmButtonIcon: <Trash size={16} />,
       onConfirm: async () => {
         await revokeToken({ ...params, tokenId });
+        // If the setup steps still show this token, their command would now copy a
+        // credential that cannot connect: drop it, so they offer Reconfigure.
+        forgetRevokedGatewayToken(gatewayId, tokenId);
       },
     });
 

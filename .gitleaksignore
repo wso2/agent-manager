@@ -12,4 +12,4 @@ a37d7c58c02781395f57076cbbb2f71d52545e30:deployments/standalone/.env.example:gen
 # Base64-encoded SVG logo in the docs site, not a credential.
 9cb6dff966d4838347ddfc55c80ec7ed71334600:docs/amp-lite/src/logos.json:generic-api-key:2
 # The OpenAPI example UUID used as a token record's id in a console test (`const tokenId = "3fa85f64-…"`), not a credential.
-6db5b2c77fa9710d747f45ae54aba594ab35a5d9:console/workspaces/ui-modules/ai-gateway/pages/gateways/src/subComponents/SelfHostedGatewayTokensCard.test.tsx:generic-api-key:23
+7f3390e91953d90a5d56ae7285e698784d527fb7:console/workspaces/ui-modules/ai-gateway/pages/gateways/src/subComponents/SelfHostedGatewayTokensCard.test.tsx:generic-api-key:23
