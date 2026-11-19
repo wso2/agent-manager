@@ -40,6 +40,7 @@ type NewStore func(t *testing.T, seeds []Seed) store.TraceStore
 func Run(t *testing.T, newStore NewStore) {
 	t.Run("OrgsWithCollidingIDsAreIsolated", func(t *testing.T) { testOrgIsolation(t, newStore) })
 	t.Run("EmptyOrgIsRejected", func(t *testing.T) { testEmptyOrgRejected(t, newStore) })
+	t.Run("ScopeIDsFilterWithoutNames", func(t *testing.T) { testScopeIDsFilter(t, newStore) })
 }
 
 var (
@@ -59,78 +60,85 @@ func scopeFor(orgID, orgName string) store.Scope {
 	}
 }
 
+// seedFor returns one trace of one span, named after the scope's org.
 func seedFor(sc store.Scope, traceID, spanID string) Seed {
 	start := windowStart.Add(time.Hour)
 	end := start.Add(time.Second)
+	name := "invoke_agent " + sc.Names.Org
 	return Seed{
 		Scope: sc,
 		Trace: store.Trace{
-			TraceID: traceID, TraceName: "invoke_agent", SpanCount: 1,
-			RootSpanID: spanID, RootSpanName: "invoke_agent",
+			TraceID: traceID, TraceName: name, SpanCount: 1,
+			RootSpanID: spanID, RootSpanName: name,
 			StartTime: start, EndTime: end, DurationNs: end.Sub(start).Nanoseconds(),
 		},
 		Spans: []store.SpanDetails{{
-			SpanID: spanID, SpanName: "invoke_agent",
+			SpanID: spanID, SpanName: name,
 			StartTime: start, EndTime: end, DurationNs: end.Sub(start).Nanoseconds(),
 			Attributes: map[string]any{"org": sc.OrgID},
 		}},
 	}
 }
 
+// testOrgIsolation stores the same trace and span IDs in two orgs; each org
+// must read only its own payload.
 func testOrgIsolation(t *testing.T, newStore NewStore) {
 	ctx := context.Background()
 	orgA := scopeFor("org-a", "acme")
 	orgB := scopeFor("org-b", "globex")
 	s := newStore(t, []Seed{
-		seedFor(orgA, "trace-a", "span-a"),
-		seedFor(orgB, "trace-b", "span-b"),
+		seedFor(orgA, "trace-1", "span-1"),
+		seedFor(orgB, "trace-1", "span-1"),
 	})
 
-	for _, tc := range []struct {
-		scope                 store.Scope
-		ownTrace, ownSpan     string
-		otherTrace, otherSpan string
-	}{
-		{orgA, "trace-a", "span-a", "trace-b", "span-b"},
-		{orgB, "trace-b", "span-b", "trace-a", "span-a"},
-	} {
-		org := tc.scope.Names.Org
+	for _, sc := range []store.Scope{orgA, orgB} {
+		org, want := sc.Names.Org, "invoke_agent "+sc.Names.Org
 
-		page, err := s.QueryTraces(ctx, tc.scope, store.TraceQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10, SortOrder: "desc"})
+		page, err := s.QueryTraces(ctx, sc, store.TraceQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10, SortOrder: "desc"})
 		if err != nil {
 			t.Fatalf("%s: QueryTraces: %v", org, err)
 		}
-		if len(page.Traces) != 1 || page.Traces[0].TraceID != tc.ownTrace || page.Total != 1 {
-			t.Errorf("%s: QueryTraces = %+v, want only %s with total 1", org, page, tc.ownTrace)
+		if len(page.Traces) != 1 || page.Total != 1 || page.Traces[0].RootSpanName != want {
+			t.Errorf("%s: QueryTraces = %+v, want only its own trace with total 1", org, page)
 		}
 
-		spans, err := s.QueryTraceSpans(ctx, tc.scope, tc.ownTrace, store.SpanQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10})
+		spans, err := s.QueryTraceSpans(ctx, sc, "trace-1", store.SpanQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10})
 		if err != nil {
-			t.Fatalf("%s: QueryTraceSpans(own): %v", org, err)
+			t.Fatalf("%s: QueryTraceSpans: %v", org, err)
 		}
-		if len(spans.Spans) != 1 || spans.Spans[0].SpanID != tc.ownSpan {
-			t.Errorf("%s: QueryTraceSpans(own) = %+v, want only %s", org, spans, tc.ownSpan)
-		}
-
-		spans, err = s.QueryTraceSpans(ctx, tc.scope, tc.otherTrace, store.SpanQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10})
-		if err != nil && !errors.Is(err, store.ErrNotFound) {
-			t.Fatalf("%s: QueryTraceSpans(other) error = %v, want nil or ErrNotFound", org, err)
-		}
-		if err == nil && len(spans.Spans) != 0 {
-			t.Errorf("%s: QueryTraceSpans(other) leaked %+v", org, spans.Spans)
+		if len(spans.Spans) != 1 || spans.Spans[0].SpanName != want {
+			t.Errorf("%s: QueryTraceSpans = %+v, want only its own span", org, spans)
 		}
 
-		d, err := s.GetSpanDetails(ctx, tc.scope, tc.ownTrace, tc.ownSpan)
+		d, err := s.GetSpanDetails(ctx, sc, "trace-1", "span-1")
 		if err != nil {
-			t.Fatalf("%s: GetSpanDetails(own): %v", org, err)
+			t.Fatalf("%s: GetSpanDetails: %v", org, err)
 		}
-		if d.SpanID != tc.ownSpan {
-			t.Errorf("%s: GetSpanDetails(own) = %s, want %s", org, d.SpanID, tc.ownSpan)
+		if d.SpanName != want || d.Attributes["org"] != sc.OrgID {
+			t.Errorf("%s: GetSpanDetails = %s %v, want its own span", org, d.SpanName, d.Attributes)
 		}
+	}
+}
 
-		if d, err := s.GetSpanDetails(ctx, tc.scope, tc.otherTrace, tc.otherSpan); !errors.Is(err, store.ErrNotFound) {
-			t.Errorf("%s: GetSpanDetails(other) = %+v, %v; want ErrNotFound", org, d, err)
-		}
+// testScopeIDsFilter queries by agent ID alone; another agent's trace must
+// not match.
+func testScopeIDsFilter(t *testing.T, newStore NewStore) {
+	ctx := context.Background()
+	agent1 := scopeFor("org-a", "acme")
+	agent2 := agent1
+	agent2.AgentID, agent2.Names.Agent = "agent-2", "billing-bot"
+	s := newStore(t, []Seed{
+		seedFor(agent1, "trace-1", "span-1"),
+		seedFor(agent2, "trace-2", "span-2"),
+	})
+
+	byID := store.Scope{OrgID: "org-a", ProjectID: "project-1", AgentID: "agent-2", Names: store.Names{Org: "acme"}}
+	page, err := s.QueryTraces(ctx, byID, store.TraceQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10})
+	if err != nil {
+		t.Fatalf("QueryTraces: %v", err)
+	}
+	if len(page.Traces) != 1 || page.Traces[0].TraceID != "trace-2" {
+		t.Errorf("QueryTraces by agent ID = %+v, want only trace-2", page)
 	}
 }
 
@@ -147,5 +155,8 @@ func testEmptyOrgRejected(t *testing.T, newStore NewStore) {
 	}
 	if page, err := s.QueryTraceSpans(ctx, noOrg, "trace-a", store.SpanQuery{StartTime: windowStart, EndTime: windowEnd, Limit: 10}); !errors.Is(err, store.ErrMissingOrg) {
 		t.Errorf("QueryTraceSpans with no org = %+v, %v; want ErrMissingOrg", page, err)
+	}
+	if d, err := s.GetSpanDetails(ctx, noOrg, "trace-a", "span-a"); !errors.Is(err, store.ErrMissingOrg) {
+		t.Errorf("GetSpanDetails with no org = %+v, %v; want ErrMissingOrg", d, err)
 	}
 }

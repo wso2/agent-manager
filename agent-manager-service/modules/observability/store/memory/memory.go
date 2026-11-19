@@ -131,6 +131,9 @@ func (m *Store) QueryTraceSpans(_ context.Context, s store.Scope, traceID string
 
 // GetSpanDetails reads one span of the Scope's trace.
 func (m *Store) GetSpanDetails(_ context.Context, s store.Scope, traceID, spanID string) (*store.SpanDetails, error) {
+	if err := s.Validate(); err != nil {
+		return nil, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.queries++
@@ -158,14 +161,15 @@ func (m *Store) find(s store.Scope, traceID string) (entry, bool) {
 }
 
 // inScope reports whether a trace stored under have is visible to want; the
-// org must match on both ID and name, and an empty one matches nothing.
+// org must match on both ID and name, and an empty one matches nothing. Each
+// set project, agent and environment ID or name must match too.
 func inScope(have, want store.Scope) bool {
 	h, w := have.Names, want.Names
 	return have.OrgID != "" && have.OrgID == want.OrgID &&
 		h.Org != "" && h.Org == w.Org &&
-		matches(h.Project, w.Project) &&
-		matches(h.Agent, w.Agent) &&
-		matches(h.Environment, w.Environment)
+		matches(have.ProjectID, want.ProjectID) && matches(h.Project, w.Project) &&
+		matches(have.AgentID, want.AgentID) && matches(h.Agent, w.Agent) &&
+		matches(have.EnvironmentID, want.EnvironmentID) && matches(h.Environment, w.Environment)
 }
 
 // matches treats an empty filter as any value.

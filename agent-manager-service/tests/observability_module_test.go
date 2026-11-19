@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/api"
 	"github.com/wso2/agent-manager/agent-manager-service/app"
@@ -68,8 +69,9 @@ func TestObservabilityModule(t *testing.T) {
 		return p
 	}
 	type org struct {
-		id, handle    string
-		full, limited http.Handler
+		id, handle         string
+		projectID, agentID string
+		full, limited      http.Handler
 	}
 	newOrg := func() org {
 		id := uuid.Must(uuid.NewV7()).String()
@@ -95,7 +97,7 @@ func TestObservabilityModule(t *testing.T) {
 	}
 	// Both organizations have a project and an agent of the same names.
 	const project, agent = "obsproj", "obsagent"
-	for _, o := range []org{a, b} {
+	for _, o := range []*org{&a, &b} {
 		code, body := moduleWorld{}.call(t, o.full, http.MethodPost, "/api/v1/orgs/"+o.handle+"/projects",
 			map[string]any{"name": project, "displayName": project})
 		require.Equal(t, http.StatusAccepted, code, string(body))
@@ -106,11 +108,15 @@ func TestObservabilityModule(t *testing.T) {
 				"agentType":    map[string]any{"type": "external-agent-api"},
 			})
 		require.Equal(t, http.StatusAccepted, code, string(body))
+		o.projectID, o.agentID = resolveIDs(t, database, o.id, project, agent)
 	}
 
 	start := time.Now().UTC().Add(-time.Hour).Truncate(time.Second)
 	end := start.Add(2 * time.Second)
-	traces.Add(store.Scope{OrgID: a.id, Names: store.Names{Org: a.handle, Project: project, Agent: agent}},
+	traces.Add(store.Scope{
+		OrgID: a.id, ProjectID: a.projectID, AgentID: a.agentID,
+		Names: store.Names{Org: a.handle, Project: project, Agent: agent},
+	},
 		store.Trace{
 			TraceID: "trace-a", SpanCount: 2, RootSpanID: "root", RootSpanName: "invoke_agent support",
 			StartTime: start, EndTime: end, DurationNs: end.Sub(start).Nanoseconds(),
@@ -217,6 +223,28 @@ func TestObservabilityModule(t *testing.T) {
 			assert.Equal(t, http.StatusNotFound, code, p)
 		}
 	})
+}
+
+// resolveIDs returns the project and agent IDs the module's routes resolve.
+func resolveIDs(t *testing.T, database *gorm.DB, orgID, project, agent string) (string, string) {
+	t.Helper()
+	core := repositories.NewCoreReadAPI(database)
+	projects, err := core.ListProjects(context.Background(), orgID)
+	require.NoError(t, err)
+	for _, p := range projects {
+		if p.Name != project {
+			continue
+		}
+		agents, err := core.ListAgents(context.Background(), orgID, p.ID)
+		require.NoError(t, err)
+		for _, a := range agents {
+			if a.Name == agent {
+				return p.ID, a.ID
+			}
+		}
+	}
+	t.Fatalf("no agent %s/%s in org %s", project, agent, orgID)
+	return "", ""
 }
 
 func mustField(t *testing.T, body []byte, field string) json.RawMessage {

@@ -48,6 +48,9 @@ func TestEmptyOrgRunsNoQuery(t *testing.T) {
 		if _, err := m.QueryTraceSpans(context.Background(), sc, "trace-a", store.SpanQuery{}); !errors.Is(err, store.ErrMissingOrg) {
 			t.Fatalf("QueryTraceSpans(%+v) error = %v, want ErrMissingOrg", sc, err)
 		}
+		if _, err := m.GetSpanDetails(context.Background(), sc, "trace-a", "span-a"); !errors.Is(err, store.ErrMissingOrg) {
+			t.Fatalf("GetSpanDetails(%+v) error = %v, want ErrMissingOrg", sc, err)
+		}
 	}
 	if n := m.Queries(); n != 0 {
 		t.Errorf("Queries() = %d, want 0", n)

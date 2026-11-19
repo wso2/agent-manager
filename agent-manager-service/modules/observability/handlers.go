@@ -80,7 +80,7 @@ func (h handlers) scope(r *http.Request, project, agent string) (tracesv1.Scope,
 		if errors.Is(err, modkit.ErrNotFound) {
 			return tracesv1.Scope{}, notFound("organization")
 		}
-		return tracesv1.Scope{}, err
+		return tracesv1.Scope{}, fmt.Errorf("get organization: %w", err)
 	}
 	s := tracesv1.Scope{OrgID: orgID, Names: tracesv1.Names{Org: org.Handle}}
 	if project == "" {
@@ -91,7 +91,7 @@ func (h handlers) scope(r *http.Request, project, agent string) (tracesv1.Scope,
 	}
 	projects, err := h.core.ListProjects(ctx, orgID)
 	if err != nil {
-		return tracesv1.Scope{}, err
+		return tracesv1.Scope{}, fmt.Errorf("list projects: %w", err)
 	}
 	for _, p := range projects {
 		if p.Name == project {
@@ -106,7 +106,7 @@ func (h handlers) scope(r *http.Request, project, agent string) (tracesv1.Scope,
 	}
 	agents, err := h.core.ListAgents(ctx, orgID, s.ProjectID)
 	if err != nil {
-		return tracesv1.Scope{}, err
+		return tracesv1.Scope{}, fmt.Errorf("list agents: %w", err)
 	}
 	for _, a := range agents {
 		if a.Name == agent {
@@ -240,7 +240,8 @@ func (h handlers) fail(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, tracesv1.ErrForeignOrg):
 		writeError(w, http.StatusForbidden, "the scope is not the caller's organization")
 	default:
-		h.log.Error("observability: trace read failed", "path", r.URL.Path, "error", err)
+		h.log.ErrorContext(r.Context(), "observability: trace read failed",
+			"org", modkit.OrgID(r.Context()), "path", r.URL.Path, "error", err)
 		writeError(w, http.StatusInternalServerError, "failed to read traces")
 	}
 }
