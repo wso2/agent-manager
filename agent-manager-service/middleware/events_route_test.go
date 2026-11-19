@@ -28,6 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/orgctx"
 )
 
@@ -125,12 +126,12 @@ func TestWithEvents_OmitDataRoutesCarryNoBody(t *testing.T) {
 
 func TestWithEvents_APIKeyEventNamesKeyAndEnvironment(t *testing.T) {
 	// The API key service resolves envID, which may be a UUID, to the
-	// environment name, and adds the created key's name.
+	// environment name, and adds the created key's name, through modkit.
 	pub := serveRouteEvent(t, "POST /m/testmod/orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", true,
 		map[string]string{"orgName": "acme", "projName": "p1", "agentName": "a1", "envID": "6f1c0c1e-env-uuid"},
 		func(w http.ResponseWriter, r *http.Request) {
-			events.SetEnvironment(r.Context(), "prod")
-			events.AddData(r.Context(), "name", "k1")
+			modkit.EventEnvironment(r.Context(), "prod")
+			modkit.EventData(r.Context(), "name", "k1")
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"keyId":"k1","apiKey":"the-key"}`))
 		})

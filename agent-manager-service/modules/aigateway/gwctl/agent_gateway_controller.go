@@ -25,7 +25,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
-	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -62,7 +61,7 @@ func (c *AgentGatewayController) UpdateAgentDeploySettings(w http.ResponseWriter
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, "environmentName is required")
 		return
 	}
-	events.SetEnvironment(ctx, payload.EnvironmentName)
+	modkit.EventEnvironment(ctx, payload.EnvironmentName)
 
 	if err := c.agentService.UpdateAgentDeploySettings(ctx, ouID, projName, agentName, &payload); err != nil {
 		log.Error("UpdateAgentDeploySettings: failed to update deploy settings", "error", err)

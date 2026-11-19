@@ -29,7 +29,6 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/events"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -137,7 +136,7 @@ func (s *AgentAPIKeyService) resolveAgentAPIArtifact(ctx context.Context, ouID, 
 		return nil, "", fmt.Errorf("failed to get environment: %w", err)
 	}
 	// envID may be a name or a UUID; events always carry the name.
-	events.SetEnvironment(ctx, environment.Name)
+	modkit.EventEnvironment(ctx, environment.Name)
 
 	artifact, err := agentEnvAPIArtifact(s.artifactRepo, ouID, projectName, agentName, environment.ID, gwmodels.AgentArtifactKinds...)
 	if err != nil {
@@ -198,7 +197,7 @@ func (s *AgentAPIKeyService) CreateAPIKey(
 		resp.GatewayConnected = s.gatewaysConnected(gateways)
 		// The route's event omits the response, which holds the key itself,
 		// so the key name is added for the event's subject.
-		events.AddData(ctx, "name", resp.KeyID)
+		modkit.EventData(ctx, "name", resp.KeyID)
 	}
 	modkit.AuditDetail(ctx, "gatewayConnected", s.gatewaysConnected(gateways) != nil)
 	return resp, err

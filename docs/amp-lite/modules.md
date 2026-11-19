@@ -278,6 +278,7 @@ return rt.PublishTx(r.Context(), tx, WidgetCreated, map[string]string{"name": bo
 - `PublishTx` writes the event in your transaction, so it is delivered only if the transaction commits. `Publish` writes it on its own, or through the hook's transaction when called with a hook's `ctx`. Both refuse an event type the manifest doesn't declare.
 - Delivery is asynchronous and **at least once**: one `module_event_deliveries` row per subscribing module, claimed by a replica that runs the module, with a 30-second deadline per delivery. A failed delivery is retried with backoff (2 seconds, doubling, at most 5 minutes) up to 10 attempts, then kept as failed. A handler that overruns may still be running when the retry starts, so handlers must be idempotent and safe to run concurrently; `testmod` checks for the event id before inserting.
 - Deliveries are kept for 7 days. A disabled module's queued deliveries wait for it within that window; uninstalling drops them.
+- A route that emits a webhook event (`modkit.Emits`) can add to it from its handler: `modkit.EventEnvironment(ctx, name)` sets the environment when the path does not name it (an id in the path, a name in the body), and `modkit.EventData(ctx, key, value)` adds a field to the event's data. Both do nothing outside such a route.
 
 ### Capabilities
 
@@ -591,6 +592,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`Runtime.MCPTool`](#mcp-tools) | Modules contribute tools to the core's `/mcp` server, authorized and audited like core tools. |
 | [`Runtime.Secrets`](#data) | Modules keep secret values encrypted with the core's key without their own key handling. |
 | [`Runtime.Config`](#data) | A module reads its own settings (`MODULE_<NAME>_<KEY>`, or its entry in `amp.yaml`) instead of the core's configuration. |
+| [`modkit.EventEnvironment`, `EventData`](#events) | A route's webhook event takes its environment from the path; a module route that names it by id or in the body sets it, and adds fields the response does not carry (an API key's name, never the key), as core handlers do. |
 | [`Runtime.PublishTx`](#events) | An event written in the module's own transaction is delivered only if that transaction commits. |
 | [`Runtime.Track`](#routes) | The core reports feature usage per route; module routes report theirs the same way. It does nothing when reporting is off. |
 | [`Runtime.IssueCredential`, `RevokeCredential`](#credentials) | A module mints workload credentials for the runtimes it registers itself, not only through `amp module credential`. |
