@@ -50,10 +50,9 @@ func MakeAppClientWithHost(t *testing.T, testClients wiring.TestClients, authMid
 	if err != nil {
 		t.Fatalf("failed to initialize test app params: %v", err)
 	}
-	// The built-in modules and the AI Gateway, which the full distribution
-	// installs by default, run on a module host, as in the server: their
-	// routes, capabilities and hooks (the gateway's finalize hooks remove
-	// its rows of a deleted agent).
+	// The AI Gateway, which the full distribution installs by default, runs
+	// on a module host, as in the server: its routes, capabilities and hooks
+	// (its finalize hooks remove its rows of a deleted agent).
 	var mods []modkit.Module
 	for _, m := range modkit.Registered() {
 		if m.Manifest().Name == aigateway.Name {

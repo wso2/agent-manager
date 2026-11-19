@@ -173,8 +173,8 @@ type MigrationResult struct {
 // enabling, disabling and uninstalling afterwards are data changes only.
 //
 // Each module migrates in its own transaction, so a failing module leaves
-// nothing of itself half-applied. It also records built-in modules as active
-// and moves installed modules' recorded version to the compiled one.
+// nothing of itself half-applied. It also moves installed modules' recorded
+// version to the compiled one.
 func (h *Host) Migrate(ctx context.Context) ([]MigrationResult, error) {
 	if err := h.checkCoreTables(); err != nil {
 		return nil, err

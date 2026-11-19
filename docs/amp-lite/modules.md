@@ -14,7 +14,7 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Every module** starts as *available* and are installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one; `tests/modules/testmod` is another, used only by tests.
+- **Every compiled-in module** starts as *available* and is installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one. `tests/modules/testmod` is linked into no binary: tests hand it to the host.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
 A distribution is a `main` package that chooses its modules with blank imports:
@@ -47,27 +47,33 @@ If the answers are no, it belongs in a module. If a module needs something from 
 
 ## Add a module, step by step
 
-The sections below are the reference; this is the path through them. `tests/modules/testmod` uses every surface and is the example to copy, and `modules/aigateway` is a large real one. What the contract adds to the proof of concept, and where it differs, is listed in [Beyond the proof of concept](#beyond-the-proof-of-concept).
+The sections below are the reference; this is the path through them. `tests/modules/testmod` exercises routes, hooks, events, capabilities, workloads, workers, MCP tools, secrets and core lookups; `modules/aigateway` is a large real one and shows the audit, webhook-data, org-override, `Track`, `UI`, `OnInstall` and `InitComponent` surfaces. What the contract adds to the proof of concept, and where it differs, is listed in [Beyond the proof of concept](#beyond-the-proof-of-concept).
 
-1. **Decide it is a module** ([Core or module?](#core-or-module)), then create `modules/<name>/` with `<name>.go` holding the module type and `init() { modkit.Register(module{}) }` ([Layout](#layout)).
+1. **Decide it is a module** ([Core or module?](#core-or-module)), then create `modules/<name without dashes>/` (the directory `make spec MODULE=<name>` expects) with a Go file holding the module type and `init() { modkit.Register(module{}) }` ([Layout](#layout)). testmod leaves out the `init()`; a real module needs it.
 2. **Write the manifest:** name, version, `CoreAPI`, what it `Provides` and `Requires`, its events and audit actions ([The manifest](#the-manifest)).
-3. **Declare permissions and role grants** in the manifest, by short name (`widgets.read`); they become `<name>:widgets.read` scopes in ThunderID ([The manifest](#the-manifest)).
-4. **Add tables** as YAML under `schema/`, run `make schema`, and embed `migrations/` from `Migrations()`; tables are `mod_<name>_*` and never reference core tables ([Migrations](#migrations)).
-5. **Write `Activate`:** register routes with `rt.Handle`, each with a permission and its route options (audit action, `Emits` for webhook events, `AlsoRequires`, `AllowOrgOverride`, ...), and annotate records and events from handlers with `AuditResource`/`AuditDetail` and `EventEnvironment`/`EventData`. `Activate` registers only: it must not write ([Activate and the Runtime](#activate-and-the-runtime), [Routes](#routes)).
+3. **Declare permissions and role grants** in the manifest, by short name (`widgets.read`); they become the permission `<name>:widgets.read` and the token scope `amp:<name>:widgets.read`. Run `amp init thunder` (and restart ThunderID) to add new scopes to an existing install; file sign-in picks up `RoleGrants` with no step ([The manifest](#the-manifest)).
+4. **Add tables** as YAML under `schema/`, run `make schema`, commit both `migrations/sqlite` and `migrations/postgres`, and embed them from `Migrations()`; tables are `mod_<name>_*` and never reference core tables. Add migration files; never edit one that has shipped ([Migrations](#migrations)).
+5. **Write `Activate`:** register routes with `rt.Handle`, each with a permission and its route options (audit action, `Emits` for webhook events, `AlsoRequires`, `AllowOrgOverride`, ...), and annotate records and events from handlers with `AuditResource`/`AuditDetail` and `EventEnvironment`/`EventData`. `Activate` registers only: it must not write. The default organization and its environment already exist when it runs; a write route calls `rt.Core().EnsureOrg` before an organization's first rows ([Activate and the Runtime](#activate-and-the-runtime), [Routes](#routes)).
 6. **React to the core** with hooks on agents, projects and environments, and subscribe to or publish events ([Hooks](#hooks), [Events](#events)).
 7. **Add the rest it needs:** workers with `rt.Go`, MCP tools with `rt.MCPTool`, secrets with `rt.Secrets()`, settings with `rt.Config` ([Background workers](#background-workers), [MCP tools](#mcp-tools), [Data](#data)).
 8. **Offer or use capabilities** for calls between modules, or into the core (`identity.directory/v1`) ([Capabilities](#capabilities)).
-9. **Describe its API** in `api/openapi.yaml`, run `make spec MODULE=<name>`, and add it to `checkModuleSpec` ([API document](#api-document)).
+9. **Describe its API** in `api/openapi.yaml`, set `info.x-amp-module` and `servers: [{url: /m/<name>}]`, run `make spec MODULE=<name>` (`make codegenfmt-check` must stay clean), and add a `Test<Module>SpecMatchesRoutes` to `api/module_routes_invariant_test.go` that calls `checkModuleSpec` ([API document](#api-document)).
 10. **Add console pages** in a UI module and list them in `UI.Pages` ([Console UI](#console-ui)).
 11. **Add it to a distribution:** import it in `modules/all/all.go` so `cmd/amp` links it. It is then installed with `amp module install` or a `modules:` list; to install it by default, add it to the default list `cmd/amp` passes to `cli.Main` ([What a module is](#what-a-module-is), [Operating modules](#operating-modules)).
 12. **If it ships a service** beside the server, declare it as a workload, and write its files at `amp init <name> DIR` with `modkit.InitComponent` ([Workloads](#workloads), [Optional interfaces](#optional-interfaces)).
-13. **Test it:** unit tests, integration tests in the style of `tests/module_contract_test.go` on both databases, the `api/` invariant tests, and both smokes (`make smoke`, `make smoke-core`) ([Testing](#testing)). It must import only `modkit`, `pkg/` and its own packages; `depguard` checks that ([Module boundaries](#module-boundaries)).
+13. **Test it** ([Testing](#testing)):
+    - unit tests;
+    - integration tests (`//go:build integration`, in the style of `tests/module_contract_test.go`) on SQLite and with `DB_DRIVER=postgres`; a module-local test helper package (like the gateway's `gwtest`) is exempt from `depguard` only once it is added to the linter's exclusions;
+    - register the module in the `api/` invariant tests, which see only the modules they list (see [Testing](#testing));
+    - add smoke checks for its routes to `deployments/standalone/scripts/smoke.sh` and run `make smoke` and `make smoke-core`.
+
+    It must import only `modkit`, `pkg/` and its own packages; `depguard` checks the core part of that ([Module boundaries](#module-boundaries)).
 14. **Document what you add to the contract**, if anything, in this page and in [Beyond the proof of concept](#beyond-the-proof-of-concept), in the same change.
 
 ## Layout
 
 ```text
-modules/<name>/
+modules/<name without dashes>/
 ├── <name>.go          # Manifest, Migrations, UI, Activate, init()
 ├── schema/            # 001_<description>.yaml ...  (what you edit)
 ├── migrations/        # sqlite/ and postgres/       (rendered by make schema)
@@ -117,8 +123,8 @@ return modkit.Manifest{
 
   ```go
   var ui = modkit.UI{Pages: []modkit.Page{
-  	{ID: "ai-gateway/gateways", Permission: "read"},
-  	{ID: "ai-gateway/llm-providers", Permission: string(rbac.LLMProviderRead)},
+  	{ID: "ai-gateway/gateways", Permission: "gateways.read"},
+  	{ID: "ai-gateway/llm-providers", Permission: "llm-providers.read"},
   	...
   }}
   ```
@@ -165,7 +171,7 @@ The core's default organization (`DEFAULT_ORG_OU_ID`) and its default environmen
 ### Data
 
 - `rt.DB()` is the database handle. Read and write only the module's own `mod_<name>_` tables. Nothing stops a query on another table at run time; the rule is enforced by review and by the migration runner.
-- `rt.Core()` reads the core: `GetOrg`, `ListProjects`, `GetProject`, `ListAgents`, `GetAgent`, `ListEnvironments`, and by the names the API uses, `GetProjectByName`, `GetAgentByName` (project and agent name) and `GetEnvironmentByName`. Inside a request or hook it refuses an organization other than the caller's. It also offers two calls that are not reads:
+- `rt.Core()` reads the core: `GetOrg`, `ListProjects`, `GetProject`, `ListAgents`, `GetAgent`, `ListEnvironments`, and by the names the API uses, `GetProjectByName`, `GetAgentByName` (project and agent name) and `GetEnvironmentByName`. Called with the ctx of a request, hook or event, it answers only for that ctx's organization. It also offers two calls that are not reads:
   - `LockAgent(ctx, tx, orgID, agentID)` locks the agent's row inside `tx` (a hook's `req.Tx` or your own transaction) until it ends, so changes to that agent made meanwhile wait;
   - `EnsureOrg(ctx, orgID)` creates the caller's organization, with its default environment, if no core route has created it yet; call it before a route writes the first rows of an organization.
 - `rt.Secrets()` keeps secret values in the core's `secrets` table, encrypted with the core's key: `Put(ctx, orgID, path, value)`, `Get` (`modkit.ErrNotFound` when there is none) and `Delete`. Paths are the module's own (`providers/<id>/api-key`: segments of letters, digits, `.`, `_` and `-`), so a module never reaches another module's secrets or the core's. With a hook's `ctx` they go through the hook's transaction; `rt.Secrets().In(tx)` writes through your own.
@@ -178,12 +184,12 @@ The core's default organization (`DEFAULT_ORG_OU_ID`) and its default environmen
 rt.Handle(http.MethodGet, "/tags", "widget-read", func(w http.ResponseWriter, r *http.Request) { ... })
 ```
 
-`Handle(method, path, perm, h, opts...)` mounts `/m/<name><path>` on the API port, beside the core's `/api/v1`, with the core's sign-in, permission check, organization from the token and audit trail. `perm` is the module's own permission (short name) or a core one. A `GET` may pass `""` (any signed-in user of the organization); every other method must name a permission, which also names its audit action unless an option names another. Paths under `/internal` belong to the workload routes below. `rt.Can(ctx, perm)` checks a permission inside a handler.
+`Handle(method, path, perm, h, opts...)` mounts `/m/<name><path>` on the API port, beside the core's `/api/v1`, with the core's sign-in, permission check, organization from the token and audit trail. Methods are `GET`, `POST`, `PUT`, `PATCH` or `DELETE`; `AlsoRequires`, `AnyPermission`, `PlatformAdmin` and `AllowOrgOverride` apply only to these public routes. `perm` is the module's own permission (short name) or a core one. A `GET` may pass `""` (any signed-in user of the organization); every other method must name a permission, which also names its audit action unless an option names another. Paths under `/internal` belong to the workload routes below. `rt.Can(ctx, perm)` checks a permission inside a handler.
 
 Inside a handler or MCP tool:
 
-- `modkit.OrgID(ctx)` is the organization the request acts on (the caller's, or the one an [allowed org override](#routes) switched to) and `modkit.PrincipalFrom(ctx)` the caller: `User` is the token subject (the signed-in user, or the client of a client-credentials token) and `ClientID` the OAuth client the token was issued to. The PoC's `Principal` also has a `Role`; Lite grants scopes rather than one role, so it is left out, and `rt.Can` answers permission questions.
-- `rt.Track(ctx, event, props)` reports the request as feature usage named `event`, with `props` as its dimensions, after the response is written and with its status. A second call in the same request adds to `props`, later values winning, for dimensions a handler learns as it runs. It does nothing outside a request to one of the module's routes, or when the installation does not report feature usage (`MOESIF_ENABLED`). Feature names follow the product's feature-usage taxonomy, which `middleware/growthanalytics/taxonomy_test.go` checks for the gateway's routes.
+- `modkit.OrgID(ctx)` is the organization the request acts on (the caller's, or the one an [allowed org override](#route-options) switched to) and `modkit.PrincipalFrom(ctx)` the caller: `User` is the token subject (the signed-in user, or the client of a client-credentials token) and `ClientID` the OAuth client the token was issued to. The PoC's `Principal` also has a `Role`; Lite grants scopes rather than one role, so it is left out, and `rt.Can` answers permission questions.
+- `rt.Track(ctx, event, props)` reports the request as feature usage named `event`, with `props` as its dimensions, after the response is written and with its status. A second call in the same request adds to `props`, later values winning, for dimensions a handler learns as it runs. It does nothing outside a request to one of the module's routes, or when the installation does not report feature usage (`MOESIF_ENABLED`). Feature names follow the product's feature-usage taxonomy, which `middleware/growthanalytics/taxonomy_test.go` checks for the gateway's routes; for a new module, add its packages to `routeDirs` there and declare its features in `middleware/growthanalytics/taxonomy.yaml`.
 
 `HandleInternal(method, path, scope, h, opts...)` mounts `/m/<name>/internal<path>` on the internal server (:9243) for the module's own workloads. Callers present a workload token carrying `scope` as `Authorization: Bearer`; `modkit.WorkloadFrom(ctx)` returns who they are (module, workload, instance, subject, organization, scopes). While the module is inactive these routes answer `401 {"error":"module_inactive"}`. A workload gets its tokens from:
 
@@ -260,7 +266,7 @@ rt.MCPTool(modkit.MCPTool{
 }, "widget-read", func(ctx context.Context, args json.RawMessage) (any, error) { ... })
 ```
 
-`rt.MCPTool(tool, perm, h, opts...)` adds a tool to the core's MCP server at `/mcp`. The server lists the active modules' tools on every request, so they appear and disappear with the module. A call needs `perm`, like a route, and is audited under its name unless `modkit.Audit` names another (a read-only tool's calls only with `Audit`). The handler gets the call's arguments as sent and a ctx carrying the caller's organization; its result goes back as JSON. A `modkit.Error` is shown to the caller; any other error is reported as a failure without its text. Tool names are lowercase with underscores, unique across the core and every module: a module whose tool clashes with another module's doesn't activate, and one named like a core tool is never listed.
+`rt.MCPTool(tool, perm, h, opts...)` adds a tool to the core's MCP server at `/mcp`. The server lists the active modules' tools on every request, so they appear and disappear with the module. A call needs `perm` (never `""`, unlike a `GET` route); tool names are lowercase letters, digits and underscores, starting with a letter, at most 64 characters. A call is audited under its name unless `modkit.Audit` names another (a read-only tool's calls only with `Audit`). The handler gets the call's arguments as sent and a ctx carrying the caller's organization; its result goes back as JSON. A `modkit.Error` is shown to the caller; any other error is reported as a failure without its text. Tool names are lowercase with underscores, unique across the core and every module: a module whose tool clashes with another module's doesn't activate, and one named like a core tool is never listed.
 
 ### Hooks
 
@@ -424,7 +430,7 @@ reports each installed module (or one) as `ok`, `degraded` or `inactive`, with i
 
 A module must not:
 
-- import the core's packages (`services`, `repositories`, `controllers`, `models`, ...): see [Module boundaries](#module-boundaries) for what it may import (`tests/modules/testmod` uses every surface above with `modkit` alone);
+- import the core's packages (`services`, `repositories`, `controllers`, `models`, ...): see [Module boundaries](#module-boundaries) for what it may import (`tests/modules/testmod` and `modules/aigateway` use only `modkit`, `pkg/` and their own packages);
 - read or write core tables, or another module's tables; use `rt.Core()`, a capability or an event instead;
 - be named after a core permission resource, or declare permissions outside its own namespace;
 - do work in `Activate` beyond registering: it runs on every replica on every module change.
@@ -479,7 +485,7 @@ A module talks to the core only through the contract. The import rules make that
 | Its own packages (`modules/<name>/...`) | The module's code. |
 | The standard library and third-party modules in `go.mod` | |
 
-Everything else under `agent-manager-service/` is the core (`services`, `repositories`, `controllers`, `models`, `utils`, `config`, `db`, `middleware`, `audit`, `rbac`, ...) and is off limits. Another module's packages are off limits as well; use its capability. The `depguard` linter (`.github/linters/.golangci.yaml`) refuses a core import in a module's non-test files; module tests and the gateway's test helpers (`gwtest`) are exempt.
+Everything else under `agent-manager-service/` is the core (`services`, `repositories`, `controllers`, `models`, `utils`, `config`, `db`, `middleware`, `audit`, `rbac`, ...) and is off limits. Another module's packages are off limits as well; use its capability. The `depguard` linter (`agent-manager-service/.github/linters/.golangci.yaml`) refuses a core import in a module's non-test files (it does not catch an import of another module's packages; review does); module tests and the gateway's test helpers (`gwtest`) are exempt.
 
 ### Leaf libraries (`pkg/`)
 
@@ -528,8 +534,8 @@ Capabilities today:
 
 - **Unit tests** for the module's own logic, with no database. The host's lifecycle (install, enable, disable, dependency resolution, reconcile) is covered in `internal/modhost`; you don't need to repeat it.
 - **Integration tests** in the style of `tests/module_contract_test.go` (`TestModuleContract`): build a host with `modhost.NewWith(db, driver, log, []modkit.Module{...})` so the test binary stands in for a distribution, then check what your module changes over the real API: routes 404 before install and after disable, permissions 403 and 200, hooks refusing and writing, events delivered after commit, capabilities found. Run them on both databases: `make test-integration` uses SQLite, and `DB_DRIVER=postgres make test-integration` uses the server in `.env.test`.
-- **Invariant tests** in `api/` walk every route and permission, modules included: every route is authorized (`route_authz_invariant_test.go`), every mutating route is audited (`audit_coverage_test.go`, and for module routes `module_routes_invariant_test.go`, which also checks that each action is declared), every permission has one owner and reaches roles and ThunderID (`permission_owner_invariant_test.go`), a module's OpenAPI document describes exactly the routes it mounts (`checkModuleSpec`; add your module to it), and the core's document holds no `/m/` path. They run in `make test-unit`; `make security-test-static` at the repository root runs the authorization ones alone.
-- **Smoke tests** against a running stack: `make up` then `make smoke`, and `make up-core` then `make smoke-core` (`deployments/standalone/scripts/smoke.sh amp|amp-core`). Run both whenever a change touches the line between the core and a module.
+- **Invariant tests** in `api/` walk every route and permission of the modules they list: every route is authorized (`route_authz_invariant_test.go`), every mutating route is audited (`audit_coverage_test.go`, and for module routes `module_routes_invariant_test.go`, which also checks that each action is declared), every permission has one owner and reaches roles and ThunderID (`permission_owner_invariant_test.go`), a module's OpenAPI document describes exactly the routes it mounts (`checkModuleSpec`), and the core's document holds no `/m/` path. For a new module, blank-import it in `api/route_authz_invariant_test.go` and `api/permission_owner_invariant_test.go`, add its route package to `routePackages` (and its permission package to `modulePermissionPackages`), and add `Test<Module>RoutesAreAudited` and `Test<Module>SpecMatchesRoutes` to `api/module_routes_invariant_test.go`. If it calls `rt.Track`, add its packages to `routeDirs` in `middleware/growthanalytics/taxonomy_test.go` and its features to `taxonomy.yaml`. They run in `make test-unit`; `make security-test-static` at the repository root runs the authorization ones alone.
+- **Smoke tests** against a running stack: `make up` then `make smoke`, and `make up-core` then `make smoke-core` (`deployments/standalone/scripts/smoke.sh amp|amp-core`); `smoke.sh amp-off` checks the full stack with the gateway disabled. The checks name the gateway's routes, so add checks for a new module's routes. Run both whenever a change touches the line between the core and a module.
 
 ## API document
 
@@ -608,13 +614,13 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | Addition | Why |
 | --- | --- |
 | [`Manifest.DisplayName`, `Permission.DisplayName`](#the-manifest) | ThunderID shows permissions to administrators, and a readable name is needed there. |
-| [`Manifest.AuditActions`](#routes) and the route options `modkit.Audit`, `AuditCoalesce` | Every core route is audited under a declared action; module routes keep that rule, and machine-polled routes need coalescing. |
+| [`Manifest.AuditActions`](#route-options) and the route options `modkit.Audit`, `AuditCoalesce` | Every core route is audited under a declared action; module routes keep that rule, and machine-polled routes need coalescing. |
 | [`AuditAction.Details`, `modkit.AuditResource`, `AuditDetail`](#audit-records) | A module's records say what was acted on and how, as the core's do; declaring each key with its kind keeps redaction working for module records. |
 | [Route option `modkit.AuditFailClosed`](#route-options) | Routes that mint or revoke credentials a runtime receives must not run unrecorded; the core writes the intent record because only it holds the recorder. |
 | [`modkit.AuditInternalCaller`](#fixed-internal-paths-temporary) | Time-boxed, with `HandleInternalAt`: those routes authenticate their callers themselves, so only the handler can name the caller or report a refused credential. |
 | [Scoped `Manifest.Events`](#events) and the route options `modkit.Emits`, `EmitsWithoutData` | Module events can be offered as webhooks, which needs a scope and a description per event. |
-| Route options [`AlsoRequires`, `AnyPermission`, `PlatformAdmin`](#routes) | Some gateway routes need several permissions, one of several, or the platform-admin organization; one permission per route could not express them. |
-| Route option [`AllowOrgOverride`](#routes) | A deployment's control plane lists gateways and sets gateway identity providers on a tenant's behalf. The core already lets its own routes opt into the org override; the gateway did the same inside its handlers, which bypassed the core's checks (path must name the target, a refused override is a 403) and its audit record. |
+| Route options [`AlsoRequires`, `AnyPermission`, `PlatformAdmin`](#route-options) | Some gateway routes need several permissions, one of several, or the platform-admin organization; one permission per route could not express them. |
+| Route option [`AllowOrgOverride`](#route-options) | A deployment's control plane lists gateways and sets gateway identity providers on a tenant's behalf. The core already lets its own routes opt into the org override; the gateway did the same inside its handlers, which bypassed the core's checks (path must name the target, a refused override is a 403) and its audit record. |
 | [`Runtime.Go`](#background-workers) | Modules need workers (reconcilers, sweepers) that start and stop with the module on every replica. |
 | [`Runtime.MCPTool`](#mcp-tools) | Modules contribute tools to the core's `/mcp` server, authorized and audited like core tools. |
 | [`Runtime.Secrets`](#data) | Modules keep secret values encrypted with the core's key without their own key handling; `uninstall --purge` deletes them with the module's tables. |
@@ -623,9 +629,11 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [`Runtime.PublishTx`](#events) | An event written in the module's own transaction is delivered only if that transaction commits. |
 | [`Runtime.Track`](#routes) | The core reports feature usage per route; module routes report theirs the same way. It does nothing when reporting is off. |
 | [`Runtime.IssueCredential`, `RevokeCredential`](#credentials) | A module mints workload credentials for the runtimes it registers itself, not only through `amp module credential`. |
-| [`Runtime.HandleInternalAt`](#routes) | Time-boxed: keeps the AI Gateway's released controllers working on their fixed `/api/internal/v1` paths until they can register as workloads (#2493). A test lists the modules allowed to call it. |
+| [`Runtime.HandleInternalAt`](#fixed-internal-paths-temporary) | Time-boxed: keeps the AI Gateway's released controllers working on their fixed `/api/internal/v1` paths until they can register as workloads (#2493). A test lists the modules allowed to call it. |
 | [Wider `CoreAPI`](#data): organizations, projects and environments, lookups by name, `LockAgent`, `EnsureOrg` | The proof of concept reads agents only; the gateway addresses projects, agents and environments by name and must lock an agent or create an organization inside a hook. |
-| [`modkit.OrgID(ctx)`](#routes); `OrgID` on `HookRequest` and `Event` | Lite is multi-organization, so every call and event is org-scoped. |
+| [`modkit.OrgID(ctx)`](#routes); `OrgID` on `HookRequest`, `Event` and `TokenRequest` | Lite is multi-organization, so every call and event is org-scoped. |
+| `Event` gains `ID` and `Subject`; the PoC's `AgentCreated` payload type is gone | Handlers dedupe on `ID`, since delivery is at least once; `Subject` names what the event is about. |
+| [`modkit.CheckName`](#the-manifest) | Names are at most 24 characters and may not give overlapping `mod_` table prefixes; the PoC only rejects duplicates. |
 | [`Apply` hook phase, `HookRequest.Tx`, project hooks](#hooks) | A module stores its part of a core resource (such as an agent's gateway bindings) in the core's transaction, and can refuse or clean up a project delete. |
 | [`modkit.Reject`, `modkit.Error`](#hooks) | A hook refusal reaches the caller as a 400 or a chosen status with a message, not a 500. |
 | [`UI.Pages`](#the-manifest) | The console lists a module's pages, filtered by permission, from the manifest. |
@@ -642,6 +650,10 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | --- | --- |
 | [`modkit.Principal`](#routes) has `User` and `ClientID` and no `Role` | Lite grants scopes, not one role; `rt.Can` answers permission questions. |
 | [`WorkloadSpec`](#workloads) has no `Isolation` or `Egress` | No Lite workload needs them yet. |
+| The PoC's `Workload`/`Service`/`Job` are `WorkloadSpec`/`WorkloadService`/`WorkloadJob`; its `Claims`/`ClaimsFrom` are `modkit.Workload`/`WorkloadFrom` (`Name`, `Instance`, `OrgID`) | The workload a token belongs to is what handlers need; scopes are checked by the host. |
+| [`Runtime.DB()`](#data) is a `*gorm.DB` on SQLite and PostgreSQL, with migrations written as YAML and rendered per database ([Migrations](#migrations)) | Lite runs on both databases; the PoC is PostgreSQL only (`*pgxpool.Pool`). |
+| `modkit.Agent` adds `OrgID`, `ProjectID`, `ProjectName` and `Provisioning`, and drops `Description` | Hooks and lookups need the agent's place and how it is provisioned. |
+| The PoC's `DevWorkloads`/`DevEnv` and `WriteJSON`/`WriteError` are not carried over | There is no dev workload runner; handlers use `pkg/httpx`. |
 | [Workload tokens](#heartbeat) are RS256 with the core's agent-token key, not EdDSA | The runtimes already trust that key. |
 | [Modules may import `pkg/`](#leaf-libraries-pkg) as well as `modkit` | `pkg/` holds domain-free libraries with no core imports and no state, so they cannot bypass the contract; copying them into every module would let them drift. |
 | [The import rule](#what-a-module-may-import) applies to non-test files only | Module tests may use the core's test harnesses (`db/dbtest`, `internal/modhost`). |
