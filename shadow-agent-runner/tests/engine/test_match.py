@@ -255,6 +255,31 @@ def test_absorbs_the_nearest_earlier_assignment_in_the_same_scope() -> None:
     ]
 
 
+def test_absorbs_from_an_enclosing_function_or_the_module() -> None:
+    source = (
+        "from langchain.agents import AgentExecutor, create_react_agent\n"
+        "agent = create_react_agent(llm, tools, prompt)\n"
+        "def run():\n"
+        "    return AgentExecutor(agent=agent, tools=tools)\n"
+        "class Svc:\n"
+        "    agent = create_react_agent(llm, tools, prompt)\n"
+        "    def run(self):\n"
+        "        return AgentExecutor(agent=agent, tools=tools)\n"
+        "def other():\n"
+        "    agent = create_react_agent(llm, tools, prompt)\n"
+        "def last():\n"
+        "    return AgentExecutor(agent=agent, tools=tools)\n"
+    )
+    # A class attribute is no variable of its methods; another function's variable is not in scope.
+    assert _found(source) == [
+        ("langchain", 4, "run"),
+        ("langchain", 6, "agent"),
+        ("langchain", 8, "run"),
+        ("langchain", 10, "agent"),
+        ("langchain", 12, "last"),
+    ]
+
+
 def test_absorbs_an_attribute_by_its_chain() -> None:
     source = (
         "from langchain.agents import AgentExecutor, create_react_agent\n"
@@ -643,3 +668,33 @@ def test_crew_links_its_manager_agent(manager: str) -> None:
     found = _crews(source)
     assert found[-1][2] == "team"
     assert ("crew", "team", None) not in found
+
+
+@pytest.mark.parametrize("parts", [1000, 5000])
+def test_a_long_dotted_name_is_read_without_recursion(parts: int) -> None:
+    assert _matches("import x\nfoo" + ".x" * parts + "()\n") == ()
+    assert _matches("import strands\nbot = strands" + ".x" * parts + ".Agent()\n") == ()
+
+
+def test_a_dotted_name_of_up_to_64_parts_resolves() -> None:
+    longest = "import a\nbot = a" + ".b" * 62 + ".Agent()\n"  # 64 parts with ``a`` and ``Agent``.
+    rules = RuleSet((Framework("f", ("a",), ("a",)),), (Signature("f", Symbol("a" + ".b" * 62, "Agent"), Shape.CALL),))
+    data = longest.encode()
+    tree = parse(Language.PYTHON, data)
+    assert tree is not None
+    imports = extract_imports(Language.PYTHON, tree, data)
+    assert [m.name for m in match_python_file("a.py", tree, data, imports, rules).matches] == ["bot"]
+    # One part more (65) is no reference, so it never resolves.
+    rules = RuleSet((Framework("f", ("a",), ("a",)),), (Signature("f", Symbol("a" + ".b" * 63, "Agent"), Shape.CALL),))
+    data = longest.replace(".Agent", ".b.Agent").encode()
+    tree = parse(Language.PYTHON, data)
+    assert tree is not None
+    assert match_python_file("a.py", tree, data, imports, rules).matches == ()
+
+
+def test_a_name_literal_that_is_not_utf8_is_no_name() -> None:
+    data = b'from strands import Agent\nsupport = Agent(name="B\xffot", model="gpt\xff-4o")\n'
+    tree = parse(Language.PYTHON, data)
+    assert tree is not None
+    (match,) = match_python_file("a.py", tree, data, extract_imports(Language.PYTHON, tree, data)).matches
+    assert (match.name, match.named, match.model) == ("support", False, None)

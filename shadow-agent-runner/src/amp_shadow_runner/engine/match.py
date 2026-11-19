@@ -38,7 +38,8 @@ never read; a signature's ``requires`` keyword is only checked for a literal ``F
 
 An agent passed into another as its ``absorbs`` argument is the same agent, so only the outer one is
 reported: a matched call written inline (``AgentExecutor(agent=create_react_agent(...))``), or the nearest
-earlier assignment, in the same scope, of the variable or attribute passed (``agent`` or ``self.agent``).
+earlier assignment of the variable or attribute passed (``agent`` or ``self.agent``) in the same scope, else
+in the nearest enclosing function or the module that has one.
 
 Conditional signatures (see ``Condition``) still give a ``Match``, with the signature's condition, and
 ``classify`` decides the verdict, except for two things decided here:
@@ -78,12 +79,21 @@ MAX_LITERAL_CHARS = 100
 """The longest string literal read as a name or model; a longer one is not a name."""
 MAX_TOOLS = 50
 """The most tool names kept for one agent (Agent Manager's limit on a list attribute)."""
+MAX_REFERENCE_PARTS = 64
+"""The most parts a dotted name (``a.b.C``) may have; a longer chain is no reference (and is read without
+recursion, so a generated chain of thousands of parts cannot exhaust the stack)."""
 
 _CALL_SHAPES = (Shape.CALL, Shape.FACTORY)
 _CLASS_SHAPES = (Shape.SUBCLASS,)
 _SCOPES = frozenset({"function_definition", "class_definition"})
 _IMPORT_PARTS = frozenset({"dotted_name", "aliased_import"})
 """Parents of the identifiers an import statement names; such an identifier is no reference."""
+
+
+def plain_literal(value: str) -> bool:
+    """Whether a string literal's value can be a name or model: 1 to ``MAX_LITERAL_CHARS`` printable
+    characters, with no backslash and no U+FFFD (bytes that were not UTF-8)."""
+    return 0 < len(value) <= MAX_LITERAL_CHARS and "\\" not in value and "\ufffd" not in value and value.isprintable()
 
 
 @dataclass(frozen=True)
@@ -224,14 +234,27 @@ def _absorbed(found: list[_Found], reader: "_Reader") -> set[int]:
             absorbed.add(value.id)
             continue
         key = reader.reference_part(value)
-        earlier = [
-            g
-            for g in found
-            if key is not None and g.variable == key and g.scope == f.scope and g.node.start_byte < f.node.start_byte
-        ]
-        if earlier:
-            absorbed.add(max(earlier, key=lambda g: g.node.start_byte).node.id)
+        for scope in _enclosing_scopes(f.node) if key is not None else ():
+            earlier = [
+                g for g in found if g.variable == key and g.scope == scope and g.node.start_byte < f.node.start_byte
+            ]
+            if earlier:
+                absorbed.add(max(earlier, key=lambda g: g.node.start_byte).node.id)
+                break
     return absorbed
+
+
+def _enclosing_scopes(node: tree_sitter.Node) -> list[int]:
+    """The ids of the scopes whose variables ``node`` can see, innermost first: its own scope, then the
+    functions around it and the module. A class body around a function is skipped: its names are not
+    variables of its methods."""
+    ids = [_scope_id(node)]
+    parent = node.parent
+    while parent is not None:
+        if (parent.type == "function_definition" or parent.parent is None) and parent.id not in ids:
+            ids.append(parent.id)
+        parent = parent.parent
+    return ids
 
 
 def _innermost(node: tree_sitter.Node, kind: str) -> tree_sitter.Node | None:
@@ -402,25 +425,25 @@ class _Reader:
         return self.source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
     def reference(self, node: tree_sitter.Node | None) -> str | None:
-        """A name or dotted name (``a.b.C``), seen through a subscript (``Agent[Deps]``); None for anything else."""
+        """A name or dotted name (``a.b.C``), seen through a subscript (``Agent[Deps]``); None for anything else,
+        or for a name of more than ``MAX_REFERENCE_PARTS`` parts."""
         if node is not None and node.type == "subscript":
             node = node.child_by_field_name("value")
-        if node is None:
-            return None
-        if node.type == "identifier":
-            return self.text(node)
-        if node.type == "attribute":
-            obj = self.reference_part(node.child_by_field_name("object"))
-            attr = node.child_by_field_name("attribute")
-            if obj is not None and attr is not None:
-                return f"{obj}.{self.text(attr)}"
-        return None
+        return self.reference_part(node)
 
     def reference_part(self, node: tree_sitter.Node | None) -> str | None:
         """Like ``reference`` but without the subscript: ``a[0].B`` is not a dotted name."""
-        if node is None or node.type == "subscript":
+        parts: list[str] = []
+        while node is not None and node.type == "attribute":
+            attr = node.child_by_field_name("attribute")
+            if attr is None or len(parts) >= MAX_REFERENCE_PARTS - 1:
+                return None
+            parts.append(self.text(attr))
+            node = node.child_by_field_name("object")
+        if node is None or node.type != "identifier":
             return None
-        return self.reference(node)
+        parts.append(self.text(node))
+        return ".".join(reversed(parts))
 
     def find(
         self, reference: str | None, imports: ImportTable, rules: RuleSet, shapes: tuple[Shape, ...]
@@ -572,7 +595,7 @@ class _Reader:
         if "b" in prefix or any(c.type == "interpolation" for c in node.named_children):
             return None
         value = "".join(self.text(c) for c in node.named_children if c.type == "string_content").strip()
-        if not value or len(value) > MAX_LITERAL_CHARS or "\\" in value or not value.isprintable():
+        if not plain_literal(value):
             return None
         return value
 

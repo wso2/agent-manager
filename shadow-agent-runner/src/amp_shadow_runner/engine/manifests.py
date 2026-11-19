@@ -175,7 +175,7 @@ def ballerina_packages(data: bytes) -> frozenset[str]:
     """The normalised ``org/name`` of each ``[[dependency]]`` in a ``Ballerina.toml``."""
     try:
         document = tomllib.loads(data.decode("utf-8", errors="replace"))
-    except tomllib.TOMLDecodeError:
+    except (tomllib.TOMLDecodeError, RecursionError):  # Invalid, or nested too deeply to parse.
         return frozenset()
     entries = document.get("dependency")
     if not isinstance(entries, list):
@@ -269,7 +269,7 @@ def python_packages(path: str, data: bytes) -> frozenset[str]:
         else:
             return frozenset()
         return frozenset(normalise(n) for n in found)
-    except (tomllib.TOMLDecodeError, configparser.Error):
+    except (tomllib.TOMLDecodeError, configparser.Error, RecursionError):
         return frozenset()
 
 

@@ -20,7 +20,8 @@
 process (``tests/engine/test_purity.py`` checks it).
 
 Python, TypeScript, JavaScript, C# and Ballerina files are matched and count as scanned. A file that cannot
-be read counts as skipped, with the walker's skipped files. A file with a syntax error is still matched
+be read counts as skipped, with the walker's skipped files, as does one too deeply nested to match
+(``RecursionError``): one such file never fails the repository. A file with a syntax error is still matched
 (tree-sitter recovers) and counts in ``parse_errors``; Ballerina, matched as text, has none.
 
 Every source file with an import is matched, and what wires tools in it (``PythonMatches.wiring``,
@@ -29,10 +30,13 @@ The repository's Python files tell which imports are local modules (``RepoModule
 hop of ``Condition.TOOLS`` and the local ``agents`` package of ``Condition.DEPENDENCY``.
 
 C# needs every file of a project before matching one: a ``global using`` in any ``.cs`` file applies to
-the whole project, as do the ``<Using Include>`` items of its ``.csproj``. A file's project is the folder
-of the nearest ``.csproj`` above it, or the repository when there is none. So C# files are parsed once for
-their imports, and only those that mention a signature's name (``match_cs.mentions``) are kept and parsed
-again for matching once every file has been read.
+the whole project, as do the ``<Using Include>`` items of its ``.csproj`` and of the nearest
+``Directory.Build.props`` at or above the project's folder (MSBuild reads only the nearest one). A file's
+project is the folder of the nearest ``.csproj`` above it, or the repository when there is none. So C#
+files are parsed once for their imports, and only those that mention a signature's name
+(``match_cs.mentions``) are kept and parsed again for matching once every file has been read; a file that
+mentions only the name of a project-wide alias (``global using CCA = ...ChatCompletionAgent;``) is read
+again then. The type names a project declares (``match_cs.declared_types``) are passed to the matcher.
 
 Weak agent names are replaced by the project's name once every finding of the tree is known
 (``naming.display_names``), with the project names the manifests state (``manifests.project_name``).
@@ -43,12 +47,13 @@ safely (``read_packages`` gives None) counts as not read.
 """
 
 import functools
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 from amp_shadow_runner.engine.classify import FileMatches, Finding, classify
 from amp_shadow_runner.engine.files import FileKind, RepoFile, walk
-from amp_shadow_runner.engine.imports import Import, ImportTable, extract_imports
+from amp_shadow_runner.engine.imports import Import, ImportKind, ImportTable, extract_imports
 from amp_shadow_runner.engine.languages import Language, parse
 from amp_shadow_runner.engine.manifests import (
     Dependencies,
@@ -61,7 +66,7 @@ from amp_shadow_runner.engine.manifests import (
 )
 from amp_shadow_runner.engine.match import match_python_file
 from amp_shadow_runner.engine.match_bal import match_ballerina_file
-from amp_shadow_runner.engine.match_cs import match_csharp_file, mentions
+from amp_shadow_runner.engine.match_cs import declared_types, match_csharp_file, mentions
 from amp_shadow_runner.engine.match_ts import match_script_file
 from amp_shadow_runner.engine.modules import RepoModules
 from amp_shadow_runner.engine.naming import display_names
@@ -102,14 +107,24 @@ class _CSharp:
     """The ``.csproj`` paths of the tree."""
     files: list[tuple[RepoFile, bytes, ImportTable]] = field(default_factory=list)
     """The files that mention a signature's name, with their bytes and their own imports."""
+    others: list[RepoFile] = field(default_factory=list)
+    """The files that do not: read again only if they mention a project-wide alias's name."""
     usings: dict[str | None, list[Import]] = field(default_factory=dict)
     """By project folder (None for the repository): ``global using`` directives and ``<Using>`` items."""
+    props: dict[str, tuple[Import, ...]] = field(default_factory=dict)
+    """By folder: the ``<Using>`` items of its ``Directory.Build.props``."""
+    types: dict[str | None, set[str]] = field(default_factory=dict)
+    """By project folder: the type names its files declare (only files that mention a signature's name
+    can declare a type of that name)."""
 
     def project(self, path: str) -> str | None:
         return service_folder(path, self.projects)
 
     def add_csproj(self, path: str, data: bytes) -> None:
         self.usings.setdefault(str(PurePosixPath(path).parent), []).extend(csproj_usings(data))
+
+    def add_props(self, path: str, data: bytes) -> None:
+        self.props[str(PurePosixPath(path).parent)] = csproj_usings(data)
 
     def add(self, file: RepoFile, state: _Scan) -> None:
         data = _read(file, state)
@@ -119,17 +134,59 @@ class _CSharp:
         state.scanned += 1
         state.parse_errors += tree.root_node.has_error
         imports = extract_imports(Language.C_SHARP, tree, data)
-        self.usings.setdefault(self.project(file.path), []).extend(i for i in imports.imports if i.global_)
+        project = self.project(file.path)
+        self.usings.setdefault(project, []).extend(i for i in imports.imports if i.global_)
         if mentions(data):
             self.files.append((file, data, imports))
+            self.types.setdefault(project, set()).update(declared_types(tree, data))
+        else:
+            self.others.append(file)
 
-    def matches(self) -> list[FileMatches]:
+    def project_usings(self, project: str | None) -> list[Import]:
+        """The project's ``global using`` directives and ``<Using>`` items, with those of the nearest
+        ``Directory.Build.props`` at or above its folder."""
+        usings = self.usings.get(project, [])
+        if project is None:
+            return usings
+        folder = PurePosixPath(project)
+        nearest = next((str(f) for f in (folder, *folder.parents) if str(f) in self.props), None)
+        return usings if nearest is None else [*usings, *self.props[nearest]]
+
+    def aliased(self, state: _Scan) -> Iterator[tuple[RepoFile, bytes, ImportTable]]:
+        """The files that mention no signature's name but do mention a project-wide alias of one."""
+        aliases: dict[str | None, list[str]] = {}
+        for file in self.others:
+            project = self.project(file.path)
+            if project not in aliases:
+                aliases[project] = [
+                    imp.local
+                    for imp in self.project_usings(project)
+                    if imp.kind == ImportKind.ALIAS and imp.local and mentions(imp.module.encode())
+                ]
+            if not aliases[project]:
+                continue
+            data = _read(file, state)
+            if data is None or not mentions(data, aliases=aliases[project]):
+                continue
+            tree = parse(Language.C_SHARP, data)
+            if tree is not None:
+                yield file, data, extract_imports(Language.C_SHARP, tree, data)
+
+    def matches(self, state: _Scan) -> list[FileMatches]:
         found: list[FileMatches] = []
-        for file, data, own in self.files:
-            usings = self.usings.get(self.project(file.path), [])
+        for file, data, own in [*self.files, *self.aliased(state)]:
+            project = self.project(file.path)
+            usings = self.project_usings(project)
             imports = ImportTable(Language.C_SHARP, tuple(dict.fromkeys([*own.imports, *usings])))
             tree = parse(Language.C_SHARP, data)
-            matched = () if tree is None else match_csharp_file(file.path, tree, data, imports)
+            local_types = frozenset(self.types.get(project, ()))
+            try:
+                matched = (
+                    () if tree is None else match_csharp_file(file.path, tree, data, imports, local_types=local_types)
+                )
+            except RecursionError:
+                _unmatchable(state)
+                continue
             if matched:
                 found.append(FileMatches(file.path, file.tag, imports, matched))
         return found
@@ -152,6 +209,10 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
     csharp = _CSharp(tuple(f.path for f in walked.files if f.kind == FileKind.MANIFEST and _csproj(f.path)))
     modules = RepoModules(f.path for f in walked.files if f.kind == FileKind.SOURCE and f.language == Language.PYTHON)
     for file in walked.files:
+        if file.kind == FileKind.MANIFEST and PurePosixPath(file.path).name.lower() == "directory.build.props":
+            if (data := _read(file, state)) is not None:
+                csharp.add_props(file.path, data)
+            continue  # Read only for its usings: it declares no service and no dependency here.
         if file.kind == FileKind.MANIFEST:
             kind = ecosystem(file.path)
             data = _read(file, state) if kind is not None else None
@@ -183,7 +244,7 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
     findings = [
         *_classify(python, repository, dependencies(Ecosystem.PYTHON), PYTHON, wiring),
         *_classify(scripts, repository, dependencies(Ecosystem.NPM), TYPESCRIPT, wiring),
-        *_classify(csharp.matches(), repository, dependencies(Ecosystem.NUGET), CSHARP, wiring),
+        *_classify(csharp.matches(state), repository, dependencies(Ecosystem.NUGET), CSHARP, wiring),
         *_classify(ballerina, repository, dependencies(Ecosystem.BALLERINA), BALLERINA, wiring),
     ]
     findings.sort(key=lambda f: (f.path, f.line))
@@ -205,6 +266,12 @@ def _classify(
 
 def _csproj(path: str) -> bool:
     return path.lower().endswith(".csproj")
+
+
+def _unmatchable(state: _Scan) -> None:
+    """Count a scanned file that could not be matched (nested too deeply: ``RecursionError``) as skipped."""
+    state.scanned -= 1
+    state.skipped += 1
 
 
 def _read(file: RepoFile, state: _Scan) -> bytes | None:
@@ -232,7 +299,13 @@ def _scan_python(
     imports = extract_imports(Language.PYTHON, tree, data)
     if not imports.imports:
         return  # Nothing to match, and wiring tools needs a langchain or langgraph import.
-    matched = match_python_file(file.path, tree, data, imports, is_local=functools.partial(modules.is_local, file.path))
+    try:
+        matched = match_python_file(
+            file.path, tree, data, imports, is_local=functools.partial(modules.is_local, file.path)
+        )
+    except RecursionError:
+        _unmatchable(state)
+        return
     if matched.wiring:
         wiring[file.path] = matched.wiring
     if matched.matches:
@@ -250,7 +323,11 @@ def _scan_script(file: RepoFile, state: _Scan, found: list[FileMatches], wiring:
     imports = extract_imports(language, tree, data)
     if not imports.imports:
         return
-    matched = match_script_file(file.path, tree, data, imports)
+    try:
+        matched = match_script_file(file.path, tree, data, imports)
+    except RecursionError:
+        _unmatchable(state)
+        return
     if matched.wiring:
         wiring[file.path] = matched.wiring
     if matched.matches:
@@ -262,6 +339,6 @@ def _scan_ballerina(file: RepoFile, state: _Scan, found: list[FileMatches]) -> N
     if data is None:
         return
     state.scanned += 1
-    matched, imports = match_ballerina_file(file.path, data.decode("utf-8", errors="replace"))
+    matched, imports = match_ballerina_file(file.path, data.decode("utf-8-sig", errors="replace"))
     if matched:
         found.append(FileMatches(file.path, file.tag, imports, matched))

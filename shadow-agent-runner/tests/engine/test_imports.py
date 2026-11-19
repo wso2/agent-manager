@@ -191,7 +191,10 @@ SK = "Microsoft.SemanticKernel"
 
 C_SHARP_CASES = [
     (f"using {SK};", "Kernel", (S(SK, "Kernel"),)),
-    (f"using {SK};", "Kernel.CreateBuilder", (S(f"{SK}.Kernel", "CreateBuilder"), S("Kernel", "CreateBuilder"))),
+    # A using imports types, not the namespaces under it: a dotted name is only taken as fully qualified.
+    (f"using {SK};", "Kernel.CreateBuilder", (S("Kernel", "CreateBuilder"),)),
+    (f"using {SK};", "Agents.ChatCompletionAgent", (S("Agents", "ChatCompletionAgent"),)),
+    ("using static System.Math;", "Math.Max", (S("Math", "Max"),)),
     (f"global using {SK};", "Kernel", (S(SK, "Kernel"),)),
     (f"using global::{SK};", "Kernel", (S(SK, "Kernel"),)),
     (f"using SK = {SK};", "SK.Kernel", (S(SK, "Kernel"),)),

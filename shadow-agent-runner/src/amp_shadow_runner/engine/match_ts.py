@@ -17,13 +17,17 @@
 """Find the uses of agent signatures in a parsed TypeScript or JavaScript file.
 
 ``new X(...)`` and ``X(...)`` targets (``Agent``, ``m.Agent``, ``Agent.create``) are resolved through the
-file's ``ImportTable``, so a same-named local class, or a type-only import, never matches. A resolved
-symbol is looked up as written (``@langchain/langgraph/prebuilt``) and then by its package root
-(``@langchain/langgraph``), so a signature listed at the root covers every subpath of the package.
+file's ``ImportTable``, so a same-named local class, or a type-only import, never matches. Nor does a name
+that a function, class, block or the module around the call binds itself (a parameter, a variable or
+destructured name, a class or function declaration, a catch parameter; not ``require(...)``): that name is
+not the import there. A resolved symbol is looked up as written (``@langchain/langgraph/prebuilt``) and
+then by its package root (``@langchain/langgraph``), so a signature listed at the root covers every
+subpath of the package.
 
 A match's name is, in order: a short string literal in the ``name:`` property of the first argument (an
 options object); the variable the call is assigned to (``const support = new Agent(...)``, ``this.support =``,
-a class field ``support = new Agent(...)``), seen through ``await``, parentheses, ``as`` and method chains
+a class field ``support = new Agent(...)``, ``exports.support =``; not a bare CommonJS export such as
+``module.exports =`` or ``exports.default =``), seen through ``await``, parentheses, ``as`` and method chains
 (``new StateGraph(s).addNode(...).compile()``); the nearest enclosing named function (a function or
 method, or an arrow function or function expression named by the ``const``, property or field it is
 assigned to); else ``<framework>-agent``. A signature that ``runs`` the agent (AI SDK ``generateText``)
@@ -34,24 +38,28 @@ Only these facts are read from the options object: ``model`` when it is a short 
 like a model name (no ``://``, ``@`` or whitespace), and tool names: the plain identifiers of a
 ``tools: [a, b]`` array, or the keys of a ``tools: { a, b: x }`` object (the names the model sees).
 Prompts, instructions, tool schemas and every other property are never read. ``Condition.TOOL_LOOP``
-reads only whether ``tools`` is present and whether ``maxSteps`` is a number literal above 1 or ``stopWhen``
-is present (a ``maxSteps`` that is not a literal does not count).
+reads only whether ``tools`` is present (not ``undefined``, ``null``, ``{}`` or ``[]``) and whether
+``maxSteps`` is an integer literal of 2 or more or ``stopWhen`` is present (not ``undefined``, ``null`` or
+``stepCountIs(n)`` with a literal ``n`` below 2). A ``maxSteps`` that is not a literal does not count.
 
 An agent passed into another as its ``absorbs`` property (``new AgentExecutor({ agent, tools })``) is the
 same agent, so only the outer one is reported: a matched call written in place, or the nearest earlier
-assignment, in the same scope, of the variable or ``this.x`` passed.
+assignment of the variable or ``this.x`` passed, in the same scope, else in the nearest enclosing function
+or the module that has one.
 
 ``match_script_file`` also tells what in the file wires a graph to tools (``RuleSet.wiring``), as the
 Python matcher does; only a file importing a module that ``ToolWiring.modules`` names is looked at.
 """
 
+import dataclasses
+import re
 from collections.abc import Iterator
 from dataclasses import dataclass
 
 import tree_sitter
 
 from amp_shadow_runner.engine.imports import ImportTable, Symbol, package_root
-from amp_shadow_runner.engine.match import MAX_LITERAL_CHARS, MAX_TOOLS, Match
+from amp_shadow_runner.engine.match import MAX_REFERENCE_PARTS, MAX_TOOLS, Match, plain_literal
 from amp_shadow_runner.engine.signatures import Condition, RuleSet, Shape, Signature, Wiring
 from amp_shadow_runner.engine.signatures.typescript import TYPESCRIPT
 
@@ -76,6 +84,20 @@ _TRANSPARENT = frozenset(
 """Expressions that wrap a value without changing which object it is."""
 _FIELDS = frozenset({"field_definition", "public_field_definition"})
 _IMPORT_PARTS = frozenset({"import_specifier", "namespace_import", "import_clause", "import_require_clause"})
+_DECLARATIONS = frozenset(
+    {
+        "function_declaration",
+        "generator_function_declaration",
+        "class_declaration",
+        "abstract_class_declaration",
+        "enum_declaration",
+    }
+)
+"""Statements that bind their ``name`` in the scope they are written in."""
+_EMPTY = frozenset({"undefined", "null"})
+_EXPORTS = frozenset({"exports", "module.exports", "exports.default", "module.exports.default"})
+"""CommonJS export targets: what a module exports, not a name."""
+_INTEGER = re.compile(r"[0-9][0-9_]*")
 
 
 @dataclass(frozen=True)
@@ -197,14 +219,38 @@ def _absorbed(found: list[_Found], reader: "_Reader") -> set[int]:
             absorbed.add(value.id)
             continue
         key = reader.reference(value)
-        earlier = [
-            g
-            for g in found
-            if key is not None and g.variable == key and g.scope == f.scope and g.node.start_byte < f.node.start_byte
-        ]
-        if earlier:
-            absorbed.add(max(earlier, key=lambda g: g.node.start_byte).node.id)
+        for scope in _enclosing_scopes(f.node) if key is not None else ():
+            earlier = [
+                g for g in found if g.variable == key and g.scope == scope and g.node.start_byte < f.node.start_byte
+            ]
+            if earlier:
+                absorbed.add(max(earlier, key=lambda g: g.node.start_byte).node.id)
+                break
     return absorbed
+
+
+def _enclosing_scopes(node: tree_sitter.Node) -> list[int]:
+    """The ids of the scopes whose variables ``node`` can see, innermost first: its own scope, then the
+    functions around it and the module. A class body around a method is skipped: its fields are not
+    variables of its methods."""
+    ids = [_scope_id(node)]
+    parent = node.parent
+    while parent is not None:
+        if (parent.type in _FUNCTIONS or parent.parent is None) and parent.id not in ids:
+            ids.append(parent.id)
+        parent = parent.parent
+    return ids
+
+
+def _is_import(declarator: tree_sitter.Node) -> bool:
+    """Whether a ``variable_declarator``'s value is ``require(...)`` or ``await import(...)``: the binding is an
+    import, which the ``ImportTable`` already accounts for."""
+    value = declarator.child_by_field_name("value")
+    if value is not None and value.type == "await_expression":
+        value = next((c for c in value.named_children if c.type != "comment"), None)
+    if value is None or value.type != "call_expression" or (function := value.child_by_field_name("function")) is None:
+        return False
+    return function.type == "import" or (function.type == "identifier" and function.text == b"require")
 
 
 @dataclass(frozen=True)
@@ -212,22 +258,82 @@ class _Reader:
     source: bytes
     imports: ImportTable
     rules: RuleSet
+    bindings: dict[int, frozenset[str]] = dataclasses.field(default_factory=dict)
+    """The names each function, class or module binds itself (see ``bound``), by node id, once read."""
 
     def text(self, node: tree_sitter.Node) -> str:
         return self.source[node.start_byte : node.end_byte].decode("utf-8", errors="replace")
 
     def reference(self, node: tree_sitter.Node | None) -> str | None:
-        """A name or dotted name (``a.b.C``, ``this.x``); None for anything else."""
-        if node is None:
-            return None
-        if node.type in ("identifier", "shorthand_property_identifier", "this"):
-            return self.text(node)
-        if node.type == "member_expression":
-            obj = self.reference(node.child_by_field_name("object"))
+        """A name or dotted name (``a.b.C``, ``this.x``); None for anything else, or for a name of more than
+        ``MAX_REFERENCE_PARTS`` parts."""
+        parts: list[str] = []
+        while node is not None and node.type == "member_expression":
             prop = node.child_by_field_name("property")
-            if obj is not None and prop is not None and prop.type == "property_identifier":
-                return f"{obj}.{self.text(prop)}"
-        return None
+            if prop is None or prop.type != "property_identifier" or len(parts) >= MAX_REFERENCE_PARTS - 1:
+                return None
+            parts.append(self.text(prop))
+            node = node.child_by_field_name("object")
+        if node is None or node.type not in ("identifier", "shorthand_property_identifier", "this"):
+            return None
+        parts.append(self.text(node))
+        return ".".join(reversed(parts))
+
+    def shadowed(self, node: tree_sitter.Node, name: str) -> bool:
+        """Whether a function, class or module around ``node`` binds ``name`` itself (a parameter, variable,
+        class, function or catch parameter), other than by an import: then ``name`` there is not the import."""
+        parent = node.parent
+        while parent is not None:
+            if (parent.type in _SCOPES or parent.parent is None) and name in self.bound(parent):
+                return True
+            parent = parent.parent
+        return False
+
+    def bound(self, scope: tree_sitter.Node) -> frozenset[str]:
+        """The names ``scope`` binds: its own name (not a method's), its parameters, and the variables, classes,
+        functions, enums and catch parameters declared anywhere in it outside nested functions and classes.
+        Over-counting a block-scoped name only loses a match."""
+        cached = self.bindings.get(scope.id)
+        if cached is not None:
+            return cached
+        names: set[str] = set()
+        patterns: list[tree_sitter.Node | None] = []
+        if scope.type != "method_definition" and (own := scope.child_by_field_name("name")) is not None:
+            names.add(self.text(own))
+        patterns.append(scope.child_by_field_name("parameter"))
+        parameters = scope.child_by_field_name("parameters")
+        patterns.extend(parameters.named_children if parameters is not None else ())
+        stack = list(scope.children)
+        while stack:
+            node = stack.pop()
+            if node.type in _DECLARATIONS and (declared := node.child_by_field_name("name")) is not None:
+                names.add(self.text(declared))
+            if node.type in _SCOPES:
+                continue  # A nested function or class: its own bindings are its own.
+            if node.type == "variable_declarator" and not _is_import(node):
+                patterns.append(node.child_by_field_name("name"))
+            elif node.type == "catch_clause":
+                patterns.append(node.child_by_field_name("parameter"))
+            elif node.type == "for_in_statement":
+                patterns.append(node.child_by_field_name("left"))
+            stack.extend(node.children)
+        while patterns:
+            pattern = patterns.pop()
+            if pattern is None:
+                continue
+            if pattern.type in ("identifier", "shorthand_property_identifier_pattern"):
+                names.add(self.text(pattern))
+            elif pattern.type in ("object_pattern", "array_pattern", "rest_pattern"):
+                patterns.extend(pattern.named_children)
+            elif pattern.type == "pair_pattern":
+                patterns.append(pattern.child_by_field_name("value"))
+            elif pattern.type in ("assignment_pattern", "object_assignment_pattern"):
+                patterns.append(pattern.child_by_field_name("left"))
+            elif pattern.type in ("required_parameter", "optional_parameter"):
+                patterns.append(pattern.child_by_field_name("pattern"))
+        found = frozenset(names)
+        self.bindings[scope.id] = found
+        return found
 
     def symbols(self, reference: str | None) -> Iterator[Symbol]:
         """The symbols ``reference`` resolves to, each as written and then by its package root."""
@@ -277,13 +383,14 @@ class _Reader:
         return self.literal(key) if key.type == "string" else None
 
     def call(self, node: tree_sitter.Node, path: str) -> _Found | None:
-        sig = self.find(self.reference(self.target(node)))
-        if sig is None:
+        reference = self.reference(self.target(node))
+        sig = self.find(reference)
+        if sig is None or reference is None or self.shadowed(node, reference.split(".", 1)[0]):
             return None
         options = self.options(node)
         met: bool | None = None
         if sig.condition == Condition.TOOL_LOOP:
-            if self.property(options, "tools") is None:
+            if not self.given(self.property(options, "tools")):
                 return None
             met = self.loops(options)
         scopes = _scopes(node)
@@ -310,17 +417,38 @@ class _Reader:
         match = Match(sig, path, node.start_point[0] + 1, name, qualified, model, tools, condition_met=met, named=named)
         return _Found(node, match, _scope_id(node), variable)
 
+    def given(self, value: tree_sitter.Node | None) -> bool:
+        """Whether a property value is given: not missing, ``undefined``, ``null``, ``{}`` or ``[]``."""
+        if value is None or value.type in _EMPTY:
+            return False
+        if value.type in ("object", "array"):
+            return any(c.type != "comment" for c in value.named_children)
+        return True
+
     def loops(self, options: tree_sitter.Node | None) -> bool:
-        """Whether a model call takes more than one step: ``maxSteps`` above 1, or any ``stopWhen``."""
-        if self.property(options, "stopWhen") is not None:
+        """Whether a model call takes more than one step: ``maxSteps`` an integer literal of 2 or more, or a
+        ``stopWhen`` other than ``undefined``, ``null`` or ``stepCountIs(n)`` with a literal ``n`` below 2."""
+        stop = self.property(options, "stopWhen")
+        if stop is not None and stop.type not in _EMPTY and not self.one_step(stop):
             return True
         steps = self.property(options, "maxSteps")
-        if steps is None or steps.type != "number":
+        return steps is not None and (count := self.integer(steps)) is not None and count >= 2
+
+    def one_step(self, stop: tree_sitter.Node) -> bool:
+        """Whether a ``stopWhen`` is ``stepCountIs(n)`` with an integer literal ``n`` below 2."""
+        function = stop.child_by_field_name("function") if stop.type == "call_expression" else None
+        reference = self.reference(function)
+        if reference is None or reference.rsplit(".", 1)[-1] != "stepCountIs":
             return False
-        try:
-            return float(self.text(steps)) > 1
-        except ValueError:
-            return False  # Hex, octal or BigInt literals: not worth reading.
+        arguments = stop.child_by_field_name("arguments")
+        args = [a for a in arguments.named_children if a.type != "comment"] if arguments is not None else []
+        count = self.integer(args[0]) if len(args) == 1 else None
+        return count is not None and count < 2
+
+    def integer(self, node: tree_sitter.Node) -> int | None:
+        """The value of a plain decimal integer literal (``5``, ``1_000``), or None for anything else."""
+        text = self.text(node)
+        return int(text.replace("_", "")) if node.type == "number" and _INTEGER.fullmatch(text) else None
 
     def scope_name(self, scope: tree_sitter.Node) -> str | None:
         """A function's or class's name, or for an anonymous function the name it is assigned to; else None."""
@@ -356,7 +484,8 @@ class _Reader:
             target = parent.child_by_field_name("name")
             return self.text(target) if target is not None and target.type == "identifier" else None
         if parent.type == "assignment_expression" and parent.child_by_field_name("right") == node:
-            return self.reference(parent.child_by_field_name("left"))
+            assigned = self.reference(parent.child_by_field_name("left"))
+            return None if assigned in _EXPORTS else assigned
         if parent.type in _FIELDS and parent.child_by_field_name("value") == node:
             field = parent.child_by_field_name("property") or parent.child_by_field_name("name")
             return self.text(field) if field is not None and field.type == "property_identifier" else None
@@ -397,9 +526,7 @@ class _Reader:
         if any(c.type != "string_fragment" for c in node.named_children):
             return None
         value = "".join(self.text(c) for c in node.named_children).strip()
-        if not value or len(value) > MAX_LITERAL_CHARS or "\\" in value or not value.isprintable():
-            return None
-        return value
+        return value if plain_literal(value) else None
 
     def tool_names(self, node: tree_sitter.Node | None) -> tuple[str, ...]:
         """The plain identifiers of a ``tools: [...]`` array, or the keys of a ``tools: {...}`` object."""
