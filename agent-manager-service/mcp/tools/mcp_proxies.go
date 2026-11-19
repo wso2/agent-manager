@@ -29,8 +29,9 @@ import (
 )
 
 type listMCPProxiesInput struct {
-	Limit  *int `json:"limit,omitempty"`
-	Offset *int `json:"offset,omitempty"`
+	ProjectName string `json:"project_name,omitempty"`
+	Limit       *int   `json:"limit,omitempty"`
+	Offset      *int   `json:"offset,omitempty"`
 }
 type getMCPProxyInput struct {
 	ProxyID string `json:"proxy_id"`
@@ -41,6 +42,8 @@ type mcpProxyItem struct {
 	Name    string `json:"name"`
 	Version string `json:"version,omitempty"`
 	Status  string `json:"status,omitempty"`
+	// Project is the project that owns the proxy; absent for an org-level proxy.
+	Project string `json:"project,omitempty"`
 }
 type listMCPProxiesOutput struct {
 	Total   int            `json:"total"`
@@ -58,22 +61,45 @@ type mcpProxyEnvironmentItem struct {
 	Name             string `json:"name"`
 	DeploymentStatus string `json:"deployment_status,omitempty"`
 }
+
+// mcpProxyBindingItem is a project proxy's binding in one environment: where it is deployed and the tools its MCP
+// server exposes there.
+type mcpProxyBindingItem struct {
+	Name             string   `json:"name"`
+	DeploymentStatus string   `json:"deployment_status,omitempty"`
+	URL              string   `json:"url,omitempty"`
+	Tools            []string `json:"tools"`
+	// ToolsSource is "caller" when the publisher gave the tools, "discovered" when the platform listed them from
+	// the MCP server.
+	ToolsSource string `json:"tools_source,omitempty"`
+	// ToolDiscovery is Pending, Discovered or Failed while the platform discovers the tools.
+	ToolDiscovery      string `json:"tool_discovery,omitempty"`
+	ToolDiscoveryError string `json:"tool_discovery_error,omitempty"`
+}
 type getMCPProxyOutput struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description,omitempty"`
-	Version     string                 `json:"version"`
-	Endpoints   []mcpProxyEndpointItem `json:"endpoints"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Version     string `json:"version"`
+	// Project is the project that owns the proxy; absent for an org-level proxy.
+	Project   string                 `json:"project,omitempty"`
+	Endpoints []mcpProxyEndpointItem `json:"endpoints"`
+	// Environments are a project proxy's bindings, which carry its tools.
+	Environments []mcpProxyBindingItem `json:"environments,omitempty"`
 }
 
 func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry) {
 	addTool(reg, server, &gomcp.Tool{
 		Name: "list_mcp_proxies",
-		Description: "List the MCP proxies in your organization. An MCP proxy publishes an external MCP server through the AI gateway " +
-			"so agents can call its tools with a gateway-issued key. Use a proxy's `id` as the `proxy_id` argument of attach_mcp_proxy_to_agent.",
+		Description: "List the MCP proxies in your organization. An MCP proxy publishes an MCP server through the AI gateway " +
+			"so agents can call its tools with a gateway-issued key. Use a proxy's `id` as the `proxy_id` argument of attach_mcp_proxy_to_agent. " +
+			"Without `project_name` it lists the organization's proxies only. With it, it also lists that project's own proxies, " +
+			"such as MCP servers published from the project's integrations (`project` names their owner); " +
+			"a project's proxy can be attached only to agents in that project.",
 		InputSchema: createSchema(map[string]any{
-			"limit":  intProperty(fmt.Sprintf("Optional. Max proxies to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
-			"offset": intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
+			"project_name": stringProperty("Optional. Also list this project's own MCP proxies, the ones its agents can use."),
+			"limit":        intProperty(fmt.Sprintf("Optional. Max proxies to return (default %d, min %d, max %d).", utils.DefaultLimit, utils.MinLimit, utils.MaxLimit)),
+			"offset":       intProperty(fmt.Sprintf("Optional. Pagination offset (default %d, min %d).", utils.DefaultOffset, utils.MinOffset)),
 		}, nil),
 		Annotations: &gomcp.ToolAnnotations{ReadOnlyHint: true},
 	}, audit.ActionMCPServerRead, listMCPProxies(t.MCPProxyToolset), rbac.MCPServerRead)
@@ -82,6 +108,7 @@ func (t *Toolsets) registerMCPProxyTools(server *gomcp.Server, reg *toolRegistry
 		Name: "get_mcp_proxy",
 		Description: "Get one MCP proxy's details: the upstream MCP server URL, the tools it exposes, its guardrails, " +
 			"and the environments it is deployed to with each deployment's status. " +
+			"For a project's proxy, `environments` lists each environment's deployment, URL and tools, and whether the tools are still being discovered. " +
 			"Use it to see which environments an agent attached with attach_mcp_proxy_to_agent can reach the proxy in. Credentials are never returned.",
 		InputSchema: createSchema(map[string]any{
 			"proxy_id": stringProperty("Required. MCP proxy id from list_mcp_proxies."),
@@ -96,7 +123,7 @@ func listMCPProxies(handler MCPProxyToolsetHandler) func(context.Context, *gomcp
 		if err != nil {
 			return nil, nil, err
 		}
-		resp, err := handler.ListMCPProxies(ctx, resolveOUID(ctx), limit, offset)
+		resp, err := handler.ListMCPProxies(ctx, resolveOUID(ctx), strings.TrimSpace(input.ProjectName), limit, offset)
 		if err != nil {
 			return nil, nil, wrapToolError("list_mcp_proxies", err)
 		}
@@ -109,6 +136,7 @@ func listMCPProxies(handler MCPProxyToolsetHandler) func(context.Context, *gomcp
 					Name:    utils.StrPointerAsStr(p.Name, ""),
 					Version: utils.StrPointerAsStr(p.Version, ""),
 					Status:  utils.StrPointerAsStr(p.Status, ""),
+					Project: utils.StrPointerAsStr(p.ProjectName, ""),
 				})
 			}
 		}
@@ -129,6 +157,10 @@ func getMCPProxy(handler MCPProxyToolsetHandler, envHandler EnvironmentToolsetHa
 		}
 		if proxy == nil {
 			return nil, nil, fmt.Errorf("get_mcp_proxy: MCP proxy service returned an empty response")
+		}
+
+		if project := utils.StrPointerAsStr(proxy.ProjectName, ""); project != "" {
+			return getProjectMCPProxy(ctx, handler, ouID, project, proxyID)
 		}
 
 		envNames := environmentNamesByUUID(ctx, envHandler, ouID)
@@ -166,6 +198,47 @@ func getMCPProxy(handler MCPProxyToolsetHandler, envHandler EnvironmentToolsetHa
 		}
 		return handleToolResult(out, nil)
 	}
+}
+
+// getProjectMCPProxy is get_mcp_proxy for a project's proxy. Its endpoint rows are its environment bindings, so the
+// proxy is read through the project's view, where each binding carries its tools and their discovery.
+func getProjectMCPProxy(
+	ctx context.Context, handler MCPProxyToolsetHandler, ouID, project, proxyID string,
+) (*gomcp.CallToolResult, any, error) {
+	proxy, err := handler.GetProjectMCPProxy(ctx, ouID, project, proxyID)
+	if err != nil {
+		return nil, nil, wrapToolError("get_mcp_proxy", err)
+	}
+	if proxy == nil {
+		return nil, nil, fmt.Errorf("get_mcp_proxy: MCP proxy service returned an empty response")
+	}
+	out := getMCPProxyOutput{
+		ID:           proxy.ID,
+		Name:         proxy.Name,
+		Description:  proxy.Description,
+		Version:      proxy.Version,
+		Project:      proxy.ProjectName,
+		Endpoints:    []mcpProxyEndpointItem{},
+		Environments: []mcpProxyBindingItem{},
+	}
+	for _, env := range proxy.Environments {
+		item := mcpProxyBindingItem{
+			Name:             env.EnvironmentName,
+			DeploymentStatus: env.DeploymentStatus,
+			URL:              redactURL(env.PublicURL),
+			Tools:            []string{},
+			ToolsSource:      env.CapabilitiesSource,
+		}
+		if env.Capabilities != nil {
+			item.Tools = toolNames(env.Capabilities.Tools)
+		}
+		if d := env.CapabilityDiscovery; d != nil {
+			item.ToolDiscovery = d.Status
+			item.ToolDiscoveryError = d.LastError
+		}
+		out.Environments = append(out.Environments, item)
+	}
+	return handleToolResult(out, nil)
 }
 
 // environmentNamesByUUID maps environment UUIDs to names so results speak the

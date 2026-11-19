@@ -125,6 +125,7 @@ func MakeHTTPHandlerWithPolicy(params *wiring.AppParams, extraAPIRoutes func(*ht
 		LLMProviderDeploymentService: params.LLMProviderDeploymentService,
 		PlatformGatewayService:       params.PlatformGatewayService,
 		MCPProxyService:              params.MCPProxyService,
+		ProjectMCPProxyService:       params.ProjectMCPProxyService,
 		AgentConfigurationService:    params.AgentConfigurationService,
 	}, mcpMiddleware)
 

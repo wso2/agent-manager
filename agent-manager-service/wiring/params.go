@@ -109,6 +109,7 @@ type AppParams struct {
 	LLMProviderDeploymentService *services.LLMProviderDeploymentService
 	PlatformGatewayService       *services.PlatformGatewayService
 	MCPProxyService              *services.MCPProxyService
+	ProjectMCPProxyService       *services.ProjectMCPProxyService
 	AgentConfigurationService    services.AgentConfigurationService
 
 	// Events

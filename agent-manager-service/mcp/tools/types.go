@@ -79,8 +79,11 @@ type LLMProviderToolsetHandler interface {
 }
 
 type MCPProxyToolsetHandler interface {
-	ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*models.MCPProxyListResponse, error)
+	// ListMCPProxies lists the org-level proxies, and with a projectName that project's proxies too.
+	ListMCPProxies(ctx context.Context, ouID string, projectName string, limit int, offset int) (*models.MCPProxyListResponse, error)
 	GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error)
+	// GetProjectMCPProxy returns a project proxy with its environment bindings.
+	GetProjectMCPProxy(ctx context.Context, ouID string, projectName string, proxyID string) (*models.ProjectMCPProxyResponse, error)
 }
 
 type AgentConfigToolsetHandler interface {
