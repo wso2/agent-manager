@@ -262,8 +262,8 @@ func ProvideLLMProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.LLMPr
 	return gwrepo.NewLLMProxyRepo(db, secrets)
 }
 
-func ProvideMCPProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.MCPProxyRepository {
-	return gwrepo.NewMCPProxyRepo(db, secrets)
+func ProvideMCPProxyRepository(db *gorm.DB, core modkit.CoreAPI, secrets modkit.Secrets) gwrepo.MCPProxyRepository {
+	return gwrepo.NewMCPProxyRepo(db, core, secrets)
 }
 
 func ProvideDeploymentRepository(db *gorm.DB) gwrepo.DeploymentRepository {
@@ -274,8 +274,8 @@ func ProvideA2AAgentCardRepository(db *gorm.DB) gwrepo.A2AAgentCardRepository {
 	return gwrepo.NewA2AAgentCardRepository(db)
 }
 
-func ProvideA2AProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.A2AProxyRepository {
-	return gwrepo.NewA2AProxyRepository(db, secrets)
+func ProvideA2AProxyRepository(db *gorm.DB, core modkit.CoreAPI, secrets modkit.Secrets) gwrepo.A2AProxyRepository {
+	return gwrepo.NewA2AProxyRepository(db, core, secrets)
 }
 
 // ProvideA2AProxyHooks gives the card service the proxy hooks only, not the whole proxy service.

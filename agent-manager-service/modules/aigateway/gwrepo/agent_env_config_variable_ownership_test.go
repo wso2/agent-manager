@@ -28,6 +28,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 func TestAgentVariableOwnership_SerializesAndReadsCommittedNames(t *testing.T) {
@@ -47,7 +48,7 @@ func TestAgentVariableOwnership_SerializesAndReadsCommittedNames(t *testing.T) {
 		t.Cleanup(func() { tx.Rollback() })
 		return tx
 	}
-	repo := NewAgentEnvConfigVariableRepository(database)
+	repo := NewAgentEnvConfigVariableRepository(database, repositories.NewCoreReadAPI(database))
 	first := begin()
 	rows, err := repo.LockAndListByAgent(ctx, first, ou, "checkout", "proxy-owner")
 	require.NoError(t, err)

@@ -31,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // MCPProxyRepository defines the interface for MCP proxy persistence.
@@ -107,12 +106,12 @@ type MCPProxyRepo struct {
 	secrets      modkit.Secrets
 }
 
-// NewMCPProxyRepo creates a new MCP proxy repository. secrets deletes a deleted proxy's endpoint credentials; a
+// NewMCPProxyRepo creates a new MCP proxy repository; core resolves projects. secrets deletes a deleted proxy's endpoint credentials; a
 // repository that deletes no proxies may pass nil.
-func NewMCPProxyRepo(db *gorm.DB, secrets modkit.Secrets) MCPProxyRepository {
+func NewMCPProxyRepo(db *gorm.DB, core modkit.CoreAPI, secrets modkit.Secrets) MCPProxyRepository {
 	return &MCPProxyRepo{
 		db:           db,
-		core:         repositories.NewCoreReadAPI(db),
+		core:         core,
 		artifactRepo: NewArtifactRepo(db, nil),
 		secrets:      secrets,
 	}

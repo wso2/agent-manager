@@ -46,7 +46,7 @@ func Initialize(core *wiring.AppParams, coreAPI modkit.CoreAPI, gatewayApplier g
 	platformAgentExposureRepository := ProvidePlatformAgentExposureRepository(db)
 	platformAgentExposures := gwsvc.NewPlatformAgentExposures(platformAgentExposureRepository, gatewayRepository, coreAPI)
 	store := gwsecret.NewStore()
-	a2AProxyRepository := ProvideA2AProxyRepository(db, store)
+	a2AProxyRepository := ProvideA2AProxyRepository(db, coreAPI, store)
 	a2AAgentCardRepository := ProvideA2AAgentCardRepository(db)
 	agentConfigRepository := gwrepo.NewAgentConfigRepo(db)
 	a2ACardFetcher := gwsvc.NewA2ACardFetcher(settings)
@@ -58,11 +58,11 @@ func Initialize(core *wiring.AppParams, coreAPI modkit.CoreAPI, gatewayApplier g
 	worker := reconcile.NewWorker(reconcileCore, logger)
 	platformGatewayService := ProvidePlatformGatewayService(gatewayRepository, gatewayApplier, worker, reconcileCore, settings)
 	agentConfigurationRepository := gwrepo.NewAgentConfigurationRepository(db)
-	envAgentModelMappingRepository := gwrepo.NewEnvAgentModelMappingRepository(db)
+	envAgentModelMappingRepository := gwrepo.NewEnvAgentModelMappingRepository(db, coreAPI)
 	envAgentMCPMappingRepository := gwrepo.NewEnvAgentMCPMappingRepository(db)
-	agentEnvConfigVariableRepository := gwrepo.NewAgentEnvConfigVariableRepository(db)
+	agentEnvConfigVariableRepository := gwrepo.NewAgentEnvConfigVariableRepository(db, coreAPI)
 	llmProviderRepository := ProvideLLMProviderRepository(db, store)
-	mcpProxyRepository := ProvideMCPProxyRepository(db, store)
+	mcpProxyRepository := ProvideMCPProxyRepository(db, coreAPI, store)
 	llmProxyRepository := ProvideLLMProxyRepository(db, store)
 	llmProxyService := gwsvc.NewLLMProxyService(llmProxyRepository, llmProviderRepository)
 	mcpProxyEndpointRepository := gwrepo.NewMCPProxyEndpointRepository(db)
@@ -308,8 +308,8 @@ func ProvideLLMProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.LLMPr
 	return gwrepo.NewLLMProxyRepo(db, secrets)
 }
 
-func ProvideMCPProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.MCPProxyRepository {
-	return gwrepo.NewMCPProxyRepo(db, secrets)
+func ProvideMCPProxyRepository(db *gorm.DB, core modkit.CoreAPI, secrets modkit.Secrets) gwrepo.MCPProxyRepository {
+	return gwrepo.NewMCPProxyRepo(db, core, secrets)
 }
 
 func ProvideDeploymentRepository(db *gorm.DB) gwrepo.DeploymentRepository {
@@ -320,8 +320,8 @@ func ProvideA2AAgentCardRepository(db *gorm.DB) gwrepo.A2AAgentCardRepository {
 	return gwrepo.NewA2AAgentCardRepository(db)
 }
 
-func ProvideA2AProxyRepository(db *gorm.DB, secrets modkit.Secrets) gwrepo.A2AProxyRepository {
-	return gwrepo.NewA2AProxyRepository(db, secrets)
+func ProvideA2AProxyRepository(db *gorm.DB, core modkit.CoreAPI, secrets modkit.Secrets) gwrepo.A2AProxyRepository {
+	return gwrepo.NewA2AProxyRepository(db, core, secrets)
 }
 
 // ProvideA2AProxyHooks gives the card service the proxy hooks only, not the whole proxy service.

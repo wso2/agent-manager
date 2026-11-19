@@ -26,7 +26,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // AgentConsumer holds the proxy and agent names needed to build a consumer list item.
@@ -69,8 +68,8 @@ type envAgentModelMappingRepository struct {
 }
 
 // NewEnvAgentModelMappingRepository creates a new repository
-func NewEnvAgentModelMappingRepository(db *gorm.DB) EnvAgentModelMappingRepository {
-	return &envAgentModelMappingRepository{db: db, core: repositories.NewCoreReadAPI(db)}
+func NewEnvAgentModelMappingRepository(db *gorm.DB, core modkit.CoreAPI) EnvAgentModelMappingRepository {
+	return &envAgentModelMappingRepository{db: db, core: core}
 }
 
 func (r *envAgentModelMappingRepository) Create(ctx context.Context, tx *gorm.DB, mapping *gwmodels.EnvAgentModelMapping) error {

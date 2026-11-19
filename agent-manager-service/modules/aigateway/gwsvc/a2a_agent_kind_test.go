@@ -39,6 +39,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo/gwrepomocks"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtest"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // a2aFixture is an org with an ingress gateway mapped to env, and the A2A kind over the real repositories with a
@@ -90,7 +91,7 @@ func newA2AFixture(t *testing.T) *a2aFixture {
 	apiKeys := gwrepo.NewAPIKeyRepo(gormDB)
 	tx := NewTxRunner(gormDB)
 	exposures := gwrepo.NewPlatformAgentExposureRepository(gormDB)
-	proxies := gwrepo.NewA2AProxyRepository(gormDB, gwtest.NewSecrets())
+	proxies := gwrepo.NewA2AProxyRepository(gormDB, repositories.NewCoreReadAPI(gormDB), gwtest.NewSecrets())
 	cards := gwrepo.NewA2AAgentCardRepository(gormDB)
 	gateways := gwrepo.NewGatewayRepo(gormDB)
 	kind := NewA2AAgentKind(gormDB, tx, NewPlatformAgentExposures(exposures, gateways, oc), proxies, cards, f.sync.repo, configs, oc, fetcher, apiKeys, f.events, gwtest.NewSecrets(), testLogger())
@@ -256,7 +257,7 @@ func TestRemovingAProxiedEnvironmentsCardURLUndeploysAndDeletesTheProxyTogether(
 	f.registerCard(t)
 	artifact := f.proxy(t)
 	f.render(t, artifact)
-	proxies := gwrepo.NewA2AProxyRepository(db.GetDB(), gwtest.NewSecrets())
+	proxies := gwrepo.NewA2AProxyRepository(db.GetDB(), repositories.NewCoreReadAPI(db.GetDB()), gwtest.NewSecrets())
 	cards := gwrepo.NewA2AAgentCardRepository(db.GetDB())
 	f.hub.fail = func(evt eventhub.Event) error {
 		if evt.EventType == "agent.undeployed" {
@@ -292,7 +293,7 @@ func TestPlacementPassPlacesAnExternalAgentFromItsProxyAlone(t *testing.T) {
 	created, err := ensureAgentEnvAPIArtifact(db.GetDB(), gwrepo.NewArtifactRepo(db.GetDB(), gwtest.NewSecrets()), f.sync.ouID, "proj",
 		f.external.Name, f.env.String(), gwmodels.KindAgent)
 	require.NoError(t, err)
-	require.NoError(t, gwrepo.NewA2AProxyRepository(db.GetDB(), gwtest.NewSecrets()).Upsert(context.Background(), &gwmodels.A2AProxy{
+	require.NoError(t, gwrepo.NewA2AProxyRepository(db.GetDB(), repositories.NewCoreReadAPI(db.GetDB()), gwtest.NewSecrets()).Upsert(context.Background(), &gwmodels.A2AProxy{
 		OUID: f.sync.ouID, ProjectName: "proj", AgentName: f.external.Name, EnvironmentName: "dev", EnvironmentUUID: f.env,
 		ArtifactUUID: created.UUID,
 	}))

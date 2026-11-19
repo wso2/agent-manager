@@ -25,7 +25,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // ErrPlatformAgentExposureNotFound means the agent is not exposed in the environment.
@@ -83,7 +82,7 @@ func (r *platformAgentExposureRepository) Upsert(ctx context.Context, exposure *
 	now := dbx.Now()
 	exposure.UpdatedAt = now
 	if exposure.ID == uuid.Nil {
-		exposure.ID = repositories.NewID()
+		exposure.ID = newID()
 	}
 	if exposure.CreatedAt.IsZero() {
 		exposure.CreatedAt = now
@@ -144,6 +143,6 @@ func (r *platformAgentExposureRepository) DeleteForEnvironment(ctx context.Conte
 }
 
 func (r *platformAgentExposureRepository) DeleteForAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	cond, args := repositories.AgentCond(r.db, ouID, projectName, agentName)
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
 	return r.db.WithContext(ctx).Where(cond, args...).Delete(&gwmodels.PlatformAgentExposure{}).Error
 }

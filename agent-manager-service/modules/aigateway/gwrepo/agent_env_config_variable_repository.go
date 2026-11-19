@@ -23,9 +23,9 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // AgentEnvConfigVariableRepository defines data access for environment variables
@@ -58,12 +58,13 @@ type AgentEnvConfigVariableRepository interface {
 }
 
 type agentEnvConfigVariableRepository struct {
-	db *gorm.DB
+	db   *gorm.DB
+	core modkit.CoreAPI
 }
 
-// NewAgentEnvConfigVariableRepository creates a new repository
-func NewAgentEnvConfigVariableRepository(db *gorm.DB) AgentEnvConfigVariableRepository {
-	return &agentEnvConfigVariableRepository{db: db}
+// NewAgentEnvConfigVariableRepository creates a new repository; core locks agents.
+func NewAgentEnvConfigVariableRepository(db *gorm.DB, core modkit.CoreAPI) AgentEnvConfigVariableRepository {
+	return &agentEnvConfigVariableRepository{db: db, core: core}
 }
 
 func (r *agentEnvConfigVariableRepository) CreateBatch(ctx context.Context, tx *gorm.DB, variables []gwmodels.AgentEnvConfigVariable) error {
@@ -151,7 +152,7 @@ func (r *agentEnvConfigVariableRepository) DeleteByConfigAndEnv(ctx context.Cont
 // LockAndListByAgent takes the agent lock before any configuration row lock. A
 // separate read after acquisition sees names committed by a competing rename.
 func (r *agentEnvConfigVariableRepository) LockAndListByAgent(ctx context.Context, tx *gorm.DB, ouID, projectName, agentID string) ([]gwmodels.AgentEnvConfigVariable, error) {
-	if _, err := repositories.LockAgent(ctx, tx, ouID, projectName, agentID); err != nil {
+	if err := lockAgent(ctx, r.core, tx, ouID, projectName, agentID); err != nil {
 		return nil, fmt.Errorf("lock agent variable names: %w", err)
 	}
 	var variables []gwmodels.AgentEnvConfigVariable

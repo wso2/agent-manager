@@ -28,7 +28,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // ErrA2AAgentCardSuperseded means the row was re-enqueued after the caller read it.
@@ -102,7 +101,7 @@ func NewA2AAgentCardRepository(db *gorm.DB) A2AAgentCardRepository {
 
 // agentEnvIDCond matches the named agent's rows in an environment known by id.
 func agentEnvIDCond(db *gorm.DB, ouID, projectName, agentName string, environmentUUID uuid.UUID) (string, []any) {
-	cond, args := repositories.AgentCond(db, ouID, projectName, agentName)
+	cond, args := agentCond(db, ouID, projectName, agentName)
 	return cond + " AND environment_id = ?", append(args, environmentUUID)
 }
 
@@ -114,7 +113,7 @@ func (r *a2aAgentCardRepository) Enqueue(ctx context.Context, card *gwmodels.A2A
 	card.NextAttemptAt = &now
 	card.UpdatedAt = now
 	if card.ID == uuid.Nil {
-		card.ID = repositories.NewID()
+		card.ID = newID()
 	}
 	if card.CreatedAt.IsZero() {
 		card.CreatedAt = now
@@ -153,7 +152,7 @@ func (r *a2aAgentCardRepository) Enqueue(ctx context.Context, card *gwmodels.A2A
 
 func (r *a2aAgentCardRepository) Requeue(ctx context.Context, ouID, projectName, agentName, environmentName string) error {
 	now := dbx.Now()
-	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	result := r.db.WithContext(ctx).Model(&gwmodels.A2AAgentCard{}).Where(cond, args...).
 		Updates(map[string]interface{}{
 			"status":          gwmodels.A2AAgentCardStatusPending,
@@ -303,7 +302,7 @@ func (r *a2aAgentCardRepository) DeleteIfUnchanged(ctx context.Context, read gwm
 
 func (r *a2aAgentCardRepository) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*gwmodels.A2AAgentCard, error) {
 	var row gwmodels.A2AAgentCard
-	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	err := r.db.WithContext(ctx).Where(cond, args...).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrA2AAgentCardNotFound
@@ -316,7 +315,7 @@ func (r *a2aAgentCardRepository) Get(ctx context.Context, ouID, projectName, age
 
 func (r *a2aAgentCardRepository) ListForAgent(ctx context.Context, ouID, projectName, agentName string) ([]gwmodels.A2AAgentCard, error) {
 	var rows []gwmodels.A2AAgentCard
-	cond, args := repositories.AgentCond(r.db, ouID, projectName, agentName)
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
 	if err := r.db.WithContext(ctx).Where(cond, args...).Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -325,12 +324,12 @@ func (r *a2aAgentCardRepository) ListForAgent(ctx context.Context, ouID, project
 }
 
 func (r *a2aAgentCardRepository) DeleteForAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	cond, args := repositories.AgentCond(r.db, ouID, projectName, agentName)
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
 	return r.db.WithContext(ctx).Where(cond, args...).Delete(&gwmodels.A2AAgentCard{}).Error
 }
 
 func (r *a2aAgentCardRepository) DeleteForAgentEnv(ctx context.Context, ouID, projectName, agentName, environmentName string) error {
-	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	return r.db.WithContext(ctx).Where(cond, args...).Delete(&gwmodels.A2AAgentCard{}).Error
 }
 
@@ -342,7 +341,7 @@ func (r *a2aAgentCardRepository) DeleteForAgentEnvUUID(
 }
 
 func (r *a2aAgentCardRepository) DeletePlatformForAgentEnv(ctx context.Context, ouID, projectName, agentName, environmentName string) error {
-	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	return r.db.WithContext(ctx).Where(cond+" AND source = ?", append(args, gwmodels.A2AAgentCardSourcePlatform)...).
 		Delete(&gwmodels.A2AAgentCard{}).Error
 }

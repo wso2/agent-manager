@@ -27,7 +27,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsecret"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // ErrA2AProxyNotFound means the agent's environment is not proxied.
@@ -69,16 +68,18 @@ type A2AProxyRepository interface {
 
 type a2aProxyRepository struct {
 	db      *gorm.DB
+	core    modkit.CoreAPI
 	secrets modkit.Secrets
 }
 
-// NewA2AProxyRepository creates an A2AProxyRepository; secrets keeps the proxies' upstream credentials.
-func NewA2AProxyRepository(db *gorm.DB, secrets modkit.Secrets) A2AProxyRepository {
-	return &a2aProxyRepository{db: db, secrets: secrets}
+// NewA2AProxyRepository creates an A2AProxyRepository; core locks agents and secrets keeps the proxies' upstream
+// credentials.
+func NewA2AProxyRepository(db *gorm.DB, core modkit.CoreAPI, secrets modkit.Secrets) A2AProxyRepository {
+	return &a2aProxyRepository{db: db, core: core, secrets: secrets}
 }
 
 func (r *a2aProxyRepository) WithTx(tx *gorm.DB) A2AProxyRepository {
-	return &a2aProxyRepository{db: tx, secrets: r.secrets}
+	return &a2aProxyRepository{db: tx, core: r.core, secrets: r.secrets}
 }
 
 // withSecretRef points a read row at its stored credential: a row has one exactly while it has a header.
@@ -90,12 +91,11 @@ func withSecretRef(row *gwmodels.A2AProxy) {
 
 // LockAgentEnv locks the agent's row: Lite has one environment per agent, so the agent row serialises its proxy.
 func (r *a2aProxyRepository) LockAgentEnv(ctx context.Context, ouID, projectName, agentName string, _ uuid.UUID) error {
-	_, err := repositories.LockAgent(ctx, r.db, ouID, projectName, agentName)
-	return err
+	return lockAgent(ctx, r.core, r.db, ouID, projectName, agentName)
 }
 
 func (r *a2aProxyRepository) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*gwmodels.A2AProxy, error) {
-	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	return r.first(ctx, cond, args...)
 }
 
@@ -144,7 +144,7 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *gwmodels.A2AProx
 		}
 		if len(existing) == 0 {
 			if proxy.ID == uuid.Nil {
-				proxy.ID = repositories.NewID()
+				proxy.ID = newID()
 			}
 			proxy.CreatedAt = now
 			if err := r.storeSecret(ctx, tx, proxy); err != nil {
@@ -230,7 +230,7 @@ func (r *a2aProxyRepository) Delete(ctx context.Context, ouID, projectName, agen
 }
 
 func (r *a2aProxyRepository) DeleteForAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	cond, args := repositories.AgentCond(r.db, ouID, projectName, agentName)
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
 	_, err := r.deleteProxies(ctx, cond, args...)
 	return err
 }

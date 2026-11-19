@@ -24,7 +24,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // ErrAgentConfigNotFound is returned when no agent config exists for the given agent and environment.
@@ -123,7 +122,7 @@ func (r *AgentConfigRepo) WithTx(tx *gorm.DB) AgentConfigRepository {
 // Get retrieves agent config for a specific agent and environment
 func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName, environmentName string) (*gwmodels.AgentConfig, error) {
 	var config gwmodels.AgentConfig
-	cond, args := repositories.AgentEnvCond(r.db, ouID, projectName, agentName, environmentName)
+	cond, args := agentEnvCond(r.db, ouID, projectName, agentName, environmentName)
 	err := r.db.WithContext(ctx).Where(cond, args...).Take(&config).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -136,7 +135,7 @@ func (r *AgentConfigRepo) Get(ctx context.Context, ouID, projectName, agentName,
 
 // DeleteAllByAgent removes all configs for an agent (used when agent is deleted)
 func (r *AgentConfigRepo) DeleteAllByAgent(ctx context.Context, ouID, projectName, agentName string) error {
-	cond, args := repositories.AgentCond(r.db, ouID, projectName, agentName)
+	cond, args := agentCond(r.db, ouID, projectName, agentName)
 	return r.db.WithContext(ctx).Where(cond, args...).Delete(&gwmodels.AgentConfig{}).Error
 }
 

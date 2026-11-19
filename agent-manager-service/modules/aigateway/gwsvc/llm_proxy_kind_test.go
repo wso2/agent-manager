@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -273,7 +274,7 @@ func TestAgentConfigProxyUpdateAfterAPublicUndeploySaves(t *testing.T) {
 	require.NoError(t, err)
 
 	gormDB := db.GetDB()
-	mappings := gwrepo.NewEnvAgentModelMappingRepository(gormDB)
+	mappings := gwrepo.NewEnvAgentModelMappingRepository(gormDB, repositories.NewCoreReadAPI(gormDB))
 	var mapping gwmodels.EnvAgentModelMapping
 	require.NoError(t, gormDB.Preload("LLMProxy").Where("llm_proxy_id = ?", proxy.UUID).First(&mapping).Error)
 	mapping.LLMProxy.Handle = proxy.Handle
@@ -512,7 +513,7 @@ func TestScenarioBPolicyWriteFailureRollsBackWithoutUndeploying(t *testing.T) {
 	require.NoError(t, err)
 
 	gormDB := db.GetDB()
-	mappings := gwrepo.NewEnvAgentModelMappingRepository(gormDB)
+	mappings := gwrepo.NewEnvAgentModelMappingRepository(gormDB, repositories.NewCoreReadAPI(gormDB))
 	var mapping gwmodels.EnvAgentModelMapping
 	require.NoError(t, gormDB.Preload("LLMProxy").Where("llm_proxy_id = ?", proxy.UUID).Take(&mapping).Error)
 	mapping.LLMProxy.Handle = proxy.Handle

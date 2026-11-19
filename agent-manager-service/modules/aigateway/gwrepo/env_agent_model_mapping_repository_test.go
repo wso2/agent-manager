@@ -27,6 +27,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // TestEnvAgentModelMappingRepo_BackfillsLLMProxyHandle guards against a
@@ -51,7 +52,7 @@ func TestEnvAgentModelMappingRepo_BackfillsLLMProxyHandle(t *testing.T) {
 	configUUID, envUUID := mapLLMProxyToAgent(t, ou, proxyUUID)
 	config := &gwmodels.AgentConfiguration{UUID: configUUID}
 
-	repo := NewEnvAgentModelMappingRepository(gdb)
+	repo := NewEnvAgentModelMappingRepository(gdb, repositories.NewCoreReadAPI(gdb))
 
 	t.Run("ListByConfig backfills Handle", func(t *testing.T) {
 		mappings, err := repo.ListByConfig(ctx, config.UUID)

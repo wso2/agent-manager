@@ -39,6 +39,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/reconcile"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // mcpFixture is an org with an MCP proxy whose one endpoint is bound to env, and the MCP service over the real
@@ -61,7 +62,7 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 		reconcile.Config{Lease: time.Minute, AttemptBudget: 3}, slog.New(slog.DiscardHandler))
 	f.worker = reconcile.NewWorker(core, slog.New(slog.DiscardHandler))
 	f.svc = &MCPProxyService{
-		db: gormDB, tx: NewTxRunner(gormDB), repo: gwrepo.NewMCPProxyRepo(gormDB, gwtest.NewSecrets()), deploymentRepo: f.sync.repo,
+		db: gormDB, tx: NewTxRunner(gormDB), repo: gwrepo.NewMCPProxyRepo(gormDB, repositories.NewCoreReadAPI(gormDB), gwtest.NewSecrets()), deploymentRepo: f.sync.repo,
 		gatewayRepo: gateways, artifactRepo: gwrepo.NewArtifactRepo(gormDB, gwtest.NewSecrets()),
 		mcpProxyScopeRepo: gwrepo.NewMCPProxyScopeRepository(gormDB), logger: slog.New(slog.DiscardHandler),
 		endpointRepo: gwrepo.NewMCPProxyEndpointRepository(gormDB), core: core, kind: kind,
@@ -89,7 +90,7 @@ func newMCPFixture(t *testing.T) *mcpFixture {
 		}); err != nil {
 			return err
 		}
-		return gwrepo.NewMCPProxyRepo(gormDB, gwtest.NewSecrets()).Create(context.Background(), tx, proxy, proxy.Handle, proxy.Handle,
+		return gwrepo.NewMCPProxyRepo(gormDB, repositories.NewCoreReadAPI(gormDB), gwtest.NewSecrets()).Create(context.Background(), tx, proxy, proxy.Handle, proxy.Handle,
 			"v1.0", f.sync.ouID, nil, nil)
 	}))
 	loaded, err := f.svc.repo.GetByUUID(context.Background(), proxy.UUID.String(), f.sync.ouID)
