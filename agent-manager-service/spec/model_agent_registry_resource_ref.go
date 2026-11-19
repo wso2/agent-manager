@@ -21,6 +21,8 @@ var _ MappedNullable = &AgentRegistryResourceRef{}
 type AgentRegistryResourceRef struct {
 	Id          string `json:"id"`
 	DisplayName string `json:"displayName"`
+	// MCP servers on the single-agent view only: every tool discovered on the server.
+	Tools []string `json:"tools,omitempty"`
 }
 
 // NewAgentRegistryResourceRef instantiates a new AgentRegistryResourceRef object
@@ -90,6 +92,38 @@ func (o *AgentRegistryResourceRef) SetDisplayName(v string) {
 	o.DisplayName = v
 }
 
+// GetTools returns the Tools field value if set, zero value otherwise.
+func (o *AgentRegistryResourceRef) GetTools() []string {
+	if o == nil || IsNil(o.Tools) {
+		var ret []string
+		return ret
+	}
+	return o.Tools
+}
+
+// GetToolsOk returns a tuple with the Tools field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentRegistryResourceRef) GetToolsOk() ([]string, bool) {
+	if o == nil || IsNil(o.Tools) {
+		return nil, false
+	}
+	return o.Tools, true
+}
+
+// HasTools returns a boolean if a field has been set.
+func (o *AgentRegistryResourceRef) HasTools() bool {
+	if o != nil && !IsNil(o.Tools) {
+		return true
+	}
+
+	return false
+}
+
+// SetTools gets a reference to the given []string and assigns it to the Tools field.
+func (o *AgentRegistryResourceRef) SetTools(v []string) {
+	o.Tools = v
+}
+
 func (o AgentRegistryResourceRef) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -102,6 +136,9 @@ func (o AgentRegistryResourceRef) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["id"] = o.Id
 	toSerialize["displayName"] = o.DisplayName
+	if !IsNil(o.Tools) {
+		toSerialize["tools"] = o.Tools
+	}
 	return toSerialize, nil
 }
 

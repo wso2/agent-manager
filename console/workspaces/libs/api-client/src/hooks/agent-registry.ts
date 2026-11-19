@@ -17,43 +17,56 @@
  */
 
 import type {
-  AgentRegistryEntry,
+  AgentRegistryEntryDetail,
   AgentRegistryListResponse,
   GetAgentRegistryEntryPathParams,
-  GetUnregisteredAgentPathParams,
   ListAgentRegistryPathParams,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { getAgentRegistryEntry, getUnregisteredAgent, listAgentRegistry } from "../apis";
+import {
+  getAgentRegistryEntry,
+  listAgentRegistry,
+  listUnregisteredAgents,
+} from "../apis";
 import { useApiQuery } from "./react-query-notifications";
 
-/** Every agent in the organization, across all projects, with its registry record. */
+/**
+ * How long a fetched registry list is reused before it is refetched. Longer than the
+ * console's default: one list call reads every agent and deployment in the organization.
+ */
+const REGISTRY_LIST_STALE_MS = 60_000;
+
+/** Every registered agent in the organization, across all projects, with its registry record. */
 export function useListAgentRegistry(params: ListAgentRegistryPathParams) {
   const { getToken } = useAuthHooks();
   return useApiQuery<AgentRegistryListResponse>({
     queryKey: ["agent-registry", params],
     queryFn: () => listAgentRegistry(params, getToken),
     enabled: !!params.orgName,
+    staleTime: REGISTRY_LIST_STALE_MS,
+  });
+}
+
+/** Every unregistered agent: the Shadow Agent Discovery findings not onboarded yet. */
+export function useListUnregisteredAgents(params: ListAgentRegistryPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<AgentRegistryListResponse>({
+    // Under the findings' prefix, so a Shadow Agent Discovery change (scan, onboard,
+    // delete) refreshes it.
+    queryKey: ["shadow-agents", "findings", params.orgName, "agent-registry"],
+    queryFn: () => listUnregisteredAgents(params, getToken),
+    enabled: !!params.orgName,
+    staleTime: REGISTRY_LIST_STALE_MS,
   });
 }
 
 /** One registered agent's registry record; null when there is no such agent. */
 export function useGetAgentRegistryEntry(params: GetAgentRegistryEntryPathParams) {
   const { getToken } = useAuthHooks();
-  return useApiQuery<AgentRegistryEntry | null>({
+  return useApiQuery<AgentRegistryEntryDetail | null>({
     // Under the list's prefix, so invalidating ["agent-registry"] refreshes both.
     queryKey: ["agent-registry", "entry", params],
     queryFn: () => getAgentRegistryEntry(params, getToken),
     enabled: !!params.orgName && !!params.projName && !!params.agentName,
-  });
-}
-
-/** One unregistered (shadow) agent by its finding ID; null when there is no such agent. */
-export function useGetUnregisteredAgent(params: GetUnregisteredAgentPathParams) {
-  const { getToken } = useAuthHooks();
-  return useApiQuery<AgentRegistryEntry | null>({
-    queryKey: ["agent-registry", "unregistered", params],
-    queryFn: () => getUnregisteredAgent(params, getToken),
-    enabled: !!params.orgName && !!params.findingId,
   });
 }

@@ -19,8 +19,8 @@
 import { Box, Chip, Stack, Typography } from "@wso2/oxygen-ui";
 import type {
   AgentRegistryA2ASkill,
-  AgentRegistryEntry,
-  AgentRegistryEnvironment,
+  AgentRegistryEntryDetail,
+  AgentRegistryEnvironmentDetail,
 } from "@agent-management-platform/types";
 import { SectionCard } from "./SectionCard";
 
@@ -57,8 +57,8 @@ export function Capabilities({
   agent,
   env,
 }: {
-  agent: AgentRegistryEntry;
-  env: AgentRegistryEnvironment;
+  agent: AgentRegistryEntryDetail;
+  env: AgentRegistryEnvironmentDetail;
 }) {
   if (agent.interface !== "a2a-agent") return null;
   const skills = env.a2aCard?.skills ?? [];

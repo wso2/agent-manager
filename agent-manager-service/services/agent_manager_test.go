@@ -2557,8 +2557,9 @@ func TestListOrgAgentRegistry_FillsRecordFromComponent(t *testing.T) {
 // registryConfigStub returns fixed LLM provider and MCP server rows for the registry list.
 type registryConfigStub struct {
 	AgentConfigurationService
-	llmProviders []repositories.AgentEnvironmentResource
-	mcpServers   []repositories.AgentEnvironmentResource
+	llmProviders   []repositories.AgentEnvironmentResource
+	mcpServers     []repositories.AgentEnvironmentResource
+	agentResources map[string]*models.AgentEnvironmentResources
 }
 
 func (s *registryConfigStub) ListOrgAgentLLMProviders(context.Context, string) ([]repositories.AgentEnvironmentResource, error) {
@@ -2659,6 +2660,124 @@ func TestListOrgAgentRegistry_FillsEnvironmentsAndCreator(t *testing.T) {
 		assert.Equal(t, client.DeploymentStatusNotDeployed, env.DeploymentStatus)
 		assert.Nil(t, env.LastDeployedAt)
 	}
+}
+
+func (s *registryConfigStub) ListAgentEnvironmentResources(context.Context, string, string, string) (map[string]*models.AgentEnvironmentResources, error) {
+	return s.agentResources, nil
+}
+
+// registryMonitorStub returns fixed monitors for the agent overview.
+type registryMonitorStub struct {
+	MonitorManagerService
+	monitors []models.MonitorResponse
+}
+
+func (s *registryMonitorStub) ListMonitors(context.Context, string, string, string, string) (*models.MonitorListResponse, error) {
+	return &models.MonitorListResponse{Monitors: s.monitors, Total: len(s.monitors)}, nil
+}
+
+func TestGetAgentWithRegistry_FillsGovernancePerEnvironment(t *testing.T) {
+	deployedAt := time.Date(2026, 11, 2, 9, 30, 0, 0, time.UTC)
+	ocClient := &clientmocks.OpenChoreoClientMock{
+		GetOrganizationFunc: func(_ context.Context, _ string) (*models.OrganizationResponse, error) {
+			return &models.OrganizationResponse{}, nil
+		},
+		GetComponentFunc: func(_ context.Context, _, _, _ string) (*models.AgentResponse, error) {
+			return &models.AgentResponse{
+				Name: "notes", ProjectName: "proj1",
+				Provisioning: models.Provisioning{Type: string(utils.InternalAgent)},
+				Type:         models.AgentType{Type: "agent-api", SubType: "a2a-agent"},
+			}, nil
+		},
+		GetProjectDeploymentPipelineFunc: func(_ context.Context, _, _ string) (*models.DeploymentPipelineResponse, error) {
+			return nil, errors.New("no pipeline needed for GetAgent's config in this test")
+		},
+		GetProjectFunc: func(_ context.Context, _, _ string) (*models.ProjectResponse, error) {
+			return &models.ProjectResponse{Name: "proj1", DeploymentPipeline: "default-pipeline"}, nil
+		},
+		ListEnvironmentsFunc: func(_ context.Context, _ string) ([]*models.EnvironmentResponse, error) {
+			return []*models.EnvironmentResponse{
+				{Name: "development", DisplayName: "Development"},
+				{Name: "production", DisplayName: "Production", IsProduction: true},
+			}, nil
+		},
+		GetDeploymentsFunc: func(_ context.Context, _, pipeline, _, _ string) ([]*models.DeploymentResponse, error) {
+			assert.Equal(t, "default-pipeline", pipeline)
+			return []*models.DeploymentResponse{
+				{Environment: "development", EnvironmentDisplayName: "Development", Status: client.DeploymentStatusActive, LastDeployedAt: &deployedAt},
+				{Environment: "production", EnvironmentDisplayName: "Production", Status: client.DeploymentStatusNotDeployed},
+			}, nil
+		},
+	}
+	provisioning := &stubAgentThunderProvisioning{
+		GetIdentityViewsFunc: func(_ context.Context, _, _, _ string) ([]models.AgentIdentityEnvironmentView, error) {
+			return []models.AgentIdentityEnvironmentView{{EnvironmentName: "development", Status: models.AgentThunderStatusCompleted}}, nil
+		},
+	}
+	configs := &registryConfigStub{agentResources: map[string]*models.AgentEnvironmentResources{
+		"development": {
+			LLMProviders: []models.AgentRegistryResourceRef{{ID: "openai", DisplayName: "OpenAI"}},
+			Guardrails:   []string{"pii-masking"},
+			MCPServers:   []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues"}}},
+		},
+	}}
+	monitors := &registryMonitorStub{monitors: []models.MonitorResponse{
+		{Name: "quality", DisplayName: "Quality", EnvironmentName: "development", Status: "Active"},
+	}}
+	cards := &repomocks.A2AAgentCardRepositoryMock{
+		ListForAgentFunc: func(_ context.Context, _, _, _ string) ([]models.A2AAgentCard, error) {
+			return []models.A2AAgentCard{
+				{EnvironmentName: "development", Card: []byte(`{"name":"Notes","skills":[{"id":"add-note","name":"Add a note","tags":["notes"]}]}`)},
+				// A card that was never fetched has no skills to show.
+				{EnvironmentName: "production"},
+			}, nil
+		},
+	}
+	envConfigs := &repomocks.AgentConfigRepositoryMock{
+		GetFunc: func(_ context.Context, _, _, _, env string) (*models.AgentConfig, error) {
+			if env == "development" {
+				return &models.AgentConfig{EnableOAuthSecurity: true}, nil
+			}
+			return nil, repositories.ErrAgentConfigNotFound
+		},
+	}
+	s := &agentManagerService{
+		ocClient: ocClient, agentThunderProvisioning: provisioning, agentConfigurationService: configs,
+		monitorManagerService: monitors, a2aCardRepo: cards, agentConfigRepo: envConfigs, logger: discardLogger(),
+	}
+
+	agent, err := s.GetAgentWithRegistry(context.Background(), "acme", "proj1", "notes")
+
+	require.NoError(t, err)
+	require.NotNil(t, agent.Registry)
+	assert.Equal(t, "a2a-agent", agent.Registry.Interface)
+	assert.Equal(t, []models.AgentRegistryEnvironment{
+		{
+			Name: "development", DisplayName: "Development", DeploymentStatus: client.DeploymentStatusActive,
+			LastDeployedAt: &deployedAt,
+			LLMProviders:   []models.AgentRegistryResourceRef{{ID: "openai", DisplayName: "OpenAI"}},
+			MCPServers:     []models.AgentRegistryResourceRef{{ID: "github-mcp", DisplayName: "GitHub MCP", Tools: []string{"search_issues"}}},
+			Governance: &models.AgentRegistryGovernance{
+				AgentIDStatus:   string(models.AgentThunderStatusCompleted),
+				Guardrails:      []string{"pii-masking"},
+				Monitors:        []models.AgentRegistryMonitor{{Name: "quality", DisplayName: "Quality", Status: "Active"}},
+				InboundSecurity: models.AgentRegistryInboundSecurity{OAuth: true},
+				A2ASkills:       []models.AgentRegistryA2ASkill{{ID: "add-note", Name: "Add a note", Tags: []string{"notes"}}},
+			},
+		},
+		{
+			Name: "production", DisplayName: "Production", IsProduction: true,
+			DeploymentStatus: client.DeploymentStatusNotDeployed,
+			LLMProviders:     []models.AgentRegistryResourceRef{},
+			MCPServers:       []models.AgentRegistryResourceRef{},
+			Governance: &models.AgentRegistryGovernance{
+				Guardrails: []string{},
+				Monitors:   []models.AgentRegistryMonitor{},
+				// No stored config: the defaults GetAgent shows.
+				InboundSecurity: models.AgentRegistryInboundSecurity{APIKey: true},
+			},
+		},
+	}, agent.Registry.Environments)
 }
 
 func TestListOrgAgentRegistry_CreatorLookupFailureKeepsID(t *testing.T) {

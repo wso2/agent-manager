@@ -292,7 +292,20 @@ func (c *agentController) GetAgent(w http.ResponseWriter, r *http.Request) {
 	projName := r.PathValue(utils.PathParamProjName)
 	agentName := r.PathValue(utils.PathParamAgentName)
 
-	agent, err := c.agentService.GetAgent(ctx, ouID, projName, agentName)
+	var (
+		agent *models.AgentResponse
+		err   error
+	)
+	switch view := r.URL.Query().Get("view"); view {
+	case "":
+		agent, err = c.agentService.GetAgent(ctx, ouID, projName, agentName)
+	case viewRegistry:
+		agent, err = c.agentService.GetAgentWithRegistry(ctx, ouID, projName, agentName)
+	default:
+		utils.WriteErrorResponse(w, http.StatusBadRequest,
+			fmt.Sprintf("Invalid view %q: the only supported value is %q", view, viewRegistry))
+		return
+	}
 	if err != nil {
 		log.Error("GetAgent: failed to get agent", "error", err)
 		handleCommonErrors(w, err, "Failed to get agent")
@@ -360,9 +373,9 @@ func (c *agentController) ListAgents(w http.ResponseWriter, r *http.Request) {
 	utils.WriteSuccessResponse(w, http.StatusOK, response)
 }
 
-// orgAgentsViewRegistry is the ?view= value that adds each agent's registry record to
-// GET /orgs/{org}/agents.
-const orgAgentsViewRegistry = "registry"
+// viewRegistry is the ?view= value that adds the registry record to GET /orgs/{org}/agents
+// (each agent's) and to GET agent (the agent's, with its governance per environment).
+const viewRegistry = "registry"
 
 func (c *agentController) ListOrgAgents(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -375,11 +388,11 @@ func (c *agentController) ListOrgAgents(w http.ResponseWriter, r *http.Request) 
 	switch view := r.URL.Query().Get("view"); view {
 	case "":
 		agents, err = c.agentService.ListOrgAgents(ctx, ouID)
-	case orgAgentsViewRegistry:
+	case viewRegistry:
 		agents, err = c.agentService.ListOrgAgentRegistry(ctx, ouID)
 	default:
 		utils.WriteErrorResponse(w, http.StatusBadRequest,
-			fmt.Sprintf("Invalid view %q: the only supported value is %q", view, orgAgentsViewRegistry))
+			fmt.Sprintf("Invalid view %q: the only supported value is %q", view, viewRegistry))
 		return
 	}
 	if err != nil {

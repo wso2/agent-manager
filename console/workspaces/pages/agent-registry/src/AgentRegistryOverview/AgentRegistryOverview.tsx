@@ -23,8 +23,8 @@ import { useGetAgentRegistryEntry } from "@agent-management-platform/api-client"
 import { LabelChips, formatRelativeTime } from "@agent-management-platform/shared-component";
 import {
   absoluteRouteMap,
-  type AgentRegistryEntry,
-  type AgentRegistryEnvironment,
+  type AgentRegistryEntryDetail,
+  type AgentRegistryEnvironmentDetail,
 } from "@agent-management-platform/types";
 import { Link, generatePath, useLocation, useParams, useSearchParams } from "react-router-dom";
 import { agentTypeText } from "../AgentRegistry/subComponents/agentRow";
@@ -48,9 +48,9 @@ const ENV_PARAM = "env";
  * data hardcodes them.
  */
 function chosenEnvironment(
-  agent: AgentRegistryEntry,
+  agent: AgentRegistryEntryDetail,
   fromUrl: string | null,
-): AgentRegistryEnvironment | undefined {
+): AgentRegistryEnvironmentDetail | undefined {
   return agent.environments.find((e) => e.name === fromUrl) ?? agent.environments[0];
 }
 
@@ -60,7 +60,7 @@ function EnvironmentSelect({
   value,
   onChange,
 }: {
-  environments: AgentRegistryEnvironment[];
+  environments: AgentRegistryEnvironmentDetail[];
   value: string;
   onChange: (name: string) => void;
 }) {
@@ -90,8 +90,8 @@ function Summary({
   agent,
   env,
 }: {
-  agent: AgentRegistryEntry;
-  env: AgentRegistryEnvironment | undefined;
+  agent: AgentRegistryEntryDetail;
+  env: AgentRegistryEnvironmentDetail | undefined;
 }) {
   const hasLabels = Object.keys(agent.labels).length > 0;
   const column = { xs: 12, sm: 6, lg: 3 };
@@ -167,7 +167,7 @@ export function AgentRegistryOverview() {
 
   // The list as it was when this page was opened; the plain list on a direct visit.
   const backHref = useReturnTo(generatePath(registryRoute.path, { orgId }));
-  const pageProps = { backHref, backLabel: "Back to agent registry", avatar: null };
+  const pageProps = { backHref, backLabel: "Back", avatar: null };
 
   if (isLoading) {
     return (

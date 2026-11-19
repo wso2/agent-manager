@@ -19,7 +19,7 @@
 import type { ReactNode } from "react";
 import { Box, Chip, Grid, Stack, Typography } from "@wso2/oxygen-ui";
 import type {
-  AgentRegistryEnvironment,
+  AgentRegistryEnvironmentDetail,
   AgentThunderStatus,
   MonitorStatus,
 } from "@agent-management-platform/types";
@@ -55,7 +55,7 @@ function Caption({ children }: { children: ReactNode }) {
   );
 }
 
-function AgentIdTile({ env }: { env: AgentRegistryEnvironment }) {
+function AgentIdTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
   const status = env.agentIdStatus;
   return (
     <Tile title="Agent ID">
@@ -73,7 +73,7 @@ function AgentIdTile({ env }: { env: AgentRegistryEnvironment }) {
   );
 }
 
-function EndpointSecurityTile({ env }: { env: AgentRegistryEnvironment }) {
+function EndpointSecurityTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
   const { apiKey, oauth } = env.inboundSecurity;
   const methods = [apiKey && "API key", oauth && "OAuth"].filter(Boolean) as string[];
   return (
@@ -87,7 +87,7 @@ function EndpointSecurityTile({ env }: { env: AgentRegistryEnvironment }) {
   );
 }
 
-function ModelAccessTile({ env }: { env: AgentRegistryEnvironment }) {
+function ModelAccessTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
   return (
     <Tile title="LLM providers">
       {env.llmProviders.length ? (
@@ -109,7 +109,7 @@ function ModelAccessTile({ env }: { env: AgentRegistryEnvironment }) {
   );
 }
 
-function ToolAccessTile({ env }: { env: AgentRegistryEnvironment }) {
+function ToolAccessTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
   return (
     <Tile title="MCP servers">
       {env.mcpServers.length ? (
@@ -132,7 +132,7 @@ function ToolAccessTile({ env }: { env: AgentRegistryEnvironment }) {
   );
 }
 
-function MonitorsTile({ env }: { env: AgentRegistryEnvironment }) {
+function MonitorsTile({ env }: { env: AgentRegistryEnvironmentDetail }) {
   return (
     <Tile title="Evaluation monitors">
       {env.monitors.length ? (
@@ -161,7 +161,7 @@ function MonitorsTile({ env }: { env: AgentRegistryEnvironment }) {
  * top of the page, read from its existing configuration: its identity, who may call
  * it, which models and tools it may use, and who checks its output.
  */
-export function Governance({ env }: { env: AgentRegistryEnvironment }) {
+export function Governance({ env }: { env: AgentRegistryEnvironmentDetail }) {
   const half = { xs: 12, md: 6 };
   const third = { xs: 12, md: 4 };
   return (

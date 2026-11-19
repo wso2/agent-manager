@@ -285,11 +285,6 @@ export const generatedRouteMap =  {
               "path": "/organizations/:orgId/agent-registry/projects/:registryProjectId/agents/:registryAgentId",
               "wildPath": "/organizations/:orgId/agent-registry/projects/:registryProjectId/agents/:registryAgentId/*",
               "children": {}
-            },
-            "unregisteredAgent": {
-              "path": "/organizations/:orgId/agent-registry/unregistered/:findingId",
-              "wildPath": "/organizations/:orgId/agent-registry/unregistered/:findingId/*",
-              "children": {}
             }
           }
         },

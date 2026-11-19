@@ -21,7 +21,6 @@ import type {
   AgentRegistryEntry,
   AgentRegistryEnvironment,
   AgentRegistryInterface,
-  AgentRegistryOwnerHint,
   AgentRegistryRegistration,
 } from "@agent-management-platform/types";
 
@@ -148,11 +147,6 @@ const INTERFACE_LABELS: Record<AgentRegistryInterface, string> = {
 export function isListed(agent: AgentRegistryEntry): boolean {
   if (agent.registration === "registered") return true;
   return !!agent.discovery && agent.discovery.present && !agent.discovery.onboarded;
-}
-
-/** A shadow agent's creator as one string: the name, else the email; undefined when neither. */
-export function ownerHintText(hint: AgentRegistryOwnerHint | undefined): string | undefined {
-  return hint?.name || hint?.email || undefined;
 }
 
 /** True when a filter is at its default and so narrows nothing. */

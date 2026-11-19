@@ -29,7 +29,6 @@ import {
   isFiltered,
   isListed,
   lastDeployedAt,
-  ownerHintText,
   withRegistration,
 } from "./agentRegistryFilters";
 
@@ -59,11 +58,8 @@ function env(overrides: Partial<AgentRegistryEnvironment>): AgentRegistryEnviron
     isProduction: false,
     deploymentStatus: "active",
     lastDeployedAt: null,
-    agentIdStatus: "completed",
     llmProviders: [],
-    guardrails: [],
     mcpServers: [],
-    monitors: [],
     ...overrides,
   };
 }
@@ -250,11 +246,5 @@ describe("which shadow agents are listed", () => {
   it("searches the connections that found it (Source)", () => {
     const filters = { ...withRegistration(EMPTY_FILTERS, "unregistered"), search: "openai prod" };
     expect(names(filterAgents(all, filters))).toEqual(["shadow"]);
-  });
-
-  it("shows the owner hint's name, else its email", () => {
-    expect(ownerHintText({ name: "Dilini", email: "d@example.com" })).toBe("Dilini");
-    expect(ownerHintText({ email: "d@example.com" })).toBe("d@example.com");
-    expect(ownerHintText({})).toBeUndefined();
   });
 });

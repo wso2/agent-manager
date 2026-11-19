@@ -307,12 +307,6 @@ export const rootRouteMap: AppRoute = {
                             index: true,
                             children: {},
                         },
-                        // A shadow agent: no project, so it is found by its discovery finding.
-                        unregisteredAgent: {
-                            path: 'unregistered/:findingId',
-                            index: true,
-                            children: {},
-                        },
                     },
                 },
                 newProject: {

@@ -2390,6 +2390,13 @@ type ApiGetAgentRequest struct {
 	agentName  string
 	orgName    string
 	projName   string
+	view       *string
+}
+
+// &#x60;registry&#x60; adds the agent&#39;s registry record, with its governance in each environment, for the org-level agent overview. Leave it out for the agent details alone.
+func (r ApiGetAgentRequest) View(view string) ApiGetAgentRequest {
+	r.view = &view
+	return r
 }
 
 func (r ApiGetAgentRequest) Execute() (*AgentResponse, *http.Response, error) {
@@ -2440,6 +2447,9 @@ func (a *DefaultAPIService) GetAgentExecute(r ApiGetAgentRequest) (*AgentRespons
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
 
+	if r.view != nil {
+		parameterAddToHeaderOrQuery(localVarQueryParams, "view", r.view, "")
+	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
 

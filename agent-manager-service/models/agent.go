@@ -49,6 +49,8 @@ type AgentResponse struct {
 	// Nil when unknown — pre-existing agents, deployments without AgentID
 	// provisioning wired up, or when the id couldn't be resolved to a user.
 	CreatedBy *AgentCreatedBy `json:"createdBy,omitempty"`
+	// Registry is set only for the registry view (GET agent with view=registry).
+	Registry *AgentRegistryRecord `json:"registry,omitempty"`
 }
 
 // AgentSummary is the lightweight, org-wide agent listing shape: just enough
@@ -94,6 +96,48 @@ type AgentRegistryEnvironment struct {
 	LastDeployedAt *time.Time
 	LLMProviders   []AgentRegistryResourceRef
 	MCPServers     []AgentRegistryResourceRef
+	// Governance is set only on the single-agent view.
+	Governance *AgentRegistryGovernance
+}
+
+// AgentRegistryGovernance is the agent's governance in one environment, read from existing config.
+type AgentRegistryGovernance struct {
+	// AgentIDStatus is empty when no AgentID was requested here.
+	AgentIDStatus   string
+	Guardrails      []string
+	Monitors        []AgentRegistryMonitor
+	InboundSecurity AgentRegistryInboundSecurity
+	// A2ASkills is nil when no A2A card is stored here.
+	A2ASkills []AgentRegistryA2ASkill
+}
+
+// AgentRegistryMonitor is an evaluation monitor on the agent in one environment.
+type AgentRegistryMonitor struct {
+	Name        string
+	DisplayName string
+	Status      string
+}
+
+// AgentRegistryInboundSecurity is the security on the agent's endpoint in one environment.
+type AgentRegistryInboundSecurity struct {
+	APIKey bool
+	OAuth  bool
+}
+
+// AgentRegistryA2ASkill is one skill on the agent's A2A card.
+type AgentRegistryA2ASkill struct {
+	ID          string   `json:"id"`
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+}
+
+// AgentEnvironmentResources is what an agent is configured with in one environment: its LLM
+// providers and their guardrails, and its MCP servers and their tools.
+type AgentEnvironmentResources struct {
+	LLMProviders []AgentRegistryResourceRef
+	Guardrails   []string
+	MCPServers   []AgentRegistryResourceRef
 }
 
 // AgentDeploymentState is one agent's deployment in one environment, read from its
@@ -111,6 +155,8 @@ type AgentDeploymentState struct {
 type AgentRegistryResourceRef struct {
 	ID          string
 	DisplayName string
+	// Tools is set for MCP servers on the single-agent view only: every tool discovered on the server.
+	Tools []string
 }
 
 // AgentCreatedBy identifies the user who created an agent, resolved

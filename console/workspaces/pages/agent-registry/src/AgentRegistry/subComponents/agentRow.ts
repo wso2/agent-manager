@@ -52,15 +52,17 @@ export function shadowSourceText(discovery: AgentRegistryDiscovery): string {
   return names.length > 0 ? names.join(", ") : discovery.connectionName;
 }
 
-const registryRoutes = absoluteRouteMap.children.org.children.agentRegistry.children;
+const orgRoutes = absoluteRouteMap.children.org.children;
+const registryRoutes = orgRoutes.agentRegistry.children;
 
 /**
- * The agent's org-level overview page: a registered agent's by project and name, an
- * unregistered agent's by its discovery finding.
+ * The page an agent opens on: a registered agent's org-level overview, by project and name; an
+ * unregistered agent's page in Shadow Agent Discovery, by its finding. Both pages' Back returns
+ * to the registry as it was (see useOpenAgent).
  */
 export function agentOverviewPath(orgId: string, agent: AgentRegistryEntry): string {
   if (agent.registration === "unregistered") {
-    return generatePath(registryRoutes.unregisteredAgent.path, {
+    return generatePath(orgRoutes.shadowAgentDiscovery.children.finding.path, {
       orgId,
       findingId: agent.discovery?.findingId ?? agent.name,
     });

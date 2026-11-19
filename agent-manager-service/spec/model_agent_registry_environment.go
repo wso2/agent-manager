@@ -28,6 +28,7 @@ type AgentRegistryEnvironment struct {
 	LastDeployedAt *time.Time                 `json:"lastDeployedAt,omitempty"`
 	LlmProviders   []AgentRegistryResourceRef `json:"llmProviders"`
 	McpServers     []AgentRegistryResourceRef `json:"mcpServers"`
+	Governance     *AgentRegistryGovernance   `json:"governance,omitempty"`
 }
 
 // NewAgentRegistryEnvironment instantiates a new AgentRegistryEnvironment object
@@ -229,6 +230,38 @@ func (o *AgentRegistryEnvironment) SetMcpServers(v []AgentRegistryResourceRef) {
 	o.McpServers = v
 }
 
+// GetGovernance returns the Governance field value if set, zero value otherwise.
+func (o *AgentRegistryEnvironment) GetGovernance() AgentRegistryGovernance {
+	if o == nil || IsNil(o.Governance) {
+		var ret AgentRegistryGovernance
+		return ret
+	}
+	return *o.Governance
+}
+
+// GetGovernanceOk returns a tuple with the Governance field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentRegistryEnvironment) GetGovernanceOk() (*AgentRegistryGovernance, bool) {
+	if o == nil || IsNil(o.Governance) {
+		return nil, false
+	}
+	return o.Governance, true
+}
+
+// HasGovernance returns a boolean if a field has been set.
+func (o *AgentRegistryEnvironment) HasGovernance() bool {
+	if o != nil && !IsNil(o.Governance) {
+		return true
+	}
+
+	return false
+}
+
+// SetGovernance gets a reference to the given AgentRegistryGovernance and assigns it to the Governance field.
+func (o *AgentRegistryEnvironment) SetGovernance(v AgentRegistryGovernance) {
+	o.Governance = &v
+}
+
 func (o AgentRegistryEnvironment) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -248,6 +281,9 @@ func (o AgentRegistryEnvironment) ToMap() (map[string]interface{}, error) {
 	}
 	toSerialize["llmProviders"] = o.LlmProviders
 	toSerialize["mcpServers"] = o.McpServers
+	if !IsNil(o.Governance) {
+		toSerialize["governance"] = o.Governance
+	}
 	return toSerialize, nil
 }
 

@@ -39,8 +39,9 @@ type AgentResponse struct {
 	// Version tag of the Agent Kind this agent was instantiated from (absent for source-built agents, and for kind-sourced agents created before the version was recorded)
 	KindVersion *string `json:"kindVersion,omitempty"`
 	// User-defined key/value labels. Keys are 1-63 characters of [a-zA-Z0-9._-] starting and ending alphanumeric (not enforceable here as an OpenAPI 3.0 property-name pattern — validated server-side); values follow the same rules but may be empty. At most 10 labels per resource.
-	Labels    *map[string]string `json:"labels,omitempty"`
-	CreatedBy *AgentCreatedBy    `json:"createdBy,omitempty"`
+	Labels    *map[string]string   `json:"labels,omitempty"`
+	CreatedBy *AgentCreatedBy      `json:"createdBy,omitempty"`
+	Registry  *AgentRegistryRecord `json:"registry,omitempty"`
 }
 
 // NewAgentResponse instantiates a new AgentResponse object
@@ -548,6 +549,38 @@ func (o *AgentResponse) SetCreatedBy(v AgentCreatedBy) {
 	o.CreatedBy = &v
 }
 
+// GetRegistry returns the Registry field value if set, zero value otherwise.
+func (o *AgentResponse) GetRegistry() AgentRegistryRecord {
+	if o == nil || IsNil(o.Registry) {
+		var ret AgentRegistryRecord
+		return ret
+	}
+	return *o.Registry
+}
+
+// GetRegistryOk returns a tuple with the Registry field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *AgentResponse) GetRegistryOk() (*AgentRegistryRecord, bool) {
+	if o == nil || IsNil(o.Registry) {
+		return nil, false
+	}
+	return o.Registry, true
+}
+
+// HasRegistry returns a boolean if a field has been set.
+func (o *AgentResponse) HasRegistry() bool {
+	if o != nil && !IsNil(o.Registry) {
+		return true
+	}
+
+	return false
+}
+
+// SetRegistry gets a reference to the given AgentRegistryRecord and assigns it to the Registry field.
+func (o *AgentResponse) SetRegistry(v AgentRegistryRecord) {
+	o.Registry = &v
+}
+
 func (o AgentResponse) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -592,6 +625,9 @@ func (o AgentResponse) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.CreatedBy) {
 		toSerialize["createdBy"] = o.CreatedBy
+	}
+	if !IsNil(o.Registry) {
+		toSerialize["registry"] = o.Registry
 	}
 	return toSerialize, nil
 }

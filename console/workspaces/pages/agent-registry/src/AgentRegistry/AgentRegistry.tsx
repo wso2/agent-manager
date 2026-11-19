@@ -20,7 +20,10 @@ import { useMemo } from "react";
 import { Skeleton, Stack } from "@wso2/oxygen-ui";
 import { Bot } from "@wso2/oxygen-ui-icons-react";
 import { PageLayout } from "@agent-management-platform/views";
-import { useListAgentRegistry } from "@agent-management-platform/api-client";
+import {
+  useListAgentRegistry,
+  useListUnregisteredAgents,
+} from "@agent-management-platform/api-client";
 import { ResourceListShell } from "@agent-management-platform/shared-component";
 import { useParams, useSearchParams } from "react-router-dom";
 import {
@@ -58,7 +61,8 @@ function AgentRegistrySkeleton() {
  */
 export function AgentRegistry() {
   const { orgId = "" } = useParams<{ orgId: string }>();
-  const { data, isLoading, error } = useListAgentRegistry({ orgName: orgId });
+  const registered = useListAgentRegistry({ orgName: orgId });
+  const unregistered = useListUnregisteredAgents({ orgName: orgId });
   const [searchParams, setSearchParams] = useSearchParams();
 
   const filters = useMemo(() => filtersFromSearchParams(searchParams), [searchParams]);
@@ -78,7 +82,12 @@ export function AgentRegistry() {
       { replace: true },
     );
 
-  const agents = useMemo(() => data?.agents ?? [], [data?.agents]);
+  // The two lists come from different APIs; each tab waits for and reports only its own.
+  const shownList = filters.registration === "unregistered" ? unregistered : registered;
+  const agents = useMemo(
+    () => [...(registered.data?.agents ?? []), ...(unregistered.data?.agents ?? [])],
+    [registered.data?.agents, unregistered.data?.agents],
+  );
   const filterOptions = useMemo(() => buildFilterOptions(agents), [agents]);
   const shownAgents = useMemo(() => filterAgents(agents, filters), [agents, filters]);
   const counts = useMemo(() => countByRegistration(agents), [agents]);
@@ -105,8 +114,8 @@ export function AgentRegistry() {
             shownCount={shownAgents.length}
           />
         }
-        error={error}
-        isLoading={isLoading}
+        error={shownList.error}
+        isLoading={shownList.isLoading}
         isEmpty={agents.length === 0}
         isSearchEmpty={shownAgents.length === 0}
         loadingPlaceholder={<AgentRegistrySkeleton />}
