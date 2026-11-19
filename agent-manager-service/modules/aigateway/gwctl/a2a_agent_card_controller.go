@@ -22,11 +22,12 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -101,7 +102,7 @@ func (c *a2aAgentCardController) DeleteAgentCardSource(w http.ResponseWriter, r 
 }
 
 func agentCardPath(r *http.Request) (ouID, projName, agentName, envName string) {
-	return middleware.OUIDFromRequest(r),
+	return modkit.OrgID(r.Context()),
 		r.PathValue(gwutil.PathParamProjName),
 		r.PathValue(gwutil.PathParamAgentName),
 		r.PathValue(gwutil.PathParamEnvID)

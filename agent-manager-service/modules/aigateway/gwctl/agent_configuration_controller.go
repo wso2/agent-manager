@@ -32,7 +32,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -82,7 +81,7 @@ func (c *agentConfigurationController) CreateAgentModelConfig(w http.ResponseWri
 	log := logger.GetLogger(ctx)
 
 	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 
@@ -168,7 +167,7 @@ func (c *agentConfigurationController) GetAgentModelConfig(w http.ResponseWriter
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	configID := r.PathValue(gwutil.PathParamConfigId)
@@ -209,7 +208,7 @@ func (c *agentConfigurationController) ListAgentModelConfigs(w http.ResponseWrit
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	limit := getIntQueryParam(r, "limit", 20)
@@ -246,7 +245,7 @@ func (c *agentConfigurationController) UpdateAgentModelConfig(w http.ResponseWri
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	configID := r.PathValue(gwutil.PathParamConfigId)
@@ -347,7 +346,7 @@ func (c *agentConfigurationController) DeleteAgentModelConfig(w http.ResponseWri
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	configID := r.PathValue(gwutil.PathParamConfigId)
@@ -398,7 +397,7 @@ func (c *agentConfigurationController) CreateAgentMCPConfig(w http.ResponseWrite
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	createdBy := callerSubject(ctx)
@@ -465,7 +464,7 @@ func (c *agentConfigurationController) GetAgentMCPConfig(w http.ResponseWriter, 
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	configID := r.PathValue(gwutil.PathParamConfigId)
@@ -499,7 +498,7 @@ func (c *agentConfigurationController) ListAgentMCPConfigs(w http.ResponseWriter
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	limit := getIntQueryParam(r, "limit", 20)
@@ -534,7 +533,7 @@ func (c *agentConfigurationController) UpdateAgentMCPConfig(w http.ResponseWrite
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	configID := r.PathValue(gwutil.PathParamConfigId)
@@ -622,7 +621,7 @@ func (c *agentConfigurationController) DeleteAgentMCPConfig(w http.ResponseWrite
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	configID := r.PathValue(gwutil.PathParamConfigId)
@@ -948,7 +947,7 @@ func getStringPtr(s string) *string {
 // {orgName} path handle — the config repository is keyed by ou_id (a UUID), so
 // passing the path handle would never match and every call would 404.
 func (c *agentConfigurationController) configEnvAPIKeyParams(w http.ResponseWriter, r *http.Request) (ouID, projName, agentName, envName string, configUUID uuid.UUID, ok bool) {
-	ouID = middleware.OUIDFromRequest(r)
+	ouID = modkit.OrgID(r.Context())
 	projName = r.PathValue(gwutil.PathParamProjName)
 	agentName = r.PathValue(gwutil.PathParamAgentName)
 	envName = r.PathValue("envName")

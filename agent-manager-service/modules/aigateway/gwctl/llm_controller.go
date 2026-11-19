@@ -23,12 +23,13 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -125,7 +126,7 @@ func (c *llmController) resolveProjectUUID(ctx context.Context, ouID, projectNam
 func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	var req gwspec.CreateLLMProviderTemplateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -164,7 +165,7 @@ func (c *llmController) CreateLLMProviderTemplate(w http.ResponseWriter, r *http
 func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	// Parse pagination parameters
 	limit := getIntQueryParam(r, "limit", 20)
@@ -206,7 +207,7 @@ func (c *llmController) ListLLMProviderTemplates(w http.ResponseWriter, r *http.
 func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	templateID := r.PathValue(gwutil.PathParamTemplateId)
 
 	template, err := c.templateService.Get(ouID, templateID)
@@ -233,7 +234,7 @@ func (c *llmController) GetLLMProviderTemplate(w http.ResponseWriter, r *http.Re
 func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	templateID := r.PathValue(gwutil.PathParamTemplateId)
 
 	var req gwspec.UpdateLLMProviderTemplateRequest
@@ -285,7 +286,7 @@ func (c *llmController) UpdateLLMProviderTemplate(w http.ResponseWriter, r *http
 func (c *llmController) DeleteLLMProviderTemplate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	templateID := r.PathValue(gwutil.PathParamTemplateId)
 
 	if err := c.templateService.Delete(ouID, templateID); err != nil {
@@ -340,7 +341,7 @@ func writeCreateLLMProviderError(w http.ResponseWriter, r *http.Request, ouID, t
 func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	log.Info("CreateLLMProvider: starting", "ouID", ouID)
 
@@ -415,7 +416,7 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 func (c *llmController) ListAvailableLLMPolicies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.URL.Query().Get("providerId")
 
 	log.Info("ListAvailableLLMPolicies: starting", "ouID", ouID, "providerID", providerID)
@@ -439,7 +440,7 @@ func (c *llmController) ListAvailableLLMPolicies(w http.ResponseWriter, r *http.
 func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	log.Info("ListLLMProviders: starting", "ouID", ouID)
 
@@ -487,7 +488,7 @@ func (c *llmController) ListLLMProviders(w http.ResponseWriter, r *http.Request)
 func (c *llmController) GetLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("GetLLMProvider: starting", "ouID", ouID, "providerID", providerID)
@@ -569,7 +570,7 @@ func preserveOmittedProviderFields(
 func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("UpdateLLMProvider: starting", "ouID", ouID, "providerID", providerID)
@@ -792,7 +793,7 @@ func (c *llmController) UpdateLLMProvider(w http.ResponseWriter, r *http.Request
 func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("DeleteLLMProvider: starting", "ouID", ouID, "providerID", providerID)
@@ -838,7 +839,7 @@ func (c *llmController) DeleteLLMProvider(w http.ResponseWriter, r *http.Request
 func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 
 	// Resolve project name to UUID
@@ -902,7 +903,7 @@ func (c *llmController) CreateLLMProxy(w http.ResponseWriter, r *http.Request) {
 func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 
 	// Resolve project name to UUID
@@ -962,7 +963,7 @@ func (c *llmController) ListLLMProxies(w http.ResponseWriter, r *http.Request) {
 func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Parse pagination parameters
@@ -1014,7 +1015,7 @@ func (c *llmController) ListLLMProxiesByProvider(w http.ResponseWriter, r *http.
 func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
@@ -1055,7 +1056,7 @@ func (c *llmController) GetLLMProxy(w http.ResponseWriter, r *http.Request) {
 func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
@@ -1125,7 +1126,7 @@ func (c *llmController) UpdateLLMProxy(w http.ResponseWriter, r *http.Request) {
 func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projectName := r.PathValue(gwutil.PathParamProjName)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
@@ -1169,7 +1170,7 @@ func (c *llmController) DeleteLLMProxy(w http.ResponseWriter, r *http.Request) {
 func (c *llmController) ListLLMProviderConsumers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	consumers, err := c.providerService.ListConsumers(ctx, providerID, ouID)
@@ -1211,7 +1212,7 @@ func (c *llmController) UpdateLLMProviderCatalogStatus(w http.ResponseWriter, r 
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Decode request body

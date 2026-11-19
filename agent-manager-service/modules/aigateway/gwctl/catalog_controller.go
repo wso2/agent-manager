@@ -21,11 +21,12 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -54,7 +55,7 @@ func (c *catalogController) ListCatalog(w http.ResponseWriter, r *http.Request) 
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	// Parse query parameters
 	kind := r.URL.Query().Get("kind")

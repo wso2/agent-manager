@@ -25,6 +25,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
@@ -68,7 +70,7 @@ func agentEnvRequest(method, resource, body string) *http.Request {
 	req.SetPathValue(gwutil.PathParamProjName, "checkout")
 	req.SetPathValue(gwutil.PathParamAgentName, "weather")
 	req.SetPathValue(gwutil.PathParamEnvID, "dev")
-	return req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	return req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 }
 
 // The response has no field the secret could leak through.

@@ -24,6 +24,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
@@ -75,7 +77,7 @@ func updateScopeRequest(t *testing.T, body string) *http.Request {
 	req.SetPathValue(gwutil.PathParamOrgName, "default")
 	req.SetPathValue(gwutil.PathParamProxyId, "t4-deepwiki")
 	req.SetPathValue(gwutil.PathParamScopeAction, "write-only")
-	return req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	return req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 }
 
 // Regression for the reported 400 on unbinding a scope's last tool: PUT

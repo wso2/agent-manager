@@ -19,8 +19,9 @@ package gwctl
 import (
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -43,7 +44,7 @@ func (c *EnvironmentGatewayController) GetEnvironmentGateways(w http.ResponseWri
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	envID := r.PathValue("envID")
 
 	gatewayList, err := c.environmentService.GetEnvironmentGateways(ctx, ouID, envID)

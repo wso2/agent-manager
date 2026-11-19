@@ -21,9 +21,10 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -57,7 +58,7 @@ func (c *llmProviderAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue("id")
 
 	log.Info("ListLLMProviderAPIKeys: starting", "ouID", ouID, "providerID", providerID)
@@ -84,7 +85,7 @@ func (c *llmProviderAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue("id")
 
 	log.Info("CreateLLMProviderAPIKey: starting", "ouID", ouID, "providerID", providerID)
@@ -151,7 +152,7 @@ func (c *llmProviderAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue("id")
 	keyName := r.PathValue("keyName")
 
@@ -184,7 +185,7 @@ func (c *llmProviderAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *htt
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue("id")
 	keyName := r.PathValue("keyName")
 

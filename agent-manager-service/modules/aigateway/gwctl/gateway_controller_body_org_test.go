@@ -23,6 +23,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -62,7 +64,7 @@ func withBodyOrg(fields, orgID string) string {
 
 func bodyOrgTestRequest(method, target, body string) (*http.Request, context.Context) {
 	req := httptest.NewRequest(method, target, strings.NewReader(body))
-	ctx := middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: bodyOrgTestCallerOUID})
+	ctx := modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: bodyOrgTestCallerOUID}), bodyOrgTestCallerOUID)
 	ctx, _ = audit.NewRequestScope(ctx)
 	return req.WithContext(ctx), ctx
 }

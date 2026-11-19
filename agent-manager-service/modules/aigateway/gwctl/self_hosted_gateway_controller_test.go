@@ -25,6 +25,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
 	"github.com/google/uuid"
@@ -45,7 +47,7 @@ import (
 func selfHostedRequest(method, body, gatewayID string) *http.Request {
 	req := httptest.NewRequest(method, "/orgs/acme/self-hosted-gateways/"+gatewayID, strings.NewReader(body))
 	req.SetPathValue("gatewayID", gatewayID)
-	return req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+	return req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))
 }
 
 func TestUpdateSelfHostedGateway_ChangesOnlyEditableFields(t *testing.T) {
@@ -142,7 +144,7 @@ func TestRegisterSelfHostedGateway_AuditsTheNormalisedKindAndVhost(t *testing.T)
 	ctrl := NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), envs, nil)
 	body := `{"displayName":"Edge","handle":"edge","environment":"dev","functionalityType":"AI","endpoints":["  https://edge.example.com "]}`
 	req := httptest.NewRequest(http.MethodPost, "/orgs/acme/self-hosted-gateways", strings.NewReader(body))
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))
 	ctx, _ := audit.NewRequestScope(req.Context())
 	req = req.WithContext(ctx)
 	w := httptest.NewRecorder()

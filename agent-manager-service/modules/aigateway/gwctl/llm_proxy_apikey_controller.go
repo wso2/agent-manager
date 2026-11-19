@@ -21,10 +21,11 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -59,7 +60,7 @@ func (c *llmProxyAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Re
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	proxyID := r.PathValue("id")
 
@@ -91,7 +92,7 @@ func (c *llmProxyAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 
 	log.Info("CreateLLMProxyAPIKey: starting", "ouID", ouID, "proxyID", proxyID)
@@ -158,7 +159,7 @@ func (c *llmProxyAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 	keyName := r.PathValue("keyName")
 
@@ -191,7 +192,7 @@ func (c *llmProxyAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 	keyName := r.PathValue("keyName")
 

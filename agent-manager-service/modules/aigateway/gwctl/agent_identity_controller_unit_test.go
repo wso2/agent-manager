@@ -25,6 +25,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -133,7 +135,7 @@ func TestAgentIdentityCreateRole_EnsuresPerProxyRSBeforePermissionWrite(t *testi
 		strings.NewReader(`{"name":"readers","scopes":["gh-proxy:read","jira-proxy:write"]}`))
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("envName", "dev")
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 	w := httptest.NewRecorder()
 
 	ctrl.CreateRole(w, req)
@@ -180,7 +182,7 @@ func TestAgentIdentityCreateRole_ProxyNotDeployedToEnvRejected(t *testing.T) {
 		strings.NewReader(`{"name":"readers","scopes":["gh-proxy:read"]}`))
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("envName", "dev")
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 	rec := httptest.NewRecorder()
 	ctrl.CreateRole(rec, req)
 
@@ -205,7 +207,7 @@ func TestAgentIdentityCreateRole_UnknownProxyHandleRejected(t *testing.T) {
 		strings.NewReader(`{"name":"readers","scopes":["ghost:read"]}`))
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("envName", "dev")
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 	w := httptest.NewRecorder()
 
 	ctrl.CreateRole(w, req)
@@ -234,7 +236,7 @@ func TestAgentIdentityCreateRole_UnknownActionRejected(t *testing.T) {
 		strings.NewReader(`{"name":"readers","scopes":["gh-proxy:read"]}`))
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("envName", "dev")
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 	w := httptest.NewRecorder()
 
 	ctrl.CreateRole(w, req)
@@ -256,7 +258,7 @@ func TestAgentIdentityCreateRole_MalformedScopeRejected(t *testing.T) {
 		strings.NewReader(`{"name":"readers","scopes":["no-colon"]}`))
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("envName", "dev")
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 	w := httptest.NewRecorder()
 
 	ctrl.CreateRole(w, req)
@@ -331,7 +333,7 @@ func TestAgentIdentityUpdateRole_ReconcilesAcrossResourceServers(t *testing.T) {
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("envName", "dev")
 	req.SetPathValue("roleID", "role-1")
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 	w := httptest.NewRecorder()
 
 	ctrl.UpdateRole(w, req)
@@ -459,7 +461,7 @@ func TestAgentIdentityUpdateRole_ExplicitEmptyScopesClearsPermissions(t *testing
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("envName", "dev")
 	req.SetPathValue("roleID", "role-1")
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 	w := httptest.NewRecorder()
 
 	ctrl.UpdateRole(w, req)
@@ -545,7 +547,7 @@ func TestAgentIdentityListAgents_ReturnsBindings(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/orgs/o1/environments/dev/agent-identities/agents", nil)
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("envName", "dev")
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))
 	w := httptest.NewRecorder()
 
 	ctrl.ListAgents(w, req)

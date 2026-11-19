@@ -22,7 +22,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -66,7 +65,7 @@ func identityProviderListResponse(providers []gwspec.IdentityProvider) gwspec.Id
 func (c *gatewayController) ListIdentityProviders(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	rows, err := c.gatewayService.ListIdentityProvidersByOrg(ouID)
 	if err != nil {
@@ -114,7 +113,7 @@ func enrichSpecIdentityProvider(row gwrepo.IdentityProviderWithContext, envNames
 // ListGatewayIdentityProviders lists the identity providers mirrored for a gateway.
 func (c *gatewayController) ListGatewayIdentityProviders(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	providers, err := c.gatewayService.ListIdentityProvidersByGateway(gatewayID, ouID)
@@ -139,7 +138,7 @@ func (c *gatewayController) ListGatewayIdentityProviders(w http.ResponseWriter, 
 func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	name := strings.TrimSpace(r.PathValue("name"))
 
@@ -181,7 +180,7 @@ func (c *gatewayController) UpsertGatewayIdentityProvider(w http.ResponseWriter,
 // the mirror and the gateway runtime in sync.
 func (c *gatewayController) DeleteGatewayIdentityProvider(w http.ResponseWriter, r *http.Request) {
 	log := logger.GetLogger(r.Context())
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	name := strings.TrimSpace(r.PathValue("name"))
 
@@ -202,7 +201,7 @@ func (c *gatewayController) DeleteGatewayIdentityProvider(w http.ResponseWriter,
 func (c *gatewayController) ListEnvironmentIdentityProviders(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	environmentID := strings.TrimSpace(r.PathValue("environmentId"))
 
 	envUUID, err := c.resolveEnvironmentUUID(ctx, ouID, environmentID)

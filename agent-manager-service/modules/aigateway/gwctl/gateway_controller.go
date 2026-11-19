@@ -31,7 +31,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
@@ -230,7 +229,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	if refusedForeignBodyOrg(w, r, req.OrgId, ouID) {
 		return
 	}
@@ -308,7 +307,7 @@ func (c *gatewayController) RegisterGateway(w http.ResponseWriter, r *http.Reque
 func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// Get gateway from local service
@@ -330,7 +329,7 @@ func (c *gatewayController) GetGateway(w http.ResponseWriter, r *http.Request) {
 func (c *gatewayController) ListGateways(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	limit, offset := gatewayPagination(r)
 
@@ -435,7 +434,7 @@ func (c *gatewayController) toSpecGatewayList(ctx context.Context, ouID string, 
 func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	var req gwspec.UpdateGatewayRequest
@@ -466,7 +465,7 @@ func (c *gatewayController) UpdateGateway(w http.ResponseWriter, r *http.Request
 func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	modkit.AuditResource(ctx, gwaudit.ResourceGateway, gatewayID, "")
@@ -483,7 +482,7 @@ func (c *gatewayController) DeleteGateway(w http.ResponseWriter, r *http.Request
 func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	envID := strings.TrimSpace(r.PathValue("envID"))
 
@@ -547,7 +546,7 @@ func (c *gatewayController) AssignGatewayToEnvironment(w http.ResponseWriter, r 
 func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	envID := strings.TrimSpace(r.PathValue("envID"))
 
@@ -597,7 +596,7 @@ func (c *gatewayController) RemoveGatewayFromEnvironment(w http.ResponseWriter, 
 
 func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// Get environments from DB
@@ -619,7 +618,7 @@ func (c *gatewayController) GetGatewayEnvironments(w http.ResponseWriter, r *htt
 func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// Get gateway to check if it exists
@@ -648,7 +647,7 @@ func (c *gatewayController) CheckGatewayHealth(w http.ResponseWriter, r *http.Re
 func (c *gatewayController) ListGatewayTokens(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	log.Info("ListGatewayTokens: starting", "ouID", ouID, "gatewayID", gatewayID)
@@ -683,7 +682,7 @@ func (c *gatewayController) RotateGatewayToken(w http.ResponseWriter, r *http.Re
 func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Request, successStatus int) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	// The request body is optional; its only field, orgId, may name only the
@@ -729,7 +728,7 @@ func (c *gatewayController) rotateGatewayToken(w http.ResponseWriter, r *http.Re
 func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 	tokenID := strings.TrimSpace(r.PathValue("tokenID"))
 
@@ -751,7 +750,7 @@ func (c *gatewayController) RevokeGatewayToken(w http.ResponseWriter, r *http.Re
 func (c *gatewayController) GetGatewayStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	// Parse optional gatewayID query parameter
 	gatewayIDParam := r.URL.Query().Get("gatewayId")

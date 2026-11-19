@@ -24,6 +24,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
@@ -112,7 +114,7 @@ func TestLLMProxyMutatingRoutes_RefuseAgentOrMonitorProxy(t *testing.T) {
 			req.SetPathValue("deploymentId", "00000000-0000-0000-0000-000000000002")
 			req.SetPathValue(gwutil.PathParamProxyId, proxyHandle)
 			req.SetPathValue(gwutil.PathParamProjName, "checkout")
-			req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: ouID}))
+			req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: ouID}), ouID))
 			recorder := httptest.NewRecorder()
 
 			tt.call(deployments, llm, recorder, req)

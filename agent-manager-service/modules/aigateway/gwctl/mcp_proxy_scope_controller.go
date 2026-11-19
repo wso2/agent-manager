@@ -21,6 +21,8 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
@@ -56,7 +58,7 @@ func NewMCPProxyScopeController(svc gwsvc.MCPProxyScopeService) MCPProxyScopeCon
 func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
@@ -88,7 +90,7 @@ func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *h
 func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
@@ -141,7 +143,7 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 	action := r.PathValue(gwutil.PathParamScopeAction)
@@ -186,7 +188,7 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 func (c *mcpProxyScopeController) DeleteMCPProxyScope(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 	action := r.PathValue(gwutil.PathParamScopeAction)
@@ -217,7 +219,7 @@ func (c *mcpProxyScopeController) DeleteMCPProxyScope(w http.ResponseWriter, r *
 func (c *mcpProxyScopeController) ListAgentIdentityScopes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	orgName := middleware.OrgHandleFromRequest(r)
 	envName := r.PathValue("envName")
 

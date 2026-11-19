@@ -22,6 +22,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
 	"github.com/stretchr/testify/assert"
@@ -88,7 +90,7 @@ func TestRegisterGateway_DeprecatedAliasesDecodeAndNormalize(t *testing.T) {
 			body := `{"name":"gw-` + strings.ToLower(tt.gatewayType) + `","displayName":"Gateway",` +
 				`"gatewayType":"` + tt.gatewayType + `","vhost":"gw.example.com"}`
 			req := httptest.NewRequest(http.MethodPost, "/orgs/o1/gateways", strings.NewReader(body))
-			req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+			req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))
 			w := httptest.NewRecorder()
 
 			h.ctrl.RegisterGateway(w, req)
@@ -112,7 +114,7 @@ func TestRegisterGateway_UnknownGatewayTypeRejected(t *testing.T) {
 
 	body := `{"name":"gw-1","displayName":"Gateway","gatewayType":"SIDEWAYS","vhost":"gw.example.com"}`
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/gateways", strings.NewReader(body))
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))
 	w := httptest.NewRecorder()
 
 	ctrl.RegisterGateway(w, req)
@@ -124,7 +126,7 @@ func TestRegisterGatewayRejectsCrossOrganization(t *testing.T) {
 	ctrl := NewGatewayController(nil, nil, nil)
 	req := httptest.NewRequest(http.MethodPost, "/orgs/o1/gateways",
 		strings.NewReader(`{"name":"gateway","gatewayType":"EGRESS","orgId":"other-org"}`))
-	req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}))
+	req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-1"}), "ou-1"))
 	w := httptest.NewRecorder()
 	ctrl.RegisterGateway(w, req)
 	assert.Equal(t, http.StatusForbidden, w.Code)

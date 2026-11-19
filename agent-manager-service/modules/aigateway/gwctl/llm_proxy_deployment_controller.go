@@ -22,9 +22,10 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -58,7 +59,7 @@ func NewLLMProxyDeploymentController(
 func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 
 	log.Info("DeployLLMProxy: starting", "ouID", ouID, "proxyID", proxyID)
@@ -143,7 +144,7 @@ func (c *llmProxyDeploymentController) DeployLLMProxy(w http.ResponseWriter, r *
 func (c *llmProxyDeploymentController) UndeployLLMProxyDeployment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 
 	// Parse query parameters
@@ -218,7 +219,7 @@ func (c *llmProxyDeploymentController) UndeployLLMProxyDeployment(w http.Respons
 func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 
 	// Parse query parameters
@@ -297,7 +298,7 @@ func (c *llmProxyDeploymentController) RestoreLLMProxyDeployment(w http.Response
 func (c *llmProxyDeploymentController) DeleteLLMProxyDeployment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 	deploymentID := r.PathValue("deploymentId")
 
@@ -365,7 +366,7 @@ func writeUserManagedProxyError(w http.ResponseWriter, log *slog.Logger, handler
 func (c *llmProxyDeploymentController) GetLLMProxyDeployment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 	deploymentID := r.PathValue("deploymentId")
 
@@ -412,7 +413,7 @@ func (c *llmProxyDeploymentController) GetLLMProxyDeployment(w http.ResponseWrit
 func (c *llmProxyDeploymentController) GetLLMProxyDeployments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue("id")
 
 	// Parse optional query parameters

@@ -28,7 +28,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -70,7 +69,7 @@ func (c *agentAPIKeyController) CreateAPIKey(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	envID := r.PathValue(gwutil.PathParamEnvID)
@@ -144,7 +143,7 @@ func (c *agentAPIKeyController) ListAPIKeys(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	envID := r.PathValue(gwutil.PathParamEnvID)
@@ -180,7 +179,7 @@ func (c *agentAPIKeyController) RevokeAPIKey(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	envID := r.PathValue(gwutil.PathParamEnvID)
@@ -218,7 +217,7 @@ func (c *agentAPIKeyController) RotateAPIKey(w http.ResponseWriter, r *http.Requ
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	envID := r.PathValue(gwutil.PathParamEnvID)
@@ -274,7 +273,7 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	envID := r.PathValue(gwutil.PathParamEnvID)

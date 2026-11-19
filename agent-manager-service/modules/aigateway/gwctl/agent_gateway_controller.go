@@ -20,11 +20,12 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/wso2/agent-manager/agent-manager-service/controllers"
 	"github.com/wso2/agent-manager/agent-manager-service/events"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
@@ -48,7 +49,7 @@ func (c *AgentGatewayController) UpdateAgentDeploySettings(w http.ResponseWriter
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 
@@ -77,7 +78,7 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 	log := logger.GetLogger(ctx)
 
 	// Extract path parameters
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 
@@ -96,7 +97,7 @@ func (c *AgentGatewayController) GetAgentDeployments(w http.ResponseWriter, r *h
 // and the provisioning state of the bindings it asked for.
 func (c *AgentGatewayController) GetAgentConfigurations(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	projName := r.PathValue(gwutil.PathParamProjName)
 	agentName := r.PathValue(gwutil.PathParamAgentName)
 	environment := r.URL.Query().Get("environment")

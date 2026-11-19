@@ -20,10 +20,38 @@ import (
 	"net/http"
 
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
 // coreRouter serves the gateway's routes on the core's route registrar, for
-// tests that exercise them without a module host. It tracks nothing.
+// tests that exercise them without a module host. It tracks nothing, and sets
+// modkit.OrgID from the resolved org as the module host does.
 type coreRouter struct{ *middleware.RouteRegistrar }
 
 func (coreRouter) Track(_ string, _ map[string]any, h http.HandlerFunc) http.HandlerFunc { return h }
+
+func (c coreRouter) HandleFuncWithValidationAndAuthz(pattern string, perm rbac.Permission, h http.HandlerFunc) {
+	c.RouteRegistrar.HandleFuncWithValidationAndAuthz(pattern, perm, withOrgID(h))
+}
+
+func (c coreRouter) HandleFuncWithValidationAndAllAuthz(pattern string, h http.HandlerFunc, perms ...rbac.Permission) {
+	c.RouteRegistrar.HandleFuncWithValidationAndAllAuthz(pattern, withOrgID(h), perms...)
+}
+
+func (c coreRouter) HandleFuncWithValidationAndAnyAuthz(pattern string, h http.HandlerFunc, perms ...rbac.Permission) {
+	c.RouteRegistrar.HandleFuncWithValidationAndAnyAuthz(pattern, withOrgID(h), perms...)
+}
+
+func (c coreRouter) HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm rbac.Permission, h http.HandlerFunc) {
+	c.RouteRegistrar.HandleFuncWithValidationAndPlatformAdminAuthz(pattern, perm, withOrgID(h))
+}
+
+func withOrgID(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if org, ok := middleware.GetResolvedOrg(r.Context()); ok {
+			r = r.WithContext(modkit.WithOrgID(r.Context(), org.OUID))
+		}
+		h(w, r)
+	}
+}

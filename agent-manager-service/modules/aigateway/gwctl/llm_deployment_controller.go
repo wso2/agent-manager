@@ -21,10 +21,11 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -58,7 +59,7 @@ func NewLLMDeploymentController(
 func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	log.Info("DeployLLMProvider: starting", "ouID", ouID, "providerID", providerID)
@@ -138,7 +139,7 @@ func (c *llmDeploymentController) DeployLLMProvider(w http.ResponseWriter, r *ht
 func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Parse query parameters
@@ -208,7 +209,7 @@ func (c *llmDeploymentController) UndeployLLMProviderDeployment(w http.ResponseW
 func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Parse query parameters
@@ -282,7 +283,7 @@ func (c *llmDeploymentController) RestoreLLMProviderDeployment(w http.ResponseWr
 func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 	deploymentID := r.PathValue(gwutil.PathParamDeploymentId)
 
@@ -333,7 +334,7 @@ func (c *llmDeploymentController) DeleteLLMProviderDeployment(w http.ResponseWri
 func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 	deploymentID := r.PathValue(gwutil.PathParamDeploymentId)
 
@@ -380,7 +381,7 @@ func (c *llmDeploymentController) GetLLMProviderDeployment(w http.ResponseWriter
 func (c *llmDeploymentController) GetLLMProviderDeployments(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	providerID := r.PathValue(gwutil.PathParamProviderId)
 
 	// Parse optional query parameters

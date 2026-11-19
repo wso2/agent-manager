@@ -26,6 +26,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
@@ -117,7 +119,7 @@ func TestUpdateLLMProvider_UpdateErrors(t *testing.T) {
 				req := httptest.NewRequest(http.MethodPut, "/orgs/acme/llm-providers/"+providerUUID.String(),
 					strings.NewReader(`{"name":"Provider A"`+gateways.json+`}`))
 				req.SetPathValue(gwutil.PathParamProviderId, providerUUID.String())
-				req = req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: ouID}))
+				req = req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: ouID}), ouID))
 				recorder := httptest.NewRecorder()
 
 				ctrl.UpdateLLMProvider(recorder, req)

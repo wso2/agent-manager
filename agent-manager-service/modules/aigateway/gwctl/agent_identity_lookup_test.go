@@ -24,6 +24,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wso2/agent-manager/agent-manager-service/clients/thundersvc"
@@ -51,7 +53,7 @@ func agentLookupRequest(path string) *http.Request {
 	req.SetPathValue("orgName", "o1")
 	req.SetPathValue("projName", "default")
 	req.SetPathValue("agentName", "scout-agent")
-	return req.WithContext(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}))
+	return req.WithContext(modkit.WithOrgID(middleware.WithResolvedOrg(req.Context(), middleware.ResolvedOrg{OUID: "ou-org"}), "ou-org"))
 }
 
 // An environment with no identity provider holds no roles or groups for the agent: that answers 404

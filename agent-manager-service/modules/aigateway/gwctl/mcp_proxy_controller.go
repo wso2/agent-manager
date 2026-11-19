@@ -79,7 +79,7 @@ func NewMCPProxyController(
 func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	log.Info("CreateMCPProxy: starting", "ouID", ouID)
 
@@ -130,7 +130,7 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 func (c *mcpProxyController) ListMCPProxies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	limit := getMCPProxyIntQueryParam(r, "limit", gwutil.DefaultLimit)
 	offset := getMCPProxyIntQueryParam(r, "offset", gwutil.DefaultOffset)
 
@@ -175,7 +175,7 @@ func (c *mcpProxyController) ListMCPProxies(w http.ResponseWriter, r *http.Reque
 func (c *mcpProxyController) ListAvailableMCPPolicies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	log.Info("ListAvailableMCPPolicies: starting", "ouID", ouID)
 
@@ -194,7 +194,7 @@ func (c *mcpProxyController) ListAvailableMCPPolicies(w http.ResponseWriter, r *
 func (c *mcpProxyController) GetMCPProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
 	log.Info("GetMCPProxy: starting", "ouID", ouID, "proxyID", proxyID)
@@ -223,7 +223,7 @@ func (c *mcpProxyController) GetMCPProxy(w http.ResponseWriter, r *http.Request)
 func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
 	log.Info("UpdateMCPProxy: starting", "ouID", ouID, "proxyID", proxyID)
@@ -298,7 +298,7 @@ func (c *mcpProxyController) UpdateMCPProxy(w http.ResponseWriter, r *http.Reque
 func (c *mcpProxyController) DeleteMCPProxy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
@@ -334,7 +334,7 @@ func (c *mcpProxyController) DeleteMCPProxy(w http.ResponseWriter, r *http.Reque
 func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	log.Info("FetchMCPProxyServerInfo: starting", "ouID", ouID)
 

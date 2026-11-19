@@ -25,6 +25,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
 	"github.com/google/uuid"
@@ -114,7 +116,7 @@ func NewAgentIdentityController(
 // resource-server ensure loop, writing the HTTP error itself when ok=false.
 func (c *agentIdentityController) resolveScopeEnvironment(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
 	ctx := r.Context()
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	envName := r.PathValue("envName")
 	envID, err := c.rsIdentifiers.EnvironmentUUIDByName(ctx, ouID, envName)
 	if err != nil {
@@ -129,7 +131,7 @@ func (c *agentIdentityController) resolveScopeEnvironment(w http.ResponseWriter,
 // writing the HTTP error itself when ok=false.
 func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWriter, r *http.Request, client identityv1.Client, envID uuid.UUID, g *proxyScopeGroup) (string, bool) {
 	ctx := r.Context()
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	envName := r.PathValue("envName")
 	rsID, err := c.rsIdentifiers.EnsureResourceServer(ctx, ouID, envID, client, g.proxy, g.actions)
 	if err != nil {
@@ -151,7 +153,7 @@ func (c *agentIdentityController) ensureGroupResourceServer(w http.ResponseWrite
 // An unprovisioned or unreachable environment surfaces 503 so callers know to
 // retry once the environment's Thunder is available, rather than a generic 500.
 func (c *agentIdentityController) envClient(w http.ResponseWriter, r *http.Request) (identityv1.Client, bool) {
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	envName := r.PathValue("envName")
 	client, err := c.directory.For(r.Context(), ouID, envName)
 	if err != nil {
@@ -499,7 +501,7 @@ func (c *agentIdentityController) CreateRole(w http.ResponseWriter, r *http.Requ
 	}
 	scopes := body.Scopes
 
-	groups, err := c.resolveScopeGroups(ctx, middleware.OUIDFromRequest(r), scopes)
+	groups, err := c.resolveScopeGroups(ctx, modkit.OrgID(r.Context()), scopes)
 	if err != nil {
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
@@ -667,7 +669,7 @@ func (c *agentIdentityController) UpdateRole(w http.ResponseWriter, r *http.Requ
 	}
 	scopes := body.Scopes
 
-	groups, err := c.resolveScopeGroups(ctx, middleware.OUIDFromRequest(r), scopes)
+	groups, err := c.resolveScopeGroups(ctx, modkit.OrgID(r.Context()), scopes)
 	if err != nil {
 		httpx.WriteErrorResponse(w, http.StatusBadRequest, err.Error())
 		return
@@ -844,7 +846,7 @@ func (c *agentIdentityController) ListAgents(w http.ResponseWriter, r *http.Requ
 	log := logger.GetLogger(ctx)
 	orgName := middleware.OrgHandleFromRequest(r)
 	envName := r.PathValue("envName")
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	rows, err := c.directory.ListProvisionedAgents(ctx, ouID, envName)
 	if err != nil {

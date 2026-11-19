@@ -24,7 +24,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
@@ -41,7 +40,7 @@ import (
 func (c *gatewayController) requireSelfHostedThen(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
-		gateway, err := c.gatewayService.RequireSelfHosted(gatewayID, middleware.OUIDFromRequest(r))
+		gateway, err := c.gatewayService.RequireSelfHosted(gatewayID, modkit.OrgID(r.Context()))
 		if err != nil {
 			logSelfHostedLookupFailure(r, "self-hosted gateway route: gateway not usable", err)
 			handleGatewayErrors(w, err, "Failed to get gateway")
@@ -88,7 +87,7 @@ func (c *gatewayController) RevokeSelfHostedGatewayToken(w http.ResponseWriter, 
 func (c *gatewayController) ListSelfHostedGateways(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	limit, offset := gatewayPagination(r)
 
 	gatewaysResp, err := c.gatewayService.ListSelfHostedGateways(ouID, limit, offset)
@@ -104,7 +103,7 @@ func (c *gatewayController) ListSelfHostedGateways(w http.ResponseWriter, r *htt
 func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 
 	var req gwspec.SelfHostedGatewayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -156,7 +155,7 @@ func (c *gatewayController) RegisterSelfHostedGateway(w http.ResponseWriter, r *
 func (c *gatewayController) UpdateSelfHostedGateway(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	ouID := middleware.OUIDFromRequest(r)
+	ouID := modkit.OrgID(r.Context())
 	gatewayID := strings.TrimSpace(r.PathValue("gatewayID"))
 
 	var req gwspec.SelfHostedGatewayUpdateRequest
