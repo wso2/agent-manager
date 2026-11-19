@@ -59,7 +59,7 @@ import {
 } from "@agent-management-platform/shared-component";
 import { useEffect, useCallback, useMemo, useState } from "react";
 import { GitSecretSelect } from "./components/GitSecretSelect";
-import { useFeatureAccess, useFeatureFlag } from "@agent-management-platform/feature-management";
+import { useFeatureFlag } from "@agent-management-platform/feature-management";
 
 interface ConfigureBuildDrawerProps {
   open: boolean;
@@ -252,8 +252,7 @@ export function ConfigureBuildDrawer({
   projectId,
 }: ConfigureBuildDrawerProps) {
   // The secret picker lists git secrets, so it also needs git secret read access.
-  const canReadGitSecrets = useFeatureAccess("git_secret_read");
-  const isPrivateRepoEnabled = useFeatureFlag("enablePrivateRepoSupport") && canReadGitSecrets;
+  const isPrivateRepoEnabled = useFeatureFlag("enablePrivateRepoSupport");
   // An agent created before subtypes were recorded carries no subType, so fall
   // back to the shape of its input interface — a port or a schema means it was
   // configured as a custom API.

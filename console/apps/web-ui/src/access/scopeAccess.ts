@@ -71,8 +71,6 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   gateway_token_write: { anyOf: [gatewayScope('gateways', 'token-manage')] },
   pipeline_read: pipeline.read,
   pipeline_write: pipeline.write,
-  git_secret_read: { anyOf: ['amp:git-secret:read'] },
-  git_secret_write: { anyOf: ['amp:git-secret:create', 'amp:git-secret:delete'] },
   llm_provider_read: llmProvider.read,
   llm_provider_write: llmProvider.write,
   llm_provider_api_key_manage: { anyOf: [gatewayScope('llm-providers', 'api-key-manage')] },
