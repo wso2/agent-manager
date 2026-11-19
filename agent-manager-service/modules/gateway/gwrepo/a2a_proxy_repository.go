@@ -113,10 +113,38 @@ func (r *a2aProxyRepository) first(ctx context.Context, query string, args ...in
 	if err != nil {
 		return nil, err
 	}
-	if row.UpstreamAuthSecret, err = r.secrets.GetAsStored(db, row.UpstreamAuthSecretID); err != nil {
+	if err := r.loadSecret(ctx, db, &row); err != nil {
 		return nil, err
 	}
 	return &row, nil
+}
+
+// loadSecret fills the proxy's stored credential. Callers read proxies under the environment's lock, so a value an
+// external vault holds is not opened here: it is left as UpstreamAuthExternal for the caller to open after the lock
+// is released. A locally sealed value opens in process.
+func (r *a2aProxyRepository) loadSecret(ctx context.Context, db *gorm.DB, row *models.A2AProxy) error {
+	snapshot, err := r.secrets.SnapshotSecret(ctx, db, row.UpstreamAuthSecretID)
+	if err != nil || snapshot == nil {
+		return err
+	}
+	if snapshot.External() {
+		row.UpstreamAuthExternal = externalSecret{snapshot}
+		return nil
+	}
+	row.UpstreamAuthSecret, err = r.secrets.GetAsStored(db, row.UpstreamAuthSecretID)
+	return err
+}
+
+// externalSecret is an A2A proxy credential an external vault holds.
+type externalSecret struct {
+	credential *repositories.UpstreamCredential
+}
+
+func (s externalSecret) Open(ctx context.Context) (string, error) { return s.credential.Open(ctx) }
+
+func (s externalSecret) SameVersion(other models.ExternalSecret) bool {
+	o, ok := other.(externalSecret)
+	return ok && s.credential.SameVersion(o.credential)
 }
 
 // a2aProxySecretOwner is the owner_kind of an A2A proxy's upstream credential.
@@ -152,9 +180,12 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy)
 		}
 		current := existing[0]
 		proxy.ID, proxy.CreatedAt = current.ID, current.CreatedAt
-		secretID, err := r.secrets.Put(tx, proxy.OUID, a2aProxySecretOwner, proxy.ID, current.UpstreamAuthSecretID, secretIfHeader(proxy))
-		if err != nil {
-			return err
+		secretID := current.UpstreamAuthSecretID
+		if !keepsExternalSecret(proxy, current.UpstreamAuthSecretID) {
+			var err error
+			if secretID, err = r.secrets.Put(tx, proxy.OUID, a2aProxySecretOwner, proxy.ID, current.UpstreamAuthSecretID, secretIfHeader(proxy)); err != nil {
+				return err
+			}
 		}
 		// Clearing the reference first lets an emptied credential's secret go.
 		if err := tx.Model(&models.A2AProxy{}).Where("id = ?", proxy.ID).Updates(map[string]any{
@@ -169,6 +200,13 @@ func (r *a2aProxyRepository) Upsert(ctx context.Context, proxy *models.A2AProxy)
 		}
 		return nil
 	})
+}
+
+// keepsExternalSecret reports an update that keeps a stored credential an external vault holds: it carries the
+// unopened credential rather than its value, so the secret row is left as it is.
+func keepsExternalSecret(proxy *models.A2AProxy, current *uuid.UUID) bool {
+	return current != nil && proxy.UpstreamAuthHeader != "" && proxy.UpstreamAuthSecret == "" &&
+		proxy.UpstreamAuthExternal != nil
 }
 
 // secretIfHeader is the credential to store: none without a header to send it in.
@@ -228,7 +266,7 @@ func (r *a2aProxyRepository) ListForEnvironment(ctx context.Context, ouID string
 		return nil, err
 	}
 	for i := range rows {
-		if rows[i].UpstreamAuthSecret, err = r.secrets.GetAsStored(r.db.WithContext(ctx), rows[i].UpstreamAuthSecretID); err != nil {
+		if err := r.loadSecret(ctx, r.db.WithContext(ctx), &rows[i]); err != nil {
 			return nil, err
 		}
 	}

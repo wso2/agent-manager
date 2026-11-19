@@ -54,6 +54,39 @@ func TestProviderNeedsTheDatabase(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestSecretsOfDifferentAgentsNeverShareARow(t *testing.T) {
+	ctx, client := context.Background(), newClient(t)
+	org := dbtest.Org(t, db.GetDB())
+	// A long config name pushes the entity's hash past SecretRefName's 63-character cut, so both locations below
+	// have the same SecretRefName. They must still be separate secrets.
+	config := "customer-support-assistant-primary-model-config"
+	a := secretmanagersvc.SecretLocation{
+		OrgName: org, ProjectName: "p1", AgentName: "a1", EnvironmentName: "production", ConfigName: config,
+		EntityName: "customer-s-1111111111111111-proxy", SecretKey: secretmanagersvc.SecretKeyAPIKey,
+	}
+	b := a
+	b.ProjectName, b.AgentName, b.EntityName = "p2", "a2", "customer-s-2222222222222222-proxy"
+	require.Equal(t, a.SecretRefName(), b.SecretRefName(), "precondition: the display names collide")
+	t.Cleanup(func() { _ = client.DeleteSecret(ctx, a, ""); _ = client.DeleteSecret(ctx, b, "") })
+
+	refA, err := client.CreateSecret(ctx, a, map[string]string{"api-key": "key-a"})
+	require.NoError(t, err)
+	refB, err := client.CreateSecret(ctx, b, map[string]string{"api-key": "key-b"})
+	require.NoError(t, err)
+	assert.NotEqual(t, refA, refB)
+
+	var n int64
+	require.NoError(t, db.GetDB().Model(&models.Secret{}).Where("org_id = ?", org).Count(&n).Error)
+	assert.Equal(t, int64(2), n, "each agent's secret has its own row")
+
+	require.NoError(t, client.DeleteSecret(ctx, b, ""))
+	pathA, err := a.KVPath()
+	require.NoError(t, err)
+	info, err := client.GetSecret(ctx, pathA)
+	require.NoError(t, err, "deleting one agent's secret leaves the other's")
+	assert.Equal(t, []string{"api-key"}, info.Keys)
+}
+
 func TestSecretLifecycle(t *testing.T) {
 	ctx, client := context.Background(), newClient(t)
 	org := dbtest.Org(t, db.GetDB())
@@ -71,7 +104,7 @@ func TestSecretLifecycle(t *testing.T) {
 
 	name, err := client.CreateSecret(ctx, loc, map[string]string{"api-key": "sk-123", "client-id": "abc"})
 	require.NoError(t, err)
-	assert.Equal(t, loc.SecretRefName(), name)
+	assert.Equal(t, path, name, "the reference is the full scoped path")
 
 	info, err := client.GetSecret(ctx, path)
 	require.NoError(t, err)

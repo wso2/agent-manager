@@ -17,6 +17,7 @@
 package models
 
 import (
+	"context"
 	"time"
 
 	"github.com/google/uuid"
@@ -42,9 +43,13 @@ type A2AProxy struct {
 	// UpstreamAuthSecret is the header value as the base64 AES-256-GCM secretRef the gateway artifact carries. The
 	// repository reads and writes it through the secret store, which seals it into the secrets row; it is never
 	// returned.
-	UpstreamAuthSecret string    `gorm:"-" json:"-"`
-	CreatedAt          time.Time `gorm:"column:created_at"`
-	UpdatedAt          time.Time `gorm:"column:updated_at"`
+	UpstreamAuthSecret string `gorm:"-" json:"-"`
+	// UpstreamAuthExternal is the stored credential when an external vault holds it, in place of
+	// UpstreamAuthSecret. Rows are read under the environment's lock, so the repository does not open it there: the
+	// caller opens it once the lock is released and checks it is still current.
+	UpstreamAuthExternal ExternalSecret `gorm:"-" json:"-"`
+	CreatedAt            time.Time      `gorm:"column:created_at"`
+	UpdatedAt            time.Time      `gorm:"column:updated_at"`
 }
 
 func (A2AProxy) TableName() string { return "a2a_proxies" }
@@ -58,6 +63,19 @@ func (p *A2AProxy) BeforeCreate(tx *gorm.DB) error { return p.ref().resolve(tx) 
 
 // AfterFind fills the agent's and environment's names.
 func (p *A2AProxy) AfterFind(tx *gorm.DB) error { return p.ref().fill(tx) }
+
+// ExternalSecret is a stored value an external vault holds, read without opening it.
+type ExternalSecret interface {
+	// Open reads the value from its vault.
+	Open(ctx context.Context) (string, error)
+	// SameVersion reports whether other is the same version of the same secret.
+	SameVersion(other ExternalSecret) bool
+}
+
+// HasUpstreamAuthSecret reports whether a credential is stored, opened or not.
+func (p *A2AProxy) HasUpstreamAuthSecret() bool {
+	return p.UpstreamAuthSecret != "" || p.UpstreamAuthExternal != nil
+}
 
 // UpstreamAuth is the gateway's upstream credential as a secretRef, or nil when there is none.
 func (p *A2AProxy) UpstreamAuth() *UpstreamAuth {

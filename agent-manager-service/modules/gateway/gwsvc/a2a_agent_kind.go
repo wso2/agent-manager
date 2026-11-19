@@ -197,15 +197,19 @@ type a2aOrigin struct {
 }
 
 // externalOrigin reads the proxy and its registered card URL under the environment's proxy lock, so a concurrent
-// set or switch to direct is either seen whole or not at all.
+// set or switch to direct is either seen whole or not at all. A credential an external vault holds is opened after
+// the lock is released, so a slow vault never holds up the agent's other operations, and is used only if it is still
+// the stored one.
 func (k *A2AAgentKind) externalOrigin(ctx context.Context, env a2aAgentEnv) (*a2aOrigin, error) {
 	key := agentExposureKey{
 		OUID: env.ouID, ProjectName: env.projectName, AgentName: env.agentName,
 		EnvironmentName: env.environmentName, EnvironmentUUID: env.environmentUUID,
 	}
-	var origin *a2aOrigin
+	var proxy *models.A2AProxy
+	var cardURL string
 	err := k.tx(ctx, func(tx *gorm.DB) error {
-		proxy, err := lockedA2AProxy(ctx, k.proxyRepo.WithTx(tx), key)
+		var err error
+		proxy, err = lockedA2AProxy(ctx, k.proxyRepo.WithTx(tx), key)
 		if err != nil {
 			return err
 		}
@@ -222,14 +226,58 @@ func (k *A2AAgentKind) externalOrigin(ctx context.Context, env a2aAgentEnv) (*a2
 		if _, err := a2aProxyUpstream(card.SourceURL); err != nil {
 			return reconcile.Permanent(err)
 		}
-		header, err := k.originCardHeader(proxy)
+		cardURL = card.SourceURL
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if proxy.UpstreamAuthExternal != nil {
+		if err := k.openExternalSecret(ctx, key, proxy); err != nil {
+			return nil, err
+		}
+	}
+	header, err := k.originCardHeader(proxy)
+	if err != nil {
+		return nil, err
+	}
+	return &a2aOrigin{cardURL: cardURL, header: header, auth: proxy.UpstreamAuth()}, nil
+}
+
+// a2aExternalSecretTimeout bounds one external vault read of an A2A proxy credential.
+const a2aExternalSecretTimeout = 30 * time.Second
+
+// errA2ACredentialChanged is a proxy credential replaced while its external value was read; the render is retried.
+var errA2ACredentialChanged = errors.New("the A2A proxy credential changed while it was read")
+
+// openExternalSecret reads the proxy's external credential with no lock held, then checks under the lock that the
+// proxy still stores that version.
+func (k *A2AAgentKind) openExternalSecret(ctx context.Context, key agentExposureKey, proxy *models.A2AProxy) error {
+	openCtx, cancel := context.WithTimeout(ctx, a2aExternalSecretTimeout)
+	value, err := proxy.UpstreamAuthExternal.Open(openCtx)
+	cancel()
+	if err != nil {
+		return fmt.Errorf("failed to read the A2A proxy credential: %w", err)
+	}
+	err = k.tx(ctx, func(tx *gorm.DB) error {
+		current, err := lockedA2AProxy(ctx, k.proxyRepo.WithTx(tx), key)
 		if err != nil {
 			return err
 		}
-		origin = &a2aOrigin{cardURL: card.SourceURL, header: header, auth: proxy.UpstreamAuth()}
+		if current == nil {
+			return errA2AProxyGone
+		}
+		if current.UpstreamAuthHeader != proxy.UpstreamAuthHeader || current.UpstreamAuthExternal == nil ||
+			!current.UpstreamAuthExternal.SameVersion(proxy.UpstreamAuthExternal) {
+			return errA2ACredentialChanged
+		}
 		return nil
 	})
-	return origin, err
+	if err != nil {
+		return err
+	}
+	proxy.UpstreamAuthSecret = value
+	return nil
 }
 
 func (k *A2AAgentKind) originCardHeader(proxy *models.A2AProxy) (*A2ACardFetchHeader, error) {

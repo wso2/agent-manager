@@ -215,6 +215,24 @@ func (s *SecretStore) SnapshotUpstreamCredential(ctx context.Context, tx *gorm.D
 	return snapshot, nil
 }
 
+// SnapshotSecret is SnapshotUpstreamCredential for an owner whose missing secret reads as none: nil, nil.
+func (s *SecretStore) SnapshotSecret(ctx context.Context, tx *gorm.DB, id *uuid.UUID) (*UpstreamCredential, error) {
+	if id == nil {
+		return nil, nil //nolint:nilnil // no referenced secret
+	}
+	if s == nil {
+		return nil, ErrNoSecretStore
+	}
+	var rows []models.Secret
+	if err := tx.WithContext(ctx).Where("id = ?", *id).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return nil, nil //nolint:nilnil // a missing row is no secret
+	}
+	return &UpstreamCredential{store: s, row: rows[0]}, nil
+}
+
 func (c *UpstreamCredential) External() bool {
 	return c != nil && c.row.Provider != vault.ProviderLocal
 }

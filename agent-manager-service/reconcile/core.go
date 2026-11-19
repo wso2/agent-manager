@@ -477,13 +477,16 @@ func (c *Core) superseded(log *slog.Logger, err error) error {
 // written, for renderClaim to record as a given-up render.
 func (c *Core) writeBack(ctx context.Context, kind Kind, claim models.ClaimedRender, rendered Rendered) error {
 	return c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Locks follow one order on every path: the gateway, then the artifact's own rows (deployTo's render), then
+		// the rows its inputs read, such as an upstream credential (Validate). Taking an input's lock before the
+		// gateway could deadlock with a synchronous deploy and a credential update.
+		if err := c.lockGateway(tx, claim.GatewayUUID); err != nil {
+			return err
+		}
 		if rendered.Validate != nil {
 			if err := rendered.Validate(ctx, tx); err != nil {
 				return err
 			}
-		}
-		if err := c.lockGateway(tx, claim.GatewayUUID); err != nil {
-			return err
 		}
 		if err := c.checkContext(ctx, tx, claim.Placement, rendered.Content); err != nil {
 			return err

@@ -21,6 +21,7 @@ package gwrepo
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -32,7 +33,10 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/db"
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbtest"
+	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
+	"github.com/wso2/agent-manager/agent-manager-service/repositories"
+	"github.com/wso2/agent-manager/agent-manager-service/vault/vaulttest"
 )
 
 func newTestProxy(t *testing.T, agentName string) *models.A2AProxy {
@@ -197,4 +201,38 @@ func TestA2AProxyListsTheEnvironmentUUIDsUnderAName(t *testing.T) {
 	none, err := repo.ListEnvironmentUUIDs(ctx, old.OUID, "Staging")
 	require.NoError(t, err)
 	assert.Empty(t, none)
+}
+
+func TestA2AProxyLeavesAnExternalCredentialUnopenedUntilAsked(t *testing.T) {
+	ctx := context.Background()
+	vaults, _ := vaulttest.LocalAndExternal(t)
+	repo := NewA2AProxyRepository(db.GetDB(), repositories.NewSecretStore(vaults))
+	proxy := newTestProxy(t, "external-"+uuid.New().String()[:8])
+	cleanupProxy(t, repo, proxy)
+	stored := proxy.UpstreamAuthSecret
+	require.NoError(t, repo.Upsert(ctx, proxy))
+	runner := repositories.NewSecretJobRunner(db.GetDB(), vaults, slog.New(slog.DiscardHandler))
+	_, failed, err := runner.RunOnce(ctx, dbx.Now())
+	require.NoError(t, err)
+	require.Zero(t, failed)
+
+	// Read under a lock, the external value is carried unopened.
+	got, err := repo.GetByEnvUUID(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID)
+	require.NoError(t, err)
+	assert.Empty(t, got.UpstreamAuthSecret, "an external value is not opened by the read")
+	require.NotNil(t, got.UpstreamAuthExternal)
+	assert.True(t, got.HasUpstreamAuthSecret())
+	value, err := got.UpstreamAuthExternal.Open(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, stored, value)
+
+	// An update that keeps the credential carries it unopened and leaves the secret row as it is.
+	keep := *got
+	keep.UpstreamAuthSecret = ""
+	require.NoError(t, repo.Upsert(ctx, &keep))
+	after, err := repo.GetByEnvUUID(ctx, proxy.OUID, proxy.ProjectName, proxy.AgentName, proxy.EnvironmentUUID)
+	require.NoError(t, err)
+	assert.Equal(t, got.UpstreamAuthSecretID, after.UpstreamAuthSecretID)
+	require.NotNil(t, after.UpstreamAuthExternal)
+	assert.True(t, after.UpstreamAuthExternal.SameVersion(got.UpstreamAuthExternal), "the kept secret is not rewritten")
 }

@@ -35,7 +35,8 @@ import (
 type Rendered struct {
 	Name    string
 	Content []byte
-	// Validate checks inputs fetched outside the transaction before sending a claimed render.
+	// Validate checks inputs fetched outside the transaction before sending a claimed render. It runs after the
+	// gateway is locked and may lock only input rows, such as an upstream credential.
 	Validate func(context.Context, *gorm.DB) error
 }
 

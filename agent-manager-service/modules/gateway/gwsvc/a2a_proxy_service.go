@@ -186,7 +186,7 @@ func (s *a2aProxyService) SetA2AProxy(
 		if err != nil {
 			return err
 		}
-		if err := requireHTTPSForSecret(cardURL, proxy.UpstreamAuthSecret); err != nil {
+		if err := requireHTTPSForSecret(cardURL, proxy.HasUpstreamAuthSecret()); err != nil {
 			return err
 		}
 		// A PUT can set, replace or clear the credential the gateway sends upstream, so it is refused unrecorded.
@@ -345,8 +345,8 @@ func (s *a2aProxyService) requireCardSource(ctx context.Context, tx *gorm.DB, t 
 }
 
 // requireHTTPSForSecret refuses to store a credential the control plane and the gateway would send to cardURL in cleartext.
-func requireHTTPSForSecret(cardURL, secret string) error {
-	if secret == "" {
+func requireHTTPSForSecret(cardURL string, hasSecret bool) error {
+	if !hasSecret {
 		return nil
 	}
 	u, err := url.Parse(cardURL)
@@ -360,7 +360,7 @@ func requireHTTPSForSecret(cardURL, secret string) error {
 func (s *a2aProxyService) requireSecretStaysOnOrigin(
 	ctx context.Context, tx *gorm.DB, t a2aProxyTarget, proxy *models.A2AProxy, sourceURL string,
 ) error {
-	if proxy.UpstreamAuthSecret == "" {
+	if !proxy.HasUpstreamAuthSecret() {
 		return nil
 	}
 	card, err := s.lockedCard(ctx, tx, t)
@@ -386,7 +386,7 @@ func (s *a2aProxyService) proxyRow(
 		OUID: t.key.OUID, ProjectName: t.key.ProjectName, AgentName: t.key.AgentName,
 		EnvironmentUUID: t.key.EnvironmentUUID, EnvironmentName: t.key.EnvironmentName,
 	}
-	stored := existing != nil && existing.UpstreamAuthSecret != ""
+	stored := existing != nil && existing.HasUpstreamAuthSecret()
 	switch {
 	case auth == nil:
 		return row, stored, nil
@@ -394,6 +394,7 @@ func (s *a2aProxyService) proxyRow(
 		return nil, false, fmt.Errorf("%w: a value is required, since no secret is stored", utils.ErrInvalidUpstreamAuth)
 	case auth.Value == nil:
 		row.UpstreamAuthHeader, row.UpstreamAuthSecret = auth.Header, existing.UpstreamAuthSecret
+		row.UpstreamAuthExternal = existing.UpstreamAuthExternal
 		return row, auth.Header != existing.UpstreamAuthHeader, nil
 	}
 	secret, err := utils.EncryptSecretRef(*auth.Value, s.encryptionKey)
@@ -514,7 +515,7 @@ func (s *a2aProxyService) removeProxy(ctx context.Context, t a2aProxyTarget, car
 		if existing == nil {
 			return onDirect(ctx, tx, s.cardRepo, t, ifDirect)
 		}
-		attempt, err = s.beginAudit(ctx, audit.ActionAgentRemoveA2AProxy, t, existing.UpstreamAuthHeader, existing.UpstreamAuthSecret != "")
+		attempt, err = s.beginAudit(ctx, audit.ActionAgentRemoveA2AProxy, t, existing.UpstreamAuthHeader, existing.HasUpstreamAuthSecret())
 		if err != nil {
 			return err
 		}

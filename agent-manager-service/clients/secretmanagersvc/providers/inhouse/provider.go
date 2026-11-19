@@ -86,6 +86,20 @@ type client struct {
 	rows secretmanagersvc.SecretRows
 }
 
+// secretName is the reference of the secret at location: its full scoped path
+// (organization, project, environment, agent, config and entity), without the
+// key, since one row holds all of a secret's keys. SecretRefName is not used:
+// it leaves out the project and agent and is cut to 63 characters, so two
+// agents' secrets could share a row.
+func secretName(location secretmanagersvc.SecretLocation) (string, error) {
+	location.SecretKey = ""
+	name, err := location.KVPath()
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	}
+	return name, nil
+}
+
 // rowID is the secrets row of the secret named name in org. Deriving it from
 // the name makes the name unique per organization through the primary key.
 func rowID(org, name string) (uuid.UUID, error) {
@@ -137,7 +151,10 @@ func (c *client) store(ctx context.Context, tx *gorm.DB, org string, id uuid.UUI
 
 // PushSecret replaces all of the secret's data, creating it when absent.
 func (c *client) PushSecret(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string, _ *secretmanagersvc.SecretMetadata) (string, error) {
-	name := location.SecretRefName()
+	name, err := secretName(location)
+	if err != nil {
+		return "", err
+	}
 	id, err := rowID(location.OrgName, name)
 	if err != nil {
 		return "", err
@@ -153,7 +170,10 @@ func (c *client) PushSecret(ctx context.Context, location secretmanagersvc.Secre
 
 // PatchSecret merges data into an existing secret and removes keysToDelete.
 func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.SecretLocation, data map[string]string, keysToDelete []string, _ *secretmanagersvc.SecretMetadata) (string, error) {
-	name := location.SecretRefName()
+	name, err := secretName(location)
+	if err != nil {
+		return "", err
+	}
 	id, err := rowID(location.OrgName, name)
 	if err != nil {
 		return "", err
@@ -183,10 +203,15 @@ func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 
 // DeleteSecret removes the secret. Idempotent.
 func (c *client) DeleteSecret(ctx context.Context, location secretmanagersvc.SecretLocation, metadata *secretmanagersvc.SecretMetadata) error {
-	return c.DeleteSecretByName(ctx, location.OrgName, location.SecretRefName(), metadata)
+	name, err := secretName(location)
+	if err != nil {
+		return err
+	}
+	return c.DeleteSecretByName(ctx, location.OrgName, name, metadata)
 }
 
-// DeleteSecretByName removes the secret named secretRefName. Idempotent.
+// DeleteSecretByName removes the secret whose reference is secretRefName, as
+// PushSecret returned it. Idempotent.
 func (c *client) DeleteSecretByName(ctx context.Context, orgName, secretRefName string, _ *secretmanagersvc.SecretMetadata) error {
 	id, err := rowID(orgName, secretRefName)
 	if err != nil {
@@ -199,7 +224,10 @@ func (c *client) DeleteSecretByName(ctx context.Context, orgName, secretRefName 
 
 // GetSecret returns the secret's keys without its values.
 func (c *client) GetSecret(ctx context.Context, location secretmanagersvc.SecretLocation) (*secretmanagersvc.SecretInfo, error) {
-	name := location.SecretRefName()
+	name, err := secretName(location)
+	if err != nil {
+		return nil, err
+	}
 	id, err := rowID(location.OrgName, name)
 	if err != nil {
 		return nil, err
