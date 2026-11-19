@@ -18,7 +18,8 @@
 
 1. ``build_scan_config`` has already checked the flags, ``AMP_URL`` and the token's lifetime. The report
    folder is checked next, before anything long.
-2. The Git token is asked for only when needed (``prompts.git_token``).
+2. The Git token is asked for only when needed (``prompts.git_token``), then, with ``--ai-review``, the LLM
+   settings (``prompts.llm_settings``).
 3. The repositories are listed or looked up, printed, and confirmed. Without a terminal the scan goes on
    only with ``--yes`` or ``AMP_SCAN_YES=1``, and otherwise exits CONFIG_ERROR before any listing. Declining
    publishes nothing: the pending scan expires on its own after 1 hour.
@@ -38,8 +39,8 @@ Exit codes: OK when every repository was scanned, the list was complete and the 
 PARTIAL_FAILURE when it published but some repositories failed or the list was incomplete, including when
 every repository failed (Agent Manager then marks the scan failed); a publish error's own code otherwise.
 
-Not-sure findings are published only after AI review confirms them. AI review is not in this version, so
-with or without ``--ai-review`` they stay in the report and are not published.
+Not-sure findings are published only after AI review confirms them. This version asks for the LLM settings
+but does not review yet, so with or without ``--ai-review`` they stay in the report and are not published.
 """
 
 import os
@@ -58,8 +59,9 @@ from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.fetch import ArchiveError, extract, remove_tree, workspace
 from amp_shadow_runner.gitsource import GitSourceError, Repository, RepositoryError, RepositoryList
 from amp_shadow_runner.gitsource.github import GitHubSource
+from amp_shadow_runner.llm import LlmSettings
 from amp_shadow_runner.progress import Progress
-from amp_shadow_runner.prompts import git_token
+from amp_shadow_runner.prompts import git_token, llm_settings
 from amp_shadow_runner.publish import (
     Publisher,
     PublishError,
@@ -140,6 +142,7 @@ def run_scan(
     yes: bool = False,
     report_path: Path | None = None,
     ask_token: Callable[[ScanConfig], str | None] = git_token,
+    ask_llm: Callable[[ScanConfig], LlmSettings] = llm_settings,
     make_source: SourceFactory = _github_source,
     make_publisher: PublisherFactory = _publisher,
     is_tty: Callable[[], bool] | None = None,
@@ -151,7 +154,7 @@ def run_scan(
 
     The report is written to ``report_path`` (default ``/out/report.json``).
 
-    Raises ConfigError (no terminal to confirm in, or from the token prompt), ReportError (the report
+    Raises ConfigError (no terminal to confirm in, or from the token or LLM prompts), ReportError (the report
     folder is not writable) and ScanTokenError (too little token lifetime left after confirming) for the
     caller to print; every later failure is printed here. Ctrl-C raises KeyboardInterrupt, or
     PublishInterrupted once publishing has started.
@@ -167,6 +170,7 @@ def run_scan(
         return ExitCode.RUNTIME_ERROR
     check_writable(report_path)
     token = ask_token(config)
+    _llm = ask_llm(config) if config.ai_review else None  # AI review (a later step) uses these settings.
     tty = is_tty() if is_tty is not None else sys.stdin is not None and sys.stdin.isatty()
     if not yes and not tty:
         raise ConfigError(

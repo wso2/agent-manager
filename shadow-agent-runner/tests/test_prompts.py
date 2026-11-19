@@ -14,7 +14,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""amp_shadow_runner.prompts: secrets from the environment or a hidden terminal prompt."""
+"""amp_shadow_runner.prompts: secrets and LLM settings from the environment or a terminal prompt."""
 
 import getpass
 import io
@@ -26,7 +26,8 @@ from datetime import UTC, datetime
 import pytest
 
 from amp_shadow_runner.config import ConfigError, ScanConfig
-from amp_shadow_runner.prompts import Check, ask_secret, git_token
+from amp_shadow_runner.llm import LlmSettings
+from amp_shadow_runner.prompts import Check, ask_secret, ask_value, git_token, llm_settings
 
 SECRET = "ghp_s3cr3t-value"
 
@@ -273,3 +274,258 @@ def test_https_does_not_warn() -> None:
     out = io.StringIO()
     git_token(replace(CONFIG, include_private=True), env={}, is_tty=True, read=Reader(SECRET), out=out)
     assert out.getvalue() == ""
+
+
+def _value(
+    reader: Callable[[str], str] | None = None,
+    *,
+    env: dict[str, str] | None = None,
+    tty: bool = True,
+    default: str | None = None,
+    out: io.StringIO | None = None,
+) -> str:
+    return ask_value(
+        "Test value",
+        "TEST_VALUE",
+        need="A test value is needed.",
+        default=default,
+        parse=lambda v: v.lower() if v.lower() in ("a", "b") else _raise("Choose a or b."),
+        env={} if env is None else env,
+        is_tty=tty,
+        read=reader if reader is not None else Reader(),
+        out=out if out is not None else io.StringIO(),
+    )
+
+
+def _raise(message: str) -> str:
+    raise ConfigError(message)
+
+
+def test_value_from_env_is_parsed_without_asking() -> None:
+    reader = Reader()
+    assert _value(reader, env={"TEST_VALUE": " B "}) == "b"
+    assert reader.prompts == []
+    with pytest.raises(ConfigError) as info:
+        _value(env={"TEST_VALUE": "c"})
+    assert str(info.value) == "TEST_VALUE is not usable: Choose a or b."
+
+
+def test_value_is_asked_with_visible_input_and_retried() -> None:
+    reader = Reader("c", "", "A")
+    out = io.StringIO()
+    assert _value(reader, out=out) == "a"
+    assert reader.prompts == ["Test value: "] * 3
+    assert out.getvalue() == "Choose a or b.\nA value is required. Press Ctrl-C to cancel.\n"
+    with pytest.raises(ConfigError) as info:
+        _value(Reader("c", "x y", "d"))
+    assert str(info.value) == "Choose a or b. Stopped after 3 attempts."
+
+
+def test_value_default_is_shown_and_taken_on_enter_or_without_a_terminal() -> None:
+    reader = Reader("")
+    assert _value(reader, default="b") == "b"
+    assert reader.prompts == ["Test value [b]: "]
+    assert _value(tty=False, default="b") == "b"
+
+
+def test_value_without_a_terminal_names_the_variable() -> None:
+    with pytest.raises(ConfigError) as info:
+        _value(tty=False)
+    assert str(info.value) == (
+        "A test value is needed. Run it with docker run -it, or set TEST_VALUE and pass it with -e TEST_VALUE."
+    )
+
+
+@pytest.mark.parametrize("interrupt", [EOFError(), KeyboardInterrupt()])
+def test_value_cancel_raises_config_error(interrupt: BaseException) -> None:
+    with pytest.raises(ConfigError, match="^Cancelled.$"):
+        _value(Reader(interrupt))
+
+
+def test_default_value_reader_prompts_on_stderr(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("sys.stdin", io.StringIO("a\n"))
+    assert ask_value("Test value", "TEST_VALUE", need="", env={}, is_tty=True) == "a"
+    assert capsys.readouterr().err == "Test value: "
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    with pytest.raises(ConfigError, match="^Cancelled.$"):
+        ask_value("Test value", "TEST_VALUE", need="", env={}, is_tty=True)
+
+
+LLM_KEY = "sk-s3cr3t-llm-key"
+AI = replace(CONFIG, ai_review=True)
+LLM_ENV = {
+    "AMP_LLM_PROVIDER": "Anthropic",
+    "AMP_LLM_URL": "https://api.anthropic.com",
+    "AMP_LLM_MODEL": "claude-x",
+    "AMP_LLM_API_KEY": LLM_KEY,
+}
+
+
+def _llm(
+    config: ScanConfig = AI,
+    *,
+    env: dict[str, str] | None = None,
+    answers: tuple[str, ...] = (),
+    secret: tuple[str, ...] = (),
+    tty: bool = True,
+    out: io.StringIO | None = None,
+) -> tuple[LlmSettings, Reader, Reader]:
+    read, read_secret = Reader(*answers), Reader(*secret)
+    settings = llm_settings(
+        config,
+        env={} if env is None else env,
+        is_tty=tty,
+        read=read,
+        read_secret=read_secret,
+        out=io.StringIO() if out is None else out,
+    )
+    return settings, read, read_secret
+
+
+def test_llm_settings_from_env_ask_nothing() -> None:
+    env = {**LLM_ENV, "AMP_LLM_URL": "https://llm.example.com/", "AMP_LLM_JUDGE_MODEL": "judge-x"}
+    settings, read, read_secret = _llm(replace(AI, judge=True), env=env, tty=False)
+    assert settings == LlmSettings("anthropic", "https://llm.example.com", "claude-x", "judge-x", LLM_KEY)
+    assert read.prompts == read_secret.prompts == []
+
+
+def test_llm_settings_without_a_terminal_default_the_judge_model_but_not_the_address() -> None:
+    settings, _, _ = _llm(replace(AI, judge=True), env=LLM_ENV, tty=False)
+    assert settings.judge_model == "claude-x"
+    env = {name: value for name, value in LLM_ENV.items() if name != "AMP_LLM_URL"}
+    with pytest.raises(ConfigError) as info:
+        _llm(env=env, tty=False)
+    assert str(info.value) == (
+        "AI review needs the LLM address, such as https://api.anthropic.com. "
+        "Run it with docker run -it, or set AMP_LLM_URL and pass it with -e AMP_LLM_URL."
+    )
+
+
+def test_llm_settings_questions_with_defaults() -> None:
+    settings, read, read_secret = _llm(
+        replace(AI, judge=True), answers=("openai", "", "gpt-x", ""), secret=(f" {LLM_KEY} ",)
+    )
+    assert settings == LlmSettings("openai", "https://api.openai.com/v1", "gpt-x", "gpt-x", LLM_KEY)
+    assert read.prompts == [
+        "LLM provider (openai or anthropic): ",
+        "LLM address [https://api.openai.com/v1]: ",
+        "LLM model: ",
+        "Judge model [gpt-x]: ",
+    ]
+    assert read_secret.prompts == ["LLM API key: "]
+
+
+def test_llm_settings_without_judge_do_not_ask_for_a_judge_model() -> None:
+    settings, read, _ = _llm(answers=("anthropic", "https://proxy.example.com/llm/", "claude-x"), secret=(LLM_KEY,))
+    assert (settings.url, settings.judge_model) == ("https://proxy.example.com/llm", None)
+    assert len(read.prompts) == 3
+
+
+def test_llm_settings_refuse_a_bad_provider_or_address() -> None:
+    with pytest.raises(ConfigError) as info:
+        _llm(env={**LLM_ENV, "AMP_LLM_PROVIDER": "gemini"})
+    assert str(info.value) == (
+        "AMP_LLM_PROVIDER is not usable: The LLM provider must be openai (for any OpenAI-compatible API) or anthropic."
+    )
+    for url, problem in (
+        ("ftp://llm.example.com", "must start with http:// or https://."),
+        ("https://user:pw@llm.example.com", "must not contain a user name or password."),
+        ("https://llm.example.com/?key=pw", "must not contain a query or fragment."),
+    ):
+        with pytest.raises(ConfigError) as info:
+            _llm(env={**LLM_ENV, "AMP_LLM_URL": url})
+        assert str(info.value) == f"AMP_LLM_URL is not usable: The LLM address {problem}"
+        assert "pw" not in str(info.value)
+    out = io.StringIO()
+    settings, _, _ = _llm(answers=("x", "openai", "ftp://h", "https://h", "m"), secret=(LLM_KEY,), out=out)
+    assert settings.url == "https://h"
+    assert out.getvalue() == (
+        "The LLM provider must be openai (for any OpenAI-compatible API) or anthropic.\n"
+        "The LLM address must start with http:// or https://.\n"
+        "AI review: openai at h, model m.\n"
+    )
+
+
+@pytest.mark.parametrize(
+    ("env", "variable"),
+    [
+        ({}, "AMP_LLM_PROVIDER"),
+        ({"AMP_LLM_PROVIDER": "openai"}, "AMP_LLM_URL"),
+        ({"AMP_LLM_PROVIDER": "openai", "AMP_LLM_URL": "https://h"}, "AMP_LLM_MODEL"),
+        ({"AMP_LLM_PROVIDER": "openai", "AMP_LLM_URL": "https://h", "AMP_LLM_MODEL": "m"}, "AMP_LLM_API_KEY"),
+    ],
+)
+def test_llm_settings_without_a_terminal_name_the_missing_variable(env: dict[str, str], variable: str) -> None:
+    with pytest.raises(ConfigError) as info:
+        _llm(env=env, tty=False)
+    assert str(info.value).startswith("AI review needs ")
+    assert str(info.value).endswith(f"set {variable} and pass it with -e {variable}.")
+
+
+def test_llm_settings_warn_before_sending_the_key_over_plain_http() -> None:
+    out = io.StringIO()
+
+    def read_secret(prompt: str) -> str:
+        out.write("<prompt>")
+        return LLM_KEY
+
+    settings = llm_settings(
+        AI,
+        env={"AMP_LLM_PROVIDER": "openai", "AMP_LLM_URL": "http://ollama.internal:11434/v1", "AMP_LLM_MODEL": "m"},
+        is_tty=True,
+        read=Reader(),
+        read_secret=read_secret,
+        out=out,
+    )
+    assert settings.url == "http://ollama.internal:11434/v1"
+    assert out.getvalue() == (
+        "AI review: openai at ollama.internal:11434, model m.\n"
+        "Warning: ollama.internal:11434 uses plain http, so the LLM API key will be sent to it unencrypted.\n<prompt>"
+    )
+
+
+def test_llm_key_is_never_shown(capsys: pytest.CaptureFixture[str]) -> None:
+    out = io.StringIO()
+    settings, _, _ = _llm(env=LLM_ENV, tty=False, out=out)
+    texts = [repr(settings), str(settings), out.getvalue()]
+    with pytest.raises(ConfigError) as info:
+        _llm(env={**LLM_ENV, "AMP_LLM_API_KEY": f"{LLM_KEY} x"}, tty=False, out=out)
+    texts += [str(info.value), repr(info.value), out.getvalue(), *capsys.readouterr()]
+    assert all(LLM_KEY not in text for text in texts)
+
+
+def test_llm_settings_line_is_printed_before_the_key_and_never_holds_it() -> None:
+    out = io.StringIO()
+
+    def read_secret(prompt: str) -> str:
+        out.write("<prompt>")
+        return LLM_KEY
+
+    env = {"AMP_LLM_PROVIDER": "openai", "AMP_LLM_URL": "https://gateway.example.com/llm/v1", "AMP_LLM_MODEL": "gpt-x"}
+    llm_settings(
+        replace(AI, judge=True),
+        env={**env, "AMP_LLM_JUDGE_MODEL": "gpt-y"},
+        is_tty=True,
+        read=Reader(),
+        read_secret=read_secret,
+        out=out,
+    )
+    assert out.getvalue() == "AI review: openai at gateway.example.com, model gpt-x (judge gpt-y).\n<prompt>"
+    out = io.StringIO()
+    _llm(env=LLM_ENV, tty=False, out=out)
+    assert out.getvalue() == "AI review: anthropic at api.anthropic.com, model claude-x.\n"
+    assert LLM_KEY not in out.getvalue()
+
+
+def test_a_key_that_is_not_ascii_is_refused() -> None:
+    message = "The API key must contain only ASCII letters, digits and symbols."
+    with pytest.raises(ConfigError) as info:
+        _llm(env={**LLM_ENV, "AMP_LLM_API_KEY": "sk-\u00e9t\u00e9"}, tty=False)
+    assert str(info.value) == f"AMP_LLM_API_KEY is not usable: {message}"
+    out = io.StringIO()
+    env = {name: value for name, value in LLM_ENV.items() if name != "AMP_LLM_API_KEY"}
+    settings, _, _ = _llm(env=env, secret=("sk-\u2013key", LLM_KEY), out=out)
+    assert settings.api_key == LLM_KEY
+    assert out.getvalue().endswith(f"{message}\n")

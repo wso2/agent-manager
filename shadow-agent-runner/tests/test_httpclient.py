@@ -217,6 +217,23 @@ def test_retries_are_exhausted(server: _Server, client: HttpClient, sleeps: list
     assert sleeps == [0.5, 1.0, 2.0]
 
 
+@pytest.mark.parametrize(
+    ("body", "expected"),
+    [
+        ({"error": {"type": "invalid_request_error", "message": " bad\n model "}}, "bad model"),
+        ({"message": "top", "error": {"message": "nested"}}, "top"),
+        ({"error": {"message": "x" * 300}}, "x" * 197 + "..."),
+        ({"error": "a string"}, None),
+        ({"error": {"message": 3}}, None),
+    ],
+)
+def test_server_message_reads_a_nested_error_message(
+    server: _Server, client: HttpClient, body: object, expected: str | None
+) -> None:
+    exc = _fails(lambda: client.post_json(server.route("/x", _json(400, body)), {}))
+    assert exc.server_message == expected
+
+
 def test_client_errors_are_not_retried(server: _Server, client: HttpClient) -> None:
     exc = _fails(lambda: client.get_json(server.route("/x", _json(404, {"message": "Not Found"}))))
     assert (exc.status, exc.retryable, len(server.seen)) == (404, False, 1)

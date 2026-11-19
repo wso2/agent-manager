@@ -31,6 +31,7 @@ import pytest
 from amp_shadow_runner.config import ConfigError, ScanConfig
 from amp_shadow_runner.exitcodes import ExitCode
 from amp_shadow_runner.gitsource import FailedRepository, GitSourceError, Repository, RepositoryError, RepositoryList
+from amp_shadow_runner.llm import LlmSettings
 from amp_shadow_runner.pipeline import (
     ANONYMOUS_WARNING,
     EXPIRES_NOTE,
@@ -47,6 +48,8 @@ from tests.test_config import _token
 SCAN_ID = "3f2b6c1e-8d4a-4f5b-9c7e-1a2b3c4d5e6f"
 SCAN_TOKEN = _token(time.time() + 3600)
 GIT_TOKEN = "github_pat_s3cr3t-git-token"
+LLM_KEY = "sk-s3cr3t-llm-key"
+LLM = LlmSettings("openai", "https://api.openai.com/v1", "gpt-x", None, LLM_KEY)
 SHA = "0123456789abcdef0123456789abcdef01234567"
 AGENT = "from crewai import Agent\nsupport = Agent(role='support')\n"
 MAYBE = "from crewai import Agent\n"  # No agent: a file that is scanned and matches nothing.
@@ -148,6 +151,8 @@ class Run:
         self.source = source
         self.publisher = FakePublisher(self.report_path, error=error)
         self.out = io.StringIO()
+        self.asked: list[tuple[str, list[str]]] = []
+        """Each prompt asked, with the Git host calls made before it."""
 
     def __call__(
         self,
@@ -165,11 +170,20 @@ class Run:
                 raise answer_error
             return answer
 
+        def ask_token(_config: ScanConfig) -> str | None:
+            self.asked.append(("ask_token", list(self.source.calls)))
+            return token
+
+        def ask_llm(_config: ScanConfig) -> LlmSettings:
+            self.asked.append(("ask_llm", list(self.source.calls)))
+            return LLM
+
         return run_scan(
             config or _config(),
             yes=yes,
             report_path=self.report_path,
-            ask_token=lambda _: token,
+            ask_token=ask_token,
+            ask_llm=ask_llm,
             make_source=lambda _config, _token: self.source,
             make_publisher=lambda _config: self.publisher,
             is_tty=lambda: tty,
@@ -395,9 +409,10 @@ def test_secrets_are_never_printed_or_saved(tmp_path: Path) -> None:
         fail={"b": RepositoryError("b", "GitHub answered HTTP 500")},
     )
     run = Run(tmp_path, source)
-    run()
+    run(_config(ai_review=True, judge=True))
+    assert [name for name, _ in run.asked] == ["ask_token", "ask_llm"]
     saved = run.report_path.read_text()
-    for secret in (GIT_TOKEN, SCAN_TOKEN):
+    for secret in (GIT_TOKEN, SCAN_TOKEN, LLM_KEY):
         assert secret not in run.text
         assert secret not in saved
         assert secret not in json.dumps(run.body)
@@ -516,3 +531,20 @@ def test_ctrl_c_while_publishing_is_told_apart(tmp_path: Path) -> None:
     run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))), error=KeyboardInterrupt())
     with pytest.raises(PublishInterrupted):
         run()
+
+
+@pytest.mark.parametrize("ai_review", [True, False])
+def test_llm_settings_are_asked_after_the_token_and_before_listing(tmp_path: Path, ai_review: bool) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),)), {"a": {"agent.py": AGENT}}))
+    assert run(_config(ai_review=ai_review)) == ExitCode.OK
+    expected: list[tuple[str, list[str]]] = [("ask_token", []), ("ask_llm", [])] if ai_review else [("ask_token", [])]
+    assert run.asked == expected
+    assert run.source.calls[0] == "list_all"
+
+
+def test_no_terminal_is_found_only_after_the_llm_settings_are_asked(tmp_path: Path) -> None:
+    run = Run(tmp_path, FakeSource(RepositoryList((_repo("a"),))))
+    with pytest.raises(ConfigError, match="no terminal"):
+        run(_config(ai_review=True), yes=False, tty=False)
+    assert run.asked == [("ask_token", []), ("ask_llm", [])]
+    assert run.source.calls == []

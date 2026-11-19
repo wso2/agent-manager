@@ -61,7 +61,7 @@ _BACKOFF_CAP = 30.0
 _CHUNK = 64 * 1024
 _MAX_ERROR_BODY = 64 * 1024
 _MAX_SERVER_MESSAGE = 200
-_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+_RETRY_STATUSES = frozenset({429, 500, 502, 503, 504, 529})  # 529: Anthropic is overloaded.
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
 # Dropped on a cross-origin redirect. Send credentials in Authorization: only GETs follow
 # redirects, so another credential header (such as x-api-key) is safe only on a POST.
@@ -73,8 +73,8 @@ class HttpError(Exception):
 
     ``status`` is the HTTP status, or None when there was no usable response
     (network error, timeout, refused redirect, invalid URL). ``server_message``
-    is the response's JSON ``message`` field, cleaned and truncated, when it has
-    one. ``headers`` are the failed response's headers, for callers that need
+    is the response's JSON ``message`` (or ``error.message``) field, cleaned and
+    truncated, when it has one. ``headers`` are the failed response's headers, for callers that need
     rate-limit headers; never print them. ``retryable`` says whether the same
     request may succeed later.
     """
@@ -120,9 +120,10 @@ class DownloadResponse:
 class HttpClient:
     """Sends requests with the runner's ``User-Agent``, verified TLS and the standard proxy variables.
 
-    GET requests and downloads are retried on network errors and on HTTP 429,
-    500, 502, 503 and 504, waiting with capped exponential backoff and jitter, or
-    longer when ``Retry-After`` asks. A request whose ``Retry-After`` is longer
+    GET requests and downloads are retried on network errors (unless
+    ``retry_network_errors`` is False) and on HTTP 429, 500, 502, 503, 504 and
+    529, waiting with capped exponential backoff and jitter, or longer when
+    ``Retry-After`` asks. A request whose ``Retry-After`` is longer
     than ``max_retry_after`` fails at once instead of waiting. A POST is
     retried only when the caller passes ``retry=True``. Only GET requests and
     downloads follow redirects.
@@ -138,6 +139,7 @@ class HttpClient:
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
         max_json_bytes: int = DEFAULT_MAX_JSON_BYTES,
         max_retry_after: float = DEFAULT_MAX_RETRY_AFTER,
+        retry_network_errors: bool = True,
         sleep: Callable[[float], None] = time.sleep,
         now: Callable[[], float] = time.time,
         jitter: Callable[[], float] = random.random,
@@ -146,6 +148,7 @@ class HttpClient:
         self._max_attempts = max(1, max_attempts)
         self._max_json_bytes = max_json_bytes
         self._max_retry_after = max_retry_after
+        self._retry_network_errors = retry_network_errors
         self._sleep = sleep
         self._now = now
         self._jitter = jitter
@@ -210,7 +213,8 @@ class HttpClient:
                 return self._attempt(method, url, data, headers, read)
             except HttpError as exc:
                 error = exc
-            delay = self._delay(attempt, error) if error.retryable and attempt < attempts else None
+            retryable = error.retryable and (error.status is not None or self._retry_network_errors)
+            delay = self._delay(attempt, error) if retryable and attempt < attempts else None
             if delay is None:
                 raise error  # Outside the except block, so nothing is chained onto it.
             self._sleep(delay)
@@ -460,12 +464,15 @@ def _status_error(method: str, url: str, response: http.client.HTTPResponse) -> 
 
 
 def _server_message(response: http.client.HTTPResponse) -> str | None:
-    """The error body's JSON ``message``, printable, whitespace collapsed, at most 200 characters."""
+    """The error body's JSON ``message`` or ``error.message`` (OpenAI and Anthropic), printable, whitespace
+    collapsed, at most 200 characters."""
     try:
         body = json.loads(response.read(_MAX_ERROR_BODY))
     except (OSError, http.client.HTTPException, ValueError, RecursionError):
         return None
     message = body.get("message") if isinstance(body, dict) else None
+    if message is None and isinstance(body, dict) and isinstance(body.get("error"), dict):
+        message = body["error"].get("message")
     if not isinstance(message, str) or not message.strip():
         return None
     message = " ".join(_printable(message).split())
