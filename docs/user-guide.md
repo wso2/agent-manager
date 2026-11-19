@@ -149,6 +149,18 @@ Providers and servers you pick while registering an agent are attached in the ba
 
 The gateway is the `ai-gateway` module. Its API is at `/m/ai-gateway/orgs/{org}/...` (for example `GET /m/ai-gateway/orgs/{org}/llm-providers`), beside the core's `/api/v1`, and its permissions are the `amp:ai-gateway:<resource>.<action>` scopes, such as `amp:ai-gateway:llm-providers.read`.
 
+### Turn the gateway off
+
+The gateway is installed when the stack first starts, and you can switch it off and on without a restart:
+
+```bash
+docker compose exec amp-api /go/bin/amp module disable ai-gateway
+docker compose exec amp-api /go/bin/amp module enable ai-gateway
+docker compose exec amp-api /go/bin/amp module health ai-gateway
+```
+
+While it is off, its console pages, API and scopes are gone, an agent registered with LLM providers or MCP servers is refused, and its data is kept; your choice survives restarts. `amp module uninstall ai-gateway --purge` deletes its data. In this preview the bundled `gateway-controller` container restarts in a loop while the gateway is off, and the gateway runtime keeps serving its last configuration; after `enable` it connects again on its next restart. `amp module health ai-gateway` lists each gateway and whether it is connected.
+
 ## Command line
 
 `amctl` is the command-line client for the Agent Manager API. See [cli](../cli).

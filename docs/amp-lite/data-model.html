@@ -63,7 +63,7 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="2508" y="81" class="legtext">workers claim rows with a lease</text>
 <rect x="2390" y="90" width="101" height="18" rx="9" fill="#f5f3ff"/>
 <text x="2441" y="103" class="chip" fill="#6d28d9" text-anchor="middle">gateway module</text>
-<text x="2508" y="103" class="legtext">used only by the gateway module; keeps its name for now</text>
+<text x="2508" y="103" class="legtext">belongs to the gateway module (mod_ai_gateway_ table)</text>
 <rect x="1574" y="108" width="44" height="16" rx="4" fill="#ffffff" stroke="#94a3b8" stroke-dasharray="5 4"/>
 <text x="1628" y="120" class="legtext">dashed card: hidden, deferred, or outside this database</text>
 <rect x="30" y="132" width="885" height="390" rx="14" fill="#eff6ff" stroke="#2563eb" stroke-opacity="0.45" stroke-width="1.5"/>
@@ -88,8 +88,8 @@ svg .ctable { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monosp
 <text x="320" y="456" class="anote">so no row can reach another org's data.</text>
 <text x="320" y="482" class="anote">Core creates the default org and its default environment at startup; the gateway</text>
 <text x="320" y="500" class="anote">module seeds the bundled gateway and its token.</text>
-<text x="975" y="510" class="anote">The gateway module is built in to amp and absent from amp-core.</text>
-<text x="975" y="528" class="anote">Its tables keep their names for now (no mod_gateway_ prefix).</text>
+<text x="975" y="510" class="anote">amp installs the gateway module by default; amp-core lacks it.</text>
+<text x="975" y="528" class="anote">Its tables are named mod_ai_gateway_&lt;table&gt;.</text>
 <text x="2202" y="1606" class="anote">Core tables; module-owned tables are mod_&lt;module&gt;_&lt;table&gt;.</text>
 <text x="2402" y="1050" class="anote">No foreign keys: rows outlive what they describe.</text>
 <text x="2380" y="214" class="anote2">Referenced by secret_id from event</text>

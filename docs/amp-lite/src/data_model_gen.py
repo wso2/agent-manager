@@ -635,7 +635,7 @@ def render_svg(viewbox=None, width=None):
     for i, (key, desc) in enumerate([("env", "one row per environment; in Lite always the hidden default"),
                                      ("secret", "credential lives in Secrets, not in this row"),
                                      ("queue", "workers claim rows with a lease"),
-                                     ("gwmod", "used only by the gateway module; keeps its name for now")]):
+                                     ("gwmod", "belongs to the gateway module (mod_ai_gateway_ table)")]):
         label, bg, fg = CHIPS[key]
         yy = ly0 + 10 + i * 22
         cw = len(label) * 6.1 + 16
@@ -661,8 +661,8 @@ def render_svg(viewbox=None, width=None):
     for i, ln in enumerate(tnotes):
         out.append(f'<text x="{tb[0] + 290}" y="{tb[3] - 84 + i * 18 + (8 if i >= 2 else 0)}" class="anote">{esc(ln)}</text>')
     gb = area_boxes["gateway"]
-    for i, ln in enumerate(["The gateway module is built in to amp and absent from amp-core.",
-                            "Its tables keep their names for now (no mod_gateway_ prefix)."]):
+    for i, ln in enumerate(["amp installs the gateway module by default; amp-core lacks it.",
+                            "Its tables are named mod_ai_gateway_<table>."]):
         out.append(f'<text x="{gb[0] + 30}" y="{cards["apikeys"].y - 110 + i * 18}" class="anote">{esc(ln)}</text>')
     mb = area_boxes["modules"]
     out.append(f'<text x="{mb[0] + 180}" y="{mb[1] + 30}" class="anote">Core tables; module-owned tables are mod_&lt;module&gt;_&lt;table&gt;.</text>')

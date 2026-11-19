@@ -102,7 +102,7 @@ text("cp_lbl", 300, 298, 820, 20, "CONTROL PLANE", size=13, color=GREEN, bold=Tr
 
 comp("amapi", 300, 330, 820, 240, GREEN, "Agent Manager",
      "", logos=[IMG["amapi_logo0"]],
-     prod="one image, two distributions · amp = core + built-in modules · amp-core = core only, no AI Gateway",
+     prod="one image, two distributions · amp = core + modules (ai-gateway installed by default) · amp-core = core only, no AI Gateway",
      prod_color=GREEN)
 sub("console", 318, 404, 190, 150,
     "<b>Embedded console</b><br/>served on :9000 with the API<br/>config.js from CONSOLE_* settings<br/>"
@@ -116,13 +116,13 @@ sub("core", 520, 404, 270, 150,
     GREEN, "#F2FBF7")
 sub("modhost", 802, 404, 300, 150,
     "<b>Module host</b><br/>install · enable · disable (amp module, amp.yaml)<br/>routes · hooks · events · capabilities<br/>"
-    "core calls llm.proxy, mcp.proxy, agent.gateway",
+    "modules provide llm.proxy, mcp.proxy · core provides identity.directory",
     GREEN, "#F2FBF7")
 sub("mod_gw", 814, 476, 172, 70,
-    "<b>gateway</b> · built in<br/>gateways, LLM and MCP proxies; WebSocket :9243",
+    "<b>ai-gateway</b> · module, on by default<br/>gateways, LLM and MCP proxies; WebSocket :9243",
     INDIGO, "#F5F5FF")
 sub("mod_legacy", 994, 476, 96, 70,
-    "<b>legacy</b><br/>501 routes",
+    "<b>legacy</b><br/>leftover permissions",
     SLATE, "#F1F5F9")
 comp("thunder", 300, 600, 820, 135, RED, "ThunderID",
      "<b>For people and services:</b> single sign-on (console, CLI, MCP); users, roles and groups<br/>"
