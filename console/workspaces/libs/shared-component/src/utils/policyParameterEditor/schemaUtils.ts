@@ -513,10 +513,21 @@ export function coerceValuesToSchemaTypes(
   // `allowedTools: []`) is a deliberate "block everything" choice, not an
   // unset field — dropping the key would silently fall back to the
   // policy's default list, which can flip a fail-closed intent to fail-open.
+  //
+  // `jsonPath` is exempt too: the policies read an empty jsonPath as "check
+  // the whole payload", while a missing one falls back to an OpenAI path
+  // ($.messages[-1].content) that cannot read other request shapes, such
+  // as AWS Bedrock Converse, where content is a list of blocks.
   const requiredKeys = new Set(schema.required ?? []);
   Object.entries(schema.properties).forEach(([key, propSchema]) => {
     if (requiredKeys.has(key)) return;
     if (propSchema.type === "array") return;
+    if (key === "jsonPath") {
+      if (typeof result[key] === "string") {
+        result[key] = (result[key] as string).trim();
+      }
+      return;
+    }
     if (!hasMeaningfulValue(result[key])) {
       delete result[key];
     }
