@@ -146,7 +146,7 @@ func mcpProxyToolSpecs() []toolTestSpec {
 			permissions:         []rbac.Permission{rbac.MCPServerRead},
 			descriptionKeywords: []string{"list", "mcp proxies"},
 			descriptionMinLen:   20,
-			optionalParams:      []string{"limit", "offset"},
+			optionalParams:      []string{"project_name", "limit", "offset"},
 			testArgs:            map[string]any{},
 			expectedMethod:      "ListMCPProxies",
 			validateCall: func(t *testing.T, args []interface{}) {

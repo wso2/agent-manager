@@ -38,6 +38,7 @@ type Dependencies struct {
 	LLMProviderDeploymentService *services.LLMProviderDeploymentService
 	PlatformGatewayService       *services.PlatformGatewayService
 	MCPProxyService              *services.MCPProxyService
+	ProjectMCPProxyService       *services.ProjectMCPProxyService
 	AgentConfigurationService    services.AgentConfigurationService
 }
 
@@ -52,7 +53,7 @@ func RegisterRoute(mux *http.ServeMux, deps Dependencies, authMiddleware func(ht
 		DeploymentToolset:  handlers.NewDeploymentHandler(deps.AgentManagerService),
 		EnvironmentToolset: handlers.NewEnvironmentHandler(deps.EnvironmentService),
 		LLMProviderToolset: handlers.NewLLMProviderHandler(deps.LLMProviderService, deps.LLMProviderDeploymentService, deps.PlatformGatewayService),
-		MCPProxyToolset:    handlers.NewMCPProxyHandler(deps.MCPProxyService),
+		MCPProxyToolset:    handlers.NewMCPProxyHandler(deps.MCPProxyService, deps.ProjectMCPProxyService, deps.InfraResourceManager),
 		AgentConfigToolset: handlers.NewAgentConfigHandler(deps.AgentConfigurationService),
 	}
 

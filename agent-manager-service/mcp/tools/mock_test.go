@@ -275,15 +275,22 @@ func (m *MockToolsetHandler) saveGuardrails(
 // MCP Proxy Toolset Handler
 
 func (m *MockToolsetHandler) ListMCPProxies(
-	ctx context.Context, ouID string, limit int, offset int,
+	ctx context.Context, ouID string, projectName string, limit int, offset int,
 ) (*models.MCPProxyListResponse, error) {
-	m.recordCall("ListMCPProxies", ouID, limit, offset)
+	m.recordCall("ListMCPProxies", ouID, projectName, limit, offset)
 	id, name := testProxyID, "Test Proxy"
 	return &models.MCPProxyListResponse{
 		Count:      1,
 		List:       []models.MCPProxyListItem{{ID: &id, Name: &name}},
 		Pagination: models.PaginationInfo{Count: 1, Limit: limit, Offset: offset},
 	}, nil
+}
+
+func (m *MockToolsetHandler) GetProjectMCPProxy(
+	ctx context.Context, ouID string, projectName string, proxyID string,
+) (*models.ProjectMCPProxyResponse, error) {
+	m.recordCall("GetProjectMCPProxy", ouID, projectName, proxyID)
+	return &models.ProjectMCPProxyResponse{ID: proxyID, Name: "Test Proxy", Version: "1.0.0", ProjectName: projectName}, nil
 }
 
 func (m *MockToolsetHandler) GetMCPProxy(

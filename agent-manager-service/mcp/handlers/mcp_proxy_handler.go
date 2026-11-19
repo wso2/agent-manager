@@ -17,23 +17,56 @@ package handlers
 
 import (
 	"context"
+	"errors"
 
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/services"
+	"github.com/wso2/agent-manager/agent-manager-service/utils"
 )
 
 type MCPProxyHandler struct {
-	proxySvc *services.MCPProxyService
+	proxySvc   *services.MCPProxyService
+	projectSvc *services.ProjectMCPProxyService
+	infraSvc   services.InfraResourceManager
 }
 
-func NewMCPProxyHandler(proxySvc *services.MCPProxyService) *MCPProxyHandler {
-	return &MCPProxyHandler{proxySvc: proxySvc}
+func NewMCPProxyHandler(
+	proxySvc *services.MCPProxyService, projectSvc *services.ProjectMCPProxyService, infraSvc services.InfraResourceManager,
+) *MCPProxyHandler {
+	return &MCPProxyHandler{proxySvc: proxySvc, projectSvc: projectSvc, infraSvc: infraSvc}
 }
 
-func (h *MCPProxyHandler) ListMCPProxies(ctx context.Context, ouID string, limit int, offset int) (*models.MCPProxyListResponse, error) {
-	return h.proxySvc.List(ctx, ouID, nil, limit, offset)
+// ListMCPProxies lists the org-level proxies, and with a projectName that project's proxies too, as the agent
+// Tools picker does.
+func (h *MCPProxyHandler) ListMCPProxies(
+	ctx context.Context, ouID string, projectName string, limit int, offset int,
+) (*models.MCPProxyListResponse, error) {
+	var projectUUID *string
+	if projectName != "" {
+		project, err := h.infraSvc.GetProject(ctx, ouID, projectName)
+		if err != nil {
+			return nil, err
+		}
+		projectUUID = &project.UUID
+	}
+	return h.proxySvc.List(ctx, ouID, projectUUID, limit, offset)
 }
 
 func (h *MCPProxyHandler) GetMCPProxy(ctx context.Context, ouID string, proxyID string) (*models.MCPProxyDTO, error) {
 	return h.proxySvc.Get(ctx, ouID, proxyID)
+}
+
+// GetProjectMCPProxy returns a project proxy with its environment bindings, which carry its tools. A proxy whose
+// project OpenChoreo no longer has is read by its stored project name, as the project route reads it.
+func (h *MCPProxyHandler) GetProjectMCPProxy(
+	ctx context.Context, ouID string, projectName string, proxyID string,
+) (*models.ProjectMCPProxyResponse, error) {
+	project, err := h.infraSvc.GetProject(ctx, ouID, projectName)
+	if errors.Is(err, utils.ErrProjectNotFound) {
+		return h.projectSvc.GetInDeletedProject(ctx, ouID, projectName, proxyID)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return h.projectSvc.Get(ctx, ouID, projectName, project.UUID, proxyID)
 }
