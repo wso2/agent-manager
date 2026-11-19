@@ -75,6 +75,11 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   llm_proxy_write: llmProxy.write,
   mcp_server_read: mcpServer.read,
   mcp_server_write: mcpServer.write,
+  // Subscription plans (the AI Hub module, on by default).
+  subscription_plan_read: { anyOf: ['amp:aihub:plan-read'] },
+  subscription_plan_write: {
+    anyOf: ['amp:aihub:plan-create', 'amp:aihub:plan-update', 'amp:aihub:plan-delete'],
+  },
   evaluator_read: evaluator.read,
   evaluator_write: evaluator.write,
   monitor_read: monitor.read,

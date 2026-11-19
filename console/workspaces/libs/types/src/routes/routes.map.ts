@@ -100,6 +100,22 @@ export const rootRouteMap: AppRoute = {
                         },
                     },
                 },
+                subscriptionPlans: {
+                    path: 'subscription-plans',
+                    index: true,
+                    children: {
+                        add: {
+                            path: 'add',
+                            index: true,
+                            children: {},
+                        },
+                        edit: {
+                            path: 'edit/:planId',
+                            index: true,
+                            children: {},
+                        },
+                    },
+                },
                 llmProviders: {
                     path: 'llm-providers',
                     index: true,
