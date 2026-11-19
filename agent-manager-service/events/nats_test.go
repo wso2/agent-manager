@@ -41,7 +41,7 @@ func TestNATSSetupPreservesEventsBeforeWorkersStart(t *testing.T) {
 	t.Cleanup(cancel)
 	require.NoError(t, bus.Setup(ctx))
 
-	first := New("first", "agent.deployed", ScopeAgent, "org", "project", "agent", time.Now())
+	first := New("first", "agent.updated", ScopeAgent, "org", "project", "agent", time.Now())
 	require.NoError(t, bus.PublishEvent(ctx, first, []byte("first")))
 	// Another replica's setup must not move the durable's start point
 	// past events published while workers were starting.
@@ -71,7 +71,7 @@ func TestNATSSetupPreservesEventsBeforeWorkersStart(t *testing.T) {
 	}
 	require.NoError(t, bus.nc.Flush())
 
-	second := New("second", "agent.deployed", ScopeAgent, "org", "project", "agent", time.Now())
+	second := New("second", "agent.updated", ScopeAgent, "org", "project", "agent", time.Now())
 	require.NoError(t, bus.PublishEvent(ctx, second, []byte("second")))
 	require.NoError(t, bus.Setup(ctx))
 	sub, err = bus.SubscribeEvents(ctx, name, func(msg Message) { received <- msg })

@@ -41,10 +41,23 @@ func matcherSubscription(scope, project, agent string, types []string, envs ...s
 	}
 }
 
+// moduleAgentEvent is an agent event a module sends from an environment,
+// as the AI Gateway's do.
+const moduleAgentEvent = "testmod.agent.configured"
+
+// withModuleAgentType declares moduleAgentEvent for the test.
+func withModuleAgentType(t *testing.T) string {
+	t.Helper()
+	events.SetModuleTypes([]events.Type{{Name: moduleAgentEvent, Scope: events.ScopeAgent, Category: "Test"}})
+	t.Cleanup(func() { events.SetModuleTypes(nil) })
+	return moduleAgentEvent
+}
+
 func TestSubscriptionWants(t *testing.T) {
 	all := []string{events.AllEvents}
-	deployed := matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "production")
-	build := matcherEvent("agent.build_triggered", events.ScopeAgent, "payments", "refund-agent", "")
+	configured := withModuleAgentType(t)
+	inProduction := matcherEvent(configured, events.ScopeAgent, "payments", "refund-agent", "production")
+	updated := matcherEvent("agent.updated", events.ScopeAgent, "payments", "refund-agent", "")
 	agentCreated := matcherEvent("agent.created", events.ScopeProject, "payments", "refund-agent", "")
 	projectDeleted := matcherEvent("project.deleted", events.ScopeOrg, "payments", "", "")
 	test := matcherEvent(events.TypeDestinationTest, events.ScopeOrg, "", "", "")
@@ -55,23 +68,23 @@ func TestSubscriptionWants(t *testing.T) {
 		event events.Event
 		want  bool
 	}{
-		{"org * gets agent events", matcherSubscription("org", "", "", all), deployed, true},
+		{"org * gets agent events", matcherSubscription("org", "", "", all), inProduction, true},
 		{"org * gets project events", matcherSubscription("org", "", "", all), agentCreated, true},
 		{"org * gets org events", matcherSubscription("org", "", "", all), projectDeleted, true},
 		{"* never gets the test event", matcherSubscription("org", "", "", all), test, false},
-		{"project * gets its agents' events", matcherSubscription("project", "payments", "", all), deployed, true},
+		{"project * gets its agents' events", matcherSubscription("project", "payments", "", all), inProduction, true},
 		{"project * gets its project events", matcherSubscription("project", "payments", "", all), agentCreated, true},
 		{"project * skips the org event naming it", matcherSubscription("project", "payments", "", all), projectDeleted, false},
-		{"project subscriptions are isolated", matcherSubscription("project", "claims", "", all), deployed, false},
-		{"agent * gets its events", matcherSubscription("agent", "payments", "refund-agent", all), deployed, true},
+		{"project subscriptions are isolated", matcherSubscription("project", "claims", "", all), inProduction, false},
+		{"agent * gets its events", matcherSubscription("agent", "payments", "refund-agent", all), inProduction, true},
 		{"agent * skips the project event naming it", matcherSubscription("agent", "payments", "refund-agent", all), agentCreated, false},
-		{"agent subscriptions are isolated", matcherSubscription("agent", "payments", "support-agent", all), deployed, false},
-		{"same agent name in another project", matcherSubscription("agent", "claims", "refund-agent", all), deployed, false},
-		{"listed type", matcherSubscription("agent", "payments", "refund-agent", []string{"agent.deployed"}), deployed, true},
-		{"unlisted type", matcherSubscription("agent", "payments", "refund-agent", []string{"agent.updated"}), deployed, false},
-		{"environment listed", matcherSubscription("org", "", "", all, "production"), deployed, true},
-		{"environment not listed", matcherSubscription("org", "", "", all, "development"), deployed, false},
-		{"no environment passes any filter", matcherSubscription("agent", "payments", "refund-agent", all, "development"), build, true},
+		{"agent subscriptions are isolated", matcherSubscription("agent", "payments", "support-agent", all), inProduction, false},
+		{"same agent name in another project", matcherSubscription("agent", "claims", "refund-agent", all), inProduction, false},
+		{"listed type", matcherSubscription("agent", "payments", "refund-agent", []string{configured}), inProduction, true},
+		{"unlisted type", matcherSubscription("agent", "payments", "refund-agent", []string{"agent.updated"}), inProduction, false},
+		{"environment listed", matcherSubscription("org", "", "", all, "production"), inProduction, true},
+		{"environment not listed", matcherSubscription("org", "", "", all, "development"), inProduction, false},
+		{"no environment passes any filter", matcherSubscription("agent", "payments", "refund-agent", all, "development"), updated, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -81,7 +94,7 @@ func TestSubscriptionWants(t *testing.T) {
 
 	disabled := matcherSubscription("org", "", "", all)
 	disabled.Enabled = false
-	assert.False(t, subscriptionWants(&disabled, deployed), "a disabled subscription wants nothing")
+	assert.False(t, subscriptionWants(&disabled, inProduction), "a disabled subscription wants nothing")
 }
 
 func TestGroupByDestination(t *testing.T) {
@@ -92,10 +105,11 @@ func TestGroupByDestination(t *testing.T) {
 	}
 	destinations := map[uuid.UUID]*models.EventDestination{everyone.ID: everyone, adminOnly.ID: adminOnly, claims.ID: claims}
 	all := []string{events.AllEvents}
+	configured := withModuleAgentType(t)
 
 	orgToEveryone := matcherSubscription("org", "", "", all)
 	orgToEveryone.DestinationID = everyone.ID
-	agentToEveryone := matcherSubscription("agent", "payments", "refund-agent", []string{"agent.deployed"})
+	agentToEveryone := matcherSubscription("agent", "payments", "refund-agent", []string{configured})
 	agentToEveryone.DestinationID = everyone.ID
 	orgToAdminOnly := matcherSubscription("org", "", "", all)
 	orgToAdminOnly.DestinationID = adminOnly.ID
@@ -108,7 +122,7 @@ func TestGroupByDestination(t *testing.T) {
 
 	subs := []models.EventSubscription{orgToEveryone, agentToEveryone, orgToAdminOnly, projectToClaims, toDeleted, unwanted}
 	groups := groupByDestination(subs, destinations,
-		matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "production"))
+		matcherEvent(configured, events.ScopeAgent, "payments", "refund-agent", "production"))
 
 	byDestination := map[uuid.UUID][]string{}
 	for _, g := range groups {
@@ -122,15 +136,15 @@ func TestGroupByDestination(t *testing.T) {
 	assert.NotContains(t, byDestination, claims.ID, "a destination no longer available to the project is skipped")
 
 	again := groupByDestination(subs, destinations,
-		matcherEvent("agent.deployed", events.ScopeAgent, "payments", "refund-agent", "production"))
+		matcherEvent(configured, events.ScopeAgent, "payments", "refund-agent", "production"))
 	assert.Equal(t, groups, again, "a repeated fan-out queues the same work in the same order")
 }
 
 func TestTypesReaching(t *testing.T) {
 	assert.Equal(t, []string{events.AllEvents}, typesReaching([]string{events.AllEvents}, events.ScopeAgent))
-	assert.Equal(t, []string{"agent.deployed"},
-		typesReaching([]string{"project.created", "agent.created", "agent.deployed"}, events.ScopeAgent))
-	assert.Equal(t, []string{"agent.created", "agent.deployed"},
-		typesReaching([]string{"project.created", "agent.created", "agent.deployed"}, events.ScopeProject))
+	assert.Equal(t, []string{"agent.updated"},
+		typesReaching([]string{"project.created", "agent.created", "agent.updated"}, events.ScopeAgent))
+	assert.Equal(t, []string{"agent.created", "agent.updated"},
+		typesReaching([]string{"project.created", "agent.created", "agent.updated"}, events.ScopeProject))
 	assert.Empty(t, typesReaching([]string{"project.created"}, events.ScopeProject))
 }

@@ -212,8 +212,12 @@ var declaredButUnenforcedPermissions = map[string]string{
 
 	// --- NOT SERVED --------------------------------------------------------
 	// Lite does not serve these features; their placeholder routes are gone.
-	"AgentBuild":   notServed,
-	"AgentSuspend": notServed,
+	"AgentBuild":              notServed,
+	"AgentSuspend":            notServed,
+	"EnvironmentCreate":       notServed,
+	"EnvironmentUpdate":       notServed,
+	"EnvironmentDelete":       notServed,
+	"OrgManageServiceAccount": notServed,
 }
 
 const notServed = "NOT SERVED: Lite has no route for this feature; both distributions answer 404"

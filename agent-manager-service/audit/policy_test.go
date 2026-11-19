@@ -161,7 +161,6 @@ func TestCredentialActionsAreCritical(t *testing.T) {
 		"agent-identity:provision", "agent-identity:revoke-secret",
 		"role:grant-permission", "role:assign",
 		"user:create", "user:delete", "group:add-member",
-		"service-account:configure",
 	}
 
 	for _, action := range critical {
@@ -179,7 +178,7 @@ func TestCredentialActionsAreCritical(t *testing.T) {
 }
 
 func TestDeploymentActionsAreClassified(t *testing.T) {
-	for _, action := range []Action{"agent:deploy", "agent:promote", "agent:build", "llm-provider:undeploy"} {
+	for _, action := range []Action{"agent:build", "agent:suspend", "llm-provider:undeploy"} {
 		t.Run(string(action), func(t *testing.T) {
 			if got := action.Class(); got != ClassDeployment {
 				t.Errorf("Class() = %q, want %q", got, ClassDeployment)

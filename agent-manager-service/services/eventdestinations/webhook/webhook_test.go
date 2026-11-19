@@ -99,7 +99,7 @@ func TestDeliver_SignsAndClassifiesResponses(t *testing.T) {
 	d := New(true)
 	d.now = func() time.Time { return time.Unix(1700000000, 0) }
 	dest := eventdestinations.Destination{Config: json.RawMessage(`{"url":"` + srv.URL + `"}`), Secret: secret}
-	msg := eventdestinations.Message{ID: "evt_1", Type: events.TypePrefix + "agent.deployed", Body: body}
+	msg := eventdestinations.Message{ID: "evt_1", Type: events.TypePrefix + "agent.updated", Body: body}
 
 	res := d.Deliver(context.Background(), dest, msg)
 	require.NoError(t, res.Err)

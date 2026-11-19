@@ -36,27 +36,6 @@ type GatewayEnvironmentResponse struct {
 	UpdatedAt        time.Time    `json:"updatedAt"`
 }
 
-// CreateEnvironmentRequest is the API request for creating an environment
-type CreateEnvironmentRequest struct {
-	OrganizationName string       `json:"organizationName" validate:"required,max=100"`
-	Name             string       `json:"name" validate:"required,max=64"`
-	DisplayName      string       `json:"displayName" validate:"required,max=128"`
-	Description      string       `json:"description,omitempty"`
-	IsolationTier    string       `json:"isolationTier,omitempty"`
-	DataplaneRef     string       `json:"dataplaneRef,omitempty" validate:"omitempty,max=100"`
-	DNSPrefix        string       `json:"dnsPrefix" validate:"required,max=100"`
-	IsProduction     bool         `json:"isProduction"`
-	Gateway          *GatewaySpec `json:"gateway,omitempty"`
-}
-
-// UpdateEnvironmentRequest is the API request for updating an environment
-type UpdateEnvironmentRequest struct {
-	DisplayName  *string      `json:"displayName,omitempty"`
-	Description  *string      `json:"description,omitempty"`
-	IsProduction *bool        `json:"isProduction,omitempty"`
-	Gateway      *GatewaySpec `json:"gateway,omitempty"`
-}
-
 // GatewaySpec is the internal representation of the gateway configuration on an
 // environment. Only fields surfaced through the public API are present; runtime
 // OC-only fields (Gateway resource Name/Namespace, listener Name) are filled in

@@ -54,24 +54,6 @@ func (e BuildpackBuildType) Valid() bool {
 	}
 }
 
-// Defines values for CreateEnvironmentRequestIsolationTier.
-const (
-	CreateEnvironmentRequestIsolationTierGvisor CreateEnvironmentRequestIsolationTier = "gvisor"
-	CreateEnvironmentRequestIsolationTierKata   CreateEnvironmentRequestIsolationTier = "kata"
-)
-
-// Valid indicates whether the value is a known member of the CreateEnvironmentRequestIsolationTier enum.
-func (e CreateEnvironmentRequestIsolationTier) Valid() bool {
-	switch e {
-	case CreateEnvironmentRequestIsolationTierGvisor:
-		return true
-	case CreateEnvironmentRequestIsolationTierKata:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for DockerBuildType.
 const (
 	Docker DockerBuildType = "docker"
@@ -260,16 +242,16 @@ func (e EventTypeScope) Valid() bool {
 
 // Defines values for GatewayEnvironmentResponseIsolationTier.
 const (
-	GatewayEnvironmentResponseIsolationTierGvisor GatewayEnvironmentResponseIsolationTier = "gvisor"
-	GatewayEnvironmentResponseIsolationTierKata   GatewayEnvironmentResponseIsolationTier = "kata"
+	Gvisor GatewayEnvironmentResponseIsolationTier = "gvisor"
+	Kata   GatewayEnvironmentResponseIsolationTier = "kata"
 )
 
 // Valid indicates whether the value is a known member of the GatewayEnvironmentResponseIsolationTier enum.
 func (e GatewayEnvironmentResponseIsolationTier) Valid() bool {
 	switch e {
-	case GatewayEnvironmentResponseIsolationTierGvisor:
+	case Gvisor:
 		return true
-	case GatewayEnvironmentResponseIsolationTierKata:
+	case Kata:
 		return true
 	default:
 		return false
@@ -687,36 +669,6 @@ type CreateAgentRequest struct {
 	Provisioning Provisioning `json:"provisioning"`
 }
 
-// CreateEnvironmentRequest defines model for CreateEnvironmentRequest.
-type CreateEnvironmentRequest struct {
-	// DataplaneRef Optional reference to the dataplane. When omitted, the default dataplane is used.
-	DataplaneRef *string `json:"dataplaneRef,omitempty"`
-
-	// Description Optional description of the environment
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Human-readable display name
-	DisplayName string `json:"displayName"`
-
-	// DnsPrefix DNS prefix for the environment
-	DnsPrefix string `json:"dnsPrefix"`
-
-	// Gateway Gateway configuration with ingress and egress network specs
-	Gateway *GatewaySpec `json:"gateway,omitempty"`
-
-	// IsProduction Whether this is a production environment
-	IsProduction *bool `json:"isProduction,omitempty"`
-
-	// IsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
-	IsolationTier *CreateEnvironmentRequestIsolationTier `json:"isolationTier,omitempty"`
-
-	// Name Unique environment name (lowercase, alphanumeric with hyphens)
-	Name string `json:"name"`
-}
-
-// CreateEnvironmentRequestIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
-type CreateEnvironmentRequestIsolationTier string
-
 // CreateGroupRequest defines model for CreateGroupRequest.
 type CreateGroupRequest struct {
 	// Description Group description
@@ -1084,7 +1036,7 @@ type EventType struct {
 	// Scope The level the event happens at.
 	Scope EventTypeScope `json:"scope"`
 
-	// Type The catalog name, e.g. agent.deployed.
+	// Type The catalog name, e.g. agent.updated.
 	Type string `json:"type"`
 }
 
@@ -1098,18 +1050,6 @@ type EventTypeListResponse struct {
 
 // Extensions Settings for the modules that extend this resource, keyed by module name. Each module sees only its own block. A block for a module that is not active, or that does not extend this resource, is rejected with 400.
 type Extensions map[string]map[string]interface{}
-
-// GatewayEndpointSpec Gateway resource endpoint configuration
-type GatewayEndpointSpec struct {
-	// Http Gateway listener configuration
-	Http *GatewayListenerSpec `json:"http,omitempty"`
-
-	// Https Gateway listener configuration
-	Https *GatewayListenerSpec `json:"https,omitempty"`
-
-	// Tls Gateway listener configuration
-	Tls *GatewayListenerSpec `json:"tls,omitempty"`
-}
 
 // GatewayEnvironmentResponse defines model for GatewayEnvironmentResponse.
 type GatewayEnvironmentResponse struct {
@@ -1146,33 +1086,6 @@ type GatewayEnvironmentResponse struct {
 
 // GatewayEnvironmentResponseIsolationTier Pod runtime isolation tier for agents. Use "gvisor" for runsc kernel isolation or "kata" for Kata Containers VM isolation (rendered as the kata-qemu RuntimeClass); omit for the default runc runtime.
 type GatewayEnvironmentResponseIsolationTier string
-
-// GatewayListenerSpec Gateway listener configuration
-type GatewayListenerSpec struct {
-	// Host Virtual host for the listener
-	Host *string `json:"host,omitempty"`
-
-	// Port Port number
-	Port *int32 `json:"port,omitempty"`
-}
-
-// GatewayNetworkSpec External and internal gateway endpoints
-type GatewayNetworkSpec struct {
-	// External Gateway resource endpoint configuration
-	External *GatewayEndpointSpec `json:"external,omitempty"`
-
-	// Internal Gateway resource endpoint configuration
-	Internal *GatewayEndpointSpec `json:"internal,omitempty"`
-}
-
-// GatewaySpec Gateway configuration with ingress and egress network specs
-type GatewaySpec struct {
-	// Egress External and internal gateway endpoints
-	Egress *GatewayNetworkSpec `json:"egress,omitempty"`
-
-	// Ingress External and internal gateway endpoints
-	Ingress *GatewayNetworkSpec `json:"ingress,omitempty"`
-}
 
 // GitHubAppSource Optional GitHub App source binding for cloud deployments. The control plane consumes this metadata, persists it through the deployment-provided repository source provider, and never forwards it. When omitted, public-repository and PAT-backed behavior is unchanged.
 type GitHubAppSource struct {
@@ -1506,61 +1419,6 @@ type RoleResponse struct {
 	} `json:"permissions,omitempty"`
 }
 
-// ThunderSystemClientRequest The env-Thunder system-client OAuth2 credential to store for an environment.
-type ThunderSystemClientRequest struct {
-	// ClientId OAuth2 client ID of the env-Thunder system-client app.
-	ClientId string `json:"clientId"`
-
-	// ClientSecret OAuth2 client secret (stored encrypted at rest).
-	ClientSecret string `json:"clientSecret"`
-}
-
-// ThunderUrlAvailabilityResponse Whether a candidate env-Thunder URL handle passes format validation
-// and is not already registered to any environment. Advisory only — see
-// checkThunderUrlAvailability.
-type ThunderUrlAvailabilityResponse struct {
-	// Available True if the handle is well-formed and not currently taken.
-	Available bool `json:"available"`
-}
-
-// ThunderUrlRequest Registers an environment's env-Thunder origin via exactly one of two
-// mutually-exclusive fields — setting both is rejected with 400:
-//
-//   - `handle` (handle path): an unguessable label AMS resolves into the
-//     full origin itself, replacing the predictable "<org>-<env>" pattern.
-//     Optional — omit it (or send an empty string, with url also omitted)
-//     to have the server generate one.
-//   - `url` (url path): the full origin the caller has already
-//     provisioned, for deployments where different environments can live
-//     under different domains and there is no single pattern AMS could
-//     compute. AMS validates and stores it verbatim; the environment's
-//     registration then has no handle at all.
-type ThunderUrlRequest struct {
-	// Handle DNS-label-safe handle (lowercase alphanumeric with hyphens, no
-	// leading/trailing hyphen) that replaces "<org>-<env>" in
-	// "<handle>.<baseDomain>". Must be globally unique across
-	// all orgs/environments, and at least 3 characters. Omit to
-	// auto-generate a 10-character handle. Mutually exclusive with url.
-	Handle *string `json:"handle,omitempty"`
-
-	// Url The full env-Thunder origin (scheme + host, no path/query/fragment)
-	// this environment is already reachable at — the url registration
-	// path. Must be http or https, resolve to a public IP address (no
-	// private/loopback hosts), and be globally unique across all
-	// orgs/environments. Mutually exclusive with handle.
-	Url *string `json:"url,omitempty"`
-}
-
-// ThunderUrlResponse The env-Thunder registration for an environment. url is always
-// present — the caller-supplied value (either path), or the value the
-// server generated/computed when the caller left handle blank. handle is
-// present only for the on-prem path; it is absent for an environment
-// registered via a caller-supplied url.
-type ThunderUrlResponse struct {
-	Handle *string `json:"handle,omitempty"`
-	Url    string  `json:"url"`
-}
-
 // TokenRequest defines model for TokenRequest.
 type TokenRequest struct {
 	// ExpiresIn Optional token expiry duration in Go duration format (e.g., "720h" for 30 days, "8760h" for 1 year).
@@ -1630,21 +1488,6 @@ type UpdateAgentBasicInfoRequest struct {
 	Labels *Labels `json:"labels,omitempty"`
 }
 
-// UpdateEnvironmentRequest defines model for UpdateEnvironmentRequest.
-type UpdateEnvironmentRequest struct {
-	// Description Updated description
-	Description *string `json:"description,omitempty"`
-
-	// DisplayName Updated display name
-	DisplayName *string `json:"displayName,omitempty"`
-
-	// Gateway Gateway configuration with ingress and egress network specs
-	Gateway *GatewaySpec `json:"gateway,omitempty"`
-
-	// IsProduction Whether this is a production environment
-	IsProduction *bool `json:"isProduction,omitempty"`
-}
-
 // UpdateGroupRequest defines model for UpdateGroupRequest.
 type UpdateGroupRequest struct {
 	// Description Group description
@@ -1707,9 +1550,6 @@ type UserResponse struct {
 	// OuId Organization unit ID
 	OuId *string `json:"ouId,omitempty"`
 }
-
-// NotImplemented defines model for NotImplemented.
-type NotImplemented = ErrorResponse
 
 // ListOrganizationsParams defines parameters for ListOrganizations.
 type ListOrganizationsParams struct {
@@ -1887,26 +1727,8 @@ type ListProjectEventDeliveriesParams struct {
 // ListProjectEventDeliveriesParamsStatus defines parameters for ListProjectEventDeliveries.
 type ListProjectEventDeliveriesParamsStatus string
 
-// CheckThunderUrlAvailabilityParams defines parameters for CheckThunderUrlAvailability.
-type CheckThunderUrlAvailabilityParams struct {
-	// Handle The candidate env-Thunder URL handle to check.
-	Handle string `form:"handle" json:"handle"`
-}
-
 // CreateOrganizationJSONRequestBody defines body for CreateOrganization for application/json ContentType.
 type CreateOrganizationJSONRequestBody = CreateOrganizationRequest
-
-// CreateEnvironmentJSONRequestBody defines body for CreateEnvironment for application/json ContentType.
-type CreateEnvironmentJSONRequestBody = CreateEnvironmentRequest
-
-// UpdateEnvironmentJSONRequestBody defines body for UpdateEnvironment for application/json ContentType.
-type UpdateEnvironmentJSONRequestBody = UpdateEnvironmentRequest
-
-// SetEnvironmentThunderSystemClientJSONRequestBody defines body for SetEnvironmentThunderSystemClient for application/json ContentType.
-type SetEnvironmentThunderSystemClientJSONRequestBody = ThunderSystemClientRequest
-
-// SetEnvironmentThunderUrlJSONRequestBody defines body for SetEnvironmentThunderUrl for application/json ContentType.
-type SetEnvironmentThunderUrlJSONRequestBody = ThunderUrlRequest
 
 // CreateEventDestinationJSONRequestBody defines body for CreateEventDestination for application/json ContentType.
 type CreateEventDestinationJSONRequestBody = EventDestinationRequest
