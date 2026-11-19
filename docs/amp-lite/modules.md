@@ -1,6 +1,6 @@
 # Writing a module
 
-How AMP Lite is split into a core and modules, how to write a module, and how to run one. The contract lives in [`agent-manager-service/modkit`](../../agent-manager-service/modkit/modkit.go); the module host that runs it is `agent-manager-service/internal/modhost`. The design started as a public proof of concept, [a5anka/amp-modular-poc](https://github.com/a5anka/amp-modular-poc); this page describes what is built here.
+How AMP Lite is split into a core and modules, how to write a module, and how to run one. The contract lives in [`agent-manager-service/modkit`](../../agent-manager-service/modkit/modkit.go); the module host that runs it is `agent-manager-service/internal/modhost`. The design started as a public proof of concept, [a5anka/amp-modular-poc](https://github.com/a5anka/amp-modular-poc); this page describes what is built here, and [Beyond the proof of concept](#beyond-the-proof-of-concept) lists where it adds to or differs from it.
 
 ## What a module is
 
@@ -549,3 +549,47 @@ When a module is disabled:
 - a request with an `extensions` block for it is a 400, and capability lookups fail (a core feature that needs it answers 400 naming the capability);
 - its pages leave the UI manifest, and its permissions leave file sign-in roles and the console's sign-in scopes;
 - its tables and data stay, and events queued for it wait up to 7 days. Uninstall keeps the data too, but drops queued events. Installing or enabling again picks up where it left off.
+
+## Beyond the proof of concept
+
+The contract follows the public proof of concept, [a5anka/amp-modular-poc](https://github.com/a5anka/amp-modular-poc). The tables below list what is built here that the proof of concept does not have, or does differently, and why. Each entry is described in full in the section it links to. When you add to the contract or change a rule, add a row here in the same change.
+
+### Additions to the contract
+
+| Addition | Why |
+| --- | --- |
+| [`Manifest.DisplayName`, `Permission.DisplayName`](#the-manifest) | ThunderID shows permissions to administrators, and a readable name is needed there. |
+| [`Manifest.AuditActions`](#routes) and the route options `modkit.Audit`, `AuditCoalesce` | Every core route is audited under a declared action; module routes keep that rule, and machine-polled routes need coalescing. |
+| [Scoped `Manifest.Events`](#events) and the route options `modkit.Emits`, `EmitsWithoutData` | Module events can be offered as webhooks, which needs a scope and a description per event. |
+| Route options [`AlsoRequires`, `AnyPermission`, `PlatformAdmin`](#routes) | Some gateway routes need several permissions, one of several, or the platform-admin organization; one permission per route could not express them. |
+| [`Runtime.Go`](#background-workers) | Modules need workers (reconcilers, sweepers) that start and stop with the module on every replica. |
+| [`Runtime.MCPTool`](#mcp-tools) | Modules contribute tools to the core's `/mcp` server, authorized and audited like core tools. |
+| [`Runtime.Secrets`](#data) | Modules keep secret values encrypted with the core's key without their own key handling. |
+| [`Runtime.Config`](#data) | A module reads its own settings (`MODULE_<NAME>_<KEY>`, or its entry in `amp.yaml`) instead of the core's configuration. |
+| [`Runtime.PublishTx`](#events) | An event written in the module's own transaction is delivered only if that transaction commits. |
+| [`Runtime.Track`](#routes) | The core reports feature usage per route; module routes report theirs the same way. It does nothing when reporting is off. |
+| [`Runtime.IssueCredential`, `RevokeCredential`](#credentials) | A module mints workload credentials for the runtimes it registers itself, not only through `amp module credential`. |
+| [`Runtime.HandleInternalAt`](#routes) | Time-boxed: keeps the AI Gateway's released controllers working on their fixed `/api/internal/v1` paths until they can register as workloads (#2493). A test lists the modules allowed to call it. |
+| [Wider `CoreAPI`](#data): organizations, projects and environments, lookups by name, `LockAgent`, `EnsureOrg` | The proof of concept reads agents only; the gateway addresses projects, agents and environments by name and must lock an agent or create an organization inside a hook. |
+| [`modkit.OrgID(ctx)`](#routes); `OrgID` on `HookRequest` and `Event` | Lite is multi-organization, so every call and event is org-scoped. |
+| [`Apply` hook phase, `HookRequest.Tx`, project hooks](#hooks) | A module stores its part of a core resource (such as an agent's gateway bindings) in the core's transaction, and can refuse or clean up a project delete. |
+| [`modkit.Reject`, `modkit.Error`](#hooks) | A hook refusal reaches the caller as a 400 or a chosen status with a message, not a 500. |
+| [`UI.Pages`](#the-manifest) | The console lists a module's pages, filtered by permission, from the manifest. |
+| [`WorkloadSpec.Endpoints`](#workloads) and endpoints in the heartbeat response | A workload learns every URL from its heartbeat, so it holds no module paths and follows a module's internal API when it moves. |
+| [`modkit.APIDescriber`](#api-document) | Each module describes its routes in its own OpenAPI document, kept out of the core's. |
+| [`modkit.InitComponent`](#optional-interfaces) | A module writes its own `amp init` files (the gateway's controller configuration). |
+| [Core capabilities](#capabilities) (`identity.directory/v1`) | A module reaches a core service through a versioned contract instead of a core import. The proof of concept has only module-to-module capabilities. |
+
+### Differences in shape or rules
+
+| Difference | Why |
+| --- | --- |
+| [`modkit.Principal`](#routes) has `User` and `ClientID` and no `Role` | Lite grants scopes, not one role; `rt.Can` answers permission questions. |
+| [`WorkloadSpec`](#workloads) has no `Isolation` or `Egress` | No Lite workload needs them yet. |
+| [Workload tokens](#heartbeat) are RS256 with the core's agent-token key, not EdDSA | The runtimes already trust that key. |
+| [Modules may import `pkg/`](#leaf-libraries-pkg) as well as `modkit` | `pkg/` holds domain-free libraries with no core imports and no state, so they cannot bypass the contract; copying them into every module would let them drift. |
+| [The import rule](#what-a-module-may-import) applies to non-test files only | Module tests may use the core's test harnesses (`db/dbtest`, `internal/modhost`). |
+| Module permissions and audit actions may be `<resource>.<action>` (`ai-gateway:llm-providers.read`) | A module with many resources groups its permissions by resource; ThunderID accepts the dots. |
+| Module secrets use owner kind `mod:<module>` in the core's `secrets` table | No schema change is needed. |
+| Internal routes answer 404 for a wrong method, not 405 | Module internal routes are mounted per path and method, and only while the module is active. |
+| No REST endpoint mints workload credentials | Credentials come from `amp module credential` (operators) or `rt.IssueCredential` (the module itself); nothing else needs one yet. |
