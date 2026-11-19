@@ -17,33 +17,28 @@
  */
 
 import { Chip } from "@wso2/oxygen-ui";
-import type { AgentRegistryLifecycleState } from "@agent-management-platform/types";
-import { LIFECYCLE_LABELS } from "../agentRegistryFilters";
+import type { AgentRegistryDeploymentStatus } from "@agent-management-platform/types";
+import { DEPLOYMENT_STATUS_LABELS } from "../agentRegistryFilters";
 
-const LIFECYCLE_COLORS: Record<
-  AgentRegistryLifecycleState,
-  "default" | "info" | "success" | "warning"
+const STATUS_COLORS: Record<
+  AgentRegistryDeploymentStatus,
+  "default" | "success" | "warning" | "error"
 > = {
-  draft: "info",
   active: "success",
-  deprecated: "warning",
-  retired: "default",
+  suspended: "default",
+  failed: "error",
+  "in-progress": "warning",
+  "not-deployed": "default",
 };
 
-export interface LifecycleChipProps {
-  state: AgentRegistryLifecycleState;
-  /** Filled where there are no column headers (tiles), to tell it apart from environment chips. */
-  variant?: "outlined" | "filled";
-}
-
-export function LifecycleChip({ state, variant = "outlined" }: LifecycleChipProps) {
+/** The agent's deployment status in one environment. */
+export function DeploymentStatusChip({ status }: { status: AgentRegistryDeploymentStatus }) {
   return (
     <Chip
       size="small"
-      variant={variant}
-      color={LIFECYCLE_COLORS[state]}
-      label={LIFECYCLE_LABELS[state]}
+      variant="outlined"
+      color={STATUS_COLORS[status]}
+      label={DEPLOYMENT_STATUS_LABELS[status]}
     />
   );
 }
-

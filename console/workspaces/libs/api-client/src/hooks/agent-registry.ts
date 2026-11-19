@@ -17,11 +17,13 @@
  */
 
 import type {
+  AgentRegistryEntry,
   AgentRegistryListResponse,
+  GetAgentRegistryEntryPathParams,
   ListAgentRegistryPathParams,
 } from "@agent-management-platform/types";
 import { useAuthHooks } from "@agent-management-platform/auth";
-import { listAgentRegistry } from "../apis";
+import { getAgentRegistryEntry, listAgentRegistry } from "../apis";
 import { useApiQuery } from "./react-query-notifications";
 
 /** Every agent in the organization, across all projects, with its registry record. */
@@ -31,5 +33,16 @@ export function useListAgentRegistry(params: ListAgentRegistryPathParams) {
     queryKey: ["agent-registry", params],
     queryFn: () => listAgentRegistry(params, getToken),
     enabled: !!params.orgName,
+  });
+}
+
+/** One registered agent's registry record; null when there is no such agent. */
+export function useGetAgentRegistryEntry(params: GetAgentRegistryEntryPathParams) {
+  const { getToken } = useAuthHooks();
+  return useApiQuery<AgentRegistryEntry | null>({
+    // Under the list's prefix, so invalidating ["agent-registry"] refreshes both.
+    queryKey: ["agent-registry", "entry", params],
+    queryFn: () => getAgentRegistryEntry(params, getToken),
+    enabled: !!params.orgName && !!params.projName && !!params.agentName,
   });
 }

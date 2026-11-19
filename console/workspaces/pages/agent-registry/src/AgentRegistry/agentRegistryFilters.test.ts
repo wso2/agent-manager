@@ -16,19 +16,21 @@
  * under the License.
  */
 
-import type { AgentRegistryEntry } from "@agent-management-platform/types";
+import type { AgentRegistryEntry, AgentRegistryEnvironment } from "@agent-management-platform/types";
 import {
   EMPTY_FILTERS,
   NONE,
-  NO_OWNER,
   buildFilterOptions,
+  countByRegistration,
   filterAgents,
   filterChips,
   filtersFromSearchParams,
   filtersToSearchParams,
-  hiddenUnregisteredCount,
   isFiltered,
-  registrationFromTicks,
+  isListed,
+  lastDeployedAt,
+  ownerHintText,
+  withRegistration,
 } from "./agentRegistryFilters";
 
 const payments = { id: "payments-mcp", displayName: "Payments" };
@@ -42,83 +44,155 @@ function agent(overrides: Partial<AgentRegistryEntry>): AgentRegistryEntry {
     projectDisplayName: "P",
     hosting: "platform",
     interface: "custom-api",
-    owner: null,
-    lifecycleState: "active",
-    visibility: "project",
+    createdBy: null,
     labels: {},
     environments: [],
-    lastActivityAt: null,
     createdAt: "2026-01-01T00:00:00Z",
     ...overrides,
   };
 }
 
-// Payments is reachable in development only.
+function env(overrides: Partial<AgentRegistryEnvironment>): AgentRegistryEnvironment {
+  return {
+    name: "development",
+    displayName: "Development",
+    isProduction: false,
+    deploymentStatus: "active",
+    lastDeployedAt: null,
+    llmProviders: [],
+    mcpServers: [],
+    ...overrides,
+  };
+}
+
+// Payments in development only; suspended in production.
 const devOnly = agent({
   name: "dev-only",
+  interface: "a2a-agent",
   environments: [
-    {
-      name: "development",
-      displayName: "Development",
-      isProduction: false,
-      deploymentStatus: "active",
-      llmProviders: [],
-      mcpServers: [payments],
-    },
-    {
+    env({ mcpServers: [payments], lastDeployedAt: "2026-02-01T00:00:00Z" }),
+    env({
       name: "production",
       displayName: "Production",
       isProduction: true,
-      deploymentStatus: "active",
-      llmProviders: [],
-      mcpServers: [],
-    },
+      deploymentStatus: "suspended",
+      lastDeployedAt: "2026-03-01T00:00:00Z",
+    }),
   ],
 });
 
 const owned = agent({
   name: "owned",
-  owner: { type: "user", id: "u1", displayName: "Owner One" },
+  hosting: "external",
+  createdBy: { id: "u1", displayName: "Owner One" },
   labels: { team: "hr" },
 });
 
-describe("filterAgents", () => {
-  it("finds agents that can reach an MCP server in any environment", () => {
-    const result = filterAgents([devOnly, owned], { ...EMPTY_FILTERS, mcpServer: payments.id });
-    expect(result.map((a) => a.name)).toEqual(["dev-only"]);
+const shadow = agent({
+  name: "shadow",
+  registration: "unregistered",
+  projectName: "",
+  projectDisplayName: "",
+  hosting: "external",
+  interface: null,
+  discovery: {
+    findingId: "f1",
+    provider: "openai",
+    providerDisplayName: "OpenAI",
+    scope: "proj_cs",
+    ownerHint: { email: "dev@example.com" },
+    firstSeenAt: "2026-01-01T00:00:00Z",
+    lastSeenAt: "2026-01-02T00:00:00Z",
+    present: true,
+    onboarded: false,
+  },
+});
+
+const all = [devOnly, owned, shadow];
+const names = (agents: AgentRegistryEntry[]) => agents.map((a) => a.name);
+
+describe("registration toggle", () => {
+  it("lists registered agents by default, and only unregistered ones when switched", () => {
+    expect(names(filterAgents(all, EMPTY_FILTERS))).toEqual(["dev-only", "owned"]);
+    const unregistered = withRegistration(EMPTY_FILTERS, "unregistered");
+    expect(names(filterAgents(all, unregistered))).toEqual(["shadow"]);
+  });
+
+  it("drops the other registration's filters when switching", () => {
+    const filters = { ...EMPTY_FILTERS, mcpServer: payments.id, search: "x" };
+    const switched = withRegistration(filters, "unregistered");
+    expect(switched.mcpServer).toBe(EMPTY_FILTERS.mcpServer);
+    expect(switched.search).toBe("x");
+  });
+
+  it("counts both, for the toggle's labels", () => {
+    expect(countByRegistration(all)).toEqual({ registered: 2, unregistered: 1 });
+  });
+});
+
+describe("registered filters", () => {
+  it("filters by hosting and by type", () => {
+    expect(names(filterAgents(all, { ...EMPTY_FILTERS, hosting: "external" }))).toEqual([
+      "owned",
+    ]);
+    expect(names(filterAgents(all, { ...EMPTY_FILTERS, interface: "a2a-agent" }))).toEqual([
+      "dev-only",
+    ]);
+  });
+
+  it("finds agents whose owner is unknown", () => {
+    expect(names(filterAgents(all, { ...EMPTY_FILTERS, owner: NONE }))).toEqual(["dev-only"]);
+  });
+
+  it("checks the status in the chosen environment, or in any", () => {
+    const suspended = { ...EMPTY_FILTERS, status: "suspended" };
+    expect(names(filterAgents(all, suspended))).toEqual(["dev-only"]);
+    expect(filterAgents(all, { ...suspended, environment: "development" })).toEqual([]);
   });
 
   it("checks the MCP server only in the chosen environment", () => {
-    const result = filterAgents([devOnly], {
-      ...EMPTY_FILTERS,
-      environment: "production",
-      mcpServer: payments.id,
-    });
-    expect(result).toEqual([]);
+    const filters = { ...EMPTY_FILTERS, mcpServer: payments.id };
+    expect(names(filterAgents(all, filters))).toEqual(["dev-only"]);
+    expect(filterAgents(all, { ...filters, environment: "production" })).toEqual([]);
   });
 
-  it("finds agents with no owner", () => {
-    const result = filterAgents([devOnly, owned], { ...EMPTY_FILTERS, owner: NO_OWNER });
-    expect(result.map((a) => a.name)).toEqual(["dev-only"]);
+  it("finds agents with no MCP server", () => {
+    expect(names(filterAgents(all, { ...EMPTY_FILTERS, mcpServer: NONE }))).toEqual(["owned"]);
   });
 
   it("searches tags as key:value", () => {
-    const result = filterAgents([devOnly, owned], { ...EMPTY_FILTERS, search: "team:hr" });
-    expect(result.map((a) => a.name)).toEqual(["owned"]);
+    expect(names(filterAgents(all, { ...EMPTY_FILTERS, search: "team:hr" }))).toEqual(["owned"]);
   });
 });
 
-describe("buildFilterOptions", () => {
-  it("offers 'No owner' first when an agent has no owner", () => {
-    const { owner } = buildFilterOptions([owned, devOnly]);
-    expect(owner.map((o) => o.label)).toEqual(["No owner", "Owner One"]);
+describe("unregistered filters", () => {
+  it("filters by the platform the agent was found on, and searches it", () => {
+    const base = withRegistration(EMPTY_FILTERS, "unregistered");
+    expect(names(filterAgents(all, { ...base, foundOn: "openai" }))).toEqual(["shadow"]);
+    expect(filterAgents(all, { ...base, foundOn: "bedrock" })).toEqual([]);
+    expect(names(filterAgents(all, { ...base, search: "proj_cs" }))).toEqual(["shadow"]);
   });
 });
 
-describe("isFiltered", () => {
-  it("ignores a blank search", () => {
-    expect(isFiltered({ ...EMPTY_FILTERS, search: "  " })).toBe(false);
-    expect(isFiltered({ ...EMPTY_FILTERS, tag: "team:hr" })).toBe(true);
+describe("options and chips", () => {
+  it("offers Unknown first for owners, and None first for MCP servers", () => {
+    const options = buildFilterOptions(all);
+    expect(options.owner.map((o) => o.label)).toEqual(["Unknown", "Owner One"]);
+    expect(options.mcpServer[0]).toEqual({ value: NONE, label: "No MCP server" });
+    expect(options.foundOn).toEqual([{ value: "openai", label: "OpenAI" }]);
+  });
+
+  it("names only the current registration's applied filters", () => {
+    const options = buildFilterOptions(all);
+    const filters = { ...EMPTY_FILTERS, status: "suspended", foundOn: "openai" };
+    expect(filterChips(filters, options)).toEqual([
+      { key: "status", name: "Status", value: "Suspended" },
+    ]);
+  });
+
+  it("is not filtered by the registration toggle alone", () => {
+    expect(isFiltered(withRegistration(EMPTY_FILTERS, "unregistered"))).toBe(false);
+    expect(isFiltered({ ...EMPTY_FILTERS, hosting: "platform" })).toBe(true);
   });
 });
 
@@ -131,109 +205,46 @@ describe("URL", () => {
     expect(params.toString()).toBe("view=tiles&env=production&mcp=payments-mcp");
   });
 
-  it("reads back what it wrote", () => {
-    const filters = { ...EMPTY_FILTERS, search: "bot", owner: NO_OWNER, tag: "team:hr" };
+  it("reads back what it wrote, and ignores an unknown registration", () => {
+    const filters = { ...EMPTY_FILTERS, search: "bot", owner: NONE, interface: "chat-api" };
     expect(filtersFromSearchParams(filtersToSearchParams(filters, new URLSearchParams()))).toEqual(
       filters,
     );
+    const odd = new URLSearchParams("registration=both");
+    expect(filtersFromSearchParams(odd).registration).toBe("registered");
   });
 });
 
-describe("filterChips", () => {
-  it("names each applied panel filter with its label", () => {
-    const options = buildFilterOptions([devOnly, owned]);
-    const chips = filterChips(
-      { ...EMPTY_FILTERS, owner: NO_OWNER, mcpServer: payments.id, lifecycleState: "active" },
-      options,
-    );
-    expect(chips).toEqual([
-      { key: "owner", name: "Owner", value: "No owner" },
-      { key: "mcpServer", name: "MCP server", value: "Payments" },
-    ]);
+describe("lastDeployedAt", () => {
+  it("is the latest deployment across environments, or null", () => {
+    expect(lastDeployedAt(devOnly)).toBe("2026-03-01T00:00:00Z");
+    expect(lastDeployedAt(owned)).toBeNull();
   });
 });
 
-const shadow = agent({
-  name: "shadow",
-  registration: "unregistered",
-  projectName: "",
-  projectDisplayName: "",
-  lifecycleState: null,
-  interface: null,
-  discovery: {
-    findingId: "f1",
-    provider: "openai",
-    providerDisplayName: "OpenAI",
-    scope: "proj_cs",
-    firstSeenAt: "2026-01-01T00:00:00Z",
-    lastSeenAt: "2026-01-02T00:00:00Z",
-  },
-});
-
-describe("registration", () => {
-  it("leaves unregistered agents out by default, and counts them", () => {
-    expect(filterAgents([owned, shadow], EMPTY_FILTERS).map((a) => a.name)).toEqual(["owned"]);
-    expect(hiddenUnregisteredCount([owned, shadow], EMPTY_FILTERS)).toBe(1);
+describe("which shadow agents are listed", () => {
+  const gone = agent({ ...shadow, name: "gone", discovery: { ...shadow.discovery!, present: false } });
+  const onboarded = agent({
+    ...shadow,
+    name: "onboarded",
+    discovery: { ...shadow.discovery!, onboarded: true },
   });
 
-  it("lists both when Unregistered is ticked too", () => {
-    const filters = { ...EMPTY_FILTERS, registration: "both" as const };
-    expect(filterAgents([owned, shadow], filters).map((a) => a.name)).toEqual(["owned", "shadow"]);
-    expect(hiddenUnregisteredCount([owned, shadow], filters)).toBe(0);
+  it("leaves out the ones gone from their platform and the ones already onboarded", () => {
+    expect([shadow, gone, onboarded].map(isListed)).toEqual([true, false, false]);
+    const unregistered = withRegistration(EMPTY_FILTERS, "unregistered");
+    expect(names(filterAgents([shadow, gone, onboarded], unregistered))).toEqual(["shadow"]);
+    expect(countByRegistration([shadow, gone, onboarded]).unregistered).toBe(1);
   });
 
-  it("finds unregistered agents by the platform they were found on", () => {
-    const filters = { ...EMPTY_FILTERS, registration: "both" as const, search: "openai" };
-    expect(filterAgents([owned, shadow], filters).map((a) => a.name)).toEqual(["shadow"]);
+  it("searches the owner hint's email", () => {
+    const filters = { ...withRegistration(EMPTY_FILTERS, "unregistered"), search: "dev@" };
+    expect(names(filterAgents(all, filters))).toEqual(["shadow"]);
   });
 
-  it("does not allow both boxes unticked", () => {
-    expect(registrationFromTicks(false, false)).toBeNull();
-    expect(registrationFromTicks(true, false)).toBe("registered");
-  });
-
-  it("is left out of the URL at its default, and ignores unknown values", () => {
-    expect(filtersToSearchParams(EMPTY_FILTERS, new URLSearchParams()).toString()).toBe("");
-    const params = new URLSearchParams("registration=nonsense");
-    expect(filtersFromSearchParams(params).registration).toBe("registered");
-  });
-
-  it("gets a chip only when it differs from the default", () => {
-    const options = buildFilterOptions([owned, shadow]);
-    expect(filterChips(EMPTY_FILTERS, options)).toEqual([]);
-    expect(filterChips({ ...EMPTY_FILTERS, registration: "both" }, options)).toEqual([
-      { key: "registration", name: "Registration", value: "Registered and unregistered" },
-    ]);
-  });
-});
-
-describe("No LLM provider / No MCP server", () => {
-  // `owned` has no environments, so nothing in any environment.
-  it("finds registered agents with no MCP server in any environment", () => {
-    const result = filterAgents([devOnly, owned], { ...EMPTY_FILTERS, mcpServer: NONE });
-    expect(result.map((a) => a.name)).toEqual(["owned"]);
-  });
-
-  it("looks only at the chosen environment", () => {
-    // devOnly reaches Payments in development only, so it has none in production.
-    const result = filterAgents([devOnly], {
-      ...EMPTY_FILTERS,
-      environment: "production",
-      mcpServer: NONE,
-    });
-    expect(result.map((a) => a.name)).toEqual(["dev-only"]);
-  });
-
-  it("never counts a shadow agent as having none", () => {
-    const filters = { ...EMPTY_FILTERS, registration: "both" as const, llmProvider: NONE };
-    expect(filterAgents([shadow], filters)).toEqual([]);
-  });
-
-  it("is offered first, and named on its chip", () => {
-    const options = buildFilterOptions([devOnly]);
-    expect(options.mcpServer[0]).toEqual({ value: NONE, label: "No MCP server" });
-    expect(filterChips({ ...EMPTY_FILTERS, llmProvider: NONE }, options)).toEqual([
-      { key: "llmProvider", name: "LLM provider", value: "No LLM provider" },
-    ]);
+  it("shows the owner hint's name, else its email", () => {
+    expect(ownerHintText({ name: "Dilini", email: "d@example.com" })).toBe("Dilini");
+    expect(ownerHintText({ email: "d@example.com" })).toBe("d@example.com");
+    expect(ownerHintText({})).toBeUndefined();
   });
 });

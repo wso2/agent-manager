@@ -17,8 +17,8 @@
  */
 
 import { useCallback } from "react";
-import { generatePath, useNavigate } from "react-router-dom";
-import { displayAgentSubType } from "@agent-management-platform/views";
+import { generatePath, useLocation, useNavigate } from "react-router-dom";
+import { displayAgentSubType, returnToState } from "@agent-management-platform/views";
 import { absoluteRouteMap, type AgentRegistryEntry } from "@agent-management-platform/types";
 
 // Shared by the table and the tile views.
@@ -49,19 +49,22 @@ export function canOpenAgent(agent: AgentRegistryEntry): boolean {
   return agent.registration === "registered";
 }
 
-/** Opens the agent's own page in its project. */
+/** Opens the agent's org-level overview page, which links on to its project page. */
 export function useOpenAgent(orgId: string) {
   const navigate = useNavigate();
+  // Back on the overview returns to the list as it was: filters, search and view.
+  const location = useLocation();
   return useCallback(
     (agent: AgentRegistryEntry) =>
       canOpenAgent(agent) &&
       navigate(
-        generatePath(absoluteRouteMap.children.org.children.projects.children.agents.path, {
+        generatePath(absoluteRouteMap.children.org.children.agentRegistry.children.agent.path, {
           orgId,
-          projectId: agent.projectName,
-          agentId: agent.name,
+          registryProjectId: agent.projectName,
+          registryAgentId: agent.name,
         }),
+        { state: returnToState(location) },
       ),
-    [navigate, orgId],
+    [navigate, orgId, location],
   );
 }

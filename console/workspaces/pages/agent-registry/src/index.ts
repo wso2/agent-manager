@@ -19,18 +19,21 @@
 import type { PageMetadata } from "@agent-management-platform/types";
 import { Library as RegistryIcon } from "@wso2/oxygen-ui-icons-react";
 import { AgentRegistry } from "./AgentRegistry/AgentRegistry";
+import { AgentRegistryOverview } from "./AgentRegistryOverview/AgentRegistryOverview";
+import { AgentRegistryRoutes } from "./AgentRegistryRoutes";
 
 export const metaData: PageMetadata = {
   title: "Agent registry",
   description: "Every agent in the organization, across all projects",
   icon: RegistryIcon,
   path: "/agent-registry",
-  component: AgentRegistry,
+  component: AgentRegistryRoutes,
   levels: {
-    organization: AgentRegistry,
+    // The list and each agent's overview, routed inside the package.
+    organization: AgentRegistryRoutes,
   },
 };
 
-export { AgentRegistry };
+export { AgentRegistry, AgentRegistryOverview, AgentRegistryRoutes };
 
-export default AgentRegistry;
+export default AgentRegistryRoutes;
