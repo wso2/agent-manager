@@ -91,7 +91,7 @@ Settings come from the environment, with an optional `amp.yaml` for the rest; [`
 
 ### Modules
 
-The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) imports no module; everything else, including the AI Gateway, is a module under `agent-manager-service/modules/`. [Writing a module](amp-lite/modules.md) covers the split, the contract, testing and operation. A module imports only `modkit`, the domain-free libraries under `agent-manager-service/pkg/` and its own packages; [Module boundaries](amp-lite/modules.md#module-boundaries) gives the rules, and core code that both sides need goes to `pkg/` only when it has no core imports, no global state and no domain. Run `make up-core` and `make smoke-core` as well as `make up` when a change touches the line between the core and a module.
+The core (organizations, projects, agents, identities, tokens, events, RBAC and audit) imports no module; everything else, including the AI Gateway, is a module under `agent-manager-service/modules/`. [Writing a module](amp-lite/modules.md) covers the split, the contract, testing and operation; to add one, follow [Add a module, step by step](amp-lite/modules.md#add-a-module-step-by-step). A module imports only `modkit`, the domain-free libraries under `agent-manager-service/pkg/` and its own packages; [Module boundaries](amp-lite/modules.md#module-boundaries) gives the rules, and core code that both sides need goes to `pkg/` only when it has no core imports, no global state and no domain. Run `make up-core` and `make smoke-core` as well as `make up` when a change touches the line between the core and a module.
 
 ### Console
 

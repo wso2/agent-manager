@@ -22,7 +22,7 @@ A distribution is a `main` package that chooses its modules with blank imports:
 
 | Distribution | `main` | Modules |
 |---|---|---|
-| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway`, `legacy` |
+| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default), `legacy` |
 | `amp-core` | `cmd/amp-core/main.go` imports nothing | none |
 
 Both call `cli.Main`, so they share every command. The Dockerfile builds one or the other with `--build-arg DISTRIBUTION=amp|amp-core`.
@@ -45,6 +45,25 @@ Before putting something in the core, ask:
 3. Is it identity, tenancy or security?
 
 If the answers are no, it belongs in a module. If a module needs something from another module, that is a capability, not a reason to move it into the core.
+
+## Add a module, step by step
+
+The sections below are the reference; this is the path through them. `tests/modules/testmod` uses every surface and is the example to copy, and `modules/aigateway` is a large real one. What the contract adds to the proof of concept, and where it differs, is listed in [Beyond the proof of concept](#beyond-the-proof-of-concept).
+
+1. **Decide it is a module** ([Core or module?](#core-or-module)), then create `modules/<name>/` with `<name>.go` holding the module type and `init() { modkit.Register(module{}) }` ([Layout](#layout)).
+2. **Write the manifest:** name, version, `CoreAPI`, what it `Provides` and `Requires`, its events and audit actions ([The manifest](#the-manifest)).
+3. **Declare permissions and role grants** in the manifest, by short name (`widgets.read`); they become `<name>:widgets.read` scopes in ThunderID ([The manifest](#the-manifest)).
+4. **Add tables** as YAML under `schema/`, run `make schema`, and embed `migrations/` from `Migrations()`; tables are `mod_<name>_*` and never reference core tables ([Migrations](#migrations)).
+5. **Write `Activate`:** register routes with `rt.Handle`, each with a permission and its route options (audit action, `Emits` for webhook events, `AlsoRequires`, `AllowOrgOverride`, ...), and annotate records and events from handlers with `AuditResource`/`AuditDetail` and `EventEnvironment`/`EventData`. `Activate` registers only: it must not write ([Activate and the Runtime](#activate-and-the-runtime), [Routes](#routes)).
+6. **React to the core** with hooks on agents, projects and environments, and subscribe to or publish events ([Hooks](#hooks), [Events](#events)).
+7. **Add the rest it needs:** workers with `rt.Go`, MCP tools with `rt.MCPTool`, secrets with `rt.Secrets()`, settings with `rt.Config` ([Background workers](#background-workers), [MCP tools](#mcp-tools), [Data](#data)).
+8. **Offer or use capabilities** for calls between modules, or into the core (`identity.directory/v1`) ([Capabilities](#capabilities)).
+9. **Describe its API** in `api/openapi.yaml`, run `make spec MODULE=<name>`, and add it to `checkModuleSpec` ([API document](#api-document)).
+10. **Add console pages** in a UI module and list them in `UI.Pages` ([Console UI](#console-ui)).
+11. **Add it to a distribution:** import it in `modules/all/all.go` so `cmd/amp` links it. It is then installed with `amp module install` or a `modules:` list; to install it by default, add it to the default list `cmd/amp` passes to `cli.Main` ([What a module is](#what-a-module-is), [Operating modules](#operating-modules)).
+12. **If it ships a service** beside the server, declare it as a workload, and write its files at `amp init <name> DIR` with `modkit.InitComponent` ([Workloads](#workloads), [Optional interfaces](#optional-interfaces)).
+13. **Test it:** unit tests, integration tests in the style of `tests/module_contract_test.go` on both databases, the `api/` invariant tests, and both smokes (`make smoke`, `make smoke-core`) ([Testing](#testing)). It must import only `modkit`, `pkg/` and its own packages; `depguard` checks that ([Module boundaries](#module-boundaries)).
+14. **Document what you add to the contract**, if anything, in this page and in [Beyond the proof of concept](#beyond-the-proof-of-concept), in the same change.
 
 ## Layout
 
@@ -599,7 +618,7 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | Route option [`AllowOrgOverride`](#routes) | A deployment's control plane lists gateways and sets gateway identity providers on a tenant's behalf. The core already lets its own routes opt into the org override; the gateway did the same inside its handlers, which bypassed the core's checks (path must name the target, a refused override is a 403) and its audit record. |
 | [`Runtime.Go`](#background-workers) | Modules need workers (reconcilers, sweepers) that start and stop with the module on every replica. |
 | [`Runtime.MCPTool`](#mcp-tools) | Modules contribute tools to the core's `/mcp` server, authorized and audited like core tools. |
-| [`Runtime.Secrets`](#data) | Modules keep secret values encrypted with the core's key without their own key handling. |
+| [`Runtime.Secrets`](#data) | Modules keep secret values encrypted with the core's key without their own key handling; `uninstall --purge` deletes them with the module's tables. |
 | [`Runtime.Config`](#data) | A module reads its own settings (`MODULE_<NAME>_<KEY>`, or its entry in `amp.yaml`) instead of the core's configuration. |
 | [`modkit.EventEnvironment`, `EventData`](#events) | A route's webhook event takes its environment from the path; a module route that names it by id or in the body sets it, and adds fields the response does not carry (an API key's name, never the key), as core handlers do. |
 | [`Runtime.PublishTx`](#events) | An event written in the module's own transaction is delivered only if that transaction commits. |
