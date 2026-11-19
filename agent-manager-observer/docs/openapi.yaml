@@ -858,6 +858,7 @@ components:
             - type: string
             - type: object
             - type: array
+              maxItems: 1000
               items: {}
         taskId:
           type: string
@@ -967,6 +968,7 @@ components:
             - type: string
             - type: object
             - type: array
+              maxItems: 1000
               items: {}
         output:
           nullable: true
@@ -974,6 +976,7 @@ components:
             - type: string
             - type: object
             - type: array
+              maxItems: 1000
               items: {}
         models:
           type: array

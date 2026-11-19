@@ -9218,6 +9218,8 @@ paths:
             application/json:
               schema:
                 type: array
+                # The service returns at most 20 deployments (maxDeploymentsPerAPI).
+                maxItems: 20
                 items:
                   $ref: "#/components/schemas/LLMDeploymentResponse"
         "400":

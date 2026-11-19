@@ -16,6 +16,7 @@ DATA_PATH = Path(__file__).resolve().parent / "storage" / "bookings.json"
 DATA_PATH.parent.mkdir(parents=True, exist_ok=True)
 BOOKINGS_PAGE_SIZE = 100
 MAX_BOOKING_ROOM_ENTRIES = 100
+MAX_BOOKING_PRICING_ENTRIES = 100
 
 router = APIRouter()
 
@@ -73,12 +74,23 @@ def _validate_room_count(payload: dict[str, Any]) -> None:
         )
 
 
+def _validate_pricing_count(payload: dict[str, Any]) -> None:
+    pricing = payload.get("pricing")
+    if isinstance(pricing, list) and len(pricing) > MAX_BOOKING_PRICING_ENTRIES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"A booking can contain at most {MAX_BOOKING_PRICING_ENTRIES} pricing entries",
+        )
+
+
 def _booking_response(booking: dict[str, Any]) -> dict[str, Any]:
-    rooms = booking.get("rooms")
-    if isinstance(rooms, list) and len(rooms) > MAX_BOOKING_ROOM_ENTRIES:
-        # Older bookings can exceed the limit. Keep the stored list intact.
-        return {**booking, "rooms": rooms[:MAX_BOOKING_ROOM_ENTRIES]}
-    return booking
+    # Older bookings can exceed the limits. Keep the stored lists intact.
+    trimmed = dict(booking)
+    for field, limit in (("rooms", MAX_BOOKING_ROOM_ENTRIES), ("pricing", MAX_BOOKING_PRICING_ENTRIES)):
+        value = booking.get(field)
+        if isinstance(value, list) and len(value) > limit:
+            trimmed[field] = value[:limit]
+    return trimmed
 
 
 @router.post("/bookings", status_code=201)
@@ -173,6 +185,7 @@ def get_booking(booking_id: str, user_id: str):
 @router.put("/bookings/{booking_id}")
 def update_booking(booking_id: str, payload: dict[str, Any]):
     _validate_room_count(payload)
+    _validate_pricing_count(payload)
     user_id = payload.get("user_id", "guest")
     try:
         bookings = _load_bookings()
