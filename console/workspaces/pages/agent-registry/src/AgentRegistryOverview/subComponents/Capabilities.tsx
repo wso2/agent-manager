@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { Box, Chip, Grid, Typography } from "@wso2/oxygen-ui";
+import { Box, Chip, Stack, Typography } from "@wso2/oxygen-ui";
 import type {
   AgentRegistryA2ASkill,
   AgentRegistryEntry,
@@ -30,7 +30,7 @@ import { SectionCard } from "./SectionCard";
  */
 function SkillTile({ skill }: { skill: AgentRegistryA2ASkill }) {
   return (
-    <Box sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1, height: "100%" }}>
+    <Box sx={{ p: 2, border: 1, borderColor: "divider", borderRadius: 1 }}>
       <Typography variant="subtitle2">{skill.name}</Typography>
       {skill.description && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -70,14 +70,11 @@ export function Capabilities({
           No A2A card has been fetched here yet, so no skills are known.
         </Typography>
       ) : (
-        // Tiles in a row share a height; three a row on wide screens.
-        <Grid container spacing={2}>
+        <Stack spacing={1.5}>
           {skills.map((skill) => (
-            <Grid key={skill.id} size={{ xs: 12, sm: 6, lg: 4 }}>
-              <SkillTile skill={skill} />
-            </Grid>
+            <SkillTile key={skill.id} skill={skill} />
           ))}
-        </Grid>
+        </Stack>
       )}
     </SectionCard>
   );
