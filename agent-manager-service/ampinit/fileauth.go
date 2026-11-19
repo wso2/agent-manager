@@ -24,6 +24,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gopkg.in/yaml.v3"
 
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/initfiles"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -77,7 +78,7 @@ func WriteFileAuth(cfg *FileAuthConfig, dir string) error {
 	if err != nil {
 		return err
 	}
-	if err := chownDir(dir, ampOwner); err != nil {
+	if err := initfiles.ChownDir(dir, ampOwner); err != nil {
 		return err
 	}
 
@@ -107,7 +108,7 @@ func WriteFileAuth(cfg *FileAuthConfig, dir string) error {
 		"# This file holds every operator's password hash. Treat it as a secret.\n"
 
 	// 0600: readable only by the account the API runs as.
-	return writeFile(filepath.Join(dir, FileAuthUsersFile), append([]byte(header), body...), 0o600, ampOwner)
+	return initfiles.WriteFile(filepath.Join(dir, FileAuthUsersFile), append([]byte(header), body...), 0o600, ampOwner)
 }
 
 // roleFor maps the one bit AMP_DEFAULT_USERS carries onto a role the catalog

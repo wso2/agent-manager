@@ -61,7 +61,6 @@ type module struct{}
 func init() {
 	modkit.Register(module{})
 	builtin.Register(builtin.Bundle{Name: Name, Build: Build})
-	gwinit.Register()
 	// The environment tier says where an action lands, never what it is.
 	audit.RegisterAxisPermissions(gwperm.DeployNonProduction, gwperm.DeployProduction)
 	// The scopes of the tools the gateway's toolsets add to /mcp.
@@ -118,6 +117,17 @@ func (module) Migrations() fs.FS {
 	return sub
 }
 func (module) UI() fs.FS { return nil }
+
+// Init writes the gateway's config.toml, encryption key, listener certificate
+// and registration token at "amp init ai-gateway DIR".
+func (module) Init(_ context.Context, req modkit.InitRequest) error {
+	cfg, err := gwinit.LoadGatewayConfig(req.Config)
+	if err != nil {
+		return err
+	}
+	cfg.CoreOwner = req.CoreOwner
+	return gwinit.WriteGateway(cfg, req.Dir)
+}
 
 // built is the gateway built at startup; Activate provides its capabilities.
 var built atomic.Pointer[gwwire.Gateway]

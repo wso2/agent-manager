@@ -22,6 +22,7 @@
 package ampinit
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -303,11 +304,11 @@ func SampleThunderConfig() *ThunderConfig {
 }
 
 // Run writes the ThunderID files into thunderDir, the file-based sign-in user
-// file into fileAuthDir, and each registered component's files into the
-// directory others names for it, skipping an empty directory.
+// file into fileAuthDir, and each module's files into the directory others
+// names for it, skipping an empty directory.
 func Run(thunderDir, fileAuthDir string, others map[string]string) error {
 	for name := range others {
-		if _, ok := component(name); !ok {
+		if _, ok := initComponent(name); !ok {
 			return fmt.Errorf("unknown component %q", name)
 		}
 	}
@@ -323,14 +324,19 @@ func Run(thunderDir, fileAuthDir string, others map[string]string) error {
 	}
 	for _, name := range Components() {
 		dir := others[name]
-		c, ok := component(name)
+		c, ok := initComponent(name)
 		if !ok || dir == "" {
 			continue
 		}
-		if err := c.Write(dir); err != nil {
-			return fmt.Errorf("%s configuration: %w", c.Title, err)
+		req := modkit.InitRequest{
+			Dir:       dir,
+			Config:    func(key string) string { return config.Value(config.ModuleConfigKey(name, key)) },
+			CoreOwner: config.Value("AMP_FILE_OWNER"),
 		}
-		slog.Info("Wrote the "+c.Title+" configuration", "dir", dir)
+		if err := c.Init(context.Background(), req); err != nil {
+			return fmt.Errorf("%s configuration: %w", name, err)
+		}
+		slog.Info("Wrote the "+name+" configuration", "dir", dir)
 	}
 	if fileAuthDir != "" {
 		cfg, err := LoadFileAuthConfig()

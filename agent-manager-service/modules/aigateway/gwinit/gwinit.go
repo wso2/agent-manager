@@ -14,7 +14,7 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package gwinit writes the AI Gateway's configuration at "amp init gateway".
+// Package gwinit writes the AI Gateway's configuration at "amp init ai-gateway".
 package gwinit
 
 import (
@@ -26,38 +26,21 @@ import (
 	"crypto/x509/pkix"
 	_ "embed"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/big"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
 
-	"github.com/wso2/agent-manager/agent-manager-service/ampinit"
-	"github.com/wso2/agent-manager/agent-manager-service/config"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gatewaytoken"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/initfiles"
 )
 
 //go:embed templates/config.toml
 var configTemplate string
-
-// Register adds the "gateway" component to "amp init".
-func Register() {
-	config.RegisterKeys("DEFAULT_GATEWAY_TOKEN", "GATEWAY_ADMIN_PASSWORD", "GATEWAY_AMP_JWKS_URL",
-		"GATEWAY_CONTROLPLANE_HOST", "GATEWAY_FILE_OWNER", "GATEWAY_HOST", "GATEWAY_LISTENER_PORT",
-		"GATEWAY_THUNDER_JWKS_URL")
-	ampinit.RegisterComponent(ampinit.Component{
-		Name:  "gateway",
-		Title: "AI Gateway",
-		Write: func(dir string) error {
-			cfg, err := LoadGatewayConfig()
-			if err != nil {
-				return err
-			}
-			return WriteGateway(cfg, dir)
-		},
-	})
-}
 
 // Paths of the gateway files, relative to the output directory. config.toml names the key and
 // certificate by their path inside the gateway containers, which mount the directory at /amp/gw.
@@ -75,20 +58,20 @@ const (
 // certificate and, unless cfg names one, its registration token on the first run and reusing them
 // afterwards. A configured token replaces a kept one.
 func WriteGateway(cfg *GatewayConfig, dir string) error {
-	gwOwner, err := ampinit.ParseOwner("GATEWAY_FILE_OWNER")
+	gwOwner, err := initfiles.ParseOwner(cfg.FileOwner)
 	if err != nil {
-		return err
+		return fmt.Errorf("%sFILE_OWNER: %w", keyPrefix, err)
 	}
-	ampOwner, err := ampinit.ParseOwner("AMP_FILE_OWNER")
+	ampOwner, err := initfiles.ParseOwner(cfg.CoreOwner)
 	if err != nil {
-		return err
+		return fmt.Errorf("AMP_FILE_OWNER: %w", err)
 	}
 	for _, sub := range []string{".", "aesgcm-keys", "listener-certs"} {
-		if err := ampinit.ChownDir(filepath.Join(dir, sub), gwOwner); err != nil {
+		if err := initfiles.ChownDir(filepath.Join(dir, sub), gwOwner); err != nil {
 			return err
 		}
 	}
-	if _, err := ampinit.WriteOnce(filepath.Join(dir, gatewayAESKeyFile), 0o600, gwOwner, func() ([]byte, error) {
+	if _, err := initfiles.WriteOnce(filepath.Join(dir, gatewayAESKeyFile), 0o600, gwOwner, func() ([]byte, error) {
 		key := make([]byte, 32)
 		_, err := rand.Read(key)
 		return key, err
@@ -101,10 +84,10 @@ func WriteGateway(cfg *GatewayConfig, dir string) error {
 
 	tokenPath := filepath.Join(dir, RegistrationTokenFile)
 	if cfg.RegistrationToken != "" {
-		err = ampinit.WriteFile(tokenPath, []byte(cfg.RegistrationToken), 0o600, ampOwner)
+		err = initfiles.WriteFile(tokenPath, []byte(cfg.RegistrationToken), 0o600, ampOwner)
 	} else {
 		var token []byte
-		token, err = ampinit.WriteOnce(tokenPath, 0o600, ampOwner, func() ([]byte, error) {
+		token, err = initfiles.WriteOnce(tokenPath, 0o600, ampOwner, func() ([]byte, error) {
 			t, err := gatewaytoken.New()
 			return []byte(t), err
 		})
@@ -121,13 +104,13 @@ func WriteGateway(cfg *GatewayConfig, dir string) error {
 	if err != nil {
 		return err
 	}
-	return ampinit.WriteFile(filepath.Join(dir, GatewayConfigFile), content, 0o600, gwOwner)
+	return initfiles.WriteFile(filepath.Join(dir, GatewayConfigFile), content, 0o600, gwOwner)
 }
 
 // RenderGatewayConfig renders config.toml.
 func RenderGatewayConfig(cfg *GatewayConfig) ([]byte, error) {
 	tmpl, err := template.New("config.toml").Option("missingkey=error").
-		Funcs(template.FuncMap{"q": ampinit.Quote}).Parse(configTemplate)
+		Funcs(template.FuncMap{"q": initfiles.Quote}).Parse(configTemplate)
 	if err != nil {
 		return nil, err
 	}
@@ -139,10 +122,10 @@ func RenderGatewayConfig(cfg *GatewayConfig) ([]byte, error) {
 }
 
 // writeListenerCert creates a self-signed certificate for the gateway's HTTPS listener once.
-func writeListenerCert(dir, host string, o *ampinit.Owner) error {
+func writeListenerCert(dir, host string, o *initfiles.Owner) error {
 	certPath, keyPath := filepath.Join(dir, gatewayCertFile), filepath.Join(dir, gatewayKeyFile)
 	var keyPEM []byte
-	if _, err := ampinit.WriteOnce(certPath, 0o644, o, func() ([]byte, error) {
+	if _, err := initfiles.WriteOnce(certPath, 0o644, o, func() ([]byte, error) {
 		key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		if err != nil {
 			return nil, err
@@ -174,9 +157,9 @@ func writeListenerCert(dir, host string, o *ampinit.Owner) error {
 		return err
 	}
 	if keyPEM != nil {
-		return ampinit.WriteFile(keyPath, keyPEM, 0o600, o)
+		return initfiles.WriteFile(keyPath, keyPEM, 0o600, o)
 	}
-	return ampinit.Settle(keyPath, 0o600, o)
+	return initfiles.Settle(keyPath, 0o600, o)
 }
 
 // GatewayConfig is everything the AI Gateway files depend on.
@@ -192,25 +175,63 @@ type GatewayConfig struct {
 	// Host is the gateway's public host name (MCP auth metadata, listener certificate).
 	Host         string
 	ListenerPort int
+	// FileOwner is the "uid:gid" the gateway's files are given, and CoreOwner
+	// the one the registration token is given, which the core reads.
+	FileOwner string
+	CoreOwner string
 }
 
-// LoadGatewayConfig reads the AI Gateway inputs from the environment.
-func LoadGatewayConfig() (*GatewayConfig, error) {
-	r := &ampinit.Env{}
+// keyPrefix is how the module's settings are named in the environment.
+const keyPrefix = "MODULE_AI_GATEWAY_"
+
+// LoadGatewayConfig reads the AI Gateway inputs from the module's settings.
+func LoadGatewayConfig(get func(key string) string) (*GatewayConfig, error) {
+	r := &settings{get: get}
 	cfg := &GatewayConfig{
-		ControlPlaneHost:  r.Required("GATEWAY_CONTROLPLANE_HOST"),
-		RegistrationToken: r.Str("DEFAULT_GATEWAY_TOKEN", ""),
-		AdminPassword:     r.Required("GATEWAY_ADMIN_PASSWORD"),
-		AMPJWKSURL:        r.Required("GATEWAY_AMP_JWKS_URL"),
-		ThunderIssuer:     strings.TrimRight(r.Required("THUNDER_PUBLIC_URL"), "/"),
-		ThunderJWKSURL:    r.Required("GATEWAY_THUNDER_JWKS_URL"),
-		Host:              r.Required("GATEWAY_HOST"),
-		ListenerPort:      r.Port("GATEWAY_LISTENER_PORT", 19080),
+		ControlPlaneHost:  r.required("CONTROLPLANE_HOST"),
+		RegistrationToken: r.str("DEFAULT_GATEWAY_TOKEN"),
+		AdminPassword:     r.required("ADMIN_PASSWORD"),
+		AMPJWKSURL:        r.required("AMP_JWKS_URL"),
+		ThunderIssuer:     strings.TrimRight(r.required("THUNDER_ISSUER"), "/"),
+		ThunderJWKSURL:    r.required("THUNDER_JWKS_URL"),
+		Host:              r.required("HOST"),
+		ListenerPort:      r.port("LISTENER_PORT", 19080),
+		FileOwner:         r.str("FILE_OWNER"),
 	}
 	if cfg.RegistrationToken != "" {
 		if _, err := gatewaytoken.Prefix(cfg.RegistrationToken); err != nil {
-			r.Fail(fmt.Errorf("DEFAULT_GATEWAY_TOKEN: %w", err))
+			r.errs = append(r.errs, fmt.Errorf("%sDEFAULT_GATEWAY_TOKEN: %w", keyPrefix, err))
 		}
 	}
-	return cfg, r.Err()
+	return cfg, errors.Join(r.errs...)
+}
+
+// settings reads the module's settings, collecting every problem so they are
+// reported together.
+type settings struct {
+	get  func(string) string
+	errs []error
+}
+
+func (r *settings) str(key string) string { return strings.TrimSpace(r.get(key)) }
+
+func (r *settings) required(key string) string {
+	v := r.str(key)
+	if v == "" {
+		r.errs = append(r.errs, fmt.Errorf("%s%s is required", keyPrefix, key))
+	}
+	return v
+}
+
+func (r *settings) port(key string, def int) int {
+	v := r.str(key)
+	if v == "" {
+		return def
+	}
+	p, err := strconv.Atoi(v)
+	if err != nil || p < 1 || p > 65535 {
+		r.errs = append(r.errs, fmt.Errorf("%s%s: %q is not a port", keyPrefix, key, v))
+		return def
+	}
+	return p
 }

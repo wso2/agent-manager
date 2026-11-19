@@ -242,6 +242,26 @@ type Installer interface {
 	OnInstall(ctx context.Context, rt Runtime) error
 }
 
+// InitComponent is a Module that writes files of its own when an installation
+// is set up: "amp init <module> DIR" calls Init, before any server runs, so
+// it has no Runtime and no database. Init reads the module's settings
+// through req.Config and writes only into req.Dir; it runs on every
+// "amp init" and must keep what an earlier run generated.
+type InitComponent interface {
+	Init(ctx context.Context, req InitRequest) error
+}
+
+// InitRequest is what "amp init" gives an InitComponent.
+type InitRequest struct {
+	// Dir is the directory the module's files go into.
+	Dir string
+	// Config reads the module's settings, as Runtime.Config does.
+	Config func(key string) string
+	// CoreOwner is the "uid:gid" the core's processes run as, for files the
+	// module reads back when it serves; "" leaves files as created.
+	CoreOwner string
+}
+
 // HealthReporter is implemented by modules that report their own health.
 type HealthReporter interface {
 	Health(ctx context.Context, rt Runtime) map[string]any

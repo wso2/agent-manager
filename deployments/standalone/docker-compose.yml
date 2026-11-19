@@ -28,7 +28,7 @@ services:
     # Writes into fresh named volumes and hands each file to the uid that reads it.
     user: "0:0"
     entrypoint: ["/go/bin/amp"]
-    command: ["init", "thunder", "/out/thunder", "gateway", "/out/gateway", "fileauth", "/out/fileauth"]
+    command: ["init", "thunder", "/out/thunder", "ai-gateway", "/out/gateway", "fileauth", "/out/fileauth"]
     environment:
       THUNDER_PUBLIC_URL: http://${THUNDER_HOST}:${THUNDER_PORT}
       THUNDER_PORT: ${THUNDER_PORT}
@@ -50,14 +50,15 @@ services:
       # The organization a file-mode token names. Matches amp-api's
       # PLATFORM_ADMIN_OU_ID so both describe the same organization.
       PLATFORM_ADMIN_OU_ID: 01900000-0000-7000-8000-000000000001
-      GATEWAY_CONTROLPLANE_HOST: amp-api:9243
-      DEFAULT_GATEWAY_TOKEN: ${DEFAULT_GATEWAY_TOKEN:-}
-      GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
-      GATEWAY_AMP_JWKS_URL: http://amp-api:8080/auth/external/jwks.json
-      GATEWAY_THUNDER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
-      GATEWAY_HOST: ${GATEWAY_HOST}
+      MODULE_AI_GATEWAY_CONTROLPLANE_HOST: amp-api:9243
+      MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN: ${DEFAULT_GATEWAY_TOKEN:-}
+      MODULE_AI_GATEWAY_ADMIN_PASSWORD: ${GATEWAY_ADMIN_PASSWORD}
+      MODULE_AI_GATEWAY_AMP_JWKS_URL: http://amp-api:8080/auth/external/jwks.json
+      MODULE_AI_GATEWAY_THUNDER_ISSUER: http://${THUNDER_HOST}:${THUNDER_PORT}
+      MODULE_AI_GATEWAY_THUNDER_JWKS_URL: http://thunder:${THUNDER_PORT}/oauth2/jwks
+      MODULE_AI_GATEWAY_HOST: ${GATEWAY_HOST}
+      MODULE_AI_GATEWAY_FILE_OWNER: "10001:10001"
       THUNDER_FILE_OWNER: "10001:10001"
-      GATEWAY_FILE_OWNER: "10001:10001"
       AMP_FILE_OWNER: "1000:1000"
     volumes:
       - thunder-config:/out/thunder

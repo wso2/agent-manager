@@ -76,15 +76,14 @@ func TestWriteGatewayKeepsGeneratedMaterial(t *testing.T) {
 }
 
 func TestLoadGatewayConfigRejectsMalformedToken(t *testing.T) {
-	for k, v := range map[string]string{
-		"GATEWAY_CONTROLPLANE_HOST": "amp-api:9243", "GATEWAY_ADMIN_PASSWORD": "pw",
-		"GATEWAY_AMP_JWKS_URL": "http://a/jwks", "THUNDER_PUBLIC_URL": "http://t:8080",
-		"GATEWAY_THUNDER_JWKS_URL": "http://t/jwks", "GATEWAY_HOST": "gw.localhost",
+	settings := map[string]string{
+		"CONTROLPLANE_HOST": "amp-api:9243", "ADMIN_PASSWORD": "pw",
+		"AMP_JWKS_URL": "http://a/jwks", "THUNDER_ISSUER": "http://t:8080",
+		"THUNDER_JWKS_URL": "http://t/jwks", "HOST": "gw.localhost",
 		"DEFAULT_GATEWAY_TOKEN": "too-short",
-	} {
-		t.Setenv(k, v)
 	}
-	if _, err := LoadGatewayConfig(); err == nil || !strings.Contains(err.Error(), "DEFAULT_GATEWAY_TOKEN") {
+	_, err := LoadGatewayConfig(func(k string) string { return settings[k] })
+	if err == nil || !strings.Contains(err.Error(), "MODULE_AI_GATEWAY_DEFAULT_GATEWAY_TOKEN") {
 		t.Fatalf("err = %v", err)
 	}
 }

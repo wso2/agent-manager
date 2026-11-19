@@ -37,6 +37,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/initfiles"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -72,7 +73,7 @@ func WriteThunder(cfg *ThunderConfig, dir string) error {
 		return err
 	}
 	for _, sub := range resourceDirs {
-		if err := chownDir(filepath.Join(dir, sub), o); err != nil {
+		if err := initfiles.ChownDir(filepath.Join(dir, sub), o); err != nil {
 			return err
 		}
 	}
@@ -89,7 +90,7 @@ func WriteThunder(cfg *ThunderConfig, dir string) error {
 			mode = 0o600
 			_, _ = fmt.Fprintf(stamp, "%s\n%s\n", name, files[name]) // a hash never fails to write
 		}
-		if err := writeFile(filepath.Join(dir, name), files[name], mode, o); err != nil {
+		if err := initfiles.WriteFile(filepath.Join(dir, name), files[name], mode, o); err != nil {
 			return fmt.Errorf("write %s: %w", name, err)
 		}
 	}
@@ -106,7 +107,7 @@ func WriteThunder(cfg *ThunderConfig, dir string) error {
 			}
 		}
 	}
-	return writeFile(filepath.Join(dir, BootstrapStamp), []byte(hex.EncodeToString(stamp.Sum(nil))+"\n"), 0o644, o)
+	return initfiles.WriteFile(filepath.Join(dir, BootstrapStamp), []byte(hex.EncodeToString(stamp.Sum(nil))+"\n"), 0o644, o)
 }
 
 // RenderThunder renders every ThunderID file, keyed by its path relative to the output directory.
@@ -194,7 +195,7 @@ func (r *thunderRenderer) renderData(name string, data any) ([]byte, error) {
 		return nil, err
 	}
 	tmpl, err := template.New(name).Option("missingkey=error").Funcs(template.FuncMap{
-		"q":               quote,
+		"q":               initfiles.Quote,
 		"json":            toJSON,
 		"clientScopes":    r.clientScopes,
 		"rolePermissions": r.rolePermissions,
@@ -386,12 +387,6 @@ func (r *thunderRenderer) moduleGrants(role string) []rbac.Permission {
 		}
 	}
 	return out
-}
-
-// quote is a string as a double-quoted literal, valid in YAML, JavaScript and TOML.
-func quote(s string) (string, error) {
-	b, err := json.Marshal(s)
-	return string(b), err
 }
 
 func toJSON(v any) (string, error) {

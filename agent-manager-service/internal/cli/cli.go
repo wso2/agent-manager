@@ -158,7 +158,7 @@ func legacy(args []string) error {
 	if *initThunderDir != "" || *initGatewayDir != "" || *initFileAuthDir != "" {
 		others := map[string]string{}
 		if *initGatewayDir != "" {
-			others["gateway"] = *initGatewayDir
+			others["ai-gateway"] = *initGatewayDir
 		}
 		return writeConfig(*initThunderDir, *initFileAuthDir, others)
 	}

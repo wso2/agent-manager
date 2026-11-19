@@ -284,6 +284,7 @@ type Proxy interface {
 ### Optional interfaces
 
 - `modkit.Installer`: `OnInstall(ctx, rt)` runs once when the module is installed, to catch up with core state that existed before it (agents created earlier, for example). If it fails, the module stays installed and the error is reported.
+- `modkit.InitComponent`: `Init(ctx, req)` writes the module's own files at `amp init <module> DIR`, the way the core writes ThunderID's at `amp init thunder DIR`, for a service the module ships beside the server. It runs before any server, with no Runtime: `req.Config` reads the module's settings as `rt.Config` does, `req.Dir` is where its files go, and `req.CoreOwner` is the `uid:gid` for files the core reads back. It runs on every `amp init`, so it keeps what an earlier run generated. `pkg/initfiles` has the helpers.
 - `modkit.HealthReporter`: `Health(ctx, rt) map[string]any` adds the module's own detail to `amp module health`. It runs within 5 seconds and must read only shared state (its tables), never one replica's memory, so every replica gives the same answer.
 
 ## Workloads
@@ -415,6 +416,8 @@ What it already does as a module:
   | `FAILURE_THRESHOLD_SECONDS`, `FAILURE_MAX_AGE_SECONDS`, `FAILURE_PERCENTAGE_THRESHOLD` | The platform gateway failure summary. |
   | `AGENT_CORS_ALLOWED_ORIGIN`, `_METHODS`, `_HEADERS`, `AGENT_CORS_ALLOW_CREDENTIALS` | The CORS policy agents' gateway routes get by default. |
 
+  `amp init ai-gateway DIR` reads its own keys from the same place: `CONTROLPLANE_HOST`, `ADMIN_PASSWORD`, `AMP_JWKS_URL`, `THUNDER_ISSUER`, `THUNDER_JWKS_URL`, `HOST`, `LISTENER_PORT` and `FILE_OWNER` for the controller's `config.toml`, and `DEFAULT_GATEWAY_TOKEN` as the registration token it writes (it generates and keeps one when unset).
+
 What is left: its workers and settings still come through `builtin.Bundle` (`Build(ctx, *wiring.AppParams)` builds it on the core's Go services and repositories), and its packages import core `services`, `repositories`, `controllers` and `models` (its data types still live in core `models`). Don't copy this for a new module.
 
 ## Module boundaries
@@ -443,6 +446,7 @@ Everything else under `agent-manager-service/` is the core (`services`, `reposit
 | `pkg/dberr` | Classifies driver errors (duplicate key, foreign key, ...) the same way on SQLite and PostgreSQL. |
 | `pkg/sqlitedialect` | The GORM SQLite dialect the core opens databases with. |
 | `pkg/ssrf` | Checks that an outbound URL points at a public host, and `ErrInvalidURL`. |
+| `pkg/initfiles` | Writes `amp init` files: only when they change, generated once and kept, handed to a `uid:gid`. |
 | `pkg/logger` | The request-scoped `slog` logger and the correlation id carried in the context. |
 
 A package belongs in `pkg/` only if all of these hold:
