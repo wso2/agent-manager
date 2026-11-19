@@ -205,7 +205,8 @@ class _Reader:
         if scopes and scopes[-1].type == "property_declaration" and _outer(node).parent == scopes[-1]:
             scopes.pop()  # A property's initializer: the property is the name, not a scope.
         names = [self.scope_name(s) for s in scopes]
-        name = self.literal_name(node) or self.assigned_to(node)
+        literal = self.literal_name(node)
+        name = literal or self.assigned_to(node)
         if name is not None:
             qualified = ".".join([*names, name])
         else:
@@ -216,7 +217,7 @@ class _Reader:
                 name, qualified = names[at], ".".join(names[: at + 1])
             else:
                 name = qualified = f"{sig.framework}-agent"
-        return Match(sig, path, node.start_point[0] + 1, name, qualified, condition_met=met)
+        return Match(sig, path, node.start_point[0] + 1, name, qualified, condition_met=met, named=literal is not None)
 
     def invocation(self, node: tree_sitter.Node) -> tuple[Signature, bool] | None:
         function = node.child_by_field_name("function")

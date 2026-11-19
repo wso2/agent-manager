@@ -24,7 +24,8 @@ A match's name is, in order: a short string literal passed as ``name=``; the var
 to (``support = Agent(...)``, or the attribute in ``self.support = Agent(...)``); the class name for a
 subclass; the nearest enclosing function (``def researcher(self): return Agent(...)``, the CrewAI
 template); else ``<framework>-agent``. No name holds a line number, so adding code above an agent never
-renames it.
+renames it. ``Match.named`` tells a ``name=`` literal apart; ``naming`` decides the name the agent is shown
+with, which replaces a weak name (``agent``, ``graph``, ``build_agent``) by the project's name.
 
 ``Match.qualified`` places the name in its scope: the enclosing classes and functions, then the name
 (``support.agent``, ``Bot.__init__.agent``, just ``agent`` at module level). A name taken from the
@@ -103,6 +104,8 @@ class Match:
     condition_met: bool | None = None
     """For a condition the matcher checks in the code it matched (``Condition.TOOL_LOOP``,
     ``Condition.NAMESPACE``), whether it holds; None for every other match."""
+    named: bool = False
+    """True when ``name`` is the agent's own name literal (``name=`` and the like), which ``naming`` keeps."""
 
     @property
     def framework(self) -> str:
@@ -455,7 +458,8 @@ class _Reader:
                 return None
         scopes = _scopes(node)
         path_names = self.scope_names(scopes)
-        name = self.literal(self.keyword(node, "name")) or self.assigned_to(node)
+        literal = self.literal(self.keyword(node, "name"))
+        name = literal or self.assigned_to(node)
         if name is not None:
             qualified = ".".join([*path_names, name])
         else:
@@ -474,7 +478,7 @@ class _Reader:
                 qualified = ".".join([*path_names, name])
         model = self.model(self.keyword(node, "model")) or self.model(self.keyword(node, "llm"))
         tools = self.tool_names(self.keyword(node, "tools"))
-        match = Match(sig, path, node.start_point[0] + 1, name, qualified, model, tools)
+        match = Match(sig, path, node.start_point[0] + 1, name, qualified, model, tools, named=literal is not None)
         return _Found(node, match, _scope_id(node), self.assigned_target(node))
 
     def wires(self, call: tree_sitter.Node, imports: ImportTable, rules: RuleSet) -> Wiring | None:

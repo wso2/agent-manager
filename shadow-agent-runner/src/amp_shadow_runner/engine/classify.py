@@ -49,6 +49,10 @@ published: the report lists them apart, since test doubles are not running agent
 (tag ``example``) are published like any other, with the attribute ``labels: {"codeArea": "example"}``. An
 agent a crew links also has ``labels: {"crew": <crew name>}``, merged with any other label.
 
+A finding's ``name`` is the match's name here (``<framework>-agent`` when it has none). ``scan_tree`` then
+gives it the name it is shown with (see ``naming``: a weak name such as ``graph`` or ``build_agent``
+becomes the project's name). That never changes the ``external_id``.
+
 ``external_id`` is ``<repository>:<path>:<qualified name>`` (see ``Match.qualified``), so it holds no line
 number and code added elsewhere never changes it. Only a real repeat of the same qualified name (two
 unnamed agents in one scope) gets ``@2``, ``@3`` and so on, numbered in source order. An ID over
@@ -110,6 +114,7 @@ class Finding:
 
     external_id: str
     name: str
+    """The name the agent is shown with (see ``naming``)."""
     repository: str
     path: str
     line: int
@@ -123,6 +128,8 @@ class Finding:
     evidence: tuple[Evidence, ...]
     service_folder: str | None = None
     """The folder of the nearest manifest above the file (``.`` for the root), reported, not published."""
+    named: bool = False
+    """True when ``name`` is the agent's own name literal (``Match.named``); not reported or published."""
 
 
 @dataclass(frozen=True)
@@ -187,6 +194,7 @@ def classify(
                     attributes=_attributes(match, file.tag),
                     evidence=tuple(evidence),
                     service_folder=service_folder(file.path, dependencies.paths),
+                    named=match.named,
                 )
             )
     return tuple(findings)

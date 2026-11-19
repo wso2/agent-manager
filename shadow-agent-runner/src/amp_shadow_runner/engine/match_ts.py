@@ -291,7 +291,8 @@ class _Reader:
         path_names = [n for n in names if n is not None]
         variable = self.assigned_target(node)
         assigned = None if sig.runs or variable is None else variable.rsplit(".", 1)[-1]
-        name = self.literal(self.property(options, "name")) or assigned
+        literal = self.literal(self.property(options, "name"))
+        name = literal or assigned
         if name is not None:
             qualified = ".".join([*path_names, name])
         else:
@@ -305,7 +306,8 @@ class _Reader:
                 qualified = ".".join([*path_names, name])
         model = self.model(self.property(options, "model"))
         tools = self.tool_names(self.property(options, "tools"))
-        match = Match(sig, path, node.start_point[0] + 1, name, qualified, model, tools, condition_met=met)
+        named = literal is not None
+        match = Match(sig, path, node.start_point[0] + 1, name, qualified, model, tools, condition_met=met, named=named)
         return _Found(node, match, _scope_id(node), variable)
 
     def loops(self, options: tree_sitter.Node | None) -> bool:

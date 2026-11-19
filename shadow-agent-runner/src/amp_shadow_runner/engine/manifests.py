@@ -36,6 +36,12 @@ proven by a ``package.json`` that names a package of the same name.
 
 ``service_folder`` places a file in the service it belongs to: the folder of the nearest manifest of any
 kind (``package.json`` and ``*.csproj`` too) at or above it.
+
+``project_name`` reads one more field, the project's own name, for naming agents (see ``naming``):
+``pyproject.toml`` ``[project] name`` (else ``[tool.poetry] name``), ``package.json`` ``name`` without an
+npm ``@scope/`` (none for a workspace root, one with a ``workspaces`` key, which names no single service),
+``Ballerina.toml`` ``[package] name``, and the file name of a ``*.csproj`` without its extension (the file
+is not parsed for it). The value must be a short plain string (``plain_name``).
 """
 
 import configparser
@@ -60,6 +66,8 @@ _NPM_SECTIONS = ("dependencies", "devDependencies", "optionalDependencies")
 
 
 _NUGET_NAMES = frozenset({"directory.packages.props", "packages.config"})
+MAX_PROJECT_NAME_CHARS = 100
+"""The longest project or folder name used as an agent's name; a longer one is not a name."""
 _DTD = re.compile(r"<!(DOCTYPE|ENTITY)", re.IGNORECASE)
 _MSBUILD_PROPERTY = re.compile(r"[$@%]\(")
 """An MSBuild property, item or metadata reference, ``$(Name)``: not a literal package name."""
@@ -188,6 +196,49 @@ def npm_packages(data: bytes) -> frozenset[str]:
     if not isinstance(document, Mapping):
         return frozenset()
     return frozenset(normalise(name) for section in _NPM_SECTIONS for name in _keys(document.get(section)))
+
+
+def project_name(path: str, data: bytes) -> str | None:
+    """The project's own name that the manifest at ``path`` states (see the module docstring), or None."""
+    name = PurePosixPath(path).name
+    if name.lower().endswith(".csproj"):
+        return plain_name(name[: -len(".csproj")])
+    if name not in ("pyproject.toml", "package.json", "Ballerina.toml"):
+        return None
+    text = data.decode("utf-8", errors="replace")
+    try:
+        document = json.loads(text) if name == "package.json" else tomllib.loads(text)
+    except (ValueError, RecursionError):  # TOMLDecodeError is a ValueError.
+        return None
+    if not isinstance(document, Mapping):
+        return None
+    if name == "package.json":
+        if "workspaces" in document:  # A monorepo root: each workspace is its own service.
+            return None
+        value = document.get("name")
+        if isinstance(value, str) and value.startswith("@"):  # ``@scope/pkg``: the package is ``pkg``.
+            value = value.partition("/")[2]
+        return plain_name(value)
+    if name == "Ballerina.toml":
+        return plain_name(_table(document, "package").get("name"))
+    tool = _table(document, "tool")
+    return plain_name(_table(document, "project").get("name")) or plain_name(_table(tool, "poetry").get("name"))
+
+
+def plain_name(value: object) -> str | None:
+    """``value`` stripped, when it is a printable string of 1 to MAX_PROJECT_NAME_CHARS characters with no
+    backslash; None for anything else."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or len(value) > MAX_PROJECT_NAME_CHARS or "\\" in value or not value.isprintable():
+        return None
+    return value
+
+
+def _table(document: Mapping[str, object], key: str) -> Mapping[str, object]:
+    value = document.get(key)
+    return value if isinstance(value, Mapping) else {}
 
 
 def normalise(name: str) -> str:

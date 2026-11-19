@@ -353,7 +353,7 @@ def test_graph_is_proven_when_wired_to_tools(
     _write(tmp_path, files)
     findings = [f for f in scan_tree(tmp_path, repository="r").findings if f.framework == "langgraph"]
     (finding,) = findings
-    assert (finding.name, finding.verdict) == ("workflow", verdict)
+    assert (finding.external_id.rsplit(":", 1)[-1], finding.verdict) == ("workflow", verdict)
     tool_evidence = [(e.source, dict(e.observed)) for e in finding.evidence if e.code == "d7_tool_calling"]
     assert tool_evidence == ([] if wired is None else [wired])
 

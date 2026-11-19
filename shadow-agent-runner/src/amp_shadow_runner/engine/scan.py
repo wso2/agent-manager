@@ -34,6 +34,9 @@ of the nearest ``.csproj`` above it, or the repository when there is none. So C#
 their imports, and only those that mention a signature's name (``match_cs.mentions``) are kept and parsed
 again for matching once every file has been read.
 
+Weak agent names are replaced by the project's name once every finding of the tree is known
+(``naming.display_names``), with the project names the manifests state (``manifests.project_name``).
+
 Each language is classified with its own rule set and only the manifests of its own ecosystem (see
 ``manifests.Ecosystem``); the other manifests still mark service folders. A manifest that cannot be read
 safely (``read_packages`` gives None) counts as not read.
@@ -52,6 +55,7 @@ from amp_shadow_runner.engine.manifests import (
     Ecosystem,
     csproj_usings,
     ecosystem,
+    project_name,
     read_packages,
     service_folder,
 )
@@ -60,6 +64,7 @@ from amp_shadow_runner.engine.match_bal import match_ballerina_file
 from amp_shadow_runner.engine.match_cs import match_csharp_file, mentions
 from amp_shadow_runner.engine.match_ts import match_script_file
 from amp_shadow_runner.engine.modules import RepoModules
+from amp_shadow_runner.engine.naming import display_names
 from amp_shadow_runner.engine.signatures import RuleSet, Wiring
 from amp_shadow_runner.engine.signatures.ballerina import BALLERINA
 from amp_shadow_runner.engine.signatures.csharp import CSHARP
@@ -139,6 +144,7 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
     state = _Scan(walked.skipped)
     manifests: dict[Ecosystem, dict[str, frozenset[str]]] = {e: {} for e in Ecosystem}
     unread: set[str] = set()
+    names: dict[str, str] = {}
     python: list[FileMatches] = []
     scripts: list[FileMatches] = []
     ballerina: list[FileMatches] = []
@@ -156,6 +162,8 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
                 manifests[kind][file.path] = packages
             if data is not None and _csproj(file.path):
                 csharp.add_csproj(file.path, data)
+            if data is not None and (name := project_name(file.path, data)) is not None:
+                names[file.path] = name
             continue
         if file.kind != FileKind.SOURCE or file.language is None:
             continue
@@ -179,7 +187,8 @@ def scan_tree(root: Path, *, repository: str, read_ci: bool = False) -> ScanResu
         *_classify(ballerina, repository, dependencies(Ecosystem.BALLERINA), BALLERINA, wiring),
     ]
     findings.sort(key=lambda f: (f.path, f.line))
-    return ScanResult(tuple(findings), state.scanned, state.skipped, state.parse_errors)
+    named = display_names(findings, repository=repository, names=names)
+    return ScanResult(named, state.scanned, state.skipped, state.parse_errors)
 
 
 def _classify(
