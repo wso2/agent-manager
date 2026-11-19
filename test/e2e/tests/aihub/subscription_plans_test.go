@@ -35,16 +35,8 @@ var _ = Describe("Subscription Plans", Label("aihub", "subscription-plans"), Ord
 	var planID string
 
 	BeforeAll(func() {
-		planID = "e2e-test-plan-" + uuid.New().String()[:8]
-	})
-
-	AfterAll(func() {
-		if planID != "" {
-			aihubop.DeletePlan(Default, Client, planID)
-		}
-	})
-
-	It("should be offered by the AI Hub module", func() {
+		// The AI Hub is an optional module: an operator installs it with `amp module install aihub`. On a stack
+		// without it these specs have nothing to test.
 		resp, err := Client.Get("/api/v1/ui-manifest")
 		Expect(err).NotTo(HaveOccurred())
 		defer resp.Body.Close()
@@ -54,12 +46,21 @@ var _ = Describe("Subscription Plans", Label("aihub", "subscription-plans"), Ord
 			} `json:"modules"`
 			Pages []string `json:"pages"`
 		}](Default, resp, http.StatusOK)
-		var names []string
+		installed := false
 		for _, m := range manifest.Modules {
-			names = append(names, m.Name)
+			installed = installed || m.Name == "aihub"
 		}
-		Expect(names).To(ContainElement("aihub"), "the full distribution enables the AI Hub module by default")
+		if !installed {
+			Skip("the AI Hub module is not installed (amp module install aihub)")
+		}
 		Expect(manifest.Pages).To(ContainElement("aihub/subscription-plans"))
+		planID = "e2e-test-plan-" + uuid.New().String()[:8]
+	})
+
+	AfterAll(func() {
+		if planID != "" {
+			aihubop.DeletePlan(Default, Client, planID)
+		}
 	})
 
 	It("should create a plan whose conditions are normalized", func() {

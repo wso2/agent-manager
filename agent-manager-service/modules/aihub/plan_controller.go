@@ -17,7 +17,6 @@
 package aihub
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -52,6 +51,7 @@ const (
 	codePayloadTooLarge  = "PAYLOAD_TOO_LARGE"
 	codeUnauthorized     = "UNAUTHORIZED"
 	codeInternal         = "INTERNAL_ERROR"
+	codeUnavailable      = "SERVICE_UNAVAILABLE"
 	codePlanNotFound     = "SUBSCRIPTION_PLAN_NOT_FOUND"
 	codePlanExists       = "SUBSCRIPTION_PLAN_EXISTS"
 	codePlanInUse        = "SUBSCRIPTION_PLAN_IN_USE"
@@ -136,7 +136,7 @@ type listResponse struct {
 
 // createPlan handles POST /subscription-plans.
 func (a *planController) createPlan(w http.ResponseWriter, r *http.Request) {
-	org, actor, ok := a.caller(w, r)
+	org, orgHandle, actor, ok := a.callerWithHandle(w, r)
 	if !ok {
 		return
 	}
@@ -214,12 +214,12 @@ func (a *planController) createPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Location", basePath+"/"+created.Handle)
-	a.writeJSON(w, http.StatusCreated, a.response(r.Context(), created, true, nil))
+	a.writeJSON(w, http.StatusCreated, a.responseFor(orgHandle, created, true, nil))
 }
 
 // listPlans handles GET /subscription-plans?limit&offset&query&status.
 func (a *planController) listPlans(w http.ResponseWriter, r *http.Request) {
-	org, _, ok := a.caller(w, r)
+	org, orgHandle, _, ok := a.callerWithHandle(w, r)
 	if !ok {
 		return
 	}
@@ -246,7 +246,6 @@ func (a *planController) listPlans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	items := make([]planResponse, 0, len(plans))
-	orgHandle := a.orgHandle(r.Context(), org)
 	for _, p := range plans {
 		items = append(items, a.responseFor(orgHandle, p, false, nil))
 	}
@@ -259,7 +258,7 @@ func (a *planController) listPlans(w http.ResponseWriter, r *http.Request) {
 // getPlan handles GET /subscription-plans/{subscriptionPlanId}. Only this read carries usage, so a client can show
 // a delete, or a change of name or conditions, as refused before it is tried.
 func (a *planController) getPlan(w http.ResponseWriter, r *http.Request) {
-	org, _, ok := a.caller(w, r)
+	org, orgHandle, _, ok := a.callerWithHandle(w, r)
 	if !ok {
 		return
 	}
@@ -273,13 +272,13 @@ func (a *planController) getPlan(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
-	a.writeJSON(w, http.StatusOK, a.response(r.Context(), p, true, &use))
+	a.writeJSON(w, http.StatusOK, a.responseFor(orgHandle, p, true, &use))
 }
 
 // updatePlan handles PUT /subscription-plans/{subscriptionPlanId}. displayName is required. An omitted
 // description, conditions, status or expiryTime keeps the stored value; "expiryTime": null clears the expiry.
 func (a *planController) updatePlan(w http.ResponseWriter, r *http.Request) {
-	org, actor, ok := a.caller(w, r)
+	org, orgHandle, actor, ok := a.callerWithHandle(w, r)
 	if !ok {
 		return
 	}
@@ -310,8 +309,13 @@ func (a *planController) updatePlan(w http.ResponseWriter, r *http.Request) {
 		if string(req.ExpiryTime) == "null" {
 			u.ClearExpiryTime = true
 		} else {
-			var t time.Time
-			if err := json.Unmarshal(req.ExpiryTime, &t); err != nil {
+			// Decoded to a string first, so a JSON escape (\u005a for Z) reads as the character it stands for.
+			var raw string
+			t, err := time.Time{}, json.Unmarshal(req.ExpiryTime, &raw)
+			if err == nil {
+				t, err = time.Parse(time.RFC3339, raw)
+			}
+			if err != nil {
 				a.writeError(w, http.StatusBadRequest, codeValidationFailed, "Invalid expiryTime format; use RFC3339")
 				return
 			}
@@ -353,7 +357,7 @@ func (a *planController) updatePlan(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, err)
 		return
 	}
-	a.writeJSON(w, http.StatusOK, a.response(r.Context(), updated, true, nil))
+	a.writeJSON(w, http.StatusOK, a.responseFor(orgHandle, updated, true, nil))
 }
 
 // deletePlan handles DELETE /subscription-plans/{subscriptionPlanId}.
@@ -454,10 +458,6 @@ func requestLimits(p *plan) []map[string]any {
 	return limits
 }
 
-func (a *planController) response(ctx context.Context, p *plan, detail bool, use *usage) planResponse {
-	return a.responseFor(a.orgHandle(ctx, p.OrgID), p, detail, use)
-}
-
 // responseFor builds a plan's response. updatedBy is only in single-plan responses; usage only in GET of one plan.
 func (a *planController) responseFor(orgHandle string, p *plan, detail bool, use *usage) planResponse {
 	resp := planResponse{
@@ -478,14 +478,29 @@ func (a *planController) responseFor(orgHandle string, p *plan, detail bool, use
 	return resp
 }
 
-// orgHandle is the organization's handle, returned as organizationId.
-func (a *planController) orgHandle(ctx context.Context, orgID string) string {
-	org, err := a.core().GetOrg(ctx, orgID)
-	if err != nil {
-		a.log.WarnContext(ctx, "could not read the organization of a subscription plan", "orgId", orgID, "error", err)
-		return ""
+// callerWithHandle is caller plus the organization's handle, which responses return as organizationId. It is
+// read before the plan is, so a failed lookup answers 500 before anything changes, never after a write
+// committed. A write makes sure the organization exists first, as the core's own write routes do; a read of
+// an organization that doesn't exist yet has no plans, and no handle.
+func (a *planController) callerWithHandle(w http.ResponseWriter, r *http.Request) (org, orgHandle, actor string, ok bool) {
+	if org, actor, ok = a.caller(w, r); !ok {
+		return "", "", "", false
 	}
-	return org.Handle
+	var o modkit.Org
+	var err error
+	if r.Method == http.MethodGet {
+		if o, err = a.core().GetOrg(r.Context(), org); errors.Is(err, modkit.ErrNotFound) {
+			return org, "", actor, true
+		}
+	} else {
+		o, err = a.core().EnsureOrg(r.Context(), org)
+	}
+	if err != nil {
+		a.log.ErrorContext(r.Context(), "could not read the caller's organization", "orgId", org, "error", err)
+		a.writeError(w, http.StatusInternalServerError, codeInternal, "Failed to read the organization")
+		return "", "", "", false
+	}
+	return org, o.Handle, actor, true
 }
 
 // caller returns the organization and the acting user of a request. The core has signed the caller in

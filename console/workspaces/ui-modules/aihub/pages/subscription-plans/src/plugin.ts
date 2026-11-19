@@ -21,7 +21,7 @@
 // the package's own chunk.
 import type { ComponentType } from "react";
 import { ReceiptText } from "@wso2/oxygen-ui-icons-react";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import {
   absoluteRouteMap,
   PLUGIN_API_VERSION,
@@ -31,7 +31,7 @@ import {
 const orgNav = absoluteRouteMap.children.org.children;
 
 /** The nav item shows to users who can read plans. */
-const useCanReadPlans = () => useResourceAccess("subscription_plan").canRead;
+const useCanReadPlans = () => useFeatureAccess("subscription_plan_read");
 
 export const subscriptionPlansPlugin: PluginManifest = {
   id: "subscription-plans",

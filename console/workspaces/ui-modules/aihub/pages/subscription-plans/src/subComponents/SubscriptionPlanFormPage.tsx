@@ -45,6 +45,7 @@ import {
 import { useUnsavedChangesGuard } from "@agent-management-platform/shared-component";
 import { PageLayout, StateNotice, TextInput, useReturnTo } from "@agent-management-platform/views";
 import { absoluteRouteMap, type SubscriptionPlan } from "@agent-management-platform/types";
+import { fromExpiryTime, toExpiryTime } from "./expiryTime";
 import { PlanConditionsEditor } from "./PlanConditionsEditor";
 import {
   checkConditions,
@@ -73,16 +74,6 @@ export const slugify = (value: string): string =>
     .replace(/^-+|-+$/g, "")
     .slice(0, MAX_HANDLE_CHARS)
     .replace(/-+$/, "");
-
-/** The picked calendar day, as that day at UTC midnight. */
-const toExpiryTime = (date: Date): string =>
-  new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())).toISOString();
-
-/** The calendar day of a stored expiry timestamp, as a local `Date`. */
-const fromExpiryTime = (timestamp: string): Date => {
-  const utc = new Date(timestamp);
-  return new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
-};
 
 type FormState = {
   displayName: string;
@@ -128,6 +119,9 @@ export function SubscriptionPlanFormPage() {
   const [nameVisited, setNameVisited] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  // The plan the form was filled from (null for a new plan), so a refetch (e.g. on window focus)
+  // doesn't replace the user's edits or reset what counts as unsaved.
+  const loadedFor = useRef<string | null | undefined>(undefined);
   // What the form was loaded with, so only the user's changes make it dirty.
   const initial = useRef<{ form: FormState; conditions: string }>({
     conditions: "[]",
@@ -135,14 +129,17 @@ export function SubscriptionPlanFormPage() {
   });
 
   useEffect(() => {
-    if (isEdit && !plan) return;
+    if (isEdit && plan?.id !== planId) return;
+    const target = planId ?? null;
+    if (loadedFor.current === target) return;
+    loadedFor.current = target;
     const loaded = formOf(plan);
     const drafts = draftsFromConditions(plan?.conditions);
     setForm(loaded);
     setConditions(drafts);
     setSession((current) => current + 1);
     initial.current = { conditions: JSON.stringify(checkConditions(drafts).body), form: loaded };
-  }, [isEdit, plan]);
+  }, [isEdit, plan, planId]);
 
   const trimmedName = form.displayName.trim();
   const trimmedDescription = form.description.trim();
@@ -398,7 +395,7 @@ export function SubscriptionPlanFormPage() {
                   <FormHelperText sx={{ mx: 0 }}>
                     {hasExpiryError
                       ? "Enter a valid date"
-                      : "The plan stops accepting subscriptions after this date."}
+                      : "The plan stops accepting subscriptions at the end of this day, in your time zone."}
                   </FormHelperText>
                 </FormControl>
               </Grid>

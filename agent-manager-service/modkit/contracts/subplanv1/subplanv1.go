@@ -14,10 +14,11 @@
 // specific language governing permissions and limitations
 // under the License.
 
-// Package subplanv1 is the subscription plan capabilities between the module that owns plans and the
-// gateway: "subscription.plans/v1" lists an organization's plans, for gateways to pull when they connect, and
-// the owner's EventPlanChanged event tells the gateway module a plan changed, so it pushes the change to the
-// organization's gateways. Only the gateway depends on the owner (optionally), and neither imports the other.
+// Package subplanv1 is the subscription plan capability between the module that owns plans and the gateway:
+// "subscription.plans/v1" lists an organization's plans, for gateways to pull when they connect, and names the
+// event its provider publishes, with a PlanChange, when a plan changes, so the gateway module pushes the change
+// to the organization's gateways. Only the gateway depends on the provider (optionally), and neither imports
+// the other.
 package subplanv1
 
 import (
@@ -29,11 +30,9 @@ import (
 // ID is the capability of the module that owns subscription plans: Source.
 const ID = "subscription.plans/v1"
 
-// EventPlanChanged is published by the module that owns plans, in the transaction that creates, changes or
-// deletes a plan, so subscribers get it only once the change commits. Its data is a PlanChange.
-const EventPlanChanged = "aihub.plan_changed"
-
-// PlanChange is what EventPlanChanged carries about the plan.
+// PlanChange is what the provider's change event (Source.ChangeEvent) carries about the plan. The provider
+// publishes it in the transaction that creates, changes or deletes the plan, so subscribers get it only once
+// the change commits.
 type PlanChange struct {
 	OrgID    string `json:"orgId"`
 	PlanID   string `json:"planId"`
@@ -79,10 +78,7 @@ type Plan struct {
 // Source lists an organization's subscription plans.
 type Source interface {
 	ListPlans(ctx context.Context, orgID string) ([]Plan, error)
-}
-
-// Gateways sends a plan change to every gateway of the organization, as the gateway module does on
-// EventPlanChanged. For a deleted plan only its ID, Handle and Name are read.
-type Gateways interface {
-	PlanChanged(ctx context.Context, orgID string, action Action, plan Plan) error
+	// ChangeEvent is the event type, declared in the provider's manifest as <module>.<event>, that the
+	// provider publishes with a PlanChange whenever a plan is created, changed or deleted.
+	ChangeEvent() string
 }

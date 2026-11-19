@@ -36,11 +36,9 @@ console:
 # entry commented out) to manage modules with `amp module …` instead; `[]`
 # disables every module. AMP_MODULES (`ai-gateway,widgets=off`,
 # or `none`) overrides the list.
-# With no list, amp installs ai-gateway and aihub at boot if they were never
-# installed.
+# With no list, amp installs ai-gateway at boot if it was never installed.
 modules:
   - ai-gateway
-  - aihub                         # AI Hub: subscription plans
   # - name: widgets
   #   enabled: true
   #   config:                     # MODULE_WIDGETS_<KEY>, read with Runtime.Config

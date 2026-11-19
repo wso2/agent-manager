@@ -88,12 +88,19 @@ func (c *coreReadAPI) GetOrgByHandle(ctx context.Context, handle string) (modkit
 	if handle == "" {
 		return modkit.Org{}, modkit.ErrNotFound
 	}
-	var o models.Organization
-	if err := c.db.WithContext(ctx).Where("handle = ?", handle).First(&o).Error; err != nil {
-		return modkit.Org{}, notFound(err)
+	q := c.db.WithContext(ctx).Where("handle = ?", handle)
+	// A caller with an organization reads only its own: the restriction is in the query, so another
+	// organization's row is never loaded. A caller without one (a signed webhook) looks up any.
+	if own := modkit.OrgID(ctx); own != "" {
+		ids, err := parseIDs(own)
+		if err != nil {
+			return modkit.Org{}, err
+		}
+		q = q.Where("id = ?", ids[0])
 	}
-	if foreign(ctx, o.ID.String()) {
-		return modkit.Org{}, modkit.ErrNotFound
+	var o models.Organization
+	if err := q.First(&o).Error; err != nil {
+		return modkit.Org{}, notFound(err)
 	}
 	return modkit.Org{ID: o.ID.String(), Handle: o.Handle, DisplayName: o.DisplayName, CreatedAt: o.CreatedAt}, nil
 }

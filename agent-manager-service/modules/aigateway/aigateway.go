@@ -38,7 +38,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwapi"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconfig"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwinit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmcp"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
@@ -166,13 +165,14 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 	gw.Secrets.Use(rt.Secrets())
 	rt.Provide(llmv1.ID, gw.AgentGateway.LLM())
 	rt.Provide(mcpv1.ID, gw.AgentGateway.MCP())
-	plans := func() (subplanv1.Source, bool) { return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID) }
-	gwctl.UseSubscriptionPlans(plans)
-	// Plan changes are pushed while the plans module is active. Activate runs again whenever the set of
-	// active modules changes (providers first), so enabling that module later subscribes then; meanwhile
-	// gateways pull every plan when they reconnect.
-	if _, ok := plans(); ok {
-		rt.Subscribe(subplanv1.EventPlanChanged, gwsvc.PlanChangeHandler(plans,
+	gw.SubscriptionPlans.Use(func() (subplanv1.Source, bool) {
+		return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID)
+	})
+	// Plan changes are pushed while the plans module is active, on the event it names. Activate runs again
+	// whenever the set of active modules changes (providers first), so enabling that module later subscribes
+	// then; meanwhile gateways pull every plan when they reconnect.
+	if source, ok := gw.SubscriptionPlans.Source(); ok {
+		rt.Subscribe(source.ChangeEvent(), gwsvc.PlanChangeHandler(gw.SubscriptionPlans.Source,
 			gwsvc.NewSubscriptionPlanBroadcaster(gwrepo.NewGatewayRepo(rt.DB()), gwsvc.NewGatewayEventsService(gw.EventHub))))
 	}
 	registerHooks(rt, gw.AgentGateway)

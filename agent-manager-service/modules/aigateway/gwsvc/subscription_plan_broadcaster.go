@@ -58,7 +58,7 @@ type orgGateways interface {
 }
 
 // SubscriptionPlanBroadcaster sends plan changes to the organization's gateways over their control
-// plane connection: the "gateway.plans/v1" capability.
+// plane connection (PlanGateways).
 type SubscriptionPlanBroadcaster struct {
 	gateways orgGateways
 	events   *GatewayEventsService
@@ -69,7 +69,7 @@ func NewSubscriptionPlanBroadcaster(gateways orgGateways, events *GatewayEventsS
 	return &SubscriptionPlanBroadcaster{gateways: gateways, events: events}
 }
 
-var _ subplanv1.Gateways = (*SubscriptionPlanBroadcaster)(nil)
+var _ PlanGateways = (*SubscriptionPlanBroadcaster)(nil)
 
 // PlanChanged sends subscriptionPlan.created, .updated or .deleted to every gateway of the organization.
 // A gateway that is not connected gets the plans when it connects (it pulls them), so a failed send is

@@ -27,13 +27,16 @@ import (
 // Gateway sync, as the gateways expect it from any control plane: a gateway pulls every plan of its
 // organization when it connects (planSource, the "subscription.plans/v1" capability), and each plan change is
 // pushed to the organization's gateways once it is committed (the AI Gateway subscribes to the module's
-// plan-changed event, subplanv1.EventPlanChanged).
+// plan-changed event, EventPlanChanged, which planSource names).
 
 // gatewayUnits are the throttle units a gateway takes for its single limit.
 var gatewayUnits = map[string]bool{"MINUTE": true, "HOUR": true, "DAY": true, "MONTH": true}
 
 // planSource lists an organization's plans for its gateways.
 type planSource struct{ plans *planService }
+
+// ChangeEvent is the event the module publishes when a plan changes.
+func (planSource) ChangeEvent() string { return EventPlanChanged }
 
 // pageSize bounds one read of the plans; ListPlans reads them all, page by page.
 const pageSize = 500

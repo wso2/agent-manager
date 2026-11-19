@@ -153,9 +153,28 @@ func TestAIHubRoutesAreAudited(t *testing.T) {
 		assert.True(t, strings.HasPrefix(meta.Path, "/m/aihub/"), "%s is outside /m/aihub", meta.Pattern)
 	}
 	require.Len(t, internal, 1)
-	// The internal server lists its routes below /api/internal/v1.
-	assert.Equal(t, "POST "+strings.TrimPrefix(aihub.WebhookRoutePath, "/api/internal/v1"), internal[0].Pattern)
+	// The webhook is the module's own (HandleWebhook), not one at a fixed core path.
+	assert.Equal(t, "POST "+aihub.WebhookRoutePath, internal[0].Pattern)
+	assert.Equal(t, "POST /m/aihub/webhooks/events", internal[0].Pattern)
 	assert.Equal(t, audit.Action("aihub:plan-sync"), internal[0].Action)
+}
+
+// TestAIHubPermissionsGateRoutes checks that every plans route names one of the module's permissions and that
+// each permission gates a route, so none is declared, granted to roles, and never checked.
+func TestAIHubPermissionsGateRoutes(t *testing.T) {
+	m := aihub.Module()
+	host, _, _ := mountedModule(t, m)
+	routes := host.Routes(aihub.Name)
+	require.NotEmpty(t, routes)
+	used := map[string]bool{}
+	for _, r := range routes {
+		require.NotEmpty(t, r.Permission, "%s names no permission", r.Pattern())
+		used[string(r.Permission)] = true
+	}
+	mf := m.Manifest()
+	for _, p := range mf.Permissions {
+		assert.True(t, used[mf.PermissionName(p.Name)], "%s gates no route", mf.PermissionName(p.Name))
+	}
 }
 
 // checkModuleAudited checks that every route of mf that changes state is
@@ -274,7 +293,7 @@ func TestCoreSpecHasNoModulePaths(t *testing.T) {
 // never called, and returns its ledgers.
 func mountedGateway(t *testing.T) (*modhost.Host, []audit.RouteMeta, []audit.RouteMeta) {
 	t.Helper()
-	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory(), Permissions: gwsvc.NewPermissions(), Secrets: gwsecret.NewStore()}
+	gw := &gwwire.Gateway{IdentityDirectory: gwsvc.NewIdentityDirectory(), SubscriptionPlans: gwsvc.NewSubscriptionPlans(), Permissions: gwsvc.NewPermissions(), Secrets: gwsecret.NewStore()}
 	fillControllers(t, reflect.ValueOf(gw).Elem(), gatewayControllerConstructors)
 	prev := aigateway.Current()
 	aigateway.SetCurrent(gw)

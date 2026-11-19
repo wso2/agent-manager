@@ -77,6 +77,7 @@ Every table a worker claims rows from carries `claimed_by` (short text (255), nu
 | id | ID | no | PK |
 | handle | short text (63) | no | Unique. URL name. `^[a-z0-9]+(-[a-z0-9]+)*$`, checked by the app. |
 | display_name | short text (255) | no | |
+| display_name_folded | short text (255) | no | The name case-folded (Unicode), which the list's search matches: SQLite's `LOWER` folds ASCII only. |
 | description | short text (1000) | yes | |
 | thunder_ou_id | short text (64) | yes | Thunder org unit holding this org's agent identities. Not unique (rule 8); Thunder guarantees it. |
 | created_by | short text (255) | yes | Username. NULL for system-created rows. |
@@ -442,7 +443,7 @@ Organizations are not deleted in Lite.
 
 ### AI Hub module tables
 
-The `aihub` module (`modules/aihub`) creates its two tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them.
+The `aihub` module (`modules/aihub`) creates its three tables with its own migrations, rendered from `modules/aihub/schema/001_subscription_plans.yaml` by `make schema`. They have no foreign keys into core tables: `org_id` holds the organization's id. `amp-core` doesn't have them, nor does `amp` until the module is installed (`amp module install aihub`).
 
 **mod_aihub_subscription_plans**: one row per plan of an organization.
 
@@ -457,6 +458,7 @@ The `aihub` module (`modules/aihub`) creates its two tables with its own migrati
 | expiry_time | time | yes | |
 | created_by, updated_by | short text (255) | yes | Empty for plans copied in by the webhook |
 | created_at, updated_at | time | no | A plan copied in by the webhook is dated when it was made at its source. |
+| source_changed_at | time | yes | When the plan last changed at the developer portal it was copied from, by the portal's clock; a webhook delivery of an earlier change changes nothing. Null for a plan made here. |
 
 Unique (org_id, handle) and (org_id, id).
 
@@ -471,6 +473,17 @@ Unique (org_id, handle) and (org_id, id).
 | sort_order | whole number | no | |
 
 PK (plan_id, condition_id).
+
+**mod_aihub_deleted_plans**: plans deleted at the developer portal they were copied from, kept for 30 days, so a create or update made before the deletion and delivered after it doesn't bring the plan back.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| org_id | ID | no | The organization's id (no foreign key) |
+| handle | short text (40) | no | The deleted plan's handle |
+| deleted_at | time | no | When the plan was deleted at the portal, by its clock; the latest deletion is kept |
+| recorded_at | time | no | When the deletion was recorded here; rows older than 30 days are pruned |
+
+PK (org_id, handle).
 
 ## Known differences from the code
 

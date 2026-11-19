@@ -34,7 +34,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	_ "github.com/wso2/agent-manager/agent-manager-service/modules/aigateway" // the full distribution's routes
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aihub/aihubperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -162,10 +161,6 @@ func TestSecurityInvariantEveryRouteIsAuthorized(t *testing.T) {
 
 	forEachRouteRegistration(t, func(route routeRegistration) {
 		if authzBearingRegistrars[route.registrar] {
-			return
-		}
-		// A module route (rt.Handle) names its permission, which the core checks before the handler.
-		if route.registrar == "Handle" && len(route.permissions) > 0 {
 			return
 		}
 		found[route.key()] = true
@@ -467,15 +462,11 @@ func TestSecurityInvariantHandlersNeverReadOrgFromPath(t *testing.T) {
 var routePackages = []string{
 	".", filepath.Join("..", "mcp"),
 	filepath.Join("..", "modules", "aigateway", "gwapi"),
-	filepath.Join("..", "modules", "aihub"),
 }
 
 // modulePermissionPackages declare the modules' permissions, as
 // <package>.<Name> string constants.
-var modulePermissionPackages = []string{
-	filepath.Join("..", "modules", "aigateway", "gwperm"),
-	filepath.Join("..", "modules", "aihub", "aihubperm"),
-}
+var modulePermissionPackages = []string{filepath.Join("..", "modules", "aigateway", "gwperm")}
 
 // forEachRouteRegistration walks every production Go file in routePackages and
 // invokes fn for every net/http or RouteRegistrar registration call. Permission
@@ -553,11 +544,6 @@ func registrarPermissions(call *ast.CallExpr) []string {
 	case "HandleFuncWithValidationAndAnyAuthz", "HandleFuncWithValidationAndAllAuthz":
 		if len(call.Args) > 2 {
 			args = call.Args[2:]
-		}
-	case "Handle":
-		// A module route: rt.Handle(method, path, perm, h, opts...).
-		if len(call.Args) >= 4 {
-			args = call.Args[2:3]
 		}
 	}
 
@@ -833,14 +819,14 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 			t.Errorf("reviewed role mapping %s -> %s has no entry in rbac.PredefinedRolePermissions", roleConstant, handle)
 		}
 	}
-	// The default modules (the AI Gateway and the AI Hub) grant their own
-	// permissions, as the bootstrap renders them (see thunderBootstrap).
+	// The AI Gateway module grants its own permissions, as the bootstrap
+	// renders them (see thunderBootstrap).
 	byName := map[string]string{
 		rbac.RoleAdmin: "admin", rbac.RoleDeveloper: "developer",
 		rbac.RoleAILead: "ai-lead", rbac.RolePlatformEngineer: "platform-engineer",
 	}
 	for _, m := range modkit.Registered() {
-		if mf := m.Manifest(); mf.Name == gwperm.Module || mf.Name == aihubperm.Module {
+		if mf := m.Manifest(); mf.Name == gwperm.Module {
 			for role, names := range mf.RoleGrants {
 				for _, n := range names {
 					roles[byName[role]][rbac.Permission(mf.PermissionName(n)).Scope()] = true
@@ -855,11 +841,11 @@ func predefinedRoleScopesByHandle(t *testing.T) map[string]map[string]bool {
 // install generates.
 func thunderBootstrap(t *testing.T) map[string][]byte {
 	t.Helper()
-	// The full distribution's bootstrap: the core's resources and those of its
-	// default modules, the AI Gateway and the AI Hub.
+	// The full distribution's bootstrap: the core's resources and the AI
+	// Gateway module's.
 	cfg := ampinit.SampleThunderConfig()
 	for _, m := range modkit.Registered() {
-		if name := m.Manifest().Name; name == gwperm.Module || name == aihubperm.Module {
+		if m.Manifest().Name == gwperm.Module {
 			cfg.Modules = append(cfg.Modules, m.Manifest())
 		}
 	}

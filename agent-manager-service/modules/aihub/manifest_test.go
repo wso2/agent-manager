@@ -20,19 +20,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aihub/aihubperm"
 )
 
-// The full names in aihubperm are the manifest's permissions as the host names them.
+// The short names the routes use are the manifest's permissions.
 func TestPermissionNamesMatchManifest(t *testing.T) {
 	mf := Module().Manifest()
-	var full []string
+	var names []string
 	for _, p := range mf.Permissions {
-		full = append(full, mf.PermissionName(p.Name))
+		names = append(names, p.Name)
 	}
-	assert.Equal(t, aihubperm.Module, mf.Name)
-	assert.ElementsMatch(t, []string{
-		aihubperm.PlanRead, aihubperm.PlanCreate, aihubperm.PlanUpdate, aihubperm.PlanDelete,
-	}, full)
+	assert.Equal(t, Name, mf.Name)
+	assert.ElementsMatch(t, []string{PermPlanRead, PermPlanCreate, PermPlanUpdate, PermPlanDelete}, names)
 }

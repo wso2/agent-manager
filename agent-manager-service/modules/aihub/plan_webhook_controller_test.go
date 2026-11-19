@@ -17,6 +17,8 @@
 package aihub
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -28,6 +30,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 )
 
 const testSecret = "s3cret-shared-with-the-sender"
@@ -180,4 +184,29 @@ func TestReceiverRejectsAlike(t *testing.T) {
 	}
 	assert.True(t, isClientFault(errSignatureInvalid))
 	assert.False(t, isClientFault(errors.New("database is down")))
+}
+
+// failingCore fails every organization lookup, as a database that is down would.
+type failingCore struct{ modkit.CoreAPI }
+
+func (failingCore) GetOrgByHandle(context.Context, string) (modkit.Org, error) {
+	return modkit.Org{}, errors.New("database is down")
+}
+
+// A failure on this side answers 503, which senders retry; 401 would tell them to give up on the change.
+func TestReceiverAnswersOurFailuresWithServiceUnavailable(t *testing.T) {
+	r := &webhookReceiver{cfg: webhookConfig{
+		Enabled: true, Secret: testSecret, SignatureHeader: DefaultWebhookSignatureHeader,
+		SignatureTolerance: time.Minute, MaxBodyBytes: 1 << 20,
+	}, core: failingCore{}, log: slog.New(slog.DiscardHandler), now: time.Now}
+	body := []byte(`{"event_id":"e1","event_type":"subscription_plan.deleted","org":{"ref_id":"acme"},` +
+		`"secret_hash":"` + SecretHash(testSecret) + `","data":{"handle":"gold"}}`)
+	req := httptest.NewRequest(http.MethodPost, WebhookRoutePath, bytes.NewReader(body))
+	req.Header.Set(DefaultWebhookSignatureHeader, Sign(testSecret, body, time.Now()))
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+	assert.JSONEq(t, `{"status":"error","code":"SERVICE_UNAVAILABLE","message":"The delivery could not be processed. Retry later."}`,
+		rec.Body.String())
+	assert.True(t, isClientFault(errWebhookDisabled), "a disabled webhook stays a 401: a retry can't succeed")
 }

@@ -9,6 +9,8 @@ tables:
       - {name: org_id, type: id}
       - {name: handle, type: text, size: 40}
       - {name: display_name, type: text, size: 255}
+      # The name case-folded (Unicode), which the list's search matches: SQLite's LOWER folds ASCII only.
+      - {name: display_name_folded, type: text, size: 255}
       - {name: description, type: text, size: 1023, nullable: true}
       - {name: status, type: text, size: 16}
       - {name: expiry_time, type: time, nullable: true}
@@ -16,6 +18,9 @@ tables:
       - {name: updated_by, type: text, size: 255, nullable: true}
       - {name: created_at, type: time}
       - {name: updated_at, type: time}
+      # When the plan last changed at the developer portal it was copied from, by the portal's clock: a webhook
+      # delivery that happened earlier is out of date and changes nothing. Null for a plan made here.
+      - {name: source_changed_at, type: time, nullable: true}
     primary_key: [id]
     unique: [[org_id, handle], [org_id, id]]
 
@@ -32,3 +37,14 @@ tables:
     primary_key: [plan_id, condition_id]
     foreign_keys:
       - {columns: [org_id, plan_id], references: mod_aihub_subscription_plans, ref_columns: [org_id, id], on_delete: cascade}
+
+  # Plans deleted at the developer portal they were copied from, kept for a while after the deletion, so a
+  # create or update delivered after it (a retry of an older event) doesn't bring the plan back.
+  # deleted_at is the portal's clock; recorded_at is ours, for pruning.
+  - name: mod_aihub_deleted_plans
+    columns:
+      - {name: org_id, type: id}
+      - {name: handle, type: text, size: 40}
+      - {name: deleted_at, type: time}
+      - {name: recorded_at, type: time}
+    primary_key: [org_id, handle]

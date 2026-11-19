@@ -504,9 +504,6 @@ func TestRegistrationsThatFailActivationG1(t *testing.T) {
 // list is empty again, HandleInternalAt goes.
 var internalAtUsers = map[string]bool{
 	"aigateway": true, // its controller API at /api/internal/v1
-	// The developer portal's plan webhook at /api/internal/v1/webhook/events: the portal signs each delivery
-	// with a shared secret and can't present a workload token.
-	"aihub": true,
 }
 
 func TestHandleInternalAtUsers(t *testing.T) {

@@ -61,6 +61,7 @@ type gatewayInternalController struct {
 	gatewayInternalService *gwsvc.GatewayInternalAPIService
 	apiKeyRepo             gwrepo.APIKeyRepository
 	aiApplicationRepo      gwrepo.AIApplicationRepository
+	plans                  *gwsvc.SubscriptionPlans
 }
 
 // NewGatewayInternalController creates a new gateway internal controller
@@ -69,12 +70,14 @@ func NewGatewayInternalController(
 	gatewayInternalService *gwsvc.GatewayInternalAPIService,
 	apiKeyRepo gwrepo.APIKeyRepository,
 	aiApplicationRepo gwrepo.AIApplicationRepository,
+	plans *gwsvc.SubscriptionPlans,
 ) GatewayInternalController {
 	return &gatewayInternalController{
 		gatewayService:         gatewayService,
 		gatewayInternalService: gatewayInternalService,
 		apiKeyRepo:             apiKeyRepo,
 		aiApplicationRepo:      aiApplicationRepo,
+		plans:                  plans,
 	}
 }
 
@@ -467,7 +470,7 @@ func (c *gatewayInternalController) GetSubscriptionPlans(w http.ResponseWriter, 
 		return
 	}
 	out := []gatewaySubscriptionPlan{}
-	if source, ok := subscriptionPlanSource(); ok {
+	if source, ok := c.plans.Source(); ok {
 		plans, err := source.ListPlans(r.Context(), identity.OUID)
 		if err != nil {
 			logger.GetLogger(r.Context()).Error("Failed to list subscription plans for a gateway",

@@ -84,8 +84,12 @@ export interface FeatureAccessConfig {
   mcp_server_write: boolean;
   /** View subscription plans (the AI Hub module). */
   subscription_plan_read: boolean;
-  /** Create, update and delete subscription plans. */
-  subscription_plan_write: boolean;
+  /** Create subscription plans. */
+  subscription_plan_create: boolean;
+  /** Edit subscription plans, including their status. */
+  subscription_plan_update: boolean;
+  /** Delete subscription plans. */
+  subscription_plan_delete: boolean;
   evaluator_read: boolean;
   evaluator_write: boolean;
   monitor_read: boolean;

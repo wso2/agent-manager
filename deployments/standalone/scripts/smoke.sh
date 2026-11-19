@@ -146,7 +146,6 @@ if [ "$CONSOLE" = yes ]; then
   check config-console-env yes "$(has "gatewayVersion: 'v")"
   check config-scopes-gateway "$(pick yes no)" "$(has 'amp:ai-gateway:gateways.read')"
   check config-scopes-core yes "$(has 'amp:agent:create')"
-  check config-scopes-aihub "$([ "$DIST" = amp-core ] && echo no || echo yes)" "$(has 'amp:aihub:plan-read')"
 else
   skip "console files (--no-console)"
 fi
@@ -156,17 +155,8 @@ check ui-manifest-needs-token 401 "$(code "$API/api/v1/ui-manifest")"
 check ui-manifest 200 "$(code "${A[@]}" "$API/api/v1/ui-manifest")"
 CORE_PAGES=acp-core/external-agent
 GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity
-# The AI Hub (subscription plans) is on in both amp and amp-off; amp-core links no module. Modules are listed
-# in activation order: the AI Hub provides the plans the AI Gateway reads, so it comes first.
-PLAN_PAGES=aihub/subscription-plans
-case "$DIST" in
-  amp) PAGES="$CORE_PAGES,$PLAN_PAGES,$GW_PAGES" MODS=core,aihub,ai-gateway ;;
-  amp-off) PAGES="$CORE_PAGES,$PLAN_PAGES" MODS=core,aihub ;;
-  *) PAGES="$CORE_PAGES" MODS=core ;;
-esac
-check ui-manifest-pages "$PAGES" "$(jq -r '.pages | join(",")' "$BODY")"
-check ui-manifest-modules "$MODS" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
-check aihub-plans "$([ "$DIST" = amp-core ] && echo 404 || echo 200)" "$(code "${A[@]}" "$API/m/aihub/subscription-plans")"
+check ui-manifest-pages "$(pick "$CORE_PAGES,$GW_PAGES" "$CORE_PAGES")" "$(jq -r '.pages | join(",")' "$BODY")"
+check ui-manifest-modules "$(pick core,ai-gateway core)" "$(jq -r '[.modules[].name] | join(",")' "$BODY")"
 
 echo "== $DIST: $pass passed, $fail failed, $skipped skipped"
 [ "$fail" -eq 0 ]

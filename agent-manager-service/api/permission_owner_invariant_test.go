@@ -26,6 +26,12 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
+// manifestOnlyModules are linked modules whose routes name their manifest's
+// permissions by short name, with no permission package for this walk:
+// TestAIHubPermissionsGateRoutes holds the AI Hub's to the same rules on its
+// mounted routes.
+var manifestOnlyModules = map[string]bool{"aihub": true}
+
 // manifestRegistry is the permission registry of the core plus the linked
 // modules, which together declare every permission of the full distribution.
 func manifestRegistry(t *testing.T) *rbac.Registry {
@@ -33,6 +39,9 @@ func manifestRegistry(t *testing.T) *rbac.Registry {
 	reg := rbac.NewRegistry()
 	for _, m := range modkit.Registered() {
 		mf := m.Manifest()
+		if manifestOnlyModules[mf.Name] {
+			continue
+		}
 		perms := make([]rbac.Permission, 0, len(mf.Permissions))
 		for _, p := range mf.Permissions {
 			perms = append(perms, rbac.Permission(mf.PermissionName(p.Name)))

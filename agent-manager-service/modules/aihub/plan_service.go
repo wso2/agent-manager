@@ -18,6 +18,7 @@ package aihub
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -27,7 +28,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/unicode/norm"
 	"gorm.io/gorm"
+
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dberr"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 )
 
 // Plan statuses. Only an ACTIVE plan can be offered or subscribed to.
@@ -59,6 +65,9 @@ type plan struct {
 	UpdatedBy   string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	// SourceChangedAt is when the plan last changed at the developer portal it was copied from, by the portal's
+	// clock; nil for a plan made here.
+	SourceChangedAt *time.Time
 }
 
 // planUpdate is a change to a plan. A nil field keeps the stored value.
@@ -74,6 +83,9 @@ type planUpdate struct {
 	// FromWebhook marks a change that came in by webhook from where the plan was made: the rule
 	// that a plan in use keeps its name and conditions does not apply to the source's own changes.
 	FromWebhook bool
+	// SourceChangedAt is when the change was made at the source (FromWebhook): a change older than the
+	// plan's last one there, or than its deletion there, is out of date and is not applied (errStaleEvent).
+	SourceChangedAt *time.Time
 }
 
 // usage is what offers or uses a plan. A plan in use keeps its name and conditions and can't be deleted.
@@ -88,6 +100,9 @@ func (u usage) inUse() bool { return u.MCPProxies > 0 || u.Subscriptions > 0 }
 var (
 	errPlanNotFound = errors.New("the specified subscription plan could not be found")
 	errPlanExists   = errors.New("a subscription plan with this name already exists")
+	// errStaleEvent refuses a webhook change made at the source before the plan's last change there, or
+	// before its deletion there: applying it would bring back an older state.
+	errStaleEvent = errors.New("the change is older than the plan's last change at its source")
 )
 
 // inUseError refuses deleting a plan, or changing its name or conditions, while something offers or uses it.
@@ -138,6 +153,8 @@ type planRow struct {
 	UpdatedBy   *string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
+	// SourceChangedAt, see plan.
+	SourceChangedAt *time.Time
 }
 
 type conditionRow struct {
@@ -148,7 +165,11 @@ type conditionRow struct {
 }
 
 const planColumns = `id, org_id, handle, display_name, description, status, expiry_time, created_by, updated_by, ` +
-	`created_at, updated_at`
+	`created_at, updated_at, source_changed_at`
+
+// foldName is how names are compared in a search: Unicode case-folded, in one normal form. It is stored with each
+// plan (display_name_folded), since SQLite's LOWER folds ASCII only.
+func foldName(s string) string { return cases.Fold().String(norm.NFC.String(s)) }
 
 // listOptions pages and filters a plan list (GET /subscription-plans).
 type listOptions struct {
@@ -164,9 +185,10 @@ func searchClause(search string) (string, []any) {
 	if s == "" {
 		return "", nil
 	}
-	esc := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(strings.ToLower(s))
-	return ` AND (LOWER(display_name) LIKE ? ESCAPE '\' OR LOWER(handle) LIKE ? ESCAPE '\')`,
-		[]any{"%" + esc + "%", "%" + esc + "%"}
+	escape := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace
+	// A handle is ASCII, so LOWER folds it on every database.
+	return ` AND (display_name_folded LIKE ? ESCAPE '\' OR LOWER(handle) LIKE ? ESCAPE '\')`,
+		[]any{"%" + escape(foldName(s)) + "%", "%" + escape(strings.ToLower(s)) + "%"}
 }
 
 func listFilter(orgID string, opts listOptions) (string, []any) {
@@ -182,33 +204,62 @@ func listFilter(orgID string, opts listOptions) (string, []any) {
 	return where, args
 }
 
-// list returns a page of the organization's plans, newest first, and the number of plans that match.
+// list returns a page of the organization's plans, newest first, and the number of plans that match. The plans
+// and their conditions are read in one snapshot (read), so a plan never pairs one version's fields with
+// another's conditions.
 func (s *planService) list(ctx context.Context, orgID string, opts listOptions) ([]*plan, int, error) {
-	db := s.db().WithContext(ctx)
-	where, args := listFilter(orgID, opts)
+	var out []*plan
 	var total int64
-	if err := db.Raw(`SELECT COUNT(*) FROM mod_aihub_subscription_plans`+where, args...).Scan(&total).Error; err != nil {
-		return nil, 0, fmt.Errorf("count plans: %w", err)
-	}
-	var rows []planRow
-	if err := db.Raw(`SELECT `+planColumns+` FROM mod_aihub_subscription_plans`+where+
-		` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, append(args, opts.Limit, opts.Offset)...).
-		Scan(&rows).Error; err != nil {
-		return nil, 0, fmt.Errorf("list plans: %w", err)
-	}
-	out := make([]*plan, 0, len(rows))
-	for _, r := range rows {
-		p, err := s.withConditions(db, r)
-		if err != nil {
-			return nil, 0, err
+	err := s.read(ctx, func(tx *gorm.DB) error {
+		where, args := listFilter(orgID, opts)
+		if err := tx.Raw(`SELECT COUNT(*) FROM mod_aihub_subscription_plans`+where, args...).Scan(&total).Error; err != nil {
+			return fmt.Errorf("count plans: %w", err)
 		}
-		out = append(out, p)
+		var rows []planRow
+		if err := tx.Raw(`SELECT `+planColumns+` FROM mod_aihub_subscription_plans`+where+
+			` ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`, append(args, opts.Limit, opts.Offset)...).
+			Scan(&rows).Error; err != nil {
+			return fmt.Errorf("list plans: %w", err)
+		}
+		var err error
+		out, err = s.withConditions(tx, orgID, rows)
+		return err
+	})
+	if err != nil {
+		return nil, 0, err
 	}
 	return out, int(total), nil
 }
 
+// read runs fn in a read-only transaction that sees one snapshot: REPEATABLE READ on PostgreSQL; on SQLite a
+// transaction already does.
+func (s *planService) read(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	db := s.db().WithContext(ctx)
+	if db.Name() == "postgres" {
+		return db.Transaction(fn, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	}
+	return db.Transaction(fn)
+}
+
+// lockPlan holds the plan's row until the transaction ends, so two changes of one plan run one after the
+// other and the second reads what the first wrote. A plan that doesn't exist locks nothing; the read that
+// follows reports it.
+func lockPlan(tx *gorm.DB, orgID, handle string) error {
+	err := dbx.LockRow(tx, "mod_aihub_subscription_plans", "id", "org_id = ? AND handle = ?", orgID, handle)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return fmt.Errorf("lock plan %s: %w", handle, err)
+	}
+	return nil
+}
+
 func (s *planService) get(ctx context.Context, orgID, handle string) (*plan, error) {
-	return s.getTx(s.db().WithContext(ctx), orgID, handle)
+	var p *plan
+	err := s.read(ctx, func(tx *gorm.DB) error {
+		var err error
+		p, err = s.getTx(tx, orgID, handle)
+		return err
+	})
+	return p, err
 }
 
 func (s *planService) getTx(tx *gorm.DB, orgID, handle string) (*plan, error) {
@@ -220,21 +271,46 @@ func (s *planService) getTx(tx *gorm.DB, orgID, handle string) (*plan, error) {
 	if len(rows) == 0 {
 		return nil, errPlanNotFound
 	}
-	return s.withConditions(tx, rows[0])
+	plans, err := s.withConditions(tx, orgID, rows)
+	if err != nil {
+		return nil, err
+	}
+	return plans[0], nil
 }
 
-// withConditions reads a plan's conditions. Stored params are normalized again, because PostgreSQL's JSONB reorders
-// keys and adds spaces: without this, equal conditions would compare as different. A stored condition that no
-// longer validates is kept as it is.
-func (s *planService) withConditions(tx *gorm.DB, r planRow) (*plan, error) {
+// withConditions reads the plans' conditions, in one query. Stored params are normalized again, because
+// PostgreSQL's JSONB reorders keys and adds spaces: without this, equal conditions would compare as different.
+// A stored condition that no longer validates is kept as it is.
+func (s *planService) withConditions(tx *gorm.DB, orgID string, rows []planRow) ([]*plan, error) {
+	out := make([]*plan, 0, len(rows))
+	if len(rows) == 0 {
+		return out, nil
+	}
+	ids := make([]string, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.ID)
+	}
 	var conds []conditionRow
 	if err := tx.Raw(`SELECT plan_id, condition_id, condition_type, params FROM mod_aihub_subscription_plan_conditions `+
-		`WHERE org_id = ? AND plan_id = ? ORDER BY sort_order`, r.OrgID, r.ID).Scan(&conds).Error; err != nil {
-		return nil, fmt.Errorf("get conditions of plan %s: %w", r.Handle, err)
+		`WHERE org_id = ? AND plan_id IN ? ORDER BY plan_id, sort_order`, orgID, ids).Scan(&conds).Error; err != nil {
+		return nil, fmt.Errorf("get conditions of plans: %w", err)
 	}
+	byPlan := map[string][]Condition{}
+	for _, c := range conds {
+		byPlan[c.PlanID] = append(byPlan[c.PlanID], Condition{ID: c.ConditionID, Type: c.ConditionType, Params: []byte(c.Params)})
+	}
+	for _, r := range rows {
+		out = append(out, s.planFrom(r, byPlan[r.ID]))
+	}
+	return out, nil
+}
+
+// planFrom builds a plan from its row and its stored conditions.
+func (s *planService) planFrom(r planRow, raw []Condition) *plan {
 	p := &plan{
-		UUID: r.ID, OrgID: r.OrgID, Handle: r.Handle, Name: r.DisplayName, Status: r.Status,
-		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(), Conditions: []Condition{},
+		UUID: r.ID, OrgID: r.OrgID, Handle: r.Handle, Name: r.DisplayName, Description: "", Status: r.Status,
+		ExpiryTime: nil, Conditions: []Condition{}, CreatedBy: "", UpdatedBy: "",
+		CreatedAt: r.CreatedAt.UTC(), UpdatedAt: r.UpdatedAt.UTC(), SourceChangedAt: nil,
 	}
 	if r.Description != nil {
 		p.Description = *r.Description
@@ -249,9 +325,12 @@ func (s *planService) withConditions(tx *gorm.DB, r planRow) (*plan, error) {
 	if r.UpdatedBy != nil {
 		p.UpdatedBy = *r.UpdatedBy
 	}
-	raw := make([]Condition, 0, len(conds))
-	for _, c := range conds {
-		raw = append(raw, Condition{ID: c.ConditionID, Type: c.ConditionType, Params: []byte(c.Params)})
+	if r.SourceChangedAt != nil {
+		t := r.SourceChangedAt.UTC()
+		p.SourceChangedAt = &t
+	}
+	if len(raw) == 0 {
+		return p
 	}
 	if normalized, err := normalizeConditions(raw); err == nil {
 		p.Conditions = normalized
@@ -260,7 +339,7 @@ func (s *planService) withConditions(tx *gorm.DB, r planRow) (*plan, error) {
 			"plan", r.Handle, "error", err)
 		p.Conditions = raw
 	}
-	return p, nil
+	return p
 }
 
 func (s *planService) getUsage(ctx context.Context, p *plan) (usage, error) {
@@ -292,32 +371,34 @@ func (s *planService) create(ctx context.Context, orgID, actor string, p *plan) 
 	}
 	var created *plan
 	err = s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if _, err := s.getTx(tx, orgID, p.Handle); err == nil {
-			return errPlanExists
-		} else if !errors.Is(err, errPlanNotFound) {
-			return err
+		if p.SourceChangedAt != nil {
+			if err := checkNotDeletedSince(tx, orgID, p.Handle, *p.SourceChangedAt); err != nil {
+				return err
+			}
 		}
-		if err := tx.Exec(`INSERT INTO mod_aihub_subscription_plans (`+planColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			id.String(), orgID, p.Handle, p.Name, nullable(p.Description), p.Status, p.ExpiryTime,
-			nullable(actor), nullable(actor), createdAt, now).Error; err != nil {
+		// Only a taken handle is a conflict; any other error is returned as it is. The insert runs in a
+		// savepoint, since a failed statement aborts the transaction on PostgreSQL.
+		err := tx.Transaction(func(sp *gorm.DB) error {
+			return sp.Exec(`INSERT INTO mod_aihub_subscription_plans (`+planColumns+`, display_name_folded) `+
+				`VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				id.String(), orgID, p.Handle, p.Name, nullable(p.Description), p.Status, p.ExpiryTime,
+				nullable(actor), nullable(actor), createdAt, now, p.SourceChangedAt, foldName(p.Name)).Error
+		})
+		if dberr.IsDuplicateKey(err) {
+			return errPlanExists
+		}
+		if err != nil {
 			return fmt.Errorf("insert plan %s: %w", p.Handle, err)
 		}
 		if err := insertConditions(tx, orgID, id.String(), p.Conditions); err != nil {
 			return err
 		}
-		var err error
 		if created, err = s.getTx(tx, orgID, p.Handle); err != nil {
 			return err
 		}
 		return s.publish(ctx, tx, changedEvent(created, "created"))
 	})
 	if err != nil {
-		// Two creates of one handle at once: the loser's insert fails on the unique key after the check.
-		if !errors.Is(err, errPlanExists) {
-			if _, getErr := s.get(ctx, orgID, p.Handle); getErr == nil {
-				return nil, errPlanExists
-			}
-		}
 		return nil, err
 	}
 	s.log.InfoContext(ctx, "subscription plan created", "orgId", orgID, "plan", created.Handle, "planId", created.UUID,
@@ -330,9 +411,21 @@ func (s *planService) create(ctx context.Context, orgID, actor string, p *plan) 
 func (s *planService) update(ctx context.Context, orgID, handle, actor string, u *planUpdate) (*plan, error) {
 	var updated *plan
 	err := s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockPlan(tx, orgID, handle); err != nil {
+			return err
+		}
 		existing, err := s.getTx(tx, orgID, handle)
 		if err != nil {
 			return err
+		}
+		if at := u.SourceChangedAt; at != nil {
+			if existing.SourceChangedAt != nil && at.Before(*existing.SourceChangedAt) {
+				return errStaleEvent
+			}
+			if err := checkNotDeletedSince(tx, orgID, handle, *at); err != nil {
+				return err
+			}
+			existing.SourceChangedAt = at
 		}
 		conditions, err := updatedConditions(existing, u)
 		if err != nil {
@@ -375,10 +468,11 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 			}
 		}
 		now := s.now().UTC()
-		if err := tx.Exec(`UPDATE mod_aihub_subscription_plans SET display_name = ?, description = ?, status = ?, `+
-			`expiry_time = ?, updated_by = ?, updated_at = ? WHERE org_id = ? AND id = ?`,
-			existing.Name, nullable(existing.Description), existing.Status, existing.ExpiryTime, nullable(actor), now,
-			orgID, existing.UUID).Error; err != nil {
+		if err := tx.Exec(`UPDATE mod_aihub_subscription_plans SET display_name = ?, display_name_folded = ?, `+
+			`description = ?, status = ?, expiry_time = ?, updated_by = ?, updated_at = ?, source_changed_at = ? `+
+			`WHERE org_id = ? AND id = ?`,
+			existing.Name, foldName(existing.Name), nullable(existing.Description), existing.Status, existing.ExpiryTime,
+			nullable(actor), now, existing.SourceChangedAt, orgID, existing.UUID).Error; err != nil {
 			return fmt.Errorf("update plan %s: %w", handle, err)
 		}
 		if !sameConditions(existing.Conditions, conditions) {
@@ -407,6 +501,9 @@ func (s *planService) update(ctx context.Context, orgID, handle, actor string, u
 func (s *planService) delete(ctx context.Context, orgID, handle, actor string) error {
 	var deleted *plan
 	err := s.db().WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockPlan(tx, orgID, handle); err != nil {
+			return err
+		}
 		existing, err := s.getTx(tx, orgID, handle)
 		if err != nil {
 			return err
@@ -418,15 +515,11 @@ func (s *planService) delete(ctx context.Context, orgID, handle, actor string) e
 		if use.inUse() {
 			return planInUse(existing.Name)
 		}
-		// The conditions go with the plan (ON DELETE CASCADE).
-		if err := tx.Exec(`DELETE FROM mod_aihub_subscription_plans WHERE org_id = ? AND id = ?`, orgID, existing.UUID).Error; err != nil {
-			return fmt.Errorf("delete plan %s: %w", handle, err)
+		if err := deletePlanRow(tx, orgID, existing); err != nil {
+			return err
 		}
 		deleted = existing
-		return s.publish(ctx, tx, planChanged{
-			OrgID: orgID, PlanID: existing.UUID, Handle: existing.Handle,
-			PlanName: existing.Name, Action: "deleted",
-		})
+		return s.publish(ctx, tx, deletedEvent(existing))
 	})
 	if err != nil {
 		return err
@@ -434,6 +527,28 @@ func (s *planService) delete(ctx context.Context, orgID, handle, actor string) e
 	s.log.InfoContext(ctx, "subscription plan deleted", "orgId", orgID, "plan", handle, "planId", deleted.UUID,
 		"actor", actor)
 	return nil
+}
+
+// deletePlanRow deletes the plan, with its conditions (ON DELETE CASCADE). A plan another transaction deleted
+// first is not found, so only one deletion is published.
+func deletePlanRow(tx *gorm.DB, orgID string, p *plan) error {
+	res := tx.Exec(`DELETE FROM mod_aihub_subscription_plans WHERE org_id = ? AND id = ?`, orgID, p.UUID)
+	if res.Error != nil {
+		return fmt.Errorf("delete plan %s: %w", p.Handle, res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return errPlanNotFound
+	}
+	return nil
+}
+
+// deletedEvent is the event of a deleted plan: it names the plan only, so the fields of a change stay empty and
+// are left out.
+func deletedEvent(p *plan) planChanged {
+	return planChanged{
+		OrgID: p.OrgID, PlanID: p.UUID, Handle: p.Handle, PlanName: p.Name, Action: "deleted",
+		Status: "", ExpiryTime: nil, Conditions: nil,
+	}
 }
 
 func changedEvent(p *plan, action string) planChanged {

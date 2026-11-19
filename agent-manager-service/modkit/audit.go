@@ -59,8 +59,8 @@ func AuditResource(ctx context.Context, kind, id, name string) {
 	}
 }
 
-// InternalCaller is the caller of a HandleInternalAt route, which the handler
-// authenticates itself.
+// InternalCaller is the caller of a HandleInternalAt or HandleWebhook route,
+// which the handler authenticates itself.
 type InternalCaller struct {
 	// Kind is the kind of caller ("gateway"), ID its id once known.
 	Kind string
@@ -74,11 +74,10 @@ type InternalCaller struct {
 	CredentialPresent bool
 }
 
-// AuditInternalCaller names the caller of a HandleInternalAt route once the
-// handler authenticated it, so the route's record names it; a refused caller
-// is recorded as an authentication failure, at most once a minute per source
-// and reason. It goes away with HandleInternalAt, when workloads reach their
-// routes with core-issued tokens.
+// AuditInternalCaller names the caller of a HandleInternalAt or HandleWebhook
+// route once the handler authenticated it, so the route's record names it; a
+// refused caller is recorded as an authentication failure, at most once a
+// minute per source and reason.
 func AuditInternalCaller(ctx context.Context, c InternalCaller) {
 	if s := auditScope(ctx); s != nil {
 		s.AuditInternalCaller(ctx, c)

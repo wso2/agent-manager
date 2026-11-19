@@ -80,11 +80,12 @@ export const SCOPE_RULES: Record<keyof FeatureAccessConfig, ScopeRule> = {
   llm_proxy_write: llmProxy.write,
   mcp_server_read: mcpServer.read,
   mcp_server_write: mcpServer.write,
-  // Subscription plans (the AI Hub module, on by default).
+  // Subscription plans (the installable AI Hub module). Each action has its own scope, so a role
+  // that may only delete plans doesn't get the edit page or the status switch.
   subscription_plan_read: { anyOf: ['amp:aihub:plan-read'] },
-  subscription_plan_write: {
-    anyOf: ['amp:aihub:plan-create', 'amp:aihub:plan-update', 'amp:aihub:plan-delete'],
-  },
+  subscription_plan_create: { anyOf: ['amp:aihub:plan-create'] },
+  subscription_plan_update: { anyOf: ['amp:aihub:plan-update'] },
+  subscription_plan_delete: { anyOf: ['amp:aihub:plan-delete'] },
   evaluator_read: evaluator.read,
   evaluator_write: evaluator.write,
   monitor_read: monitor.read,

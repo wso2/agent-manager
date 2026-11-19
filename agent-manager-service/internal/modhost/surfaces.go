@@ -45,7 +45,11 @@ type Route struct {
 	Scope string
 	// At is the fixed path of a route mounted with HandleInternalAt, below
 	// /api/internal/v1; the route authenticates its callers itself.
-	At      string
+	At string
+	// Webhook marks a route mounted with HandleWebhook, at
+	// /m/<module>/webhooks<path> on the internal server; the route
+	// authenticates its callers itself.
+	Webhook bool
 	Handler http.HandlerFunc
 
 	// AuditAction, when set, is the full name of the route's audit action;
@@ -77,6 +81,9 @@ type Route struct {
 func (r Route) Pattern() string {
 	if r.At != "" {
 		return r.Method + " " + r.At
+	}
+	if r.Webhook {
+		return r.Method + " /m/" + r.Module + webhooksPrefix + r.Path
 	}
 	if r.Scope != "" {
 		return r.Method + " /m/" + r.Module + "/internal" + r.Path
@@ -111,8 +118,8 @@ type Deps struct {
 	// route middleware (permission check, audit, org resolution). It may
 	// panic on a route the middleware refuses.
 	Mount func(mux *http.ServeMux, r Route)
-	// MountInternal registers a module's HandleInternalAt route on mux
-	// behind the core's internal route middleware (audit). It may panic on a
+	// MountInternal registers a module's HandleInternalAt or HandleWebhook
+	// route on mux behind the core's internal route middleware (audit). It may panic on a
 	// route the middleware refuses.
 	MountInternal func(mux *http.ServeMux, r Route)
 	Core          modkit.CoreAPI
@@ -150,9 +157,8 @@ var _ coreext.Extensions = (*Host)(nil)
 func (h *Host) permission(module, name string) (rbac.Permission, error) {
 	mf := h.manifests[module]
 	for _, p := range mf.Permissions {
-		// By its short name, or its full name (<module>:<name>), as a module's permission constants spell it.
-		if p.Name == name || string(permissionName(mf, p.Name)) == name {
-			return permissionName(mf, p.Name), nil
+		if p.Name == name {
+			return permissionName(mf, name), nil
 		}
 	}
 	p := rbac.Permission(name)
@@ -259,8 +265,9 @@ func mountInternalAt(mount func(*http.ServeMux, Route), routes []Route) (mux *ht
 	return mux, nil
 }
 
-// ServeInternal serves module workload routes, mounted at /m/ on the internal
-// server: /m/<module>/internal/... A compiled-in module that is not active
+// ServeInternal serves module workload routes and webhooks, mounted at /m/ on
+// the internal server: /m/<module>/internal/... and /m/<module>/webhooks/...
+// A compiled-in module that is not active
 // answers 401 module_inactive, which tells its workloads to stand by.
 func (h *Host) ServeInternal() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -321,9 +328,11 @@ func mountPublic(mount func(*http.ServeMux, Route), routes []Route) (mux *http.S
 	return mux, nil
 }
 
-// mountInternal builds a module's workload mux: every route requires a
-// workload token issued for this module that carries the route's scope.
-func (h *Host) mountInternal(module string, routes []Route) (mux *http.ServeMux, err error) {
+// mountInternal builds a module's mux on the internal server. Every workload
+// route requires a workload token issued for this module that carries the
+// route's scope; its webhooks authenticate their senders themselves and sit
+// behind the internal route middleware (audit) only.
+func (h *Host) mountInternal(module string, routes, webhooks []Route, mount func(*http.ServeMux, Route)) (mux *http.ServeMux, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			err = fmt.Errorf("route refused: %v", p)
@@ -332,6 +341,13 @@ func (h *Host) mountInternal(module string, routes []Route) (mux *http.ServeMux,
 	mux = http.NewServeMux()
 	for _, rt := range routes {
 		mux.HandleFunc(rt.Pattern(), h.requireWorkload(module, rt.Scope, rt.Handler))
+	}
+	for _, rt := range webhooks {
+		if mount != nil {
+			mount(mux, rt)
+		} else {
+			mux.HandleFunc(rt.Pattern(), rt.Handler)
+		}
 	}
 	return mux, nil
 }

@@ -19,9 +19,10 @@
 // token and custom conditions) that MCP proxies offer and agents subscribe to. The gateway enforces them with the
 // subscription-validation (v2) and subscription rate-limit policies.
 //
-// It is an installable module the amp distribution installs by default. It holds the plans: their API
-// (plan_controller.go) at /m/aihub, and a webhook (plan_webhook_controller.go) through which plans made in a
-// developer portal are copied in. Gateways get every plan through the AI Gateway (subplanv1).
+// It is an optional module: the amp distribution links it, and an operator installs it with
+// `amp module install aihub`. It holds the plans: their API (plan_controller.go) at /m/aihub, and a webhook
+// (plan_webhook_controller.go) at /m/aihub/webhooks/events on the internal server, through which plans made in
+// a developer portal are copied in. Gateways get every plan through the AI Gateway (subplanv1).
 package aihub
 
 import (
@@ -35,16 +36,16 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/subplanv1"
-	"github.com/wso2/agent-manager/agent-manager-service/modules/aihub/aihubperm"
 )
 
 // Name is the module's name: its routes are under /m/aihub (the plans API at /m/aihub/subscription-plans),
 // its tables are mod_aihub_*, and its permissions are aihub:plan-<verb>.
 const Name = "aihub"
 
-// EventPlanChanged is published, in the same transaction, when a plan is created, updated or deleted. The AI
-// Gateway subscribes to it and pushes the change to the organization's gateways.
-const EventPlanChanged = subplanv1.EventPlanChanged
+// EventPlanChanged is published, in the same transaction, when a plan is created, updated or deleted, with a
+// subplanv1.PlanChange. The AI Gateway finds it through the capability (Source.ChangeEvent), subscribes to it
+// and pushes the change to the organization's gateways.
+const EventPlanChanged = Name + ".plan_changed"
 
 // Permissions, by their short names: the host names them aihub:<name>, and each action
 // has its own, so the audit trail names it.
@@ -134,19 +135,19 @@ func (module) Activate(_ context.Context, rt modkit.Runtime) error {
 		now:   time.Now,
 	}
 	a := &planController{plans: plans, core: rt.Core, log: log}
-	// The webhook a developer portal delivers plans to, on the internal server at the fixed path portals are
-	// configured with. It has no user sign-in: the receiver authenticates each delivery by its signature.
-	rt.HandleInternalAt(http.MethodPost, WebhookRoutePath, (&webhookReceiver{
+	// The webhook a developer portal delivers plans to, on the internal server at /m/aihub/webhooks/events. It
+	// has no user sign-in: the receiver authenticates each delivery by its signature.
+	rt.HandleWebhook(http.MethodPost, webhookPath, (&webhookReceiver{
 		cfg: webhookConfigFrom(rt.Config, log), plans: plans, core: rt.Core(),
 		log: log.With("component", "plan-webhook"), now: time.Now,
 	}).ServeHTTP, modkit.Audit(ActionPlanSync))
 	// Gateways pull the plans when they connect; the AI Gateway pushes each change on EventPlanChanged.
 	rt.Provide(subplanv1.ID, planSource{plans: plans})
 	// The subscription plans API, under /m/aihub.
-	rt.Handle(http.MethodPost, "/subscription-plans", aihubperm.PlanCreate, a.createPlan)
-	rt.Handle(http.MethodGet, "/subscription-plans", aihubperm.PlanRead, a.listPlans)
-	rt.Handle(http.MethodGet, "/subscription-plans/{subscriptionPlanId}", aihubperm.PlanRead, a.getPlan)
-	rt.Handle(http.MethodPut, "/subscription-plans/{subscriptionPlanId}", aihubperm.PlanUpdate, a.updatePlan)
-	rt.Handle(http.MethodDelete, "/subscription-plans/{subscriptionPlanId}", aihubperm.PlanDelete, a.deletePlan)
+	rt.Handle(http.MethodPost, "/subscription-plans", PermPlanCreate, a.createPlan)
+	rt.Handle(http.MethodGet, "/subscription-plans", PermPlanRead, a.listPlans)
+	rt.Handle(http.MethodGet, "/subscription-plans/{subscriptionPlanId}", PermPlanRead, a.getPlan)
+	rt.Handle(http.MethodPut, "/subscription-plans/{subscriptionPlanId}", PermPlanUpdate, a.updatePlan)
+	rt.Handle(http.MethodDelete, "/subscription-plans/{subscriptionPlanId}", PermPlanDelete, a.deletePlan)
 	return nil
 }

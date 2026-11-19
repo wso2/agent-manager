@@ -62,8 +62,7 @@ const ampScopes = "amp:agent:build amp:agent:create amp:agent:delete amp:agent:r
 	"amp:ai-gateway:scopes.create amp:ai-gateway:scopes.read amp:ai-gateway:scopes.update amp:ai-gateway:scopes.delete " +
 	"amp:ai-gateway:catalog.read " +
 	"amp:ai-gateway:agent-identities.create amp:ai-gateway:agent-identities.read amp:ai-gateway:agent-identities.update amp:ai-gateway:agent-identities.delete " +
-	"amp:ai-gateway:agent-api-keys.manage amp:ai-gateway:deploy.non-production amp:ai-gateway:deploy.production " +
-	"amp:aihub:plan-read amp:aihub:plan-create amp:aihub:plan-update amp:aihub:plan-delete"
+	"amp:ai-gateway:agent-api-keys.manage amp:ai-gateway:deploy.non-production amp:ai-gateway:deploy.production"
 
 // FetchToken obtains an OAuth2 access token from the Thunder IDP using the
 // client_credentials grant type, carrying the full ampScopes superset. It

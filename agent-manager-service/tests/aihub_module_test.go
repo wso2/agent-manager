@@ -112,9 +112,11 @@ func (planGatewayModule) Migrations() fs.FS { return nil }
 func (planGatewayModule) UI() fs.FS         { return nil }
 func (m planGatewayModule) Activate(_ context.Context, rt modkit.Runtime) error {
 	rt.Provide(planGatewayReady, true)
-	rt.Subscribe(subplanv1.EventPlanChanged, gwsvc.PlanChangeHandler(func() (subplanv1.Source, bool) {
-		return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID)
-	}, m.gateways))
+	plans := func() (subplanv1.Source, bool) { return modkit.Lookup[subplanv1.Source](rt, subplanv1.ID) }
+	// As the AI Gateway does: subscribe to the event the plans module names, while it is active.
+	if source, ok := plans(); ok {
+		rt.Subscribe(source.ChangeEvent(), gwsvc.PlanChangeHandler(plans, m.gateways))
+	}
 	return nil
 }
 
@@ -320,9 +322,11 @@ func TestSubscriptionPlansModule(t *testing.T) {
 		require.Equal(t, 1, list.Count)
 		assert.Equal(t, "gold", list.List[0].ID)
 
-		_, body = w.call(t, w.full, http.MethodGet, plansPath+"?query=%25", nil)
-		require.NoError(t, json.Unmarshal(body, &list))
-		assert.Equal(t, 0, list.Count, "% is taken literally")
+		code, body = w.call(t, w.full, http.MethodGet, plansPath+"?query=%25", nil)
+		require.Equal(t, http.StatusOK, code, string(body))
+		var literal struct{ Count int }
+		require.NoError(t, json.Unmarshal(body, &literal))
+		assert.Equal(t, 0, literal.Count, "% is taken literally")
 
 		_, body = w.call(t, w.full, http.MethodGet, plansPath+"?status=inactive&limit=1&offset=0", nil)
 		require.NoError(t, json.Unmarshal(body, &list))
@@ -427,8 +431,9 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 	gone := map[string]any{"handle": "never-copied", "display_name": "Never copied"}
 	deactivatePlans(context.Background(), t, w)
 	code, refused := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", gone, now, now))
-	// The host serves a module's fixed internal route only while the module is active.
-	require.Equal(t, http.StatusNotFound, code, "a module that isn't active answers no delivery: "+refused)
+	// A module's webhooks, like its other internal routes, answer module_inactive while it is not active.
+	require.Equal(t, http.StatusUnauthorized, code, "a module that isn't active answers no delivery: "+refused)
+	assert.Contains(t, refused, "module_inactive")
 	installPlans(context.Background(), t, w)
 	mcpPlan := map[string]any{
 		"handle": "mcp-gold", "display_name": "MCP Gold", "description": "From the MCP hub",
@@ -471,6 +476,14 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 		p := decodeAs[planBody](t, got)
 		assert.Equal(t, "MCP Gold+", p.DisplayName)
 		require.Len(t, p.Conditions, 2, "the request limit is added; the tool-call condition stays")
+	})
+
+	t.Run("an update made at the source before the last one changes nothing", func(t *testing.T) {
+		older := map[string]any{"handle": "mcp-gold", "display_name": "MCP Gold (older)"}
+		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.updated", older, now.Add(-30*time.Minute), now))
+		require.Equal(t, http.StatusOK, code, "an out-of-date event is processed, and ignored: "+body)
+		_, got := w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
+		assert.Equal(t, "MCP Gold+", decodeAs[planBody](t, got).DisplayName)
 	})
 
 	t.Run("refused alike: bad signature, stale signature, unknown org, unknown event", func(t *testing.T) {
@@ -522,6 +535,18 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 		assert.Equal(t, http.StatusOK, code, "a plan already gone counts as deleted: "+body)
 	})
 
+	t.Run("a change made before the deletion, delivered after it, doesn't bring the plan back", func(t *testing.T) {
+		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.updated", mcpPlan, now.Add(-time.Minute), now))
+		require.Equal(t, http.StatusOK, code, body)
+		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
+		assert.Equal(t, http.StatusNotFound, code)
+
+		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", mcpPlan, now.Add(time.Minute), now))
+		require.Equal(t, http.StatusOK, code, body)
+		code, _ = w.call(t, w.full, http.MethodGet, plansPath+"/mcp-gold", nil)
+		assert.Equal(t, http.StatusOK, code, "a plan made again at the source after the deletion is copied in")
+	})
+
 	t.Run("disabled: neither the API nor the webhook answers", func(t *testing.T) {
 		require.NoError(t, w.host.Disable(context.Background(), aihub.Name))
 		eventually(t, "the module routes to go", func() bool {
@@ -529,7 +554,8 @@ func TestSubscriptionPlanWebhook(t *testing.T) {
 			return code == http.StatusNotFound
 		})
 		code, body := send(t, w.internal, delivery(t, w.handle, "subscription_plan.created", gone, time.Now(), time.Now()))
-		assert.Equal(t, http.StatusNotFound, code, body)
+		assert.Equal(t, http.StatusUnauthorized, code, body)
+		assert.Contains(t, body, "module_inactive")
 	})
 }
 
@@ -569,7 +595,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 	require.NoError(t, err)
 	eventually(t, "the stand-in gateway", func() bool { _, ok := coreext.Capability(planGatewayReady); return ok })
 
-	sent := func(handle string, action subplanv1.Action) sentPlan {
+	sent := func(t *testing.T, handle string, action subplanv1.Action) sentPlan {
 		t.Helper()
 		var got sentPlan
 		eventually(t, string(action)+" sent to the gateways for "+handle, func() bool {
@@ -595,7 +621,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 			},
 		})
 		require.Equal(t, http.StatusCreated, code, string(body))
-		got := sent(handle, subplanv1.Created)
+		got := sent(t, handle, subplanv1.Created)
 		assert.Equal(t, w.org, got.org)
 		assert.NotEmpty(t, got.plan.ID, "gateways key plans by the plan's id")
 		assert.Equal(t, "Gateway Gold", got.plan.Name)
@@ -629,13 +655,13 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 			"displayName": "Gateway Gold v2", "status": "INACTIVE",
 		})
 		require.Equal(t, http.StatusOK, code, string(body))
-		got := sent(handle, subplanv1.Updated)
+		got := sent(t, handle, subplanv1.Updated)
 		assert.Equal(t, "Gateway Gold v2", got.plan.Name)
 		assert.Equal(t, "INACTIVE", got.plan.Status)
 
 		code, _ = w.call(t, w.full, http.MethodDelete, plansPath+"/"+handle, nil)
 		require.Equal(t, http.StatusNoContent, code)
-		deleted := sent(handle, subplanv1.Deleted)
+		deleted := sent(t, handle, subplanv1.Deleted)
 		created, _ := w.gateways.find(handle, subplanv1.Created)
 		assert.Equal(t, created.plan.ID, deleted.plan.ID)
 	})
@@ -650,7 +676,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 			}}},
 		}, now, now))
 		require.Equal(t, http.StatusOK, code, body)
-		got := sent(portal, subplanv1.Created)
+		got := sent(t, portal, subplanv1.Created)
 		assert.Equal(t, "Portal Silver", got.plan.Name)
 		require.NotNil(t, got.plan.ThrottleLimitCount)
 		assert.Equal(t, 60, *got.plan.ThrottleLimitCount)
@@ -659,7 +685,7 @@ func TestSubscriptionPlanGatewaySync(t *testing.T) {
 		code, body = send(t, w.internal, delivery(t, w.handle, "subscription_plan.deleted",
 			map[string]any{"handle": portal}, time.Now(), time.Now()))
 		require.Equal(t, http.StatusOK, code, body)
-		sent(portal, subplanv1.Deleted)
+		sent(t, portal, subplanv1.Deleted)
 	})
 
 	t.Run("without the gateway, plan changes still succeed", func(t *testing.T) {

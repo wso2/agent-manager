@@ -32,6 +32,8 @@ type planList []subplanv1.Plan
 
 func (l planList) ListPlans(context.Context, string) ([]subplanv1.Plan, error) { return l, nil }
 
+func (planList) ChangeEvent() string { return "aihub.plan_changed" }
+
 type sentChange struct {
 	org    string
 	action subplanv1.Action
@@ -49,7 +51,7 @@ func planChangeEvent(t *testing.T, ch subplanv1.PlanChange) modkit.Event {
 	t.Helper()
 	data, err := json.Marshal(ch)
 	require.NoError(t, err)
-	return modkit.Event{Type: subplanv1.EventPlanChanged, OrgID: "org-1", Data: data}
+	return modkit.Event{Type: "aihub.plan_changed", OrgID: "org-1", Data: data}
 }
 
 func TestPlanChangeHandler(t *testing.T) {

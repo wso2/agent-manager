@@ -39,7 +39,7 @@ import (
 // The webhook receiver for subscription plans made, changed or deleted elsewhere (including an MCP
 // hub), so those plans are copied into Agent Manager:
 //
-//   - POST /api/internal/v1/webhook/events on the internal server (no user sign-in: the request is
+//   - POST /m/aihub/webhooks/events on the internal server (no user sign-in: the request is
 //     authenticated by its signature);
 //   - a signature header "t=<unix seconds>,v1=<hex HMAC-SHA256 of "<t>.<raw body>">", with the
 //     timestamp within the tolerance (replay guard);
@@ -48,12 +48,16 @@ import (
 //   - org.ref_id is the organization's handle;
 //   - events subscription_plan.created / .updated (both upsert) and subscription_plan.deleted.
 //
-// Every failure is answered alike (401), so a caller learns nothing from the response; the reason is
-// logged. The secret is the module setting webhook_secret (MODULE_AIHUB_WEBHOOK_SECRET).
+// A delivery the sender got wrong (signature, envelope, organization, event) is answered alike (401), so a
+// caller learns nothing from the response; a failure on this side (the database, publishing the change, a
+// panic) answers 503, which senders retry. The reason is logged. The secret is the module setting webhook_secret (MODULE_AIHUB_WEBHOOK_SECRET).
 
-// WebhookRoutePath is the receiver's route on the internal server, the fixed path developer portals are
-// configured with.
-const WebhookRoutePath = "/api/internal/v1/webhook/events"
+// webhookPath is the receiver's route below the module's webhooks (Runtime.HandleWebhook).
+const webhookPath = "/events"
+
+// WebhookRoutePath is the receiver's path on the internal server, the URL path a developer portal's
+// subscriber is configured with.
+const WebhookRoutePath = "/m/" + Name + "/webhooks" + webhookPath
 
 // Subscription plan event types.
 const (
@@ -80,6 +84,8 @@ var (
 	errInvalidEnvelope         = errors.New("invalid webhook envelope")
 	errUnsupportedEvent        = errors.New("unsupported webhook event type")
 	errOrganizationNotFound    = errors.New("organization not found")
+	// errWebhookDisabled refuses every delivery while no webhook_secret is set: a retry can't succeed.
+	errWebhookDisabled = errors.New("the subscription plan webhook is disabled (no webhook_secret is set)")
 )
 
 // webhookConfig is the receiver's configuration, from the module's settings.
@@ -317,12 +323,12 @@ func webhookCaller(refused string, signed bool) modkit.InternalCaller {
 }
 
 // ServeHTTP runs the flow: size-limited read, signature check, envelope, organization, dispatch.
-// Every failure is answered alike; the reason is logged.
+// The sender's faults are answered alike (401); ours answer 503, so the sender retries. The reason is logged.
 func (r *webhookReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			r.log.Error("webhook delivery panicked", "panic", rec)
-			reject(w)
+			unavailable(w)
 		}
 	}()
 	if err := r.receive(w, req); err != nil {
@@ -335,13 +341,17 @@ func (r *webhookReceiver) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			modkit.AuditInternalCaller(req.Context(),
 				webhookCaller("invalid-signature", req.Header.Get(r.cfg.SignatureHeader) != ""))
 		}
+		if !isClientFault(err) {
+			unavailable(w)
+			return
+		}
 		reject(w)
 	}
 }
 
 func (r *webhookReceiver) receive(w http.ResponseWriter, req *http.Request) error {
 	if !r.cfg.Enabled {
-		return errors.New("the subscription plan webhook is disabled (no webhook_secret is set)")
+		return errWebhookDisabled
 	}
 	body, err := io.ReadAll(http.MaxBytesReader(w, req.Body, r.cfg.MaxBodyBytes))
 	if err != nil {
@@ -417,9 +427,8 @@ func (r *webhookReceiver) dispatch(ctx context.Context, orgID string, env *envel
 			return fmt.Errorf("%w: data.display_name is required", errInvalidEnvelope)
 		}
 		paid := d.Pricing != nil && string(*d.Pricing) != "null"
-		_, err = r.plans.upsertFromWebhook(ctx, orgID, d.Handle, name, d.Description, d.Conditions,
+		return r.plans.upsertFromWebhook(ctx, orgID, d.Handle, name, d.Description, d.Conditions,
 			requestWindowsFrom(d.Limits), paid, env.occurredAt())
-		return err
 	case EventSubscriptionPlanDeleted:
 		d, err := planData(env)
 		if err != nil {
@@ -442,12 +451,14 @@ func planData(env *envelope) (*planEventData, error) {
 	return &d, d.requireHandle()
 }
 
-// isClientFault reports whether a rejection was the sender's doing (logged at WARN) rather than ours.
+// isClientFault reports whether a rejection was the sender's doing (401, logged at WARN) rather than ours
+// (503, logged at ERROR).
 func isClientFault(err error) bool {
 	var v *validationError
 	return errors.Is(err, errSignatureMissing) || errors.Is(err, errSignatureInvalid) ||
 		errors.Is(err, errTimestampOutOfTolerance) || errors.Is(err, errInvalidEnvelope) ||
-		errors.Is(err, errUnsupportedEvent) || errors.Is(err, errOrganizationNotFound) || errors.As(err, &v)
+		errors.Is(err, errUnsupportedEvent) || errors.Is(err, errOrganizationNotFound) ||
+		errors.Is(err, errWebhookDisabled) || errors.As(err, &v)
 }
 
 // reject answers a refused delivery: always 401, with nothing about why.
@@ -455,6 +466,14 @@ func reject(w http.ResponseWriter) {
 	writeJSONStatus(w, http.StatusUnauthorized, errorResponse{
 		Status: "error", Code: codeUnauthorized,
 		Message: "Invalid or expired credentials.",
+	})
+}
+
+// unavailable answers a delivery that failed on this side: 503, which senders retry, with nothing about why.
+func unavailable(w http.ResponseWriter) {
+	writeJSONStatus(w, http.StatusServiceUnavailable, errorResponse{
+		Status: "error", Code: codeUnavailable,
+		Message: "The delivery could not be processed. Retry later.",
 	})
 }
 

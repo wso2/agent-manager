@@ -21,19 +21,25 @@ import { Plus } from "@wso2/oxygen-ui-icons-react";
 import { generatePath, Link, Navigate, Route, Routes, useParams } from "react-router-dom";
 import { PageLayout } from "@agent-management-platform/views";
 import { useListSubscriptionPlans } from "@agent-management-platform/api-client";
-import { useResourceAccess } from "@agent-management-platform/feature-management";
+import { useFeatureAccess } from "@agent-management-platform/feature-management";
 import { absoluteRouteMap } from "@agent-management-platform/types";
 import { SubscriptionPlanTable } from "./subComponents/SubscriptionPlanTable";
 import { SubscriptionPlanFormPage } from "./subComponents/SubscriptionPlanFormPage";
+import { PAGE_SIZE_OPTIONS } from "./subComponents/pageSize";
 
 const plansRoute = absoluteRouteMap.children.org.children.subscriptionPlans;
 
 /** Organization › Manage › Subscription plans: the list, and the create and edit pages. */
 export const SubscriptionPlansOrganization = () => {
   const { orgId = "" } = useParams<{ orgId: string }>();
-  const { canWrite } = useResourceAccess("subscription_plan");
-  // The table's first page (deduped): the header's create button only shows once the org has plans.
-  const { data } = useListSubscriptionPlans({ orgName: orgId }, { limit: 10, offset: 0 });
+  const canCreate = useFeatureAccess("subscription_plan_create");
+  const canUpdate = useFeatureAccess("subscription_plan_update");
+  // The table's first page (same query key, so one request): the header's create button only
+  // shows once the org has plans.
+  const { data } = useListSubscriptionPlans(
+    { orgName: orgId },
+    { limit: PAGE_SIZE_OPTIONS[0], offset: 0 },
+  );
   const hasPlans = (data?.pagination.total ?? 0) > 0;
 
   const createButton = (
@@ -53,17 +59,17 @@ export const SubscriptionPlansOrganization = () => {
         index
         element={
           <PageLayout
-            actions={hasPlans && canWrite ? createButton : undefined}
+            actions={hasPlans && canCreate ? createButton : undefined}
             description="Define the plans your MCP servers offer, and the limits each one gives an agent that subscribes."
             disableIcon
             title="Subscription Plans"
           >
-            <SubscriptionPlanTable createAction={canWrite ? createButton : undefined} />
+            <SubscriptionPlanTable createAction={canCreate ? createButton : undefined} />
           </PageLayout>
         }
       />
-      {canWrite && <Route element={<SubscriptionPlanFormPage />} path="add" />}
-      {canWrite && <Route element={<SubscriptionPlanFormPage />} path="edit/:planId" />}
+      {canCreate && <Route element={<SubscriptionPlanFormPage />} path="add" />}
+      {canUpdate && <Route element={<SubscriptionPlanFormPage />} path="edit/:planId" />}
       <Route
         element={<Navigate replace to={generatePath(plansRoute.path, { orgId })} />}
         path="*"

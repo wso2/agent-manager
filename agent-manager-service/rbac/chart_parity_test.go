@@ -154,7 +154,7 @@ func TestAdvertisedScopesMatchCatalog(t *testing.T) {
 
 // distributionModules are the modules the full distribution's configuration
 // advertises scopes for; their manifests, not this package, declare them.
-var distributionModules = []string{"ai-gateway", "aihub"}
+var distributionModules = []string{"ai-gateway"}
 
 // withoutModuleOwned drops the permissions of the distribution's modules.
 func withoutModuleOwned(chartSide map[Permission]bool) map[Permission]bool {

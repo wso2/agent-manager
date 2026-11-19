@@ -13,18 +13,20 @@
 // KIND, either express or implied.  See the License for the
 // specific language governing permissions and limitations
 // under the License.
+package aihub
 
-// Package aihubperm names the AI Hub module's permissions by their full names, as the host registers them
-// (aihub:<short name>) and as tokens carry them (amp:aihub:<short name>).
-package aihubperm
+import (
+	"testing"
 
-// Module is the module's name.
-const Module = "aihub"
-
-// The module's permissions, by their full names.
-const (
-	PlanRead   = "aihub:plan-read"
-	PlanCreate = "aihub:plan-create"
-	PlanUpdate = "aihub:plan-update"
-	PlanDelete = "aihub:plan-delete"
+	"github.com/stretchr/testify/assert"
 )
+
+// The search matches names case-insensitively beyond ASCII, as stored in display_name_folded, and takes LIKE
+// wildcards literally.
+func TestSearchFoldsUnicodeAndEscapesWildcards(t *testing.T) {
+	assert.Equal(t, foldName("équipe"), foldName("ÉQUIPE"))
+	assert.Equal(t, foldName("équipe"), foldName("équipe"), "one normal form")
+	clause, args := searchClause(" ÉQUIPE_1% ")
+	assert.Contains(t, clause, "display_name_folded LIKE ?")
+	assert.Equal(t, []any{"%équipe\\_1\\%%", "%équipe\\_1\\%%"}, args)
+}

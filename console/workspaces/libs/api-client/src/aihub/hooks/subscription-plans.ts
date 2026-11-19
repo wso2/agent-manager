@@ -155,15 +155,3 @@ export function useDeleteSubscriptionPlan() {
     },
   });
 }
-
-/** Reads one plan's usage now, for a delete that must say whether the plan is in use. */
-export function useFetchSubscriptionPlan() {
-  const { getToken } = useAuthHooks();
-  const queryClient = useQueryClient();
-  return (params: SubscriptionPlanPathParams) =>
-    queryClient.fetchQuery({
-      queryKey: subscriptionPlanKeys.detail(params),
-      queryFn: () => getSubscriptionPlan(params, getToken),
-      staleTime: 0,
-    });
-}
