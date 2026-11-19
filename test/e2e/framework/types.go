@@ -1129,3 +1129,65 @@ type PromoteAgentResponse struct {
 	SourceEnvironment string `json:"sourceEnvironment"`
 	TargetEnvironment string `json:"targetEnvironment"`
 }
+
+// --- Subscription plans (AI Hub module, /api/v1/m/aihub/subscription-plans) ---
+
+// PlanLimit is one window of a built-in condition: count per timeAmount timeUnit.
+type PlanLimit struct {
+	Count      int64  `json:"count"`
+	TimeAmount int    `json:"timeAmount,omitempty"`
+	TimeUnit   string `json:"timeUnit"`
+}
+
+// PlanConditionParams are a built-in condition's settings.
+type PlanConditionParams struct {
+	Limits   []PlanLimit `json:"limits,omitempty"`
+	OnExceed string      `json:"onExceed,omitempty"`
+}
+
+// PlanCondition is one condition of a subscription plan.
+type PlanCondition struct {
+	ID     string              `json:"id,omitempty"`
+	Type   string              `json:"type"`
+	Params PlanConditionParams `json:"params"`
+}
+
+// SubscriptionPlanRequest creates (POST) or updates (PUT) a subscription plan. Omitted fields are
+// kept on update.
+type SubscriptionPlanRequest struct {
+	ID          string          `json:"id,omitempty"`
+	DisplayName string          `json:"displayName,omitempty"`
+	Description *string         `json:"description,omitempty"`
+	Status      string          `json:"status,omitempty"`
+	Conditions  []PlanCondition `json:"conditions,omitempty"`
+	Pricing     map[string]any  `json:"pricing,omitempty"`
+}
+
+// SubscriptionPlanResponse is a subscription plan as the API returns it.
+type SubscriptionPlanResponse struct {
+	ID          string          `json:"id"`
+	DisplayName string          `json:"displayName"`
+	Description string          `json:"description"`
+	Status      string          `json:"status"`
+	Conditions  []PlanCondition `json:"conditions"`
+	CreatedAt   string          `json:"createdAt"`
+	UpdatedAt   string          `json:"updatedAt"`
+}
+
+// SubscriptionPlanListResponse is a page of subscription plans.
+type SubscriptionPlanListResponse struct {
+	List       []SubscriptionPlanResponse `json:"list"`
+	Count      int                        `json:"count"`
+	Pagination struct {
+		Total  int `json:"total"`
+		Offset int `json:"offset"`
+		Limit  int `json:"limit"`
+	} `json:"pagination"`
+}
+
+// APIErrorResponse is the plans API's error body.
+type APIErrorResponse struct {
+	Status  string `json:"status"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
