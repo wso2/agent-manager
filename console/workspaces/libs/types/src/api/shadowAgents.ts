@@ -136,6 +136,8 @@ export interface ShadowProviderSpec {
    */
   sourceHost?: boolean;
   capabilities: ShadowCapabilitySpec[];
+  /** What a scan of the platform never reads or lists. */
+  notListed?: string[];
 }
 
 /** One kind of evidence that a platform lists an agent. */

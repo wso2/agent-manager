@@ -908,6 +908,7 @@ export function ConnectionEditor({
               <AnalyzeSection
                 providerName={spec.displayName}
                 statuses={statuses}
+                notListed={spec.notListed}
                 sourceHost={!!spec.sourceHost}
               />
               {/* Locked while saving, and once a source host is saved. */}

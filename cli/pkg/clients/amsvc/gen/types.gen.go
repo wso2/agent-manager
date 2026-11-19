@@ -6948,14 +6948,17 @@ type ShadowProviderSpec struct {
 	Capabilities []ShadowCapabilitySpec `json:"capabilities"`
 
 	// CredentialChoice At least one of these fields must hold a credential (a value, or a stored secret).
-	CredentialChoice *ShadowCredentialChoice    `json:"credentialChoice,omitempty"`
-	Description      string                     `json:"description"`
-	DisplayName      string                     `json:"displayName"`
-	Docs             []string                   `json:"docs"`
-	Endpoints        []ShadowEndpointSpec       `json:"endpoints"`
-	Fields           []ShadowFieldSpec          `json:"fields"`
-	Permissions      []ShadowPermissionSpec     `json:"permissions"`
-	Provider         ShadowProviderSpecProvider `json:"provider"`
+	CredentialChoice *ShadowCredentialChoice `json:"credentialChoice,omitempty"`
+	Description      string                  `json:"description"`
+	DisplayName      string                  `json:"displayName"`
+	Docs             []string                `json:"docs"`
+	Endpoints        []ShadowEndpointSpec    `json:"endpoints"`
+	Fields           []ShadowFieldSpec       `json:"fields"`
+
+	// NotListed What a scan of the platform never reads or lists.
+	NotListed   *[]string                  `json:"notListed,omitempty"`
+	Permissions []ShadowPermissionSpec     `json:"permissions"`
+	Provider    ShadowProviderSpecProvider `json:"provider"`
 
 	// SourceHost A source repository host (GitHub, Azure DevOps). Its connection test is real; its source code analysis is not available yet, so a scan records it as skipped.
 	SourceHost *bool `json:"sourceHost,omitempty"`

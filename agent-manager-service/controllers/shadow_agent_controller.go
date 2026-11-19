@@ -91,6 +91,9 @@ func (c *shadowAgentController) ListProviders(w http.ResponseWriter, _ *http.Req
 			Permissions: []spec.ShadowPermissionSpec{}, Docs: append([]string{}, p.Docs...),
 			Capabilities: []spec.ShadowCapabilitySpec{},
 		}
+		if len(p.NotListed) > 0 {
+			ps.NotListed = append([]string{}, p.NotListed...)
+		}
 		if p.SourceHost {
 			src := true
 			ps.SourceHost = &src

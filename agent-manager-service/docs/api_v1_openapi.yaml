@@ -24570,6 +24570,11 @@ components:
           description: What a scan lists, and the fields or options each capability needs.
           items:
             $ref: "#/components/schemas/ShadowCapabilitySpec"
+        notListed:
+          type: array
+          description: What a scan of the platform never reads or lists.
+          items:
+            type: string
 
     ShadowCredentialChoice:
       type: object

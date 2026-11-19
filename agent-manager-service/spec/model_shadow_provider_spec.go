@@ -31,6 +31,8 @@ type ShadowProviderSpec struct {
 	SourceHost *bool `json:"sourceHost,omitempty"`
 	// What a scan lists, and the fields or options each capability needs.
 	Capabilities []ShadowCapabilitySpec `json:"capabilities"`
+	// What a scan of the platform never reads or lists.
+	NotListed []string `json:"notListed,omitempty"`
 }
 
 // NewShadowProviderSpec instantiates a new ShadowProviderSpec object
@@ -314,6 +316,38 @@ func (o *ShadowProviderSpec) SetCapabilities(v []ShadowCapabilitySpec) {
 	o.Capabilities = v
 }
 
+// GetNotListed returns the NotListed field value if set, zero value otherwise.
+func (o *ShadowProviderSpec) GetNotListed() []string {
+	if o == nil || IsNil(o.NotListed) {
+		var ret []string
+		return ret
+	}
+	return o.NotListed
+}
+
+// GetNotListedOk returns a tuple with the NotListed field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ShadowProviderSpec) GetNotListedOk() ([]string, bool) {
+	if o == nil || IsNil(o.NotListed) {
+		return nil, false
+	}
+	return o.NotListed, true
+}
+
+// HasNotListed returns a boolean if a field has been set.
+func (o *ShadowProviderSpec) HasNotListed() bool {
+	if o != nil && !IsNil(o.NotListed) {
+		return true
+	}
+
+	return false
+}
+
+// SetNotListed gets a reference to the given []string and assigns it to the NotListed field.
+func (o *ShadowProviderSpec) SetNotListed(v []string) {
+	o.NotListed = v
+}
+
 func (o ShadowProviderSpec) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -338,6 +372,9 @@ func (o ShadowProviderSpec) ToMap() (map[string]interface{}, error) {
 		toSerialize["sourceHost"] = o.SourceHost
 	}
 	toSerialize["capabilities"] = o.Capabilities
+	if !IsNil(o.NotListed) {
+		toSerialize["notListed"] = o.NotListed
+	}
 	return toSerialize, nil
 }
 

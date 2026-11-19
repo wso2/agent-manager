@@ -1065,7 +1065,13 @@ describe("AnalyzeSection", () => {
   ];
 
   it("simply says what an agent platform's scan lists", () => {
-    render(<AnalyzeSection providerName="Amazon Bedrock" statuses={statuses} />);
+    render(
+      <AnalyzeSection
+        providerName="Amazon Bedrock"
+        statuses={statuses}
+        notListed={["Classic agent instructions and prompt overrides."]}
+      />,
+    );
     expect(screen.getByText("What does Agent Manager list?")).toBeInTheDocument();
     expect(
       screen.getByText(
@@ -1075,9 +1081,10 @@ describe("AnalyzeSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "See what it lists" }));
     const dialog = screen.getByRole("dialog");
     expect(dialog).toHaveTextContent("What Agent Manager lists");
-    expect(dialog).toHaveTextContent("A scan calls only Amazon Bedrock's agent listings");
+    expect(dialog).toHaveTextContent("A scan makes only these read-only calls to Amazon Bedrock.");
     expect(dialog).toHaveTextContent("Agent records in each registry.");
     expect(dialog).toHaveTextContent("Agent runtimes in each region.");
+    expect(dialog).toHaveTextContent("Not read or listedClassic agent instructions and prompt overrides.");
     expect(dialog).not.toHaveTextContent(/Available|Not available|Needs:/);
   });
 

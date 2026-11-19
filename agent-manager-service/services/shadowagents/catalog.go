@@ -109,6 +109,8 @@ type ProviderSpec struct {
 	Fields      []FieldSpec
 	Permissions []PermissionSpec
 	Docs        []string
+	// NotListed is what a scan of the platform never reads or lists.
+	NotListed []string
 	// SourceHost marks a source repository host (GitHub, Azure DevOps). Its
 	// connection holds no credential and no cloud scan reads it: the source
 	// code scan runs on the customer's machine.
@@ -260,6 +262,11 @@ var providerSpecs = []ProviderSpec{
 			},
 		},
 		Docs: []string{"https://developers.openai.com/api/docs/guides/agents-api/overview"},
+		NotListed: []string{
+			"Agent instructions and metadata.",
+			"Tool parameters and descriptions, and MCP server credentials.",
+			"Conversations, responses, files and vector stores.",
+		},
 	},
 	{
 		Provider:    models.ShadowProviderAnthropic,
@@ -289,6 +296,11 @@ var providerSpecs = []ProviderSpec{
 			},
 		},
 		Docs: []string{"https://platform.claude.com/docs/en/managed-agents/overview"},
+		NotListed: []string{
+			"Agent system prompts.",
+			"Custom tool descriptions and input schemas.",
+			"Sessions, messages and files.",
+		},
 	},
 	{
 		Provider:    models.ShadowProviderBedrock,
@@ -334,17 +346,14 @@ var providerSpecs = []ProviderSpec{
 				},
 				Policy: `{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["bedrock-agentcore:ListAgentRuntimes","bedrock-agentcore:GetAgentRuntime","agent-registry:ListRegistries","agent-registry:ListRegistryRecords","bedrock:ListAgents","bedrock:GetAgent","bedrock:ListAgentActionGroups"],"Resource":"*"}]}`,
 			},
-			{
-				Title:   "What Agent Manager lists",
-				Summary: "The agents AWS knows about: AgentCore runtimes, Agent Registry agent records and classic Bedrock agents.",
-				Reads: []string{
-					"Runtimes: name, status, version, execution role, protocol and artifact type (never environment variables or descriptions).",
-					"Registry agent records: name, status, version and the runtime they describe.",
-					"Classic agents: name, status, model, orchestration type, service role and action group names.",
-				},
-			},
 		},
 		Docs: []string{"https://docs.aws.amazon.com/bedrock-agentcore/latest/APIReference/Welcome.html", "https://docs.aws.amazon.com/bedrock/latest/APIReference/API_agent_ListAgents.html"},
+		NotListed: []string{
+			"Runtime environment variables, descriptions, authorizers and network settings.",
+			"Classic agent instructions and prompt overrides.",
+			"Registry record descriptors and custom metadata.",
+			"Invocations, sessions and memory.",
+		},
 	},
 	{
 		Provider:    models.ShadowProviderGoogle,
@@ -384,16 +393,13 @@ var providerSpecs = []ProviderSpec{
 					"roles/agentregistry.viewer: Agent Registry agents (roles/dialogflow.viewer is not enough).",
 				},
 			},
-			{
-				Title:   "What Agent Manager lists",
-				Summary: "The agents deployed on Agent Runtime and the agents in the Agent Registry; a registry entry for an engine is merged into that engine.",
-				Reads: []string{
-					"Engines: resource name, display name, framework, service account, source repository, labels and creation time.",
-					"Registry agents: ID, name, version, framework, protocols, skill names and the engine they run on. Google's built-in agents are left out.",
-				},
-			},
 		},
 		Docs: []string{"https://cloud.google.com/vertex-ai/generative-ai/docs/reference/rest/v1/projects.locations.reasoningEngines/list", "https://docs.cloud.google.com/agent-registry/roles-permissions"},
+		NotListed: []string{
+			"Engine environment variables, secrets and source packages.",
+			"Agent Card content, skill descriptions and examples.",
+			"Sessions, memories and queries.",
+		},
 	},
 	{
 		Provider:    models.ShadowProviderFoundry,
@@ -413,16 +419,13 @@ var providerSpecs = []ProviderSpec{
 				},
 				Policy: `{"Name":"Agent Manager Foundry Discovery Reader","IsCustom":true,"Actions":["Microsoft.Resources/subscriptions/read","Microsoft.CognitiveServices/accounts/read","Microsoft.CognitiveServices/accounts/projects/read"],"NotActions":[],"DataActions":["Microsoft.CognitiveServices/accounts/AIServices/agents/read"],"NotDataActions":[],"AssignableScopes":["/subscriptions/{subscriptionId}"]}`,
 			},
-			{
-				Title:   "What Agent Manager lists",
-				Summary: "The Foundry projects of each AI Services account and their agents; optionally classic agents.",
-				Reads: []string{
-					"Agents: ID, name, state, kind (prompt, hosted, workflow, external), version, model, the type and name of each tool, and MCP server labels and URL origins.",
-					"Classic agents: ID, name, model and tools.",
-				},
-			},
 		},
 		Docs: []string{"https://learn.microsoft.com/en-us/azure/ai-foundry/agents/overview"},
+		NotListed: []string{
+			"Agent instructions, environment variables, MCP headers and authorization.",
+			"Tool schemas and arguments.",
+			"Threads, messages and runs.",
+		},
 	},
 }
 
