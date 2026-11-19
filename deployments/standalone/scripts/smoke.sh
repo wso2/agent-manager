@@ -100,6 +100,17 @@ check env-gateways "$(pick 200 404)" "$(code "${A[@]}" "$GW/environments/default
 check agent-deployments "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/deployments")"
 check agent-config "$(pick 200 404)" "$(code "${A[@]}" "$GW/projects/$P/agents/$AG/configurations?environment=default")"
 check catalog "$(pick 200 404)" "$(code "${A[@]}" "$GW/catalog")"
+# The bundled gateway's controller connects over the internal WebSocket.
+if [ "$DIST" = amp ]; then
+  connected=no
+  for _ in $(seq 30); do
+    code "${A[@]}" "$GW/gateways" >/dev/null
+    connected=$(has '"status":"ACTIVE"')
+    [ "$connected" = yes ] && break
+    sleep 2
+  done
+  check gateway-connected yes "$connected"
+fi
 # No alias under the core's API.
 check gateways-old-path 404 "$(code "${A[@]}" "$B/gateways")"
 check mcp-endpoint 401 "$(code -X POST "$API/mcp" -d '{}')"
