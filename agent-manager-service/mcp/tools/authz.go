@@ -26,6 +26,7 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
+	reqlogger "github.com/wso2/agent-manager/agent-manager-service/middleware/logger"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 	"github.com/wso2/agent-manager/agent-manager-service/workloadpolicy"
 )
@@ -138,10 +139,20 @@ func (reg *toolRegistry) authzMiddleware() gomcp.Middleware {
 					recordToolDeny(ctx, call.Params.Name, "subscription-suspended")
 					return denyResult(subscriptionSuspendedMessage), nil
 				}
-				// The call is refused because the policy could not decide, not
-				// because the organization is suspended; record it as such.
-				recordToolDeny(ctx, call.Params.Name, "workload-policy-check-failed")
-				return nil, fmt.Errorf("check workload policy for tool %q: %w", call.Params.Name, err)
+				// The policy could not decide. That is a failure of the call,
+				// not an authorization refusal, so it is recorded as the tool's
+				// own action failing (the record a handler error leaves), and
+				// the client gets a retryable tool error rather than a protocol
+				// error carrying the policy's internal error.
+				reqlogger.GetLogger(ctx).Error("mcp workload policy check failed",
+					"tool", call.Params.Name, "error", err)
+				audit.Record(ctx, reg.actions[call.Params.Name],
+					audit.SurfaceOpt(audit.SurfaceMCP),
+					audit.Detail("tool", call.Params.Name),
+					audit.Detail("reason", "workload-policy-check-failed"),
+					audit.Result(err),
+				)
+				return denyResult(subscriptionCheckFailedMessage), nil
 			}
 			return next(ctx, method, req)
 		}

@@ -114,6 +114,7 @@ func TestAuthzMiddlewareAllowsGatewayPushForActiveOrganization(t *testing.T) {
 func TestAuthzMiddlewareStopsGatewayPushWhenPolicyFails(t *testing.T) {
 	reg := newToolRegistry()
 	reg.permissions["attach_llm_provider_to_agent"] = []rbac.Permission{rbac.LLMProviderUpdate}
+	reg.actions["attach_llm_provider_to_agent"] = audit.ActionAgentUpdate
 	var checked []string
 	policyErr := errors.New("lifecycle store unreachable")
 	nextCalled := false
@@ -122,16 +123,37 @@ func TestAuthzMiddlewareStopsGatewayPushWhenPolicyFails(t *testing.T) {
 		return &gomcp.CallToolResult{}, nil
 	}
 	req := &gomcp.CallToolRequest{Params: &gomcp.CallToolParamsRaw{Name: "attach_llm_provider_to_agent"}}
+	recorder := &capturingRecorder{}
+	ctx := audit.WithRecorder(suspendedGuardCtx(policyErr, &checked), recorder)
 
-	_, err := reg.authzMiddleware()(next)(suspendedGuardCtx(policyErr, &checked), "tools/call", req)
+	result, err := reg.authzMiddleware()(next)(ctx, "tools/call", req)
 
-	if !errors.Is(err, policyErr) {
-		t.Fatalf("middleware error = %v, want the policy's error", err)
+	if err != nil {
+		t.Fatalf("middleware returned a protocol error %v, want a tool error result", err)
 	}
 	if nextCalled {
 		t.Fatal("a gateway push ran although the workload policy failed")
 	}
+	if got := denialText(t, result); got != subscriptionCheckFailedMessage {
+		t.Fatalf("denial text = %q, want %q", got, subscriptionCheckFailedMessage)
+	}
+	if len(recorder.events) != 1 {
+		t.Fatalf("recorded %d events, want 1", len(recorder.events))
+	}
+	e := recorder.events[0]
+	if e.Action != audit.ActionAgentUpdate || e.Outcome != audit.OutcomeFailure {
+		t.Fatalf("recorded %s/%s, want the tool's action as a failure, not an authz deny", e.Action, e.Outcome)
+	}
 }
+
+type capturingRecorder struct{ events []audit.Event }
+
+func (r *capturingRecorder) Record(_ context.Context, e audit.Event) { r.events = append(r.events, e) }
+func (r *capturingRecorder) RecordSync(_ context.Context, e audit.Event) error {
+	r.events = append(r.events, e)
+	return nil
+}
+func (r *capturingRecorder) Close(context.Context) error { return nil }
 
 // Tools that push nothing to a gateway are not asked about here: a suspended
 // organization still reads, and its builds and deploys are refused by the

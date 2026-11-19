@@ -40,6 +40,8 @@ var gatewayPushTools = map[string]bool{
 
 const subscriptionSuspendedMessage = "The Agent Manager subscription is suspended. Renew the subscription to resume."
 
+const subscriptionCheckFailedMessage = "Could not verify the Agent Manager subscription. Try again shortly."
+
 // checkSuspension applies the workload policy on ctx to tool for the
 // organization ouID. It returns nil for a tool that pushes nothing to a gateway
 // and when the policy allows the call, workloadpolicy.ErrSuspended when the
