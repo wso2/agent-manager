@@ -64,7 +64,6 @@ import {
   optionActive,
 } from "../capabilities";
 import { AnalyzeSection } from "./AnalyzeSection";
-import { PermissionsPanel } from "./PermissionsPanel";
 import { SourceScanGuide } from "./SourceScanGuide";
 import { ScanCommandPanel } from "./ScanCommandPanel";
 import type { ScanCommandInput } from "../scanCommand";
@@ -1116,8 +1115,8 @@ export function ConnectionEditor({
               </Stack>
             </Stack>
           </Grid>
-          <Grid size={{ xs: 12, lg: 5 }}>
-            {spec.sourceHost ? (
+          {spec.sourceHost && (
+            <Grid size={{ xs: 12, lg: 5 }}>
               <ScanCommandPanel
                 spec={spec}
                 draft={
@@ -1137,10 +1136,8 @@ export function ConnectionEditor({
                 error={scanError}
                 onRetry={savedId ? () => issueCommand(savedId) : undefined}
               />
-            ) : (
-              <PermissionsPanel spec={spec} />
-            )}
-          </Grid>
+            </Grid>
+          )}
         </Grid>
       )}
     </PageLayout>

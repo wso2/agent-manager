@@ -105,20 +105,15 @@ var providerCapabilities = map[string][]CapabilitySpec{
 			Signals: []string{SigGoogleRegistryAgent},
 			Needs:   []string{OptGoogleRegistry},
 		},
-		{
-			Key: "google.locations", Title: "Every location",
-			Description: "Lists the locations where Agent Runtime and the Agent Registry are available to each project via " +
-				"their Locations API (GET /v1/projects/{project}/locations), and scans every one. Without it, only the " +
-				"locations you enter are scanned.",
-			Needs: []string{OptGoogleAllLocations},
-		},
 	},
 	models.ShadowProviderFoundry: {
 		{
 			Key: "foundry.agents", Title: "Foundry agents",
 			Description: "Lists the prompt, hosted, workflow and external agents in every Foundry project via the Foundry " +
 				"Agent Service API (GET {project endpoint}/agents). The projects are found via Azure Resource Manager.",
-			Signals: []string{SigFoundryAgentObject},
+			// The possible-duplicate flag is evidence about these agents, worked
+			// out from findings already stored; it is not a listing of its own.
+			Signals: []string{SigFoundryAgentObject, SigFoundryPossibleDupOf},
 		},
 		{
 			Key: "foundry.classic", Title: "Classic agents",
@@ -126,18 +121,6 @@ var providerCapabilities = map[string][]CapabilitySpec{
 				"(GET {project endpoint}/assistants). It retires 31 March 2027.",
 			Signals: []string{SigFoundryClassicAgent},
 			Needs:   []string{OptClassicAgents},
-		},
-		{
-			Key: "foundry.duplicates", Title: "Possible duplicates of external agents",
-			Description: "Flags an external agent with the same name as an agent from another platform as a possible duplicate. " +
-				"No extra call is made.",
-			Signals: []string{SigFoundryPossibleDupOf},
-		},
-		{
-			Key: "foundry.allSubscriptions", Title: "Every subscription the app can read",
-			Description: "Lists every subscription the app can read via Azure Resource Manager (GET /subscriptions). Without it, " +
-				"only the subscription IDs you enter are scanned.",
-			Needs: []string{OptAllSubscriptions},
 		},
 	},
 }
