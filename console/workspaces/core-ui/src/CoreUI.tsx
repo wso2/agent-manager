@@ -32,7 +32,7 @@ export interface CoreUIProps {
    */
   useFeatureAccess?: UseFeatureAccess;
   /**
-   * Suffix for every browser tab title ("<page> | <documentTitle>"). Omit to use
+   * Product name shown first in every browser tab title ("<documentTitle> | <page>"). Omit to use
    * the host page's initial `<title>`.
    */
   documentTitle?: string;

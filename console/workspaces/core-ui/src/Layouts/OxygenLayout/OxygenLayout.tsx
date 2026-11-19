@@ -127,7 +127,7 @@ export function OxygenLayout() {
                     ))}
                   </div>
                 ) : (
-                  <Logo width={192} />
+                  <Logo  />
                 )}
               </Header.BrandLogo>
             </Header.Brand>
