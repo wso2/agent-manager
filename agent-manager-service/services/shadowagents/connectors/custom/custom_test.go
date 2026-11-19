@@ -128,12 +128,13 @@ func TestScanReadsEveryPageWithTheContractFields(t *testing.T) {
 	assert.NotContains(t, string(stored), "token=secret")
 	require.Len(t, f.Signals, 1)
 	assert.Equal(t, sa.SigCustomAgent, f.Signals[0].Code)
-	assert.Equal(t, callAgents, f.Signals[0].Source)
+	agentsCall := "GET " + srv.URL + "/v1/agents"
+	assert.Equal(t, agentsCall, f.Signals[0].Source, "the evidence names the connection's Agents URL")
 	assert.Equal(t, "Support assistant", byID["inv-4"].DisplayName)
 
 	require.Len(t, res.Calls, 1)
 	call := res.Calls[0]
-	assert.Equal(t, callAgents, call.Call)
+	assert.Equal(t, agentsCall, call.Call)
 	assert.Equal(t, models.ShadowCallOK, call.Outcome)
 	assert.Equal(t, 2, call.Items)
 	assert.Contains(t, call.Message, "3 agent(s) left out")
@@ -194,7 +195,7 @@ func TestScanStopsAtThePageLimit(t *testing.T) {
 	assert.Len(t, res.Findings, maxPages)
 	require.Len(t, res.Calls, 2)
 	assert.Equal(t, models.ShadowCallOK, res.Calls[0].Outcome)
-	assert.Equal(t, callAgents+suffixPageLimit, res.Calls[1].Call)
+	assert.Equal(t, "GET "+srv.URL+"/v1/agents"+suffixPageLimit, res.Calls[1].Call)
 	assert.Equal(t, models.ShadowCallFailed, res.Calls[1].Outcome, "an incomplete listing is a failed call")
 }
 
@@ -207,9 +208,12 @@ func TestScanWithoutAKeyOrWithABadURLCallsNothing(t *testing.T) {
 	require.Len(t, res.Calls, 1)
 	assert.Equal(t, models.ShadowCallSkipped, res.Calls[0].Outcome)
 
+	assert.Equal(t, "GET "+srv.URL+"/v1/agents", res.Calls[0].Call)
+
 	res = newConnector().Scan(context.Background(), conn(srv.URL+"/v1/agents?x=1", testKey))
 	require.Len(t, res.Calls, 1)
 	assert.Equal(t, models.ShadowCallFailed, res.Calls[0].Outcome)
+	assert.Equal(t, callAgents, res.Calls[0].Call, "an invalid URL is not shown")
 	assert.False(t, called)
 }
 
@@ -330,4 +334,12 @@ func jsonTags(v any) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+func TestCallNameIsTheAgentsURL(t *testing.T) {
+	assert.Equal(t, "GET https://agents.example.com/v1/agents", callName("https://agents.example.com/v1/agents"))
+	long := callName("https://agents.example.com/" + strings.Repeat("a", 500))
+	assert.Len(t, []rune(long), maxCallName)
+	assert.True(t, strings.HasSuffix(long, "…"))
+	assert.LessOrEqual(t, len([]rune(long+suffixPageLimit)), 200, "within what the scanner stores")
 }
