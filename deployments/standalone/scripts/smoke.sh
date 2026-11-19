@@ -156,10 +156,11 @@ check ui-manifest-needs-token 401 "$(code "$API/api/v1/ui-manifest")"
 check ui-manifest 200 "$(code "${A[@]}" "$API/api/v1/ui-manifest")"
 CORE_PAGES=acp-core/external-agent
 GW_PAGES=ai-gateway/gateways,ai-gateway/llm-providers,ai-gateway/mcp-proxies,ai-gateway/agent-security,ai-gateway/configure-agent,agent-identity/agent-identity
-# The AI Hub (subscription plans) is on in both amp and amp-off; amp-core links no module.
+# The AI Hub (subscription plans) is on in both amp and amp-off; amp-core links no module. Modules are listed
+# in activation order: the AI Hub provides the plans the AI Gateway reads, so it comes first.
 PLAN_PAGES=aihub/subscription-plans
 case "$DIST" in
-  amp) PAGES="$CORE_PAGES,$GW_PAGES,$PLAN_PAGES" MODS=core,ai-gateway,aihub ;;
+  amp) PAGES="$CORE_PAGES,$PLAN_PAGES,$GW_PAGES" MODS=core,aihub,ai-gateway ;;
   amp-off) PAGES="$CORE_PAGES,$PLAN_PAGES" MODS=core,aihub ;;
   *) PAGES="$CORE_PAGES" MODS=core ;;
 esac
