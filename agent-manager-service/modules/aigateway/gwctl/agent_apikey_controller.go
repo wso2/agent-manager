@@ -23,8 +23,9 @@ import (
 	"net/http"
 	"regexp"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -277,14 +278,14 @@ func (c *agentAPIKeyController) IssueTestAPIKey(w http.ResponseWriter, r *http.R
 
 	log.Info("IssueTestAPIKey: starting", "ouID", ouID, "projName", projName, "agentName", agentName, "envID", envID)
 
-	claims := jwtassertion.GetTokenClaims(ctx)
-	if claims == nil || claims.Sub == "" {
+	caller := modkit.PrincipalFrom(ctx).User
+	if caller == "" {
 		log.Warn("IssueTestAPIKey: missing token claims")
 		httpx.WriteErrorResponse(w, http.StatusUnauthorized, "Missing token claims")
 		return
 	}
 
-	response, err := c.apiKeyService.IssueTestAPIKey(ctx, ouID, projName, agentName, envID, claims.Sub)
+	response, err := c.apiKeyService.IssueTestAPIKey(ctx, ouID, projName, agentName, envID, caller)
 	if err != nil {
 		switch {
 		case errors.Is(err, utils.ErrArtifactNotFound):

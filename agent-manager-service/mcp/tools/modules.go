@@ -142,7 +142,11 @@ func callModuleTool(ctx context.Context, call *gomcp.CallToolRequest, t ModuleTo
 	if len(args) == 0 {
 		args = json.RawMessage(`{}`)
 	}
-	result, err := runModuleTool(modkit.WithOrgID(ctx, resolveOUID(ctx)), t, args)
+	toolCtx := modkit.WithOrgID(ctx, resolveOUID(ctx))
+	if c := jwtassertion.GetTokenClaims(ctx); c != nil {
+		toolCtx = modkit.WithPrincipal(toolCtx, modkit.Principal{User: c.Sub, ClientID: c.ClientID})
+	}
+	result, err := runModuleTool(toolCtx, t, args)
 	duration := time.Since(start).Milliseconds()
 	if err != nil {
 		log.Error("mcp tool failed", "tool", t.Name, "module", t.Module, "duration_ms", duration, "error", err)

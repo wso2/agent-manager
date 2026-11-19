@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -33,7 +32,7 @@ func registerAgentGatewayRoutes(rr Router, ctrl *gwctl.AgentGatewayController, e
 	// requireEnvTier in the service layer is what decides production; declaring
 	// the floor here is the early deny and the floor half of that check.
 	rr.HandleFuncWithValidationAndAllAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/deploy-settings",
-		growthanalytics.Track("amp.agent-development.update-agent", updateTargetDims("deploy-settings"), ctrl.UpdateAgentDeploySettings),
+		rr.Track("amp.agent-development.update-agent", updateTargetDims("deploy-settings"), ctrl.UpdateAgentDeploySettings),
 		rbac.AgentUpdate, gwperm.DeployNonProduction)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/deployments", rbac.AgentRead, ctrl.GetAgentDeployments)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/configurations", rbac.AgentRead, ctrl.GetAgentConfigurations)
@@ -44,6 +43,6 @@ func registerAgentGatewayRoutes(rr Router, ctrl *gwctl.AgentGatewayController, e
 // updateTargetDims builds the growth-analytics dimensions for the shared
 // "amp.agent-development.update-agent" feature, tagging which part of the
 // agent's configuration this specific route updates.
-func updateTargetDims(target string) map[string]interface{} {
-	return map[string]interface{}{"update_target": target}
+func updateTargetDims(target string) map[string]any {
+	return map[string]any{"update_target": target}
 }

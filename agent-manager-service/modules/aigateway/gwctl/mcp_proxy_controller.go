@@ -24,9 +24,11 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -89,7 +91,7 @@ func (c *mcpProxyController) CreateMCPProxy(w http.ResponseWriter, r *http.Reque
 	// returns the same prompts/resources/tools shape carried on an endpoint's
 	// Capabilities, so an endpoint arriving with Capabilities already set is the
 	// signal that the caller probed the server before registering it.
-	growthanalytics.SetDimension(ctx, "probed_first", mcpProxyWasProbedFirst(req.Endpoints))
+	gwtrack.Set(ctx, "probed_first", mcpProxyWasProbedFirst(req.Endpoints))
 
 	resp, err := c.mcpProxyService.Create(ctx, ouID, "system", &req)
 	if err != nil {
@@ -340,14 +342,14 @@ func (c *mcpProxyController) FetchServerInfo(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	claims := jwtassertion.GetTokenClaims(ctx)
-	if claims == nil || claims.Sub == "" {
+	caller := modkit.PrincipalFrom(ctx).User
+	if caller == "" {
 		log.Warn("FetchMCPProxyServerInfo: missing token claims")
 		httpx.WriteErrorResponse(w, http.StatusUnauthorized, "Missing token claims")
 		return
 	}
 
-	resp, err := c.mcpProxyService.FetchServerInfo(ctx, ouID, claims.Sub, &req)
+	resp, err := c.mcpProxyService.FetchServerInfo(ctx, ouID, caller, &req)
 	if err != nil {
 		// The console aborts a superseded probe. Whatever error that surfaced as,
 		// nobody is waiting for the response, so it is not a failure to log.

@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
@@ -26,9 +25,9 @@ import (
 func RegisterLLMProviderAPIKeyRoutes(rr Router, ctrl gwctl.LLMProviderAPIKeyController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{id}/api-keys", gwperm.LLMProviderAPIKeyManage, ctrl.ListAPIKeys)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{id}/api-keys", gwperm.LLMProviderAPIKeyManage,
-		growthanalytics.Track("amp.connections.llm-provider-api-key", actionDims("issued-provider-api-key"), ctrl.CreateAPIKey))
+		rr.Track("amp.connections.llm-provider-api-key", actionDims("issued-provider-api-key"), ctrl.CreateAPIKey))
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", gwperm.LLMProviderAPIKeyManage,
-		growthanalytics.Track("amp.connections.llm-provider-api-key", actionDims("revoked-provider-api-key"), ctrl.RevokeAPIKey))
+		rr.Track("amp.connections.llm-provider-api-key", actionDims("revoked-provider-api-key"), ctrl.RevokeAPIKey))
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-providers/{id}/api-keys/{keyName}", gwperm.LLMProviderAPIKeyManage,
-		growthanalytics.Track("amp.connections.llm-provider-api-key", actionDims("rotated-provider-api-key"), ctrl.RotateAPIKey))
+		rr.Track("amp.connections.llm-provider-api-key", actionDims("rotated-provider-api-key"), ctrl.RotateAPIKey))
 }

@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
@@ -26,28 +25,28 @@ import (
 func RegisterLLMRoutes(rr Router, ctrl gwctl.LLMController) {
 	// LLM Provider Templates
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-provider-templates", gwperm.LLMProviderTemplateCreate,
-		growthanalytics.Track("amp.connections.create-llm-provider.template", actionDims("created-provider-template"), ctrl.CreateLLMProviderTemplate))
+		rr.Track("amp.connections.create-llm-provider.template", actionDims("created-provider-template"), ctrl.CreateLLMProviderTemplate))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-provider-templates", gwperm.LLMProviderTemplateRead, ctrl.ListLLMProviderTemplates)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateRead, ctrl.GetLLMProviderTemplate)
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateUpdate,
-		growthanalytics.Track("amp.connections.create-llm-provider.template", actionDims("updated-provider-template"), ctrl.UpdateLLMProviderTemplate))
+		rr.Track("amp.connections.create-llm-provider.template", actionDims("updated-provider-template"), ctrl.UpdateLLMProviderTemplate))
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-provider-templates/{templateId}", gwperm.LLMProviderTemplateDelete,
-		growthanalytics.Track("amp.connections.create-llm-provider.template", actionDims("deleted-provider-template"), ctrl.DeleteLLMProviderTemplate))
+		rr.Track("amp.connections.create-llm-provider.template", actionDims("deleted-provider-template"), ctrl.DeleteLLMProviderTemplate))
 
 	// LLM Providers
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers", gwperm.LLMProviderCreate,
-		growthanalytics.Track("amp.connections.create-llm-provider", actionDims("created-llm-provider"), ctrl.CreateLLMProvider))
+		rr.Track("amp.connections.create-llm-provider", actionDims("created-llm-provider"), ctrl.CreateLLMProvider))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers", gwperm.LLMProviderRead, ctrl.ListLLMProviders)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/policies", gwperm.LLMProviderRead, ctrl.ListAvailableLLMPolicies)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}", gwperm.LLMProviderRead, ctrl.GetLLMProvider)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/llm-proxies", gwperm.LLMProxyRead, ctrl.ListLLMProxiesByProvider)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/consumers", gwperm.LLMProviderRead, ctrl.ListLLMProviderConsumers)
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-providers/{providerId}", gwperm.LLMProviderUpdate,
-		growthanalytics.Track("amp.connections.create-llm-provider", actionDims("updated-llm-provider"), ctrl.UpdateLLMProvider))
+		rr.Track("amp.connections.create-llm-provider", actionDims("updated-llm-provider"), ctrl.UpdateLLMProvider))
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/llm-providers/{providerId}/catalog", gwperm.LLMProviderUpdate,
-		growthanalytics.Track("amp.connections.create-llm-provider", actionDims("updated-llm-provider-catalog-status"), ctrl.UpdateLLMProviderCatalogStatus))
+		rr.Track("amp.connections.create-llm-provider", actionDims("updated-llm-provider-catalog-status"), ctrl.UpdateLLMProviderCatalogStatus))
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-providers/{providerId}", gwperm.LLMProviderDelete,
-		growthanalytics.Track("amp.connections.create-llm-provider", actionDims("deleted-llm-provider"), ctrl.DeleteLLMProvider))
+		rr.Track("amp.connections.create-llm-provider", actionDims("deleted-llm-provider"), ctrl.DeleteLLMProvider))
 
 	// LLM Proxies
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/llm-proxies", gwperm.LLMProxyCreate, ctrl.CreateLLMProxy)

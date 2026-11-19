@@ -25,11 +25,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modkit"
+
 	"github.com/google/uuid"
 
 	"github.com/wso2/agent-manager/agent-manager-service/audit"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwaudit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
@@ -1262,7 +1263,7 @@ func (c *agentConfigurationController) RevokeLLMConfigAPIKey(w http.ResponseWrit
 // attribution, falling back to a marker when there is no user behind the call
 // (a system client) rather than to a literal that would misattribute the change.
 func callerSubject(ctx context.Context) string {
-	if sub := jwtassertion.CallerSubject(ctx); sub != "" {
+	if sub := modkit.PrincipalFrom(ctx).User; sub != "" {
 		return sub
 	}
 	return "system"

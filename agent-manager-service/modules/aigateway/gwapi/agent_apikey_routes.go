@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
@@ -25,19 +24,19 @@ import (
 // RegisterAgentAPIKeyRoutes registers API key routes for agents
 func RegisterAgentAPIKeyRoutes(rr Router, ctrl gwctl.AgentAPIKeyController) {
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", gwperm.AgentAPIKeyManage,
-		growthanalytics.Track("amp.security-access.issue-api-key", keyPurposeDims("production"), ctrl.CreateAPIKey))
+		rr.Track("amp.security-access.issue-api-key", keyPurposeDims("production"), ctrl.CreateAPIKey))
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/test", gwperm.AgentAPIKeyManage,
-		growthanalytics.Track("amp.security-access.issue-api-key", keyPurposeDims("test"), ctrl.IssueTestAPIKey))
+		rr.Track("amp.security-access.issue-api-key", keyPurposeDims("test"), ctrl.IssueTestAPIKey))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys", gwperm.AgentAPIKeyManage, ctrl.ListAPIKeys)
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}", gwperm.AgentAPIKeyManage,
-		growthanalytics.Track("amp.security-access.issue-api-key.rotate", actionDims("revoked-agent-api-key"), ctrl.RevokeAPIKey))
+		rr.Track("amp.security-access.issue-api-key.rotate", actionDims("revoked-agent-api-key"), ctrl.RevokeAPIKey))
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/environments/{envID}/api-keys/{keyName}", gwperm.AgentAPIKeyManage,
-		growthanalytics.Track("amp.security-access.issue-api-key.rotate", actionDims("rotated-agent-api-key"), ctrl.RotateAPIKey))
+		rr.Track("amp.security-access.issue-api-key.rotate", actionDims("rotated-agent-api-key"), ctrl.RotateAPIKey))
 }
 
 // keyPurposeDims builds the growth-analytics dimensions for
 // "amp.security-access.issue-api-key": key_purpose distinguishes production
 // vs. test, while action is fixed since both routes perform the same action.
-func keyPurposeDims(purpose string) map[string]interface{} {
-	return map[string]interface{}{"key_purpose": purpose, "action": "issued-agent-api-key"}
+func keyPurposeDims(purpose string) map[string]any {
+	return map[string]any{"key_purpose": purpose, "action": "issued-agent-api-key"}
 }

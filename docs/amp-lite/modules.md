@@ -159,6 +159,11 @@ rt.Handle(http.MethodGet, "/tags", "widget-read", func(w http.ResponseWriter, r 
 
 `Handle(method, path, perm, h, opts...)` mounts `/m/<name><path>` on the API port, beside the core's `/api/v1`, with the core's sign-in, permission check, organization from the token and audit trail. `perm` is the module's own permission (short name) or a core one. A `GET` may pass `""` (any signed-in user of the organization); every other method must name a permission, which also names its audit action unless an option names another. Paths under `/internal` belong to the workload routes below. `rt.Can(ctx, perm)` checks a permission inside a handler.
 
+Inside a handler or MCP tool:
+
+- `modkit.OrgID(ctx)` is the caller's organization and `modkit.PrincipalFrom(ctx)` the caller: `User` is the token subject (the signed-in user, or the client of a client-credentials token) and `ClientID` the OAuth client the token was issued to. The PoC's `Principal` also has a `Role`; Lite grants scopes rather than one role, so it is left out, and `rt.Can` answers permission questions.
+- `rt.Track(ctx, event, props)` reports the request as feature usage named `event`, with `props` as its dimensions, after the response is written and with its status. A second call in the same request adds to `props`, later values winning, for dimensions a handler learns as it runs. It does nothing outside a request to one of the module's routes, or when the installation does not report feature usage (`MOESIF_ENABLED`). Feature names follow the product's feature-usage taxonomy, which `middleware/growthanalytics/taxonomy_test.go` checks for the gateway's routes.
+
 `HandleInternal(method, path, scope, h, opts...)` mounts `/m/<name>/internal<path>` on the internal server (:9243) for the module's own workloads. Callers present a workload token carrying `scope` as `Authorization: Bearer`; `modkit.WorkloadFrom(ctx)` returns who they are (module, workload, instance, subject, organization, scopes). While the module is inactive these routes answer `401 {"error":"module_inactive"}`. A workload gets its tokens from:
 
 - a [heartbeat](#workloads), with a credential: the usual way for a service workload;

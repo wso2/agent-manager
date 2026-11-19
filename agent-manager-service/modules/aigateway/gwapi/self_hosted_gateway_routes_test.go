@@ -159,7 +159,7 @@ func newSelfHostedFixture(t *testing.T) *selfHostedFixture {
 	}
 	ctrl := gwctl.NewGatewayController(gwsvc.NewPlatformGatewayService(repo, nil), ocClient, nil)
 	f.mux = http.NewServeMux()
-	RegisterGatewayRoutes(middleware.NewRouteRegistrar(f.mux, nil, f.audits), ctrl)
+	RegisterGatewayRoutes(coreRouter{middleware.NewRouteRegistrar(f.mux, nil, f.audits)}, ctrl)
 	return f
 }
 

@@ -650,11 +650,14 @@ func findControllerDimensions(t *testing.T, dir string) map[string]map[string][]
 					return true
 				}
 				sel, ok := call.Fun.(*ast.SelectorExpr)
-				if !ok || sel.Sel.Name != "SetDimension" {
+				if !ok {
 					return true
 				}
+				// The gateway module reports its dimensions with gwtrack.Set.
 				pkg, ok := sel.X.(*ast.Ident)
-				if !ok || pkg.Name != "growthanalytics" {
+				setsDimension := ok && (pkg.Name == "growthanalytics" && sel.Sel.Name == "SetDimension" ||
+					pkg.Name == "gwtrack" && sel.Sel.Name == "Set")
+				if !setsDimension {
 					return true
 				}
 				if len(call.Args) != 3 {
@@ -680,14 +683,16 @@ func findControllerDimensions(t *testing.T, dir string) map[string]map[string][]
 	return out
 }
 
-// isGrowthAnalyticsTrack identifies calls to the tracking wrapper.
+// isGrowthAnalyticsTrack identifies calls to the tracking wrapper: the core's,
+// and the gateway module's router (rr.Track), which reports through its
+// Runtime.
 func isGrowthAnalyticsTrack(call *ast.CallExpr) bool {
 	sel, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok || sel.Sel.Name != "Track" {
 		return false
 	}
 	pkg, ok := sel.X.(*ast.Ident)
-	return ok && pkg.Name == "growthanalytics"
+	return ok && (pkg.Name == "growthanalytics" || pkg.Name == "rr")
 }
 
 // stringLiteral decodes a Go string literal without evaluating expressions.

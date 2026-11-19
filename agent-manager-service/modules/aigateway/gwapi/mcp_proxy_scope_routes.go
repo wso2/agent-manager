@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
@@ -25,10 +24,10 @@ import (
 func registerMCPProxyScopeRoutes(rr Router, ctrl gwctl.MCPProxyScopeController) {
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/mcp-proxies/{proxyId}/scopes", gwperm.ScopeRead, ctrl.ListMCPProxyScopes)
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/mcp-proxies/{proxyId}/scopes", gwperm.ScopeCreate,
-		growthanalytics.Track("amp.connections.manage-mcp-scope", actionDims("created-mcp-scope"), ctrl.CreateMCPProxyScope))
+		rr.Track("amp.connections.manage-mcp-scope", actionDims("created-mcp-scope"), ctrl.CreateMCPProxyScope))
 	rr.HandleFuncWithValidationAndAuthz("PUT /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}", gwperm.ScopeUpdate,
-		growthanalytics.Track("amp.connections.manage-mcp-scope", actionDims("updated-mcp-scope"), ctrl.UpdateMCPProxyScope))
+		rr.Track("amp.connections.manage-mcp-scope", actionDims("updated-mcp-scope"), ctrl.UpdateMCPProxyScope))
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/mcp-proxies/{proxyId}/scopes/{scopeAction}", gwperm.ScopeDelete,
-		growthanalytics.Track("amp.connections.manage-mcp-scope", actionDims("deleted-mcp-scope"), ctrl.DeleteMCPProxyScope))
+		rr.Track("amp.connections.manage-mcp-scope", actionDims("deleted-mcp-scope"), ctrl.DeleteMCPProxyScope))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/environments/{envName}/agent-identities/scopes", gwperm.AgentIdentityRead, ctrl.ListAgentIdentityScopes)
 }

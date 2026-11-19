@@ -23,8 +23,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
+
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwconv"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -355,9 +356,9 @@ func (c *llmController) CreateLLMProvider(w http.ResponseWriter, r *http.Request
 	// req.Template is the built-in provider template handle (e.g. "openai",
 	// "azure-openai", "awsbedrock") when the provider is created from one, and
 	// empty when configured from scratch.
-	growthanalytics.SetDimension(ctx, "from_template", req.Template != "")
+	gwtrack.Set(ctx, "from_template", req.Template != "")
 	if req.Template != "" {
-		growthanalytics.SetDimension(ctx, "provider_type", req.Template)
+		gwtrack.Set(ctx, "provider_type", req.Template)
 	}
 
 	// Convert spec request to model

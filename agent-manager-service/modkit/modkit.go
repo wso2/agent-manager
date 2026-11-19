@@ -451,6 +451,30 @@ func WithOrgID(ctx context.Context, orgID string) context.Context {
 	return context.WithValue(ctx, orgKey{}, orgID)
 }
 
+// Principal is the caller of an API request or MCP tool call.
+type Principal struct {
+	// User is the subject of the caller's token: the signed-in user, or the
+	// client of a client-credentials token.
+	User string `json:"user"`
+	// ClientID is the OAuth client the token was issued to.
+	ClientID string `json:"clientId,omitempty"`
+}
+
+type principalKey struct{}
+
+// WithPrincipal returns ctx carrying p, for the core to set on module
+// requests and tool calls.
+func WithPrincipal(ctx context.Context, p Principal) context.Context {
+	return context.WithValue(ctx, principalKey{}, p)
+}
+
+// PrincipalFrom returns the caller of the current request or tool call; the
+// zero Principal outside one.
+func PrincipalFrom(ctx context.Context) Principal {
+	p, _ := ctx.Value(principalKey{}).(Principal)
+	return p
+}
+
 // Runtime is what the core gives a module when it activates it.
 type Runtime interface {
 	Name() string
@@ -507,6 +531,12 @@ type Runtime interface {
 
 	// Can reports whether the caller of the current request holds perm.
 	Can(ctx context.Context, perm string) bool
+	// Track reports the current API request as feature usage named event,
+	// with props as its dimensions, once the response is written. A second
+	// call in the same request adds to props, later values winning. It does
+	// nothing outside a request to one of the module's routes, or when the
+	// installation does not report feature usage.
+	Track(ctx context.Context, event string, props map[string]any)
 	// IssueToken mints a short-lived token for one of the module's workloads,
 	// signed with the core's key and verifiable with its JWKS.
 	IssueToken(ctx context.Context, req TokenRequest) (string, error)

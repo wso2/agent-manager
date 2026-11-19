@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/wso2/agent-manager/agent-manager-service/coreext"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -288,14 +289,23 @@ func (h *Host) ServeInternal() http.Handler {
 	})
 }
 
-// withOrg puts the caller's organization on a public module request.
+// withOrg puts the caller and their organization on a public module request.
 func withOrg(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if c := jwtassertion.GetTokenClaims(r.Context()); c != nil && c.OuId != "" {
-			r = r.WithContext(modkit.WithOrgID(r.Context(), c.OuId))
+		if c := jwtassertion.GetTokenClaims(r.Context()); c != nil {
+			ctx := modkit.WithPrincipal(r.Context(), principalOf(c))
+			if c.OuId != "" {
+				ctx = modkit.WithOrgID(ctx, c.OuId)
+			}
+			r = r.WithContext(ctx)
 		}
 		next(w, r)
 	}
+}
+
+// principalOf is the caller a verified token names.
+func principalOf(c *jwtassertion.TokenClaims) modkit.Principal {
+	return modkit.Principal{User: c.Sub, ClientID: c.ClientID}
 }
 
 // mountPublic builds a module's public mux. The core middleware panics on a
@@ -308,7 +318,7 @@ func mountPublic(mount func(*http.ServeMux, Route), routes []Route) (mux *http.S
 	}()
 	mux = http.NewServeMux()
 	for _, rt := range routes {
-		rt.Handler = withOrg(rt.Handler)
+		rt.Handler = withOrg(growthanalytics.Trackable(rt.Handler))
 		mount(mux, rt)
 	}
 	return mux, nil

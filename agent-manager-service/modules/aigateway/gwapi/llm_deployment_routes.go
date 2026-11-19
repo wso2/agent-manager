@@ -17,7 +17,6 @@
 package gwapi
 
 import (
-	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwctl"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 )
@@ -25,11 +24,11 @@ import (
 // RegisterLLMDeploymentRoutes registers all LLM deployment-related routes
 func RegisterLLMDeploymentRoutes(rr Router, ctrl gwctl.LLMDeploymentController) {
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments", gwperm.LLMProviderDeploy,
-		growthanalytics.Track("amp.connections.deploy-llm-provider", actionDims("deployed-llm-provider"), ctrl.DeployLLMProvider))
+		rr.Track("amp.connections.deploy-llm-provider", actionDims("deployed-llm-provider"), ctrl.DeployLLMProvider))
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments/undeploy", gwperm.LLMProviderDeploy,
-		growthanalytics.Track("amp.connections.deploy-llm-provider", actionDims("undeployed-llm-provider"), ctrl.UndeployLLMProviderDeployment))
+		rr.Track("amp.connections.deploy-llm-provider", actionDims("undeployed-llm-provider"), ctrl.UndeployLLMProviderDeployment))
 	rr.HandleFuncWithValidationAndAuthz("POST /orgs/{orgName}/llm-providers/{providerId}/deployments/restore", gwperm.LLMProviderDeploy,
-		growthanalytics.Track("amp.connections.deploy-llm-provider", actionDims("restored-llm-provider-deployment"), ctrl.RestoreLLMProviderDeployment))
+		rr.Track("amp.connections.deploy-llm-provider", actionDims("restored-llm-provider-deployment"), ctrl.RestoreLLMProviderDeployment))
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/deployments", gwperm.LLMProviderRead, ctrl.GetLLMProviderDeployments)
 	rr.HandleFuncWithValidationAndAuthz("GET /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}", gwperm.LLMProviderRead, ctrl.GetLLMProviderDeployment)
 	// DeleteLLMProviderDeployment removes a deployment record outright; the
@@ -37,5 +36,5 @@ func RegisterLLMDeploymentRoutes(rr Router, ctrl gwctl.LLMDeploymentController) 
 	// reported as "undeployed-llm-provider" — the closest existing
 	// lifecycle-terminal value.
 	rr.HandleFuncWithValidationAndAuthz("DELETE /orgs/{orgName}/llm-providers/{providerId}/deployments/{deploymentId}", gwperm.LLMProviderDeploy,
-		growthanalytics.Track("amp.connections.deploy-llm-provider", actionDims("undeployed-llm-provider"), ctrl.DeleteLLMProviderDeployment))
+		rr.Track("amp.connections.deploy-llm-provider", actionDims("undeployed-llm-provider"), ctrl.DeleteLLMProviderDeployment))
 }

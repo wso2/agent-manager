@@ -24,6 +24,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
+	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
 )
 
@@ -34,6 +35,8 @@ type Router interface {
 	HandleFuncWithValidationAndAllAuthz(pattern string, handler http.HandlerFunc, perms ...rbac.Permission)
 	HandleFuncWithValidationAndAnyAuthz(pattern string, handler http.HandlerFunc, perms ...rbac.Permission)
 	HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm rbac.Permission, handler http.HandlerFunc)
+	// Track reports the requests handler serves as feature usage.
+	Track(feature string, dimensions map[string]any, handler http.HandlerFunc) http.HandlerFunc
 }
 
 // InternalRouter takes the gateway's controller-facing routes, whose handlers
@@ -75,6 +78,10 @@ func (m moduleRouter) HandleFuncWithValidationAndAnyAuthz(pattern string, h http
 
 func (m moduleRouter) HandleFuncWithValidationAndPlatformAdminAuthz(pattern string, perm rbac.Permission, h http.HandlerFunc) {
 	m.handle(pattern, perm, h, modkit.PlatformAdmin())
+}
+
+func (m moduleRouter) Track(feature string, dimensions map[string]any, h http.HandlerFunc) http.HandlerFunc {
+	return gwtrack.Wrap(m.rt.Track, feature, dimensions, h)
 }
 
 func (m moduleRouter) handle(pattern string, perm rbac.Permission, h http.HandlerFunc, opts ...modkit.RouteOption) {

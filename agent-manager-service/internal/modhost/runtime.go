@@ -32,6 +32,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/wso2/agent-manager/agent-manager-service/config"
+	"github.com/wso2/agent-manager/agent-manager-service/middleware/growthanalytics"
 	"github.com/wso2/agent-manager/agent-manager-service/middleware/jwtassertion"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/rbac"
@@ -408,6 +409,10 @@ func (r *runtime) Can(ctx context.Context, perm string) bool {
 		return false
 	}
 	return jwtassertion.HoldsAnyScope(ctx, full)
+}
+
+func (r *runtime) Track(ctx context.Context, event string, props map[string]any) {
+	growthanalytics.Mark(ctx, event, props)
 }
 
 func (r *runtime) IssueToken(ctx context.Context, req modkit.TokenRequest) (string, error) {
