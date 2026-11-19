@@ -194,7 +194,7 @@ def test_weak_agents_sharing_a_name_get_their_original_names(tmp_path: Path) -> 
     }
 
 
-def test_repeats_left_after_the_original_name_get_the_file_name(tmp_path: Path) -> None:
+def test_repeats_left_after_the_original_name_get_the_part_of_the_path_that_differs(tmp_path: Path) -> None:
     names = _names(
         tmp_path,
         {
@@ -209,9 +209,58 @@ def test_repeats_left_after_the_original_name_get_the_file_name(tmp_path: Path) 
         "acme/r:svc/a.py:agent": "svc-bot (a.py)",
         "acme/r:svc/a.py:agent@2": "svc-bot (a.py)",  # A repeat inside one file stays.
         "acme/r:svc/b.py:agent": "svc-bot (b.py)",
-        "acme/r:svc/api/c.py:agent": "svc-bot (api/c.py)",
-        "acme/r:svc/web/c.py:agent": "svc-bot (web/c.py)",
+        "acme/r:svc/api/c.py:agent": "svc-bot (api)",
+        "acme/r:svc/web/c.py:agent": "svc-bot (web)",
     }
+
+
+def test_copies_of_a_sample_in_sibling_folders_get_the_folder_that_differs(tmp_path: Path) -> None:
+    sample = STRANDS + "def main():\n    agent = Agent()\n"
+    names = _names(
+        tmp_path,
+        {
+            "identity/python/auth-flow/crew-ai/main.py": sample,
+            "identity/python/obo-flow/crew-ai/main.py": sample,
+        },
+    )
+    assert names == {
+        "acme/r:identity/python/auth-flow/crew-ai/main.py:main.agent": "crew-ai (auth-flow)",
+        "acme/r:identity/python/obo-flow/crew-ai/main.py:main.agent": "crew-ai (obo-flow)",
+    }
+
+
+def test_strong_names_that_repeat_across_folders_get_the_folder_that_differs(tmp_path: Path) -> None:
+    sample = STRANDS + "hotel_assistant = Agent()\n"
+    names = _names(
+        tmp_path,
+        {
+            "hotel-autogen/app/service.py": sample,
+            "hotel-autogen-iam/assistant/app/service.py": sample,
+            "solo/bot.py": STRANDS + "concierge = Agent(name='Concierge')\n",
+        },
+    )
+    assert names == {
+        "acme/r:hotel-autogen/app/service.py:hotel_assistant": "hotel_assistant (hotel-autogen)",
+        "acme/r:hotel-autogen-iam/assistant/app/service.py:hotel_assistant": "hotel_assistant (hotel-autogen-iam)",
+        "acme/r:solo/bot.py:Concierge": "Concierge",
+    }
+
+
+def test_agents_built_in_different_functions_of_one_file_get_the_function(tmp_path: Path) -> None:
+    code = STRANDS + "def ask():\n    agent = Agent()\n\ndef desk_chat():\n    agent = Agent()\n"
+    names = _names(tmp_path, {"it-agent/main.py": code, "hr-agent/main.py": code})
+    assert names == {
+        "acme/r:hr-agent/main.py:ask.agent": "hr-agent (ask)",
+        "acme/r:hr-agent/main.py:desk_chat.agent": "hr-agent (desk_chat)",
+        "acme/r:it-agent/main.py:ask.agent": "it-agent (ask)",
+        "acme/r:it-agent/main.py:desk_chat.agent": "it-agent (desk_chat)",
+    }
+
+
+def test_a_named_agent_in_two_functions_of_one_file_gets_the_function(tmp_path: Path) -> None:
+    code = STRANDS + "def a():\n    x = Agent(name='v1.2 bot')\n\ndef b():\n    y = Agent(name='v1.2 bot')\n"
+    names = _names(tmp_path, {"svc/main.py": code})
+    assert sorted(names.values()) == ["v1.2 bot (a)", "v1.2 bot (b)"]
 
 
 @pytest.mark.parametrize(
