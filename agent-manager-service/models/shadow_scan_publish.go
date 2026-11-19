@@ -24,7 +24,7 @@ type PublishShadowScanRequest struct {
 	// connection's settings name.
 	Complete bool `json:"complete"`
 	// ScannedRepositories are the repositories scanned to the end: a GitHub
-	// repository name, or an Azure DevOps project/repository.
+	// repository name.
 	ScannedRepositories []string `json:"scannedRepositories"`
 	// FailedRepositories are the repositories the command could not scan.
 	FailedRepositories []PublishShadowScanFailedRepository `json:"failedRepositories"`

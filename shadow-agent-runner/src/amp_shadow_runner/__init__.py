@@ -16,9 +16,9 @@
 
 """Shadow agent runner for WSO2 Agent Manager.
 
-The runner runs on the customer's machine, scans GitHub or Azure DevOps
-repositories for AI agents with the bundled engine (``amp_shadow_runner.engine``)
-and publishes the confirmed agents to Agent Manager.
+The runner runs on the customer's machine, scans GitHub repositories for AI
+agents with the bundled engine (``amp_shadow_runner.engine``) and publishes
+the confirmed agents to Agent Manager.
 """
 
 from amp_shadow_runner._version import __version__

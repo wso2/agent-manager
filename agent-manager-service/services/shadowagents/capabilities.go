@@ -145,7 +145,7 @@ var providerCredentialChoices = map[string]CredentialChoice{
 }
 
 // sourceCapabilities is what the source code scan of a repository host
-// (GitHub, Azure DevOps) analyzes: the design's detectors D1 to D12. Signals
+// (GitHub) analyzes: the design's detectors D1 to D12. Signals
 // are the evidence codes the scan command publishes.
 func sourceCapabilities(provider, prefix string) []CapabilitySpec {
 	codes := func(slugs ...string) []string {
@@ -199,7 +199,6 @@ func sourceCapabilities(provider, prefix string) []CapabilitySpec {
 func init() {
 	providerCapabilities[models.ShadowProviderCustom] = customCapabilities
 	providerCapabilities[models.ShadowProviderGitHub] = sourceCapabilities(models.ShadowProviderGitHub, "github")
-	providerCapabilities[models.ShadowProviderAzureDevOps] = sourceCapabilities(models.ShadowProviderAzureDevOps, "azureDevOps")
 }
 
 // Capabilities returns what a platform's scan lists.

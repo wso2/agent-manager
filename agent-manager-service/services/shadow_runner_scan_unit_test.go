@@ -113,7 +113,7 @@ func TestShadowCreateRunnerScan_CreatesPendingScanAndReturnsParts(t *testing.T) 
 }
 
 func TestShadowCreateRunnerScan_RefusesWithoutAuditTrail(t *testing.T) {
-	conn := models.ShadowConnection{ID: uuid.New(), OUID: shadowTestOU, Provider: models.ShadowProviderAzureDevOps}
+	conn := models.ShadowConnection{ID: uuid.New(), OUID: shadowTestOU, Provider: models.ShadowProviderGitHub}
 	// CreateScanFunc and the issuer are nil: reaching either panics.
 	svc := newRunnerShadowSvc(shadowRepoWith(conn), shadowRunner(&stubScanTokenIssuer{}))
 	_, err := svc.CreateRunnerScan(context.Background(), shadowTestOU, conn.ID, models.ShadowScanOptions{})

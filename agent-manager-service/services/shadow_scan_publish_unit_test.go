@@ -210,18 +210,6 @@ func TestShadowPublishRunnerScan_GitHubOrgPrefixIsTheSameRepository(t *testing.T
 	assert.True(t, f.published.Apply.Complete)
 }
 
-func TestShadowPublishRunnerScan_AzureDevOpsFailedProject(t *testing.T) {
-	f := newPublishFixture(models.ShadowProviderAzureDevOps,
-		models.ShadowConnectionConfig{Organization: "acme", AllProjects: true}, models.ShadowScanOptions{})
-	_, err := f.publish(auditableCtx(t), &models.PublishShadowScanRequest{
-		Complete: true, ScannedRepositories: []string{"P1/Repo"},
-		FailedRepositories: []models.PublishShadowScanFailedRepository{{Name: "P2", Reason: "listing failed"}},
-	})
-	require.NoError(t, err)
-	assert.False(t, f.published.Apply.Complete, "a whole project failed: its repositories are unknown")
-	assert.Equal(t, models.ShadowScanPartial, f.published.Status)
-}
-
 func TestShadowPublishRunnerScan_EveryRepositoryFailed(t *testing.T) {
 	f := newPublishFixture(models.ShadowProviderGitHub, models.ShadowConnectionConfig{AllRepositories: true},
 		models.ShadowScanOptions{})
@@ -233,30 +221,6 @@ func TestShadowPublishRunnerScan_EveryRepositoryFailed(t *testing.T) {
 	assert.Equal(t, models.ShadowScanFailed, resp.Status)
 	assert.Equal(t, "failed", f.published.Result.Outcome)
 	assert.NotEqual(t, models.ShadowScanExpiredMessage, f.published.Result.Message)
-}
-
-func TestShadowPublishRunnerScan_AzureDevOpsMissingProject(t *testing.T) {
-	cfg := models.ShadowConnectionConfig{Organization: "acme", Projects: []string{"P1", "P2"}}
-	f := newPublishFixture(models.ShadowProviderAzureDevOps, cfg, models.ShadowScanOptions{})
-	_, err := f.publish(auditableCtx(t), &models.PublishShadowScanRequest{
-		Complete: true, ScannedRepositories: []string{"P1/Repo"},
-		Agents: []models.PublishShadowScanAgent{codeAgent("a", "P1/Repo", "azure_devops.d2_agent_import")},
-	})
-	require.NoError(t, err)
-	assert.False(t, f.published.Apply.Complete, "a configured project with no repository reported marks nothing gone")
-	assert.Equal(t, models.ShadowScanPartial, f.published.Status)
-	require.Len(t, f.published.Apply.Findings, 1, "new agents are still saved")
-	assert.Equal(t, "P1/Repo", f.published.Apply.Findings[0].Finding.Scope, "Azure DevOps scopes keep their case")
-
-	// A failed repository reports its project too.
-	f = newPublishFixture(models.ShadowProviderAzureDevOps, cfg, models.ShadowScanOptions{})
-	_, err = f.publish(auditableCtx(t), &models.PublishShadowScanRequest{
-		Complete: true, ScannedRepositories: []string{"P1/Repo"},
-		FailedRepositories: []models.PublishShadowScanFailedRepository{{Name: "p2/Other", Reason: "clone failed"}},
-	})
-	require.NoError(t, err)
-	assert.True(t, f.published.Apply.Complete)
-	assert.Equal(t, []string{"p2/Other"}, f.published.Apply.UnfinishedScopes)
 }
 
 func TestShadowPublishRunnerScan_RejectsInvalidAgents(t *testing.T) {
@@ -272,7 +236,7 @@ func TestShadowPublishRunnerScan_RejectsInvalidAgents(t *testing.T) {
 	noRepo := good
 	noRepo.Repository = ""
 	unknownCode := codeAgent("x", "a", "github.d99_unknown")
-	otherProvider := codeAgent("x", "a", "azure_devops.d1_agent_dependency")
+	otherProvider := codeAgent("x", "a", "openai.agent_object")
 	tooMuchEvidence := good
 	tooMuchEvidence.Evidence = make([]models.PublishShadowScanSignal, maxShadowPublishEvidence+1)
 
@@ -471,12 +435,6 @@ func TestToShadowApply_NormalisesGitHubScopes(t *testing.T) {
 	out.Findings[0].Scope = "other/My-Repo"
 	gh = toShadowApply(scan, withOrg, out, now, now, true, slog.New(slog.DiscardHandler))
 	assert.Equal(t, "other/my-repo", gh.Findings[0].Finding.Scope, "another owner is kept")
-
-	out.Findings[0].Scope, out.Findings[0].Signals[0].Code = " Proj/My-Repo ", "azure_devops.d2_agent_import"
-	ado := toShadowApply(scan, &models.ShadowConnection{ID: uuid.New(), Provider: models.ShadowProviderAzureDevOps},
-		out, now, now, true, slog.New(slog.DiscardHandler))
-	require.Len(t, ado.Findings, 1)
-	assert.Equal(t, "Proj/My-Repo", ado.Findings[0].Finding.Scope)
 }
 
 // Attributes a scan command publishes arrive decoded from JSON; lists and

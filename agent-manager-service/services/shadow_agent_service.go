@@ -92,7 +92,7 @@ type ShadowAgentService interface {
 	UpdateConnection(ctx context.Context, ouID string, id uuid.UUID, in ShadowConnectionInput) (*ShadowConnectionView, error)
 	DeleteConnection(ctx context.Context, ouID string, id uuid.UUID) error
 	TestConnection(ctx context.Context, ouID string, id uuid.UUID) (*models.ShadowConnectionTestInfo, error)
-	// CreateRunnerScan creates a pending scan of a GitHub or Azure DevOps
+	// CreateRunnerScan creates a pending scan of a GitHub
 	// connection and the scan token its scan command publishes with.
 	CreateRunnerScan(ctx context.Context, ouID string, id uuid.UUID, opts models.ShadowScanOptions) (*ShadowRunnerScan, error)
 	// PublishRunnerScan saves the code agents a source code scan command
@@ -401,7 +401,7 @@ func (s *shadowAgentService) encryptSecret(secret models.ShadowConnectionSecret)
 }
 
 // sealSecret encrypts a connection's secret for storage. A source host
-// (GitHub, Azure DevOps) stores none: its form has no secret field, and the
+// (GitHub) stores none: its form has no secret field, and the
 // source code scan asks for the Git token on the customer's machine.
 func (s *shadowAgentService) sealSecret(spec sa.ProviderSpec, secret models.ShadowConnectionSecret) ([]byte, error) {
 	if spec.SourceHost {
@@ -899,7 +899,7 @@ var (
 )
 
 // validateSourceHostSettings checks the names a connection puts in API
-// paths and hosts: Bedrock region codes, and GitHub and Azure DevOps names.
+// paths and hosts: Bedrock region codes and GitHub names.
 // A GitHub repository may be given as owner/name for the connection's
 // owner; it is stored as the name.
 func validateSourceHostSettings(spec sa.ProviderSpec, cfg *models.ShadowConnectionConfig) error {
@@ -930,15 +930,6 @@ func validateSourceHostSettings(spec sa.ProviderSpec, cfg *models.ShadowConnecti
 				return fmt.Errorf("%w: %q is not a GitHub repository name", utils.ErrInvalidInput, r)
 			}
 			cfg.Repositories[i] = name
-		}
-	case models.ShadowProviderAzureDevOps:
-		if strings.ContainsAny(cfg.Organization, "/\\?#% \t") {
-			return fmt.Errorf("%w: Organization must be the name in https://dev.azure.com/{organization}, not a URL", utils.ErrInvalidInput)
-		}
-		for _, p := range cfg.Projects {
-			if strings.ContainsAny(p, "/\\?#%") {
-				return fmt.Errorf("%w: %q is not an Azure DevOps project name", utils.ErrInvalidInput, p)
-			}
 		}
 	}
 	return nil
@@ -991,8 +982,6 @@ func setShadowBool(cfg *models.ShadowConnectionConfig, key string, v bool) {
 		cfg.AllLocations = v
 	case sa.OptAllRepositories:
 		cfg.AllRepositories = v
-	case sa.OptAllProjects:
-		cfg.AllProjects = v
 	case sa.OptPrivateRepos:
 		cfg.PrivateRepositories = v
 	case sa.OptReadCI:
@@ -1045,8 +1034,6 @@ func setShadowList(cfg *models.ShadowConnectionConfig, key string, v []string) {
 		cfg.Locations = v
 	case "repositories":
 		cfg.Repositories = v
-	case "projects":
-		cfg.Projects = v
 	}
 }
 
@@ -1080,14 +1067,14 @@ func shadowSettingsOf(provider string, cfg models.ShadowConnectionConfig) map[st
 	lists := map[string][]string{
 		"subscriptionIds": cfg.SubscriptionIDs, "regions": cfg.Regions, "projectIds": cfg.ProjectIDs,
 		"locations":    cfg.Locations,
-		"repositories": cfg.Repositories, "projects": cfg.Projects,
+		"repositories": cfg.Repositories,
 	}
 	bools := map[string]bool{
 		sa.OptAllSubscriptions: cfg.AllSubscriptions,
 		sa.OptClassicAgents:    cfg.IncludeClassicAgents, sa.OptGlobalMulti: cfg.IncludeGlobalAndMultiRegion,
 		sa.OptGoogleAllLocations: cfg.AllLocations,
 		sa.OptAllRepositories:    cfg.AllRepositories, sa.OptPrivateRepos: cfg.PrivateRepositories,
-		sa.OptAllProjects: cfg.AllProjects, sa.OptReadCI: cfg.ReadCIFiles,
+		sa.OptReadCI: cfg.ReadCIFiles,
 	}
 	for _, f := range spec.Fields {
 		switch f.Kind {
@@ -1134,7 +1121,7 @@ func (s *shadowAgentService) CreateScan(
 	if err != nil {
 		return nil, fmt.Errorf("failed to list connections: %w", err)
 	}
-	// A source host (GitHub, Azure DevOps) is never part of a cloud scan:
+	// A source host (GitHub) is never part of a cloud scan:
 	// its repositories are scanned by the scan command on the customer's
 	// machine.
 	scannable := map[uuid.UUID]bool{}

@@ -52,7 +52,7 @@ func TestEvidenceCatalog(t *testing.T) {
 		"d5_a2a_artifact", "d6_agent_platform_iac", "d7_tool_calling", "d8_mcp_server_code",
 		"d9_agent_definition", "d10_model_sdk", "d11_llm_env_var", "d12_developer_tooling",
 	}
-	for _, host := range []string{"github", "azure_devops"} {
+	for _, host := range []string{"github"} {
 		for _, slug := range sourceSlugs {
 			want = append(want, host+"."+slug)
 		}
