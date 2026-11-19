@@ -167,7 +167,7 @@ func TestOrgUpdateProjectProxy_409ProjectOwned(t *testing.T) {
 func TestOrgDeleteProjectProxy_409ProjectOwned(t *testing.T) {
 	svc := orgPickerSvc(nil, orgPickerProjectProxy())
 
-	err := svc.Delete(context.Background(), "org", "org-name", "p1-mcp")
+	err := svc.Delete(context.Background(), "org", "p1-mcp")
 	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
 }
 
@@ -177,11 +177,11 @@ func TestScopeMutationsOnProjectProxy_ProjectOwned(t *testing.T) {
 	svc := newScopeSvcForTest(scopeRepo, proxy)
 	ctx := context.Background()
 
-	_, err := svc.Create(ctx, "org", "org-name", "p1-mcp", gwmodels.MCPProxyScopeInput{Action: "read"})
+	_, err := svc.Create(ctx, "org", "p1-mcp", gwmodels.MCPProxyScopeInput{Action: "read"})
 	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
-	_, err = svc.Update(ctx, "org", "org-name", "p1-mcp", "read", gwmodels.MCPProxyScopeUpdateInput{})
+	_, err = svc.Update(ctx, "org", "p1-mcp", "read", gwmodels.MCPProxyScopeUpdateInput{})
 	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
-	err = svc.Delete(ctx, "org", "org-name", "p1-mcp", "read")
+	err = svc.Delete(ctx, "org", "p1-mcp", "read")
 	assert.ErrorIs(t, err, gwerr.ErrMCPProxyProjectOwned)
 }
 

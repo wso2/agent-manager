@@ -321,7 +321,7 @@ func TestMCPProxyDelete_CleansThunderResourceServers(t *testing.T) {
 		logger:            discardLogger(),
 	}
 
-	err := svc.Delete(context.Background(), "org-uuid", "org", "gh-proxy")
+	err := svc.Delete(context.Background(), "org-uuid", "gh-proxy")
 
 	assert.NoError(t, err)
 	assert.Equal(t, "gh-proxy", deletedHandle)
@@ -367,7 +367,7 @@ func TestMCPProxyDelete_CleanupSurvivesResolverError(t *testing.T) {
 		logger:            discardLogger(),
 	}
 
-	err := svc.Delete(context.Background(), "org-uuid", "org", "gh-proxy")
+	err := svc.Delete(context.Background(), "org-uuid", "gh-proxy")
 
 	assert.NoError(t, err, "Thunder cleanup is best-effort and must never fail the delete")
 }

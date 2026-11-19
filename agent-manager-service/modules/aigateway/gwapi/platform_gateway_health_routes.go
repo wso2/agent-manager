@@ -34,8 +34,8 @@ import (
 // audit action label and for the route-table invariants, and the scope check it
 // implies always runs. It is not the tenant boundary, though: gateway:read is
 // an ordinary org-level grant that any tenant's admin holds, so the
-// platform-admin OU check is what actually keeps other tenants out. See
-// middleware.RequirePlatformAdminOU.
+// platform-admin check the host applies for modkit.PlatformAdmin is what
+// actually keeps other tenants out.
 func RegisterPlatformGatewayHealthRoutes(rr Router, ctrl gwctl.GatewayController) {
 	rr.HandleFuncWithValidationAndPlatformAdminAuthz(
 		"GET /platform/gateways/failure-summary", gwperm.Read, ctrl.GetPlatformGatewayFailureSummary,

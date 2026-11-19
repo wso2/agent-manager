@@ -21,14 +21,14 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwperm"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
+	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 )
 
-// Router takes the gateway's public routes. *middleware.RouteRegistrar is
-// one; NewModuleRouter mounts them on the module runtime at /m/ai-gateway.
+// Router takes the gateway's public routes. NewModuleRouter mounts them on the
+// module runtime at /m/ai-gateway.
 type Router interface {
 	HandleFuncWithValidationAndAuthz(pattern string, perm string, handler http.HandlerFunc)
 	HandleFuncWithValidationAndAllAuthz(pattern string, handler http.HandlerFunc, perms ...string)
@@ -93,7 +93,7 @@ type moduleInternalRouter struct{ rt modkit.Runtime }
 func (m moduleInternalRouter) HandleFuncWithValidation(pattern string, h http.HandlerFunc) {
 	method, path, _ := strings.Cut(pattern, " ")
 	if params := pathParams(path); len(params) > 0 {
-		h = middleware.WithPathParamValidation(h, params...)
+		h = requirePathParams(h, params)
 	}
 	m.rt.HandleInternalAt(method, internalBase+path, h, internalRouteOptions[pattern]...)
 }
@@ -105,6 +105,19 @@ const internalBase = "/api/internal/v1"
 // own without its prefix, a core one as it is.
 func short(p string) string {
 	return strings.TrimPrefix(string(p), gwperm.Module+":")
+}
+
+// requirePathParams answers 400 when a path parameter of the route is blank.
+func requirePathParams(h http.HandlerFunc, params []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		for _, p := range params {
+			if strings.TrimSpace(r.PathValue(p)) == "" {
+				httpx.WriteErrorResponse(w, http.StatusBadRequest, "Missing required path parameter: "+p)
+				return
+			}
+		}
+		h(w, r)
+	}
 }
 
 var pathParam = regexp.MustCompile(`\{([^}]+)\}`)

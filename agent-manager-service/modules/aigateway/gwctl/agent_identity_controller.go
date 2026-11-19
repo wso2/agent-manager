@@ -32,7 +32,6 @@ import (
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modkit/contracts/identityv1"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwrepo"
@@ -843,13 +842,12 @@ func (c *agentIdentityController) ListAgents(w http.ResponseWriter, r *http.Requ
 	// provider, so the picker is environment specific.
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-	orgName := middleware.OrgHandleFromRequest(r)
 	envName := r.PathValue("envName")
 	ouID := modkit.OrgID(r.Context())
 
 	rows, err := c.directory.ListProvisionedAgents(ctx, ouID, envName)
 	if err != nil {
-		log.Error("agent-identity ListAgents failed", "org", orgName, "env", envName, "error", err)
+		log.Error("agent-identity ListAgents failed", "env", envName, "error", err)
 		httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to list agent identity bindings")
 		return
 	}

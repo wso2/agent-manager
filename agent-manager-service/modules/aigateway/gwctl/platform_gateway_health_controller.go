@@ -19,7 +19,6 @@ package gwctl
 import (
 	"net/http"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/logger"
@@ -45,24 +44,11 @@ import (
 //     and is the field a caller should branch on.
 //
 // Unlike every other handler here it does not read an org from the request —
-// there is no org to read. It deliberately does not call
-// middleware.OUIDFromRequest either: this route carries no {orgName}, so the
-// registrar never ran RequireOrgMatch and that value would be empty. Reading it
-// and passing it as a filter would silently return an empty fleet.
+// there is no org to read: the route carries no {orgName}, and the host lets
+// only a platform admin reach it (modkit.PlatformAdmin, set by its registrar).
 func (c *gatewayController) GetPlatformGatewayFailureSummary(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
-
-	// The platform-admin gate is what stands between an ordinary tenant token
-	// and every tenant's rows, and it is applied at registration where a future
-	// refactor could drop it without breaking the build. Confirming it ran
-	// turns that mistake into a refusal instead of a cross-tenant disclosure.
-	if !middleware.IsPlatformAdminRequest(ctx) {
-		log.Error("GetPlatformGatewayFailureSummary: reached without the platform-admin guard; " +
-			"the route is registered without HandleFuncWithValidationAndPlatformAdminAuthz")
-		httpx.WriteErrorResponse(w, http.StatusForbidden, "forbidden")
-		return
-	}
 
 	failure := c.gatewayService.FailureSettings()
 	includeDetails := r.URL.Query().Get("includeDetails") == "true"

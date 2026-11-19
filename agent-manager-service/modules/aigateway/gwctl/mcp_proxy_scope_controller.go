@@ -26,7 +26,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwerr"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwutil"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwspec"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
@@ -58,10 +57,9 @@ func (c *mcpProxyScopeController) ListMCPProxyScopes(w http.ResponseWriter, r *h
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := modkit.OrgID(r.Context())
-	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
-	log.Info("ListMCPProxyScopes: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID)
+	log.Info("ListMCPProxyScopes: starting", "ouID", ouID, "proxyID", proxyID)
 
 	result, err := c.svc.List(ctx, ouID, proxyID)
 	if err != nil {
@@ -90,10 +88,9 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := modkit.OrgID(r.Context())
-	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
-	log.Info("CreateMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID)
+	log.Info("CreateMCPProxyScope: starting", "ouID", ouID, "proxyID", proxyID)
 
 	var body gwspec.MCPProxyScopeRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -107,7 +104,7 @@ func (c *mcpProxyScopeController) CreateMCPProxyScope(w http.ResponseWriter, r *
 		description = *body.Description
 	}
 
-	result, err := c.svc.Create(ctx, ouID, orgName, proxyID, gwmodels.MCPProxyScopeInput{
+	result, err := c.svc.Create(ctx, ouID, proxyID, gwmodels.MCPProxyScopeInput{
 		Action:      body.Action,
 		Description: description,
 		Tools:       body.Tools,
@@ -143,11 +140,10 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := modkit.OrgID(r.Context())
-	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 	action := r.PathValue(gwutil.PathParamScopeAction)
 
-	log.Info("UpdateMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID, "action", action)
+	log.Info("UpdateMCPProxyScope: starting", "ouID", ouID, "proxyID", proxyID, "action", action)
 
 	var body gwspec.MCPProxyScopeUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -156,7 +152,7 @@ func (c *mcpProxyScopeController) UpdateMCPProxyScope(w http.ResponseWriter, r *
 		return
 	}
 
-	result, err := c.svc.Update(ctx, ouID, orgName, proxyID, action, gwmodels.MCPProxyScopeUpdateInput{
+	result, err := c.svc.Update(ctx, ouID, proxyID, action, gwmodels.MCPProxyScopeUpdateInput{
 		Description: body.Description,
 		Tools:       body.Tools,
 	})
@@ -188,13 +184,12 @@ func (c *mcpProxyScopeController) DeleteMCPProxyScope(w http.ResponseWriter, r *
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := modkit.OrgID(r.Context())
-	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 	action := r.PathValue(gwutil.PathParamScopeAction)
 
-	log.Info("DeleteMCPProxyScope: starting", "ouID", ouID, "orgName", orgName, "proxyID", proxyID, "action", action)
+	log.Info("DeleteMCPProxyScope: starting", "ouID", ouID, "proxyID", proxyID, "action", action)
 
-	if err := c.svc.Delete(ctx, ouID, orgName, proxyID, action); err != nil {
+	if err := c.svc.Delete(ctx, ouID, proxyID, action); err != nil {
 		switch {
 		case errors.Is(err, gwerr.ErrMCPProxyProjectOwned):
 			log.Warn("DeleteMCPProxyScope: project-owned MCP proxy", "ouID", ouID, "proxyID", proxyID)
@@ -219,10 +214,9 @@ func (c *mcpProxyScopeController) ListAgentIdentityScopes(w http.ResponseWriter,
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := modkit.OrgID(r.Context())
-	orgName := middleware.OrgHandleFromRequest(r)
 	envName := r.PathValue("envName")
 
-	log.Info("ListAgentIdentityScopes: starting", "ouID", ouID, "orgName", orgName, "envName", envName)
+	log.Info("ListAgentIdentityScopes: starting", "ouID", ouID, "envName", envName)
 
 	entries, err := c.svc.ListEnvironmentScopes(ctx, ouID, envName)
 	if err != nil {

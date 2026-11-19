@@ -31,7 +31,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwtrack"
 
-	"github.com/wso2/agent-manager/agent-manager-service/middleware"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwsvc"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
@@ -297,12 +296,11 @@ func (c *mcpProxyController) DeleteMCPProxy(w http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	log := logger.GetLogger(ctx)
 	ouID := modkit.OrgID(r.Context())
-	orgName := middleware.OrgHandleFromRequest(r)
 	proxyID := r.PathValue(gwutil.PathParamProxyId)
 
 	log.Info("DeleteMCPProxy: starting", "ouID", ouID, "proxyID", proxyID)
 
-	if err := c.mcpProxyService.Delete(ctx, ouID, orgName, proxyID); err != nil {
+	if err := c.mcpProxyService.Delete(ctx, ouID, proxyID); err != nil {
 		switch {
 		case errors.Is(err, gwerr.ErrMCPProxyNotFound):
 			log.Warn("DeleteMCPProxy: MCP proxy not found", "ouID", ouID, "proxyID", proxyID)

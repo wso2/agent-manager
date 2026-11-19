@@ -676,9 +676,7 @@ func (s *MCPProxyService) Update(ctx context.Context, orgUUID, proxyID string, r
 // derived from an MCP proxy, so the source proxy cannot be deleted while mappings exist.
 // A project proxy is refused (gwerr.ErrMCPProxyProjectOwned) unless the platform store no longer
 // has its project.
-func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, orgName, proxyID string) error {
-	_ = orgName // unused: cleanup now resolves env-Thunder by orgUUID (ouID), not orgName
-
+func (s *MCPProxyService) Delete(ctx context.Context, orgUUID, proxyID string) error {
 	handle := strings.TrimSpace(proxyID)
 	if handle == "" {
 		return httpx.ErrInvalidInput

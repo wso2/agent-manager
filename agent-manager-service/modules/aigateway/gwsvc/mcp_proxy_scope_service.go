@@ -43,9 +43,9 @@ import (
 // (in later tasks) Thunder cleanup + re-emit.
 type MCPProxyScopeService interface {
 	List(ctx context.Context, ouID, proxyHandle string) (*gwmodels.MCPProxyScopesResult, error)
-	Create(ctx context.Context, ouID, orgName, proxyHandle string, in gwmodels.MCPProxyScopeInput) (*gwmodels.MCPProxyScopeResult, error)
-	Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in gwmodels.MCPProxyScopeUpdateInput) (*gwmodels.MCPProxyScopeResult, error)
-	Delete(ctx context.Context, ouID, orgName, proxyHandle, action string) error
+	Create(ctx context.Context, ouID, proxyHandle string, in gwmodels.MCPProxyScopeInput) (*gwmodels.MCPProxyScopeResult, error)
+	Update(ctx context.Context, ouID, proxyHandle, action string, in gwmodels.MCPProxyScopeUpdateInput) (*gwmodels.MCPProxyScopeResult, error)
+	Delete(ctx context.Context, ouID, proxyHandle, action string) error
 	ListEnvironmentScopes(ctx context.Context, ouID, envName string) ([]gwmodels.EnvironmentScopeEntry, error)
 }
 
@@ -173,9 +173,7 @@ func validateScopeTools(tools []string, union map[string]struct{}) ([]string, er
 	return out, nil
 }
 
-func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyHandle string, in gwmodels.MCPProxyScopeInput) (*gwmodels.MCPProxyScopeResult, error) {
-	_ = orgName // unused: env-Thunder calls below are resolved by ouID, not orgName
-
+func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, proxyHandle string, in gwmodels.MCPProxyScopeInput) (*gwmodels.MCPProxyScopeResult, error) {
 	if !mcpScopeActionRe.MatchString(in.Action) {
 		return nil, fmt.Errorf("%w: action must match ^[A-Za-z0-9._\\-]{1,100}$", httpx.ErrInvalidInput)
 	}
@@ -225,9 +223,7 @@ func (s *mcpProxyScopeService) Create(ctx context.Context, ouID, orgName, proxyH
 	}, nil
 }
 
-func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyHandle, action string, in gwmodels.MCPProxyScopeUpdateInput) (*gwmodels.MCPProxyScopeResult, error) {
-	_ = orgName // unused: env-Thunder calls below are resolved by ouID, not orgName
-
+func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, proxyHandle, action string, in gwmodels.MCPProxyScopeUpdateInput) (*gwmodels.MCPProxyScopeResult, error) {
 	proxy, err := s.resolveOrgOwnedProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return nil, err
@@ -272,9 +268,7 @@ func (s *mcpProxyScopeService) Update(ctx context.Context, ouID, orgName, proxyH
 	}, nil
 }
 
-func (s *mcpProxyScopeService) Delete(ctx context.Context, ouID, orgName, proxyHandle, action string) error {
-	_ = orgName // unused: cleanup now resolves env-Thunder by ouID, not orgName
-
+func (s *mcpProxyScopeService) Delete(ctx context.Context, ouID, proxyHandle, action string) error {
 	proxy, err := s.resolveOrgOwnedProxy(ctx, ouID, proxyHandle)
 	if err != nil {
 		return err
