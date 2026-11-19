@@ -279,3 +279,54 @@ func TestBuildPolicyCatalog_InstalledItemDetails(t *testing.T) {
 	assert.Equal(t, map[string]interface{}{"p": 1}, got[0].Parameters)
 	assert.Equal(t, map[string]interface{}{"s": 2}, got[0].SystemParameters)
 }
+
+// A custom policy on only some gateways is disabled, but still shows the name, version and description the gateways
+// that have it reported, instead of the raw policy name with no version.
+func TestBuildPolicyCatalog_PartialCustomUsesSightedDefinition(t *testing.T) {
+	gwB := gatewayRef{ID: "b", Name: "gw-b"}
+	installed := installedPolicies{
+		ByName:    map[string]llmPolicyManifestItem{},
+		Custom:    map[string]bool{"my-guard": true},
+		MissingOn: map[string][]gatewayRef{"my-guard": {gwB}},
+		Sighted: map[string]llmPolicyManifestItem{
+			"my-guard": {
+				Name: "my-guard", Version: "v1.2.0", DisplayName: "My Guard", Description: "gw desc",
+				Parameters: map[string]interface{}{"p": 1},
+			},
+		},
+	}
+
+	for _, kind := range []models.PolicyCatalogKind{models.PolicyCatalogKindLLM, models.PolicyCatalogKindMCP} {
+		got := buildPolicyCatalog(kind, installed, nil, true)
+
+		assert.Len(t, got, 1, kind)
+		assert.Equal(t, models.PolicyCatalogStatusNotInstalled, got[0].Status)
+		assert.Equal(t, models.PolicyCatalogSourceCustom, got[0].Source)
+		assert.Equal(t, "v1.2.0", got[0].Version)
+		assert.Equal(t, "My Guard", got[0].DisplayName)
+		assert.Equal(t, "gw desc", got[0].Description)
+		assert.Equal(t, []gatewayRef{gwB}, got[0].MissingOn)
+		assert.Nil(t, got[0].Parameters, "a disabled row carries no settings form")
+	}
+}
+
+// When the hub happens to know a custom policy's name, the gateway's own definition still wins for the row.
+func TestBuildPolicyCatalog_PartialCustomPrefersGatewayOverHub(t *testing.T) {
+	installed := installedPolicies{
+		ByName:    map[string]llmPolicyManifestItem{},
+		Custom:    map[string]bool{"my-guard": true},
+		MissingOn: map[string][]gatewayRef{"my-guard": {{ID: "b", Name: "gw-b"}}},
+		Sighted: map[string]llmPolicyManifestItem{
+			"my-guard": {Name: "my-guard", Version: "v1.2.0", DisplayName: "My Guard", Description: "gw desc"},
+		},
+	}
+	hub := []HubPolicy{{Name: "my-guard", Version: "1.0", DisplayName: "Hub Guard", Description: "hub desc", Categories: []string{"AI"}}}
+
+	got := buildPolicyCatalog(models.PolicyCatalogKindMCP, installed, hub, true)
+
+	assert.Len(t, got, 1)
+	assert.Equal(t, "v1.2.0", got[0].Version)
+	assert.Equal(t, "My Guard", got[0].DisplayName)
+	assert.Equal(t, "gw desc", got[0].Description)
+	assert.Equal(t, []string{"AI"}, got[0].Categories)
+}

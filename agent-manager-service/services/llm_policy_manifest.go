@@ -126,6 +126,9 @@ type installedPolicies struct {
 	Custom map[string]bool
 	// MissingOn lists, for names seen on at least one but not all reporting gateways, the gateways lacking them.
 	MissingOn map[string][]gatewayRef
+	// Sighted is, per name, the highest-version definition any reporting gateway reported. It lets a policy that is
+	// not installed everywhere still show its real name, version and description.
+	Sighted map[string]llmPolicyManifestItem
 	// Reporting lists the gateways that have reported a manifest.
 	Reporting []gatewayRef
 }
@@ -137,6 +140,7 @@ func collectInstalledPolicies(gateways []*models.Gateway) installedPolicies {
 		ByName:    map[string]llmPolicyManifestItem{},
 		Custom:    map[string]bool{},
 		MissingOn: map[string][]gatewayRef{},
+		Sighted:   map[string]llmPolicyManifestItem{},
 		Reporting: []gatewayRef{},
 	}
 	// Several versions of one name can survive the intersection (every gateway reports both); take the highest, so
@@ -169,6 +173,9 @@ func collectInstalledPolicies(gateways []*models.Gateway) installedPolicies {
 			allNames[policy.Name] = struct{}{}
 			if policy.ManagedBy == "organization" {
 				result.Custom[policy.Name] = true
+			}
+			if current, ok := result.Sighted[policy.Name]; !ok || compareVersions(policy.Version, current.Version) > 0 {
+				result.Sighted[policy.Name] = policy
 			}
 		}
 		reporting = append(reporting, entry)

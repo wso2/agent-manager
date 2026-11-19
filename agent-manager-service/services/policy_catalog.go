@@ -70,6 +70,16 @@ func hubPolicyPreferred(candidate, current HubPolicy) bool {
 	return compareVersions(candidate.Version, current.Version) > 0
 }
 
+// firstNonEmpty returns the first non-empty value, or "".
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func nonNilStrings(s []string) []string {
 	if s == nil {
 		return []string{}
@@ -118,7 +128,8 @@ func buildPolicyCatalog(kind models.PolicyCatalogKind, installed installedPolici
 		})
 	}
 
-	// Custom names seen on only some gateways: no manifest to use, so both kinds.
+	// Custom names seen on only some gateways: both kinds. The row shows the definition those gateways reported,
+	// falling back to the hub and then the bare name; it carries no settings form because it cannot be selected.
 	customMissing := map[string]bool{}
 	for name, missing := range installed.MissingOn {
 		if !installed.Custom[name] {
@@ -129,15 +140,12 @@ func buildPolicyCatalog(kind models.PolicyCatalogKind, installed installedPolici
 		}
 		customMissing[name] = true
 		h := hubByName[name]
-		displayName := h.DisplayName
-		if displayName == "" {
-			displayName = name
-		}
+		s := installed.Sighted[name]
 		items = append(items, models.PolicyCatalogItem{
 			Name:        name,
-			Version:     h.Version,
-			DisplayName: displayName,
-			Description: h.Description,
+			Version:     firstNonEmpty(s.Version, h.Version),
+			DisplayName: firstNonEmpty(s.DisplayName, h.DisplayName, name),
+			Description: firstNonEmpty(s.Description, h.Description),
 			Source:      models.PolicyCatalogSourceCustom,
 			Status:      models.PolicyCatalogStatusNotInstalled,
 			MissingOn:   append([]gatewayRef(nil), missing...),

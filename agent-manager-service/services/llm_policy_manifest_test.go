@@ -654,3 +654,26 @@ func TestResolveCatalogGateways_UndeployedFallsBackToOrgManaged(t *testing.T) {
 		})
 	}
 }
+
+// A policy seen on only some gateways keeps the definition those gateways reported, highest version first, so a
+// row for it can show its real name and version.
+func TestCollectInstalledPolicies_SightedKeepsPartialPolicyDefinition(t *testing.T) {
+	a := catalogGateway("a",
+		map[string]interface{}{"name": "p1", "version": "v1.0.0"},
+		map[string]interface{}{"name": "my-guard", "version": "v1.0.0", "displayName": "My Guard", "description": "old", "managedBy": "organization"},
+	)
+	b := catalogGateway("b",
+		map[string]interface{}{"name": "p1", "version": "v1.0.0"},
+		map[string]interface{}{"name": "my-guard", "version": "v1.2.0", "displayName": "My Guard", "description": "new", "managedBy": "organization"},
+	)
+	c := catalogGateway("c",
+		map[string]interface{}{"name": "p1", "version": "v1.0.0"},
+	)
+
+	got := collectInstalledPolicies([]*models.Gateway{a, b, c})
+
+	assert.NotContains(t, got.ByName, "my-guard")
+	assert.Equal(t, "v1.2.0", got.Sighted["my-guard"].Version)
+	assert.Equal(t, "My Guard", got.Sighted["my-guard"].DisplayName)
+	assert.Equal(t, "new", got.Sighted["my-guard"].Description)
+}
