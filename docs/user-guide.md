@@ -76,7 +76,7 @@ A new install has no projects. Create one with **Add project** before you regist
 **`file` (the default).** The API checks the password against a user file and
 issues its own tokens, so no identity provider is involved. `amp-init` writes
 that file on every start, from `AMP_ADMIN_PASSWORD` and `AMP_DEFAULT_USERS`, into
-a volume the API reads at `/etc/amp/users.yaml`. It is generated, not edited:
+a volume the API reads at `/amp/fileauth/users.yaml`. It is generated, not edited:
 change the accounts in `.env` and restart, because anything written into the file
 by hand is overwritten. Passwords are stored as bcrypt hashes; the file holds
 every operator's hash, so treat it as a secret.
@@ -93,13 +93,13 @@ the console returns to the sign-in page when it ends rather than renewing.
 AMP_DEFAULT_USERS=dev:dev-password, lead:lead-password:admin
 ```
 
-| Entry | Role | Scopes |
-| --- | --- | --- |
-| `dev:dev-password` | Developer | 45 |
-| `lead:lead-password:admin` | Agent Manager Admin | 89 |
+| Entry | Role |
+| --- | --- |
+| `dev:dev-password` | Developer |
+| `lead:lead-password:admin` | Agent Manager Admin |
 
 Developer covers day-to-day work: full control of projects, agents and LLM
-proxies, plus git secrets. It can read and
+proxies. It can read and
 connect to MCP servers and LLM providers but not create them, and it cannot
 touch organization settings, identity providers, gateways, roles or groups.
 Admin holds everything.
@@ -159,7 +159,7 @@ docker compose exec amp-api /go/bin/amp module enable ai-gateway
 docker compose exec amp-api /go/bin/amp module health ai-gateway
 ```
 
-While it is off, its console pages, API and scopes are gone, an agent registered with LLM providers or MCP servers is refused, and its data is kept; your choice survives restarts. `amp module uninstall ai-gateway --purge` deletes its data. In this preview the bundled `gateway-controller` container restarts in a loop while the gateway is off, and the gateway runtime keeps serving its last configuration; after `enable` it connects again on its next restart. `amp module health ai-gateway` lists each gateway and whether it is connected.
+While it is off, its console pages, API and scopes are gone, an agent registered with LLM providers or MCP servers is refused, and its data is kept; your choice survives restarts. `docker compose exec amp-api /go/bin/amp module uninstall ai-gateway --purge` deletes its data. In this preview the bundled `gateway-controller` container restarts in a loop while the gateway is off, and the gateway runtime keeps serving its last configuration; after `enable` it connects again on its next restart. `amp module health ai-gateway` lists each gateway and whether it is connected.
 
 ## Command line
 

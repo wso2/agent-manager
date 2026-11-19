@@ -4,6 +4,12 @@ A runnable agent that instruments itself by hand. Instead of relying on the
 Traceloop SDK's auto-instrumentation, it emits OpenTelemetry GenAI spans directly,
 against WSO2 Agent Manager's **manual instrumentation contract**.
 
+> [!NOTE]
+> AMP Lite does not store traces and has no traces page. To see the traces
+> this sample emits, run your own OpenTelemetry backend and point
+> `AMP_OTEL_ENDPOINT` at its OTLP/HTTP endpoint. See the
+> [user guide](../../docs/user-guide.md).
+
 ## What this demonstrates
 
 Most Python agents are auto-instrumented: the `amp-instrument` CLI loads the
@@ -14,8 +20,8 @@ But Traceloop doesn't cover every framework. If yours isn't covered, or you just
 want full control over the spans you emit, you take the **manual path**: run
 the agent without `amp-instrument` and emit your own spans. This sample is a worked example
 of that path. It's a small retrieval-augmented agent on a hand-written framework
-(plain Python, nothing Traceloop knows about), and its spans render in the AMP
-Console exactly like auto-instrumented ones.
+(plain Python, nothing Traceloop knows about), and its spans have exactly the
+same shape as auto-instrumented ones.
 
 It emits a span for every kind in the contract, with every attribute, so it
 doubles as an executable reference. For the full supported schema, see
@@ -25,7 +31,7 @@ in the WSO2 Agent Manager documentation.
 ## How it works
 
 `init_otel()`, from the `amp-instrumentation` package, configures the
-OpenTelemetry exporter to AMP. After that the agent emits its own spans. There's
+OpenTelemetry exporter to `AMP_OTEL_ENDPOINT`. After that the agent emits its own spans. There's
 no Traceloop SDK and no `amp-instrument` CLI involved.
 
 One `/chat` request produces one trace:
@@ -64,7 +70,7 @@ standardized yet.
 | `rerank` | `rerank_span` | `traceloop.span.kind=rerank`, `gen_ai.operation.name=rerank`, `rerank.model`, `gen_ai.request.model` |
 | `tool` | `tool_span` | `gen_ai.operation.name=execute_tool`, `gen_ai.tool.name/description/call.id`, `traceloop.entity.input/output` |
 | `llm` | `llm_span` | `gen_ai.operation.name=chat`, `gen_ai.system`, `gen_ai.request/response.model`, `gen_ai.request.temperature`, `gen_ai.input/output.messages`, `gen_ai.input.tools`, `gen_ai.usage.*` |
-| any span | `mark_error` | OTel span `Status=Error` plus `error.type`, which the Console shows as an error badge |
+| any span | `mark_error` | OTel span `Status=Error` plus `error.type`, which trace viewers show as an error |
 | any span | `evaluation_baggage` | W3C baggage `task_id` / `trial_id`, which correlates the trace to an evaluation trial |
 
 This table is a quick map. The authoritative reference, with every attribute and
@@ -79,27 +85,32 @@ whether it's required, is [the contract](https://wso2.com/agent-platform/docs/la
 
 ## Register it in Agent Manager
 
-You run the agent yourself; Agent Manager registers it and issues the token its
-traces are sent with.
+You run the agent yourself; Agent Manager registers it and issues its API key.
 
-1. Sign in to the console at <http://localhost:9000> as `admin` (the password is
-   `AMP_ADMIN_PASSWORD` in `deployments/standalone/.env`).
-2. Open the **Default** project, click **Add Agent**, and register an agent
-   named `Manual Instrumentation Agent`.
-3. In the **Set up agent** panel that opens, pick a token duration and click
-   **Generate**. Copy the `AMP_OTEL_ENDPOINT` and `AMP_AGENT_API_KEY` values it
-   shows.
+1. Sign in to the console at <http://localhost:9000> (the port is
+   `AMP_API_PORT` in `deployments/standalone/.env`) as `admin`; the password
+   is `AMP_ADMIN_PASSWORD` in the same file.
+2. A new install has no projects, so create one first: click **Add project**
+   (**Create project** on the organization overview), enter a **Name** and
+   click **Create**.
+3. Open the project, click **New agent**, enter the name
+   `Manual Instrumentation Agent` and click **Register**.
+4. The **Setup Agent** panel opens with an API key already generated. Copy it
+   as `AMP_AGENT_API_KEY`; it is shown only once. To change how long it is
+   valid, pick another **Token Duration** and click **Regenerate**.
 
 ## Run it
 
-Set the two AMP environment variables yourself and run the agent:
+Set the two AMP environment variables yourself and run the agent.
+`AMP_OTEL_ENDPOINT` is the OTLP/HTTP base URL of your own OpenTelemetry
+collector, without `/v1/traces`:
 
 ```bash
 cd samples/manual-instrumentation-agent
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
 
-export AMP_OTEL_ENDPOINT="http://default-default.gateway.localhost:19080/otel"
+export AMP_OTEL_ENDPOINT="http://localhost:4318"   # your own OpenTelemetry collector
 export AMP_AGENT_API_KEY="<key-from-the-console>"
 export OPENAI_API_KEY="<your-openai-key>"
 
@@ -135,16 +146,15 @@ it questions it can actually answer:
 Ask something the knowledge base doesn't cover and the agent says so. That's a
 valid trace too, and a good one to inspect.
 
-To see an error badge, point the agent at a model that doesn't exist (edit
+To see an error, point the agent at a model that doesn't exist (edit
 `CHAT_MODEL` in `agent.py`). The LLM call fails, `mark_error` flags the agent
 span, and the trace shows an error.
 
 ## Observe the traces
 
-In the AMP Console, open the agent and go to **OBSERVABILITY → Traces**. A
-`/chat` call produces one trace. Its spans carry the per-kind icons, the model
-and token chips, the input and output, and an error badge on a failed run.
-Because the spans follow the contract, evaluators run against them too.
+Open them in the backend behind your collector; AMP Lite does not store them. A
+`/chat` call produces one trace. Its spans carry the span kind, the model and
+token usage, the input and output, and an error status on a failed run.
 
 ## File guide
 
