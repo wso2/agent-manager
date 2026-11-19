@@ -14,7 +14,7 @@ func init() {
 
 Being compiled in doesn't install it. Installing, enabling, disabling and uninstalling are changes to rows in the core's `modules` table. Every change bumps `module_generation`; each replica polls it every 2 seconds and reloads its set of active modules, so no restart is needed.
 
-- **Built-in modules** set `Builtin: true` in their manifest. They are always active and can't be disabled or uninstalled. Today this is only `legacy` (the permissions no module owns yet; it serves no routes).
+- **Built-in modules** set `Builtin: true` in their manifest. They are always active and can't be disabled or uninstalled. There are none in this repository.
 - **Installable modules** start as *available* and are installed by an operator (see [Operating modules](#operating-modules)), or by the server as a distribution default. `ai-gateway` (the AI Gateway) is one; `tests/modules/testmod` is another, used only by tests.
 - **Distribution defaults.** A distribution's `main` passes its default modules to `cli.Main` (`cmd/amp`: `cli.Main("amp", "ai-gateway")`; `cmd/amp-core` none). With no modules list declared, the server installs each default at boot, with its providers, only if it was never installed (or was purged), and changes nothing else, so a default an operator disabled or uninstalled stays that way across restarts. A declared list replaces the defaults.
 
@@ -22,7 +22,7 @@ A distribution is a `main` package that chooses its modules with blank imports:
 
 | Distribution | `main` | Modules |
 |---|---|---|
-| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default), `legacy` |
+| `amp` | `cmd/amp/main.go` imports `modules/all` | everything in `modules/all/all.go`: `ai-gateway` (installed by default) |
 | `amp-core` | `cmd/amp-core/main.go` imports nothing | none |
 
 Both call `cli.Main`, so they share every command. The Dockerfile builds one or the other with `--build-arg DISTRIBUTION=amp|amp-core`.
@@ -34,7 +34,7 @@ Both call `cli.Main`, so they share every command. The Dockerfile builds one or 
 | Core | Modules |
 |---|---|
 | Organizations (including the default org created at startup), projects, environments, the agent registry | The AI Gateway (`ai-gateway`): gateways, LLM and MCP proxies, A2A, agent API keys, agent identity pages |
-| Users, roles and RBAC, the permission registry | `legacy`: permissions no module owns yet |
+| Users, roles and RBAC, the permission registry | |
 | Audit log, settings, secrets, agent tokens and JWKS | Later: observability, evaluation, agent identity, A2A and other product areas as they are split out |
 | HTTP edge and authentication, the module host, migrations, hooks and events, workload credentials, the embedded console shell | |
 
@@ -480,7 +480,7 @@ A module talks to the core only through the contract. The import rules make that
 | Its own packages (`modules/<name>/...`) | The module's code. |
 | The standard library and third-party modules in `go.mod` | |
 
-Everything else under `agent-manager-service/` is the core (`services`, `repositories`, `controllers`, `models`, `utils`, `config`, `db`, `middleware`, `audit`, `rbac`, ...) and is off limits. Another module's packages are off limits as well; use its capability. The `depguard` linter (`.github/linters/.golangci.yaml`) refuses a core import in a module's non-test files; module tests, the gateway's test helpers (`gwtest`) and the `legacy` module, which declares the core's leftover permission catalog from `rbac` until those permissions find their modules, are exempt.
+Everything else under `agent-manager-service/` is the core (`services`, `repositories`, `controllers`, `models`, `utils`, `config`, `db`, `middleware`, `audit`, `rbac`, ...) and is off limits. Another module's packages are off limits as well; use its capability. The `depguard` linter (`.github/linters/.golangci.yaml`) refuses a core import in a module's non-test files; module tests and the gateway's test helpers (`gwtest`) are exempt.
 
 ### Leaf libraries (`pkg/`)
 
@@ -647,7 +647,6 @@ The contract follows the public proof of concept, [a5anka/amp-modular-poc](https
 | [Modules may import `pkg/`](#leaf-libraries-pkg) as well as `modkit` | `pkg/` holds domain-free libraries with no core imports and no state, so they cannot bypass the contract; copying them into every module would let them drift. |
 | [The import rule](#what-a-module-may-import) applies to non-test files only | Module tests may use the core's test harnesses (`db/dbtest`, `internal/modhost`). |
 | [The AI Gateway offers no environment attach](#where-the-gateway-stands) on `environment.created` | Lite has one environment per organization, created with it, and a gateway serves one environment, so there is nothing to offer; revisit with more environments. |
-| [`legacy`](#what-a-module-may-import) imports the core's `rbac` | It only republishes, under their old names, the permissions no module owns yet; it goes once they do. |
 | Module permissions and audit actions may be `<resource>.<action>` (`ai-gateway:llm-providers.read`) | A module with many resources groups its permissions by resource; ThunderID accepts the dots. |
 | [A refusal only the module can check](#audit-records) (the gateway's environment tier) is recorded on the route's own record, as a denial with `reason` and `missingScope`, not as a separate `authz:deny` record | The route's record already carries the caller and the outcome; a second record would need the core's audit package in the module. |
 | [Module records take the project and environment from the path](#audit-records) | Handlers name only what they acted on; the path already says where. |

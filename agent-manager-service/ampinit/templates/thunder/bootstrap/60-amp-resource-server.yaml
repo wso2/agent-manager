@@ -74,29 +74,6 @@ resources:
       - { name: Read, handle: read, description: "View environment details" }
       - { name: Update, handle: update, description: "Update an environment" }
       - { name: Delete, handle: delete, description: "Delete an environment" }
-  - name: Data Plane
-    handle: data-plane
-    parent: amp
-    description: Data plane visibility
-    actions:
-      - { name: Read, handle: read, description: "View data planes" }
-  - name: Deployment Pipeline
-    handle: deployment-pipeline
-    parent: amp
-    description: Deployment pipeline visibility
-    actions:
-      - { name: Create, handle: create, description: "Create a deployment pipeline" }
-      - { name: Read, handle: read, description: "View deployment pipelines" }
-      - { name: Update, handle: update, description: "Update a deployment pipeline" }
-      - { name: Delete, handle: delete, description: "Delete a deployment pipeline" }
-  - name: Git Secret
-    handle: git-secret
-    parent: amp
-    description: Git credential management
-    actions:
-      - { name: Create, handle: create, description: "Create a git secret" }
-      - { name: Read, handle: read, description: "List git secrets" }
-      - { name: Delete, handle: delete, description: "Delete a git secret" }
   - name: Agent
     handle: agent
     parent: amp
@@ -109,15 +86,6 @@ resources:
       - { name: Build, handle: build, description: "Trigger an agent build" }
       - { name: Suspend, handle: suspend, description: "Suspend or stop an agent deployment" }
       - { name: Manage Token, handle: token-manage, description: "Generate agent tokens" }
-  - name: Agent Kind
-    handle: agent-kind
-    parent: amp
-    description: Agent kind management
-    actions:
-      - { name: Create, handle: create, description: "Create an agent kind" }
-      - { name: Read, handle: read, description: "View agent kinds and versions" }
-      - { name: Update, handle: update, description: "Update an agent kind" }
-      - { name: Delete, handle: delete, description: "Delete an agent kind" }
   - name: Events
     handle: events
     parent: amp
@@ -143,9 +111,3 @@ resources:
       - { name: Read, handle: read, description: "View groups and their members" }
       - { name: Update, handle: update, description: "Update a group" }
       - { name: Delete, handle: delete, description: "Delete a group" }
-  - name: Repository
-    handle: repository
-    parent: amp
-    description: Source repository browsing
-    actions:
-      - { name: Read, handle: read, description: "Browse repository branches and commits" }

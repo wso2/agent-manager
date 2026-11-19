@@ -157,7 +157,6 @@ func TestNewRouteMetaSplitsPatternAndParams(t *testing.T) {
 func TestCredentialActionsAreCritical(t *testing.T) {
 	critical := []Action{
 		"api-key:create", "api-key:rotate", "api-key:revoke",
-		"git-secret:create", "git-secret:delete",
 		"gateway-token:rotate", "agent-token:mint",
 		"agent-identity:provision", "agent-identity:revoke-secret",
 		"role:grant-permission", "role:assign",

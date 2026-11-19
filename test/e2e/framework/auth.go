@@ -41,16 +41,13 @@ type tokenResponse struct {
 // agent-manager-service/rbac/permissions.go and the AI Gateway module's
 // modules/aigateway/gwperm; the IDP grants only the ones the
 // client app is actually allowed, so requesting the superset is safe.
-const ampScopes = "amp:agent-kind:create amp:agent-kind:delete amp:agent-kind:read amp:agent-kind:update " +
-	"amp:agent:build amp:agent:create amp:agent:delete amp:agent:read amp:agent:suspend " +
-	"amp:agent:token-manage amp:agent:update amp:data-plane:read " +
-	"amp:deployment-pipeline:create amp:deployment-pipeline:delete amp:deployment-pipeline:read amp:deployment-pipeline:update " +
+const ampScopes = "amp:agent:build amp:agent:create amp:agent:delete amp:agent:read amp:agent:suspend " +
+	"amp:agent:token-manage amp:agent:update " +
 	"amp:environment:create amp:environment:delete amp:environment:read amp:environment:update " +
-	"amp:git-secret:create amp:git-secret:delete amp:git-secret:read " +
 	"amp:group:create amp:group:delete amp:group:read amp:group:update " +
 	"amp:events:read amp:events:manage " +
 	"amp:org:assign-role amp:org:invite-member amp:org:manage-idp amp:org:manage-service-account amp:org:modify-settings amp:org:remove-member amp:org:view " +
-	"amp:project:create amp:project:delete amp:project:read amp:project:update amp:repository:read " +
+	"amp:project:create amp:project:delete amp:project:read amp:project:update " +
 	"amp:role:create amp:role:delete amp:role:read amp:role:update " +
 	"amp:profile:read amp:profile:update-attributes " +
 	// The AI Gateway module's permissions.

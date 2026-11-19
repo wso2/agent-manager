@@ -26,8 +26,6 @@ package audit
 // internal API. Changing a name here without changing it there splits the trail
 // in two.
 const (
-	ActionGitSecretCreate Action = "git-secret:create"
-	ActionGitSecretDelete Action = "git-secret:delete"
 
 	// ActionAuthLogin covers a file-mode sign-in attempt, successful or not.
 	// One action for both outcomes: "show me every attempt on this account"
@@ -124,7 +122,6 @@ const (
 // against one emit site matches every other.
 const (
 	ResourceAPIKey            = "api-key"
-	ResourceGitSecret         = "git-secret"
 	ResourceGateway           = "gateway"
 	ResourceGatewayToken      = "gateway-token"
 	ResourceAgent             = "agent"
@@ -146,13 +143,6 @@ const (
 //nolint:gochecknoinits // The registry is package state; declaring each action's
 func init() {
 	// Credential lifecycle. All critical: these grant or withdraw access.
-	registerCredential(ActionGitSecretCreate, map[string]FieldKind{
-		"secretType": KindEnum,
-		// The username is recorded; the password never reaches this package.
-		"username": KindName,
-	})
-	registerCredential(ActionGitSecretDelete, nil)
-
 	// Credential class: a successful login hands back a bearer token carrying
 	// the full scope set of the user's roles.
 	registerCredential(ActionAuthLogin, map[string]FieldKind{

@@ -87,22 +87,6 @@ const (
 	EnvironmentDelete Permission = "environment:delete"
 )
 
-// Infrastructure permissions
-const (
-	DataPlaneRead            Permission = "data-plane:read"
-	DeploymentPipelineRead   Permission = "deployment-pipeline:read"
-	DeploymentPipelineCreate Permission = "deployment-pipeline:create"
-	DeploymentPipelineUpdate Permission = "deployment-pipeline:update"
-	DeploymentPipelineDelete Permission = "deployment-pipeline:delete"
-)
-
-// Git secret permissions
-const (
-	GitSecretCreate Permission = "git-secret:create"
-	GitSecretRead   Permission = "git-secret:read"
-	GitSecretDelete Permission = "git-secret:delete"
-)
-
 // Agent permissions
 const (
 	AgentCreate      Permission = "agent:create"
@@ -112,14 +96,6 @@ const (
 	AgentBuild       Permission = "agent:build"
 	AgentSuspend     Permission = "agent:suspend"
 	AgentTokenManage Permission = "agent:token-manage"
-)
-
-// Agent Kind permissions
-const (
-	AgentKindRead   Permission = "agent-kind:read"
-	AgentKindCreate Permission = "agent-kind:create"
-	AgentKindUpdate Permission = "agent-kind:update"
-	AgentKindDelete Permission = "agent-kind:delete"
 )
 
 // Events permissions — event destinations, org subscriptions and the org's
@@ -144,11 +120,6 @@ const (
 	GroupRead   Permission = "group:read"
 	GroupUpdate Permission = "group:update"
 	GroupDelete Permission = "group:delete"
-)
-
-// Repository permissions
-const (
-	RepositoryRead Permission = "repository:read"
 )
 
 // Profile permissions

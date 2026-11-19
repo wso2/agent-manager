@@ -194,7 +194,6 @@ func (a Action) Verb() string {
 // access. They are classified as credential events regardless of verb.
 var credentialResources = map[string]bool{
 	"api-key":         true,
-	"git-secret":      true,
 	"agent-identity":  true,
 	"gateway-token":   true,
 	"agent-token":     true,

@@ -119,12 +119,9 @@ sub("modhost", 812, 404, 290, 150,
     "<b>Module host</b> · install · enable · disable<br/>"
     "modules reach the core only through modkit: rt.Core · rt.Secrets · hooks · events · capabilities",
     GREEN, "#F2FBF7")
-sub("mod_gw", 822, 474, 176, 72,
+sub("mod_gw", 822, 474, 270, 72,
     "<b>ai-gateway</b> · on by default<br/>gateways, LLM and MCP proxies; provides llm.proxy, mcp.proxy",
     INDIGO, "#F5F5FF")
-sub("mod_legacy", 1006, 474, 86, 72,
-    "<b>legacy</b><br/>built in; leftover permissions",
-    SLATE, "#F1F5F9")
 comp("thunder", 300, 600, 820, 135, RED, "ThunderID",
      "<b>For people and services:</b> single sign-on (console, CLI, MCP); users, roles and groups<br/>"
      "<b>For agents:</b> an agent ID and OAuth client per external agent, created by Agent Manager<br/>"

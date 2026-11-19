@@ -42,8 +42,6 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 		perms   []rbac.Permission
 		action  Action
 	}{
-		{"POST /orgs/{orgName}/git-secrets", []rbac.Permission{rbac.GitSecretCreate}, ActionGitSecretCreate},
-		{"DELETE /orgs/{orgName}/git-secrets/{secretName}", []rbac.Permission{rbac.GitSecretDelete}, ActionGitSecretDelete},
 		{"POST /orgs/{orgName}/projects/{projName}/agents/{agentName}/token", nil, ActionAgentTokenMint},
 		{"PUT /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities", nil, ActionAgentIdentityProvision},
 		{
@@ -98,8 +96,6 @@ func TestDomainActionsMatchRouteDerivedActions(t *testing.T) {
 // change to routine.
 func TestCredentialAndIdentityActionsAreCritical(t *testing.T) {
 	critical := []Action{
-		ActionGitSecretCreate, ActionGitSecretDelete,
-
 		ActionAgentTokenMint, ActionAgentTokenRegenerateTracing,
 		ActionAgentIdentityProvision, ActionAgentIdentityRegenerateSecret, ActionAgentIdentityRevokeSecret,
 		ActionAgentIdentityRetryProvisioning,

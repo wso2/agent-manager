@@ -206,23 +206,9 @@ var declaredButUnenforcedPermissions = map[string]string{
 	"gwperm.MCPServerAPIKeyManage":         "NOT ENFORCED: no route consults it",
 
 	// --- NOT SERVED --------------------------------------------------------
-	// Lite does not serve these features; their placeholder routes are gone,
-	// and the legacy module keeps the permissions under their old names.
-	"AgentBuild":               notServed,
-	"AgentSuspend":             notServed,
-	"AgentKindCreate":          notServed,
-	"AgentKindRead":            notServed,
-	"AgentKindUpdate":          notServed,
-	"AgentKindDelete":          notServed,
-	"DataPlaneRead":            notServed,
-	"DeploymentPipelineCreate": notServed,
-	"DeploymentPipelineRead":   notServed,
-	"DeploymentPipelineUpdate": notServed,
-	"DeploymentPipelineDelete": notServed,
-	"GitSecretCreate":          notServed,
-	"GitSecretRead":            notServed,
-	"GitSecretDelete":          notServed,
-	"RepositoryRead":           notServed,
+	// Lite does not serve these features; their placeholder routes are gone.
+	"AgentBuild":   notServed,
+	"AgentSuspend": notServed,
 }
 
 const notServed = "NOT SERVED: Lite has no route for this feature; both distributions answer 404"

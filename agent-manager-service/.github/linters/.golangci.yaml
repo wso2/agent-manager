@@ -23,15 +23,13 @@ linters:
     depguard:
       rules:
         # A module reaches the core only through modkit (modules.md, Module
-        # boundaries). Module tests and gwtest may use core test harnesses;
-        # legacy declares the core's leftover permission catalog from rbac.
+        # boundaries). Module tests and gwtest may use core test harnesses.
         modules:
           list-mode: lax
           files:
             - "**/modules/**/*.go"
             - "!**/*_test.go"
             - "!**/modules/aigateway/gwtest/**"
-            - "!**/modules/legacy/**"
           allow:
             - github.com/wso2/agent-manager/agent-manager-service/modkit
             - github.com/wso2/agent-manager/agent-manager-service/pkg

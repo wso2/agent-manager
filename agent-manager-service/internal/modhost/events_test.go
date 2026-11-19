@@ -160,7 +160,7 @@ func eventRetentionAndUninstallPurge(t *testing.T, d database) {
 }
 
 func TestModulesCannotTakeCoreResourceNames(t *testing.T) {
-	for _, name := range []string{"agent", "org", "amp", "git-secret"} {
+	for _, name := range []string{"agent", "org", "amp", "events"} {
 		assert.Panics(t, func() {
 			modhost.NewWith(nil, "sqlite", quiet, []modkit.Module{&testModule{manifest: manifest(name, nil, nil)}})
 		}, name)

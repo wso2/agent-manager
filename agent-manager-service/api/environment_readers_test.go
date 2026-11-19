@@ -29,7 +29,7 @@ import (
 // gateway, LLM provider or LLM proxy read permission) must hold
 // environment:read too.
 func TestGatewayReadersReadEnvironments(t *testing.T) {
-	reg, _ := manifestRegistry(t)
+	reg := manifestRegistry(t)
 	prev := rbac.Current()
 	rbac.SetCurrent(reg)
 	t.Cleanup(func() { rbac.SetCurrent(prev) })

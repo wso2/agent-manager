@@ -119,14 +119,14 @@ func TestJWTActorIsNotClobberedByAnEmptyScope(t *testing.T) {
 func TestSemanticRecordsCarryTheGatingPermission(t *testing.T) {
 	ctx := WithSource(context.Background(), Source{
 		Surface:            SurfaceAPI,
-		Pattern:            "/orgs/{orgName}/git-secrets",
+		Pattern:            "/orgs/{orgName}/agent-tokens",
 		Method:             "POST",
-		RequiredPermission: "amp:git-secret:create",
+		RequiredPermission: "amp:agent:token-manage",
 	})
 	ctx, _ = NewRequestScope(ctx)
 
-	e := BuildEvent(ctx, ActionGitSecretCreate)
-	if e.RequiredPermission != "amp:git-secret:create" {
+	e := BuildEvent(ctx, ActionAgentTokenMint)
+	if e.RequiredPermission != "amp:agent:token-manage" {
 		t.Errorf("RequiredPermission = %q; a semantic record must say which check "+
 			"gated the route", e.RequiredPermission)
 	}
@@ -138,9 +138,9 @@ func TestScopesOfRendersPermissionsAsRecorded(t *testing.T) {
 	if got := ScopesOf(nil); got != "" {
 		t.Errorf("ScopesOf(nil) = %q, want empty", got)
 	}
-	one := ScopesOf([]rbac.Permission{rbac.GitSecretCreate})
-	if one != rbac.GitSecretCreate.Scope() {
-		t.Errorf("ScopesOf(one) = %q, want %q", one, rbac.GitSecretCreate.Scope())
+	one := ScopesOf([]rbac.Permission{rbac.AgentTokenManage})
+	if one != rbac.AgentTokenManage.Scope() {
+		t.Errorf("ScopesOf(one) = %q, want %q", one, rbac.AgentTokenManage.Scope())
 	}
 
 	// The serialised form is asserted literally, not just for agreement between
@@ -148,8 +148,8 @@ func TestScopesOfRendersPermissionsAsRecorded(t *testing.T) {
 	// them is comparing a function to itself and would accept an empty or
 	// malformed value from both. A multi-permission route records one
 	// space-separated string, which is what a SIEM query has to match.
-	many := []rbac.Permission{rbac.GitSecretCreate, rbac.GitSecretDelete}
-	const wantMany = "amp:git-secret:create amp:git-secret:delete"
+	many := []rbac.Permission{rbac.AgentTokenManage, rbac.AgentDelete}
+	const wantMany = "amp:agent:token-manage amp:agent:delete"
 
 	viaHelper := ScopesOf(many)
 	if viaHelper != wantMany {

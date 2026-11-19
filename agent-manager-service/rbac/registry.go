@@ -157,8 +157,8 @@ func RoleGrants(role string) []Permission {
 }
 
 // ReservedResources are the names a module cannot take: the resource part of
-// every permission the core and the built-in legacy module declare (org,
-// agent, git-secret, ...), and the resource server's own handle. A module named
+// every permission the core declares (org, agent, events, ...), and the
+// resource server's own handle. A module named
 // after one would add a second resource of that name to the identity
 // provider's resource server and share its permission namespace.
 func ReservedResources() []string {

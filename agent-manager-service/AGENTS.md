@@ -2,7 +2,7 @@
 
 Go control-plane API. Layered **controller → service → repository**, wired with `wire`. Request/response types and mocks are **generated** — never hand-edited.
 
-The core (orgs, projects, environments, agents, identity, tokens, events) lives in the top-level packages below and imports no module. The AI Gateway (gateways, LLM and MCP proxies, A2A, agent API keys, agent identities) is the `ai-gateway` module (installed by default on `cmd/amp`) under `modules/aigateway/`, with the same layers in `gwapi/`, `gwctl/`, `gwsvc/`, `gwrepo/` and `gwwire/`; it runs on `modkit.Runtime` like any module and reaches the core's agent lifecycle through the capabilities in `modkit/contracts/`. Routes this version does not serve answer 404; the `legacy` module (`modules/legacy/`) holds only the permissions no module owns yet. `cmd/amp` links every module; `cmd/amp-core` links none.
+The core (orgs, projects, environments, agents, identity, tokens, events) lives in the top-level packages below and imports no module. The AI Gateway (gateways, LLM and MCP proxies, A2A, agent API keys, agent identities) is the `ai-gateway` module (installed by default on `cmd/amp`) under `modules/aigateway/`, with the same layers in `gwapi/`, `gwctl/`, `gwsvc/`, `gwrepo/` and `gwwire/`; it runs on `modkit.Runtime` like any module and reaches the core's agent lifecycle through the capabilities in `modkit/contracts/`. Routes this version does not serve answer 404, and no permission exists for them. `cmd/amp` links every module; `cmd/amp-core` links none.
 
 ## File map
 
