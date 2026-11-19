@@ -308,20 +308,6 @@ type ProjectListResponse struct {
 // Environment
 // ---------------------------------------------------------------------------
 
-type CreateEnvironmentRequest struct {
-	Name         string `json:"name"`
-	DisplayName  string `json:"displayName"`
-	Description  string `json:"description,omitempty"`
-	DataplaneRef string `json:"dataplaneRef"`
-	DnsPrefix    string `json:"dnsPrefix"`
-	IsProduction *bool  `json:"isProduction,omitempty"`
-}
-
-type UpdateEnvironmentRequest struct {
-	DisplayName *string `json:"displayName,omitempty"`
-	Description *string `json:"description,omitempty"`
-}
-
 type EnvironmentResponse struct {
 	ID           string    `json:"id"`
 	Name         string    `json:"name"`

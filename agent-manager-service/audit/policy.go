@@ -279,10 +279,6 @@ var actionOverrides = map[string]Action{
 	"PUT /orgs/{orgName}/identities/users/{userID}":    "user:update",
 	"DELETE /orgs/{orgName}/identities/users/{userID}": "user:delete",
 
-	// The env-Thunder system-client credential, gated by org:manage-service-account.
-	"PUT /orgs/{orgName}/environments/{envID}/thunder-system-client":    "service-account:configure",
-	"DELETE /orgs/{orgName}/environments/{envID}/thunder-system-client": "service-account:remove",
-
 	// Sensitive reads.
 	"GET /orgs/{orgName}/projects/{projName}/agents/{agentName}/identities": "agent-identity:read",
 	"GET /orgs/{orgName}/identities/permissions":                            "permission:list",

@@ -19,7 +19,7 @@ var _ MappedNullable = &EventType{}
 
 // EventType struct for EventType
 type EventType struct {
-	// The catalog name, e.g. agent.deployed.
+	// The catalog name, e.g. agent.updated.
 	Type string `json:"type"`
 	// The level the event happens at.
 	Scope       string `json:"scope"`

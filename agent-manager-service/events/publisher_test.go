@@ -60,7 +60,7 @@ func (o publisherTestOutbox) Retry(ctx context.Context, e PendingEvent) error {
 }
 
 func publisherTestEvent() Event {
-	return New("evt-durable", "agent.deployed", ScopeAgent, "org", "project", "agent", time.Now())
+	return New("evt-durable", "agent.updated", ScopeAgent, "org", "project", "agent", time.Now())
 }
 
 func TestAsyncPublisher_PersistsBeforeStart(t *testing.T) {
@@ -214,7 +214,7 @@ func TestAsyncPublisher_StopCancelsBlockedPublication(t *testing.T) {
 func TestAsyncPublisher_DrainsBacklogWithoutWaitingForTicks(t *testing.T) {
 	var queue []PendingEvent
 	for i := range 3*OutboxBatchSize + 5 {
-		e := New(fmt.Sprintf("evt-%d", i), "agent.deployed", ScopeAgent, "org", "project", "agent", time.Now())
+		e := New(fmt.Sprintf("evt-%d", i), "agent.updated", ScopeAgent, "org", "project", "agent", time.Now())
 		body, err := json.Marshal(e)
 		require.NoError(t, err)
 		queue = append(queue, PendingEvent{ID: e.ID, Body: body, Lease: "lease"})

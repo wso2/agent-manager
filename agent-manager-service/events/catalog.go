@@ -56,14 +56,11 @@ type routeEvent struct {
 // emits nothing. An agent event acting on an environment carries it (from
 // the path or a handler annotation) and reaches the
 // subscriptions whose environment filter selects it; one with no
-// environment, such as a build, reaches them whatever their filter.
+// environment, such as agent.updated, reaches them whatever their filter.
 var routeEvents = map[string]routeEvent{
 	// --- Org ------------------------------------------------------------
 	"POST /orgs/{orgName}/projects":                      {Type: "project.created"},
 	"DELETE /orgs/{orgName}/projects/{projName}":         {Type: "project.deleted"},
-	"POST /orgs/{orgName}/environments":                  {Type: "environment.created"},
-	"PUT /orgs/{orgName}/environments/{envID}":           {Type: "environment.updated"},
-	"DELETE /orgs/{orgName}/environments/{envID}":        {Type: "environment.deleted"},
 	"POST /orgs/{orgName}/identities/users/invite":       {Type: "user.invited", OmitData: true},
 	"POST /orgs/{orgName}/identities/users":              {Type: "user.created", OmitData: true},
 	"DELETE /orgs/{orgName}/identities/users/{userID}":   {Type: "user.deleted"},
@@ -88,17 +85,6 @@ var types = []Type{
 	// Org
 	{"project.created", ScopeOrg, "Projects", "A project was created."},
 	{"project.deleted", ScopeOrg, "Projects", "A project was deleted."},
-	{"environment.created", ScopeOrg, "Environments", "An environment was created."},
-	{"environment.updated", ScopeOrg, "Environments", "An environment was updated."},
-	{"environment.deleted", ScopeOrg, "Environments", "An environment was deleted."},
-	{"deployment_pipeline.created", ScopeOrg, "Deployment pipelines", "A deployment pipeline was created."},
-	{"deployment_pipeline.updated", ScopeOrg, "Deployment pipelines", "A deployment pipeline was updated."},
-	{"deployment_pipeline.deleted", ScopeOrg, "Deployment pipelines", "A deployment pipeline was deleted."},
-	{"agent_kind.version_added", ScopeOrg, "Agent kinds", "A version was added to an agent kind."},
-	{"agent_kind.updated", ScopeOrg, "Agent kinds", "An agent kind was updated."},
-	{"agent_kind.deleted", ScopeOrg, "Agent kinds", "An agent kind was deleted."},
-	{"git_secret.created", ScopeOrg, "Git secrets", "A git secret was created."},
-	{"git_secret.deleted", ScopeOrg, "Git secrets", "A git secret was deleted."},
 	{"user.invited", ScopeOrg, "Members", "A user was invited to the organization."},
 	{"user.created", ScopeOrg, "Members", "A user was added to the organization."},
 	{"user.deleted", ScopeOrg, "Members", "A user was removed from the organization."},
@@ -116,13 +102,6 @@ var types = []Type{
 
 	// Agent
 	{"agent.updated", ScopeAgent, "Agent", "The agent's details were updated. Sent to every environment."},
-	{"agent.build_parameters_updated", ScopeAgent, "Agent", "The agent's build parameters changed. Sent to every environment."},
-	{"agent.kind_published", ScopeAgent, "Agent", "The agent was published as an agent kind. Sent to every environment."},
-	{"agent.build_triggered", ScopeAgent, "Builds and deployments", "A build was started. Builds are not tied to an environment, so this is sent to every environment."},
-	{"agent.configuration_updated", ScopeAgent, "Configuration", "The agent's environment variables, deploy settings or resources changed in an environment."},
-	{"agent.deployed", ScopeAgent, "Builds and deployments", "A deployment to an environment was accepted. The rollout runs afterwards and can still fail."},
-	{"agent.promoted", ScopeAgent, "Builds and deployments", "A promotion into an environment was accepted. The rollout runs afterwards and can still fail."},
-	{"agent.deployment_state_changed", ScopeAgent, "Builds and deployments", "A request to start or stop a deployment was accepted. The change rolls out afterwards and can still fail."},
 }
 
 var typesByName = func() map[string]Type {
