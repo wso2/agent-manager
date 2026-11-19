@@ -74,10 +74,17 @@ const BOOKING_SKILLS: AgentRegistryA2ASkill[] = [
   {
     id: "book-hotel",
     name: "Book a hotel",
-    description: "Finds and books a hotel.",
+    description:
+      'Finds hotels near the trip\'s destination within the travel policy\'s nightly limit and books the chosen room. Select it with message metadata {"skill": "book-hotel"} or a "Book hotel:" text prefix; it is also the default.',
     tags: ["travel", "hotel"],
   },
-  { id: "book-flight", name: "Book a flight", tags: ["travel"] },
+  {
+    id: "book-flight",
+    name: "Book a flight",
+    description:
+      'Searches economy fares for the given dates and route, holds the cheapest one that fits the policy and books it once confirmed. Select it with message metadata {"skill": "book-flight"} or a "Book flight:" text prefix.',
+    tags: ["travel", "flight"],
+  },
 ];
 
 /** Governance config of one environment; anything left out is empty. */
@@ -261,7 +268,9 @@ function sampleAgents(): AgentRegistryEntry[] {
             {
               id: "cancel-booking",
               name: "Cancel a booking",
-              tags: ["travel"],
+              description:
+                'Cancels a hotel or flight booking by its reference and reports any cancellation fee before confirming. Select it with message metadata {"skill": "cancel-booking"} or a "Cancel:" text prefix.',
+              tags: ["travel", "cancel"],
             },
           ],
         }),
@@ -405,7 +414,13 @@ function sampleAgents(): AgentRegistryEntry[] {
         dev("in-progress", [LLM.anthropic], [MCP.github], 30, {
           agentId: "in_progress",
           a2aSkills: [
-            { id: "review-pr", name: "Review a pull request", tags: ["code"] },
+            {
+              id: "review-pr",
+              name: "Review a pull request",
+              description:
+                'Reads a pull request\'s diff and comments, flags likely bugs and missing tests, and suggests fixes as review comments. Select it with message metadata {"skill": "review-pr"} or a "Review:" text prefix; it is also the default.',
+              tags: ["code", "review"],
+            },
           ],
         }),
         prod("not-deployed", [], []),
