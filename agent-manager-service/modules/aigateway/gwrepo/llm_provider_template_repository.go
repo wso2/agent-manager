@@ -17,7 +17,6 @@
 package gwrepo
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -27,7 +26,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 type llmProviderTemplateConfig struct {
@@ -90,9 +88,6 @@ func unmarshalConfig(template *gwmodels.LLMProviderTemplate) error {
 func (r *LLMProviderTemplateRepo) Create(t *gwmodels.LLMProviderTemplate) error {
 	if t.UUID == uuid.Nil {
 		t.UUID = uuid.Must(uuid.NewV7())
-	}
-	if _, err := repositories.EnsureOrg(context.Background(), r.db, t.OUID); err != nil {
-		return err
 	}
 	t.CreatedAt = dbx.Now()
 	t.UpdatedAt = t.CreatedAt

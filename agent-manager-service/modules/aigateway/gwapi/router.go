@@ -17,6 +17,7 @@
 package gwapi
 
 import (
+	"log/slog"
 	"net/http"
 	"regexp"
 	"strings"
@@ -85,7 +86,24 @@ func (m moduleRouter) Track(feature string, dimensions map[string]any, h http.Ha
 
 func (m moduleRouter) handle(pattern string, perm string, h http.HandlerFunc, opts ...modkit.RouteOption) {
 	method, path, _ := strings.Cut(pattern, " ")
+	if method != http.MethodGet && method != http.MethodHead {
+		h = m.ensureOrg(h)
+	}
 	m.rt.Handle(method, path, short(perm), h, append(opts, routeOptions[pattern]...)...)
+}
+
+// ensureOrg creates the caller's organization, with its default environment,
+// before a write route stores the organization's first gateway rows, as the
+// core's own write routes do.
+func (m moduleRouter) ensureOrg(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, err := m.rt.Core().EnsureOrg(r.Context(), modkit.OrgID(r.Context())); err != nil {
+			slog.ErrorContext(r.Context(), "failed to ensure the organization", "error", err)
+			httpx.WriteErrorResponse(w, http.StatusInternalServerError, "Failed to resolve the organization")
+			return
+		}
+		h(w, r)
+	}
 }
 
 type moduleInternalRouter struct{ rt modkit.Runtime }

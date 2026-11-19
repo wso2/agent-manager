@@ -31,7 +31,6 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/httpx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // IdentityProviderWithContext is an identity provider mirror row enriched with the
@@ -656,9 +655,6 @@ func (r *GatewayRepo) AcquireGatewayLock(tx *gorm.DB, gatewayID string) error {
 // CreateTx inserts a gateway inside an existing transaction. Mirrors Create,
 // including the is_active=false default at registration.
 func (r *GatewayRepo) CreateTx(tx *gorm.DB, gateway *gwmodels.Gateway) error {
-	if _, err := repositories.EnsureOrg(tx.Statement.Context, tx, gateway.OUID); err != nil {
-		return err
-	}
 	now := dbx.Now()
 	gateway.CreatedAt, gateway.UpdatedAt = now, now
 	gateway.IsActive = false

@@ -442,7 +442,7 @@ What it already does as a module:
 
   `amp init ai-gateway DIR` reads its own keys from the same place: `CONTROLPLANE_HOST`, `ADMIN_PASSWORD`, `AMP_JWKS_URL`, `THUNDER_ISSUER`, `THUNDER_JWKS_URL`, `HOST`, `LISTENER_PORT` and `FILE_OWNER` for the controller's `config.toml`, and `DEFAULT_GATEWAY_TOKEN` as the registration token it writes (it generates and keeps one when unset).
 
-What is left: three of its repositories create the organization through the core's `repositories.EnsureOrg` inside their transactions, and its test helpers (`gwtest`) use the core's test database. Don't copy this for a new module.
+Its write routes call `rt.Core().EnsureOrg` before the handler, so an organization's first gateway rows never precede the organization. What is left: its test helpers (`gwtest`) use the core's test database. Don't copy this for a new module.
 
 ## Module boundaries
 

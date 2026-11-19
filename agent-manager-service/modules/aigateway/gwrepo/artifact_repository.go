@@ -30,7 +30,6 @@ import (
 
 	"github.com/wso2/agent-manager/agent-manager-service/modules/aigateway/gwmodels"
 	"github.com/wso2/agent-manager/agent-manager-service/pkg/dbx"
-	"github.com/wso2/agent-manager/agent-manager-service/repositories"
 )
 
 // ArtifactRepository defines the interface for artifact data access
@@ -70,9 +69,6 @@ func (r *ArtifactRepo) WithTx(tx *gorm.DB) ArtifactRepository {
 
 // Create inserts a new artifact within a transaction
 func (r *ArtifactRepo) Create(tx *gorm.DB, artifact *gwmodels.Artifact) error {
-	if _, err := repositories.EnsureOrg(tx.Statement.Context, tx, artifact.OUID); err != nil {
-		return err
-	}
 	now := dbx.Now()
 	artifact.CreatedAt = now
 	artifact.UpdatedAt = now
