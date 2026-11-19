@@ -138,6 +138,9 @@ func (reg *toolRegistry) authzMiddleware() gomcp.Middleware {
 					recordToolDeny(ctx, call.Params.Name, "subscription-suspended")
 					return denyResult(subscriptionSuspendedMessage), nil
 				}
+				// The call is refused because the policy could not decide, not
+				// because the organization is suspended; record it as such.
+				recordToolDeny(ctx, call.Params.Name, "workload-policy-check-failed")
 				return nil, fmt.Errorf("check workload policy for tool %q: %w", call.Params.Name, err)
 			}
 			return next(ctx, method, req)
