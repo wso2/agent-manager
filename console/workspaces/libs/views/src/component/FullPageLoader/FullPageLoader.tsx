@@ -16,20 +16,13 @@
  * under the License.
  */
 
-import { Box, CircularProgress } from "@wso2/oxygen-ui";
+import { PageLoader } from "@wso2/oxygen-ui";
 
+/**
+ * Full-screen loading state, shown while the app bootstraps (auth, runtime config,
+ * organizations). Oxygen UI's animated page loader; it stays in its loading phase
+ * for as long as it is mounted, and callers unmount it when ready.
+ */
 export function FullPageLoader() {
-  return (
-    <Box
-      sx={{
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        height: "100vh",
-        width: "100vw",
-      }}
-    >
-      <CircularProgress color="primary" size={48} aria-label="Loading" />
-    </Box>
-  );
+  return <PageLoader loading />;
 }
