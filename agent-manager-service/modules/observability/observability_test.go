@@ -24,6 +24,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"testing"
 	"time"
 
@@ -191,16 +192,126 @@ type configRuntime struct {
 func (r configRuntime) Config(key string) string { return r.cfg[key] }
 func (configRuntime) Logger() *slog.Logger       { return slog.New(slog.DiscardHandler) }
 
-func TestOpenStore(t *testing.T) {
-	s, err := openStore(configRuntime{cfg: map[string]string{}})
-	if _, ok := s.(*memory.Store); err != nil || !ok {
-		t.Errorf("no ClickHouse configured: openStore = %T, %v; want the memory store", s, err)
+func TestOpenStores(t *testing.T) {
+	traces, cleaner, err := openStores(configRuntime{cfg: map[string]string{}})
+	if m, ok := traces.(*memory.Store); err != nil || !ok || cleaner != agentCleaner(m) {
+		t.Errorf("no ClickHouse configured: openStores = %T, %T, %v; want the memory store for both", traces, cleaner, err)
 	}
-	s, err = openStore(configRuntime{cfg: map[string]string{"clickhouse.url": "http://clickhouse:8123", "clickhouse.user": "amp_reader"}})
-	if _, ok := s.(*clickhouse.Store); err != nil || !ok {
-		t.Errorf("ClickHouse configured: openStore = %T, %v; want the ClickHouse store", s, err)
+	ch := map[string]string{"clickhouse.url": "http://clickhouse:8123", "clickhouse.user": "amp_reader"}
+	traces, cleaner, err = openStores(configRuntime{cfg: ch})
+	if _, ok := traces.(*clickhouse.Store); err != nil || !ok || cleaner != nil {
+		t.Errorf("ClickHouse with no cleaner: openStores = %T, %T, %v; want the ClickHouse store and no cleaner", traces, cleaner, err)
 	}
-	if _, err := openStore(configRuntime{cfg: map[string]string{"clickhouse.url": "clickhouse:8123"}}); err == nil {
-		t.Error("openStore with a bad URL succeeded, want an error")
+	ch["clickhouse.cleaner-user"] = "amp_cleaner"
+	traces, cleaner, err = openStores(configRuntime{cfg: ch})
+	if _, ok := cleaner.(*clickhouse.Store); err != nil || !ok || cleaner == agentCleaner(traces.(*clickhouse.Store)) {
+		t.Errorf("ClickHouse with a cleaner: openStores = %T, %T, %v; want a separate cleaner store", traces, cleaner, err)
+	}
+	if _, _, err := openStores(configRuntime{cfg: map[string]string{"clickhouse.url": "clickhouse:8123"}}); err == nil {
+		t.Error("openStores with a bad URL succeeded, want an error")
+	}
+}
+
+func TestExternalSchemaConfig(t *testing.T) {
+	cfg := func(m map[string]string) func(string) string { return func(k string) string { return m[k] } }
+	for _, apply := range []bool{true, false} {
+		if _, err := (module{}).ExternalSchema(cfg(nil), apply); !errors.Is(err, modkit.ErrNotConfigured) {
+			t.Errorf("apply=%v with no ClickHouse: %v, want ErrNotConfigured", apply, err)
+		}
+	}
+	ch := map[string]string{"clickhouse.url": "http://clickhouse:8123", "clickhouse.user": "amp_reader"}
+	if _, err := (module{}).ExternalSchema(cfg(ch), true); !errors.Is(err, modkit.ErrNotConfigured) {
+		t.Errorf("migrating with no migrator login: %v, want ErrNotConfigured", err)
+	}
+	if s, err := (module{}).ExternalSchema(cfg(ch), false); err != nil || s.Store() != "clickhouse" {
+		t.Errorf("checking with the reader login = %v, %v; want the ClickHouse schema", s, err)
+	}
+	ch["clickhouse.migrator-user"] = "amp_migrator"
+	if s, err := (module{}).ExternalSchema(cfg(ch), true); err != nil || s.Store() != "clickhouse" {
+		t.Errorf("migrating with the migrator login = %v, %v; want the ClickHouse schema", s, err)
+	}
+	for _, bad := range []string{"0", "-1", "thirty"} {
+		ch["clickhouse.ttl-days"] = bad
+		if _, err := (module{}).ExternalSchema(cfg(ch), true); err == nil || errors.Is(err, modkit.ErrNotConfigured) {
+			t.Errorf("ttl-days %q: %v, want a config error", bad, err)
+		}
+	}
+}
+
+// recordingCleaner records the agents it was asked to delete.
+type recordingCleaner struct {
+	deleted []string
+	err     error
+}
+
+func (c *recordingCleaner) DeleteAgent(_ context.Context, orgID, agentID string) error {
+	c.deleted = append(c.deleted, orgID+"/"+agentID)
+	return c.err
+}
+
+func TestAgentDeletedDeletesThatAgentsSpans(t *testing.T) {
+	ctx := context.Background()
+	log := slog.New(slog.DiscardHandler)
+	ev := func(org, data string) modkit.Event {
+		return modkit.Event{ID: "e1", Type: modkit.EventAgentDeleted, OrgID: org, Data: []byte(data)}
+	}
+
+	c := &recordingCleaner{}
+	h := cleanup{cleaner: c, log: log}
+	if err := h.agentDeleted(ctx, ev("org-a", `{"id":"agent-1","orgId":"org-a","name":"bot"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.agentDeleted(ctx, ev("", `{"id":"agent-2","orgId":"org-b"}`)); err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"org-a/agent-1", "org-b/agent-2"}; !slices.Equal(c.deleted, want) {
+		t.Errorf("deleted %v, want %v", c.deleted, want)
+	}
+
+	// An event it can never act on is dropped, not retried.
+	for _, data := range []string{`not json`, `{"orgId":"org-a"}`, `{"id":"agent-1"}`} {
+		if err := h.agentDeleted(ctx, ev("", data)); err != nil {
+			t.Errorf("%s: %v, want nil", data, err)
+		}
+	}
+	if len(c.deleted) != 2 {
+		t.Errorf("deleted %v after unusable events", c.deleted)
+	}
+
+	// A failed delete is returned, so the event is retried.
+	c.err = errors.New("clickhouse down")
+	if err := h.agentDeleted(ctx, ev("org-a", `{"id":"agent-1"}`)); err == nil {
+		t.Error("a failed delete returned nil, want the error")
+	}
+
+	// With no cleaner login, the spans are left to expire.
+	if err := (cleanup{log: log}).agentDeleted(ctx, ev("org-a", `{"id":"agent-1"}`)); err != nil {
+		t.Errorf("no cleaner: %v, want nil", err)
+	}
+}
+
+func TestMemoryStoreDeletesOnlyThatAgent(t *testing.T) {
+	ctx := context.Background()
+	m := memory.New()
+	day := time.Date(2026, 11, 1, 1, 0, 0, 0, time.UTC)
+	add := func(org, agent, trace string) {
+		m.Add(tracesv1.Scope{OrgID: org, AgentID: agent, Names: tracesv1.Names{Org: org, Agent: agent}},
+			tracesv1.Trace{TraceID: trace, StartTime: day})
+	}
+	add("org-a", "agent-1", "a1")
+	add("org-a", "agent-2", "a2")
+	add("org-b", "agent-1", "b1")
+	if err := (cleanup{cleaner: m, log: slog.New(slog.DiscardHandler)}).agentDeleted(ctx,
+		modkit.Event{OrgID: "org-a", Data: []byte(`{"id":"agent-1"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		org, agent string
+		want       int
+	}{{"org-a", "agent-1", 0}, {"org-a", "agent-2", 1}, {"org-b", "agent-1", 1}} {
+		page, err := m.QueryTraces(ctx, tracesv1.Scope{OrgID: tc.org, AgentID: tc.agent, Names: tracesv1.Names{Org: tc.org, Agent: tc.agent}}, tracesv1.TraceQuery{})
+		if err != nil || page.Total != tc.want {
+			t.Errorf("%s/%s: %d traces, %v; want %d", tc.org, tc.agent, page.Total, err, tc.want)
+		}
 	}
 }

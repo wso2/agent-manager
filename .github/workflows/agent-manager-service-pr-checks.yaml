@@ -132,6 +132,7 @@ jobs:
             -e AMP_CLICKHOUSE_MIGRATOR_PASSWORD=migrator \
             -e AMP_CLICKHOUSE_INGEST_PASSWORD=ingest \
             -e AMP_CLICKHOUSE_READER_PASSWORD=reader \
+            -e AMP_CLICKHOUSE_CLEANER_PASSWORD=cleaner \
             -v "$PWD/agent-manager-service/modules/observability/store/clickhouse/users.xml:/etc/clickhouse-server/users.d/amp-observability.xml:ro" \
             clickhouse/clickhouse-server:25.8.33.6
 
@@ -177,6 +178,7 @@ jobs:
           AMP_CLICKHOUSE_MIGRATOR_PASSWORD: migrator
           AMP_CLICKHOUSE_INGEST_PASSWORD: ingest
           AMP_CLICKHOUSE_READER_PASSWORD: reader
+          AMP_CLICKHOUSE_CLEANER_PASSWORD: cleaner
         run: make test-integration
 
       - name: Upload integration coverage

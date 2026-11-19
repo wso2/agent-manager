@@ -60,6 +60,23 @@ func (m *Store) Queries() int {
 	return m.queries
 }
 
+// DeleteAgent drops an agent's traces in an organization.
+func (m *Store) DeleteAgent(_ context.Context, orgID, agentID string) error {
+	if orgID == "" {
+		return store.ErrMissingOrg
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	kept := m.entries[:0]
+	for _, e := range m.entries {
+		if e.scope.OrgID != orgID || e.scope.AgentID != agentID {
+			kept = append(kept, e)
+		}
+	}
+	m.entries = kept
+	return nil
+}
+
 // QueryTraces lists the Scope's traces in the window.
 func (m *Store) QueryTraces(_ context.Context, s store.Scope, q store.TraceQuery) (*store.TracePage, error) {
 	if err := s.Validate(); err != nil {
