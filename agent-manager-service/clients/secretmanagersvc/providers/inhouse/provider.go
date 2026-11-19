@@ -36,6 +36,7 @@ import (
 	"github.com/wso2/agent-manager/agent-manager-service/db/dbx"
 	"github.com/wso2/agent-manager/agent-manager-service/models"
 	"github.com/wso2/agent-manager/agent-manager-service/utils"
+	"github.com/wso2/agent-manager/agent-manager-service/vault"
 )
 
 // ProviderName is the name the provider is selected by.
@@ -86,18 +87,39 @@ type client struct {
 	rows secretmanagersvc.SecretRows
 }
 
-// secretName is the reference of the secret at location: its full scoped path
-// (organization, project, environment, agent, config and entity), without the
-// key, since one row holds all of a secret's keys. SecretRefName is not used:
-// it leaves out the project and agent and is cut to 63 characters, so two
-// agents' secrets could share a row.
+// emptySegment stands for an unset scope field in a secret's name. KV path segments can never be ".", so it cannot
+// be mistaken for a project, environment, agent or config of that name.
+const emptySegment = "."
+
+// secretName is the reference of the secret at location: its organization, project, environment, agent, config and
+// entity, without the key, since one row holds all of a secret's keys. Every field keeps its position, an unset one
+// written as emptySegment, so two locations differing in which optional field is set never share a name. The six
+// segments parse back through secretmanagersvc.ParseKVPath to the same location, so a reference this provider returns
+// finds the same row. SecretRefName is not used: it leaves out the project and agent and is cut to 63 characters.
 func secretName(location secretmanagersvc.SecretLocation) (string, error) {
-	location.SecretKey = ""
-	name, err := location.KVPath()
-	if err != nil {
-		return "", fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+	if strings.TrimSpace(location.OrgName) == "" || strings.TrimSpace(location.EntityName) == "" {
+		return "", fmt.Errorf("%w: a secret needs an organization and an entity", utils.ErrInvalidInput)
 	}
-	return name, nil
+	fields := []string{
+		location.OrgName, location.ProjectName, location.EnvironmentName,
+		location.AgentName, location.ConfigName, location.EntityName,
+	}
+	parts := make([]string, len(fields))
+	for i, field := range fields {
+		if field == emptySegment || strings.TrimSpace(field) == "" {
+			parts[i] = emptySegment
+			continue
+		}
+		segment, err := secretmanagersvc.SanitizeSegment(field)
+		if err != nil {
+			return "", fmt.Errorf("%w: %w", utils.ErrInvalidInput, err)
+		}
+		parts[i] = segment
+	}
+	if parts[0] == emptySegment || parts[5] == emptySegment {
+		return "", fmt.Errorf("%w: a secret needs an organization and an entity", utils.ErrInvalidInput)
+	}
+	return strings.Join(parts, "/"), nil
 }
 
 // rowID is the secrets row of the secret named name in org. Deriving it from
@@ -178,27 +200,91 @@ func (c *client) PatchSecret(ctx context.Context, location secretmanagersvc.Secr
 	if err != nil {
 		return "", err
 	}
-	err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := dbx.LockRow(tx, models.Secret{}.TableName(), "version", "id = ?", id); err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return secretmanagersvc.ErrSecretNotFound
-			}
-			return err
-		}
-		merged, err := c.load(ctx, tx, id)
-		if err != nil {
-			return err
-		}
+	patch := func(merged map[string]string) {
 		maps.Copy(merged, data)
 		for _, k := range keysToDelete {
 			delete(merged, k)
 		}
-		return c.store(ctx, tx, location.OrgName, id, merged)
-	})
-	if err != nil {
-		return "", err
 	}
-	return name, nil
+	for range patchAttempts {
+		state, err := c.state(ctx, id)
+		if err != nil {
+			return "", err
+		}
+		// A locally sealed value opens without I/O, so it is read under the lock. An external one is read first, since
+		// opening it calls the external vault; the lock is then taken only at the version read, and the patch starts
+		// over if a write came in between.
+		var external map[string]string
+		if state.Provider != vault.ProviderLocal {
+			if external, err = c.load(ctx, c.db.WithContext(ctx), id); err != nil {
+				return "", err
+			}
+		}
+		changed := false
+		err = c.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+			where, args := "id = ?", []any{id}
+			if external != nil {
+				where, args = "id = ? AND version = ?", []any{id, state.Version}
+			}
+			err := dbx.LockRow(tx, models.Secret{}.TableName(), "version", where, args...)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				changed = true
+				return nil
+			}
+			if err != nil {
+				return fmt.Errorf("failed to lock secret %s: %w", id, err)
+			}
+			merged := external
+			if merged == nil {
+				// Re-check under the lock: a promotion may have made the value external since state was read.
+				current, err := c.stateIn(tx, id)
+				if err != nil {
+					return err
+				}
+				if current.Provider != vault.ProviderLocal {
+					changed = true
+					return nil
+				}
+				if merged, err = c.load(ctx, tx, id); err != nil {
+					return err
+				}
+			}
+			patch(merged)
+			return c.store(ctx, tx, location.OrgName, id, merged)
+		})
+		if err != nil {
+			return "", err
+		}
+		if !changed {
+			return name, nil
+		}
+	}
+	return "", fmt.Errorf("secret %s kept changing during %d attempts to patch it", name, patchAttempts)
+}
+
+// patchAttempts bounds how often PatchSecret starts over because another write changed an external secret.
+const patchAttempts = 5
+
+// secretState is what PatchSecret checks of a secret before and after taking its lock.
+type secretState struct {
+	Version  int
+	Provider string
+}
+
+// state returns the secret's current version and vault, or ErrSecretNotFound.
+func (c *client) state(ctx context.Context, id uuid.UUID) (secretState, error) {
+	return c.stateIn(c.db.WithContext(ctx), id)
+}
+
+func (c *client) stateIn(db *gorm.DB, id uuid.UUID) (secretState, error) {
+	var states []secretState
+	if err := db.Model(&models.Secret{}).Select("version", "provider").Where("id = ?", id).Find(&states).Error; err != nil {
+		return secretState{}, fmt.Errorf("failed to read the state of secret %s: %w", id, err)
+	}
+	if len(states) == 0 {
+		return secretState{}, secretmanagersvc.ErrSecretNotFound
+	}
+	return states[0], nil
 }
 
 // DeleteSecret removes the secret. Idempotent.
@@ -237,10 +323,12 @@ func (c *client) GetSecret(ctx context.Context, location secretmanagersvc.Secret
 		return nil, err
 	}
 	return &secretmanagersvc.SecretInfo{
-		ID:     name,
-		Name:   name,
-		Keys:   slices.Sorted(maps.Keys(data)),
-		Labels: map[string]string{secretmanagersvc.LabelKeyManagedBy: secretmanagersvc.DefaultManagedBy},
+		ID:   name,
+		Name: name,
+		Keys: slices.Sorted(maps.Keys(data)),
+		// The store does not report when a secret was created; the field is omitted from the JSON when empty.
+		CreatedAt: "",
+		Labels:    map[string]string{secretmanagersvc.LabelKeyManagedBy: secretmanagersvc.DefaultManagedBy},
 	}, nil
 }
 

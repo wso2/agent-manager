@@ -21,8 +21,10 @@ package inhouse_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,6 +89,42 @@ func TestSecretsOfDifferentAgentsNeverShareARow(t *testing.T) {
 	assert.Equal(t, []string{"api-key"}, info.Keys)
 }
 
+func TestScopeFieldsKeepTheirPositions(t *testing.T) {
+	ctx, client := context.Background(), newClient(t)
+	org := dbtest.Org(t, db.GetDB())
+	project := secretmanagersvc.SecretLocation{OrgName: org, ProjectName: "p", EntityName: "model"}
+	environment := secretmanagersvc.SecretLocation{OrgName: org, EnvironmentName: "p", EntityName: "model"}
+	orgLevel := secretmanagersvc.SecretLocation{OrgName: org, EntityName: "model"}
+	locations := []secretmanagersvc.SecretLocation{project, environment, orgLevel}
+	t.Cleanup(func() {
+		for _, loc := range locations {
+			_ = client.DeleteSecret(ctx, loc, "")
+		}
+	})
+
+	refs := map[string]string{}
+	for i, loc := range locations {
+		value := []string{"project", "environment", "org"}[i]
+		ref, err := client.CreateSecret(ctx, loc, map[string]string{value: "v"})
+		require.NoError(t, err)
+		refs[ref] = value
+	}
+	require.Len(t, refs, 3, "a project, an environment of the same name and the organization are three secrets")
+	for ref, value := range refs {
+		info, err := client.GetSecret(ctx, ref)
+		require.NoError(t, err, "reference %q reads back through the client", ref)
+		assert.Equal(t, []string{value}, info.Keys, "reference %q finds its own secret", ref)
+	}
+
+	require.NoError(t, client.DeleteSecret(ctx, environment, ""))
+	for _, loc := range []secretmanagersvc.SecretLocation{project, orgLevel} {
+		ref, err := client.PatchSecret(ctx, loc, map[string]string{"k": "v"}, nil)
+		require.NoError(t, err)
+		_, err = client.GetSecret(ctx, ref)
+		require.NoError(t, err, "deleting the environment secret leaves the others")
+	}
+}
+
 func TestSecretLifecycle(t *testing.T) {
 	ctx, client := context.Background(), newClient(t)
 	org := dbtest.Org(t, db.GetDB())
@@ -104,7 +142,10 @@ func TestSecretLifecycle(t *testing.T) {
 
 	name, err := client.CreateSecret(ctx, loc, map[string]string{"api-key": "sk-123", "client-id": "abc"})
 	require.NoError(t, err)
-	assert.Equal(t, path, name, "the reference is the full scoped path")
+	assert.Equal(t, org+"/checkout/default/cart/./cart-llm", name, "the reference keeps every scope field in place")
+	byRef, err := client.GetSecret(ctx, name)
+	require.NoError(t, err, "the returned reference finds the secret")
+	assert.Equal(t, []string{"api-key", "client-id"}, byRef.Keys)
 
 	info, err := client.GetSecret(ctx, path)
 	require.NoError(t, err)
@@ -207,4 +248,35 @@ func TestSecretLimits(t *testing.T) {
 	}
 	_, err = client.CreateSecret(ctx, loc, many)
 	require.ErrorIs(t, err, utils.ErrInvalidInput)
+}
+
+func TestPatchingAPromotedSecretKeepsEveryKey(t *testing.T) {
+	ctx := context.Background()
+	vaults, external := vaulttest.LocalAndExternal(t)
+	client, err := secretmanagersvc.NewSecretManagementClient(&secretmanagersvc.StoreConfig{
+		Provider: inhouse.ProviderName,
+		DB:       db.GetDB(),
+		Secrets:  repositories.NewSecretStore(vaults),
+	}, inhouse.NewProvider())
+	require.NoError(t, err)
+	runner := repositories.NewSecretJobRunner(db.GetDB(), vaults, slog.New(slog.DiscardHandler))
+	promote := func() {
+		t.Helper()
+		_, failed, err := runner.RunOnce(ctx, time.Now().UTC())
+		require.NoError(t, err)
+		require.Zero(t, failed)
+	}
+	org := dbtest.Org(t, db.GetDB())
+	loc := secretmanagersvc.SecretLocation{OrgName: org, EntityName: "promoted"}
+	ref, err := client.CreateSecret(ctx, loc, map[string]string{"a": "1"})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.DeleteSecret(ctx, loc, ""); promote() })
+	promote()
+	require.Equal(t, 1, external.Len(), "precondition: the secret lives in the external vault")
+
+	_, err = client.PatchSecret(ctx, loc, map[string]string{"b": "2"}, nil)
+	require.NoError(t, err)
+	info, err := client.GetSecret(ctx, ref)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a", "b"}, info.Keys)
 }
